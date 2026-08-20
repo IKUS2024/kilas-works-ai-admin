@@ -130,6 +130,28 @@ def receive_webhook():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route("/privacy", methods=["GET"])
+def privacy_policy():
+    return """
+    <html>
+    <head><title>Kebijakan Privasi - Kilas Works</title></head>
+    <body style="font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6;">
+    <h1>Kebijakan Privasi Kilas Works</h1>
+    <p>Terakhir diperbarui: 20 Agustus 2026</p>
+    <p>Kilas Works ("kami") menghargai privasi Anda. Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi Anda saat menggunakan layanan WhatsApp Admin AI kami.</p>
+    <h2>Informasi yang Kami Kumpulkan</h2>
+    <p>Kami mengumpulkan nomor WhatsApp dan isi percakapan yang Anda kirim ke Admin Kilas Works untuk keperluan menjawab pertanyaan, memberikan informasi layanan, dan menindaklanjuti kebutuhan Anda.</p>
+    <h2>Penggunaan Informasi</h2>
+    <p>Informasi yang dikumpulkan hanya digunakan untuk merespons pertanyaan Anda, memproses permintaan layanan, dan komunikasi terkait bisnis Kilas Works. Kami tidak menjual atau membagikan data Anda ke pihak ketiga untuk tujuan pemasaran.</p>
+    <h2>Keamanan Data</h2>
+    <p>Kami berupaya menjaga keamanan data Anda dengan langkah-langkah teknis yang wajar.</p>
+    <h2>Kontak</h2>
+    <p>Jika ada pertanyaan mengenai kebijakan privasi ini, hubungi kami di karnawiirvan2@gmail.com.</p>
+    </body>
+    </html>
+    """, 200
+
+
 @app.route("/", methods=["GET"])
 def health_check():
     return "Kilas Works AI Admin - server jalan!", 200
