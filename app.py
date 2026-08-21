@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from flask import Flask, request, jsonify
 
@@ -10,30 +11,123 @@ WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "kilasworks123")  # bebas, dipakai buat verifikasi webhook di Meta
 
+# Nomor WA PRIBADI owner (BUKAN nomor bot) — dipakai buat kirim notifikasi leads panas &
+# pertanyaan yang AI-nya gak yakin jawab. Format: kode negara + nomor, tanpa "+" dan tanpa spasi.
+OWNER_WHATSAPP_NUMBER = os.environ.get("OWNER_WHATSAPP_NUMBER", "14048836437")
+
+# Path ke file gambar QR code pembayaran statis (QRIS/GoPay/DANA/dll), disimpan di repo yang sama.
+# Kalau file belum ada, fitur kirim QR otomatis bakal di-skip (fallback ke pesan teks biasa).
+# CATATAN: belum dipakai dulu (per 21 Agustus 2026) — QR yang ada sekarang ternyata sekali pakai
+# (hasil generate myBCA), belum aman buat dikirim berulang ke banyak customer. Nyusul kalau udah
+# ada QRIS statis reusable atau payment gateway (Midtrans/Xendit).
+QR_IMAGE_PATH = os.environ.get("QR_IMAGE_PATH", "qr_payment.jpg")
+
+# Path ke file katalog PDF (harga & layanan lengkap) yang dikirim ke customer kalau mereka
+# mau lihat daftar lengkap paket/harga dalam bentuk dokumen.
+CATALOG_PDF_PATH = os.environ.get("CATALOG_PDF_PATH", "katalog.pdf")
+CATALOG_PDF_FILENAME = "Katalog-Layanan-Harga-Kilas-Works.pdf"
+
 # Simpan histori chat sederhana per nomor (in-memory, reset kalau server restart)
 conversations = {}
 
-SYSTEM_PROMPT = """Kamu adalah Admin Kilas Works, admin WhatsApp untuk bisnis jasa fotografi, videografi, dan
-short-form content (Reels/TikTok) di Tangerang & Jakarta, Indonesia. Balas dengan gaya WhatsApp yang santai,
-ramah, profesional, bahasa Indonesia sehari-hari. Jawaban singkat, maksimal 3-4 kalimat per balasan.
+SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok
+di Tangerang & Jakarta). Balas kayak MANUSIA ASLI lagi WhatsApp-an, BUKAN kayak bot atau customer service kaku.
 
-INFO BISNIS:
-- Layanan: Fotografi, videografi, short-form content (Reels/TikTok), foto produk, produksi konten brand
-- Lokasi: Tangerang & Jakarta (bisa didiskusikan kalau di luar itu)
-- Paket:
-  - Starter (konten only): Rp1.500.000 - Rp2.500.000/bulan
-  - Growth (konten + AI admin): Rp3.500.000 - Rp5.000.000/bulan
-  - Scale (all-in-one, konten + AI WA/IG + ads): Rp6.000.000 - Rp10.000.000/bulan
-- Proses kerja: diskusi kebutuhan -> jadwal shoot/produksi -> editing -> revisi -> hasil akhir dikirim
+GAYA BALASAN (penting banget):
+- Pendek-pendek, natural, kayak orang chat beneran. 1-3 kalimat per balasan, JANGAN bikin paragraf panjang
+  atau list bullet formal.
+- Boleh santai: "nih", "ya", "sih", "oke", jangan bahasa baku kaku ("Baik, berikut adalah...", "Dengan senang
+  hati kami...").
+- Emoji secukupnya aja (0-1 per balasan), jangan berlebihan.
+- Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural.
+
+INFO HARGA & PAKET (PAKAI ANGKA INI PERSIS, JANGAN NGARANG ANGKA LAIN):
+
+Paket bulanan (langganan konten):
+- Starter: Rp2.000.000/bulan — 10-12 foto produk/lifestyle + 4 video Reels/TikTok tiap bulan
+- Growth (paling laris): Rp4.200.000/bulan — semua yang di Starter + AI WhatsApp Admin 24 jam (auto-jawab
+  chat, saring leads, invoice & QR otomatis)
+- Scale: Rp7.500.000/bulan — semua yang di Growth + AI Admin juga jalan di DM Instagram + kelola Ads bulanan
+- Ultimate: Rp8.200.000/bulan — semua yang di Scale + dibikinin website company profile gratis di awal
+- Semua paket bulanan default-nya 4 video/bulan. Kalau klien mau 8 video/bulan, tambah flat Rp2.000.000 dari
+  harga paket manapun yang diambil.
+
+AI WhatsApp Admin standalone (buat yang udah punya konten sendiri, ga perlu paket produksi): Rp1.500.000/bulan
+
+Website (sekali bayar, BUKAN bulanan):
+- Landing Page (1 halaman): Rp800.000
+- Company Profile (5 halaman, paling laris): Rp1.500.000
+
+Foto & Video Acara (sekali bayar per acara — wedding, ulang tahun, corporate, otomotif, gathering, dll, BUKAN
+cuma wedding):
+- Acara Standard: Rp1.500.000 — 1 fotografer, sampai 5 jam, semua file foto digital
+- Acara Lengkap (paling laris): Rp3.500.000 — 1 fotografer + 1 videografer, sampai 8 jam, video highlight
+  sinematik 3-5 menit
+- Acara Premium: Rp5.500.000 — 2 fotografer + 1 videografer, sampai 8 jam, video sinematik + teaser Reels +
+  album cetak premium
+
+Biaya transport: gratis untuk area Tangerang & Jakarta. Di luar itu (Depok/Bekasi/Bogor dst) kena tambahan
+Rp250.000/lokasi.
+
+ATURAN JAWAB HARGA:
+- JANGAN LANGSUNG kasih harga begitu ada yang nanya harga, walaupun mereka udah nyebut nama paket spesifik
+  (misal "Growth berapa" atau "paket yang ada AI admin-nya harganya berapa"). Tanya dulu singkat kebutuhan
+  mereka — foto/video rutin bulanan atau sekali acara, butuh AI admin apa nggak, kira-kira mau yang seringan
+  apa yang lengkap.
+- Habis tau kebutuhannya, BARU kasih rekomendasi 1 paket paling cocok beserta harganya. Kalau ternyata paket
+  yang mereka sebut di awal emang paling cocok, ya jelasin itu paketnya + harganya.
+- Jangan interogasi kepanjangan juga — cukup 1-2 pertanyaan buat gali kebutuhan sebelum kasih rekomendasi &
+  harga, jangan sampai kelamaan muter-muter.
+- Sekarang BOLEH dan HARUS sebutin angka Rupiah & nama paket setelah tau kebutuhannya — pakai persis angka
+  di atas.
+
+SOAL PEMBAYARAN:
+- Kalau customer udah FIX mau lanjut/booking dan siap bayar, bilang santai bahwa nanti tim yang kirimin
+  detail pembayaran & konfirmasi (JANGAN klaim kamu langsung kirim QR/invoice sendiri saat itu juga — fitur
+  ini belum aktif).
+
+SOAL KATALOG LENGKAP:
+- SAMA KAYAK ATURAN JAWAB HARGA DI ATAS — walaupun customer langsung minta katalog/pricelist di awal chat
+  ("ada katalog gak", "kirim pricelist dong", "boleh liat semua paketnya"), JANGAN LANGSUNG kirim. Tanya dulu
+  singkat kebutuhan mereka (1-2 pertanyaan aja), biar kamu bisa arahin ke bagian katalog yang relevan pas
+  ngobrol duluan.
+- Kalau abis gali kebutuhan mereka masih pengen liat semua pilihan sekalian (wajar, biar bisa mikir-mikir),
+  BARU boleh kirim katalog lengkapnya. Bilang santai kamu kirimin sekarang, terus sertakan tag
+  "[KIRIM_KATALOG]" di balasanmu (taruh di mana aja dalam kalimat, sistem yang proses, customer gak bakal
+  lihat teks tag-nya).
+
+KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA:
+- Jangan ngarang jawaban. Jawab jujur ke customer bahwa kamu bakal cek dulu & confirm ya, dengan bahasa
+  santai (bukan "Mohon maaf, akan segera saya konfirmasi").
+- Sertakan tag "[TANYA_OWNER]" di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat
+  teks tag-nya) supaya pertanyaan ini diteruskan ke owner buat dijawab manual.
 
 ALUR:
-1. Sapa ramah, tanya kebutuhan customer.
-2. Jawab pertanyaan pakai info di atas. Kalau ga yakin, bilang "nanti dicek & di-confirm ya" (jangan ngarang).
-3. Gali kebutuhan: jenis bisnis, kebutuhan konten (sekali produksi/rutin), budget, kapan mau mulai.
-4. Kalau customer udah serius mau booking/lanjut, bilang bahwa nanti akan diteruskan ke tim (owner) untuk
-   follow up lebih lanjut, dan sertakan "[LEADS PANAS]" di awal balasanmu supaya sistem tahu ini leads serius.
-5. Jangan kasih harga final di luar range paket. Jangan janji jadwal pasti tanpa konfirmasi owner.
+1. Sapa natural, jangan template basa-basi panjang.
+2. Gali kebutuhan customer secukupnya aja, jangan interogasi.
+3. Kasih rekomendasi & harga paket yang relevan sesuai aturan di atas.
+4. Kalau customer udah serius mau booking/lanjut (leads panas), sertakan tag "[LEADS_PANAS]" di balasanmu
+   (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
+5. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
 """
+
+# Tag internal yang dipakai AI buat kasih sinyal ke sistem. Semua ini di-strip dari pesan
+# sebelum dikirim ke customer, supaya customer gak pernah lihat teks tag mentah.
+TAG_LEADS_PANAS = "[LEADS_PANAS]"
+TAG_TANYA_OWNER = "[TANYA_OWNER]"
+TAG_KIRIM_QR = "[KIRIM_QR]"
+TAG_KIRIM_KATALOG = "[KIRIM_KATALOG]"
+ALL_TAGS = [TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, "[LEADS PANAS]"]  # jaga-jaga variasi lama
+
+
+def strip_tags(text):
+    """Buang semua tag internal dari teks yang bakal dikirim ke customer, rapihin spasi sisa."""
+    cleaned = text
+    for tag in ALL_TAGS:
+        cleaned = cleaned.replace(tag, "")
+    cleaned = re.sub(r"[ \t]+", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def call_claude(user_number, user_message):
@@ -67,7 +161,7 @@ def call_claude(user_number, user_message):
 
 
 def send_whatsapp_message(to_number, message_text):
-    """Kirim pesan balasan lewat WhatsApp Cloud API."""
+    """Kirim pesan teks balasan lewat WhatsApp Cloud API."""
     url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
@@ -84,6 +178,92 @@ def send_whatsapp_message(to_number, message_text):
     return r
 
 
+def upload_media(file_path, mime_type):
+    """Upload file (gambar/dokumen) ke WhatsApp Cloud API, balikin media_id-nya (atau None kalau gagal)."""
+    if not os.path.exists(file_path):
+        print(f"File gak ketemu di path: {file_path} — skip kirim.")
+        return None
+
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/media"
+    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    try:
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f, mime_type)}
+            data = {"messaging_product": "whatsapp"}
+            r = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+        print("Upload media response:", r.status_code, r.text)
+        if r.status_code == 200:
+            return r.json().get("id")
+    except Exception as e:
+        print("Error upload media:", e)
+    return None
+
+
+def send_qr_code(to_number):
+    """Kirim gambar QR code pembayaran statis ke customer, kalau file-nya ada.
+    BELUM DIPAKAI dulu (lihat catatan di QR_IMAGE_PATH) — fungsi ini disiapin buat nanti."""
+    media_id = upload_media(QR_IMAGE_PATH, "image/jpeg")
+    if not media_id:
+        return False
+
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "image",
+        "image": {
+            "id": media_id,
+            "caption": "Ini QR code buat pembayarannya ya, nanti nominal & konfirmasi dibantu tim kita 🙏",
+        },
+    }
+    r = requests.post(url, headers=headers, json=payload, timeout=30)
+    print("Kirim QR response:", r.status_code, r.text)
+    return r.status_code == 200
+
+
+def send_catalog_pdf(to_number):
+    """Kirim katalog PDF (daftar lengkap layanan & harga) ke customer sebagai dokumen."""
+    media_id = upload_media(CATALOG_PDF_PATH, "application/pdf")
+    if not media_id:
+        return False
+
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "document",
+        "document": {
+            "id": media_id,
+            "filename": CATALOG_PDF_FILENAME,
+            "caption": "Ini katalog lengkap layanan & harga Kilas Works ya 📄",
+        },
+    }
+    r = requests.post(url, headers=headers, json=payload, timeout=30)
+    print("Kirim katalog response:", r.status_code, r.text)
+    return r.status_code == 200
+
+
+def notify_owner(from_number, reason, last_message):
+    """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas / pertanyaan yang perlu dijawab manual."""
+    if not OWNER_WHATSAPP_NUMBER:
+        return
+    text = (
+        f"🔔 {reason}\n\n"
+        f"Dari: wa.me/{from_number}\n"
+        f'Pesan terakhir: "{last_message}"\n\n'
+        f"Cek & follow up langsung ke nomor itu ya."
+    )
+    send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+
+
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
     """Meta bakal manggil ini pas kita setup webhook, buat verifikasi."""
@@ -98,7 +278,7 @@ def verify_webhook():
 
 @app.route("/webhook", methods=["POST"])
 def receive_webhook():
-    """Nerima pesan masuk dari WhatsApp, balas pakai AI."""
+    """Nerima pesan masuk dari WhatsApp, balas pakai AI, dan proses tag internal (leads panas / QR / tanya owner)."""
     data = request.get_json()
     print("Webhook masuk:", data)
 
@@ -122,34 +302,31 @@ def receive_webhook():
         user_text = message["text"]["body"]
 
         ai_reply = call_claude(from_number, user_text)
-        send_whatsapp_message(from_number, ai_reply)
+
+        # Deteksi tag internal SEBELUM di-strip, baru kirim versi bersih ke customer
+        is_leads_panas = TAG_LEADS_PANAS in ai_reply or "[LEADS PANAS]" in ai_reply
+        needs_owner = TAG_TANYA_OWNER in ai_reply
+        wants_qr = TAG_KIRIM_QR in ai_reply
+        wants_catalog = TAG_KIRIM_KATALOG in ai_reply
+
+        clean_reply = strip_tags(ai_reply)
+        send_whatsapp_message(from_number, clean_reply)
+
+        if wants_qr:
+            send_qr_code(from_number)
+
+        if wants_catalog:
+            send_catalog_pdf(from_number)
+
+        if is_leads_panas:
+            notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
+        elif needs_owner:
+            notify_owner(from_number, "Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual", user_text)
 
     except Exception as e:
         print("Error processing webhook:", e)
 
     return jsonify({"status": "ok"}), 200
-
-
-@app.route("/privacy", methods=["GET"])
-def privacy_policy():
-    return """
-    <html>
-    <head><title>Kebijakan Privasi - Kilas Works</title></head>
-    <body style="font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6;">
-    <h1>Kebijakan Privasi Kilas Works</h1>
-    <p>Terakhir diperbarui: 20 Agustus 2026</p>
-    <p>Kilas Works ("kami") menghargai privasi Anda. Kebijakan ini menjelaskan bagaimana kami mengumpulkan, menggunakan, dan melindungi informasi Anda saat menggunakan layanan WhatsApp Admin AI kami.</p>
-    <h2>Informasi yang Kami Kumpulkan</h2>
-    <p>Kami mengumpulkan nomor WhatsApp dan isi percakapan yang Anda kirim ke Admin Kilas Works untuk keperluan menjawab pertanyaan, memberikan informasi layanan, dan menindaklanjuti kebutuhan Anda.</p>
-    <h2>Penggunaan Informasi</h2>
-    <p>Informasi yang dikumpulkan hanya digunakan untuk merespons pertanyaan Anda, memproses permintaan layanan, dan komunikasi terkait bisnis Kilas Works. Kami tidak menjual atau membagikan data Anda ke pihak ketiga untuk tujuan pemasaran.</p>
-    <h2>Keamanan Data</h2>
-    <p>Kami berupaya menjaga keamanan data Anda dengan langkah-langkah teknis yang wajar.</p>
-    <h2>Kontak</h2>
-    <p>Jika ada pertanyaan mengenai kebijakan privasi ini, hubungi kami di karnawiirvan2@gmail.com.</p>
-    </body>
-    </html>
-    """, 200
 
 
 @app.route("/", methods=["GET"])
