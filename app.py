@@ -4,6 +4,12 @@ import time
 import requests
 from flask import Flask, request, jsonify
 
+try:
+    import psycopg2
+    import psycopg2.extras
+except ImportError:
+    psycopg2 = None
+
 app = Flask(__name__)
 
 # ==== KONFIGURASI (diambil dari environment variables) ====
@@ -11,6 +17,217 @@ WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "kilasworks123")  # bebas, dipakai buat verifikasi webhook di Meta
+
+# Password buat buka halaman dashboard (/dashboard?key=...). GANTI ini di environment variable
+# Render, jangan pakai default di production.
+DASHBOARD_KEY = os.environ.get("DASHBOARD_KEY", "kilasworks-dashboard")
+
+# Connection string database Postgres (dari Supabase, dll). Kalau kosong, bot tetep jalan normal
+# tapi history chat cuma kesimpen sementara di memori (ilang kalau server restart) — sama kayak
+# sebelumnya. Isi env var ini di Render buat aktifin penyimpanan permanen.
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+
+# ==== DATABASE (opsional, buat nyimpen history chat secara permanen) ====
+
+def db_enabled():
+    return bool(DATABASE_URL) and psycopg2 is not None
+
+
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
+
+
+def init_db():
+    """Bikin tabel 'messages' kalau belum ada. Dipanggil sekali pas server start."""
+    if not db_enabled():
+        print("DATABASE_URL belum diset — history chat cuma kesimpen sementara di memori.")
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id SERIAL PRIMARY KEY,
+                number TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_number_mode ON messages (number, mode);")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS customer_profiles (
+                number TEXT PRIMARY KEY,
+                name TEXT,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            """
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Database siap — history chat bakal kesimpen permanen.")
+    except Exception as e:
+        print(f"Gagal konek/init database ({e}). History chat cuma kesimpen sementara di memori.")
+
+
+def save_message_to_db(number, mode, role, content):
+    """Simpen satu pesan (dari customer/owner ATAU balasan AI) ke database. Kalau DB gak
+    kekonek/gak diset, diem-diem gak ngapa-ngapain (bot tetep jalan normal)."""
+    if not db_enabled():
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO messages (number, mode, role, content) VALUES (%s, %s, %s, %s)",
+            (number, mode, role, content),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Gagal simpen pesan ke database ({e}).")
+
+
+def load_recent_messages_from_db(number, mode, limit=20):
+    """Ambil N pesan terakhir punya satu nomor dari database, buat isi ulang konteks chat
+    AI pas server abis restart (jadi AI gak lupa obrolan sebelumnya)."""
+    if not db_enabled():
+        return []
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT role, content FROM messages WHERE number = %s AND mode = %s "
+            "ORDER BY id DESC LIMIT %s",
+            (number, mode, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        rows.reverse()
+        return [{"role": r[0], "content": r[1]} for r in rows]
+    except Exception as e:
+        print(f"Gagal ambil history dari database ({e}).")
+        return []
+
+
+def load_all_conversations_from_db(mode):
+    """Ambil SEMUA history per nomor (dikelompokkin), dipakai buat nampilin dashboard biar
+    tetep kelihatan lengkap walau server abis restart."""
+    if not db_enabled():
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT number, role, content, created_at FROM messages WHERE mode = %s ORDER BY id ASC",
+            (mode,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        grouped = {}
+        for number, role, content, created_at in rows:
+            grouped.setdefault(number, []).append(
+                {"role": role, "content": content, "created_at": created_at}
+            )
+        return grouped
+    except Exception as e:
+        print(f"Gagal ambil semua history dari database ({e}).")
+        return {}
+
+
+def save_customer_name_to_db(number, name):
+    """Simpen/update nama customer secara permanen. Kalau DB gak aktif, diem-diem gak ngapa-ngapain
+    (nama tetep kesimpen sementara di cache in-memory `customer_names`)."""
+    if not db_enabled():
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO customer_profiles (number, name) VALUES (%s, %s)
+            ON CONFLICT (number) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()
+            """,
+            (number, name),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Gagal simpen nama customer ke database ({e}).")
+
+
+def load_all_customer_names_from_db():
+    """Ambil semua nama customer yang udah kesimpen, buat dipakai isi ulang cache pas server abis
+    restart, dan buat disisipin ke konteks owner."""
+    if not db_enabled():
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT number, name FROM customer_profiles")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {number: name for number, name in rows}
+    except Exception as e:
+        print(f"Gagal ambil nama customer dari database ({e}).")
+        return {}
+
+
+def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150):
+    """Susun ringkasan SEMUA customer (nama + history chat terakhir mereka), buat disisipin ke system
+    prompt mode-owner supaya AI bisa jawab pertanyaan Irvan soal customer mana aja, kapan aja — bukan
+    cuma yang lagi pending. Dibatasi jumlah customer & panjang pesan biar prompt-nya gak kebesaran."""
+
+    def trunc(text):
+        text = (text or "").replace("\n", " ").strip()
+        return text if len(text) <= max_msg_len else text[:max_msg_len] + "..."
+
+    if db_enabled():
+        all_convos = load_all_conversations_from_db("customer")  # {number: [{role,content,created_at}]}
+        names = load_all_customer_names_from_db()
+        items = sorted(
+            all_convos.items(),
+            key=lambda kv: kv[1][-1]["created_at"] if kv[1] else "",
+            reverse=True,
+        )
+    else:
+        # Fallback tanpa database: cuma data yang ada di memori sejak server terakhir nyala.
+        items = list(conversations.items())[::-1]
+        names = customer_names
+
+    items = items[:max_customers]
+
+    if not items:
+        return "\n\nBelum ada history chat customer sama sekali."
+
+    blocks = []
+    for number, history in items:
+        name = names.get(number)
+        label = f"{name} (wa.me/{number})" if name else f"wa.me/{number} (nama belum diketahui)"
+        pending_note = " ⏳ [lagi nunggu jawaban kamu]" if number in pending_owner_questions else ""
+        recent = history[-max_messages_per_customer:]
+        lines = []
+        for msg in recent:
+            speaker = "Customer" if msg.get("role") == "user" else "AI"
+            lines.append(f"  {speaker}: {trunc(msg.get('content'))}")
+        blocks.append(f"- {label}{pending_note}\n" + "\n".join(lines))
+
+    return (
+        "\n\nDAFTAR CUSTOMER & HISTORY CHAT MEREKA (buat referensi jawab pertanyaan Irvan soal customer "
+        f"mana aja — ditampilin {len(items)} customer paling aktif, tiap orang max "
+        f"{max_messages_per_customer} pesan terakhir):\n" + "\n\n".join(blocks)
+    )
 
 # Nomor WA PRIBADI owner (BUKAN nomor bot) — dipakai buat kirim notifikasi leads panas,
 # pertanyaan yang AI-nya gak yakin jawab, dan konfirmasi pembayaran. Format: kode negara +
@@ -38,6 +255,10 @@ pending_owner_questions = {}
 # Histori chat terpisah antara owner & AI (mode "asisten pribadi owner", beda dari histori
 # chat AI dengan customer di variable `conversations`).
 owner_conversations = {}
+
+# Nama customer yang udah ketauan (in-memory cache, key = nomor customer, value = nama). Kalau
+# database aktif, ini juga kesimpen permanen di tabel customer_profiles.
+customer_names = {}
 
 # Marker yang WAJIB dipakai AI di balasannya (mode owner) kalau owner udah eksplisit nyuruh
 # forward jawaban ke customer. Bagian SEBELUM marker ini = balasan ke owner (konfirmasi),
@@ -192,6 +413,31 @@ ALUR:
 5. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
 """
 
+
+def build_customer_system_prompt(user_number):
+    """Susun system prompt customer, sisipin konteks soal nama customer ini (kalau udah tau dari
+    profil WhatsApp / obrolan sebelumnya, kasih tau AI biar gak nanya lagi; kalau belum, larang AI
+    nanya di pembuka obrolan)."""
+    name = customer_names.get(user_number)
+    if name:
+        name_context = (
+            f'\n\nNAMA CUSTOMER INI: kamu udah tau namanya, yaitu "{name}" (dari profil WhatsApp dia / '
+            "obrolan sebelumnya). JANGAN nanya nama lagi. Boleh sesekali natural manggil pakai nama itu, "
+            "tapi gak usah maksa dipakai di tiap balasan."
+        )
+    else:
+        name_context = (
+            "\n\nNAMA CUSTOMER INI: kamu belum tau namanya. JANGAN nanya nama di pesan pembuka atau di awal "
+            "obrolan (jangan jadiin itu basa-basi pertama). Ngobrol dulu natural soal kebutuhan mereka. "
+            "Nanti kalau obrolannya udah jalan & momennya pas (misal pas mau kirim katalog, mau lanjut "
+            "booking, dll), boleh sesekali nanya namanya secara natural & santai, gak usah interogasi kalau "
+            'mereka keliatan males jawab. BEGITU dia kasih tau namanya (kapan aja momennya), WAJIB sertain '
+            'tag "[NAMA: <nama customer>]" di balasanmu (taruh di mana aja, sistem yang proses & simpan, '
+            "customer gak bakal lihat teks tag-nya). Cukup sekali aja pas pertama kali dapet namanya."
+        )
+    return SYSTEM_PROMPT + name_context
+
+
 SYSTEM_PROMPT_OWNER_BASE = """Kamu asisten pribadi Irvan, founder Kilas Works (jasa fotografi, videografi, konten
 short-form & AI WhatsApp Admin di Tangerang & Jakarta). Kamu lagi chat LANGSUNG sama Irvan (owner-nya sendiri),
 BUKAN sama customer — jadi gaya bicara ke dia santai & to the point kayak ngobrol sama partner kerja, bukan
@@ -219,11 +465,21 @@ ATURAN PALING PENTING:
   bentuk apapun — balas natural aja kayak obrolan biasa.
 - Kalau emang lagi gak ada pertanyaan customer yang pending, anggap ini obrolan santai/kerjaan lain sama
   Irvan aja, bantu apa yang dia butuhin.
+
+AKSES HISTORY SEMUA CUSTOMER:
+- Di bawah ada daftar SEMUA customer yang pernah chat, lengkap sama nama (kalau udah ketauan) dan history
+  obrolan mereka sama AI customer-service. Ini data ASLI & LENGKAP, bukan karangan.
+- Kalau Irvan nanya soal customer mana aja — "yang tadi chat nanya apa", "si Budi udah tanya apa aja",
+  "ada yang chat gak barusan", "siapa aja yang chat hari ini" dll — jawab BERDASARKAN data di daftar itu.
+  JANGAN bilang "aku gak tau" atau "gak ada akses" kalau datanya emang ada di situ.
+- Kalau customer yang dimaksud Irvan gak ketemu di daftar (belum pernah chat / namanya beda), baru bilang
+  jujur kalau gak nemu datanya.
 """
 
 
 def build_owner_system_prompt(pending_question, pending_customer_number):
-    """Susun system prompt mode-owner, sisipin konteks pertanyaan customer yang lagi pending (kalau ada)."""
+    """Susun system prompt mode-owner, sisipin konteks pertanyaan customer yang lagi pending (kalau ada)
+    dan ringkasan history semua customer biar owner bisa nanya soal siapa aja/apa aja kapan aja."""
     if pending_question:
         context = (
             f'\n\nPERTANYAAN CUSTOMER YANG LAGI PENDING (dari wa.me/{pending_customer_number}): '
@@ -231,14 +487,18 @@ def build_owner_system_prompt(pending_question, pending_customer_number):
         )
     else:
         context = "\n\nGak ada pertanyaan customer yang pending saat ini."
+    context += build_customer_context_summary()
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
 def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number):
     """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
     call_claude() yang dipakai buat customer. Sama-sama Haiku default + fallback Sonnet."""
-    history = owner_conversations.get(owner_number, [])
+    history = owner_conversations.get(owner_number)
+    if history is None:
+        history = load_recent_messages_from_db(owner_number, "owner")  # isi ulang kalau server abis restart
     history.append({"role": "user", "content": owner_message})
+    save_message_to_db(owner_number, "owner", "user", owner_message)
 
     system_prompt = build_owner_system_prompt(pending_question, pending_customer_number)
     model_to_use = "claude-3-5-haiku-20241022"
@@ -285,6 +545,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
 
     history.append({"role": "assistant", "content": reply_text})
     owner_conversations[owner_number] = history[-20:]
+    save_message_to_db(owner_number, "owner", "assistant", reply_text)
 
     return reply_text
 
@@ -300,6 +561,10 @@ ALL_TAGS = [
     TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, TAG_SUDAH_BAYAR,
     "[LEADS PANAS]",  # jaga-jaga variasi lama
 ]
+
+# Tag dinamis buat nangkep nama customer, formatnya "[NAMA: Budi]" — beda dari tag lain di atas
+# karena isinya berubah-ubah, jadi dideteksi pakai regex, bukan exact match di ALL_TAGS.
+TAG_NAMA_PATTERN = re.compile(r"\[NAMA:\s*([^\]]+)\]", re.IGNORECASE)
 
 # Berapa lama "mengetik..." ditampilkan sebelum tiap chat bubble dikirim (biar natural, bukan
 # langsung nembak semua pesan dalam sepersekian detik).
@@ -323,8 +588,13 @@ def call_claude(user_number, user_message):
     Default: Haiku (cost-optimal, default model untuk customer chat)
     Fallback: Sonnet (jika Haiku tidak tersedia atau gagal)
     """
-    history = conversations.get(user_number, [])
+    history = conversations.get(user_number)
+    if history is None:
+        history = load_recent_messages_from_db(user_number, "customer")  # isi ulang kalau server abis restart
     history.append({"role": "user", "content": user_message})
+    save_message_to_db(user_number, "customer", "user", user_message)
+
+    system_prompt = build_customer_system_prompt(user_number)
 
     # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis)
     model_to_use = "claude-3-5-haiku-20241022"
@@ -340,7 +610,7 @@ def call_claude(user_number, user_message):
             json={
                 "model": model_to_use,
                 "max_tokens": 400,
-                "system": SYSTEM_PROMPT,
+                "system": system_prompt,
                 "messages": history,
             },
             timeout=30,
@@ -360,7 +630,7 @@ def call_claude(user_number, user_message):
             json={
                 "model": model_to_use,
                 "max_tokens": 400,
-                "system": SYSTEM_PROMPT,
+                "system": system_prompt,
                 "messages": history,
             },
             timeout=30,
@@ -372,6 +642,7 @@ def call_claude(user_number, user_message):
 
     history.append({"role": "assistant", "content": reply_text})
     conversations[user_number] = history[-20:]  # simpan 20 pesan terakhir aja
+    save_message_to_db(user_number, "customer", "assistant", reply_text)
 
     return reply_text
 
@@ -503,6 +774,18 @@ def send_catalog_pdf(to_number):
     return r.status_code == 200
 
 
+def notify_owner_new_message(from_number, message_text, name=None):
+    """Kirim notifikasi ringan ke owner SETIAP kali ada pesan masuk dari customer manapun (bukan
+    cuma pas leads panas/tanya owner/dll) — biar owner selalu tau siapa aja yang lagi chat & nanya
+    apa, real-time. Ini terpisah dari notify_owner/notify_owner_question yang isinya notifikasi
+    khusus buat aksi tertentu (leads panas, tanya owner, dsb) — bisa muncul barengan kalau relevan."""
+    if not OWNER_WHATSAPP_NUMBER:
+        return
+    who = f"{name} (wa.me/{from_number})" if name else f"wa.me/{from_number}"
+    text = f'💬 Chat masuk dari {who}:\n"{message_text}"'
+    send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+
+
 def notify_owner(from_number, reason, last_message):
     """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas atau konfirmasi
     pembayaran. (Untuk pertanyaan yang perlu dijawab manual, lihat notify_owner_question — itu
@@ -598,6 +881,7 @@ def receive_webhook():
                     history = conversations.get(pending_customer_number, [])
                     history.append({"role": "assistant", "content": customer_facing})
                     conversations[pending_customer_number] = history[-20:]
+                    save_message_to_db(pending_customer_number, "customer", "assistant", customer_facing)
                     send_reply_bubbles(pending_customer_number, None, customer_facing)
 
                 del pending_owner_questions[pending_customer_number]
@@ -621,7 +905,29 @@ def receive_webhook():
 
         user_text = message["text"]["body"]
 
+        # Kalau kita belum tau nama customer ini, coba ambil dari profil WhatsApp-nya dulu (kalau
+        # dia emang punya nama di profil WA) — biar AI gak perlu nanya-nanya lagi kalau namanya
+        # udah kebaca otomatis dari sini.
+        if from_number not in customer_names:
+            try:
+                wa_profile_name = value.get("contacts", [{}])[0].get("profile", {}).get("name")
+            except Exception:
+                wa_profile_name = None
+            if wa_profile_name:
+                customer_names[from_number] = wa_profile_name
+                save_customer_name_to_db(from_number, wa_profile_name)
+
         ai_reply = call_claude(from_number, user_text)
+
+        # Deteksi & tangkep nama customer (kalau AI baru dapet tau dari obrolan, bukan dari profil
+        # WA) SEBELUM tag lain diproses, simpen ke cache + database, baru buang tag-nya dari teks.
+        name_match = TAG_NAMA_PATTERN.search(ai_reply)
+        if name_match:
+            captured_name = name_match.group(1).strip()
+            if captured_name:
+                customer_names[from_number] = captured_name
+                save_customer_name_to_db(from_number, captured_name)
+            ai_reply = TAG_NAMA_PATTERN.sub("", ai_reply)
 
         # Deteksi tag internal SEBELUM di-strip, baru kirim versi bersih ke customer
         is_leads_panas = TAG_LEADS_PANAS in ai_reply or "[LEADS PANAS]" in ai_reply
@@ -638,6 +944,10 @@ def receive_webhook():
 
         if wants_catalog:
             send_catalog_pdf(from_number)
+
+        # Notifikasi ke owner SETIAP kali ada pesan masuk dari customer manapun (real-time, biar
+        # owner selalu tau siapa aja yang lagi chat & nanya apa).
+        notify_owner_new_message(from_number, user_text, customer_names.get(from_number))
 
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
@@ -656,6 +966,112 @@ def receive_webhook():
 @app.route("/", methods=["GET"])
 def health_check():
     return "Kilas Works AI Admin - server jalan!", 200
+
+
+def _escape_html(text):
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+@app.route("/dashboard", methods=["GET"])
+def dashboard():
+    """Halaman sederhana buat owner lihat isi semua chat customer + chat sama AI (owner mode).
+    Dibuka lewat: https://<domain-render-lu>/dashboard?key=<DASHBOARD_KEY>
+    Kalau DATABASE_URL diset, datanya permanen (kesimpen di database). Kalau enggak,
+    fallback ke memori server (ilang kalau server restart/sleep).
+    """
+    key = request.args.get("key", "")
+    if not DASHBOARD_KEY or key != DASHBOARD_KEY:
+        return "Akses ditolak. Tambahin ?key=... yang bener di URL.", 403
+
+    def render_bubbles(history):
+        rows = ""
+        for msg in history:
+            role = msg.get("role", "")
+            content = _escape_html(msg.get("content", ""))
+            align = "left" if role == "user" else "right"
+            bg = "#e5e5ea" if role == "user" else "#25d366"
+            color = "#000" if role == "user" else "#fff"
+            rows += (
+                f'<div style="text-align:{align};margin:6px 0;">'
+                f'<span style="display:inline-block;max-width:70%;padding:8px 12px;'
+                f'border-radius:12px;background:{bg};color:{color};white-space:pre-wrap;'
+                f'font-size:14px;text-align:left;">{content}</span></div>'
+            )
+        return rows
+
+    # Kalau database aktif, pakai data dari situ (lengkap, gak ilang pas restart).
+    # Kalau enggak, fallback ke data di memori kayak sebelumnya.
+    if db_enabled():
+        customer_data = load_all_conversations_from_db("customer")
+        owner_data = load_all_conversations_from_db("owner")
+        db_note = ""
+    else:
+        customer_data = conversations
+        owner_data = owner_conversations
+        db_note = (
+            '<p style="color:#c00;font-size:13px;">⚠️ Database belum aktif — history ini cuma '
+            "sementara di memori server, bakal ilang kalau server restart.</p>"
+        )
+
+    sections = db_note
+
+    names_lookup = load_all_customer_names_from_db() if db_enabled() else customer_names
+
+    sections += "<h2>Chat Customer</h2>"
+    if not customer_data:
+        sections += "<p><i>Belum ada chat customer.</i></p>"
+    else:
+        for number, history in customer_data.items():
+            name = names_lookup.get(number)
+            label = f"{_escape_html(name)} — wa.me/{_escape_html(number)}" if name else _escape_html(number)
+            pending = " ⏳ <b>(nunggu jawaban owner)</b>" if number in pending_owner_questions else ""
+            sections += (
+                f'<details style="margin-bottom:14px;border:1px solid #ddd;border-radius:8px;padding:10px;">'
+                f'<summary style="cursor:pointer;font-weight:bold;">{label}{pending}'
+                f' — {len(history)} pesan</summary>'
+                f'<div style="margin-top:10px;">{render_bubbles(history)}</div></details>'
+            )
+
+    sections += "<h2>Chat Owner ↔ AI</h2>"
+    if not owner_data:
+        sections += "<p><i>Belum ada chat owner.</i></p>"
+    else:
+        for number, history in owner_data.items():
+            sections += (
+                f'<details open style="margin-bottom:14px;border:1px solid #ddd;border-radius:8px;padding:10px;">'
+                f'<summary style="cursor:pointer;font-weight:bold;">{_escape_html(number)}'
+                f' — {len(history)} pesan</summary>'
+                f'<div style="margin-top:10px;">{render_bubbles(history)}</div></details>'
+            )
+
+    html = f"""
+    <!doctype html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Kilas Works — Dashboard Chat</title>
+        <meta http-equiv="refresh" content="30">
+    </head>
+    <body style="font-family:-apple-system,Arial,sans-serif;max-width:700px;margin:20px auto;padding:0 12px;">
+        <h1>Kilas Works AI Admin — Dashboard</h1>
+        <p style="color:#666;font-size:13px;">Auto-refresh tiap 30 detik.</p>
+        {sections}
+    </body>
+    </html>
+    """
+    return html, 200
+
+
+# Init database sekali pas modul ini di-load (baik dijalanin langsung via `python app.py`
+# maupun lewat gunicorn di Render), sekalian seed cache nama customer dari database (kalau ada).
+init_db()
+customer_names.update(load_all_customer_names_from_db())
 
 
 if __name__ == "__main__":
