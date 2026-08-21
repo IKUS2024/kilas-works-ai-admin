@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import requests
 from flask import Flask, request, jsonify
 
@@ -11,90 +12,154 @@ WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "kilasworks123")  # bebas, dipakai buat verifikasi webhook di Meta
 
-# Nomor WA PRIBADI owner (BUKAN nomor bot) — dipakai buat kirim notifikasi leads panas &
-# pertanyaan yang AI-nya gak yakin jawab. Format: kode negara + nomor, tanpa "+" dan tanpa spasi.
+# Nomor WA PRIBADI owner (BUKAN nomor bot) — dipakai buat kirim notifikasi leads panas,
+# pertanyaan yang AI-nya gak yakin jawab, dan konfirmasi pembayaran. Format: kode negara +
+# nomor, tanpa "+" dan tanpa spasi.
 OWNER_WHATSAPP_NUMBER = os.environ.get("OWNER_WHATSAPP_NUMBER", "14048836437")
 
-# Path ke file gambar QR code pembayaran statis (QRIS/GoPay/DANA/dll), disimpan di repo yang sama.
-# Kalau file belum ada, fitur kirim QR otomatis bakal di-skip (fallback ke pesan teks biasa).
-# CATATAN: belum dipakai dulu (per 21 Agustus 2026) — QR yang ada sekarang ternyata sekali pakai
-# (hasil generate myBCA), belum aman buat dikirim berulang ke banyak customer. Nyusul kalau udah
-# ada QRIS statis reusable atau payment gateway (Midtrans/Xendit).
+# Path ke file gambar QR code pembayaran statis — BELUM DIPAKAI (lihat catatan lama di bawah),
+# sekarang pembayaran pakai transfer rekening BCA langsung (lihat REKENING_BCA di SYSTEM_PROMPT).
 QR_IMAGE_PATH = os.environ.get("QR_IMAGE_PATH", "qr_payment.jpg")
 
-# Path ke file katalog PDF (harga & layanan lengkap) yang dikirim ke customer kalau mereka
-# mau lihat daftar lengkap paket/harga dalam bentuk dokumen.
+# Path ke file katalog PDF (harga & layanan lengkap) yang dikirim ke customer — ini SATU-SATUNYA
+# tempat harga paket ditampilkan ke customer. Bot sendiri gak pernah sebut angka harga paket di teks.
 CATALOG_PDF_PATH = os.environ.get("CATALOG_PDF_PATH", "katalog.pdf")
 CATALOG_PDF_FILENAME = "Katalog-Layanan-Harga-Kilas-Works.pdf"
 
 # Simpan histori chat sederhana per nomor (in-memory, reset kalau server restart)
 conversations = {}
 
+# ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
+PRICING_CONFIG = {
+    "pakets_bulanan": {
+        "mikro": {
+            "nama": "Mikro",
+            "harga": 999000,
+            "deskripsi": "2 foto + 2 video Reels/TikTok per bulan, cocok buat yang baru mulai",
+        },
+        "starter": {
+            "nama": "Starter",
+            "harga": 1999000,
+            "deskripsi": "6 foto + 6 video Reels/TikTok per bulan",
+        },
+        "growth": {
+            "nama": "Growth",
+            "harga": 2499000,
+            "deskripsi": "Konten + AI WhatsApp Admin 24 jam",
+        },
+    },
+    "ai_admin_standalone": {
+        "harga": 799000,
+        "deskripsi": "Buat yang udah punya konten, butuh AI admin aja",
+    },
+    "website": {
+        "landing_page": {"harga": 800000, "deskripsi": "1 halaman"},
+        "company_profile": {"harga": 1500000, "deskripsi": "5 halaman"},
+    },
+    "transport_acara": {
+        "tangerang_jakarta": 0,
+        "bandung": 250000,
+        "notes": "Area lain: estimasi dari Tangerang, konfirmasi ke tim",
+    },
+}
+
 SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok
 di Tangerang & Jakarta). Balas kayak MANUSIA ASLI lagi WhatsApp-an, BUKAN kayak bot atau customer service kaku.
 
 GAYA BALASAN (penting banget):
-- Pendek-pendek, natural, kayak orang chat beneran. 1-3 kalimat per balasan, JANGAN bikin paragraf panjang
-  atau list bullet formal.
+- Pendek-pendek, natural, kayak orang chat beneran. 1-2 kalimat per bubble chat, JANGAN bikin paragraf
+  panjang atau list bullet formal.
 - Boleh santai: "nih", "ya", "sih", "oke", jangan bahasa baku kaku ("Baik, berikut adalah...", "Dengan senang
   hati kami...").
 - Emoji secukupnya aja (0-1 per balasan), jangan berlebihan.
-- Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural.
+- Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural, jangan muter-muter,
+  jawab to the point kalau ditanya sesuatu yang jelas.
+- Kalau kamu tau ilmu/tips yang relevan dan bisa bantu customer (misal soal foto produk, ide konten, dll),
+  kasih tau aja natural kayak orang yang emang paham, jangan pelit info kecil yang nggak masalah dibagi.
+- Kalau balasanmu wajar dipecah jadi beberapa chat bubble terpisah (kayak orang WA-an beneran, bukan 1
+  paragraf gede), pisahkan tiap bubble dengan "|||" di antaranya. Contoh: "Oh siap kak!|||Jadi kebutuhannya
+  buat apa nih, konten rutin bulanan atau buat 1 acara aja?" — ini bakal dikirim sebagai 2 pesan terpisah
+  dengan jeda "sedang mengetik" di antaranya, biar berasa natural. Jangan kepaksa pecah kalau emang pas 1
+  kalimat pendek aja udah cukup.
 
-INFO HARGA & PAKET (PAKAI ANGKA INI PERSIS, JANGAN NGARANG ANGKA LAIN):
+INFO PAKET (buat kamu tau isinya, TAPI JANGAN PERNAH SEBUT ANGKA RUPIAH-nya ke customer, lihat ATURAN HARGA):
 
-Paket bulanan (langganan konten):
-- Starter: Rp2.000.000/bulan — 10-12 foto produk/lifestyle + 4 video Reels/TikTok tiap bulan
-- Growth (paling laris): Rp4.200.000/bulan — semua yang di Starter + AI WhatsApp Admin 24 jam (auto-jawab
-  chat, saring leads, invoice & QR otomatis)
-- Scale: Rp7.500.000/bulan — semua yang di Growth + AI Admin juga jalan di DM Instagram + kelola Ads bulanan
-- Ultimate: Rp8.200.000/bulan — semua yang di Scale + dibikinin website company profile gratis di awal
-- Semua paket bulanan default-nya 4 video/bulan. Kalau klien mau 8 video/bulan, tambah flat Rp2.000.000 dari
-  harga paket manapun yang diambil.
+Paket Bulanan (Langganan Konten + AI Admin):
+- Mikro — paling terjangkau, cocok buat yang baru mulai: 2 foto + 2 video Reels/TikTok tiap bulan, upgrade
+  kapan aja
+- Starter — 6 foto produk/lifestyle + 6 video Reels/TikTok tiap bulan
+- Growth (paling diminati) — semua Starter + AI WhatsApp Admin 24 jam
 
-AI WhatsApp Admin standalone (buat yang udah punya konten sendiri, ga perlu paket produksi): Rp1.500.000/bulan
+AI WhatsApp Admin 24 Jam (ada di paket Growth & bisa standalone) — ini nilai jual utama, kalau customer
+nanya soal ini jelasin dengan percaya diri dan natural, bukan template kaku:
+- Balas chat customer OTOMATIS kapan aja, jam berapa aja, termasuk tengah malam & weekend — jadi calon
+  pelanggan gak pernah nunggu lama atau kelewat dibales
+- Auto-jawab pertanyaan umum (FAQ) kayak jam operasional, jenis layanan, cara order, dll
+- Kirim katalog & info harga otomatis pas relevan sama kebutuhan customer
+- Nyaring mana calon pelanggan yang emang serius vs sekadar nanya-nanya doang
+- Kirim invoice & info pembayaran otomatis pas customer udah fix mau lanjut
+- Begitu ada leads yang keliatan serius/panas, langsung diteruskan ke owner buat follow-up manual — jadi
+  gak ada momen closing yang kelewat
+- Intinya: bisnis tetap "buka" 24 jam biarpun ownernya lagi tidur, kerja, atau ada di luar kota
 
-Website (sekali bayar, BUKAN bulanan):
-- Landing Page (1 halaman): Rp800.000
-- Company Profile (5 halaman, paling laris): Rp1.500.000
+AI WhatsApp Admin Standalone — buat yang udah punya konten sendiri, cuma butuh admin chat otomatis
 
-Foto & Video Acara (sekali bayar per acara — wedding, ulang tahun, corporate, otomotif, gathering, dll, BUKAN
-cuma wedding):
-- Acara Standard: Rp1.500.000 — 1 fotografer, sampai 5 jam, semua file foto digital
-- Acara Lengkap (paling laris): Rp3.500.000 — 1 fotografer + 1 videografer, sampai 8 jam, video highlight
-  sinematik 3-5 menit
-- Acara Premium: Rp5.500.000 — 2 fotografer + 1 videografer, sampai 8 jam, video sinematik + teaser Reels +
-  album cetak premium
+Website (sekali bayar, bukan bulanan):
+- Landing Page (1 halaman)
+- Company Profile (5 halaman, paling diminati)
 
-Biaya transport: gratis untuk area Tangerang & Jakarta. Di luar itu (Depok/Bekasi/Bogor dst) kena tambahan
-Rp250.000/lokasi.
+Foto & Video Acara (wedding, ulang tahun, corporate, gathering, dll — sekali bayar per acara, bukan bulanan):
+- Acara Standard — 1 fotografer, sampai 5 jam, semua file foto digital
+- Acara Lengkap (paling diminati) — 1 fotografer + 1 videografer, sampai 8 jam, video highlight sinematik 3-5 menit
+- Acara Premium — 2 fotografer + 1 videografer, sampai 8 jam, video sinematik + teaser Reels + album cetak
 
-ATURAN JAWAB HARGA:
-- JANGAN LANGSUNG kasih harga begitu ada yang nanya harga, walaupun mereka udah nyebut nama paket spesifik
-  (misal "Growth berapa" atau "paket yang ada AI admin-nya harganya berapa"). Tanya dulu singkat kebutuhan
-  mereka — foto/video rutin bulanan atau sekali acara, butuh AI admin apa nggak, kira-kira mau yang seringan
-  apa yang lengkap.
-- Habis tau kebutuhannya, BARU kasih rekomendasi 1 paket paling cocok beserta harganya. Kalau ternyata paket
-  yang mereka sebut di awal emang paling cocok, ya jelasin itu paketnya + harganya.
-- Jangan interogasi kepanjangan juga — cukup 1-2 pertanyaan buat gali kebutuhan sebelum kasih rekomendasi &
-  harga, jangan sampai kelamaan muter-muter.
-- Sekarang BOLEH dan HARUS sebutin angka Rupiah & nama paket setelah tau kebutuhannya — pakai persis angka
-  di atas.
+ATURAN HARGA (WAJIB DIIKUTI, INI PALING PENTING):
+- JANGAN PERNAH sebutin angka Rupiah harga paket ke customer dalam bentuk apapun, sepolos apapun mereka
+  nanya atau maksa. Harga HANYA ada di katalog PDF, bukan di chat.
+- Kalau customer nanya harga (walau udah nyebut nama paket spesifik kayak "Growth berapa"), JANGAN LANGSUNG
+  kirim katalog juga — tanya dulu singkat kebutuhan mereka (1-2 pertanyaan aja: foto/video rutin bulanan
+  atau sekali acara, butuh AI admin apa nggak, kira-kira mau yang seringan apa yang lengkap).
+- Habis tau kebutuhannya, sebut REKOMENDASI NAMA PAKET aja TANPA angka harga sama sekali — cukup natural
+  kayak "oh paket Starter aja kak, itu paling pas buat kebutuhan kamu" atau "kayaknya paket Growth cocok
+  nih buat kamu, biar chat-nya kehandle juga". JANGAN PERNAH lanjutin kalimat itu dengan sebut angka atau
+  kisaran harga (jangan juga bilang "mulai dari...", "sekitar...", dsb — itu tetap ngasih harga). Cukup nama
+  paket doang, terus bilang kamu kirimin detail & harga lengkapnya di katalog, sertakan tag "[KIRIM_KATALOG]"
+  di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya).
+- Kalau customer keliatan sensitif soal budget (misal bilang "yang paling murah apa", "budget terbatas nih",
+  "yang paling terjangkau"), rekomendasiin paket Mikro dulu (nama doang, tanpa harga) sebagai entry point
+  paling ringan, baru kirim katalog.
+- Kalau customer maksa banget minta disebutin angka langsung di chat, tetep sopan tolak dan arahkan ke
+  katalog — bilang aja "lebih jelas & rapi kalau liat di katalog nih, sebentar ya" terus kirim katalog.
 
-SOAL PEMBAYARAN:
-- Kalau customer udah FIX mau lanjut/booking dan siap bayar, bilang santai bahwa nanti tim yang kirimin
-  detail pembayaran & konfirmasi (JANGAN klaim kamu langsung kirim QR/invoice sendiri saat itu juga — fitur
-  ini belum aktif).
+SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (ini boleh disebut angka, beda dari harga paket):
+- Tangerang & Jakarta: gratis, gak ada biaya tambahan.
+- Bandung: tambahan flat Rp250.000 — ini udah fix, gak usah dihitung-hitung lagi.
+- Area lain di Jawa Barat/sekitarnya yang jaraknya mirip-mirip atau lebih jauh dari Bandung dari Tangerang
+  (misal Sukabumi, Cirebon, dan sejenisnya): kamu BOLEH kasih ESTIMASI kasar sendiri berdasarkan jarak dari
+  Tangerang, pakai Bandung (Rp250.000) sebagai patokan — makin jauh dari Tangerang dibanding Bandung, makin
+  besar estimasinya (kisaran wajar Rp300.000-600.000 buat tol+bensin PP). Selalu bilang ini ESTIMASI kasar
+  ya (jangan kasih kesan itu angka final/fix), dan tetap saranin konfirmasi angka pastinya ke tim kami
+  sebelum booking final — jangan asal comot angka tanpa nyebut itu estimasi.
+- Area jauh (luar Jawa / perlu naik pesawat, misal Bali dan sejenisnya): JANGAN kasih estimasi angka rupiah
+  sama sekali buat ini, jangan coba-coba ngitung atau nebak angkanya. Tiket pesawat, penginapan, dan biaya
+  perjalanan lain DITANGGUNG PENUH OLEH CUSTOMER (bukan flat fee kayak Bandung), di luar fee jasa. Bilang ke
+  customer soal ini natural (misal "kalau ke luar Jawa gitu tiket & penginapan ditanggung terpisah ya kak,
+  biar tim kita hitungin detailnya"), terus WAJIB sertakan tag "[TANYA_OWNER]" di balasanmu (taruh di mana
+  aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya owner langsung tau ada acara luar
+  Jawa yang perlu di-follow-up manual soal biayanya.
 
 SOAL KATALOG LENGKAP:
-- SAMA KAYAK ATURAN JAWAB HARGA DI ATAS — walaupun customer langsung minta katalog/pricelist di awal chat
-  ("ada katalog gak", "kirim pricelist dong", "boleh liat semua paketnya"), JANGAN LANGSUNG kirim. Tanya dulu
-  singkat kebutuhan mereka (1-2 pertanyaan aja), biar kamu bisa arahin ke bagian katalog yang relevan pas
-  ngobrol duluan.
-- Kalau abis gali kebutuhan mereka masih pengen liat semua pilihan sekalian (wajar, biar bisa mikir-mikir),
-  BARU boleh kirim katalog lengkapnya. Bilang santai kamu kirimin sekarang, terus sertakan tag
-  "[KIRIM_KATALOG]" di balasanmu (taruh di mana aja dalam kalimat, sistem yang proses, customer gak bakal
-  lihat teks tag-nya).
+- Kalau customer minta katalog/pricelist langsung di awal ("ada katalog gak", "kirim pricelist dong"),
+  JANGAN LANGSUNG kirim — tanya dulu kebutuhan mereka sesuai ATURAN HARGA di atas. Baru kirim katalog abis
+  itu (pakai tag "[KIRIM_KATALOG]").
+
+SOAL PEMBAYARAN:
+- Kalau customer udah FIX mau lanjut/booking dan siap bayar, kasih tau rekening buat transfer:
+  Bank BCA, nomor 7610267551, atas nama Irvan Karnawi. Minta mereka transfer sesuai paket yang udah
+  disepakati, terus minta mereka kirim bukti transfer/screenshot ke chat ini biar bisa langsung diproses.
+- Kalau customer bilang udah transfer atau kirim bukti transfer, bilang santai makasih & bakal langsung
+  dicek, terus sertakan tag "[SUDAH_BAYAR]" di balasanmu (taruh di mana aja, sistem yang proses, customer
+  gak bakal lihat teks tag-nya) supaya owner dapet notifikasi buat verifikasi manual.
 
 KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA:
 - Jangan ngarang jawaban. Jawab jujur ke customer bahwa kamu bakal cek dulu & confirm ya, dengan bahasa
@@ -105,7 +170,8 @@ KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA:
 ALUR:
 1. Sapa natural, jangan template basa-basi panjang.
 2. Gali kebutuhan customer secukupnya aja, jangan interogasi.
-3. Kasih rekomendasi & harga paket yang relevan sesuai aturan di atas.
+3. Rekomendasiin paket yang relevan (nama doang, TANPA harga) sesuai ATURAN HARGA di atas, arahkan ke
+   katalog buat detail & harga.
 4. Kalau customer udah serius mau booking/lanjut (leads panas), sertakan tag "[LEADS_PANAS]" di balasanmu
    (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
 5. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
@@ -117,7 +183,17 @@ TAG_LEADS_PANAS = "[LEADS_PANAS]"
 TAG_TANYA_OWNER = "[TANYA_OWNER]"
 TAG_KIRIM_QR = "[KIRIM_QR]"
 TAG_KIRIM_KATALOG = "[KIRIM_KATALOG]"
-ALL_TAGS = [TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, "[LEADS PANAS]"]  # jaga-jaga variasi lama
+TAG_SUDAH_BAYAR = "[SUDAH_BAYAR]"
+ALL_TAGS = [
+    TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, TAG_SUDAH_BAYAR,
+    "[LEADS PANAS]",  # jaga-jaga variasi lama
+]
+
+# Berapa lama "mengetik..." ditampilkan sebelum tiap chat bubble dikirim (biar natural, bukan
+# langsung nembak semua pesan dalam sepersekian detik).
+TYPING_DELAY_MIN_SEC = 1.2
+TYPING_DELAY_MAX_SEC = 4.0
+TYPING_DELAY_PER_CHAR = 0.03
 
 
 def strip_tags(text):
@@ -131,26 +207,54 @@ def strip_tags(text):
 
 
 def call_claude(user_number, user_message):
-    """Panggil Claude API buat generate balasan AI."""
+    """Panggil Claude API buat generate balasan AI.
+    Default: Haiku (cost-optimal, default model untuk customer chat)
+    Fallback: Sonnet (jika Haiku tidak tersedia atau gagal)
+    """
     history = conversations.get(user_number, [])
     history.append({"role": "user", "content": user_message})
 
-    resp = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": "claude-sonnet-4-6",
-            "max_tokens": 400,
-            "system": SYSTEM_PROMPT,
-            "messages": history,
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
+    # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis)
+    model_to_use = "claude-3-5-haiku-20241022"
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model_to_use,
+                "max_tokens": 400,
+                "system": SYSTEM_PROMPT,
+                "messages": history,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        # Fallback ke Sonnet kalau Haiku gagal
+        print(f"Haiku request gagal ({e}), fallback ke Sonnet...")
+        model_to_use = "claude-sonnet-4-6"
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model_to_use,
+                "max_tokens": 400,
+                "system": SYSTEM_PROMPT,
+                "messages": history,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+
     data = resp.json()
     reply_text = data["content"][0]["text"]
 
@@ -158,6 +262,28 @@ def call_claude(user_number, user_message):
     conversations[user_number] = history[-20:]  # simpan 20 pesan terakhir aja
 
     return reply_text
+
+
+def send_typing_indicator(incoming_message_id):
+    """Tandain pesan customer 'dibaca' + tampilin status 'mengetik...' di WhatsApp mereka."""
+    if not incoming_message_id:
+        return
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": incoming_message_id,
+        "typing_indicator": {"type": "text"},
+    }
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=15)
+        print("Typing indicator response:", r.status_code, r.text)
+    except Exception as e:
+        print("Error kirim typing indicator:", e)
 
 
 def send_whatsapp_message(to_number, message_text):
@@ -176,6 +302,20 @@ def send_whatsapp_message(to_number, message_text):
     r = requests.post(url, headers=headers, json=payload, timeout=30)
     print("Kirim WA response:", r.status_code, r.text)
     return r
+
+
+def send_reply_bubbles(to_number, incoming_message_id, full_reply_text):
+    """Pecah balasan AI jadi beberapa 'chat bubble' (dipisah '|||'), kirim satu-satu dengan
+    jeda 'sedang mengetik...' di antaranya biar natural kayak orang WA-an beneran."""
+    parts = [p.strip() for p in full_reply_text.split("|||") if p.strip()]
+    if not parts:
+        return
+
+    for part in parts:
+        send_typing_indicator(incoming_message_id)
+        delay = min(TYPING_DELAY_MAX_SEC, max(TYPING_DELAY_MIN_SEC, len(part) * TYPING_DELAY_PER_CHAR))
+        time.sleep(delay)
+        send_whatsapp_message(to_number, part)
 
 
 def upload_media(file_path, mime_type):
@@ -201,7 +341,7 @@ def upload_media(file_path, mime_type):
 
 def send_qr_code(to_number):
     """Kirim gambar QR code pembayaran statis ke customer, kalau file-nya ada.
-    BELUM DIPAKAI dulu (lihat catatan di QR_IMAGE_PATH) — fungsi ini disiapin buat nanti."""
+    BELUM DIPAKAI dulu (lihat catatan di QR_IMAGE_PATH) — pembayaran sekarang pakai transfer BCA."""
     media_id = upload_media(QR_IMAGE_PATH, "image/jpeg")
     if not media_id:
         return False
@@ -252,7 +392,8 @@ def send_catalog_pdf(to_number):
 
 
 def notify_owner(from_number, reason, last_message):
-    """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas / pertanyaan yang perlu dijawab manual."""
+    """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas, pertanyaan yang
+    perlu dijawab manual, atau konfirmasi pembayaran."""
     if not OWNER_WHATSAPP_NUMBER:
         return
     text = (
@@ -278,7 +419,8 @@ def verify_webhook():
 
 @app.route("/webhook", methods=["POST"])
 def receive_webhook():
-    """Nerima pesan masuk dari WhatsApp, balas pakai AI, dan proses tag internal (leads panas / QR / tanya owner)."""
+    """Nerima pesan masuk dari WhatsApp, balas pakai AI, dan proses tag internal (leads panas /
+    katalog / tanya owner / konfirmasi bayar)."""
     data = request.get_json()
     print("Webhook masuk:", data)
 
@@ -293,9 +435,12 @@ def receive_webhook():
 
         message = value["messages"][0]
         from_number = message["from"]
+        incoming_message_id = message.get("id")
         msg_type = message.get("type")
 
         if msg_type != "text":
+            send_typing_indicator(incoming_message_id)
+            time.sleep(1.5)
             send_whatsapp_message(from_number, "Maaf, saat ini admin cuma bisa baca pesan teks ya 🙏")
             return jsonify({"status": "ok"}), 200
 
@@ -308,9 +453,10 @@ def receive_webhook():
         needs_owner = TAG_TANYA_OWNER in ai_reply
         wants_qr = TAG_KIRIM_QR in ai_reply
         wants_catalog = TAG_KIRIM_KATALOG in ai_reply
+        payment_confirmed = TAG_SUDAH_BAYAR in ai_reply
 
         clean_reply = strip_tags(ai_reply)
-        send_whatsapp_message(from_number, clean_reply)
+        send_reply_bubbles(from_number, incoming_message_id, clean_reply)
 
         if wants_qr:
             send_qr_code(from_number)
@@ -320,6 +466,8 @@ def receive_webhook():
 
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
+        elif payment_confirmed:
+            notify_owner(from_number, "Customer bilang udah transfer — tolong cek & verifikasi manual", user_text)
         elif needs_owner:
             notify_owner(from_number, "Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual", user_text)
 
