@@ -29,6 +29,12 @@ CATALOG_PDF_FILENAME = "Katalog-Layanan-Harga-Kilas-Works.pdf"
 # Simpan histori chat sederhana per nomor (in-memory, reset kalau server restart)
 conversations = {}
 
+# Simpan pertanyaan customer yang lagi nunggu jawaban owner (in-memory, reset kalau server
+# restart). Key = nomor customer, value = pertanyaan terakhir mereka. Begitu owner balas chat
+# notifikasi [TANYA_OWNER] langsung dari nomor pribadinya, jawaban itu otomatis diterusin ke
+# customer yang paling lama nunggu (FIFO).
+pending_owner_questions = {}
+
 # ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
 PRICING_CONFIG = {
     "pakets_bulanan": {
@@ -392,8 +398,9 @@ def send_catalog_pdf(to_number):
 
 
 def notify_owner(from_number, reason, last_message):
-    """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas, pertanyaan yang
-    perlu dijawab manual, atau konfirmasi pembayaran."""
+    """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas atau konfirmasi
+    pembayaran. (Untuk pertanyaan yang perlu dijawab manual, lihat notify_owner_question — itu
+    yang punya fitur auto-relay jawaban ke customer.)"""
     if not OWNER_WHATSAPP_NUMBER:
         return
     text = (
@@ -403,6 +410,64 @@ def notify_owner(from_number, reason, last_message):
         f"Cek & follow up langsung ke nomor itu ya."
     )
     send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+
+
+def notify_owner_question(from_number, last_message):
+    """Kirim notifikasi ke owner soal pertanyaan yang AI belum yakin jawabnya, DAN simpan sebagai
+    pending. Kalau owner balas pesan ini langsung dari nomor pribadinya, jawabannya otomatis
+    diterusin ke customer (lihat relay_owner_answer_to_customer & cabang OWNER di receive_webhook)."""
+    if not OWNER_WHATSAPP_NUMBER:
+        return
+    text = (
+        f"🔔 Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual\n\n"
+        f"Dari: wa.me/{from_number}\n"
+        f'Pesan terakhir: "{last_message}"\n\n'
+        f"Balas pesan ini LANGSUNG DI SINI ya kak, nanti jawabanmu otomatis aku susun & terusin ke "
+        f"customernya 👍"
+    )
+    send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+
+
+def relay_owner_answer_to_customer(customer_number, customer_question, owner_answer):
+    """Susun ulang jawaban owner (yang biasanya singkat/apa adanya) jadi chat balasan yang natural
+    pakai AI, terus kirim ke customer yang nanya tadi. Kalau AI gagal, jawaban owner dikirim apa
+    adanya sebagai fallback (lebih baik lambat sopan daripada gak kekirim sama sekali)."""
+    prompt = (
+        f'Kamu admin WhatsApp Kilas Works. Sebelumnya customer nanya: "{customer_question}"\n'
+        f'Owner Kilas Works udah kasih jawabannya (biasanya ditulis singkat/apa adanya): "{owner_answer}"\n\n'
+        f"Tolong susun ulang jadi balasan chat WhatsApp yang natural & santai buat dikirim langsung ke "
+        f"customer itu (gaya santai kayak orang WA-an beneran, 1-2 kalimat per bubble, boleh emoji "
+        f"secukupnya, JANGAN bahasa baku kaku). Kalau wajar dipecah jadi beberapa chat bubble, pisahkan "
+        f'dengan "|||". Jangan tambahin janji atau info baru di luar jawaban owner di atas, jangan sebut '
+        f'kata "owner" ke customer (kamu ngomong sebagai admin/tim, bukan nyebut ada pihak ketiga).'
+    )
+    reply_text = owner_answer
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-3-5-haiku-20241022",
+                "max_tokens": 300,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        reply_text = resp.json()["content"][0]["text"]
+    except Exception as e:
+        print(f"Gagal generate relay jawaban owner ({e}), kirim jawaban owner apa adanya.")
+
+    # simpan ke histori chat customer biar AI tetap inget konteks jawaban ini kalau ditanya lagi
+    history = conversations.get(customer_number, [])
+    history.append({"role": "assistant", "content": reply_text})
+    conversations[customer_number] = history[-20:]
+
+    send_reply_bubbles(customer_number, None, reply_text)
 
 
 @app.route("/webhook", methods=["GET"])
@@ -438,6 +503,23 @@ def receive_webhook():
         incoming_message_id = message.get("id")
         msg_type = message.get("type")
 
+        # ==== Ini balasan dari OWNER (nomor pribadi), bukan dari customer ====
+        # Kalau owner lagi balas notifikasi [TANYA_OWNER], jawabannya otomatis diterusin ke
+        # customer yang paling lama nunggu (FIFO), gak masuk ke alur AI-customer biasa.
+        if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER:
+            if msg_type == "text" and pending_owner_questions:
+                customer_number, customer_question = next(iter(pending_owner_questions.items()))
+                del pending_owner_questions[customer_number]
+                owner_text = message["text"]["body"]
+                relay_owner_answer_to_customer(customer_number, customer_question, owner_text)
+                sisa = len(pending_owner_questions)
+                confirm_text = f"Oke, udah aku terusin ke wa.me/{customer_number} ✅"
+                if sisa:
+                    confirm_text += f"\n\nMasih ada {sisa} pertanyaan lain yang nunggu jawaban kamu."
+                send_whatsapp_message(OWNER_WHATSAPP_NUMBER, confirm_text)
+            # kalau gak ada pending question, owner cuma chat biasa ke nomor bot -> diamkan aja
+            return jsonify({"status": "ok"}), 200
+
         if msg_type != "text":
             send_typing_indicator(incoming_message_id)
             time.sleep(1.5)
@@ -469,7 +551,8 @@ def receive_webhook():
         elif payment_confirmed:
             notify_owner(from_number, "Customer bilang udah transfer — tolong cek & verifikasi manual", user_text)
         elif needs_owner:
-            notify_owner(from_number, "Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual", user_text)
+            pending_owner_questions[from_number] = user_text
+            notify_owner_question(from_number, user_text)
 
     except Exception as e:
         print("Error processing webhook:", e)
