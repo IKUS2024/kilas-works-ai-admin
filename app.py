@@ -30,10 +30,19 @@ CATALOG_PDF_FILENAME = "Katalog-Layanan-Harga-Kilas-Works.pdf"
 conversations = {}
 
 # Simpan pertanyaan customer yang lagi nunggu jawaban owner (in-memory, reset kalau server
-# restart). Key = nomor customer, value = pertanyaan terakhir mereka. Begitu owner balas chat
-# notifikasi [TANYA_OWNER] langsung dari nomor pribadinya, jawaban itu otomatis diterusin ke
-# customer yang paling lama nunggu (FIFO).
+# restart). Key = nomor customer, value = pertanyaan terakhir mereka. Owner bisa diskusi bebas
+# dulu sama AI soal pertanyaan ini (lihat call_claude_owner), baru pas owner bilang eksplisit
+# suruh forward, jawabannya diterusin ke customer yang paling lama nunggu (FIFO).
 pending_owner_questions = {}
+
+# Histori chat terpisah antara owner & AI (mode "asisten pribadi owner", beda dari histori
+# chat AI dengan customer di variable `conversations`).
+owner_conversations = {}
+
+# Marker yang WAJIB dipakai AI di balasannya (mode owner) kalau owner udah eksplisit nyuruh
+# forward jawaban ke customer. Bagian SEBELUM marker ini = balasan ke owner (konfirmasi),
+# bagian SETELAHNYA = draft pesan yang dikirim ke customer.
+FORWARD_MARKER = "PESAN_UNTUK_CUSTOMER:"
 
 # ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
 PRICING_CONFIG = {
@@ -182,6 +191,103 @@ ALUR:
    (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
 5. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
 """
+
+SYSTEM_PROMPT_OWNER_BASE = """Kamu asisten pribadi Irvan, founder Kilas Works (jasa fotografi, videografi, konten
+short-form & AI WhatsApp Admin di Tangerang & Jakarta). Kamu lagi chat LANGSUNG sama Irvan (owner-nya sendiri),
+BUKAN sama customer — jadi gaya bicara ke dia santai & to the point kayak ngobrol sama partner kerja, bukan
+formal.
+
+KONTEKS: kadang ada customer yang tanya sesuatu yang AI customer-service belum yakin jawabnya, jadi
+diteruskan ke Irvan buat dijawab manual. Kalau lagi ada pertanyaan customer yang pending, kamu bakal dikasih
+tau isinya di bawah. Irvan boleh diskusi bebas dulu sama kamu soal itu — nanya-nanya, mikirin jawaban paling
+pas, atau ngobrol hal lain sama sekali — SEBELUM dia mutusin jawaban final buat customer.
+
+ATURAN PALING PENTING:
+- JANGAN langsung anggap semua yang Irvan ketik itu otomatis jawaban final buat customer. Ladenin dulu
+  obrolannya natural, bantu mikir kalau diminta, jawab pertanyaan dia apa aja, kayak asisten beneran.
+- BARU kalau Irvan udah JELAS ngasih instruksi buat forward/kirim/sampein ke customer (bahasa bebas, misal
+  "terusin", "sampein ke dia", "bilang ke customer gitu aja", "oke kirim", "gas terusin", "fix segitu,
+  terusin" — intinya dia nyuruh forward), baru kamu proses jadi jawaban final.
+- Kalau kamu udah yakin ini saatnya di-forward, WAJIB format balasanmu PERSIS kayak ini, 2 bagian:
+  Baris pertama: balasan singkat & natural ke Irvan buat konfirmasi (misal "Oke siap, aku terusin ya!").
+  Baris berikutnya, PERSIS diawali teks "PESAN_UNTUK_CUSTOMER:" (tanpa embel-embel lain di baris itu),
+  diikuti draft pesan yang bakal dikirim ke customer — natural & santai kayak gaya chat WA admin ke
+  customer, JANGAN pernah sebut kata "owner" atau "Irvan" ke customer (kamu ngomong sebagai admin/tim,
+  bukan nyebut ada pihak ketiga), jangan tambahin janji/info di luar apa yang udah didiskusikan atau
+  di luar apa yang Irvan bilang.
+- Kalau BELUM ada instruksi jelas buat forward, JANGAN PERNAH tulis teks "PESAN_UNTUK_CUSTOMER:" dalam
+  bentuk apapun — balas natural aja kayak obrolan biasa.
+- Kalau emang lagi gak ada pertanyaan customer yang pending, anggap ini obrolan santai/kerjaan lain sama
+  Irvan aja, bantu apa yang dia butuhin.
+"""
+
+
+def build_owner_system_prompt(pending_question, pending_customer_number):
+    """Susun system prompt mode-owner, sisipin konteks pertanyaan customer yang lagi pending (kalau ada)."""
+    if pending_question:
+        context = (
+            f'\n\nPERTANYAAN CUSTOMER YANG LAGI PENDING (dari wa.me/{pending_customer_number}): '
+            f'"{pending_question}"'
+        )
+    else:
+        context = "\n\nGak ada pertanyaan customer yang pending saat ini."
+    return SYSTEM_PROMPT_OWNER_BASE + context
+
+
+def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number):
+    """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
+    call_claude() yang dipakai buat customer. Sama-sama Haiku default + fallback Sonnet."""
+    history = owner_conversations.get(owner_number, [])
+    history.append({"role": "user", "content": owner_message})
+
+    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number)
+    model_to_use = "claude-3-5-haiku-20241022"
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model_to_use,
+                "max_tokens": 400,
+                "system": system_prompt,
+                "messages": history,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"Haiku (owner mode) gagal ({e}), fallback ke Sonnet...")
+        model_to_use = "claude-sonnet-4-6"
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": model_to_use,
+                "max_tokens": 400,
+                "system": system_prompt,
+                "messages": history,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+
+    data = resp.json()
+    reply_text = data["content"][0]["text"]
+
+    history.append({"role": "assistant", "content": reply_text})
+    owner_conversations[owner_number] = history[-20:]
+
+    return reply_text
+
 
 # Tag internal yang dipakai AI buat kasih sinyal ke sistem. Semua ini di-strip dari pesan
 # sebelum dikirim ke customer, supaya customer gak pernah lihat teks tag mentah.
@@ -414,60 +520,19 @@ def notify_owner(from_number, reason, last_message):
 
 def notify_owner_question(from_number, last_message):
     """Kirim notifikasi ke owner soal pertanyaan yang AI belum yakin jawabnya, DAN simpan sebagai
-    pending. Kalau owner balas pesan ini langsung dari nomor pribadinya, jawabannya otomatis
-    diterusin ke customer (lihat relay_owner_answer_to_customer & cabang OWNER di receive_webhook)."""
+    pending. Owner bisa diskusi bebas dulu soal ini di chat yang sama (lihat call_claude_owner &
+    cabang OWNER di receive_webhook) — baru pas owner bilang eksplisit suruh forward, jawabannya
+    diterusin ke customer."""
     if not OWNER_WHATSAPP_NUMBER:
         return
     text = (
         f"🔔 Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual\n\n"
         f"Dari: wa.me/{from_number}\n"
         f'Pesan terakhir: "{last_message}"\n\n'
-        f"Balas pesan ini LANGSUNG DI SINI ya kak, nanti jawabanmu otomatis aku susun & terusin ke "
-        f"customernya 👍"
+        f"Chat aja di sini kalau mau diskusi dulu, nanti kalau udah fix jawabannya tinggal bilang "
+        f'"terusin ke customer" (atau semacamnya), baru aku kirimin ke dia 👍'
     )
     send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
-
-
-def relay_owner_answer_to_customer(customer_number, customer_question, owner_answer):
-    """Susun ulang jawaban owner (yang biasanya singkat/apa adanya) jadi chat balasan yang natural
-    pakai AI, terus kirim ke customer yang nanya tadi. Kalau AI gagal, jawaban owner dikirim apa
-    adanya sebagai fallback (lebih baik lambat sopan daripada gak kekirim sama sekali)."""
-    prompt = (
-        f'Kamu admin WhatsApp Kilas Works. Sebelumnya customer nanya: "{customer_question}"\n'
-        f'Owner Kilas Works udah kasih jawabannya (biasanya ditulis singkat/apa adanya): "{owner_answer}"\n\n'
-        f"Tolong susun ulang jadi balasan chat WhatsApp yang natural & santai buat dikirim langsung ke "
-        f"customer itu (gaya santai kayak orang WA-an beneran, 1-2 kalimat per bubble, boleh emoji "
-        f"secukupnya, JANGAN bahasa baku kaku). Kalau wajar dipecah jadi beberapa chat bubble, pisahkan "
-        f'dengan "|||". Jangan tambahin janji atau info baru di luar jawaban owner di atas, jangan sebut '
-        f'kata "owner" ke customer (kamu ngomong sebagai admin/tim, bukan nyebut ada pihak ketiga).'
-    )
-    reply_text = owner_answer
-    try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-3-5-haiku-20241022",
-                "max_tokens": 300,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        reply_text = resp.json()["content"][0]["text"]
-    except Exception as e:
-        print(f"Gagal generate relay jawaban owner ({e}), kirim jawaban owner apa adanya.")
-
-    # simpan ke histori chat customer biar AI tetap inget konteks jawaban ini kalau ditanya lagi
-    history = conversations.get(customer_number, [])
-    history.append({"role": "assistant", "content": reply_text})
-    conversations[customer_number] = history[-20:]
-
-    send_reply_bubbles(customer_number, None, reply_text)
 
 
 @app.route("/webhook", methods=["GET"])
@@ -503,21 +568,49 @@ def receive_webhook():
         incoming_message_id = message.get("id")
         msg_type = message.get("type")
 
-        # ==== Ini balasan dari OWNER (nomor pribadi), bukan dari customer ====
-        # Kalau owner lagi balas notifikasi [TANYA_OWNER], jawabannya otomatis diterusin ke
-        # customer yang paling lama nunggu (FIFO), gak masuk ke alur AI-customer biasa.
+        # ==== Ini pesan dari OWNER (nomor pribadi), bukan dari customer ====
+        # Owner selalu direspon AI (mode "asisten pribadi"), bisa diskusi bebas dulu soal
+        # pertanyaan customer yang pending. Baru kalau owner eksplisit nyuruh forward (AI kasih
+        # tanda lewat FORWARD_MARKER di balasannya), jawaban final diterusin ke customer terkait.
         if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER:
-            if msg_type == "text" and pending_owner_questions:
-                customer_number, customer_question = next(iter(pending_owner_questions.items()))
-                del pending_owner_questions[customer_number]
-                owner_text = message["text"]["body"]
-                relay_owner_answer_to_customer(customer_number, customer_question, owner_text)
+            if msg_type != "text":
+                return jsonify({"status": "ok"}), 200
+
+            owner_text = message["text"]["body"]
+
+            # ambil pertanyaan customer yang paling lama nunggu (kalau ada) sebagai konteks
+            pending_customer_number, pending_question = (None, None)
+            if pending_owner_questions:
+                pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
+
+            ai_owner_reply = call_claude_owner(
+                from_number, owner_text, pending_question, pending_customer_number
+            )
+
+            if FORWARD_MARKER in ai_owner_reply and pending_customer_number:
+                owner_facing, _, customer_facing = ai_owner_reply.partition(FORWARD_MARKER)
+                owner_facing = owner_facing.strip() or "Oke, aku terusin ke customer ya!"
+                customer_facing = customer_facing.strip()
+
+                send_reply_bubbles(from_number, incoming_message_id, owner_facing)
+
+                if customer_facing:
+                    history = conversations.get(pending_customer_number, [])
+                    history.append({"role": "assistant", "content": customer_facing})
+                    conversations[pending_customer_number] = history[-20:]
+                    send_reply_bubbles(pending_customer_number, None, customer_facing)
+
+                del pending_owner_questions[pending_customer_number]
                 sisa = len(pending_owner_questions)
-                confirm_text = f"Oke, udah aku terusin ke wa.me/{customer_number} ✅"
                 if sisa:
-                    confirm_text += f"\n\nMasih ada {sisa} pertanyaan lain yang nunggu jawaban kamu."
-                send_whatsapp_message(OWNER_WHATSAPP_NUMBER, confirm_text)
-            # kalau gak ada pending question, owner cuma chat biasa ke nomor bot -> diamkan aja
+                    send_whatsapp_message(
+                        OWNER_WHATSAPP_NUMBER,
+                        f"Masih ada {sisa} pertanyaan lain yang nunggu jawaban kamu ya.",
+                    )
+            else:
+                # belum ada instruksi forward -> ini masih obrolan/diskusi biasa sama owner
+                send_reply_bubbles(from_number, incoming_message_id, ai_owner_reply)
+
             return jsonify({"status": "ok"}), 200
 
         if msg_type != "text":
