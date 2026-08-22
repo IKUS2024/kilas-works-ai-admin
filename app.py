@@ -271,7 +271,7 @@ PRICING_CONFIG = {
         "mikro": {
             "nama": "Mikro",
             "harga": 999000,
-            "deskripsi": "2 foto + 2 video Reels/TikTok per bulan, cocok buat yang baru mulai",
+            "deskripsi": "4 foto + 4 video Reels/TikTok per bulan, cocok buat yang baru mulai",
         },
         "starter": {
             "nama": "Starter",
@@ -321,7 +321,7 @@ GAYA BALASAN (penting banget):
 INFO PAKET (buat kamu tau isinya, TAPI JANGAN PERNAH SEBUT ANGKA RUPIAH-nya ke customer, lihat ATURAN HARGA):
 
 Paket Bulanan (Langganan Konten + AI Admin):
-- Mikro — paling terjangkau, cocok buat yang baru mulai: 2 foto + 2 video Reels/TikTok tiap bulan, upgrade
+- Mikro — paling terjangkau, cocok buat yang baru mulai: 4 foto + 4 video Reels/TikTok tiap bulan, upgrade
   kapan aja
 - Starter — 6 foto produk/lifestyle + 6 video Reels/TikTok tiap bulan
 - Growth (paling diminati) — semua Starter + AI WhatsApp Admin 24 jam
