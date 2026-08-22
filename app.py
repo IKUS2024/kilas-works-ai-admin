@@ -71,6 +71,17 @@ def init_db():
             );
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS customer_facts (
+                id SERIAL PRIMARY KEY,
+                number TEXT NOT NULL,
+                fact TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_customer_facts_number ON customer_facts (number);")
         conn.commit()
         cur.close()
         conn.close()
@@ -187,6 +198,56 @@ def load_all_customer_names_from_db():
         return {}
 
 
+def save_customer_fact_to_db(number, fact):
+    """Simpen satu 'fakta yang udah disepakati owner' buat customer tertentu (misal harga nego,
+    keputusan lain) — permanen di DB, biar SELALU keinget & konsisten walau server restart, dan
+    gak cuma ngandelin AI 'inget sendiri' dari histori chat freeform (yang kadang keliru)."""
+    if not db_enabled():
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("INSERT INTO customer_facts (number, fact) VALUES (%s, %s)", (number, fact))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Gagal simpen fakta customer ke database ({e}).")
+
+
+def load_all_customer_facts_from_db():
+    """Ambil semua fakta yang udah disepakati per customer, dikelompokkin per nomor, buat isi
+    ulang cache in-memory pas server abis restart."""
+    if not db_enabled():
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT number, fact FROM customer_facts ORDER BY id ASC")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        grouped = {}
+        for number, fact in rows:
+            grouped.setdefault(number, []).append(fact)
+        return grouped
+    except Exception as e:
+        print(f"Gagal ambil fakta customer dari database ({e}).")
+        return {}
+
+
+def add_agreed_fact(number, fact):
+    """Catet satu keputusan/kesepakatan yang UDAH FIX buat customer tertentu — dipanggil tiap kali
+    owner beneran forward jawaban (baik lewat mode diskusi atau perintah langsung) ke customer.
+    Ini disisipin ke system prompt customer sebagai daftar fakta yang GAK BOLEH dikontradiksi atau
+    ditanyakan ulang, biar bot gak pernah lagi salah bilang 'belum dapet konfirmasi owner' padahal
+    udah pernah dijawab."""
+    agreed_facts.setdefault(number, [])
+    agreed_facts[number].append(fact)
+    agreed_facts[number] = agreed_facts[number][-15:]  # cukup 15 fakta terakhir per customer
+    save_customer_fact_to_db(number, fact)
+
+
 def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150):
     """Susun ringkasan SEMUA customer (nama + history chat terakhir mereka), buat disisipin ke system
     prompt mode-owner supaya AI bisa jawab pertanyaan Irvan soal customer mana aja, kapan aja — bukan
@@ -262,6 +323,12 @@ owner_conversations = {}
 # Nama customer yang udah ketauan (in-memory cache, key = nomor customer, value = nama). Kalau
 # database aktif, ini juga kesimpen permanen di tabel customer_profiles.
 customer_names = {}
+
+# Fakta/kesepakatan yang UDAH FIX per customer (misal harga hasil nego yang udah di-forward owner),
+# key = nomor customer, value = list string. Ini SUMBER KEBENARAN terpisah dari histori chat
+# freeform — dipakai biar bot gak pernah lagi bilang "belum dapet konfirmasi owner" utk hal yang
+# sebenernya udah pernah dijawab & di-forward. Kalau database aktif, ini permanen di customer_facts.
+agreed_facts = {}
 
 # Gambar terakhir yang dikirim owner (misal QR code custom) yang BELUM eksplisit disuruh forward
 # ke siapa-siapa pas dikirim. Key = nomor owner, value = {"media_id":..., "mime":...} (media_id ini
@@ -529,8 +596,28 @@ def build_customer_system_prompt(user_number):
         "keahlian gw sih kak' terus arahkan balik ke topik bisnis."
     )
 
+    # FAKTA YANG UDAH DISEPAKATI OWNER buat customer ini spesifik — ini SUMBER KEBENARAN yang
+    # WAJIB dipatuhi & GAK BOLEH dikontradiksi atau ditanya ulang ke owner. Ditaruh SANGAT eksplisit
+    # (bukan cuma ngarep AI "inget sendiri" dari histori chat freeform) karena ini bagian paling
+    # penting biar AI gak pernah lagi salah bilang "belum dapet konfirmasi owner" padahal udah
+    # pernah dijawab & di-forward sebelumnya.
+    customer_facts = agreed_facts.get(user_number) or []
+    if customer_facts:
+        facts_list = "\n".join(f'- {f}' for f in customer_facts)
+        facts_context = (
+            "\n\n⭐⭐⭐ FAKTA YANG SUDAH FIX & DISEPAKATI OWNER UNTUK CUSTOMER INI (WAJIB DIPATUHI) ⭐⭐⭐\n"
+            "Ini daftar keputusan/jawaban yang UDAH BENERAN di-forward & disampein ke customer ini "
+            "sebelumnya. SEMUA ini FINAL — jangan pernah kontradiksi, jangan tanya ulang ke owner soal "
+            "ini, jangan bilang 'belum dapet konfirmasi' atau 'tunggu owner' buat hal-hal ini. Kalau "
+            "customer nanya/konfirmasi ulang soal salah satu hal di bawah, LANGSUNG jawab CONFIDENT "
+            "pakai jawaban yang udah fix ini:\n"
+            f"{facts_list}"
+        )
+    else:
+        facts_context = ""
+
     owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
-    full_prompt = SYSTEM_PROMPT + name_context + scope_context
+    full_prompt = SYSTEM_PROMPT + name_context + scope_context + facts_context
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
     return full_prompt
@@ -1402,6 +1489,10 @@ def receive_webhook():
                     save_message_to_db(target_customer, "customer", "assistant", msg_to_send)
                     log_customer_message(target_customer, msg_to_send, sent_from="direct_command")
 
+                    # Sama kayak forward biasa — catet ini jadi fakta fix, biar konsisten kalau
+                    # customer nanya/konfirmasi ulang soal ini di kemudian hari.
+                    add_agreed_fact(target_customer, msg_to_send)
+
                     owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_DIRECT_COMMAND:" not in m.get("content", "")]
                     send_whatsapp_message(from_number, f"✅ Pesan udah beneran kekirim ke wa.me/{target_customer}")
                 else:
@@ -1432,6 +1523,14 @@ def receive_webhook():
                         conversations[pending_customer_number] = history[-20:]
                         save_message_to_db(pending_customer_number, "customer", "assistant", customer_facing)
                         log_customer_message(pending_customer_number, customer_facing, sent_from="forward_from_owner")
+
+                        # Catet ini sebagai FAKTA YANG UDAH FIX buat customer ini — biar bot gak
+                        # PERNAH lagi bilang "belum dapet konfirmasi owner" untuk hal yang sebenernya
+                        # udah beneran dijawab & dikirim ke customer ini.
+                        fact_note = customer_facing
+                        if pending_question:
+                            fact_note = f"Soal '{pending_question}' — jawaban FINAL yang udah dikirim: {customer_facing}"
+                        add_agreed_fact(pending_customer_number, fact_note)
                     else:
                         send_whatsapp_message(
                             from_number,
@@ -1654,6 +1753,7 @@ def dashboard():
 # maupun lewat gunicorn di Render), sekalian seed cache nama customer dari database (kalau ada).
 init_db()
 customer_names.update(load_all_customer_names_from_db())
+agreed_facts.update(load_all_customer_facts_from_db())
 
 
 if __name__ == "__main__":
