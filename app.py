@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import base64
 import requests
 from flask import Flask, request, jsonify
 
@@ -415,6 +416,21 @@ SOAL PEMBAYARAN:
   dicek, terus sertakan tag "[SUDAH_BAYAR]" di balasanmu (taruh di mana aja, sistem yang proses, customer
   gak bakal lihat teks tag-nya) supaya owner dapet notifikasi buat verifikasi manual.
 
+SOAL GAMBAR YANG DIKIRIM CUSTOMER (kamu BISA lihat gambarnya langsung, ini bukan tebak-tebakan):
+- Kalau customer kirim gambar yang keliatan kayak bukti transfer/struk bank, CEK dulu isinya: ada
+  nominal, ada tanggal/waktu, keliatan kayak struk transfer beneran (bukan screenshot ngasal, bukan gambar
+  gak nyambung kayak foto produk/meme/hal random).
+- Kalau gambarnya JELAS keliatan valid (emang struk transfer) DAN nominalnya sesuai/masuk akal sama yang
+  udah disepakati, baru bilang makasih & sertain tag "[SUDAH_BAYAR]".
+- Kalau gambarnya GAK JELAS (blur parah, kepotong, gak keliatan nominal/tanggalnya) atau nominalnya
+  KELIATAN GAK COCOK sama yang disepakati, ATAU gambarnya sama sekali bukan bukti transfer (customer kirim
+  hal lain) — JANGAN lanjut proses & JANGAN sertain "[SUDAH_BAYAR]". Bilang santai & jelas ke customer apa
+  yang kurang (misal "bukti transfernya agak buram nih kak, boleh kirim ulang yang lebih jelas?" atau "loh
+  ini kayaknya bukan bukti transfer kak, ada yang salah kirim mungkin?"). Kalau ragu-ragu banget /
+  mencurigakan, sertain juga tag "[TANYA_OWNER]" biar owner ikut cek manual.
+- Buat gambar lain (bukan soal pembayaran, misal referensi konsep foto/video dari customer), tanggapin
+  natural sesuai konteks obrolan aja.
+
 KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA (DAN BELUM ADA DISKUSI DENGAN OWNER):
 - Jangan ngarang jawaban. Jawab jujur ke customer bahwa kamu bakal cek dulu & confirm ya, dengan bahasa
   santai (bukan "Mohon maaf, akan segera saya konfirmasi"). Contoh: "Iya saya tanya owner dulu ya kak, bentar"
@@ -571,19 +587,37 @@ def build_owner_system_prompt(pending_question, pending_customer_number):
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
-def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number):
+def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number,
+                       image_b64=None, image_mime=None):
     """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
-    call_claude() yang dipakai buat customer. Sama-sama Haiku default + fallback Sonnet."""
+    call_claude() yang dipakai buat customer. Sama-sama Haiku default + fallback Sonnet.
+    Kalau owner kirim gambar, WAJIB pakai Sonnet langsung (Haiku 3.5 gak support vision)."""
     history = owner_conversations.get(owner_number)
     if history is None:
         history = load_recent_messages_from_db(owner_number, "owner")  # isi ulang kalau server abis restart
-    history.append({"role": "user", "content": owner_message})
-    save_message_to_db(owner_number, "owner", "user", owner_message)
+
+    if image_b64:
+        api_content = [
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": image_mime or "image/jpeg", "data": image_b64},
+            },
+            {"type": "text", "text": owner_message or "(owner kirim gambar tanpa keterangan)"},
+        ]
+        memory_text = f"[OWNER KIRIM GAMBAR] {owner_message}".strip()
+    else:
+        api_content = owner_message
+        memory_text = owner_message
+
+    history.append({"role": "user", "content": api_content})
+    save_message_to_db(owner_number, "owner", "user", memory_text)
 
     system_prompt = build_owner_system_prompt(pending_question, pending_customer_number)
-    model_to_use = "claude-3-5-haiku-20241022"
+    model_to_use = "claude-3-5-haiku-20241022" if not image_b64 else "claude-sonnet-4-6"
 
     try:
+        if image_b64:
+            raise RuntimeError("skip-haiku-vision-not-supported")
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -623,6 +657,9 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     data = resp.json()
     reply_text = data["content"][0]["text"]
 
+    if image_b64:
+        history[-1] = {"role": "user", "content": memory_text}
+
     history.append({"role": "assistant", "content": reply_text})
     owner_conversations[owner_number] = history[-20:]
     save_message_to_db(owner_number, "owner", "assistant", reply_text)
@@ -658,28 +695,56 @@ def strip_tags(text):
     cleaned = text
     for tag in ALL_TAGS:
         cleaned = cleaned.replace(tag, "")
+    cleaned = TAG_NAMA_PATTERN.sub("", cleaned)
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
 
-def call_claude(user_number, user_message):
+def call_claude(user_number, user_message, image_b64=None, image_mime=None):
     """Panggil Claude API buat generate balasan AI.
     Default: Haiku (cost-optimal, default model untuk customer chat)
     Fallback: Sonnet (jika Haiku tidak tersedia atau gagal)
+
+    Kalau ada image_b64 (customer kirim gambar, misal bukti transfer), WAJIB pakai Sonnet
+    langsung (Haiku 3.5 gak bisa "lihat" gambar sama sekali) — jangan pernah kirim gambar ke Haiku.
     """
     history = conversations.get(user_number)
     if history is None:
         history = load_recent_messages_from_db(user_number, "customer")  # isi ulang kalau server abis restart
-    history.append({"role": "user", "content": user_message})
-    save_message_to_db(user_number, "customer", "user", user_message)
+
+    if image_b64:
+        # Content buat dikirim ke API request INI AJA (termasuk gambar beneran)
+        api_content = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image_mime or "image/jpeg",
+                    "data": image_b64,
+                },
+            },
+            {"type": "text", "text": user_message or "(customer kirim gambar tanpa keterangan)"},
+        ]
+        # Versi ringan buat disimpen ke memory/DB jangka panjang (JANGAN simpen base64 gambar
+        # mentah-mentah ke history — berat & gak perlu, cukup catetan kalau ada gambar dikirim)
+        memory_text = f"[CUSTOMER KIRIM GAMBAR] {user_message}".strip()
+    else:
+        api_content = user_message
+        memory_text = user_message
+
+    history.append({"role": "user", "content": api_content})
+    save_message_to_db(user_number, "customer", "user", memory_text)
 
     system_prompt = build_customer_system_prompt(user_number)
 
-    # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis)
-    model_to_use = "claude-3-5-haiku-20241022"
+    # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis) — KECUALI kalau ada gambar,
+    # langsung Sonnet karena Haiku 3.5 gak support vision.
+    model_to_use = "claude-3-5-haiku-20241022" if not image_b64 else "claude-sonnet-4-6"
 
     try:
+        if image_b64:
+            raise RuntimeError("skip-haiku-vision-not-supported")
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -720,9 +785,18 @@ def call_claude(user_number, user_message):
     data = resp.json()
     reply_text = data["content"][0]["text"]
 
-    history.append({"role": "assistant", "content": reply_text})
+    # Turunin balesan user tadi ke versi ringan (bukan gambar base64 mentah) sebelum disimpen
+    # permanen ke memory — biar history gak numpuk data gambar berat di tiap turn ke depan.
+    if image_b64:
+        history[-1] = {"role": "user", "content": memory_text}
+
+    # Simpen versi BERSIH (tanpa tag internal kayak [TANYA_OWNER]) ke memory/DB, biar history yang
+    # dipakai buat mikir Claude selanjutnya persis sama kayak apa yang BENERAN dilihat customer —
+    # bukan versi mentah yang masih ada tag sistemnya.
+    clean_reply_for_memory = strip_tags(reply_text)
+    history.append({"role": "assistant", "content": clean_reply_for_memory})
     conversations[user_number] = history[-20:]  # simpan 20 pesan terakhir aja
-    save_message_to_db(user_number, "customer", "assistant", reply_text)
+    save_message_to_db(user_number, "customer", "assistant", clean_reply_for_memory)
 
     return reply_text
 
@@ -750,7 +824,10 @@ def send_typing_indicator(incoming_message_id):
 
 
 def send_whatsapp_message(to_number, message_text):
-    """Kirim pesan teks balasan lewat WhatsApp Cloud API."""
+    """Kirim pesan teks balasan lewat WhatsApp Cloud API.
+    Balikin (success: bool, error_detail: str atau None) — JANGAN pernah anggap terkirim cuma
+    karena gak ada exception, WhatsApp API bisa balas status 4xx (misal di luar 24 jam window,
+    nomor invalid, dll) tanpa raise error."""
     url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {
         "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
@@ -762,23 +839,64 @@ def send_whatsapp_message(to_number, message_text):
         "type": "text",
         "text": {"body": message_text},
     }
-    r = requests.post(url, headers=headers, json=payload, timeout=30)
-    print("Kirim WA response:", r.status_code, r.text)
-    return r
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        print("Kirim WA response:", r.status_code, r.text)
+        if r.status_code == 200:
+            return True, None
+        # Coba ambil pesan error yang manusiawi dari response Meta
+        try:
+            err = r.json().get("error", {}).get("message", r.text)
+        except Exception:
+            err = r.text
+        return False, err
+    except Exception as e:
+        print("Error kirim WA message:", e)
+        return False, str(e)
+
+
+def download_whatsapp_media(media_id):
+    """Download gambar/file yang dikirim customer/owner lewat WhatsApp (misal bukti transfer),
+    balikin (base64_data, mime_type) — atau (None, None) kalau gagal di step manapun."""
+    try:
+        meta_url = f"https://graph.facebook.com/v21.0/{media_id}"
+        headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+        r = requests.get(meta_url, headers=headers, timeout=30)
+        r.raise_for_status()
+        meta = r.json()
+        media_url = meta.get("url")
+        mime_type = meta.get("mime_type", "image/jpeg")
+        if not media_url:
+            print("Download media WA: gak ada URL di response metadata:", meta)
+            return None, None
+
+        r2 = requests.get(media_url, headers=headers, timeout=30)
+        r2.raise_for_status()
+        b64_data = base64.b64encode(r2.content).decode("utf-8")
+        return b64_data, mime_type
+    except Exception as e:
+        print("Error download media WA:", e)
+        return None, None
 
 
 def send_reply_bubbles(to_number, incoming_message_id, full_reply_text):
     """Pecah balasan AI jadi beberapa 'chat bubble' (dipisah '|||'), kirim satu-satu dengan
-    jeda 'sedang mengetik...' di antaranya biar natural kayak orang WA-an beneran."""
+    jeda 'sedang mengetik...' di antaranya biar natural kayak orang WA-an beneran.
+    Balikin (success: bool, error_detail: str atau None) — kalau ADA SATU AJA bubble yang gagal
+    kekirim, ini dianggap GAGAL (dan yang manggil WAJIB cek ini sebelum bilang 'udah dikirim')."""
     parts = [p.strip() for p in full_reply_text.split("|||") if p.strip()]
     if not parts:
-        return
+        return False, "Gak ada isi pesan buat dikirim (kosong)."
 
     for part in parts:
         send_typing_indicator(incoming_message_id)
         delay = min(TYPING_DELAY_MAX_SEC, max(TYPING_DELAY_MIN_SEC, len(part) * TYPING_DELAY_PER_CHAR))
         time.sleep(delay)
-        send_whatsapp_message(to_number, part)
+        ok, err = send_whatsapp_message(to_number, part)
+        if not ok:
+            return False, err
+
+    return True, None
 
 
 def upload_media(file_path, mime_type):
@@ -980,10 +1098,23 @@ def receive_webhook():
         # tanda lewat FORWARD_MARKER di balasannya), jawaban final diterusin ke customer terkait.
         # Owner juga bisa kirim perintah langsung ("kirim ke..." atau "follow up...").
         if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER:
-            if msg_type != "text":
-                return jsonify({"status": "ok"}), 200
+            owner_image_b64, owner_image_mime = None, None
 
-            owner_text = message["text"]["body"]
+            if msg_type == "image":
+                owner_image_meta = message.get("image", {})
+                owner_caption = (owner_image_meta.get("caption") or "").strip()
+                owner_media_id = owner_image_meta.get("id")
+                owner_image_b64, owner_image_mime = (
+                    download_whatsapp_media(owner_media_id) if owner_media_id else (None, None)
+                )
+                if not owner_image_b64:
+                    send_whatsapp_message(from_number, "Gagal kebuka gambarnya, coba kirim ulang ya.")
+                    return jsonify({"status": "ok"}), 200
+                owner_text = owner_caption or "(aku kirim gambar, tolong liat & tanggapin)"
+            elif msg_type != "text":
+                return jsonify({"status": "ok"}), 200
+            else:
+                owner_text = message["text"]["body"]
 
             # CEK apakah ini perintah langsung (kirim ke nomor X dengan pesan Y)
             direct_target, direct_message = parse_direct_command(owner_text)
@@ -1024,7 +1155,8 @@ def receive_webhook():
                 pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
 
             ai_owner_reply = call_claude_owner(
-                from_number, owner_text, pending_question, pending_customer_number
+                from_number, owner_text, pending_question, pending_customer_number,
+                image_b64=owner_image_b64, image_mime=owner_image_mime,
             )
 
             # CEK apakah owner bilang "terusin" / "oke" setelah konfirmasi perintah langsung
@@ -1047,24 +1179,34 @@ def receive_webhook():
                         pass
 
             if pending_cmd and is_approval:
-                # Owner confirm perintah direct — kirim sekarang
+                # Owner confirm perintah direct — KIRIM DULU, baru cek hasilnya sebelum ngomong
+                # apa-apa ke owner. JANGAN PERNAH bilang "udah dikirim" sebelum beneran sukses
+                # kekirim, dan JANGAN simpen ke memory kalau ternyata gagal (biar memory selalu
+                # nyerminin apa yang BENERAN kejadian, bukan yang harusnya kejadian).
                 target_customer = pending_cmd["target"]
                 msg_to_send = pending_cmd["message"]
 
-                # Simpan ke history customer
-                history = conversations.get(target_customer, [])
-                history.append({"role": "assistant", "content": msg_to_send})
-                conversations[target_customer] = history[-20:]
-                save_message_to_db(target_customer, "customer", "assistant", msg_to_send)
-                send_reply_bubbles(target_customer, None, msg_to_send)
+                sent_ok, send_err = send_reply_bubbles(target_customer, None, msg_to_send)
 
-                # Log pengiriman
-                log_customer_message(target_customer, msg_to_send, sent_from="direct_command")
+                # Bersihkan pending command dari histori owner cuma kalau udah beneran kekirim
+                # (kalau gagal, biarin pending-nya biar owner bisa langsung bilang "terusin" lagi
+                # buat retry tanpa harus ngetik ulang perintahnya dari awal)
+                if sent_ok:
+                    history = conversations.get(target_customer, [])
+                    history.append({"role": "assistant", "content": msg_to_send})
+                    conversations[target_customer] = history[-20:]
+                    save_message_to_db(target_customer, "customer", "assistant", msg_to_send)
+                    log_customer_message(target_customer, msg_to_send, sent_from="direct_command")
 
-                # Bersihkan pending command
-                owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_DIRECT_COMMAND:" not in m.get("content", "")]
-
-                send_whatsapp_message(from_number, f"✅ Pesan udah dikirim ke wa.me/{target_customer}")
+                    owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_DIRECT_COMMAND:" not in m.get("content", "")]
+                    send_whatsapp_message(from_number, f"✅ Pesan udah beneran kekirim ke wa.me/{target_customer}")
+                else:
+                    send_whatsapp_message(
+                        from_number,
+                        f"⚠️ GAGAL kirim ke wa.me/{target_customer} — belum kekirim ke customer sama sekali.\n"
+                        f"Error: {send_err}\n\n"
+                        f"Coba bilang 'terusin' lagi buat retry, atau cek nomornya bener gak.",
+                    )
                 return jsonify({"status": "ok"}), 200
 
             if FORWARD_MARKER in ai_owner_reply and pending_customer_number:
@@ -1075,14 +1217,24 @@ def receive_webhook():
                 send_reply_bubbles(from_number, incoming_message_id, owner_facing)
 
                 if customer_facing:
-                    history = conversations.get(pending_customer_number, [])
-                    history.append({"role": "assistant", "content": customer_facing})
-                    conversations[pending_customer_number] = history[-20:]
-                    save_message_to_db(pending_customer_number, "customer", "assistant", customer_facing)
-                    send_reply_bubbles(pending_customer_number, None, customer_facing)
+                    # KIRIM DULU ke customer, baru simpen ke memory & anggap pertanyaan ini selesai
+                    # kalau BENERAN sukses kekirim. Kalau gagal, biarin pending_owner_questions-nya
+                    # tetep ada (jangan didelete) & kasih tau owner jelas-jelas kalau gagal.
+                    sent_ok, send_err = send_reply_bubbles(pending_customer_number, None, customer_facing)
 
-                    # Log pengiriman
-                    log_customer_message(pending_customer_number, customer_facing, sent_from="forward_from_owner")
+                    if sent_ok:
+                        history = conversations.get(pending_customer_number, [])
+                        history.append({"role": "assistant", "content": customer_facing})
+                        conversations[pending_customer_number] = history[-20:]
+                        save_message_to_db(pending_customer_number, "customer", "assistant", customer_facing)
+                        log_customer_message(pending_customer_number, customer_facing, sent_from="forward_from_owner")
+                    else:
+                        send_whatsapp_message(
+                            from_number,
+                            f"⚠️ GAGAL forward ke wa.me/{pending_customer_number} — belum kekirim ke customer.\n"
+                            f"Error: {send_err}\n\nCoba bilang 'terusin' lagi buat retry.",
+                        )
+                        return jsonify({"status": "ok"}), 200
 
                 del pending_owner_questions[pending_customer_number]
                 sisa = len(pending_owner_questions)
@@ -1097,13 +1249,30 @@ def receive_webhook():
 
             return jsonify({"status": "ok"}), 200
 
-        if msg_type != "text":
+        image_b64, image_mime = None, None
+
+        if msg_type == "image":
+            # Customer kirim gambar (paling sering: bukti transfer). Download & convert ke base64
+            # biar bisa "dilihat" langsung sama Claude (vision) — bukan cuma ditebak dari caption.
+            image_meta = message.get("image", {})
+            caption = (image_meta.get("caption") or "").strip()
+            media_id = image_meta.get("id")
+            image_b64, image_mime = download_whatsapp_media(media_id) if media_id else (None, None)
+
+            if not image_b64:
+                send_typing_indicator(incoming_message_id)
+                time.sleep(1.2)
+                send_whatsapp_message(from_number, "Waduh gambarnya gagal kebuka nih kak, coba kirim ulang ya 🙏")
+                return jsonify({"status": "ok"}), 200
+
+            user_text = caption or "(customer kirim gambar tanpa keterangan — cek isinya)"
+        elif msg_type != "text":
             send_typing_indicator(incoming_message_id)
             time.sleep(1.5)
-            send_whatsapp_message(from_number, "Maaf, saat ini admin cuma bisa baca pesan teks ya 🙏")
+            send_whatsapp_message(from_number, "Maaf, saat ini admin cuma bisa baca pesan teks & gambar ya 🙏")
             return jsonify({"status": "ok"}), 200
-
-        user_text = message["text"]["body"]
+        else:
+            user_text = message["text"]["body"]
 
         # Cek dulu apakah ini customer BARU (belum pernah chat sama sekali sebelumnya) SEBELUM
         # pesan ini diproses & disimpen — dipakai buat notifikasi "customer baru chat" ke owner,
@@ -1125,7 +1294,7 @@ def receive_webhook():
                 customer_names[from_number] = wa_profile_name
                 save_customer_name_to_db(from_number, wa_profile_name)
 
-        ai_reply = call_claude(from_number, user_text)
+        ai_reply = call_claude(from_number, user_text, image_b64=image_b64, image_mime=image_mime)
 
         # Deteksi & tangkep nama customer (kalau AI baru dapet tau dari obrolan, bukan dari profil
         # WA) SEBELUM tag lain diproses, simpen ke cache + database, baru buang tag-nya dari teks.
