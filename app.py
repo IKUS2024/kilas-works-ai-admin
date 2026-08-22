@@ -462,11 +462,11 @@ formal.
 KONTEKS: kadang ada customer yang tanya sesuatu yang AI customer-service belum yakin jawabnya, jadi
 diteruskan ke Irvan buat dijawab manual. Kalau lagi ada pertanyaan customer yang pending, kamu bakal dikasih
 tau isinya di bawah. Irvan boleh diskusi bebas dulu sama kamu soal itu — nanya-nanya, mikirin jawaban paling
-pas, atau ngobrol hal lain sama sekali — SEBELUM dia mutusin jawaban final buat customer.
+pas, kasih saran harga, atau ngobrol hal lain sama sekali — SEBELUM dia mutusin jawaban final buat customer.
 
 ATURAN PALING PENTING:
 - JANGAN langsung anggap semua yang Irvan ketik itu otomatis jawaban final buat customer. Ladenin dulu
-  obrolannya natural, bantu mikir kalau diminta, jawab pertanyaan dia apa aja, kayak asisten beneran.
+  obrolannya natural, bantu mikir kalau diminta, kasih saran, jawab pertanyaan dia apa aja, kayak asisten beneran.
 - BARU kalau Irvan udah JELAS ngasih instruksi buat forward/kirim/sampein ke customer (bahasa bebas, misal
   "terusin", "sampein ke dia", "bilang ke customer gitu aja", "oke kirim", "gas terusin", "fix segitu,
   terusin" — intinya dia nyuruh forward), baru kamu proses jadi jawaban final.
@@ -479,6 +479,9 @@ ATURAN PALING PENTING:
   di luar apa yang Irvan bilang.
 - Kalau BELUM ada instruksi jelas buat forward, JANGAN PERNAH tulis teks "PESAN_UNTUK_CUSTOMER:" dalam
   bentuk apapun — balas natural aja kayak obrolan biasa.
+- JANGAN PERNAH kirim pesan yang ambigu, gak jelas, atau bisa bikin customer bingung. Contoh: jangan
+  bilang "maaf saya salah sebut" atau balasan gak jelas lainnya ke customer. Kalimat harus JELAS,
+  ACTIONABLE, dan PASTI (bukan bertanya-tanya atau ragu).
 - Kalau emang lagi gak ada pertanyaan customer yang pending, anggap ini obrolan santai/kerjaan lain sama
   Irvan aja, bantu apa yang dia butuhin.
 
@@ -490,6 +493,13 @@ AKSES HISTORY SEMUA CUSTOMER:
   JANGAN bilang "aku gak tau" atau "gak ada akses" kalau datanya emang ada di situ.
 - Kalau customer yang dimaksud Irvan gak ketemu di daftar (belum pernah chat / namanya beda), baru bilang
   jujur kalau gak nemu datanya.
+
+PERINTAH LANGSUNG KE CUSTOMER (baru):
+- Kalau Irvan bilang "kirim ke [nomor]..." atau "follow up [nomor]..." atau semacamnya, Irvan ngasih
+  PERINTAH LANGSUNG mau kirim pesan ke customer tertentu. Kamu WAJIB KONFIRMASI dulu nomor & pesan-nya
+  tepat bener sebelum kirim, buat hindari salah orang. Konfirmasi dengan jelas: "Jadi aku kirim ke +62xxx:
+  [pesan draft]" — tunggu Irvan bilang "oke" atau "terusin" atau approval semacamnya sebelum benar-benar
+  proses. JANGAN PERNAH asal kirim ke nomor salah atau pesan yang gak sesuai harapan Irvan.
 """
 
 
@@ -835,6 +845,33 @@ def notify_owner_question(from_number, last_message):
     send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
 
 
+def parse_direct_command(text):
+    """Parse perintah langsung dari owner seperti 'kirim ke [nomor]...' atau 'follow up [nomor]...'.
+    Return (target_number, message_content) jika ketemu, atau (None, None) jika bukan perintah direct."""
+    # Pattern: "kirim ke 62xxx pesan..." atau "follow up 62xxx dengan..." etc
+    import re
+
+    # Cek pattern "kirim ke +62xxx [pesan]" atau "kirim ke 62xxx [pesan]"
+    match = re.search(r'kirim\s+ke\s+((?:\+)?62\d+)\s+(.+)', text, re.IGNORECASE | re.DOTALL)
+    if match:
+        number = match.group(1).lstrip('+')
+        if not number.startswith('62'):
+            number = '62' + number
+        message = match.group(2).strip()
+        return (number, message)
+
+    # Cek pattern "follow up [nomor] dengan [pesan]" atau "follow up [nomor] [pesan]"
+    match = re.search(r'follow\s+up\s+((?:\+)?62\d+)\s+(?:dengan\s+)?(.+)', text, re.IGNORECASE | re.DOTALL)
+    if match:
+        number = match.group(1).lstrip('+')
+        if not number.startswith('62'):
+            number = '62' + number
+        message = match.group(2).strip()
+        return (number, message)
+
+    return (None, None)
+
+
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
     """Meta bakal manggil ini pas kita setup webhook, buat verifikasi."""
@@ -872,12 +909,46 @@ def receive_webhook():
         # Owner selalu direspon AI (mode "asisten pribadi"), bisa diskusi bebas dulu soal
         # pertanyaan customer yang pending. Baru kalau owner eksplisit nyuruh forward (AI kasih
         # tanda lewat FORWARD_MARKER di balasannya), jawaban final diterusin ke customer terkait.
+        # Owner juga bisa kirim perintah langsung ("kirim ke..." atau "follow up...").
         if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER:
             if msg_type != "text":
                 return jsonify({"status": "ok"}), 200
 
             owner_text = message["text"]["body"]
 
+            # CEK apakah ini perintah langsung (kirim ke nomor X dengan pesan Y)
+            direct_target, direct_message = parse_direct_command(owner_text)
+
+            if direct_target:
+                # Ini perintah langsung — lanjut ke proses konfirmasi & kirim
+                # Tapi ada logika: jika target_number adalah customer yang lagi pending,
+                # kita kirim. Jika customer lain, kita juga bisa kirim (follow up).
+                # Dalam hal apapun, kita WAJIB konfirmasi.
+
+                target_customer_name = customer_names.get(direct_target, f"wa.me/{direct_target}")
+
+                # Format konfirmasi untuk ditampilkan ke owner
+                confirmation_text = (
+                    f"Jadi aku kirim ke {target_customer_name}:\n\n"
+                    f"{direct_message}\n\n"
+                    f"Oke? (bilang 'terusin' atau 'oke' buat konfirmasi)"
+                )
+
+                # Simpan pending direct command (nomor + pesan) buat diproses saat owner confirm
+                # Kita store ini di struktur khusus
+                pending_direct_command = {
+                    "target_number": direct_target,
+                    "message": direct_message,
+                }
+                owner_conversations.setdefault(from_number, []).append({
+                    "role": "system",
+                    "content": f"[PENDING_DIRECT_COMMAND: {direct_target}|{direct_message}]"
+                })
+
+                send_reply_bubbles(from_number, incoming_message_id, confirmation_text)
+                return jsonify({"status": "ok"}), 200
+
+            # Kalau bukan perintah langsung, ini obrolan normal
             # ambil pertanyaan customer yang paling lama nunggu (kalau ada) sebagai konteks
             pending_customer_number, pending_question = (None, None)
             if pending_owner_questions:
@@ -887,9 +958,46 @@ def receive_webhook():
                 from_number, owner_text, pending_question, pending_customer_number
             )
 
+            # CEK apakah owner bilang "terusin" / "oke" setelah konfirmasi perintah langsung
+            # Deteksi kata kunci approval
+            is_approval = any(keyword in owner_text.lower() for keyword in ["terusin", "oke", "ok", "lanjut", "go", "kirim"])
+
+            # Cek apakah ada pending direct command yang perlu dieksekusi
+            pending_cmd = None
+            owner_hist = owner_conversations.get(from_number, [])
+            for msg in reversed(owner_hist):
+                if msg.get("role") == "system" and "[PENDING_DIRECT_COMMAND:" in msg.get("content", ""):
+                    # Parse the pending command
+                    content = msg.get("content", "")
+                    try:
+                        cmd_data = content.split("[PENDING_DIRECT_COMMAND: ")[1].split("]")[0]
+                        target_num, msg_content = cmd_data.split("|", 1)
+                        pending_cmd = {"target": target_num, "message": msg_content}
+                        break
+                    except:
+                        pass
+
+            if pending_cmd and is_approval:
+                # Owner confirm perintah direct — kirim sekarang
+                target_customer = pending_cmd["target"]
+                msg_to_send = pending_cmd["message"]
+
+                # Simpan ke history customer
+                history = conversations.get(target_customer, [])
+                history.append({"role": "assistant", "content": msg_to_send})
+                conversations[target_customer] = history[-20:]
+                save_message_to_db(target_customer, "customer", "assistant", msg_to_send)
+                send_reply_bubbles(target_customer, None, msg_to_send)
+
+                # Bersihkan pending command
+                owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_DIRECT_COMMAND:" not in m.get("content", "")]
+
+                send_whatsapp_message(from_number, f"✅ Pesan udah dikirim ke wa.me/{target_customer}")
+                return jsonify({"status": "ok"}), 200
+
             if FORWARD_MARKER in ai_owner_reply and pending_customer_number:
                 owner_facing, _, customer_facing = ai_owner_reply.partition(FORWARD_MARKER)
-                owner_facing = owner_facing.strip() or "Oke, aku terusin ke customer ya!"
+                owner_facing = owner_facing.strip() or "Oke siap, aku terusin ya!"
                 customer_facing = customer_facing.strip()
 
                 send_reply_bubbles(from_number, incoming_message_id, owner_facing)
