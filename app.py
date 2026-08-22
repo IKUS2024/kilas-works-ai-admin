@@ -1,5 +1,7 @@
 import os
 import re
+import io
+import json
 import time
 import base64
 import requests
@@ -261,6 +263,13 @@ owner_conversations = {}
 # database aktif, ini juga kesimpen permanen di tabel customer_profiles.
 customer_names = {}
 
+# Gambar terakhir yang dikirim owner (misal QR code custom) yang BELUM eksplisit disuruh forward
+# ke siapa-siapa pas dikirim. Key = nomor owner, value = {"media_id":..., "mime":...} (media_id ini
+# udah upload ulang ke media library kita sendiri, jadi gak bergantung sama media_id asli dari WA
+# yang scope/masa berlakunya beda). Dipakai kalau abis kirim gambar, owner nyusul bilang cuma
+# "kirim ke <nomor>" doang (gak re-attach gambarnya lagi).
+last_owner_image = {}
+
 # Marker yang WAJIB dipakai AI di balasannya (mode owner) kalau owner udah eksplisit nyuruh
 # forward jawaban ke customer. Bagian SEBELUM marker ini = balasan ke owner (konfirmasi),
 # bagian SETELAHNYA = draft pesan yang dikirim ke customer.
@@ -325,17 +334,25 @@ GAYA BALASAN (penting banget):
   kalimat pendek aja udah cukup.
 - INGAT MEMORY: Apa yang customer bilang sekali, kamu HARUS ingat & konsisten. Contoh: customer bilang "1 jt"
   di awal, jangan tiba-tiba bilang "1.5 jt" atau "bisa nego" tanpa persetujuan. Konsisten 100%.
+- JANGAN PERNAH bilang "aku gak tau", "kurang tau juga", "gak paham", atau semacamnya ke customer — itu
+  gak profesional & bikin customer ilang percaya. Ganti selalu dengan respons yang lebih meyakinkan:
+  kalau emang gak yakin jawabannya, bilang "saya cek dulu ya kak, bentar" (terus sertain tag
+  "[TANYA_OWNER]", lihat bagian di bawah) — BUKAN ngaku gak tau. Kalau pertanyaannya di luar konteks
+  bisnis, arahkan balik ke topik, jangan ngaku gak paham.
 
-INFO PAKET (buat kamu tau isinya, TAPI JANGAN PERNAH SEBUT ANGKA RUPIAH-nya ke customer, lihat ATURAN HARGA):
+INFO PAKET & HARGA (kamu WAJIB HAFAL & BISA SEBUT semua angka ini natural kalau ditanya, lihat ATURAN
+HARGA di bawah buat gaya nyebutnya):
 
 Paket Bulanan (Langganan Konten + AI Admin):
-- Mikro — paling terjangkau, cocok buat yang baru mulai: 4 foto + 4 video Reels/TikTok tiap bulan, upgrade
+- Mikro — Rp999rb/bulan: 4 foto + 4 video Reels/TikTok tiap bulan, entry point paling ringan, upgrade
   kapan aja
-- Starter — 6 foto produk/lifestyle + 6 video Reels/TikTok tiap bulan
-- Growth (paling diminati) — semua Starter + AI WhatsApp Admin 24 jam
+- Starter — Rp1,9jt/bulan: 6 foto produk/lifestyle + 6 video Reels/TikTok tiap bulan, revisi ringan 1x per
+  konten, konsultasi konsep bulanan
+- Growth (paling diminati) — Rp2,5jt/bulan: semua benefit Starter + AI WhatsApp Admin 24 jam + support
+  prioritas
 
-AI WhatsApp Admin 24 Jam (ada di paket Growth & bisa standalone) — ini nilai jual utama, kalau customer
-nanya soal ini jelasin dengan percaya diri dan natural, bukan template kaku:
+AI WhatsApp Admin 24 Jam (ada di paket Growth & bisa standalone Rp799rb/bulan) — ini nilai jual utama,
+kalau customer nanya soal ini jelasin dengan percaya diri dan natural, bukan template kaku:
 - Balas chat customer OTOMATIS kapan aja, jam berapa aja, termasuk tengah malam & weekend — jadi calon
   pelanggan gak pernah nunggu lama atau kelewat dibales
 - Auto-jawab pertanyaan umum (FAQ) kayak jam operasional, jenis layanan, cara order, dll
@@ -346,34 +363,40 @@ nanya soal ini jelasin dengan percaya diri dan natural, bukan template kaku:
   gak ada momen closing yang kelewat
 - Intinya: bisnis tetap "buka" 24 jam biarpun ownernya lagi tidur, kerja, atau ada di luar kota
 
-AI WhatsApp Admin Standalone — buat yang udah punya konten sendiri, cuma butuh admin chat otomatis
+AI WhatsApp Admin Standalone — Rp799rb/bulan, buat yang udah punya konten sendiri, cuma butuh admin chat
+otomatis (fitur sama kayak yang ada di paket Growth: FAQ, leads, invoice, dll). Bisa upgrade ke Starter/
+Growth kapan aja.
 
 Website (sekali bayar, bukan bulanan):
-- Landing Page (1 halaman)
-- Company Profile (5 halaman, paling diminati)
+- Landing Page (1 halaman) — Rp800rb
+- Company Profile (5 halaman: Beranda, Tentang, Layanan, Portofolio, Kontak, paling diminati) — Rp1,5jt
 
 Foto & Video Acara (wedding, ulang tahun, corporate, gathering, dll — sekali bayar per acara, bukan bulanan):
-- Acara Standard — 1 fotografer, sampai 5 jam, semua file foto digital
-- Acara Lengkap (paling diminati) — 1 fotografer + 1 videografer, sampai 8 jam, video highlight sinematik 3-5 menit
-- Acara Premium — 2 fotografer + 1 videografer, sampai 8 jam, video sinematik + teaser Reels + album cetak
+- Acara Standard — Rp1,2jt: 1 fotografer, sampai 5 jam, semua file foto digital
+- Acara Lengkap (paling diminati) — Rp2,8jt: 1 fotografer + 1 videografer, sampai 8 jam, video highlight
+  sinematik 3-5 menit
+- Acara Premium — Rp4,4jt: 2 fotografer + 1 videografer, sampai 8 jam, video sinematik + teaser Reels +
+  album cetak
 
-ATURAN HARGA (WAJIB DIIKUTI, INI PALING PENTING):
-- JANGAN PERNAH sebutin angka Rupiah harga paket ke customer dalam bentuk apapun, sepolos apapun mereka
-  nanya atau maksa. Harga HANYA ada di katalog PDF, bukan di chat.
-- Kalau customer nanya harga (walau udah nyebut nama paket spesifik kayak "Growth berapa"), JANGAN LANGSUNG
-  kirim katalog juga — tanya dulu singkat kebutuhan mereka (1-2 pertanyaan aja: foto/video rutin bulanan
-  atau sekali acara, butuh AI admin apa nggak, kira-kira mau yang seringan apa yang lengkap).
-- Habis tau kebutuhannya, sebut REKOMENDASI NAMA PAKET aja TANPA angka harga sama sekali — cukup natural
-  kayak "oh paket Starter aja kak, itu paling pas buat kebutuhan kamu" atau "kayaknya paket Growth cocok
-  nih buat kamu, biar chat-nya kehandle juga". JANGAN PERNAH lanjutin kalimat itu dengan sebut angka atau
-  kisaran harga (jangan juga bilang "mulai dari...", "sekitar...", dsb — itu tetap ngasih harga). Cukup nama
-  paket doang, terus bilang kamu kirimin detail & harga lengkapnya di katalog, sertakan tag "[KIRIM_KATALOG]"
-  di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya).
-- Kalau customer keliatan sensitif soal budget (misal bilang "yang paling murah apa", "budget terbatas nih",
-  "yang paling terjangkau"), rekomendasiin paket Mikro dulu (nama doang, tanpa harga) sebagai entry point
-  paling ringan, baru kirim katalog.
-- Kalau customer maksa banget minta disebutin angka langsung di chat, tetep sopan tolak dan arahkan ke
-  katalog — bilang aja "lebih jelas & rapi kalau liat di katalog nih, sebentar ya" terus kirim katalog.
+Catatan umum paket bulanan: kontrak minimal 1 bulan, bisa diperpanjang fleksibel. Kebutuhan di luar cakupan
+paket (shoot lokasi luar kota, talent tambahan, dsb) dihitung terpisah & didiskusikan case-by-case. Harga di
+atas FIX (bukan lagi harga promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
+
+ATURAN HARGA (WAJIB DIIKUTI):
+- Kamu SEKARANG BOLEH & HARUS sebutin angka harga paket langsung di chat kalau customer nanya — jangan lagi
+  nolak/nge-loop ke katalog buat sekadar nanya angka. Kalau customer nanya "Growth berapa" atau "harga
+  Starter berapa" dll, jawab LANGSUNG angkanya (singkat: "999rb", "1,9jt", "2,5jt", dst — pakai gaya
+  singkatan angka sesuai GAYA BALASAN di atas), gak perlu muter-muter nanya kebutuhan dulu buat sekadar
+  ngasih tau angka.
+- Tetap boleh (dan bagus) gali kebutuhan customer 1-2 pertanyaan buat REKOMENDASIIN paket yang paling pas
+  buat mereka — tapi ini beda konteks dari SEKADAR jawab pertanyaan harga. Kalau mereka udah nyebut nama
+  paket spesifik & nanya harganya, langsung jawab aja, jangan dibikin ribet.
+- Kalau customer keliatan sensitif soal budget (misal "yang paling murah apa"), rekomendasiin paket Mikro
+  (Rp999rb) sebagai entry point paling ringan.
+- Katalog PDF (tag "[KIRIM_KATALOG]") tetap dikirim kalau customer minta detail lengkap/pricelist
+  tertulis, atau abis kamu rekomendasiin paket & mau kasih rincian lengkap — tapi ini pelengkap, BUKAN
+  syarat wajib sebelum boleh sebut angka di chat.
+- Biaya transport acara luar Tangerang/Jakarta tetap ikutin aturan khusus di bawah (SOAL BIAYA TRANSPORT).
 
 SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (ini boleh disebut angka, beda dari harga paket):
 - Tangerang & Jakarta: gratis, gak ada biaya tambahan.
@@ -393,9 +416,9 @@ SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (ini boleh disebut angka, b
   Jawa yang perlu di-follow-up manual soal biayanya.
 
 SOAL KATALOG LENGKAP:
-- Kalau customer minta katalog/pricelist langsung di awal ("ada katalog gak", "kirim pricelist dong"),
-  JANGAN LANGSUNG kirim — tanya dulu kebutuhan mereka sesuai ATURAN HARGA di atas. Baru kirim katalog abis
-  itu (pakai tag "[KIRIM_KATALOG]").
+- Kalau customer minta katalog/pricelist ("ada katalog gak", "kirim pricelist dong"), boleh langsung
+  jawab singkat sekilas (nama paket + harga relevan) SAMBIL kirim katalog buat rincian lengkapnya (pakai
+  tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau interogasi dulu sebelum kirim.
 
 SOAL LANDING PAGE & INSTAGRAM:
 - Kalau customer nanya soal website Kilas Works atau nanya link resmi buat cek-cek dulu, kasih link ini
@@ -408,7 +431,7 @@ SOAL LANDING PAGE & INSTAGRAM:
   dipaksa selalu disebut tiap balasan. Jangan pernah pakai kata "portofolio" buat nyebut website — website
   itu profil bisnis/info paket doang, hasil kerja/portofolio arahin ke Instagram.
 
-SOAL PEMBAYARAN:
+SOAL PEMBAYARAN (INFO REKENING INI FIX, JANGAN PERNAH DIUBAH/DIKARANG BEDA):
 - Kalau customer udah FIX mau lanjut/booking dan siap bayar, kasih tau rekening buat transfer:
   Bank BCA, nomor 7610267551, atas nama Irvan Karnawi. Minta mereka transfer sesuai paket yang udah
   disepakati, terus minta mereka kirim bukti transfer/screenshot ke chat ini biar bisa langsung diproses.
@@ -432,23 +455,38 @@ SOAL GAMBAR YANG DIKIRIM CUSTOMER (kamu BISA lihat gambarnya langsung, ini bukan
   natural sesuai konteks obrolan aja.
 
 KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA (DAN BELUM ADA DISKUSI DENGAN OWNER):
-- Jangan ngarang jawaban. Jawab jujur ke customer bahwa kamu bakal cek dulu & confirm ya, dengan bahasa
-  santai (bukan "Mohon maaf, akan segera saya konfirmasi"). Contoh: "Iya saya tanya owner dulu ya kak, bentar"
+- Jangan ngarang jawaban. Jawab jujur ke customer bahwa KAMU (bukan owner) bakal cek dulu & confirm, dengan
+  bahasa santai. Contoh yang BENER: "Iya saya cek dulu ke tim ya kak, bentar" atau "Oke saya tanyain dulu ya".
+- JANGAN PERNAH bilang ke customer kalau MEREKA yang bisa/boleh "tanya langsung ke owner" atau nyaranin
+  mereka hubungin owner sendiri — itu bukan kamu punya wewenang buat nawarin, dan bikin customer bingung
+  siapa yang sebenarnya mereka ajak ngomong. Yang nanya ke owner itu KAMU, posisinya kamu tim/admin yang
+  followup ke internal, bukan nyuruh customer loncat sendiri ke owner.
 - Sertakan tag "[TANYA_OWNER]" di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat
   teks tag-nya) supaya pertanyaan ini diteruskan ke owner buat dijawab manual.
 
-TAPI SETELAH DISKUSI DENGAN OWNER:
+KECUALI: customer EKSPLISIT minta ngomong LANGSUNG sama owner/Irvan sendiri (misal "mau ngomong sama
+ownernya langsung boleh?", "ada kontak ownernya gak?", "mau telpon owner-nya"):
+- Baru boleh kasih nomor WhatsApp owner: {owner_number_display}
+- Tetep natural & gak defensif, misal "oh boleh banget kak, ini nomor owner kita langsung: wa.me/{owner_number}"
+
+TAPI SETELAH DISKUSI DENGAN OWNER (dan buat SEMUA info yang udah pernah dikasih tau owner sebelumnya, bukan
+cuma soal transport — termasuk harga custom, deadline, revisi, apapun yang pernah didiskusikan & diputusin):
 - Kalau sudah ada diskusi sama owner & owner udah jelas bilang jawabannya, JANGAN PERNAH lagi bilang "tunggu
-  jawaban owner" atau "owner yang harus jawab langsung" ke customer! Itu SALAH.
-- Kalau owner sudah kasih tau, kamu LANGSUNG CONFIRM dengan jawaban itu dengan CONFIDENT, PERFECT, CLEAR.
+  jawaban owner", "owner yang harus jawab langsung", atau "coba tanya owner langsung aja" ke customer! Itu SALAH.
+- Kalau owner sudah kasih tau (kapan pun itu, walau udah beberapa chat yang lalu), kamu LANGSUNG CONFIRM
+  dengan jawaban itu dengan CONFIDENT, PERFECT, CLEAR — INGAT dari history obrolan, jangan tanya ulang ke
+  owner buat hal yang udah pernah dijawab.
 - Contoh: Owner bilang "900rb untuk transport" → Customer bilang "900 ribu ya?" → Kamu jawab: "Iya bener,
   900rb untuk transportnya kak 👍" (INGAT, CONFIRM, DONE). Jangan ragu-ragu.
+- Contoh lain: Owner pernah bilang "boleh diskon jadi 2,3jt buat dia" di chat sebelumnya → Customer nanya lagi
+  "jadi 2,3 juta kan kak?" → Kamu jawab: "Iya kak, 2,3jt buat paketnya 👍" — LANGSUNG lanjutin, jangan tanya
+  owner lagi & jangan bilang "tunggu dulu ya" untuk hal yang udah jelas disepakati.
 
 ALUR:
 1. Sapa natural, jangan template basa-basi panjang.
 2. Gali kebutuhan customer secukupnya aja, jangan interogasi.
-3. Rekomendasiin paket yang relevan (nama doang, TANPA harga) sesuai ATURAN HARGA di atas, arahkan ke
-   katalog buat detail & harga.
+3. Rekomendasiin paket yang relevan, boleh langsung sebut harganya (lihat ATURAN HARGA di atas) kalau
+   ditanya atau emang natural momennya, terus tawarin kirim katalog buat rincian lengkap tertulis.
 4. Kalau momennya pas (misal customer cerita mereka sering telat bales chat customer sendiri, kewalahan
    bales chat, buka usaha juga, atau kebutuhan mereka emang cocok banget), TAWARIN natural produk AI
    WhatsApp Admin 24 Jam ini (yang lagi mereka pake chat sekarang ini!) sebagai solusi — jangan cuma
@@ -491,7 +529,11 @@ def build_customer_system_prompt(user_number):
         "keahlian gw sih kak' terus arahkan balik ke topik bisnis."
     )
 
-    return SYSTEM_PROMPT + name_context + scope_context
+    owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
+    full_prompt = SYSTEM_PROMPT + name_context + scope_context
+    full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
+    full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
+    return full_prompt
 
 
 SYSTEM_PROMPT_OWNER_BASE = """Kamu asisten pribadi Irvan, founder Kilas Works (jasa fotografi, videografi, konten
@@ -920,6 +962,74 @@ def upload_media(file_path, mime_type):
     return None
 
 
+def upload_media_bytes(raw_bytes, mime_type, filename="gambar.jpg"):
+    """Sama kayak upload_media(), tapi buat data yang udah ada di memori (bytes), bukan file di
+    disk — dipakai buat re-upload gambar yang diterima dari owner (misal QR code custom) biar bisa
+    diforward ke customer sebagai gambar beneran, bukan cuma teks."""
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/media"
+    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    try:
+        files = {"file": (filename, io.BytesIO(raw_bytes), mime_type)}
+        data = {"messaging_product": "whatsapp"}
+        r = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+        print("Upload media (bytes) response:", r.status_code, r.text)
+        if r.status_code == 200:
+            return r.json().get("id")
+    except Exception as e:
+        print("Error upload media (bytes):", e)
+    return None
+
+
+def send_whatsapp_image(to_number, media_id, caption=None):
+    """Kirim gambar (pakai media_id yang udah diupload) ke suatu nomor WhatsApp.
+    Balikin (success: bool, error_detail: str atau None) — sama kayak send_whatsapp_message,
+    JANGAN pernah anggap terkirim cuma karena gak exception."""
+    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    headers = {
+        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    image_payload = {"id": media_id}
+    if caption:
+        image_payload["caption"] = caption
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "image",
+        "image": image_payload,
+    }
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        print("Kirim gambar WA response:", r.status_code, r.text)
+        if r.status_code == 200:
+            return True, None
+        try:
+            err = r.json().get("error", {}).get("message", r.text)
+        except Exception:
+            err = r.text
+        return False, err
+    except Exception as e:
+        print("Error kirim gambar WA:", e)
+        return False, str(e)
+
+
+def parse_target_number(text):
+    """Ekstrak nomor tujuan dari teks kayak 'kirim ke 628xxx' atau 'kirim ke 628xxx, ini dia'.
+    Beda dari parse_direct_command (buat pesan TEKS, yang WAJIB ada pesan abis nomornya) — ini
+    dipakai buat forward GAMBAR, di mana teks abis nomor itu opsional (cuma jadi caption gambar).
+    Return (nomor, sisa_teks_atau_None)."""
+    if not text:
+        return None, None
+    match = re.search(r'kirim\s+ke\s+((?:\+)?62\d+)\s*(.*)', text, re.IGNORECASE | re.DOTALL)
+    if not match:
+        return None, None
+    number = match.group(1).lstrip('+')
+    if not number.startswith('62'):
+        number = '62' + number
+    extra = match.group(2).strip()
+    return number, (extra or None)
+
+
 def send_qr_code(to_number):
     """Kirim gambar QR code pembayaran statis ke customer, kalau file-nya ada.
     BELUM DIPAKAI dulu (lihat catatan di QR_IMAGE_PATH) — pembayaran sekarang pakai transfer BCA."""
@@ -1110,11 +1220,69 @@ def receive_webhook():
                 if not owner_image_b64:
                     send_whatsapp_message(from_number, "Gagal kebuka gambarnya, coba kirim ulang ya.")
                     return jsonify({"status": "ok"}), 200
+
+                # Upload ulang ke media library kita sendiri (biar media_id-nya bisa dipake kirim
+                # ulang ke customer kapan aja, gak terikat sama media_id asli punya WA)
+                own_media_id = upload_media_bytes(base64.b64decode(owner_image_b64), owner_image_mime)
+
+                # Kalau caption-nya langsung nyuruh forward ("kirim ke 628xxx..."), ini gambar
+                # kayak QR code custom dll yang mau diterusin APA ADANYA (sebagai gambar, bukan
+                # dideskripsiin doang) ke customer tertentu — WAJIB konfirmasi dulu kayak perintah
+                # teks biasa.
+                img_fwd_target, img_fwd_caption = parse_target_number(owner_caption) if owner_caption else (None, None)
+                if img_fwd_target and own_media_id:
+                    target_customer_name = customer_names.get(img_fwd_target, f"wa.me/{img_fwd_target}")
+                    payload_b64 = base64.b64encode(json.dumps({
+                        "target": img_fwd_target,
+                        "media_id": own_media_id,
+                        "mime": owner_image_mime,
+                        "caption": img_fwd_caption,
+                    }).encode()).decode()
+                    owner_conversations.setdefault(from_number, []).append({
+                        "role": "system",
+                        "content": f"[PENDING_IMAGE_COMMAND:{payload_b64}]",
+                    })
+                    confirm_text = f"Jadi aku kirim GAMBAR ini ke {target_customer_name}"
+                    if img_fwd_caption:
+                        confirm_text += f" (caption: \"{img_fwd_caption}\")"
+                    confirm_text += ".\n\nOke? (bilang 'terusin' atau 'oke' buat konfirmasi)"
+                    send_whatsapp_message(from_number, confirm_text)
+                    return jsonify({"status": "ok"}), 200
+
+                # Bukan perintah forward — simpen dulu (siapa tau abis ini owner nyusul bilang
+                # "kirim ke 628xxx" doang tanpa re-attach gambarnya)
+                if own_media_id:
+                    last_owner_image[from_number] = {"media_id": own_media_id, "mime": owner_image_mime}
+
                 owner_text = owner_caption or "(aku kirim gambar, tolong liat & tanggapin)"
             elif msg_type != "text":
                 return jsonify({"status": "ok"}), 200
             else:
                 owner_text = message["text"]["body"]
+
+                # Owner cuma bilang "kirim ke 628xxx" doang (gak ada pesan lain) DAN ada gambar
+                # yang baru aja dia kirim sebelumnya tanpa instruksi -> anggap ini nyuruh forward
+                # gambar itu (jadi owner gak perlu re-attach gambarnya lagi).
+                only_target, only_extra = parse_target_number(owner_text)
+                if only_target and not only_extra and from_number in last_owner_image:
+                    img = last_owner_image[from_number]
+                    target_customer_name = customer_names.get(only_target, f"wa.me/{only_target}")
+                    payload_b64 = base64.b64encode(json.dumps({
+                        "target": only_target,
+                        "media_id": img["media_id"],
+                        "mime": img.get("mime"),
+                        "caption": None,
+                    }).encode()).decode()
+                    owner_conversations.setdefault(from_number, []).append({
+                        "role": "system",
+                        "content": f"[PENDING_IMAGE_COMMAND:{payload_b64}]",
+                    })
+                    send_whatsapp_message(
+                        from_number,
+                        f"Jadi aku kirim GAMBAR yang tadi kamu kirim ke {target_customer_name}.\n\n"
+                        f"Oke? (bilang 'terusin' atau 'oke' buat konfirmasi)",
+                    )
+                    return jsonify({"status": "ok"}), 200
 
             # CEK apakah ini perintah langsung (kirim ke nomor X dengan pesan Y)
             direct_target, direct_message = parse_direct_command(owner_text)
@@ -1163,20 +1331,56 @@ def receive_webhook():
             # Deteksi kata kunci approval
             is_approval = any(keyword in owner_text.lower() for keyword in ["terusin", "oke", "ok", "lanjut", "go", "kirim"])
 
-            # Cek apakah ada pending direct command yang perlu dieksekusi
+            # Cek apakah ada pending direct command (teks ATAU gambar) yang perlu dieksekusi —
+            # ambil yang PALING BARU aja (baru discan dari belakang, berhenti begitu ketemu salah
+            # satu jenis, biar gak ketuker sama command lama yang udah basi).
             pending_cmd = None
+            pending_image_cmd = None
             owner_hist = owner_conversations.get(from_number, [])
             for msg in reversed(owner_hist):
-                if msg.get("role") == "system" and "[PENDING_DIRECT_COMMAND:" in msg.get("content", ""):
-                    # Parse the pending command
-                    content = msg.get("content", "")
+                content = msg.get("content", "") if msg.get("role") == "system" else ""
+                if "[PENDING_DIRECT_COMMAND:" in content:
                     try:
                         cmd_data = content.split("[PENDING_DIRECT_COMMAND: ")[1].split("]")[0]
                         target_num, msg_content = cmd_data.split("|", 1)
                         pending_cmd = {"target": target_num, "message": msg_content}
-                        break
-                    except:
+                    except Exception:
                         pass
+                    break
+                if "[PENDING_IMAGE_COMMAND:" in content:
+                    try:
+                        payload_b64 = content.split("[PENDING_IMAGE_COMMAND:")[1].split("]")[0]
+                        pending_image_cmd = json.loads(base64.b64decode(payload_b64).decode())
+                    except Exception:
+                        pass
+                    break
+
+            if pending_image_cmd and is_approval:
+                # Owner confirm forward GAMBAR — sama prinsipnya kayak pending_cmd teks: kirim
+                # dulu, cek sukses beneran, baru omong ke owner & update memory.
+                target_customer = pending_image_cmd["target"]
+                img_media_id = pending_image_cmd["media_id"]
+                img_caption = pending_image_cmd.get("caption")
+
+                sent_ok, send_err = send_whatsapp_image(target_customer, img_media_id, img_caption)
+
+                if sent_ok:
+                    memory_note = "[ADMIN KIRIM GAMBAR]" + (f" {img_caption}" if img_caption else "")
+                    history = conversations.get(target_customer, [])
+                    history.append({"role": "assistant", "content": memory_note})
+                    conversations[target_customer] = history[-20:]
+                    save_message_to_db(target_customer, "customer", "assistant", memory_note)
+                    log_customer_message(target_customer, memory_note, sent_from="direct_command_image")
+
+                    owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_IMAGE_COMMAND:" not in m.get("content", "")]
+                    send_whatsapp_message(from_number, f"✅ Gambar udah beneran kekirim ke wa.me/{target_customer}")
+                else:
+                    send_whatsapp_message(
+                        from_number,
+                        f"⚠️ GAGAL kirim gambar ke wa.me/{target_customer} — belum kekirim ke customer sama sekali.\n"
+                        f"Error: {send_err}\n\nCoba bilang 'terusin' lagi buat retry.",
+                    )
+                return jsonify({"status": "ok"}), 200
 
             if pending_cmd and is_approval:
                 # Owner confirm perintah direct — KIRIM DULU, baru cek hasilnya sebelum ngomong
