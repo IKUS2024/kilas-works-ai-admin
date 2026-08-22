@@ -408,9 +408,14 @@ ALUR:
 2. Gali kebutuhan customer secukupnya aja, jangan interogasi.
 3. Rekomendasiin paket yang relevan (nama doang, TANPA harga) sesuai ATURAN HARGA di atas, arahkan ke
    katalog buat detail & harga.
-4. Kalau customer udah serius mau booking/lanjut (leads panas), sertakan tag "[LEADS_PANAS]" di balasanmu
+4. Kalau momennya pas (misal customer cerita mereka sering telat bales chat customer sendiri, kewalahan
+   bales chat, buka usaha juga, atau kebutuhan mereka emang cocok banget), TAWARIN natural produk AI
+   WhatsApp Admin 24 Jam ini (yang lagi mereka pake chat sekarang ini!) sebagai solusi — jangan cuma
+   nunggu ditanya. Ini nilai jual UTAMA Kilas Works, jangan pelit nawarin walau customer awalnya nanya
+   soal foto/video doang. Tetep natural, jangan maksa/spam nawarin kalau emang gak relevan sama sekali.
+5. Kalau customer udah serius mau booking/lanjut (leads panas), sertakan tag "[LEADS_PANAS]" di balasanmu
    (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
-5. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
+6. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
 """
 
 
@@ -775,14 +780,15 @@ def send_catalog_pdf(to_number):
 
 
 def notify_owner_new_message(from_number, message_text, name=None):
-    """Kirim notifikasi ringan ke owner SETIAP kali ada pesan masuk dari customer manapun (bukan
-    cuma pas leads panas/tanya owner/dll) — biar owner selalu tau siapa aja yang lagi chat & nanya
-    apa, real-time. Ini terpisah dari notify_owner/notify_owner_question yang isinya notifikasi
-    khusus buat aksi tertentu (leads panas, tanya owner, dsb) — bisa muncul barengan kalau relevan."""
+    """Kirim notifikasi ringan ke owner SEKALI AJA pas ada customer BARU pertama kali chat (dipanggil
+    dari receive_webhook cuma kalau is_new_customer True) — biar owner tau siapa aja yang mulai chat,
+    tanpa banjir notif tiap pesan dari customer yang sama. Ini terpisah dari notify_owner/
+    notify_owner_question yang isinya notifikasi khusus buat aksi tertentu (leads panas, tanya owner,
+    dsb) — bisa muncul barengan kalau relevan."""
     if not OWNER_WHATSAPP_NUMBER:
         return
     who = f"{name} (wa.me/{from_number})" if name else f"wa.me/{from_number}"
-    text = f'💬 Chat masuk dari {who}:\n"{message_text}"'
+    text = f'💬 Customer baru chat: {who}\nPesan pertama: "{message_text}"'
     send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
 
 
@@ -905,6 +911,14 @@ def receive_webhook():
 
         user_text = message["text"]["body"]
 
+        # Cek dulu apakah ini customer BARU (belum pernah chat sama sekali sebelumnya) SEBELUM
+        # pesan ini diproses & disimpen — dipakai buat notifikasi "customer baru chat" ke owner,
+        # yang cuma dikirim SEKALI per customer (bukan tiap pesan, biar gak spam ke WA owner).
+        existing_history = conversations.get(from_number)
+        if existing_history is None:
+            existing_history = load_recent_messages_from_db(from_number, "customer")
+        is_new_customer = not existing_history
+
         # Kalau kita belum tau nama customer ini, coba ambil dari profil WhatsApp-nya dulu (kalau
         # dia emang punya nama di profil WA) — biar AI gak perlu nanya-nanya lagi kalau namanya
         # udah kebaca otomatis dari sini.
@@ -945,9 +959,10 @@ def receive_webhook():
         if wants_catalog:
             send_catalog_pdf(from_number)
 
-        # Notifikasi ke owner SETIAP kali ada pesan masuk dari customer manapun (real-time, biar
-        # owner selalu tau siapa aja yang lagi chat & nanya apa).
-        notify_owner_new_message(from_number, user_text, customer_names.get(from_number))
+        # Notifikasi ke owner SEKALI aja pas ada customer BARU yang pertama kali chat (biar owner
+        # tau siapa aja yang chat, tanpa banjir notif tiap pesan dari customer yang sama).
+        if is_new_customer:
+            notify_owner_new_message(from_number, user_text, customer_names.get(from_number))
 
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
