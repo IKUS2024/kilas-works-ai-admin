@@ -5,6 +5,7 @@ import json
 import time
 import base64
 import requests
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 
 try:
@@ -24,6 +25,11 @@ VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "kilasworks123")  # bebas, dipakai
 # Password buat buka halaman dashboard (/dashboard?key=...). GANTI ini di environment variable
 # Render, jangan pakai default di production.
 DASHBOARD_KEY = os.environ.get("DASHBOARD_KEY", "kilasworks-dashboard")
+
+# Password buat trigger follow-up otomatis (/cron/followups?key=...). Endpoint ini HARUS dipanggil
+# dari luar secara berkala (misal via cron-job.org tiap 1 jam) — Render gak bisa "bangunin dirinya
+# sendiri" tiap 12 jam, jadi butuh trigger eksternal. Kalau kosong, fallback ke DASHBOARD_KEY.
+CRON_SECRET = os.environ.get("CRON_SECRET", "") or DASHBOARD_KEY
 
 # Connection string database Postgres (dari Supabase, dll). Kalau kosong, bot tetep jalan normal
 # tapi history chat cuma kesimpen sementara di memori (ilang kalau server restart) — sama kayak
@@ -82,6 +88,17 @@ def init_db():
             """
         )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_customer_facts_number ON customer_facts (number);")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS followup_state (
+                number TEXT PRIMARY KEY,
+                last_customer_msg_at TIMESTAMPTZ,
+                last_followup_at TIMESTAMPTZ,
+                followup_count INTEGER NOT NULL DEFAULT 0,
+                converted BOOLEAN NOT NULL DEFAULT FALSE
+            );
+            """
+        )
         conn.commit()
         cur.close()
         conn.close()
@@ -248,6 +265,121 @@ def add_agreed_fact(number, fact):
     save_customer_fact_to_db(number, fact)
 
 
+# ==== FOLLOW-UP OTOMATIS (chat lagi ke customer yang diem >12 jam) ====
+# Maksimal berapa kali follow-up otomatis dikirim per customer sebelum berhenti (biar gak keliatan spam
+# kalau customer emang udah gak minat/gak balas berkali-kali).
+MAX_AUTO_FOLLOWUPS = 3
+FOLLOWUP_GAP_HOURS = 12
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
+
+
+def save_followup_state_to_db(number, state):
+    """Simpen/update state follow-up satu customer ke DB (upsert)."""
+    if not db_enabled():
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO followup_state (number, last_customer_msg_at, last_followup_at, followup_count, converted)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (number) DO UPDATE SET
+                last_customer_msg_at = EXCLUDED.last_customer_msg_at,
+                last_followup_at = EXCLUDED.last_followup_at,
+                followup_count = EXCLUDED.followup_count,
+                converted = EXCLUDED.converted
+            """,
+            (
+                number,
+                state.get("last_customer_msg_at"),
+                state.get("last_followup_at"),
+                state.get("followup_count", 0),
+                state.get("converted", False),
+            ),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Gagal simpen followup_state ke database ({e}).")
+
+
+def load_all_followup_state_from_db():
+    """Ambil semua state follow-up dari DB, buat isi ulang cache in-memory pas server abis restart."""
+    if not db_enabled():
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT number, last_customer_msg_at, last_followup_at, followup_count, converted FROM followup_state")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        result = {}
+        for number, last_customer_msg_at, last_followup_at, followup_count, converted in rows:
+            result[number] = {
+                "last_customer_msg_at": last_customer_msg_at,
+                "last_followup_at": last_followup_at,
+                "followup_count": followup_count,
+                "converted": converted,
+            }
+        return result
+    except Exception as e:
+        print(f"Gagal ambil followup_state dari database ({e}).")
+        return {}
+
+
+def mark_customer_activity(number):
+    """Dipanggil tiap kali customer beneran ngirim pesan — reset hitungan follow-up (karena mereka
+    udah balas lagi, gak 'diem' lagi) & update kapan terakhir mereka aktif."""
+    state = followup_state.setdefault(number, {"last_customer_msg_at": None, "last_followup_at": None, "followup_count": 0, "converted": False})
+    state["last_customer_msg_at"] = _utcnow()
+    state["followup_count"] = 0
+    save_followup_state_to_db(number, state)
+
+
+def mark_customer_converted(number):
+    """Dipanggil begitu customer keliatan udah bayar/booking ([SUDAH_BAYAR] atau [LEADS_PANAS] yang
+    closing) — stop follow-up otomatis buat customer ini karena mereka udah gak perlu di-nudge lagi."""
+    state = followup_state.setdefault(number, {"last_customer_msg_at": None, "last_followup_at": None, "followup_count": 0, "converted": False})
+    state["converted"] = True
+    save_followup_state_to_db(number, state)
+
+
+def get_customers_due_for_followup(hours=FOLLOWUP_GAP_HOURS, max_count=MAX_AUTO_FOLLOWUPS):
+    """Cari customer yang: (a) belum ditandain converted/udah closing, (b) followup_count masih di
+    bawah batas, (c) terakhir chat >= `hours` jam lalu, (d) belum di-follow-up dalam `hours` jam
+    terakhir (biar gak dobel kirim kalau endpoint /cron/followups kepanggil lebih sering dari 12 jam)."""
+    now = _utcnow()
+    due = []
+    for number, state in followup_state.items():
+        if state.get("converted"):
+            continue
+        if state.get("followup_count", 0) >= max_count:
+            continue
+        last_msg = state.get("last_customer_msg_at")
+        if not last_msg:
+            continue
+        if now - last_msg < timedelta(hours=hours):
+            continue
+        last_followup = state.get("last_followup_at")
+        if last_followup and (now - last_followup < timedelta(hours=hours)):
+            continue
+        due.append(number)
+    return due
+
+
+def record_followup_sent(number):
+    state = followup_state.setdefault(number, {"last_customer_msg_at": None, "last_followup_at": None, "followup_count": 0, "converted": False})
+    state["last_followup_at"] = _utcnow()
+    state["followup_count"] = state.get("followup_count", 0) + 1
+    save_followup_state_to_db(number, state)
+
+
 def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150):
     """Susun ringkasan SEMUA customer (nama + history chat terakhir mereka), buat disisipin ke system
     prompt mode-owner supaya AI bisa jawab pertanyaan Irvan soal customer mana aja, kapan aja — bukan
@@ -337,6 +469,16 @@ agreed_facts = {}
 # "kirim ke <nomor>" doang (gak re-attach gambarnya lagi).
 last_owner_image = {}
 
+# Customer TERAKHIR yang beneran chat ke bot, per nomor owner — dipakai sebagai fallback target kalau
+# owner bilang "terusin"/"kirim ke dia" pas lagi diskusi soal seorang customer TANPA ada pertanyaan
+# formal yang ke-tag [TANYA_OWNER] (misal owner cuma proaktif liat notifikasi customer baru & mau
+# langsung nimbrung). Key = nomor owner, value = nomor customer terakhir.
+active_customer_context = {}
+
+# State follow-up otomatis per customer (key = nomor customer, value = dict last_customer_msg_at /
+# last_followup_at / followup_count / converted). Lihat fungsi-fungsi FOLLOW-UP OTOMATIS di bawah.
+followup_state = {}
+
 # Marker yang WAJIB dipakai AI di balasannya (mode owner) kalau owner udah eksplisit nyuruh
 # forward jawaban ke customer. Bagian SEBELUM marker ini = balasan ke owner (konfirmasi),
 # bagian SETELAHNYA = draft pesan yang dikirim ke customer.
@@ -376,15 +518,21 @@ PRICING_CONFIG = {
     },
 }
 
-SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok
-di Tangerang & Jakarta). Balas kayak MANUSIA ASLI lagi WhatsApp-an, BUKAN kayak bot atau customer service kaku.
+SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok,
+DAN AI WhatsApp Admin — lihat aturan wajib soal ini di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
+lagi WhatsApp-an, tapi tetap PROFESIONAL & fokus bisnis — BUKAN kayak bot atau customer service kaku.
 
 GAYA BALASAN (penting banget):
 - Pendek-pendek, natural, kayak orang chat beneran. 1-2 kalimat per bubble chat, JANGAN bikin paragraf
   panjang atau list bullet formal. MAKSIMAL ringkas, to-the-point.
 - Boleh santai: "nih", "ya", "sih", "oke", jangan bahasa baku kaku ("Baik, berikut adalah...", "Dengan senang
   hati kami...").
-- Emoji secukupnya aja (0-1 per balasan), jangan berlebihan.
+- JANGAN PAKAI EMOJI SAMA SEKALI di balasan ke customer. Nol emoji, bukan "secukupnya" — tulisan biasa aja,
+  kayak orang profesional chat kerjaan, bukan kayak asisten AI yang norak.
+- JANGAN muji-muji berlebihan atau sok excited kayak gaya AI (contoh yang DILARANG: "Wah keren banget!",
+  "Menarik sekali!", "Ide bagus tuh!", "Wow!"). Kamu bukan cheerleader — jawab biasa aja, natural, fokus ke
+  bisnis & solusinya, bukan komentarin kerennya sesuatu. Tetap ramah, tapi ramah yang tenang & profesional,
+  bukan lebay.
 - Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural, jangan muter-muter,
   jawab to the point kalau ditanya sesuatu yang jelas.
 - Kalau kamu tau ilmu/tips yang relevan dan bisa bantu customer (misal soal foto produk, ide konten, dll),
@@ -406,6 +554,17 @@ GAYA BALASAN (penting banget):
   kalau emang gak yakin jawabannya, bilang "saya cek dulu ya kak, bentar" (terus sertain tag
   "[TANYA_OWNER]", lihat bagian di bawah) — BUKAN ngaku gak tau. Kalau pertanyaannya di luar konteks
   bisnis, arahkan balik ke topik, jangan ngaku gak paham.
+
+⭐ WAJIB PALING PENTING — JANGAN PERNAH LUPA SEBUT AI WHATSAPP ADMIN:
+- Kilas Works itu jasanya BUKAN cuma foto/video/edit/Reels doang — AI WhatsApp Admin (yang lagi kamu jalanin
+  sekarang buat chat ini!) adalah SATU DARI LAYANAN UTAMA & justru nilai jual PALING MENARIK/diferensiator.
+- Kapan pun customer nanya "jasa apa aja yang Kilas Works tawarin", "kalian ngerjain apa aja", "bisa bantu
+  apa aja", atau pertanyaan sejenis yang nanya cakupan layanan — kamu WAJIB sebutin AI WhatsApp Admin 24 Jam
+  sebagai salah satu jawabannya, JANGAN PERNAH cuma jawab "foto, video, editing, konten Reels/TikTok" doang
+  dan lupa nyebut AI admin. Ini paling gampang lupa kejadian, jadi selalu double-check sebelum jawab
+  pertanyaan tipe ini: udah kesebut AI admin belum?
+- Justru ini poin jual paling kuat buat ditawarin proaktif (lihat bagian ALUR di bawah) — karena customer
+  LAGI NGOBROL LANGSUNG sama produknya saat ini juga, jadi gampang banget dikasih contoh nyata.
 
 INFO PAKET & HARGA (kamu WAJIB HAFAL & BISA SEBUT semua angka ini natural kalau ditanya, lihat ATURAN
 HARGA di bawah buat gaya nyebutnya):
@@ -449,21 +608,25 @@ Catatan umum paket bulanan: kontrak minimal 1 bulan, bisa diperpanjang fleksibel
 paket (shoot lokasi luar kota, talent tambahan, dsb) dihitung terpisah & didiskusikan case-by-case. Harga di
 atas FIX (bukan lagi harga promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
 
-ATURAN HARGA (WAJIB DIIKUTI):
-- Kamu SEKARANG BOLEH & HARUS sebutin angka harga paket langsung di chat kalau customer nanya — jangan lagi
-  nolak/nge-loop ke katalog buat sekadar nanya angka. Kalau customer nanya "Growth berapa" atau "harga
-  Starter berapa" dll, jawab LANGSUNG angkanya (singkat: "999rb", "1,9jt", "2,5jt", dst — pakai gaya
-  singkatan angka sesuai GAYA BALASAN di atas), gak perlu muter-muter nanya kebutuhan dulu buat sekadar
-  ngasih tau angka.
-- Tetap boleh (dan bagus) gali kebutuhan customer 1-2 pertanyaan buat REKOMENDASIIN paket yang paling pas
-  buat mereka — tapi ini beda konteks dari SEKADAR jawab pertanyaan harga. Kalau mereka udah nyebut nama
-  paket spesifik & nanya harganya, langsung jawab aja, jangan dibikin ribet.
+ATURAN HARGA (WAJIB DIIKUTI — UPDATE PENTING, harga itu PENUTUP bukan PEMBUKA):
+- JANGAN BURU-BURU kasih angka harga di awal obrolan, walau customer langsung nanya harga duluan. Kamu BOLEH
+  & TAU semua angkanya (lihat di atas), tapi TAHAN dulu — bangun rasa penasaran & value dulu, jangan asal
+  tembak angka polos di kalimat pertama mereka nanya harga.
+- Kalau customer nanya harga (misal "Growth berapa", "harga Starter berapa"), jangan langsung jawab angka.
+  Respon dulu dengan REKOMENDASI PAKET + benefit singkatnya (nama paket + kenapa itu cocok, TANPA angka),
+  terus gali 1-2 pertanyaan kebutuhan mereka biar makin engaged & rekomendasinya makin pas. Bikin mereka
+  makin penasaran & yakin dulu sebelum tau angkanya.
+- Harga BARU disebutin di titik yang lebih akhir obrolan — pas mereka udah keliatan cukup tertarik/yakin,
+  udah jelas kebutuhannya, atau udah nanya harga lebih dari sekali/beneran serius mau lanjut. Di situ baru
+  kasih tau angka pastinya dengan CONFIDENT (singkat: "999rb", "1,9jt", "2,5jt", dst).
+- JANGAN kelamaan muter-muter juga sampai kesannya nyebelin/gak jelas — kalau mereka udah nanya harga 2-3
+  kali atau keliatan makin gak sabar, langsung kasih angkanya, jangan dipaksa nahan-nahan terus.
 - Kalau customer keliatan sensitif soal budget (misal "yang paling murah apa"), rekomendasiin paket Mikro
-  (Rp999rb) sebagai entry point paling ringan.
-- Katalog PDF (tag "[KIRIM_KATALOG]") tetap dikirim kalau customer minta detail lengkap/pricelist
-  tertulis, atau abis kamu rekomendasiin paket & mau kasih rincian lengkap — tapi ini pelengkap, BUKAN
-  syarat wajib sebelum boleh sebut angka di chat.
-- Biaya transport acara luar Tangerang/Jakarta tetap ikutin aturan khusus di bawah (SOAL BIAYA TRANSPORT).
+  duluan (nama dulu, angkanya nyusul setelah gali kebutuhan sebentar).
+- Katalog PDF (tag "[KIRIM_KATALOG]") kirim kapan pun relevan buat kasih rincian lengkap tertulis — biasanya
+  pas di titik yang sama kayak kapan kamu udah mau kasih tau harga pasti.
+- Biaya transport acara luar Tangerang/Jakarta tetap ikutin aturan khusus di bawah (SOAL BIAYA TRANSPORT) —
+  ini beda konteks, boleh langsung disebut kapan aja relevan.
 
 SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (ini boleh disebut angka, beda dari harga paket):
 - Tangerang & Jakarta: gratis, gak ada biaya tambahan.
@@ -499,9 +662,15 @@ SOAL LANDING PAGE & INSTAGRAM:
   itu profil bisnis/info paket doang, hasil kerja/portofolio arahin ke Instagram.
 
 SOAL PEMBAYARAN (INFO REKENING INI FIX, JANGAN PERNAH DIUBAH/DIKARANG BEDA):
-- Kalau customer udah FIX mau lanjut/booking dan siap bayar, kasih tau rekening buat transfer:
-  Bank BCA, nomor 7610267551, atas nama Irvan Karnawi. Minta mereka transfer sesuai paket yang udah
-  disepakati, terus minta mereka kirim bukti transfer/screenshot ke chat ini biar bisa langsung diproses.
+- Kalau customer udah FIX mau lanjut/booking dan siap bayar, kirim RINGKASAN PESANAN dulu (semacam
+  invoice singkat, biar keliatan rapi & profesional) sebelum minta transfer, format kira-kira gini
+  (sesuaikan isinya, boleh dipecah jadi beberapa bubble chat pakai "|||"):
+  "Oke, ini ringkasan pesanannya ya:
+   Paket: [nama paket]
+   Total: [harga yang udah disepakati]
+   Pembayaran: Transfer BCA 7610267551 a.n. Irvan Karnawi"
+  Terus minta mereka transfer sesuai jumlah itu, dan kirim bukti transfer/screenshot ke chat ini biar bisa
+  langsung diproses. JANGAN pernah ubah/karang beda nomor rekening atau nama pemiliknya.
 - Kalau customer bilang udah transfer atau kirim bukti transfer, bilang santai makasih & bakal langsung
   dicek, terus sertakan tag "[SUDAH_BAYAR]" di balasanmu (taruh di mana aja, sistem yang proses, customer
   gak bakal lihat teks tag-nya) supaya owner dapet notifikasi buat verifikasi manual.
@@ -544,16 +713,16 @@ cuma soal transport — termasuk harga custom, deadline, revisi, apapun yang per
   dengan jawaban itu dengan CONFIDENT, PERFECT, CLEAR — INGAT dari history obrolan, jangan tanya ulang ke
   owner buat hal yang udah pernah dijawab.
 - Contoh: Owner bilang "900rb untuk transport" → Customer bilang "900 ribu ya?" → Kamu jawab: "Iya bener,
-  900rb untuk transportnya kak 👍" (INGAT, CONFIRM, DONE). Jangan ragu-ragu.
+  900rb untuk transportnya kak" (INGAT, CONFIRM, DONE, TANPA emoji). Jangan ragu-ragu.
 - Contoh lain: Owner pernah bilang "boleh diskon jadi 2,3jt buat dia" di chat sebelumnya → Customer nanya lagi
-  "jadi 2,3 juta kan kak?" → Kamu jawab: "Iya kak, 2,3jt buat paketnya 👍" — LANGSUNG lanjutin, jangan tanya
+  "jadi 2,3 juta kan kak?" → Kamu jawab: "Iya kak, 2,3jt buat paketnya" — LANGSUNG lanjutin, jangan tanya
   owner lagi & jangan bilang "tunggu dulu ya" untuk hal yang udah jelas disepakati.
 
 ALUR:
 1. Sapa natural, jangan template basa-basi panjang.
 2. Gali kebutuhan customer secukupnya aja, jangan interogasi.
-3. Rekomendasiin paket yang relevan, boleh langsung sebut harganya (lihat ATURAN HARGA di atas) kalau
-   ditanya atau emang natural momennya, terus tawarin kirim katalog buat rincian lengkap tertulis.
+3. Rekomendasiin paket yang relevan DULU (nama + benefit, tahan angkanya — lihat ATURAN HARGA di atas),
+   baru kasih tau harga pasti belakangan pas mereka udah cukup tertarik/yakin, sambil tawarin katalog.
 4. Kalau momennya pas (misal customer cerita mereka sering telat bales chat customer sendiri, kewalahan
    bales chat, buka usaha juga, atau kebutuhan mereka emang cocok banget), TAWARIN natural produk AI
    WhatsApp Admin 24 Jam ini (yang lagi mereka pake chat sekarang ini!) sebagai solusi — jangan cuma
@@ -646,7 +815,7 @@ ATURAN PALING PENTING:
   customer, JANGAN pernah sebut kata "owner" atau "Irvan" ke customer (kamu ngomong sebagai admin/tim,
   bukan nyebut ada pihak ketiga), jangan tambahin janji/info di luar apa yang udah didiskusikan atau
   di luar apa yang Irvan bilang. INGAT: jawaban ke customer harus SINGKAT & TO-THE-POINT (pakai singkatan
-  kayak "1 jt" bukan "1 juta", dll).
+  kayak "1 jt" bukan "1 juta", dll), TANPA EMOJI, dan TANPA muji-muji lebay — nada profesional & natural.
 - Kalau BELUM ada instruksi jelas buat forward, JANGAN PERNAH tulis teks "PESAN_UNTUK_CUSTOMER:" dalam
   bentuk apapun — balas natural aja kayak obrolan biasa.
 - JANGAN PERNAH kirim pesan yang ambigu, gak jelas, atau bisa bikin customer bingung. Contoh: jangan
@@ -693,6 +862,15 @@ def build_owner_system_prompt(pending_question, pending_customer_number):
             f'\n\nPERTANYAAN CUSTOMER YANG LAGI PENDING (dari wa.me/{pending_customer_number}): '
             f'"{pending_question}"'
         )
+    elif pending_customer_number:
+        target_name = customer_names.get(pending_customer_number, f"wa.me/{pending_customer_number}")
+        context = (
+            f"\n\nGak ada pertanyaan customer yang formal pending, TAPI customer TERAKHIR yang chat/lagi "
+            f"dibahas adalah {target_name} ({pending_customer_number}). Kalau Irvan diskusi soal customer "
+            f"ini terus bilang 'terusin'/'kirim'/'sampein' TANPA nyebut nomor lain secara eksplisit, "
+            f"anggap target forward-nya customer INI — WAJIB tetep proses format PESAN_UNTUK_CUSTOMER: "
+            f"seperti biasa, JANGAN diem aja cuma karena gak ada 'pertanyaan resmi' yang pending."
+        )
     else:
         context = "\n\nGak ada pertanyaan customer yang pending saat ini."
 
@@ -704,12 +882,14 @@ def build_owner_system_prompt(pending_question, pending_customer_number):
         "Owner bilang: '900rb untuk transport ke Jogja'\n"
         "Customer bilang: 'Jadi 900 ribu ya kak?'\n"
         "❌ BAD Bot: 'Tunggu owner jawab dulu, aku gak bisa confirm' (SALAH! Owner sudah bilang!)\n"
-        "✅ GOOD Bot: 'Iya bener, 900rb untuk transportnya kak 👍' (INGAT, CONFIRM, DONE)\n\n"
+        "✅ GOOD Bot: 'Iya bener, 900rb untuk transportnya kak' (INGAT, CONFIRM, DONE)\n\n"
         "Contoh lain:\n"
         "❌ BAD: Owner bilang '1 juta' → Bot kirim '1 juta tapi bisa nego' (contradictory)\n"
         "✅ GOOD: Owner bilang '1 juta' → Bot kirim '1 jt' (exact, singkat, confident)\n"
         "JANGAN PERNAH: bilang 'maaf saya salah sebut', 'tunggu owner jawab', atau ragu-ragu. "
-        "Kalau owner sudah decide, kamu LANGSUNG CONFIRM dengan CONFIDENT & CLEAR. ZERO APOLOGIES."
+        "Kalau owner sudah decide, kamu LANGSUNG CONFIRM dengan CONFIDENT & CLEAR. ZERO APOLOGIES.\n"
+        "PENTING: draft pesan ke customer JANGAN PAKAI EMOJI SAMA SEKALI & jangan muji-muji lebay "
+        "('wah keren', 'menarik banget', dll) — nada profesional, natural, fokus bisnis."
     )
 
     context += build_customer_context_summary()
@@ -830,14 +1010,19 @@ def strip_tags(text):
     return cleaned.strip()
 
 
-def call_claude(user_number, user_message, image_b64=None, image_mime=None):
+def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None):
     """Panggil Claude API buat generate balasan AI.
     Default: Haiku (cost-optimal, default model untuk customer chat)
     Fallback: Sonnet (jika Haiku tidak tersedia atau gagal)
 
     Kalau ada image_b64 (customer kirim gambar, misal bukti transfer), WAJIB pakai Sonnet
     langsung (Haiku 3.5 gak bisa "lihat" gambar sama sekali) — jangan pernah kirim gambar ke Haiku.
-    """
+
+    memory_override dipakai buat instruksi INTERNAL sistem (misal trigger follow-up otomatis) yang
+    BUKAN beneran diketik customer — user_message TETAP dikirim ke API biar AI ngerti instruksinya,
+    TAPI yang disimpen permanen ke memory/DB & history in-memory adalah teks di memory_override ini
+    (tag singkat & jujur, BUKAN instruksi internal mentah), biar history tetap valid & gak keliatan
+    seolah-olah customer yang ngetik instruksi sistem itu."""
     history = conversations.get(user_number)
     if history is None:
         history = load_recent_messages_from_db(user_number, "customer")  # isi ulang kalau server abis restart
@@ -858,6 +1043,9 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None):
         # Versi ringan buat disimpen ke memory/DB jangka panjang (JANGAN simpen base64 gambar
         # mentah-mentah ke history — berat & gak perlu, cukup catetan kalau ada gambar dikirim)
         memory_text = f"[CUSTOMER KIRIM GAMBAR] {user_message}".strip()
+    elif memory_override is not None:
+        api_content = user_message
+        memory_text = memory_override
     else:
         api_content = user_message
         memory_text = user_message
@@ -914,9 +1102,9 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None):
     data = resp.json()
     reply_text = data["content"][0]["text"]
 
-    # Turunin balesan user tadi ke versi ringan (bukan gambar base64 mentah) sebelum disimpen
-    # permanen ke memory — biar history gak numpuk data gambar berat di tiap turn ke depan.
-    if image_b64:
+    # Turunin balesan user tadi ke versi ringan (bukan gambar base64 mentah / instruksi internal
+    # mentah) sebelum disimpen permanen ke memory in-memory (DB udah disimpen versi ringan dari awal).
+    if image_b64 or memory_override is not None:
         history[-1] = {"role": "user", "content": memory_text}
 
     # Simpen versi BERSIH (tanpa tag internal kayak [TANYA_OWNER]) ke memory/DB, biar history yang
@@ -1135,7 +1323,7 @@ def send_qr_code(to_number):
         "type": "image",
         "image": {
             "id": media_id,
-            "caption": "Ini QR code buat pembayarannya ya, nanti nominal & konfirmasi dibantu tim kita 🙏",
+            "caption": "Ini QR code buat pembayarannya ya, nanti nominal & konfirmasi dibantu tim kita.",
         },
     }
     r = requests.post(url, headers=headers, json=payload, timeout=30)
@@ -1409,6 +1597,14 @@ def receive_webhook():
             if pending_owner_questions:
                 pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
 
+            # Kalau gak ada pertanyaan customer yang formal pending (misal owner nyeletuk duluan soal
+            # customer yang baru aja chat, TANPA customer itu ngirim pertanyaan yang di-tag TANYA_OWNER),
+            # fallback ke customer TERAKHIR yang beneran chat sama bot — ini bikin "terusin" tetap kerja
+            # walau gak ada pending_question formal, sesuai request: begitu owner bilang terusin, WAJIB
+            # beneran kekirim ke customer, gak boleh diem aja gara-gara gak ada konteks pending.
+            if not pending_customer_number:
+                pending_customer_number = active_customer_context.get(from_number)
+
             ai_owner_reply = call_claude_owner(
                 from_number, owner_text, pending_question, pending_customer_number,
                 image_b64=owner_image_b64, image_mime=owner_image_mime,
@@ -1565,14 +1761,14 @@ def receive_webhook():
             if not image_b64:
                 send_typing_indicator(incoming_message_id)
                 time.sleep(1.2)
-                send_whatsapp_message(from_number, "Waduh gambarnya gagal kebuka nih kak, coba kirim ulang ya 🙏")
+                send_whatsapp_message(from_number, "Gambarnya gagal kebuka nih kak, coba kirim ulang ya.")
                 return jsonify({"status": "ok"}), 200
 
             user_text = caption or "(customer kirim gambar tanpa keterangan — cek isinya)"
         elif msg_type != "text":
             send_typing_indicator(incoming_message_id)
             time.sleep(1.5)
-            send_whatsapp_message(from_number, "Maaf, saat ini admin cuma bisa baca pesan teks & gambar ya 🙏")
+            send_whatsapp_message(from_number, "Saat ini admin cuma bisa baca pesan teks & gambar ya kak.")
             return jsonify({"status": "ok"}), 200
         else:
             user_text = message["text"]["body"]
@@ -1596,6 +1792,12 @@ def receive_webhook():
             if wa_profile_name:
                 customer_names[from_number] = wa_profile_name
                 save_customer_name_to_db(from_number, wa_profile_name)
+
+        # Update konteks "customer terakhir yang chat" — dipakai fallback kalau owner bilang "terusin"
+        # tanpa ada pertanyaan formal pending (lihat active_customer_context).
+        if OWNER_WHATSAPP_NUMBER:
+            active_customer_context[OWNER_WHATSAPP_NUMBER] = from_number
+        mark_customer_activity(from_number)
 
         ai_reply = call_claude(from_number, user_text, image_b64=image_b64, image_mime=image_mime)
 
@@ -1630,6 +1832,9 @@ def receive_webhook():
         if is_new_customer:
             notify_owner_new_message(from_number, user_text, customer_names.get(from_number))
 
+        if payment_confirmed:
+            mark_customer_converted(from_number)  # stop follow-up otomatis, udah bayar
+
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
         elif payment_confirmed:
@@ -1647,6 +1852,49 @@ def receive_webhook():
 @app.route("/", methods=["GET"])
 def health_check():
     return "Kilas Works AI Admin - server jalan!", 200
+
+
+@app.route("/cron/followups", methods=["GET"])
+def run_followups():
+    """Endpoint yang HARUS dipanggil dari luar secara berkala (misal cron-job.org tiap 1 jam) buat
+    ngirim follow-up otomatis ke customer yang udah diem >=12 jam & belum closing/bayar. Aman
+    dipanggil sesering apapun — endpoint ini sendiri yang ngecek siapa aja yang beneran udah waktunya
+    di-follow-up (gak akan dobel kirim), jadi gak perlu presisi 12 jam pas di sisi penjadwal luar.
+    Akses: GET /cron/followups?key=<CRON_SECRET>
+    """
+    key = request.args.get("key", "")
+    if not CRON_SECRET or key != CRON_SECRET:
+        return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
+
+    due_numbers = get_customers_due_for_followup()
+    results = []
+
+    for number in due_numbers:
+        try:
+            # Minta AI generate follow-up yang PERSONAL berdasarkan history & fakta yang udah
+            # disepakati customer ini (pakai infra yang sama kayak balasan biasa), bukan template
+            # generik — biar kerasa natural, bukan kayak broadcast otomatis.
+            nudge_instruction = (
+                "(INSTRUKSI INTERNAL — INI FOLLOW-UP OTOMATIS, JANGAN TAMPILKAN TEKS INI KE CUSTOMER: "
+                "customer ini udah diem 12+ jam sejak pesan terakhirnya. Sapa natural & singkat, "
+                "tanyain apakah masih ada yang bisa dibantu atau masih tertarik lanjut soal obrolan "
+                "sebelumnya — INGAT konteks obrolan lama, jangan mulai dari nol/nanya ulang hal yang "
+                "udah dibahas. TANPA emoji, TANPA muji berlebihan, singkat & profesional.)"
+            )
+            ai_reply = call_claude(number, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]")
+            clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
+            sent_ok, send_err = send_reply_bubbles(number, None, clean_reply)
+            if sent_ok:
+                record_followup_sent(number)
+                log_customer_message(number, clean_reply, sent_from="auto_followup")
+                results.append({"number": number, "status": "sent"})
+            else:
+                results.append({"number": number, "status": "failed", "error": send_err})
+        except Exception as e:
+            print(f"Gagal follow-up ke {number}: {e}")
+            results.append({"number": number, "status": "error", "error": str(e)})
+
+    return jsonify({"status": "ok", "checked": len(due_numbers), "results": results}), 200
 
 
 def _escape_html(text):
@@ -1754,6 +2002,7 @@ def dashboard():
 init_db()
 customer_names.update(load_all_customer_names_from_db())
 agreed_facts.update(load_all_customer_facts_from_db())
+followup_state.update(load_all_followup_state_from_db())
 
 
 if __name__ == "__main__":
