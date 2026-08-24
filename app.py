@@ -1494,12 +1494,48 @@ DRAFT_REQUEST_HINTS = [
 # BUKAN dicari sebagai nama customer literal.
 PRONOUN_TARGETS = {"dia", "nya", "customer", "customernya", "orangnya", "ini", "tadi"}
 
+# Cuma nangkep KATA KERJA-nya doang (bukan target-nya) — target di-parse terpisah di
+# parse_owner_send_command, biar bisa nyocokin nama MULTI-KATA (mis. "Kimfong Wijaya") ke
+# customer_names beneran, bukan asal motong 1 kata pertama abis kata kerja.
 SEND_VERB_PATTERN = re.compile(
     r'\b(?:kirim(?:in)?(?:\s+ini)?\s+ke|balas|bales|reply(?:\s+ke)?|follow[\s\-]?up|'
-    r'tanyain|ingetin|ingatkan|sampein\s+ke|bilang\s+ke|chat\s+ke)\s+'
-    r'([^\s:,.\?]+)\s*(:|,|\bbilang\b|\btentang\b|\bsoal\b)?\s*(.*)',
-    re.IGNORECASE | re.DOTALL,
+    r'tanyain|ingetin|ingatkan|sampein\s+ke|bilang\s+ke|chat(?:in)?(?:\s+ke)?)\b',
+    re.IGNORECASE,
 )
+
+# Kata kunci yang misahin "target" dari "isi instruksi" pas gak ada titik dua eksplisit
+# (mis. "balas Kimfong Wijaya BILANG besok bisa" -> target="Kimfong Wijaya", instruksi="besok bisa").
+TARGET_SEPARATOR_KEYWORD_PATTERN = re.compile(r'\b(bilang|tentang|soal)\b', re.IGNORECASE)
+
+
+def split_target_from_rest(remainder):
+    """remainder = teks abis kata kerja & abis separator (kalau ada), ATAU teks abis kata kerja
+    langsung (kalau gak ada separator sama sekali). Coba cocokin PREFIX kata-katanya (dari yang
+    PALING PANJANG dulu, maks 4 kata) ke nama customer yang BENERAN ada di customer_names atau ke
+    kata ganti (dia/nya/dll) — biar nama 2-3 kata kayak 'Kimfong Wijaya' kebaca UTUH sebagai satu
+    target, bukan kepotong jadi 'Kimfong' doang + 'Wijaya' nyasar ke pesan. Kalau gak ada satupun
+    yang cocok di data, fallback ke 1 kata pertama aja (perilaku lama, biar tetep ada guess buat
+    nomor HP atau nama yang belum ke-capture di sistem)."""
+    words = remainder.strip().split()
+    if not words:
+        return "", ""
+    best_len = 1
+    for n in range(min(4, len(words)), 0, -1):
+        candidate = " ".join(words[:n]).strip(",.:;")
+        if candidate.lower() in PRONOUN_TARGETS or find_customers_by_name(candidate):
+            best_len = n
+            break
+    target = " ".join(words[:best_len]).strip(",.:;")
+    rest = " ".join(words[best_len:]).strip()
+    return target, rest
+
+
+def short_display_name(full_name):
+    """Buat teks konfirmasi ringkas ('Terkirim ke Kimfong.') — ambil kata PERTAMA dari nama yang
+    tersimpan, biar natural kayak manggil orang (bukan nyebut nama lengkap kaku tiap konfirmasi)."""
+    if not full_name:
+        return full_name
+    return full_name.split()[0]
 
 
 def looks_like_question_or_draft_request(text):
@@ -1573,26 +1609,49 @@ def resolve_owner_target(target_raw, active_target_fallback):
 
 def parse_owner_send_command(text):
     """Deteksi perintah eksplisit owner buat kirim/balas/follow-up/dll ke customer tertentu (target
-    boleh nama ATAU nomor). Return dict {"target_raw", "separator", "rest"}, atau None kalau ini
-    bukan perintah kirim (pertanyaan/minta saran/obrolan biasa)."""
+    boleh nama LENGKAP, nama PANGGILAN/partial, atau nomor). Return dict {"target_raw", "separator",
+    "rest"}, atau None kalau ini bukan perintah kirim (pertanyaan/minta saran/obrolan biasa).
+
+    Urutan deteksi target:
+    1. Ada titik dua eksplisit ("kirim ke X: ...") -> semua sebelum ":" = target (APAPUN isinya,
+       boleh multi-kata), semua sesudahnya = pesan VERBATIM. Ini paling pasti, jadi BYPASS guard
+       pertanyaan (isi pesan boleh aja mengandung "?").
+    2. Ada kata kunci "bilang"/"tentang"/"soal" -> teks sebelum keyword = target, sesudahnya = hint
+       instruksi buat AI nyusun pesan.
+    3. Gak ada keduanya -> cocokin PREFIX kata-kata ke customer_names beneran (lihat
+       split_target_from_rest) biar nama multi-kata kayak "Kimfong Wijaya" kebaca utuh.
+    """
     if not text:
         return None
-    match = SEND_VERB_PATTERN.search(text)
-    if not match:
+    verb_match = SEND_VERB_PATTERN.search(text)
+    if not verb_match:
         return None
-    target_raw, separator, rest = match.groups()
-    separator = (separator or "").strip().lower()
-    # Kalau formatnya "kirim ke X: <pesan persis>" (titik dua eksplisit abis target), ini sinyal
-    # command yang PASTI — jangan digugurkan oleh guard pertanyaan/draft, karena ISI pesannya sendiri
-    # boleh aja mengandung "?" (misal "...gimana kabarnya?"). Guard cuma dipakai buat kasus lain
-    # (balas/follow up/tanyain tanpa titik dua eksplisit) yang rawan ketuker sama pertanyaan biasa.
-    if separator != ":" and looks_like_question_or_draft_request(text):
+    remainder = text[verb_match.end():].strip()
+    if not remainder:
         return None
-    return {
-        "target_raw": target_raw.strip(),
-        "separator": separator,
-        "rest": (rest or "").strip(),
-    }
+
+    if ":" in remainder:
+        target_part, _, rest_part = remainder.partition(":")
+        target_raw = target_part.strip()
+        if target_raw:
+            return {"target_raw": target_raw, "separator": ":", "rest": rest_part.strip()}
+
+    # Selain kasus titik dua eksplisit di atas, guard pertanyaan/minta-draft berlaku (isi pesannya
+    # sendiri gak dijamin literal, jadi rawan ketuker sama pertanyaan/obrolan biasa).
+    if looks_like_question_or_draft_request(text):
+        return None
+
+    kw_match = TARGET_SEPARATOR_KEYWORD_PATTERN.search(remainder)
+    if kw_match:
+        target_raw = remainder[:kw_match.start()].strip(" ,.:;")
+        rest = remainder[kw_match.end():].strip()
+        if target_raw:
+            return {"target_raw": target_raw, "separator": kw_match.group(1).lower(), "rest": rest}
+
+    target_raw, rest = split_target_from_rest(remainder)
+    if not target_raw:
+        return None
+    return {"target_raw": target_raw, "separator": "", "rest": rest}
 
 
 @app.route("/webhook", methods=["GET"])
@@ -1761,7 +1820,7 @@ def receive_webhook():
                         save_message_to_db(target_number, "customer", "assistant", msg_to_send)
                         log_customer_message(target_number, msg_to_send, sent_from="direct_command")
                         add_agreed_fact(target_number, msg_to_send)
-                        send_whatsapp_message(from_number, f"Terkirim ke {display_name}.")
+                        send_whatsapp_message(from_number, f"Terkirim ke {short_display_name(display_name)}.")
                     else:
                         send_whatsapp_message(
                             from_number,
@@ -1832,7 +1891,7 @@ def receive_webhook():
 
                     owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_IMAGE_COMMAND:" not in m.get("content", "")]
                     confirm_name = customer_names.get(target_customer, f"wa.me/{target_customer}")
-                    send_whatsapp_message(from_number, f"Gambar terkirim ke {confirm_name}.")
+                    send_whatsapp_message(from_number, f"Gambar terkirim ke {short_display_name(confirm_name)}.")
                 else:
                     send_whatsapp_message(
                         from_number,
@@ -1871,7 +1930,7 @@ def receive_webhook():
 
                         # Konfirmasi singkat & PASTI ke owner — cuma muncul kalau BENERAN sukses.
                         confirm_name = customer_names.get(pending_customer_number, f"wa.me/{pending_customer_number}")
-                        send_whatsapp_message(from_number, f"Terkirim ke {confirm_name}.")
+                        send_whatsapp_message(from_number, f"Terkirim ke {short_display_name(confirm_name)}.")
                     else:
                         send_whatsapp_message(
                             from_number,
