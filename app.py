@@ -790,38 +790,275 @@ def is_duplicate_event(message_id):
     return False
 
 # ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
+# Ini SATU-SATUNYA tempat harga/paket Kilas Works didefinisikan. SYSTEM_PROMPT (info yang dihafal
+# AI WhatsApp Admin) & katalog PDF (lihat generate_katalog_pdf.py / script terpisah) HARUS baca dari
+# sini, JANGAN pernah hardcode angka harga di tempat lain. Kalau harga berubah, cukup edit di sini.
 PRICING_CONFIG = {
-    "pakets_bulanan": {
-        "mikro": {
-            "nama": "Mikro",
-            "harga": 999000,
-            "deskripsi": "4 foto + 4 video Reels/TikTok per bulan, cocok buat yang baru mulai",
-        },
-        "starter": {
-            "nama": "Starter",
-            "harga": 1999000,
-            "deskripsi": "6 foto + 6 video Reels/TikTok per bulan",
+    "ai_admin_standalone": {
+        "nama": "AI WhatsApp Admin — Standalone",
+        "harga": 999000,
+        "satuan": "bulan",
+        "fitur": [
+            "AI membalas customer 24/7",
+            "Menjawab FAQ",
+            "Menjelaskan produk, layanan, harga, dan informasi bisnis",
+            "Bisa memberikan katalog/informasi layanan",
+            "Kualifikasi calon customer / lead",
+            "Mengumpulkan nama dan kebutuhan customer",
+            "Menyimpan data lead",
+            "Basic follow-up otomatis",
+            "Mengenali customer yang mulai menunjukkan ketertarikan",
+            "Bisa menawarkan konsultasi/meeting secara natural jika customer sudah tertarik",
+            "Membantu menentukan jadwal berdasarkan availability (kalau appointment system tersedia)",
+            "Menyimpan appointment",
+            "Handoff percakapan ke owner — owner bisa ambil alih & chat customer secara bebas",
+            "AI tetap memahami konteks chat setelah owner ikut berinteraksi",
+            "Memberikan update ke owner kalau ada lead penting atau meeting",
+            "Knowledge bisnis bisa disesuaikan + basic maintenance/update knowledge",
+        ],
+        "catatan": "Fair usage applies.",
+        "tidak_termasuk": [
+            "Invoice otomatis", "QR payment otomatis", "Payment tracking",
+            "Payment gateway custom", "CRM custom", "Inventory/stock integration",
+            "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
+        ],
+    },
+    "content_packages": {
+        "basic": {
+            "nama": "Content Basic", "harga": 1500000,
+            "deliverables": ["4 Reels/TikTok", "6 Static Visuals", "Editing", "Basic color", "Caption ideas"],
         },
         "growth": {
-            "nama": "Growth",
-            "harga": 2499000,
-            "deskripsi": "Konten + AI WhatsApp Admin 24 jam",
+            "nama": "Content Growth", "harga": 2750000, "most_popular": True,
+            "deliverables": ["8 Reels/TikTok", "10 Static Visuals", "Ide & hook konten", "Editing", "Color", "Caption ideas"],
+        },
+        "pro": {
+            "nama": "Content Pro", "harga": 4250000,
+            "deliverables": ["12 Reels/TikTok", "14 Static Visuals", "Content planning", "Ide & hook", "Script ringan", "Editing & color", "Caption ideas"],
         },
     },
-    "ai_admin_standalone": {
-        "harga": 799000,
-        "deskripsi": "Buat yang udah punya konten, butuh AI admin aja",
+    "static_visual_note": (
+        "Static Visual bisa berupa kombinasi foto, desain/poster, carousel, dan AI-assisted creative "
+        "visual sesuai kebutuhan brand — bukan selalu hasil photography murni."
+    ),
+    "bundles": {
+        "growth_ai": {
+            "nama": "Growth + AI Admin", "harga": 3490000,
+            "isi": ["Semua benefit Content Growth", "AI WhatsApp Admin 24/7"],
+        },
+        "pro_ai": {
+            "nama": "Pro + AI Admin", "harga": 4990000,
+            "isi": ["Semua benefit Content Pro", "AI WhatsApp Admin 24/7"],
+        },
+    },
+    "meta_ads": {
+        "management": {
+            "nama": "Meta Ads Management", "harga": 799000, "satuan": "bulan",
+            "fokus": "Instagram & Facebook / Meta Ads",
+            "fitur": [
+                "Setup dan pengelolaan campaign",
+                "Basic audience targeting/research",
+                "Setup creative yang diberikan/tersedia",
+                "Basic ad copy",
+                "Monitoring campaign",
+                "Optimasi",
+                "A/B testing sederhana",
+                "Monthly performance summary/report",
+                "Rekomendasi creative berdasarkan performa",
+            ],
+            "catatan": "Ad spend TIDAK termasuk fee Kilas Works — budget iklan dibayar langsung oleh customer ke Meta.",
+        },
+        "setup_only": {
+            "nama": "Ads Setup Only", "harga": 399000, "satuan": "sekali",
+            "deskripsi": (
+                "Buat customer yang cuma butuh setup campaign awal, basic targeting, struktur "
+                "campaign, basic configuration. Setelah setup, campaign dikelola sendiri oleh customer."
+            ),
+        },
+        "no_guarantee_note": (
+            "Campaign dioptimalkan berdasarkan objective bisnis seperti awareness, leads, inquiries "
+            "atau conversion — TIDAK PERNAH menjanjikan omzet pasti, ROAS pasti, penjualan pasti, "
+            "atau jumlah leads pasti."
+        ),
+    },
+    "ads_bundles": {
+        "ai_ads": {
+            "nama": "AI Admin + Ads", "harga": 1690000,
+            "isi": ["AI WhatsApp Admin", "Meta Ads Management"],
+        },
+        "growth_ai_ads": {
+            "nama": "Content Growth + AI Admin + Ads", "harga": 4290000, "recommended": True,
+            "isi": ["Content Growth", "AI WhatsApp Admin", "Meta Ads Management"],
+        },
+        "pro_ai_ads": {
+            "nama": "Content Pro + AI Admin + Ads", "harga": 5790000,
+            "isi": ["Content Pro", "AI WhatsApp Admin", "Meta Ads Management"],
+        },
+        "ads_landing_page": {
+            "nama": "Ads + Landing Page", "harga": 1490000, "satuan": "bulan pertama",
+            "isi": ["Landing Page", "Meta Ads Management (bulan pertama)"],
+            "harga_lanjutan": 799000,
+            "catatan_lanjutan": "Bulan berikutnya kalau Ads diteruskan: Rp799.000/bulan.",
+        },
+        "ad_spend_note": "Ad spend TIDAK termasuk di semua bundle Ads di atas — dibayar terpisah langsung ke Meta oleh customer.",
     },
     "website": {
-        "landing_page": {"harga": 800000, "deskripsi": "1 halaman"},
-        "company_profile": {"harga": 1500000, "deskripsi": "5 halaman"},
+        "landing_page": {
+            "nama": "Website — Landing Page", "harga": 799000,
+            "deskripsi": (
+                "1 halaman, sekitar 5-7 section, responsive desktop & mobile, CTA WhatsApp, contact "
+                "form, basic SEO, maksimal 2x revisi. Cocok buat campaign/promo/produk-jasa tertentu/"
+                "personal & business landing page."
+            ),
+        },
+        "company_profile": {
+            "nama": "Website — Company Profile", "harga": 1500000,
+            "deskripsi": (
+                "Maksimal 5 halaman (Home, About, Services, Portfolio/Gallery, Contact), responsive "
+                "desktop & mobile, WhatsApp/contact integration, basic SEO, maksimal 2x revisi."
+            ),
+        },
+        "halaman_tambahan": {"nama": "Halaman Tambahan", "harga": 200000, "satuan": "halaman"},
+        "maintenance": {
+            "nama": "Website Maintenance", "harga": 199000, "satuan": "bulan",
+            "deskripsi": "Update ringan: perubahan teks, update gambar, pengecekan website dasar. Kebutuhan development besar dihitung terpisah.",
+        },
+    },
+    "domain_hosting": {
+        "com": {"nama": ".COM + Hosting", "harga": 999000, "satuan": "tahun"},
+        "id": {"nama": ".ID + Hosting", "harga": 1099000, "satuan": "tahun"},
+        "termasuk": ["Setup domain", "Connect domain", "DNS configuration", "SSL", "Hosting configuration awal"],
+        "catatan": (
+            "Domain & hosting berlaku 1 tahun. Harga renewal dapat mengikuti harga provider pada saat "
+            "perpanjangan. Kalau customer mau beli domain/hosting sendiri, Kilas Works tetap bisa bantu "
+            "proses connect ke website."
+        ),
+    },
+    "event": {
+        "standard": {"nama": "Acara Standard", "harga": 1200000, "deskripsi": "1 fotografer, hingga 5 jam, semua file foto digital"},
+        "lengkap": {"nama": "Acara Lengkap", "harga": 2800000, "deskripsi": "1 fotografer + 1 videografer, hingga 8 jam, video highlight sinematik"},
+        "premium": {"nama": "Acara Premium", "harga": 4400000, "deskripsi": "2 fotografer + 1 videografer, hingga 8 jam, video sinematik + teaser Reels + album cetak"},
     },
     "transport_acara": {
         "tangerang_jakarta": 0,
         "bandung": 250000,
-        "notes": "Area lain: estimasi dari Tangerang, konfirmasi ke tim",
+        "notes": (
+            "Area menengah lain (Sukabumi, Cirebon, dll): estimasi sesuai jarak dari Tangerang (kisaran "
+            "Rp300rb-600rb, dikonfirmasi sebelum booking). Area jauh/luar Jawa (Bali, dll): tiket "
+            "pesawat, penginapan, perjalanan ditanggung customer, di luar fee jasa."
+        ),
     },
+    "custom_automation_redirect": (
+        "Untuk kebutuhan tersebut bisa dibuat sebagai custom solution. Aku bantu teruskan ke owner "
+        "supaya kebutuhan dan biayanya bisa dibahas lebih lanjut ya."
+    ),
 }
+
+
+def format_price_short(n):
+    """Format angka rupiah jadi gaya singkatan chat natural (999rb, 1,5jt, 2,75jt, dst) — dipakai
+    generate teks INFO PAKET & HARGA di SYSTEM_PROMPT, biar konsisten sama gaya chat natural yang
+    dipakai bot (bukan format resmi/kaku)."""
+    if n >= 1_000_000:
+        val = n / 1_000_000
+        s = f"{val:.2f}".rstrip("0").rstrip(".")
+        return f"{s.replace('.', ',')}jt"
+    val = n / 1000
+    if val == int(val):
+        return f"{int(val)}rb"
+    return f"{val:.1f}".replace(".", ",") + "rb"
+
+
+def format_price_full(n):
+    """Format angka rupiah PENUH pakai titik ribuan (buat katalog PDF/tulisan resmi), mis. 2750000
+    -> 'Rp2.750.000'."""
+    return "Rp" + f"{n:,.0f}".replace(",", ".")
+
+
+def build_pricing_text_block():
+    """Generate teks 'INFO PAKET & HARGA' di SYSTEM_PROMPT LANGSUNG dari PRICING_CONFIG di atas —
+    ini yang bikin katalog & bot AI baca dari satu sumber data yang sama, bukan dua daftar harga
+    yang dipelihara terpisah (rawan out-of-sync)."""
+    cfg = PRICING_CONFIG
+    fp = format_price_short
+    lines = []
+
+    ai = cfg["ai_admin_standalone"]
+    lines.append(f"AI WhatsApp Admin — Standalone — Rp{fp(ai['harga'])}/{ai['satuan']} ({ai['catatan']}):")
+    for f in ai["fitur"]:
+        lines.append(f"  • {f}")
+    lines.append(
+        "  TIDAK TERMASUK di paket ini: " + ", ".join(ai["tidak_termasuk"]) +
+        " — semua ini masuk kategori Custom Automation / Custom Solution (harga berdasarkan kebutuhan)."
+    )
+
+    lines.append("")
+    lines.append("Content Packages (langganan bulanan produksi konten, TANPA AI Admin):")
+    for key in ("basic", "growth", "pro"):
+        p = cfg["content_packages"][key]
+        label = f"{p['nama']} (paling diminati)" if p.get("most_popular") else p["nama"]
+        lines.append(f"- {label} — Rp{fp(p['harga'])}/bulan: " + ", ".join(p["deliverables"]))
+    lines.append(f"Catatan Static Visual: {cfg['static_visual_note']}")
+
+    lines.append("")
+    lines.append("Bundle Content + AI Admin (paling hemat kalau butuh dua-duanya):")
+    for key in ("growth_ai", "pro_ai"):
+        b = cfg["bundles"][key]
+        lines.append(f"- {b['nama']} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
+
+    lines.append("")
+    ma = cfg["meta_ads"]
+    mgmt = ma["management"]
+    setup = ma["setup_only"]
+    lines.append(f"Meta Ads Management ({mgmt['fokus']}) — Rp{fp(mgmt['harga'])}/{mgmt['satuan']}:")
+    for f in mgmt["fitur"]:
+        lines.append(f"  • {f}")
+    lines.append(f"  Catatan: {mgmt['catatan']}")
+    lines.append(f"- {setup['nama']} — Rp{fp(setup['harga'])} ({setup['satuan']}): {setup['deskripsi']}")
+    lines.append(f"Catatan penting Ads: {ma['no_guarantee_note']}")
+
+    lines.append("")
+    lines.append("Ads Bundles (Content/AI Admin + Meta Ads):")
+    ab = cfg["ads_bundles"]
+    for key in ("ai_ads", "growth_ai_ads", "pro_ai_ads"):
+        b = ab[key]
+        label = f"{b['nama']} (direkomendasikan)" if b.get("recommended") else b["nama"]
+        lines.append(f"- {label} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
+    alp = ab["ads_landing_page"]
+    lines.append(f"- {alp['nama']} — Rp{fp(alp['harga'])} ({alp['satuan']}): " + " + ".join(alp["isi"]) + f". {alp['catatan_lanjutan']}")
+    lines.append(f"Catatan: {ab['ad_spend_note']}")
+
+    lines.append("")
+    lines.append("Website (sekali bayar, bukan bulanan):")
+    lp = cfg["website"]["landing_page"]
+    cp = cfg["website"]["company_profile"]
+    ht = cfg["website"]["halaman_tambahan"]
+    mt = cfg["website"]["maintenance"]
+    lines.append(f"- {lp['nama']} — Rp{fp(lp['harga'])}: {lp['deskripsi']}")
+    lines.append(f"- {cp['nama']} — Rp{fp(cp['harga'])}: {cp['deskripsi']}")
+    lines.append(f"- {ht['nama']} — Rp{fp(ht['harga'])}/{ht['satuan']}")
+    lines.append(f"- {mt['nama']} — Rp{fp(mt['harga'])}/{mt['satuan']}: {mt['deskripsi']}")
+
+    lines.append("")
+    lines.append("Domain & Hosting (opsional, TERPISAH dari harga jasa pembuatan website):")
+    dh = cfg["domain_hosting"]
+    for key in ("com", "id"):
+        d = dh[key]
+        lines.append(f"- {d['nama']} — Rp{fp(d['harga'])}/{d['satuan']}")
+    lines.append("  Termasuk bantuan: " + ", ".join(dh["termasuk"]) + ".")
+    lines.append(f"  Catatan: {dh['catatan']}")
+
+    lines.append("")
+    lines.append("Foto & Video Acara (wedding, ulang tahun, corporate, gathering, dll — sekali bayar per acara):")
+    for key in ("standard", "lengkap", "premium"):
+        e = cfg["event"][key]
+        label = f"{e['nama']} (paling diminati)" if key == "lengkap" else e["nama"]
+        lines.append(f"- {label} — Rp{fp(e['harga'])}: {e['deskripsi']}")
+
+    return "\n".join(lines)
+
+
+PRICING_TEXT_BLOCK = build_pricing_text_block()
 
 SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok,
 DAN AI WhatsApp Admin — lihat aturan wajib soal ini di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
@@ -872,66 +1109,60 @@ GAYA BALASAN (penting banget):
   LAGI NGOBROL LANGSUNG sama produknya saat ini juga, jadi gampang banget dikasih contoh nyata.
 
 INFO PAKET & HARGA (kamu WAJIB HAFAL & BISA SEBUT semua angka ini natural kalau ditanya, lihat ATURAN
-HARGA di bawah buat gaya nyebutnya):
+HARGA di bawah buat gaya nyebutnya — data di bawah ini di-generate dari satu sumber data pricing yang
+sama dipakai buat katalog PDF, JANGAN pernah nyebut angka lain selain yang ada di sini):
 
-Paket Bulanan (Langganan Konten + AI Admin):
-- Mikro — Rp999rb/bulan: 4 foto + 4 video Reels/TikTok tiap bulan, entry point paling ringan, upgrade
-  kapan aja
-- Starter — Rp1,9jt/bulan: 6 foto produk/lifestyle + 6 video Reels/TikTok tiap bulan, revisi ringan 1x per
-  konten, konsultasi konsep bulanan
-- Growth (paling diminati) — Rp2,5jt/bulan: semua benefit Starter + AI WhatsApp Admin 24 jam + support
-  prioritas
+{pricing_text_block}
 
-AI WhatsApp Admin 24 Jam (ada di paket Growth & bisa standalone Rp799rb/bulan) — ini nilai jual utama,
-kalau customer nanya soal ini jelasin dengan percaya diri dan natural, bukan template kaku:
-- Balas chat customer OTOMATIS kapan aja, jam berapa aja, termasuk tengah malam & weekend — jadi calon
-  pelanggan gak pernah nunggu lama atau kelewat dibales
-- Auto-jawab pertanyaan umum (FAQ) kayak jam operasional, jenis layanan, cara order, dll
-- Kirim katalog & info harga otomatis pas relevan sama kebutuhan customer
-- Nyaring mana calon pelanggan yang emang serius vs sekadar nanya-nanya doang
-- Kirim invoice & info pembayaran otomatis pas customer udah fix mau lanjut
-- Begitu ada leads yang keliatan serius/panas, langsung diteruskan ke owner buat follow-up manual — jadi
-  gak ada momen closing yang kelewat
-- Intinya: bisnis tetap "buka" 24 jam biarpun ownernya lagi tidur, kerja, atau ada di luar kota
-
-AI WhatsApp Admin Standalone — Rp799rb/bulan, buat yang udah punya konten sendiri, cuma butuh admin chat
-otomatis (fitur sama kayak yang ada di paket Growth: FAQ, leads, invoice, dll). Bisa upgrade ke Starter/
-Growth kapan aja.
-
-Website (sekali bayar, bukan bulanan):
-- Landing Page (1 halaman) — Rp800rb
-- Company Profile (5 halaman: Beranda, Tentang, Layanan, Portofolio, Kontak, paling diminati) — Rp1,5jt
-
-Foto & Video Acara (wedding, ulang tahun, corporate, gathering, dll — sekali bayar per acara, bukan bulanan):
-- Acara Standard — Rp1,2jt: 1 fotografer, sampai 5 jam, semua file foto digital
-- Acara Lengkap (paling diminati) — Rp2,8jt: 1 fotografer + 1 videografer, sampai 8 jam, video highlight
-  sinematik 3-5 menit
-- Acara Premium — Rp4,4jt: 2 fotografer + 1 videografer, sampai 8 jam, video sinematik + teaser Reels +
-  album cetak
-
-Catatan umum paket bulanan: kontrak minimal 1 bulan, bisa diperpanjang fleksibel. Kebutuhan di luar cakupan
-paket (shoot lokasi luar kota, talent tambahan, dsb) dihitung terpisah & didiskusikan case-by-case. Harga di
-atas FIX (bukan lagi harga promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
+Catatan umum: kontrak paket bulanan minimal 1 bulan, bisa diperpanjang fleksibel. Kebutuhan di luar cakupan
+paket (shoot lokasi luar kota, talent tambahan, integrasi custom, dsb) dihitung terpisah sebagai Custom
+Automation / Custom Solution & didiskusikan case-by-case — JANGAN pernah bilang itu termasuk gratis di
+paket manapun. Harga di atas FIX (bukan promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
 
 ATURAN HARGA (WAJIB DIIKUTI — UPDATE PENTING, harga itu PENUTUP bukan PEMBUKA):
 - JANGAN BURU-BURU kasih angka harga di awal obrolan, walau customer langsung nanya harga duluan. Kamu BOLEH
   & TAU semua angkanya (lihat di atas), tapi TAHAN dulu — bangun rasa penasaran & value dulu, jangan asal
   tembak angka polos di kalimat pertama mereka nanya harga.
-- Kalau customer nanya harga (misal "Growth berapa", "harga Starter berapa"), jangan langsung jawab angka.
-  Respon dulu dengan REKOMENDASI PAKET + benefit singkatnya (nama paket + kenapa itu cocok, TANPA angka),
-  terus gali 1-2 pertanyaan kebutuhan mereka biar makin engaged & rekomendasinya makin pas. Bikin mereka
-  makin penasaran & yakin dulu sebelum tau angkanya.
+- Kalau customer nanya harga (misal "Content Growth berapa", "harga AI Admin berapa"), jangan langsung
+  jawab angka. Respon dulu dengan REKOMENDASI PAKET + benefit singkatnya (nama paket + kenapa itu cocok,
+  TANPA angka), terus gali 1-2 pertanyaan kebutuhan mereka biar makin engaged & rekomendasinya makin pas.
+  Bikin mereka makin penasaran & yakin dulu sebelum tau angkanya.
 - Harga BARU disebutin di titik yang lebih akhir obrolan — pas mereka udah keliatan cukup tertarik/yakin,
   udah jelas kebutuhannya, atau udah nanya harga lebih dari sekali/beneran serius mau lanjut. Di situ baru
-  kasih tau angka pastinya dengan CONFIDENT (singkat: "999rb", "1,9jt", "2,5jt", dst).
+  kasih tau angka pastinya dengan CONFIDENT, singkat kayak gaya di atas (999rb, 1,5jt, 2,75jt, dst).
 - JANGAN kelamaan muter-muter juga sampai kesannya nyebelin/gak jelas — kalau mereka udah nanya harga 2-3
   kali atau keliatan makin gak sabar, langsung kasih angkanya, jangan dipaksa nahan-nahan terus.
-- Kalau customer keliatan sensitif soal budget (misal "yang paling murah apa"), rekomendasiin paket Mikro
-  duluan (nama dulu, angkanya nyusul setelah gali kebutuhan sebentar).
+- Kalau customer keliatan sensitif soal budget (misal "yang paling murah apa" buat konten), rekomendasiin
+  Content Basic duluan; kalau soal AI Admin doang, itu udah cuma ada 1 tier (Rp999rb) jadi gak perlu
+  bandingin (nama dulu + benefit, angkanya nyusul setelah gali kebutuhan sebentar).
 - Katalog PDF (tag "[KIRIM_KATALOG]") kirim kapan pun relevan buat kasih rincian lengkap tertulis — biasanya
   pas di titik yang sama kayak kapan kamu udah mau kasih tau harga pasti.
 - Biaya transport acara luar Tangerang/Jakarta tetap ikutin aturan khusus di bawah (SOAL BIAYA TRANSPORT) —
   ini beda konteks, boleh langsung disebut kapan aja relevan.
+
+SOAL KEBUTUHAN DI LUAR PAKET (CUSTOM AUTOMATION / CUSTOM SOLUTION) — WAJIB DIIKUTI:
+- Bot DILARANG KERAS: ngarang harga sendiri, kasih diskon sendiri tanpa persetujuan owner, bikin paket
+  baru yang gak ada di data, nambahin fitur yang gak ada di daftar di atas, bilang invoice/QR/payment
+  gateway/CRM/inventory/POS/integrasi API termasuk di paket AI Admin Rp999rb, atau kasih domain/hosting
+  gratis.
+- Kalau customer nanya/butuh sesuatu yang di luar cakupan paket manapun di atas (misal invoice otomatis,
+  integrasi payment gateway, CRM, sistem inventory, POS, multi-cabang, workflow/integrasi custom lainnya),
+  jawab pakai kalimat natural yang intinya: "{custom_automation_redirect}" — jangan janjiin itu bisa
+  langsung tersedia atau gratis.
+- Layanan Custom AI / Digital Automation ini BUKAN produk publik yang ditawarin proaktif atau dipajang
+  sebagai paket di katalog — cuma jalur eskalasi ke owner kalau kebutuhan customer emang di luar semua
+  paket resmi di atas. Jangan pernah sebut ini seolah ada daftar harga/paket "Custom Automation" tersendiri.
+
+SOAL META ADS (WAJIB DIIKUTI — JANGAN JANJIIN HASIL PASTI):
+- Meta Ads Management & Ads Setup Only itu jasa PENGELOLAAN campaign, BUKAN jaminan hasil. Bot DILARANG
+  KERAS janji: omzet pasti, ROAS pasti, penjualan pasti, atau jumlah leads pasti dari Ads — walau customer
+  maksa nanya angka pasti sekalipun.
+- Gaya jawab yang BENER kalau ditanya soal hasil Ads: "Campaign dioptimalkan berdasarkan objective bisnis
+  seperti awareness, leads, inquiries, atau conversion" — bukan janji angka.
+- Ad spend (budget iklan ke Meta) SELALU TERPISAH dari fee Kilas Works di SEMUA paket/bundle Ads (termasuk
+  yang bundling kayak "AI Admin + Ads", "Growth + AI + Ads", dst) — budget dibayar customer LANGSUNG ke
+  Meta, bukan lewat Kilas Works, dan BUKAN bagian dari harga bulanan yang disebut di atas. Selalu jelasin
+  ini kalau ngomongin paket Ads apapun, jangan sampai customer ngira ad spend udah termasuk.
 
 SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (ini boleh disebut angka, beda dari harga paket):
 - Tangerang & Jakarta: gratis, gak ada biaya tambahan.
@@ -1037,6 +1268,12 @@ ALUR:
    (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
 6. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
 """
+
+# Sisipin blok harga (di-generate dari PRICING_CONFIG, satu sumber data yang sama dipakai katalog PDF)
+# & teks redirect custom-automation ke placeholder di SYSTEM_PROMPT di atas. Dilakuin sekali di sini
+# (bukan per-request) karena kontennya sama buat semua customer, gak ada bagian yang customer-spesifik.
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{pricing_text_block}", PRICING_TEXT_BLOCK)
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{custom_automation_redirect}", PRICING_CONFIG["custom_automation_redirect"])
 
 
 def build_appointment_context():
@@ -1818,9 +2055,35 @@ DRAFT_REQUEST_HINTS = [
     "contoh pesan", "draft aja", "balas apa", "jawab apa", "enaknya gimana", "bagusnya gimana",
 ]
 
+# Frasa yang nunjukin owner lagi NANYA HISTORY/APA YANG DIOMONGIN customer (baca doang), BUKAN
+# nyuruh kirim apa-apa — mis. "itu jelajah visa chat apa aja", "kimfong tadi nanya apa", "caca
+# terakhir chat apa", "yang barusan chat siapa". Dicek di MANA AJA di kalimat (bukan cuma di awal),
+# beda dari QUESTION_WORD_PATTERN yang cuma cek kata pembuka.
+HISTORY_QUERY_HINT_PATTERN = re.compile(
+    r'\b(apa\s+aja|apa\s+ajah|ngomong\s+apa|ngomongin\s+apa|nanya\s+apa|tanya\s+apa|bilang\s+apa|'
+    r'cerita\s+apa|chat\s+apa|chatnya\s+apa|chat\s+apaan|barusan\s+chat|barusan\s+ngomong|'
+    r'tadi\s+ngomong|tadi\s+chat|tadi\s+nanya|terakhir\s+chat|terakhir\s+ngomong|chat\s+siapa|'
+    r'ngomong\s+siapa|chat\s+apa\s+aja)\b',
+    re.IGNORECASE,
+)
+
 # Kata ganti/rujukan ke "customer yang lagi dibahas" — di-resolve ke active_customer_context,
 # BUKAN dicari sebagai nama customer literal.
 PRONOUN_TARGETS = {"dia", "nya", "customer", "customernya", "orangnya", "ini", "tadi"}
+
+# Kata tanya/filler yang TIDAK BOLEH pernah ditebak sebagai nama customer (ini yang bikin bug
+# "itu jelajah visa chat apa aja" kesasar nyari customer bernama "apa"). Dipakai sebagai guard di
+# split_target_from_rest (jangan fallback ke kata ini) & extract_mentioned_customer (skip candidate
+# 1-kata yang emang cuma kata umum, bukan nama).
+STOPWORDS_NOT_NAMES = {
+    "apa", "aja", "ajah", "itu", "ini", "dia", "nya", "tadi", "chat", "chatnya", "chatin",
+    "terakhir", "yang", "ngomong", "ngomongin", "nanya", "tanya", "tanyain", "bilang", "cerita",
+    "gimana", "kenapa", "gitu", "tuh", "dong", "sih", "kok", "td", "barusan", "habis", "abis",
+    "udah", "sudah", "balas", "bales", "reply", "kirim", "kirimin", "sampein", "follow", "up",
+    "followup", "ingetin", "ingatkan", "tentang", "soal", "siapa", "kapan", "berapa", "dimana",
+    "dengan", "untuk", "ke", "dan", "atau", "juga", "aku", "gw", "gue", "saya", "owner",
+    "customer", "customernya", "orangnya", "ya", "nih", "deh", "kah", "sm", "sama",
+}
 
 # Cuma nangkep KATA KERJA-nya doang (bukan target-nya) — target di-parse terpisah di
 # parse_owner_send_command, biar bisa nyocokin nama MULTI-KATA (mis. "Kimfong Wijaya") ke
@@ -1847,15 +2110,50 @@ def split_target_from_rest(remainder):
     words = remainder.strip().split()
     if not words:
         return "", ""
-    best_len = 1
+    best_len = 0
     for n in range(min(4, len(words)), 0, -1):
         candidate = " ".join(words[:n]).strip(",.:;")
         if candidate.lower() in PRONOUN_TARGETS or find_customers_by_name(candidate):
             best_len = n
             break
+    if best_len == 0:
+        # Gak ketemu data yang cocok sama sekali. Fallback lama: tebak 1 kata pertama (buat jaga-jaga
+        # nomor HP atau nama yang belum ke-capture di sistem) — TAPI JANGAN kalau kata itu emang cuma
+        # kata tanya/filler biasa (apa/aja/itu/dia/tadi/chat/terakhir/yang/dst), soalnya itu SIGNAL
+        # kuat ini BUKAN perintah kirim sama sekali (kemungkinan besar pertanyaan/obrolan biasa).
+        first_word = words[0].strip(",.:;").lower()
+        if first_word in STOPWORDS_NOT_NAMES:
+            return "", remainder
+        best_len = 1
     target = " ".join(words[:best_len]).strip(",.:;")
     rest = " ".join(words[best_len:]).strip()
     return target, rest
+
+
+def extract_mentioned_customer(text):
+    """Scan SELURUH teks owner (bukan cuma abis kata kerja tertentu) buat nemuin nama customer yang
+    eksplisit disebut di mana aja di kalimat — dipakai pas pesan owner BUKAN perintah kirim (misal
+    pertanyaan history kayak "itu jelajah visa chat apa aja"), biar sistem tau customer mana yang lagi
+    dibahas TANPA nebak-nebak dari kata tanya/filler ("apa", "itu", dst) sebagai nama.
+    Coba kombinasi kata TERPANJANG dulu (maks 4 kata, dari posisi mana aja di kalimat), skip kandidat
+    1-kata yang cuma kata umum (STOPWORDS_NOT_NAMES).
+    Return ("ok", number, name) / ("ambiguous", [(number,name),...], None) / ("none", None, None)."""
+    words = re.findall(r"[A-Za-z0-9']+", text or "")
+    n = len(words)
+    if n == 0:
+        return ("none", None, None)
+    for length in range(min(4, n), 0, -1):
+        for start in range(0, n - length + 1):
+            chunk = words[start:start + length]
+            if length == 1 and chunk[0].lower() in STOPWORDS_NOT_NAMES:
+                continue
+            candidate = " ".join(chunk)
+            matches = find_customers_by_name(candidate)
+            if len(matches) == 1:
+                return ("ok", matches[0][0], matches[0][1])
+            if len(matches) > 1:
+                return ("ambiguous", matches, None)
+    return ("none", None, None)
 
 
 # ============================================================
@@ -1924,18 +2222,31 @@ def looks_like_question_or_draft_request(text):
     if QUESTION_WORD_PATTERN.match(stripped):
         return True
     lower = stripped.lower()
+    if HISTORY_QUERY_HINT_PATTERN.search(lower):
+        return True
     return any(hint in lower for hint in DRAFT_REQUEST_HINTS)
 
 
+def _normalize_name_key(s):
+    """Buang semua spasi/tanda baca & lowercase, biar matching nama gak kepengaruh cara owner
+    ngetik spasi (mis. \"jelajah visa\" ketik 2 kata vs data tersimpan \"JelajahVisa\" 1 kata)."""
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
 def find_customers_by_name(name_query):
-    """Cari customer yang namanya cocok (case-insensitive, partial match) sama name_query.
+    """Cari customer yang namanya cocok sama name_query — case-insensitive, partial match, DAN
+    spasi-insensitive (biar "jelajah visa" ketemu "JelajahVisa" walau beda cara nulis spasinya).
     Return list of (number, name) — bisa 0, 1, atau lebih dari 1 hasil (nama kembar/mirip)."""
     name_query = (name_query or "").strip().lower()
     if not name_query:
         return []
+    norm_query = _normalize_name_key(name_query)
     matches = []
     for number, name in customer_names.items():
-        if name and name_query in name.lower():
+        if not name:
+            continue
+        name_lower = name.lower()
+        if name_query in name_lower or (norm_query and norm_query in _normalize_name_key(name)):
             matches.append((number, name))
     return matches
 
@@ -2257,15 +2568,30 @@ def receive_webhook():
                 pending_question = None
                 direct_send = True
             else:
-                # Bukan perintah kirim eksplisit -> obrolan/pertanyaan/minta-saran biasa.
-                # Ambil pertanyaan customer yang paling lama nunggu (kalau ada) sebagai konteks.
+                # Bukan perintah kirim eksplisit -> obrolan/pertanyaan/minta-saran biasa, ATAU
+                # pertanyaan HISTORY soal customer tertentu (mis. "itu jelajah visa chat apa aja").
+                # Coba dulu cari apakah owner EKSPLISIT nyebut nama customer di teks ini (bukan cuma
+                # pronoun) — kalau ketemu PERSIS 1, itu yang jadi konteks (override fallback lama)
+                # SEKALIGUS update active_customer_context biar pronoun ("dia"/"itu") abis ini nempel
+                # ke customer ini. Kalau nama-nya ambigu (2+ kandidat), TANYA balik, JANGAN nebak.
+                mention_status, mention_data, mention_name = extract_mentioned_customer(owner_text)
+
+                if mention_status == "ambiguous":
+                    options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in mention_data[:5])
+                    send_whatsapp_message(from_number, f"Ada beberapa customer namanya mirip: {options}. Maksudnya yang mana?")
+                    return jsonify({"status": "ok"}), 200
+
                 pending_customer_number, pending_question = (None, None)
-                if pending_owner_questions:
+                if mention_status == "ok":
+                    pending_customer_number = mention_data
+                    active_customer_context[from_number] = mention_data
+                    pending_question = pending_owner_questions.get(mention_data)
+                elif pending_owner_questions:
                     pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
 
-                # Kalau gak ada pertanyaan customer yang formal pending (misal owner nyeletuk duluan
-                # soal customer yang baru aja chat, TANPA customer itu ngirim pertanyaan yang di-tag
-                # TANYA_OWNER), fallback ke customer TERAKHIR yang beneran chat sama bot.
+                # Kalau gak ada pertanyaan customer yang formal pending & gak ada nama eksplisit yang
+                # kesebut (misal owner nyeletuk doang pakai pronoun "dia"/"itu"), fallback ke customer
+                # TERAKHIR yang beneran chat sama bot.
                 if not pending_customer_number:
                     pending_customer_number = active_customer_context.get(from_number)
 
