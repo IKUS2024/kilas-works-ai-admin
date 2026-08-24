@@ -835,12 +835,18 @@ AKSES HISTORY SEMUA CUSTOMER:
 - Kalau customer yang dimaksud Irvan gak ketemu di daftar (belum pernah chat / namanya beda), baru bilang
   jujur kalau gak nemu datanya.
 
-PERINTAH LANGSUNG KE CUSTOMER (baru):
-- Kalau Irvan bilang "kirim ke [nomor]..." atau "follow up [nomor]..." atau semacamnya, Irvan ngasih
-  PERINTAH LANGSUNG mau kirim pesan ke customer tertentu. Kamu WAJIB KONFIRMASI dulu nomor & pesan-nya
-  tepat bener sebelum kirim, buat hindari salah orang. Konfirmasi dengan jelas: "Jadi aku kirim ke +62xxx:
-  [pesan draft]" — tunggu Irvan bilang "oke" atau "terusin" atau approval semacamnya sebelum benar-benar
-  proses. JANGAN PERNAH asal kirim ke nomor salah atau pesan yang gak sesuai harapan Irvan.
+PERINTAH LANGSUNG KE CUSTOMER (nomor ATAU nama, LANGSUNG EKSEKUSI):
+- Kalau Irvan bilang "kirim ke [nama/nomor]...", "balas [nama]...", "follow up [nama]...", "tanyain
+  dia...", "ingetin [nama]...", dsb — itu PERINTAH LANGSUNG, bukan sekadar diskusi. Target customer-nya
+  (nama/nomor, atau "dia"/"customer ini" merujuk ke customer yang lagi dibahas) UDAH DIRESOLVE & DIPASTIIN
+  BENAR oleh sistem SEBELUM pesan ini nyampe ke kamu — jadi begitu kamu dikasih tau di bawah "Ini INSTRUKSI
+  LANGSUNG", kamu WAJIB LANGSUNG proses ke format PESAN_UNTUK_CUSTOMER: dalam balasan yang SAMA, TANPA
+  minta konfirmasi ulang, TANPA nunggu Irvan bilang "oke"/"terusin" lagi — dia sudah bilang itu barusan.
+- Perintah ini beda sama Irvan MINTA SARAN/DRAFT (misal "menurut lu gue balas apa", "bikinin draft",
+  "kasih saran jawabannya") — kalau itu yang diminta, JANGAN pakai format PESAN_UNTUK_CUSTOMER:, cukup
+  kasih saran/draft-nya aja di chat biasa, biar Irvan yang putusin lanjut apa nggak.
+- JANGAN PERNAH bilang "saya tidak bisa mengirim" — sistem yang eksekusi pengiriman WhatsApp beneran
+  ada & udah jalan; tugas kamu cuma nyusun pesan yang bakal dikirim itu (via format PESAN_UNTUK_CUSTOMER:).
 
 EXECUTION PERFECTION:
 - Kalau Irvan sudah decide & bilang forward, kamu LANGSUNG forward dengan CONFIDENT, CLEAR, PERFECT.
@@ -848,16 +854,40 @@ EXECUTION PERFECTION:
   menunjukkan ragu/bingung. Setiap pesan ke customer harus terdengar seperti keputusan yang sudah pasti.
 - Kalau Irvan bilang "1 jt", kamu paham itu 1 juta (bukan 1.5, bukan "sekitar 1 juta"). Jawab customer
   dengan exact itu "1 jt" — PERFECT, no second-guessing.
+
+JANGAN PERNAH (baik pas nyusun draft maupun pas forward):
+- Bikin harga/diskon/paket/rekening/bonus/deadline sendiri yang gak pernah disebut Irvan atau gak ada
+  di data resmi Kilas Works. Kalau Irvan sendiri yang eksplisit sebutin angkanya, itu boleh & WAJIB dipakai
+  persis — yang dilarang cuma AI NGARANG sendiri tanpa dasar dari Irvan/data resmi.
+- Nulis kalimat ambigu/ragu-ragu ke customer ("mungkin", "kayaknya", "coba nanti dicek lagi").
+
+GAYA BAHASA KE CUSTOMER (buat draft/forward): natural, ramah, singkat, gak kaku/formal, gak kayak
+chatbot, TANPA emoji, TANPA muji-muji lebay. Contoh natural: "Halo Kak, izin follow-up ya, untuk
+paymentnya masih mau dilanjutkan hari ini?" — BUKAN "Berdasarkan data yang saya miliki...".
 """
 
 
-def build_owner_system_prompt(pending_question, pending_customer_number):
+def build_owner_system_prompt(pending_question, pending_customer_number, direct_send=False):
     """Susun system prompt mode-owner, sisipin konteks pertanyaan customer yang lagi pending (kalau ada)
     dan ringkasan history semua customer biar owner bisa nanya soal siapa aja/apa aja kapan aja.
 
+    direct_send=True dipakai kalau pesan owner SAAT INI JUGA udah dideteksi sistem sebagai perintah
+    kirim/balas/follow-up eksplisit dengan target yang UDAH DIPASTIIN bener (lihat resolve_owner_target
+    di webhook) — kondisi ini paling kuat, bikin AI WAJIB langsung proses forward TANPA nunggu konfirmasi
+    tambahan, beda dari kondisi 'customer terakhir yang dibahas' di bawah yang masih butuh kata kunci
+    forward eksplisit dulu dari Irvan.
+
     PENTING: Bot HARUS INGAT (maintain consistency) apa yang sudah owner sepakatin dalam diskusi ini.
     Jangan pernah forward pesan yang contradicts apa yang sudah disepakati."""
-    if pending_question:
+    if direct_send and pending_customer_number:
+        target_name = customer_names.get(pending_customer_number, f"wa.me/{pending_customer_number}")
+        context = (
+            f"\n\n⭐⭐⭐ INI INSTRUKSI LANGSUNG DARI IRVAN — target-nya UDAH DIPASTIIN & TUNGGAL: "
+            f"{target_name} ({pending_customer_number}). Pesan Irvan barusan ADALAH perintah kirim/balas/"
+            f"follow-up ke customer ini. JANGAN minta konfirmasi apapun lagi, JANGAN tanya ulang, LANGSUNG "
+            f"susun pesan yang sesuai instruksi & proses ke format PESAN_UNTUK_CUSTOMER: di respons ini juga."
+        )
+    elif pending_question:
         context = (
             f'\n\nPERTANYAAN CUSTOMER YANG LAGI PENDING (dari wa.me/{pending_customer_number}): '
             f'"{pending_question}"'
@@ -897,7 +927,7 @@ def build_owner_system_prompt(pending_question, pending_customer_number):
 
 
 def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number,
-                       image_b64=None, image_mime=None):
+                       image_b64=None, image_mime=None, direct_send=False):
     """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
     call_claude() yang dipakai buat customer. Sama-sama Haiku default + fallback Sonnet.
     Kalau owner kirim gambar, WAJIB pakai Sonnet langsung (Haiku 3.5 gak support vision)."""
@@ -921,7 +951,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     history.append({"role": "user", "content": api_content})
     save_message_to_db(owner_number, "owner", "user", memory_text)
 
-    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number)
+    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number, direct_send=direct_send)
     model_to_use = "claude-3-5-haiku-20241022" if not image_b64 else "claude-sonnet-4-6"
 
     try:
@@ -1417,31 +1447,127 @@ def log_customer_message(to_number, message_text, sent_from="automated"):
             pass
 
 
-def parse_direct_command(text):
-    """Parse perintah langsung dari owner seperti 'kirim ke [nomor]...' atau 'follow up [nomor]...'.
-    Return (target_number, message_content) jika ketemu, atau (None, None) jika bukan perintah direct."""
-    # Pattern: "kirim ke 62xxx pesan..." atau "follow up 62xxx dengan..." etc
-    import re
+# ============================================================
+# PERINTAH LANGSUNG OWNER (nama ATAU nomor) — EKSEKUSI LANGSUNG, bukan draft-lalu-tunggu-approval.
+# Kalau owner udah jelas nyuruh kirim/balas/follow-up ke customer tertentu, sistem langsung cari
+# nomornya (dari nama atau nomor), pastiin gak ambigu, terus BENERAN kirim di respons yang sama —
+# gak ada lagi ronde "oke?/terusin" kedua kecuali targetnya emang ambigu/gak ketemu.
+# ============================================================
 
-    # Cek pattern "kirim ke +62xxx [pesan]" atau "kirim ke 62xxx [pesan]"
-    match = re.search(r'kirim\s+ke\s+((?:\+)?62\d+)\s+(.+)', text, re.IGNORECASE | re.DOTALL)
-    if match:
-        number = match.group(1).lstrip('+')
-        if not number.startswith('62'):
-            number = '62' + number
-        message = match.group(2).strip()
-        return (number, message)
+QUESTION_WORD_PATTERN = re.compile(
+    r'^\s*(apa|siapa|gimana|bagaimana|kapan|kenapa|kok|berapa|apakah|dimana|di\s+mana)\b',
+    re.IGNORECASE,
+)
 
-    # Cek pattern "follow up [nomor] dengan [pesan]" atau "follow up [nomor] [pesan]"
-    match = re.search(r'follow\s+up\s+((?:\+)?62\d+)\s+(?:dengan\s+)?(.+)', text, re.IGNORECASE | re.DOTALL)
-    if match:
-        number = match.group(1).lstrip('+')
-        if not number.startswith('62'):
-            number = '62' + number
-        message = match.group(2).strip()
-        return (number, message)
+# Kata/frasa yang nunjukin owner lagi MINTA SARAN/DRAFT doang, bukan nyuruh kirim beneran.
+DRAFT_REQUEST_HINTS = [
+    "menurut", "kasih saran", "kasih ide", "bikinin draft", "buatkan draft", "buat draft",
+    "contoh pesan", "draft aja", "balas apa", "jawab apa", "enaknya gimana", "bagusnya gimana",
+]
 
-    return (None, None)
+# Kata ganti/rujukan ke "customer yang lagi dibahas" — di-resolve ke active_customer_context,
+# BUKAN dicari sebagai nama customer literal.
+PRONOUN_TARGETS = {"dia", "nya", "customer", "customernya", "orangnya", "ini", "tadi"}
+
+SEND_VERB_PATTERN = re.compile(
+    r'\b(?:kirim(?:in)?(?:\s+ini)?\s+ke|balas|bales|reply(?:\s+ke)?|follow[\s\-]?up|'
+    r'tanyain|ingetin|ingatkan|sampein\s+ke|bilang\s+ke|chat\s+ke)\s+'
+    r'([^\s:,.\?]+)\s*(:|,|\bbilang\b|\btentang\b|\bsoal\b)?\s*(.*)',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def looks_like_question_or_draft_request(text):
+    """Cek apakah teks ini kemungkinan besar PERTANYAAN (baca doang) atau PERMINTAAN SARAN/DRAFT,
+    BUKAN perintah kirim eksplisit — biar sistem gak salah eksekusi kirim padahal owner cuma nanya
+    atau minta saran jawaban (mis. 'apa chat terakhir Caca?', 'menurut lu gue balas apa ke Caca?')."""
+    if not text:
+        return False
+    stripped = text.strip()
+    if stripped.endswith("?"):
+        return True
+    if QUESTION_WORD_PATTERN.match(stripped):
+        return True
+    lower = stripped.lower()
+    return any(hint in lower for hint in DRAFT_REQUEST_HINTS)
+
+
+def find_customers_by_name(name_query):
+    """Cari customer yang namanya cocok (case-insensitive, partial match) sama name_query.
+    Return list of (number, name) — bisa 0, 1, atau lebih dari 1 hasil (nama kembar/mirip)."""
+    name_query = (name_query or "").strip().lower()
+    if not name_query:
+        return []
+    matches = []
+    for number, name in customer_names.items():
+        if name and name_query in name.lower():
+            matches.append((number, name))
+    return matches
+
+
+def normalize_phone_candidate(raw):
+    """Kalau raw ini kelihatan kayak nomor HP (62xxx/0xxx/+62xxx, minimal 8 digit), normalize ke
+    format 62xxxxxxxxxx. Return None kalau bukan nomor (berarti kemungkinan ini nama orang)."""
+    digits = re.sub(r'\D', '', raw or "")
+    if len(digits) < 8:
+        return None
+    if digits.startswith("62"):
+        return digits
+    if digits.startswith("0"):
+        return "62" + digits[1:]
+    if (raw or "").strip().startswith("+"):
+        return digits
+    return None
+
+
+def resolve_owner_target(target_raw, active_target_fallback):
+    """Resolve potongan teks abis kata kerja kirim/balas/dll jadi SATU nomor customer yang pasti.
+    Return salah satu:
+      ("ok", number, display_name)
+      ("ambiguous", [(number, name), ...], None)   -- nama ketemu, tapi lebih dari 1 customer cocok
+      ("not_found", target_raw, None)               -- bukan nomor & gak ada nama yang cocok
+    """
+    if target_raw.lower() in PRONOUN_TARGETS:
+        if active_target_fallback:
+            name = customer_names.get(active_target_fallback, f"wa.me/{active_target_fallback}")
+            return ("ok", active_target_fallback, name)
+        return ("not_found", target_raw, None)
+
+    phone = normalize_phone_candidate(target_raw)
+    if phone:
+        name = customer_names.get(phone, f"wa.me/{phone}")
+        return ("ok", phone, name)
+
+    matches = find_customers_by_name(target_raw)
+    if len(matches) == 1:
+        return ("ok", matches[0][0], matches[0][1])
+    if len(matches) > 1:
+        return ("ambiguous", matches, None)
+    return ("not_found", target_raw, None)
+
+
+def parse_owner_send_command(text):
+    """Deteksi perintah eksplisit owner buat kirim/balas/follow-up/dll ke customer tertentu (target
+    boleh nama ATAU nomor). Return dict {"target_raw", "separator", "rest"}, atau None kalau ini
+    bukan perintah kirim (pertanyaan/minta saran/obrolan biasa)."""
+    if not text:
+        return None
+    match = SEND_VERB_PATTERN.search(text)
+    if not match:
+        return None
+    target_raw, separator, rest = match.groups()
+    separator = (separator or "").strip().lower()
+    # Kalau formatnya "kirim ke X: <pesan persis>" (titik dua eksplisit abis target), ini sinyal
+    # command yang PASTI — jangan digugurkan oleh guard pertanyaan/draft, karena ISI pesannya sendiri
+    # boleh aja mengandung "?" (misal "...gimana kabarnya?"). Guard cuma dipakai buat kasus lain
+    # (balas/follow up/tanyain tanpa titik dua eksplisit) yang rawan ketuker sama pertanyaan biasa.
+    if separator != ":" and looks_like_question_or_draft_request(text):
+        return None
+    return {
+        "target_raw": target_raw.strip(),
+        "separator": separator,
+        "rest": (rest or "").strip(),
+    }
 
 
 @app.route("/webhook", methods=["GET"])
@@ -1559,77 +1685,93 @@ def receive_webhook():
                     )
                     return jsonify({"status": "ok"}), 200
 
-            # CEK apakah ini perintah langsung (kirim ke nomor X dengan pesan Y)
-            direct_target, direct_message = parse_direct_command(owner_text)
+            # CEK apakah ini perintah EKSPLISIT buat kirim/balas/follow-up ke customer tertentu
+            # (target boleh NAMA atau NOMOR). Beda dari dulu: kalau owner udah JELAS nyuruh kirim,
+            # WAJIB LANGSUNG eksekusi kirim BENERAN saat itu juga — TIDAK ADA LAGI ronde "oke?/
+            # terusin" kedua, kecuali target-nya ambigu (nama kembar) atau gak ketemu di data.
+            send_cmd = parse_owner_send_command(owner_text)
+            direct_send = False
 
-            if direct_target:
-                # Ini perintah langsung — lanjut ke proses konfirmasi & kirim
-                # Tapi ada logika: jika target_number adalah customer yang lagi pending,
-                # kita kirim. Jika customer lain, kita juga bisa kirim (follow up).
-                # Dalam hal apapun, kita WAJIB konfirmasi.
+            if send_cmd:
+                fallback_target = active_customer_context.get(from_number)
+                status, resolved, display_name = resolve_owner_target(send_cmd["target_raw"], fallback_target)
 
-                target_customer_name = customer_names.get(direct_target, f"wa.me/{direct_target}")
+                if status == "ambiguous":
+                    options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in resolved[:5])
+                    send_whatsapp_message(
+                        from_number,
+                        f"Ada beberapa customer namanya mirip '{send_cmd['target_raw']}': {options}. Maksudnya yang mana?",
+                    )
+                    return jsonify({"status": "ok"}), 200
 
-                # Format konfirmasi untuk ditampilkan ke owner
-                confirmation_text = (
-                    f"Jadi aku kirim ke {target_customer_name}:\n\n"
-                    f"{direct_message}\n\n"
-                    f"Oke? (bilang 'terusin' atau 'oke' buat konfirmasi)"
-                )
+                if status == "not_found":
+                    send_whatsapp_message(
+                        from_number,
+                        f"Gak nemu customer bernama '{send_cmd['target_raw']}' di data. "
+                        f"Coba cek namanya lagi, atau kirim pakai nomor WA-nya ya.",
+                    )
+                    return jsonify({"status": "ok"}), 200
 
-                # Simpan pending direct command (nomor + pesan) buat diproses saat owner confirm
-                # Kita store ini di struktur khusus
-                pending_direct_command = {
-                    "target_number": direct_target,
-                    "message": direct_message,
-                }
-                owner_conversations.setdefault(from_number, []).append({
-                    "role": "system",
-                    "content": f"[PENDING_DIRECT_COMMAND: {direct_target}|{direct_message}]"
-                })
+                target_number = resolved
 
-                send_reply_bubbles(from_number, incoming_message_id, confirmation_text)
-                return jsonify({"status": "ok"}), 200
+                # Format "kirim ke X: <pesan persis>" (ada titik dua abis nama/nomor) = pesan
+                # VERBATIM yang mau di-relay APA ADANYA -> kirim LANGSUNG tanpa lewat AI sama
+                # sekali, paling cepat & paling PASTI kata-katanya gak berubah.
+                if send_cmd["separator"] == ":" and send_cmd["rest"]:
+                    msg_to_send = send_cmd["rest"]
+                    sent_ok, send_err = send_reply_bubbles(target_number, None, msg_to_send)
 
-            # Kalau bukan perintah langsung, ini obrolan normal
-            # ambil pertanyaan customer yang paling lama nunggu (kalau ada) sebagai konteks
-            pending_customer_number, pending_question = (None, None)
-            if pending_owner_questions:
-                pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
+                    if sent_ok:
+                        history = conversations.get(target_number, [])
+                        history.append({"role": "assistant", "content": msg_to_send})
+                        conversations[target_number] = history[-20:]
+                        save_message_to_db(target_number, "customer", "assistant", msg_to_send)
+                        log_customer_message(target_number, msg_to_send, sent_from="direct_command")
+                        add_agreed_fact(target_number, msg_to_send)
+                        send_whatsapp_message(from_number, f"Terkirim ke {display_name}.")
+                    else:
+                        send_whatsapp_message(
+                            from_number,
+                            f"Gagal kirim ke {display_name} — belum kekirim ke customer sama sekali.\n"
+                            f"Error: {send_err}",
+                        )
+                    return jsonify({"status": "ok"}), 200
 
-            # Kalau gak ada pertanyaan customer yang formal pending (misal owner nyeletuk duluan soal
-            # customer yang baru aja chat, TANPA customer itu ngirim pertanyaan yang di-tag TANYA_OWNER),
-            # fallback ke customer TERAKHIR yang beneran chat sama bot — ini bikin "terusin" tetap kerja
-            # walau gak ada pending_question formal, sesuai request: begitu owner bilang terusin, WAJIB
-            # beneran kekirim ke customer, gak boleh diem aja gara-gara gak ada konteks pending.
-            if not pending_customer_number:
-                pending_customer_number = active_customer_context.get(from_number)
+                # Selain itu (balas/follow up/tanyain/dll TANPA pesan verbatim persis) — target-nya
+                # udah KEPASTI dari sini (override fallback lama), biarin AI yang nyusun pesan
+                # natural sesuai konteks & instruksi owner, lalu forward LANGSUNG di respons yang
+                # sama (lihat direct_send=True di build_owner_system_prompt).
+                pending_customer_number = target_number
+                pending_question = None
+                direct_send = True
+            else:
+                # Bukan perintah kirim eksplisit -> obrolan/pertanyaan/minta-saran biasa.
+                # Ambil pertanyaan customer yang paling lama nunggu (kalau ada) sebagai konteks.
+                pending_customer_number, pending_question = (None, None)
+                if pending_owner_questions:
+                    pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
+
+                # Kalau gak ada pertanyaan customer yang formal pending (misal owner nyeletuk duluan
+                # soal customer yang baru aja chat, TANPA customer itu ngirim pertanyaan yang di-tag
+                # TANYA_OWNER), fallback ke customer TERAKHIR yang beneran chat sama bot.
+                if not pending_customer_number:
+                    pending_customer_number = active_customer_context.get(from_number)
 
             ai_owner_reply = call_claude_owner(
                 from_number, owner_text, pending_question, pending_customer_number,
                 image_b64=owner_image_b64, image_mime=owner_image_mime,
+                direct_send=direct_send,
             )
 
-            # CEK apakah owner bilang "terusin" / "oke" setelah konfirmasi perintah langsung
-            # Deteksi kata kunci approval
+            # CEK apakah owner bilang "terusin" / "oke" setelah konfirmasi forward GAMBAR (image
+            # forward masih pakai flow konfirmasi lama, sengaja gak diubah — beda topik dari revisi
+            # perintah teks kirim/balas/follow-up di atas).
             is_approval = any(keyword in owner_text.lower() for keyword in ["terusin", "oke", "ok", "lanjut", "go", "kirim"])
 
-            # Cek apakah ada pending direct command (teks ATAU gambar) yang perlu dieksekusi —
-            # ambil yang PALING BARU aja (baru discan dari belakang, berhenti begitu ketemu salah
-            # satu jenis, biar gak ketuker sama command lama yang udah basi).
-            pending_cmd = None
             pending_image_cmd = None
             owner_hist = owner_conversations.get(from_number, [])
             for msg in reversed(owner_hist):
                 content = msg.get("content", "") if msg.get("role") == "system" else ""
-                if "[PENDING_DIRECT_COMMAND:" in content:
-                    try:
-                        cmd_data = content.split("[PENDING_DIRECT_COMMAND: ")[1].split("]")[0]
-                        target_num, msg_content = cmd_data.split("|", 1)
-                        pending_cmd = {"target": target_num, "message": msg_content}
-                    except Exception:
-                        pass
-                    break
                 if "[PENDING_IMAGE_COMMAND:" in content:
                     try:
                         payload_b64 = content.split("[PENDING_IMAGE_COMMAND:")[1].split("]")[0]
@@ -1665,41 +1807,6 @@ def receive_webhook():
                     )
                 return jsonify({"status": "ok"}), 200
 
-            if pending_cmd and is_approval:
-                # Owner confirm perintah direct — KIRIM DULU, baru cek hasilnya sebelum ngomong
-                # apa-apa ke owner. JANGAN PERNAH bilang "udah dikirim" sebelum beneran sukses
-                # kekirim, dan JANGAN simpen ke memory kalau ternyata gagal (biar memory selalu
-                # nyerminin apa yang BENERAN kejadian, bukan yang harusnya kejadian).
-                target_customer = pending_cmd["target"]
-                msg_to_send = pending_cmd["message"]
-
-                sent_ok, send_err = send_reply_bubbles(target_customer, None, msg_to_send)
-
-                # Bersihkan pending command dari histori owner cuma kalau udah beneran kekirim
-                # (kalau gagal, biarin pending-nya biar owner bisa langsung bilang "terusin" lagi
-                # buat retry tanpa harus ngetik ulang perintahnya dari awal)
-                if sent_ok:
-                    history = conversations.get(target_customer, [])
-                    history.append({"role": "assistant", "content": msg_to_send})
-                    conversations[target_customer] = history[-20:]
-                    save_message_to_db(target_customer, "customer", "assistant", msg_to_send)
-                    log_customer_message(target_customer, msg_to_send, sent_from="direct_command")
-
-                    # Sama kayak forward biasa — catet ini jadi fakta fix, biar konsisten kalau
-                    # customer nanya/konfirmasi ulang soal ini di kemudian hari.
-                    add_agreed_fact(target_customer, msg_to_send)
-
-                    owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_DIRECT_COMMAND:" not in m.get("content", "")]
-                    send_whatsapp_message(from_number, f"✅ Pesan udah beneran kekirim ke wa.me/{target_customer}")
-                else:
-                    send_whatsapp_message(
-                        from_number,
-                        f"⚠️ GAGAL kirim ke wa.me/{target_customer} — belum kekirim ke customer sama sekali.\n"
-                        f"Error: {send_err}\n\n"
-                        f"Coba bilang 'terusin' lagi buat retry, atau cek nomornya bener gak.",
-                    )
-                return jsonify({"status": "ok"}), 200
-
             if FORWARD_MARKER in ai_owner_reply and pending_customer_number:
                 owner_facing, _, customer_facing = ai_owner_reply.partition(FORWARD_MARKER)
                 owner_facing = owner_facing.strip() or "Oke siap, aku terusin ya!"
@@ -1727,6 +1834,10 @@ def receive_webhook():
                         if pending_question:
                             fact_note = f"Soal '{pending_question}' — jawaban FINAL yang udah dikirim: {customer_facing}"
                         add_agreed_fact(pending_customer_number, fact_note)
+
+                        # Konfirmasi singkat & PASTI ke owner — cuma muncul kalau BENERAN sukses.
+                        confirm_name = customer_names.get(pending_customer_number, f"wa.me/{pending_customer_number}")
+                        send_whatsapp_message(from_number, f"Terkirim ke {confirm_name}.")
                     else:
                         send_whatsapp_message(
                             from_number,
@@ -1735,7 +1846,9 @@ def receive_webhook():
                         )
                         return jsonify({"status": "ok"}), 200
 
-                del pending_owner_questions[pending_customer_number]
+                # .pop bukan del: pending_customer_number bisa jadi target hasil resolve nama/nomor
+                # (direct_send) yang emang gak pernah masuk pending_owner_questions sama sekali.
+                pending_owner_questions.pop(pending_customer_number, None)
                 sisa = len(pending_owner_questions)
                 if sisa:
                     send_whatsapp_message(
@@ -1895,6 +2008,330 @@ def run_followups():
             results.append({"number": number, "status": "error", "error": str(e)})
 
     return jsonify({"status": "ok", "checked": len(due_numbers), "results": results}), 200
+
+
+# ============================================================
+# DEMO SANDBOX — buat kasih lihat AI Admin ke calon klien TANPA perlu setup ulang
+# bot/data bisnis satu-satu tiap ada yang mau nyoba. Prospek chat lewat WEB (link
+# /demo), BUKAN WhatsApp beneran — jadi gratis dari sisi biaya WhatsApp API & gak
+# nyentuh nomor asli sama sekali. Data bisnis di demo ini FIKTIF (kedai kopi contoh),
+# tujuannya nunjukin KEMAMPUAN AI Admin-nya ke calon klien, bukan chatbot Kilas Works.
+# Kalau prospek keliatan serius & kasih kontak, owner otomatis dapet notif WA.
+# ============================================================
+
+demo_sessions = {}  # session_id -> {"history": [...], "count": int, "created_at": datetime, "notified": bool}
+demo_daily_usage = {"date": None, "messages": 0}
+
+DEMO_MAX_MESSAGES_PER_SESSION = 20   # batas pesan per 1 orang nyoba, biar 1 sesi gak dipakai spam
+DEMO_MAX_MESSAGES_PER_DAY = 150      # batas TOTAL pesan demo per hari (gabungan semua orang) — jaga biaya API
+DEMO_SESSION_TTL_HOURS = 6           # sesi yang udah lama dianggap basi & dibuang dari memori
+
+TAG_DEMO_LEAD = re.compile(r"\[DEMO_LEAD:\s*([^\]]+)\]", re.IGNORECASE)
+
+DEMO_SYSTEM_PROMPT = (
+    "Kamu adalah AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
+    "Orang yang lagi nyoba ini BUKAN customer asli — dia calon KLIEN Kilas Works yang mau lihat "
+    "AI Admin ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
+    "SETTING DEMO: kamu berperan jadi AI Admin punya bisnis CONTOH bernama 'Kedai Kopi Senja' "
+    "(kedai kopi fiktif di Tangerang, buka 08.00-22.00, produk: kopi susu gula aren 18rb, "
+    "americano 15rb, croissant 20rb, ada paket langganan kantor mingguan). Data ini FIKTIF, "
+    "cuma buat contoh cara kerja AI Admin — jangan pernah bilang ini data bisnis asli Kilas Works.\n\n"
+    "TUJUAN KAMU DI DEMO INI:\n"
+    "1. Di balasan PERTAMA, kasih tau singkat kalau ini demo AI Admin dari Kilas Works yang lagi "
+    "'berperan' jadi admin Kedai Kopi Senja (contoh), habis itu lanjut jawab kayak biasa.\n"
+    "2. Jawab pertanyaan seputar Kedai Kopi Senja (menu, harga, jam buka, lokasi, promo) dengan "
+    "gaya sama kayak AI Admin asli: singkat, natural, TANPA emoji, TANPA muji lebay.\n"
+    "3. Tunjukin kemampuan asli AI Admin: nanya balik buat kualifikasi (misal 'buat berapa orang?', "
+    "'mau dine-in atau langganan kantor?'), inget jawaban sebelumnya di percakapan yang sama, dan "
+    "kalau ada pertanyaan di luar wewenang AI (misal minta diskon besar/custom order), bilang 'saya "
+    "cek dulu ke owner ya' — ini SIMULASI aja, gak usah beneran nunggu siapa-siapa, lanjut ngobrol.\n"
+    "4. Setelah ngobrol beberapa balasan (kira-kira 4-6 pesan dari lawan bicara), TAWARIN dengan "
+    "natural kayak gini: kalau versi ini mau dipasang buat bisnis dia sendiri, boleh share nama & "
+    "jenis bisnisnya, nanti tim Kilas Works yang follow up langsung. Kalau dia kasih nama/kontak/jenis "
+    "bisnis, WAJIB tambahin tag PERSIS di akhir balasan: [DEMO_LEAD: nama=..., bisnis=..., "
+    "catatan=...] — tag ini gak akan keliatan sama user, itu sinyal internal doang buat sistem.\n"
+    "5. Kalau ditanya soal HARGA PAKET KILAS WORKS (bukan harga kopi contoh), jawab jujur ini demo "
+    "kemampuan AI Admin-nya doang, buat harga paket & mulai kerja sama arahin ke tim Kilas Works "
+    "langsung (jangan ngarang harga paket di sini).\n\n"
+    "ATURAN GAYA: TANPA emoji sama sekali, TANPA pujian berlebihan ('keren', 'menarik banget', "
+    "'wow'), singkat & natural kayak chat WhatsApp beneran, jangan kaku/formal banget."
+)
+
+
+def _demo_reset_daily_if_needed():
+    """Reset counter harian kalau udah ganti hari (UTC) — biar kuota /hari beneran per-hari."""
+    today_str = _utcnow().strftime("%Y-%m-%d")
+    if demo_daily_usage["date"] != today_str:
+        demo_daily_usage["date"] = today_str
+        demo_daily_usage["messages"] = 0
+
+
+def _demo_cleanup_stale_sessions():
+    """Buang sesi demo yang udah lebih tua dari DEMO_SESSION_TTL_HOURS biar memori gak numpuk."""
+    cutoff = _utcnow() - timedelta(hours=DEMO_SESSION_TTL_HOURS)
+    stale = [sid for sid, s in demo_sessions.items() if s["created_at"] < cutoff]
+    for sid in stale:
+        demo_sessions.pop(sid, None)
+
+
+DEMO_PAGE_HTML = """<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo AI WhatsApp Admin — Kilas Works</title>
+<style>
+  :root {
+    --ink: #121110;
+    --surface: #1B1917;
+    --bubble-bot: #262320;
+    --bubble-user: #D97A3E;
+    --text: #F3EFE9;
+    --muted: #A79E93;
+    --accent: #D97A3E;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    padding: 16px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid #2E2A26;
+  }
+  header h1 {
+    margin: 0 0 4px 0;
+    font-size: 17px;
+    color: var(--accent);
+  }
+  header p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bubble {
+    max-width: 80%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 14.5px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+  }
+  .bot {
+    align-self: flex-start;
+    background: var(--bubble-bot);
+    border-bottom-left-radius: 4px;
+  }
+  .user {
+    align-self: flex-end;
+    background: var(--bubble-user);
+    color: #1B1100;
+    border-bottom-right-radius: 4px;
+  }
+  .typing {
+    align-self: flex-start;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 4px 13px;
+  }
+  form {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: var(--surface);
+    border-top: 1px solid #2E2A26;
+  }
+  input[type=text] {
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 20px;
+    border: 1px solid #3A342E;
+    background: var(--ink);
+    color: var(--text);
+    font-size: 14.5px;
+    outline: none;
+  }
+  button {
+    padding: 0 18px;
+    border-radius: 20px;
+    border: none;
+    background: var(--accent);
+    color: #1B1100;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; }
+  footer {
+    text-align: center;
+    padding: 8px;
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--surface);
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Demo AI WhatsApp Admin — Kilas Works</h1>
+  <p>Ini contoh AI Admin lagi "kerja" buat bisnis contoh (kedai kopi fiktif). Coba tanya apa aja soal menu, harga, atau jam buka — biar kelihatan gimana AI ini bakal jawab customer kamu nanti.</p>
+</header>
+<div id="chat"></div>
+<form id="chat-form">
+  <input type="text" id="msg" placeholder="Ketik pesan..." autocomplete="off" required>
+  <button type="submit">Kirim</button>
+</form>
+<footer>Mau AI Admin kayak gini buat bisnis kamu? <a href="__OWNER_WA_LINK__" target="_blank">Chat tim Kilas Works</a></footer>
+<script>
+  const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+  const chatEl = document.getElementById("chat");
+  const formEl = document.getElementById("chat-form");
+  const inputEl = document.getElementById("msg");
+
+  function addBubble(text, who) {
+    const div = document.createElement("div");
+    div.className = "bubble " + who;
+    div.textContent = text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  addBubble("Halo! Ini demo AI WhatsApp Admin Kilas Works. Coba chat kayak biasa ya — tanya menu, harga, atau jam buka Kedai Kopi Senja (contoh).", "bot");
+
+  formEl.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const text = inputEl.value.trim();
+    if (!text) return;
+    addBubble(text, "user");
+    inputEl.value = "";
+    inputEl.disabled = true;
+
+    const typingEl = document.createElement("div");
+    typingEl.className = "typing";
+    typingEl.textContent = "mengetik...";
+    chatEl.appendChild(typingEl);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    try {
+      const res = await fetch("/demo/api", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message: text }),
+      });
+      const data = await res.json();
+      typingEl.remove();
+      addBubble(data.reply || "Maaf, ada gangguan. Coba lagi ya.", "bot");
+    } catch (err) {
+      typingEl.remove();
+      addBubble("Maaf, ada gangguan koneksi. Coba lagi ya.", "bot");
+    } finally {
+      inputEl.disabled = false;
+      inputEl.focus();
+    }
+  });
+</script>
+</body>
+</html>"""
+
+
+@app.route("/demo", methods=["GET"])
+def demo_page():
+    """Halaman web demo AI Admin — link ini yang dikirim ke calon klien, bisa dipakai berkali-kali
+    tanpa perlu setup apa-apa lagi tiap ada prospek baru."""
+    html = DEMO_PAGE_HTML.replace("__OWNER_WA_LINK__", f"https://wa.me/{OWNER_WHATSAPP_NUMBER}")
+    return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+@app.route("/demo/api", methods=["POST"])
+def demo_api():
+    """Endpoint chat buat halaman /demo. Sengaja TERPISAH total dari alur WhatsApp asli (session
+    di-memory doang, gak nyentuh DB/nomor WA asli) & dibatasi kuota biar biaya API demo terkontrol,
+    berapapun banyaknya calon klien yang nyoba."""
+    _demo_reset_daily_if_needed()
+    _demo_cleanup_stale_sessions()
+
+    data = request.get_json(silent=True) or {}
+    session_id = str(data.get("session_id", ""))[:100]
+    user_message = str(data.get("message", ""))[:1000].strip()
+
+    if not session_id or not user_message:
+        return jsonify({"reply": "Sesi tidak valid, coba refresh halaman ya."}), 200
+
+    if demo_daily_usage["messages"] >= DEMO_MAX_MESSAGES_PER_DAY:
+        return jsonify({
+            "reply": "Kuota demo hari ini sudah penuh. Coba lagi besok, atau langsung chat tim Kilas Works di link bawah ini."
+        }), 200
+
+    session = demo_sessions.get(session_id)
+    if session is None:
+        session = {"history": [], "count": 0, "created_at": _utcnow(), "notified": False}
+        demo_sessions[session_id] = session
+
+    if session["count"] >= DEMO_MAX_MESSAGES_PER_SESSION:
+        return jsonify({
+            "reply": "Sesi demo ini udah nyampe batas maksimal. Kalau tertarik lanjut, langsung chat tim Kilas Works ya di link bawah."
+        }), 200
+
+    session["history"].append({"role": "user", "content": user_message})
+    demo_daily_usage["messages"] += 1
+    session["count"] += 1
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-3-5-haiku-20241022",
+                "max_tokens": 300,
+                "system": DEMO_SYSTEM_PROMPT,
+                "messages": session["history"][-20:],
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        reply_text = resp.json()["content"][0]["text"]
+    except Exception as e:
+        print("Demo API error:", e)
+        reply_text = "Maaf, ada gangguan teknis sebentar. Coba kirim ulang pesannya ya."
+
+    lead_match = TAG_DEMO_LEAD.search(reply_text)
+    if lead_match and not session["notified"]:
+        session["notified"] = True
+        lead_info = lead_match.group(1)
+        try:
+            send_whatsapp_message(
+                OWNER_WHATSAPP_NUMBER,
+                f"Ada yang nyoba DEMO AI Admin & keliatan tertarik!\n\n"
+                f"Detail: {lead_info}\n\n"
+                f"(ini dari halaman web demo, bukan WA asli — follow up manual ya)",
+            )
+        except Exception as e:
+            print("Gagal notif owner soal demo lead:", e)
+
+    clean_reply = TAG_DEMO_LEAD.sub("", reply_text).strip()
+    session["history"].append({"role": "assistant", "content": clean_reply})
+
+    return jsonify({"reply": clean_reply}), 200
 
 
 def _escape_html(text):
