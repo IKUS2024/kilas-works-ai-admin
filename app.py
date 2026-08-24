@@ -100,6 +100,25 @@ def init_db():
             );
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS appointments (
+                id INTEGER PRIMARY KEY,
+                number TEXT NOT NULL,
+                name TEXT,
+                business_name TEXT,
+                meeting_date TEXT NOT NULL,
+                meeting_time TEXT NOT NULL,
+                tz TEXT NOT NULL DEFAULT 'Asia/Jakarta',
+                need_summary TEXT,
+                status TEXT NOT NULL DEFAULT 'scheduled',
+                notes TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_appointments_number ON appointments (number);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments (meeting_date);")
         conn.commit()
         cur.close()
         conn.close()
@@ -379,6 +398,263 @@ def record_followup_sent(number):
     state["last_followup_at"] = _utcnow()
     state["followup_count"] = state.get("followup_count", 0) + 1
     save_followup_state_to_db(number, state)
+
+
+# ============================================================
+# APPOINTMENT / JADWAL PERTEMUAN CUSTOMER — bukan integrasi calendar beneran (Google Calendar dll),
+# tapi sumber kebenaran ketersediaan yang KONSISTEN & anti-double-booking: slot jam TETAP per hari
+# (bisa diubah di DEFAULT_MEETING_SLOT_TIMES), dicek terhadap appointment yang UDAH ke-booking di
+# tabel `appointments` sebelum nawarin/confirm ke customer. Tanggal relatif ("besok", "Jumat") gak
+# pernah dihitung sendiri sama AI — Python yang compute tanggal aslinya (WIB) & suntik ke system
+# prompt tiap request, AI tinggal COCOKIN ke situ, bukan ngitung sendiri.
+# ============================================================
+
+JAKARTA_TZ = timezone(timedelta(hours=7))  # Asia/Jakarta, UTC+7 tetap (gak ada DST)
+
+# Jam meeting yang ditawarin per hari (WIB). Ganti di sini kalau jam kerja owner berubah.
+DEFAULT_MEETING_SLOT_TIMES = ["10:00", "13:00", "15:00", "17:00"]
+# Hari libur meeting (Python weekday(): Senin=0 ... Minggu=6). Default: Minggu libur.
+MEETING_DAYS_OFF = {6}
+
+DAY_NAME_ID = {0: "Senin", 1: "Selasa", 2: "Rabu", 3: "Kamis", 4: "Jumat", 5: "Sabtu", 6: "Minggu"}
+MONTH_NAME_ID = {
+    1: "Januari", 2: "Februari", 3: "Maret", 4: "April", 5: "Mei", 6: "Juni",
+    7: "Juli", 8: "Agustus", 9: "September", 10: "Oktober", 11: "November", 12: "Desember",
+}
+
+appointments = {}  # id -> {id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes}
+_appointment_id_counter = 0
+
+
+def now_wib():
+    return datetime.now(JAKARTA_TZ)
+
+
+def format_date_id(d):
+    """d = objek date/datetime. Return 'Senin, 24 Agustus 2026'."""
+    return f"{DAY_NAME_ID[d.weekday()]}, {d.day} {MONTH_NAME_ID[d.month]} {d.year}"
+
+
+def is_valid_date_str(date_str):
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def parse_tag_kv(raw):
+    """Parse isi tag internal format 'key=val|key2=val2' jadi dict. Dipakai buat tag booking yang
+    isinya lebih dari satu field (BOOK_MEETING, RESCHEDULE_MEETING)."""
+    result = {}
+    for part in (raw or "").split("|"):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            result[k.strip().lower()] = v.strip()
+    return result
+
+
+def _next_appointment_id():
+    global _appointment_id_counter
+    _appointment_id_counter += 1
+    return _appointment_id_counter
+
+
+def save_appointment_to_db(appt):
+    if not db_enabled():
+        return
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO appointments (id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (id) DO UPDATE SET
+                number = EXCLUDED.number, name = EXCLUDED.name, business_name = EXCLUDED.business_name,
+                meeting_date = EXCLUDED.meeting_date, meeting_time = EXCLUDED.meeting_time, tz = EXCLUDED.tz,
+                need_summary = EXCLUDED.need_summary, status = EXCLUDED.status, notes = EXCLUDED.notes
+            """,
+            (
+                appt["id"], appt["number"], appt.get("name"), appt.get("business_name"),
+                appt["meeting_date"], appt["meeting_time"], appt.get("tz", "Asia/Jakarta"),
+                appt.get("need_summary"), appt.get("status", "scheduled"), appt.get("notes"),
+            ),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Gagal simpen appointment ke database ({e}).")
+
+
+def load_all_appointments_from_db():
+    if not db_enabled():
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes FROM appointments"
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        result = {}
+        for (id_, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes) in rows:
+            result[id_] = {
+                "id": id_, "number": number, "name": name, "business_name": business_name,
+                "meeting_date": meeting_date, "meeting_time": meeting_time, "tz": tz,
+                "need_summary": need_summary, "status": status, "notes": notes,
+            }
+        return result
+    except Exception as e:
+        print(f"Gagal ambil appointments dari database ({e}).")
+        return {}
+
+
+def get_booked_times_for_date(date_str):
+    """Semua jam yang UDAH ke-booking (status masih 'scheduled') di tanggal itu — dipakai buat
+    ngecek availability, JANGAN PERNAH nebak/ngarang ini dari history chat."""
+    return {
+        a["meeting_time"] for a in appointments.values()
+        if a.get("meeting_date") == date_str and a.get("status") == "scheduled"
+    }
+
+
+def get_available_slots_for_date(date_str):
+    """List jam yang MASIH KOSONG di tanggal itu. Return [] kalau tanggal invalid atau hari libur."""
+    if not is_valid_date_str(date_str):
+        return []
+    d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    if d.weekday() in MEETING_DAYS_OFF:
+        return []
+    booked = get_booked_times_for_date(date_str)
+    return [t for t in DEFAULT_MEETING_SLOT_TIMES if t not in booked]
+
+
+def build_weekly_availability_text(days_ahead=7):
+    """Bikin blok teks ketersediaan 7 hari ke depan (computed di Python, BUKAN ditebak AI) buat
+    disuntik ke system prompt customer — ini SUMBER KEBENARAN satu-satunya soal jam kosong."""
+    today = now_wib().date()
+    lines = []
+    for i in range(days_ahead):
+        d = today + timedelta(days=i)
+        date_str = d.strftime("%Y-%m-%d")
+        label = format_date_id(d)
+        if d.weekday() in MEETING_DAYS_OFF:
+            lines.append(f"- {date_str} ({label}): TUTUP, gak terima meeting hari ini")
+        else:
+            slots = get_available_slots_for_date(date_str)
+            if slots:
+                lines.append(f"- {date_str} ({label}): kosong jam {', '.join(slots)} WIB")
+            else:
+                lines.append(f"- {date_str} ({label}): SEMUA SLOT PENUH")
+    return "\n".join(lines)
+
+
+def create_appointment(number, name, business_name, date_str, time_str, need_summary):
+    aid = _next_appointment_id()
+    appt = {
+        "id": aid, "number": number, "name": name or customer_names.get(number, ""),
+        "business_name": business_name, "meeting_date": date_str, "meeting_time": time_str,
+        "tz": "Asia/Jakarta", "need_summary": need_summary, "status": "scheduled", "notes": None,
+    }
+    appointments[aid] = appt
+    save_appointment_to_db(appt)
+    return aid
+
+
+def get_latest_scheduled_appointment_for(number):
+    candidates = [a for a in appointments.values() if a.get("number") == number and a.get("status") == "scheduled"]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda a: (a["meeting_date"], a["meeting_time"]))
+    return candidates[-1]
+
+
+def update_appointment_status(appt_id, status):
+    appt = appointments.get(appt_id)
+    if not appt:
+        return
+    appt["status"] = status
+    save_appointment_to_db(appt)
+
+
+def update_appointment_reschedule(appt_id, new_date, new_time):
+    appt = appointments.get(appt_id)
+    if not appt:
+        return
+    old_note = f"(sebelumnya {appt['meeting_date']} {appt['meeting_time']})"
+    appt["notes"] = f"{appt.get('notes') or ''} {old_note}".strip()
+    appt["meeting_date"] = new_date
+    appt["meeting_time"] = new_time
+    appt["status"] = "scheduled"
+    save_appointment_to_db(appt)
+
+
+def try_book_meeting(customer_number, name, business_name, date_str, time_str, need_summary):
+    """WAJIB re-cek availability di sini (bukan cuma percaya tag dari AI) — biar gak ada double
+    booking meski AI 'yakin' slotnya kosong pas nyusun balasan (data bisa berubah antar pesan).
+    Return (success, customer_facing_text, owner_notify_text_atau_None)."""
+    if not is_valid_date_str(date_str) or time_str not in DEFAULT_MEETING_SLOT_TIMES:
+        return False, "Waduh ada kendala pas mau jadwalin, boleh sebutin lagi tanggal & jamnya kak?", None
+
+    available = get_available_slots_for_date(date_str)
+    if time_str not in available:
+        if available:
+            alt = ", ".join(available[:3])
+            msg = f"Waduh, jam {time_str} ternyata baru aja keisi kak. Yang masih kosong: {alt} WIB, mau pilih yang mana?"
+        else:
+            msg = f"Waduh, tanggal itu udah penuh semua kak. Mau coba tanggal lain?"
+        return False, msg, None
+
+    create_appointment(customer_number, name, business_name, date_str, time_str, need_summary)
+    label = format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date())
+    confirm = f"Siap Kak, sudah dijadwalkan untuk {label} jam {time_str} WIB. Nanti owner akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
+    display_name = name or customer_names.get(customer_number, "Customer")
+    owner_notify = (
+        f"Meeting baru: {display_name} — {business_name or '(bisnis belum disebut)'}, "
+        f"{label} jam {time_str} WIB. Kebutuhan: {need_summary or '-'}."
+    )
+    return True, confirm, owner_notify
+
+
+def try_reschedule_meeting(customer_number, date_str, time_str):
+    appt = get_latest_scheduled_appointment_for(customer_number)
+    if not appt:
+        return False, "Belum nemu jadwal meeting Kakak sebelumnya nih, mau dijadwalin baru aja?", None
+    if not is_valid_date_str(date_str) or time_str not in DEFAULT_MEETING_SLOT_TIMES:
+        return False, "Boleh sebutin lagi tanggal & jam barunya kak?", None
+
+    available = get_available_slots_for_date(date_str)
+    if time_str not in available:
+        if available:
+            alt = ", ".join(available[:3])
+            msg = f"Jam {time_str} udah keisi kak. Yang masih kosong: {alt} WIB, pilih yang mana?"
+        else:
+            msg = "Tanggal itu udah penuh semua kak. Mau coba tanggal lain?"
+        return False, msg, None
+
+    old_label = f"{format_date_id(datetime.strptime(appt['meeting_date'], '%Y-%m-%d').date())} jam {appt['meeting_time']}"
+    update_appointment_reschedule(appt["id"], date_str, time_str)
+    new_label = format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date())
+    confirm = f"Oke Kak, jadwalnya dipindah ke {new_label} jam {time_str} WIB ya."
+    display_name = appt.get("name") or customer_names.get(customer_number, "Customer")
+    owner_notify = f"Reschedule meeting: {display_name} — pindah dari {old_label} ke {new_label} jam {time_str} WIB."
+    return True, confirm, owner_notify
+
+
+def try_cancel_meeting(customer_number):
+    appt = get_latest_scheduled_appointment_for(customer_number)
+    if not appt:
+        return False, "Kakak belum ada jadwal meeting yang aktif nih.", None
+    update_appointment_status(appt["id"], "cancelled")
+    label = f"{format_date_id(datetime.strptime(appt['meeting_date'], '%Y-%m-%d').date())} jam {appt['meeting_time']}"
+    confirm = "Oke Kak, jadwal meetingnya dibatalin ya. Kalau nanti mau jadwal ulang, tinggal bilang aja."
+    display_name = appt.get("name") or customer_names.get(customer_number, "Customer")
+    owner_notify = f"Meeting dibatalkan: {display_name} — jadwal {label} WIB batal."
+    return True, confirm, owner_notify
 
 
 def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150):
@@ -763,6 +1039,47 @@ ALUR:
 """
 
 
+def build_appointment_context():
+    """Suntik ketersediaan jadwal meeting owner (7 hari ke depan, DIHITUNG BENERAN oleh Python dari
+    data appointments yang ada — bukan ditebak AI) + aturan kapan/gimana nawarin meeting. Dipanggil
+    tiap request biar tanggalnya selalu akurat & availability-nya selalu up-to-date."""
+    today = now_wib().date()
+    today_label = format_date_id(today)
+    availability_text = build_weekly_availability_text()
+    return (
+        "\n\n📅 APPOINTMENT / JADWAL KETEMU OWNER\n"
+        f"HARI INI adalah {today_label} ({today.strftime('%Y-%m-%d')}), zona waktu WIB (Asia/Jakarta). "
+        "Kalau customer nyebut tanggal relatif ('hari ini', 'besok', 'Jumat', dll), COCOKIN ke tanggal "
+        "PERSIS di daftar ketersediaan di bawah — JANGAN pernah itung/nebak tanggal sendiri.\n\n"
+        "KETERSEDIAAN OWNER 7 HARI KE DEPAN (SUMBER KEBENARAN — JANGAN PERNAH NAWARIN JAM DI LUAR INI):\n"
+        f"{availability_text}\n\n"
+        "KAPAN NAWARIN MEETING: JANGAN langsung tawarin meeting di awal obrolan. Tawarin secara natural "
+        "SETELAH customer nunjukin minat serius — nanya harga/paket, nanya cara kerja layanan, cerita "
+        "masalah bisnisnya, nanya soal integrasi/implementasi, minta demo, bilang mau coba, nanya "
+        "langkah selanjutnya, atau kasih sinyal lain lagi mempertimbangkan pakai layanan. Contoh nawarin: "
+        "'Kalau Kakak mau, kita bisa lanjut ngobrol sebentar sama owner biar kebutuhan bisnisnya bisa "
+        "dibahas lebih spesifik. Biasanya Kakak lebih enak weekday atau weekend?' — JANGAN maksa & JANGAN "
+        "nawarin di tiap balasan/obrolan.\n\n"
+        "ALUR BOOKING: kalau customer setuju mau ketemu, tanya tanggal yang mereka mau, cocokin ke daftar "
+        "ketersediaan di atas, kasih MAKSIMAL 2-3 pilihan jam yang BENERAN kosong (JANGAN PERNAH ngarang "
+        "jam yang gak ada di daftar). Setelah customer milih satu jam, JANGAN nulis sendiri kalimat "
+        "'sudah dijadwalkan' atau semacamnya — cukup respon transisi natural (misal 'Oke, aku cek dulu "
+        "sebentar ya...') LALU sertakan tag PERSIS di akhir balasan: [BOOK_MEETING: date=YYYY-MM-DD|"
+        "time=HH:MM|name=<nama customer>|business=<nama bisnis customer kalau ada, kosongin kalau gak "
+        "tau>|need=<ringkasan singkat kebutuhan mereka>]. SISTEM yang bakal validasi ulang & generate "
+        "kalimat konfirmasi FINAL-nya sendiri (BUKAN kamu) — biar gak ada resiko bilang 'sudah "
+        "dijadwalkan' padahal ternyata slotnya baru aja keisi duluan.\n\n"
+        "RESCHEDULE: kalau customer yang UDAH PUNYA jadwal minta pindah jadwal, sama kayak booking baru "
+        "— cocokin tanggal/jam baru ke daftar ketersediaan, kasih respon transisi natural aja, sertakan "
+        "tag PERSIS: [RESCHEDULE_MEETING: date=YYYY-MM-DD|time=HH:MM].\n\n"
+        "CANCEL: kalau customer mau batalin jadwal meetingnya, respon transisi natural, sertakan tag "
+        "PERSIS: [CANCEL_MEETING] (tag doang, tanpa isi lain).\n\n"
+        "JANGAN PERNAH: menawarkan jam yang gak ada di daftar ketersediaan, mengarang slot kosong, atau "
+        "nulis sendiri kalimat konfirmasi FINAL booking/reschedule/cancel — tiga hal itu tugas sistem,"
+        " bukan tugas kamu."
+    )
+
+
 def build_customer_system_prompt(user_number):
     """Susun system prompt customer, sisipin konteks soal nama customer ini (kalau udah tau dari
     profil WhatsApp / obrolan sebelumnya, kasih tau AI biar gak nanya lagi; kalau belum, larang AI
@@ -814,8 +1131,10 @@ def build_customer_system_prompt(user_number):
     else:
         facts_context = ""
 
+    appointment_context = build_appointment_context()
+
     owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
-    full_prompt = SYSTEM_PROMPT + name_context + scope_context + facts_context
+    full_prompt = SYSTEM_PROMPT + name_context + scope_context + facts_context + appointment_context
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
     return full_prompt
@@ -1042,14 +1361,21 @@ TAG_TANYA_OWNER = "[TANYA_OWNER]"
 TAG_KIRIM_QR = "[KIRIM_QR]"
 TAG_KIRIM_KATALOG = "[KIRIM_KATALOG]"
 TAG_SUDAH_BAYAR = "[SUDAH_BAYAR]"
+TAG_CANCEL_MEETING = "[CANCEL_MEETING]"
 ALL_TAGS = [
-    TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, TAG_SUDAH_BAYAR,
+    TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, TAG_SUDAH_BAYAR, TAG_CANCEL_MEETING,
     "[LEADS PANAS]",  # jaga-jaga variasi lama
 ]
 
 # Tag dinamis buat nangkep nama customer, formatnya "[NAMA: Budi]" — beda dari tag lain di atas
 # karena isinya berubah-ubah, jadi dideteksi pakai regex, bukan exact match di ALL_TAGS.
 TAG_NAMA_PATTERN = re.compile(r"\[NAMA:\s*([^\]]+)\]", re.IGNORECASE)
+
+# Tag booking meeting — isinya key=value dipisah "|" (date, time, name, business, need), dideteksi &
+# di-parse pakai parse_tag_kv(). SISTEM (bukan AI) yang generate kalimat konfirmasi final customer-nya,
+# biar gak ada resiko AI ngaku "sudah dijadwalkan" padahal slotnya ternyata udah keisi duluan.
+TAG_BOOK_MEETING_PATTERN = re.compile(r"\[BOOK_MEETING:\s*([^\]]+)\]", re.IGNORECASE)
+TAG_RESCHEDULE_MEETING_PATTERN = re.compile(r"\[RESCHEDULE_MEETING:\s*([^\]]+)\]", re.IGNORECASE)
 
 # Berapa lama "mengetik..." ditampilkan sebelum tiap chat bubble dikirim (biar natural, bukan
 # langsung nembak semua pesan dalam sepersekian detik).
@@ -1064,6 +1390,8 @@ def strip_tags(text):
     for tag in ALL_TAGS:
         cleaned = cleaned.replace(tag, "")
     cleaned = TAG_NAMA_PATTERN.sub("", cleaned)
+    cleaned = TAG_BOOK_MEETING_PATTERN.sub("", cleaned)
+    cleaned = TAG_RESCHEDULE_MEETING_PATTERN.sub("", cleaned)
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
@@ -1530,6 +1858,52 @@ def split_target_from_rest(remainder):
     return target, rest
 
 
+# ============================================================
+# PERINTAH OWNER: UPDATE STATUS MEETING (mis. "meeting Caca selesai" / "meeting Kimfong gak jadi" /
+# "meeting Bapak Andi no show") — biar status appointment ke-update tanpa harus utak-atik DB manual.
+# ============================================================
+
+MEETING_STATUS_TRIGGER_PATTERN = re.compile(r'\bmeeting(?:nya)?\b', re.IGNORECASE)
+
+MEETING_STATUS_WORDS = [
+    (re.compile(r'\b(selesai|udah\s+ketemu|sudah\s+ketemu|done|udah\s+meeting|sudah\s+meeting)\b', re.IGNORECASE), "completed"),
+    (re.compile(r'\b(gak\s+jadi|nggak\s+jadi|ga\s+jadi|batal(?:in)?|cancel)\b', re.IGNORECASE), "cancelled"),
+    (re.compile(r'\b(no\s*show|gak\s+dateng|nggak\s+dateng|ga\s+dateng|gak\s+datang|tidak\s+datang|bolos)\b', re.IGNORECASE), "no_show"),
+]
+
+
+def parse_meeting_status_command(text):
+    """Deteksi perintah owner buat update status meeting customer tertentu jadi
+    completed/cancelled/no_show. Return {"target_raw": ..., "status": ...} atau None kalau
+    teksnya bukan perintah status meeting."""
+    if not text:
+        return None
+    match = MEETING_STATUS_TRIGGER_PATTERN.search(text)
+    if not match:
+        return None
+
+    status = None
+    for pattern, status_value in MEETING_STATUS_WORDS:
+        if pattern.search(text):
+            status = status_value
+            break
+    if not status:
+        return None
+
+    before = text[:match.start()].strip()
+    after = text[match.end():].strip()
+    # Target biasanya ada SESUDAH kata "meeting" (mis. "meeting Caca selesai"),
+    # tapi bisa juga SEBELUMNYA (mis. "Caca meeting-nya selesai"). Coba dua-duanya.
+    for chunk in (after, before):
+        if not chunk:
+            continue
+        target, _rest = split_target_from_rest(chunk)
+        candidate = (target or "").strip(",.:;")
+        if candidate:
+            return {"target_raw": candidate, "status": status}
+    return None
+
+
 def short_display_name(full_name):
     """Buat teks konfirmasi ringkas ('Terkirim ke Kimfong.') — ambil kata PERTAMA dari nama yang
     tersimpan, biar natural kayak manggil orang (bukan nyebut nama lengkap kaku tiap konfirmasi)."""
@@ -1777,6 +2151,52 @@ def receive_webhook():
                     )
                     return jsonify({"status": "ok"}), 200
 
+            # CEK apakah ini perintah update STATUS MEETING customer tertentu (mis. "meeting Caca
+            # selesai" / "meeting Kimfong gak jadi" / "meeting Andi no show"). Ini dicek DULUAN,
+            # sebelum parse_owner_send_command, karena bukan perintah kirim pesan ke customer.
+            meeting_status_cmd = parse_meeting_status_command(owner_text)
+            if meeting_status_cmd:
+                fallback_target = active_customer_context.get(from_number)
+                ms_status, ms_resolved, ms_display_name = resolve_owner_target(
+                    meeting_status_cmd["target_raw"], fallback_target
+                )
+
+                if ms_status == "ambiguous":
+                    options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in ms_resolved[:5])
+                    send_whatsapp_message(
+                        from_number,
+                        f"Ada beberapa customer namanya mirip '{meeting_status_cmd['target_raw']}': {options}. Maksudnya yang mana?",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                if ms_status == "not_found":
+                    send_whatsapp_message(
+                        from_number,
+                        f"Gak nemu customer bernama '{meeting_status_cmd['target_raw']}' di data.",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                ms_target_number = ms_resolved
+                ms_appt = get_latest_scheduled_appointment_for(ms_target_number)
+                if not ms_appt:
+                    send_whatsapp_message(
+                        from_number,
+                        f"{short_display_name(ms_display_name)} belum ada jadwal meeting yang aktif nih.",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                update_appointment_status(ms_appt["id"], meeting_status_cmd["status"])
+                status_label = {
+                    "completed": "selesai",
+                    "cancelled": "dibatalkan",
+                    "no_show": "no-show (gak dateng)",
+                }.get(meeting_status_cmd["status"], meeting_status_cmd["status"])
+                send_whatsapp_message(
+                    from_number,
+                    f"Oke, status meeting {short_display_name(ms_display_name)} diupdate jadi {status_label}.",
+                )
+                return jsonify({"status": "ok"}), 200
+
             # CEK apakah ini perintah EKSPLISIT buat kirim/balas/follow-up ke customer tertentu
             # (target boleh NAMA atau NOMOR). Beda dari dulu: kalau owner udah JELAS nyuruh kirim,
             # WAJIB LANGSUNG eksekusi kirim BENERAN saat itu juga — TIDAK ADA LAGI ronde "oke?/
@@ -2023,8 +2443,38 @@ def receive_webhook():
         wants_qr = TAG_KIRIM_QR in ai_reply
         wants_catalog = TAG_KIRIM_KATALOG in ai_reply
         payment_confirmed = TAG_SUDAH_BAYAR in ai_reply
+        book_match = TAG_BOOK_MEETING_PATTERN.search(ai_reply)
+        resched_match = TAG_RESCHEDULE_MEETING_PATTERN.search(ai_reply)
+        wants_cancel_meeting = TAG_CANCEL_MEETING in ai_reply
 
         clean_reply = strip_tags(ai_reply)
+
+        # Appointment: AI CUMA boleh nulis respons transisi ("oke aku cek dulu ya") + tag — kalimat
+        # KONFIRMASI FINAL-nya WAJIB dari sini (Python), abis di-validasi ulang availability-nya, biar
+        # gak ada resiko AI ngaku "sudah dijadwalkan"/dsb padahal ternyata slotnya udah keisi duluan
+        # atau invalid. meeting_owner_notify dikirim ke owner SETELAH balasan ke customer terkirim.
+        meeting_owner_notify = None
+        if book_match:
+            kv = parse_tag_kv(book_match.group(1))
+            ok, appt_text, owner_text_notify = try_book_meeting(
+                from_number, kv.get("name") or customer_names.get(from_number), kv.get("business"),
+                kv.get("date", ""), kv.get("time", ""), kv.get("need"),
+            )
+            clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            if ok:
+                meeting_owner_notify = owner_text_notify
+        elif resched_match:
+            kv = parse_tag_kv(resched_match.group(1))
+            ok, appt_text, owner_text_notify = try_reschedule_meeting(from_number, kv.get("date", ""), kv.get("time", ""))
+            clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            if ok:
+                meeting_owner_notify = owner_text_notify
+        elif wants_cancel_meeting:
+            ok, appt_text, owner_text_notify = try_cancel_meeting(from_number)
+            clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            if ok:
+                meeting_owner_notify = owner_text_notify
+
         send_reply_bubbles(from_number, incoming_message_id, clean_reply)
 
         if wants_qr:
@@ -2048,6 +2498,9 @@ def receive_webhook():
         elif needs_owner:
             pending_owner_questions[from_number] = user_text
             notify_owner_question(from_number, user_text)
+
+        if meeting_owner_notify and OWNER_WHATSAPP_NUMBER:
+            send_whatsapp_message(OWNER_WHATSAPP_NUMBER, meeting_owner_notify)
 
     except Exception as e:
         print("Error processing webhook:", e)
@@ -2125,29 +2578,61 @@ DEMO_SYSTEM_PROMPT = (
     "Kamu adalah AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
     "Orang yang lagi nyoba ini BUKAN customer asli — dia calon KLIEN Kilas Works yang mau lihat "
     "AI Admin ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
-    "SETTING DEMO: kamu berperan jadi AI Admin punya bisnis CONTOH bernama 'Kedai Kopi Senja' "
-    "(kedai kopi fiktif di Tangerang, buka 08.00-22.00, produk: kopi susu gula aren 18rb, "
-    "americano 15rb, croissant 20rb, ada paket langganan kantor mingguan). Data ini FIKTIF, "
-    "cuma buat contoh cara kerja AI Admin — jangan pernah bilang ini data bisnis asli Kilas Works.\n\n"
-    "TUJUAN KAMU DI DEMO INI:\n"
-    "1. Di balasan PERTAMA, kasih tau singkat kalau ini demo AI Admin dari Kilas Works yang lagi "
-    "'berperan' jadi admin Kedai Kopi Senja (contoh), habis itu lanjut jawab kayak biasa.\n"
-    "2. Jawab pertanyaan seputar Kedai Kopi Senja (menu, harga, jam buka, lokasi, promo) dengan "
-    "gaya sama kayak AI Admin asli: singkat, natural, TANPA emoji, TANPA muji lebay.\n"
-    "3. Tunjukin kemampuan asli AI Admin: nanya balik buat kualifikasi (misal 'buat berapa orang?', "
-    "'mau dine-in atau langganan kantor?'), inget jawaban sebelumnya di percakapan yang sama, dan "
-    "kalau ada pertanyaan di luar wewenang AI (misal minta diskon besar/custom order), bilang 'saya "
-    "cek dulu ke owner ya' — ini SIMULASI aja, gak usah beneran nunggu siapa-siapa, lanjut ngobrol.\n"
-    "4. Setelah ngobrol beberapa balasan (kira-kira 4-6 pesan dari lawan bicara), TAWARIN dengan "
-    "natural kayak gini: kalau versi ini mau dipasang buat bisnis dia sendiri, boleh share nama & "
-    "jenis bisnisnya, nanti tim Kilas Works yang follow up langsung. Kalau dia kasih nama/kontak/jenis "
-    "bisnis, WAJIB tambahin tag PERSIS di akhir balasan: [DEMO_LEAD: nama=..., bisnis=..., "
-    "catatan=...] — tag ini gak akan keliatan sama user, itu sinyal internal doang buat sistem.\n"
-    "5. Kalau ditanya soal HARGA PAKET KILAS WORKS (bukan harga kopi contoh), jawab jujur ini demo "
-    "kemampuan AI Admin-nya doang, buat harga paket & mulai kerja sama arahin ke tim Kilas Works "
-    "langsung (jangan ngarang harga paket di sini).\n\n"
+    "PENTING — JANGAN LANGSUNG KASIH DEMO GENERIK. Demo ini HARUS disesuaikan sama bisnis calon "
+    "klien itu sendiri, bukan selalu contoh 'kedai kopi' atau bisnis Kilas Works sendiri. Ikutin "
+    "urutan ini:\n\n"
+    "TAHAP 1 — KENALAN DULU (di awal percakapan, SEBELUM roleplay apapun):\n"
+    "Di balasan PERTAMA, kasih tau singkat ini demo AI WhatsApp Admin dari Kilas Works, terus mulai "
+    "nanya SATU PERTANYAAN SINGKAT dulu (jangan borongan banyak pertanyaan sekaligus) buat kenalan "
+    "sama bisnis dia. Lanjutin nanya satu-satu tiap balasan, sampai kamu tau: (1) nama bisnisnya, "
+    "(2) bidang/jenis bisnisnya, (3) produk/jasa utamanya, (4) pertanyaan customer yang paling sering "
+    "masuk, (5) masalah utama pas nanganin WhatsApp selama ini (kebanyakan chat? sering telat bales? "
+    "susah followup?), (6) tujuan dia pakai AI Admin ini buat apa.\n"
+    "Contoh gaya nanya (buat bisnis detailing mobil, sekadar ilustrasi urutan — sesuaikan kalimat "
+    "sama jawaban dia sebelumnya, jangan hardcode urutan pertanyaan ini persis):\n"
+    "  'Halo, ini demo AI WhatsApp Admin Kilas Works. Biar demo-nya pas, boleh cerita dikit — bisnis "
+    "Kakak namanya apa?'\n  -> (jawab) -> 'Oke, bisnisnya di bidang apa nih, Kak?'\n  -> (jawab) -> "
+    "'Produk/jasa utama yang paling sering ditanya customer apa?'\n  -> dst sampai poin 1-6 kekumpul.\n"
+    "Gak perlu nanya PERSIS urutan/kalimat di atas — yang penting ngobrolnya natural, satu pertanyaan "
+    "per balasan, dan nyambung sama jawaban sebelumnya.\n\n"
+    "TAHAP 2 — ROLEPLAY SESUAI BISNIS DIA:\n"
+    "Begitu poin 1-6 di atas udah cukup kekumpul (gak harus semua persis, yang penting cukup buat "
+    "roleplay masuk akal), bilang kamu bakal simulasiin gimana AI Admin bakal jawab customer BISNIS "
+    "DIA (sebut nama bisnisnya), lalu MULAI BERPERAN jadi AI Admin bisnis itu — bukan Kilas Works, "
+    "bukan kedai kopi, bukan bisnis contoh lain. Isi jawabannya (harga, layanan, jam buka, dll) boleh "
+    "kamu karang wajar/masuk akal SESUAI CERITA DIA (misal kalau dia bilang bisnis detailing mobil, "
+    "kamu boleh contohin paket cuci+coating dengan harga contoh yang wajar), TAPI selalu jelasin di "
+    "awal roleplay bahwa detail harga/layanan di sini cuma CONTOH simulasi, bukan data asli bisnis dia "
+    "(karena kamu memang belum tau data asli lengkapnya).\n"
+    "Contoh transisi: kalau bisnisnya detailing mobil -> 'Oke, sekarang aku coba simulasiin ya — "
+    "anggap aku AI Admin buat [Nama Bisnis]. Coba deh kirim pertanyaan kayak customer beneran, "
+    "misal nanya harga cuci mobil atau booking jadwal.' Kalau café -> roleplay jadi admin café itu "
+    "(menu, jam buka, reservasi). Kalau agen properti -> roleplay jadi admin listing properti (nanya "
+    "budget, lokasi, tipe unit, jadwalin survei).\n"
+    "Selama roleplay: gaya jawab SAMA kayak AI Admin asli (singkat, natural, TANPA emoji, TANPA "
+    "pujian lebay), boleh nanya balik buat kualifikasi lead, inget jawaban sebelumnya di sesi yang "
+    "sama, dan kalau ada yang di luar wewenang bilang 'saya cek dulu ke owner ya' (ini simulasi, gak "
+    "usah beneran nunggu).\n\n"
+    "ATURAN PENTING — JANGAN NGARANG FITUR YANG BELUM TENTU ADA: AI Admin asli TIDAK otomatis "
+    "terintegrasi ke sistem pembayaran, CRM, kalender booking asli, atau software inventory customer "
+    "kecuali memang di-setup khusus. Kalau selama roleplay muncul hal kayak 'oke saya proses "
+    "pembayarannya' atau 'otomatis update ke sistem kasir', WAJIB kasih catatan jujur bahwa itu contoh "
+    "simulasi alur percakapan aja — integrasi ke sistem/tools asli bisnis dia itu bagian setup "
+    "terpisah yang dibahas sama tim Kilas Works, bukan otomatis ada dari awal.\n\n"
+    "TAHAP 3 — SETELAH DEMO KELIATAN COCOK:\n"
+    "Kalau lawan bicara keliatan tertarik/puas sama simulasinya (misal bilang 'wah mirip', 'oke juga', "
+    "nanya lanjutannya gimana, atau nanya harga paket), transisi natural dulu, misal: 'Kira-kira flow "
+    "seperti ini sudah mirip dengan yang Kakak butuhkan?' — baru abis itu tawarin ngobrol sama tim/"
+    "owner Kilas Works buat bahas kebutuhan spesifik & harga paket bulanan (JANGAN ngarang harga paket "
+    "Kilas Works di sini, arahkan ke tim). Kalau dia kasih nama & kontak & jenis bisnisnya buat "
+    "di-follow-up tim Kilas Works, WAJIB tambahin tag PERSIS di akhir balasan: [DEMO_LEAD: nama=..., "
+    "bisnis=..., catatan=...] — tag ini gak keliatan ke user, sinyal internal doang buat sistem.\n\n"
+    "JANGAN pernah lompat langsung ke tahap roleplay/demo/tawaran meeting sebelum ngerti dulu bisnis "
+    "lawan bicara (Tahap 1). Urutannya selalu: kenalan bisnis -> roleplay sesuai bisnis itu -> kalau "
+    "tertarik, arahkan ke tim Kilas Works.\n\n"
     "ATURAN GAYA: TANPA emoji sama sekali, TANPA pujian berlebihan ('keren', 'menarik banget', "
-    "'wow'), singkat & natural kayak chat WhatsApp beneran, jangan kaku/formal banget."
+    "'wow'), singkat & natural kayak chat WhatsApp beneran, jangan kaku/formal banget, SATU "
+    "pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble)."
 )
 
 
@@ -2305,7 +2790,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
     chatEl.scrollTop = chatEl.scrollHeight;
   }
 
-  addBubble("Halo! Ini demo AI WhatsApp Admin Kilas Works. Coba chat kayak biasa ya — tanya menu, harga, atau jam buka Kedai Kopi Senja (contoh).", "bot");
+  addBubble("Halo! Ini demo AI WhatsApp Admin Kilas Works. Biar demo-nya pas sama bisnis Kakak, boleh cerita dikit dulu — bisnis Kakak namanya apa?", "bot");
 
   formEl.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -2533,6 +3018,11 @@ init_db()
 customer_names.update(load_all_customer_names_from_db())
 agreed_facts.update(load_all_customer_facts_from_db())
 followup_state.update(load_all_followup_state_from_db())
+appointments.update(load_all_appointments_from_db())
+if appointments:
+    _appointment_id_counter = max(appointments.keys())
+else:
+    _appointment_id_counter = 0
 
 
 if __name__ == "__main__":
