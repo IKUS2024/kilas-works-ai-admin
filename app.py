@@ -5,6 +5,7 @@ import json
 import time
 import base64
 import requests
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 
@@ -483,6 +484,34 @@ followup_state = {}
 # forward jawaban ke customer. Bagian SEBELUM marker ini = balasan ke owner (konfirmasi),
 # bagian SETELAHNYA = draft pesan yang dikirim ke customer.
 FORWARD_MARKER = "PESAN_UNTUK_CUSTOMER:"
+
+# ============================================================
+# IDEMPOTENCY GUARD — WhatsApp Cloud API bisa NGIRIM ULANG (retry) webhook yang SAMA kalau
+# respons kita kelamaan/dianggap gagal. Tanpa guard ini, retry itu bisa bikin webhook diproses
+# DUA KALI dari nol — termasuk manggil AI dua kali & KIRIM PESAN YANG SAMA DUA KALI ke customer
+# atau owner. Guard ini nge-tandain wamid (message id asli dari WhatsApp) SEBELUM diproses sama
+# sekali, jadi kalau ada webhook duplikat masuk (retry ATAU race), langsung di-drop di awal —
+# gak ada AI call, gak ada pengiriman apapun, satu event id = satu kali proses, titik.
+# ============================================================
+PROCESSED_MESSAGE_IDS = set()
+PROCESSED_MESSAGE_IDS_ORDER = deque(maxlen=5000)
+
+
+def is_duplicate_event(message_id):
+    """Cek & TANDAI SEKALIAN wamid ini sebagai udah dipegang. Return True kalau ini DUPLIKAT
+    (udah pernah masuk sebelumnya -> caller WAJIB langsung return tanpa proses apa-apa).
+    PENTING: fungsi ini match-and-mark dalam satu langkah, jadi cuma boleh dipanggil SEKALI per
+    event yang beneran mau diproses (biasanya di paling atas, sebelum logic apapun jalan)."""
+    if not message_id:
+        return False  # gak ada id (jarang) -> gak bisa di-dedup, proses aja apa adanya
+    if message_id in PROCESSED_MESSAGE_IDS:
+        return True
+    if len(PROCESSED_MESSAGE_IDS_ORDER) >= PROCESSED_MESSAGE_IDS_ORDER.maxlen:
+        oldest = PROCESSED_MESSAGE_IDS_ORDER.popleft()
+        PROCESSED_MESSAGE_IDS.discard(oldest)
+    PROCESSED_MESSAGE_IDS_ORDER.append(message_id)
+    PROCESSED_MESSAGE_IDS.add(message_id)
+    return False
 
 # ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
 PRICING_CONFIG = {
@@ -1433,18 +1462,14 @@ def notify_owner_question(from_number, last_message):
 
 
 def log_customer_message(to_number, message_text, sent_from="automated"):
-    """Log setiap pesan yang dikirim ke customer (via forward atau direct command).
-    Buat audit trail & tracking purposes. Log disimpan ke console & database jika aktif."""
-    import time
+    """Audit trail CONSOLE-ONLY buat tiap pesan yang dikirim ke customer (via forward/direct command/
+    auto-followup). SENGAJA gak nulis apa-apa ke database lagi di sini — caller (webhook) udah nyimpen
+    versi BERSIH pesan ini duluan lewat save_message_to_db() sebelum manggil fungsi ini. Dulu fungsi
+    ini juga nulis baris KEDUA ke DB dengan prefix "[LOG-...]", yang bikin history customer ke-duplikat
+    (2 baris buat 1 kali kirim) & bisa kebawa balik jadi konteks obrolan ke Claude API pas history
+    di-reload — udah dihapus, sekarang CUMA log ke console, gak pernah nyentuh WhatsApp/database lagi."""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = f"[{timestamp}] → wa.me/{to_number} ({sent_from}): {message_text[:100]}..."
-    print(log_entry)
-    # Kalau perlu, bisa simpan ke database juga di masa depan
-    if db_enabled():
-        try:
-            save_message_to_db(to_number, "customer", "assistant", f"[LOG-{sent_from}] {message_text}")
-        except Exception:
-            pass
+    print(f"[{timestamp}] → wa.me/{to_number} ({sent_from}): {message_text[:100]}...")
 
 
 # ============================================================
@@ -1602,6 +1627,14 @@ def receive_webhook():
         from_number = message["from"]
         incoming_message_id = message.get("id")
         msg_type = message.get("type")
+
+        # WAJIB paling awal: kalau wamid ini udah pernah kepegang sebelumnya (WhatsApp ngirim ulang
+        # webhook yang sama), STOP DI SINI — jangan proses apa-apa lagi, jangan panggil AI, jangan
+        # kirim pesan apapun. Satu event id = satu kali proses, biar gak ada pengiriman dobel ke
+        # customer/owner gara-gara retry webhook.
+        if is_duplicate_event(incoming_message_id):
+            print(f"Duplicate webhook event (id={incoming_message_id}), di-skip biar gak dobel proses/kirim.")
+            return jsonify({"status": "ok", "duplicate": True}), 200
 
         # ==== Ini pesan dari OWNER (nomor pribadi), bukan dari customer ====
         # Owner selalu direspon AI (mode "asisten pribadi"), bisa diskusi bebas dulu soal
@@ -1798,7 +1831,8 @@ def receive_webhook():
                     log_customer_message(target_customer, memory_note, sent_from="direct_command_image")
 
                     owner_conversations[from_number] = [m for m in owner_hist if "[PENDING_IMAGE_COMMAND:" not in m.get("content", "")]
-                    send_whatsapp_message(from_number, f"✅ Gambar udah beneran kekirim ke wa.me/{target_customer}")
+                    confirm_name = customer_names.get(target_customer, f"wa.me/{target_customer}")
+                    send_whatsapp_message(from_number, f"Gambar terkirim ke {confirm_name}.")
                 else:
                     send_whatsapp_message(
                         from_number,
