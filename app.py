@@ -714,7 +714,41 @@ QR_IMAGE_PATH = os.environ.get("QR_IMAGE_PATH", "qr_payment.jpg")
 # Path ke file katalog PDF (harga & layanan lengkap) yang dikirim ke customer — ini SATU-SATUNYA
 # tempat harga paket ditampilkan ke customer. Bot sendiri gak pernah sebut angka harga paket di teks.
 CATALOG_PDF_PATH = os.environ.get("CATALOG_PDF_PATH", "katalog.pdf")
-CATALOG_PDF_FILENAME = "Katalog-Layanan-Harga-Kilas-Works.pdf"
+CATALOG_PDF_FILENAME = "Katalog Kilas Works.pdf"
+
+# Cache hasil pencarian file katalog.pdf di disk, biar gak nge-walk seluruh folder tiap kali mau
+# kirim katalog (lihat find_catalog_pdf_path() di bawah, dipanggil pas mau upload/kirim PDF).
+_CATALOG_PDF_PATH_CACHE = {"path": None, "checked": False}
+
+
+def find_catalog_pdf_path():
+    """Cari file katalog.pdf yang beneran ada di disk. Coba CATALOG_PDF_PATH dulu (default: root
+    folder app). Kalau gak ketemu di situ (misal katalog.pdf ada di subfolder repo, bukan di root),
+    cari SECARA RECURSIVE dari folder tempat app.py ini berada, cari file bernama 'katalog.pdf'
+    (case-insensitive). Hasilnya di-cache biar gak nge-walk folder berkali-kali tiap request."""
+    if _CATALOG_PDF_PATH_CACHE["checked"] and _CATALOG_PDF_PATH_CACHE["path"] and os.path.exists(_CATALOG_PDF_PATH_CACHE["path"]):
+        return _CATALOG_PDF_PATH_CACHE["path"]
+
+    if CATALOG_PDF_PATH and os.path.exists(CATALOG_PDF_PATH):
+        _CATALOG_PDF_PATH_CACHE.update(path=CATALOG_PDF_PATH, checked=True)
+        return CATALOG_PDF_PATH
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    found = None
+    for root, dirs, files in os.walk(base_dir):
+        # Skip folder yang gak relevan/berat (git internals, virtualenv, cache) biar walk-nya cepet.
+        dirs[:] = [d for d in dirs if d not in (".git", "node_modules", "__pycache__", "venv", ".venv")]
+        for fname in files:
+            if fname.lower() == "katalog.pdf":
+                found = os.path.join(root, fname)
+                break
+        if found:
+            break
+
+    _CATALOG_PDF_PATH_CACHE.update(path=found, checked=True)
+    if not found:
+        print("PERINGATAN: katalog.pdf gak ketemu di repo (udah dicari recursive) — kirim katalog bakal gagal.")
+    return found
 
 # Simpan histori chat sederhana per nomor (in-memory, reset kalau server restart)
 conversations = {}
@@ -1387,6 +1421,19 @@ diteruskan ke Irvan buat dijawab manual. Kalau lagi ada pertanyaan customer yang
 tau isinya di bawah. Irvan boleh diskusi bebas dulu sama kamu soal itu — nanya-nanya, mikirin jawaban paling
 pas, kasih saran harga, atau ngobrol hal lain sama sekali — SEBELUM dia mutusin jawaban final buat customer.
 
+KNOWLEDGE LAYANAN & HARGA KILAS WORKS (RESMI — SATU-SATUNYA SUMBER, SAMA PERSIS yang dipakai AI
+customer-service & katalog PDF. JANGAN PERNAH sebut angka/paket lain di luar ini):
+{pricing_text_block}
+
+Kalau Irvan nanya soal jasa/paket/harga Kilas Works MILIK SENDIRI (contoh: "jasa kita sekarang apa
+aja", "AI Admin sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
+isinya apa", "domain sama hosting berapa"), JAWAB LANGSUNG pakai data di atas dengan PERCAYA DIRI.
+JANGAN PERNAH bilang "aku butuh list jasa dari lo", "aku gak tau layanan yang sekarang ditawarkan",
+atau minta Irvan ngirim ulang data yang sebenernya udah ada persis di atas — itu SALAH, datanya udah
+ada. Pertanyaan kayak gini itu Irvan tanya soal bisnisnya SENDIRI buat dipakai/dicek, BUKAN instruksi
+forward ke customer manapun — jawab natural di chat ini aja, JANGAN pakai format PESAN_UNTUK_CUSTOMER:
+buat jenis pertanyaan informasi kayak gini.
+
 ATURAN PALING PENTING:
 - JANGAN langsung anggap semua yang Irvan ketik itu otomatis jawaban final buat customer. Ladenin dulu
   obrolannya natural, bantu mikir kalau diminta, kasih saran, jawab pertanyaan dia apa aja, kayak asisten beneran.
@@ -1450,6 +1497,11 @@ GAYA BAHASA KE CUSTOMER (buat draft/forward): natural, ramah, singkat, gak kaku/
 chatbot, TANPA emoji, TANPA muji-muji lebay. Contoh natural: "Halo Kak, izin follow-up ya, untuk
 paymentnya masih mau dilanjutkan hari ini?" — BUKAN "Berdasarkan data yang saya miliki...".
 """
+
+# Sisipin blok harga (SATU sumber data yang sama dipakai SYSTEM_PROMPT customer & katalog PDF) ke
+# system prompt owner juga — biar Owner Bot gak pernah lagi bilang "aku butuh list jasa dari lo"
+# padahal datanya udah ada.
+SYSTEM_PROMPT_OWNER_BASE = SYSTEM_PROMPT_OWNER_BASE.replace("{pricing_text_block}", PRICING_TEXT_BLOCK)
 
 
 def build_owner_system_prompt(pending_question, pending_customer_number, direct_send=False):
@@ -1955,30 +2007,87 @@ def send_qr_code(to_number):
     return r.status_code == 200
 
 
-def send_catalog_pdf(to_number):
-    """Kirim katalog PDF (daftar lengkap layanan & harga) ke customer sebagai dokumen."""
-    media_id = upload_media(CATALOG_PDF_PATH, "application/pdf")
-    if not media_id:
-        return False
+# Cache media_id katalog PDF yang udah diupload ke WhatsApp, biar gak upload ulang file yang SAMA
+# tiap kali mau kirim (media_id WA valid lumayan lama). Kita simpen juga path & mtime file-nya —
+# kalau katalog.pdf di-update (deploy baru), mtime-nya beda -> otomatis upload ulang versi terbaru.
+_CATALOG_MEDIA_ID_CACHE = {"media_id": None, "path": None, "mtime": None}
 
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": to_number,
-        "type": "document",
-        "document": {
-            "id": media_id,
-            "filename": CATALOG_PDF_FILENAME,
-            "caption": "Ini katalog lengkap layanan & harga Kilas Works ya 📄",
-        },
-    }
-    r = requests.post(url, headers=headers, json=payload, timeout=30)
-    print("Kirim katalog response:", r.status_code, r.text)
-    return r.status_code == 200
+
+def get_catalog_media_id(force_refresh=False):
+    """Balikin media_id katalog PDF yang siap dipakai kirim. Reuse media_id yang udah di-cache kalau
+    file-nya belum berubah (sama path & mtime) & belum diminta refresh paksa. Kalau file baru/beda/
+    belum pernah diupload, atau media_id lama udah expired (force_refresh=True dari caller), upload
+    ulang. Return None kalau katalog.pdf gak ketemu sama sekali atau upload gagal."""
+    path = find_catalog_pdf_path()
+    if not path:
+        return None
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        mtime = None
+
+    cache = _CATALOG_MEDIA_ID_CACHE
+    if (
+        not force_refresh
+        and cache["media_id"]
+        and cache["path"] == path
+        and cache["mtime"] == mtime
+    ):
+        return cache["media_id"]
+
+    media_id = upload_media(path, "application/pdf")
+    if media_id:
+        cache.update(media_id=media_id, path=path, mtime=mtime)
+    return media_id
+
+
+def send_catalog_pdf(to_number):
+    """Kirim katalog PDF (daftar lengkap layanan & harga, SATU-SATUNYA sumber file yang sama dipakai
+    di mana-mana — lihat find_catalog_pdf_path()) ke suatu nomor WhatsApp sebagai dokumen.
+    Balikin (success: bool, error_detail: str atau None) — JANGAN PERNAH dianggap kekirim cuma
+    karena gak exception (sama prinsipnya kayak send_whatsapp_message/send_whatsapp_image)."""
+    path = find_catalog_pdf_path()
+    if not path:
+        return False, "katalog.pdf gak ketemu di repository (sudah dicari recursive)."
+
+    media_id = get_catalog_media_id()
+    if not media_id:
+        return False, "Gagal upload katalog.pdf ke WhatsApp."
+
+    def _do_send(mid):
+        url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+        headers = {
+            "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to_number,
+            "type": "document",
+            "document": {
+                "id": mid,
+                "filename": CATALOG_PDF_FILENAME,
+                "caption": "Ini katalog lengkap layanan & harga Kilas Works ya 📄",
+            },
+        }
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        print("Kirim katalog response:", resp.status_code, resp.text)
+        return resp
+
+    r = _do_send(media_id)
+    if r.status_code == 200:
+        return True, None
+
+    # media_id kemungkinan expired/invalid (WA kadang balikin error kode 131052/param invalid buat
+    # media_id lama) — coba upload ULANG sekali, baru kirim ulang sekali lagi sebelum nyerah.
+    fresh_media_id = get_catalog_media_id(force_refresh=True)
+    if fresh_media_id and fresh_media_id != media_id:
+        r2 = _do_send(fresh_media_id)
+        if r2.status_code == 200:
+            return True, None
+        return False, r2.text
+
+    return False, r.text
 
 
 def notify_owner_new_message(from_number, message_text, name=None):
@@ -2339,6 +2448,91 @@ def parse_owner_send_command(text):
     return {"target_raw": target_raw, "separator": "", "rest": rest}
 
 
+# ============================================================
+# PERINTAH OWNER: KIRIM KATALOG PDF (opsional dibarengin pesan singkat "info jasa terbaru") ke
+# customer tertentu atau ke owner sendiri. Dicek TERPISAH dari parse_owner_send_command di atas
+# (bukan lewat AI generation) biar deterministik & gak pernah salah kirim/ngarang isi.
+# ============================================================
+
+CATALOG_ACTION_KEYWORD_PATTERN = re.compile(r'\bkatalog(?:nya)?\b', re.IGNORECASE)
+
+# Kata kerja "kirim" yang dipakai buat DETEKSI ada-gaknya niat kirim katalog. Sengaja lebih longgar
+# dari SEND_VERB_PATTERN (gak perlu langsung diikuti "ke") karena bentuknya macem-macem: "kirim
+# katalog ke Wilson", "kirimin Wilson katalog kita", "kasih Wilson ... kirim katalog juga".
+# "kasih tau"/"kasih liat" SENGAJA di-exclude (negative lookahead) karena itu idiom "kasih tau" =
+# ngasih INFO/ngomong, bukan ngirim FILE — biar "kasih tau dong katalog kita ada apa aja" (pertanyaan)
+# gak ketuker jadi perintah kirim.
+CATALOG_SEND_VERB_PATTERN = re.compile(
+    r'\b(kirim(?:in)?|kasih(?:in)?(?!\s+tau)|share(?:in)?|kasi(?:in)?(?!\s+tau))\b', re.IGNORECASE
+)
+
+# Frasa yang nunjukin ini PERTANYAAN soal isi katalog (baca doang), BUKAN perintah kirim — mis.
+# "katalog kita isinya apa", "ada apa aja di katalog" — biar gak salah dieksekusi jadi kirim PDF.
+CATALOG_QUERY_HINT_PATTERN = re.compile(
+    r'\b(isinya\s+apa|isi\s+apa|ada\s+apa\s+aja|apa\s+aja\s+isi|apa\s+aja\s+sih|ada\s+apa\s+sih|'
+    r'apa\s+aja\s+ya)\b',
+    re.IGNORECASE,
+)
+
+# Frasa yang nunjukin owner JUGA mau bot kirim pesan singkat "info jasa terbaru" (bukan cuma PDF-nya
+# doang) — dipakai buat perintah gabungan kayak "kasih Wilson info jasa terbaru kita terus kirim
+# katalog juga" / "jelasin jasa terbaru ke Wilson terus kirim katalog".
+CATALOG_SERVICES_INTRO_PATTERN = re.compile(
+    r'\b(info\s+jasa|jasa\s+terbaru|layanan\s+terbaru|jasa\s+kita|layanan\s+kita|jasa\s+apa\s+aja|'
+    r'jasa\s+yang\s+terbaru|layanan\s+yang\s+terbaru|jelasin\s+jasa|jelasin\s+layanan|'
+    r'bisa\s+apa\s+aja)\b',
+    re.IGNORECASE,
+)
+
+# "kirim katalog ke gw/saya/aku/gue/gua" -> target-nya OWNER SENDIRI, bukan customer.
+CATALOG_SELF_TARGET_PATTERN = re.compile(r'\bke\s+(gw|gue|gua|aku|saya)\b', re.IGNORECASE)
+
+# Ringkasan nama-nama kategori layanan (SAMA persis kategori resmi di PRICING_CONFIG) — dipakai di
+# pesan intro singkat "info jasa terbaru" ke customer, BUKAN sumber harga (harga tetap dari PDF).
+CATALOG_SERVICES_SUMMARY_TEXT = (
+    "Content Creation, AI WhatsApp Admin 24/7, Website, Meta Ads, sampai dokumentasi Event Photo & Video"
+)
+
+
+def build_customer_services_intro(display_first_name):
+    """Pesan singkat & natural buat owner minta bot 'jelasin jasa terbaru' ke customer tertentu —
+    FIXED template (bukan hasil AI generation) biar konsisten & gak pernah nyebut harga/klaim di
+    luar kategori resmi. Harga tetap TIDAK disebut di sini — detail lengkap ada di katalog PDF yang
+    dikirim bareng pesan ini."""
+    name_part = f" Kak {display_first_name}" if display_first_name else " Kak"
+    return (
+        f"Halo{name_part}, sekarang kami bantu beberapa kebutuhan bisnis mulai dari "
+        f"{CATALOG_SERVICES_SUMMARY_TEXT}. Aku kirim katalog lengkapnya juga ya Kak supaya lebih "
+        f"gampang dilihat."
+    )
+
+
+def parse_owner_catalog_command(text):
+    """Deteksi perintah owner buat KIRIM KATALOG PDF (dan opsional pesan 'info jasa terbaru') ke
+    customer atau ke owner sendiri. Return dict {"self_target": bool, "send_services_intro": bool}
+    kalau ini ACTION kirim, atau None kalau bukan.
+
+    PENTING: kalau owner cuma NANYA isi katalog ("katalog kita isinya apa?", "ada paket apa aja di
+    katalog") TANPA kata kerja kirim, fungsi ini balikin None — biar pertanyaan itu lewat ke
+    call_claude_owner biasa (dijawab pakai knowledge, BUKAN dieksekusi kirim apa-apa)."""
+    if not text:
+        return None
+    stripped = text.strip()
+    if stripped.endswith("?"):
+        return None  # pertanyaan ("kirim katalog ke Wilson gimana ya?") -> bukan perintah eksekusi
+    if not CATALOG_ACTION_KEYWORD_PATTERN.search(text):
+        return None
+    if CATALOG_QUERY_HINT_PATTERN.search(text):
+        return None  # "katalog kita isinya apa" dll -> pertanyaan, bukan perintah kirim
+    if not CATALOG_SEND_VERB_PATTERN.search(text):
+        return None  # ada kata "katalog" tapi gak ada kata kerja kirim -> ini query, bukan action
+
+    return {
+        "self_target": bool(CATALOG_SELF_TARGET_PATTERN.search(text)),
+        "send_services_intro": bool(CATALOG_SERVICES_INTRO_PATTERN.search(text)),
+    }
+
+
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
     """Meta bakal manggil ini pas kita setup webhook, buat verifikasi."""
@@ -2506,6 +2700,91 @@ def receive_webhook():
                     from_number,
                     f"Oke, status meeting {short_display_name(ms_display_name)} diupdate jadi {status_label}.",
                 )
+                return jsonify({"status": "ok"}), 200
+
+            # CEK apakah ini perintah KIRIM KATALOG PDF (+ opsional pesan singkat "info jasa
+            # terbaru") ke customer tertentu atau ke owner sendiri. Dicek DULUAN, SEBELUM
+            # parse_owner_send_command, karena dieksekusi DETERMINISTIK (bukan draft AI) — biar
+            # katalog gak pernah salah kirim/ngarang isi & konsisten sama satu sumber data.
+            catalog_cmd = parse_owner_catalog_command(owner_text)
+            if catalog_cmd:
+                if catalog_cmd["self_target"]:
+                    cat_target_number = OWNER_WHATSAPP_NUMBER
+                    cat_short_name = "kamu"
+                else:
+                    cat_fallback_target = active_customer_context.get(from_number)
+                    cat_mention_status, cat_mention_data, cat_mention_name = extract_mentioned_customer(owner_text)
+
+                    if cat_mention_status == "ambiguous":
+                        options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in cat_mention_data[:5])
+                        send_whatsapp_message(
+                            from_number,
+                            f"Ada beberapa customer namanya mirip: {options}. Katalog buat yang mana?",
+                        )
+                        return jsonify({"status": "ok"}), 200
+
+                    if cat_mention_status == "ok":
+                        cat_target_number = cat_mention_data
+                        active_customer_context[from_number] = cat_mention_data
+                        cat_short_name = short_display_name(cat_mention_name)
+                    elif cat_fallback_target:
+                        cat_target_number = cat_fallback_target
+                        cat_short_name = short_display_name(
+                            customer_names.get(cat_fallback_target, f"wa.me/{cat_fallback_target}")
+                        )
+                    else:
+                        send_whatsapp_message(
+                            from_number,
+                            "Katalog mau dikirim ke siapa nih? Sebut nama customernya ya.",
+                        )
+                        return jsonify({"status": "ok"}), 200
+
+                # ACTION 1 (opsional): kirim pesan singkat "info jasa terbaru" DULU, cuma kalau
+                # target-nya customer (gak masuk akal kirim "Halo Kak..." ke owner sendiri).
+                if catalog_cmd["send_services_intro"] and not catalog_cmd["self_target"]:
+                    intro_text = build_customer_services_intro(cat_short_name)
+                    intro_sent_ok, intro_err = send_reply_bubbles(cat_target_number, None, intro_text)
+                    if intro_sent_ok:
+                        history = conversations.get(cat_target_number, [])
+                        history.append({"role": "assistant", "content": intro_text})
+                        conversations[cat_target_number] = history[-20:]
+                        save_message_to_db(cat_target_number, "customer", "assistant", intro_text)
+                        log_customer_message(cat_target_number, intro_text, sent_from="direct_command_catalog_intro")
+                        add_agreed_fact(cat_target_number, intro_text)
+                    else:
+                        send_whatsapp_message(
+                            from_number,
+                            f"⚠️ GAGAL kirim pesan info jasa ke {cat_short_name} — belum kekirim, "
+                            f"katalog PDF juga belum aku kirim.\nError: {intro_err}",
+                        )
+                        return jsonify({"status": "ok"}), 200
+
+                # ACTION 2: kirim katalog PDF-nya (SATU KALI, dari repository — lihat send_catalog_pdf).
+                cat_sent_ok, cat_err = send_catalog_pdf(cat_target_number)
+
+                if not cat_sent_ok:
+                    send_whatsapp_message(
+                        from_number,
+                        f"⚠️ GAGAL kirim katalog ke {cat_short_name} — belum kekirim ke customer sama sekali.\n"
+                        f"Error: {cat_err}",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                if not catalog_cmd["self_target"]:
+                    catalog_marker = "[ADMIN KIRIM KATALOG PDF]"
+                    history = conversations.get(cat_target_number, [])
+                    history.append({"role": "assistant", "content": catalog_marker})
+                    conversations[cat_target_number] = history[-20:]
+                    save_message_to_db(cat_target_number, "customer", "assistant", catalog_marker)
+                    log_customer_message(cat_target_number, catalog_marker, sent_from="direct_command_catalog")
+
+                if catalog_cmd["self_target"]:
+                    send_whatsapp_message(from_number, "Katalog Kilas Works sudah aku kirim ke kamu.")
+                elif catalog_cmd["send_services_intro"]:
+                    send_whatsapp_message(from_number, f"Info layanan + katalog sudah terkirim ke {cat_short_name}.")
+                else:
+                    send_whatsapp_message(from_number, f"Katalog terkirim ke {cat_short_name}.")
+
                 return jsonify({"status": "ok"}), 200
 
             # CEK apakah ini perintah EKSPLISIT buat kirim/balas/follow-up ke customer tertentu
