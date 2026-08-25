@@ -1118,6 +1118,17 @@ def bump_lead_stage(number, new_stage):
     state["updated_at"] = _utcnow()
     return state
 
+
+# ---- LANGUAGE LAYER (additive) -----------------------------------------
+# Nyimpen preferred language per customer (in-memory, sama kayak meeting_requests/
+# payment_state/lead_stage) biar chat berikutnya konsisten tanpa AI harus nebak ulang
+# dari nol tiap pesan. AI yang deteksi bahasa & kirim tag [SET_LANG: lang=id|en] di
+# akhir balasannya; Python cuma nyimpen nilainya, gak ngubah logic sales/appointment/
+# payment sama sekali — murni layer tambahan di atas.
+LANGUAGE_ID = "id"
+LANGUAGE_EN = "en"
+customer_language = {}
+
 # ============================================================
 # IDEMPOTENCY GUARD — WhatsApp Cloud API bisa NGIRIM ULANG (retry) webhook yang SAMA kalau
 # respons kita kelamaan/dianggap gagal. Tanpa guard ini, retry itu bisa bikin webhook diproses
@@ -1472,6 +1483,31 @@ GAYA BALASAN (penting banget):
   "[TANYA_OWNER]", lihat bagian di bawah) — BUKAN ngaku gak tau. Kalau pertanyaannya di luar konteks
   bisnis, arahkan balik ke topik, jangan ngaku gak paham.
 
+BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
+- Deteksi bahasa customer dari PESAN TERAKHIR MEREKA (bukan histori lama) tiap kali balas: kalau dia nulis
+  Bahasa Indonesia, balas Bahasa Indonesia (gaya di atas). Kalau dia nulis English, balas full English
+  (natural, kayak native speaker chat santai, bukan translate kaku kata-per-kata dari draft Bahasa
+  Indonesia). Kalau pesannya campur Indonesia+English, ikutin bahasa yang PALING DOMINAN di pesan itu &
+  tetap kedengeran natural (boleh sisipin istilah yang emang lazim dicampur, jangan dipaksa 100% murni).
+- JANGAN PERNAH nanya "mau pakai bahasa apa?" ke customer — cuma boleh nanya balik/klarifikasi kalau
+  BENERAN ambigu banget (misal pesannya cuma emoji/angka doang, gak ada kata sama sekali).
+- KONSISTENSI: begitu kamu udah mutusin bahasa balasan buat customer ini (pertama kali chat ATAU tiap kali
+  ganti), sertakan tag PERSIS di akhir balasan: [SET_LANG: lang=id] (Bahasa Indonesia) atau
+  [SET_LANG: lang=en] (English) — SISTEM yang simpen preferensi ini biar chat berikutnya konsisten tanpa
+  kamu harus nebak ulang dari nol tiap pesan. Kalau di bawah kamu dikasih tau BAHASA CUSTOMER INI
+  SEBELUMNYA, pakai itu sebagai default — TAPI kalau pesan customer SEKARANG jelas-jelas pakai bahasa lain,
+  ikutin bahasa yang sekarang (dia boleh ganti bahasa di tengah obrolan, kamu ngikutin, tetap natural &
+  konteks obrolan gak berubah) & update tag [SET_LANG: ...]-nya lagi.
+- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Growth + AI Admin"), angka harga, nomor &
+  nama rekening bank (yang formatnya dikasih via [GIVE_PAYMENT_INFO], BUKAN kamu ketik manual), nama
+  bisnis/orang, atau proper noun lainnya — itu semua tetap PERSIS apa adanya walau balasannya English, cuma
+  kalimat di sekitarnya yang ikut bahasa customer. Angka harga tetap format sama (misal "999K"/"Rp999rb"
+  boleh disesuaikan gaya native speaker English kalau perlu, tapi ANGKANYA JANGAN PERNAH berubah/dikonversi
+  ke mata uang lain).
+- Semua aturan lain di system prompt ini (harga, appointment, payment, tone larangan pakai kata ganti
+  informal/kasar, dsb) TETAP BERLAKU SAMA PERSIS di kedua bahasa — cuma bahasa penyampaiannya yang beda,
+  isi/logic-nya sama.
+
 ⭐ WAJIB PALING PENTING — JANGAN PERNAH LUPA SEBUT AI WHATSAPP ADMIN:
 - Kilas Works itu jasanya BUKAN cuma foto/video/edit/Reels doang — AI WhatsApp Admin (yang lagi kamu jalanin
   sekarang buat chat ini!) adalah SATU DARI LAYANAN UTAMA & justru nilai jual PALING MENARIK/diferensiator.
@@ -1774,6 +1810,24 @@ def build_appointment_context():
     )
 
 
+def build_language_context(user_number):
+    """(language layer — additive) Kasih tau AI bahasa yang PERNAH kedeteksi buat customer ini
+    sebelumnya (kalau ada), biar dipakai sebagai DEFAULT konsisten — tapi AI tetap boleh ikutin kalau
+    customer ganti bahasa di pesan yang SEKARANG (lihat aturan BAHASA BALASAN di SYSTEM_PROMPT)."""
+    lang = customer_language.get(user_number)
+    if lang == LANGUAGE_EN:
+        label = "English (dari chat sebelumnya)"
+    elif lang == LANGUAGE_ID:
+        label = "Bahasa Indonesia (dari chat sebelumnya)"
+    else:
+        return "\n\nBAHASA CUSTOMER INI: belum ada preferensi tersimpan — deteksi dari pesan pertamanya."
+    return (
+        f"\n\nBAHASA CUSTOMER INI SEBELUMNYA: {label}. Pakai ini sebagai default balasan, TAPI kalau "
+        "pesan customer yang SEKARANG jelas-jelas pakai bahasa lain, ikutin bahasa yang sekarang (dia "
+        "boleh ganti kapan aja) & update tag [SET_LANG: ...]."
+    )
+
+
 def build_customer_system_prompt(user_number):
     """Susun system prompt customer, sisipin konteks soal nama customer ini (kalau udah tau dari
     profil WhatsApp / obrolan sebelumnya, kasih tau AI biar gak nanya lagi; kalau belum, larang AI
@@ -1826,9 +1880,10 @@ def build_customer_system_prompt(user_number):
         facts_context = ""
 
     appointment_context = build_appointment_context()
+    language_context = build_language_context(user_number)
 
     owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
-    full_prompt = SYSTEM_PROMPT + name_context + scope_context + facts_context + appointment_context
+    full_prompt = SYSTEM_PROMPT + language_context + name_context + scope_context + facts_context + appointment_context
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
     return full_prompt
@@ -2186,6 +2241,11 @@ TAG_OWNER_MEETING_UNAVAILABLE_PATTERN = re.compile(r"\[OWNER_MEETING_UNAVAILABLE
 TAG_GIVE_PAYMENT_INFO = "[GIVE_PAYMENT_INFO]"
 TAG_PAYMENT_DP_UNCLEAR_PATTERN = re.compile(r"\[PAYMENT_DP_UNCLEAR:\s*([^\]]*)\]", re.IGNORECASE)
 
+# Tag LANGUAGE LAYER (additive) — dipasang AI di akhir balasan customer-facing tiap kali dia
+# mutusin/konfirmasi ulang bahasa balasan buat customer ini, format "[SET_LANG: lang=id]" atau
+# "[SET_LANG: lang=en]". Python cuma nyimpen ke customer_language dict, gak ngubah logic lain.
+TAG_SET_LANG_PATTERN = re.compile(r"\[SET_LANG:\s*([^\]]+)\]", re.IGNORECASE)
+
 # Berapa lama "mengetik..." ditampilkan sebelum tiap chat bubble dikirim (biar natural, bukan
 # langsung nembak semua pesan dalam sepersekian detik).
 TYPING_DELAY_MIN_SEC = 1.2
@@ -2204,6 +2264,7 @@ def strip_tags(text):
     cleaned = TAG_MEETING_PREFERENCE_PATTERN.sub("", cleaned)
     cleaned = TAG_MEETING_SLOT_PICK_PATTERN.sub("", cleaned)
     cleaned = TAG_PAYMENT_DP_UNCLEAR_PATTERN.sub("", cleaned)
+    cleaned = TAG_SET_LANG_PATTERN.sub("", cleaned)
     # TAG_GIVE_PAYMENT_INFO SENGAJA TIDAK di-strip di sini — dia diganti eksplisit dengan teks rekening
     # resmi di webhook (lihat build_payment_info_text()), bukan dihapus jadi kosong.
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
@@ -3787,8 +3848,17 @@ def receive_webhook():
         meeting_slot_pick_match = TAG_MEETING_SLOT_PICK_PATTERN.search(ai_reply)
         give_payment_info = TAG_GIVE_PAYMENT_INFO in ai_reply
         payment_dp_unclear_match = TAG_PAYMENT_DP_UNCLEAR_PATTERN.search(ai_reply)
+        set_lang_match = TAG_SET_LANG_PATTERN.search(ai_reply)
 
         clean_reply = strip_tags(ai_reply)
+
+        if set_lang_match:
+            # LANGUAGE LAYER (additive) — cuma nyimpen preferensi bahasa customer ini biar konsisten
+            # di chat berikutnya. Gak ngubah/nge-trigger logic sales/appointment/payment apapun.
+            lang_kv = parse_tag_kv(set_lang_match.group(1))
+            detected_lang = (lang_kv.get("lang") or "").strip().lower()
+            if detected_lang in (LANGUAGE_ID, LANGUAGE_EN):
+                customer_language[from_number] = detected_lang
 
         if give_payment_info:
             # [GIVE_PAYMENT_INFO] SELALU diganti teks rekening resmi dari PAYMENT_CONFIG di sini — AI
