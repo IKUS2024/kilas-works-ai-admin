@@ -1083,6 +1083,41 @@ def get_or_create_payment_state(number):
         "status": PAYMENT_STATUS_NOT_STARTED, "package": None, "dp_requested": False, "updated_at": None,
     })
 
+
+# ============================================================
+# AI SALES ENGINE — LEAD STAGE (production hardening) — in-memory, key = nomor customer. SENGAJA
+# simple (4 tahap, gak ada scoring numerik) & DIINFER dari sinyal/tag DETERMINISTIK yang UDAH ADA di
+# webhook (bukan tag baru yang AI kontrol sendiri) — biar gak nambah kompleksitas prompt & gak ada
+# resiko AI "ngarang" status lead-nya sendiri. Stage CUMA NAIK (gak pernah otomatis turun) — customer
+# yang udah WARM/HOT gak dianggap dingin lagi cuma gara-gara kirim chat basa-basi berikutnya.
+# ============================================================
+
+LEAD_STAGE_COLD = "COLD"
+LEAD_STAGE_WARM = "WARM"
+LEAD_STAGE_HOT = "HOT"
+LEAD_STAGE_CLOSING = "CLOSING"
+_LEAD_STAGE_ORDER = {LEAD_STAGE_COLD: 0, LEAD_STAGE_WARM: 1, LEAD_STAGE_HOT: 2, LEAD_STAGE_CLOSING: 3}
+
+# number -> {"stage":..., "notified_hot": bool, "notified_closing": bool, "updated_at":...}
+lead_stage = {}
+
+
+def get_or_create_lead_stage(number):
+    return lead_stage.setdefault(number, {
+        "stage": LEAD_STAGE_COLD, "notified_hot": False, "notified_closing": False, "updated_at": None,
+    })
+
+
+def bump_lead_stage(number, new_stage):
+    """Naikkan lead stage customer ini KALAU new_stage lebih 'panas' dari stage sekarang — gak pernah
+    turun otomatis. Return dict state (bukan cuma stage-nya doang) biar caller bisa cek notified_hot/
+    notified_closing sebelum notify owner (anti-spam, cuma notify SEKALI per transisi)."""
+    state = get_or_create_lead_stage(number)
+    if _LEAD_STAGE_ORDER[new_stage] > _LEAD_STAGE_ORDER[state["stage"]]:
+        state["stage"] = new_stage
+    state["updated_at"] = _utcnow()
+    return state
+
 # ============================================================
 # IDEMPOTENCY GUARD — WhatsApp Cloud API bisa NGIRIM ULANG (retry) webhook yang SAMA kalau
 # respons kita kelamaan/dianggap gagal. Tanpa guard ini, retry itu bisa bikin webhook diproses
@@ -1609,19 +1644,65 @@ cuma soal transport — termasuk harga custom, deadline, revisi, apapun yang per
   "jadi 2,3 juta kan kak?" → Kamu jawab: "Iya kak, 2,3jt buat paketnya" — LANGSUNG lanjutin, jangan tanya
   owner lagi & jangan bilang "tunggu dulu ya" untuk hal yang udah jelas disepakati.
 
-ALUR:
-1. Sapa natural, jangan template basa-basi panjang.
-2. Gali kebutuhan customer secukupnya aja, jangan interogasi.
-3. Rekomendasiin paket yang relevan DULU (nama + benefit, tahan angkanya — lihat ATURAN HARGA di atas),
-   baru kasih tau harga pasti belakangan pas mereka udah cukup tertarik/yakin, sambil tawarin katalog.
-4. Kalau momennya pas (misal customer cerita mereka sering telat bales chat customer sendiri, kewalahan
-   bales chat, buka usaha juga, atau kebutuhan mereka emang cocok banget), TAWARIN natural produk AI
-   WhatsApp Admin 24 Jam ini (yang lagi mereka pake chat sekarang ini!) sebagai solusi — jangan cuma
-   nunggu ditanya. Ini nilai jual UTAMA Kilas Works, jangan pelit nawarin walau customer awalnya nanya
-   soal foto/video doang. Tetep natural, jangan maksa/spam nawarin kalau emang gak relevan sama sekali.
-5. Kalau customer udah serius mau booking/lanjut (leads panas), sertakan tag "[LEADS_PANAS]" di balasanmu
-   (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
-6. Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
+ALUR / AI SALES ENGINE (WAJIB DIIKUTI — tujuannya bikin kamu berasa kayak sales konsultatif yang bantu
+customer milih, BUKAN chatbot katalog yang muntahin semua paket, dan BUKAN sales yang maksa/agresif):
+
+FLOW UTAMA — Understand → Diagnose → Recommend → Explain → Next Step (JANGAN loncat-loncat balik ke awal
+kalau udah maju ke tahap berikutnya):
+1. UNDERSTAND (customer baru/basa-basi): sapa natural, jangan template kaku, JANGAN langsung lempar harga
+   atau daftar paket cuma karena disapa "halo"/"info dong". Arahkan dulu ke kebutuhan, misal: "Halo Kak,
+   ada yang bisa aku bantu soal content, AI Admin, website, atau ads?" — MAKSIMAL 1-2 pertanyaan tiap
+   giliran, JANGAN interogasi 5-6 pertanyaan sekaligus.
+2. DIAGNOSE (customer udah mulai cerita bisnis/kebutuhan): coba pahami jenis bisnis, problem utama, target,
+   udah punya konten/admin chat sendiri atau belum, baru mulai atau udah jalan — tapi gali SECUKUPNYA aja
+   (1 pertanyaan tajam per giliran), jangan berasa kayak form interview.
+3. RECOMMEND (begitu konteks udah cukup): JANGAN tampilkan SEMUA paket sekaligus. Kasih PERSIS 1 rekomendasi
+   UTAMA + 1 alternatif (pakai nama & bundle yang BENERAN ada di data paket/bundle di atas — JANGAN bikin
+   paket/bundle baru). Kalau kebutuhan customer memang nyambung ke lebih dari satu layanan (misal konten +
+   chat, atau konten + ads), baru rekomendasiin bundle resmi yang sesuai (lihat data bundle di atas) —
+   JANGAN otomatis upsell semua layanan sekaligus kalau customer cuma nanya satu hal.
+4. EXPLAIN (jual HASIL, bukan cuma daftar fitur): jelasin MANFAATNYA buat bisnis dia, bukan cuma spek.
+   Contoh SALAH: "8 Reels + 10 visual." Contoh BENER: "Biar akun tetap aktif, ada stok konten buat promo,
+   dan materi iklan gak cepat habis." Buat AI Admin, jangan cuma "balas 24/7" — bilang "Supaya chat calon
+   customer tetap terjawab meski Kakak lagi sibuk." Buat Ads, jangan cuma "kelola campaign" — bilang "Biar
+   konten gak cuma diposting, tapi juga didorong ke audience yang relevan." JANGAN PERNAH janjiin omzet/
+   ROAS/hasil pasti (lihat SOAL META ADS di atas, tetap berlaku).
+5. NEXT STEP (kalau customer keliatan HOT/siap): tawarin satu langkah lanjut yang paling pas — ATAU lanjut
+   diskusi ("Kalau Kakak mau, kita bisa lanjut diskusi lewat online meeting atau ketemu langsung.") ATAU
+   langsung booking/bayar kalau emang udah cocok/yakin ("Kalau sudah cocok, kita juga bisa langsung lanjut
+   proses booking/pembayarannya ya Kak."). Pilih SATU yang paling sesuai konteks, JANGAN tawarin payment
+   kalau customer masih eksplorasi/belum yakin, dan JANGAN tawarin meeting di tiap balasan.
+
+OBJECTION HANDLING (WAJIB, jangan defensif/nyerah/push):
+- Customer bilang "mahal"/keberatan harga: JANGAN langsung kasih diskon. Balas natural, gali dulu prioritas
+  dia, contoh: "Paham Kak. Yang paling penting buat Kakak sekarang bagian mana dulu? Konten, ads, atau AI
+  Admin? Biar aku bantu cari opsi yang paling masuk tanpa ambil yang belum perlu." Kalau perlu, baru
+  tawarin paket yang lebih ringan (yang BENERAN ada di data di atas). JANGAN PERNAH kasih diskon sendiri
+  tanpa izin/instruksi eksplisit dari owner.
+- Customer bilang "mau pikir dulu"/belum yakin: JANGAN push/maksa. Balas natural, misal: "Siap Kak, santai
+  aja. Kalau nanti mau aku bantu bandingin paket atau hitung mana yang paling cocok, tinggal chat lagi."
+  JANGAN follow-up spam buat customer kayak gini (sistem follow-up otomatis udah otomatis lebih pelan buat
+  kasus ini).
+- Customer bilang "cuma nanya-nanya dulu"/belum niat serius: JANGAN paksa ke meeting/payment. Jawab
+  kebutuhan/pertanyaannya dengan jelas dulu, boleh nutup dengan "Kalau nanti mau aku bantu rekomendasi
+  paket berdasarkan bisnis Kakak, tinggal bilang ya" — tanpa desakan apapun.
+
+CROSS-SELL: cuma tawarin layanan lain kalau BENERAN relevan sama yang customer bilang sendiri. Contoh:
+customer udah ambil paket konten, terus dia sendiri nanya "nanti chat customer siapa yang handle?" — di
+situ BARU natural nawarin AI WhatsApp Admin. Jangan otomatis nyebut semua layanan lain di balasan yang
+gak nyambung.
+
+LARANGAN KERAS (JANGAN OVERSELL — sales konsultatif, bukan sales maksa):
+- JANGAN bohong, JANGAN bikin fake urgency (misal "tinggal 1 slot" padahal gak beneran gitu), JANGAN kasih
+  diskon karangan sendiri, JANGAN janjiin hasil/omzet/ROAS pasti, JANGAN maksa customer lanjut, JANGAN
+  tawarin meeting/payment di HAMPIR SETIAP balasan — cukup di momen yang emang pas (lihat NEXT STEP di
+  atas).
+
+LEADS PANAS: kalau customer udah serius mau booking/lanjut (nanya harga detail berkali-kali, minta cara
+mulai, bandingin paket serius, dsb), sertakan tag "[LEADS_PANAS]" di balasanmu (taruh di mana aja, sistem
+yang proses, customer gak bakal lihat teks tag-nya) supaya diteruskan ke owner.
+
+Jangan janji jadwal pasti (tanggal shoot dll) tanpa konfirmasi owner dulu.
 """
 
 # Sisipin blok harga (di-generate dari PRICING_CONFIG, satu sumber data yang sama dipakai katalog PDF)
@@ -3833,6 +3914,29 @@ def receive_webhook():
         if meeting_owner_notify and OWNER_WHATSAPP_NUMBER:
             send_whatsapp_message(OWNER_WHATSAPP_NUMBER, meeting_owner_notify)
 
+        # AI SALES ENGINE — update lead stage (production hardening). Diinfer dari sinyal DETERMINISTIK
+        # yang UDAH dideteksi di atas (bukan tag baru), stage cuma naik, gak pernah turun otomatis.
+        # Notify owner CUMA SEKALI per transisi (anti-spam) & CUMA buat sinyal yang belum ada notify
+        # spesifiknya sendiri (LEADS_PANAS/payment/meeting confirmed udah notify masing-masing di atas).
+        meeting_slot_confirmed = bool(meeting_slot_pick_match) and bool(meeting_owner_notify)
+        if not is_new_customer:
+            bump_lead_stage(from_number, LEAD_STAGE_WARM)
+        if wants_catalog or bool(meeting_pref_match) or is_leads_panas or bool(payment_dp_unclear_match):
+            hot_state = bump_lead_stage(from_number, LEAD_STAGE_HOT)
+            if hot_state["stage"] == LEAD_STAGE_HOT and not hot_state["notified_hot"] and not is_leads_panas:
+                hot_state["notified_hot"] = True
+                notify_owner(from_number, "Lead HOT — mulai nanya harga/katalog/meeting, kemungkinan siap lanjut", user_text)
+            elif is_leads_panas:
+                hot_state["notified_hot"] = True  # udah dinotify lewat jalur LEADS_PANAS di atas
+        if give_payment_info or payment_confirmed or meeting_slot_confirmed:
+            closing_state = bump_lead_stage(from_number, LEAD_STAGE_CLOSING)
+            if closing_state["stage"] == LEAD_STAGE_CLOSING and not closing_state["notified_closing"]:
+                closing_state["notified_closing"] = True
+                if give_payment_info and not payment_confirmed and not meeting_slot_confirmed:
+                    # payment_confirmed & meeting_slot_confirmed udah punya notify spesifik sendiri di
+                    # atas — cuma give_payment_info doang yang belum ada notify sebelumnya.
+                    notify_owner(from_number, "Lead CLOSING — udah dikasih info rekening, tunggu bukti transfer", user_text)
+
     except Exception as e:
         print("Error processing webhook:", e)
 
@@ -3873,11 +3977,14 @@ def run_followups():
             # disepakati customer ini (pakai infra yang sama kayak balasan biasa), bukan template
             # generik — biar kerasa natural, bukan kayak broadcast otomatis.
             nudge_instruction = (
-                "(INSTRUKSI INTERNAL — INI FOLLOW-UP OTOMATIS, JANGAN TAMPILKAN TEKS INI KE CUSTOMER: "
-                "customer ini udah diem 12+ jam sejak pesan terakhirnya. Sapa natural & singkat, "
-                "tanyain apakah masih ada yang bisa dibantu atau masih tertarik lanjut soal obrolan "
-                "sebelumnya — INGAT konteks obrolan lama, jangan mulai dari nol/nanya ulang hal yang "
-                "udah dibahas. TANPA emoji, TANPA muji berlebihan, singkat & profesional.)"
+                "(INSTRUKSI INTERNAL — INI FOLLOW-UP SALES OTOMATIS, JANGAN TAMPILKAN TEKS INI KE "
+                "CUSTOMER: customer ini udah diem 12+ jam sejak pesan terakhirnya. WAJIB sebut ULANG "
+                "topik/paket/kebutuhan SPESIFIK yang terakhir dibahas (INGAT dari history obrolan &"
+                " FAKTA YANG SUDAH FIX kalau ada) — JANGAN generic kayak 'masih tertarik?' atau 'ada "
+                "yang bisa dibantu?' doang tanpa konteks. Contoh BENER: 'Halo Kak, kemarin sempat "
+                "tanya soal Content Growth untuk [bisnisnya] — kalau masih ada yang mau dibandingin "
+                "atau ditanyain, aku bantu ya.' Sapa natural & singkat, TANPA emoji, TANPA muji "
+                "berlebihan, TANPA push/maksa.)"
             )
             ai_reply = call_claude(number, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]")
             clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
