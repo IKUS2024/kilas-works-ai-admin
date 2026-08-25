@@ -48,6 +48,113 @@ CRON_SECRET = os.environ.get("CRON_SECRET", "") or DASHBOARD_KEY
 # sebelumnya. Isi env var ini di Render buat aktifin penyimpanan permanen.
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
+# ==== VOICE NOTE / TRANSCRIPTION (additive, MASTER pre-launch update) ====
+# Abstraksi provider transkripsi — JANGAN hardcode provider/model spesifik di fungsi manapun,
+# semua baca dari sini. Credential HANYA lewat environment variable, gak pernah di-hardcode.
+# Kalau OPENAI_API_KEY belum diisi di Render, fitur voice note otomatis "gagal jujur" (kasih tau
+# customer/owner buat kirim ulang/ketik) — TIDAK PERNAH hallucinate isi transcript.
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+TRANSCRIPTION_PROVIDER = os.environ.get("TRANSCRIPTION_PROVIDER", "openai")
+TRANSCRIPTION_MODEL = os.environ.get("TRANSCRIPTION_MODEL", "whisper-1")
+
+# Feature flag per kapabilitas (bukan per-tenant hardcode "if business == 'Kilas Works'") — biar
+# arsitektur ini reusable buat klien lain nanti (lihat TENANT_CONFIG di bawah). Default "true" buat
+# Kilas Works sendiri karena sudah lulus test_voice_note.py (lihat MASTER update report), tapi tetap
+# bisa dimatikan per-environment lewat env var tanpa ubah kode kalau ada masalah di production.
+FEATURES = {
+    "voice_note_customer": os.environ.get("FEATURE_VOICE_NOTE_CUSTOMER", "true").strip().lower() == "true",
+    "voice_note_owner": os.environ.get("FEATURE_VOICE_NOTE_OWNER", "true").strip().lower() == "true",
+}
+
+# WhatsApp Cloud API sendiri sudah membatasi audio message maks ~16MB — guard ini tambahan lapis
+# kedua di sisi kita sebelum dikirim ke provider transkripsi (hindari kirim file gede2 gak perlu).
+MAX_AUDIO_BYTES = 16 * 1024 * 1024
+SUPPORTED_AUDIO_MIME_TYPES = {
+    "audio/ogg", "audio/opus", "audio/mpeg", "audio/mp3", "audio/mp4",
+    "audio/amr", "audio/aac", "audio/webm", "audio/wav", "audio/x-wav",
+}
+_AUDIO_EXT_BY_MIME = {
+    "audio/ogg": "ogg", "audio/opus": "ogg", "audio/mpeg": "mp3", "audio/mp3": "mp3",
+    "audio/mp4": "mp4", "audio/amr": "amr", "audio/aac": "aac", "audio/webm": "webm",
+    "audio/wav": "wav", "audio/x-wav": "wav",
+}
+
+
+def _audio_ext_from_mime(base_mime):
+    return _AUDIO_EXT_BY_MIME.get((base_mime or "").strip().lower(), "ogg")
+
+
+def transcribe_audio_whatsapp(media_id):
+    """Download voice note dari WhatsApp Cloud API (pakai download_whatsapp_media() yang SAMA
+    dipakai buat gambar — bukan jalur baru) lalu transcribe pakai TRANSCRIPTION_PROVIDER.
+
+    Balikin (transcript: str atau None, error_reason: str atau None). Kalau transcript None,
+    CALLER WAJIB pakai pesan fallback jujur ("belum kebaca dengan jelas...") — JANGAN PERNAH
+    mengarang isi transcript.
+
+    Semua audio diproses di MEMORI (base64/bytes), TIDAK PERNAH ditulis ke file/disk, dan TIDAK
+    PERNAH disimpan sebagai binary ke database — begitu fungsi ini selesai, bytes-nya otomatis
+    kebuang (di-garbage-collect Python), jadi "cleanup temp audio" beres tanpa perlu file temp
+    sama sekali."""
+    if not media_id:
+        return None, "no_media_id"
+
+    b64_data, mime_type = download_whatsapp_media(media_id)
+    if not b64_data:
+        return None, "download_failed"
+
+    try:
+        audio_bytes = base64.b64decode(b64_data)
+    except Exception:
+        return None, "invalid_media_encoding"
+
+    if len(audio_bytes) > MAX_AUDIO_BYTES:
+        return None, "too_large"
+
+    base_mime = (mime_type or "").split(";")[0].strip().lower()
+    if base_mime and base_mime not in SUPPORTED_AUDIO_MIME_TYPES:
+        # Tetep dicoba (WhatsApp kadang ngirim variasi MIME yang provider transkripsi masih bisa
+        # handle), tapi dicatat biar kelihatan kalau perlu nambahin ke whitelist di atas.
+        print(f"[VOICE] MIME audio tidak dikenal di whitelist (tetap dicoba): {mime_type}")
+
+    if not OPENAI_API_KEY or TRANSCRIPTION_PROVIDER != "openai":
+        return None, "not_configured"
+
+    try:
+        ext = _audio_ext_from_mime(base_mime)
+        files = {"file": (f"voice.{ext}", audio_bytes, base_mime or "application/octet-stream")}
+        data = {"model": TRANSCRIPTION_MODEL}  # SENGAJA gak set "language" — biar auto-detect
+        # ID/English/campuran jalan alami (lihat item bahasa di MASTER update), bukan dipaksa "id".
+        resp = requests.post(
+            "https://api.openai.com/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            files=files, data=data, timeout=30,
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        transcript = (result.get("text") or "").strip()
+        if not transcript:
+            return None, "empty_transcript"
+        return transcript, None
+    except Exception as e:
+        print(f"[VOICE] Transcription error ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): {e}")
+        return None, "transcription_failed"
+
+
+# ==== TENANT CONFIG (readiness, MASTER pre-launch update) ====
+# Kilas Works masih SATU tenant/satu app.py — ini BUKAN multi-tenant database routing beneran,
+# tapi lapisan konfigurasi supaya kode gak pernah nulis "if business == 'Kilas Works'" di manapun.
+# PRICING_CONFIG/PAYMENT_CONFIG/FEATURES dsb tetap module-level (arsitektur existing gak diubah),
+# TENANT_CONFIG cuma ngumpulin referensi ke semuanya di satu tempat + identitas bisnis, biar kalau
+# nanti beneran ada klien ke-2, jelas field mana aja yang perlu di-parameterisasi per klien (tanpa
+# perlu bongkar app.py dari nol). Lihat laporan MASTER update bagian "multi-tenant readiness".
+TENANT_CONFIG = {
+    "tenant_id": "kilas_works",
+    "business_name": "Kilas Works",
+    "owner_number_env": "OWNER_WHATSAPP_NUMBER",
+    "features": FEATURES,
+}
+
 
 # ==== DATABASE (opsional, buat nyimpen history chat secara permanen) ====
 
@@ -760,6 +867,15 @@ def is_office_closed_on(date_str):
     return d.weekday() in MEETING_DAYS_OFF
 
 
+def meeting_mode_label(req):
+    """(live demo, additive) Label mode meeting yang konsisten dipakai di semua kalimat konfirmasi/
+    notify — "live demo AI Admin" kalau req['purpose']=='demo' (lihat SOAL DEMO AI ADMIN di
+    SYSTEM_PROMPT), selain itu perilaku LAMA gak berubah ("ketemu langsung" / "online meeting")."""
+    if (req or {}).get("purpose") == "demo":
+        return "live demo AI Admin"
+    return "ketemu langsung" if (req or {}).get("mode") == "offline" else "online meeting"
+
+
 def try_book_meeting_from_owner_slots(customer_number, time_str):
     """Konfirmasi FINAL appointment dari slot yang SUDAH dikasih owner secara eksplisit (bukan grid
     otomatis) — tetap RE-CEK double-booking terhadap appointments existing sebelum commit, sama
@@ -792,9 +908,48 @@ def try_book_meeting_from_owner_slots(customer_number, time_str):
     create_appointment(customer_number, display_name, business_name, date_for_record, time_str, need_summary)
 
     label = format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date()) if date_str else (req.get("day_display") or req.get("day_text"))
-    mode_label = "ketemu langsung" if req.get("mode") == "offline" else "online meeting"
+    mode_label = meeting_mode_label(req)
     confirm = f"Siap Kak, sudah dijadwalkan {mode_label} untuk {label} jam {time_str} WIB. Nanti owner akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
     owner_notify = f"Meeting CONFIRMED: {display_name} — {mode_label}, {label} jam {time_str} WIB. Kebutuhan: {need_summary or '-'}."
+
+    meeting_requests.pop(customer_number, None)
+    return True, confirm, owner_notify
+
+
+def try_confirm_meeting_direct(customer_number, time_str):
+    """(bug fix — owner availability flow) Dipakai KHUSUS pas customer UDAH nyebut sendiri jam exact
+    yang dia mau di request awal (req['requested_time']) DAN owner baru aja confirm secara GENERIK
+    ('bisa'/'available'/'iya'/'oke' — dideteksi deterministik, lihat GENERIC_AVAILABILITY_CONFIRM_
+    PATTERN di webhook) TANPA nyebut jam lain. Beda dari try_book_meeting_from_owner_slots yang
+    nunggu customer MILIH dari daftar offered_slots — di sini customer-nya sendiri yang udah minta
+    jam ini duluan, jadi begitu owner bilang 'bisa' udah CUKUP buat langsung CONFIRMED, gak perlu
+    muter nawarin balik & nunggu customer confirm ulang. Tetap re-cek double-booking dulu (kalau
+    tanggalnya udah keresolve pasti) biar gak ada bentrok jadwal. Return (success, customer_facing_
+    text_atau_None, owner_notify_text_atau_None)."""
+    req = meeting_requests.get(customer_number)
+    if not req:
+        return False, None, None
+
+    date_str = req.get("resolved_date")
+    if date_str and time_str in get_booked_times_for_date(date_str):
+        return False, None, None
+
+    display_name = req.get("name") or customer_names.get(customer_number, "Customer")
+    business_name = req.get("business_name")
+    need_summary = req.get("need_summary")
+    date_for_record = date_str or req.get("day_text") or req.get("day_display") or "(tanggal belum pasti)"
+
+    create_appointment(customer_number, display_name, business_name, date_for_record, time_str, need_summary)
+
+    label = (
+        format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date())
+        if date_str else (req.get("day_display") or req.get("day_text"))
+    )
+    mode_label = meeting_mode_label(req)
+    time_label = time_str.replace(":", ".")
+    short_name = short_display_name(display_name)
+    confirm = f"Siap Kak {short_name}, {mode_label} {label} pukul {time_label} WIB sudah dikonfirmasi ya."
+    owner_notify = f"Meeting {short_name} berhasil dikonfirmasi: {label} pukul {time_label} WIB."
 
     meeting_requests.pop(customer_number, None)
     return True, confirm, owner_notify
@@ -1180,34 +1335,58 @@ def build_payment_info_text():
 # AI WhatsApp Admin) & katalog PDF (lihat generate_katalog_pdf.py / script terpisah) HARUS baca dari
 # sini, JANGAN pernah hardcode angka harga di tempat lain. Kalau harga berubah, cukup edit di sini.
 PRICING_CONFIG = {
-    "ai_admin_standalone": {
-        "nama": "AI WhatsApp Admin — Standalone",
-        "harga": 999000,
-        "satuan": "bulan",
-        "fitur": [
-            "AI membalas customer 24/7",
-            "Menjawab FAQ",
-            "Menjelaskan produk, layanan, harga, dan informasi bisnis",
-            "Bisa memberikan katalog/informasi layanan",
-            "Kualifikasi calon customer / lead",
-            "Mengumpulkan nama dan kebutuhan customer",
-            "Menyimpan data lead",
-            "Basic follow-up otomatis",
-            "Mengenali customer yang mulai menunjukkan ketertarikan",
-            "Bisa menawarkan konsultasi/meeting secara natural jika customer sudah tertarik",
-            "Membantu menentukan jadwal berdasarkan availability (kalau appointment system tersedia)",
-            "Menyimpan appointment",
-            "Handoff percakapan ke owner — owner bisa ambil alih & chat customer secara bebas",
-            "AI tetap memahami konteks chat setelah owner ikut berinteraksi",
-            "Memberikan update ke owner kalau ada lead penting atau meeting",
-            "Knowledge bisnis bisa disesuaikan + basic maintenance/update knowledge",
-        ],
-        "catatan": "Fair usage applies.",
-        "tidak_termasuk": [
-            "Invoice otomatis", "QR payment otomatis", "Payment tracking",
-            "Payment gateway custom", "CRM custom", "Inventory/stock integration",
-            "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
-        ],
+    "ai_admin": {
+        "basic": {
+            "nama": "AI Admin Basic",
+            "harga": 499000,
+            "satuan": "bulan",
+            "positioning": "AI Customer Service untuk bisnis kecil/UMKM yang butuh respon otomatis dasar.",
+            "fitur": [
+                "Balas WhatsApp customer otomatis",
+                "Menjawab FAQ",
+                "Menjelaskan produk/layanan, harga, jam operasional, dan info bisnis lainnya",
+                "Bisa memberikan katalog/informasi layanan",
+                "Memahami bahasa customer yang informal dan typo dasar",
+                "Basic customer history/data",
+                "Tone/gaya bahasa bisa disesuaikan dengan bisnis",
+            ],
+            "catatan": "Fair usage applies.",
+            "tidak_termasuk": [
+                "Invoice otomatis", "QR payment otomatis", "Payment tracking",
+                "Payment gateway custom", "CRM custom", "Inventory/stock integration",
+                "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
+                "Owner command & appointment (lihat AI Admin Pro)",
+            ],
+        },
+        "pro": {
+            "nama": "AI Admin Pro",
+            "harga": 999000,
+            "satuan": "bulan",
+            "positioning": "Semua fitur AI Admin Basic, ditambah workflow advanced untuk bisnis yang butuh lead qualification, appointment, dan kontrol owner penuh lewat chat.",
+            "fitur": [
+                "Semua fitur AI Admin Basic",
+                "Kualifikasi calon customer / lead",
+                "Mengumpulkan nama dan kebutuhan customer",
+                "Menyimpan data lead",
+                "Follow-up dasar ke customer yang sempat diam (aktif setelah scheduler follow-up disetup owner)",
+                "Mengenali customer yang mulai menunjukkan ketertarikan",
+                "Bisa menawarkan konsultasi/meeting secara natural jika customer sudah tertarik",
+                "Appointment: online meeting / ketemu langsung, cek availability owner, reschedule, cancel, riwayat appointment",
+                "Payment conversation (DP/full) & pengiriman info pembayaran resmi kalau customer mau membayar",
+                "Owner command lewat chat natural: tanya history customer, kirim pesan/katalog/media ke customer, contact matching & alias/partial name matching, active customer context",
+                "Owner bisa membaca gambar/screenshot (vision) yang dikirim customer, misalnya bukti transfer",
+                "Owner mendapat notifikasi untuk lead penting",
+                "Anti duplicate send (pesan tidak terkirim dobel)",
+                "Handoff percakapan ke owner — owner bisa ambil alih & chat customer secara bebas, AI tetap memahami konteksnya",
+                "Knowledge bisnis bisa disesuaikan + basic maintenance/update knowledge",
+            ],
+            "catatan": "Fair usage applies.",
+            "tidak_termasuk": [
+                "Invoice otomatis", "QR payment otomatis", "Payment tracking",
+                "Payment gateway custom", "CRM custom", "Inventory/stock integration",
+                "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
+            ],
+        },
     },
     "content_packages": {
         "basic": {
@@ -1228,13 +1407,17 @@ PRICING_CONFIG = {
         "visual sesuai kebutuhan brand — bukan selalu hasil photography murni."
     ),
     "bundles": {
+        "growth_ai_basic": {
+            "nama": "Content Growth + AI Admin Basic", "harga": 2990000,
+            "isi": ["Semua benefit Content Growth", "AI Admin Basic"],
+        },
         "growth_ai": {
-            "nama": "Growth + AI Admin", "harga": 3490000,
-            "isi": ["Semua benefit Content Growth", "AI WhatsApp Admin 24/7"],
+            "nama": "Content Growth + AI Admin Pro", "harga": 3490000,
+            "isi": ["Semua benefit Content Growth", "AI Admin Pro"],
         },
         "pro_ai": {
-            "nama": "Pro + AI Admin", "harga": 4990000,
-            "isi": ["Semua benefit Content Pro", "AI WhatsApp Admin 24/7"],
+            "nama": "Content Pro + AI Admin Pro", "harga": 4990000,
+            "isi": ["Semua benefit Content Pro", "AI Admin Pro"],
         },
     },
     "meta_ads": {
@@ -1268,17 +1451,21 @@ PRICING_CONFIG = {
         ),
     },
     "ads_bundles": {
+        "ai_basic_ads": {
+            "nama": "AI Admin Basic + Meta Ads", "harga": 1190000,
+            "isi": ["AI Admin Basic", "Meta Ads Management"],
+        },
         "ai_ads": {
-            "nama": "AI Admin + Ads", "harga": 1690000,
-            "isi": ["AI WhatsApp Admin", "Meta Ads Management"],
+            "nama": "AI Admin Pro + Meta Ads", "harga": 1690000,
+            "isi": ["AI Admin Pro", "Meta Ads Management"],
         },
         "growth_ai_ads": {
-            "nama": "Content Growth + AI Admin + Ads", "harga": 4290000, "recommended": True,
-            "isi": ["Content Growth", "AI WhatsApp Admin", "Meta Ads Management"],
+            "nama": "Content Growth + AI Admin Pro + Ads", "harga": 4290000, "recommended": True,
+            "isi": ["Content Growth", "AI Admin Pro", "Meta Ads Management"],
         },
         "pro_ai_ads": {
-            "nama": "Content Pro + AI Admin + Ads", "harga": 5790000,
-            "isi": ["Content Pro", "AI WhatsApp Admin", "Meta Ads Management"],
+            "nama": "Content Pro + AI Admin Pro + Ads", "harga": 5790000,
+            "isi": ["Content Pro", "AI Admin Pro", "Meta Ads Management"],
         },
         "ads_landing_page": {
             "nama": "Ads + Landing Page", "harga": 1490000, "satuan": "bulan pertama",
@@ -1369,13 +1556,23 @@ def build_pricing_text_block():
     fp = format_price_short
     lines = []
 
-    ai = cfg["ai_admin_standalone"]
-    lines.append(f"AI WhatsApp Admin — Standalone — Rp{fp(ai['harga'])}/{ai['satuan']} ({ai['catatan']}):")
-    for f in ai["fitur"]:
-        lines.append(f"  • {f}")
+    for tier in ("basic", "pro"):
+        ai = cfg["ai_admin"][tier]
+        lines.append(f"{ai['nama']} — Rp{fp(ai['harga'])}/{ai['satuan']} ({ai['catatan']}):")
+        lines.append(f"  Positioning: {ai['positioning']}")
+        for f in ai["fitur"]:
+            lines.append(f"  • {f}")
+        lines.append(
+            "  TIDAK TERMASUK di paket ini: " + ", ".join(ai["tidak_termasuk"]) +
+            " — semua ini masuk kategori Custom Automation / Custom Solution (harga berdasarkan kebutuhan)."
+        )
+        lines.append("")
     lines.append(
-        "  TIDAK TERMASUK di paket ini: " + ", ".join(ai["tidak_termasuk"]) +
-        " — semua ini masuk kategori Custom Automation / Custom Solution (harga berdasarkan kebutuhan)."
+        "Catatan AI Admin: Basic (Rp499rb) buat respon-otomatis dasar (FAQ, info produk/harga, katalog, "
+        "typo/informal). Pro (Rp999rb) tambahin appointment (booking/reschedule/cancel/availability), "
+        "payment conversation, lead qualification, owner command penuh lewat chat, vision/baca gambar, "
+        "anti-duplicate-send, & notifikasi owner buat lead penting — Pro = Basic + semua itu, BUKAN "
+        "produk terpisah."
     )
 
     lines.append("")
@@ -1388,7 +1585,7 @@ def build_pricing_text_block():
 
     lines.append("")
     lines.append("Bundle Content + AI Admin (paling hemat kalau butuh dua-duanya):")
-    for key in ("growth_ai", "pro_ai"):
+    for key in ("growth_ai_basic", "growth_ai", "pro_ai"):
         b = cfg["bundles"][key]
         lines.append(f"- {b['nama']} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
 
@@ -1406,7 +1603,7 @@ def build_pricing_text_block():
     lines.append("")
     lines.append("Ads Bundles (Content/AI Admin + Meta Ads):")
     ab = cfg["ads_bundles"]
-    for key in ("ai_ads", "growth_ai_ads", "pro_ai_ads"):
+    for key in ("ai_basic_ads", "ai_ads", "growth_ai_ads", "pro_ai_ads"):
         b = ab[key]
         label = f"{b['nama']} (direkomendasikan)" if b.get("recommended") else b["nama"]
         lines.append(f"- {label} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
@@ -1530,26 +1727,30 @@ paket (shoot lokasi luar kota, talent tambahan, integrasi custom, dsb) dihitung 
 Automation / Custom Solution & didiskusikan case-by-case — JANGAN pernah bilang itu termasuk gratis di
 paket manapun. Harga di atas FIX (bukan promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
 
-ATURAN HARGA (WAJIB DIIKUTI — UPDATE PENTING, harga itu PENUTUP bukan PEMBUKA):
-- JANGAN BURU-BURU kasih angka harga di awal obrolan, walau customer langsung nanya harga duluan. Kamu BOLEH
-  & TAU semua angkanya (lihat di atas), tapi TAHAN dulu — bangun rasa penasaran & value dulu, jangan asal
-  tembak angka polos di kalimat pertama mereka nanya harga.
-- Kalau customer nanya harga (misal "Content Growth berapa", "harga AI Admin berapa"), jangan langsung
-  jawab angka. Respon dulu dengan REKOMENDASI PAKET + benefit singkatnya (nama paket + kenapa itu cocok,
-  TANPA angka), terus gali 1-2 pertanyaan kebutuhan mereka biar makin engaged & rekomendasinya makin pas.
-  Bikin mereka makin penasaran & yakin dulu sebelum tau angkanya.
-- Harga BARU disebutin di titik yang lebih akhir obrolan — pas mereka udah keliatan cukup tertarik/yakin,
-  udah jelas kebutuhannya, atau udah nanya harga lebih dari sekali/beneran serius mau lanjut. Di situ baru
-  kasih tau angka pastinya dengan CONFIDENT, singkat kayak gaya di atas (999rb, 1,5jt, 2,75jt, dst).
-- JANGAN kelamaan muter-muter juga sampai kesannya nyebelin/gak jelas — kalau mereka udah nanya harga 2-3
-  kali atau keliatan makin gak sabar, langsung kasih angkanya, jangan dipaksa nahan-nahan terus.
+ATURAN HARGA (WAJIB DIIKUTI — PRICE DISCLOSURE, dibaca PERSIS, jangan campur aduk sama RECOMMEND di atas):
+- RULE UTAMA: "TIDAK DITANYA HARGA → jangan buru-buru bicara harga. DITANYA HARGA → jawab LANGSUNG dan
+  AKURAT." Dua kondisi ini beda penanganan, JANGAN disamain.
+- KALAU CUSTOMER BELUM NANYA HARGA SAMA SEKALI (misal cuma cerita kebutuhan, "aku butuh konten buat
+  cafe"): JANGAN langsung dump angka/daftar harga. Pahami dulu kebutuhannya sedikit (1 pertanyaan
+  singkat, natural, sesuai FLOW UTAMA di atas), baru begitu kebutuhan mulai jelas rekomendasiin paket
+  paling relevan — TANPA maksa nahan-nahan kalau mereka sendiri lanjut nanya harga.
+- KALAU CUSTOMER TANYA HARGA SATU PAKET SPESIFIK (misal "Growth berapa?", "AI Admin Pro berapa?"):
+  JAWAB LANGSUNG angka pastinya di kalimat itu juga, JANGAN muter/nahan/nanya balik dulu sebelum kasih
+  angka. Contoh BENER: "Content Growth Rp2.750.000/bulan, Kak." atau "AI Admin Pro Rp999.000/bulan."
+  Boleh tambahin 1 kalimat singkat benefit relevan SETELAH angkanya (bukan sebelum/gantiin angkanya).
+  JANGAN PERNAH menghindar/nunda jawab pertanyaan harga langsung dengan alasan apapun.
+- KALAU CUSTOMER TANYA SATU PAKET: jawab paket itu aja, JANGAN sekalian dump seluruh katalog/semua
+  harga paket lain yang gak ditanya.
+- KALAU CUSTOMER MINTA SELURUH PRICE LIST / KATALOG (misal "ada pricelist gak", "kirim semua harganya
+  dong", "boleh liat semua paket"): baru di titik ini boleh kasih/kirim seluruh paket atau katalog PDF
+  (tag "[KIRIM_KATALOG]") sekaligus.
 - Kalau customer keliatan sensitif soal budget (misal "yang paling murah apa" buat konten), rekomendasiin
-  Content Basic duluan; kalau soal AI Admin doang, itu udah cuma ada 1 tier (Rp999rb) jadi gak perlu
-  bandingin (nama dulu + benefit, angkanya nyusul setelah gali kebutuhan sebentar).
-- Katalog PDF (tag "[KIRIM_KATALOG]") kirim kapan pun relevan buat kasih rincian lengkap tertulis — biasanya
-  pas di titik yang sama kayak kapan kamu udah mau kasih tau harga pasti.
+  Content Basic duluan; kalau soal AI Admin, jelasin dulu bedanya Basic (Rp499rb, buat kebutuhan
+  respon-otomatis dasar) vs Pro (Rp999rb, ditambah fitur appointment/owner-command/payment-conversation/dll)
+  SEBELUM/BARENG kasih angka — biar customer paham kenapa ada 2 tier, bukan cuma nyebut satu angka doang.
 - Biaya transport acara luar Tangerang/Jakarta tetap ikutin aturan khusus di bawah (SOAL BIAYA TRANSPORT) —
-  ini beda konteks, boleh langsung disebut kapan aja relevan.
+  ini beda konteks, boleh langsung disebut kapan aja relevan (gak kena aturan "tahan dulu" di atas, karena
+  bukan harga paket utama).
 
 SOAL KEBUTUHAN DI LUAR PAKET (CUSTOM AUTOMATION / CUSTOM SOLUTION) — WAJIB DIIKUTI:
 - Bot DILARANG KERAS: ngarang harga sendiri, kasih diskon sendiri tanpa persetujuan owner, bikin paket
@@ -1607,6 +1808,31 @@ SOAL LANDING PAGE & INSTAGRAM:
 - Boleh proaktif nyebut salah satu dari link ini kalau emang natural & relevan sama obrolan, tapi jangan
   dipaksa selalu disebut tiap balasan. Jangan pernah pakai kata "portofolio" buat nyebut website — website
   itu profil bisnis/info paket doang, hasil kerja/portofolio arahin ke Instagram.
+
+SOAL "INI BOT?"/"INI AI?" (WAJIB JUJUR, TAPI TETAP SELLING-FRIENDLY):
+- Kalau customer nanya LANGSUNG apakah kamu bot/AI (misal "ini bot?", "ini AI ya?", "ini beneran orang
+  gak sih"), JAWAB JUJUR — JANGAN PERNAH bilang kamu manusia/orang beneran. Jawab natural & tetap positif,
+  contoh: "Aku AI Admin Kilas Works yang bantu jawab & handle kebutuhan awal Kakak. Kalau perlu, aku juga
+  bisa teruskan ke tim/owner." — bukan defensif, bukan minta maaf, tetap percaya diri.
+- SELAIN pas ditanya langsung, JANGAN terus-terusan ngingetin diri sendiri "aku AI" di tiap balasan — itu
+  malah bikin obrolan berasa gak natural. Cukup jujur PAS ditanya, sisanya ngobrol biasa aja kayak aturan
+  gaya bahasa di atas.
+
+SOAL DEMO AI ADMIN (INI JUGA SALES TOOL — WAJIB TAU & BOLEH DITAWARIN):
+- Kilas Works punya demo AI Admin yang bisa dicoba di /demo (self-service, langsung di browser, gratis,
+  tanpa perlu appointment). Kalau customer nanya "bisa coba?", "ada demo?", "AI-nya bisa dicoba gak?",
+  "boleh lihat cara kerjanya?", atau sejenisnya, tawarin DUA opsi natural (JANGAN maksa salah satu):
+  1. Coba demo mandiri sendiri (arahkan ke link demo kalau kamu tau linknya dari data bisnis, atau bilang
+     "aku kasih link demo-nya ya" lalu sertakan tag "[TANYA_OWNER]" kalau linknya belum kamu tau pasti).
+  2. Jadwalkan LIVE DEMO online bareng tim (pakai flow appointment yang sama kayak online meeting biasa,
+     lihat APPOINTMENT / JADWAL KETEMU OWNER di bawah — bedanya cuma dikasih tanda tag purpose=demo).
+  Contoh kalimat: "Boleh Kak. Bisa langsung coba demo mandiri, atau kalau mau aku bisa bantu jadwalkan
+  live demo online dengan tim. Kakak lebih nyaman yang mana?"
+- Kalau customer pilih LIVE DEMO: ikutin PERSIS flow appointment di bawah (tanya preferensi hari, cek
+  availability owner, dst), TAPI di tag [MEETING_PREFERENCE: ...] tambahin juga "|purpose=demo" di
+  akhirnya (mode tetap "online" karena demo selalu online) — SISTEM yang bakal pakai wording "live demo
+  AI Admin" ke owner & customer, bukan wording "online meeting" biasa. Kalau customer minta demo TAPI
+  gak nyebut mau mandiri atau live/dijadwalin, TANYA dulu (jangan asal asumsi salah satu) — JANGAN MAKSA.
 
 SOAL PEMBAYARAN (WAJIB DIIKUTI — data rekening SELALU dari sistem, kamu TIDAK PERNAH ngetik nomor
 rekening sendiri):
@@ -1786,6 +2012,13 @@ def build_appointment_context():
         "balasan: [MEETING_PREFERENCE: mode=online|offline|day=<hari/tanggal persis kata-kata "
         "customer>]. SISTEM yang generate kalimat holding-nya sendiri ke customer & notify owner buat "
         "cek availability — BUKAN kamu yang bilang 'siap dicatat'/dsb.\n"
+        "KALAU CUSTOMER JUGA UDAH NYEBUT JAM EXACT di pesan yang sama (misal 'Selasa jam 9 bisa?', "
+        "'besok jam 2 siang ya kak'): sertakan JUGA time=HH:MM (format 24-jam, konversi pagi/sore "
+        "sewajarnya) di tag yang sama jadi [MEETING_PREFERENCE: mode=..|day=..|time=HH:MM] — ini biar "
+        "sistem inget jam yang customer MINTA SENDIRI, jadi begitu owner cuma bilang 'bisa'/'available' "
+        "tanpa nyebut ulang jamnya, bisa langsung confirm jam itu tanpa nanya ulang. Kalau customer "
+        "BELUM nyebut jam sama sekali, JANGAN isi time= (biarin kosong, ini yang paling sering "
+        "kejadian & tetap ikutin alur normal di atas).\n"
         "KALAU OWNER SUDAH KASIH PILIHAN JAM (kamu bakal dikasih tau daftar jam yang OWNER SENDIRI "
         "kasih, biasanya muncul sebagai fakta/pesan sistem di riwayat obrolan): begitu customer milih "
         "SALAH SATU dari jam yang ditawarin itu (bukan jam lain di luar itu), respon transisi natural "
@@ -1996,13 +2229,22 @@ def build_pending_meeting_requests_context():
     lines = []
     for number, req in pending:
         name = customer_names.get(number, f"wa.me/{number}")
-        mode_label = "ketemu langsung (offline)" if req.get("mode") == "offline" else "online meeting"
+        mode_label = meeting_mode_label(req)
         day_label = req.get("day_display") or req.get("day_text") or "(hari belum jelas)"
-        lines.append(f"- {name}: minta {mode_label} hari {day_label}")
+        req_time = req.get("requested_time")
+        time_note = f", customer SENDIRI udah minta jam {req_time.replace(':', '.')}" if req_time else ""
+        lines.append(f"- {name}: minta {mode_label} hari {day_label}{time_note}")
     return (
         "\n\n📅 CUSTOMER YANG LAGI NUNGGU AVAILABILITY MEETING (WAJIB DIPROSES kalau Irvan balas kasih "
         "jam untuk salah satu ini):\n" + "\n".join(lines) +
-        "\n\nKalau Irvan balas ngasih jam kosong buat SALAH SATU customer di atas (bahasa bebas, misal "
+        "\n\n⚠️ TANGGAL/HARI di daftar atas itu FIX & TERKUNCI (date lock) — JANGAN PERNAH kamu sebut "
+        "hari lain di luar yang tercantum buat customer ini, KECUALI Irvan SENDIRI eksplisit ganti/kasih "
+        "hari lain. Kalau Irvan cuma bilang 'bisa'/'available'/'iya'/'oke' TANPA nyebut jam sama sekali, "
+        "SISTEM (bukan kamu) yang udah nanganin itu duluan secara otomatis SEBELUM pesan ini nyampe ke "
+        "kamu — jadi kalau kamu tetap nerima pesan ini berarti Irvan-nya nyebut sesuatu yang LEBIH dari "
+        "sekadar 'bisa' polos (biasanya ada angka jam atau konteks lain campur). JANGAN nanya ulang "
+        "'ada jam yang available?' ke Irvan buat customer yang sama kalau dia baru aja jawab.\n"
+        "Kalau Irvan balas ngasih jam kosong buat SALAH SATU customer di atas (bahasa bebas, misal "
         "'sabtu bisa jam 1 3 5', 'jam 3 aja', 'pagi ga bisa sore bisa', 'online jam 2 atau 4'), kamu "
         "WAJIB sertakan tag PERSIS di akhir balasan (SELAIN balasan santai biasa ke Irvan — JANGAN pakai "
         "format PESAN_UNTUK_CUSTOMER: buat kasus ini): [OWNER_MEETING_SLOTS: customer=<nama PERSIS dari "
@@ -2112,10 +2354,17 @@ def log_ai_usage(context_label, model, api_response_json):
 
 
 def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number,
-                       image_b64=None, image_mime=None, direct_send=False):
+                       image_b64=None, image_mime=None, direct_send=False, is_voice_note=False):
     """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
     call_claude() yang dipakai buat customer. Sama-sama Haiku default + fallback Sonnet.
-    Kalau owner kirim gambar, WAJIB pakai Sonnet langsung (Haiku 3.5 gak support vision)."""
+    Kalau owner kirim gambar, WAJIB pakai Sonnet langsung (Haiku 3.5 gak support vision).
+
+    is_voice_note (additive) — True kalau owner_message ini hasil transkrip voice note (bukan
+    ketikan langsung). Transcript TETAP dikirim apa adanya ke API (biar AI proses command persis
+    kayak command teks biasa, TIDAK ADA engine AI kedua khusus voice), cuma versi yang disimpen ke
+    memory/DB dikasih tag "[OWNER VOICE NOTE]" — dipakai `build_customer_context_summary()` /
+    riwayat biar owner-mode AI bisa jawab natural kalau ditanya "dia terakhir bilang apa lewat
+    voice note", persis pola yang sama kayak tag "[OWNER KIRIM GAMBAR]" di bawah."""
     history = owner_conversations.get(owner_number)
     if history is None:
         history = load_recent_messages_from_db(owner_number, "owner")  # isi ulang kalau server abis restart
@@ -2129,6 +2378,9 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
             {"type": "text", "text": owner_message or "(owner kirim gambar tanpa keterangan)"},
         ]
         memory_text = f"[OWNER KIRIM GAMBAR] {owner_message}".strip()
+    elif is_voice_note:
+        api_content = owner_message
+        memory_text = f"[OWNER VOICE NOTE] {owner_message}".strip()
     else:
         api_content = owner_message
         memory_text = owner_message
@@ -2234,6 +2486,30 @@ TAG_MEETING_SLOT_PICK_PATTERN = re.compile(r"\[MEETING_SLOT_PICK:\s*([^\]]+)\]",
 TAG_OWNER_MEETING_SLOTS_PATTERN = re.compile(r"\[OWNER_MEETING_SLOTS:\s*([^\]]+)\]", re.IGNORECASE)
 TAG_OWNER_MEETING_UNAVAILABLE_PATTERN = re.compile(r"\[OWNER_MEETING_UNAVAILABLE:\s*([^\]]+)\]", re.IGNORECASE)
 
+# --- BUG FIX (owner availability flow) --------------------------------------------------------
+# Sebelumnya balesan owner yang GENERIK ("bisa"/"available"/"iya"/"oke", TANPA nyebut jam) buat
+# meeting yang lagi PENDING_OWNER_CONFIRMATION diserahin bulat-bulat ke AI buat diinterpretasi —
+# riskan: AI bisa nanya ulang pertanyaan yang sama, salah sebut hari (drift dari state asli), atau
+# nganggep instruksi "teruskan" cuma draft. Sekarang dideteksi DETERMINISTIK di Python (pola yang
+# sama kayak parse_owner_payment_command/parse_meeting_status_command) SEBELUM masuk ke AI sama
+# sekali, biar tanggal/jam yang dikirim ke customer 100% dari state (req dict), bukan karangan AI.
+# Kalau owner-nya EKSPLISIT nyebut ANGKA JAM (ada digit di teks), regex ini SENGAJA gak match —
+# biar tetap lewat jalur AI [OWNER_MEETING_SLOTS] yang udah ada (lebih jago extract/convert jam
+# dari bahasa bebas kayak "jam 1 3 5" atau "pagi ga bisa sore bisa").
+GENERIC_AVAILABILITY_CONFIRM_PATTERN = re.compile(
+    r'^(?:(?:iya+|ya+|yoi+|yup|oke*|ok(?:ay)?|sip|boleh|bisa|available|avail|ready|siap|fix|acc|'
+    r'kok|dong|aja|nih|banget|deh|sih|bang|kak|lah)[\s,.!?]*)+$',
+    re.IGNORECASE,
+)
+MEETING_UNAVAILABLE_KEYWORDS_PATTERN = re.compile(
+    r'\b(?:(?:gak|ga|nggak|enggak|tidak|blm|belum)\s*(?:bisa|bs|available|ada)|tutup|libur|full|penuh)\b',
+    re.IGNORECASE,
+)
+MEETING_RESEND_ACTION_PATTERN = re.compile(
+    r'\b(?:teruskan|terusin|kirim(?:in)?(?:\s+aja)?|lanjut(?:kan|in)?|kasih\s*tau|bilang\s*ke|sampein)\b',
+    re.IGNORECASE,
+)
+
 # Tag PEMBAYARAN (production hardening) — [GIVE_PAYMENT_INFO] SENGAJA gak exact-string-replace kosong
 # kayak ALL_TAGS lain: dia diganti Python jadi teks rekening resmi BENERAN (build_payment_info_text()),
 # BUKAN dihapus — biar AI gak pernah ngetik nomor rekening sendiri (lihat webhook). [PAYMENT_DP_UNCLEAR]
@@ -2272,7 +2548,8 @@ def strip_tags(text):
     return cleaned.strip()
 
 
-def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None):
+def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None,
+                 is_voice_note=False):
     """Panggil Claude API buat generate balasan AI.
     Default: Haiku (cost-optimal, default model untuk customer chat)
     Fallback: Sonnet (jika Haiku tidak tersedia atau gagal)
@@ -2308,6 +2585,13 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     elif memory_override is not None:
         api_content = user_message
         memory_text = memory_override
+    elif is_voice_note:
+        # Voice note customer (additive) — transcript dikirim APA ADANYA ke API (pipeline teks
+        # yang sama persis, bukan engine kedua), cuma versi yang disimpen ke memory/DB dikasih tag
+        # "[CUSTOMER VOICE NOTE]" biar owner-mode context (build_customer_context_summary) bisa
+        # jawab natural kalau ditanya history customer yang terakhir kirim voice note.
+        api_content = user_message
+        memory_text = f"[CUSTOMER VOICE NOTE] {user_message}".strip()
     else:
         api_content = user_message
         memory_text = user_message
@@ -2786,7 +3070,8 @@ STOPWORDS_NOT_NAMES = {
 # customer_names beneran, bukan asal motong 1 kata pertama abis kata kerja.
 SEND_VERB_PATTERN = re.compile(
     r'\b(?:kirim(?:in)?(?:\s+ini)?\s+ke|balas|bales|reply(?:\s+ke)?|follow[\s\-]?up|'
-    r'tanyain|ingetin|ingatkan|sampein\s+ke|bilang\s+ke|chat(?:in)?(?:\s+ke)?)\b',
+    r'tanyain|ingetin|ingatkan|sampein\s+ke|bilang\s+ke|chat(?:in)?(?:\s+ke)?|'
+    r'teruskan(?:\s+ke)?|terusin(?:\s+ke)?)\b',
     re.IGNORECASE,
 )
 
@@ -3243,6 +3528,7 @@ def receive_webhook():
         # Owner juga bisa kirim perintah langsung ("kirim ke..." atau "follow up...").
         if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER:
             owner_image_b64, owner_image_mime = None, None
+            owner_msg_is_voice_note = False
 
             if msg_type == "image":
                 owner_image_meta = message.get("image", {})
@@ -3289,6 +3575,29 @@ def receive_webhook():
                     last_owner_image[from_number] = {"media_id": own_media_id, "mime": owner_image_mime}
 
                 owner_text = owner_caption or "(aku kirim gambar, tolong liat & tanggapin)"
+            elif msg_type == "audio":
+                # Voice note owner (additive) — transcript diperlakukan PERSIS kayak owner ngetik
+                # command yang sama, lewat pipeline command owner yang SAMA (bukan engine kedua).
+                # Identitas owner SUDAH ditentukan dari OWNER_WHATSAPP_NUMBER di baris paling atas
+                # (nomor terverifikasi), BUKAN dari isi transcript — jadi transcript gak akan pernah
+                # dipakai buat nentuin siapa yang ngirim, cuma isi command-nya doang.
+                if not FEATURES.get("voice_note_owner", False):
+                    send_whatsapp_message(from_number, "Saat ini admin cuma bisa baca pesan teks & gambar ya.")
+                    return jsonify({"status": "ok"}), 200
+                owner_audio_media_id = (message.get("audio") or {}).get("id")
+                owner_transcript, owner_vn_err = (
+                    transcribe_audio_whatsapp(owner_audio_media_id) if owner_audio_media_id else (None, "no_media_id")
+                )
+                if not owner_transcript:
+                    print(f"Owner voice note gagal ditranskrip (media_id={owner_audio_media_id}): {owner_vn_err}")
+                    send_whatsapp_message(
+                        from_number,
+                        "Aku belum nangkep voice note tadi dengan jelas. Coba kirim ulang atau ketik perintahnya ya.",
+                    )
+                    return jsonify({"status": "ok"}), 200
+                print(f"[VOICE] Owner VN transcript ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): {owner_transcript[:200]}")
+                owner_msg_is_voice_note = True
+                owner_text = normalize_owner_text_light(owner_transcript)
             elif msg_type != "text":
                 return jsonify({"status": "ok"}), 200
             else:
@@ -3317,6 +3626,114 @@ def receive_webhook():
                         f"Oke? (bilang 'terusin' atau 'oke' buat konfirmasi)",
                     )
                     return jsonify({"status": "ok"}), 200
+
+            # CEK apakah ini balesan AVAILABILITY MEETING dari owner buat salah satu customer yang
+            # lagi PENDING_OWNER_CONFIRMATION/SLOTS_OFFERED — BUG FIX: sebelumnya balesan generik
+            # ("bisa"/"available"/"iya"/"oke", TANPA nyebut jam) diserahin ke AI, riskan ke-drift
+            # tanggal/nanya ulang/nganggep "teruskan" cuma draft. Dicek DETERMINISTIK di sini, PALING
+            # DULUAN sebelum command lain, SEBELUM manggil AI sama sekali — kalau owner nyebut ANGKA
+            # JAM eksplisit, ini SENGAJA gak match & tetep lewat ke jalur AI [OWNER_MEETING_SLOTS]
+            # existing (gak diubah) yang emang lebih jago extract jam dari bahasa bebas.
+            avail_mention_status, avail_mention_number, _avail_mention_name = extract_mentioned_customer(owner_text)
+            avail_target_number = None
+            if avail_mention_status == "ok" and meeting_requests.get(avail_mention_number, {}).get("status") in (
+                MEETING_STATE_PENDING_OWNER_CONFIRMATION, MEETING_STATE_SLOTS_OFFERED,
+            ):
+                avail_target_number = avail_mention_number
+            elif avail_mention_status != "ambiguous":
+                avail_candidates = [
+                    n for n, r in meeting_requests.items()
+                    if r.get("status") in (MEETING_STATE_PENDING_OWNER_CONFIRMATION, MEETING_STATE_SLOTS_OFFERED)
+                ]
+                if len(avail_candidates) == 1:
+                    avail_target_number = avail_candidates[0]
+
+            if avail_target_number:
+                avail_req = meeting_requests[avail_target_number]
+                avail_display_name = customer_names.get(avail_target_number, f"wa.me/{avail_target_number}")
+                avail_short_name = short_display_name(avail_display_name)
+                avail_day_label = avail_req.get("day_display") or avail_req.get("day_text") or "hari itu"
+                has_digit = bool(re.search(r'\d', owner_text))
+
+                if MEETING_UNAVAILABLE_KEYWORDS_PATTERN.search(owner_text) and not has_digit:
+                    # Owner declare gak bisa/tutup TANPA nyebut jam sama sekali — sama persis
+                    # perilakunya kayak jalur [OWNER_MEETING_UNAVAILABLE] existing, cuma dipicu
+                    # deterministik. Tanggal TIDAK BERUBAH sampai customer/owner eksplisit kasih
+                    # hari lain (date lock).
+                    meeting_requests.pop(avail_target_number, None)
+                    decline_text = (
+                        f"Untuk {avail_day_label} kayaknya owner/tim lagi gak available Kak, boleh kasih "
+                        f"hari lain yang nyaman?"
+                    )
+                    sent_ok, _err = send_reply_bubbles(avail_target_number, None, decline_text)
+                    if sent_ok:
+                        history = conversations.get(avail_target_number, [])
+                        history.append({"role": "assistant", "content": decline_text})
+                        conversations[avail_target_number] = history[-20:]
+                        save_message_to_db(avail_target_number, "customer", "assistant", decline_text)
+                        log_customer_message(avail_target_number, decline_text, sent_from="owner_meeting_unavailable")
+                    send_whatsapp_message(from_number, f"Oke, aku minta {avail_short_name} kasih hari lain ya.")
+                    return jsonify({"status": "ok"}), 200
+
+                is_generic_confirm = bool(GENERIC_AVAILABILITY_CONFIRM_PATTERN.match(owner_text.strip()))
+                is_resend_action = bool(MEETING_RESEND_ACTION_PATTERN.search(owner_text)) and not has_digit
+
+                if avail_req.get("status") == MEETING_STATE_SLOTS_OFFERED and (is_generic_confirm or is_resend_action):
+                    # Slot udah pernah ditawarin ke customer sebelumnya (offered_slots tersimpan) —
+                    # owner cuma bilang "available"/"teruskan" lagi -> kirim ULANG pilihan yang SAMA
+                    # persis dari state, JANGAN nanya ulang ke owner (RULE 4 & RULE 5).
+                    offered = avail_req.get("offered_slots") or []
+                    if offered:
+                        times_label = ", ".join(t.replace(":", ".") for t in offered)
+                        if len(offered) == 1:
+                            offer_text = f"Untuk {avail_day_label} tersedia pukul {times_label} WIB, Kak. Apakah jam tersebut cocok?"
+                        else:
+                            offer_text = f"Untuk {avail_day_label} tersedia pukul {times_label} WIB, Kak. Yang paling nyaman yang mana?"
+                        sent_ok, _err = send_reply_bubbles(avail_target_number, None, offer_text)
+                        if sent_ok:
+                            history = conversations.get(avail_target_number, [])
+                            history.append({"role": "assistant", "content": offer_text})
+                            conversations[avail_target_number] = history[-20:]
+                            save_message_to_db(avail_target_number, "customer", "assistant", offer_text)
+                            log_customer_message(avail_target_number, offer_text, sent_from="owner_meeting_slots_resend")
+                        send_whatsapp_message(from_number, f"Terkirim ke {avail_short_name}.")
+                        return jsonify({"status": "ok"}), 200
+
+                if avail_req.get("status") == MEETING_STATE_PENDING_OWNER_CONFIRMATION and is_generic_confirm:
+                    requested_time = avail_req.get("requested_time")
+                    if requested_time:
+                        # RULE 1: customer udah minta jam EXACT di awal, owner tinggal confirm generik
+                        # -> LANGSUNG CONFIRMED, gak perlu muter nawarin balik/nunggu customer pilih lagi.
+                        ok, confirm_text, owner_notify_text = try_confirm_meeting_direct(avail_target_number, requested_time)
+                        if ok:
+                            sent_ok, _err = send_reply_bubbles(avail_target_number, None, confirm_text)
+                            if sent_ok:
+                                history = conversations.get(avail_target_number, [])
+                                history.append({"role": "assistant", "content": confirm_text})
+                                conversations[avail_target_number] = history[-20:]
+                                save_message_to_db(avail_target_number, "customer", "assistant", confirm_text)
+                                log_customer_message(avail_target_number, confirm_text, sent_from="owner_meeting_confirmed_direct")
+                                add_agreed_fact(avail_target_number, confirm_text)
+                            send_whatsapp_message(from_number, owner_notify_text)
+                        else:
+                            # requested_time ternyata udah kepakai duluan (race condition) — JANGAN
+                            # asal confirm/hallucinate hari lain, kasih tau owner jelas & minta jam lain.
+                            send_whatsapp_message(
+                                from_number,
+                                f"Hmm, jam {requested_time.replace(':', '.')} buat {avail_day_label} ternyata "
+                                f"udah kepakai kak. Ada jam lain yang available?",
+                            )
+                        return jsonify({"status": "ok"}), 200
+                    else:
+                        # RULE 4 (kasus terakhir): owner cuma bilang "bisa"/"available" TANPA pernah
+                        # nyebut jam sama sekali, customer juga belum pernah minta jam spesifik -> gak
+                        # ada satupun exact time buat dikonfirmasi. Tanya balik SEKALI — PYTHON yang
+                        # generate (bukan AI) biar tanggal gak ke-drift/ganti hari sendiri.
+                        send_whatsapp_message(
+                            from_number,
+                            f"Siap. Untuk {avail_day_label}, {avail_short_name} available jam berapa ya?",
+                        )
+                        return jsonify({"status": "ok"}), 200
 
             # CEK apakah ini perintah update STATUS MEETING customer tertentu (mis. "meeting Caca
             # selesai" / "meeting Kimfong gak jadi" / "meeting Andi no show"). Ini dicek DULUAN,
@@ -3584,7 +4001,7 @@ def receive_webhook():
             ai_owner_reply = call_claude_owner(
                 from_number, owner_text, pending_question, pending_customer_number,
                 image_b64=owner_image_b64, image_mime=owner_image_mime,
-                direct_send=direct_send,
+                direct_send=direct_send, is_voice_note=owner_msg_is_voice_note,
             )
 
             # CEK apakah owner AI baru aja ngasih tau AVAILABILITY MEETING (production hardening —
@@ -3651,8 +4068,30 @@ def receive_webhook():
                     )
                     return jsonify({"status": "ok"}), 200
 
+                # RULE 1 (bug fix): kalau customer UDAH minta jam EXACT ini sendiri di awal
+                # (req["requested_time"]) dan owner sekarang cuma nyebut SATU jam yang PERSIS SAMA,
+                # itu artinya owner CONFIRM permintaan customer — langsung CONFIRMED, jangan nawarin
+                # balik & nunggu customer pilih ulang jam yang udah dia minta sendiri.
+                requested_time = req.get("requested_time")
+                if len(valid_times) == 1 and requested_time and valid_times[0] == requested_time:
+                    ok, confirm_text, owner_notify_text = try_confirm_meeting_direct(target_number, requested_time)
+                    if ok:
+                        sent_ok, _err = send_reply_bubbles(target_number, None, confirm_text)
+                        if sent_ok:
+                            history = conversations.get(target_number, [])
+                            history.append({"role": "assistant", "content": confirm_text})
+                            conversations[target_number] = history[-20:]
+                            save_message_to_db(target_number, "customer", "assistant", confirm_text)
+                            log_customer_message(target_number, confirm_text, sent_from="owner_meeting_confirmed_direct")
+                            add_agreed_fact(target_number, confirm_text)
+                        send_reply_bubbles(from_number, incoming_message_id, owner_reply_clean or owner_notify_text)
+                        return jsonify({"status": "ok"}), 200
+
                 times_label = ", ".join(t.replace(":", ".") for t in valid_times)
-                offer_text = f"Untuk {day_label} tersedia pukul {times_label} WIB, Kak. Yang paling nyaman yang mana?"
+                if len(valid_times) == 1:
+                    offer_text = f"Untuk {day_label} tersedia pukul {times_label} WIB, Kak. Apakah jam tersebut cocok?"
+                else:
+                    offer_text = f"Untuk {day_label} tersedia pukul {times_label} WIB, Kak. Yang paling nyaman yang mana?"
 
                 req["status"] = MEETING_STATE_SLOTS_OFFERED
                 req["offered_slots"] = valid_times
@@ -3772,6 +4211,7 @@ def receive_webhook():
             return jsonify({"status": "ok"}), 200
 
         image_b64, image_mime = None, None
+        user_msg_is_voice_note = False
 
         if msg_type == "image":
             # Customer kirim gambar (paling sering: bukti transfer). Download & convert ke base64
@@ -3788,6 +4228,35 @@ def receive_webhook():
                 return jsonify({"status": "ok"}), 200
 
             user_text = caption or "(customer kirim gambar tanpa keterangan — cek isinya)"
+        elif msg_type == "audio":
+            # Voice note customer (additive) — transcript diproses lewat PIPELINE TEKS CUSTOMER
+            # YANG SAMA (user_text) di bawah, BUKAN engine AI kedua khusus audio. Kalau gagal
+            # ditranskrip, kasih tau jujur (gak pernah hallucinate isi transcript) dan minta
+            # kirim ulang/ketik — sesuai bahasa yang lagi dipakai customer kalau sudah diketahui.
+            if not FEATURES.get("voice_note_customer", False):
+                send_typing_indicator(incoming_message_id)
+                time.sleep(1.5)
+                send_whatsapp_message(from_number, "Saat ini admin cuma bisa baca pesan teks & gambar ya kak.")
+                return jsonify({"status": "ok"}), 200
+            audio_media_id = (message.get("audio") or {}).get("id")
+            transcript, vn_err = (
+                transcribe_audio_whatsapp(audio_media_id) if audio_media_id else (None, "no_media_id")
+            )
+            if not transcript:
+                print(f"Customer voice note gagal ditranskrip (media_id={audio_media_id}): {vn_err}")
+                send_typing_indicator(incoming_message_id)
+                time.sleep(1.2)
+                lang = customer_language.get(from_number)
+                vn_fail_text = (
+                    "Sorry, I couldn't read the voice note clearly. Could you resend it or type the message?"
+                    if lang == LANGUAGE_EN else
+                    "Maaf Kak, voice note-nya belum kebaca dengan jelas. Boleh kirim ulang atau ketik pesannya sebentar?"
+                )
+                send_whatsapp_message(from_number, vn_fail_text)
+                return jsonify({"status": "ok"}), 200
+            print(f"[VOICE] Customer VN transcript ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}) from {from_number}: {transcript[:200]}")
+            user_msg_is_voice_note = True
+            user_text = transcript
         elif msg_type != "text":
             send_typing_indicator(incoming_message_id)
             time.sleep(1.5)
@@ -3822,7 +4291,10 @@ def receive_webhook():
             active_customer_context[OWNER_WHATSAPP_NUMBER] = from_number
         mark_customer_activity(from_number)
 
-        ai_reply = call_claude(from_number, user_text, image_b64=image_b64, image_mime=image_mime)
+        ai_reply = call_claude(
+            from_number, user_text, image_b64=image_b64, image_mime=image_mime,
+            is_voice_note=user_msg_is_voice_note,
+        )
 
         # Deteksi & tangkep nama customer (kalau AI baru dapet tau dari obrolan, bukan dari profil
         # WA) SEBELUM tag lain diproses, simpen ke cache + database, baru buang tag-nya dari teks.
@@ -3880,6 +4352,22 @@ def receive_webhook():
                 mode = "online"
             day_text = (kv.get("day") or "").strip()
             resolved_date = resolve_day_text_to_date(day_text)
+            # BUG FIX (owner availability flow): kalau customer di pesan yang SAMA udah nyebut jam
+            # EXACT yang dia mau (mis. "Selasa jam 9 bisa?"), simpen sebagai requested_time — biar
+            # begitu owner cuma bilang "bisa"/"available" (tanpa nyebut ulang jamnya), sistem bisa
+            # langsung CONFIRM jam itu tanpa muter nanya ulang / resiko ganti hari (lihat RULE 1 di
+            # try_confirm_meeting_direct & deteksi generic-confirm di webhook owner).
+            requested_time_raw = (kv.get("time") or "").strip()
+            requested_time = None
+            if re.match(r"^\d{1,2}:\d{2}$", requested_time_raw):
+                requested_time = requested_time_raw.zfill(5) if len(requested_time_raw) == 4 else requested_time_raw
+
+            # LIVE DEMO (additive) — purpose="demo" dipakai buat bedain wording "live demo AI Admin"
+            # dari "online meeting" biasa ke owner & customer. Default "sales" (perilaku lama, gak
+            # berubah) kalau AI gak sertain purpose= sama sekali.
+            purpose = (kv.get("purpose") or "sales").strip().lower()
+            if purpose not in ("sales", "demo"):
+                purpose = "sales"
 
             if mode == "offline" and resolved_date and is_office_closed_on(resolved_date):
                 # business_hours (kantor tutup) != meeting_availability owner — offline TIDAK otomatis
@@ -3898,13 +4386,14 @@ def receive_webhook():
                 meeting_requests[from_number] = {
                     "status": MEETING_STATE_PENDING_OWNER_CONFIRMATION,
                     "mode": mode, "day_text": day_text, "day_display": day_disp,
-                    "resolved_date": resolved_date,
+                    "resolved_date": resolved_date, "requested_time": requested_time,
+                    "purpose": purpose,
                     "name": customer_names.get(from_number), "business_name": None,
                     "need_summary": None, "offered_slots": [], "created_at": _utcnow(),
                 }
                 appt_text = "Siap Kak, aku cek dulu jadwal owner/tim untuk itu ya. Begitu ada slot yang tersedia aku kabari."
                 clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
-                mode_label = "ketemu langsung" if mode == "offline" else "online meeting"
+                mode_label = "live demo AI Admin" if purpose == "demo" else ("ketemu langsung" if mode == "offline" else "online meeting")
                 display_name = customer_names.get(from_number, "Customer")
                 meeting_owner_notify = f"{display_name} ingin {mode_label} hari {day_disp}. Ada jam yang available?"
         elif meeting_slot_pick_match:
@@ -4157,7 +4646,16 @@ DEMO_SYSTEM_PROMPT = (
     "doang buat sistem.\n\n"
     "ATURAN GAYA: TANPA emoji sama sekali, TANPA pujian berlebihan ('keren', 'menarik banget', "
     "'wow'), singkat & natural kayak chat WhatsApp beneran, jangan kaku/formal banget, SATU "
-    "pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble)."
+    "pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble).\n\n"
+    "BAHASA — AUTO-DETECT (WAJIB, sama kayak AI Admin asli): deteksi bahasa dari pesan TERAKHIR lawan "
+    "bicara tiap kali balas (lihat histori percakapan sesi ini buat konteks, tapi bahasa balasan "
+    "ngikutin pesan yang PALING BARU). Kalau dia nulis Bahasa Indonesia, balas Bahasa Indonesia. Kalau "
+    "dia nulis English, balas full English natural (bukan translate kaku). Kalau campur, ikutin yang "
+    "paling dominan. Boleh ganti bahasa di tengah sesi kalau lawan bicara ganti duluan — JANGAN PERNAH "
+    "nanya 'mau bahasa apa?' kecuali pesannya beneran gak ada kata sama sekali (cuma emoji/angka). "
+    "Nama paket Kilas Works (Content Growth, AI Admin Pro, dst) TETAP PERSIS gak diterjemahin walau "
+    "balasannya English. Demo TIDAK BOLEH error/nge-blank cuma gara-gara lawan bicara pakai English —"
+    " kalau ragu bahasa apa, default Bahasa Indonesia dulu, JANGAN diem/gagal balas."
 )
 
 # Frasa yang dianggap perintah "mulai ulang demo dari nol" (bukan pertanyaan biasa ke AI) — dicek
