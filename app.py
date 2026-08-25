@@ -23,6 +23,17 @@ WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "kilasworks123")  # bebas, dipakai buat verifikasi webhook di Meta
 
+# ==== MODEL CLAUDE — SATU TEMPAT SAJA (jangan hardcode model ID di fungsi manapun lagi) ====
+# AUDIT Agustus 2026: "claude-3-5-haiku-20241022" (model lama yang sebelumnya dipakai di sini)
+# sudah RETIRED oleh Anthropic sejak 19 Feb 2026 — setiap request ke situ SELALU gagal. Selama ini
+# bot customer & owner diam-diam SELALU jatuh ke fallback Sonnet (karena percobaan Haiku selalu
+# error), demo malah gak punya fallback sama sekali jadi selalu nampilin pesan gangguan teknis.
+# MODEL_FAST dipulihkan ke generasi Haiku yang masih aktif, biar desain asli (cepat & hemat untuk
+# balasan teks biasa, Sonnet cuma untuk gambar/fallback) beneran jalan lagi seperti niat awal kode.
+MODEL_FAST = os.environ.get("MODEL_FAST", "claude-haiku-4-5-20251001")      # default balasan teks (customer & owner)
+MODEL_PRIMARY = os.environ.get("MODEL_PRIMARY", "claude-sonnet-4-6")        # wajib dipakai kalau ada gambar (vision)
+MODEL_FALLBACK = os.environ.get("MODEL_FALLBACK", "claude-sonnet-4-6")      # dipakai kalau MODEL_FAST error/timeout
+
 # Password buat buka halaman dashboard (/dashboard?key=...). GANTI ini di environment variable
 # Render, jangan pakai default di production.
 DASHBOARD_KEY = os.environ.get("DASHBOARD_KEY", "kilasworks-dashboard")
@@ -119,6 +130,12 @@ def init_db():
         )
         cur.execute("CREATE INDEX IF NOT EXISTS idx_appointments_number ON appointments (number);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments (meeting_date);")
+        # Migration BACKWARD-COMPATIBLE (production hardening) — tabel appointments yang UDAH ADA
+        # dari sebelumnya gak akan ke-apply ulang CREATE TABLE di atas, jadi kolom baru buat fitur
+        # reminder meeting ditambah lewat ALTER TABLE ... ADD COLUMN IF NOT EXISTS. Row lama otomatis
+        # dapet default FALSE (belum pernah dikirim reminder), gak ada data lama yang berubah/hilang.
+        cur.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_24h_sent BOOLEAN NOT NULL DEFAULT FALSE;")
+        cur.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_same_day_sent BOOLEAN NOT NULL DEFAULT FALSE;")
         conn.commit()
         cur.close()
         conn.close()
@@ -363,8 +380,11 @@ def mark_customer_activity(number):
 
 
 def mark_customer_converted(number):
-    """Dipanggil begitu customer keliatan udah bayar/booking ([SUDAH_BAYAR] atau [LEADS_PANAS] yang
-    closing) — stop follow-up otomatis buat customer ini karena mereka udah gak perlu di-nudge lagi."""
+    """Stop follow-up otomatis PERMANEN buat nomor ini. Dipanggil di DUA skenario: (1) customer
+    keliatan udah bayar/booking ([SUDAH_BAYAR]/[LEADS_PANAS] closing) — sengaja pakai kolom
+    'converted' yang sama (bukan bikin kolom baru) buat kasus (2) customer eksplisit minta gak
+    usah di-follow-up/dihubungi lagi ([STOP_FOLLOWUP]) — sama-sama artinya 'jangan follow-up lagi',
+    cuma alasannya beda, jadi gak perlu migration kolom baru buat ini."""
     state = followup_state.setdefault(number, {"last_customer_msg_at": None, "last_followup_at": None, "followup_count": 0, "converted": False})
     state["converted"] = True
     save_followup_state_to_db(number, state)
@@ -468,17 +488,19 @@ def save_appointment_to_db(appt):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO appointments (id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            INSERT INTO appointments (id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes, reminder_24h_sent, reminder_same_day_sent)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON CONFLICT (id) DO UPDATE SET
                 number = EXCLUDED.number, name = EXCLUDED.name, business_name = EXCLUDED.business_name,
                 meeting_date = EXCLUDED.meeting_date, meeting_time = EXCLUDED.meeting_time, tz = EXCLUDED.tz,
-                need_summary = EXCLUDED.need_summary, status = EXCLUDED.status, notes = EXCLUDED.notes
+                need_summary = EXCLUDED.need_summary, status = EXCLUDED.status, notes = EXCLUDED.notes,
+                reminder_24h_sent = EXCLUDED.reminder_24h_sent, reminder_same_day_sent = EXCLUDED.reminder_same_day_sent
             """,
             (
                 appt["id"], appt["number"], appt.get("name"), appt.get("business_name"),
                 appt["meeting_date"], appt["meeting_time"], appt.get("tz", "Asia/Jakarta"),
                 appt.get("need_summary"), appt.get("status", "scheduled"), appt.get("notes"),
+                appt.get("reminder_24h_sent", False), appt.get("reminder_same_day_sent", False),
             ),
         )
         conn.commit()
@@ -495,17 +517,18 @@ def load_all_appointments_from_db():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "SELECT id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes FROM appointments"
+            "SELECT id, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes, reminder_24h_sent, reminder_same_day_sent FROM appointments"
         )
         rows = cur.fetchall()
         cur.close()
         conn.close()
         result = {}
-        for (id_, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes) in rows:
+        for (id_, number, name, business_name, meeting_date, meeting_time, tz, need_summary, status, notes, reminder_24h_sent, reminder_same_day_sent) in rows:
             result[id_] = {
                 "id": id_, "number": number, "name": name, "business_name": business_name,
                 "meeting_date": meeting_date, "meeting_time": meeting_time, "tz": tz,
                 "need_summary": need_summary, "status": status, "notes": notes,
+                "reminder_24h_sent": bool(reminder_24h_sent), "reminder_same_day_sent": bool(reminder_same_day_sent),
             }
         return result
     except Exception as e:
@@ -559,6 +582,7 @@ def create_appointment(number, name, business_name, date_str, time_str, need_sum
         "id": aid, "number": number, "name": name or customer_names.get(number, ""),
         "business_name": business_name, "meeting_date": date_str, "meeting_time": time_str,
         "tz": "Asia/Jakarta", "need_summary": need_summary, "status": "scheduled", "notes": None,
+        "reminder_24h_sent": False, "reminder_same_day_sent": False,
     }
     appointments[aid] = appt
     save_appointment_to_db(appt)
@@ -590,6 +614,11 @@ def update_appointment_reschedule(appt_id, new_date, new_time):
     appt["meeting_date"] = new_date
     appt["meeting_time"] = new_time
     appt["status"] = "scheduled"
+    # Reset flag reminder — jadwal berubah, reminder lama (buat tanggal/jam sebelumnya) gak relevan
+    # lagi & jangan sampai reminder BARU buat jadwal hasil reschedule ini malah keanggep "udah pernah
+    # dikirim" gara-gara flag lama masih True.
+    appt["reminder_24h_sent"] = False
+    appt["reminder_same_day_sent"] = False
     save_appointment_to_db(appt)
 
 
@@ -655,6 +684,108 @@ def try_cancel_meeting(customer_number):
     display_name = appt.get("name") or customer_names.get(customer_number, "Customer")
     owner_notify = f"Meeting dibatalkan: {display_name} — jadwal {label} WIB batal."
     return True, confirm, owner_notify
+
+
+# ============================================================
+# MEETING REMINDER OTOMATIS (production hardening) — pakai appointment DB EXISTING, TIDAK bikin
+# tabel baru. Dipanggil dari endpoint cron yang SAMA dengan follow-up (/cron/followups), jadi TIDAK
+# perlu setup scheduler eksternal baru — cukup 1 external cron (cron-job.org / Render Cron Job)
+# yang sudah/akan disetup buat follow-up, otomatis nge-cover reminder ini juga.
+#
+# ATURAN META/WHATSAPP YANG DIHORMATI DI SINI: pesan business-initiated (bukan balesan langsung ke
+# customer) cuma boleh dikirim bebas TANPA approved template kalau masih dalam 24 JAM sejak pesan
+# TERAKHIR dari customer ("customer service window"). Di luar itu, WhatsApp akan menolak/gagal kirim
+# pesan teks bebas — WAJIB pakai Message Template yang sudah di-approve Meta. Karena app.py ini
+# belum punya template ter-approve buat reminder, kalau window udah lewat, reminder KE CUSTOMER
+# SENGAJA TIDAK dikirim (biar gak diam-diam gagal/ditolak Meta) — yang dikirim cuma notifikasi ke
+# OWNER supaya bisa follow up manual atau setup template resmi nanti.
+# ============================================================
+
+SAME_DAY_REMINDER_HOURS_BEFORE = 3  # kirim reminder hari-H kalau meeting tinggal <= segini jam lagi
+
+
+def _customer_within_service_window(number, hours=24):
+    """True kalau customer ini masih dalam window 24 jam sejak pesan terakhirnya (jadi pesan bebas
+    ke dia AMAN dikirim tanpa approved template). Pakai data followup_state yang emang udah nyimpen
+    last_customer_msg_at buat keperluan lain (follow-up) — dipakai ulang di sini, bukan data baru."""
+    state = followup_state.get(number)
+    if not state or not state.get("last_customer_msg_at"):
+        return False
+    return (_utcnow() - state["last_customer_msg_at"]) < timedelta(hours=hours)
+
+
+def _send_single_appointment_reminder(appt, label):
+    """Kirim SATU reminder (H-1 atau hari-H) buat satu appointment. Return True kalau reminder ini
+    boleh ditandain 'selesai diproses' (jangan di-retry cron berikutnya), False kalau harus dicoba
+    lagi nanti (misal gagal kirim ke owner karena error jaringan sesaat)."""
+    number = appt["number"]
+    display_name = appt.get("name") or customer_names.get(number, "Customer")
+    date_label = format_date_id(datetime.strptime(appt["meeting_date"], "%Y-%m-%d").date())
+    time_str = appt["meeting_time"]
+    when_word = "besok" if label == "H-1" else "hari ini"
+
+    within_window = _customer_within_service_window(number)
+    customer_sent_ok = None  # None = sengaja gak dicoba (di luar window)
+    if within_window:
+        customer_text = f"Halo Kak {display_name}, mengingatkan jadwal diskusi kita {when_word} pukul {time_str} WIB ya."
+        customer_sent_ok, _err = send_whatsapp_message(number, customer_text)
+
+    owner_note = f"Reminder ({label}): meeting dengan {display_name} {when_word} ({date_label}) pukul {time_str} WIB."
+    if not within_window:
+        owner_note += (
+            " CATATAN: window 24 jam WhatsApp customer ini udah lewat, jadi reminder OTOMATIS TIDAK "
+            "dikirim ke customer (biar gak ditolak Meta) — tolong follow up manual atau siapkan "
+            "approved message template kalau mau reminder otomatis tetap sampai ke customer."
+        )
+    elif customer_sent_ok is False:
+        owner_note += " CATATAN: pengiriman reminder otomatis ke customer GAGAL, tolong cek/kirim manual."
+
+    owner_sent_ok = True
+    if OWNER_WHATSAPP_NUMBER:
+        owner_sent_ok, _oerr = send_whatsapp_message(OWNER_WHATSAPP_NUMBER, owner_note)
+
+    if within_window:
+        return bool(customer_sent_ok) and bool(owner_sent_ok)
+    return bool(owner_sent_ok)
+
+
+def send_appointment_reminders():
+    """Cek semua appointment yang masih 'scheduled', kirim reminder H-1 & reminder hari-H (beberapa
+    jam sebelum) kalau belum pernah dikirim. Aman dipanggil sesering apapun (idempotent) — flag
+    reminder_24h_sent/reminder_same_day_sent yang nyegah dobel kirim, BUKAN presisi jadwal cron."""
+    now = now_wib()
+    today_str = now.strftime("%Y-%m-%d")
+    tomorrow_str = (now.date() + timedelta(days=1)).strftime("%Y-%m-%d")
+    results = []
+
+    for appt in list(appointments.values()):
+        if appt.get("status") != "scheduled":
+            continue
+
+        try:
+            if appt.get("meeting_date") == tomorrow_str and not appt.get("reminder_24h_sent"):
+                done = _send_single_appointment_reminder(appt, "H-1")
+                if done:
+                    appt["reminder_24h_sent"] = True
+                    save_appointment_to_db(appt)
+                results.append({"id": appt["id"], "type": "h-1", "done": done})
+
+            elif appt.get("meeting_date") == today_str and not appt.get("reminder_same_day_sent"):
+                meeting_dt = datetime.strptime(
+                    f"{appt['meeting_date']} {appt['meeting_time']}", "%Y-%m-%d %H:%M"
+                ).replace(tzinfo=JAKARTA_TZ)
+                hours_left = (meeting_dt - now).total_seconds() / 3600.0
+                if 0 < hours_left <= SAME_DAY_REMINDER_HOURS_BEFORE:
+                    done = _send_single_appointment_reminder(appt, "hari-H")
+                    if done:
+                        appt["reminder_same_day_sent"] = True
+                        save_appointment_to_db(appt)
+                    results.append({"id": appt["id"], "type": "same-day", "done": done})
+        except Exception as e:
+            print(f"Gagal proses reminder appointment id={appt.get('id')}: {e}")
+            results.append({"id": appt.get("id"), "type": "error", "error": str(e)})
+
+    return results
 
 
 def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150):
@@ -1347,7 +1478,12 @@ def build_appointment_context():
         "PERSIS: [CANCEL_MEETING] (tag doang, tanpa isi lain).\n\n"
         "JANGAN PERNAH: menawarkan jam yang gak ada di daftar ketersediaan, mengarang slot kosong, atau "
         "nulis sendiri kalimat konfirmasi FINAL booking/reschedule/cancel — tiga hal itu tugas sistem,"
-        " bukan tugas kamu."
+        " bukan tugas kamu.\n\n"
+        "STOP FOLLOW-UP: kalau customer EKSPLISIT bilang gak minat/gak usah dihubungi lagi/jangan "
+        "di-follow-up lagi (misal 'gak usah dihubungin lagi ya', 'saya gak minat', 'jangan di-followup "
+        "lagi', 'stop aja'), hormati itu dengan sopan (jangan maksa/nanya alasan berkali-kali), lalu "
+        "sertakan tag PERSIS di akhir balasan: [STOP_FOLLOWUP]. JANGAN sertain tag ini cuma karena "
+        "customer diem/gak nanya lagi/lagi mikir dulu — HARUS ada pernyataan eksplisit nolak/gak minat."
     )
 
 
@@ -1563,6 +1699,20 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
+def log_ai_usage(context_label, model, api_response_json):
+    """Log internal (server log doang, TIDAK pernah dikirim ke customer/owner) soal token usage per
+    panggilan Claude — biar nanti kelihatan estimasi biaya AI per customer/mode. Aman dipanggil
+    walau response gak punya field 'usage' (misal error response), gak bakal nge-crash apapun."""
+    try:
+        usage = (api_response_json or {}).get("usage") or {}
+        in_tok = usage.get("input_tokens")
+        out_tok = usage.get("output_tokens")
+        if in_tok is not None or out_tok is not None:
+            print(f"[AI_USAGE] context={context_label} model={model} input_tokens={in_tok} output_tokens={out_tok}")
+    except Exception:
+        pass  # logging biaya gak boleh pernah bikin request gagal
+
+
 def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number,
                        image_b64=None, image_mime=None, direct_send=False):
     """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
@@ -1589,7 +1739,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     save_message_to_db(owner_number, "owner", "user", memory_text)
 
     system_prompt = build_owner_system_prompt(pending_question, pending_customer_number, direct_send=direct_send)
-    model_to_use = "claude-3-5-haiku-20241022" if not image_b64 else "claude-sonnet-4-6"
+    model_to_use = MODEL_FAST if not image_b64 else MODEL_PRIMARY
 
     try:
         if image_b64:
@@ -1612,7 +1762,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
         resp.raise_for_status()
     except Exception as e:
         print(f"Haiku (owner mode) gagal ({e}), fallback ke Sonnet...")
-        model_to_use = "claude-sonnet-4-6"
+        model_to_use = MODEL_FALLBACK
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -1632,6 +1782,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
 
     data = resp.json()
     reply_text = data["content"][0]["text"]
+    log_ai_usage("owner", model_to_use, data)
 
     if image_b64:
         history[-1] = {"role": "user", "content": memory_text}
@@ -1651,8 +1802,14 @@ TAG_KIRIM_QR = "[KIRIM_QR]"
 TAG_KIRIM_KATALOG = "[KIRIM_KATALOG]"
 TAG_SUDAH_BAYAR = "[SUDAH_BAYAR]"
 TAG_CANCEL_MEETING = "[CANCEL_MEETING]"
+# Tag BARU (production hardening) — dipakai AI buat nandain customer yang EKSPLISIT bilang gak
+# tertarik / minta jangan dihubungi lagi (mis. "gak usah dihubungin lagi ya", "gak minat"), biar
+# follow-up otomatis STOP buat nomor itu. Cuma dipasang kalau customer BENERAN nyebut eksplisit,
+# bukan tebakan dari nada bicara — AI diinstruksikan soal ini di SYSTEM_PROMPT customer.
+TAG_STOP_FOLLOWUP = "[STOP_FOLLOWUP]"
 ALL_TAGS = [
     TAG_LEADS_PANAS, TAG_TANYA_OWNER, TAG_KIRIM_QR, TAG_KIRIM_KATALOG, TAG_SUDAH_BAYAR, TAG_CANCEL_MEETING,
+    TAG_STOP_FOLLOWUP,
     "[LEADS PANAS]",  # jaga-jaga variasi lama
 ]
 
@@ -1733,7 +1890,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
 
     # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis) — KECUALI kalau ada gambar,
     # langsung Sonnet karena Haiku 3.5 gak support vision.
-    model_to_use = "claude-3-5-haiku-20241022" if not image_b64 else "claude-sonnet-4-6"
+    model_to_use = MODEL_FAST if not image_b64 else MODEL_PRIMARY
 
     try:
         if image_b64:
@@ -1757,7 +1914,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     except Exception as e:
         # Fallback ke Sonnet kalau Haiku gagal
         print(f"Haiku request gagal ({e}), fallback ke Sonnet...")
-        model_to_use = "claude-sonnet-4-6"
+        model_to_use = MODEL_FALLBACK
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -1777,6 +1934,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
 
     data = resp.json()
     reply_text = data["content"][0]["text"]
+    log_ai_usage("customer", model_to_use, data)
 
     # Turunin balesan user tadi ke versi ringan (bukan gambar base64 mentah / instruksi internal
     # mentah) sebelum disimpen permanen ke memory in-memory (DB udah disimpen versi ringan dari awal).
@@ -2336,6 +2494,23 @@ def looks_like_question_or_draft_request(text):
     return any(hint in lower for hint in DRAFT_REQUEST_HINTS)
 
 
+def normalize_owner_text_light(text):
+    """Normalisasi RINGAN buat teks owner sebelum masuk ke parser command (regex-based) — cuma
+    rapihin noise ketikan yang gak ngubah makna (spasi berlebih, huruf diulang-ulang kayak "besokk"
+    /"yaa" jadi maks 2 huruf beruntun). SENGAJA TIDAK lowercase paksa/koreksi ejaan/ubah angka -
+    tanggal - harga, biar nama customer, nominal, dan tanggal gak pernah ketebak/overcorrect. Kalau
+    hasil normalisasi bikin ambigu, biarkan parser di bawahnya yang tetap nanya klarifikasi
+    (bukan fungsi ini yang mutusin)."""
+    if not text:
+        return text
+    # Rapihin whitespace berlebih ("kirim   katalog" -> "kirim katalog")
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    # Kolaps 3+ huruf sama beruntun jadi 2 ("besokk" udah 2 huruf, aman; "oiii"/"yaaa" -> "oii"/"yaa")
+    # — batas 3+ dipilih SENGAJA biar kata normal berhuruf dobel (kayak "pass", "class") gak kesenggol.
+    cleaned = re.sub(r"(.)\1{2,}", r"\1\1", cleaned)
+    return cleaned
+
+
 def _normalize_name_key(s):
     """Buang semua spasi/tanda baca & lowercase, biar matching nama gak kepengaruh cara owner
     ngetik spasi (mis. \"jelajah visa\" ketik 2 kata vs data tersimpan \"JelajahVisa\" 1 kata)."""
@@ -2630,7 +2805,7 @@ def receive_webhook():
             elif msg_type != "text":
                 return jsonify({"status": "ok"}), 200
             else:
-                owner_text = message["text"]["body"]
+                owner_text = normalize_owner_text_light(message["text"]["body"])
 
                 # Owner cuma bilang "kirim ke 628xxx" doang (gak ada pesan lain) DAN ada gambar
                 # yang baru aja dia kirim sebelumnya tanpa instruksi -> anggap ini nyuruh forward
@@ -3051,6 +3226,7 @@ def receive_webhook():
         book_match = TAG_BOOK_MEETING_PATTERN.search(ai_reply)
         resched_match = TAG_RESCHEDULE_MEETING_PATTERN.search(ai_reply)
         wants_cancel_meeting = TAG_CANCEL_MEETING in ai_reply
+        wants_stop_followup = TAG_STOP_FOLLOWUP in ai_reply
 
         clean_reply = strip_tags(ai_reply)
 
@@ -3096,6 +3272,9 @@ def receive_webhook():
         if payment_confirmed:
             mark_customer_converted(from_number)  # stop follow-up otomatis, udah bayar
 
+        if wants_stop_followup:
+            mark_customer_converted(from_number)  # stop follow-up otomatis, customer eksplisit minta jangan dihubungi lagi
+
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
         elif payment_confirmed:
@@ -3121,14 +3300,22 @@ def health_check():
 @app.route("/cron/followups", methods=["GET"])
 def run_followups():
     """Endpoint yang HARUS dipanggil dari luar secara berkala (misal cron-job.org tiap 1 jam) buat
-    ngirim follow-up otomatis ke customer yang udah diem >=12 jam & belum closing/bayar. Aman
-    dipanggil sesering apapun — endpoint ini sendiri yang ngecek siapa aja yang beneran udah waktunya
-    di-follow-up (gak akan dobel kirim), jadi gak perlu presisi 12 jam pas di sisi penjadwal luar.
+    ngirim follow-up otomatis ke customer yang udah diem >=12 jam & belum closing/bayar, SEKALIGUS
+    reminder meeting H-1/hari-H (production hardening — sengaja digabung ke endpoint yang sama biar
+    gak perlu setup scheduler eksternal kedua). Aman dipanggil sesering apapun — endpoint ini sendiri
+    yang ngecek siapa aja yang beneran udah waktunya di-follow-up/di-reminder (gak akan dobel kirim),
+    jadi gak perlu presisi jam di sisi penjadwal luar.
     Akses: GET /cron/followups?key=<CRON_SECRET>
     """
     key = request.args.get("key", "")
     if not CRON_SECRET or key != CRON_SECRET:
         return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
+
+    reminder_results = []
+    try:
+        reminder_results = send_appointment_reminders()
+    except Exception as e:
+        print(f"Gagal proses reminder appointment (batch): {e}")
 
     due_numbers = get_customers_due_for_followup()
     results = []
@@ -3158,7 +3345,13 @@ def run_followups():
             print(f"Gagal follow-up ke {number}: {e}")
             results.append({"number": number, "status": "error", "error": str(e)})
 
-    return jsonify({"status": "ok", "checked": len(due_numbers), "results": results}), 200
+    return jsonify({
+        "status": "ok",
+        "checked": len(due_numbers),
+        "results": results,
+        "reminders_checked": len(reminder_results),
+        "reminders": reminder_results,
+    }), 200
 
 
 # ============================================================
@@ -3183,41 +3376,46 @@ DEMO_SYSTEM_PROMPT = (
     "Kamu adalah AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
     "Orang yang lagi nyoba ini BUKAN customer asli — dia calon KLIEN Kilas Works yang mau lihat "
     "AI Admin ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
-    "PENTING — JANGAN LANGSUNG KASIH DEMO GENERIK. Demo ini HARUS disesuaikan sama bisnis calon "
-    "klien itu sendiri, bukan selalu contoh 'kedai kopi' atau bisnis Kilas Works sendiri. Ikutin "
-    "urutan ini:\n\n"
-    "TAHAP 1 — KENALAN DULU (di awal percakapan, SEBELUM roleplay apapun):\n"
-    "Di balasan PERTAMA, kasih tau singkat ini demo AI WhatsApp Admin dari Kilas Works, terus mulai "
-    "nanya SATU PERTANYAAN SINGKAT dulu (jangan borongan banyak pertanyaan sekaligus) buat kenalan "
-    "sama bisnis dia. Lanjutin nanya satu-satu tiap balasan, sampai kamu tau: (1) nama bisnisnya, "
-    "(2) bidang/jenis bisnisnya, (3) produk/jasa utamanya, (4) pertanyaan customer yang paling sering "
-    "masuk, (5) masalah utama pas nanganin WhatsApp selama ini (kebanyakan chat? sering telat bales? "
-    "susah followup?), (6) tujuan dia pakai AI Admin ini buat apa.\n"
-    "Contoh gaya nanya (buat bisnis detailing mobil, sekadar ilustrasi urutan — sesuaikan kalimat "
-    "sama jawaban dia sebelumnya, jangan hardcode urutan pertanyaan ini persis):\n"
-    "  'Halo, ini demo AI WhatsApp Admin Kilas Works. Biar demo-nya pas, boleh cerita dikit — bisnis "
-    "Kakak namanya apa?'\n  -> (jawab) -> 'Oke, bisnisnya di bidang apa nih, Kak?'\n  -> (jawab) -> "
-    "'Produk/jasa utama yang paling sering ditanya customer apa?'\n  -> dst sampai poin 1-6 kekumpul.\n"
-    "Gak perlu nanya PERSIS urutan/kalimat di atas — yang penting ngobrolnya natural, satu pertanyaan "
-    "per balasan, dan nyambung sama jawaban sebelumnya.\n\n"
-    "TAHAP 2 — ROLEPLAY SESUAI BISNIS DIA:\n"
-    "Begitu poin 1-6 di atas udah cukup kekumpul (gak harus semua persis, yang penting cukup buat "
-    "roleplay masuk akal), bilang kamu bakal simulasiin gimana AI Admin bakal jawab customer BISNIS "
-    "DIA (sebut nama bisnisnya), lalu MULAI BERPERAN jadi AI Admin bisnis itu — bukan Kilas Works, "
-    "bukan kedai kopi, bukan bisnis contoh lain. Isi jawabannya (harga, layanan, jam buka, dll) boleh "
-    "kamu karang wajar/masuk akal SESUAI CERITA DIA (misal kalau dia bilang bisnis detailing mobil, "
-    "kamu boleh contohin paket cuci+coating dengan harga contoh yang wajar), TAPI selalu jelasin di "
-    "awal roleplay bahwa detail harga/layanan di sini cuma CONTOH simulasi, bukan data asli bisnis dia "
-    "(karena kamu memang belum tau data asli lengkapnya).\n"
-    "Contoh transisi: kalau bisnisnya detailing mobil -> 'Oke, sekarang aku coba simulasiin ya — "
-    "anggap aku AI Admin buat [Nama Bisnis]. Coba deh kirim pertanyaan kayak customer beneran, "
-    "misal nanya harga cuci mobil atau booking jadwal.' Kalau café -> roleplay jadi admin café itu "
-    "(menu, jam buka, reservasi). Kalau agen properti -> roleplay jadi admin listing properti (nanya "
-    "budget, lokasi, tipe unit, jadwalin survei).\n"
-    "Selama roleplay: gaya jawab SAMA kayak AI Admin asli (singkat, natural, TANPA emoji, TANPA "
-    "pujian lebay), boleh nanya balik buat kualifikasi lead, inget jawaban sebelumnya di sesi yang "
-    "sama, dan kalau ada yang di luar wewenang bilang 'saya cek dulu ke owner ya' (ini simulasi, gak "
-    "usah beneran nunggu).\n\n"
+    "PENTING — DEMO INI HARUS TERASA CEPAT & PROFESIONAL, BUKAN KAYAK ISI FORM/QUESTIONNAIRE. "
+    "Onboarding MAKSIMAL 3 PERTANYAAN SAJA, lalu LANGSUNG masuk simulasi. Ikutin urutan ini PERSIS:\n\n"
+    "TAHAP 1 — ONBOARDING (maksimal 3 pertanyaan, SATU pertanyaan per balasan, jangan lebih):\n"
+    "  Pertanyaan 1: nama bisnisnya apa.\n"
+    "  Pertanyaan 2: bisnisnya bergerak di bidang apa.\n"
+    "  Pertanyaan 3: produk/layanan utamanya apa.\n"
+    "Di balasan PERTAMA, kasih tau singkat ini demo AI WhatsApp Admin Kilas Works, terus langsung "
+    "lempar Pertanyaan 1 (jangan ada basa-basi panjang sebelum pertanyaan). Setelah pertanyaan 1 "
+    "dijawab, lempar pertanyaan 2. Setelah dijawab, lempar pertanyaan 3. SETELAH PERTANYAAN 3 "
+    "DIJAWAB, STOP ONBOARDING — JANGAN nanya hal lain lagi (jangan nanya soal FAQ customer, masalah "
+    "WhatsApp selama ini, tujuan pakai AI Admin, dll — itu semua BOLEH kegali natural nanti SELAMA "
+    "simulasi berjalan, bukan di tahap onboarding).\n\n"
+    "TRANSISI KE SIMULASI (WAJIB persis setelah pertanyaan 3 dijawab, dalam SATU balasan):\n"
+    "Bilang natural kira-kira: 'Oke, aku udah punya gambaran. Sekarang aku akan coba jadi AI Admin "
+    "untuk [Nama Bisnis]. Mulai dari sini, coba chat aku seperti Kakak adalah customer bisnis "
+    "tersebut.' (sesuaikan kalimat, gak perlu persis kata-katanya, tapi WAJIB: sebut nama bisnisnya "
+    "& jelas ngasih tau simulasi dimulai SEKARANG). Setelah baris ini, jangan tanya apapun lagi di "
+    "balasan yang sama — biarkan lawan bicara yang mulai chat duluan sebagai customer.\n\n"
+    "TAHAP 2 — SIMULATION MODE (roleplay jadi AI Admin bisnis DIA, bukan Kilas Works):\n"
+    "Begitu lawan bicara kirim pesan pertama SEBAGAI CUSTOMER (misal nanya menu/harga/jam buka/mau "
+    "booking), MULAI BERPERAN jadi AI Admin bisnis itu sepenuhnya — bukan kedai kopi, bukan bisnis "
+    "contoh lain, PERSIS bisnis yang tadi dia sebutin.\n"
+    "SOAL FAKTA SPESIFIK (harga, jam buka, menu detail dll) — INI YANG PALING PENTING: kamu BELUM "
+    "PUNYA data asli bisnis dia, jadi JANGAN PERNAH ngarang fakta spesifik lalu bilang seolah itu "
+    "data beneran. Kalau ditanya hal yang butuh angka/detail spesifik, boleh kasih CONTOH simulasi "
+    "yang wajar TAPI WAJIB disebut eksplisit itu contoh, misal: 'Untuk demo ini anggap [Nama Bisnis] "
+    "buka jam 10.00-22.00 ya Kak. Nanti pada implementasi asli, jam operasionalnya bakal ikut data "
+    "bisnis Kakak beneran.' Pola yang sama buat harga/menu/paket — selalu tempelin catatan jujur "
+    "kayak gitu, jangan cuma sekali di awal terus abis itu ngarang fakta tanpa disclaimer lagi.\n\n"
+    "TUNJUKKAN VALUE AI ADMIN, JANGAN JADI CUMA FAQ BOT: selama simulasi, tunjukkan secara natural "
+    "kemampuan kayak AI Admin asli — jawab pertanyaan, gali kebutuhan customer lebih detail (nanya "
+    "balik seperlunya, bukan interogasi), qualifikasi lead (makin serius makin digali detailnya), "
+    "kalau customer keliatan cukup serius (nanya harga+detail, mau booking, kasih info kontak) baru "
+    "nawarin appointment/lanjut ke tim secara natural, dan implisit tunjukkan konsep handoff ke owner "
+    "& follow-up (misal 'nanti owner saya yang lanjutin bahas detailnya ya'). JANGAN nawarin meeting "
+    "di PESAN PERTAMA simulasi — biarkan minimal 2-3 balasan ngobrol dulu sebelum nawarin ketemu/"
+    "lanjut ke tim, biar kerasa natural bukan buru-buru jualan.\n"
+    "Gaya jawab: SAMA kayak AI Admin asli (singkat, natural, TANPA emoji, TANPA pujian lebay), "
+    "inget jawaban sebelumnya di sesi yang sama, dan kalau ada hal di luar wewenang bilang 'saya cek "
+    "dulu ke owner ya' (ini simulasi, gak usah beneran nunggu).\n\n"
     "ATURAN PENTING — JANGAN NGARANG FITUR YANG BELUM TENTU ADA: AI Admin asli TIDAK otomatis "
     "terintegrasi ke sistem pembayaran, CRM, kalender booking asli, atau software inventory customer "
     "kecuali memang di-setup khusus. Kalau selama roleplay muncul hal kayak 'oke saya proses "
@@ -3226,18 +3424,30 @@ DEMO_SYSTEM_PROMPT = (
     "terpisah yang dibahas sama tim Kilas Works, bukan otomatis ada dari awal.\n\n"
     "TAHAP 3 — SETELAH DEMO KELIATAN COCOK:\n"
     "Kalau lawan bicara keliatan tertarik/puas sama simulasinya (misal bilang 'wah mirip', 'oke juga', "
-    "nanya lanjutannya gimana, atau nanya harga paket), transisi natural dulu, misal: 'Kira-kira flow "
-    "seperti ini sudah mirip dengan yang Kakak butuhkan?' — baru abis itu tawarin ngobrol sama tim/"
-    "owner Kilas Works buat bahas kebutuhan spesifik & harga paket bulanan (JANGAN ngarang harga paket "
-    "Kilas Works di sini, arahkan ke tim). Kalau dia kasih nama & kontak & jenis bisnisnya buat "
-    "di-follow-up tim Kilas Works, WAJIB tambahin tag PERSIS di akhir balasan: [DEMO_LEAD: nama=..., "
-    "bisnis=..., catatan=...] — tag ini gak keliatan ke user, sinyal internal doang buat sistem.\n\n"
-    "JANGAN pernah lompat langsung ke tahap roleplay/demo/tawaran meeting sebelum ngerti dulu bisnis "
-    "lawan bicara (Tahap 1). Urutannya selalu: kenalan bisnis -> roleplay sesuai bisnis itu -> kalau "
-    "tertarik, arahkan ke tim Kilas Works.\n\n"
+    "nanya lanjutannya gimana, atau nanya harga paket Kilas Works), transisi natural dulu, misal: "
+    "'Kira-kira flow seperti ini sudah mirip dengan yang Kakak butuhkan?' — baru abis itu tawarin "
+    "ngobrol sama tim/owner Kilas Works buat bahas kebutuhan spesifik & harga paket bulanan (JANGAN "
+    "ngarang harga paket Kilas Works di sini, arahkan ke tim). Kalau dia kasih nama & kontak & jenis "
+    "bisnisnya buat di-follow-up tim Kilas Works, WAJIB tambahin tag PERSIS di akhir balasan: "
+    "[DEMO_LEAD: nama=..., bisnis=..., catatan=...] — tag ini gak keliatan ke user, sinyal internal "
+    "doang buat sistem.\n\n"
     "ATURAN GAYA: TANPA emoji sama sekali, TANPA pujian berlebihan ('keren', 'menarik banget', "
     "'wow'), singkat & natural kayak chat WhatsApp beneran, jangan kaku/formal banget, SATU "
     "pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble)."
+)
+
+# Frasa yang dianggap perintah "mulai ulang demo dari nol" (bukan pertanyaan biasa ke AI) — dicek
+# SEBELUM manggil AI (deterministic, hemat API call juga), biar reset selalu konsisten & gak
+# tergantung mood/interpretasi model. Regex kata utuh biar "reset" gak nyangkut ke kata lain.
+DEMO_RESET_PATTERN = re.compile(
+    r"\b(coba\s+bisnis\s+lain|ganti\s+bisnis|reset\s+demo|mulai\s+ulang|mulai\s+dari\s+awal|"
+    r"restart\s+demo|demo\s+ulang|coba\s+ulang\s+dari\s+awal)\b",
+    re.IGNORECASE,
+)
+
+DEMO_GREETING = (
+    "Halo! Ini demo AI WhatsApp Admin Kilas Works. Biar demo-nya pas sama bisnis Kakak, "
+    "boleh cerita dikit dulu — bisnis Kakak namanya apa?"
 )
 
 
@@ -3261,7 +3471,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Demo AI WhatsApp Admin — Kilas Works</title>
 <style>
   :root {
@@ -3272,8 +3482,11 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
     --text: #F3EFE9;
     --muted: #A79E93;
     --accent: #D97A3E;
+    --error: #E0574A;
+    --border: #2E2A26;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
   body {
     margin: 0;
     background: var(--ink);
@@ -3281,133 +3494,213 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
   }
   header {
-    padding: 16px 18px;
+    padding: 14px 16px 12px;
     background: var(--surface);
-    border-bottom: 1px solid #2E2A26;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .header-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
   }
   header h1 {
-    margin: 0 0 4px 0;
-    font-size: 17px;
+    margin: 0;
+    font-size: 16px;
     color: var(--accent);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .sim-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--accent);
+    padding: 2px 7px;
+    border-radius: 999px;
+    white-space: nowrap;
   }
   header p {
     margin: 0;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--muted);
     line-height: 1.4;
   }
   #chat {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .bubble {
-    max-width: 80%;
+    max-width: 82%;
     padding: 10px 13px;
-    border-radius: 14px;
+    border-radius: 15px;
     font-size: 14.5px;
-    line-height: 1.45;
+    line-height: 1.5;
     white-space: pre-wrap;
+    word-wrap: break-word;
+    animation: rise 0.18s ease-out;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .bot {
     align-self: flex-start;
     background: var(--bubble-bot);
     border-bottom-left-radius: 4px;
   }
+  .bot.error {
+    background: rgba(224, 87, 74, 0.14);
+    border: 1px solid rgba(224, 87, 74, 0.4);
+    color: #F3D9D6;
+  }
   .user {
     align-self: flex-end;
     background: var(--bubble-user);
     color: #1B1100;
     border-bottom-right-radius: 4px;
+    font-weight: 500;
   }
   .typing {
     align-self: flex-start;
-    color: var(--muted);
-    font-size: 13px;
-    padding: 4px 13px;
+    display: flex;
+    gap: 4px;
+    padding: 10px 13px;
+  }
+  .typing span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: blink 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0.25; }
+    40% { opacity: 1; }
   }
   form {
     display: flex;
     gap: 8px;
-    padding: 12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
     background: var(--surface);
-    border-top: 1px solid #2E2A26;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
   }
   input[type=text] {
     flex: 1;
-    padding: 11px 14px;
-    border-radius: 20px;
+    min-width: 0;
+    padding: 11px 15px;
+    border-radius: 22px;
     border: 1px solid #3A342E;
     background: var(--ink);
     color: var(--text);
-    font-size: 14.5px;
+    font-size: 15px;
     outline: none;
   }
+  input[type=text]:focus { border-color: var(--accent); }
+  input[type=text]:disabled { opacity: 0.6; }
   button {
-    padding: 0 18px;
-    border-radius: 20px;
+    padding: 0 20px;
+    border-radius: 22px;
     border: none;
     background: var(--accent);
     color: #1B1100;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 14px;
     cursor: pointer;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
   }
-  button:disabled { opacity: 0.5; }
+  button:disabled { opacity: 0.45; cursor: default; }
   footer {
     text-align: center;
-    padding: 8px;
+    padding: 8px 12px;
     font-size: 11.5px;
     color: var(--muted);
     background: var(--surface);
+    flex-shrink: 0;
   }
-  footer a { color: var(--accent); }
+  footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  footer a:hover { text-decoration: underline; }
+  @media (max-width: 420px) {
+    header { padding: 12px 14px 10px; }
+    header h1 { font-size: 15px; }
+    #chat { padding: 12px; }
+    .bubble { max-width: 88%; font-size: 14px; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Demo AI WhatsApp Admin — Kilas Works</h1>
-  <p>Ini contoh AI Admin lagi "kerja" buat bisnis contoh (kedai kopi fiktif). Coba tanya apa aja soal menu, harga, atau jam buka — biar kelihatan gimana AI ini bakal jawab customer kamu nanti.</p>
+  <div class="header-top">
+    <h1>Demo AI WhatsApp Admin</h1>
+    <span class="sim-badge">Demo Simulation</span>
+  </div>
+  <p>Data & jawaban di bawah ini simulasi, bukan bisnis/data asli. Coba ceritain bisnis Kakak, lalu chat AI-nya kayak customer beneran.</p>
 </header>
 <div id="chat"></div>
 <form id="chat-form">
-  <input type="text" id="msg" placeholder="Ketik pesan..." autocomplete="off" required>
-  <button type="submit">Kirim</button>
+  <input type="text" id="msg" placeholder="Ketik pesan..." autocomplete="off" required maxlength="1000">
+  <button type="submit" id="send-btn">Kirim</button>
 </form>
-<footer>Mau AI Admin kayak gini buat bisnis kamu? <a href="__OWNER_WA_LINK__" target="_blank">Chat tim Kilas Works</a></footer>
+<footer>Mau AI Admin kayak gini buat bisnis kamu? <a href="__OWNER_WA_LINK__" target="_blank" rel="noopener">Chat tim Kilas Works</a></footer>
 <script>
+  const GREETING = "__DEMO_GREETING_JS__";
   const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
   const chatEl = document.getElementById("chat");
   const formEl = document.getElementById("chat-form");
   const inputEl = document.getElementById("msg");
+  const sendBtn = document.getElementById("send-btn");
+  let isSending = false;
 
-  function addBubble(text, who) {
+  function addBubble(text, who, isError) {
     const div = document.createElement("div");
-    div.className = "bubble " + who;
+    div.className = "bubble " + who + (isError ? " error" : "");
     div.textContent = text;
     chatEl.appendChild(div);
     chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
   }
 
-  addBubble("Halo! Ini demo AI WhatsApp Admin Kilas Works. Biar demo-nya pas sama bisnis Kakak, boleh cerita dikit dulu — bisnis Kakak namanya apa?", "bot");
+  function clearChat() {
+    chatEl.innerHTML = "";
+  }
+
+  function setBusy(busy) {
+    isSending = busy;
+    inputEl.disabled = busy;
+    sendBtn.disabled = busy;
+  }
+
+  addBubble(GREETING, "bot");
 
   formEl.addEventListener("submit", async function (e) {
     e.preventDefault();
+    if (isSending) return; // cegah double submit kalau user spam Enter/klik
     const text = inputEl.value.trim();
     if (!text) return;
     addBubble(text, "user");
     inputEl.value = "";
-    inputEl.disabled = true;
+    setBusy(true);
 
     const typingEl = document.createElement("div");
-    typingEl.className = "typing";
-    typingEl.textContent = "mengetik...";
+    typingEl.className = "bubble bot typing";
+    typingEl.innerHTML = "<span></span><span></span><span></span>";
     chatEl.appendChild(typingEl);
     chatEl.scrollTop = chatEl.scrollHeight;
 
@@ -3417,14 +3710,21 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: text }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       typingEl.remove();
-      addBubble(data.reply || "Maaf, ada gangguan. Coba lagi ya.", "bot");
+      if (data.reset) {
+        clearChat();
+        addBubble(data.reply || GREETING, "bot");
+      } else if (res.ok && data.reply) {
+        addBubble(data.reply, "bot");
+      } else {
+        addBubble("Maaf, ada gangguan teknis sebentar. Coba kirim ulang pesannya ya.", "bot", true);
+      }
     } catch (err) {
       typingEl.remove();
-      addBubble("Maaf, ada gangguan koneksi. Coba lagi ya.", "bot");
+      addBubble("Koneksi lagi bermasalah. Cek internet Kakak dan coba lagi ya.", "bot", true);
     } finally {
-      inputEl.disabled = false;
+      setBusy(false);
       inputEl.focus();
     }
   });
@@ -3437,7 +3737,11 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
 def demo_page():
     """Halaman web demo AI Admin — link ini yang dikirim ke calon klien, bisa dipakai berkali-kali
     tanpa perlu setup apa-apa lagi tiap ada prospek baru."""
+    # json.dumps buat escape aman (kutip, backslash, dll) sebelum ditempel ke dalam string JS literal,
+    # terus buang kutip pembungkusnya karena placeholder-nya sendiri udah di dalam tanda kutip di JS.
+    greeting_js_safe = json.dumps(DEMO_GREETING)[1:-1]
     html = DEMO_PAGE_HTML.replace("__OWNER_WA_LINK__", f"https://wa.me/{OWNER_WHATSAPP_NUMBER}")
+    html = html.replace("__DEMO_GREETING_JS__", greeting_js_safe)
     return html, 200, {"Content-Type": "text/html; charset=utf-8"}
 
 
@@ -3466,6 +3770,13 @@ def demo_api():
         session = {"history": [], "count": 0, "created_at": _utcnow(), "notified": False}
         demo_sessions[session_id] = session
 
+    # Reset demo ("coba bisnis lain" / "reset demo" / "mulai ulang") — DETERMINISTIC, dicek sebelum
+    # panggil AI sama sekali (gak kena kuota/API call), biar selalu konsisten. Cuma reset state demo
+    # SESSION INI DOANG (in-memory), sama sekali TIDAK menyentuh database/appointment/customer asli.
+    if DEMO_RESET_PATTERN.search(user_message):
+        demo_sessions[session_id] = {"history": [], "count": 0, "created_at": _utcnow(), "notified": False}
+        return jsonify({"reply": DEMO_GREETING, "reset": True}), 200
+
     if session["count"] >= DEMO_MAX_MESSAGES_PER_SESSION:
         return jsonify({
             "reply": "Sesi demo ini udah nyampe batas maksimal. Kalau tertarik lanjut, langsung chat tim Kilas Works ya di link bawah."
@@ -3479,7 +3790,7 @@ def demo_api():
     # model itu SELALU gagal sejak tanggal tersebut. Ganti ke pengganti resminya, DAN kasih fallback
     # ke Sonnet (persis pola yang udah dipakai call_claude() buat bot WhatsApp asli) biar demo tetap
     # jalan walau model utamanya lagi bermasalah/rate-limit, bukan cuma diam nyerah kayak sebelumnya.
-    model_to_use = "claude-haiku-4-5-20251001"
+    model_to_use = MODEL_FAST
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -3497,11 +3808,13 @@ def demo_api():
             timeout=30,
         )
         resp.raise_for_status()
-        reply_text = resp.json()["content"][0]["text"]
+        resp_json = resp.json()
+        reply_text = resp_json["content"][0]["text"]
+        log_ai_usage("demo", model_to_use, resp_json)
     except Exception as e:
         print(f"Demo API error pakai model {model_to_use}: {e}")
         try:
-            model_to_use = "claude-sonnet-4-6"
+            model_to_use = MODEL_FALLBACK
             resp = requests.post(
                 "https://api.anthropic.com/v1/messages",
                 headers={
@@ -3518,7 +3831,9 @@ def demo_api():
                 timeout=30,
             )
             resp.raise_for_status()
-            reply_text = resp.json()["content"][0]["text"]
+            resp_json = resp.json()
+            reply_text = resp_json["content"][0]["text"]
+            log_ai_usage("demo_fallback", model_to_use, resp_json)
         except Exception as e2:
             print(f"Demo API fallback ke Sonnet juga gagal: {e2}")
             reply_text = "Maaf, ada gangguan teknis sebentar. Coba kirim ulang pesannya ya."
