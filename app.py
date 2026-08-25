@@ -390,10 +390,32 @@ def mark_customer_converted(number):
     save_followup_state_to_db(number, state)
 
 
+def _has_active_meeting_or_payment_process(number):
+    """(production hardening — follow-up guard) True kalau customer ini lagi di tengah proses yang
+    JANGAN diganggu follow-up sales generik: masih nunggu availability owner / lagi ditawarin pilihan
+    jam, ATAU lagi proses pembayaran (baru punya intent, nunggu instruksi transfer, ngirim bukti,
+    udah DP/lunas). Appointment yang UDAH CONFIRMED gak perlu di-skip di sini juga — reminder
+    meeting-nya sendiri dihandle terpisah oleh send_appointment_reminders()."""
+    req = meeting_requests.get(number)
+    if req and req.get("status") in (
+        MEETING_STATE_WAITING_PREFERENCE, MEETING_STATE_PENDING_OWNER_CONFIRMATION, MEETING_STATE_SLOTS_OFFERED,
+    ):
+        return True
+    pay = payment_state.get(number)
+    if pay and pay.get("status") in (
+        PAYMENT_STATUS_INTENT, PAYMENT_STATUS_WAITING, PAYMENT_STATUS_PENDING_VERIFICATION,
+        PAYMENT_STATUS_PARTIALLY_PAID, PAYMENT_STATUS_PAID,
+    ):
+        return True
+    return False
+
+
 def get_customers_due_for_followup(hours=FOLLOWUP_GAP_HOURS, max_count=MAX_AUTO_FOLLOWUPS):
     """Cari customer yang: (a) belum ditandain converted/udah closing, (b) followup_count masih di
     bawah batas, (c) terakhir chat >= `hours` jam lalu, (d) belum di-follow-up dalam `hours` jam
-    terakhir (biar gak dobel kirim kalau endpoint /cron/followups kepanggil lebih sering dari 12 jam)."""
+    terakhir (biar gak dobel kirim kalau endpoint /cron/followups kepanggil lebih sering dari 12 jam),
+    (e) TIDAK lagi di tengah proses booking meeting (nunggu owner/pilih slot) atau proses pembayaran
+    (production hardening — follow-up jangan spam customer yang lagi di alur ini)."""
     now = _utcnow()
     due = []
     for number, state in followup_state.items():
@@ -408,6 +430,8 @@ def get_customers_due_for_followup(hours=FOLLOWUP_GAP_HOURS, max_count=MAX_AUTO_
             continue
         last_followup = state.get("last_followup_at")
         if last_followup and (now - last_followup < timedelta(hours=hours)):
+            continue
+        if _has_active_meeting_or_payment_process(number):
             continue
         due.append(number)
     return due
@@ -687,6 +711,96 @@ def try_cancel_meeting(customer_number):
 
 
 # ============================================================
+# FLOW MEETING BARU (production hardening) — appointment CUMA boleh CONFIRMED kalau slotnya beneran
+# dikasih owner secara eksplisit (bukan grid otomatis yang dulu ditawarin langsung ke customer tanpa
+# owner pernah beneran bilang available). Lihat meeting_requests di atas buat state negosiasinya.
+# ============================================================
+
+# Nama hari (Indonesia, informal termasuk) -> Python weekday() (Senin=0..Minggu=6). Dipakai buat
+# resolve preferensi hari customer YANG BEBAS ("sabtu", "hari minggu") jadi tanggal PASTI.
+DAY_NAME_TO_WEEKDAY = {
+    "senin": 0, "selasa": 1, "rabu": 2, "kamis": 3, "jumat": 4, "jum'at": 4, "jum at": 4,
+    "sabtu": 5, "minggu": 6,
+}
+
+
+def resolve_day_text_to_date(raw_text):
+    """Coba resolve teks hari BEBAS dari customer ('sabtu', 'besok', 'hari ini', '2026-08-29') jadi
+    tanggal YYYY-MM-DD PASTI (dihitung Python, BUKAN ditebak AI). Return None kalau gak bisa
+    diresolve dengan yakin — dalam kasus itu teks ASLI customer yang dipakai apa adanya buat notify
+    owner (biar owner yang paham konteksnya, JANGAN sistem yang nebak-nebak salah)."""
+    if not raw_text:
+        return None
+    text = raw_text.strip().lower()
+    if is_valid_date_str(text):
+        return text
+    today = now_wib().date()
+    if "lusa" in text:
+        return (today + timedelta(days=2)).strftime("%Y-%m-%d")
+    if "besok" in text:
+        return (today + timedelta(days=1)).strftime("%Y-%m-%d")
+    if "hari ini" in text or "hr ini" in text or text == "ini":
+        return today.strftime("%Y-%m-%d")
+    for name, weekday in DAY_NAME_TO_WEEKDAY.items():
+        if name in text:
+            days_ahead = (weekday - today.weekday()) % 7
+            days_ahead = days_ahead or 7  # nyebut hari yang sama kayak hari ini -> anggap minggu depan
+            return (today + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+    return None
+
+
+def is_office_closed_on(date_str):
+    """True kalau tanggal ini hari LIBUR KANTOR/OFFLINE (business_hours) — dipakai buat NGEGUARD biar
+    bot GAK OTOMATIS nawarin ketemu LANGSUNG (offline) di hari ini. PENTING: ini beda konsep sama
+    meeting_availability owner — kantor tutup BUKAN berarti owner otomatis gak bisa ONLINE meeting hari
+    itu juga (online tetap boleh ditanyain ke owner), dan owner available BUKAN berarti kantor buka."""
+    if not is_valid_date_str(date_str):
+        return False
+    d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    return d.weekday() in MEETING_DAYS_OFF
+
+
+def try_book_meeting_from_owner_slots(customer_number, time_str):
+    """Konfirmasi FINAL appointment dari slot yang SUDAH dikasih owner secara eksplisit (bukan grid
+    otomatis) — tetap RE-CEK double-booking terhadap appointments existing sebelum commit, sama
+    prinsipnya kayak try_book_meeting. Return (success, customer_facing_text, owner_notify_atau_None)."""
+    req = meeting_requests.get(customer_number)
+    if not req or req.get("status") != MEETING_STATE_SLOTS_OFFERED:
+        return False, "Waduh, boleh diulang lagi kak maunya jam berapa?", None
+
+    time_str = (time_str or "").strip()
+    offered = req.get("offered_slots") or []
+    if time_str not in offered:
+        alt = ", ".join(t.replace(":", ".") for t in offered) if offered else "-"
+        return False, f"Waduh, kayaknya bukan salah satu pilihan tadi kak. Yang tersedia: {alt} WIB, mau pilih yang mana?", None
+
+    date_str = req.get("resolved_date")
+    # Kalau tanggalnya beneran udah keresolve (YYYY-MM-DD), re-cek beneran belum kepakai duluan
+    # (race condition sangat jarang tapi tetap dijaga) sebelum commit.
+    if date_str and time_str in get_booked_times_for_date(date_str):
+        remaining = [t for t in offered if t not in get_booked_times_for_date(date_str)]
+        if remaining:
+            alt = ", ".join(t.replace(":", ".") for t in remaining)
+            return False, f"Waduh, jam {time_str} ternyata baru aja keisi kak. Yang masih kosong: {alt} WIB, mau pilih yang mana?", None
+        return False, "Waduh, semua pilihan jam tadi udah keisi kak. Aku cek availability baru dulu ya ke owner.", None
+
+    display_name = req.get("name") or customer_names.get(customer_number, "Customer")
+    business_name = req.get("business_name")
+    need_summary = req.get("need_summary")
+    date_for_record = date_str or req.get("day_text") or req.get("day_display") or "(tanggal belum pasti)"
+
+    create_appointment(customer_number, display_name, business_name, date_for_record, time_str, need_summary)
+
+    label = format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date()) if date_str else (req.get("day_display") or req.get("day_text"))
+    mode_label = "ketemu langsung" if req.get("mode") == "offline" else "online meeting"
+    confirm = f"Siap Kak, sudah dijadwalkan {mode_label} untuk {label} jam {time_str} WIB. Nanti owner akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
+    owner_notify = f"Meeting CONFIRMED: {display_name} — {mode_label}, {label} jam {time_str} WIB. Kebutuhan: {need_summary or '-'}."
+
+    meeting_requests.pop(customer_number, None)
+    return True, confirm, owner_notify
+
+
+# ============================================================
 # MEETING REMINDER OTOMATIS (production hardening) — pakai appointment DB EXISTING, TIDAK bikin
 # tabel baru. Dipanggil dari endpoint cron yang SAMA dengan follow-up (/cron/followups), jadi TIDAK
 # perlu setup scheduler eksternal baru — cukup 1 external cron (cron-job.org / Render Cron Job)
@@ -927,6 +1041,49 @@ followup_state = {}
 FORWARD_MARKER = "PESAN_UNTUK_CUSTOMER:"
 
 # ============================================================
+# MEETING NEGOTIATION STATE (production hardening — perbaikan bug "appointment confirmed tanpa
+# availability owner") — in-memory, key = nomor customer. Nampung status NEGOSIASI jadwal SEBELUM
+# appointment beneran ke-CONFIRMED (ditulis ke tabel `appointments`, lihat try_book_meeting_from_
+# owner_slots). Appointment TETAP CUMA jadi CONFIRMED lewat create_appointment() (status "scheduled")
+# — TIDAK PERNAH langsung dari sini. Kalau server restart, data negosiasi ini ilang (customer tinggal
+# ulang nyebut preferensinya) — TIDAK bikin appointment yang UDAH CONFIRMED ikut ilang (itu di tabel
+# `appointments` yang terpisah & persisten).
+# ============================================================
+
+MEETING_STATE_WAITING_PREFERENCE = "waiting_customer_preference"
+MEETING_STATE_PENDING_OWNER_CONFIRMATION = "pending_owner_confirmation"
+MEETING_STATE_SLOTS_OFFERED = "slots_offered"
+
+# number -> {status, mode, day_text, day_display, resolved_date, offered_slots, name, business_name,
+#            need_summary, created_at}
+meeting_requests = {}
+
+# ============================================================
+# PAYMENT STATE (production hardening) — in-memory, key = nomor customer. Tracking BASIC doang (bukan
+# accounting/ledger beneran), biar AI & owner sama-sama paham posisi customer di proses pembayaran.
+# Status PAID/PARTIALLY_PAID di sini SELALU owner yang confirm manual (lihat parse_owner_payment_
+# command) — AI/customer TIDAK PERNAH bisa langsung nge-set status ini jadi paid sendiri, cuma bisa
+# masuk PENDING_VERIFICATION (lewat tag [SUDAH_BAYAR] yang sudah ada sebelumnya).
+# ============================================================
+
+PAYMENT_STATUS_NOT_STARTED = "PAYMENT_NOT_STARTED"
+PAYMENT_STATUS_INTENT = "PAYMENT_INTENT"
+PAYMENT_STATUS_WAITING = "WAITING_PAYMENT"
+PAYMENT_STATUS_PENDING_VERIFICATION = "PENDING_VERIFICATION"
+PAYMENT_STATUS_PARTIALLY_PAID = "PARTIALLY_PAID"
+PAYMENT_STATUS_PAID = "PAID"
+PAYMENT_STATUS_NEEDS_RECHECK = "NEEDS_RECHECK"
+
+# number -> {status, package, dp_requested, updated_at}
+payment_state = {}
+
+
+def get_or_create_payment_state(number):
+    return payment_state.setdefault(number, {
+        "status": PAYMENT_STATUS_NOT_STARTED, "package": None, "dp_requested": False, "updated_at": None,
+    })
+
+# ============================================================
 # IDEMPOTENCY GUARD — WhatsApp Cloud API bisa NGIRIM ULANG (retry) webhook yang SAMA kalau
 # respons kita kelamaan/dianggap gagal. Tanpa guard ini, retry itu bisa bikin webhook diproses
 # DUA KALI dari nol — termasuk manggil AI dua kali & KIRIM PESAN YANG SAMA DUA KALI ke customer
@@ -953,6 +1110,24 @@ def is_duplicate_event(message_id):
     PROCESSED_MESSAGE_IDS_ORDER.append(message_id)
     PROCESSED_MESSAGE_IDS.add(message_id)
     return False
+
+# ===== CENTRALIZED PAYMENT CONFIG (SATU SUMBER KEBENARAN — production hardening) =====
+# SATU-SATUNYA tempat data rekening resmi Kilas Works didefinisikan. AI DILARANG KERAS ngetik nomor
+# rekening sendiri dari teks bebas (resiko salah ketik/ngarang digit) — nomor rekening SELALU disuntik
+# oleh Python lewat tag "[GIVE_PAYMENT_INFO]" (lihat build_payment_info_text() & webhook), AI cuma
+# nulis tag-nya doang di posisi yang pas, gak pernah nulis angka rekeningnya sendiri.
+PAYMENT_CONFIG = {
+    "bank": "BCA",
+    "account_number": "7610267551",
+    "account_name": "Irvan Karnawi",
+}
+
+
+def build_payment_info_text():
+    """Generate teks info rekening resmi dari PAYMENT_CONFIG (SATU-SATUNYA sumber kebenaran).
+    Dipanggil Python buat nyuntik ke balasan customer — AI sendiri gak pernah ngetik nomor rekening."""
+    return f"{PAYMENT_CONFIG['bank']} {PAYMENT_CONFIG['account_number']} a.n. {PAYMENT_CONFIG['account_name']}"
+
 
 # ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
 # Ini SATU-SATUNYA tempat harga/paket Kilas Works didefinisikan. SYSTEM_PROMPT (info yang dihafal
@@ -1244,7 +1419,7 @@ GAYA BALASAN (penting banget):
   jawab to the point kalau ditanya sesuatu yang jelas.
 - Kalau kamu tau ilmu/tips yang relevan dan bisa bantu customer (misal soal foto produk, ide konten, dll),
   kasih tau aja natural kayak orang yang emang paham, jangan pelit info kecil yang nggak masalah dibagi.
-- SINGKATKAN angka/harga: kalau customer bilang "1 juta" boleh lu balas "1 jt", "5 ribu" boleh "5rb" —
+- SINGKATKAN angka/harga: kalau customer bilang "1 juta" boleh kamu balas "1 jt", "5 ribu" boleh "5rb" —
   singkat, natural, kayak orang chat. PAHAM SEMUA VARIASI ANGKA (krusial!):
   • jt=juta, jetong=juta, jeton=juta, rb=ribu, k=ribu, sm=sama
   • Contoh: "1 jetong" = "1 juta", paham? Kamu harus paham semua slang/nickname buat angka.
@@ -1362,19 +1537,34 @@ SOAL LANDING PAGE & INSTAGRAM:
   dipaksa selalu disebut tiap balasan. Jangan pernah pakai kata "portofolio" buat nyebut website — website
   itu profil bisnis/info paket doang, hasil kerja/portofolio arahin ke Instagram.
 
-SOAL PEMBAYARAN (INFO REKENING INI FIX, JANGAN PERNAH DIUBAH/DIKARANG BEDA):
-- Kalau customer udah FIX mau lanjut/booking dan siap bayar, kirim RINGKASAN PESANAN dulu (semacam
-  invoice singkat, biar keliatan rapi & profesional) sebelum minta transfer, format kira-kira gini
-  (sesuaikan isinya, boleh dipecah jadi beberapa bubble chat pakai "|||"):
-  "Oke, ini ringkasan pesanannya ya:
-   Paket: [nama paket]
-   Total: [harga yang udah disepakati]
-   Pembayaran: Transfer BCA 7610267551 a.n. Irvan Karnawi"
-  Terus minta mereka transfer sesuai jumlah itu, dan kirim bukti transfer/screenshot ke chat ini biar bisa
-  langsung diproses. JANGAN pernah ubah/karang beda nomor rekening atau nama pemiliknya.
-- Kalau customer bilang udah transfer atau kirim bukti transfer, bilang santai makasih & bakal langsung
-  dicek, terus sertakan tag "[SUDAH_BAYAR]" di balasanmu (taruh di mana aja, sistem yang proses, customer
-  gak bakal lihat teks tag-nya) supaya owner dapet notifikasi buat verifikasi manual.
+SOAL PEMBAYARAN (WAJIB DIIKUTI — data rekening SELALU dari sistem, kamu TIDAK PERNAH ngetik nomor
+rekening sendiri):
+- Customer BOLEH minta DP dulu ATAU langsung bayar full — jangan dipersulit, kamu boleh bantu proses
+  dua-duanya. "mau DP dulu", "mau bayar full", "mau transfer", "cara bayarnya gimana", "langsung lunas
+  bisa?" semua itu payment intent yang VALID & boleh langsung dibantu (bukan cuma fitur invoice/payment
+  gateway otomatis — itu beda hal & tetap bukan bagian paket AI Admin Rp999rb).
+- JANGAN kasih info rekening di awal obrolan. Rekening CUMA boleh dikasih kalau DUA-DUANYA ini udah
+  jelas: (1) paket/layanan yang mau dibayar udah jelas, DAN (2) nominal yang mau ditransfer udah jelas
+  (harga full yang UDAH KAMU TAU dari data paket di atas, ATAU nominal DP yang UDAH PERNAH disepakati/
+  dikasih tau owner sebelumnya — cek FAKTA YANG SUDAH FIX kalau ada). Kalau salah satu belum jelas,
+  JANGAN kasih rekening dulu.
+- Kalau customer mau DP tapi NOMINAL DP-nya BELUM ADA aturan resmi/belum pernah disepakati owner buat
+  customer ini — JANGAN NGARANG persentase/nominal DP sendiri. Bilang natural, misal: "Boleh Kak. Untuk
+  nominal DP-nya aku cek dulu ke owner supaya sesuai ya." lalu sertakan tag PERSIS di akhir balasan:
+  [PAYMENT_DP_UNCLEAR: package=<nama paket>] — sistem yang notify owner buat nentuin nominal DP-nya,
+  JANGAN lanjut ke langkah kasih rekening sebelum ini clear.
+- Kalau paket & nominal (DP ATAU full) SUDAH jelas dan customer udah fix mau lanjut/bayar, kirim
+  RINGKASAN PESANAN dulu (semacam invoice singkat, biar rapi & profesional, boleh dipecah beberapa
+  bubble pakai "|||") isinya paket + jenis pembayaran (DP/full) + total yang harus ditransfer — JANGAN
+  ketik nomor rekening sendiri di kalimat ini, cukup tulis ringkasannya, lalu sertakan tag PERSIS di
+  baris/bubble TERAKHIR: [GIVE_PAYMENT_INFO] — sistem otomatis nyisipin data rekening resmi yang
+  BENERAN terdaftar tepat di posisi tag itu. Abis itu minta mereka transfer sesuai jumlah itu & kirim
+  bukti transfer/screenshot ke chat ini.
+- Kalau customer bilang udah transfer atau kirim bukti transfer, bilang santai makasih & bakal
+  DITERUSKAN ke owner buat verifikasi (JANGAN PERNAH bilang "sudah lunas"/"sudah dikonfirmasi" — status
+  pembayaran BELUM final sampai owner yang cek & verifikasi manual), terus sertakan tag "[SUDAH_BAYAR]"
+  di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya
+  owner dapet notifikasi buat verifikasi manual.
 
 SOAL GAMBAR YANG DIKIRIM CUSTOMER (kamu BISA lihat gambarnya langsung, ini bukan tebak-tebakan):
 - Kalau customer kirim gambar yang keliatan kayak bukti transfer/struk bank, CEK dulu isinya: ada
@@ -1442,9 +1632,11 @@ SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{custom_automation_redirect}", PRICING_CO
 
 
 def build_appointment_context():
-    """Suntik ketersediaan jadwal meeting owner (7 hari ke depan, DIHITUNG BENERAN oleh Python dari
-    data appointments yang ada — bukan ditebak AI) + aturan kapan/gimana nawarin meeting. Dipanggil
-    tiap request biar tanggalnya selalu akurat & availability-nya selalu up-to-date."""
+    """Suntik aturan flow meeting (production hardening) ke system prompt customer. PERBAIKAN BUG
+    PENTING: appointment CUMA boleh jadi CONFIRMED kalau slotnya beneran authoritative — dikasih OWNER
+    LANGSUNG (via tag [OWNER_MEETING_SLOTS], dicek ulang sistem sebelum commit) — BUKAN AI nawarin/
+    nebak jam kosong sendirian dari grid. Grid otomatis (get_available_slots_for_date dkk) TETAP ada &
+    tetap dipakai buat RESCHEDULE jadwal yang sudah CONFIRMED (protected feature, gak diubah)."""
     today = now_wib().date()
     today_label = format_date_id(today)
     availability_text = build_weekly_availability_text()
@@ -1452,33 +1644,47 @@ def build_appointment_context():
         "\n\n📅 APPOINTMENT / JADWAL KETEMU OWNER\n"
         f"HARI INI adalah {today_label} ({today.strftime('%Y-%m-%d')}), zona waktu WIB (Asia/Jakarta). "
         "Kalau customer nyebut tanggal relatif ('hari ini', 'besok', 'Jumat', dll), COCOKIN ke tanggal "
-        "PERSIS di daftar ketersediaan di bawah — JANGAN pernah itung/nebak tanggal sendiri.\n\n"
-        "KETERSEDIAAN OWNER 7 HARI KE DEPAN (SUMBER KEBENARAN — JANGAN PERNAH NAWARIN JAM DI LUAR INI):\n"
+        "PERSIS — JANGAN pernah itung/nebak tanggal sendiri.\n\n"
+        "GAMBARAN HARI KERJA KANTOR 7 HARI KE DEPAN (KONTEKS AJA, dipakai buat RESCHEDULE jadwal yang "
+        "sudah CONFIRMED — BUKAN buat kamu tawarin langsung ke customer buat booking BARU, lihat ATURAN "
+        "BOOKING BARU di bawah):\n"
         f"{availability_text}\n\n"
-        "KAPAN NAWARIN MEETING: JANGAN langsung tawarin meeting di awal obrolan. Tawarin secara natural "
-        "SETELAH customer nunjukin minat serius — nanya harga/paket, nanya cara kerja layanan, cerita "
-        "masalah bisnisnya, nanya soal integrasi/implementasi, minta demo, bilang mau coba, nanya "
-        "langkah selanjutnya, atau kasih sinyal lain lagi mempertimbangkan pakai layanan. Contoh nawarin: "
-        "'Kalau Kakak mau, kita bisa lanjut ngobrol sebentar sama owner biar kebutuhan bisnisnya bisa "
-        "dibahas lebih spesifik. Biasanya Kakak lebih enak weekday atau weekend?' — JANGAN maksa & JANGAN "
-        "nawarin di tiap balasan/obrolan.\n\n"
-        "ALUR BOOKING: kalau customer setuju mau ketemu, tanya tanggal yang mereka mau, cocokin ke daftar "
-        "ketersediaan di atas, kasih MAKSIMAL 2-3 pilihan jam yang BENERAN kosong (JANGAN PERNAH ngarang "
-        "jam yang gak ada di daftar). Setelah customer milih satu jam, JANGAN nulis sendiri kalimat "
-        "'sudah dijadwalkan' atau semacamnya — cukup respon transisi natural (misal 'Oke, aku cek dulu "
-        "sebentar ya...') LALU sertakan tag PERSIS di akhir balasan: [BOOK_MEETING: date=YYYY-MM-DD|"
-        "time=HH:MM|name=<nama customer>|business=<nama bisnis customer kalau ada, kosongin kalau gak "
-        "tau>|need=<ringkasan singkat kebutuhan mereka>]. SISTEM yang bakal validasi ulang & generate "
-        "kalimat konfirmasi FINAL-nya sendiri (BUKAN kamu) — biar gak ada resiko bilang 'sudah "
-        "dijadwalkan' padahal ternyata slotnya baru aja keisi duluan.\n\n"
-        "RESCHEDULE: kalau customer yang UDAH PUNYA jadwal minta pindah jadwal, sama kayak booking baru "
-        "— cocokin tanggal/jam baru ke daftar ketersediaan, kasih respon transisi natural aja, sertakan "
-        "tag PERSIS: [RESCHEDULE_MEETING: date=YYYY-MM-DD|time=HH:MM].\n\n"
-        "CANCEL: kalau customer mau batalin jadwal meetingnya, respon transisi natural, sertakan tag "
-        "PERSIS: [CANCEL_MEETING] (tag doang, tanpa isi lain).\n\n"
-        "JANGAN PERNAH: menawarkan jam yang gak ada di daftar ketersediaan, mengarang slot kosong, atau "
-        "nulis sendiri kalimat konfirmasi FINAL booking/reschedule/cancel — tiga hal itu tugas sistem,"
-        " bukan tugas kamu.\n\n"
+        "⭐⭐⭐ ATURAN BOOKING BARU UNTUK MEETING BARU (WAJIB — ini perbaikan bug: appointment TIDAK "
+        "PERNAH boleh kamu anggap/bilang confirmed sebelum owner BENERAN kasih availability-nya) ⭐⭐⭐\n"
+        "KAPAN NAWARIN MEETING: JANGAN tawarin meeting di pesan pertama/awal obrolan. Tawarin SETELAH "
+        "customer nunjukin minat cukup kuat — sinyalnya: nanya harga/paket, bandingin layanan, jelasin "
+        "kebutuhan bisnisnya, nanya timeline, nanya cara mulai, minta katalog, minta demo, bilang mau "
+        "mulai/lanjut, mau DP/bayar, atau minta konsultasi. Kalau customer udah nolak/belum tertarik "
+        "meeting, JANGAN tawarin ulang berkali-kali tiap balasan.\n"
+        "CARA NAWARIN (nadanya persis kayak gini, boleh disesuaikan natural): 'Kalau Kakak mau, kita "
+        "bisa lanjut diskusi lewat meeting online atau ketemu langsung. Kakak lebih nyaman yang mana?' "
+        "— JANGAN langsung nanya 'mau ketemu kapan?' sebelum nanya online/offline dulu.\n"
+        "SETELAH CUSTOMER PILIH ONLINE/OFFLINE: kalau pilih ketemu langsung, bilang PERSIS: 'Siap Kak. "
+        "Ada hari atau rentang waktu yang paling nyaman untuk ketemu langsung?'. Kalau pilih online, "
+        "bilang PERSIS: 'Siap Kak. Ada hari atau rentang waktu yang paling nyaman untuk online "
+        "meeting?'. JANGAN nentuin jam sendiri di titik ini.\n"
+        "SETELAH CUSTOMER KASIH PREFERENSI HARI: begitu kamu udah tau MODE (online/offline) DAN hari "
+        "yang customer mau, JANGAN nulis kalimat 'confirmed'/'sudah dijadwalkan' apapun — cukup respon "
+        "transisi natural SANGAT SINGKAT (misal 'oke aku cek dulu ya') LALU sertakan tag PERSIS di akhir "
+        "balasan: [MEETING_PREFERENCE: mode=online|offline|day=<hari/tanggal persis kata-kata "
+        "customer>]. SISTEM yang generate kalimat holding-nya sendiri ke customer & notify owner buat "
+        "cek availability — BUKAN kamu yang bilang 'siap dicatat'/dsb.\n"
+        "KALAU OWNER SUDAH KASIH PILIHAN JAM (kamu bakal dikasih tau daftar jam yang OWNER SENDIRI "
+        "kasih, biasanya muncul sebagai fakta/pesan sistem di riwayat obrolan): begitu customer milih "
+        "SALAH SATU dari jam yang ditawarin itu (bukan jam lain di luar itu), respon transisi natural "
+        "SINGKAT LALU sertakan tag PERSIS: [MEETING_SLOT_PICK: time=HH:MM] (format jam 24-jam PERSIS "
+        "sama kayak yang ditawarin). SISTEM yang generate konfirmasi FINAL-nya, bukan kamu.\n"
+        "KALAU CUSTOMER MINTA JAM DI LUAR YANG DITAWARIN OWNER: jangan langsung ACC, bilang natural kamu "
+        "cek dulu lagi ke owner, JANGAN sertakan tag [MEETING_SLOT_PICK] buat jam yang bukan pilihan "
+        "resmi dari owner.\n\n"
+        "RESCHEDULE: kalau customer yang UDAH PUNYA jadwal CONFIRMED minta pindah jadwal, cocokin "
+        "tanggal/jam baru ke GAMBARAN HARI KERJA KANTOR di atas, kasih respon transisi natural aja, "
+        "sertakan tag PERSIS: [RESCHEDULE_MEETING: date=YYYY-MM-DD|time=HH:MM].\n\n"
+        "CANCEL: kalau customer mau batalin jadwal meeting yang CONFIRMED, respon transisi natural, "
+        "sertakan tag PERSIS: [CANCEL_MEETING] (tag doang, tanpa isi lain).\n\n"
+        "JANGAN PERNAH: ngarang/nebak jam meeting BARU sendiri tanpa dikasih owner, menawarkan jam "
+        "reschedule di luar GAMBARAN HARI KERJA KANTOR, atau nulis sendiri kalimat konfirmasi FINAL "
+        "booking/reschedule/cancel apapun — semua itu tugas sistem, bukan tugas kamu.\n\n"
         "STOP FOLLOW-UP: kalau customer EKSPLISIT bilang gak minat/gak usah dihubungi lagi/jangan "
         "di-follow-up lagi (misal 'gak usah dihubungin lagi ya', 'saya gak minat', 'jangan di-followup "
         "lagi', 'stop aja'), hormati itu dengan sopan (jangan maksa/nanya alasan berkali-kali), lalu "
@@ -1515,7 +1721,7 @@ def build_customer_system_prompt(user_number):
         "acara), abaikan aja. JANGAN coba-coba jawab atau ladenin. Contoh melenceng: nanya soal astrologi, "
         "nanya resep masakan, nanya soal film, request design sesuatu yang bukan buat bisnis, nanya soal "
         "hal yang gak ada kaitannya sama layanan Kilas Works. Cukup balasan santai kayak 'waduh ini di luar "
-        "keahlian gw sih kak' terus arahkan balik ke topik bisnis."
+        "keahlian aku sih kak' terus arahkan balik ke topik bisnis."
     )
 
     # FAKTA YANG UDAH DISEPAKATI OWNER buat customer ini spesifik — ini SUMBER KEBENARAN yang
@@ -1640,6 +1846,61 @@ paymentnya masih mau dilanjutkan hari ini?" — BUKAN "Berdasarkan data yang say
 SYSTEM_PROMPT_OWNER_BASE = SYSTEM_PROMPT_OWNER_BASE.replace("{pricing_text_block}", PRICING_TEXT_BLOCK)
 
 
+def build_pending_meeting_requests_context():
+    """(production hardening) List semua meeting_requests yang lagi PENDING_OWNER_CONFIRMATION, buat
+    dikasih tau ke owner AI biar dia ngerti kalau Irvan balas ngasih jam, itu jawaban availability
+    buat request ini — BUKAN forward pesan biasa (jangan pakai PESAN_UNTUK_CUSTOMER: buat ini). Return
+    string kosong kalau gak ada yang pending."""
+    pending = [
+        (number, req) for number, req in meeting_requests.items()
+        if req.get("status") == MEETING_STATE_PENDING_OWNER_CONFIRMATION
+    ]
+    if not pending:
+        return ""
+    lines = []
+    for number, req in pending:
+        name = customer_names.get(number, f"wa.me/{number}")
+        mode_label = "ketemu langsung (offline)" if req.get("mode") == "offline" else "online meeting"
+        day_label = req.get("day_display") or req.get("day_text") or "(hari belum jelas)"
+        lines.append(f"- {name}: minta {mode_label} hari {day_label}")
+    return (
+        "\n\n📅 CUSTOMER YANG LAGI NUNGGU AVAILABILITY MEETING (WAJIB DIPROSES kalau Irvan balas kasih "
+        "jam untuk salah satu ini):\n" + "\n".join(lines) +
+        "\n\nKalau Irvan balas ngasih jam kosong buat SALAH SATU customer di atas (bahasa bebas, misal "
+        "'sabtu bisa jam 1 3 5', 'jam 3 aja', 'pagi ga bisa sore bisa', 'online jam 2 atau 4'), kamu "
+        "WAJIB sertakan tag PERSIS di akhir balasan (SELAIN balasan santai biasa ke Irvan — JANGAN pakai "
+        "format PESAN_UNTUK_CUSTOMER: buat kasus ini): [OWNER_MEETING_SLOTS: customer=<nama PERSIS dari "
+        "daftar di atas>|times=<daftar jam 24-jam dipisah koma, contoh 13:00,15:00,17:00>]. Kalau Irvan "
+        "bilang GAK BISA/tutup buat request itu (misal 'minggu tutup', 'gabisa hari itu') atau nyuruh "
+        "pindah hari lain (misal 'suruh dia senin aja'), sertakan tag PERSIS: [OWNER_MEETING_UNAVAILABLE: "
+        "customer=<nama PERSIS dari daftar di atas>] — sistem yang bakal minta customer kasih hari lain.\n"
+        "PENTING soal jam: WAJIB format 24-jam. Kalau Irvan cuma nyebut angka tanpa konteks pagi/sore "
+        "buat meeting bisnis siang (misal 'jam 1 3 5'), asumsikan siang/sore (13:00, 15:00, 17:00) — TAPI "
+        "kalau Irvan eksplisit nyebut 'pagi'/'sore'/'malam', ikutin itu. Kalau beneran gak yakin jamnya, "
+        "mending tanya balik ke Irvan dulu daripada nebak & salah kasih jam ke customer."
+    )
+
+
+def resolve_meeting_request_target(name_hint):
+    """(production hardening) Coba temuin nomor customer yang match `name_hint` DAN lagi punya
+    meeting_request berstatus PENDING_OWNER_CONFIRMATION. Kalau name_hint kosong/gak ketemu tapi CUMA
+    ADA SATU request pending, pakai itu (kasus obrolan single-thread paling umum, sama prinsipnya
+    kayak active_customer_context fallback yang udah ada). Return nomor atau None."""
+    pending_numbers = [
+        n for n, r in meeting_requests.items() if r.get("status") == MEETING_STATE_PENDING_OWNER_CONFIRMATION
+    ]
+    if not pending_numbers:
+        return None
+    if name_hint:
+        matches = find_customers_by_name(name_hint)
+        for num, _name in matches:
+            if num in pending_numbers:
+                return num
+    if len(pending_numbers) == 1:
+        return pending_numbers[0]
+    return None
+
+
 def build_owner_system_prompt(pending_question, pending_customer_number, direct_send=False):
     """Susun system prompt mode-owner, sisipin konteks pertanyaan customer yang lagi pending (kalau ada)
     dan ringkasan history semua customer biar owner bisa nanya soal siapa aja/apa aja kapan aja.
@@ -1695,6 +1956,7 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
         "('wah keren', 'menarik banget', dll) — nada profesional, natural, fokus bisnis."
     )
 
+    context += build_pending_meeting_requests_context()
     context += build_customer_context_summary()
     return SYSTEM_PROMPT_OWNER_BASE + context
 
@@ -1823,6 +2085,26 @@ TAG_NAMA_PATTERN = re.compile(r"\[NAMA:\s*([^\]]+)\]", re.IGNORECASE)
 TAG_BOOK_MEETING_PATTERN = re.compile(r"\[BOOK_MEETING:\s*([^\]]+)\]", re.IGNORECASE)
 TAG_RESCHEDULE_MEETING_PATTERN = re.compile(r"\[RESCHEDULE_MEETING:\s*([^\]]+)\]", re.IGNORECASE)
 
+# Tag FLOW MEETING BARU (production hardening) — customer-facing: dipasang AI setelah tau mode
+# online/offline + preferensi hari customer ([MEETING_PREFERENCE]), atau setelah customer milih salah
+# satu jam yang UDAH ditawarin dari slot owner ([MEETING_SLOT_PICK]). SISTEM yang tetap validasi ulang
+# & generate kalimat final-nya, bukan AI.
+TAG_MEETING_PREFERENCE_PATTERN = re.compile(r"\[MEETING_PREFERENCE:\s*([^\]]+)\]", re.IGNORECASE)
+TAG_MEETING_SLOT_PICK_PATTERN = re.compile(r"\[MEETING_SLOT_PICK:\s*([^\]]+)\]", re.IGNORECASE)
+
+# Tag FLOW MEETING BARU — owner-facing: dipasang owner AI (call_claude_owner) pas Irvan balas ngasih
+# jam kosong ([OWNER_MEETING_SLOTS]) atau bilang gak bisa/tutup ([OWNER_MEETING_UNAVAILABLE]) buat
+# salah satu customer yang lagi PENDING_OWNER_CONFIRMATION (lihat build_pending_meeting_requests_context).
+TAG_OWNER_MEETING_SLOTS_PATTERN = re.compile(r"\[OWNER_MEETING_SLOTS:\s*([^\]]+)\]", re.IGNORECASE)
+TAG_OWNER_MEETING_UNAVAILABLE_PATTERN = re.compile(r"\[OWNER_MEETING_UNAVAILABLE:\s*([^\]]+)\]", re.IGNORECASE)
+
+# Tag PEMBAYARAN (production hardening) — [GIVE_PAYMENT_INFO] SENGAJA gak exact-string-replace kosong
+# kayak ALL_TAGS lain: dia diganti Python jadi teks rekening resmi BENERAN (build_payment_info_text()),
+# BUKAN dihapus — biar AI gak pernah ngetik nomor rekening sendiri (lihat webhook). [PAYMENT_DP_UNCLEAR]
+# dipasang AI kalau customer minta DP tapi nominalnya belum ada aturan resmi/kesepakatan owner.
+TAG_GIVE_PAYMENT_INFO = "[GIVE_PAYMENT_INFO]"
+TAG_PAYMENT_DP_UNCLEAR_PATTERN = re.compile(r"\[PAYMENT_DP_UNCLEAR:\s*([^\]]*)\]", re.IGNORECASE)
+
 # Berapa lama "mengetik..." ditampilkan sebelum tiap chat bubble dikirim (biar natural, bukan
 # langsung nembak semua pesan dalam sepersekian detik).
 TYPING_DELAY_MIN_SEC = 1.2
@@ -1838,6 +2120,11 @@ def strip_tags(text):
     cleaned = TAG_NAMA_PATTERN.sub("", cleaned)
     cleaned = TAG_BOOK_MEETING_PATTERN.sub("", cleaned)
     cleaned = TAG_RESCHEDULE_MEETING_PATTERN.sub("", cleaned)
+    cleaned = TAG_MEETING_PREFERENCE_PATTERN.sub("", cleaned)
+    cleaned = TAG_MEETING_SLOT_PICK_PATTERN.sub("", cleaned)
+    cleaned = TAG_PAYMENT_DP_UNCLEAR_PATTERN.sub("", cleaned)
+    # TAG_GIVE_PAYMENT_INFO SENGAJA TIDAK di-strip di sini — dia diganti eksplisit dengan teks rekening
+    # resmi di webhook (lihat build_payment_info_text()), bukan dihapus jadi kosong.
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
@@ -2469,6 +2756,64 @@ def parse_meeting_status_command(text):
     return None
 
 
+# ============================================================
+# PERINTAH OWNER: UPDATE STATUS PEMBAYARAN (mis. "pembayaran Yutha udah masuk" / "DP Caca confirmed" /
+# "Wilson udah lunas" / "transfer dia belum masuk") — production hardening, poin 13. Sama prinsipnya
+# kayak parse_meeting_status_command di atas: DETERMINISTIK (regex), bukan lewat AI, biar status
+# pembayaran gak pernah salah update / ke-tebak keliru.
+# ============================================================
+
+PAYMENT_STATUS_TRIGGER_PATTERN = re.compile(
+    r'\b(pembayaran(?:nya)?|bayar(?:annya)?|dp(?:nya)?|transfer(?:an)?(?:nya)?|lunas)\b', re.IGNORECASE
+)
+_PAYMENT_NEGATIVE_PATTERN = re.compile(
+    r'\b(belum\s+masuk|belum\s+ada|belum\s+kelihatan|belum\s+kekirim|gagal)\b', re.IGNORECASE
+)
+_PAYMENT_POSITIVE_PATTERN = re.compile(
+    r'\b(lunas|full|udah\s+masuk|sudah\s+masuk|udah\s+beres|sudah\s+beres|confirmed|oke\s+masuk|'
+    r'masuk\s+semua|masuk)\b', re.IGNORECASE
+)
+_PAYMENT_DP_WORD_PATTERN = re.compile(r'\bdp\b', re.IGNORECASE)
+
+
+def parse_owner_payment_command(text):
+    """Deteksi perintah owner update status pembayaran customer tertentu. Return
+    {"target_raw": ..., "status": ...} (status = salah satu PAYMENT_STATUS_* konstanta) atau None
+    kalau teksnya bukan perintah status pembayaran.
+    Urutan prioritas: (1) ada kata NEGATIF ('belum masuk' dsb) -> NEEDS_RECHECK, apapun konteksnya.
+    (2) ada kata 'dp' + kata POSITIF ('confirmed'/'masuk'/dsb) -> PARTIALLY_PAID (DP doang, bukan lunas
+    penuh). (3) ada kata POSITIF tanpa 'dp' -> PAID (lunas penuh)."""
+    if not text:
+        return None
+    match = PAYMENT_STATUS_TRIGGER_PATTERN.search(text)
+    if not match:
+        return None
+
+    has_dp = bool(_PAYMENT_DP_WORD_PATTERN.search(text))
+    is_negative = bool(_PAYMENT_NEGATIVE_PATTERN.search(text))
+    is_positive = bool(_PAYMENT_POSITIVE_PATTERN.search(text))
+
+    if is_negative:
+        status = PAYMENT_STATUS_NEEDS_RECHECK
+    elif has_dp and is_positive:
+        status = PAYMENT_STATUS_PARTIALLY_PAID
+    elif is_positive:
+        status = PAYMENT_STATUS_PAID
+    else:
+        return None
+
+    before = text[:match.start()].strip()
+    after = text[match.end():].strip()
+    for chunk in (before, after):
+        if not chunk:
+            continue
+        target, _rest = split_target_from_rest(chunk)
+        candidate = (target or "").strip(",.:;")
+        if candidate:
+            return {"target_raw": candidate, "status": status}
+    return None
+
+
 def short_display_name(full_name):
     """Buat teks konfirmasi ringkas ('Terkirim ke Kimfong.') — ambil kata PERTAMA dari nama yang
     tersimpan, biar natural kayak manggil orang (bukan nyebut nama lengkap kaku tiap konfirmasi)."""
@@ -2877,6 +3222,51 @@ def receive_webhook():
                 )
                 return jsonify({"status": "ok"}), 200
 
+            # CEK apakah ini perintah update STATUS PEMBAYARAN customer tertentu (mis. "pembayaran
+            # Yutha udah masuk" / "DP Caca confirmed" / "Wilson udah lunas" / "transfer dia belum
+            # masuk") — production hardening poin 13. Dicek DULUAN sebelum parse_owner_send_command,
+            # DETERMINISTIK (bukan draft AI), biar status pembayaran gak pernah salah update customer.
+            payment_status_cmd = parse_owner_payment_command(owner_text)
+            if payment_status_cmd:
+                fallback_target = active_customer_context.get(from_number)
+                ps_status, ps_resolved, ps_display_name = resolve_owner_target(
+                    payment_status_cmd["target_raw"], fallback_target
+                )
+
+                if ps_status == "ambiguous":
+                    options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in ps_resolved[:5])
+                    send_whatsapp_message(
+                        from_number,
+                        f"Ada beberapa customer namanya mirip '{payment_status_cmd['target_raw']}': {options}. Maksudnya yang mana?",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                if ps_status == "not_found":
+                    send_whatsapp_message(
+                        from_number,
+                        f"Gak nemu customer bernama '{payment_status_cmd['target_raw']}' di data.",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                ps_target_number = ps_resolved
+                pay_state = get_or_create_payment_state(ps_target_number)
+                pay_state["status"] = payment_status_cmd["status"]
+                pay_state["updated_at"] = _utcnow()
+
+                if payment_status_cmd["status"] in (PAYMENT_STATUS_PAID, PAYMENT_STATUS_PARTIALLY_PAID):
+                    mark_customer_converted(ps_target_number)  # udah bayar (DP/lunas), stop follow-up generik
+
+                status_label = {
+                    PAYMENT_STATUS_PAID: "PAID (lunas)",
+                    PAYMENT_STATUS_PARTIALLY_PAID: "PARTIALLY_PAID (DP masuk)",
+                    PAYMENT_STATUS_NEEDS_RECHECK: "NEEDS_RECHECK (belum masuk)",
+                }.get(payment_status_cmd["status"], payment_status_cmd["status"])
+                send_whatsapp_message(
+                    from_number,
+                    f"Oke, status pembayaran {short_display_name(ps_display_name)} diupdate jadi {status_label}.",
+                )
+                return jsonify({"status": "ok"}), 200
+
             # CEK apakah ini perintah KIRIM KATALOG PDF (+ opsional pesan singkat "info jasa
             # terbaru") ke customer tertentu atau ke owner sendiri. Dicek DULUAN, SEBELUM
             # parse_owner_send_command, karena dieksekusi DETERMINISTIK (bukan draft AI) — biar
@@ -3055,6 +3445,91 @@ def receive_webhook():
                 direct_send=direct_send,
             )
 
+            # CEK apakah owner AI baru aja ngasih tau AVAILABILITY MEETING (production hardening —
+            # flow booking baru) buat salah satu customer yang lagi PENDING_OWNER_CONFIRMATION. Ini
+            # dicek DULUAN sebelum FORWARD_MARKER biasa, karena bukan forward pesan bebas — SISTEM
+            # yang generate kalimat resmi ke customer (bukan draft AI langsung), biar jam yang
+            # ditawarin ke customer PERSIS sama yang Irvan sebut & udah divalidasi ulang.
+            owner_meeting_slots_match = TAG_OWNER_MEETING_SLOTS_PATTERN.search(ai_owner_reply)
+            owner_meeting_unavailable_match = TAG_OWNER_MEETING_UNAVAILABLE_PATTERN.search(ai_owner_reply)
+
+            if owner_meeting_slots_match or owner_meeting_unavailable_match:
+                if owner_meeting_slots_match:
+                    mkv = parse_tag_kv(owner_meeting_slots_match.group(1))
+                else:
+                    mkv = parse_tag_kv(owner_meeting_unavailable_match.group(1))
+                name_hint = mkv.get("customer", "")
+                target_number = resolve_meeting_request_target(name_hint)
+
+                owner_reply_clean = TAG_OWNER_MEETING_SLOTS_PATTERN.sub("", ai_owner_reply)
+                owner_reply_clean = TAG_OWNER_MEETING_UNAVAILABLE_PATTERN.sub("", owner_reply_clean).strip()
+
+                if not target_number:
+                    send_reply_bubbles(
+                        from_number, incoming_message_id,
+                        owner_reply_clean or "Buat customer yang mana ya? Sebut namanya dong.",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                req = meeting_requests.get(target_number, {})
+                display_name = customer_names.get(target_number, f"wa.me/{target_number}")
+                day_label = req.get("day_display") or req.get("day_text") or "hari itu"
+
+                if owner_meeting_unavailable_match:
+                    meeting_requests.pop(target_number, None)
+                    decline_text = (
+                        f"Untuk {day_label} kayaknya owner/tim lagi gak available Kak, boleh kasih "
+                        f"hari lain yang nyaman?"
+                    )
+                    sent_ok, _err = send_reply_bubbles(target_number, None, decline_text)
+                    if sent_ok:
+                        history = conversations.get(target_number, [])
+                        history.append({"role": "assistant", "content": decline_text})
+                        conversations[target_number] = history[-20:]
+                        save_message_to_db(target_number, "customer", "assistant", decline_text)
+                        log_customer_message(target_number, decline_text, sent_from="owner_meeting_unavailable")
+                    send_reply_bubbles(
+                        from_number, incoming_message_id,
+                        owner_reply_clean or f"Oke, aku minta {short_display_name(display_name)} kasih hari lain ya.",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                # owner_meeting_slots_match: parse & validasi daftar jam yang dikasih owner.
+                times_raw = mkv.get("times", "")
+                raw_times = [t.strip() for t in times_raw.split(",") if t.strip()]
+                valid_times = []
+                for t in raw_times:
+                    if re.match(r"^\d{1,2}:\d{2}$", t):
+                        valid_times.append(t.zfill(5) if len(t) == 4 else t)
+
+                if not valid_times:
+                    send_reply_bubbles(
+                        from_number, incoming_message_id,
+                        "Format jamnya belum jelas nih, boleh sebut ulang jam berapa aja (format 24 jam)?",
+                    )
+                    return jsonify({"status": "ok"}), 200
+
+                times_label = ", ".join(t.replace(":", ".") for t in valid_times)
+                offer_text = f"Untuk {day_label} tersedia pukul {times_label} WIB, Kak. Yang paling nyaman yang mana?"
+
+                req["status"] = MEETING_STATE_SLOTS_OFFERED
+                req["offered_slots"] = valid_times
+                meeting_requests[target_number] = req
+
+                sent_ok, _err = send_reply_bubbles(target_number, None, offer_text)
+                if sent_ok:
+                    history = conversations.get(target_number, [])
+                    history.append({"role": "assistant", "content": offer_text})
+                    conversations[target_number] = history[-20:]
+                    save_message_to_db(target_number, "customer", "assistant", offer_text)
+                    log_customer_message(target_number, offer_text, sent_from="owner_meeting_slots_offer")
+
+                send_reply_bubbles(
+                    from_number, incoming_message_id,
+                    owner_reply_clean or f"Oke, udah aku kasih tau pilihan jamnya ke {short_display_name(display_name)}.",
+                )
+                return jsonify({"status": "ok"}), 200
+
             # CEK apakah owner bilang "terusin" / "oke" setelah konfirmasi forward GAMBAR (image
             # forward masih pakai flow konfirmasi lama, sengaja gak diubah — beda topik dari revisi
             # perintah teks kirim/balas/follow-up di atas).
@@ -3227,15 +3702,69 @@ def receive_webhook():
         resched_match = TAG_RESCHEDULE_MEETING_PATTERN.search(ai_reply)
         wants_cancel_meeting = TAG_CANCEL_MEETING in ai_reply
         wants_stop_followup = TAG_STOP_FOLLOWUP in ai_reply
+        meeting_pref_match = TAG_MEETING_PREFERENCE_PATTERN.search(ai_reply)
+        meeting_slot_pick_match = TAG_MEETING_SLOT_PICK_PATTERN.search(ai_reply)
+        give_payment_info = TAG_GIVE_PAYMENT_INFO in ai_reply
+        payment_dp_unclear_match = TAG_PAYMENT_DP_UNCLEAR_PATTERN.search(ai_reply)
 
         clean_reply = strip_tags(ai_reply)
+
+        if give_payment_info:
+            # [GIVE_PAYMENT_INFO] SELALU diganti teks rekening resmi dari PAYMENT_CONFIG di sini — AI
+            # gak pernah ngetik nomor rekening sendiri, jadi gak ada resiko salah ketik/ngarang digit.
+            clean_reply = clean_reply.replace(TAG_GIVE_PAYMENT_INFO, build_payment_info_text())
 
         # Appointment: AI CUMA boleh nulis respons transisi ("oke aku cek dulu ya") + tag — kalimat
         # KONFIRMASI FINAL-nya WAJIB dari sini (Python), abis di-validasi ulang availability-nya, biar
         # gak ada resiko AI ngaku "sudah dijadwalkan"/dsb padahal ternyata slotnya udah keisi duluan
         # atau invalid. meeting_owner_notify dikirim ke owner SETELAH balasan ke customer terkirim.
         meeting_owner_notify = None
-        if book_match:
+        if meeting_pref_match:
+            # FLOW MEETING BARU (production hardening) — customer udah kasih tau MODE (online/offline)
+            # + preferensi hari. JANGAN PERNAH langsung confirm di sini — cuma simpen state & notify
+            # owner buat availability beneran (lihat MEETING_STATE_PENDING_OWNER_CONFIRMATION).
+            kv = parse_tag_kv(meeting_pref_match.group(1))
+            mode = (kv.get("mode") or "").strip().lower()
+            if mode not in ("online", "offline"):
+                mode = "online"
+            day_text = (kv.get("day") or "").strip()
+            resolved_date = resolve_day_text_to_date(day_text)
+
+            if mode == "offline" and resolved_date and is_office_closed_on(resolved_date):
+                # business_hours (kantor tutup) != meeting_availability owner — offline TIDAK otomatis
+                # ditawarin di hari libur kantor, tapi JANGAN nge-block online di hari yang sama.
+                day_disp = format_date_id(datetime.strptime(resolved_date, "%Y-%m-%d").date())
+                appt_text = (
+                    f"Waduh, kantor kita tutup di {day_disp} kak, jadi belum bisa ketemu langsung "
+                    f"hari itu. Mau coba hari lain, atau online meeting aja?"
+                )
+                clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            else:
+                day_disp = (
+                    format_date_id(datetime.strptime(resolved_date, "%Y-%m-%d").date())
+                    if resolved_date else day_text
+                )
+                meeting_requests[from_number] = {
+                    "status": MEETING_STATE_PENDING_OWNER_CONFIRMATION,
+                    "mode": mode, "day_text": day_text, "day_display": day_disp,
+                    "resolved_date": resolved_date,
+                    "name": customer_names.get(from_number), "business_name": None,
+                    "need_summary": None, "offered_slots": [], "created_at": _utcnow(),
+                }
+                appt_text = "Siap Kak, aku cek dulu jadwal owner/tim untuk itu ya. Begitu ada slot yang tersedia aku kabari."
+                clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+                mode_label = "ketemu langsung" if mode == "offline" else "online meeting"
+                display_name = customer_names.get(from_number, "Customer")
+                meeting_owner_notify = f"{display_name} ingin {mode_label} hari {day_disp}. Ada jam yang available?"
+        elif meeting_slot_pick_match:
+            # Customer milih salah satu jam yang UDAH ditawarin dari slot owner — baru di titik INI
+            # appointment beneran jadi CONFIRMED (create_appointment, status "scheduled").
+            kv = parse_tag_kv(meeting_slot_pick_match.group(1))
+            ok, appt_text, owner_text_notify = try_book_meeting_from_owner_slots(from_number, kv.get("time", ""))
+            clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            if ok:
+                meeting_owner_notify = owner_text_notify
+        elif book_match:
             kv = parse_tag_kv(book_match.group(1))
             ok, appt_text, owner_text_notify = try_book_meeting(
                 from_number, kv.get("name") or customer_names.get(from_number), kv.get("business"),
@@ -3270,15 +3799,33 @@ def receive_webhook():
             notify_owner_new_message(from_number, user_text, customer_names.get(from_number))
 
         if payment_confirmed:
-            mark_customer_converted(from_number)  # stop follow-up otomatis, udah bayar
+            mark_customer_converted(from_number)  # stop follow-up otomatis
+            pay_state = get_or_create_payment_state(from_number)
+            pay_state["status"] = PAYMENT_STATUS_PENDING_VERIFICATION  # BELUM dianggap lunas otomatis
+            pay_state["updated_at"] = _utcnow()
 
         if wants_stop_followup:
             mark_customer_converted(from_number)  # stop follow-up otomatis, customer eksplisit minta jangan dihubungi lagi
 
+        if payment_dp_unclear_match:
+            dp_kv = parse_tag_kv(payment_dp_unclear_match.group(1))
+            dp_package = dp_kv.get("package") or "paketnya"
+            pay_state = get_or_create_payment_state(from_number)
+            pay_state["status"] = PAYMENT_STATUS_INTENT
+            pay_state["package"] = dp_package
+            pay_state["dp_requested"] = True
+            pay_state["updated_at"] = _utcnow()
+            if OWNER_WHATSAPP_NUMBER:
+                dp_name = customer_names.get(from_number, "Customer")
+                send_whatsapp_message(
+                    OWNER_WHATSAPP_NUMBER,
+                    f"{dp_name} ingin DP untuk {dp_package}. Nominal DP yang mau digunakan berapa?",
+                )
+
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
         elif payment_confirmed:
-            notify_owner(from_number, "Customer bilang udah transfer — tolong cek & verifikasi manual", user_text)
+            notify_owner(from_number, "Customer kirim bukti transfer (PENDING_VERIFICATION) — mohon verifikasi pembayaran manual", user_text)
         elif needs_owner:
             pending_owner_questions[from_number] = user_text
             notify_owner_question(from_number, user_text)
