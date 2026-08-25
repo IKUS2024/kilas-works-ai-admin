@@ -3475,6 +3475,11 @@ def demo_api():
     demo_daily_usage["messages"] += 1
     session["count"] += 1
 
+    # Model lama "claude-3-5-haiku-20241022" sudah RETIRED oleh Anthropic (19 Feb 2026) — request ke
+    # model itu SELALU gagal sejak tanggal tersebut. Ganti ke pengganti resminya, DAN kasih fallback
+    # ke Sonnet (persis pola yang udah dipakai call_claude() buat bot WhatsApp asli) biar demo tetap
+    # jalan walau model utamanya lagi bermasalah/rate-limit, bukan cuma diam nyerah kayak sebelumnya.
+    model_to_use = "claude-haiku-4-5-20251001"
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -3484,7 +3489,7 @@ def demo_api():
                 "content-type": "application/json",
             },
             json={
-                "model": "claude-3-5-haiku-20241022",
+                "model": model_to_use,
                 "max_tokens": 300,
                 "system": DEMO_SYSTEM_PROMPT,
                 "messages": session["history"][-20:],
@@ -3494,8 +3499,29 @@ def demo_api():
         resp.raise_for_status()
         reply_text = resp.json()["content"][0]["text"]
     except Exception as e:
-        print("Demo API error:", e)
-        reply_text = "Maaf, ada gangguan teknis sebentar. Coba kirim ulang pesannya ya."
+        print(f"Demo API error pakai model {model_to_use}: {e}")
+        try:
+            model_to_use = "claude-sonnet-4-6"
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": model_to_use,
+                    "max_tokens": 300,
+                    "system": DEMO_SYSTEM_PROMPT,
+                    "messages": session["history"][-20:],
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            reply_text = resp.json()["content"][0]["text"]
+        except Exception as e2:
+            print(f"Demo API fallback ke Sonnet juga gagal: {e2}")
+            reply_text = "Maaf, ada gangguan teknis sebentar. Coba kirim ulang pesannya ya."
 
     lead_match = TAG_DEMO_LEAD.search(reply_text)
     if lead_match and not session["notified"]:
