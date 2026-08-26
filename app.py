@@ -53,9 +53,33 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 # semua baca dari sini. Credential HANYA lewat environment variable, gak pernah di-hardcode.
 # Kalau OPENAI_API_KEY belum diisi di Render, fitur voice note otomatis "gagal jujur" (kasih tau
 # customer/owner buat kirim ulang/ketik) — TIDAK PERNAH hallucinate isi transcript.
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-TRANSCRIPTION_PROVIDER = os.environ.get("TRANSCRIPTION_PROVIDER", "openai")
-TRANSCRIPTION_MODEL = os.environ.get("TRANSCRIPTION_MODEL", "whisper-1")
+#
+# BUG FIX (voice bugfix cycle) — `.strip()` WAJIB di sini. Beberapa panel env var (termasuk
+# Render kalau isinya dicopy-paste dari tempat lain) gampang banget nyelipin newline/spasi di
+# ujung value tanpa kelihatan di UI. Sebelum fix ini, `OPENAI_API_KEY = os.environ.get(...)` TANPA
+# strip() bisa lolos truthy-check (`if not OPENAI_API_KEY`) padahal isinya cuma whitespace, ATAU
+# sebaliknya value yang valid tapi ada trailing newline bikin header "Authorization: Bearer sk-...\n"
+# jadi invalid di sisi provider — dua-duanya SAMA-SAMA berujung transcript gagal, tapi errornya beda
+# kategori (not_configured vs transcription_failed). `.strip()` di titik baca env var ini nutup
+# celah itu buat OPENAI_API_KEY & TRANSCRIPTION_PROVIDER/MODEL sekaligus.
+OPENAI_API_KEY = (os.environ.get("OPENAI_API_KEY") or "").strip()
+TRANSCRIPTION_PROVIDER = (os.environ.get("TRANSCRIPTION_PROVIDER") or "openai").strip().lower()
+TRANSCRIPTION_MODEL = (os.environ.get("TRANSCRIPTION_MODEL") or "whisper-1").strip()
+
+# Kategori error internal (item 10 laporan bugfix) — dipakai SUPAYA log Render selalu jelas alasan
+# SEBENARNYA kenapa voice note gagal, walau pesan yang dikirim ke customer/owner tetap satu kalimat
+# ramah yang sama ("belum kebaca dengan jelas..."). JANGAN PERNAH menyamarkan salah satu kategori
+# ini jadi kelihatan kayak "audio kurang jelas" di LOG INTERNAL — cuma di pesan customer/owner-facing
+# yang boleh digeneralisir.
+VOICE_ERR_NO_MEDIA_ID = "NO_MEDIA_ID"
+VOICE_ERR_MEDIA_DOWNLOAD_FAILED = "MEDIA_DOWNLOAD_FAILED"
+VOICE_ERR_INVALID_ENCODING = "INVALID_MEDIA_ENCODING"
+VOICE_ERR_EMPTY_AUDIO = "EMPTY_AUDIO"
+VOICE_ERR_UNSUPPORTED_AUDIO = "UNSUPPORTED_AUDIO_TOO_LARGE"
+VOICE_ERR_PROVIDER_NOT_CONFIGURED = "TRANSCRIPTION_PROVIDER_NOT_CONFIGURED"
+VOICE_ERR_API_ERROR = "TRANSCRIPTION_API_ERROR"
+VOICE_ERR_PARSE_ERROR = "RESPONSE_PARSE_ERROR"
+VOICE_ERR_AUDIO_UNCLEAR = "AUDIO_UNCLEAR"  # transkripsi sukses tapi hasilnya string kosong
 
 # Feature flag per kapabilitas (bukan per-tenant hardcode "if business == 'Kilas Works'") — biar
 # arsitektur ini reusable buat klien lain nanti (lihat TENANT_CONFIG di bawah). Default "true" buat
@@ -84,41 +108,88 @@ def _audio_ext_from_mime(base_mime):
     return _AUDIO_EXT_BY_MIME.get((base_mime or "").strip().lower(), "ogg")
 
 
+def _voice_debug(stage, **fields):
+    """Log diagnostik SATU BARIS per tahap pipeline voice note, prefix "VOICE_DEBUG:" biar gampang
+    di-grep dari Render log. SENGAJA gak pernah dikasih access_token/API key/raw audio bytes/URL
+    media yang mengandung token — cuma metadata (panjang, status, MIME, nama exception, dst).
+    Ditambahkan khusus buat nemuin root cause laporan "semua voice note gagal, fallback generik
+    terus" — sebelum ini beberapa cabang error return LANGSUNG tanpa nge-print apapun sama sekali,
+    jadi gak ada jejak sama sekali di log kalau gagalnya di tahap awal (misal media_id kosong)."""
+    parts = " ".join(f"{k}={v}" for k, v in fields.items())
+    print(f"VOICE_DEBUG: stage={stage} {parts}")
+
+
 def transcribe_audio_whatsapp(media_id):
     """Download voice note dari WhatsApp Cloud API (pakai download_whatsapp_media() yang SAMA
     dipakai buat gambar — bukan jalur baru) lalu transcribe pakai TRANSCRIPTION_PROVIDER.
 
-    Balikin (transcript: str atau None, error_reason: str atau None). Kalau transcript None,
-    CALLER WAJIB pakai pesan fallback jujur ("belum kebaca dengan jelas...") — JANGAN PERNAH
-    mengarang isi transcript.
+    Balikin (transcript: str atau None, error_reason: str atau None — salah satu konstanta
+    VOICE_ERR_*). Kalau transcript None, CALLER WAJIB pakai pesan fallback jujur ("belum kebaca
+    dengan jelas...") — JANGAN PERNAH mengarang isi transcript. error_reason SELALU di-log detail
+    (lewat _voice_debug) di SETIAP titik return, termasuk yang sebelumnya silent (no_media_id,
+    download_failed, not_configured, dst) — ini fix utama dari laporan bug "semua VN gagal tanpa
+    jejak di log".
 
     Semua audio diproses di MEMORI (base64/bytes), TIDAK PERNAH ditulis ke file/disk, dan TIDAK
     PERNAH disimpan sebagai binary ke database — begitu fungsi ini selesai, bytes-nya otomatis
     kebuang (di-garbage-collect Python), jadi "cleanup temp audio" beres tanpa perlu file temp
     sama sekali."""
     if not media_id:
-        return None, "no_media_id"
+        _voice_debug("media_id_check", media_id_exists=False)
+        return None, VOICE_ERR_NO_MEDIA_ID
+    _voice_debug("media_id_check", media_id_exists=True)
 
     b64_data, mime_type = download_whatsapp_media(media_id)
     if not b64_data:
-        return None, "download_failed"
+        _voice_debug("media_download", metadata_or_download="failed", mime_type=mime_type)
+        return None, VOICE_ERR_MEDIA_DOWNLOAD_FAILED
+    _voice_debug("media_download", metadata_or_download="ok", mime_type=mime_type)
 
     try:
         audio_bytes = base64.b64decode(b64_data)
-    except Exception:
-        return None, "invalid_media_encoding"
+    except Exception as e:
+        _voice_debug("decode_base64", success=False, exception_class=type(e).__name__)
+        return None, VOICE_ERR_INVALID_ENCODING
 
-    if len(audio_bytes) > MAX_AUDIO_BYTES:
-        return None, "too_large"
+    byte_length = len(audio_bytes)
+    _voice_debug("decode_base64", success=True, byte_length=byte_length)
+
+    if byte_length == 0:
+        _voice_debug("size_check", result="empty_audio")
+        return None, VOICE_ERR_EMPTY_AUDIO
+
+    if byte_length > MAX_AUDIO_BYTES:
+        _voice_debug("size_check", result="too_large", byte_length=byte_length, max_allowed=MAX_AUDIO_BYTES)
+        return None, VOICE_ERR_UNSUPPORTED_AUDIO
 
     base_mime = (mime_type or "").split(";")[0].strip().lower()
-    if base_mime and base_mime not in SUPPORTED_AUDIO_MIME_TYPES:
+    mime_recognized = bool(base_mime) and base_mime in SUPPORTED_AUDIO_MIME_TYPES
+    _voice_debug("mime_check", mime_type=mime_type, base_mime=base_mime, recognized=mime_recognized)
+    if base_mime and not mime_recognized:
         # Tetep dicoba (WhatsApp kadang ngirim variasi MIME yang provider transkripsi masih bisa
         # handle), tapi dicatat biar kelihatan kalau perlu nambahin ke whitelist di atas.
         print(f"[VOICE] MIME audio tidak dikenal di whitelist (tetap dicoba): {mime_type}")
 
-    if not OPENAI_API_KEY or TRANSCRIPTION_PROVIDER != "openai":
-        return None, "not_configured"
+    # .strip() LAGI di titik pakai (bukan cuma pas baca env var di atas) — sengaja defensif dobel:
+    # kalau OPENAI_API_KEY di-override runtime (misal lewat test, atau env var ke-reload) jadi cuma
+    # whitespace, header "Authorization: Bearer   \n" akan DITOLAK duluan oleh library `requests`
+    # sendiri (InvalidHeader) sebelum sempat nyampe ke OpenAI — itu masuk kategori error API biasa,
+    # BUKAN not_configured, padahal akar masalahnya sama (credential kosong). Cek di sini nutup itu.
+    api_key = (OPENAI_API_KEY or "").strip()
+    provider_configured = bool(api_key) and TRANSCRIPTION_PROVIDER == "openai"
+    _voice_debug(
+        "provider_check",
+        provider=TRANSCRIPTION_PROVIDER, model=TRANSCRIPTION_MODEL,
+        api_key_present=bool(api_key), configured=provider_configured,
+    )
+    if not provider_configured:
+        # INI KEMUNGKINAN BESAR PENYEBAB "semua voice note gagal identik" di laporan bug — kalau
+        # OPENAI_API_KEY belum keisi (atau ke-isi string kosong/whitespace doang) di Render, SEMUA
+        # voice note tanpa terkecuali bakal berhenti persis di titik ini, TERLEPAS dari durasi/
+        # kejelasan audio-nya — match persis sama gejala yang dilaporkan (4 detik/3 detik/2 detik
+        # semua gagal sama). Baris VOICE_DEBUG di atas bakal nunjukin "api_key_present=False" kalau
+        # ini benar penyebabnya.
+        return None, VOICE_ERR_PROVIDER_NOT_CONFIGURED
 
     try:
         ext = _audio_ext_from_mime(base_mime)
@@ -127,18 +198,32 @@ def transcribe_audio_whatsapp(media_id):
         # ID/English/campuran jalan alami (lihat item bahasa di MASTER update), bukan dipaksa "id".
         resp = requests.post(
             "https://api.openai.com/v1/audio/transcriptions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            headers={"Authorization": f"Bearer {api_key}"},
             files=files, data=data, timeout=30,
         )
         resp.raise_for_status()
+    except Exception as e:
+        status_code = getattr(getattr(e, "response", None), "status_code", None)
+        _voice_debug(
+            "transcription_request", success=False,
+            exception_class=type(e).__name__, http_status=status_code,
+        )
+        print(f"[VOICE] Transcription API error ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): {e}")
+        return None, VOICE_ERR_API_ERROR
+
+    try:
         result = resp.json()
         transcript = (result.get("text") or "").strip()
-        if not transcript:
-            return None, "empty_transcript"
-        return transcript, None
     except Exception as e:
-        print(f"[VOICE] Transcription error ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): {e}")
-        return None, "transcription_failed"
+        _voice_debug("response_parse", success=False, exception_class=type(e).__name__)
+        return None, VOICE_ERR_PARSE_ERROR
+
+    _voice_debug("transcription_request", success=True, transcript_char_length=len(transcript))
+
+    if not transcript:
+        _voice_debug("empty_transcript_check", result="audio_unclear")
+        return None, VOICE_ERR_AUDIO_UNCLEAR
+    return transcript, None
 
 
 # ==== TENANT CONFIG (readiness, MASTER pre-launch update) ====
@@ -2720,26 +2805,52 @@ def send_whatsapp_message(to_number, message_text):
 
 
 def download_whatsapp_media(media_id):
-    """Download gambar/file yang dikirim customer/owner lewat WhatsApp (misal bukti transfer),
-    balikin (base64_data, mime_type) — atau (None, None) kalau gagal di step manapun."""
+    """Download media (gambar ATAU audio voice note) yang dikirim customer/owner lewat WhatsApp,
+    balikin (base64_data, mime_type) — atau (None, None) kalau gagal di step manapun. Dipakai
+    SAMA-SAMA oleh jalur gambar (bukti transfer, dst) dan jalur voice note — jangan diasumsikan
+    "pasti gambar" di mana pun di fungsi ini.
+
+    Dua tahap terpisah (metadata → lalu isi media), masing-masing di-log via VOICE_DEBUG kalau
+    gagal, supaya kalau ada laporan "media gagal kebuka" jelas kelihatan di tahap MANA gagalnya:
+    - metadata request (media_id invalid/expired, access token salah/expired)
+    - media content request (URL metadata valid tapi isi filenya gagal ke-fetch)
+    Ini FIX diagnostik dari laporan bug voice note — sebelumnya dua tahap ini digabung jadi satu
+    try/except besar jadi gak kelihatan tahap mana yang gagal dari log."""
     try:
         meta_url = f"https://graph.facebook.com/v21.0/{media_id}"
         headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
         r = requests.get(meta_url, headers=headers, timeout=30)
         r.raise_for_status()
         meta = r.json()
-        media_url = meta.get("url")
-        mime_type = meta.get("mime_type", "image/jpeg")
-        if not media_url:
-            print("Download media WA: gak ada URL di response metadata:", meta)
-            return None, None
+    except Exception as e:
+        _voice_debug("media_metadata_request", success=False, exception_class=type(e).__name__)
+        print("Error ambil metadata media WA:", e)
+        return None, None
 
+    media_url = meta.get("url")
+    # BUG FIX (voice bugfix cycle): default lama "image/jpeg" cuma masuk akal buat jalur gambar —
+    # fungsi ini SEKARANG juga dipakai buat audio, jadi default netral (string kosong) biar caller
+    # (transcribe_audio_whatsapp) yang nentuin penanganannya sendiri, bukan diam-diam dianggap JPEG.
+    mime_type = meta.get("mime_type", "")
+    if not media_url:
+        _voice_debug("media_metadata_request", success=True, media_url_present=False, mime_type=mime_type)
+        print("Download media WA: gak ada URL di response metadata:", meta)
+        return None, None
+    _voice_debug("media_metadata_request", success=True, media_url_present=True, mime_type=mime_type)
+
+    try:
         r2 = requests.get(media_url, headers=headers, timeout=30)
         r2.raise_for_status()
+        content_length = len(r2.content or b"")
+        _voice_debug("media_content_request", success=True, content_length=content_length)
+        if content_length == 0:
+            print("Download media WA: isi file kosong (0 bytes) padahal request sukses.")
+            return None, None
         b64_data = base64.b64encode(r2.content).decode("utf-8")
         return b64_data, mime_type
     except Exception as e:
-        print("Error download media WA:", e)
+        _voice_debug("media_content_request", success=False, exception_class=type(e).__name__)
+        print("Error download isi media WA:", e)
         return None, None
 
 
