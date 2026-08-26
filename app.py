@@ -78,6 +78,11 @@ VOICE_ERR_EMPTY_AUDIO = "EMPTY_AUDIO"
 VOICE_ERR_UNSUPPORTED_AUDIO = "UNSUPPORTED_AUDIO_TOO_LARGE"
 VOICE_ERR_PROVIDER_NOT_CONFIGURED = "TRANSCRIPTION_PROVIDER_NOT_CONFIGURED"
 VOICE_ERR_API_ERROR = "TRANSCRIPTION_API_ERROR"
+# BUG FIX (voice production bug, cycle 3) — sebelumnya error billing/quota OpenAI (API key BENAR
+# tapi project belum ada billing/credit, atau kena rate limit) ke-lempar jadi VOICE_ERR_API_ERROR
+# generik. Sekarang dipisah biar log Render LANGSUNG kelihatan bedanya "credential salah" vs
+# "credential benar tapi akun OpenAI-nya belum bisa dipakai" — dua hal ini butuh tindakan beda.
+VOICE_ERR_BILLING_OR_QUOTA = "BILLING_OR_QUOTA_ERROR"
 VOICE_ERR_PARSE_ERROR = "RESPONSE_PARSE_ERROR"
 VOICE_ERR_AUDIO_UNCLEAR = "AUDIO_UNCLEAR"  # transkripsi sukses tapi hasilnya string kosong
 
@@ -139,11 +144,15 @@ def transcribe_audio_whatsapp(media_id):
         return None, VOICE_ERR_NO_MEDIA_ID
     _voice_debug("media_id_check", media_id_exists=True)
 
+    # NOTE: download_whatsapp_media() sudah nge-log stage granular sendiri ("media_metadata" lalu
+    # "media_download") — baris di bawah ini cuma ringkasan hasil AKHIR dari kedua tahap itu, bukan
+    # duplikat. Nama stage sengaja dibedain ("media_fetch_result") biar gak nimpa/kebingungan pas
+    # di-grep sama dua stage granular di atas.
     b64_data, mime_type = download_whatsapp_media(media_id)
     if not b64_data:
-        _voice_debug("media_download", metadata_or_download="failed", mime_type=mime_type)
+        _voice_debug("media_fetch_result", ok=False, mime_type=mime_type)
         return None, VOICE_ERR_MEDIA_DOWNLOAD_FAILED
-    _voice_debug("media_download", metadata_or_download="ok", mime_type=mime_type)
+    _voice_debug("media_fetch_result", ok=True, mime_type=mime_type)
 
     try:
         audio_bytes = base64.b64decode(b64_data)
@@ -203,13 +212,40 @@ def transcribe_audio_whatsapp(media_id):
         )
         resp.raise_for_status()
     except Exception as e:
-        status_code = getattr(getattr(e, "response", None), "status_code", None)
+        err_resp = getattr(e, "response", None)
+        status_code = getattr(err_resp, "status_code", None)
+        # BUG FIX (voice production bug, cycle 3) — sebelumnya body error dari OpenAI dibuang begitu
+        # aja (cuma exception class + status code yang ke-log). Body error OpenAI AMAN untuk di-log
+        # (isinya pesan error dari OpenAI sendiri soal AKUN KITA, bukan secret/token kita) dan justru
+        # ini yang paling nunjukin root cause asli: "invalid_api_key" vs "insufficient_quota" vs
+        # "model_not_found" dst — tiga-tiganya SAMA-SAMA bikin transkripsi gagal identik dari sisi
+        # WhatsApp (customer/owner cuma liat fallback generik), tapi tindakan perbaikannya beda total.
+        openai_err_type, openai_err_code, openai_err_message = None, None, None
+        if err_resp is not None:
+            try:
+                err_body = err_resp.json()
+                openai_err_obj = (err_body or {}).get("error") or {}
+                openai_err_type = openai_err_obj.get("type")
+                openai_err_code = openai_err_obj.get("code")
+                openai_err_message = (openai_err_obj.get("message") or "")[:200]
+            except Exception:
+                pass
+        is_billing_or_quota = (
+            status_code == 429
+            or openai_err_type in ("insufficient_quota", "billing_not_active")
+            or openai_err_code in ("insufficient_quota", "billing_hard_limit_reached")
+        )
         _voice_debug(
             "transcription_request", success=False,
             exception_class=type(e).__name__, http_status=status_code,
+            openai_error_type=openai_err_type, openai_error_code=openai_err_code,
         )
-        print(f"[VOICE] Transcription API error ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): {e}")
-        return None, VOICE_ERR_API_ERROR
+        print(
+            f"[VOICE] Transcription API error ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): "
+            f"{e} | openai_error_type={openai_err_type} openai_error_code={openai_err_code} "
+            f"openai_error_message={openai_err_message}"
+        )
+        return None, (VOICE_ERR_BILLING_OR_QUOTA if is_billing_or_quota else VOICE_ERR_API_ERROR)
 
     try:
         result = resp.json()
@@ -2823,7 +2859,8 @@ def download_whatsapp_media(media_id):
         r.raise_for_status()
         meta = r.json()
     except Exception as e:
-        _voice_debug("media_metadata_request", success=False, exception_class=type(e).__name__)
+        status_code = getattr(getattr(e, "response", None), "status_code", None)
+        _voice_debug("media_metadata", success=False, exception_class=type(e).__name__, http_status=status_code)
         print("Error ambil metadata media WA:", e)
         return None, None
 
@@ -2833,23 +2870,24 @@ def download_whatsapp_media(media_id):
     # (transcribe_audio_whatsapp) yang nentuin penanganannya sendiri, bukan diam-diam dianggap JPEG.
     mime_type = meta.get("mime_type", "")
     if not media_url:
-        _voice_debug("media_metadata_request", success=True, media_url_present=False, mime_type=mime_type)
+        _voice_debug("media_metadata", success=True, media_url_present=False, mime_type=mime_type)
         print("Download media WA: gak ada URL di response metadata:", meta)
         return None, None
-    _voice_debug("media_metadata_request", success=True, media_url_present=True, mime_type=mime_type)
+    _voice_debug("media_metadata", success=True, media_url_present=True, mime_type=mime_type)
 
     try:
         r2 = requests.get(media_url, headers=headers, timeout=30)
         r2.raise_for_status()
         content_length = len(r2.content or b"")
-        _voice_debug("media_content_request", success=True, content_length=content_length)
+        _voice_debug("media_download", success=True, http_status=r2.status_code, byte_length=content_length)
         if content_length == 0:
             print("Download media WA: isi file kosong (0 bytes) padahal request sukses.")
             return None, None
         b64_data = base64.b64encode(r2.content).decode("utf-8")
         return b64_data, mime_type
     except Exception as e:
-        _voice_debug("media_content_request", success=False, exception_class=type(e).__name__)
+        status_code = getattr(getattr(e, "response", None), "status_code", None)
+        _voice_debug("media_download", success=False, exception_class=type(e).__name__, http_status=status_code)
         print("Error download isi media WA:", e)
         return None, None
 
@@ -3170,7 +3208,7 @@ STOPWORDS_NOT_NAMES = {
     "apa", "aja", "ajah", "itu", "ini", "dia", "nya", "tadi", "chat", "chatnya", "chatin",
     "terakhir", "yang", "ngomong", "ngomongin", "nanya", "tanya", "tanyain", "bilang", "cerita",
     "gimana", "kenapa", "gitu", "tuh", "dong", "sih", "kok", "td", "barusan", "habis", "abis",
-    "udah", "sudah", "balas", "bales", "reply", "kirim", "kirimin", "sampein", "follow", "up",
+    "udah", "sudah", "belum", "balas", "bales", "reply", "kirim", "kirimin", "sampein", "follow", "up",
     "followup", "ingetin", "ingatkan", "tentang", "soal", "siapa", "kapan", "berapa", "dimana",
     "dengan", "untuk", "ke", "dan", "atau", "juga", "aku", "gw", "gue", "saya", "owner",
     "customer", "customernya", "orangnya", "ya", "nih", "deh", "kah", "sm", "sama",
@@ -3692,6 +3730,10 @@ def receive_webhook():
                 # Identitas owner SUDAH ditentukan dari OWNER_WHATSAPP_NUMBER di baris paling atas
                 # (nomor terverifikasi), BUKAN dari isi transcript — jadi transcript gak akan pernah
                 # dipakai buat nentuin siapa yang ngirim, cuma isi command-nya doang.
+                _voice_debug(
+                    "webhook_received", message_id=incoming_message_id,
+                    sender_role="OWNER", message_type=msg_type,
+                )
                 if not FEATURES.get("voice_note_owner", False):
                     send_whatsapp_message(from_number, "Saat ini admin cuma bisa baca pesan teks & gambar ya.")
                     return jsonify({"status": "ok"}), 200
@@ -3701,12 +3743,20 @@ def receive_webhook():
                 )
                 if not owner_transcript:
                     print(f"Owner voice note gagal ditranskrip (media_id={owner_audio_media_id}): {owner_vn_err}")
-                    send_whatsapp_message(
-                        from_number,
-                        "Aku belum nangkep voice note tadi dengan jelas. Coba kirim ulang atau ketik perintahnya ya.",
+                    # BUG FIX (final launch QA) — kalau penyebabnya BILLING_OR_QUOTA_ERROR (kredit OpenAI
+                    # habis/auto-reload OFF, bukan audio yang gak jelas), owner butuh kalimat yang beda —
+                    # "belum nangkep dengan jelas" salah kaprah dan bikin owner ngirim ulang audio yang
+                    # sama berkali-kali padahal masalahnya bukan di audionya. Tetap SATU kalimat ramah,
+                    # TIDAK PERNAH nyebut OpenAI/billing/API/HTTP status ke owner (itu cuma di log server).
+                    owner_vn_fail_text = (
+                        "Aku belum bisa proses voice note sekarang. Coba ketik perintahnya sebentar ya."
+                        if owner_vn_err == VOICE_ERR_BILLING_OR_QUOTA else
+                        "Aku belum nangkep voice note tadi dengan jelas. Coba kirim ulang atau ketik perintahnya ya."
                     )
+                    send_whatsapp_message(from_number, owner_vn_fail_text)
                     return jsonify({"status": "ok"}), 200
                 print(f"[VOICE] Owner VN transcript ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}): {owner_transcript[:200]}")
+                _voice_debug("route_after_transcript", target="owner", message_id=incoming_message_id)
                 owner_msg_is_voice_note = True
                 owner_text = normalize_owner_text_light(owner_transcript)
             elif msg_type != "text":
@@ -4344,6 +4394,10 @@ def receive_webhook():
             # YANG SAMA (user_text) di bawah, BUKAN engine AI kedua khusus audio. Kalau gagal
             # ditranskrip, kasih tau jujur (gak pernah hallucinate isi transcript) dan minta
             # kirim ulang/ketik — sesuai bahasa yang lagi dipakai customer kalau sudah diketahui.
+            _voice_debug(
+                "webhook_received", message_id=incoming_message_id,
+                sender_role="CUSTOMER", message_type=msg_type,
+            )
             if not FEATURES.get("voice_note_customer", False):
                 send_typing_indicator(incoming_message_id)
                 time.sleep(1.5)
@@ -4358,14 +4412,26 @@ def receive_webhook():
                 send_typing_indicator(incoming_message_id)
                 time.sleep(1.2)
                 lang = customer_language.get(from_number)
-                vn_fail_text = (
-                    "Sorry, I couldn't read the voice note clearly. Could you resend it or type the message?"
-                    if lang == LANGUAGE_EN else
-                    "Maaf Kak, voice note-nya belum kebaca dengan jelas. Boleh kirim ulang atau ketik pesannya sebentar?"
-                )
+                # BUG FIX (final launch QA) — BILLING_OR_QUOTA_ERROR (kredit transkripsi OpenAI habis,
+                # auto-reload OFF) BUKAN "audio kurang jelas" — kalau dikasih pesan yang sama, customer
+                # bakal ngirim ulang voice note yang sama berkali-kali sia-sia. Tetap satu kalimat ramah,
+                # TIDAK PERNAH nyebut OpenAI/billing/API/HTTP status ke customer (cuma di log server).
+                if vn_err == VOICE_ERR_BILLING_OR_QUOTA:
+                    vn_fail_text = (
+                        "Sorry, I can't process voice notes right now. Could you type the message instead?"
+                        if lang == LANGUAGE_EN else
+                        "Maaf Kak, voice note-nya belum bisa diproses saat ini. Boleh ketik pesannya sebentar?"
+                    )
+                else:
+                    vn_fail_text = (
+                        "Sorry, I couldn't read the voice note clearly. Could you resend it or type the message?"
+                        if lang == LANGUAGE_EN else
+                        "Maaf Kak, voice note-nya belum kebaca dengan jelas. Boleh kirim ulang atau ketik pesannya sebentar?"
+                    )
                 send_whatsapp_message(from_number, vn_fail_text)
                 return jsonify({"status": "ok"}), 200
             print(f"[VOICE] Customer VN transcript ({TRANSCRIPTION_PROVIDER}/{TRANSCRIPTION_MODEL}) from {from_number}: {transcript[:200]}")
+            _voice_debug("route_after_transcript", target="customer", message_id=incoming_message_id)
             user_msg_is_voice_note = True
             user_text = transcript
         elif msg_type != "text":
@@ -4616,6 +4682,33 @@ def receive_webhook():
 @app.route("/", methods=["GET"])
 def health_check():
     return "Kilas Works AI Admin - server jalan!", 200
+
+
+@app.route("/internal/build-info", methods=["GET"])
+def internal_build_info():
+    """Diagnostik ringan (voice production bug, cycle 3) — dipakai buat MEMASTIKAN commit yang
+    beneran jalan di Render sama dengan commit yang dikira di-deploy, TANPA expose apapun ke
+    customer (di-gate pakai DASHBOARD_KEY, pola yang sama kayak /dashboard). Gak pernah nampilin
+    OPENAI_API_KEY/WHATSAPP_ACCESS_TOKEN — cuma bool "apakah keisi" buat voice note provider.
+    Akses: GET /internal/build-info?key=<DASHBOARD_KEY>
+    """
+    key = request.args.get("key", "")
+    if not DASHBOARD_KEY or key != DASHBOARD_KEY:
+        return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
+
+    # Render otomatis nyediain RENDER_GIT_COMMIT (SHA commit yang beneran di-build & dijalanin) dan
+    # RENDER_SERVICE_NAME — ini BUKAN sesuatu yang kita set manual, jadi bisa dipercaya buat
+    # ngebuktiin "apakah code yang jalan sekarang beneran versi terbaru yang di-push".
+    return jsonify({
+        "status": "ok",
+        "render_git_commit": os.environ.get("RENDER_GIT_COMMIT", "unknown (bukan di-deploy lewat Render, atau env var gak ke-set)"),
+        "render_service_name": os.environ.get("RENDER_SERVICE_NAME", "unknown"),
+        "voice_note_customer_enabled": FEATURES.get("voice_note_customer", False),
+        "voice_note_owner_enabled": FEATURES.get("voice_note_owner", False),
+        "transcription_provider": TRANSCRIPTION_PROVIDER,
+        "transcription_model": TRANSCRIPTION_MODEL,
+        "openai_api_key_present": bool((OPENAI_API_KEY or "").strip()),
+    }), 200
 
 
 @app.route("/cron/followups", methods=["GET"])
@@ -5293,6 +5386,20 @@ def dashboard():
 
 # Init database sekali pas modul ini di-load (baik dijalanin langsung via `python app.py`
 # maupun lewat gunicorn di Render), sekalian seed cache nama customer dari database (kalau ada).
+# BOOT LOG (voice production bug, cycle 3) — dicetak SATU KALI tiap proses start (baik lewat
+# `python app.py` maupun gunicorn di Render). Tujuannya: begitu Render selesai deploy, baris ini
+# langsung kelihatan di log tanpa perlu hit endpoint apapun, buat MEMASTIKAN commit yang jalan
+# sekarang beneran commit yang baru di-push (bukan build lama yang ke-cache/gagal update). Gak
+# pernah nyantumin credential apapun — cuma commit SHA (dari RENDER_GIT_COMMIT bawaan Render) dan
+# status konfigurasi voice note (present/absent, BUKAN nilai key-nya).
+print(
+    f"BOOT: commit={os.environ.get('RENDER_GIT_COMMIT', 'unknown')} "
+    f"service={os.environ.get('RENDER_SERVICE_NAME', 'unknown')} "
+    f"voice_note_customer={FEATURES.get('voice_note_customer', False)} "
+    f"voice_note_owner={FEATURES.get('voice_note_owner', False)} "
+    f"transcription_provider={TRANSCRIPTION_PROVIDER} transcription_model={TRANSCRIPTION_MODEL} "
+    f"openai_api_key_present={bool((OPENAI_API_KEY or '').strip())}"
+)
 init_db()
 customer_names.update(load_all_customer_names_from_db())
 agreed_facts.update(load_all_customer_facts_from_db())
