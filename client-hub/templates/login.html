@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Login — Kilas Works Client Hub{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:40px auto;">
+  <h1>Masuk</h1>
+  <p class="muted">Kelola onboarding AI Admin bisnismu.</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Email</label>
+    <input type="email" name="email" value="{{ email or '' }}" required>
+    <label>Password</label>
+    <input type="password" name="password" required>
+    <div style="margin-top:18px;"><button class="btn" type="submit">Login</button></div>
+  </form>
+  <p class="muted" style="margin-top:14px;">Belum punya akun? <a href="{{ url_for('auth.register_page') }}">Daftar</a></p>
+</div>
+{% endblock %}

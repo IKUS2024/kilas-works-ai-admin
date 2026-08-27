@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Review — {{ business.business_name }}{% endblock %}
+{% block content %}
+<h1>{{ business.business_name }}</h1>
+<span class="pill {{ business.display_status or business.status }}">{{ business.display_status or business.status }}</span>
+<span class="muted">· {{ business.package }}</span>
+
+{% if missing_required %}
+  <div class="card" style="border-color:var(--red);">
+    <h2 style="color:var(--red);">Data wajib belum lengkap</h2>
+    <p class="muted">{{ missing_required|join(', ') }}</p>
+  </div>
+{% endif %}
+
+<div class="card">
+  <h2>Data Bisnis (Raw)</h2>
+  <table>
+    <tr><th>Kategori</th><td>{{ profile.category if profile else '-' }}</td></tr>
+    <tr><th>Deskripsi</th><td>{{ profile.short_description if profile else '-' }}</td></tr>
+    <tr><th>Owner</th><td>{{ profile.owner_name if profile else '-' }}</td></tr>
+    <tr><th>Telepon bisnis</th><td>{{ profile.business_phone if profile else '-' }}</td></tr>
+    <tr><th>Alamat</th><td>{{ profile.address if profile else '-' }}</td></tr>
+    <tr><th>Jam operasional</th><td>{{ profile.operating_hours if profile else '-' }}</td></tr>
+    <tr><th>Hari libur</th><td>{{ profile.closed_days if profile else '-' }}</td></tr>
+    <tr><th>Bahasa utama</th><td>{{ profile.primary_language if profile else '-' }}</td></tr>
+    <tr><th>Tone</th><td>{{ profile.tone if profile else '-' }}</td></tr>
+    <tr><th>Sapaan customer</th><td>{{ profile.customer_salutation if profile else '-' }}</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Produk / Layanan</h2>
+  <table>
+    <tr><th>Raw input</th><th>Nama (AI)</th><th>Harga (AI)</th><th></th></tr>
+    {% for s in services %}
+      <tr>
+        <td>{{ s.raw_input }}</td>
+        <td>{{ s.service_name or '-' }}</td>
+        <td>{% if s.price_from %}{{ s.currency }} {{ '{:,}'.format(s.price_from) }}{% if s.price_to %}–{{ '{:,}'.format(s.price_to) }}{% endif %}{% else %}-{% endif %}</td>
+        <td>{% if s.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>FAQ</h2>
+  <table>
+    <tr><th>Raw input</th><th>Q (AI)</th><th>A (AI)</th><th></th></tr>
+    {% for f in faqs %}
+      <tr>
+        <td>{{ f.raw_input }}</td>
+        <td>{{ f.question or '-' }}</td>
+        <td>{{ f.answer or '-' }}</td>
+        <td>{% if f.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>Files</h2>
+  {% if files %}
+    <table>
+      <tr><th>File</th><th></th></tr>
+      {% for f in files %}
+        <tr>
+          <td>{{ f.original_filename }}</td>
+          <td>
+            {% if is_admin_view %}
+              <a href="{{ url_for('admin.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a>
+            {% else %}
+              <a href="{{ url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">Belum ada file diupload.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>AI Generated Knowledge</h2>
+  {% if ai_settings %}
+    <p class="muted">Status: <strong>{{ ai_settings.ai_status }}</strong></p>
+    {% if ai_settings.ai_status == 'FAILED' %}
+      <p style="color:var(--red);">{{ ai_settings.last_error }}</p>
+    {% elif ai_settings.ai_status == 'DONE' %}
+      <p>{{ ai_settings.normalized_summary }}</p>
+      {% if ai_settings.missing_fields %}
+        <p class="needs-review">Field yang AI tandai belum lengkap: {{ ai_settings.missing_fields|join(', ') }}</p>
+      {% endif %}
+    {% endif %}
+  {% else %}
+    <p class="muted">Belum dijalankan.</p>
+  {% endif %}
+
+  {% if is_admin_view and tenant_config_row %}
+    <p class="muted">Tenant config version: {{ tenant_config_row.config_version }} (di-provision {{ tenant_config_row.provisioned_at }})</p>
+  {% endif %}
+  {% if is_admin_view and whatsapp_config %}
+    <p class="muted">WhatsApp: {{ whatsapp_config.connection_status }}{% if whatsapp_config.phone_number_id %} — phone_number_id {{ whatsapp_config.phone_number_id }}{% endif %}</p>
+  {% endif %}
+
+  {% if not is_admin_view %}
+    <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}" style="margin-top:12px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn secondary" type="submit">Jalankan AI Setup</button>
+    </form>
+  {% else %}
+    <form method="post" action="{{ url_for('admin.retry_ai_setup', business_id=business.id) }}" style="margin-top:12px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
+    </form>
+  {% endif %}
+</div>
+
+{% if not is_admin_view %}
+  <div class="card">
+    <h2>Langkah Selanjutnya</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
+      <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Submit ke Kilas Works</button>
+      </form>
+    </div>
+  </div>
+{% endif %}
+
+{% if is_admin_view %}
+  <div class="card">
+    <h2>Admin Actions</h2>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      <a class="btn secondary" href="{{ url_for('admin.simulate_page', business_id=business.id) }}">Test AI</a>
+      {% if business.status not in ('APPROVED','ACTIVE') %}
+        <form method="post" action="{{ url_for('admin.approve', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn" type="submit">Approve</button>
+        </form>
+      {% endif %}
+      {% if business.status == 'APPROVED' and not business.whatsapp_connected %}
+        <span class="muted">Hubungkan WhatsApp di bawah sebelum Activate.</span>
+      {% endif %}
+      {% if business.status == 'APPROVED' and business.whatsapp_connected %}
+        <form method="post" action="{{ url_for('admin.activate', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn" type="submit">Activate</button>
+        </form>
+      {% endif %}
+      {% if business.status == 'ACTIVE' %}
+        <form method="post" action="{{ url_for('admin.deactivate', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn danger" type="submit">Deactivate</button>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if business.status == 'APPROVED' and not business.whatsapp_connected %}
+      <form method="post" action="{{ url_for('admin.connect_whatsapp', business_id=business.id) }}" style="margin-bottom:16px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>WhatsApp Phone Number ID</label>
+        <input type="text" name="whatsapp_phone_number_id" required>
+        <label>WABA ID (opsional)</label>
+        <input type="text" name="waba_id">
+        <label>Nomor owner terpercaya (trusted owner phone)</label>
+        <input type="text" name="trusted_owner_phone" required>
+        <label>Credentials reference (opsional — nama env var/secret yang menyimpan token, BUKAN token itu sendiri)</label>
+        <input type="text" name="credentials_reference" placeholder="mis. WHATSAPP_TOKEN__TENANT_{{ business.id }}">
+        <div style="margin-top:10px;"><button class="btn secondary" type="submit">Hubungkan WhatsApp</button></div>
+      </form>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('admin.request_revision', business_id=business.id) }}" style="margin-bottom:16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Catatan revisi untuk client</label>
+      <textarea name="note" required></textarea>
+      <div style="margin-top:10px;"><button class="btn secondary" type="submit">Minta Revisi</button></div>
+    </form>
+
+    <form method="post" action="{{ url_for('admin.change_package', business_id=business.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Ubah paket</label>
+      <select name="package">
+        <option value="AI_ADMIN_BASIC" {{ 'selected' if business.package == 'AI_ADMIN_BASIC' else '' }}>AI Admin Basic</option>
+        <option value="AI_ADMIN_PRO" {{ 'selected' if business.package == 'AI_ADMIN_PRO' else '' }}>AI Admin Pro</option>
+      </select>
+      <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
+    </form>
+  </div>
+
+  {% if audit_log %}
+    <div class="card">
+      <h2>Audit Log</h2>
+      <table>
+        <tr><th>Waktu</th><th>Aksi</th><th>Detail</th></tr>
+        {% for a in audit_log %}
+          <tr><td>{{ a.created_at }}</td><td>{{ a.action }}</td><td>{{ a.detail or '-' }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

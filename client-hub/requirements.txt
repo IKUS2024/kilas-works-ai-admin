@@ -1,0 +1,13 @@
+# Kilas Works Client Hub — dependencies.
+# Kept intentionally minimal and separate from ../requirements.txt (the production bot's deps).
+flask
+requests
+pypdf
+Pillow
+gunicorn
+
+# REQUIRED because this service's Render deployment now has DATABASE_URL set (PostgreSQL —
+# db kilas-works-db). Not needed for local development/tests, which default to SQLite with zero
+# extra dependencies (DATABASE_URL unset locally). Left uncommented from here on so Render's build
+# step actually installs it — see db.py's BACKEND selection logic.
+psycopg2-binary

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Kilas Works Client Hub{% endblock %}</title>
+<style>
+  :root {
+    --bg: #16171a; --bg-soft: #1e2024; --card: #222428; --border: #33363c;
+    --text: #eef0f2; --text-dim: #a3a7ad; --orange: #ff7a1a; --orange-dark: #e0640a;
+    --green: #3ecf8e; --yellow: #e0b93b; --red: #f16565;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--orange); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 24px; background:var(--bg-soft); border-bottom:1px solid var(--border); }
+  .brand { font-weight:700; letter-spacing:.3px; }
+  .brand span { color: var(--orange); }
+  .topbar nav a { margin-left:16px; color:var(--text-dim); font-size:14px; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:18px; }
+  h1 { font-size:22px; margin:0 0 6px; }
+  h2 { font-size:17px; margin:0 0 12px; }
+  .muted { color: var(--text-dim); font-size:14px; }
+  .flash { padding:10px 14px; border-radius:8px; margin-bottom:12px; font-size:14px; }
+  .flash.error { background:#3a1f1f; color:#ffb3b3; border:1px solid #5a2a2a; }
+  .flash.success { background:#1f3a2a; color:#b3ffcf; border:1px solid #2a5a3c; }
+  label { display:block; font-size:13px; color:var(--text-dim); margin:12px 0 4px; }
+  input, select, textarea { width:100%; padding:9px 11px; background:#17181b; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:14px; }
+  textarea { min-height:90px; font-family: inherit; }
+  .btn { display:inline-block; padding:9px 16px; border-radius:8px; border:1px solid var(--orange); background:var(--orange); color:#1a1a1a; font-weight:600; cursor:pointer; font-size:14px; }
+  .btn:hover { background: var(--orange-dark); text-decoration:none; }
+  .btn.secondary { background:transparent; color:var(--text); border-color:var(--border); }
+  .btn.danger { background:transparent; border-color:var(--red); color:var(--red); }
+  .btn.small { padding:5px 10px; font-size:12px; }
+  form.inline { display:inline; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--text-dim); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+  .pill.DRAFT, .pill.ONBOARDING { background:#33363c; color:#c9ccd1; }
+  .pill.READY_FOR_AI_SETUP, .pill.READY_FOR_REVIEW { background:#3a3320; color:var(--yellow); }
+  .pill.APPROVED, .pill.APPROVED_WAITING_WHATSAPP_CONNECTION { background:#20323a; color:#7fd3f0; }
+  .pill.ACTIVE { background:#1f3a2a; color:var(--green); }
+  .pill.NEEDS_REVISION { background:#3a1f1f; color:var(--red); }
+  .pill.SUSPENDED { background:#2a2a2a; color:#888; }
+  .steps { display:flex; gap:6px; margin-bottom:20px; flex-wrap:wrap; }
+  .steps span { padding:4px 10px; border-radius:6px; font-size:12px; background:var(--bg-soft); color:var(--text-dim); border:1px solid var(--border); }
+  .steps span.active { color:var(--orange); border-color:var(--orange); }
+  .steps span.done { color:var(--green); }
+  .needs-review { color: var(--yellow); font-size:12px; }
+  footer { text-align:center; color:var(--text-dim); font-size:12px; padding:20px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">Kilas<span>Works</span> Client Hub</div>
+  <nav>
+    {% if session.get('user_id') %}
+      {% if session.get('role') == 'KILAS_ADMIN' %}<a href="{{ url_for('admin.dashboard') }}">Admin</a>{% else %}<a href="{{ url_for('client.dashboard') }}">Dashboard</a>{% endif %}
+      <a href="{{ url_for('auth.logout_page') }}">Logout</a>
+    {% else %}
+      <a href="{{ url_for('auth.login_page') }}">Login</a>
+      <a href="{{ url_for('auth.register_page') }}">Daftar</a>
+    {% endif %}
+  </nav>
+</div>
+<div class="wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+<footer>Kilas Works Client Hub — V1</footer>
+</body>
+</html>
