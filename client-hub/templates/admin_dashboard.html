@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Admin — Kilas Works Client Hub{% endblock %}
+{% block content %}
+<h1>Kilas Admin Dashboard</h1>
+
+<div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  <a class="btn small {{ 'secondary' if status_filter else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
+  {% for f in status_filters %}
+    <a class="btn small {{ 'secondary' if status_filter != f else '' }}" href="{{ url_for('admin.dashboard', status=f) }}">{{ f.replace('_',' ')|title }}</a>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <table>
+    <tr><th>Business</th><th>Plan</th><th>Status</th><th>Created</th><th></th></tr>
+    {% for b in businesses %}
+      <tr>
+        <td>{{ b.business_name }}</td>
+        <td>{{ b.package }}</td>
+        <td><span class="pill {{ b.display_status }}">{{ b.display_status.replace('_',' ') }}</span></td>
+        <td>{{ b.created_at }}</td>
+        <td><a href="{{ url_for('admin.review_business', business_id=b.id) }}">Review</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">Belum ada business.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

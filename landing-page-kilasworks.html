@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kilas Works — Content, AI & Digital Solutions for Your Business</title>
+<meta name="description" content="Kilas Works membantu bisnis membuat konten, menjalankan iklan, membangun website, dan merespons customer lebih cepat lewat AI Admin — biar kehadiran digital bisnis kamu jalan lebih efektif.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0b0c;
+    --bg-raised:#141416;
+    --bg-card:#17171a;
+    --line:#2a2a2e;
+    --ink:#f4f3f1;
+    --ink-dim:#a7a6a3;
+    --ink-faint:#6f6e6c;
+    --orange:#ff6a2c;
+    --orange-dim:#3a2013;
+    --white:#ffffff;
+    --focus:#ff6a2c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    font-size:16px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  h1,h2,h3,.display{
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    letter-spacing:-0.01em;
+    text-wrap:balance;
+  }
+  a{color:inherit;}
+  img{max-width:100%;display:block;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px;}
+  ::selection{background:var(--orange);color:#141416;}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:3px;}
+
+  /* ---------- NAV ---------- */
+  header.nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(11,11,12,0.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 24px;max-width:1120px;margin:0 auto;
+  }
+  .logo{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;font-size:1.15rem;letter-spacing:-0.02em;
+  }
+  .logo span{color:var(--orange);}
+  .nav-cta{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--orange);color:#161311;
+    font-weight:600;font-size:0.9rem;
+    padding:9px 18px;border-radius:999px;
+    text-decoration:none;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px -4px rgba(255,106,44,0.5);}
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position:relative;
+    padding:96px 24px 88px;
+    overflow:hidden;
+  }
+  .hero-glow{
+    position:absolute;top:-260px;right:-180px;width:640px;height:640px;
+    background:radial-gradient(circle, rgba(255,106,44,0.22), transparent 68%);
+    filter:blur(10px);pointer-events:none;
+  }
+  .hero-inner{max-width:1120px;margin:0 auto;position:relative;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:0.78rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--orange);
+    background:var(--orange-dim);
+    border:1px solid rgba(255,106,44,0.35);
+    padding:6px 14px;border-radius:999px;
+    margin-bottom:28px;
+  }
+  .eyebrow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--orange);}
+  h1.headline{
+    font-size:clamp(2.4rem, 5.4vw, 4.4rem);
+    font-weight:700;line-height:1.05;
+    max-width:16ch;
+    margin-bottom:26px;
+  }
+  h1.headline .accent{color:var(--orange);}
+  .hero-sub{
+    font-size:1.1rem;color:var(--ink-dim);
+    max-width:46ch;margin-bottom:40px;
+  }
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:64px;}
+  .btn-primary{
+    background:var(--orange);color:#161311;font-weight:600;
+    padding:14px 26px;border-radius:10px;text-decoration:none;
+    font-size:0.98rem;display:inline-flex;align-items:center;gap:8px;
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 10px 28px -6px rgba(255,106,44,0.55);}
+  .btn-ghost{
+    border:1px solid var(--line);color:var(--ink);font-weight:600;
+    padding:14px 26px;border-radius:10px;text-decoration:none;font-size:0.98rem;
+    display:inline-flex;align-items:center;gap:8px;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .btn-ghost:hover{border-color:var(--ink-faint);background:var(--bg-raised);}
+
+  /* hero visual: phone mockup + laptop dashboard */
+  .hero-visual{
+    display:grid;grid-template-columns:280px 1fr;gap:28px;align-items:end;
+    max-width:760px;
+  }
+  .phone{
+    background:linear-gradient(180deg,#1c1c1f,#111113);
+    border:1px solid var(--line);
+    border-radius:32px;
+    padding:14px;
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.6);
+  }
+  .phone-screen{
+    background:#0e1210;
+    border-radius:20px;
+    padding:16px 14px 18px;
+    min-height:340px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .phone-head{display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:1px solid #1e2622;margin-bottom:4px;}
+  .avatar{width:26px;height:26px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;color:#161311;}
+  .phone-head .name{font-size:0.82rem;font-weight:600;}
+  .phone-head .status{font-size:0.66rem;color:#5fd88a;}
+  .bubble{
+    max-width:82%;padding:9px 12px;border-radius:14px;font-size:0.78rem;line-height:1.4;
+  }
+  .bubble.in{background:#1d2420;align-self:flex-start;border-bottom-left-radius:4px;color:var(--ink-dim);}
+  .bubble.out{background:var(--orange);align-self:flex-end;border-bottom-right-radius:4px;color:#161311;font-weight:500;}
+  .typing{align-self:flex-start;font-size:0.68rem;color:var(--ink-faint);font-style:italic;padding-left:4px;}
+
+  .dash-card{
+    background:var(--bg-card);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:20px;
+  }
+  .dash-card h4{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-faint);font-weight:600;margin-bottom:14px;}
+  .dash-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:0.83rem;}
+  .dash-row:last-child{border-bottom:none;}
+  .tag-pill{font-size:0.66rem;font-weight:600;padding:3px 9px;border-radius:999px;}
+  .tag-pill.hot{background:rgba(255,106,44,0.16);color:var(--orange);}
+  .tag-pill.new{background:rgba(95,216,138,0.14);color:#5fd88a;}
+  .tag-pill.wait{background:rgba(255,255,255,0.08);color:var(--ink-dim);}
+  .dash-card-note{margin-top:12px;font-size:0.68rem;color:var(--ink-faint);font-style:italic;}
+
+  /* ---------- SECTION SHELL ---------- */
+  section{padding:88px 0;}
+  .section-head{max-width:640px;margin-bottom:52px;}
+  .kicker{
+    font-size:0.78rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--orange);margin-bottom:14px;display:block;
+  }
+  .section-head h2{font-size:clamp(1.7rem,3.2vw,2.4rem);font-weight:700;margin-bottom:14px;}
+  .section-head p{color:var(--ink-dim);font-size:1.02rem;max-width:56ch;}
+
+  /* ---------- PROBLEM / SOLUTION ---------- */
+  .problems{
+    display:grid;grid-template-columns:1fr 1fr;gap:20px;
+  }
+  .problem-card{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:18px;padding:32px;
+  }
+  .problem-card .num{font-family:'Space Grotesk',sans-serif;font-size:0.78rem;color:var(--orange);font-weight:600;letter-spacing:0.06em;margin-bottom:16px;display:block;}
+  .problem-card h3{font-size:1.25rem;margin-bottom:10px;}
+  .problem-card p{color:var(--ink-dim);font-size:0.94rem;margin-bottom:18px;}
+  .solution-line{
+    display:flex;gap:10px;align-items:flex-start;
+    font-size:0.88rem;color:var(--ink);
+    border-top:1px solid var(--line);padding-top:16px;
+  }
+  .solution-line svg{flex-shrink:0;margin-top:2px;}
+
+  /* ---------- SERVICES ---------- */
+  .services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .service-card{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:18px;
+    padding:30px 26px;display:flex;flex-direction:column;gap:16px;
+    transition:border-color .2s ease, transform .2s ease;
+  }
+  .service-card:hover{border-color:rgba(255,106,44,0.4);transform:translateY(-3px);}
+  .service-card.wide{grid-column:span 2;}
+  .icon-badge{
+    width:46px;height:46px;border-radius:12px;
+    background:var(--orange-dim);border:1px solid rgba(255,106,44,0.3);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .service-card h3{font-size:1.15rem;}
+  .service-card p{color:var(--ink-dim);font-size:0.92rem;}
+  .service-visual{
+    margin-top:auto;padding-top:14px;border-top:1px solid var(--line);
+  }
+
+  /* AI admin visual mini chat */
+  .mini-chat{display:flex;flex-direction:column;gap:6px;}
+  .mini-bubble{font-size:0.72rem;padding:6px 10px;border-radius:10px;max-width:78%;}
+  .mini-bubble.in{background:#1d2420;color:var(--ink-dim);align-self:flex-start;}
+  .mini-bubble.out{background:var(--orange);color:#161311;align-self:flex-end;font-weight:500;}
+
+  /* AI admin Basic vs Pro mini comparison (no prices, benefit-only) */
+  .ai-tier-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:2px;}
+  .ai-tier-card{
+    background:#101012;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  }
+  .ai-tier-card.pro{border-color:rgba(255,106,44,0.4);}
+  .ai-tier-name{
+    display:inline-block;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.82rem;
+    color:var(--ink);margin-bottom:6px;
+  }
+  .ai-tier-card.pro .ai-tier-name{color:var(--orange);}
+  .ai-tier-card p{color:var(--ink-dim);font-size:0.8rem;line-height:1.45;}
+  .mini-link{
+    align-self:flex-start;font-size:0.85rem;font-weight:600;color:var(--orange);
+    text-decoration:none;margin-top:2px;
+  }
+  .mini-link:hover{text-decoration:underline;}
+
+  /* content grid mini masonry */
+  .tag-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .tag-chip{
+    font-size:0.72rem;font-weight:600;color:var(--ink-dim);
+    border:1px solid var(--line);border-radius:999px;
+    padding:6px 13px;background:#101012;
+  }
+
+  /* website mockup */
+  .mini-browser{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#101012;}
+  .mini-browser .bar{display:flex;gap:5px;padding:8px 10px;background:#17171a;border-bottom:1px solid var(--line);}
+  .mini-browser .dot{width:7px;height:7px;border-radius:50%;background:#2f2f33;}
+  .mini-browser .body{padding:14px;display:flex;flex-direction:column;gap:8px;}
+  .mini-browser .bar-line{height:8px;border-radius:4px;background:#232326;}
+  .mini-browser .bar-line.short{width:40%;}
+  .mini-browser .bar-line.orange{background:var(--orange);width:30%;}
+
+  /* meta ads mini dashboard (labeled Demo Interface — decorative, bukan data campaign asli) */
+  .ads-dash{
+    background:#101012;border:1px solid var(--line);border-radius:12px;padding:14px 16px;
+  }
+  .ads-dash-head{display:flex;justify-content:flex-end;margin-bottom:10px;}
+  .ads-dash-label{
+    font-size:0.62rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+    color:var(--ink-faint);border:1px solid var(--line);border-radius:999px;padding:3px 10px;
+  }
+  .ads-dash-row{display:flex;justify-content:space-between;font-size:0.8rem;color:var(--ink-dim);padding:5px 0;}
+  .ads-dash-val{font-weight:600;color:var(--ink);}
+  .ads-dash-val.ok{color:#5fd88a;}
+  .ads-sparkline{margin-top:8px;}
+
+  /* how it works vertical flow */
+  .hiw-flow{display:flex;flex-direction:column;align-items:center;max-width:420px;margin:0 auto;}
+  .hiw-step{
+    width:100%;background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+    padding:20px 22px;text-align:center;
+  }
+  .hiw-num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:26px;height:26px;border-radius:50%;background:var(--orange-dim);color:var(--orange);
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:0.78rem;margin-bottom:10px;
+    border:1px solid rgba(255,106,44,0.35);
+  }
+  .hiw-step h3{font-size:1.05rem;margin-bottom:6px;}
+  .hiw-step p{color:var(--ink-dim);font-size:0.87rem;}
+  .hiw-arrow{color:var(--ink-faint);font-size:1.1rem;padding:4px 0;}
+
+  /* ---------- WHY CHOOSE ---------- */
+  .why-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;}
+  .why-item{padding-top:0;}
+  .why-num{
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:2.2rem;
+    color:var(--orange);margin-bottom:14px;line-height:1;
+  }
+  .why-item h3{font-size:1.1rem;margin-bottom:10px;}
+  .why-item p{color:var(--ink-dim);font-size:0.92rem;}
+
+  /* ---------- DEMO BLOCK (after AI Admin section — demo tetap ada, tapi bukan hero CTA utama) ---------- */
+  .demo-block{
+    background:var(--bg-card);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    padding:88px 24px;
+  }
+  .demo-inner{text-align:center;}
+  .demo-inner h2{font-size:clamp(1.7rem,3.6vw,2.6rem);margin:14px 0 12px;max-width:26ch;margin-inline:auto;}
+  .demo-inner > p:not(.demo-microcopy){color:var(--ink-dim);max-width:48ch;margin:0 auto 32px;}
+  .demo-ctas{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:18px;}
+  .demo-microcopy{color:var(--ink-faint);font-size:0.82rem;}
+
+  /* ---------- FINAL CTA ---------- */
+  .final-cta{
+    background:linear-gradient(180deg,var(--bg-raised),var(--bg));
+    border-top:1px solid var(--line);
+    text-align:center;
+    padding:100px 24px;
+  }
+  .final-cta h2{font-size:clamp(1.9rem,4vw,3rem);margin-bottom:18px;max-width:22ch;margin-inline:auto;}
+  .final-cta p{color:var(--ink-dim);max-width:44ch;margin:0 auto 36px;}
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    border-top:1px solid var(--line);
+    padding:32px 24px;
+  }
+  .footer-row{
+    max-width:1120px;margin:0 auto;
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;
+  }
+  .footer-row p{font-size:0.82rem;color:var(--ink-faint);}
+  .footer-links{display:flex;gap:20px;font-size:0.85rem;}
+  .footer-links a{color:var(--ink-dim);text-decoration:none;}
+  .footer-links a:hover{color:var(--orange);}
+
+  @media (max-width:860px){
+    .problems{grid-template-columns:1fr;}
+    .services-grid{grid-template-columns:1fr;}
+    .service-card.wide{grid-column:span 1;}
+    .why-grid{grid-template-columns:1fr;}
+    .hero-visual{grid-template-columns:1fr;}
+    .phone{max-width:280px;margin:0 auto;}
+    .ai-tier-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-row">
+    <div class="logo">Kilas<span>Works</span></div>
+    <a class="nav-cta" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">Konsultasi</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <span class="eyebrow">Tangerang &amp; Jakarta</span>
+    <h1 class="headline">Bantu Bisnis Tumbuh dari <span class="accent">Konten sampai Customer Handling.</span></h1>
+    <p class="hero-sub">Kilas Works membantu bisnis melalui content creation, Meta Ads, website, AI WhatsApp Admin, dan event content.</p>
+    <div class="hero-ctas">
+      <a class="btn-primary" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">
+        Konsultasikan Kebutuhan
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a class="btn-ghost" href="#layanan">Lihat Layanan</a>
+    </div>
+
+    <div class="hero-visual">
+      <div class="phone" aria-hidden="true">
+        <div class="phone-screen">
+          <div class="phone-head">
+            <div class="avatar">KW</div>
+            <div>
+              <div class="name">Kilas Works AI Admin</div>
+              <div class="status">online</div>
+            </div>
+          </div>
+          <div class="bubble in">Halo kak, mau tanya soal paket konten dong</div>
+          <div class="bubble out">Halo! Boleh cerita dulu kebutuhan bisnisnya kayak gimana kak?</div>
+          <div class="bubble in">Bisnis skincare, sering ketinggalan bales chat customer</div>
+          <div class="bubble out">Oke paham, itu persis yang bisa dibantu AI Admin kami — mau aku jelasin cara kerjanya?</div>
+          <div class="typing">mengetik…</div>
+        </div>
+      </div>
+      <div class="dash-card" aria-hidden="true">
+        <h4>Contoh Alur AI Admin</h4>
+        <div class="dash-row"><span>Customer A</span><span class="tag-pill hot">Tertarik</span></div>
+        <div class="dash-row"><span>Customer B</span><span class="tag-pill new">Minta Demo</span></div>
+        <div class="dash-row"><span>Customer C</span><span class="tag-pill wait">Menunggu Jadwal</span></div>
+        <p class="dash-card-note">Ilustrasi cara kerja AI Admin.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="masalah">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Kenapa Kilas Works</span>
+      <h2>Bisnis lokal biasanya stuck di dua hal ini.</h2>
+      <p>Dua masalah yang paling sering bikin bisnis susah berkembang secara online — dan keduanya bisa diselesaikan sekaligus.</p>
+    </div>
+    <div class="problems">
+      <div class="problem-card">
+        <span class="num">Masalah 01</span>
+        <h3>Sulit konsisten membuat konten</h3>
+        <p>Feed jarang update, konten seadanya, gak ada waktu mikirin ide tiap bulan — akhirnya kehadiran online jalan di tempat.</p>
+        <div class="solution-line">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3L13 4" stroke="#ff6a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Produksi konten rutin tiap bulan — foto, video Reels/TikTok, siap posting.
+        </div>
+      </div>
+      <div class="problem-card">
+        <span class="num">Masalah 02</span>
+        <h3>Chat customer sering terlewat</h3>
+        <p>Chat masuk tengah malam, pas lagi sibuk shoot, atau pas libur — calon customer nunggu lama, akhirnya pindah ke kompetitor.</p>
+        <div class="solution-line">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3L13 4" stroke="#ff6a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          AI WhatsApp Admin balas otomatis 24/7, saring leads yang serius.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="layanan">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Layanan</span>
+      <h2>Semua yang bisnis kamu butuhin, satu tempat.</h2>
+      <p>Dari konten harian sampai automation — dirancang biar bisnis kelihatan profesional dan tetap responsif ke customer.</p>
+    </div>
+
+    <div class="services-grid">
+      <div class="service-card wide">
+        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 7.5A1.5 1.5 0 015.5 6h2l1-1.5h7l1 1.5h2A1.5 1.5 0 0120 7.5v10a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 17.5v-10z" stroke="#ff6a2c" stroke-width="1.5"/><circle cx="12" cy="12.5" r="3.4" stroke="#ff6a2c" stroke-width="1.5"/></svg></div>
+        <h3>AI WhatsApp Admin</h3>
+        <p>Admin AI yang membantu bisnis merespons customer 24/7, menjawab pertanyaan, mengumpulkan lead, membantu appointment, lalu meneruskan customer serius ke owner. Tersedia 2 tingkatan sesuai kebutuhan bisnis kamu:</p>
+        <div class="ai-tier-grid">
+          <div class="ai-tier-card">
+            <span class="ai-tier-name">Basic</span>
+            <p>Jawab FAQ, info bisnis, produk/jasa, dan katalog secara otomatis, plus basic lead handling — mencatat kebutuhan awal customer sebelum diteruskan ke owner.</p>
+          </div>
+          <div class="ai-tier-card pro">
+            <span class="ai-tier-name">Pro</span>
+            <p>Semua fitur Basic, ditambah kualifikasi lead, appointment, kontrol penuh buat owner lewat chat, mengingat histori &amp; konteks customer, serta memahami gambar yang dikirim customer.</p>
+          </div>
+        </div>
+        <div class="service-visual mini-chat">
+          <div class="mini-bubble in">Ada promo bulan ini gak kak?</div>
+          <div class="mini-bubble out">Ada! Mau aku jelasin paket yang cocok sama kebutuhan kakak?</div>
+        </div>
+      </div>
+
+      <div class="service-card">
+        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#ff6a2c" stroke-width="1.5"/><path d="M8 9h.01M8 13h.01M8 17h8" stroke="#ff6a2c" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+        <h3>Content Creation</h3>
+        <p>Reels/TikTok, static visual, creative concept, editing, dan content planning untuk membantu bisnis terlihat lebih profesional secara online.</p>
+        <div class="service-visual tag-row">
+          <span class="tag-chip">Automotive</span>
+          <span class="tag-chip">Product</span>
+          <span class="tag-chip">Lifestyle</span>
+          <span class="tag-chip">Travel</span>
+        </div>
+      </div>
+
+      <div class="service-card">
+        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6.5a1 1 0 011-1h6l1.5 2H20a1 1 0 011 1V17a1 1 0 01-1 1H4a1 1 0 01-1-1V6.5z" stroke="#ff6a2c" stroke-width="1.5"/></svg></div>
+        <h3>Website</h3>
+        <p>Landing page dan company profile yang responsive dan dirancang agar customer mudah menemukan informasi dan menghubungi bisnis.</p>
+        <div class="service-visual">
+          <div class="mini-browser">
+            <div class="bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+            <div class="body">
+              <div class="bar-line short"></div>
+              <div class="bar-line"></div>
+              <div class="bar-line orange"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="service-card">
+        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8.5l8-4 8 4-8 4-8-4z" stroke="#ff6a2c" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 8.5V16l8 4 8-4V8.5" stroke="#ff6a2c" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+        <h3>Event Photo &amp; Video</h3>
+        <p>Dokumentasi foto/video untuk wedding, ulang tahun, corporate event, gathering, dan acara lainnya.</p>
+        <div class="service-visual tag-row">
+          <span class="tag-chip">Wedding</span>
+          <span class="tag-chip">Ulang Tahun</span>
+          <span class="tag-chip">Corporate Event</span>
+          <span class="tag-chip">Gathering</span>
+        </div>
+      </div>
+
+      <div class="service-card wide">
+        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 17l4-6 4 3 5-8 3 4" stroke="#ff6a2c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke="#ff6a2c" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        <h3>Meta Ads</h3>
+        <p>Pengelolaan Meta Ads (Instagram &amp; Facebook) untuk membantu distribusi konten dan mendapatkan traffic/leads berdasarkan objective bisnis. Budget iklan dikelola terpisah dari fee jasa.</p>
+        <div class="service-visual ads-dash">
+          <div class="ads-dash-head">
+            <span class="ads-dash-label">Demo Interface</span>
+          </div>
+          <div class="ads-dash-row">
+            <span>Objective</span><span class="ads-dash-val">Leads</span>
+          </div>
+          <div class="ads-dash-row">
+            <span>Status</span><span class="ads-dash-val ok">Aktif</span>
+          </div>
+          <div class="ads-sparkline" aria-hidden="true">
+            <svg viewBox="0 0 120 30" width="100%" height="30" preserveAspectRatio="none">
+              <polyline points="0,26 20,22 40,23 60,14 80,16 100,7 120,9" fill="none" stroke="#ff6a2c" stroke-width="2"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="demo" class="demo-block">
+  <div class="wrap demo-inner">
+    <span class="kicker">Coba Sendiri</span>
+    <h2>Penasaran cara AI Admin bekerja?</h2>
+    <p>Coba sendiri bagaimana AI Admin merespons customer dalam simulasi bisnis.</p>
+    <div class="demo-ctas">
+      <a class="btn-primary" href="https://kilas-works-ai-admin.onrender.com/demo" target="_blank" rel="noopener">
+        Coba Demo AI Admin
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a class="btn-ghost" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20saya%20tertarik%20mencoba%20live%20demo%20AI%20Admin." target="_blank" rel="noopener">Jadwalkan Live Demo</a>
+    </div>
+    <p class="demo-microcopy">Demo menggunakan data simulasi, bukan data customer asli.</p>
+  </div>
+</section>
+
+<section id="cara-kerja">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Cara Kerja</span>
+      <h2>Layanan yang saling melengkapi, gak wajib diambil semua.</h2>
+      <p>Tiap layanan bisa dipakai sesuai kebutuhan bisnis kamu — gak harus ambil semuanya sekaligus. Tapi kalau dipakai bareng, alurnya biasanya seperti ini:</p>
+    </div>
+    <div class="hiw-flow">
+      <div class="hiw-step">
+        <span class="hiw-num">1</span>
+        <h3>Content</h3>
+        <p>Bikin konten rutin biar bisnis kelihatan aktif &amp; profesional di Instagram/TikTok.</p>
+      </div>
+      <div class="hiw-arrow">&darr;</div>
+      <div class="hiw-step">
+        <span class="hiw-num">2</span>
+        <h3>Ads</h3>
+        <p>Konten (atau creative lain) didistribusikan lewat Meta Ads biar dilihat lebih banyak calon customer.</p>
+      </div>
+      <div class="hiw-arrow">&darr;</div>
+      <div class="hiw-step">
+        <span class="hiw-num">3</span>
+        <h3>Website / WhatsApp</h3>
+        <p>Calon customer yang tertarik diarahkan ke website atau chat WhatsApp buat cari tau lebih lanjut.</p>
+      </div>
+      <div class="hiw-arrow">&darr;</div>
+      <div class="hiw-step">
+        <span class="hiw-num">4</span>
+        <h3>AI Admin</h3>
+        <p>Chat dijawab otomatis 24/7, leads yang serius disaring &amp; datanya disimpan.</p>
+      </div>
+      <div class="hiw-arrow">&darr;</div>
+      <div class="hiw-step">
+        <span class="hiw-num">5</span>
+        <h3>Owner Closing</h3>
+        <p>Lead yang udah matang diteruskan ke owner buat closing langsung.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="kenapa">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Kenapa Pilih Kami</span>
+      <h2>Bukan agensi besar. Justru itu keunggulannya.</h2>
+    </div>
+    <div class="why-grid">
+      <div class="why-item">
+        <div class="why-num">01</div>
+        <h3>Fokus bisnis kecil &amp; menengah</h3>
+        <p>Paket dan cara kerja dirancang buat bisnis lokal, bukan template enterprise yang kebesaran dan ribet.</p>
+      </div>
+      <div class="why-item">
+        <div class="why-num">02</div>
+        <h3>Konten &amp; AI jalan bareng</h3>
+        <p>Bukan cuma bikin konten atau cuma pasang chatbot — kami bantu dua-duanya nyambung jadi satu sistem yang kerja terus.</p>
+      </div>
+      <div class="why-item">
+        <div class="why-num">03</div>
+        <h3>Komunikasi langsung, tanpa ribet</h3>
+        <p>Satu tim yang bisa dihubungi langsung via WhatsApp — bukan lewat tiket support berlapis-lapis.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <h2>Siap bikin bisnis kamu jalan lebih efisien?</h2>
+  <p>Ceritain kebutuhan bisnis kamu, kami bantu rekomendasiin layanan yang paling pas.</p>
+  <a class="btn-primary" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">
+    Chat di WhatsApp
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </a>
+</section>
+
+<footer>
+  <div class="footer-row">
+    <p>&copy; 2026 Kilas Works. Tangerang &amp; Jakarta, Indonesia.</p>
+    <div class="footer-links">
+      <a href="https://instagram.com/kilasworks" target="_blank" rel="noopener">Instagram</a>
+      <a href="https://wa.me/6282213039137" target="_blank" rel="noopener">WhatsApp</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

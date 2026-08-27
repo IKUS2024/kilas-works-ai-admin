@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Onboarding — {{ business.business_name }}{% endblock %}
+{% block content %}
+<h1>{{ business.business_name }}</h1>
+<p class="muted">Step {{ steps.index(step) + 1 }} dari {{ steps|length }}</p>
+
+<div class="steps">
+  {% for s in steps %}
+    <span class="{{ 'active' if s == step else '' }}">{{ loop.index }}. {{ s|capitalize }}</span>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if step == 'basics' %}
+    <h2>Data Dasar Bisnis</h2>
+    <label>Nama bisnis</label>
+    <input type="text" name="business_name" value="{{ profile.business_name or business.business_name or '' }}" required>
+    <label>Kategori (mis. Kedai kopi, Klinik gigi, Fotografi)</label>
+    <input type="text" name="category" value="{{ profile.category or '' }}">
+    <label>Deskripsi singkat</label>
+    <textarea name="short_description">{{ profile.short_description or '' }}</textarea>
+    <label>Negara</label>
+    <input type="text" name="country" value="{{ profile.country or 'Indonesia' }}">
+    <label>Timezone</label>
+    <input type="text" name="timezone" value="{{ profile.timezone or 'Asia/Jakarta' }}">
+    <label>Alamat (jika relevan)</label>
+    <input type="text" name="address" value="{{ profile.address or '' }}">
+    <label>Nomor telepon bisnis</label>
+    <input type="text" name="business_phone" value="{{ profile.business_phone or '' }}">
+    <label>Nama owner</label>
+    <input type="text" name="owner_name" value="{{ profile.owner_name or '' }}">
+
+  {% elif step == 'services' %}
+    <h2>Produk / Layanan</h2>
+    <p class="muted">Satu produk/layanan per baris. Contoh: "Teeth whitening mulai 1.5 jt" atau "Paket foto produk - 500rb/sesi".</p>
+    <textarea name="services_raw" rows="8">{% for s in services %}{{ s.raw_input }}
+{% endfor %}</textarea>
+
+  {% elif step == 'operations' %}
+    <h2>Operasional</h2>
+    <label>Jam operasional</label>
+    <input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Senin-Sabtu 09.00-18.00">
+    <label>Hari libur / tutup</label>
+    <input type="text" name="closed_days" value="{{ profile.closed_days or '' }}" placeholder="Minggu, hari raya">
+    <label>Layanan online, offline, atau keduanya?</label>
+    <input type="text" name="online_or_offline" value="{{ profile.online_or_offline or '' }}">
+    <label>Aturan appointment (jika ada)</label>
+    <textarea name="appointment_rules_raw">{{ profile.appointment_rules_raw or '' }}</textarea>
+
+  {% elif step == 'faq' %}
+    <h2>FAQ & Kebijakan</h2>
+    <p class="muted">Satu pertanyaan/kebijakan per baris. Contoh: "Apakah bisa reschedule? Bisa, H-1 sebelum jadwal."</p>
+    <textarea name="faq_raw" rows="8">{% for f in faqs %}{{ f.raw_input }}
+{% endfor %}</textarea>
+
+  {% elif step == 'style' %}
+    <h2>Gaya AI Admin</h2>
+    <label>Tone</label>
+    <select name="tone">
+      {% for t in ['friendly','formal','casual-professional'] %}
+        <option value="{{ t }}" {{ 'selected' if profile.tone == t else '' }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <label>Bahasa utama</label>
+    <select name="primary_language">
+      <option value="id" {{ 'selected' if profile.primary_language == 'id' else '' }}>Bahasa Indonesia</option>
+      <option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>English</option>
+    </select>
+    <label>Bahasa tambahan</label>
+    <select name="additional_languages" multiple>
+      <option value="id" {{ 'selected' if 'id' in (profile.additional_languages or []) else '' }}>Bahasa Indonesia</option>
+      <option value="en" {{ 'selected' if 'en' in (profile.additional_languages or []) else '' }}>English</option>
+    </select>
+    <label>Sapaan untuk customer</label>
+    <input type="text" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}">
+
+  {% elif step == 'upload' %}
+    <h2>Upload Katalog / Menu</h2>
+    <p class="muted">PDF, PNG, JPG, atau TXT — maks 10MB.</p>
+  {% endif %}
+
+    <div style="margin-top:20px;"><button class="btn" type="submit">Simpan & Lanjut</button></div>
+  </form>
+
+  {% if step == 'upload' %}
+    <form method="post" action="{{ url_for('client.upload_file', business_id=business.id) }}" enctype="multipart/form-data" style="margin-top:16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" required>
+      <div style="margin-top:10px;"><button class="btn secondary" type="submit">Upload File</button></div>
+    </form>
+    {% if files %}
+      <table style="margin-top:16px;">
+        <tr><th>File</th><th>Ukuran</th><th></th></tr>
+        {% for f in files %}
+          <tr>
+            <td>{{ f.original_filename }}</td>
+            <td>{{ (f.size_bytes / 1024)|round(1) }} KB</td>
+            <td><a href="{{ url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a></td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

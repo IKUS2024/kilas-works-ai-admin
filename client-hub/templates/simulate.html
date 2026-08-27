@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Test AI — {{ business.business_name }}{% endblock %}
+{% block content %}
+<h1>Test AI Admin — {{ business.business_name }}</h1>
+<p class="muted">Simulasi ini terisolasi: tidak mengirim WhatsApp asli, tidak membuat appointment/pembayaran asli, dan tidak menyentuh data customer produksi.</p>
+
+<div class="card">
+  <div id="chat" style="display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto;margin-bottom:14px;">
+    {% for m in history %}
+      <div style="align-self:{{ 'flex-end' if m.role == 'user' else 'flex-start' }};max-width:80%;">
+        <div style="background:{{ '#ff7a1a' if m.role == 'user' else '#2a2d32' }};color:{{ '#1a1a1a' if m.role == 'user' else '#eef0f2' }};padding:8px 12px;border-radius:10px;font-size:14px;">
+          {{ m.content }}
+        </div>
+        {% if m.role == 'assistant' %}
+          <button class="btn small secondary flag-btn" data-id="{{ m.id }}" style="margin-top:4px;">Jawaban ini salah</button>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  <form id="chat-form" style="display:flex;gap:8px;">
+    <input type="text" id="chat-input" placeholder="Ketik pesan seperti customer, mis. 'Jam bukanya kapan?'" required>
+    <button class="btn" type="submit">Kirim</button>
+  </form>
+</div>
+
+<script>
+const chat = document.getElementById('chat');
+const form = document.getElementById('chat-form');
+const input = document.getElementById('chat-input');
+const sendUrl = "{{ url_for('client.simulate_message', business_id=business.id) }}";
+const flagUrl = "{{ url_for('client.simulate_flag', business_id=business.id) }}";
+const csrfToken = "{{ csrf_token() }}";
+
+function addBubble(role, text) {
+  const wrap = document.createElement('div');
+  wrap.style.alignSelf = role === 'user' ? 'flex-end' : 'flex-start';
+  wrap.style.maxWidth = '80%';
+  const bubble = document.createElement('div');
+  bubble.style.background = role === 'user' ? '#ff7a1a' : '#2a2d32';
+  bubble.style.color = role === 'user' ? '#1a1a1a' : '#eef0f2';
+  bubble.style.padding = '8px 12px';
+  bubble.style.borderRadius = '10px';
+  bubble.style.fontSize = '14px';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+  chat.appendChild(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const message = input.value.trim();
+  if (!message) return;
+  addBubble('user', message);
+  input.value = '';
+  try {
+    const resp = await fetch(sendUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+      body: JSON.stringify({message})
+    });
+    const data = await resp.json();
+    addBubble('assistant', data.reply || '(tidak ada respons)');
+  } catch (err) {
+    addBubble('assistant', '(gagal menghubungi simulasi)');
+  }
+});
+
+chat.addEventListener('click', async (e) => {
+  if (!e.target.classList.contains('flag-btn')) return;
+  const id = e.target.dataset.id;
+  const note = prompt('Catatan (opsional):') || '';
+  await fetch(flagUrl, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken},
+    body: JSON.stringify({message_id: id, note})
+  });
+  e.target.textContent = 'Ditandai ✓';
+  e.target.disabled = true;
+});
+</script>
+{% endblock %}

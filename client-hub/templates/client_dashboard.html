@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Kilas Works Client Hub{% endblock %}
+{% block content %}
+<h1>Halo, {{ user.full_name or user.email }}</h1>
+<p class="muted">Kelola setup AI Admin bisnismu di sini.</p>
+
+{% for b in businesses %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <h2 style="margin-bottom:4px;">{{ b.business_name }}</h2>
+        <span class="pill {{ b.status }}">{{ b.status }}</span>
+        <span class="muted">· {{ b.package }}</span>
+      </div>
+      <div class="muted">Setup {{ b.completion_percent }}%</div>
+    </div>
+    {% if b.status == 'ACTIVE' %}
+      <p style="color:var(--green);margin-top:10px;">AI Admin — ACTIVE</p>
+    {% elif b.status in ('APPROVED',) %}
+      <p class="muted" style="margin-top:10px;">Menunggu koneksi WhatsApp oleh tim Kilas Works.</p>
+    {% elif b.status == 'NEEDS_REVISION' %}
+      <p style="color:var(--red);margin-top:10px;">Perlu revisi — buka Review untuk detail.</p>
+    {% endif %}
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+      {% if b.status in ('DRAFT','ONBOARDING','NEEDS_REVISION') %}
+        <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup</a>
+      {% endif %}
+      <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Review Business</a>
+      <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>
+    </div>
+  </div>
+{% else %}
+  <p class="muted">Belum ada business. Buat yang pertama di bawah.</p>
+{% endfor %}
+
+<div class="card">
+  <h2>Buat Business Baru</h2>
+  <form method="post" action="{{ url_for('client.create_business') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Nama bisnis</label>
+    <input type="text" name="business_name" required>
+    <label>Paket AI Admin</label>
+    <select name="package">
+      <option value="AI_ADMIN_BASIC">AI Admin Basic — Rp499.000/bulan</option>
+      <option value="AI_ADMIN_PRO">AI Admin Pro — Rp999.000/bulan</option>
+    </select>
+    <div style="margin-top:16px;"><button class="btn" type="submit">Buat & Mulai Onboarding</button></div>
+  </form>
+</div>
+{% endblock %}
