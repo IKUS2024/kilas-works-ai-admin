@@ -317,12 +317,31 @@ def save_ai_normalized_config(business_id, summary, config_dict, missing_fields)
     )
 
 
+def _coerce_json_column(raw, expected_type):
+    """PostgreSQL/SQLite JSON-column compatibility helper, shared by every read site in this file
+    that stores a value via json.dumps() into a JSON/JSONB (Postgres) or TEXT (SQLite) column.
+
+    For a JSON/JSONB column, psycopg2 already deserializes the value into a native Python
+    dict/list before it ever reaches this function — SQLite has no such column type, so the same
+    column comes back as the raw TEXT string that was stored. Code that assumed the SQLite shape
+    unconditionally (json.loads() on every read) raised `TypeError: the JSON object must be str,
+    bytes or bytearray, not dict` in production on Postgres.
+
+    `raw` is used directly when it is already `expected_type` (dict or list — whichever this
+    particular column is supposed to hold); otherwise it is parsed with json.loads(), which still
+    covers the real SQLite path (str) and a driver that hands back bytes/bytearray. A genuinely
+    malformed JSON string is still passed straight to json.loads() and still raises the same
+    json.JSONDecodeError as before this fix — malformed data is not silently accepted differently
+    than it was."""
+    return raw if isinstance(raw, expected_type) else json.loads(raw)
+
+
 def get_ai_settings(business_id):
     row = db.query_one("SELECT * FROM ai_settings WHERE business_id = ?", (business_id,))
     if row and row.get("normalized_config_json"):
-        row["normalized_config"] = json.loads(row["normalized_config_json"])
+        row["normalized_config"] = _coerce_json_column(row["normalized_config_json"], dict)
     if row and row.get("missing_fields_json"):
-        row["missing_fields"] = json.loads(row["missing_fields_json"])
+        row["missing_fields"] = _coerce_json_column(row["missing_fields_json"], list)
     return row
 
 
@@ -679,17 +698,36 @@ def admin_search(query, limit=10):
 
 
 def get_tenant_config_row(business_id):
+    """Same PostgreSQL/SQLite JSON-column fix as get_ai_settings() above, via the shared
+    _coerce_json_column() helper — see its docstring for the full explanation. tenant_configs's
+    materialized config is always a JSON object, so it's coerced to dict, same as
+    normalized_config_json above."""
     row = db.query_one("SELECT * FROM tenant_configs WHERE business_id = ?", (business_id,))
     if row and row.get("config_json"):
-        row["config"] = json.loads(row["config_json"])
+        row["config"] = _coerce_json_column(row["config_json"], dict)
     return row
 
 
 def save_tenant_config(business_id, config_dict):
     """Upserts the tenant_configs row and returns (config_version, changed: bool). `changed` is
-    False when the new config is byte-identical to what's already stored — used by
+    False when the new config is semantically identical to what's already stored — used by
     provisioning.provision_tenant() to make re-provisioning idempotent (no version bump, no new
-    audit entry, when nothing actually changed)."""
+    audit entry, when nothing actually changed).
+
+    PostgreSQL compatibility fix: this used to compare the freshly-serialized `config_json` string
+    against `existing["config_json"]` as raw strings. On SQLite that column is always a TEXT
+    string, so it worked — but on PostgreSQL, config_json is a JSON/JSONB column and psycopg2
+    already deserializes it into a native dict before it reaches this function, so
+    `existing["config_json"] == config_json` was comparing a dict to a str, which is never equal —
+    every re-provision looked "changed" even when nothing was, incorrectly bumping config_version
+    every time. Fixed by normalizing `existing["config_json"]` back to a native dict with the same
+    _coerce_json_column() helper used by get_ai_settings()/get_tenant_config_row(), then comparing
+    that dict directly against `config_dict` (also a native dict) — a semantic comparison that is
+    correct on both backends and doesn't depend on json.dumps()'s exact string formatting. A
+    malformed stored value still raises the same json.JSONDecodeError as get_ai_settings() and
+    get_tenant_config_row() already do, rather than being silently treated as "changed" and
+    quietly overwritten. Insert/update storage (json.dumps(..., sort_keys=True) into config_json)
+    is unchanged."""
     config_json = json.dumps(config_dict, ensure_ascii=False, sort_keys=True)
     existing = db.query_one("SELECT config_json, config_version FROM tenant_configs WHERE business_id = ?", (business_id,))
     now = _now()
@@ -701,7 +739,8 @@ def save_tenant_config(business_id, config_dict):
         )
         return 1, True
 
-    if existing["config_json"] == config_json:
+    existing_config = _coerce_json_column(existing["config_json"], dict)
+    if existing_config == config_dict:
         return existing["config_version"], False
 
     new_version = existing["config_version"] + 1
