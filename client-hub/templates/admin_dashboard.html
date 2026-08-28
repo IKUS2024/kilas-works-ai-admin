@@ -3,6 +3,42 @@
 {% block content %}
 <h1>Kilas Admin Dashboard</h1>
 
+<form method="get" action="{{ url_for('admin.admin_search') }}" style="margin-bottom:16px;display:flex;gap:8px;">
+  <input type="text" name="q" placeholder="Cari customer, business, project, quote, invoice, talent..." style="max-width:420px;">
+  <button class="btn secondary" type="submit">Cari</button>
+</form>
+
+<div class="card">
+  <h2>Action Center</h2>
+  <p class="muted" style="margin-top:-6px;">Angka operasional saat ini — bukan analytics/statistik.</p>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;">
+    <a class="btn secondary" href="{{ url_for('admin.dashboard', status='DRAFT') }}">
+      {{ action_center.new_client_requests }} Business baru
+    </a>
+    <a class="btn secondary" href="{{ url_for('admin.dashboard', status='READY_FOR_REVIEW') }}">
+      {{ action_center.ai_onboarding_waiting_review }} AI onboarding menunggu review
+    </a>
+    <a class="btn secondary" href="{{ url_for('admin.projects_admin', status='WAITING_FOR_QUOTE') }}">
+      {{ action_center.custom_projects_waiting_quote }} Custom project menunggu quote
+    </a>
+    <a class="btn secondary" href="{{ url_for('admin.payments_admin') }}">
+      {{ action_center.payments_waiting_verification }} Pembayaran menunggu verifikasi
+    </a>
+    <a class="btn secondary" href="{{ url_for('admin.talent_admin') }}">
+      {{ action_center.talent_requests_waiting }} Talent request menunggu review
+    </a>
+    <a class="btn secondary" href="{{ url_for('admin.projects_admin') }}">
+      {{ action_center.projects_waiting_admin_action }} Project menunggu aksi admin
+    </a>
+    <a class="btn secondary" href="{{ url_for('admin.dashboard', status='APPROVED') }}">
+      {{ action_center.whatsapp_tenants_waiting_connection }} Tenant menunggu koneksi WhatsApp
+    </a>
+  </div>
+  {% if not (action_center.new_client_requests or action_center.ai_onboarding_waiting_review or action_center.custom_projects_waiting_quote or action_center.payments_waiting_verification or action_center.talent_requests_waiting or action_center.projects_waiting_admin_action or action_center.whatsapp_tenants_waiting_connection) %}
+    <p class="muted" style="margin-top:10px;">Tidak ada yang perlu aksi saat ini.</p>
+  {% endif %}
+</div>
+
 <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
   <a class="btn small {{ 'secondary' if status_filter else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
   {% for f in status_filters %}

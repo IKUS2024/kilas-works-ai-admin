@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Invoices — {{ business.business_name }}{% endblock %}
+{% block content %}
+<h1>Invoices — {{ business.business_name }}</h1>
+<div style="display:flex;gap:8px;margin-bottom:16px;">
+  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='active') }}">Active</a>
+  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='history') }}">History</a>
+  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='all') }}">All</a>
+</div>
+<div class="card">
+  <table>
+    <tr><th>Invoice</th><th>Jumlah</th><th>Status</th><th></th></tr>
+    {% for p in payments %}
+    <tr>
+      <td>{{ p.invoice.invoice_number }}</td>
+      <td>Rp{{ '{:,}'.format(p.invoice.amount).replace(',', '.') }}</td>
+      <td><span class="pill APPROVED">{{ p.status }}</span></td>
+      <td><a href="{{ url_for('payments.invoice_page', invoice_id=p.invoice.id) }}">Lihat</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" class="muted">Belum ada invoice.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

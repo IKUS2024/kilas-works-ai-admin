@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Payment #{{ payment.id }} — Admin{% endblock %}
+{% block content %}
+<h1>Payment #{{ payment.id }}</h1>
+
+<div class="card">
+  <h2>Business</h2>
+  <p><strong>{{ business.business_name if business else '-' }}</strong> (ID: {{ payment.business_id }})</p>
+</div>
+
+<div class="card">
+  <h2>Invoice</h2>
+  {% if invoice %}
+  <p>Invoice: <strong>{{ invoice.invoice_number }}</strong> — Rp{{ "{:,}".format(invoice.amount).replace(",", ".") }}</p>
+  <p>Status invoice: {{ invoice.status }}</p>
+  {% if project %}<p>Project: {{ project.title }} ({{ project.project_type }})</p>{% endif %}
+  {% else %}
+  <p class="muted">Invoice tidak ditemukan.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Payment</h2>
+  <p>Status: <strong>{{ payment.status }}</strong></p>
+  <p>AI Extracted Amount: {{ payment.ai_extracted_amount or '-' }}</p>
+  <p>AI Extracted Date: {{ payment.ai_extracted_date or '-' }}</p>
+  <p>AI Extracted Bank: {{ payment.ai_extracted_bank or '-' }}</p>
+  <p>AI Reference: {{ payment.ai_reference or '-' }}</p>
+  <p>Risk Flags: {{ payment.ai_risk_flags_json or '-' }}</p>
+  {% if payment.admin_notes %}<p>Catatan Admin: {{ payment.admin_notes }}</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Bukti Transfer</h2>
+  {% if payment.proof_file_id %}
+    <p><a href="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" target="_blank">Buka bukti transfer (gambar penuh)</a></p>
+    <img src="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" alt="Bukti transfer" style="max-width: 100%; height: auto; border-radius: 8px;">
+  {% else %}
+    <p class="muted">Belum ada bukti transfer diupload.</p>
+  {% endif %}
+</div>
+
+{% if payment.status in ('UNDER_REVIEW', 'PROOF_UPLOADED') %}
+<div class="card">
+  <h2>Aksi</h2>
+  <form method="post" action="{{ url_for('admin.payment_verify', payment_id=payment.id) }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn small" type="submit">Verify</button>
+  </form>
+  <form method="post" action="{{ url_for('admin.payment_reject', payment_id=payment.id) }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="text" name="admin_notes" placeholder="Alasan">
+    <button class="btn small danger" type="submit">Reject</button>
+  </form>
+</div>
+{% endif %}
+
+<p><a href="{{ url_for('admin.payments_admin') }}">&larr; Kembali ke daftar pembayaran</a></p>
+{% endblock %}

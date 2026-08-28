@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Talent Management — Kilas Works{% endblock %}
+{% block content %}
+<h1>Talent Management</h1>
+<p class="muted">{{ disclaimer }}</p>
+
+{% if businesses %}
+<div class="card">
+  <label>Bisnis</label>
+  <select id="business_select">
+    {% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}
+  </select>
+</div>
+{% endif %}
+
+<div style="display:flex;gap:16px;flex-wrap:wrap;">
+{% for t in talents %}
+  <div class="card" style="width:260px;">
+    {% if t.profile_image_asset_id %}
+      <img src="{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}" alt="{{ t.name }}" style="width:100%;height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px;">
+    {% elif t.profile_photo_url %}
+      <img src="{{ t.profile_photo_url }}" alt="{{ t.name }}" style="width:100%;height:160px;object-fit:cover;border-radius:8px;margin-bottom:8px;">
+    {% endif %}
+    <h2>{{ t.name }}</h2>
+    <p class="muted">{{ t.social_handle }} · {{ t.platform }}</p>
+    <p class="muted">{{ '{:,}'.format(t.follower_count).replace(',', '.') }} followers</p>
+    {% if t.niche %}<p class="muted">{{ t.niche }}</p>{% endif %}
+    <p class="muted">Availability: {{ t.availability_status }}{% if t.availability_note %} — {{ t.availability_note }}{% endif %}</p>
+    <p><strong>Custom Quote</strong></p>
+    {% if businesses %}
+    <a class="btn small" href="#" onclick="window.location.href='/business/' + document.getElementById('business_select').value + '/talent/{{ t.id }}/request'; return false;">Request Talent</a>
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+{% endblock %}

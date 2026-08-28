@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Payments — Admin{% endblock %}
+{% block content %}
+<h1>Pembayaran Menunggu Review</h1>
+<div class="card">
+  <table>
+    <tr><th>Payment ID</th><th>Status</th><th>AI Extracted</th><th>Flags</th><th>Bukti</th><th></th></tr>
+    {% for p in payments %}
+    <tr>
+      <td><a href="{{ url_for('admin.payment_detail', payment_id=p.id) }}">{{ p.id }}</a></td>
+      <td>{{ p.status }}</td>
+      <td>{{ p.ai_extracted_amount or '-' }}</td>
+      <td>{{ p.ai_risk_flags_json or '-' }}</td>
+      <td>
+        {% if p.proof_file_id %}<a href="{{ url_for('admin.payment_proof_view', payment_id=p.id) }}" target="_blank">Lihat bukti</a>{% endif %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('admin.payment_verify', payment_id=p.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small" type="submit">Verify</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.payment_reject', payment_id=p.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="text" name="admin_notes" placeholder="Alasan">
+          <button class="btn small danger" type="submit">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if not payments %}<p class="muted">Tidak ada pembayaran menunggu review.</p>{% endif %}
+</div>
+<p class="muted">AI hanya membantu ekstraksi/deteksi risiko — keputusan akhir SELALU dari Kilas Admin.</p>
+{% endblock %}

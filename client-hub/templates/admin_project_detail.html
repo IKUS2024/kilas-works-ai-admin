@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} — Admin{% endblock %}
+{% block content %}
+<h1>{{ project.title }}</h1>
+<p class="muted">{{ business.business_name if business else '-' }} · {{ project.project_type }} · {{ project.pricing_mode }}</p>
+<span class="pill APPROVED">{{ project.status }}</span>
+
+<div class="card">
+  <h2>Requirements</h2>
+  <pre style="white-space:pre-wrap;font-size:13px;">{{ project.requirements or '-' }}</pre>
+  <p class="muted">Budget: {% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }} – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}{% else %}-{% endif %}</p>
+</div>
+
+{% if attachments %}
+<div class="card">
+  <h2>Lampiran Brief / Referensi</h2>
+  <table>
+    <tr><th>File</th><th>Ukuran</th><th>Diupload</th><th></th></tr>
+    {% for a in attachments %}
+    <tr>
+      <td>{{ a.original_filename }}</td>
+      <td>{{ (a.size_bytes / 1024) | round(1) }} KB</td>
+      <td>{{ a.created_at }}</td>
+      <td><a href="{{ url_for('projects.project_attachment_download', business_id=project.business_id, project_id=project.id, file_id=a.id) }}" target="_blank">Lihat/Download</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if project.pricing_mode == 'CUSTOM_QUOTE' and project.status in ('REQUESTED', 'WAITING_FOR_QUOTE') %}
+<div class="card">
+  <h2>Buat Quotation</h2>
+  <form method="post" action="{{ url_for('admin.project_create_quotation', project_id=project.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Scope</label><textarea name="scope"></textarea>
+    <label>Deliverables</label><textarea name="deliverables"></textarea>
+    <label>Quantity</label><input type="number" name="quantity">
+    <label>Harga Final (Rp)</label><input type="number" name="final_price" required>
+    <label>Catatan</label><textarea name="notes"></textarea>
+    <div style="margin-top:12px;"><button class="btn" type="submit">Kirim Quotation</button></div>
+  </form>
+</div>
+{% endif %}
+
+{% if quotations %}
+<div class="card">
+  <h2>Quotation History</h2>
+  <table>
+    <tr><th>Nomor</th><th>Harga</th><th>Status</th></tr>
+    {% for q in quotations %}
+    <tr><td>{{ q.quotation_number }}</td><td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td><td>{{ q.status }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Ubah Status Manual</h2>
+  <form method="post" action="{{ url_for('admin.project_update_status', project_id=project.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <select name="status">
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == project.status }}>{{ s }}</option>{% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">Simpan</button>
+  </form>
+</div>
+
+{% if audit_trail %}
+<div class="card">
+  <h2>Riwayat (Audit Trail)</h2>
+  <table>
+    <tr><th>Waktu</th><th>Aksi</th><th>Detail</th></tr>
+    {% for a in audit_trail %}
+    <tr><td>{{ a.created_at }}</td><td>{{ a.action }}</td><td>{{ a.detail or '-' }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

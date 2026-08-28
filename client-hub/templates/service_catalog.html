@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Layanan — Kilas Works{% endblock %}
+{% block content %}
+<h1>Layanan Kilas Works</h1>
+<p class="muted">Pilih layanan fixed-price untuk checkout langsung, atau ajukan project custom (foto/video/website) lewat menu Project Custom di dashboard.</p>
+
+{% if businesses %}
+<div class="card">
+  <label>Bisnis</label>
+  <select id="business_select">
+    {% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}
+  </select>
+</div>
+{% endif %}
+
+{% for category, items in by_category.items() %}
+<div class="card">
+  <h2>{{ category }}</h2>
+  <table>
+    <tr><th>Layanan</th><th>Harga</th><th></th></tr>
+    {% for item in items %}
+    <tr>
+      <td>{{ item.name }}{% if item.description %}<br><span class="muted">{{ item.description }}</span>{% endif %}</td>
+      <td>{{ format_price(item.price_amount, item.price_unit) }}</td>
+      <td>
+        {% if item.pricing_mode != 'CUSTOM_QUOTE' and businesses %}
+        <form method="post" action="{{ url_for('projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline"
+              onsubmit="this.business_id.value = document.getElementById('business_select').value;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="business_id" value="">
+          <button class="btn small" type="submit">{{ item.cta_text or 'Checkout' }}</button>
+        </form>
+        {% elif item.pricing_mode == 'CUSTOM_QUOTE' and businesses %}
+          {% if item.category == 'TALENT' %}
+            <a class="btn small" href="{{ url_for('talent.talent_list') }}">{{ item.cta_text or 'Isi Kebutuhan' }}</a>
+          {% elif item.category in ('CONTENT', 'VIDEO', 'PHOTO', 'WEBSITE', 'APPLICATION') %}
+            <a class="btn small" id="custom-cta-{{ item.catalog_key }}"
+               data-project-type="{{ item.category }}"
+               href="#" onclick="return goCustomProject(this);">{{ item.cta_text or 'Ajukan Project' }}</a>
+          {% else %}
+            <span class="muted">{{ item.cta_text or 'Custom Quote' }}</span>
+          {% endif %}
+        {% elif item.pricing_mode == 'CUSTOM_QUOTE' %}
+          <span class="muted">{{ item.cta_text or 'Custom Quote' }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endfor %}
+<script>
+function goCustomProject(el) {
+  var businessSelect = document.getElementById('business_select');
+  var businessId = businessSelect ? businessSelect.value : null;
+  if (!businessId) { return true; }
+  var projectType = el.getAttribute('data-project-type');
+  el.href = "{{ url_for('projects.custom_project_request', business_id=0, project_type='TYPE') }}"
+    .replace('/0/', '/' + businessId + '/').replace('TYPE', projectType);
+  return true;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Request {{ talent.name }} — Kilas Works{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px;margin:0 auto;">
+  <h1>Request Talent: {{ talent.name }}</h1>
+  <p class="muted">Harga & ketersediaan tergantung kebutuhan campaign — tim Kilas Works akan siapkan penawaran.</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Jenis Campaign</label><input type="text" name="campaign_type">
+    <label>Platform</label><input type="text" name="platform">
+    <label>Deliverables</label><textarea name="deliverables"></textarea>
+    <label>Jumlah Konten</label><input type="number" name="num_content_pieces">
+    <label>Ketentuan Posting</label><input type="text" name="posting_requirements">
+    <label>Target Tanggal</label><input type="date" name="target_date">
+    <label>Lokasi</label><input type="text" name="location">
+    <label>Tujuan Penggunaan</label><input type="text" name="usage_purpose">
+    <label>Budget (Rp)</label><input type="number" name="budget">
+    <label>Brief</label><textarea name="brief"></textarea>
+    <div style="margin-top:16px;"><button class="btn" type="submit">Kirim Request</button></div>
+  </form>
+</div>
+{% endblock %}
