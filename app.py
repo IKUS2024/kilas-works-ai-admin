@@ -1,6 +1,8 @@
 import os
+import sys
 import re
 import io
+import hmac
 import json
 import time
 import base64
@@ -23,6 +25,1263 @@ WHATSAPP_ACCESS_TOKEN = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "kilasworks123")  # bebas, dipakai buat verifikasi webhook di Meta
 
+# ---------------------------------------------------------------------------
+# Business Hub V2 — Client Hub bridge (WhatsApp Patches 1-6, client-hub/BOT_INTEGRATION_GUIDE.md)
+# ---------------------------------------------------------------------------
+# ADDITIVE ONLY. `ENABLE_MULTI_TENANT` defaults to "false" — every gate below that checks this flag
+# stays fully inert by default, so nothing here changes behavior unless a human deliberately turns
+# it on in Render. Even with the flag on, `tenant_id` only ever resolves to a REAL, ACTIVE Client Hub
+# tenant whose `whatsapp_phone_number_id` matches the incoming webhook's own `phone_number_id` — it
+# is None for every message on Kilas Works' own WhatsApp number today (that number has never been
+# registered as a Client Hub tenant), so production traffic for the business currently live is
+# completely unaffected either way. Every helper below is wrapped so a missing/broken Client Hub
+# install (e.g. this file copied somewhere without the client-hub/ folder) degrades to "as if this
+# patch set didn't exist" rather than crashing the webhook.
+ENABLE_MULTI_TENANT = os.environ.get("ENABLE_MULTI_TENANT", "false").strip().lower() == "true"
+_CLIENT_HUB_AVAILABLE = False
+try:
+    _client_hub_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client-hub")
+    if os.path.isdir(_client_hub_dir) and _client_hub_dir not in sys.path:
+        sys.path.insert(0, _client_hub_dir)
+    import tenant_config_service as _tcs
+    import wa_takeover_service as _wa_takeover
+    import wa_project_bridge as _wa_bridge
+    import appointments_repo as _appt_repo
+    import payment_reviews_repo as _pay_review_repo
+    import repo as _ch_repo
+    _CLIENT_HUB_AVAILABLE = True
+except Exception as _client_hub_import_err:
+    print(f"Client Hub bridge tidak tersedia ({_client_hub_import_err}) — bot jalan tanpa fitur multi-tenant.")
+
+if _CLIENT_HUB_AVAILABLE and ENABLE_MULTI_TENANT:
+    # Multi-tenant runtime safety cycle (Task B) — DATABASE SOURCE OF TRUTH startup check.
+    #
+    # FACT (verified by reading the actual code, not assumed): the imports right above are plain
+    # in-process Python imports — `tenant_config_service`/`wa_takeover_service`/`wa_project_bridge`
+    # (and everything they import: repo.py, db.py) run as LOCAL MODULES inside this SAME bot
+    # process, not over HTTP to a separately-running Client Hub server. Within THIS process there
+    # is exactly one `DATABASE_URL` environment variable, read independently by this file's own
+    # get_db_connection() (this bot's own chat-history/leads Postgres) and by client-hub/db.py's
+    # get_connection() (Client Hub's tenant/business Postgres) — so within one process they can
+    # never disagree, by construction (same os.environ, same key).
+    #
+    # The REAL risk is operational, not code-level: per
+    # LAPORAN-CLIENT-HUB-PRODUCTION-FOUNDATION.md section 12, Client Hub is meant to ALSO be
+    # deployed as its own SEPARATE Render web service (its own admin UI, its own env panel) for
+    # staff to approve/connect/activate tenants. For this bridge to see the SAME tenant data that
+    # separately-deployed admin service manages, THIS bot service's own Render environment must
+    # ALSO have its `DATABASE_URL` set, to the EXACT SAME production Postgres connection string as
+    # the Client Hub admin service's `DATABASE_URL` — two independently-configured Render env
+    # panels that must agree, which nothing enforces automatically. If a human forgets to set
+    # `DATABASE_URL` on THIS service, client-hub/db.py silently falls back to a local SQLite file
+    # (see its own module docstring) that no admin ever writes to — every tenant lookup then
+    # returns "no match" (gracefully — see _resolve_tenant_id's docstring), which reads as "no
+    # tenants exist yet" rather than a crash, so this is easy to miss without a check like this
+    # one. This log line is the entire check: minimal, non-breaking, startup-only.
+    if not os.environ.get("DATABASE_URL", "").strip():
+        print(
+            "PERINGATAN (Database source of truth): ENABLE_MULTI_TENANT=true tapi DATABASE_URL "
+            "belum diset di service bot ini. client-hub/db.py (di-import langsung dalam proses "
+            "yang sama) akan fallback ke SQLite lokal, TERPISAH dari database Postgres yang "
+            "dipakai Client Hub admin service — setiap tenant lookup akan gagal senyap (dianggap "
+            "'tidak ada tenant'), bukan error. Set DATABASE_URL di service bot ini ke connection "
+            "string Postgres PRODUKSI yang SAMA PERSIS dengan yang dipakai Client Hub admin "
+            "service, baru multi-tenant bridge ini bisa melihat data tenant yang sebenarnya."
+        )
+
+
+def _resolve_tenant_id(phone_number_id):
+    """Patch 1 — authoritative tenant resolution, ONLY via the webhook payload's own
+    `phone_number_id` (Meta's own channel identifier), NEVER from message text or a business name.
+    Returns None on any failure (Client Hub unavailable, no match, DB error) — None means 'treat
+    exactly like every request before this patch existed' everywhere else in this file."""
+    if not _CLIENT_HUB_AVAILABLE or not phone_number_id:
+        return None
+    try:
+        return _tcs.get_tenant_by_phone_number_id(phone_number_id)
+    except Exception as e:
+        print(f"Tenant resolution gagal ({e}) — fallback tenant_id=None (perilaku default).")
+        return None
+
+
+def _resolve_tenant_or_unknown(phone_number_id):
+    """Task 7 (multi-tenant runtime safety) — tri-state resolution of the webhook's own
+    `phone_number_id`, used ONLY by the webhook route (receive_webhook/_webhook_body_impl), never
+    by anything that predates this cycle (see _resolve_tenant_id above, kept unchanged for its
+    existing callers/tests). Returns (tenant_id, is_unknown):
+      - phone_number_id matches Kilas Works' OWN configured WHATSAPP_PHONE_NUMBER_ID -> (None, False)
+        — process as Kilas Works, exactly like every request before multi-tenancy existed.
+      - phone_number_id matches a real, ACTIVE Client Hub tenant -> (tenant_id, False) — process as
+        that tenant.
+      - anything else — no match at all, Client Hub unavailable, OR the tenant lookup itself raised
+        (e.g. a database error) -> (None, True) — GENUINELY UNKNOWN. The caller must NOT process
+        this as Kilas Works (tenant_id=None here is NOT a green light — check is_unknown first),
+        must not send any reply, and must only log an internal warning and stop. A lookup failure
+        must never silently degrade into 'treat as Kilas Works' — that would make an outage/bug in
+        Client Hub's database look identical to legitimate Kilas Works traffic."""
+    if not phone_number_id:
+        return None, True
+    if WHATSAPP_PHONE_NUMBER_ID and phone_number_id == WHATSAPP_PHONE_NUMBER_ID:
+        return None, False
+    if not _CLIENT_HUB_AVAILABLE:
+        # Can't tell whether this is a real tenant without Client Hub — never default to Kilas.
+        return None, True
+    try:
+        found = _tcs.get_tenant_by_phone_number_id(phone_number_id)
+    except Exception as e:
+        print(
+            f"Tenant resolution GAGAL (phone_number_id={phone_number_id!r}): {e} — diperlakukan "
+            "sebagai UNKNOWN (BUKAN Kilas Works), tidak diproses, tidak dibalas."
+        )
+        return None, True
+    if found is not None:
+        return found, False
+    return None, True
+
+
+def _get_conversation_mode_safe(tenant_id, customer_phone):
+    """Patch 4 — human takeover check. Never raises; defaults to AI_ACTIVE so a Client Hub read
+    failure can never silently stop the bot from replying to a customer."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return "AI_ACTIVE"
+    try:
+        return _tcs.get_conversation_mode(tenant_id, customer_phone)
+    except Exception as e:
+        print(f"Cek human takeover gagal ({e}) — fallback AI_ACTIVE (AI tetap balas).")
+        return "AI_ACTIVE"
+
+
+# Bug fix: a resolved CLIENT tenant (e.g. a coffee shop) must NEVER fall back to "" here in a way
+# that makes build_customer_system_prompt() treat it as "no tenant" (which would use SYSTEM_PROMPT,
+# i.e. KILAS WORKS' OWN catalog/pricing). Once a tenant_id has actually resolved, this ALWAYS returns
+# a non-empty, tenant-labeled block — using that tenant's own onboarding data when available, or this
+# neutral fallback (never Kilas Works' own catalog) when the tenant's profile is incomplete/missing.
+_TENANT_INCOMPLETE_PROFILE_BLOCK = (
+    "\n\nCATATAN PENTING: profil resmi bisnis ini (nama, layanan, harga, FAQ, jam, alamat) BELUM "
+    "lengkap tersedia buat kamu saat ini. JANGAN PERNAH karang info/layanan/harga apapun, dan JANGAN "
+    "PERNAH pakai info/layanan/harga dari bisnis lain manapun (TERMASUK Kilas Works) untuk menjawab "
+    "customer bisnis ini. Kalau customer nanya produk/harga/jam/FAQ yang belum ada datanya, jawab "
+    "jujur & natural kamu perlu cek dulu ke tim, atau tanya balik dengan sopan buat memahami kebutuhan "
+    "customer lebih spesifik dulu."
+)
+
+
+def _build_tenant_context_block_safe(tenant_id):
+    """Patch 2/6 — additional system-prompt context for a resolved MULTI-TENANT client, injected
+    for THIS request only (never written into any global/module-level prompt string). Returns ""
+    ONLY when tenant_id is None / Client Hub is unavailable (i.e. genuinely no tenant resolved — the
+    caller correctly falls back to Kilas Works' own SYSTEM_PROMPT in that case). Once a tenant_id HAS
+    resolved, this ALWAYS returns a non-empty block (that tenant's own data, or a neutral incomplete-
+    profile notice) — it must never again fall back to Kilas Works' own catalog/pricing."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return ""
+    try:
+        # Bug fix: this used to call _tcs.get_active_service_catalog(), which returns KILAS WORKS'
+        # OWN service_catalog table (catalog_service.list_active_catalog() — see its docstring:
+        # "Not tenant-scoped, the catalog is Kilas Works' own service list") — mislabeled here as
+        # "KATALOG LAYANAN RESMI BISNIS INI", so every resolved tenant (any client business) was
+        # actually being handed KILAS WORKS' OWN products/prices as if it were their own catalog.
+        # The tenant's OWN data lives in its provisioned tenant config instead.
+        config = _tcs.get_tenant_config(tenant_id)
+    except Exception as e:
+        print(f"Ambil tenant config gagal ({e}) — fallback ke profil bisnis kosong (BUKAN katalog Kilas Works).")
+        return _TENANT_INCOMPLETE_PROFILE_BLOCK
+    if not config:
+        return _TENANT_INCOMPLETE_PROFILE_BLOCK
+    try:
+        business_name = config.get("business_name") or "bisnis ini"
+        ai_cfg = config.get("ai") or {}
+        business_info = config.get("business_info") or {}
+        knowledge = config.get("knowledge") or {}
+
+        lines = [f"NAMA BISNIS INI: {business_name}"]
+        description = ai_cfg.get("business_description") or ai_cfg.get("system_instructions")
+        if description:
+            lines.append(f"DESKRIPSI BISNIS: {description}")
+        address = business_info.get("address")
+        if address:
+            lines.append(f"ALAMAT: {address}")
+        hours_raw = (business_info.get("business_hours") or {}).get("raw")
+        if hours_raw:
+            lines.append(f"JAM OPERASIONAL: {hours_raw}")
+        closed_days = (business_info.get("business_hours") or {}).get("closed_days")
+        if closed_days:
+            lines.append(f"HARI LIBUR/TUTUP: {closed_days}")
+
+        services = knowledge.get("services") or []
+        service_lines = []
+        for s in services:
+            name = (s.get("service_name") or s.get("raw_input") or "").strip()
+            if not name:
+                continue
+            price_from, price_to = s.get("price_from"), s.get("price_to")
+            if price_from and price_to and price_from != price_to:
+                price_text = f"Rp{price_from:,} - Rp{price_to:,}".replace(",", ".")
+            elif price_from or price_to:
+                price_text = f"Rp{(price_from or price_to):,}".replace(",", ".")
+            else:
+                price_text = "harga belum ditentukan (JANGAN karang angka, tanya/eskalasi dulu)"
+            service_lines.append(f"- {name}: {price_text}")
+        if service_lines:
+            lines.append("LAYANAN/PRODUK BISNIS INI:")
+            lines.extend(service_lines)
+
+        faqs = knowledge.get("faq") or []
+        faq_lines = []
+        for f in faqs:
+            q, a = f.get("question"), f.get("answer")
+            if q and a:
+                faq_lines.append(f"- Q: {q}\n  A: {a}")
+        if faq_lines:
+            lines.append("FAQ BISNIS INI:")
+            lines.extend(faq_lines)
+
+        if not service_lines and not faq_lines and not description and not address and not hours_raw:
+            # Tenant resolved, but onboarding data is essentially empty — never fall back to Kilas
+            # Works' own catalog, fall back to the neutral incomplete-profile notice instead.
+            return _TENANT_INCOMPLETE_PROFILE_BLOCK
+
+        info_text = "\n".join(lines)
+
+        # Task 3/4 — appointment and tenant-own-payment instructions are ONLY added when THIS
+        # tenant's own Pro feature flags (feature_flags.FEATURE_MATRIX) actually allow it; a Basic
+        # tenant (or a Pro tenant without payment/appointment configured) gets neither block, so
+        # the AI never has the tags/wording to attempt either and falls back to the generic
+        # "cek dulu ke tim" behavior already covered by the general instructions below.
+        features = {}
+        try:
+            features = _tcs.get_tenant_features(tenant_id) or {}
+        except Exception:
+            pass
+
+        appt_settings = _get_tenant_appointment_settings_safe(tenant_id)
+        if features.get("appointment") and appt_settings.get("meeting_enabled"):
+            appointment_block = build_tenant_appointment_context(appt_settings)
+            payment_note = (
+                "Pembayaran untuk layanan Kilas Works sendiri (bukan produk/jasa bisnis ini) tetap "
+                "HANYA lewat app.kilasworks.id — itu di luar topik ini."
+            )
+        else:
+            appointment_block = ""
+            payment_note = (
+                "Belum ada layanan booking appointment lewat chat untuk bisnis ini — kalau customer "
+                "minta jadwal ketemu, arahkan mereka menghubungi bisnis ini langsung."
+            )
+
+        payment_cfg = _get_tenant_payment_config_safe(tenant_id)
+        if features.get("payment_conversation") and payment_cfg.get("bank_name") and payment_cfg.get("account_number"):
+            payment_block = (
+                "\n\nPEMBAYARAN KE BISNIS INI: kalau customer nanya cara bayar/rekening/transfer ke "
+                "bisnis ini, respon transisi natural SANGAT SINGKAT lalu sertakan tag PERSIS di akhir "
+                "balasan: [GIVE_PAYMENT_INFO] — SISTEM yang otomatis isi rincian rekening resmi "
+                "bisnis ini, JANGAN PERNAH kamu ketik nomor rekening sendiri. "
+                "Kalau customer bilang sudah transfer atau mengirim gambar yang jelas merupakan bukti "
+                "transfer, ucapkan terima kasih dan jelaskan bahwa bukti sedang dicek, JANGAN PERNAH "
+                "mengatakan pasti asli/terverifikasi/lunas, lalu sertakan tag [SUDAH_BAYAR]. Kalau dari "
+                "gambar nominalnya terbaca jelas, sertakan juga [PAYMENT_PROOF_DETAILS: amount=<angka "
+                "rupiah tanpa titik/koma>]. Kalau gambar buram, bukan bukti transfer, atau nominalnya "
+                "tidak jelas/mencurigakan, JANGAN sertakan [SUDAH_BAYAR]; minta customer kirim ulang "
+                "bukti yang lebih jelas atau bilang akan dicek ke tim."
+            )
+        else:
+            payment_block = (
+                "\n\nPEMBAYARAN KE BISNIS INI: belum ada rekening resmi yang bisa kamu sampaikan lewat "
+                "chat — kalau customer nanya cara bayar, jawab jujur & natural kamu perlu cek dulu ke "
+                "tim/owner, JANGAN PERNAH mengarang nomor rekening apapun."
+            )
+
+        return (
+            "\n\nINFO & KATALOG RESMI BISNIS INI (SATU-SATUNYA SUMBER INFORMASI UNTUK BISNIS INI — "
+            "JANGAN PERNAH KARANG INFO LAIN, DAN JANGAN PERNAH PAKAI INFO/LAYANAN/HARGA DARI BISNIS "
+            "LAIN MANAPUN, TERMASUK KILAS WORKS, UNTUK BISNIS INI):\n"
+            f"{info_text}\n\n"
+            "Kalau customer nanya sesuatu (produk/harga/jam/FAQ) yang belum ada di data di atas, JANGAN "
+            "NGARANG jawaban — jawab jujur kamu perlu cek dulu, atau tanya klarifikasi kebutuhan "
+            "customer dengan sopan.\n"
+            f"{payment_note}"
+            f"{appointment_block}"
+            f"{payment_block}"
+        )
+    except Exception as e:
+        print(f"Build tenant context gagal ({e}) — fallback ke profil bisnis kosong (BUKAN katalog Kilas Works).")
+        return _TENANT_INCOMPLETE_PROFILE_BLOCK
+
+
+def _get_open_projects_summary_safe(tenant_id):
+    """Patch 5 — owner-facing project query support ('project Rina gimana?'). Never raises."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return []
+    try:
+        return _tcs.get_open_projects_summary(tenant_id)
+    except Exception as e:
+        print(f"Ambil ringkasan project gagal ({e}).")
+        return []
+
+
+def _get_trusted_owner_phone_safe(tenant_id):
+    """Patch 5 — this ONE tenant's own trusted owner phone (never Kilas Works' own
+    OWNER_WHATSAPP_NUMBER), used to recognize that tenant's owner messages on their own WhatsApp
+    channel. Never raises; returns None on any failure so the message just falls through to the
+    normal customer path (same as today, before this patch existed)."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return None
+    try:
+        return _tcs.get_trusted_owner_phone(tenant_id)
+    except Exception as e:
+        print(f"Ambil trusted_owner_phone gagal ({e}).")
+        return None
+
+
+def _get_tenant_features_safe(tenant_id):
+    """Patch 3 — backend-enforced feature gate for a resolved tenant. Returns {} on any failure —
+    callers must treat a missing/False feature as 'not enabled', never as an error."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return {}
+    try:
+        return _tcs.get_tenant_features(tenant_id)
+    except Exception as e:
+        print(f"Ambil tenant features gagal ({e}).")
+        return {}
+
+
+def is_kilas_platform_tenant(tenant_id):
+    """Multi-tenant runtime safety cycle — the ONE stable identifier used everywhere in this file
+    to tell 'Kilas Works' own platform conversation' apart from 'a client tenant's conversation
+    with its own customer'. tenant_id is ALWAYS None for Kilas Works' own WhatsApp number (see
+    _resolve_tenant_id's docstring — that number has never been registered as a Client Hub
+    tenant), and is otherwise a real, ACTIVE Client Hub business_id. This is deliberately NOT a
+    string match against a business/display name (a client could legally be named anything,
+    including something that happens to contain "Kilas") — it is the exact same tenant_id the
+    webhook already resolved from the authoritative phone_number_id, so this helper can never
+    disagree with the rest of the routing in this file."""
+    return tenant_id is None
+
+
+def _ck(tenant_id, number):
+    """Compound per-(tenant, customer-phone) key for the in-memory conversation state dicts below
+    (conversations/customer_names/agreed_facts/customer_language, etc). The SAME phone number can
+    legitimately message two different client tenants (or a tenant AND Kilas Works itself) — those
+    must be completely separate conversations with zero shared history/facts/state.
+
+    tenant_id=None (Kilas Works' own conversations — see is_kilas_platform_tenant) maps to the
+    PLAIN phone number, unchanged — every call site that predates multi-tenancy, and every test
+    that never sets ENABLE_MULTI_TENANT, keeps working with byte-for-byte identical dict keys."""
+    return number if tenant_id is None else f"T{tenant_id}:{number}"
+
+
+def _get_tenant_whatsapp_channel_safe(tenant_id):
+    """Multi-tenant runtime safety cycle (Task 1/2), credential architecture documented for Task 8
+    — this ONE tenant's own WhatsApp Phone-Number-ID + access token, resolved server-side. Never
+    raises; returns None (a clear 'not configured' signal) on ANY failure: Client Hub unavailable,
+    tenant not found/ACTIVE, no channel recorded yet, OR a distinct per-tenant credentials_reference
+    was recorded but its env var isn't actually set on THIS process — every one of those must be
+    treated identically by the caller (skip sending, never fall back to Kilas Works' own identity).
+
+    ---------------------------------------------------------------------------------------------
+    TASK 8 — CREDENTIAL ARCHITECTURE DESIGN DECISION (read this before changing this function)
+    ---------------------------------------------------------------------------------------------
+    Business goal: onboarding a new client must not require adding a brand-new Render environment
+    variable per tenant — that does not scale past a handful of clients.
+
+    DOCUMENTED ASSUMPTION (NOT independently verified against a real Meta account from inside this
+    sandboxed environment — this sandbox cannot make live calls to Meta's Graph API, so this is
+    stated as an assumption to carry into the final report, not a verified fact): when several
+    WhatsApp Business phone numbers are added under the SAME Meta Business Portfolio / WhatsApp
+    Business Account (WABA) — the standard shape for one agency (Kilas Works) managing several
+    clients' numbers under its own embedded-signup/portfolio setup — a single system-user access
+    token scoped to that WABA can typically send on behalf of ANY phone number registered under it,
+    with only the Phone-Number-ID varying per send. This is the common, expected Meta multi-number
+    model; a client who instead brings their OWN separate Meta app/WABA would need their own
+    distinct token, which is the rarer case this design still supports.
+
+    CONCRETE DESIGN (implemented below): `credentials_reference` in tenant_whatsapp_config is now
+    OPTIONAL, a config-time CHOICE per tenant record, not a hard requirement:
+      (a) left EMPTY/None -> this tenant shares Kilas Works' own default server-side access value,
+          the single `WHATSAPP_ACCESS_TOKEN` env var already configured for the whole service (the
+          expected case: same agency-managed WABA/Portfolio, only phone_number_id differs). Onboarding
+          a new such client requires ZERO new Render env vars — only a phone_number_id to record.
+      (b) set to a SPECIFIC env var name (e.g. "WHATSAPP_TOKEN__TENANT_7") -> that tenant genuinely
+          has its own separate Meta app/token, resolved from that named env var instead.
+    Either way, the actual access token value is NEVER stored in any database column, NEVER
+    displayed in any UI/API/log/report — only an env var NAME is ever persisted (case b), or
+    nothing tenant-specific at all is persisted (case a, the shared default is simply read by name
+    from this process's own environment, exactly like Kilas Works' own conversations already do)."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return None
+    try:
+        channel = _tcs.get_tenant_whatsapp_channel(tenant_id)
+    except Exception as e:
+        print(f"Ambil tenant WhatsApp channel gagal (tenant_id={tenant_id}): {e}")
+        return None
+    if not channel:
+        return None
+    credentials_reference = channel.get("credentials_reference")
+    if credentials_reference:
+        # Case (b) above — this tenant genuinely has its own separate Meta app/token.
+        access_token = os.environ.get(credentials_reference, "")
+        if not access_token:
+            # Recorded a pointer, but the actual secret was never provisioned on this process —
+            # treat exactly like "not configured" (never fall back to Kilas Works' own token).
+            print(f"Tenant {tenant_id} WhatsApp credentials_reference belum diisi di environment — channel belum siap.")
+            return None
+    else:
+        # Case (a) above — no per-tenant reference recorded: this tenant shares Kilas Works' own
+        # default access value (same underlying Meta Business Portfolio/WABA, per the documented
+        # assumption). Falling back to "" (not configured) rather than crashing if the operator
+        # hasn't set WHATSAPP_ACCESS_TOKEN at all — that's a real 'not ready' state, not an error.
+        access_token = WHATSAPP_ACCESS_TOKEN
+        if not access_token:
+            print(f"Tenant {tenant_id} pakai shared default WHATSAPP_ACCESS_TOKEN tapi env var itu kosong — channel belum siap.")
+            return None
+    return {"phone_number_id": channel["phone_number_id"], "access_token": access_token}
+
+
+# Thread-local override for the ACTIVE WhatsApp channel used by every send_*/upload_*/
+# download_whatsapp_media() call below. Reset explicitly at the top of every webhook request (see
+# receive_webhook) — never left over from a previous request on the same worker thread — so a
+# resolved client tenant's outgoing traffic uses THAT tenant's own Phone-Number-ID/access token,
+# and Kilas Works' own conversations (tenant_id is None) keep using the global
+# WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN exactly as before this cycle existed.
+import threading as _threading
+_active_channel_local = _threading.local()
+
+
+def _set_active_whatsapp_channel(phone_number_id, access_token):
+    _active_channel_local.phone_number_id = phone_number_id
+    _active_channel_local.access_token = access_token
+
+
+def _clear_active_whatsapp_channel():
+    _active_channel_local.phone_number_id = None
+    _active_channel_local.access_token = None
+
+
+def _active_whatsapp_phone_number_id():
+    return getattr(_active_channel_local, "phone_number_id", None) or WHATSAPP_PHONE_NUMBER_ID
+
+
+def _active_whatsapp_access_token():
+    return getattr(_active_channel_local, "access_token", None) or WHATSAPP_ACCESS_TOKEN
+
+
+def _get_tenant_owner_notify_target_safe(tenant_id):
+    """Multi-tenant runtime safety cycle (Task 6) — which owner should receive a day-to-day
+    customer-service notification (new customer, escalation, appointment request, etc.) for THIS
+    conversation. Kilas Works' own platform owner (OWNER_WHATSAPP_NUMBER) must NEVER receive a
+    client tenant's own customer-service events, and a client tenant's own owner must never be
+    confused with the Kilas Works platform owner — so this NEVER falls back from one to the other.
+    Returns None (meaning: skip sending, do NOT fall back to Kilas Works' own owner) when a
+    resolved tenant has no trusted_owner_phone configured yet — a known limitation until Client
+    Hub's onboarding UI collects one, not something this bridge should paper over by guessing."""
+    if is_kilas_platform_tenant(tenant_id):
+        return OWNER_WHATSAPP_NUMBER
+    return _get_trusted_owner_phone_safe(tenant_id)
+
+
+def _get_tenant_appointment_settings_safe(tenant_id):
+    """Task 3 — THIS tenant's OWN appointment settings (business hours, the appointment-enabled
+    toggle, booking notes/rules). Never raises; returns {} on any failure — callers must treat a
+    missing settings block as 'appointments not available', never as an error."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return {}
+    try:
+        return _tcs.get_tenant_appointment_settings(tenant_id) or {}
+    except Exception as e:
+        print(f"Ambil tenant appointment settings gagal (tenant_id={tenant_id}): {e}")
+        return {}
+
+
+def _get_tenant_payment_config_safe(tenant_id):
+    """Task 4 — THIS tenant's OWN bank/payment details (never Kilas Works' own PAYMENT_CONFIG/BCA
+    account). Never raises; returns {} on any failure."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return {}
+    try:
+        return _tcs.get_tenant_payment_config(tenant_id) or {}
+    except Exception as e:
+        print(f"Ambil tenant payment config gagal (tenant_id={tenant_id}): {e}")
+        return {}
+
+
+def build_tenant_payment_info_text(payment_cfg):
+    """Task 4 — renders THIS tenant's OWN bank/payment details as plain text, exactly the way
+    build_payment_info_text() does for Kilas Works' own PAYMENT_CONFIG, but sourced entirely from
+    payment_cfg (that tenant's own configured bank_name/account_number/account_name/instructions —
+    see tenant_config_service.get_tenant_payment_config). Returns None if the essential fields
+    (bank + account number) aren't actually configured yet — caller must fall back to a natural
+    'ask the business directly' message rather than ever inventing/guessing details."""
+    bank = (payment_cfg or {}).get("bank_name")
+    account_number = (payment_cfg or {}).get("account_number")
+    if not bank or not account_number:
+        return None
+    account_name = (payment_cfg or {}).get("account_name") or ""
+    text = f"{bank} {account_number}" + (f" a.n. {account_name}" if account_name else "")
+    instructions = (payment_cfg or {}).get("instructions")
+    if instructions:
+        text += f"\n{instructions}"
+    return text
+
+
+def build_tenant_appointment_context(settings):
+    """Task 3 — the customer-facing appointment negotiation instructions for a resolved CLIENT
+    tenant, using ONLY that tenant's own business hours/closed days/booking notes (`settings`, from
+    _get_tenant_appointment_settings_safe) — NEVER Kilas Works' own office-hours/slot-grid
+    (build_appointment_context() above, which stays Kilas-Works-only). Deliberately simpler than
+    the Kilas Works flow (no online/offline mode, no owner-offered-slot-grid subflow): the AI just
+    captures the customer's preferred day/time within these business hours and hands off to the
+    tenant's own owner for confirmation via the SAME MEETING_PREFERENCE/RESCHEDULE_MEETING/
+    CANCEL_MEETING tags already defined below (parsed generically, not tied to Kilas Works' own
+    negotiation rules)."""
+    today = now_wib().date()
+    hours = settings.get("business_hours_raw") or "belum ditentukan — tanya customer & catat aja preferensinya"
+    closed = settings.get("closed_days")
+    rules = settings.get("appointment_rules")
+    lines = [
+        "\n\n📅 APPOINTMENT / BOOKING BISNIS INI\n",
+        f"HARI INI adalah {format_date_id(today)} ({today.strftime('%Y-%m-%d')}), WIB.\n",
+        f"JAM OPERASIONAL BISNIS INI: {hours}.\n",
+    ]
+    if closed:
+        lines.append(f"HARI TUTUP/LIBUR: {closed}.\n")
+    if rules:
+        lines.append(f"CATATAN/ATURAN BOOKING BISNIS INI: {rules}\n")
+    lines.append(
+        "Kalau customer mau booking/appointment: tanya hari & jam yang diinginkan (dalam jam "
+        "operasional di atas kalau ada), respon transisi natural SANGAT SINGKAT (misal 'oke aku "
+        "catat dulu ya'), lalu sertakan tag PERSIS di akhir balasan: [MEETING_PREFERENCE: "
+        "day=<hari/tanggal persis kata-kata customer>|time=HH:MM] (time= opsional, isi kalau "
+        "customer udah sebutin jamnya). JANGAN PERNAH bilang sendiri 'sudah dikonfirmasi/"
+        "dijadwalkan' — itu tugas SISTEM setelah bisnis ini benar-benar konfirmasi.\n"
+        "RESCHEDULE: kalau customer yang appointment-nya SUDAH ada mau ganti jadwal, tag PERSIS: "
+        "[RESCHEDULE_MEETING: date=<hari/tanggal>|time=HH:MM].\n"
+        "CANCEL: kalau customer mau batalin appointment-nya, tag PERSIS: [CANCEL_MEETING]."
+    )
+    return "".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Tenant-persistence cycle — thin, never-raising wrappers around client-hub/appointments_repo.py
+# and client-hub/payment_reviews_repo.py, same "safe wrapper" convention as every other
+# _get_tenant_*_safe helper above: a missing/broken Client Hub install degrades to "feature
+# unavailable" (empty list / None / False), never a crash of the live webhook.
+# ---------------------------------------------------------------------------
+
+def _tenant_appt_create_safe(tenant_id, customer_phone, customer_name, request_text):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return None
+    try:
+        return _appt_repo.create_appointment(tenant_id, customer_phone, customer_name, request_text)
+    except Exception as e:
+        print(f"Simpan tenant appointment gagal (tenant_id={tenant_id}): {e}")
+        return None
+
+
+def _tenant_appt_latest_safe(tenant_id, customer_phone, statuses=None):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return None
+    try:
+        return _appt_repo.get_latest_for_customer(tenant_id, customer_phone, statuses=statuses)
+    except Exception as e:
+        print(f"Ambil tenant appointment gagal (tenant_id={tenant_id}): {e}")
+        return None
+
+
+def _tenant_appt_update_status_safe(appt_id, status, notes=None):
+    if not _CLIENT_HUB_AVAILABLE or appt_id is None:
+        return False
+    try:
+        _appt_repo.update_status(appt_id, status, notes=notes)
+        return True
+    except Exception as e:
+        print(f"Update tenant appointment status gagal (id={appt_id}): {e}")
+        return False
+
+
+def _tenant_appt_update_reschedule_safe(appt_id, request_text, status=None):
+    if not _CLIENT_HUB_AVAILABLE or appt_id is None:
+        return False
+    try:
+        _appt_repo.update_request_text(appt_id, request_text, status=status)
+        return True
+    except Exception as e:
+        print(f"Update tenant appointment reschedule gagal (id={appt_id}): {e}")
+        return False
+
+
+def _tenant_appt_list_safe(tenant_id, statuses=None, limit=50):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return []
+    try:
+        return _appt_repo.list_for_business(tenant_id, statuses=statuses, limit=limit)
+    except Exception as e:
+        print(f"List tenant appointments gagal (tenant_id={tenant_id}): {e}")
+        return []
+
+
+def _tenant_payment_review_create_safe(tenant_id, customer_phone, customer_name,
+                                        amount_claimed=None, amount_detected=None, proof_file_id=None):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return None
+    try:
+        return _pay_review_repo.create_review(
+            tenant_id, customer_phone, customer_name,
+            amount_claimed=amount_claimed, amount_detected=amount_detected, proof_file_id=proof_file_id,
+        )
+    except Exception as e:
+        print(f"Simpan tenant payment review gagal (tenant_id={tenant_id}): {e}")
+        return None
+
+
+def _tenant_payment_proof_store_safe(tenant_id, content_bytes, mime_type):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return None
+    try:
+        return _pay_review_repo.store_proof_image(tenant_id, content_bytes, mime_type)
+    except Exception as e:
+        print(f"Simpan file bukti pembayaran tenant gagal (tenant_id={tenant_id}): {e}")
+        return None
+
+
+def _tenant_payment_review_list_pending_safe(tenant_id, limit=50):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return []
+    try:
+        return _pay_review_repo.list_pending_for_business(tenant_id, limit=limit)
+    except Exception as e:
+        print(f"List tenant payment reviews gagal (tenant_id={tenant_id}): {e}")
+        return []
+
+
+def _tenant_payment_review_update_status_safe(review_id, status, owner_note=None, verified_by=None):
+    if not _CLIENT_HUB_AVAILABLE or review_id is None:
+        return False
+    try:
+        _pay_review_repo.update_status(review_id, status, owner_note=owner_note, verified_by=verified_by)
+        return True
+    except Exception as e:
+        print(f"Update tenant payment review status gagal (id={review_id}): {e}")
+        return False
+
+
+def _tenant_payment_review_get_scoped_safe(review_id, tenant_id):
+    if not _CLIENT_HUB_AVAILABLE or review_id is None or tenant_id is None:
+        return None
+    try:
+        return _pay_review_repo.get_review_scoped(review_id, tenant_id)
+    except Exception as e:
+        print(f"Ambil tenant payment review gagal (id={review_id}, tenant_id={tenant_id}): {e}")
+        return None
+
+
+def _write_tenant_audit_safe(tenant_id, action, detail):
+    """Reuses Client Hub's EXISTING audit_log mechanism (repo.write_audit) for tenant-owner
+    WhatsApp commands that mutate a persisted record (payment confirm/reject, appointment confirm/
+    reject) — actor_user_id is None (there is no logged-in Client Hub user behind a WhatsApp
+    command; audit_log.actor_user_id is nullable for exactly this case), business_id is the
+    resolved tenant, never a different one."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return
+    try:
+        _ch_repo.write_audit(None, tenant_id, action, detail)
+    except Exception as e:
+        print(f"Tulis audit log tenant gagal (tenant_id={tenant_id}, action={action}): {e}")
+
+
+# ---------------------------------------------------------------------------
+# Task 1/2 (multi-tenant runtime safety) — the Pro tenant owner assistant. Gives a Pro CLIENT
+# tenant's own recognized owner the SAME category of natural, conversational "asisten pribadi"
+# experience Kilas Works' own owner already gets via call_claude_owner()/build_owner_system_prompt()
+# above — asking about customers, what someone said, instructing a relay to a customer, or just
+# thinking out loud — but strictly scoped to THAT tenant's own customers/conversations/appointments,
+# using a SEPARATE conversation history/state (tenant_owner_conversations, tenant_meeting_requests)
+# so it can never read or touch Kilas Works' own data or another tenant's. Reuses the SAME
+# classify_owner_message() (client-hub/wa_project_bridge.py) already used by the thin bridge this
+# replaces, and the SAME Anthropic Claude call pattern call_claude_owner() uses — this is an
+# EXTENSION of that architecture (making it reachable/correctly-scoped for a tenant owner), not a
+# second parallel decision engine.
+# ---------------------------------------------------------------------------
+
+tenant_owner_conversations = {}  # key: _ck(tenant_id, owner_phone) -> [{"role":..,"content":..}]
+
+
+def _tenant_customer_index(tenant_id):
+    """This tenant's OWN known customers only — {phone: name}, scanned from the tenant-scoped
+    slice of the global `customer_names` cache (keys of the form 'T<tenant_id>:<phone>', written by
+    the normal customer webhook path via _ck()). Never includes Kilas Works' own customers or
+    another tenant's — those live under a different key prefix (or no prefix at all, for Kilas)."""
+    prefix = f"T{tenant_id}:"
+    out = {}
+    for key, name in customer_names.items():
+        if isinstance(key, str) and key.startswith(prefix):
+            out[key[len(prefix):]] = name
+    return out
+
+
+def _build_tenant_owner_query_context(tenant_id, owner_phone):
+    """Assembles a tenant-scoped 'what's going on' summary for the owner assistant's system prompt
+    — recent customers + their last few messages (from this tenant's OWN scoped conversation
+    history only), open appointment requests, and open Business Hub projects. Every piece here is
+    resolved via tenant_id, never via message content, so it can never mix in another tenant's or
+    Kilas Works' own data."""
+    lines = []
+    known = _tenant_customer_index(tenant_id)
+    if known:
+        cust_lines = []
+        for phone, name in list(known.items())[:25]:
+            scoped_key = _ck(tenant_id, phone)
+            history = conversations.get(scoped_key) or load_recent_messages_from_db(scoped_key, "customer")
+            last_msgs = history[-4:] if history else []
+            snippet = " | ".join(
+                f"{m.get('role')}: {(m.get('content') if isinstance(m.get('content'), str) else '(media)')[:120]}"
+                for m in last_msgs
+            ) or "(belum ada histori tersimpan)"
+            cust_lines.append(f"- {name or 'Customer'} (wa.me/{phone}): {snippet}")
+        lines.append("CUSTOMER BISNIS INI (terbaru):\n" + "\n".join(cust_lines))
+    else:
+        lines.append("Belum ada customer yang tercatat chat ke bisnis ini.")
+
+    # Tenant-persistence cycle — read from the PERSISTED tenant_appointments table (DB), not the
+    # in-process tenant_meeting_requests dict, so this context (and therefore the owner's answer
+    # to "Ada booking besok?"/"Siapa booking jam 3?") is correct even after a server restart.
+    appt_rows = _tenant_appt_list_safe(tenant_id, statuses=_appt_repo.OPEN_STATUSES if _CLIENT_HUB_AVAILABLE else None, limit=25)
+    appt_lines = []
+    for row in appt_rows:
+        name = row.get("customer_name") or known.get(row["customer_phone"], "Customer")
+        when = row.get("request_text") or "-"
+        appt_lines.append(f"- {name} (wa.me/{row['customer_phone']}): {when} — status {row.get('status')}")
+    if appt_lines:
+        lines.append("\nAPPOINTMENT/BOOKING YANG TERCATAT:\n" + "\n".join(appt_lines))
+
+    # Tenant-persistence cycle (Task 2/3) — pending/recent payment-proof reviews for THIS tenant
+    # only, so the owner can ask "Ada transfer yang belum gue cek?"/"Yang Budi bayar berapa?"/
+    # "Bukti transfer yang tadi gimana?" and get a real, data-backed answer. Never claims
+    # authenticity — only reports what was claimed/detected and the current review status.
+    pay_rows = _tenant_payment_review_list_pending_safe(tenant_id, limit=25)
+    if pay_rows:
+        pay_lines = []
+        for row in pay_rows:
+            name = row.get("customer_name") or known.get(row["customer_phone"], "Customer")
+            claimed = f"Rp{row['amount_claimed']:,}".replace(",", ".") if row.get("amount_claimed") else "(nominal belum disebut customer)"
+            detected = f"Rp{row['amount_detected']:,}".replace(",", ".") if row.get("amount_detected") else "(nominal di gambar tidak terbaca jelas)"
+            pay_lines.append(
+                f"- {name} (wa.me/{row['customer_phone']}): klaim {claimed}, kelihatan di gambar {detected} "
+                f"— status {row.get('status')} (BELUM DIVERIFIKASI, JANGAN PERNAH bilang ini pasti asli/lunas)."
+            )
+        lines.append("\nBUKTI TRANSFER YANG BELUM DICEK:\n" + "\n".join(pay_lines))
+
+    projects = _get_open_projects_summary_safe(tenant_id)
+    if projects:
+        proj_lines = [f"- {p['title']} ({p['project_type']}): {p['status'].replace('_', ' ')}" for p in projects]
+        lines.append("\nPROJECT BUSINESS HUB YANG MASIH JALAN:\n" + "\n".join(proj_lines))
+
+    active_target = _tenant_active_customer_context.get((tenant_id, owner_phone))
+    if active_target:
+        active_name = known.get(active_target, f"wa.me/{active_target}")
+        lines.append(f"\nCUSTOMER TERAKHIR YANG CHAT: {active_name} ({active_target}).")
+
+    return "\n".join(lines)
+
+
+def build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name):
+    """Task 1 — system prompt for the Pro tenant owner assistant. Explicitly scoped to THIS
+    business only, and explicitly forbidden from ever surfacing raw internal tags/markers/system
+    wording to the owner (the owner IS a real person reading real WhatsApp messages, not a debug
+    console) or forwarding them into any customer-facing message."""
+    return (
+        f"Kamu adalah asisten pribadi WhatsApp untuk pemilik bisnis \"{business_name}\" (bukan "
+        "Kilas Works — ini bisnis KLIEN Kilas Works yang pakai produk AI Admin). Kamu HANYA boleh "
+        "membahas data/customer/appointment/project milik bisnis INI — JANGAN PERNAH menyebut atau "
+        "mencampur data bisnis lain manapun, termasuk Kilas Works sendiri.\n\n"
+        "Balas natural, santai, seperti asisten pribadi manusia lewat chat WhatsApp — dalam Bahasa "
+        "Indonesia kecuali owner jelas menulis dalam bahasa lain. JANGAN PERNAH menampilkan tag/kode "
+        "internal apapun (semacam [ACTION], [STATE], JSON mentah, atau istilah debug) ke owner — "
+        "kalau ada instruksi sistem, jalankan diam-diam saja, balasannya tetap kalimat natural.\n\n"
+        "Owner bisa nanya soal customer yang sedang serius, siapa yang tadi nanya harga, apa yang "
+        "terakhir dikatakan seorang customer, ada booking/appointment apa aja, siapa yang belum "
+        "di-follow-up, atau sekadar mikir/curhat soal bisnisnya — SELALU balas dengan jawaban nyata "
+        "berdasarkan data di bawah, JANGAN PERNAH diam saja / tidak membalas apapun.\n\n"
+        "Kalau owner MINTA kamu menyampaikan/membalas sesuatu ke seorang customer (mis. 'bales si "
+        "Budi bilang stoknya ada', 'terusin ke customer tadi jam 3 bisa'), SISTEM yang akan benar-"
+        "benar mengirim pesan itu ke customer secara terpisah — tugasmu di sini HANYA menjawab "
+        "owner secara natural mengonfirmasi apa yang akan disampaikan (mis. 'Oke, aku sampaikan ke "
+        "Budi ya'). JANGAN PERNAH menulis pesan seolah-olah kamu sedang berbicara LANGSUNG ke "
+        "customer di balasan ini.\n\n"
+        f"DATA BISNIS INI SAAT INI:\n{_build_tenant_owner_query_context(tenant_id, owner_phone)}"
+    )
+
+
+def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
+                          image_b64=None, image_mime=None, is_voice_note=False):
+    """Task 1 — the actual Claude call for the Pro tenant owner assistant, same request shape as
+    call_claude_owner() above but with its OWN conversation history (tenant_owner_conversations,
+    keyed by _ck(tenant_id, owner_phone)) and its OWN tenant-scoped system prompt — never shares
+    history/state with Kilas Works' own owner_conversations or another tenant's.
+
+    image_b64/image_mime and is_voice_note (deepening cycle, Task 1/3 parity with Kilas Works' own
+    call_claude_owner()) — SAME pattern as that function: a voice note's transcript is fed in as
+    plain text (no second AI engine, just tagged "[OWNER VOICE NOTE]" for memory/history so the
+    assistant can later answer 'apa kata aku tadi lewat voice note'), and an image forces the
+    vision-capable model (MODEL_PRIMARY) since MODEL_FAST/Haiku does not support vision, tagged
+    "[OWNER KIRIM GAMBAR]" the same way."""
+    scoped_key = _ck(tenant_id, owner_phone)
+    history = tenant_owner_conversations.get(scoped_key)
+    if history is None:
+        history = load_recent_messages_from_db(scoped_key, "owner")
+
+    if image_b64:
+        api_content = [
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": image_mime or "image/jpeg", "data": image_b64},
+            },
+            {"type": "text", "text": owner_message or "(owner kirim gambar tanpa keterangan)"},
+        ]
+        memory_text = f"[OWNER KIRIM GAMBAR] {owner_message}".strip()
+    elif is_voice_note:
+        api_content = owner_message
+        memory_text = f"[OWNER VOICE NOTE] {owner_message}".strip()
+    else:
+        api_content = owner_message
+        memory_text = owner_message
+
+    history.append({"role": "user", "content": api_content})
+    save_message_to_db(scoped_key, "owner", "user", memory_text)
+
+    system_prompt = build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name)
+    model_to_use = MODEL_FAST if not image_b64 else MODEL_PRIMARY
+    try:
+        if image_b64:
+            raise RuntimeError("skip-haiku-vision-not-supported")
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={"model": model_to_use, "max_tokens": 300, "system": system_prompt, "messages": history},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        reply_text = data["content"][0]["text"]
+        log_ai_usage("tenant_owner", model_to_use, data)
+    except Exception as e:
+        if not image_b64:
+            print(f"Tenant owner AI call gagal (tenant_id={tenant_id}): {e}")
+        model_to_use = MODEL_FALLBACK if image_b64 else model_to_use
+        try:
+            if image_b64:
+                resp = requests.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": ANTHROPIC_API_KEY,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={"model": model_to_use, "max_tokens": 300, "system": system_prompt, "messages": history},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                reply_text = data["content"][0]["text"]
+                log_ai_usage("tenant_owner", model_to_use, data)
+            else:
+                raise
+        except Exception as e2:
+            print(f"Tenant owner AI call gagal (tenant_id={tenant_id}): {e2}")
+            reply_text = "Aku catat ya — coba tanya lagi sebentar kalau butuh detail lebih lanjut."
+
+    if image_b64:
+        history[-1] = {"role": "user", "content": memory_text}
+
+    history.append({"role": "assistant", "content": reply_text})
+    tenant_owner_conversations[scoped_key] = history[-20:]
+    save_message_to_db(scoped_key, "owner", "assistant", reply_text)
+    return strip_tags(reply_text)
+
+
+def _resolve_tenant_owner_relay_target(tenant_id, owner_phone, raw_text):
+    """Task 1 — resolves WHO an owner's relay instruction ('bales si Budi ...', 'terusin ke 6281...
+    ...') is talking about, scoped to THIS tenant's own known customers only (see
+    _tenant_customer_index) — falls back to the 'last customer who chatted' context
+    (_tenant_active_customer_context) when no name/number is explicitly mentioned.
+
+    Returns (customer_phone_or_None, remaining_message_text, ambiguous_matches). The third element
+    is None in the normal case; it is a non-empty list of (phone, name) candidates (Task 4) when
+    the owner's text genuinely names 2+ DIFFERENT known customers (e.g. both "Budi" and "Sari" are
+    mentioned) with no way to tell which one is meant — callers must ask a clarifying question
+    rather than silently guessing one of them. A name that is merely a SHORTER form of another
+    match (e.g. "Budi" inside "Budi Kurniawan") is not treated as ambiguous — the longest/most
+    specific match is picked, same as before this cycle."""
+    known = _tenant_customer_index(tenant_id)
+    # Direct phone number mention (customer wrote to us using their own WhatsApp number).
+    phone_match = re.search(r"\b(\d{8,15})\b", raw_text)
+    if phone_match and phone_match.group(1) in known:
+        target = phone_match.group(1)
+        remainder = (raw_text[:phone_match.start()] + raw_text[phone_match.end():]).strip()
+        return target, remainder, None
+    # Name mention(s) among this tenant's own known customer names.
+    lowered = raw_text.lower()
+    matches = [(phone, name) for phone, name in known.items() if name and name.lower() in lowered]
+    if matches:
+        matches.sort(key=lambda pn: len(pn[1]), reverse=True)
+        longest_phone, longest_name = matches[0]
+        genuinely_distinct = [pn for pn in matches if pn[1].lower() not in longest_name.lower()]
+        if genuinely_distinct:
+            return None, raw_text, matches
+        return longest_phone, raw_text, None
+    active = _tenant_active_customer_context.get((tenant_id, owner_phone))
+    if active:
+        return active, raw_text, None
+    return None, raw_text, None
+
+
+# ---------------------------------------------------------------------------
+# Final Ecosystem Sync — Section 20: canonical runtime price lookup against Client Hub's catalog
+# (the single source of truth per Section 1/19), used to keep the WhatsApp bot's answers in sync
+# once an admin edits a price in Client Hub, WITHOUT ripping out or duplicating PRICING_CONFIG
+# (158+ existing regression tests exercise that dict directly and must keep passing unchanged).
+# Same safe-wrapper shape as every other bridge function above: any failure -> None -> caller
+# falls back to PRICING_CONFIG exactly as before this patch existed.
+# ---------------------------------------------------------------------------
+try:
+    import catalog_service as _catalog_service
+except Exception as _catalog_import_err:
+    _catalog_service = None
+    print(f"Client Hub catalog_service tidak tersedia ({_catalog_import_err}) — bot pakai PRICING_CONFIG statis.")
+
+
+def _get_catalog_price_safe(catalog_key):
+    """Returns {'price_amount': int, 'price_unit': str, 'name': str} for an ACTIVE catalog_key, or
+    None on ANY failure (Client Hub unavailable, key not found, inactive, DB error, CUSTOM_QUOTE
+    item with no fixed price). Never raises. Logged internally only — never surfaced to a customer."""
+    if _catalog_service is None:
+        return None
+    try:
+        item = _catalog_service.get_catalog_item(catalog_key)
+        if not item or not item.get("is_active") or item.get("pricing_mode") == "CUSTOM_QUOTE":
+            return None
+        if item.get("price_amount") is None:
+            return None
+        return {"price_amount": item["price_amount"], "price_unit": item.get("price_unit") or "",
+                "name": item.get("name") or catalog_key}
+    except Exception as e:
+        print(f"Ambil live catalog price gagal untuk {catalog_key!r} ({e}) — fallback ke PRICING_CONFIG.")
+        return None
+
+
+# Bug fix: this used to be a deliberately tiny, hand-picked set of ~7 catalog_keys (AI Admin,
+# Content, 2 website items) — every other FIXED_PRICE/STARTING_FROM item in the live catalog (Meta
+# Ads, bundles, remaining website items, events, etc.) silently never got synced, so the bot kept
+# quoting a stale PRICING_CONFIG number for those forever, however long ago an admin changed them
+# in Client Hub. Coverage is now generic: every item is discovered by catalog_key from Client Hub's
+# own pricing_config.CATALOG_ITEMS (the exact source service_catalog is seeded from, i.e. exactly
+# the set of catalog_keys the bot's PRICING_TEXT_BLOCK bakes a number in for), never a fixed list
+# maintained by hand here. CUSTOM_QUOTE items (Custom Content/Photo/Video/Talent/Website-App) are
+# never included — _get_catalog_price_safe() already refuses to return a price for those.
+try:
+    import pricing_config as _pricing_config_module
+except Exception as _pricing_config_import_err:
+    _pricing_config_module = None
+    print(f"Client Hub pricing_config tidak tersedia ({_pricing_config_import_err}) — pakai fallback kecil.")
+
+# Last-resort fallback ONLY for the rare case pricing_config.py itself can't be imported (e.g. this
+# file copied somewhere without client-hub/) — _get_full_catalog_sync_baseline_safe() below prefers
+# the full generic set and only drops to this tiny dict when that genuinely fails.
+_CATALOG_SYNC_KEYS_FALLBACK = {
+    "ai_admin_basic": ("AI Admin Basic", 499_000),
+    "ai_admin_pro": ("AI Admin Pro", 999_000),
+    "content_basic": ("Content Basic", 1_500_000),
+    "content_growth": ("Content Growth", 2_750_000),
+    "content_pro": ("Content Pro", 4_250_000),
+    "website_landing_page": ("Landing Page", 799_000),
+    "website_company_profile": ("Company Profile Website", 1_500_000),
+}
+
+
+def _get_full_catalog_sync_baseline_safe():
+    """Returns {catalog_key: (label, seeded_amount)} for EVERY FIXED_PRICE/STARTING_FROM item
+    Client Hub's pricing_config.py defines (i.e. every catalog_key with a concrete number baked
+    into the bot's own PRICING_TEXT_BLOCK/PRICING_CONFIG) — never a hand-picked subset. Returns the
+    small _CATALOG_SYNC_KEYS_FALLBACK dict instead ONLY when pricing_config.py itself can't be
+    imported/read (Client Hub missing, corrupted install, etc.), and never raises."""
+    if _pricing_config_module is None:
+        return _CATALOG_SYNC_KEYS_FALLBACK
+    try:
+        return {
+            item["key"]: (item["name"], item["price_amount"])
+            for item in _pricing_config_module.CATALOG_ITEMS
+            if item.get("pricing_mode") in ("FIXED_PRICE", "STARTING_FROM") and item.get("price_amount") is not None
+        }
+    except Exception as e:
+        print(f"Baca pricing_config.CATALOG_ITEMS gagal ({e}) — pakai fallback kecil.")
+        return _CATALOG_SYNC_KEYS_FALLBACK
+
+
+def _build_live_price_sync_note_safe():
+    """Section 20: returns an ADDITIVE system-prompt note only for catalog_keys whose live
+    Client Hub price has actually diverged from the hardcoded PRICING_CONFIG figure baked into
+    SYSTEM_PROMPT/PRICING_CONFIG. Returns "" when Client Hub is unavailable OR nothing has
+    diverged — meaning every one of the 158+ existing regression tests (none of which touch
+    Client Hub's catalog) sees byte-identical prompt behavior to before this patch existed.
+
+    Covers EVERY currently active FIXED_PRICE/STARTING_FROM catalog item generically (see
+    _get_full_catalog_sync_baseline_safe) — not just a hand-picked handful. A historical/already-
+    placed order's own locked-in price is never touched by this (it lives on the order/invoice row,
+    not here) — this only affects what the bot SAYS about the CURRENT live price going forward."""
+    if _catalog_service is None:
+        return ""
+    try:
+        baseline = _get_full_catalog_sync_baseline_safe()
+        diffs = []
+        for catalog_key, (label, hardcoded_amount) in baseline.items():
+            live = _get_catalog_price_safe(catalog_key)
+            if live is None:
+                continue
+            if live["price_amount"] != hardcoded_amount:
+                price_fmt = f"Rp{live['price_amount']:,}".replace(",", ".")
+                unit = f" {live['price_unit']}" if live.get("price_unit") else ""
+                diffs.append(f"- {label}: harga TERBARU adalah {price_fmt}{unit} (BUKAN angka lama manapun)")
+        if not diffs:
+            return ""
+        diffs_text = "\n".join(diffs)
+        return (
+            "\n\nUPDATE HARGA TERBARU DARI KILAS WORKS BUSINESS HUB (SUMBER HARGA PALING BENAR, "
+            "OVERRIDE angka manapun di atas untuk item ini SAJA — JANGAN tampilkan daftar harga "
+            "lengkap kalau customer cuma nanya satu layanan, cukup jawab yang ditanya):\n"
+            f"{diffs_text}"
+        )
+    except Exception as e:
+        print(f"Build live price sync note gagal ({e}) — fallback ke PRICING_CONFIG statis tanpa note.")
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# Final Ecosystem Sync — Section 13: owner-bot database-query safe wrappers, same defensive
+# pattern as _get_open_projects_summary_safe above (never raise, degrade to a harmless empty
+# default on any failure). These answer real owner questions ("ada payment yang belum gue
+# verifikasi?", "project custom baru siapa aja?", etc.) truthfully from Client Hub's own DB —
+# never invented. Only meaningful when ENABLE_MULTI_TENANT's Client Hub install is present; on a
+# plain single-tenant deploy (client-hub/ folder absent) these all safely return "no data".
+# ---------------------------------------------------------------------------
+try:
+    import payment_service as _payment_service
+    import projects_repo as _projects_repo
+    import talent_service as _talent_service
+    import repo as _client_hub_repo
+except Exception:
+    _payment_service = None
+    _projects_repo = None
+    _talent_service = None
+    _client_hub_repo = None
+
+
+def _business_name_safe(business_id):
+    if _client_hub_repo is None or business_id is None:
+        return f"business #{business_id}"
+    try:
+        b = _client_hub_repo.get_business(business_id)
+        return b["business_name"] if b else f"business #{business_id}"
+    except Exception:
+        return f"business #{business_id}"
+
+
+def _get_pending_payment_verifications_safe():
+    """Section 13: 'Ada payment yang belum gue verifikasi/cek?' / 'Siapa yang belum gue verifikasi
+    pembayarannya?' — count + short list (WITH the business name, not just raw ids, so the owner's
+    natural-language question can actually be answered), or a harmless empty result on failure."""
+    if _payment_service is None:
+        return {"count": 0, "items": []}
+    try:
+        rows = _payment_service.list_payments_pending_review()
+        items = []
+        for r in rows[:10]:
+            name = _business_name_safe(r.get("business_id"))
+            amount = None
+            try:
+                invoice = _payment_service.get_invoice(r.get("invoice_id"))
+                amount = invoice.get("amount") if invoice else None
+            except Exception:
+                amount = None
+            amount_fmt = f"Rp{amount:,}".replace(",", ".") if amount else "-"
+            items.append(f"{name} — invoice #{r.get('invoice_id')} ({amount_fmt}), payment #{r.get('id')}, "
+                         f"status {r.get('status')}")
+        return {"count": len(rows), "items": items}
+    except Exception as e:
+        print(f"Ambil pending payment verifications gagal ({e}).")
+        return {"count": 0, "items": []}
+
+
+def _get_new_custom_project_requests_safe():
+    """Section 13: 'Ada project custom baru?' — with business name + budget."""
+    if _projects_repo is None:
+        return {"count": 0, "items": []}
+    try:
+        rows = [p for p in _projects_repo.list_all_projects() if p.get("status") == "WAITING_FOR_QUOTE"]
+        items = []
+        for r in rows[:10]:
+            name = _business_name_safe(r.get("business_id"))
+            budget = r.get("budget_max") or r.get("budget_min")
+            budget_fmt = f"Rp{budget:,}".replace(",", ".") if budget else "belum disebutkan"
+            items.append(f"{name} — {r.get('title')} ({r.get('project_type')}), budget {budget_fmt}, "
+                         f"project #{r.get('id')}")
+        return {"count": len(rows), "items": items}
+    except Exception as e:
+        print(f"Ambil new custom project requests gagal ({e}).")
+        return {"count": 0, "items": []}
+
+
+def _get_new_talent_requests_safe():
+    """Section 13: 'Siapa yang request Putri?' / 'Talent request hari ini ada?' — with business
+    name + talent name + campaign type."""
+    if _talent_service is None:
+        return {"count": 0, "items": []}
+    try:
+        rows = _talent_service.list_all_talent_requests()
+        pending = [r for r in rows if r.get("status") == "WAITING_FOR_REVIEW"]
+        items = []
+        for r in rows[:20]:
+            name = _business_name_safe(r.get("business_id"))
+            talent = None
+            try:
+                t = _talent_service.get_talent(r.get("talent_id"))
+                talent = t["name"] if t else f"talent #{r.get('talent_id')}"
+            except Exception:
+                talent = f"talent #{r.get('talent_id')}"
+            items.append(f"{name} — minta {talent} untuk {r.get('campaign_type') or 'campaign (belum disebutkan)'}, "
+                         f"status {r.get('status')}, dibuat {r.get('created_at')}, request #{r.get('id')}")
+        return {"count": len(pending), "items": items}
+    except Exception as e:
+        print(f"Ambil new talent requests gagal ({e}).")
+        return {"count": 0, "items": []}
+
+
+def _get_recent_quotations_safe():
+    """'Quotation Rina berapa?' / 'Kopi ABC udah bayar?' (context for) — recent quotations with
+    business name, number, price, status."""
+    if _client_hub_repo is None:
+        return []
+    try:
+        import quotation_service as _quotation_service
+    except Exception as e:
+        print(f"quotation_service tidak tersedia ({e}).")
+        return []
+    try:
+        rows = _quotation_service.list_all_quotations()
+        items = []
+        for r in rows[:20]:
+            name = _business_name_safe(r.get("business_id"))
+            price = r.get("final_price")
+            price_fmt = f"Rp{price:,}".replace(",", ".") if price else "-"
+            items.append(f"{name} — {r.get('quotation_number')}: {price_fmt}, status {r.get('status')}")
+        return items
+    except Exception as e:
+        print(f"Ambil recent quotations gagal ({e}).")
+        return []
+
+
+def _get_ai_admin_pipeline_status_safe():
+    """Section 13: 'WhatsApp connection yang masih pending siapa aja?' plus the wider AI Admin
+    onboarding pipeline counts (ready for review / waiting WhatsApp connection)."""
+    if _client_hub_repo is None:
+        return {"ready_for_review": 0, "waiting_whatsapp_connection": 0}
+    try:
+        businesses = _client_hub_repo.list_all_businesses(status_filter=None)
+        ready_for_review = [b for b in businesses if b.get("status") == "READY_FOR_REVIEW"]
+        waiting_connection = [
+            b for b in businesses
+            if b.get("status") == "APPROVED" and not b.get("whatsapp_connected") and b.get("package") != "NONE"
+        ]
+        return {
+            "ready_for_review": len(ready_for_review),
+            "waiting_whatsapp_connection": len(waiting_connection),
+            "waiting_whatsapp_connection_names": [b.get("business_name") for b in waiting_connection[:10]],
+        }
+    except Exception as e:
+        print(f"Ambil AI admin pipeline status gagal ({e}).")
+        return {"ready_for_review": 0, "waiting_whatsapp_connection": 0}
+
+
+def _build_business_hub_owner_query_context_safe():
+    """Absolute Final Production Patch (Section 4): grounds the Kilas-Works-owner AI mode with
+    REAL, LIVE Client Hub data so natural questions like 'Ada payment yang belum gue cek?',
+    'Siapa yang request Putri?', 'Kopi ABC udah bayar?', 'Client mana yang belum connect
+    WhatsApp?' get answered from actual DB state — never invented.
+
+    This is injected the SAME way _build_live_price_sync_note_safe() already is: an additive,
+    read-only text block appended to the existing owner system prompt. No second AI engine, no
+    parallel routing table — Claude answers directly from this block using the SAME conversational
+    flow that already handles every other owner question. Returns "" when Client Hub is
+    unavailable (single-tenant deploy) so the owner prompt is byte-identical to before this patch
+    on such a deploy."""
+    if not _CLIENT_HUB_AVAILABLE:
+        return ""
+    try:
+        payments = _get_pending_payment_verifications_safe()
+        projects = _get_new_custom_project_requests_safe()
+        talent_reqs = _get_new_talent_requests_safe()
+        quotations = _get_recent_quotations_safe()
+        pipeline = _get_ai_admin_pipeline_status_safe()
+        onboarding_done = _get_onboarding_complete_businesses_safe()
+
+        lines = ["\n\nDATA KILAS WORKS BUSINESS HUB SAAT INI (real-time, JANGAN PERNAH KARANG DATA "
+                 "LAIN — kalau owner nanya sesuatu yang gak ada di sini, jawab jujur 'belum ada data "
+                 "itu' / 'nggak ketemu', JANGAN menebak. Kalau nama bisnis yang ditanya cocok dengan "
+                 "LEBIH DARI SATU entri di bawah, tanya balik satu pertanyaan klarifikasi singkat "
+                 "dulu sebelum jawab — jangan asal pilih salah satu):"]
+
+        lines.append(f"- Payment menunggu verifikasi ({payments['count']}):")
+        lines += [f"  * {i}" for i in payments["items"]] if payments["items"] else ["  * (tidak ada)"]
+
+        lines.append(f"- Project custom baru menunggu penawaran ({projects['count']}):")
+        lines += [f"  * {i}" for i in projects["items"]] if projects["items"] else ["  * (tidak ada)"]
+
+        lines.append(f"- Talent request menunggu review ({talent_reqs['count']}), semua talent request terbaru:")
+        lines += [f"  * {i}" for i in talent_reqs["items"]] if talent_reqs["items"] else ["  * (tidak ada)"]
+
+        lines.append("- Quotation terbaru (nomor, harga, status):")
+        lines += [f"  * {i}" for i in quotations] if quotations else ["  * (tidak ada)"]
+
+        lines.append(f"- Onboarding AI Admin siap direview: {pipeline.get('ready_for_review', 0)} business")
+        wc_names = pipeline.get("waiting_whatsapp_connection_names") or []
+        lines.append(f"- Client yang APPROVED tapi BELUM connect WhatsApp ({pipeline.get('waiting_whatsapp_connection', 0)}): "
+                     + (", ".join(wc_names) if wc_names else "(tidak ada)"))
+        lines.append("- Client yang onboarding-nya SUDAH SELESAI (ACTIVE / sudah connect WhatsApp): "
+                     + (", ".join(onboarding_done) if onboarding_done else "(tidak ada)"))
+
+        lines.append(
+            "\nPENTING (Section 5 — query vs action): semua di atas HANYA untuk MENJAWAB pertanyaan. "
+            "Kalau owner minta AKSI resmi lewat WhatsApp (verifikasi/tolak pembayaran, approve/aktifkan "
+            "tenant, kirim quotation, dll), JANGAN coba lakukan aksinya di sini — arahkan owner untuk "
+            "buka Kilas Works Business Hub (app.kilasworks.id) buat melakukan aksi itu resmi lewat app."
+        )
+        return "\n".join(lines)
+    except Exception as e:
+        print(f"Build business hub owner query context gagal ({e}) — owner prompt fallback tanpa data ini.")
+        return ""
+
+
+def _get_onboarding_complete_businesses_safe():
+    """'Siapa yang onboardingnya sudah selesai?' — businesses that are ACTIVE (approved AND
+    already WhatsApp-connected)."""
+    if _client_hub_repo is None:
+        return []
+    try:
+        businesses = _client_hub_repo.list_all_businesses(status_filter=None)
+        done = [b for b in businesses if b.get("status") == "ACTIVE" or b.get("whatsapp_connected")]
+        return [b.get("business_name") for b in done[:20]]
+    except Exception as e:
+        print(f"Ambil onboarding complete list gagal ({e}).")
+        return []
+
+
+# Customer TERAKHIR yang chat ke SETIAP tenant client (bukan Kilas Works sendiri), per (tenant_id,
+# trusted_owner_phone) — dipakai Patch 5 sebagai target default kalau owner tenant itu bilang
+# "bilang ke customer ...". Sama polanya persis dengan `active_customer_context` yang sudah ada di
+# bawah untuk Kilas Works sendiri, cuma discope per tenant biar tidak pernah campur.
+_tenant_active_customer_context = {}
+
 # ==== MODEL CLAUDE — SATU TEMPAT SAJA (jangan hardcode model ID di fungsi manapun lagi) ====
 # AUDIT Agustus 2026: "claude-3-5-haiku-20241022" (model lama yang sebelumnya dipakai di sini)
 # sudah RETIRED oleh Anthropic sejak 19 Feb 2026 — setiap request ke situ SELALU gagal. Selama ini
@@ -42,6 +1301,85 @@ DASHBOARD_KEY = os.environ.get("DASHBOARD_KEY", "kilasworks-dashboard")
 # dari luar secara berkala (misal via cron-job.org tiap 1 jam) — Render gak bisa "bangunin dirinya
 # sendiri" tiap 12 jam, jadi butuh trigger eksternal. Kalau kosong, fallback ke DASHBOARD_KEY.
 CRON_SECRET = os.environ.get("CRON_SECRET", "") or DASHBOARD_KEY
+
+# Absolute Final Production Patch — shared secret for the internal Client Hub -> bot notification
+# channel (POST /internal/owner-notify, defined further down). Deliberately has NO fallback/default
+# value (unlike CRON_SECRET falling back to DASHBOARD_KEY) — an unset secret must FAIL CLOSED (the
+# endpoint rejects every request) rather than silently accept unauthenticated calls. Compared with
+# hmac.compare_digest, never logged.
+INTERNAL_SERVICE_SECRET = (os.environ.get("INTERNAL_SERVICE_SECRET") or "").strip()
+
+# Release-candidate hardening (this cycle): on a genuine Render deploy, a hardcoded/placeholder
+# secret is no longer just a logged warning — it is either a hard startup failure (VERIFY_TOKEN,
+# DASHBOARD_KEY, CRON_SECRET) or a fail-closed disabled endpoint (INTERNAL_SERVICE_SECRET), because
+# by the time this ships to real customers "logged but running insecurely" is not good enough.
+# Gated ENTIRELY behind Render's own auto-set `RENDER` env var (present on every Render service,
+# never set locally/in tests, never set by the pytest suite) so local dev and CI are completely
+# unaffected — this block is a strict no-op unless `RENDER` is set. NEVER logs/prints any actual
+# secret value — only which named variable is still a known default/placeholder.
+INTERNAL_OWNER_NOTIFY_DISABLED = False
+if os.environ.get("RENDER"):
+    # Task D (v1 completion cycle) — a real Render deploy where the Client Hub bridge modules
+    # actually imported cleanly (_CLIENT_HUB_AVAILABLE True — tenant infrastructure IS genuinely
+    # present in this deployment) but ENABLE_MULTI_TENANT is false/unset would silently run this
+    # service in single-tenant-only mode: every webhook resolves tenant_id=None, every client
+    # business's own WhatsApp traffic either never arrives (wrong phone_number_id for a Kilas-only
+    # deploy) or gets treated as Kilas Works' own conversation — degrading the whole SaaS multi-
+    # tenant product to "just the original single bot" with no error, no crash, nothing in the
+    # dashboard to notice. This is not a security hole the way an insecure default secret is (a
+    # human may have a genuine reason to run this service Kilas-Works-only for a while), so — same
+    # as the INTERNAL_SERVICE_SECRET case below — this is a loud startup WARNING, not a hard
+    # SystemExit: multi-tenant SaaS behavior degrading to single-tenant must never happen silently
+    # in a real deployment, but it also must never block the service from starting for an operator
+    # who deliberately wants single-tenant mode right now.
+    if _CLIENT_HUB_AVAILABLE and not ENABLE_MULTI_TENANT:
+        print(
+            "PERINGATAN (multi-tenant mode): jalan di Render dan Client Hub bridge berhasil "
+            "di-import (tenant infrastructure TERSEDIA) tapi ENABLE_MULTI_TENANT tidak diset ke "
+            "'true' — service ini akan berjalan SINGLE-TENANT-ONLY (semua webhook diproses sebagai "
+            "Kilas Works sendiri, tidak ada tenant klien yang diproses/dibalas) TANPA error apapun. "
+            "Kalau ini bukan yang diinginkan (mis. ada tenant klien yang sudah aktif di Client Hub), "
+            "set ENABLE_MULTI_TENANT=true di environment variable service ini."
+        )
+    _fatal_insecure_defaults = []
+    if VERIFY_TOKEN == "kilasworks123":
+        # The Meta webhook handshake (GET /webhook) literally cannot function without a real,
+        # non-guessable VERIFY_TOKEN — there is no safe "disable and keep running" behavior for it,
+        # so a real Render deploy still on the placeholder must not boot at all.
+        _fatal_insecure_defaults.append("VERIFY_TOKEN")
+    if DASHBOARD_KEY == "kilasworks-dashboard":
+        # DASHBOARD_KEY gates /dashboard, /internal/build-info, and (via CRON_SECRET's fallback)
+        # potentially the cron endpoints too — leaving it on a publicly-known default on a real
+        # deploy exposes customer data behind a guessable key, so fail startup rather than run open.
+        _fatal_insecure_defaults.append("DASHBOARD_KEY")
+    if CRON_SECRET == "kilasworks-dashboard":  # only equals this when CRON_SECRET itself was unset
+        _fatal_insecure_defaults.append("CRON_SECRET")
+    if _fatal_insecure_defaults:
+        print(
+            "FATAL: refusing to start on Render with insecure DEFAULT/placeholder value(s) still "
+            f"active for: {', '.join(_fatal_insecure_defaults)}. Set proper, unique environment "
+            "variable(s) for these in Render's dashboard before deploying. (Actual secret values "
+            "are never logged.)"
+        )
+        raise SystemExit(
+            "Startup aborted: insecure default secret(s) detected on Render — see log above for "
+            "which variable name(s). No secret values are ever printed."
+        )
+    if not INTERNAL_SERVICE_SECRET:
+        # INTERNAL_SERVICE_SECRET has no hardcoded default to fall back on (unlike the three above),
+        # and unlike VERIFY_TOKEN/DASHBOARD_KEY/CRON_SECRET this one endpoint is NOT required for the
+        # bot's core webhook/dashboard functionality — so instead of taking the whole service down,
+        # we fail closed on just this one door: /internal/owner-notify is disabled outright (every
+        # request rejected, see the flag check inside the route below) rather than left running with
+        # no real authentication.
+        INTERNAL_OWNER_NOTIFY_DISABLED = True
+        print(
+            "SECURITY: running on Render with INTERNAL_SERVICE_SECRET unset/blank — the internal "
+            "Client Hub -> bot notification endpoint (/internal/owner-notify) is now DISABLED and "
+            "will reject ALL requests until this is set in Render's environment. This does not "
+            "block startup because the endpoint is not required for core bot operation. (Actual "
+            "secret values are never logged.)"
+        )
 
 # Connection string database Postgres (dari Supabase, dll). Kalau kosong, bot tetep jalan normal
 # tapi history chat cuma kesimpen sementara di memori (ilang kalau server restart) — sama kayak
@@ -1275,10 +2613,38 @@ def find_catalog_pdf_path():
 conversations = {}
 
 # Simpan pertanyaan customer yang lagi nunggu jawaban owner (in-memory, reset kalau server
-# restart). Key = nomor customer, value = pertanyaan terakhir mereka. Owner bisa diskusi bebas
-# dulu sama AI soal pertanyaan ini (lihat call_claude_owner), baru pas owner bilang eksplisit
-# suruh forward, jawabannya diterusin ke customer yang paling lama nunggu (FIFO).
+# restart). Owner bisa diskusi bebas dulu sama AI soal pertanyaan ini (lihat call_claude_owner),
+# baru pas owner bilang eksplisit suruh forward, jawabannya diterusin ke customer yang paling
+# lama nunggu (FIFO).
+#
+# Task 5 (CRITICAL isolation fix) — Key = _ck(tenant_id, nomor_customer), SAMA compound-key
+# convention yang dipakai `conversations`/`customer_names`/`agreed_facts` dkk di seluruh file ini,
+# BUKAN nomor mentah. Sebelumnya key-nya nomor customer polos: kalau nomor yang sama kebetulan
+# juga chat ke tenant client lain (atau ke Kilas Works langsung), pertanyaan pending tenant A bisa
+# nongol/kepilih di interface owner tenant B atau owner Kilas Works sendiri — itu bug isolasi data
+# yang nyata, bukan cuma teoretis. Semua baca/tulis/hapus/list di bawah WAJIB lewat _ck() atau
+# _pending_owner_questions_for_tenant() supaya gak pernah lagi keliru scope.
 pending_owner_questions = {}
+
+
+def _pending_owner_questions_for_tenant(tenant_id):
+    """Task 5 — this tenant's (or, for tenant_id=None, Kilas Works' own) slice of
+    pending_owner_questions ONLY, returned as {plain_customer_phone: question} (the _ck prefix is
+    unwrapped back off so existing owner-mode code — mention lookup, FIFO fallback pick — keeps
+    working with plain phone numbers exactly like before this fix, just correctly scoped now)."""
+    out = {}
+    for key, question in pending_owner_questions.items():
+        if not isinstance(key, str):
+            continue
+        if tenant_id is None:
+            if key.startswith("T"):
+                continue
+            out[key] = question
+        else:
+            prefix = f"T{tenant_id}:"
+            if key.startswith(prefix):
+                out[key[len(prefix):]] = question
+    return out
 
 # Histori chat terpisah antara owner & AI (mode "asisten pribadi owner", beda dari histori
 # chat AI dengan customer di variable `conversations`).
@@ -1333,6 +2699,14 @@ MEETING_STATE_SLOTS_OFFERED = "slots_offered"
 # number -> {status, mode, day_text, day_display, resolved_date, offered_slots, name, business_name,
 #            need_summary, created_at}
 meeting_requests = {}
+
+# Task 3 (multi-tenant runtime safety) — a CLIENT tenant's own appointment requests, COMPLETELY
+# separate from Kilas Works' own `meeting_requests`/`appointments` above (which stay Kilas-Works-
+# only and untouched). Keyed by _ck(tenant_id, customer_phone) — see _ck's docstring — so the same
+# phone number messaging two different tenants always gets two fully separate appointment records.
+# _ck(tenant_id, number) -> {status, day_text, time, name, created_at}; status is one of
+# "REQUESTED" (customer asked, awaiting that tenant's own owner confirmation), "CANCELLED".
+tenant_meeting_requests = {}
 
 # ============================================================
 # PAYMENT STATE (production hardening) — in-memory, key = nomor customer. Tracking BASIC doang (bukan
@@ -1989,7 +3363,12 @@ SOAL GAMBAR YANG DIKIRIM CUSTOMER (kamu BISA lihat gambarnya langsung, ini bukan
   nominal, ada tanggal/waktu, keliatan kayak struk transfer beneran (bukan screenshot ngasal, bukan gambar
   gak nyambung kayak foto produk/meme/hal random).
 - Kalau gambarnya JELAS keliatan valid (emang struk transfer) DAN nominalnya sesuai/masuk akal sama yang
-  udah disepakati, baru bilang makasih & sertain tag "[SUDAH_BAYAR]".
+  udah disepakati, baru bilang makasih & sertain tag "[SUDAH_BAYAR]". JANGAN PERNAH bilang buktinya
+  "sudah pasti asli"/"terverifikasi"/"lunas" — status pembayaran BELUM final sampai owner/tim yang cek
+  manual. Kalau kamu bisa baca nominal yang KELIATAN di gambar itu (angka rupiahnya), sertakan juga tag
+  PERSIS "[PAYMENT_PROOF_DETAILS: amount=<angka rupiah tanpa titik/koma>]" di balasanmu (taruh di mana
+  aja, sistem yang proses) — ini CUMA bantuan advisory buat owner cek manual, BUKAN klaim buktinya asli.
+  Kalau nominalnya gak kebaca jelas, JANGAN sertakan tag ini sama sekali (jangan ngarang angka).
 - Kalau gambarnya GAK JELAS (blur parah, kepotong, gak keliatan nominal/tanggalnya) atau nominalnya
   KELIATAN GAK COCOK sama yang disepakati, ATAU gambarnya sama sekali bukan bukti transfer (customer kirim
   hal lain) — JANGAN lanjut proses & JANGAN sertain "[SUDAH_BAYAR]". Bilang santai & jelas ke customer apa
@@ -2095,6 +3474,62 @@ SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{pricing_text_block}", PRICING_TEXT_BLOCK
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{custom_automation_redirect}", PRICING_CONFIG["custom_automation_redirect"])
 
 
+# ---------------------------------------------------------------------------
+# Tenant-safe base prompt (bug fix — see build_customer_system_prompt). SYSTEM_PROMPT above is
+# Kilas Works' OWN customer-facing persona: it's built directly on top of PRICING_CONFIG (AI Admin,
+# Content packages, bundles, Meta Ads, website/domain/hosting, event packages — ALL of it, with
+# literal example prices baked into the instructional text itself, not just the {pricing_text_block}
+# placeholder) and repeatedly tells the AI to proactively sell Kilas Works' own services (e.g. "JANGAN
+# PERNAH lupa sebut AI WhatsApp Admin"). None of that belongs in a RESOLVED CLIENT TENANT's prompt
+# (e.g. a coffee shop's own WhatsApp assistant) — that customer must only ever hear about the tenant
+# business's own catalog (supplied separately per-request via `tenant_context_block`, see
+# _build_tenant_context_block_safe). TENANT_SYSTEM_PROMPT_BASE below is a business-agnostic persona
+# (same tone/formatting rules, zero Kilas Works branding/pricing/product mentions) used ONLY when a
+# tenant is actually resolved — SYSTEM_PROMPT (with Kilas's own catalog) keeps being used for every
+# other conversation (Kilas Works' own number / prospects), unchanged.
+# ---------------------------------------------------------------------------
+TENANT_SYSTEM_PROMPT_BASE = """Kamu admin WhatsApp resmi untuk bisnis ini. Balas kayak MANUSIA ASLI lagi
+WhatsApp-an, tapi tetap PROFESIONAL & fokus bisnis — BUKAN kayak bot atau customer service kaku.
+
+GAYA BALASAN (penting banget):
+- Pendek-pendek, natural, kayak orang chat beneran. 1-2 kalimat per bubble chat, JANGAN bikin paragraf
+  panjang atau list bullet formal. MAKSIMAL ringkas, to-the-point.
+- Boleh santai: "nih", "ya", "sih", "oke", jangan bahasa baku kaku ("Baik, berikut adalah...", "Dengan senang
+  hati kami...").
+- JANGAN PAKAI EMOJI SAMA SEKALI di balasan ke customer. Nol emoji.
+- JANGAN muji-muji berlebihan atau sok excited kayak gaya AI. Tetap ramah, tapi ramah yang tenang &
+  profesional, bukan lebay.
+- Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural, jawab to the
+  point kalau ditanya sesuatu yang jelas.
+- Kalau balasanmu wajar dipecah jadi beberapa chat bubble terpisah, pisahkan tiap bubble dengan "|||" di
+  antaranya.
+
+BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
+- Deteksi bahasa customer dari PESAN TERAKHIR MEREKA tiap kali balas: Bahasa Indonesia dibalas Bahasa
+  Indonesia, English dibalas full English natural. Kalau campur, ikutin bahasa yang paling dominan.
+- JANGAN PERNAH nanya "mau pakai bahasa apa?" ke customer.
+
+ATURAN PALING PENTING — SUMBER INFORMASI BISNIS INI:
+- SATU-SATUNYA sumber kebenaran soal nama bisnis, produk/layanan, harga, jam operasional, alamat, FAQ,
+  dan kebijakan bisnis ini adalah blok "KATALOG LAYANAN RESMI BISNIS INI" / info bisnis yang dikasih ke
+  kamu di bawah prompt ini (kalau ada). JANGAN PERNAH ngarang produk, harga, jam, atau info lain yang
+  gak ada di data itu.
+- Kalau data yang dikasih ke kamu soal bisnis ini masih belum lengkap (misal customer nanya sesuatu yang
+  gak ada infonya di data), JANGAN NGARANG jawaban & JANGAN PERNAH pakai referensi produk/harga/nama
+  bisnis LAIN manapun (termasuk Kilas Works atau bisnis lain apapun) — cukup jawab jujur & natural kalau
+  kamu perlu cek dulu, atau tanya balik dengan sopan buat klarifikasi kebutuhan customer.
+- Kamu HANYA mewakili bisnis yang datanya dikasih ke kamu di bawah ini — bukan bisnis lain manapun.
+
+OUT-OF-SCOPE REQUESTS: Kalau customer kirim gambar/request/pertanyaan yang JELAS MELENCENG dari bisnis
+ini, abaikan aja. JANGAN coba-coba jawab atau ladenin. Cukup balasan santai kayak 'waduh ini di luar
+keahlian aku sih kak' terus arahkan balik ke topik bisnis ini.
+
+KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA:
+- Jangan ngarang jawaban. Jawab jujur ke customer bahwa kamu bakal cek dulu & confirm, dengan bahasa
+  santai. Contoh: "Iya saya cek dulu ya kak, bentar."
+"""
+
+
 def build_appointment_context():
     """Suntik aturan flow meeting (production hardening) ke system prompt customer. PERBAIKAN BUG
     PENTING: appointment CUMA boleh jadi CONFIRMED kalau slotnya beneran authoritative — dikasih OWNER
@@ -2182,10 +3617,14 @@ def build_language_context(user_number):
     )
 
 
-def build_customer_system_prompt(user_number):
+def build_customer_system_prompt(user_number, tenant_context_block=""):
     """Susun system prompt customer, sisipin konteks soal nama customer ini (kalau udah tau dari
     profil WhatsApp / obrolan sebelumnya, kasih tau AI biar gak nanya lagi; kalau belum, larang AI
-    nanya di pembuka obrolan)."""
+    nanya di pembuka obrolan).
+
+    `tenant_context_block` (Business Hub V2 Patch 2/6, default "") — teks tambahan HANYA untuk
+    REQUEST INI, TIDAK PERNAH ditulis ke variabel/string prompt global manapun. Default kosong =
+    perilaku identik dengan sebelum patch ini ada."""
     name = customer_names.get(user_number)
     if name:
         name_context = (
@@ -2204,14 +3643,27 @@ def build_customer_system_prompt(user_number):
             "customer gak bakal lihat teks tag-nya). Cukup sekali aja pas pertama kali dapet namanya."
         )
 
-    scope_context = (
-        "\n\nOUT-OF-SCOPE REQUESTS: Kalau customer kirim gambar/request/pertanyaan yang JELAS MELENCENG "
-        "dari bisnis Kilas Works (fotografi, videografi, konten Reels/TikTok, AI WhatsApp Admin, website, "
-        "acara), abaikan aja. JANGAN coba-coba jawab atau ladenin. Contoh melenceng: nanya soal astrologi, "
-        "nanya resep masakan, nanya soal film, request design sesuatu yang bukan buat bisnis, nanya soal "
-        "hal yang gak ada kaitannya sama layanan Kilas Works. Cukup balasan santai kayak 'waduh ini di luar "
-        "keahlian aku sih kak' terus arahkan balik ke topik bisnis."
-    )
+    is_tenant_context = bool(tenant_context_block)
+
+    if is_tenant_context:
+        # Resolved CLIENT tenant (e.g. a coffee shop) — never reference Kilas Works' own business
+        # scope/services here, only "bisnis ini" (this specific tenant business).
+        scope_context = (
+            "\n\nOUT-OF-SCOPE REQUESTS: Kalau customer kirim gambar/request/pertanyaan yang JELAS MELENCENG "
+            "dari bisnis ini, abaikan aja. JANGAN coba-coba jawab atau ladenin. Contoh melenceng: nanya soal "
+            "astrologi, nanya resep masakan (kalau bisnis ini bukan resto/kafe), nanya soal film, request "
+            "sesuatu yang gak ada kaitannya sama bisnis ini. Cukup balasan santai kayak 'waduh ini di luar "
+            "keahlian aku sih kak' terus arahkan balik ke topik bisnis ini."
+        )
+    else:
+        scope_context = (
+            "\n\nOUT-OF-SCOPE REQUESTS: Kalau customer kirim gambar/request/pertanyaan yang JELAS MELENCENG "
+            "dari bisnis Kilas Works (fotografi, videografi, konten Reels/TikTok, AI WhatsApp Admin, website, "
+            "acara), abaikan aja. JANGAN coba-coba jawab atau ladenin. Contoh melenceng: nanya soal astrologi, "
+            "nanya resep masakan, nanya soal film, request design sesuatu yang bukan buat bisnis, nanya soal "
+            "hal yang gak ada kaitannya sama layanan Kilas Works. Cukup balasan santai kayak 'waduh ini di luar "
+            "keahlian aku sih kak' terus arahkan balik ke topik bisnis."
+        )
 
     # FAKTA YANG UDAH DISEPAKATI OWNER buat customer ini spesifik — ini SUMBER KEBENARAN yang
     # WAJIB dipatuhi & GAK BOLEH dikontradiksi atau ditanya ulang ke owner. Ditaruh SANGAT eksplisit
@@ -2233,11 +3685,34 @@ def build_customer_system_prompt(user_number):
     else:
         facts_context = ""
 
-    appointment_context = build_appointment_context()
+    # Bug fix (Task 7) — build_appointment_context() describes KILAS WORKS' OWN office hours/
+    # meeting-slot availability (DEFAULT_MEETING_SLOT_TIMES/is_office_closed_on) and instructs the
+    # AI to use the appointment tags that book into Kilas Works' own global appointments store.
+    # There is no per-tenant business-hours/availability config yet (known limitation of this
+    # cycle — see final report), so a resolved CLIENT tenant must never be handed this block at
+    # all — same "" no-op pattern as live_price_sync_note below.
+    appointment_context = "" if is_tenant_context else build_appointment_context()
     language_context = build_language_context(user_number)
 
+    # Section 20: only added when a live Client Hub catalog price has actually diverged from the
+    # hardcoded PRICING_CONFIG figures above — "" (no-op) otherwise, including whenever Client Hub
+    # isn't installed/reachable. Does not run at all for a resolved multi-tenant client
+    # (tenant_context_block already carries THAT business's own canonical catalog).
+    live_price_sync_note = "" if tenant_context_block else _build_live_price_sync_note_safe()
+
+    # Bug fix: SYSTEM_PROMPT is Kilas Works' OWN persona, built on top of its OWN PRICING_CONFIG
+    # (AI Admin, Content packages, bundles, website pricing, etc.) — that must NEVER be the base
+    # prompt for a resolved CLIENT tenant (e.g. a coffee shop's own WhatsApp bot). Use the generic,
+    # business-agnostic TENANT_SYSTEM_PROMPT_BASE instead whenever a tenant is actually resolved;
+    # every other conversation (Kilas Works' own number / prospects) keeps using SYSTEM_PROMPT
+    # exactly as before.
+    base_prompt = TENANT_SYSTEM_PROMPT_BASE if is_tenant_context else SYSTEM_PROMPT
+
     owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
-    full_prompt = SYSTEM_PROMPT + language_context + name_context + scope_context + facts_context + appointment_context
+    full_prompt = (
+        base_prompt + language_context + name_context + scope_context + facts_context
+        + appointment_context + live_price_sync_note + (tenant_context_block or "")
+    )
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
     return full_prompt
@@ -2457,6 +3932,7 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
 
     context += build_pending_meeting_requests_context()
     context += build_customer_context_summary()
+    context += _build_business_hub_owner_query_context_safe()
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
@@ -2638,6 +4114,14 @@ MEETING_RESEND_ACTION_PATTERN = re.compile(
 TAG_GIVE_PAYMENT_INFO = "[GIVE_PAYMENT_INFO]"
 TAG_PAYMENT_DP_UNCLEAR_PATTERN = re.compile(r"\[PAYMENT_DP_UNCLEAR:\s*([^\]]*)\]", re.IGNORECASE)
 
+# Tag tenant-persistence cycle (Task 2) — best-effort advisory extraction from a payment-proof
+# image, e.g. "[PAYMENT_PROOF_DETAILS: amount=150000]". Reuses the SAME vision call already
+# looking at the image to decide [SUDAH_BAYAR] (no second API call) — the AI is instructed to
+# include this ONLY alongside [SUDAH_BAYAR], and ONLY the amount= key is currently read by
+# Python (see amount_detected on tenant_payment_reviews). Never treated as a verified figure —
+# purely an advisory aid for the tenant owner's own manual review.
+TAG_PAYMENT_PROOF_DETAILS_PATTERN = re.compile(r"\[PAYMENT_PROOF_DETAILS:\s*([^\]]*)\]", re.IGNORECASE)
+
 # Tag LANGUAGE LAYER (additive) — dipasang AI di akhir balasan customer-facing tiap kali dia
 # mutusin/konfirmasi ulang bahasa balasan buat customer ini, format "[SET_LANG: lang=id]" atau
 # "[SET_LANG: lang=en]". Python cuma nyimpen ke customer_language dict, gak ngubah logic lain.
@@ -2662,6 +4146,7 @@ def strip_tags(text):
     cleaned = TAG_MEETING_SLOT_PICK_PATTERN.sub("", cleaned)
     cleaned = TAG_PAYMENT_DP_UNCLEAR_PATTERN.sub("", cleaned)
     cleaned = TAG_SET_LANG_PATTERN.sub("", cleaned)
+    cleaned = TAG_PAYMENT_PROOF_DETAILS_PATTERN.sub("", cleaned)
     # TAG_GIVE_PAYMENT_INFO SENGAJA TIDAK di-strip di sini — dia diganti eksplisit dengan teks rekening
     # resmi di webhook (lihat build_payment_info_text()), bukan dihapus jadi kosong.
     cleaned = re.sub(r"[ \t]+", " ", cleaned)
@@ -2670,8 +4155,12 @@ def strip_tags(text):
 
 
 def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None,
-                 is_voice_note=False):
+                 is_voice_note=False, tenant_context_block="", tenant_id=None):
     """Panggil Claude API buat generate balasan AI.
+
+    `tenant_context_block` (Business Hub V2 Patch 2/6, default "") diteruskan apa adanya ke
+    build_customer_system_prompt() — lihat docstring-nya. Default kosong = perilaku identik dengan
+    sebelum patch ini ada, jadi setiap caller lain yang belum di-update tetap jalan tanpa perubahan.
     Default: Haiku (cost-optimal, default model untuk customer chat)
     Fallback: Sonnet (jika Haiku tidak tersedia atau gagal)
 
@@ -2682,10 +4171,19 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     BUKAN beneran diketik customer — user_message TETAP dikirim ke API biar AI ngerti instruksinya,
     TAPI yang disimpen permanen ke memory/DB & history in-memory adalah teks di memory_override ini
     (tag singkat & jujur, BUKAN instruksi internal mentah), biar history tetap valid & gak keliatan
-    seolah-olah customer yang ngetik instruksi sistem itu."""
-    history = conversations.get(user_number)
+    seolah-olah customer yang ngetik instruksi sistem itu.
+
+    `tenant_id` (multi-tenant runtime safety cycle, default None) — the SAME phone number can
+    legitimately message two different client tenants (or a tenant AND Kilas Works itself); every
+    read/write of the in-memory `conversations` history and of the DB-backed message log below is
+    keyed by `_ck(tenant_id, user_number)`, NOT by the bare phone number, so those conversations
+    are always kept completely separate. tenant_id=None (Kilas Works' own conversations) maps to
+    the bare phone number unchanged (see _ck's docstring) — every caller that predates
+    multi-tenancy keeps working with byte-for-byte identical keys."""
+    scoped_number = _ck(tenant_id, user_number)
+    history = conversations.get(scoped_number)
     if history is None:
-        history = load_recent_messages_from_db(user_number, "customer")  # isi ulang kalau server abis restart
+        history = load_recent_messages_from_db(scoped_number, "customer")  # isi ulang kalau server abis restart
 
     if image_b64:
         # Content buat dikirim ke API request INI AJA (termasuk gambar beneran)
@@ -2718,9 +4216,9 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         memory_text = user_message
 
     history.append({"role": "user", "content": api_content})
-    save_message_to_db(user_number, "customer", "user", memory_text)
+    save_message_to_db(scoped_number, "customer", "user", memory_text)
 
-    system_prompt = build_customer_system_prompt(user_number)
+    system_prompt = build_customer_system_prompt(scoped_number, tenant_context_block=tenant_context_block)
 
     # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis) — KECUALI kalau ada gambar,
     # langsung Sonnet karena Haiku 3.5 gak support vision.
@@ -2780,8 +4278,8 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     # bukan versi mentah yang masih ada tag sistemnya.
     clean_reply_for_memory = strip_tags(reply_text)
     history.append({"role": "assistant", "content": clean_reply_for_memory})
-    conversations[user_number] = history[-20:]  # simpan 20 pesan terakhir aja
-    save_message_to_db(user_number, "customer", "assistant", clean_reply_for_memory)
+    conversations[scoped_number] = history[-20:]  # simpan 20 pesan terakhir aja
+    save_message_to_db(scoped_number, "customer", "assistant", clean_reply_for_memory)
 
     return reply_text
 
@@ -2790,9 +4288,9 @@ def send_typing_indicator(incoming_message_id):
     """Tandain pesan customer 'dibaca' + tampilin status 'mengetik...' di WhatsApp mereka."""
     if not incoming_message_id:
         return
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/messages"
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {_active_whatsapp_access_token()}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -2813,9 +4311,9 @@ def send_whatsapp_message(to_number, message_text):
     Balikin (success: bool, error_detail: str atau None) — JANGAN pernah anggap terkirim cuma
     karena gak ada exception, WhatsApp API bisa balas status 4xx (misal di luar 24 jam window,
     nomor invalid, dll) tanpa raise error."""
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/messages"
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {_active_whatsapp_access_token()}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -2854,7 +4352,7 @@ def download_whatsapp_media(media_id):
     try/except besar jadi gak kelihatan tahap mana yang gagal dari log."""
     try:
         meta_url = f"https://graph.facebook.com/v21.0/{media_id}"
-        headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+        headers = {"Authorization": f"Bearer {_active_whatsapp_access_token()}"}
         r = requests.get(meta_url, headers=headers, timeout=30)
         r.raise_for_status()
         meta = r.json()
@@ -2918,8 +4416,8 @@ def upload_media(file_path, mime_type):
         print(f"File gak ketemu di path: {file_path} — skip kirim.")
         return None
 
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/media"
-    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/media"
+    headers = {"Authorization": f"Bearer {_active_whatsapp_access_token()}"}
     try:
         with open(file_path, "rb") as f:
             files = {"file": (os.path.basename(file_path), f, mime_type)}
@@ -2937,8 +4435,8 @@ def upload_media_bytes(raw_bytes, mime_type, filename="gambar.jpg"):
     """Sama kayak upload_media(), tapi buat data yang udah ada di memori (bytes), bukan file di
     disk — dipakai buat re-upload gambar yang diterima dari owner (misal QR code custom) biar bisa
     diforward ke customer sebagai gambar beneran, bukan cuma teks."""
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/media"
-    headers = {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"}
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/media"
+    headers = {"Authorization": f"Bearer {_active_whatsapp_access_token()}"}
     try:
         files = {"file": (filename, io.BytesIO(raw_bytes), mime_type)}
         data = {"messaging_product": "whatsapp"}
@@ -2955,9 +4453,9 @@ def send_whatsapp_image(to_number, media_id, caption=None):
     """Kirim gambar (pakai media_id yang udah diupload) ke suatu nomor WhatsApp.
     Balikin (success: bool, error_detail: str atau None) — sama kayak send_whatsapp_message,
     JANGAN pernah anggap terkirim cuma karena gak exception."""
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/messages"
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {_active_whatsapp_access_token()}",
         "Content-Type": "application/json",
     }
     image_payload = {"id": media_id}
@@ -3008,9 +4506,9 @@ def send_qr_code(to_number):
     if not media_id:
         return False
 
-    url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/messages"
     headers = {
-        "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {_active_whatsapp_access_token()}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -3033,12 +4531,34 @@ def send_qr_code(to_number):
 _CATALOG_MEDIA_ID_CACHE = {"media_id": None, "path": None, "mtime": None}
 
 
+def _get_live_catalog_pdf_path_safe():
+    """Absolute Final Production Patch (Section 8-9): prefer Client Hub's live, DB-generated
+    catalog PDF (client-hub/live_catalog_pdf.py) over the static ../katalog.pdf whenever it's
+    available — that file always reflects current prices/talent, the static one only reflects
+    whatever PRICING_CONFIG looked like the last time someone manually re-ran
+    generate_katalog_pdf.py. Any failure (Client Hub bridge unavailable, DB down, reportlab
+    missing) is swallowed and logged internally only — the caller falls back to the static PDF,
+    the customer never sees a technical error."""
+    if not _CLIENT_HUB_AVAILABLE:
+        return None
+    try:
+        import live_catalog_pdf as _live_catalog_pdf
+        return _live_catalog_pdf.get_cached_catalog_pdf_path()
+    except Exception as e:
+        print(f"Live catalog tidak tersedia ({e}) — fallback ke katalog.pdf statis.")
+        return None
+
+
 def get_catalog_media_id(force_refresh=False):
     """Balikin media_id katalog PDF yang siap dipakai kirim. Reuse media_id yang udah di-cache kalau
     file-nya belum berubah (sama path & mtime) & belum diminta refresh paksa. Kalau file baru/beda/
     belum pernah diupload, atau media_id lama udah expired (force_refresh=True dari caller), upload
-    ulang. Return None kalau katalog.pdf gak ketemu sama sekali atau upload gagal."""
-    path = find_catalog_pdf_path()
+    ulang. Return None kalau katalog.pdf gak ketemu sama sekali atau upload gagal.
+
+    Prefers the live Client-Hub-generated catalog (see _get_live_catalog_pdf_path_safe) and falls
+    back to the static ../katalog.pdf search only if the live one is unavailable — mtime-based
+    cache invalidation below works unchanged either way since both paths are real files on disk."""
+    path = _get_live_catalog_pdf_path_safe() or find_catalog_pdf_path()
     if not path:
         return None
     try:
@@ -3066,7 +4586,7 @@ def send_catalog_pdf(to_number):
     di mana-mana — lihat find_catalog_pdf_path()) ke suatu nomor WhatsApp sebagai dokumen.
     Balikin (success: bool, error_detail: str atau None) — JANGAN PERNAH dianggap kekirim cuma
     karena gak exception (sama prinsipnya kayak send_whatsapp_message/send_whatsapp_image)."""
-    path = find_catalog_pdf_path()
+    path = _get_live_catalog_pdf_path_safe() or find_catalog_pdf_path()
     if not path:
         return False, "katalog.pdf gak ketemu di repository (sudah dicari recursive)."
 
@@ -3075,9 +4595,9 @@ def send_catalog_pdf(to_number):
         return False, "Gagal upload katalog.pdf ke WhatsApp."
 
     def _do_send(mid):
-        url = f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_NUMBER_ID}/messages"
+        url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/messages"
         headers = {
-            "Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}",
+            "Authorization": f"Bearer {_active_whatsapp_access_token()}",
             "Content-Type": "application/json",
         }
         payload = {
@@ -3110,24 +4630,35 @@ def send_catalog_pdf(to_number):
     return False, r.text
 
 
-def notify_owner_new_message(from_number, message_text, name=None):
+def notify_owner_new_message(from_number, message_text, name=None, tenant_id=None):
     """Kirim notifikasi ringan ke owner SEKALI AJA pas ada customer BARU pertama kali chat (dipanggil
     dari receive_webhook cuma kalau is_new_customer True) — biar owner tau siapa aja yang mulai chat,
     tanpa banjir notif tiap pesan dari customer yang sama. Ini terpisah dari notify_owner/
     notify_owner_question yang isinya notifikasi khusus buat aksi tertentu (leads panas, tanya owner,
-    dsb) — bisa muncul barengan kalau relevan."""
-    if not OWNER_WHATSAPP_NUMBER:
+    dsb) — bisa muncul barengan kalau relevan.
+
+    `tenant_id` (multi-tenant runtime safety cycle, Task 6, default None) — a resolved CLIENT
+    tenant's own day-to-day customer-service notification (a NEW customer chatting in) must go to
+    THAT BUSINESS's own configured owner (trusted_owner_phone), NEVER to Kilas Works' own platform
+    owner. See _get_tenant_owner_notify_target_safe/is_kilas_platform_tenant. Default None keeps
+    every pre-multi-tenant caller sending to Kilas Works' own OWNER_WHATSAPP_NUMBER unchanged."""
+    target = _get_tenant_owner_notify_target_safe(tenant_id)
+    if not target:
         return
     who = f"{name} (wa.me/{from_number})" if name else f"wa.me/{from_number}"
     text = f'💬 Customer baru chat: {who}\nPesan pertama: "{message_text}"'
-    send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+    send_whatsapp_message(target, text)
 
 
-def notify_owner(from_number, reason, last_message):
+def notify_owner(from_number, reason, last_message, tenant_id=None):
     """Kirim notifikasi ke WA pribadi owner (bukan nomor bot) soal leads panas atau konfirmasi
     pembayaran. (Untuk pertanyaan yang perlu dijawab manual, lihat notify_owner_question — itu
-    yang punya fitur auto-relay jawaban ke customer.)"""
-    if not OWNER_WHATSAPP_NUMBER:
+    yang punya fitur auto-relay jawaban ke customer.)
+
+    `tenant_id` — see notify_owner_new_message's docstring: a resolved client tenant's own
+    escalation goes to THAT tenant's own owner, never to Kilas Works' own platform owner."""
+    target = _get_tenant_owner_notify_target_safe(tenant_id)
+    if not target:
         return
     text = (
         f"🔔 {reason}\n\n"
@@ -3135,15 +4666,25 @@ def notify_owner(from_number, reason, last_message):
         f'Pesan terakhir: "{last_message}"\n\n'
         f"Cek & follow up langsung ke nomor itu ya."
     )
-    send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+    send_whatsapp_message(target, text)
 
 
-def notify_owner_question(from_number, last_message):
+def notify_owner_question(from_number, last_message, tenant_id=None):
     """Kirim notifikasi ke owner soal pertanyaan yang AI belum yakin jawabnya, DAN simpan sebagai
     pending. Owner bisa diskusi bebas dulu soal ini di chat yang sama (lihat call_claude_owner &
     cabang OWNER di receive_webhook) — baru pas owner bilang eksplisit suruh forward, jawabannya
-    diterusin ke customer."""
-    if not OWNER_WHATSAPP_NUMBER:
+    diterusin ke customer.
+
+    `tenant_id` — see notify_owner_new_message's docstring: a resolved client tenant's own pending
+    question goes to THAT tenant's own owner, never to Kilas Works' own platform owner.
+    pending_owner_questions itself IS tenant-scoped (Task 5 — keyed by _ck(tenant_id, phone), see
+    _pending_owner_questions_for_tenant), so a tenant's pending entry can never surface in another
+    tenant's or Kilas Works' own owner data. NOTE: the "diskusi bebas + terusin ke customer"
+    auto-relay flow above (FORWARD_MARKER, mention lookup, FIFO fallback pick) is still wired only
+    for Kilas Works' own owner branch — a tenant owner gets the notification, but replying here to
+    relay it back through that specific UX is a known limitation of this cycle."""
+    target = _get_tenant_owner_notify_target_safe(tenant_id)
+    if not target:
         return
     text = (
         f"🔔 Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual\n\n"
@@ -3152,7 +4693,7 @@ def notify_owner_question(from_number, last_message):
         f"Chat aja di sini kalau mau diskusi dulu, nanti kalau udah fix jawabannya tinggal bilang "
         f'"terusin ke customer" (atau semacamnya), baru aku kirimin ke dia 👍'
     )
-    send_whatsapp_message(OWNER_WHATSAPP_NUMBER, text)
+    send_whatsapp_message(target, text)
 
 
 def log_customer_message(to_number, message_text, sent_from="automated"):
@@ -3649,13 +5190,80 @@ def receive_webhook():
     print("Webhook masuk:", data)
 
     try:
+        result = _webhook_body_impl(data)
+        return result if result is not None else (jsonify({"status": "ok"}), 200)
+    except Exception as e:
+        print("Error processing webhook:", e)
+        return jsonify({"status": "ok"}), 200
+    finally:
+        # Task 6 (multi-tenant runtime safety) — the thread-local active-WhatsApp-channel override
+        # is set INSIDE _webhook_body_impl for a resolved client tenant's own channel, and worker
+        # threads are reused across requests/routes. Without this unconditional `finally` clear, a
+        # tenant channel picked here would stay "stuck" active on this thread — leaking into the
+        # NEXT request handled by the same thread (another tenant's webhook, Kilas Works' own
+        # webhook, the internal owner-notification endpoint, or a cron sweep) whether this request
+        # succeeded OR raised. Cleared unconditionally, every single request, success or exception.
+        _clear_active_whatsapp_channel()
+
+
+def _webhook_body_impl(data):
+    """The webhook's actual processing logic, split out so receive_webhook() can wrap it in a
+    try/finally that ALWAYS clears the active-WhatsApp-channel thread-local (see Task 6 comment at
+    the call site) regardless of whether this function returns normally or raises."""
+    if True:
         entry = data["entry"][0]
         changes = entry["changes"][0]
         value = changes["value"]
 
+        # Business Hub V2 — Patch 1 (client-hub/BOT_INTEGRATION_GUIDE.md): resolve tenant_id ONLY
+        # from the webhook's own `phone_number_id` (Meta's authoritative channel identifier), never
+        # from message text or a business name. Purely additive — tenant_id is None for every
+        # message on Kilas Works' own number today (that number isn't registered as a Client Hub
+        # tenant), so nothing below that branches on tenant_id changes behavior for it.
+        _incoming_phone_number_id = (value.get("metadata") or {}).get("phone_number_id")
+        if ENABLE_MULTI_TENANT:
+            # Task 7 — tri-state resolution: a real tenant, Kilas Works' own official number, or
+            # genuinely UNKNOWN. An unknown phone_number_id (including a tenant-lookup DB failure)
+            # must NEVER be silently treated as Kilas Works — stop here, log only, no reply sent.
+            tenant_id, _tenant_resolution_unknown = _resolve_tenant_or_unknown(_incoming_phone_number_id)
+            if _tenant_resolution_unknown:
+                print(
+                    f"WARNING: webhook phone_number_id={_incoming_phone_number_id!r} tidak dikenali "
+                    "(bukan tenant terdaftar, bukan juga nomor resmi Kilas Works) — pesan diabaikan, "
+                    "TIDAK diproses, TIDAK dibalas, TIDAK fallback ke identitas Kilas Works."
+                )
+                return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
+        else:
+            # Flag off = pure legacy single-tenant behavior, unchanged from before this cycle.
+            tenant_id = None
+
         if "messages" not in value:
             # ini notifikasi status (delivered/read), bukan pesan baru -> abaikan
             return jsonify({"status": "ok"}), 200
+
+        # Multi-tenant runtime safety cycle (Task 1/2) — activate the correct OUTGOING WhatsApp
+        # channel for this one request BEFORE any send_whatsapp_message/send_reply_bubbles/
+        # send_whatsapp_image/upload_media/download_whatsapp_media call happens anywhere below.
+        # Reset unconditionally on EVERY request (a thread-local — worker threads are reused across
+        # requests) so a channel picked for a PREVIOUS request/tenant can never leak into this one.
+        # Gated on ENABLE_MULTI_TENANT (same convention as every other tenant-aware branch in this
+        # file) so this is a total no-op — global Kilas Works channel, exactly as before this cycle
+        # — whenever the flag is off, even if tenant_id happens to resolve to a real business.
+        if ENABLE_MULTI_TENANT and not is_kilas_platform_tenant(tenant_id):
+            _tenant_channel = _get_tenant_whatsapp_channel_safe(tenant_id)
+            if _tenant_channel is None:
+                # Task 2 — an incomplete/never-connected tenant channel must NEVER silently fall
+                # back to sending as Kilas Works. Log internally and skip sending entirely; the
+                # inbound message is still safely dropped (not retried forever) by returning 200.
+                print(
+                    f"Tenant {tenant_id} WhatsApp channel belum lengkap dikonfigurasi "
+                    "(phone_number_id/access token) — skip kirim balasan, TIDAK fallback ke "
+                    "identitas Kilas Works."
+                )
+                return jsonify({"status": "ok", "tenant_whatsapp_channel_not_configured": True}), 200
+            _set_active_whatsapp_channel(_tenant_channel["phone_number_id"], _tenant_channel["access_token"])
+        else:
+            _clear_active_whatsapp_channel()
 
         message = value["messages"][0]
         from_number = message["from"]
@@ -3675,7 +5283,16 @@ def receive_webhook():
         # pertanyaan customer yang pending. Baru kalau owner eksplisit nyuruh forward (AI kasih
         # tanda lewat FORWARD_MARKER di balasannya), jawaban final diterusin ke customer terkait.
         # Owner juga bisa kirim perintah langsung ("kirim ke..." atau "follow up...").
-        if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER:
+        # Task 10 (multi-tenant runtime safety) — a phone-number match against OWNER_WHATSAPP_NUMBER
+        # is NOT enough on its own: it must also be true that THIS message arrived on Kilas Works'
+        # own official channel (is_kilas_platform_tenant(tenant_id), i.e. tenant_id resolved to
+        # None). Without this, a coincidental collision — some CLIENT tenant's own trusted_owner_phone
+        # happening to equal Kilas Works' personal OWNER_WHATSAPP_NUMBER — would hijack that tenant's
+        # conversation into Kilas Works' own rich owner-mode (wrong data, wrong system prompt,
+        # wrong everything) purely because the SENDER's phone number matched, regardless of which
+        # tenant's channel the message actually came in on. Owner identity is always decided by
+        # (channel this message arrived on) + (phone number), never by phone number alone.
+        if OWNER_WHATSAPP_NUMBER and from_number == OWNER_WHATSAPP_NUMBER and is_kilas_platform_tenant(tenant_id):
             owner_image_b64, owner_image_mime = None, None
             owner_msg_is_voice_note = False
 
@@ -4149,9 +5766,15 @@ def receive_webhook():
                 if mention_status == "ok":
                     pending_customer_number = mention_data
                     active_customer_context[from_number] = mention_data
-                    pending_question = pending_owner_questions.get(mention_data)
-                elif pending_owner_questions:
-                    pending_customer_number, pending_question = next(iter(pending_owner_questions.items()))
+                    pending_question = pending_owner_questions.get(_ck(tenant_id, mention_data))
+                else:
+                    # Task 5 — the FIFO "no name mentioned, just pick the oldest pending question"
+                    # fallback must only ever consider THIS tenant's (here: Kilas Works' own, since
+                    # this whole branch is gated to is_kilas_platform_tenant) own pending
+                    # questions, never a client tenant's.
+                    _own_pending = _pending_owner_questions_for_tenant(tenant_id)
+                    if _own_pending:
+                        pending_customer_number, pending_question = next(iter(_own_pending.items()))
 
                 # Kalau gak ada pertanyaan customer yang formal pending & gak ada nama eksplisit yang
                 # kesebut (misal owner nyeletuk doang pakai pronoun "dia"/"itu"), fallback ke customer
@@ -4358,8 +5981,9 @@ def receive_webhook():
 
                 # .pop bukan del: pending_customer_number bisa jadi target hasil resolve nama/nomor
                 # (direct_send) yang emang gak pernah masuk pending_owner_questions sama sekali.
-                pending_owner_questions.pop(pending_customer_number, None)
-                sisa = len(pending_owner_questions)
+                # Task 5 — pop lewat _ck(tenant_id, ...), key yang sama persis dipakai buat nulis.
+                pending_owner_questions.pop(_ck(tenant_id, pending_customer_number), None)
+                sisa = len(_pending_owner_questions_for_tenant(tenant_id))
                 if sisa:
                     send_whatsapp_message(
                         OWNER_WHATSAPP_NUMBER,
@@ -4371,10 +5995,251 @@ def receive_webhook():
 
             return jsonify({"status": "ok"}), 200
 
+        # ==== Business Hub V2 — Patch 5, extended by Task 1/2 (multi-tenant runtime safety) ====
+        # A message from a MULTI-TENANT CLIENT's own trusted owner, on THEIR OWN WhatsApp channel
+        # (resolved via tenant_id above, never Kilas Works' own OWNER_WHATSAPP_NUMBER). Gated on
+        # ENABLE_MULTI_TENANT + a resolved tenant_id, so this branch can never fire for Kilas Works'
+        # own number (tenant_id is always None for it) and is a total no-op with the flag off.
+        #
+        # Task 2 — the owner phone is recognized REGARDLESS of package tier (Basic vs Pro): a
+        # Basic tenant's owner must never be treated as a plain customer, but the rich Task-1
+        # capability below is gated separately, behind that tenant's OWN owner_commands feature
+        # (Pro-only per feature_flags.FEATURE_MATRIX). A recognized Basic owner gets a natural,
+        # non-technical decline — never silently ignored, never the Pro experience, never wording
+        # like "feature flag false".
+        _tenant_owner_phone = _get_trusted_owner_phone_safe(tenant_id) if ENABLE_MULTI_TENANT and tenant_id is not None else None
+        if _tenant_owner_phone and from_number == _tenant_owner_phone:
+            _tenant_owner_commands_ok = _get_tenant_features_safe(tenant_id).get("owner_commands", False)
+            if not _tenant_owner_commands_ok:
+                # Bug fix (deepening cycle) — a Basic tenant owner must get the SAME natural,
+                # non-technical decline for EVERY message type (text, image, voice note), not just
+                # text. Previously an image/audio message from a Basic tenant's owner was silently
+                # dropped with no reply at all, while a text message got the proper decline.
+                if msg_type in ("text", "image", "audio"):
+                    send_whatsapp_message(
+                        from_number,
+                        "Fitur asisten owner lewat chat ini baru tersedia di paket AI Admin Pro ya Kak — "
+                        "silakan hubungi tim Kilas Works kalau mau upgrade.",
+                    )
+                return jsonify({"status": "ok"}), 200
+
+            # Deepening cycle (Task 1 voice-note parity / Task 3 image parity) — a Pro tenant's own
+            # owner now gets the SAME category of media understanding Kilas Works' own owner
+            # already gets via call_claude_owner()/transcribe_audio_whatsapp() above, reusing the
+            # exact same transcription pipeline and vision-capable model, just scoped to THIS
+            # tenant (call_tenant_owner_ai, tenant_owner_conversations) — never Kilas Works' own
+            # owner_conversations, and never another tenant's. Each of voice_note/image_understanding
+            # is checked independently against THIS tenant's own feature flags (not just
+            # owner_commands) — the same flags/gate already used for a CUSTOMER's voice note/image
+            # on this tenant (see below), so a tenant plan can never grant the owner a capability
+            # its customers don't also have per FEATURE_MATRIX.
+            owner_image_b64, owner_image_mime = None, None
+            owner_msg_is_voice_note = False
+
+            if msg_type == "image":
+                _tenant_owner_image_ok = _get_tenant_features_safe(tenant_id).get("image_understanding", False)
+                if not _tenant_owner_image_ok:
+                    send_whatsapp_message(from_number, "Untuk saat ini aku bisa bantu lewat chat teks ya, Kak.")
+                    return jsonify({"status": "ok"}), 200
+                owner_image_meta = message.get("image", {})
+                owner_caption = (owner_image_meta.get("caption") or "").strip()
+                owner_media_id = owner_image_meta.get("id")
+                owner_image_b64, owner_image_mime = (
+                    download_whatsapp_media(owner_media_id) if owner_media_id else (None, None)
+                )
+                if not owner_image_b64:
+                    send_whatsapp_message(from_number, "Gagal kebuka gambarnya, coba kirim ulang ya.")
+                    return jsonify({"status": "ok"}), 200
+                owner_text = owner_caption or "(aku kirim gambar, tolong liat & tanggapin)"
+            elif msg_type == "audio":
+                if not FEATURES.get("voice_note_owner", False):
+                    send_whatsapp_message(from_number, "Saat ini aku cuma bisa baca pesan teks & gambar ya.")
+                    return jsonify({"status": "ok"}), 200
+                _tenant_owner_voice_ok = _get_tenant_features_safe(tenant_id).get("voice_note", False)
+                if not _tenant_owner_voice_ok:
+                    send_whatsapp_message(from_number, "Untuk saat ini aku bisa bantu lewat chat teks ya, Kak.")
+                    return jsonify({"status": "ok"}), 200
+                owner_audio_media_id = (message.get("audio") or {}).get("id")
+                owner_transcript, owner_vn_err = (
+                    transcribe_audio_whatsapp(owner_audio_media_id) if owner_audio_media_id else (None, "no_media_id")
+                )
+                if not owner_transcript:
+                    print(f"Tenant owner voice note gagal ditranskrip (tenant_id={tenant_id}, media_id={owner_audio_media_id}): {owner_vn_err}")
+                    owner_vn_fail_text = (
+                        "Aku belum bisa proses voice note sekarang. Coba ketik perintahnya sebentar ya."
+                        if owner_vn_err == VOICE_ERR_BILLING_OR_QUOTA else
+                        "Aku belum nangkep voice note tadi dengan jelas. Coba kirim ulang atau ketik perintahnya ya."
+                    )
+                    send_whatsapp_message(from_number, owner_vn_fail_text)
+                    return jsonify({"status": "ok"}), 200
+                owner_msg_is_voice_note = True
+                owner_text = normalize_owner_text_light(owner_transcript)
+            elif msg_type != "text":
+                return jsonify({"status": "ok"}), 200
+            else:
+                owner_text = message["text"]["body"]
+
+            # Tenant-persistence cycle (Task 1/2) — natural-language RECORD COMMANDS ("Confirm
+            # booking Budi.", "Tolak yang jam 4, bilang penuh.", "Confirm pembayaran Budi.", "Tolak
+            # pembayaran Budi, nominalnya kurang.") are checked BEFORE classify_owner_message()'s
+            # generic QUERY/ACTION/INTERNAL_NOTE split — these must actually mutate a PERSISTED
+            # appointment/payment-review row (see appointments_repo.py/payment_reviews_repo.py),
+            # never just be relayed as a customer message or answered conversationally.
+            _record_command = _wa_bridge.classify_owner_record_command(owner_text)
+            if _record_command in ("CONFIRM_APPOINTMENT", "REJECT_APPOINTMENT"):
+                _open_appts = _tenant_appt_list_safe(tenant_id, statuses=_appt_repo.OPEN_STATUSES)
+                _matched_appt, _ambiguous_appts = _wa_bridge.resolve_appointment_target(_open_appts, owner_text)
+                if _ambiguous_appts:
+                    _options = " atau ".join(
+                        f"{a.get('customer_name') or 'Customer'} (...{a['customer_phone'][-4:]})"
+                        for a in _ambiguous_appts[:5]
+                    )
+                    send_whatsapp_message(from_number, f"Booking yang mana ya — {_options}?")
+                elif not _matched_appt:
+                    send_whatsapp_message(from_number, "Belum nemu booking yang dimaksud nih Kak, coba sebutin nama customernya ya.")
+                else:
+                    _reason = _wa_bridge.extract_owner_command_reason(owner_text)
+                    _cust_display = _matched_appt.get("customer_name") or "Customer"
+                    if _record_command == "CONFIRM_APPOINTMENT":
+                        _tenant_appt_update_status_safe(_matched_appt["id"], "CONFIRMED", notes=_reason)
+                        send_whatsapp_message(from_number, f"Oke, booking {_cust_display} aku confirm ya.")
+                        send_whatsapp_message(
+                            _matched_appt["customer_phone"],
+                            f"Halo {_cust_display}, booking kamu ({_matched_appt.get('request_text') or '-'}) sudah dikonfirmasi ya. Sampai jumpa!",
+                        )
+                    else:
+                        _tenant_appt_update_status_safe(_matched_appt["id"], "CANCELLED", notes=_reason)
+                        send_whatsapp_message(from_number, f"Oke, booking {_cust_display} aku tolak ya.")
+                        _decline_text = f"Maaf {_cust_display}, booking kamu belum bisa diproses"
+                        _decline_text += f" ({_reason})." if _reason else "."
+                        send_whatsapp_message(_matched_appt["customer_phone"], _decline_text)
+                return jsonify({"status": "ok"}), 200
+
+            if _record_command in ("CONFIRM_PAYMENT", "REJECT_PAYMENT"):
+                _pending_reviews = _tenant_payment_review_list_pending_safe(tenant_id)
+                _matched_review, _ambiguous_reviews = _wa_bridge.resolve_payment_review_target(_pending_reviews, owner_text)
+                if _ambiguous_reviews:
+                    _options = " atau ".join(
+                        f"{r.get('customer_name') or 'Customer'} (...{r['customer_phone'][-4:]})"
+                        for r in _ambiguous_reviews[:5]
+                    )
+                    send_whatsapp_message(from_number, f"Pembayaran yang mana ya — {_options}?")
+                elif not _matched_review:
+                    send_whatsapp_message(from_number, "Belum nemu bukti pembayaran yang dimaksud nih Kak, coba sebutin nama customernya ya.")
+                else:
+                    _reason = _wa_bridge.extract_owner_command_reason(owner_text)
+                    _cust_display = _matched_review.get("customer_name") or "Customer"
+                    _new_status = "CONFIRMED" if _record_command == "CONFIRM_PAYMENT" else "REJECTED"
+                    _tenant_payment_review_update_status_safe(
+                        _matched_review["id"], _new_status, owner_note=_reason, verified_by=_tenant_owner_phone,
+                    )
+                    _write_tenant_audit_safe(
+                        tenant_id,
+                        f"TENANT_PAYMENT_{_new_status}",
+                        f"review_id={_matched_review['id']} customer={_matched_review['customer_phone']} "
+                        f"by owner {_tenant_owner_phone}" + (f" note={_reason}" if _reason else ""),
+                    )
+                    if _new_status == "CONFIRMED":
+                        send_whatsapp_message(from_number, f"Oke, pembayaran {_cust_display} aku confirm ya.")
+                        send_whatsapp_message(
+                            _matched_review["customer_phone"],
+                            f"Halo {_cust_display}, pembayaran kamu sudah kami konfirmasi ya. Terima kasih!",
+                        )
+                    else:
+                        send_whatsapp_message(from_number, f"Oke, pembayaran {_cust_display} aku tolak ya.")
+                        _decline_text = f"Halo {_cust_display}, mohon dicek ulang bukti transfernya ya"
+                        _decline_text += f" ({_reason})." if _reason else "."
+                        send_whatsapp_message(_matched_review["customer_phone"], _decline_text)
+                return jsonify({"status": "ok"}), 200
+
+            kind = _wa_bridge.classify_owner_message(owner_text)
+            _tenant_biz_config = _tcs.get_tenant_config(tenant_id) or {}
+            _tenant_biz_name = _tenant_biz_config.get("business_name") or "bisnis kamu"
+
+            if kind == "OWNER_ACTION":
+                # Try a structured price offer first (existing, narrower bridge behavior); fall
+                # back to a plain relay of whatever the owner said, to the resolved target customer
+                # — covers instructions like "bales si Budi bilang stoknya ada" that aren't a price.
+                target_customer, remainder, ambiguous_matches = _resolve_tenant_owner_relay_target(
+                    tenant_id, _tenant_owner_phone, owner_text
+                )
+                if ambiguous_matches:
+                    # Task 4 — 2+ genuinely different known customers are both plausibly meant
+                    # ("yang kemarin" matching more than one recent conversation, or two different
+                    # names both mentioned) — ASK, never guess which one.
+                    options = " atau ".join(f"{name} (...{phone[-4:]})" for phone, name in ambiguous_matches[:5])
+                    send_whatsapp_message(from_number, f"Maksudnya yang mana ya — {options}?")
+                    return jsonify({"status": "ok"}), 200
+                offers, notes = _wa_bridge.parse_owner_offers(owner_text)
+                customer_message = _wa_bridge.build_customer_facing_offer_message(offers, notes)
+                if not customer_message:
+                    # No parsable price offer — treat the (post-target) remainder as a direct
+                    # instruction for what to relay, stripped of the send-verb itself.
+                    relay_text = remainder
+                    for verb in _wa_bridge._SEND_ACTION_VERBS:
+                        relay_text = re.sub(rf"\b{re.escape(verb)}\b", "", relay_text, flags=re.IGNORECASE)
+                    customer_message = relay_text.strip(" ,.:;-") or None
+                if not target_customer:
+                    send_whatsapp_message(
+                        from_number,
+                        "Belum ada customer yang lagi dibahas — tunggu customer chat dulu atau sebutin "
+                        "namanya/nomornya ya.",
+                    )
+                elif not customer_message:
+                    send_whatsapp_message(
+                        from_number,
+                        "Aku belum nangkep pesan yang mau disampaikan — coba sebutin lagi ya.",
+                    )
+                else:
+                    scoped_target = _ck(tenant_id, target_customer)
+                    ok, _err = send_whatsapp_message(target_customer, customer_message)
+                    if ok:
+                        history = conversations.get(scoped_target, [])
+                        history.append({"role": "assistant", "content": customer_message})
+                        conversations[scoped_target] = history[-20:]
+                        save_message_to_db(scoped_target, "customer", "assistant", customer_message)
+                        add_agreed_fact(scoped_target, customer_message)
+                        send_whatsapp_message(from_number, f"Oke, sudah aku sampaikan ke wa.me/{target_customer}.")
+                    else:
+                        send_whatsapp_message(from_number, f"Gagal kirim ke wa.me/{target_customer}, coba lagi ya.")
+            elif kind in ("OWNER_QUERY", "OWNER_INTERNAL_NOTE"):
+                # Both get a REAL AI reply — a query is answered from this tenant's own scoped
+                # data, and an internal note/thinking-out-loud still gets a natural acknowledgement
+                # (never silently swallowed, per Task 1's explicit requirement).
+                reply_text = call_tenant_owner_ai(
+                    tenant_id, _tenant_owner_phone, owner_text, _tenant_biz_name,
+                    image_b64=owner_image_b64, image_mime=owner_image_mime,
+                    is_voice_note=owner_msg_is_voice_note,
+                )
+                send_whatsapp_message(from_number, reply_text)
+            return jsonify({"status": "ok"}), 200
+
+        # Business Hub V2 — Patch 4 (client-hub/BOT_INTEGRATION_GUIDE.md): kalau tenant ini (hasil
+        # resolve dari phone_number_id di atas) sedang di-human-takeover untuk nomor customer ini,
+        # AI TIDAK PERNAH balas apapun — diam total, supaya tidak tabrakan dengan pesan yang lagi
+        # diketik manusia secara manual. tenant_id selalu None untuk nomor WhatsApp Kilas Works
+        # sendiri, jadi baris ini tidak pernah aktif untuk traffic produksi saat ini.
+        if _get_conversation_mode_safe(tenant_id, from_number) == "HUMAN_TAKEOVER":
+            print(f"Human takeover aktif (tenant_id={tenant_id}, customer={from_number}) — AI diam, tidak membalas.")
+            return jsonify({"status": "ok", "human_takeover": True}), 200
+
         image_b64, image_mime = None, None
         user_msg_is_voice_note = False
 
         if msg_type == "image":
+            # Bug fix (Task 5) — image_understanding (vision) is a Pro-only feature in
+            # FEATURE_MATRIX but was never actually checked here for a resolved client tenant; a
+            # Basic tenant's customer image would silently go straight to Claude vision anyway.
+            # Same AND-with-the-global-flag pattern as the voice_note gate right below.
+            _tenant_image_ok = True
+            if ENABLE_MULTI_TENANT and tenant_id is not None:
+                _tenant_image_ok = _get_tenant_features_safe(tenant_id).get("image_understanding", False)
+            if not _tenant_image_ok:
+                send_typing_indicator(incoming_message_id)
+                time.sleep(1.2)
+                send_whatsapp_message(from_number, "Untuk saat ini aku bisa bantu lewat chat teks ya, Kak.")
+                return jsonify({"status": "ok"}), 200
+
             # Customer kirim gambar (paling sering: bukti transfer). Download & convert ke base64
             # biar bisa "dilihat" langsung sama Claude (vision) — bukan cuma ditebak dari caption.
             image_meta = message.get("image", {})
@@ -4398,7 +6263,14 @@ def receive_webhook():
                 "webhook_received", message_id=incoming_message_id,
                 sender_role="CUSTOMER", message_type=msg_type,
             )
-            if not FEATURES.get("voice_note_customer", False):
+            # Patch 3 (Business Hub V2): untuk tenant client yang ke-resolve (bukan Kilas Works
+            # sendiri), fitur voice note JUGA harus di-enable di tenant_features paket mereka —
+            # AND, bukan OR, dengan flag global FEATURES di atas. Kalau tenant_id None (Kilas Works
+            # sendiri, atau flag mati), perilaku identik dengan sebelum patch ini ada.
+            _tenant_voice_ok = True
+            if ENABLE_MULTI_TENANT and tenant_id is not None:
+                _tenant_voice_ok = _get_tenant_features_safe(tenant_id).get("voice_note", False)
+            if not FEATURES.get("voice_note_customer", False) or not _tenant_voice_ok:
                 send_typing_indicator(incoming_message_id)
                 time.sleep(1.5)
                 send_whatsapp_message(from_number, "Saat ini admin cuma bisa baca pesan teks & gambar ya kak.")
@@ -4411,7 +6283,11 @@ def receive_webhook():
                 print(f"Customer voice note gagal ditranskrip (media_id={audio_media_id}): {vn_err}")
                 send_typing_indicator(incoming_message_id)
                 time.sleep(1.2)
-                lang = customer_language.get(from_number)
+                # Task 9 bug fix — must read via the SAME tenant-scoped key customer_language is
+                # written with (_ck(tenant_id, from_number)), never the bare phone number, or a
+                # tenant customer's fallback-message language could silently borrow Kilas Works'
+                # own (or another tenant's) stored preference for that same raw phone number.
+                lang = customer_language.get(_ck(tenant_id, from_number))
                 # BUG FIX (final launch QA) — BILLING_OR_QUOTA_ERROR (kredit transkripsi OpenAI habis,
                 # auto-reload OFF) BUKAN "audio kurang jelas" — kalau dikasih pesan yang sama, customer
                 # bakal ngirim ulang voice note yang sama berkali-kali sia-sia. Tetap satu kalimat ramah,
@@ -4442,35 +6318,65 @@ def receive_webhook():
         else:
             user_text = message["text"]["body"]
 
+        # Multi-tenant runtime safety cycle (Task 3) — EVERY per-customer memory/state dict below
+        # (conversations/customer_names/customer_language, via _ck) is keyed by tenant+phone, NOT
+        # by the bare phone number, because the SAME phone number can legitimately message two
+        # different client tenants (or a tenant AND Kilas Works itself) and those must be
+        # completely separate conversations. tenant_id=None (Kilas Works' own number) maps to the
+        # bare phone number unchanged — see _ck's docstring — so none of this changes behavior for
+        # Kilas Works' own production traffic today.
+        is_kilas_tenant = is_kilas_platform_tenant(tenant_id)
+        scoped_from = _ck(tenant_id, from_number)
+
         # Cek dulu apakah ini customer BARU (belum pernah chat sama sekali sebelumnya) SEBELUM
         # pesan ini diproses & disimpen — dipakai buat notifikasi "customer baru chat" ke owner,
         # yang cuma dikirim SEKALI per customer (bukan tiap pesan, biar gak spam ke WA owner).
-        existing_history = conversations.get(from_number)
+        existing_history = conversations.get(scoped_from)
         if existing_history is None:
-            existing_history = load_recent_messages_from_db(from_number, "customer")
+            existing_history = load_recent_messages_from_db(scoped_from, "customer")
         is_new_customer = not existing_history
 
         # Kalau kita belum tau nama customer ini, coba ambil dari profil WhatsApp-nya dulu (kalau
         # dia emang punya nama di profil WA) — biar AI gak perlu nanya-nanya lagi kalau namanya
         # udah kebaca otomatis dari sini.
-        if from_number not in customer_names:
+        if scoped_from not in customer_names:
             try:
                 wa_profile_name = value.get("contacts", [{}])[0].get("profile", {}).get("name")
             except Exception:
                 wa_profile_name = None
             if wa_profile_name:
-                customer_names[from_number] = wa_profile_name
-                save_customer_name_to_db(from_number, wa_profile_name)
+                customer_names[scoped_from] = wa_profile_name
+                save_customer_name_to_db(scoped_from, wa_profile_name)
 
         # Update konteks "customer terakhir yang chat" — dipakai fallback kalau owner bilang "terusin"
-        # tanpa ada pertanyaan formal pending (lihat active_customer_context).
-        if OWNER_WHATSAPP_NUMBER:
+        # tanpa ada pertanyaan formal pending (lihat active_customer_context). Bug fix: HARUS cuma
+        # diupdate buat Kilas Works' OWN conversations — sebelumnya baris ini jalan buat SEMUA
+        # customer termasuk customer tenant client, jadi kalau tenant client chat duluan, target
+        # "terusin" default punya Kilas Works' owner sendiri bisa KEBALIK ke customer bisnis lain.
+        if OWNER_WHATSAPP_NUMBER and is_kilas_tenant:
             active_customer_context[OWNER_WHATSAPP_NUMBER] = from_number
-        mark_customer_activity(from_number)
+        # Patch 5 — sama polanya, tapi discope per tenant client (kalau ada) supaya
+        # _tenant_active_customer_context tidak pernah campur dengan Kilas Works sendiri di atas.
+        if ENABLE_MULTI_TENANT and tenant_id is not None:
+            _tenant_owner_for_context = _get_trusted_owner_phone_safe(tenant_id)
+            if _tenant_owner_for_context:
+                _tenant_active_customer_context[(tenant_id, _tenant_owner_for_context)] = from_number
+        # Bug fix (Task 3/6) — the automatic follow-up/lead-scoring "sales engine" below
+        # (followup_state/lead_stage) is a Kilas-Works-own prospecting tool: its background cron
+        # job sends nudges via the GLOBAL Kilas Works WhatsApp channel and was never built
+        # tenant-aware. Enrolling a client tenant's own customer into it would eventually send that
+        # customer a Kilas Works sales nudge FROM Kilas Works' own number — a clear identity leak.
+        # Known limitation of this cycle (minimal-scope fix): client tenant customers are simply
+        # never enrolled, rather than half-building a tenant-aware follow-up engine.
+        if is_kilas_tenant:
+            mark_customer_activity(from_number)
+
+        tenant_context_block = _build_tenant_context_block_safe(tenant_id) if ENABLE_MULTI_TENANT else ""
 
         ai_reply = call_claude(
             from_number, user_text, image_b64=image_b64, image_mime=image_mime,
-            is_voice_note=user_msg_is_voice_note,
+            is_voice_note=user_msg_is_voice_note, tenant_context_block=tenant_context_block,
+            tenant_id=tenant_id,
         )
 
         # Deteksi & tangkep nama customer (kalau AI baru dapet tau dari obrolan, bukan dari profil
@@ -4479,8 +6385,8 @@ def receive_webhook():
         if name_match:
             captured_name = name_match.group(1).strip()
             if captured_name:
-                customer_names[from_number] = captured_name
-                save_customer_name_to_db(from_number, captured_name)
+                customer_names[scoped_from] = captured_name
+                save_customer_name_to_db(scoped_from, captured_name)
             ai_reply = TAG_NAMA_PATTERN.sub("", ai_reply)
 
         # Deteksi tag internal SEBELUM di-strip, baru kirim versi bersih ke customer
@@ -4498,6 +6404,7 @@ def receive_webhook():
         give_payment_info = TAG_GIVE_PAYMENT_INFO in ai_reply
         payment_dp_unclear_match = TAG_PAYMENT_DP_UNCLEAR_PATTERN.search(ai_reply)
         set_lang_match = TAG_SET_LANG_PATTERN.search(ai_reply)
+        payment_proof_details_match = TAG_PAYMENT_PROOF_DETAILS_PATTERN.search(ai_reply)
 
         clean_reply = strip_tags(ai_reply)
 
@@ -4507,19 +6414,120 @@ def receive_webhook():
             lang_kv = parse_tag_kv(set_lang_match.group(1))
             detected_lang = (lang_kv.get("lang") or "").strip().lower()
             if detected_lang in (LANGUAGE_ID, LANGUAGE_EN):
-                customer_language[from_number] = detected_lang
+                customer_language[scoped_from] = detected_lang
 
         if give_payment_info:
-            # [GIVE_PAYMENT_INFO] SELALU diganti teks rekening resmi dari PAYMENT_CONFIG di sini — AI
-            # gak pernah ngetik nomor rekening sendiri, jadi gak ada resiko salah ketik/ngarang digit.
-            clean_reply = clean_reply.replace(TAG_GIVE_PAYMENT_INFO, build_payment_info_text())
+            if is_kilas_tenant:
+                # [GIVE_PAYMENT_INFO] SELALU diganti teks rekening resmi dari PAYMENT_CONFIG di sini
+                # — AI gak pernah ngetik nomor rekening sendiri, jadi gak ada resiko salah ketik/
+                # ngarang digit. PAYMENT_CONFIG is Kilas Works' OWN BCA account — this branch must
+                # only ever run for Kilas Works' own conversation with ITS OWN prospects.
+                clean_reply = clean_reply.replace(TAG_GIVE_PAYMENT_INFO, build_payment_info_text())
+            else:
+                # Task 4 — a resolved CLIENT tenant (e.g. a coffee shop) must NEVER have Kilas
+                # Works' own BCA account mentioned in ITS conversation with ITS OWN customer; it
+                # must use THAT tenant's OWN configured bank details instead, and ONLY if
+                # payment_conversation is actually Pro-enabled for this tenant (feature_flags.
+                # FEATURE_MATRIX) — a Basic tenant, or a Pro tenant that hasn't configured its own
+                # payment details yet, gets a natural "ask the business directly" fallback rather
+                # than either internal wording or Kilas Works' own account.
+                _tenant_payment_ok = (
+                    ENABLE_MULTI_TENANT and tenant_id is not None
+                    and _get_tenant_features_safe(tenant_id).get("payment_conversation", False)
+                )
+                _tenant_payment_text = (
+                    build_tenant_payment_info_text(_get_tenant_payment_config_safe(tenant_id))
+                    if _tenant_payment_ok else None
+                )
+                clean_reply = clean_reply.replace(
+                    TAG_GIVE_PAYMENT_INFO,
+                    _tenant_payment_text or "Untuk info pembayaran resminya, mohon konfirmasi langsung ke tim kami ya, Kak.",
+                )
 
         # Appointment: AI CUMA boleh nulis respons transisi ("oke aku cek dulu ya") + tag — kalimat
         # KONFIRMASI FINAL-nya WAJIB dari sini (Python), abis di-validasi ulang availability-nya, biar
         # gak ada resiko AI ngaku "sudah dijadwalkan"/dsb padahal ternyata slotnya udah keisi duluan
         # atau invalid. meeting_owner_notify dikirim ke owner SETELAH balasan ke customer terkirim.
         meeting_owner_notify = None
-        if meeting_pref_match:
+        if not is_kilas_tenant:
+            # Task 3 — a resolved CLIENT tenant gets its OWN appointment flow (tenant_meeting_
+            # requests, scoped by tenant_id+phone), using ONLY that tenant's own business hours/
+            # enabled-toggle/rules (see build_tenant_appointment_context, injected into the prompt
+            # via _build_tenant_context_block_safe) — NEVER Kilas Works' own office-hours/slot-grid
+            # engine below (build_appointment_context/DEFAULT_MEETING_SLOT_TIMES/is_office_closed_
+            # on/meeting_requests/appointments, which stay Kilas-Works-only).
+            _tenant_appt_settings = _get_tenant_appointment_settings_safe(tenant_id)
+            _tenant_appt_ok = (
+                ENABLE_MULTI_TENANT and tenant_id is not None
+                and _get_tenant_features_safe(tenant_id).get("appointment", False)
+                and bool(_tenant_appt_settings.get("meeting_enabled"))
+            )
+            _tenant_appt_tag = meeting_pref_match or book_match or meeting_slot_pick_match
+            scoped_appt_key = _ck(tenant_id, from_number)
+            if not _tenant_appt_ok:
+                if _tenant_appt_tag or resched_match or wants_cancel_meeting:
+                    appt_text = "Untuk jadwal ketemu/booking, mohon hubungi langsung tim kami ya, Kak."
+                    clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            elif _tenant_appt_tag:
+                kv = parse_tag_kv(_tenant_appt_tag.group(1))
+                day_text = (kv.get("day") or kv.get("date") or "").strip()
+                time_text = (kv.get("time") or "").strip()
+                tenant_meeting_requests[scoped_appt_key] = {
+                    "status": "REQUESTED", "day_text": day_text, "time": time_text or None,
+                    "name": customer_names.get(scoped_from), "created_at": _utcnow(),
+                }
+                # Tenant-persistence cycle (Task 1) — the in-memory dict above is kept as-is (other
+                # code/tests still read it as a fast-path cache), but the DATABASE is now the
+                # source of truth: a fresh process with an empty dict must still see this booking
+                # if it queries the DB (see appointments_repo.py / _tenant_appt_*_safe above).
+                request_text = f"{day_text}{(' jam ' + time_text) if time_text else ''}".strip() or "(waktu belum disebut)"
+                _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), request_text)
+                appt_text = "Siap Kak, aku catat dulu ya — nanti tim kami konfirmasi jadwalnya."
+                clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+                display_name = customer_names.get(scoped_from, "Customer")
+                meeting_owner_notify = f"{display_name} (wa.me/{from_number}) mau booking appointment: {request_text}."
+            elif resched_match:
+                kv = parse_tag_kv(resched_match.group(1))
+                existing = tenant_meeting_requests.get(scoped_appt_key)
+                existing_db = _tenant_appt_latest_safe(tenant_id, from_number, statuses=_appt_repo.OPEN_STATUSES if _CLIENT_HUB_AVAILABLE else None)
+                if existing or existing_db:
+                    if existing:
+                        existing["status"] = "REQUESTED"
+                        existing["day_text"] = kv.get("date", "") or existing.get("day_text")
+                        existing["time"] = kv.get("time") or existing.get("time")
+                        new_day = existing["day_text"]
+                        new_time = existing.get("time") or ""
+                    else:
+                        new_day = kv.get("date", "")
+                        new_time = kv.get("time") or ""
+                    new_request_text = f"{new_day} {new_time}".strip()
+                    if existing_db:
+                        _tenant_appt_update_reschedule_safe(existing_db["id"], new_request_text, status="RESCHEDULE_REQUESTED")
+                    else:
+                        _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), new_request_text)
+                    appt_text = "Oke Kak, request reschedule-nya aku terusin ke tim buat dikonfirmasi ulang."
+                    display_name = customer_names.get(scoped_from, "Customer")
+                    meeting_owner_notify = (
+                        f"{display_name} (wa.me/{from_number}) minta reschedule appointment ke {new_request_text}.".strip()
+                    )
+                else:
+                    appt_text = "Belum ada appointment yang tercatat atas nama kamu nih Kak — mau bikin baru aja?"
+                clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+            elif wants_cancel_meeting:
+                existing = tenant_meeting_requests.get(scoped_appt_key)
+                existing_db = _tenant_appt_latest_safe(tenant_id, from_number, statuses=_appt_repo.OPEN_STATUSES if _CLIENT_HUB_AVAILABLE else None)
+                if existing or existing_db:
+                    if existing:
+                        existing["status"] = "CANCELLED"
+                    if existing_db:
+                        _tenant_appt_update_status_safe(existing_db["id"], "CANCELLED")
+                    appt_text = "Oke Kak, appointment-nya aku batalin ya. Kabari lagi kalau mau jadwal ulang."
+                    display_name = customer_names.get(scoped_from, "Customer")
+                    meeting_owner_notify = f"{display_name} (wa.me/{from_number}) membatalkan appointment-nya."
+                else:
+                    appt_text = "Belum ada appointment yang tercatat atas nama kamu nih Kak."
+                clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
+        elif meeting_pref_match:
             # FLOW MEETING BARU (production hardening) — customer udah kasih tau MODE (online/offline)
             # + preferensi hari. JANGAN PERNAH langsung confirm di sini — cuma simpen state & notify
             # owner buat availability beneran (lihat MEETING_STATE_PENDING_OWNER_CONFIRMATION).
@@ -4602,79 +6610,136 @@ def receive_webhook():
             if ok:
                 meeting_owner_notify = owner_text_notify
 
+        # Tenant-persistence cycle (Task 2) — a resolved CLIENT tenant's own customer paying THAT
+        # BUSINESS directly (NEVER Kilas Works being paid — that flow stays entirely inside
+        # app.kilasworks.id's own checkout/invoice/payment_service.py/ai_payment_review.py,
+        # untouched by this branch/table). Persists a REAL tenant_payment_reviews row so this
+        # survives a restart and the tenant owner can later query/confirm/reject it — previously
+        # payment_confirmed was a dead end for a tenant (it only ever updated Kilas Works' OWN
+        # in-memory payment_state, see the is_kilas_tenant-only block further below). The customer
+        # ack text is DETERMINISTIC (Python-appended, not left to the AI's free wording) so it can
+        # never accidentally claim the proof is genuine/verified/lunas.
+        if not is_kilas_tenant and payment_confirmed:
+            _tenant_payment_ok = (
+                ENABLE_MULTI_TENANT and tenant_id is not None
+                and _get_tenant_features_safe(tenant_id).get("payment_conversation", False)
+            )
+            if _tenant_payment_ok:
+                amount_detected = None
+                if payment_proof_details_match:
+                    details_kv = parse_tag_kv(payment_proof_details_match.group(1))
+                    amount_raw = re.sub(r"[^\d]", "", details_kv.get("amount") or "")
+                    if amount_raw:
+                        amount_detected = int(amount_raw)
+                proof_file_id = None
+                if image_b64:
+                    try:
+                        proof_file_id = _tenant_payment_proof_store_safe(
+                            tenant_id, base64.b64decode(image_b64), image_mime,
+                        )
+                    except Exception as e:
+                        print(f"Decode bukti pembayaran tenant gagal (tenant_id={tenant_id}): {e}")
+                _tenant_payment_review_create_safe(
+                    tenant_id, from_number, customer_names.get(scoped_from),
+                    amount_detected=amount_detected, proof_file_id=proof_file_id,
+                )
+                ack_text = "Bukti sudah diterima dan sedang dicek."
+                clean_reply = f"{clean_reply}|||{ack_text}" if clean_reply else ack_text
+
         send_reply_bubbles(from_number, incoming_message_id, clean_reply)
 
-        if wants_qr:
-            send_qr_code(from_number)
+        # Bug fix (Task 5/7) — QR code, katalog.pdf, DP/payment-state tracking, and the AI sales
+        # engine's lead-scoring/hot-lead notifications below are ALL Kilas-Works-own features tied
+        # to Kilas Works' own PRICING_CONFIG/PAYMENT_CONFIG/katalog.pdf — none of them have a
+        # tenant-aware equivalent built yet (known limitation of this cycle). Kept Kilas-Works-only
+        # rather than half-built, so a resolved CLIENT tenant's customer can never receive Kilas
+        # Works' own QR/catalog/sales-engine notifications.
+        if is_kilas_tenant:
+            if wants_qr:
+                send_qr_code(from_number)
 
-        if wants_catalog:
-            send_catalog_pdf(from_number)
+            if wants_catalog:
+                send_catalog_pdf(from_number)
 
+            if payment_confirmed:
+                mark_customer_converted(from_number)  # stop follow-up otomatis
+                pay_state = get_or_create_payment_state(from_number)
+                pay_state["status"] = PAYMENT_STATUS_PENDING_VERIFICATION  # BELUM dianggap lunas otomatis
+                pay_state["updated_at"] = _utcnow()
+
+            if wants_stop_followup:
+                mark_customer_converted(from_number)  # stop follow-up otomatis, customer eksplisit minta jangan dihubungi lagi
+
+            if payment_dp_unclear_match:
+                dp_kv = parse_tag_kv(payment_dp_unclear_match.group(1))
+                dp_package = dp_kv.get("package") or "paketnya"
+                pay_state = get_or_create_payment_state(from_number)
+                pay_state["status"] = PAYMENT_STATUS_INTENT
+                pay_state["package"] = dp_package
+                pay_state["dp_requested"] = True
+                pay_state["updated_at"] = _utcnow()
+                if OWNER_WHATSAPP_NUMBER:
+                    dp_name = customer_names.get(from_number, "Customer")
+                    send_whatsapp_message(
+                        OWNER_WHATSAPP_NUMBER,
+                        f"{dp_name} ingin DP untuk {dp_package}. Nominal DP yang mau digunakan berapa?",
+                    )
         # Notifikasi ke owner SEKALI aja pas ada customer BARU yang pertama kali chat (biar owner
-        # tau siapa aja yang chat, tanpa banjir notif tiap pesan dari customer yang sama).
+        # tau siapa aja yang chat, tanpa banjir notif tiap pesan dari customer yang sama). Bug fix
+        # (Task 6) — routed via tenant_id: a resolved CLIENT tenant's own new-customer/escalation
+        # notification goes to THAT business's own trusted_owner_phone, never to Kilas Works' own
+        # platform owner (see notify_owner*'s docstrings / _get_tenant_owner_notify_target_safe).
         if is_new_customer:
-            notify_owner_new_message(from_number, user_text, customer_names.get(from_number))
-
-        if payment_confirmed:
-            mark_customer_converted(from_number)  # stop follow-up otomatis
-            pay_state = get_or_create_payment_state(from_number)
-            pay_state["status"] = PAYMENT_STATUS_PENDING_VERIFICATION  # BELUM dianggap lunas otomatis
-            pay_state["updated_at"] = _utcnow()
-
-        if wants_stop_followup:
-            mark_customer_converted(from_number)  # stop follow-up otomatis, customer eksplisit minta jangan dihubungi lagi
-
-        if payment_dp_unclear_match:
-            dp_kv = parse_tag_kv(payment_dp_unclear_match.group(1))
-            dp_package = dp_kv.get("package") or "paketnya"
-            pay_state = get_or_create_payment_state(from_number)
-            pay_state["status"] = PAYMENT_STATUS_INTENT
-            pay_state["package"] = dp_package
-            pay_state["dp_requested"] = True
-            pay_state["updated_at"] = _utcnow()
-            if OWNER_WHATSAPP_NUMBER:
-                dp_name = customer_names.get(from_number, "Customer")
-                send_whatsapp_message(
-                    OWNER_WHATSAPP_NUMBER,
-                    f"{dp_name} ingin DP untuk {dp_package}. Nominal DP yang mau digunakan berapa?",
-                )
+            notify_owner_new_message(from_number, user_text, customer_names.get(scoped_from), tenant_id=tenant_id)
 
         if is_leads_panas:
-            notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text)
+            notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text, tenant_id=tenant_id)
         elif payment_confirmed:
-            notify_owner(from_number, "Customer kirim bukti transfer (PENDING_VERIFICATION) — mohon verifikasi pembayaran manual", user_text)
+            notify_owner(
+                from_number,
+                "Customer kirim bukti transfer (PENDING_VERIFICATION) — mohon verifikasi pembayaran manual",
+                user_text, tenant_id=tenant_id,
+            )
         elif needs_owner:
-            pending_owner_questions[from_number] = user_text
-            notify_owner_question(from_number, user_text)
+            # Task 5 — keyed by _ck(tenant_id, from_number) (== scoped_from), NOT the plain phone
+            # number, so this can never surface in another tenant's (or Kilas Works' own) owner
+            # interface just because the same customer phone number happens to also be talking to
+            # a different tenant.
+            pending_owner_questions[scoped_from] = user_text
+            notify_owner_question(from_number, user_text, tenant_id=tenant_id)
 
-        if meeting_owner_notify and OWNER_WHATSAPP_NUMBER:
-            send_whatsapp_message(OWNER_WHATSAPP_NUMBER, meeting_owner_notify)
+        if meeting_owner_notify:
+            # Task 3/6 — a resolved CLIENT tenant's own appointment notification goes to THAT
+            # tenant's own trusted owner, never Kilas Works' own OWNER_WHATSAPP_NUMBER.
+            _appt_owner_target = _get_tenant_owner_notify_target_safe(tenant_id)
+            if _appt_owner_target:
+                send_whatsapp_message(_appt_owner_target, meeting_owner_notify)
 
-        # AI SALES ENGINE — update lead stage (production hardening). Diinfer dari sinyal DETERMINISTIK
-        # yang UDAH dideteksi di atas (bukan tag baru), stage cuma naik, gak pernah turun otomatis.
-        # Notify owner CUMA SEKALI per transisi (anti-spam) & CUMA buat sinyal yang belum ada notify
-        # spesifiknya sendiri (LEADS_PANAS/payment/meeting confirmed udah notify masing-masing di atas).
-        meeting_slot_confirmed = bool(meeting_slot_pick_match) and bool(meeting_owner_notify)
-        if not is_new_customer:
-            bump_lead_stage(from_number, LEAD_STAGE_WARM)
-        if wants_catalog or bool(meeting_pref_match) or is_leads_panas or bool(payment_dp_unclear_match):
-            hot_state = bump_lead_stage(from_number, LEAD_STAGE_HOT)
-            if hot_state["stage"] == LEAD_STAGE_HOT and not hot_state["notified_hot"] and not is_leads_panas:
-                hot_state["notified_hot"] = True
-                notify_owner(from_number, "Lead HOT — mulai nanya harga/katalog/meeting, kemungkinan siap lanjut", user_text)
-            elif is_leads_panas:
-                hot_state["notified_hot"] = True  # udah dinotify lewat jalur LEADS_PANAS di atas
-        if give_payment_info or payment_confirmed or meeting_slot_confirmed:
-            closing_state = bump_lead_stage(from_number, LEAD_STAGE_CLOSING)
-            if closing_state["stage"] == LEAD_STAGE_CLOSING and not closing_state["notified_closing"]:
-                closing_state["notified_closing"] = True
-                if give_payment_info and not payment_confirmed and not meeting_slot_confirmed:
-                    # payment_confirmed & meeting_slot_confirmed udah punya notify spesifik sendiri di
-                    # atas — cuma give_payment_info doang yang belum ada notify sebelumnya.
-                    notify_owner(from_number, "Lead CLOSING — udah dikasih info rekening, tunggu bukti transfer", user_text)
-
-    except Exception as e:
-        print("Error processing webhook:", e)
+        if is_kilas_tenant:
+            # AI SALES ENGINE — update lead stage (production hardening). Diinfer dari sinyal
+            # DETERMINISTIK yang UDAH dideteksi di atas (bukan tag baru), stage cuma naik, gak
+            # pernah turun otomatis. Notify owner CUMA SEKALI per transisi (anti-spam) & CUMA buat
+            # sinyal yang belum ada notify spesifiknya sendiri (LEADS_PANAS/payment/meeting
+            # confirmed udah notify masing-masing di atas). Kilas-Works-own only — see comment
+            # above `if is_kilas_tenant:` for wants_qr/wants_catalog/payment_state.
+            meeting_slot_confirmed = bool(meeting_slot_pick_match) and bool(meeting_owner_notify)
+            if not is_new_customer:
+                bump_lead_stage(from_number, LEAD_STAGE_WARM)
+            if wants_catalog or bool(meeting_pref_match) or is_leads_panas or bool(payment_dp_unclear_match):
+                hot_state = bump_lead_stage(from_number, LEAD_STAGE_HOT)
+                if hot_state["stage"] == LEAD_STAGE_HOT and not hot_state["notified_hot"] and not is_leads_panas:
+                    hot_state["notified_hot"] = True
+                    notify_owner(from_number, "Lead HOT — mulai nanya harga/katalog/meeting, kemungkinan siap lanjut", user_text)
+                elif is_leads_panas:
+                    hot_state["notified_hot"] = True  # udah dinotify lewat jalur LEADS_PANAS di atas
+            if give_payment_info or payment_confirmed or meeting_slot_confirmed:
+                closing_state = bump_lead_stage(from_number, LEAD_STAGE_CLOSING)
+                if closing_state["stage"] == LEAD_STAGE_CLOSING and not closing_state["notified_closing"]:
+                    closing_state["notified_closing"] = True
+                    if give_payment_info and not payment_confirmed and not meeting_slot_confirmed:
+                        # payment_confirmed & meeting_slot_confirmed udah punya notify spesifik sendiri di
+                        # atas — cuma give_payment_info doang yang belum ada notify sebelumnya.
+                        notify_owner(from_number, "Lead CLOSING — udah dikasih info rekening, tunggu bukti transfer", user_text)
 
     return jsonify({"status": "ok"}), 200
 
@@ -4711,6 +6776,117 @@ def internal_build_info():
     }), 200
 
 
+_SUPPORTED_INTERNAL_NOTIFICATION_TYPES = (
+    "AI_ONBOARDING_READY_FOR_REVIEW",
+    "CUSTOM_PROJECT_SUBMITTED",
+    "TALENT_REQUEST_SUBMITTED",
+    "QUOTATION_APPROVED",
+    "PAYMENT_PROOF_UPLOADED",
+    "WHATSAPP_CONNECTION_READY",
+)
+
+
+@app.route("/internal/owner-notify", methods=["POST"])
+def internal_owner_notify():
+    """Absolute Final Production Patch — the ONE HTTP door Client Hub uses to ask this bot process
+    to deliver an owner WhatsApp notification immediately (client-hub/owner_notification_delivery.py
+    is the only caller this is designed for). Security properties, all deliberate:
+
+    - Shared-secret auth via the X-Internal-Service-Secret header, compared with
+      hmac.compare_digest (constant-time) against INTERNAL_SERVICE_SECRET. If that env var is
+      unset/empty, this endpoint FAILS CLOSED — every request is rejected — rather than silently
+      accepting unauthenticated calls. The secret value itself is never logged, in either the
+      success or failure path.
+    - `notification_type` MUST be one of a small fixed allow-list (mirrors
+      client-hub/owner_notifications.EVENT_TYPES minus the not-yet-implemented escalation type) —
+      never an arbitrary free-form action.
+    - The destination is NEVER read from the request body. This endpoint only ever sends to
+      OWNER_WHATSAPP_NUMBER (Kilas Works' own configured owner number) — any "to"/"phone"/
+      "destination" field in the payload is ignored outright, so a compromised or buggy Client Hub
+      caller can never redirect a message to an arbitrary number.
+    - WhatsApp API tokens are never included in any response, success or error.
+    """
+    # Task 6 (multi-tenant runtime safety) — this endpoint must ALWAYS use Kilas Works' own global
+    # WhatsApp channel, NEVER whatever tenant channel a previous /webhook request on this same
+    # worker thread happened to activate. receive_webhook() now clears this in a `finally` block on
+    # every request, but this explicit clear is defense-in-depth (and correct even if a future
+    # caller invokes send_whatsapp_message from this thread outside that guarantee).
+    _clear_active_whatsapp_channel()
+    if INTERNAL_OWNER_NOTIFY_DISABLED:
+        # Set only when RENDER is active and INTERNAL_SERVICE_SECRET is missing/blank (see startup
+        # block above) — fail closed on every single request, no exceptions, never logging the
+        # (nonexistent) secret value.
+        print("SECURITY: rejected /internal/owner-notify request — endpoint disabled (INTERNAL_SERVICE_SECRET unset on Render).")
+        return jsonify({"status": "error", "message": "Akses ditolak."}), 403
+
+    provided_secret = request.headers.get("X-Internal-Service-Secret", "")
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided_secret, INTERNAL_SERVICE_SECRET):
+        return jsonify({"status": "error", "message": "Akses ditolak."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    notification_type = payload.get("notification_type")
+    message = payload.get("message")
+
+    if notification_type not in _SUPPORTED_INTERNAL_NOTIFICATION_TYPES:
+        return jsonify({"status": "error", "message": "notification_type tidak didukung."}), 400
+    if not message or not isinstance(message, str):
+        return jsonify({"status": "error", "message": "message wajib diisi (string)."}), 400
+    if not OWNER_WHATSAPP_NUMBER:
+        return jsonify({"status": "error", "message": "OWNER_WHATSAPP_NUMBER belum dikonfigurasi."}), 200
+
+    ok, err = send_whatsapp_message(OWNER_WHATSAPP_NUMBER, message)
+    if ok:
+        return jsonify({"status": "ok"}), 200
+    return jsonify({"status": "error", "message": "Gagal kirim WhatsApp."}), 200
+
+
+@app.route("/cron/owner-notifications", methods=["GET"])
+def run_owner_notifications():
+    """Final Ecosystem Sync — Section 11/12: polls Client Hub's `owner_notifications` ledger
+    (written by client-hub/owner_notifications.py at the moment of a business event — quotation
+    approved, payment proof uploaded, custom project/talent request submitted, AI onboarding ready
+    for review, WhatsApp-connection-ready) and does the actual WhatsApp send here, since this
+    process is the only one holding WhatsApp Cloud API credentials. Idempotent by construction:
+    a row is only ever sent once (marked SENT and never touched again); a genuine send failure
+    (e.g. WhatsApp API error) leaves it FAILED so the NEXT poll retries it — never a duplicate send
+    of an already-SENT row. Safe to call as often as the external scheduler likes, same pattern as
+    /cron/followups above.
+    Akses: GET /cron/owner-notifications?key=<CRON_SECRET>
+    """
+    # Task 6 — always Kilas Works' own global channel, never a tenant's (defense-in-depth; see
+    # internal_owner_notify's identical comment).
+    _clear_active_whatsapp_channel()
+    key = request.args.get("key", "")
+    if not CRON_SECRET or key != CRON_SECRET:
+        return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
+
+    try:
+        import owner_notifications as _owner_notifications
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Client Hub tidak tersedia: {e}"}), 200
+
+    sent, failed = 0, 0
+    try:
+        pending = _owner_notifications.list_pending()
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Gagal ambil pending notifications: {e}"}), 200
+
+    for row in pending:
+        ok, err = send_whatsapp_message(OWNER_WHATSAPP_NUMBER, row["message"])
+        try:
+            if ok:
+                _owner_notifications.mark_sent(row["id"])
+                sent += 1
+            else:
+                _owner_notifications.mark_failed(row["id"])
+                failed += 1
+                print(f"Gagal kirim owner notification #{row['id']} ({row.get('event_type')}): {err}")
+        except Exception as e:
+            print(f"Gagal update status owner notification #{row.get('id')}: {e}")
+
+    return jsonify({"status": "ok", "sent": sent, "failed": failed})
+
+
 @app.route("/cron/followups", methods=["GET"])
 def run_followups():
     """Endpoint yang HARUS dipanggil dari luar secara berkala (misal cron-job.org tiap 1 jam) buat
@@ -4721,6 +6897,9 @@ def run_followups():
     jadi gak perlu presisi jam di sisi penjadwal luar.
     Akses: GET /cron/followups?key=<CRON_SECRET>
     """
+    # Task 6 — always Kilas Works' own global channel, never a tenant's (defense-in-depth; see
+    # internal_owner_notify's identical comment). This sweep is Kilas-Works-own only regardless.
+    _clear_active_whatsapp_channel()
     key = request.args.get("key", "")
     if not CRON_SECRET or key != CRON_SECRET:
         return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403

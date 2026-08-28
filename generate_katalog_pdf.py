@@ -2,10 +2,21 @@
 Generate katalog.pdf LANGSUNG dari PRICING_CONFIG di app.py — SATU sumber data yang sama dipakai
 AI WhatsApp Admin (SYSTEM_PROMPT) & katalog PDF ini, biar gak ada lagi harga beda-beda antar tempat.
 
+Business Hub V2, Phase I (Section 27/33): Section 9 (TALENT MANAGEMENT) di bawah dibaca dari
+client-hub/talent_service.py's SEED_TALENTS — bukan angka harga (talent SELALU CUSTOM_QUOTE, tidak
+pernah ada harga di katalog ini), hanya nama/handle/follower count untuk tujuan marketing. Ini
+HANYA membaca modul (import python biasa), TIDAK menyentuh ../app.py (bot produksi) sama sekali dan
+TIDAK menjalankan/mengubah perilaku bot apapun — satu-satunya efek dari script ini adalah menulis
+ulang file statis katalog.pdf di disk. Sama seperti PRICING_CONFIG, follower count di sini adalah
+snapshot pada saat generate — kalau admin mengubah follower count lewat Client Hub, PDF ini perlu
+di-generate ulang secara manual (limitasi yang sama dengan duplikasi PRICING_CONFIG, lihat
+BOT_INTEGRATION_GUIDE.md).
+
 Jalanin: python3 generate_katalog_pdf.py
 Ini bikin ulang file katalog.pdf di folder yang sama (replace file lama).
 """
 import os
+import sys
 
 os.environ.setdefault("WHATSAPP_PHONE_NUMBER_ID", "placeholder")
 os.environ.setdefault("WHATSAPP_ACCESS_TOKEN", "placeholder")
@@ -13,6 +24,9 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "placeholder")
 os.environ.setdefault("VERIFY_TOKEN", "placeholder")
 
 import app as appmod  # import SATU-SATUNYA sumber data pricing (PRICING_CONFIG)
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "client-hub"))
+import talent_service  # noqa: E402 — hanya untuk baca SEED_TALENTS (nama/handle/followers), no I/O
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -203,6 +217,32 @@ section("8", "EVENT PHOTO &amp; VIDEO", [
     Spacer(1, 2 * mm),
     Paragraph(
         f"<b>Biaya transport:</b> Tangerang &amp; Jakarta gratis. Bandung +{fmt(ta['bandung'])} flat. {ta['notes']}",
+        styles["KWNote"],
+    ),
+], gap_after=6 * mm)
+
+# ===== 9. TALENT MANAGEMENT =====
+# Section 15/27 dari spec: publik SELALU custom quote, TIDAK PERNAH ada angka harga di sini.
+# Follower count murni informasi marketing, editable oleh admin lewat Client Hub (lihat catatan
+# di atas file ini) — bukan realtime, bukan hardcode kode program.
+talent_rows = "<br/>".join(
+    f"&bull; <b>{t['name']}</b> ({t['social_handle']}) — "
+    f"{'{:,}'.format(t['follower_count']).replace(',', '.')} followers, {t['niche']}"
+    for t in talent_service.SEED_TALENTS
+)
+section("9", "TALENT MANAGEMENT", [
+    Paragraph(
+        "Kilas Works juga membuka kerja sama endorsement/kolaborasi konten dengan talent berikut:",
+        styles["KWBody"],
+    ),
+    Spacer(1, 2 * mm),
+    Paragraph(talent_rows, styles["KWBody"]),
+    Spacer(1, 2 * mm),
+    Paragraph(f"<i>{talent_service.PUBLIC_DISCLAIMER}</i>", styles["KWNote"]),
+    Spacer(1, 2 * mm),
+    Paragraph(
+        "<b>Harga:</b> Custom quote — tergantung jenis campaign, jumlah konten, dan kebutuhan brand. "
+        "Hubungi kami untuk konsultasi & penawaran.",
         styles["KWNote"],
     ),
 ], gap_after=6 * mm)
