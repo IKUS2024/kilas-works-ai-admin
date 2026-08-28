@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Talent — Admin{% endblock %}
+{% block content %}
+<h1>Talent Management</h1>
+
+<div class="card">
+  <h2>Tambah Talent Baru</h2>
+  <form method="post" action="{{ url_for('admin.talent_create') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Nama</label><input type="text" name="name" required>
+    <label>Handle</label><input type="text" name="social_handle" placeholder="@handle">
+    <label>Niche</label><input type="text" name="niche">
+    <label>Followers</label><input type="number" name="follower_count">
+    <label>Availability</label>
+    <select name="availability_status">
+      {% for a in availability_statuses %}<option value="{{ a }}">{{ a.title() }}</option>{% endfor %}
+    </select>
+    <label>Foto Profil (URL, opsional — bisa upload foto langsung setelah talent dibuat)</label>
+    <input type="url" name="profile_photo_url" placeholder="https://...">
+    <div style="margin-top:10px;"><button class="btn small" type="submit">Tambah Talent</button></div>
+  </form>
+</div>
+
+<div class="card">
+  {% for t in talents %}
+  <div style="border-bottom:1px solid var(--border);padding:14px 0;{{ 'opacity:.55;' if not t.is_active }}">
+    <div style="display:flex;align-items:center;gap:12px;">
+      {% if t.profile_image_asset_id %}
+        <img src="{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}" alt="{{ t.name }}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;">
+      {% elif t.profile_photo_url %}
+        <img src="{{ t.profile_photo_url }}" alt="{{ t.name }}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;">
+      {% endif %}
+      <h2 style="margin:0;">{{ t.name }} <span class="muted">({{ t.social_handle }})</span> {% if not t.is_active %}<span class="pill SUSPENDED">ARSIP</span>{% endif %}</h2>
+    </div>
+
+    <form method="post" action="{{ url_for('admin.talent_photo_upload', talent_id=t.id) }}" enctype="multipart/form-data" style="margin-top:10px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Upload Foto Baru (JPG/PNG/WEBP, maks 5MB)</label>
+      <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/*" capture="environment">
+      <div style="margin-top:6px;"><button class="btn small secondary" type="submit">Upload Foto</button></div>
+    </form>
+
+    <form method="post" action="{{ url_for('admin.talent_update', talent_id=t.id) }}" style="margin-top:10px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Handle</label><input type="text" name="social_handle" value="{{ t.social_handle or '' }}">
+      <label>Niche</label><input type="text" name="niche" value="{{ t.niche or '' }}">
+      <label>Foto Profil (URL fallback — dipakai kalau tidak ada foto upload)</label>
+      <input type="url" name="profile_photo_url" placeholder="https://..." value="{{ t.profile_photo_url or '' }}">
+      <label>Followers</label><input type="number" name="follower_count" value="{{ t.follower_count }}">
+      <label>Availability</label>
+      <select name="availability_status">
+        {% for a in availability_statuses %}<option value="{{ a }}" {{ 'selected' if t.availability_status == a }}>{{ a.title() }}</option>{% endfor %}
+      </select>
+      <label>Catatan Availability (opsional, tampil ke customer)</label>
+      <input type="text" name="availability_note" value="{{ t.availability_note or '' }}" placeholder="mis. 'Available after 15 September'">
+      <label>Urutan Tampil (angka lebih kecil tampil lebih dulu)</label>
+      <input type="number" name="display_order" value="{{ t.display_order or 0 }}" style="width:110px;">
+      <label>Catatan Publik</label><input type="text" name="public_notes" value="{{ t.public_notes or '' }}">
+      <label>Catatan Internal (admin only)</label><input type="text" name="internal_notes" value="{{ t.internal_notes or '' }}">
+      <label>Internal Rate (admin only, tidak publik)</label><input type="number" name="internal_rate" value="{{ t.internal_rate or '' }}">
+      <label><input type="checkbox" name="is_active" {{ 'checked' if t.is_active }} style="width:auto;display:inline-block;"> Aktif</label>
+      <div style="margin-top:10px;display:flex;gap:8px;">
+        <button class="btn small" type="submit">Simpan</button>
+      </div>
+    </form>
+    <div style="margin-top:8px;">
+      {% if t.is_active %}
+      <form method="post" action="{{ url_for('admin.talent_archive', talent_id=t.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn small danger" type="submit">Arsipkan</button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('admin.talent_reactivate', talent_id=t.id) }}" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn small secondary" type="submit">Aktifkan Kembali</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>Talent Requests</h2>
+  <table>
+    <tr><th>Talent</th><th>Business</th><th>Status</th><th>Budget</th></tr>
+    {% for r in requests %}
+    <tr><td>{{ r.talent_id }}</td><td>{{ r.business_id }}</td><td>{{ r.status }}</td><td>{{ r.budget or '-' }}</td></tr>
+    {% endfor %}
+  </table>
+  {% if not requests %}<p class="muted">Belum ada talent request.</p>{% endif %}
+</div>
+{% endblock %}

@@ -28,6 +28,22 @@
   </table>
 </div>
 
+{% if is_admin_view %}
+<div class="card">
+  <h2>Appointment & Pembayaran (read-only)</h2>
+  <table>
+    <tr><th>Appointment aktif</th><td>{{ 'Ya' if (profile and (profile.appointment_enabled or profile.appointment_enabled is none)) else 'Tidak' }}</td></tr>
+    <tr><th>Aturan booking</th><td>{{ profile.appointment_rules_raw if profile else '-' }}</td></tr>
+    <tr><th>Bank</th><td>{{ profile.payment_bank_name if profile else '-' }}</td></tr>
+    <tr><th>No. rekening</th><td>{{ profile.payment_account_number if profile else '-' }}</td></tr>
+    <tr><th>Nama pemilik rekening</th><td>{{ profile.payment_account_name if profile else '-' }}</td></tr>
+    <tr><th>Instruksi pembayaran</th><td>{{ profile.payment_instructions if profile else '-' }}</td></tr>
+    <tr><th>Nomor owner terpercaya</th><td>{{ business.trusted_owner_phone or '-' }}</td></tr>
+  </table>
+  <p class="muted" style="margin-top:8px;">Hanya bisa diubah oleh owner bisnis ini sendiri lewat halaman "Appointment & Pembayaran" di dashboard-nya.</p>
+</div>
+{% endif %}
+
 <div class="card">
   <h2>Produk / Layanan</h2>
   <table>
@@ -167,8 +183,8 @@
         <input type="text" name="waba_id">
         <label>Nomor owner terpercaya (trusted owner phone)</label>
         <input type="text" name="trusted_owner_phone" required>
-        <label>Credentials reference (opsional — nama env var/secret yang menyimpan token, BUKAN token itu sendiri)</label>
-        <input type="text" name="credentials_reference" placeholder="mis. WHATSAPP_TOKEN__TENANT_{{ business.id }}">
+        <label>Credentials reference (KOSONGKAN kalau nomor ini satu WABA/Portfolio Meta dengan Kilas Works — pakai token default bersama, tidak perlu env var baru. Isi HANYA kalau bisnis ini punya App/token Meta terpisah sendiri.)</label>
+        <input type="text" name="credentials_reference" placeholder="kosongkan untuk pakai token default bersama">
         <div style="margin-top:10px;"><button class="btn secondary" type="submit">Hubungkan WhatsApp</button></div>
       </form>
     {% endif %}
@@ -189,6 +205,25 @@
       </select>
       <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
     </form>
+  </div>
+
+  <div class="card">
+    <h2>Human Takeover</h2>
+    <p class="muted">Ambil alih percakapan AI untuk nomor customer tertentu — customer lain tidak terpengaruh.</p>
+    <form method="post" action="{{ url_for('admin.wa_takeover_toggle', business_id=business.id) }}" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="customer_phone" placeholder="Nomor WhatsApp customer" required style="max-width:220px;">
+      <button class="btn secondary" type="submit" name="action" value="start">Ambil Alih (Human)</button>
+      <button class="btn secondary" type="submit" name="action" value="return">Kembalikan ke AI</button>
+    </form>
+    {% if takeover_conversations %}
+      <table style="margin-top:12px;">
+        <tr><th>Customer</th><th>Mode</th><th>Diubah</th></tr>
+        {% for c in takeover_conversations %}
+          <tr><td>{{ c.customer_phone }}</td><td>{{ c.mode }}</td><td>{{ c.updated_at }}</td></tr>
+        {% endfor %}
+      </table>
+    {% endif %}
   </div>
 
   {% if audit_log %}

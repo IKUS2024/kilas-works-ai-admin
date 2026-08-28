@@ -48,6 +48,21 @@
     <input type="text" name="online_or_offline" value="{{ profile.online_or_offline or '' }}">
     <label>Aturan appointment (jika ada)</label>
     <textarea name="appointment_rules_raw">{{ profile.appointment_rules_raw or '' }}</textarea>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
+      Aktifkan booking appointment lewat chat (khusus paket AI Admin Pro)
+    </label>
+
+    <h3 style="margin-top:20px;">Info Pembayaran (untuk customer bisnis ini)</h3>
+    <p class="muted">Rekening ini yang akan disampaikan AI Admin ke customer kamu sendiri kalau mereka tanya cara bayar — TIDAK ada hubungannya dengan pembayaran kamu ke Kilas Works.</p>
+    <label>Nama bank</label>
+    <input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="mis. BCA">
+    <label>Nomor rekening</label>
+    <input type="text" name="payment_account_number" value="{{ profile.payment_account_number or '' }}">
+    <label>Nama pemilik rekening</label>
+    <input type="text" name="payment_account_name" value="{{ profile.payment_account_name or '' }}">
+    <label>Instruksi tambahan untuk customer (opsional)</label>
+    <textarea name="payment_instructions" placeholder="mis. kirim bukti transfer ke chat ini setelah bayar">{{ profile.payment_instructions or '' }}</textarea>
 
   {% elif step == 'faq' %}
     <h2>FAQ & Kebijakan</h2>

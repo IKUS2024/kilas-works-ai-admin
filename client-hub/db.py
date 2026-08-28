@@ -58,13 +58,22 @@ if BACKEND == "postgres":
 
 
 def _adapt_placeholders(query):
-    """Every query in this codebase is written with SQLite's '?' placeholder style. For the
-    Postgres backend, translate to psycopg2's '%s' style. This is a plain substitution — safe
-    because no query in this codebase ever embeds a literal '?' character in SQL text itself
-    (all values always go through parameters, never string-formatted into the query)."""
+    """Adapt the shared SQL text to the selected backend.
+
+    The codebase intentionally writes parameter placeholders in SQLite's ``?`` style. PostgreSQL
+    needs psycopg2's ``%s`` placeholders. A number of service-layer UPDATE statements also use
+    SQLite's ``datetime('now')`` expression. PostgreSQL does not implement that function, so on
+    the Postgres path we normalize it to the portable SQL ``CURRENT_TIMESTAMP`` expression.
+
+    Keeping this compatibility conversion in one place avoids backend-specific SQL leaking into
+    every repository/service module and fixes both legacy and new 0013 update paths consistently.
+    Values still travel only through bound parameters; this function never interpolates values.
+    """
     if BACKEND == "sqlite":
         return query
-    return query.replace("?", "%s")
+    query = query.replace("?", "%s")
+    query = re.sub(r"datetime\s*\(\s*['\"]now['\"]\s*\)", "CURRENT_TIMESTAMP", query, flags=re.IGNORECASE)
+    return query
 
 
 def get_connection():
@@ -138,6 +147,20 @@ def _migration_path(basename_sqlite, basename_postgres):
 MIGRATIONS = [
     ("0001_init_sqlite.sql", "0001_init_postgres.sql"),
     ("0002_production_foundation_sqlite.sql", "0002_production_foundation_postgres.sql"),
+    ("0003_password_reset_sqlite.sql", "0003_password_reset_postgres.sql"),
+    ("0004_service_catalog_projects_sqlite.sql", "0004_service_catalog_projects_postgres.sql"),
+    ("0005_quotation_invoice_payment_sqlite.sql", "0005_quotation_invoice_payment_postgres.sql"),
+    ("0006_talent_sqlite.sql", "0006_talent_postgres.sql"),
+    ("0007_wa_takeover_sqlite.sql", "0007_wa_takeover_postgres.sql"),
+    ("0008_talent_profile_photo_url_sqlite.sql", "0008_talent_profile_photo_url_postgres.sql"),
+    ("0009_ops_polish_sqlite.sql", "0009_ops_polish_postgres.sql"),
+    ("0010_owner_notifications_sqlite.sql", "0010_owner_notifications_postgres.sql"),
+    ("0011_notification_delivery_catalog_cache_sqlite.sql",
+     "0011_notification_delivery_catalog_cache_postgres.sql"),
+    ("0012_appointment_payment_settings_sqlite.sql",
+     "0012_appointment_payment_settings_postgres.sql"),
+    ("0013_tenant_appointments_payment_reviews_sqlite.sql",
+     "0013_tenant_appointments_payment_reviews_postgres.sql"),
 ]
 
 
@@ -150,7 +173,18 @@ def init_schema():
         with open(path, "r", encoding="utf-8") as f:
             script = f.read()
         if BACKEND == "sqlite":
-            conn.executescript(script)
+            try:
+                conn.executescript(script)
+            except sqlite3.OperationalError as e:
+                # SQLite's ALTER TABLE has no "ADD COLUMN IF NOT EXISTS" (unlike Postgres, where
+                # migration files use that directly) — init_schema() re-runs every migration file
+                # on every boot, so a plain "ALTER TABLE ... ADD COLUMN" migration (e.g. 0008) hits
+                # "duplicate column name" on the 2nd+ boot. That's the expected/idempotent outcome
+                # here (the column already exists from a previous run), not a real failure — every
+                # other statement in these files already uses CREATE TABLE/INDEX IF NOT EXISTS, so
+                # this is the one DDL shape SQLite can't express idempotently in pure SQL.
+                if "duplicate column name" not in str(e):
+                    raise
         else:
             # psycopg2's simple-query protocol (used automatically when execute() is called with
             # no parameters) accepts multiple ';'-separated statements in one call, same as

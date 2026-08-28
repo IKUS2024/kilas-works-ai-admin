@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Projects — Admin{% endblock %}
+{% block content %}
+<h1>Projects</h1>
+<form method="get" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+  <select name="status">
+    <option value="">Semua status</option>
+    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s }}</option>{% endfor %}
+  </select>
+  <select name="type">
+    <option value="">Semua tipe</option>
+    {% for t in project_types %}<option value="{{ t }}" {{ 'selected' if t == type_filter }}>{{ t }}</option>{% endfor %}
+  </select>
+  <select name="business_id">
+    <option value="">Semua business</option>
+    {% for b in all_businesses %}<option value="{{ b.id }}" {{ 'selected' if b.id == business_filter }}>{{ b.business_name }}</option>{% endfor %}
+  </select>
+  <button class="btn small secondary" type="submit">Filter</button>
+  <a class="btn small secondary" href="{{ url_for('admin.projects_admin') }}">Reset</a>
+</form>
+<div class="card">
+  <table>
+    <tr><th>Title</th><th>Business</th><th>Tipe</th><th>Status</th><th>Budget</th><th></th></tr>
+    {% for p in projects %}
+    <tr>
+      <td>{{ p.title }}</td>
+      <td>{{ p.business_name }}</td>
+      <td>{{ p.project_type }}</td>
+      <td>{{ p.status }}</td>
+      <td>
+        {% if p.budget_min or p.budget_max %}
+          Rp{{ '{:,}'.format(p.budget_min).replace(',', '.') if p.budget_min else '?' }} – Rp{{ '{:,}'.format(p.budget_max).replace(',', '.') if p.budget_max else '?' }}
+        {% else %}-{% endif %}
+      </td>
+      <td><a href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if not projects %}<p class="muted">Belum ada project.</p>{% endif %}
+</div>
+{% endblock %}

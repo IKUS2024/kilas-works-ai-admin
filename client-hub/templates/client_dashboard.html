@@ -2,19 +2,52 @@
 {% block title %}Dashboard — Kilas Works Client Hub{% endblock %}
 {% block content %}
 <h1>Halo, {{ user.full_name or user.email }}</h1>
-<p class="muted">Kelola setup AI Admin bisnismu di sini.</p>
+<p class="muted">Kelola setup AI Admin dan proyek Kilas Works-mu di sini.</p>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+    <h2 style="margin:0;">Proyek & Layanan Saya</h2>
+    <div style="display:flex;gap:8px;">
+      <a class="btn small secondary" href="{{ url_for('projects.service_catalog_page') }}">Lihat Layanan</a>
+      <a class="btn small secondary" href="{{ url_for('talent.talent_list') }}">Talent Management</a>
+    </div>
+  </div>
+  {% if my_projects %}
+    <table style="margin-top:10px;">
+      <tr><th>Business</th><th>Proyek</th><th>Status</th><th>Harga</th><th></th></tr>
+      {% for p in my_projects %}
+        <tr>
+          <td>{{ p.business_name }}</td>
+          <td>{{ p.title }}</td>
+          <td><span class="pill {{ p.status }}">{{ p.status.replace('_',' ') }}</span></td>
+          <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Menunggu Penawaran' }}</td>
+          <td><a href="{{ url_for('projects.project_detail', business_id=p.business_id, project_id=p.id) }}">Lihat</a></td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted" style="margin-top:10px;">Belum ada proyek/pesanan aktif. Cek Layanan atau Talent Management di atas.</p>
+  {% endif %}
+</div>
 
 {% for b in businesses %}
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <h2 style="margin-bottom:4px;">{{ b.business_name }}</h2>
-        <span class="pill {{ b.status }}">{{ b.status }}</span>
-        <span class="muted">· {{ b.package }}</span>
+        {% if b.package == 'NONE' %}
+          <span class="pill">Active Customer</span>
+          <span class="muted">· Belum pakai AI Admin</span>
+        {% else %}
+          <span class="pill {{ b.status }}">{{ b.status }}</span>
+          <span class="muted">· {{ b.package }}</span>
+        {% endif %}
       </div>
-      <div class="muted">Setup {{ b.completion_percent }}%</div>
+      {% if b.package != 'NONE' %}<div class="muted">Setup {{ b.completion_percent }}%</div>{% endif %}
     </div>
-    {% if b.status == 'ACTIVE' %}
+    {% if b.package == 'NONE' %}
+      <p class="muted" style="margin-top:10px;">Business ini belum punya AI Admin. Kamu tetap bisa pakai layanan Kilas Works lainnya (Content, Foto, Video, Website, Ads, Event, Talent) dari menu Layanan di atas.</p>
+    {% elif b.status == 'ACTIVE' %}
       <p style="color:var(--green);margin-top:10px;">AI Admin — ACTIVE</p>
     {% elif b.status in ('APPROVED',) %}
       <p class="muted" style="margin-top:10px;">Menunggu koneksi WhatsApp oleh tim Kilas Works.</p>
@@ -22,11 +55,20 @@
       <p style="color:var(--red);margin-top:10px;">Perlu revisi — buka Review untuk detail.</p>
     {% endif %}
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
-      {% if b.status in ('DRAFT','ONBOARDING','NEEDS_REVISION') %}
+      {% if b.package == 'NONE' %}
+        <form method="post" action="{{ url_for('client.upgrade_to_ai_admin', business_id=b.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="package" value="AI_ADMIN_BASIC">
+          <button class="btn" type="submit">+ Tambah AI Admin</button>
+        </form>
+      {% elif b.status in ('DRAFT','ONBOARDING','NEEDS_REVISION') %}
         <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup</a>
       {% endif %}
       <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Review Business</a>
-      <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>
+      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>{% endif %}
+      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Appointment & Pembayaran</a>{% endif %}
+      <a class="btn secondary" href="{{ url_for('projects.project_list', business_id=b.id, view='all') }}">Semua Proyek</a>
+      <a class="btn secondary" href="{{ url_for('payments.invoice_list', business_id=b.id, view='all') }}">Invoice/Pembayaran</a>
     </div>
   </div>
 {% else %}
@@ -39,12 +81,14 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Nama bisnis</label>
     <input type="text" name="business_name" required>
-    <label>Paket AI Admin</label>
+    <label>Paket AI Admin (opsional)</label>
     <select name="package">
+      <option value="NONE" selected>Belum pakai AI Admin — jelajahi layanan lain dulu</option>
       <option value="AI_ADMIN_BASIC">AI Admin Basic — Rp499.000/bulan</option>
       <option value="AI_ADMIN_PRO">AI Admin Pro — Rp999.000/bulan</option>
     </select>
-    <div style="margin-top:16px;"><button class="btn" type="submit">Buat & Mulai Onboarding</button></div>
+    <p class="muted" style="margin-top:4px;">AI Admin bersifat opsional. Kamu bisa langsung ke dashboard dan pakai layanan lain (Content/Foto/Video/Website/Ads/Event/Talent), lalu tambah AI Admin kapan saja.</p>
+    <div style="margin-top:16px;"><button class="btn" type="submit">Buat Business</button></div>
   </form>
 </div>
 {% endblock %}

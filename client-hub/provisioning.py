@@ -17,6 +17,8 @@ Every function here is:
     provision_tenant() call, never deleted — same "don't destroy history" principle as
     onboarding_sessions in repo.py).
 """
+import os
+
 import repo
 import feature_flags
 
@@ -30,6 +32,8 @@ EVENT_TENANT_PROVISIONED = "TENANT_PROVISIONED"
 EVENT_WHATSAPP_CONNECTED = "WHATSAPP_CONNECTED"
 EVENT_TENANT_ACTIVATED = "TENANT_ACTIVATED"
 EVENT_TENANT_DEACTIVATED = "TENANT_DEACTIVATED"
+EVENT_WHATSAPP_VALIDATED = "WHATSAPP_VALIDATED"
+EVENT_WHATSAPP_VALIDATION_FAILED = "WHATSAPP_VALIDATION_FAILED"
 
 
 class ProvisioningError(Exception):
@@ -152,9 +156,29 @@ def build_tenant_config(business_id):
         },
 
         "appointment_behavior": {
-            "meeting_enabled": bool(features.get("appointment")),
+            # Pro tenant parity cycle (Task 3) — appointment booking requires BOTH the package
+            # capability (features.appointment, Pro-only per feature_flags.FEATURE_MATRIX) AND
+            # this tenant's own opt-in toggle (business_profiles.appointment_enabled, migration
+            # 0012) — a Pro tenant can still choose not to have the bot book appointments for it.
+            "meeting_enabled": bool(features.get("appointment")) and bool(profile.get("appointment_enabled", True)),
             "meeting_types": [],
+            "business_hours_raw": profile.get("operating_hours"),
+            "closed_days": profile.get("closed_days"),
             "appointment_rules": profile.get("appointment_rules_raw"),
+        },
+
+        # Pro tenant parity cycle (Task 4) — THIS tenant's OWN bank/payment details, for THAT
+        # business's own customers to pay THAT business directly. Completely separate from, and
+        # never a substitute for, Kilas Works' own PAYMENT_CONFIG/BCA account (../app.py), which
+        # is used only for Kilas Works' own subscription billing and is untouched by this cycle.
+        # Gated at read-time by feature_flags' payment_conversation (Pro-only); a Basic tenant's
+        # profile can still hold these fields (e.g. entered before a downgrade) but the bot must
+        # never surface them unless payment_conversation is actually enabled for this tenant.
+        "payment_config": {
+            "bank_name": profile.get("payment_bank_name"),
+            "account_number": profile.get("payment_account_number"),
+            "account_name": profile.get("payment_account_name"),
+            "instructions": profile.get("payment_instructions"),
         },
 
         "feature_plan": {
@@ -221,13 +245,123 @@ def connect_whatsapp_credentials(business_id, actor, phone_number_id, waba_id, c
     business = repo.get_business(business_id)
     if not business:
         raise ProvisioningError("business_not_found")
-    if not phone_number_id or not credentials_reference:
-        raise ProvisioningError("missing_whatsapp_config: phone_number_id and credentials_reference are required")
+    # Task 8 — credentials_reference is OPTIONAL here too, same reasoning as
+    # validate_and_connect_whatsapp() above: empty means "shares Kilas Works' own default token".
+    if not phone_number_id:
+        raise ProvisioningError("missing_whatsapp_config: phone_number_id is required")
 
     repo.upsert_whatsapp_config(business_id, phone_number_id, waba_id, credentials_reference,
                                  connection_status="PENDING_VALIDATION")
     repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_CONNECTED,
                       f"phone_number_id={phone_number_id}")
+
+
+def validate_and_connect_whatsapp(business_id, actor, phone_number_id, waba_id, credentials_reference):
+    """Multi-tenant runtime safety cycle (Task A) — this is the function the admin route should
+    call instead of trusting connect_whatsapp_credentials() alone to flip a tenant "connected".
+    connect_whatsapp_credentials() only ever RECORDS what an admin typed in (status
+    PENDING_VALIDATION, per its own docstring) — it has never itself confirmed the Phone Number ID
+    is real, reachable, or not already claimed by a different tenant. This function adds that real
+    check before anything is treated as CONNECTED:
+
+      1. Uniqueness: repo.find_business_id_by_phone_number_id() — this exact Phone Number ID must
+         not already belong to a DIFFERENT tenant. Pure DB check, no network needed.
+      2. Live reachability (best-effort): a simple GET against Meta's Graph API for this Phone
+         Number ID, using the server-side credential the credentials_reference pointer names (the
+         actual secret is READ from this process's own environment here — NEVER logged, NEVER put
+         in the audit description, NEVER returned to the caller). Any failure at all — the env var
+         isn't set on this process, a network/DNS/timeout error, a non-2xx Graph API response, or
+         any other exception — is treated identically: validation FAILS SAFE. There is no code path
+         in this function that reaches CONNECTED without a live 2xx Graph API response.
+
+    Returns {"status": "CONNECTED" or "VALIDATION_FAILED", "reason": <safe, credential-free string>}.
+    Never raises for a validation failure (that is an expected outcome, not an error) — only
+    ProvisioningError for actor/business-state problems (not admin, business not found, missing
+    required fields), matching every other function in this module.
+    """
+    _require_admin(actor)
+    business = repo.get_business(business_id)
+    if not business:
+        raise ProvisioningError("business_not_found")
+    # Task 8 — credentials_reference is now OPTIONAL: leaving it empty means this tenant shares
+    # Kilas Works' own default server-side WHATSAPP_ACCESS_TOKEN (the common case — this tenant's
+    # phone number lives under the same Meta Business Portfolio/WABA Kilas Works already manages),
+    # so onboarding does NOT require adding a brand-new Render env var per client. Only a genuinely
+    # separate Meta app/token needs a distinct credentials_reference recorded. phone_number_id is
+    # always required — see app.py's _get_tenant_whatsapp_channel_safe for the full design note.
+    if not phone_number_id:
+        raise ProvisioningError("missing_whatsapp_config: phone_number_id is required")
+
+    duplicate_owner = repo.find_business_id_by_phone_number_id(phone_number_id, exclude_business_id=business_id)
+    if duplicate_owner is not None:
+        repo.upsert_whatsapp_config(business_id, phone_number_id, waba_id, credentials_reference,
+                                     connection_status="VALIDATION_FAILED")
+        repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_VALIDATION_FAILED,
+                          f"phone_number_id={phone_number_id} reason=duplicate_phone_number_id "
+                          f"already_assigned_to_business_id={duplicate_owner}")
+        return {"status": "VALIDATION_FAILED",
+                "reason": "duplicate_phone_number_id: already connected to a different business"}
+
+    # Record the attempt as PENDING_VALIDATION first (same shape as connect_whatsapp_credentials),
+    # so a tenant that never reaches a final CONNECTED/VALIDATION_FAILED verdict below (e.g. this
+    # function raising for an unrelated reason) is still visibly "in progress", never silently
+    # left on stale prior data.
+    repo.upsert_whatsapp_config(business_id, phone_number_id, waba_id, credentials_reference,
+                                 connection_status="PENDING_VALIDATION")
+    repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_CONNECTED,
+                      f"phone_number_id={phone_number_id}")
+
+    reachable, reason = _check_whatsapp_phone_number_reachable(phone_number_id, credentials_reference)
+    if not reachable:
+        repo.mark_whatsapp_validation_failed(business_id)
+        repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_VALIDATION_FAILED,
+                          f"phone_number_id={phone_number_id} reason={reason}")
+        return {"status": "VALIDATION_FAILED", "reason": reason}
+
+    repo.mark_whatsapp_validated(business_id)
+    repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_VALIDATED,
+                      f"phone_number_id={phone_number_id}")
+    return {"status": "CONNECTED", "reason": "validated"}
+
+
+def _check_whatsapp_phone_number_reachable(phone_number_id, credentials_reference):
+    """Best-effort live check against Meta's Graph API that this Phone Number ID is real and
+    reachable using the server-side credential `credentials_reference` points at. Deliberately
+    fails safe on every error path — a network error, a missing/invalid credential, a timeout, or
+    a non-2xx response are all treated the same way (return False), never raised, and the actual
+    access-token VALUE is never included in the returned reason string (only the pointer NAME,
+    which is not a secret).
+
+    Known limitation (see final report): this sandboxed environment has no internet-reachable Meta
+    Graph API credentials, so the success path (a real 2xx response) cannot be exercised
+    end-to-end here — the failure paths (missing env var, network error) are exactly what actually
+    execute in this environment, which is the intended fail-safe behavior.
+
+    Task 8 — an empty/None credentials_reference means this tenant shares Kilas Works' own default
+    WHATSAPP_ACCESS_TOKEN (see app.py's _get_tenant_whatsapp_channel_safe docstring for the full
+    design decision); only a non-empty reference is resolved as a distinct per-tenant env var."""
+    if credentials_reference:
+        access_token = os.environ.get(credentials_reference, "")
+        if not access_token:
+            return False, f"credentials_reference '{credentials_reference}' has no value set in this environment"
+    else:
+        access_token = os.environ.get("WHATSAPP_ACCESS_TOKEN", "")
+        if not access_token:
+            return False, "shared default WHATSAPP_ACCESS_TOKEN has no value set in this environment"
+    try:
+        import requests
+        url = f"https://graph.facebook.com/v21.0/{phone_number_id}"
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"fields": "id"},
+            timeout=8,
+        )
+        if resp.status_code == 200:
+            return True, "ok"
+        return False, f"graph_api_status_{resp.status_code}"
+    except Exception as e:
+        return False, f"graph_api_error: {type(e).__name__}"
 
 
 def activate_tenant(business_id, actor):
@@ -257,6 +391,17 @@ def activate_tenant(business_id, actor):
     config_row = repo.get_tenant_config_row(business_id)
     if not config_row:
         raise ProvisioningError("not_provisioned: call provision_tenant() before activating")
+
+    # Business Hub V2, Phase C (Section 22): "Never activate an unpaid tenant." Bug fix: requires an
+    # explicit VERIFIED payment tied to an AI Admin project — "no invoice/payment row at all" is
+    # NEVER treated as "already covered" (see payment_service.has_verified_ai_admin_payment()'s
+    # docstring). Already-ACTIVE tenants are unaffected — this function returns before reaching this
+    # gate whenever business["status"] == "ACTIVE" already (see the early-return above).
+    import payment_service
+    if not payment_service.has_verified_ai_admin_payment(business_id):
+        raise ProvisioningError(
+            "payment_not_verified: this tenant has no VERIFIED payment for an AI Admin plan yet"
+        )
 
     repo.activate_business(business_id, actor["id"])
     repo.write_audit(actor["id"], business_id, EVENT_TENANT_ACTIVATED, f"config_version={config_row['config_version']}")

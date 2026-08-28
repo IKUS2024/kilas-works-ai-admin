@@ -28,6 +28,9 @@ import security  # noqa: E402
 import feature_flags  # noqa: E402
 import provisioning  # noqa: E402
 import tenant_config_service as tcs  # noqa: E402
+import catalog_service  # noqa: E402
+import projects_repo  # noqa: E402
+import payment_service  # noqa: E402
 import app as client_hub_app  # noqa: E402
 
 FLASK_APP = client_hub_app.app
@@ -61,6 +64,33 @@ def _make_business_ready_for_approval():
     repo.replace_business_faqs(bid, ["Ada wifi? Ada."])
     repo.save_ai_normalized_config(bid, "Kopi ABC summary", {"description": "Kedai kopi ramah"}, [])
     return bid
+
+
+def _give_verified_ai_admin_payment(bid, admin):
+    """Section 22 activation gate (bug fix — see payment_service.has_verified_ai_admin_payment):
+    activate_tenant() now requires an explicit VERIFIED payment for an AI Admin plan. Test helper
+    that runs a business through checkout -> proof upload -> verify for its own package's catalog
+    item, so tests whose actual focus is provisioning/activation mechanics (not the payment gate
+    itself) can still reach a genuinely activatable state."""
+    catalog_service.seed_catalog_if_needed()
+    business = repo.get_business(bid)
+    catalog_key = "ai_admin_pro" if business["package"] == "AI_ADMIN_PRO" else "ai_admin_basic"
+    owner_row = db.query_one(
+        "SELECT user_id FROM business_memberships WHERE business_id = ? AND role_in_business = 'OWNER'", (bid,)
+    )
+    owner_id = owner_row["user_id"]
+    item = catalog_service.get_catalog_item(catalog_key)
+    project_id = projects_repo.create_fixed_price_project(bid, item, owner_id)
+    invoice_id = payment_service.checkout(project_id, bid, owner_id)
+    payment = payment_service.get_payment_for_invoice(invoice_id)
+    file_id = db.insert_returning_id(
+        "INSERT INTO project_files (business_id, project_id, kind, original_filename, mime_type, "
+        "size_bytes, content, uploaded_by_user_id) VALUES (?, ?, 'PAYMENT_PROOF', 'p.png', "
+        "'image/png', 3, ?, ?)",
+        (bid, project_id, b"abc", owner_id),
+    )
+    payment_service.upload_payment_proof(payment["id"], bid, file_id, owner_id)
+    payment_service.verify_payment(payment["id"], bid, admin["id"])
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +288,7 @@ def test_activation_duplicate_activation_is_safe_noop():
     provisioning.approve_and_provision(bid, admin)
     provisioning.connect_whatsapp_credentials(bid, admin, "111", "waba1", "WHATSAPP_TOKEN__TEST")
     db.execute("UPDATE businesses SET whatsapp_connected = ? WHERE id = ?", (True, bid))  # V1 gate, dual-written by the route normally
+    _give_verified_ai_admin_payment(bid, admin)
 
     first = provisioning.activate_tenant(bid, admin)
     assert first["changed"] is True and first["status"] == "ACTIVE"
@@ -327,6 +358,7 @@ def test_provisioning_audit_log_has_canonical_events():
     provisioning.approve_and_provision(bid, admin)
     provisioning.connect_whatsapp_credentials(bid, admin, "111", None, "WHATSAPP_TOKEN__TEST")
     db.execute("UPDATE businesses SET whatsapp_connected = ? WHERE id = ?", (True, bid))
+    _give_verified_ai_admin_payment(bid, admin)
     provisioning.activate_tenant(bid, admin)
     provisioning.deactivate_tenant(bid, admin)
 
@@ -359,6 +391,7 @@ def test_bot_contract_active_tenant_returns_config_and_knowledge():
     provisioning.approve_and_provision(bid, admin)
     provisioning.connect_whatsapp_credentials(bid, admin, "555", None, "WHATSAPP_TOKEN__TEST")
     db.execute("UPDATE businesses SET whatsapp_connected = ?, whatsapp_phone_number_id = ? WHERE id = ?", (True, "555", bid))
+    _give_verified_ai_admin_payment(bid, admin)
     provisioning.activate_tenant(bid, admin)
 
     assert tcs.get_tenant_by_phone_number_id("555") == bid

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ quotation.quotation_number }} — Kilas Works{% endblock %}
+{% block content %}
+<h1>Quotation {{ quotation.quotation_number }}</h1>
+<span class="pill APPROVED">{{ quotation.status }}</span>
+
+<div class="card">
+  <table>
+    <tr><th>Scope</th><td>{{ quotation.scope or '-' }}</td></tr>
+    <tr><th>Deliverables</th><td>{{ quotation.deliverables or '-' }}</td></tr>
+    <tr><th>Quantity</th><td>{{ quotation.quantity or '-' }}</td></tr>
+    <tr><th>Harga Final</th><td>Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</td></tr>
+    <tr><th>Catatan</th><td>{{ quotation.notes or '-' }}</td></tr>
+  </table>
+</div>
+
+{% if session.get('role') != 'KILAS_ADMIN' and quotation.status in ('SENT', 'VIEWED') %}
+<div class="card">
+  <div style="display:flex;gap:8px;">
+    <form method="post" action="{{ url_for('quotations.approve_quotation', business_id=business.id, quotation_id=quotation.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn" type="submit">Setuju</button>
+    </form>
+    <form method="post" action="{{ url_for('quotations.reject_quotation', business_id=business.id, quotation_id=quotation.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="note" placeholder="Catatan (opsional)">
+      <button class="btn secondary" type="submit">Tolak / Minta Revisi</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

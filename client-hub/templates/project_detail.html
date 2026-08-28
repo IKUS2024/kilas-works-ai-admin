@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} — Kilas Works{% endblock %}
+{% block content %}
+<h1>{{ project.title }}</h1>
+<span class="pill APPROVED">{{ project.status }}</span>
+<span class="muted">· {{ project.project_type }} · {{ project.pricing_mode }}</span>
+
+<div class="card">
+  <h2>Detail</h2>
+  <table>
+    <tr><th>Budget</th><td>
+      {% if project.budget_min or project.budget_max %}
+        Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }}
+        – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}
+      {% else %}-{% endif %}
+    </td></tr>
+    <tr><th>Harga Final</th><td>{{ 'Rp{:,}'.format(project.final_price).replace(',', '.') if project.final_price else 'Belum ada penawaran' }}</td></tr>
+  </table>
+</div>
+
+{% if attachments %}
+<div class="card">
+  <h2>Lampiran Brief / Referensi</h2>
+  <table>
+    <tr><th>File</th><th></th></tr>
+    {% for a in attachments %}
+    <tr>
+      <td>{{ a.original_filename }}</td>
+      <td><a href="{{ url_for('projects.project_attachment_download', business_id=business.id, project_id=project.id, file_id=a.id) }}" target="_blank">Lihat/Download</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if quotations %}
+<div class="card">
+  <h2>Quotation</h2>
+  <table>
+    <tr><th>Nomor</th><th>Harga</th><th>Status</th><th></th></tr>
+    {% for q in quotations %}
+    <tr>
+      <td>{{ q.quotation_number }}</td>
+      <td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td>
+      <td>{{ q.status }}</td>
+      <td><a href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=q.id) }}">Lihat</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if project.status == 'APPROVED' %}
+<div class="card">
+  <a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut ke Checkout</a>
+</div>
+{% elif project.status == 'WAITING_FOR_QUOTE' %}
+<div class="card"><p class="muted">Menunggu Penawaran dari tim Kilas Works.</p></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ invoice.invoice_number }} — Kilas Works{% endblock %}
+{% block content %}
+<h1>Invoice {{ invoice.invoice_number }}</h1>
+<span class="pill APPROVED">{{ payment.status if payment else invoice.status }}</span>
+
+<div class="card">
+  <h2>Total: Rp{{ '{:,}'.format(invoice.amount).replace(',', '.') }}</h2>
+  <p class="muted">Transfer ke rekening berikut, lalu upload bukti pembayaran di bawah.</p>
+  <table>
+    <tr><th>Bank</th><td>{{ bank.bank_name }}</td></tr>
+    <tr><th>No. Rekening</th><td>{{ bank.account_number }}</td></tr>
+    <tr><th>Atas Nama</th><td>{{ bank.account_holder }}</td></tr>
+  </table>
+</div>
+
+{% if payment and payment.status in ('PAYMENT_PENDING', 'REJECTED') %}
+<div class="card">
+  <h2>Upload Bukti Pembayaran</h2>
+  {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">Bukti sebelumnya ditolak: {{ payment.admin_notes or '-' }}. Silakan upload ulang.</p>{% endif %}
+  {# Mobile-friendly upload (Section 12): "capture" lets a phone browser offer the camera directly
+     instead of forcing a trip through a file manager, while still allowing "choose from gallery". #}
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="file" name="proof_file" accept=".pdf,.png,.jpg,.jpeg,.webp,image/*" capture="environment" required>
+    <p class="muted" style="margin-top:6px;">Foto/screenshot bukti transfer, atau file PDF. Maks 10MB.</p>
+    <div style="margin-top:12px;"><button class="btn" type="submit">Upload Bukti</button></div>
+  </form>
+</div>
+{% elif payment and payment.status in ('UNDER_REVIEW', 'PROOF_UPLOADED') %}
+<div class="card">
+  <p class="muted">Bukti pembayaran sudah diterima — status: <strong>UNDER REVIEW</strong>. Tim Kilas Works sedang memverifikasi.</p>
+  {% if payment.proof_file_id %}<a href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank">Lihat bukti yang sudah diupload</a>{% endif %}
+</div>
+{% elif payment and payment.status == 'VERIFIED' %}
+<div class="card">
+  <p style="color:var(--green);">Pembayaran <strong>TERVERIFIKASI</strong>. Project akan segera dimulai.</p>
+  {% if payment.proof_file_id %}<a href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank">Lihat bukti pembayaran</a>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

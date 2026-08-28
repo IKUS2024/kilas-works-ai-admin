@@ -1,0 +1,13 @@
+-- Business Hub V2, Production Integration (Section 6 gap-fix, SQLite dialect). ADDITIVE ONLY.
+--
+-- Why this exists: talents.profile_image_file_id (added in migration 0006) references
+-- project_files(id), but project_files.business_id is NOT NULL and Kilas Works' own talents are
+-- not owned by any tenant business — there is no business_id to point at, and inventing a fake
+-- "internal business" row purely to satisfy that FK would be new, unrelated surface area for a
+-- solo-founder catalog of 3 hand-managed talents. A plain external URL (an already-hosted photo —
+-- Instagram profile picture link, Drive/imgur link, or a Kilas Works asset URL) is the minimal,
+-- zero-risk way to make "profile photo" actually editable from the admin dashboard, per Section 6:
+-- "KILAS_ADMIN can edit: followers, handle, niche, availability, profile photo, public description,
+-- active status, internal notes." profile_image_file_id is left in place, untouched, for a possible
+-- future binary-upload path — this column is additive alongside it, not a replacement.
+ALTER TABLE talents ADD COLUMN profile_photo_url TEXT;

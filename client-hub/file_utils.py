@@ -20,7 +20,12 @@ from PIL import Image
 import pypdf
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB per file, generous for a katalog PDF/menu photo
-ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "txt"}
+ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "txt", "webp"}
+
+# Final Operations Polish, Section 2: talent profile photo direct upload reuses this same
+# validation, restricted to just the image types it actually needs (no PDF/TXT for a photo field).
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB — generous for a phone photo, small enough for a profile pic
 
 
 class UploadRejected(Exception):
@@ -37,6 +42,22 @@ def _extension_of(filename):
     return (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
 
 
+def _looks_like_valid_pdf(content_bytes):
+    """Content-sniffing (not filename-based): true only for genuine PDF bytes."""
+    return content_bytes.startswith(b"%PDF")
+
+
+def _looks_like_valid_image(content_bytes):
+    """Content-sniffing (not filename-based): true only for bytes Pillow can actually decode as a
+    real image — rejects a script/HTML/executable renamed with an image extension."""
+    try:
+        img = Image.open(io.BytesIO(content_bytes))
+        img.verify()  # raises if not a genuine, decodable image
+        return True
+    except Exception:
+        return False
+
+
 def validate_and_extract(filename, content_bytes, claimed_mime_type):
     """Returns (safe_filename, mime_type, extracted_text_or_None). Raises UploadRejected with a
     user-safe message on any validation failure."""
@@ -51,18 +72,15 @@ def validate_and_extract(filename, content_bytes, claimed_mime_type):
         raise UploadRejected("Tipe file tidak didukung. Gunakan PDF, PNG, JPG, atau TXT.")
 
     if ext == "pdf":
-        if not content_bytes.startswith(b"%PDF"):
+        if not _looks_like_valid_pdf(content_bytes):
             raise UploadRejected("File tidak terbaca sebagai PDF yang valid.")
         extracted = _extract_pdf_text(content_bytes)
         return safe_name, "application/pdf", extracted
 
-    if ext in ("png", "jpg", "jpeg"):
-        try:
-            img = Image.open(io.BytesIO(content_bytes))
-            img.verify()  # raises if not a genuine, decodable image
-        except Exception:
+    if ext in ("png", "jpg", "jpeg", "webp"):
+        if not _looks_like_valid_image(content_bytes):
             raise UploadRejected("File gambar tidak valid/rusak.")
-        mime = "image/png" if ext == "png" else "image/jpeg"
+        mime = {"png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
         return safe_name, mime, None  # image text extraction (OCR) is out of scope for V1
 
     if ext == "txt":
@@ -73,6 +91,61 @@ def validate_and_extract(filename, content_bytes, claimed_mime_type):
         return safe_name, "text/plain", text[:20000]
 
     raise UploadRejected("Tipe file tidak didukung.")
+
+
+def validate_image_upload(filename, content_bytes):
+    """Section 2 (talent profile photo direct upload): a tighter validator than
+    validate_and_extract() above — image types only (JPG/JPEG/PNG/WEBP), a smaller size cap
+    appropriate for a profile photo, and no text-extraction step (irrelevant for a photo).
+    Returns (safe_filename, mime_type). Raises UploadRejected with a user-safe message."""
+    if not content_bytes:
+        raise UploadRejected("File kosong.")
+    if len(content_bytes) > MAX_IMAGE_UPLOAD_BYTES:
+        raise UploadRejected(f"File terlalu besar (maks {MAX_IMAGE_UPLOAD_BYTES // (1024*1024)}MB).")
+
+    safe_name = sanitize_filename(filename)
+    ext = _extension_of(safe_name)
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise UploadRejected("Tipe file tidak didukung. Gunakan JPG, JPEG, PNG, atau WEBP.")
+
+    if not _looks_like_valid_image(content_bytes):
+        raise UploadRejected("File gambar tidak valid/rusak.")
+
+    mime = {"png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
+    return safe_name, mime
+
+
+# Section (custom project attachments): allowed types JPG/JPEG/PNG/WEBP/PDF, 5MB max — reuses the
+# SAME content-sniffing helpers as validate_and_extract()/validate_image_upload() above (never a
+# third, independent implementation of the actual byte checks), just a distinct extension set/size
+# cap for this specific field ("Upload Brief / Referensi" on a custom project request).
+ALLOWED_ATTACHMENT_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "pdf"}
+MAX_ATTACHMENT_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+def validate_project_attachment_upload(filename, content_bytes):
+    """Returns (safe_filename, mime_type). Raises UploadRejected with a user-safe message on any
+    validation failure — oversized file, disallowed type, or content that doesn't actually match
+    its claimed type (e.g. a script/HTML file renamed with a .jpg/.pdf extension)."""
+    if not content_bytes:
+        raise UploadRejected("File kosong.")
+    if len(content_bytes) > MAX_ATTACHMENT_UPLOAD_BYTES:
+        raise UploadRejected(f"File terlalu besar (maks {MAX_ATTACHMENT_UPLOAD_BYTES // (1024*1024)}MB).")
+
+    safe_name = sanitize_filename(filename)
+    ext = _extension_of(safe_name)
+    if ext not in ALLOWED_ATTACHMENT_EXTENSIONS:
+        raise UploadRejected("Tipe file tidak didukung. Gunakan JPG, JPEG, PNG, WEBP, atau PDF.")
+
+    if ext == "pdf":
+        if not _looks_like_valid_pdf(content_bytes):
+            raise UploadRejected("File tidak terbaca sebagai PDF yang valid.")
+        return safe_name, "application/pdf"
+
+    if not _looks_like_valid_image(content_bytes):
+        raise UploadRejected("File gambar tidak valid/rusak.")
+    mime = {"png": "image/png", "webp": "image/webp"}.get(ext, "image/jpeg")
+    return safe_name, mime
 
 
 def _extract_pdf_text(content_bytes):

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Search — Admin{% endblock %}
+{% block content %}
+<h1>Global Search</h1>
+<form method="get" style="margin-bottom:16px;display:flex;gap:8px;">
+  <input type="text" name="q" value="{{ query }}" placeholder="Cari customer, business, project, quote, invoice, talent..." style="max-width:420px;">
+  <button class="btn" type="submit">Cari</button>
+</form>
+
+{% if results %}
+  <div class="card">
+    <h2>Users ({{ results.users|length }})</h2>
+    {% for u in results.users %}<p>{{ u.full_name or '-' }} — {{ u.email }} ({{ u.role }})</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Businesses ({{ results.businesses|length }})</h2>
+    {% for b in results.businesses %}<p><a href="{{ url_for('admin.review_business', business_id=b.id) }}">{{ b.business_name }}</a> — {{ b.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Projects ({{ results.projects|length }})</h2>
+    {% for p in results.projects %}<p><a href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">{{ p.title }}</a> — {{ p.project_type }} · {{ p.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Quotations ({{ results.quotations|length }})</h2>
+    {% for q in results.quotations %}<p>{{ q.quotation_number }} — Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Invoices ({{ results.invoices|length }})</h2>
+    {% for i in results.invoices %}<p><a href="{{ url_for('payments.invoice_page', invoice_id=i.id) }}">{{ i.invoice_number }}</a> — Rp{{ '{:,}'.format(i.amount).replace(',', '.') }} · {{ i.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+  </div>
+  <div class="card">
+    <h2>Talent ({{ results.talents|length }})</h2>
+    {% for t in results.talents %}<p>{{ t.name }} ({{ t.social_handle }})</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+  </div>
+{% elif query %}
+  <p class="muted">Masukkan kata kunci pencarian.</p>
+{% endif %}
+{% endblock %}

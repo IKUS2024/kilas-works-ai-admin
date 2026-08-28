@@ -18,13 +18,20 @@ Run locally against Postgres instead of SQLite:
 """
 import os
 
-from flask import Flask, redirect, url_for, session, request, abort, current_app
+from flask import Flask, redirect, url_for, session, request, abort, current_app, send_file
 
 import db
 import security
+import catalog_service
+import talent_service
+import live_catalog_pdf
 from routes_auth import auth_bp
 from routes_client import client_bp
 from routes_admin import admin_bp
+from routes_projects import projects_bp
+from routes_quotations import quotations_bp
+from routes_payments import payments_bp
+from routes_talent import talent_bp
 
 # Requests that carry state-changing verbs but are never form/browser submissions (JSON APIs) are
 # exempted from the form-field CSRF check below and instead must carry an X-CSRF-Token header —
@@ -71,10 +78,16 @@ def create_app():
             raise
         db.init_schema()
         print("Schema initialization: OK")
+        catalog_service.seed_catalog_if_needed()
+        talent_service.seed_talents_if_needed()
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(projects_bp)
+    app.register_blueprint(quotations_bp)
+    app.register_blueprint(payments_bp)
+    app.register_blueprint(talent_bp)
 
     # Make csrf_token() callable from any Jinja template without every route needing to pass it.
     app.jinja_env.globals["csrf_token"] = security.get_csrf_token
@@ -117,6 +130,19 @@ def create_app():
     @app.route("/healthz")
     def healthz():
         return {"status": "ok", "service": "kilas-works-client-hub", "db_backend": db.BACKEND}, 200
+
+    @app.route("/catalog.pdf")
+    def public_catalog_pdf():
+        """Absolute Final Production Patch (Sections 6-10): the current catalog, generated fresh
+        from live DB state (service_catalog + talents), never a hand-edited static file. Public —
+        no login required, same trust level as the existing static katalog.pdf the bot has always
+        been able to send to any customer on WhatsApp. Cached (see live_catalog_pdf.py) and
+        auto-invalidated whenever an admin edits a price, toggles a service, or edits a talent."""
+        path = live_catalog_pdf.get_cached_catalog_pdf_path()
+        if not path:
+            abort(503, description="Katalog sedang tidak tersedia, coba lagi sebentar lagi.")
+        return send_file(path, mimetype="application/pdf", as_attachment=False,
+                          download_name="Katalog Kilas Works.pdf")
 
     return app
 

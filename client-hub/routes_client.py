@@ -10,6 +10,9 @@ import file_utils
 import repo
 import security
 import provisioning
+import projects_repo
+import quotation_service
+import feature_flags
 
 client_bp = Blueprint("client", __name__, url_prefix="")
 
@@ -28,27 +31,68 @@ def dashboard():
     user = security.current_user()
     businesses = repo.list_businesses_for_user(user["id"])
     enriched = []
+    my_projects = []
     for b in businesses:
         enriched.append({
             **b,
             "completion_percent": repo.onboarding_completion_percent(b["id"]),
             "onboarding_status": repo.get_onboarding_status(b["id"]),
         })
-    return render_template("client_dashboard.html", user=user, businesses=enriched)
+        # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
+        # across every business they own, so "what's happening with my order" doesn't require
+        # digging through each business separately.
+        for p in projects_repo.list_projects_for_business(b["id"]):
+            if p["status"] in ("COMPLETED", "CANCELLED"):
+                continue
+            latest_quote = quotation_service.get_latest_quotation_for_project(p["id"])
+            my_projects.append({
+                **p,
+                "business_name": b["business_name"],
+                "latest_quotation": latest_quote,
+            })
+    return render_template(
+        "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects
+    )
 
 
 @client_bp.route("/business/create", methods=["POST"])
 @security.login_required
 def create_business():
+    """Ecosystem Sync Section 2 (priority gap): registration/business-creation must NOT force an
+    AI Admin package pick. The form defaults to 'NONE' (no AI Admin yet) — a customer who picks
+    that lands straight on the dashboard and can browse/buy any other Kilas Works service. Only a
+    customer who actively selects AI Admin Basic/Pro here goes through the onboarding wizard."""
     user = security.current_user()
     name = (request.form.get("business_name") or "").strip()
-    package = request.form.get("package") or "AI_ADMIN_BASIC"
-    if package not in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
-        package = "AI_ADMIN_BASIC"
+    package = request.form.get("package") or "NONE"
+    if not feature_flags.is_valid_package(package):
+        package = "NONE"
     if not name:
         flash("Nama bisnis wajib diisi.", "error")
         return redirect(url_for("client.dashboard"))
     business_id = repo.create_business(user["id"], name, package=package)
+    if package == "NONE":
+        flash(f"Business \"{name}\" dibuat. Silakan pilih layanan Kilas Works yang kamu butuhkan.", "success")
+        return redirect(url_for("client.dashboard"))
+    return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
+
+
+@client_bp.route("/business/<int:business_id>/upgrade-ai-admin", methods=["POST"])
+@security.login_required
+def upgrade_to_ai_admin(business_id):
+    """Ecosystem Sync Section 2: the explicit, simple 'upgrade' action for a business created
+    without AI Admin. Only reachable for a business currently on package='NONE' — an existing AI
+    Admin business is never re-routed through this."""
+    user = security.current_user()
+    business = _business_or_404(business_id)
+    if business["package"] != "NONE":
+        flash("Business ini sudah punya paket AI Admin.", "error")
+        return redirect(url_for("client.dashboard"))
+    package = request.form.get("package") or "AI_ADMIN_BASIC"
+    if package not in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
+        package = "AI_ADMIN_BASIC"
+    repo.upgrade_business_package(business_id, package, user["id"])
+    flash("AI Admin ditambahkan. Lanjutkan onboarding di bawah ini.", "success")
     return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
 
 
@@ -105,6 +149,13 @@ def wizard_step(business_id, step):
             "closed_days": request.form.get("closed_days", ""),
             "online_or_offline": request.form.get("online_or_offline", ""),
             "appointment_rules_raw": request.form.get("appointment_rules_raw", ""),
+            # Pro tenant parity cycle (Tasks 3/4/5) — this tenant's OWN appointment toggle and OWN
+            # payment/bank details for ITS OWN customers, never Kilas Works' own BCA account.
+            "appointment_enabled": bool(request.form.get("appointment_enabled")),
+            "payment_bank_name": request.form.get("payment_bank_name", ""),
+            "payment_account_number": request.form.get("payment_account_number", ""),
+            "payment_account_name": request.form.get("payment_account_name", ""),
+            "payment_instructions": request.form.get("payment_instructions", ""),
         }
         repo.save_onboarding_session(business_id, "operations", raw, user["id"])
         repo.upsert_business_profile(business_id, {**profile, **raw})
@@ -139,6 +190,41 @@ def wizard_step(business_id, step):
     if next_idx < len(WIZARD_STEPS):
         return redirect(url_for("client.wizard_step", business_id=business_id, step=WIZARD_STEPS[next_idx]))
     return redirect(url_for("client.review_page", business_id=business_id))
+
+
+@client_bp.route("/business/<int:business_id>/settings", methods=["GET", "POST"])
+@security.login_required
+def business_settings(business_id):
+    """Pro tenant parity cycle (Task 5) — appointment & payment settings, editable by the business
+    owner themselves at ANY status (unlike the onboarding wizard, which locks once APPROVED/ACTIVE/
+    SUSPENDED — see wizard_step's own comment) since these are ongoing operational settings a
+    business needs to be able to change on its own, without engineering help, even after go-live.
+    tenant_config_service.get_tenant_appointment_settings()/get_tenant_payment_config() read
+    business_profiles LIVE (not the versioned, KILAS_ADMIN-only tenant_config snapshot), so this
+    save takes effect on the bot's very next customer message with no re-provisioning step and no
+    admin action needed."""
+    business = _business_or_404(business_id)
+    profile = repo.get_business_profile(business_id) or {}
+
+    if request.method == "GET":
+        return render_template("business_settings.html", business=business, profile=profile)
+
+    user = security.current_user()
+    raw = {
+        "appointment_enabled": bool(request.form.get("appointment_enabled")),
+        "operating_hours": request.form.get("operating_hours", profile.get("operating_hours") or ""),
+        "closed_days": request.form.get("closed_days", profile.get("closed_days") or ""),
+        "appointment_rules_raw": request.form.get("appointment_rules_raw", ""),
+        "payment_bank_name": request.form.get("payment_bank_name", ""),
+        "payment_account_number": request.form.get("payment_account_number", ""),
+        "payment_account_name": request.form.get("payment_account_name", ""),
+        "payment_instructions": request.form.get("payment_instructions", ""),
+    }
+    repo.upsert_business_profile(business_id, {**profile, **raw})
+    repo.write_audit(user["id"], business_id, "settings_updated", "appointment/payment settings diubah oleh owner")
+
+    flash("Pengaturan appointment & pembayaran berhasil disimpan.", "success")
+    return redirect(url_for("client.business_settings", business_id=business_id))
 
 
 @client_bp.route("/business/<int:business_id>/files/upload", methods=["POST"])

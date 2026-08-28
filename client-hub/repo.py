@@ -70,6 +70,29 @@ def create_business(owner_user_id, business_name, package="AI_ADMIN_BASIC"):
     return business_id
 
 
+def upgrade_business_package(business_id, package, actor_user_id):
+    """Ecosystem Sync Section 2: explicit, deliberate action for a customer who created a
+    business WITHOUT AI Admin (package='NONE') and now wants to add it. Re-seeds tenant_features
+    for the new package (NONE never had any real features on) and flips ai_settings back to
+    PENDING so the business enters onboarding for the first time. Only meant to be called for a
+    business currently on 'NONE' — callers (routes_client.py) enforce that."""
+    if not feature_flags.is_valid_package(package) or package == "NONE":
+        raise ValueError(f"invalid upgrade target package {package!r}")
+    db.execute("UPDATE businesses SET package = ?, updated_at = ? WHERE id = ?",
+               (package, _now(), business_id))
+    feats = feature_flags.features_for_package(package)
+    keys = ("faq", "business_info", "catalog", "basic_lead_capture", "owner_commands",
+            "advanced_history", "image_understanding", "voice_note", "lead_qualification",
+            "appointment", "payment_conversation")
+    set_clause = ", ".join(f"{k} = ?" for k in keys)
+    db.execute(f"UPDATE tenant_features SET {set_clause} WHERE business_id = ?",
+               (*[bool(feats[k]) for k in keys], business_id))
+    existing_ai_settings = db.query_one("SELECT business_id FROM ai_settings WHERE business_id = ?", (business_id,))
+    if existing_ai_settings is None:
+        db.execute("INSERT INTO ai_settings (business_id, ai_status) VALUES (?, 'PENDING')", (business_id,))
+    write_audit(actor_user_id, business_id, "business_upgraded_to_ai_admin", f"package={package}")
+
+
 def get_business(business_id):
     return db.query_one("SELECT * FROM businesses WHERE id = ?", (business_id,))
 
@@ -98,6 +121,20 @@ def set_business_status(business_id, new_status, actor_user_id=None, detail=None
         (new_status, _now(), business_id),
     )
     write_audit(actor_user_id, business_id, "status_changed", detail or f"new_status={new_status}")
+    # Ecosystem Sync Section 10(A)/(F)/11: two important owner-notification trigger points live
+    # here since every AI onboarding submission path and every approval path already funnels
+    # through this one function. Wrapped so a notification-plumbing bug can never break the
+    # actual status transition it's reporting on.
+    try:
+        import owner_notifications
+        business = get_business(business_id)
+        business_name = business["business_name"] if business else f"business #{business_id}"
+        if new_status == "READY_FOR_REVIEW":
+            owner_notifications.notify_ai_onboarding_ready(business_id, business_name)
+        elif new_status == "APPROVED" and business and business.get("package") != "NONE":
+            owner_notifications.notify_whatsapp_connection_ready(business_id, business_name)
+    except Exception:
+        pass
 
 
 def set_business_package(business_id, package, actor_user_id=None):
@@ -128,12 +165,20 @@ def upsert_business_profile(business_id, fields):
         "category", "short_description", "country", "timezone", "address", "business_phone",
         "owner_name", "primary_language", "additional_languages", "tone", "customer_salutation",
         "operating_hours", "closed_days", "online_or_offline", "appointment_rules_raw",
+        # Pro tenant parity cycle (Tasks 3/4/5, migration 0012) — this tenant's OWN appointment
+        # toggle and OWN payment/bank details, never Kilas Works' own PAYMENT_CONFIG/BCA account.
+        "appointment_enabled", "payment_bank_name", "payment_account_number",
+        "payment_account_name", "payment_instructions",
     ]
     values = {c: fields.get(c) for c in cols}
     if isinstance(values.get("additional_languages"), (list, tuple)):
         values["additional_languages"] = json.dumps(values["additional_languages"])
     if isinstance(values.get("operating_hours"), (dict, list)):
         values["operating_hours"] = json.dumps(values["operating_hours"])
+    if values.get("appointment_enabled") is None:
+        values["appointment_enabled"] = True
+    else:
+        values["appointment_enabled"] = bool(values["appointment_enabled"]) and values["appointment_enabled"] not in ("false", "0", "off", "")
 
     if existing:
         set_clause = ", ".join(f"{c} = ?" for c in cols)
@@ -384,10 +429,15 @@ def request_revision(business_id, admin_user_id, note):
 # Audit log
 # ---------------------------------------------------------------------------
 
-def write_audit(actor_user_id, business_id, action, detail):
+def write_audit(actor_user_id, business_id, action, detail, project_id=None):
+    """project_id (Business Hub V2, Final Operations Polish, Section 14) is optional and additive
+    — every pre-existing call site keeps working unchanged with project_id defaulting to NULL.
+    Passing it lets get_project_audit_log() below pull a clean per-project history without parsing
+    free-text `detail` strings."""
     db.execute(
-        "INSERT INTO audit_log (actor_user_id, business_id, action, detail) VALUES (?, ?, ?, ?)",
-        (actor_user_id, business_id, action, detail),
+        "INSERT INTO audit_log (actor_user_id, business_id, action, detail, project_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (actor_user_id, business_id, action, detail, project_id),
     )
 
 
@@ -395,6 +445,75 @@ def get_audit_log(business_id, limit=50):
     return db.query_all(
         "SELECT * FROM audit_log WHERE business_id = ? ORDER BY created_at DESC LIMIT ?",
         (business_id, limit),
+    )
+
+
+def get_project_audit_log(project_id, limit=100):
+    """Section 14: 'admin can see clear history for quote created/changed/approved/rejected,
+    payment proof uploaded/verified/rejected, project status changed' — reuses the existing
+    audit_log architecture (no new event-viewer system), just filtered to one project."""
+    return db.query_all(
+        "SELECT * FROM audit_log WHERE project_id = ? ORDER BY created_at DESC LIMIT ?",
+        (project_id, limit),
+    )
+
+
+def write_audit_no_business(actor_user_id, action, detail):
+    """Same as write_audit() but for events with no associated business — password reset requests
+    happen before we necessarily even know which business a user belongs to, and a user can belong
+    to zero or several. business_id is nullable in audit_log for exactly this case."""
+    db.execute(
+        "INSERT INTO audit_log (actor_user_id, business_id, action, detail) VALUES (?, ?, ?, ?)",
+        (actor_user_id, None, action, detail),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Password reset (Business Hub V2, Phase A)
+# ---------------------------------------------------------------------------
+
+def get_user_by_id(user_id):
+    return db.query_one("SELECT * FROM users WHERE id = ?", (user_id,))
+
+
+def update_user_password(user_id, new_password_hash):
+    db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_password_hash, user_id))
+
+
+def create_password_reset_token(user_id, token_hash, expires_at, requested_ip=None):
+    return db.insert_returning_id(
+        "INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, requested_ip) "
+        "VALUES (?, ?, ?, ?)",
+        (user_id, token_hash, expires_at, requested_ip),
+    )
+
+
+def get_valid_reset_token(token_hash, now_iso):
+    """Returns the token row only if it exists, is unused, and has not expired — all three
+    checked in SQL so an expired-but-still-present row never looks valid to a caller who forgets
+    to re-check in Python. Returns None otherwise (indistinguishable from "token never existed" by
+    design — no information leak about which case applied)."""
+    return db.query_one(
+        "SELECT * FROM password_reset_tokens WHERE token_hash = ? AND used_at IS NULL "
+        "AND expires_at > ?",
+        (token_hash, now_iso),
+    )
+
+
+def mark_reset_token_used(token_id, now_iso):
+    db.execute(
+        "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?",
+        (now_iso, token_id),
+    )
+
+
+def invalidate_all_reset_tokens_for_user(user_id, now_iso):
+    """Called right after a successful reset — any OTHER still-valid reset link for this user
+    (e.g. requested twice in a row) is burned too, so an old email lying around in an inbox can't
+    be used after the password has already been changed via a newer one."""
+    db.execute(
+        "UPDATE password_reset_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL",
+        (now_iso, user_id),
     )
 
 
@@ -434,11 +553,34 @@ def required_fields_missing(business_id):
 # secret-reference design rationale.
 # ---------------------------------------------------------------------------
 
-WHATSAPP_CONNECTION_STATUSES = ("NOT_CONNECTED", "PENDING_VALIDATION", "CONNECTED")
+WHATSAPP_CONNECTION_STATUSES = ("NOT_CONNECTED", "PENDING_VALIDATION", "CONNECTED", "VALIDATION_FAILED")
 
 
 def get_whatsapp_config(business_id):
     return db.query_one("SELECT * FROM tenant_whatsapp_config WHERE business_id = ?", (business_id,))
+
+
+def find_business_id_by_phone_number_id(phone_number_id, exclude_business_id=None):
+    """Multi-tenant runtime safety cycle (Task A) — uniqueness check for the admin "Connect
+    WhatsApp" flow: is this Phone Number ID already assigned to a DIFFERENT tenant? Checks both
+    the Phase 2 canonical table (tenant_whatsapp_config) and the V1 column it is dual-written
+    alongside (businesses.whatsapp_phone_number_id), since either could hold a prior assignment.
+    Returns the OTHER business_id already using it, or None if it's free (or only used by
+    exclude_business_id itself, e.g. re-saving the same tenant's own value)."""
+    if not phone_number_id:
+        return None
+    exclude = exclude_business_id if exclude_business_id is not None else -1
+    row = db.query_one(
+        "SELECT business_id FROM tenant_whatsapp_config WHERE phone_number_id = ? AND business_id != ?",
+        (phone_number_id, exclude),
+    )
+    if row:
+        return row["business_id"]
+    row = db.query_one(
+        "SELECT id FROM businesses WHERE whatsapp_phone_number_id = ? AND id != ?",
+        (phone_number_id, exclude),
+    )
+    return row["id"] if row else None
 
 
 def upsert_whatsapp_config(business_id, phone_number_id, waba_id, credentials_reference,
@@ -470,6 +612,17 @@ def mark_whatsapp_validated(business_id):
     )
 
 
+def mark_whatsapp_validation_failed(business_id):
+    """Multi-tenant runtime safety cycle (Task A) — the counterpart to mark_whatsapp_validated()
+    for when the real connectivity check (uniqueness and/or a live Meta Graph API read) fails.
+    Deliberately NEVER sets connection_status to CONNECTED — a failed validation must always stay
+    a status that provisioning.activate_tenant()'s gate treats as "not connected yet"."""
+    db.execute(
+        "UPDATE tenant_whatsapp_config SET connection_status = 'VALIDATION_FAILED' WHERE business_id = ?",
+        (business_id,),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Materialized production tenant config (Phase 2). This is the assembled, versioned snapshot that
 # tenant_config_service.py hands to the (future) bot integration — distinct from
@@ -477,6 +630,53 @@ def mark_whatsapp_validated(business_id):
 # is what builds this dict (from profile + services + faqs + features + ai_settings) and calls
 # save_tenant_config() to persist it.
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Global admin search (Final Operations Polish, Section 9) — admin-only (callers must already be
+# behind @security.admin_required; this function itself does not check role, same trust boundary
+# as every other function in this module). Deliberately simple: a handful of LIKE queries across
+# the tables an admin actually needs to jump to, no full-text search engine, no new dependency.
+# ---------------------------------------------------------------------------
+
+def admin_search(query, limit=10):
+    q = f"%{(query or '').strip()}%"
+    if not q.strip("%"):
+        return {"users": [], "businesses": [], "projects": [], "quotations": [], "invoices": [],
+                "talents": []}
+
+    users = db.query_all(
+        "SELECT id, email, full_name, role FROM users WHERE email LIKE ? OR full_name LIKE ? "
+        "ORDER BY id DESC LIMIT ?",
+        (q, q, limit),
+    )
+    businesses = db.query_all(
+        "SELECT b.* FROM businesses b LEFT JOIN business_profiles p ON p.business_id = b.id "
+        "WHERE b.business_name LIKE ? OR p.business_phone LIKE ? OR p.owner_name LIKE ? "
+        "ORDER BY b.created_at DESC LIMIT ?",
+        (q, q, q, limit),
+    )
+    projects = db.query_all(
+        "SELECT * FROM projects WHERE title LIKE ? OR project_type LIKE ? "
+        "ORDER BY created_at DESC LIMIT ?",
+        (q, q, limit),
+    )
+    quotations = db.query_all(
+        "SELECT * FROM quotations WHERE quotation_number LIKE ? ORDER BY created_at DESC LIMIT ?",
+        (q, limit),
+    )
+    invoices = db.query_all(
+        "SELECT * FROM invoices WHERE invoice_number LIKE ? ORDER BY created_at DESC LIMIT ?",
+        (q, limit),
+    )
+    talents = db.query_all(
+        "SELECT * FROM talents WHERE name LIKE ? OR social_handle LIKE ? ORDER BY name LIMIT ?",
+        (q, q, limit),
+    )
+    return {
+        "users": users, "businesses": businesses, "projects": projects,
+        "quotations": quotations, "invoices": invoices, "talents": talents,
+    }
+
 
 def get_tenant_config_row(business_id):
     row = db.query_one("SELECT * FROM tenant_configs WHERE business_id = ?", (business_id,))

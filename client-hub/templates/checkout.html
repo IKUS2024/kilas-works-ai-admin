@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Checkout — {{ project.title }}{% endblock %}
+{% block content %}
+<h1>Checkout</h1>
+<div class="card">
+  <h2>{{ project.title }}</h2>
+  <p class="muted">Harga: Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</p>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">Buat Invoice</button>
+  </form>
+</div>
+{% endblock %}
