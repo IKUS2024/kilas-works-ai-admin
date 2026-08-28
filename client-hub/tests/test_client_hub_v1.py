@@ -23,6 +23,10 @@ import repo  # noqa: E402
 import security  # noqa: E402
 import file_utils  # noqa: E402
 import ai_onboarding  # noqa: E402
+import catalog_service  # noqa: E402
+import projects_repo  # noqa: E402
+import payment_service  # noqa: E402
+import provisioning  # noqa: E402
 import app as client_hub_app  # noqa: E402
 
 FLASK_APP = client_hub_app.app
@@ -38,6 +42,32 @@ def reset_db():
         os.remove(_TMP_DB)
     db._local.conn = None
     db.init_schema()
+
+
+def _give_verified_ai_admin_payment(bid, admin_user_id):
+    """Section 22 activation gate (bug fix — see payment_service.has_verified_ai_admin_payment):
+    activate_tenant() now requires an explicit VERIFIED payment for an AI Admin plan before a
+    tenant can go ACTIVE. Test helper so this V1 end-to-end flow (which predates that gate) still
+    reaches a genuinely activatable state."""
+    catalog_service.seed_catalog_if_needed()
+    business = repo.get_business(bid)
+    catalog_key = "ai_admin_pro" if business["package"] == "AI_ADMIN_PRO" else "ai_admin_basic"
+    owner_row = db.query_one(
+        "SELECT user_id FROM business_memberships WHERE business_id = ? AND role_in_business = 'OWNER'", (bid,)
+    )
+    owner_id = owner_row["user_id"]
+    item = catalog_service.get_catalog_item(catalog_key)
+    project_id = projects_repo.create_fixed_price_project(bid, item, owner_id)
+    invoice_id = payment_service.checkout(project_id, bid, owner_id)
+    payment = payment_service.get_payment_for_invoice(invoice_id)
+    file_id = db.insert_returning_id(
+        "INSERT INTO project_files (business_id, project_id, kind, original_filename, mime_type, "
+        "size_bytes, content, uploaded_by_user_id) VALUES (?, ?, 'PAYMENT_PROOF', 'p.png', "
+        "'image/png', 3, ?, ?)",
+        (bid, project_id, b"abc", owner_id),
+    )
+    payment_service.upload_payment_proof(payment["id"], bid, file_id, owner_id)
+    payment_service.verify_payment(payment["id"], bid, admin_user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -299,9 +329,27 @@ def test_admin_review_approve_activate_flow():
     r = c.post(f"/admin/business/{bid}/activate", follow_redirects=True)
     assert repo.get_business(bid)["status"] == "APPROVED", "must not activate before WhatsApp is connected"
 
-    r = c.post(f"/admin/business/{bid}/connect-whatsapp",
-               data={"whatsapp_phone_number_id": "111", "trusted_owner_phone": "+62811"}, follow_redirects=True)
+    # Multi-tenant runtime safety cycle (Task A): the admin "Connect WhatsApp" route now runs a
+    # real validation (uniqueness + best-effort live Meta Graph API read) before marking a tenant
+    # connected — see provisioning.validate_and_connect_whatsapp(). This sandbox has no real,
+    # internet-reachable Meta credentials, so the live-reachability leg is stubbed here exactly
+    # like every other test in this suite stubs an external WhatsApp/Claude call; the DB-only
+    # uniqueness check still runs for real (unpatched).
+    original_check = provisioning._check_whatsapp_phone_number_reachable
+    provisioning._check_whatsapp_phone_number_reachable = lambda phone_number_id, credentials_reference: (True, "ok")
+    try:
+        r = c.post(f"/admin/business/{bid}/connect-whatsapp",
+                   data={"whatsapp_phone_number_id": "111", "trusted_owner_phone": "+62811"}, follow_redirects=True)
+    finally:
+        provisioning._check_whatsapp_phone_number_reachable = original_check
     assert repo.get_business(bid)["whatsapp_connected"] == 1
+    assert repo.get_whatsapp_config(bid)["connection_status"] == "CONNECTED"
+
+    r = c.post(f"/admin/business/{bid}/activate", follow_redirects=True)
+    assert repo.get_business(bid)["status"] == "APPROVED", "must not activate without a VERIFIED AI Admin payment"
+
+    admin_user = repo.get_user_by_email("admin@kilasworks.id")
+    _give_verified_ai_admin_payment(bid, admin_user["id"])
 
     r = c.post(f"/admin/business/{bid}/activate", follow_redirects=True)
     assert repo.get_business(bid)["status"] == "ACTIVE"
