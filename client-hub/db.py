@@ -44,6 +44,25 @@ _MIGRATIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "migr
 
 _local = threading.local()
 
+# Render cold-start hotfix (bounded timeouts): a Render Free Postgres instance can take several
+# seconds to wake from idle, and without any bound a stalled/half-open TCP handshake or a slow
+# query could hang the whole gunicorn boot indefinitely. These are all overridable via env var but
+# ship with production-sane defaults so a normal deploy doesn't need to set anything.
+#   - DB_CONNECT_TIMEOUT_SECONDS: how long to wait for the initial TCP+auth handshake.
+#   - DB_STATEMENT_TIMEOUT_MS: server-side cap on any single statement (belt-and-suspenders; the
+#     app itself should never run a slow query, but this stops one from hanging a worker forever).
+#   - DB_LOCK_TIMEOUT_MS: how long to wait to acquire a row/table lock before giving up, rather
+#     than queuing behind another session indefinitely.
+#   - DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: safety net that force-closes a connection Postgres
+#     considers "idle in transaction" past this long — see the idle-in-transaction fix in
+#     query_one()/query_all() below; this is a backstop in case any future code path forgets to
+#     commit after a read.
+# None of these apply to SQLite, which has no server-side timeout concept and is single-process.
+DB_CONNECT_TIMEOUT_SECONDS = int(os.environ.get("DB_CONNECT_TIMEOUT_SECONDS", "10"))
+DB_STATEMENT_TIMEOUT_MS = int(os.environ.get("DB_STATEMENT_TIMEOUT_MS", "15000"))
+DB_LOCK_TIMEOUT_MS = int(os.environ.get("DB_LOCK_TIMEOUT_MS", "5000"))
+DB_IDLE_IN_TRANSACTION_TIMEOUT_MS = int(os.environ.get("DB_IDLE_IN_TRANSACTION_TIMEOUT_MS", "30000"))
+
 if BACKEND == "postgres":
     try:
         import psycopg2
@@ -64,7 +83,6 @@ def _adapt_placeholders(query):
     needs psycopg2's ``%s`` placeholders. A number of service-layer UPDATE statements also use
     SQLite's ``datetime('now')`` expression. PostgreSQL does not implement that function, so on
     the Postgres path we normalize it to the portable SQL ``CURRENT_TIMESTAMP`` expression.
-
     Keeping this compatibility conversion in one place avoids backend-specific SQL leaking into
     every repository/service module and fixes both legacy and new 0013 update paths consistently.
     Values still travel only through bound parameters; this function never interpolates values.
@@ -74,6 +92,20 @@ def _adapt_placeholders(query):
     query = query.replace("?", "%s")
     query = re.sub(r"datetime\s*\(\s*['\"]now['\"]\s*\)", "CURRENT_TIMESTAMP", query, flags=re.IGNORECASE)
     return query
+
+
+def _postgres_connect_kwargs():
+    """Pure — builds the kwargs psycopg2.connect() is called with. Deliberately has no dependency
+    on psycopg2 itself being importable, so it can be unit-tested even in an environment (like this
+    sandbox) where psycopg2 is not installed."""
+    return {
+        "connect_timeout": DB_CONNECT_TIMEOUT_SECONDS,
+        "options": (
+            f"-c statement_timeout={DB_STATEMENT_TIMEOUT_MS} "
+            f"-c lock_timeout={DB_LOCK_TIMEOUT_MS} "
+            f"-c idle_in_transaction_session_timeout={DB_IDLE_IN_TRANSACTION_TIMEOUT_MS}"
+        ),
+    }
 
 
 def get_connection():
@@ -95,13 +127,21 @@ def get_connection():
         conn.execute("PRAGMA foreign_keys = ON")
     else:
         try:
-            conn = psycopg2.connect(DATABASE_URL)
+            # Render cold-start hotfix: bound the connect handshake and set server-side statement/
+            # lock/idle-in-transaction timeouts via psycopg2's `options` (equivalent to running
+            # `SET statement_timeout = ...` etc. right after connecting, but applied atomically as
+            # part of session startup rather than as a separate round-trip). Kwargs are built by a
+            # pure helper (no psycopg2 import needed) specifically so this can be unit-tested in an
+            # environment where psycopg2 isn't installed — see tests/test_render_coldstart_hotfix.py.
+            conn = psycopg2.connect(DATABASE_URL, **_postgres_connect_kwargs())
         except Exception as e:  # pragma: no cover - exercised only against a real Postgres server
             raise RuntimeError(
                 "Database connection: FAILED. Could not connect to the configured PostgreSQL "
-                "database. (Details intentionally omitted from this message — the underlying "
-                "driver error can include host/user/dbname — check DATABASE_URL, network access, "
-                "and that the Postgres instance is reachable and accepting connections.)"
+                "database within "
+                f"{DB_CONNECT_TIMEOUT_SECONDS}s. (Details intentionally omitted from this message "
+                "— the underlying driver error can include host/user/dbname — check DATABASE_URL, "
+                "network access, and that the Postgres instance is reachable and accepting "
+                "connections. If the instance was asleep/cold, retrying once often succeeds.)"
             ) from e
 
     _local.conn = conn
@@ -162,6 +202,35 @@ MIGRATIONS = [
     ("0013_tenant_appointments_payment_reviews_sqlite.sql",
      "0013_tenant_appointments_payment_reviews_postgres.sql"),
 ]
+
+
+def should_run_migrations_on_boot(backend=None, env_value=None):
+    """Render cold-start hotfix: decide whether this boot should run init_schema() at all.
+
+    Pure decision function (no I/O) so it can be unit-tested without a live DB connection —
+    app.py's create_app() calls this with no arguments; tests pass backend/env_value explicitly.
+
+    RUN_MIGRATIONS_ON_BOOT env var, if set, always wins (accepts "1"/"true"/"yes"/"on", case
+    insensitive, for true; anything else is false). If unset, the safe default is:
+      - SQLite  -> True.  Local dev and every test in this repo boots against a fresh/temp SQLite
+        file with no schema yet, so migrations MUST run for the app to work at all — and since
+        SQLite migrations are just local file writes, there is no cold-start cost to worry about.
+      - Postgres -> False. This is the actual production hotfix: init_schema() re-executes all 13+
+        migration files' worth of SQL against the network database on every single gunicorn boot,
+        which is unnecessary once a database is already migrated (confirmed here: commit 456501b
+        already ran migrations 0001-0013 successfully against production Postgres) and was a
+        plausible contributor to Render Free-tier cold starts stalling before reaching "Gunicorn
+        listening". A deploy that introduces a NEW migration should set RUN_MIGRATIONS_ON_BOOT=true
+        for that one deploy (or run `python3 scripts/run_migrations.py` as a one-off Render job/
+        shell command against the same DATABASE_URL) rather than leaving it on permanently.
+    """
+    if backend is None:
+        backend = BACKEND
+    if env_value is None:
+        env_value = os.environ.get("RUN_MIGRATIONS_ON_BOOT")
+    if env_value is not None:
+        return env_value.strip().lower() in ("1", "true", "yes", "on")
+    return backend != "postgres"
 
 
 def init_schema():
@@ -254,12 +323,24 @@ def _row_to_dict(row, columns=None):
 
 
 def query_one(query, params=()):
+    """Render cold-start hotfix (idle-in-transaction audit): psycopg2 connections here run with
+    autocommit OFF, so a plain SELECT still opens a transaction that Postgres considers "idle in
+    transaction" the moment the query returns — write paths (execute()/insert_returning_id()) were
+    already closing theirs with an explicit commit(), but reads were not, so a request that only
+    ever reads could leave its connection idle-in-transaction for the rest of that worker's life.
+    On a connection-limited instance (e.g. Render's free Postgres tier) enough of those pile up and
+    new connections start failing/hanging — a plausible contributor to the cold-start hang this was
+    written to fix. Reads are never mutating, so committing (a no-op on the data, just ends the
+    transaction) is always safe here; it mirrors what the write path already does and does not
+    change any query's result. Harmless on SQLite too, so applied unconditionally rather than
+    branching on BACKEND again."""
     query = _adapt_placeholders(query)
     conn = get_connection()
     try:
         if BACKEND == "sqlite":
             cur = conn.execute(query, params)
             row = cur.fetchone()
+            conn.commit()
             return dict(row) if row is not None else None
 
         cur = conn.cursor()
@@ -267,6 +348,7 @@ def query_one(query, params=()):
         row = cur.fetchone()
         columns = [d[0] for d in cur.description] if cur.description else []
         cur.close()
+        conn.commit()
         return _row_to_dict(row, columns)
     except Exception:
         _rollback_quietly(conn)
@@ -274,18 +356,22 @@ def query_one(query, params=()):
 
 
 def query_all(query, params=()):
+    """See the idle-in-transaction note on query_one() above — same fix applies here."""
     query = _adapt_placeholders(query)
     conn = get_connection()
     try:
         if BACKEND == "sqlite":
             cur = conn.execute(query, params)
-            return [dict(row) for row in cur.fetchall()]
+            rows = [dict(row) for row in cur.fetchall()]
+            conn.commit()
+            return rows
 
         cur = conn.cursor()
         cur.execute(query, params)
         rows = cur.fetchall()
         columns = [d[0] for d in cur.description] if cur.description else []
         cur.close()
+        conn.commit()
         return [_row_to_dict(row, columns) for row in rows]
     except Exception:
         _rollback_quietly(conn)

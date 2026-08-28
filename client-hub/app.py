@@ -70,16 +70,46 @@ def create_app():
         try:
             db.get_connection()
             print("Database connection: OK")
+            if db.BACKEND == "postgres":
+                print(
+                    f"Database timeouts: connect={db.DB_CONNECT_TIMEOUT_SECONDS}s "
+                    f"statement={db.DB_STATEMENT_TIMEOUT_MS}ms lock={db.DB_LOCK_TIMEOUT_MS}ms "
+                    f"idle_in_transaction={db.DB_IDLE_IN_TRANSACTION_TIMEOUT_MS}ms"
+                )
         except Exception as e:
             # str(e) here is already sanitized by db.get_connection()'s own RuntimeError wrapping
             # for the Postgres path — see db.py. Re-raise so the app fails to boot rather than
             # silently serving with no working database.
             print(f"Database connection: FAILED ({e})")
             raise
-        db.init_schema()
-        print("Schema initialization: OK")
+
+        # Render cold-start hotfix: init_schema() re-runs every migration file's SQL against the
+        # database on every boot, which is safe (idempotent) but not free — against a real network
+        # Postgres instance that adds up, and was a plausible contributor to Render Free-tier cold
+        # starts repeatedly stalling around "Running 'gunicorn app:app'" without ever reaching
+        # "listening". This normal boot should connect and start Gunicorn quickly against an
+        # already-migrated schema; migrations only need to actually run once per new migration
+        # file, not on every process start. See db.should_run_migrations_on_boot() for the exact
+        # default (SQLite: always; Postgres: only if RUN_MIGRATIONS_ON_BOOT is explicitly truthy)
+        # and scripts/run_migrations.py for how to run them out-of-band when a new one is added.
+        if db.should_run_migrations_on_boot():
+            db.init_schema()
+            print("Schema initialization: OK (migrations executed)")
+        else:
+            print(
+                "Schema initialization: SKIPPED (RUN_MIGRATIONS_ON_BOOT not enabled for the "
+                f"{('PostgreSQL' if db.BACKEND == 'postgres' else 'SQLite')} backend — using the "
+                "already-migrated schema; set RUN_MIGRATIONS_ON_BOOT=true for one deploy after "
+                "adding a new migration file)"
+            )
+
+        print("Catalog seed: starting")
         catalog_service.seed_catalog_if_needed()
+        print("Catalog seed: OK")
+
+        print("Talent seed: starting")
         talent_service.seed_talents_if_needed()
+        print("Talent seed: OK")
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
