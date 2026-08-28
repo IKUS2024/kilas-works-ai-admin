@@ -87,6 +87,61 @@ def clear_login_attempts(email):
     _LOGIN_ATTEMPTS.pop(_rate_limit_key(email), None)
 
 
+# ---------------------------------------------------------------------------
+# Forgot / reset password (Business Hub V2, Phase A).
+#
+# Design:
+#   - The raw token is a cryptographically random URL-safe string (secrets.token_urlsafe), given
+#     to the user exactly once (in the reset link). It is NEVER stored anywhere.
+#   - What's stored in password_reset_tokens.token_hash is SHA-256(raw_token) — a one-way hash, so
+#     a DB leak alone can never be used to reset anyone's password (same principle as password
+#     hashing itself, applied to the token).
+#   - Expiry: RESET_TOKEN_TTL_SECONDS (30 minutes) from creation, checked in SQL comparison AND
+#     re-checked in Python after fetch (belt and suspenders — see repo.get_valid_reset_token).
+#   - Single-use: used_at is set the moment a token is successfully consumed; every lookup filters
+#     on used_at IS NULL, so a second attempt with the same raw token always fails, even if it's
+#     still within its expiry window.
+#   - Rate limiting reuses the exact same in-memory (ip+email) window pattern as login, just a
+#     separate counter/window, so a script can't hammer /forgot-password to enumerate emails or
+#     spam reset links.
+# ---------------------------------------------------------------------------
+import hashlib
+
+RESET_TOKEN_TTL_SECONDS = 30 * 60  # 30 minutes
+RESET_REQUEST_MAX_ATTEMPTS = 5
+RESET_REQUEST_WINDOW_SECONDS = 3600  # 1 hour
+
+_RESET_REQUEST_ATTEMPTS = {}  # key -> [timestamps]
+
+
+def generate_reset_token():
+    """Returns (raw_token, token_hash). raw_token goes in the URL (once); token_hash goes in the
+    DB. Never store raw_token anywhere — not in a variable that outlives this request, not logged."""
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    return raw_token, token_hash
+
+
+def hash_reset_token(raw_token):
+    """Used to look up a presented token: hash it the same way and compare hashes in SQL — the
+    raw token from the URL is never used directly in a query, so it never appears in a query log
+    verbatim either."""
+    return hashlib.sha256((raw_token or "").encode("utf-8")).hexdigest()
+
+
+def is_reset_request_rate_limited(email):
+    key = f"reset:{_rate_limit_key(email)}"
+    now = time.time()
+    attempts = [t for t in _RESET_REQUEST_ATTEMPTS.get(key, []) if now - t < RESET_REQUEST_WINDOW_SECONDS]
+    _RESET_REQUEST_ATTEMPTS[key] = attempts
+    return len(attempts) >= RESET_REQUEST_MAX_ATTEMPTS
+
+
+def record_reset_request(email):
+    key = f"reset:{_rate_limit_key(email)}"
+    _RESET_REQUEST_ATTEMPTS.setdefault(key, []).append(time.time())
+
+
 def hash_password(plain_password):
     from werkzeug.security import generate_password_hash
     return generate_password_hash(plain_password)

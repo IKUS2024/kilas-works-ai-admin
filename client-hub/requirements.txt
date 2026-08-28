@@ -5,6 +5,7 @@ requests
 pypdf
 Pillow
 gunicorn
+reportlab
 
 # REQUIRED because this service's Render deployment now has DATABASE_URL set (PostgreSQL —
 # db kilas-works-db). Not needed for local development/tests, which default to SQLite with zero

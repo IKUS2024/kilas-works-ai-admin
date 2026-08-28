@@ -20,7 +20,7 @@ in the Client Hub UI. Changing Kilas Works' actual commercial pricing must still
 production bot's PRICING_CONFIG; nothing in this file is a pricing source of truth.
 """
 
-PACKAGES = ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
+PACKAGES = ("AI_ADMIN_BASIC", "AI_ADMIN_PRO", "NONE")
 
 # Every feature flag that exists in the tenant_features table. Keep this list and the table's
 # columns in sync — feature_flags.py, repo.py, and the migration file are the only three places
@@ -60,6 +60,26 @@ FEATURE_MATRIX = {
         "lead_qualification": True,
         "appointment": True,
         "payment_conversation": True,
+    },
+    # Ecosystem Sync (Section 2 / priority gap): a business that has NOT purchased AI Admin yet.
+    # Registration must never force an AI Admin selection — a customer can create a business,
+    # land on the dashboard, and buy any OTHER Kilas Works service (Content/Photo/Video/Website/
+    # Ads/Event/Talent) without ever touching AI Admin. This sentinel package carries every
+    # feature flag False (there is no AI behavior to gate) and is never billed. A business on this
+    # package can later "upgrade" (see repo.upgrade_business_package) to a real AI Admin package,
+    # at which point it goes through the normal onboarding wizard for the first time.
+    "NONE": {
+        "faq": False,
+        "business_info": False,
+        "catalog": False,
+        "basic_lead_capture": False,
+        "owner_commands": False,
+        "advanced_history": False,
+        "image_understanding": False,
+        "voice_note": False,
+        "lead_qualification": False,
+        "appointment": False,
+        "payment_conversation": False,
     },
 }
 

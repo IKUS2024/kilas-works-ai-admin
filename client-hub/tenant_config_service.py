@@ -26,6 +26,50 @@ import db
 import repo
 
 
+# ---------------------------------------------------------------------------
+# Business Hub V2, Phase G/H additions — same contract philosophy as Phase 5 above: pure read
+# functions, tenant-scoped, NOT yet called from ../app.py (see BOT_INTEGRATION_GUIDE.md's Patch
+# 4/5/6 for the deliberately-unapplied wiring). Added here so the eventual integration patch has
+# every function it needs already written and tested.
+# ---------------------------------------------------------------------------
+
+def get_conversation_mode(tenant_id, customer_phone):
+    """Phase H contract: AI_ACTIVE or HUMAN_TAKEOVER for this one tenant+customer pair. The bot
+    would check this before auto-replying — see wa_takeover_service.py for the write side."""
+    import wa_takeover_service
+    return wa_takeover_service.get_state(tenant_id, customer_phone)
+
+
+def get_active_service_catalog():
+    """Phase F contract: the SAME catalog rows shown in the app, for the bot to quote fixed prices
+    from — never a second, independently-maintained price list. Not tenant-scoped (the catalog is
+    Kilas Works' own service list, not a per-client thing)."""
+    import catalog_service
+    return catalog_service.list_active_catalog()
+
+
+def get_open_projects_summary(tenant_id):
+    """Phase F/17 contract: lets an owner-command handler answer 'Project Rina gimana?' /
+    'Payment project ABC udah masuk belum?' by giving it a tenant-scoped list of open (non-
+    terminal) projects with their status, budget, and latest quotation — WITHOUT the bot needing
+    to know anything about the projects/quotations/payments schema directly."""
+    import projects_repo
+    import quotation_service
+    projects = projects_repo.list_projects_for_business(tenant_id)
+    summaries = []
+    for p in projects:
+        if p["status"] in ("COMPLETED", "CANCELLED"):
+            continue
+        latest_quote = quotation_service.get_latest_quotation_for_project(p["id"])
+        summaries.append({
+            "project_id": p["id"], "title": p["title"], "project_type": p["project_type"],
+            "status": p["status"], "budget_min": p["budget_min"], "budget_max": p["budget_max"],
+            "final_price": p["final_price"],
+            "latest_quotation_status": latest_quote["status"] if latest_quote else None,
+        })
+    return summaries
+
+
 def resolve_tenant_id_by_whatsapp_phone_number_id(whatsapp_phone_number_id):
     """The ONLY tenant-resolution entrypoint this module exposes. Returns business_id or None.
     Only ACTIVE tenants resolve — an approved-but-not-yet-activated or suspended tenant must not
@@ -108,6 +152,79 @@ def get_tenant_config(tenant_id):
     if not row:
         return None
     return row.get("config")
+
+
+def get_tenant_whatsapp_channel(tenant_id):
+    """Multi-tenant runtime safety cycle (Task 1/2) — THIS tenant's OWN WhatsApp channel
+    identifiers, so the production bot can send an outgoing reply from the business's own number
+    instead of always using Kilas Works' own global WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN.
+    Returns None unless the tenant is ACTIVE and a phone_number_id + credentials_reference have
+    actually been recorded (repo.upsert_whatsapp_config, written by the admin "Connect WhatsApp"
+    flow) — an incomplete/never-connected channel is NOT this function's job to paper over; the
+    caller (app.py's _get_tenant_whatsapp_channel_safe) treats None as "not configured yet" and
+    must never fall back to Kilas Works' own identity.
+
+    `credentials_reference` is a POINTER to where the real access token lives (an environment
+    variable name, e.g. "WHATSAPP_TOKEN__TENANT_7" — see migrations/0002's own docstring) — NEVER
+    the secret itself, so this function never returns anything that needs to be treated as a
+    secret on its own. The actual token is resolved server-side, by the bot process, from its own
+    environment — this module has no business reading that value out of the DB because it was
+    never written there."""
+    business = repo.get_business(tenant_id)
+    if not business or business["status"] != "ACTIVE":
+        return None
+    config = repo.get_whatsapp_config(tenant_id)
+    if not config:
+        return None
+    phone_number_id = config.get("phone_number_id")
+    if not phone_number_id:
+        return None
+    # Task 8 — credentials_reference is now OPTIONAL: absent/empty means this tenant shares Kilas
+    # Works' own default server-side access value (see app.py's _get_tenant_whatsapp_channel_safe
+    # docstring for the full design decision and its documented assumption); only phone_number_id
+    # is required to record a working channel.
+    return {"phone_number_id": phone_number_id, "credentials_reference": config.get("credentials_reference") or None}
+
+
+def get_tenant_appointment_settings(tenant_id):
+    """Pro tenant parity cycle (Task 3) — THIS tenant's OWN appointment settings (business hours,
+    the appointment-enabled toggle, and booking notes/rules), for the bot to use instead of Kilas
+    Works' own hardcoded office hours/rules. Returns None unless the tenant is ACTIVE (same rule
+    as every other function here); callers must treat None as 'appointments not available'.
+
+    Deliberately reads business_profiles LIVE (not the versioned tenant_config snapshot that
+    provisioning.provision_tenant() builds, which only a KILAS_ADMIN action re-materializes) so a
+    business owner's own edit via Client Hub's business-settings page (routes_client.py,
+    reachable at any business status, not just pre-activation) takes effect on the very next
+    customer message — no engineering/admin action required, matching Task 5's explicit goal."""
+    business = repo.get_business(tenant_id)
+    if not business or business["status"] != "ACTIVE":
+        return None
+    profile = repo.get_business_profile(tenant_id) or {}
+    features = get_tenant_features(tenant_id)
+    return {
+        "meeting_enabled": bool(features.get("appointment")) and bool(profile.get("appointment_enabled", True)),
+        "business_hours_raw": profile.get("operating_hours"),
+        "closed_days": profile.get("closed_days"),
+        "appointment_rules": profile.get("appointment_rules_raw"),
+    }
+
+
+def get_tenant_payment_config(tenant_id):
+    """Pro tenant parity cycle (Task 4) — THIS tenant's OWN bank/payment details (never Kilas
+    Works' own PAYMENT_CONFIG/BCA account, which belongs solely to ../app.py's platform-billing
+    concern and is not read anywhere in this module). Returns None unless the tenant is ACTIVE.
+    Reads business_profiles LIVE — see get_tenant_appointment_settings' docstring for why."""
+    business = repo.get_business(tenant_id)
+    if not business or business["status"] != "ACTIVE":
+        return None
+    profile = repo.get_business_profile(tenant_id) or {}
+    return {
+        "bank_name": profile.get("payment_bank_name"),
+        "account_number": profile.get("payment_account_number"),
+        "account_name": profile.get("payment_account_name"),
+        "instructions": profile.get("payment_instructions"),
+    }
 
 
 def get_tenant_knowledge(tenant_id):
