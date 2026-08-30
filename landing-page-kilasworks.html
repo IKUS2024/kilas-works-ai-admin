@@ -338,6 +338,18 @@
     .phone{max-width:280px;margin:0 auto;}
     .ai-tier-grid{grid-template-columns:1fr;}
   }
+
+  /* Gap-fix Area I — mobile polish for small phones (nav CTAs, hero type scale, button sizing). */
+  @media (max-width:480px){
+    .nav-row{gap:10px;}
+    .nav-cta{padding:8px 12px;font-size:0.82rem;white-space:nowrap;}
+    .logo{font-size:1.05rem;}
+    h1.headline{font-size:clamp(1.6rem,7vw,2.1rem);line-height:1.25;}
+    .hero-sub{font-size:0.95rem;}
+    .hero-ctas{gap:10px;}
+    .hero-ctas .btn-primary,.hero-ctas .btn-ghost,.demo-ctas .btn-primary{width:100%;justify-content:center;text-align:center;}
+    .eyebrow{font-size:0.75rem;}
+  }
 </style>
 </head>
 <body>
@@ -346,8 +358,8 @@
   <div class="nav-row">
     <div class="logo">Kilas<span>Works</span></div>
     <div style="display:flex;gap:10px;align-items:center;">
-      <a class="nav-cta" href="https://app.kilasworks.id" target="_blank" rel="noopener" style="background:transparent;border:1px solid rgba(255,255,255,.25);">Masuk / Daftar</a>
-      <a class="nav-cta" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">Konsultasi</a>
+      <a class="nav-cta" href="https://app.kilasworks.id" target="_blank" rel="noopener" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.45);color:#fff;">Masuk / Daftar</a>
+      <a class="nav-cta" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">Tanya Kilas Works</a>
     </div>
   </div>
 </header>
@@ -357,7 +369,7 @@
   <div class="hero-inner">
     <span class="eyebrow">Tangerang &amp; Jakarta</span>
     <h1 class="headline">Bantu Bisnis Tumbuh dari <span class="accent">Konten sampai Customer Handling.</span></h1>
-    <p class="hero-sub">Kilas Works membantu bisnis melalui content creation, Meta Ads, website, AI WhatsApp Admin, dan event content.</p>
+    <p class="hero-sub">Kilas Works membantu bisnis melalui content creation, website, AI WhatsApp Admin, dan event content.</p>
     <div class="hero-ctas">
       <a class="btn-primary" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">
         Konsultasikan Kebutuhan
@@ -505,7 +517,7 @@
         </div>
       </div>
 
-      <div class="service-card wide">
+      <div class="service-card">
         <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 17l4-6 4 3 5-8 3 4" stroke="#ff6a2c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 20h16" stroke="#ff6a2c" stroke-width="1.6" stroke-linecap="round"/></svg></div>
         <h3>Meta Ads</h3>
         <p>Pengelolaan Meta Ads (Instagram &amp; Facebook) untuk membantu distribusi konten dan mendapatkan traffic/leads berdasarkan objective bisnis. Budget iklan dikelola terpisah dari fee jasa.</p>
@@ -536,11 +548,10 @@
     <h2>Penasaran cara AI Admin bekerja?</h2>
     <p>Coba sendiri bagaimana AI Admin merespons customer dalam simulasi bisnis.</p>
     <div class="demo-ctas">
-      <a class="btn-primary" href="https://kilas-works-ai-admin.onrender.com/demo" target="_blank" rel="noopener">
+      <a class="btn-primary" href="https://kilasworks.id/demo" target="_blank" rel="noopener">
         Coba Demo AI Admin
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
-      <a class="btn-ghost" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20saya%20tertarik%20mencoba%20live%20demo%20AI%20Admin." target="_blank" rel="noopener">Jadwalkan Live Demo</a>
     </div>
     <p class="demo-microcopy">Demo menggunakan data simulasi, bukan data customer asli.</p>
   </div>

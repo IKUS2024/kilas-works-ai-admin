@@ -33,10 +33,26 @@
       <h2 style="margin:0;">{{ t.name }} <span class="muted">({{ t.social_handle }})</span> {% if not t.is_active %}<span class="pill SUSPENDED">ARSIP</span>{% endif %}</h2>
     </div>
 
-    <form method="post" action="{{ url_for('admin.talent_photo_upload', talent_id=t.id) }}" enctype="multipart/form-data" style="margin-top:10px;">
+    <form method="post" action="{{ url_for('admin.talent_photo_upload', talent_id=t.id) }}" enctype="multipart/form-data" style="margin-top:10px;" class="talent-photo-form" data-talent-id="{{ t.id }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>Upload Foto Baru (JPG/PNG/WEBP, maks 5MB)</label>
-      <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/*" capture="environment">
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+        <img class="talent-photo-preview" id="talent-photo-preview-{{ t.id }}"
+             src="{% if t.profile_image_asset_id %}{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}{% elif t.profile_photo_url %}{{ t.profile_photo_url }}{% endif %}"
+             alt="Preview foto {{ t.name }}"
+             style="width:72px;height:72px;object-fit:cover;border-radius:8px;background:var(--border);{% if not t.profile_image_asset_id and not t.profile_photo_url %}display:none;{% endif %}">
+        <div>
+          <!-- Gap-fix Area G: photo-only Gallery/Photos picker — accept="image/*", NO capture
+               attribute (a forced capture= would force the camera app open on mobile instead of
+               letting the person pick from their existing Gallery/Photos, which is the whole
+               point of this fix). Hidden; triggered by the labeled buttons below so we can show a
+               live Preview and offer Replace/Remove before the form is actually submitted. -->
+          <input type="file" name="photo" accept="image/*" id="talent-photo-input-{{ t.id }}" style="display:none;">
+          <button type="button" class="btn small secondary talent-photo-pick-btn" data-talent-id="{{ t.id }}">Pilih dari Galeri/Foto</button>
+          <button type="button" class="btn small danger talent-photo-remove-btn" data-talent-id="{{ t.id }}" style="display:none;">Batal / Hapus Pilihan</button>
+          <div class="muted talent-photo-filename" id="talent-photo-filename-{{ t.id }}" style="margin-top:4px;"></div>
+        </div>
+      </div>
       <div style="margin-top:6px;"><button class="btn small secondary" type="submit">Upload Foto</button></div>
     </form>
 
@@ -90,4 +106,49 @@
   </table>
   {% if not requests %}<p class="muted">Belum ada talent request.</p>{% endif %}
 </div>
+
+<script>
+// Gap-fix Area G — Preview / Replace / Remove for talent photo uploads, before Save (Upload).
+// Vanilla JS, no build step (matches this app's existing plain-template convention). Scoped per
+// talent row via data-talent-id so multiple talent cards on the same page never interfere with
+// each other's picked file/preview state.
+(function () {
+  document.querySelectorAll('.talent-photo-pick-btn').forEach(function (pickBtn) {
+    var talentId = pickBtn.getAttribute('data-talent-id');
+    var input = document.getElementById('talent-photo-input-' + talentId);
+    var preview = document.getElementById('talent-photo-preview-' + talentId);
+    var filenameEl = document.getElementById('talent-photo-filename-' + talentId);
+    var removeBtn = document.querySelector('.talent-photo-remove-btn[data-talent-id="' + talentId + '"]');
+    var originalSrc = preview ? preview.getAttribute('src') : '';
+    var originalDisplay = preview ? preview.style.display : 'none';
+
+    pickBtn.addEventListener('click', function () {
+      input.click();
+    });
+
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        preview.src = e.target.result;
+        preview.style.display = '';
+      };
+      reader.readAsDataURL(file);
+      filenameEl.textContent = file.name;
+      pickBtn.textContent = 'Ganti Foto';
+      removeBtn.style.display = '';
+    });
+
+    removeBtn.addEventListener('click', function () {
+      input.value = '';
+      filenameEl.textContent = '';
+      preview.src = originalSrc || '';
+      preview.style.display = originalSrc ? originalDisplay : 'none';
+      pickBtn.textContent = 'Pilih dari Galeri/Foto';
+      removeBtn.style.display = 'none';
+    });
+  });
+})();
+</script>
 {% endblock %}

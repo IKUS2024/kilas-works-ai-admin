@@ -45,6 +45,12 @@
       </div>
       {% if b.package != 'NONE' %}<div class="muted">Setup {{ b.completion_percent }}%</div>{% endif %}
     </div>
+    {% if b.subscription_banner and b.subscription_banner.message %}
+      {% set lvl = b.subscription_banner.level %}
+      <p style="margin-top:10px; padding:8px 12px; border-radius:8px; {% if lvl == 'danger' %}background:rgba(220,38,38,0.12);color:var(--red);{% elif lvl == 'warning' %}background:rgba(217,119,6,0.12);color:#b45309;{% else %}background:rgba(37,99,235,0.10);color:#1d4ed8;{% endif %}">
+        {{ b.subscription_banner.message }}
+      </p>
+    {% endif %}
     {% if b.package == 'NONE' %}
       <p class="muted" style="margin-top:10px;">Business ini belum punya AI Admin. Kamu tetap bisa pakai layanan Kilas Works lainnya (Content, Foto, Video, Website, Ads, Event, Talent) dari menu Layanan di atas.</p>
     {% elif b.status == 'ACTIVE' %}

@@ -39,6 +39,7 @@ import db as chdb  # noqa: E402
 import repo as chrepo  # noqa: E402
 import security as chsecurity  # noqa: E402
 import catalog_service  # noqa: E402
+import subscription_service  # noqa: E402 (Fix 4 audit — helper below now backs test tenants with a subscription row)
 import wa_takeover_service  # noqa: E402
 import provisioning  # noqa: E402
 import tenant_config_service as tcs  # noqa: E402
@@ -87,6 +88,18 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
     name = business_name or f"Biz {phone_number_id}"
     user_id = chrepo.create_user(f"owner_{phone_number_id}@test.com", chsecurity.hash_password("password123"))
     business_id = chrepo.create_business(user_id, name, package=package)
+    if package in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
+        # Fix 4 audit — the live bot now requires a currently-operating subscription row to
+        # resolve an AI Admin tenant (see app.py's _tenant_subscription_permits_ai_runtime_safe()).
+        # Backfill one here so this test helper keeps producing a tenant that resolves exactly
+        # like it did before that fix, for every test that doesn't care about subscription state.
+        _sub_admin_id = chrepo.create_user(
+            f"subadmin_{business_id}@kilasworks.id", chsecurity.hash_password("adminpass123"), role="KILAS_ADMIN"
+        )
+        subscription_service.create_subscription(
+            business_id, "ai_admin_basic" if package == "AI_ADMIN_BASIC" else "ai_admin_pro",
+            actor_user_id=_sub_admin_id,
+        )
     chdb.execute(
         "UPDATE businesses SET status = 'ACTIVE', whatsapp_connected = ?, "
         "whatsapp_phone_number_id = ?, trusted_owner_phone = ? WHERE id = ?",
@@ -628,6 +641,203 @@ def test_cross_tenant_data_access_fully_isolated():
     print("test_cross_tenant_data_access_fully_isolated OK")
 
 
+# ---------------------------------------------------------------------------
+# Fix 4 (production-safety patch) — main tenant AI-runtime gating: an ACTIVE business with valid
+# WhatsApp but NO subscription row (or a SUSPENDED/CANCELLED one) must NOT receive paid AI
+# automation via the main webhook reply path — must fail safely with no response at all, exactly
+# like an unknown/inactive tenant. An ACTIVE+valid-ACTIVE-subscription tenant must keep working.
+# ---------------------------------------------------------------------------
+
+def test_active_tenant_with_no_subscription_row_gets_no_reply():
+    reset_client_hub_db()
+    reset_bot_state()
+    # _make_active_tenant() (this file's own helper) normally backfills a subscription for an
+    # AI_ADMIN_* package — bypass that here to reproduce the EXACT gap Fix 4 closes: ACTIVE
+    # business, valid connected WhatsApp channel, but zero subscriptions row.
+    business_id = _make_active_tenant("pnid-nosub-001", "62899100099", credentials_env_value="tenant-token")
+    chdb.execute("DELETE FROM subscriptions WHERE business_id = ?", (business_id,))
+    assert subscription_service.get_subscription(business_id) is None
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude") as mock_claude, \
+         patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = "{}"
+        mock_post.return_value.json.return_value = {}
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900099", "halo, ada promo?", phone_number_id="pnid-nosub-001")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body.get("unknown_phone_number_id") is True, \
+        "an ACTIVE business missing its subscription row must be treated as UNKNOWN, not served"
+    mock_claude.assert_not_called()
+    mock_post.assert_not_called()
+    print("test_active_tenant_with_no_subscription_row_gets_no_reply OK")
+
+
+def test_active_tenant_with_suspended_subscription_gets_no_reply():
+    reset_client_hub_db()
+    reset_bot_state()
+    business_id = _make_active_tenant("pnid-nosub-002", "62899100098", credentials_env_value="tenant-token")
+    chdb.execute("UPDATE subscriptions SET status = 'SUSPENDED' WHERE business_id = ?", (business_id,))
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude") as mock_claude, \
+         patch("requests.post") as mock_post:
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900098", "halo", phone_number_id="pnid-nosub-002")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert resp.get_json().get("unknown_phone_number_id") is True
+    mock_claude.assert_not_called()
+    mock_post.assert_not_called()
+    print("test_active_tenant_with_suspended_subscription_gets_no_reply OK")
+
+
+def test_active_tenant_with_cancelled_subscription_gets_no_reply():
+    reset_client_hub_db()
+    reset_bot_state()
+    business_id = _make_active_tenant("pnid-nosub-003", "62899100097", credentials_env_value="tenant-token")
+    chdb.execute("UPDATE subscriptions SET status = 'CANCELLED' WHERE business_id = ?", (business_id,))
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude") as mock_claude, \
+         patch("requests.post") as mock_post:
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900097", "halo", phone_number_id="pnid-nosub-003")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert resp.get_json().get("unknown_phone_number_id") is True
+    mock_claude.assert_not_called()
+    mock_post.assert_not_called()
+    print("test_active_tenant_with_cancelled_subscription_gets_no_reply OK")
+
+
+def test_active_tenant_with_grace_subscription_still_replies_normally():
+    """GRACE is a currently-operating state — the tenant must keep working through the whole
+    grace window (see subscription_service.py's module docstring)."""
+    reset_client_hub_db()
+    reset_bot_state()
+    business_id = _make_active_tenant("pnid-grace-001", "62899100096", credentials_env_value="tenant-token")
+    chdb.execute("UPDATE subscriptions SET status = 'GRACE' WHERE business_id = ?", (business_id,))
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude", return_value="Halo Kak!"), \
+         patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = "{}"
+        mock_post.return_value.json.return_value = {}
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900096", "halo", phone_number_id="pnid-grace-001")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert mock_post.called, "a GRACE-status subscription must still be served normally"
+    print("test_active_tenant_with_grace_subscription_still_replies_normally OK")
+
+
+def test_active_tenant_with_active_subscription_replies_normally():
+    """Regression guard: the normal/common case (ACTIVE business + ACTIVE subscription) must
+    keep working exactly as before Fix 4."""
+    reset_client_hub_db()
+    reset_bot_state()
+    business_id = _make_active_tenant("pnid-active-001", "62899100095", credentials_env_value="tenant-token")
+    assert subscription_service.get_subscription(business_id)["status"] == "ACTIVE"
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude", return_value="Halo Kak!"), \
+         patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = "{}"
+        mock_post.return_value.json.return_value = {}
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900095", "halo", phone_number_id="pnid-active-001")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert mock_post.called
+    print("test_active_tenant_with_active_subscription_replies_normally OK")
+
+
+def test_creative_only_business_package_none_unaffected_by_subscription_gate():
+    """A package='NONE' (creative-services-only) business has no subscription concept — the new
+    gate must not block it (it never had a subscription row and never will)."""
+    reset_client_hub_db()
+    reset_bot_state()
+    business_id = _make_active_tenant("pnid-none-001", "62899100094", package="NONE",
+                                       credentials_env_value="tenant-token")
+    assert subscription_service.get_subscription(business_id) is None
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude", return_value="Halo Kak!"), \
+         patch("requests.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = "{}"
+        mock_post.return_value.json.return_value = {}
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900094", "halo", phone_number_id="pnid-none-001")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert mock_post.called, "a non-AI-Admin (package=NONE) business must not be blocked by the subscription gate"
+    print("test_creative_only_business_package_none_unaffected_by_subscription_gate OK")
+
+
+def test_unknown_phone_number_id_still_gets_no_reply_after_fix4():
+    """Regression guard: Fix 4 must not weaken the pre-existing unknown-tenant behavior."""
+    reset_client_hub_db()
+    reset_bot_state()
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude") as mock_claude, \
+         patch("requests.post") as mock_post:
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900093", "halo", phone_number_id="pnid-totally-unknown")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert resp.get_json().get("unknown_phone_number_id") is True
+    mock_claude.assert_not_called()
+    mock_post.assert_not_called()
+    print("test_unknown_phone_number_id_still_gets_no_reply_after_fix4 OK")
+
+
+def test_inactive_tenant_still_gets_no_reply_after_fix4():
+    """Regression guard: an APPROVED-but-not-yet-ACTIVE tenant must still be treated as unknown,
+    same as before Fix 4."""
+    reset_client_hub_db()
+    reset_bot_state()
+    user_id = chrepo.create_user("owner_inactive@test.com", chsecurity.hash_password("password123"))
+    business_id = chrepo.create_business(user_id, "Not Active Yet", package="AI_ADMIN_PRO")
+    chdb.execute("UPDATE businesses SET whatsapp_phone_number_id = ? WHERE id = ?",
+                 ("pnid-inactive-001", business_id))
+    # status stays at its default (not ACTIVE) — never touched.
+
+    with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
+         patch.object(appmod, "call_claude") as mock_claude, \
+         patch("requests.post") as mock_post:
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload("628999900092", "halo", phone_number_id="pnid-inactive-001")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    assert resp.get_json().get("unknown_phone_number_id") is True
+    mock_claude.assert_not_called()
+    mock_post.assert_not_called()
+    print("test_inactive_tenant_still_gets_no_reply_after_fix4 OK")
+
+
 if __name__ == "__main__":
     test_is_kilas_platform_tenant_distinguishes_kilas_from_client()
     test_tenant_with_configured_channel_sends_via_its_own_phone_number_and_token()
@@ -649,4 +859,12 @@ if __name__ == "__main__":
     test_whatsapp_validation_succeeds_and_marks_connected_when_meta_check_passes()
     test_whatsapp_validation_never_logs_or_returns_the_real_access_token_value()
     test_cross_tenant_data_access_fully_isolated()
+    test_active_tenant_with_no_subscription_row_gets_no_reply()
+    test_active_tenant_with_suspended_subscription_gets_no_reply()
+    test_active_tenant_with_cancelled_subscription_gets_no_reply()
+    test_active_tenant_with_grace_subscription_still_replies_normally()
+    test_active_tenant_with_active_subscription_replies_normally()
+    test_creative_only_business_package_none_unaffected_by_subscription_gate()
+    test_unknown_phone_number_id_still_gets_no_reply_after_fix4()
+    test_inactive_tenant_still_gets_no_reply_after_fix4()
     print("\nALL MULTI-TENANT RUNTIME SAFETY TESTS PASSED")

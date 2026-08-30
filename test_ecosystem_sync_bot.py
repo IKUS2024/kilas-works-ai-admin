@@ -358,6 +358,51 @@ def test_render_security_warning_never_crashes_and_never_logs_secret_value():
     print("test_render_security_warning_never_crashes_and_never_logs_secret_value OK")
 
 
+def test_live_catalog_deactivated_item_never_recommended():
+    """Gap-fix Area H: an item an admin turns OFF in Client Hub (is_active=False) must make the
+    bot stop recommending/quoting it — the original Section 20 sync only ever watched PRICE, so a
+    deactivated item silently kept being offered forever before this fix."""
+    _reset_client_hub_db()
+    import db as _db
+    _db.execute("UPDATE service_catalog SET is_active = ? WHERE catalog_key = 'content_growth'", (False,))
+    with patch.object(appmod, "_catalog_service", __import__("catalog_service")):
+        note = appmod._build_live_price_sync_note_safe()
+        assert "Content Growth" in note
+        assert "TIDAK DITAWARKAN LAGI" in note
+        # An untouched item must not appear.
+        assert "Content Basic" not in note
+    print("test_live_catalog_deactivated_item_never_recommended OK")
+
+
+def test_live_catalog_renamed_item_reflected():
+    """Gap-fix Area H: an item an admin RENAMES in Client Hub must be reflected — the bot should
+    use the new name, not keep the old hardcoded PRICING_CONFIG label forever."""
+    _reset_client_hub_db()
+    import db as _db
+    _db.execute("UPDATE service_catalog SET name = ? WHERE catalog_key = 'website_landing_page'",
+                ("Paket Landing Page Premium",))
+    with patch.object(appmod, "_catalog_service", __import__("catalog_service")):
+        note = appmod._build_live_price_sync_note_safe()
+        assert "Paket Landing Page Premium" in note
+        assert "GANTI NAMA" in note
+    print("test_live_catalog_renamed_item_reflected OK")
+
+
+def test_live_catalog_deactivated_item_suppresses_its_own_price_diff():
+    """A deactivated item must be reported ONLY in the 'no longer offered' section, never ALSO
+    listed as a price change (its price is irrelevant once it's off) — avoids a confusing/
+    contradictory prompt note."""
+    _reset_client_hub_db()
+    import db as _db
+    _db.execute("UPDATE service_catalog SET is_active = ?, price_amount = ? WHERE catalog_key = 'content_pro'",
+                (False, 9_999_000))
+    with patch.object(appmod, "_catalog_service", __import__("catalog_service")):
+        note = appmod._build_live_price_sync_note_safe()
+        assert "TIDAK DITAWARKAN LAGI" in note
+        assert "9.999.000" not in note, "an inactive item's price must not be surfaced as a live price update"
+    print("test_live_catalog_deactivated_item_suppresses_its_own_price_diff OK")
+
+
 if __name__ == "__main__":
     test_owner_query_wrappers_never_raise_and_default_empty_without_client_hub()
     test_owner_query_wrappers_reflect_real_db_state()
@@ -367,6 +412,9 @@ if __name__ == "__main__":
     test_live_price_sync_covers_full_catalog_generically_not_just_a_handful()
     test_live_price_sync_never_includes_custom_quote_items()
     test_live_price_sync_does_not_touch_a_historical_orders_locked_in_price()
+    test_live_catalog_deactivated_item_never_recommended()
+    test_live_catalog_renamed_item_reflected()
+    test_live_catalog_deactivated_item_suppresses_its_own_price_diff()
     test_tenant_customer_prompt_never_leaks_kilas_works_own_catalog()
     test_tenant_customer_prompt_isolated_between_different_tenants()
     test_tenant_with_incomplete_config_never_falls_back_to_kilas_catalog()

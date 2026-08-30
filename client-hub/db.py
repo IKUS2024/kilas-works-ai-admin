@@ -201,6 +201,8 @@ MIGRATIONS = [
      "0012_appointment_payment_settings_postgres.sql"),
     ("0013_tenant_appointments_payment_reviews_sqlite.sql",
      "0013_tenant_appointments_payment_reviews_postgres.sql"),
+    ("0014_ai_admin_subscriptions_sqlite.sql", "0014_ai_admin_subscriptions_postgres.sql"),
+    ("0015_tenant_followup_state_sqlite.sql", "0015_tenant_followup_state_postgres.sql"),
 ]
 
 

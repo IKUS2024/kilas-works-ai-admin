@@ -318,6 +318,81 @@ def test_webhook_catalog_send_failure_reported_honestly():
     print("test_webhook_catalog_send_failure_reported_honestly OK")
 
 
+# ---------- Test 11 (gap-fix): "katalog dong"/"minta katalog" (bare request, no send verb) ----------
+def test_parse_owner_catalog_command_bare_request():
+    # Bare request (no explicit send verb) -> masih dianggap ACTION sekarang (gap-fix), bukan None lagi.
+    r1 = appmod.parse_owner_catalog_command("katalog dong")
+    assert r1 is not None, "katalog dong harus dieksekusi (kirim ke owner), bukan diabaikan"
+    r2 = appmod.parse_owner_catalog_command("minta katalog")
+    assert r2 is not None
+    r3 = appmod.parse_owner_catalog_command("boleh minta katalog")
+    assert r3 is not None
+    # Query beneran tetap None (regresi guard) walau ada kata "dong".
+    assert appmod.parse_owner_catalog_command("kasih tau dong katalog kita ada apa aja") is None
+    print("test_parse_owner_catalog_command_bare_request OK")
+
+
+# ---------- Test 12 (gap-fix): "katalog dong" tanpa target -> default kirim ke OWNER, bukan nanya ----------
+def test_webhook_catalog_bare_request_defaults_to_owner():
+    reset_state()
+    sent_texts = []
+    catalog_calls = []
+
+    def fake_send_whatsapp_message(to, text):
+        sent_texts.append((to, text))
+        return True, None
+
+    def fake_send_catalog_pdf(to_number):
+        catalog_calls.append(to_number)
+        return True, None
+
+    client = appmod.app.test_client()
+    payload = {
+        "entry": [{"changes": [{"value": {"messages": [{
+            "id": "wamid.cat8", "from": appmod.OWNER_WHATSAPP_NUMBER, "type": "text",
+            "text": {"body": "katalog dong"},
+        }]}}]}]
+    }
+    with patch.object(appmod, "send_whatsapp_message", side_effect=fake_send_whatsapp_message), \
+         patch.object(appmod, "send_catalog_pdf", side_effect=fake_send_catalog_pdf):
+        resp = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
+
+    assert resp.status_code == 200
+    # Katalog harus terkirim ke OWNER sendiri (bukan nanya "buat siapa"), dan TIDAK ADA pertanyaan
+    # klarifikasi "mau dikirim ke siapa" yang dikirim balik.
+    assert catalog_calls == [appmod.OWNER_WHATSAPP_NUMBER], catalog_calls
+    assert not any("dikirim ke siapa" in t.lower() for _, t in sent_texts), sent_texts
+    print("test_webhook_catalog_bare_request_defaults_to_owner OK")
+
+
+# ---------- Test 13 (gap-fix): "minta katalog" juga default ke owner ----------
+def test_webhook_catalog_minta_katalog_defaults_to_owner():
+    reset_state()
+    catalog_calls = []
+
+    def fake_send_whatsapp_message(to, text):
+        return True, None
+
+    def fake_send_catalog_pdf(to_number):
+        catalog_calls.append(to_number)
+        return True, None
+
+    client = appmod.app.test_client()
+    payload = {
+        "entry": [{"changes": [{"value": {"messages": [{
+            "id": "wamid.cat9", "from": appmod.OWNER_WHATSAPP_NUMBER, "type": "text",
+            "text": {"body": "minta katalog dong"},
+        }]}}]}]
+    }
+    with patch.object(appmod, "send_whatsapp_message", side_effect=fake_send_whatsapp_message), \
+         patch.object(appmod, "send_catalog_pdf", side_effect=fake_send_catalog_pdf):
+        resp = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
+
+    assert resp.status_code == 200
+    assert catalog_calls == [appmod.OWNER_WHATSAPP_NUMBER], catalog_calls
+    print("test_webhook_catalog_minta_katalog_defaults_to_owner OK")
+
+
 if __name__ == "__main__":
     test_find_catalog_pdf_path()
     test_owner_prompt_has_pricing_knowledge()
@@ -329,4 +404,7 @@ if __name__ == "__main__":
     test_webhook_catalog_ambiguous_asks()
     test_webhook_catalog_uses_active_context()
     test_webhook_catalog_send_failure_reported_honestly()
+    test_parse_owner_catalog_command_bare_request()
+    test_webhook_catalog_bare_request_defaults_to_owner()
+    test_webhook_catalog_minta_katalog_defaults_to_owner()
     print("ALL CATALOG TESTS PASSED")

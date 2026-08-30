@@ -28,6 +28,7 @@ import payment_service
 import talent_service
 import platform_assets_service
 import wa_takeover_service
+import subscription_service
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -136,6 +137,7 @@ def review_business(business_id):
     tenant_config_row = repo.get_tenant_config_row(business_id)
     business["display_status"] = get_display_status(business)
     takeover_conversations = wa_takeover_service.list_takeover_conversations_for_business(business_id)
+    subscription = subscription_service.get_subscription(business_id)
     return render_template(
         "review.html",
         business=business,
@@ -151,8 +153,46 @@ def review_business(business_id):
         whatsapp_config=whatsapp_config,
         tenant_config_row=tenant_config_row,
         takeover_conversations=takeover_conversations,
+        subscription=subscription,
         is_admin_view=True,
     )
+
+
+@admin_bp.route("/business/<int:business_id>/subscription/renew", methods=["POST"])
+@security.admin_required
+def renew_subscription(business_id):
+    """Gap-fix Area E — admin marks a renewal payment verified and extends/reactivates the
+    tenant's AI Admin subscription. Never touches creative-service projects, never re-runs
+    onboarding, never re-provisions the tenant — see subscription_service.renew_subscription()'s
+    docstring for the exact (minimal) side effects."""
+    business = repo.get_business(business_id)
+    if not business:
+        abort(404)
+    admin = security.current_user()
+    try:
+        subscription_service.renew_subscription(business_id, admin["id"])
+    except ValueError as e:
+        flash(f"Belum bisa perpanjang: {e}. Subscription record belum ada untuk business ini.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+    flash("Subscription AI Admin diperpanjang. Business aktif kembali (kalau sebelumnya SUSPENDED).", "success")
+    return redirect(url_for("admin.review_business", business_id=business_id))
+
+
+@admin_bp.route("/subscriptions/sweep", methods=["GET", "POST"])
+def subscriptions_sweep():
+    """Cron-secured lifecycle sweep trigger — same shape/secret convention as ../app.py's existing
+    /cron/followups and /cron/owner-notifications endpoints. Intended to be called periodically
+    (e.g. once a day) by an external scheduler (cron-job.org or similar), exactly like those two.
+    Deliberately NOT behind @security.admin_required (a cron job has no logged-in admin session) —
+    protected instead by a shared secret query param, matching the existing /cron/* pattern
+    elsewhere in this codebase."""
+    import os
+    key = request.args.get("key", "")
+    secret = os.environ.get("CLIENT_HUB_CRON_SECRET", "")
+    if not secret or key != secret:
+        return {"status": "error", "message": "Akses ditolak, key salah/kosong."}, 403
+    result = subscription_service.run_lifecycle_sweep()
+    return {"status": "ok", **result}, 200
 
 
 @admin_bp.route("/business/<int:business_id>/ai-setup/retry", methods=["POST"])

@@ -13,6 +13,7 @@ import provisioning
 import projects_repo
 import quotation_service
 import feature_flags
+import subscription_service
 
 client_bp = Blueprint("client", __name__, url_prefix="")
 
@@ -37,6 +38,10 @@ def dashboard():
             **b,
             "completion_percent": repo.onboarding_completion_percent(b["id"]),
             "onboarding_status": repo.get_onboarding_status(b["id"]),
+            # Gap-fix Area E — owner-facing subscription banner (renewal-due/GRACE/SUSPENDED),
+            # this business's OWN AI Admin subscription only. None when there's no subscription
+            # row yet (e.g. this business was never activated with an AI Admin package).
+            "subscription_banner": subscription_service.get_subscription_banner(b["id"]),
         })
         # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
         # across every business they own, so "what's happening with my order" doesn't require
@@ -263,18 +268,19 @@ def download_file(business_id, file_id):
     )
 
 
-@client_bp.route("/business/<int:business_id>/ai-setup/run", methods=["POST"])
-@security.login_required
-def run_ai_setup(business_id):
-    business = _business_or_404(business_id)
-    user = security.current_user()
-    status = repo.get_onboarding_status(business_id)
-    missing_steps = [s for s in REQUIRED_STEPS_FOR_AI_SETUP if not status.get(f"{s}_done")]
-    if missing_steps:
-        flash(f"Lengkapi dulu step: {', '.join(missing_steps)}.", "error")
-        return redirect(url_for("client.review_page", business_id=business_id))
+def _run_ai_normalization(business_id, business, user):
+    """Shared normalization core — Gap-fix Area D. Used by BOTH the manual 'Jalankan (Ulang) AI
+    Setup' button (unchanged, still available for re-runs/admin retries) AND the automatic
+    normalization a normal client Submit now triggers on its own (see submit_for_review() below).
 
-    repo.set_business_status(business_id, "READY_FOR_AI_SETUP", user["id"], "client triggered AI setup")
+    Returns (ok: bool, error: str|None). On failure, the client's RAW onboarding data (profile,
+    services, faqs, uploaded files) is left completely untouched — only ai_settings.ai_status/
+    last_error changes — so a retry (clicking Submit again, or the manual button) is always safe
+    and never re-asks the client to re-enter anything. Never invents/guesses a missing business
+    fact — ai_onboarding.normalize_business_data() itself only reorganizes what the client actually
+    provided (see that module for the "never invent" contract) and features_enabled always comes
+    from repo.get_tenant_features(), never the model's own output."""
+    repo.set_business_status(business_id, "READY_FOR_AI_SETUP", user["id"], "AI normalization triggered")
     repo.set_ai_status(business_id, "RUNNING")
 
     profile = repo.get_business_profile(business_id)
@@ -299,8 +305,7 @@ def run_ai_setup(business_id):
     if error:
         repo.set_ai_status(business_id, "FAILED", error)
         repo.write_audit(user["id"], business_id, "ai_normalization_failed", error)
-        flash("AI setup gagal diproses saat ini. Data kamu AMAN dan tersimpan — coba klik 'Jalankan AI Setup' lagi.", "error")
-        return redirect(url_for("client.review_page", business_id=business_id))
+        return False, error
 
     for svc_row, ai_svc in zip(services, config.get("services", [])):
         repo.update_normalized_service(
@@ -317,7 +322,28 @@ def run_ai_setup(business_id):
     repo.save_ai_normalized_config(business_id, config.get("description"), config, config.get("missing_fields", []))
     repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "AI normalization completed")
     repo.write_audit(user["id"], business_id, "ai_normalization_run", "success")
-    flash("AI setup selesai! Cek hasilnya di bawah sebelum submit ke Kilas Works.", "success")
+    return True, None
+
+
+@client_bp.route("/business/<int:business_id>/ai-setup/run", methods=["POST"])
+@security.login_required
+def run_ai_setup(business_id):
+    """Manual trigger — UNCHANGED from before Gap-fix Area D, still available for a client who
+    wants to re-run normalization by hand (e.g. after editing services/FAQs) without going through
+    Submit again."""
+    business = _business_or_404(business_id)
+    user = security.current_user()
+    status = repo.get_onboarding_status(business_id)
+    missing_steps = [s for s in REQUIRED_STEPS_FOR_AI_SETUP if not status.get(f"{s}_done")]
+    if missing_steps:
+        flash(f"Lengkapi dulu step: {', '.join(missing_steps)}.", "error")
+        return redirect(url_for("client.review_page", business_id=business_id))
+
+    ok, error = _run_ai_normalization(business_id, business, user)
+    if not ok:
+        flash("AI setup gagal diproses saat ini. Data kamu AMAN dan tersimpan — coba klik 'Jalankan AI Setup' lagi.", "error")
+    else:
+        flash("AI setup selesai! Cek hasilnya di bawah sebelum submit ke Kilas Works.", "success")
     return redirect(url_for("client.review_page", business_id=business_id))
 
 
@@ -339,12 +365,31 @@ def review_page(business_id):
 @client_bp.route("/business/<int:business_id>/submit-for-review", methods=["POST"])
 @security.login_required
 def submit_for_review(business_id):
+    """Gap-fix Area D: normal Submit no longer requires a separate manual 'Jalankan AI Setup'
+    click first. Flow is now: validate onboarding completeness -> auto-run normalization (if not
+    already DONE) -> save structured config -> READY_FOR_REVIEW. If normalization fails, the raw
+    onboarding data stays exactly as the client entered it (see _run_ai_normalization()'s
+    docstring) and the client gets a safe retry state — nothing is lost, nothing is invented."""
     business = _business_or_404(business_id)
     user = security.current_user()
+
+    status = repo.get_onboarding_status(business_id)
+    missing_steps = [s for s in REQUIRED_STEPS_FOR_AI_SETUP if not status.get(f"{s}_done")]
+    if missing_steps:
+        flash(f"Lengkapi dulu step: {', '.join(missing_steps)}.", "error")
+        return redirect(url_for("client.review_page", business_id=business_id))
+
     ai_settings = repo.get_ai_settings(business_id)
     if not ai_settings or ai_settings.get("ai_status") != "DONE":
-        flash("Jalankan AI Setup dulu sebelum submit ke Kilas Works.", "error")
-        return redirect(url_for("client.review_page", business_id=business_id))
+        ok, error = _run_ai_normalization(business_id, business, user)
+        if not ok:
+            flash(
+                "AI setup otomatis gagal diproses saat ini. Data kamu AMAN dan tersimpan — coba "
+                "klik Submit lagi dalam beberapa saat.",
+                "error",
+            )
+            return redirect(url_for("client.review_page", business_id=business_id))
+
     missing = repo.required_fields_missing(business_id)
     if missing:
         flash(f"Lengkapi dulu data wajib: {', '.join(missing)}.", "error")

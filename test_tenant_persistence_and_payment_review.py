@@ -45,6 +45,7 @@ import db as chdb  # noqa: E402
 import repo as chrepo  # noqa: E402
 import security as chsecurity  # noqa: E402
 import catalog_service  # noqa: E402
+import subscription_service  # noqa: E402 (Fix 4 audit — helper below now backs test tenants with a subscription row)
 import provisioning  # noqa: E402
 import appointments_repo  # noqa: E402
 import payment_reviews_repo  # noqa: E402
@@ -91,6 +92,18 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
     name = business_name or f"Biz {phone_number_id}"
     user_id = chrepo.create_user(f"owner_{phone_number_id}@test.com", chsecurity.hash_password("password123"))
     business_id = chrepo.create_business(user_id, name, package=package)
+    if package in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
+        # Fix 4 audit — the live bot now requires a currently-operating subscription row to
+        # resolve an AI Admin tenant (see app.py's _tenant_subscription_permits_ai_runtime_safe()).
+        # Backfill one here so this test helper keeps producing a tenant that resolves exactly
+        # like it did before that fix, for every test that doesn't care about subscription state.
+        _sub_admin_id = chrepo.create_user(
+            f"subadmin_{business_id}@kilasworks.id", chsecurity.hash_password("adminpass123"), role="KILAS_ADMIN"
+        )
+        subscription_service.create_subscription(
+            business_id, "ai_admin_basic" if package == "AI_ADMIN_BASIC" else "ai_admin_pro",
+            actor_user_id=_sub_admin_id,
+        )
     chdb.execute(
         "UPDATE businesses SET status = 'ACTIVE', whatsapp_connected = ?, "
         "whatsapp_phone_number_id = ?, trusted_owner_phone = ? WHERE id = ?",

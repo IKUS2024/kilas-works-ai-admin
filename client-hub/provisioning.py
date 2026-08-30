@@ -369,9 +369,13 @@ def activate_tenant(business_id, actor):
     tenant returns {"changed": False} rather than erroring or writing a duplicate audit row.
 
     Requires, in order: business APPROVED, WhatsApp connected (businesses.whatsapp_connected==1 —
-    the existing V1 gate), and a tenant_configs row already provisioned. Raises ProvisioningError
-    naming exactly which precondition failed (never a bare assert) so the admin UI can show a
-    useful message.
+    the existing V1 gate), a tenant_configs row already provisioned, a VERIFIED AI Admin payment,
+    and (Fix 3, production-safety patch) — for an AI Admin package — a successfully created/
+    ensured subscription row. Only after ALL of those succeed does businesses.status flip to
+    ACTIVE. Raises ProvisioningError naming exactly which precondition failed (never a bare
+    assert) so the admin UI can show a useful message; a subscription-setup failure aborts
+    activation the same way any other precondition failure does — see the subscription-creation
+    block below for the full fail-closed rationale.
     """
     _require_admin(actor)
     business = repo.get_business(business_id)
@@ -403,8 +407,56 @@ def activate_tenant(business_id, actor):
             "payment_not_verified: this tenant has no VERIFIED payment for an AI Admin plan yet"
         )
 
+    # Fix 3 (production-safety patch) — the subscription row must be created/ensured
+    # SUCCESSFULLY *before* the business is ever flipped to ACTIVE. This function used to call
+    # repo.activate_business() FIRST and only attempt subscription creation afterward, inside a
+    # swallowed try/except — a subscription-creation failure there would silently leave
+    # businesses.status=ACTIVE with NO subscription row at all: a fully "live" AI Admin tenant
+    # with zero billing-lifecycle enforcement. That gap is closed here: subscription setup now
+    # happens FIRST, and if it fails, the ProvisioningError PROPAGATES (never swallowed) —
+    # activation ABORTS entirely, business.status stays exactly what it was (still APPROVED,
+    # never touched), and nothing else this function doesn't otherwise touch (the verified
+    # payment row, onboarding data, WhatsApp config, AI settings, business profile, any
+    # creative-service projects) is affected in any way, since none of those are written by this
+    # function regardless of where in it an error occurs.
+    #
+    # A business whose package is "NONE" (no AI Admin at all — creative-services-only) has no
+    # subscription concept and is correctly skipped here (plan_key stays None) — activation
+    # proceeds exactly as before for that case.
+    import subscription_service
+    plan_key = subscription_service.plan_key_for_package(business.get("package"))
+    if plan_key:
+        try:
+            subscription_service.create_subscription(business_id, plan_key, actor_user_id=actor["id"])
+        except Exception as e:
+            # Deliberately generic in the raised message (never echoes exception internals that
+            # could contain a DB connection string or similar) — the real error is only ever
+            # Micro-patch: log only safe operational context (business_id + a generic failure
+            # code) — never the raw exception value/message, which could contain a DB connection
+            # string, credential, or other internal detail depending on what failed underneath.
+            print(
+                f"provisioning.activate_tenant: SUBSCRIPTION_SETUP_FAILED "
+                f"(business_id={business_id}) — AKTIVASI DIBATALKAN, business TETAP "
+                f"{business['status']!r} (bukan ACTIVE), tidak ada data yang dihapus/diubah."
+            )
+            raise ProvisioningError(
+                "subscription_setup_failed: gagal menyiapkan subscription AI Admin untuk tenant ini — "
+                "aktivasi DIBATALKAN. Data pembayaran/onboarding/WhatsApp/AI setup tetap aman dan "
+                "tidak berubah. Coba lagi; kalau terus gagal, cek log server."
+            )
+
+    # If repo.activate_business() ITSELF fails below (e.g. a DB error on this specific write),
+    # the exception propagates unhandled (never caught here) — business.status remains whatever
+    # it was before this call (still APPROVED, since the early-return for already-ACTIVE happened
+    # above and this line is only reached once). A subscription row may already exist at that
+    # point (created just above) — that is harmless and NOT "an accidentally usable paid tenant":
+    # every tenant-resolution path in this codebase (resolve_tenant_id_by_whatsapp_phone_number_id
+    # and every other tenant_config_service.py function) requires businesses.status == 'ACTIVE'
+    # FIRST, so an orphaned subscription row on a non-ACTIVE business grants zero runtime access
+    # on its own. No special rollback of that row is needed or performed.
     repo.activate_business(business_id, actor["id"])
     repo.write_audit(actor["id"], business_id, EVENT_TENANT_ACTIVATED, f"config_version={config_row['config_version']}")
+
     return {"changed": True, "status": "ACTIVE"}
 
 

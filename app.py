@@ -49,6 +49,7 @@ try:
     import appointments_repo as _appt_repo
     import payment_reviews_repo as _pay_review_repo
     import repo as _ch_repo
+    import tenant_followup_service as _tenant_followup
     _CLIENT_HUB_AVAILABLE = True
 except Exception as _client_hub_import_err:
     print(f"Client Hub bridge tidak tersedia ({_client_hub_import_err}) — bot jalan tanpa fitur multi-tenant.")
@@ -135,6 +136,22 @@ def _resolve_tenant_or_unknown(phone_number_id):
         )
         return None, True
     if found is not None:
+        # Fix 4 (audit finding) — resolving as an ACTIVE business is NOT by itself sufficient to
+        # grant a paid-AI-Admin tenant a live reply: the AI Admin SUBSCRIPTION must also be in a
+        # currently-operating state (ACTIVE or GRACE). Before this fix, only businesses.status was
+        # checked here, so a tenant whose subscriptions row is MISSING (e.g. a pre-existing tenant
+        # never backfilled after migration 0014 — see that migration's own docstring + the
+        # deployment report's backfill procedure) or SUSPENDED/CANCELLED for some reason without
+        # businesses.status having (yet) been flipped to SUSPENDED would still receive full paid
+        # AI automation — exactly the fail-open gap this fix closes. A business with a non-AI-Admin
+        # package ("NONE") never needs a subscription row at all and is unaffected by this check.
+        if not _tenant_subscription_permits_ai_runtime_safe(found):
+            print(
+                f"Tenant resolution: business_id={found} ACTIVE tapi subscription AI Admin-nya "
+                "TIDAK dalam status yang boleh jalan (missing/SUSPENDED/CANCELLED) — diperlakukan "
+                "sebagai UNKNOWN, tidak diproses, tidak dibalas."
+            )
+            return None, True
         return found, False
     return None, True
 
@@ -342,6 +359,63 @@ def _get_tenant_features_safe(tenant_id):
     except Exception as e:
         print(f"Ambil tenant features gagal ({e}).")
         return {}
+
+
+# ---------------------------------------------------------------------------
+# Gap-fix Area F — tenant-scoped automatic follow-up safe wrappers. Same defensive shape as every
+# other Client Hub bridge function above: any failure -> a safe no-op default, NEVER an exception
+# that could break the main webhook, and NEVER a signal that could be misread as "go ahead and
+# send". See client-hub/tenant_followup_service.py for the actual logic/eligibility rules.
+# ---------------------------------------------------------------------------
+
+def _tf_mark_activity_safe(tenant_id, customer_phone):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return
+    try:
+        _tenant_followup.mark_customer_activity(tenant_id, customer_phone)
+    except Exception as e:
+        print(f"tenant_followup.mark_customer_activity gagal (tenant_id={tenant_id}): {e}")
+
+
+def _tf_mark_resolved_safe(tenant_id, customer_phone, reason=None):
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return
+    try:
+        _tenant_followup.mark_resolved(tenant_id, customer_phone, reason)
+    except Exception as e:
+        print(f"tenant_followup.mark_resolved gagal (tenant_id={tenant_id}): {e}")
+
+
+# Subscription states allowed to actually receive paid AI automation — kept in ONE place, in sync
+# with client-hub/tenant_followup_service.py's identical constant (that module can't import this
+# one — app.py imports client-hub modules, not the reverse — so the two lists are intentionally
+# duplicated in exactly two places rather than one importing the other across that boundary).
+_SUBSCRIPTION_STATES_ALLOWED_TO_RUN = ("ACTIVE", "GRACE")
+
+
+def _tenant_subscription_permits_ai_runtime_safe(tenant_id):
+    """Fix 4 (audit finding) — the main tenant AI-runtime gate. A business with a non-AI-Admin
+    package ("NONE") has no subscription row by design and is NOT gated by this function (returns
+    True) — subscriptions only apply to AI_ADMIN_BASIC/AI_ADMIN_PRO. For an AI Admin package, this
+    returns True ONLY if a subscription row exists AND its status is ACTIVE or GRACE — a MISSING
+    row, or one that is SUSPENDED/CANCELLED, returns False (fail closed). Any plumbing failure
+    (Client Hub unavailable, DB error) also returns False — never treats an error as permission."""
+    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
+        return True  # Kilas Works' own conversations (tenant_id=None) are never subscription-gated
+    try:
+        business = _ch_repo.get_business(tenant_id)
+        if not business:
+            return False
+        if business.get("package") not in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
+            return True  # no AI Admin package -> no subscription requirement applies
+        import subscription_service
+        sub = subscription_service.get_subscription(tenant_id)
+        if sub is None:
+            return False
+        return sub["status"] in _SUBSCRIPTION_STATES_ALLOWED_TO_RUN
+    except Exception as e:
+        print(f"_tenant_subscription_permits_ai_runtime_safe gagal (tenant_id={tenant_id}): {e}")
+        return False
 
 
 def is_kilas_platform_tenant(tenant_id):
@@ -1020,40 +1094,72 @@ def _get_full_catalog_sync_baseline_safe():
 
 
 def _build_live_price_sync_note_safe():
-    """Section 20: returns an ADDITIVE system-prompt note only for catalog_keys whose live
-    Client Hub price has actually diverged from the hardcoded PRICING_CONFIG figure baked into
-    SYSTEM_PROMPT/PRICING_CONFIG. Returns "" when Client Hub is unavailable OR nothing has
-    diverged — meaning every one of the 158+ existing regression tests (none of which touch
-    Client Hub's catalog) sees byte-identical prompt behavior to before this patch existed.
+    """Gap-fix Area H (extends Section 20's original price-only sync): returns an ADDITIVE
+    system-prompt note covering THREE kinds of live Client Hub catalog divergence from the
+    hardcoded PRICING_CONFIG/PRICING_TEXT_BLOCK baked into SYSTEM_PROMPT at import time — price
+    changes (original Section 20 behavior, unchanged), an item being DEACTIVATED (no longer
+    offered), and an item being RENAMED. Returns "" when Client Hub is unavailable OR nothing has
+    diverged — every one of the 158+ existing regression tests (none of which touch Client Hub's
+    catalog) sees byte-identical prompt behavior to before this patch existed.
+
+    Client Hub currently has NO "add a brand-new catalog item from scratch" admin capability (see
+    catalog_service.update_catalog_item's docstring — only editing an already-seeded row's price/
+    name/description/active-flag/sort-order/pricing-mode is supported), so "a genuinely new item
+    admin invented out of thin air" is not a reachable state to sync here; what IS reachable and
+    now covered is an existing seeded item being renamed or turned off.
 
     Covers EVERY currently active FIXED_PRICE/STARTING_FROM catalog item generically (see
     _get_full_catalog_sync_baseline_safe) — not just a hand-picked handful. A historical/already-
     placed order's own locked-in price is never touched by this (it lives on the order/invoice row,
-    not here) — this only affects what the bot SAYS about the CURRENT live price going forward."""
+    not here) — this only affects what the bot SAYS about the CURRENT live catalog going forward."""
     if _catalog_service is None:
         return ""
     try:
         baseline = _get_full_catalog_sync_baseline_safe()
-        diffs = []
+        price_diffs = []
+        deactivated = []
+        renamed = []
         for catalog_key, (label, hardcoded_amount) in baseline.items():
-            live = _get_catalog_price_safe(catalog_key)
-            if live is None:
+            try:
+                live_item = _catalog_service.get_catalog_item(catalog_key)
+            except Exception as e:
+                print(f"Ambil live catalog item gagal untuk {catalog_key!r} ({e}).")
                 continue
-            if live["price_amount"] != hardcoded_amount:
+            if not live_item:
+                continue  # key not seeded/found live -> nothing to compare, stay silent (fail safe)
+
+            if not live_item.get("is_active"):
+                deactivated.append(f"- {label}: SUDAH TIDAK DITAWARKAN LAGI — JANGAN pernah rekomendasikan atau sebut ini sebagai paket yang bisa dipesan sekarang")
+                continue  # an inactive item's price/name are irrelevant to a customer
+
+            live = _get_catalog_price_safe(catalog_key)
+            if live is not None and live["price_amount"] != hardcoded_amount:
                 price_fmt = f"Rp{live['price_amount']:,}".replace(",", ".")
                 unit = f" {live['price_unit']}" if live.get("price_unit") else ""
-                diffs.append(f"- {label}: harga TERBARU adalah {price_fmt}{unit} (BUKAN angka lama manapun)")
-        if not diffs:
+                price_diffs.append(f"- {label}: harga TERBARU adalah {price_fmt}{unit} (BUKAN angka lama manapun)")
+
+            live_name = (live_item.get("name") or "").strip()
+            if live_name and live_name != label:
+                renamed.append(f"- \"{label}\" sekarang bernama \"{live_name}\" — pakai nama BARU ini kalau menyebutnya")
+
+        if not price_diffs and not deactivated and not renamed:
             return ""
-        diffs_text = "\n".join(diffs)
+        sections = []
+        if price_diffs:
+            sections.append("Harga terbaru:\n" + "\n".join(price_diffs))
+        if deactivated:
+            sections.append("Paket yang SUDAH TIDAK AKTIF (jangan tawarkan):\n" + "\n".join(deactivated))
+        if renamed:
+            sections.append("Paket yang GANTI NAMA:\n" + "\n".join(renamed))
+        diffs_text = "\n\n".join(sections)
         return (
-            "\n\nUPDATE HARGA TERBARU DARI KILAS WORKS BUSINESS HUB (SUMBER HARGA PALING BENAR, "
-            "OVERRIDE angka manapun di atas untuk item ini SAJA — JANGAN tampilkan daftar harga "
+            "\n\nUPDATE TERBARU DARI KILAS WORKS BUSINESS HUB (SUMBER DATA PALING BENAR, "
+            "OVERRIDE data manapun di atas untuk item-item ini SAJA — JANGAN tampilkan daftar "
             "lengkap kalau customer cuma nanya satu layanan, cukup jawab yang ditanya):\n"
             f"{diffs_text}"
         )
     except Exception as e:
-        print(f"Build live price sync note gagal ({e}) — fallback ke PRICING_CONFIG statis tanpa note.")
+        print(f"Build live catalog sync note gagal ({e}) — fallback ke PRICING_CONFIG statis tanpa note.")
         return ""
 
 
@@ -3139,7 +3245,7 @@ def build_pricing_text_block():
 PRICING_TEXT_BLOCK = build_pricing_text_block()
 
 SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok,
-DAN AI WhatsApp Admin — lihat aturan wajib soal ini di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
+DAN AI WhatsApp Admin — lihat SOAL CAKUPAN LAYANAN di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
 lagi WhatsApp-an, tapi tetap PROFESIONAL & fokus bisnis — BUKAN kayak bot atau customer service kaku.
 
 GAYA BALASAN (penting banget):
@@ -3159,8 +3265,8 @@ GAYA BALASAN (penting banget):
   kasih tau aja natural kayak orang yang emang paham, jangan pelit info kecil yang nggak masalah dibagi.
 - SINGKATKAN angka/harga: kalau customer bilang "1 juta" boleh kamu balas "1 jt", "5 ribu" boleh "5rb" —
   singkat, natural, kayak orang chat. PAHAM SEMUA VARIASI ANGKA (krusial!):
-  • jt=juta, jetong=juta, jeton=juta, rb=ribu, k=ribu, sm=sama
-  • Contoh: "1 jetong" = "1 juta", paham? Kamu harus paham semua slang/nickname buat angka.
+  • jt=juta, rb=ribu, k=ribu, sm=sama
+  • Contoh: "1 jt" = "1 juta", paham? Kamu harus paham semua slang/nickname buat angka.
   • INGAT dengan perfect apa arti setiap angka yang customer/owner bilang, jangan pernah kekeliruan.
 - Kalau balasanmu wajar dipecah jadi beberapa chat bubble terpisah (kayak orang WA-an beneran, bukan 1
   paragraf gede), pisahkan tiap bubble dengan "|||" di antaranya. Contoh: "Oh siap kak!|||Jadi kebutuhannya
@@ -3200,16 +3306,16 @@ BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
   informal/kasar, dsb) TETAP BERLAKU SAMA PERSIS di kedua bahasa — cuma bahasa penyampaiannya yang beda,
   isi/logic-nya sama.
 
-⭐ WAJIB PALING PENTING — JANGAN PERNAH LUPA SEBUT AI WHATSAPP ADMIN:
-- Kilas Works itu jasanya BUKAN cuma foto/video/edit/Reels doang — AI WhatsApp Admin (yang lagi kamu jalanin
-  sekarang buat chat ini!) adalah SATU DARI LAYANAN UTAMA & justru nilai jual PALING MENARIK/diferensiator.
-- Kapan pun customer nanya "jasa apa aja yang Kilas Works tawarin", "kalian ngerjain apa aja", "bisa bantu
-  apa aja", atau pertanyaan sejenis yang nanya cakupan layanan — kamu WAJIB sebutin AI WhatsApp Admin 24 Jam
-  sebagai salah satu jawabannya, JANGAN PERNAH cuma jawab "foto, video, editing, konten Reels/TikTok" doang
-  dan lupa nyebut AI admin. Ini paling gampang lupa kejadian, jadi selalu double-check sebelum jawab
-  pertanyaan tipe ini: udah kesebut AI admin belum?
-- Justru ini poin jual paling kuat buat ditawarin proaktif (lihat bagian ALUR di bawah) — karena customer
-  LAGI NGOBROL LANGSUNG sama produknya saat ini juga, jadi gampang banget dikasih contoh nyata.
+SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa aja", dst):
+- Kilas Works jasanya BUKAN cuma foto/video/edit/Reels doang — juga ada AI WhatsApp Admin (yang lagi kamu
+  jalanin sekarang buat chat ini), Website, dan layanan lain di data paket di bawah. Kalau customer nanya
+  cakupan layanan secara umum, jawab AKURAT & LENGKAP sesuai kategori resmi yang BENERAN ada di data paket
+  di bawah — jangan cuma sebut sebagian kalau customer emang nanya semua, tapi juga jangan maksa nge-push
+  satu layanan tertentu seolah itu jawaban paling penting. Jawab natural & proporsional aja sesuai yang
+  ditanya.
+- Boleh natural nyebut AI Admin sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
+  customer nanya soal respon cepat/chat admin) — lihat aturan CROSS-SELL di bawah, tetap harus relevan,
+  BUKAN dipaksa disebut di semua balasan.
 
 INFO PAKET & HARGA (kamu WAJIB HAFAL & BISA SEBUT semua angka ini natural kalau ditanya, lihat ATURAN
 HARGA di bawah buat gaya nyebutnya — data di bawah ini di-generate dari satu sumber data pricing yang
@@ -3313,21 +3419,18 @@ SOAL "INI BOT?"/"INI AI?" (WAJIB JUJUR, TAPI TETAP SELLING-FRIENDLY):
   malah bikin obrolan berasa gak natural. Cukup jujur PAS ditanya, sisanya ngobrol biasa aja kayak aturan
   gaya bahasa di atas.
 
-SOAL DEMO AI ADMIN (INI JUGA SALES TOOL — WAJIB TAU & BOLEH DITAWARIN):
-- Kilas Works punya demo AI Admin yang bisa dicoba di /demo (self-service, langsung di browser, gratis,
-  tanpa perlu appointment). Kalau customer nanya "bisa coba?", "ada demo?", "AI-nya bisa dicoba gak?",
-  "boleh lihat cara kerjanya?", atau sejenisnya, tawarin DUA opsi natural (JANGAN maksa salah satu):
-  1. Coba demo mandiri sendiri (arahkan ke link demo kalau kamu tau linknya dari data bisnis, atau bilang
-     "aku kasih link demo-nya ya" lalu sertakan tag "[TANYA_OWNER]" kalau linknya belum kamu tau pasti).
-  2. Jadwalkan LIVE DEMO online bareng tim (pakai flow appointment yang sama kayak online meeting biasa,
-     lihat APPOINTMENT / JADWAL KETEMU OWNER di bawah — bedanya cuma dikasih tanda tag purpose=demo).
-  Contoh kalimat: "Boleh Kak. Bisa langsung coba demo mandiri, atau kalau mau aku bisa bantu jadwalkan
-  live demo online dengan tim. Kakak lebih nyaman yang mana?"
-- Kalau customer pilih LIVE DEMO: ikutin PERSIS flow appointment di bawah (tanya preferensi hari, cek
-  availability owner, dst), TAPI di tag [MEETING_PREFERENCE: ...] tambahin juga "|purpose=demo" di
-  akhirnya (mode tetap "online" karena demo selalu online) — SISTEM yang bakal pakai wording "live demo
-  AI Admin" ke owner & customer, bukan wording "online meeting" biasa. Kalau customer minta demo TAPI
-  gak nyebut mau mandiri atau live/dijadwalin, TANYA dulu (jangan asal asumsi salah satu) — JANGAN MAKSA.
+SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
+- Kilas Works punya demo AI Admin mandiri yang bisa dicoba langsung di https://kilasworks.id/demo
+  (self-service, langsung di browser, gratis, tanpa perlu appointment/jadwal apapun). Kalau customer
+  nanya "bisa coba?", "ada demo?", "AI-nya bisa dicoba gak?", "boleh lihat cara kerjanya?", atau
+  sejenisnya, arahkan LANGSUNG ke link demo mandiri ini — natural, satu opsi aja, JANGAN nawarin atau
+  nyebut opsi "jadwalkan live demo/demo online bareng tim" sama sekali, itu SUDAH TIDAK ADA.
+  Contoh kalimat: "Boleh Kak, bisa langsung coba sendiri di sini ya: https://kilasworks.id/demo — gratis,
+  gak perlu janjian."
+- Kalau customer tetap mau ngobrol/tanya-tanya lebih lanjut sama tim (BUKAN soal nyoba demo AI-nya,
+  tapi soal konsultasi kebutuhan/diskusi paket), itu tetap pakai flow appointment konsultasi/project
+  BIASA di bawah (APPOINTMENT / JADWAL KETEMU OWNER) — appointment biasa ini TETAP ada & TETAP jalan
+  normal, yang dihapus cuma opsi "live demo AI Admin" sebagai jenis appointment tersendiri.
 
 SOAL PEMBAYARAN (WAJIB DIIKUTI — data rekening SELALU dari sistem, kamu TIDAK PERNAH ngetik nomor
 rekening sendiri):
@@ -3413,7 +3516,7 @@ FLOW UTAMA — Understand → Diagnose → Recommend → Explain → Next Step (
 kalau udah maju ke tahap berikutnya):
 1. UNDERSTAND (customer baru/basa-basi): sapa natural, jangan template kaku, JANGAN langsung lempar harga
    atau daftar paket cuma karena disapa "halo"/"info dong". Arahkan dulu ke kebutuhan, misal: "Halo Kak,
-   ada yang bisa aku bantu soal content, AI Admin, website, atau ads?" — MAKSIMAL 1-2 pertanyaan tiap
+   ada yang bisa aku bantu soal content, AI Admin, atau website?" — MAKSIMAL 1-2 pertanyaan tiap
    giliran, JANGAN interogasi 5-6 pertanyaan sekaligus.
 2. DIAGNOSE (customer udah mulai cerita bisnis/kebutuhan): coba pahami jenis bisnis, problem utama, target,
    udah punya konten/admin chat sendiri atau belum, baru mulai atau udah jalan — tapi gali SECUKUPNYA aja
@@ -3421,8 +3524,13 @@ kalau udah maju ke tahap berikutnya):
 3. RECOMMEND (begitu konteks udah cukup): JANGAN tampilkan SEMUA paket sekaligus. Kasih PERSIS 1 rekomendasi
    UTAMA + 1 alternatif (pakai nama & bundle yang BENERAN ada di data paket/bundle di atas — JANGAN bikin
    paket/bundle baru). Kalau kebutuhan customer memang nyambung ke lebih dari satu layanan (misal konten +
-   chat, atau konten + ads), baru rekomendasiin bundle resmi yang sesuai (lihat data bundle di atas) —
-   JANGAN otomatis upsell semua layanan sekaligus kalau customer cuma nanya satu hal.
+   chat), baru rekomendasiin bundle resmi yang sesuai (lihat data bundle di atas) — JANGAN otomatis upsell semua layanan sekaligus kalau customer cuma nanya satu hal.
+   - SOAL META ADS (STATUS SEKARANG: SEKUNDER/TIDAK DIPROMOSIKAN AKTIF): Meta Ads/Ads Bundles TETAP ada di
+     data paket & TETAP boleh/wajib dijawab AKURAT & LENGKAP kalau customer nanya LANGSUNG soal ads/iklan
+     Meta/Instagram/Facebook. TAPI jangan pernah jadi rekomendasi UTAMA atau alternatif proaktif di langkah
+     RECOMMEND ini kalau customer sendiri gak nyebut soal ads/iklan — jangan disebut duluan, jangan
+     ditawarin cross-sell walau nyambung secara teori. Ini status sementara, murni soal prioritas
+     promosi, BUKAN karena layanannya dihapus/gak tersedia.
 4. EXPLAIN (jual HASIL, bukan cuma daftar fitur): jelasin MANFAATNYA buat bisnis dia, bukan cuma spek.
    Contoh SALAH: "8 Reels + 10 visual." Contoh BENER: "Biar akun tetap aktif, ada stok konten buat promo,
    dan materi iklan gak cepat habis." Buat AI Admin, jangan cuma "balas 24/7" — bilang "Supaya chat calon
@@ -5124,10 +5232,24 @@ CATALOG_SERVICES_INTRO_PATTERN = re.compile(
 # "kirim katalog ke gw/saya/aku/gue/gua" -> target-nya OWNER SENDIRI, bukan customer.
 CATALOG_SELF_TARGET_PATTERN = re.compile(r'\bke\s+(gw|gue|gua|aku|saya)\b', re.IGNORECASE)
 
+# Gap-fix (owner natural commands): owner sering minta katalog buat DIRINYA SENDIRI TANPA kata kerja
+# kirim eksplisit ("katalog dong", "minta katalog", "boleh minta katalog", "mau liat katalog") — ini
+# BUKAN perintah kirim ke customer, ini owner mau lihat/pegang katalognya sendiri. Pattern ini
+# sengaja TERPISAH dari CATALOG_SEND_VERB_PATTERN (yang khusus buat "kirim ke customer") supaya
+# "katalog dong" tetap ke-eksekusi (kirim ke owner sendiri) walau gak ada kata kerja kirim/kasih.
+CATALOG_REQUEST_HINT_PATTERN = re.compile(
+    r'\b(minta|boleh\s+minta|mau\s+minta|liat\s+dong|lihat\s+dong|boleh\s+liat|boleh\s+lihat|'
+    r'kirimin\s+dong|dong|mau\s+dong|ada\s+gak|ada\s+ga|ada\s+gk)\b',
+    re.IGNORECASE,
+)
+
 # Ringkasan nama-nama kategori layanan (SAMA persis kategori resmi di PRICING_CONFIG) — dipakai di
 # pesan intro singkat "info jasa terbaru" ke customer, BUKAN sumber harga (harga tetap dari PDF).
+# Meta Ads sengaja TIDAK dimasukkan di ringkasan proaktif ini (status sekarang: sekunder/tidak
+# dipromosikan aktif ke customer, lihat SOAL META ADS di RECOMMEND flow) — datanya tetap ada & tetap
+# terjawab akurat kalau customer nanya langsung soal ads/iklan.
 CATALOG_SERVICES_SUMMARY_TEXT = (
-    "Content Creation, AI WhatsApp Admin 24/7, Website, Meta Ads, sampai dokumentasi Event Photo & Video"
+    "Content Creation, AI WhatsApp Admin 24/7, Website, sampai dokumentasi Event Photo & Video"
 )
 
 
@@ -5161,8 +5283,15 @@ def parse_owner_catalog_command(text):
         return None
     if CATALOG_QUERY_HINT_PATTERN.search(text):
         return None  # "katalog kita isinya apa" dll -> pertanyaan, bukan perintah kirim
-    if not CATALOG_SEND_VERB_PATTERN.search(text):
-        return None  # ada kata "katalog" tapi gak ada kata kerja kirim -> ini query, bukan action
+
+    has_send_verb = bool(CATALOG_SEND_VERB_PATTERN.search(text))
+    # Gap-fix: "katalog dong"/"minta katalog"/"boleh minta katalog" (BARE REQUEST, tanpa kata kerja
+    # kirim eksplisit) dianggap owner minta katalog buat DIRINYA SENDIRI — tetap dieksekusi (bukan
+    # cuma dijawab teks), TAPI cuma kalau gak ada nama/pronoun customer lain yang disebut (kalau ada,
+    # itu tandanya owner emang maksud kirim ke customer itu, bukan minta sendiri).
+    has_bare_request = bool(CATALOG_REQUEST_HINT_PATTERN.search(text))
+    if not has_send_verb and not has_bare_request:
+        return None  # ada kata "katalog" tapi gak ada kata kerja kirim/minta -> ini query, bukan action
 
     return {
         "self_target": bool(CATALOG_SELF_TARGET_PATTERN.search(text)),
@@ -5635,11 +5764,13 @@ def _webhook_body_impl(data):
                             customer_names.get(cat_fallback_target, f"wa.me/{cat_fallback_target}")
                         )
                     else:
-                        send_whatsapp_message(
-                            from_number,
-                            "Katalog mau dikirim ke siapa nih? Sebut nama customernya ya.",
-                        )
-                        return jsonify({"status": "ok"}), 200
+                        # Gap-fix (owner natural commands): kalau owner minta katalog TANPA nyebut
+                        # customer sama sekali & gak ada active_customer_context, JANGAN nanya balik
+                        # "buat siapa" — default-kan langsung ke OWNER SENDIRI (paling natural buat
+                        # "katalog dong"/"minta katalog" polos), bukan diam nunggu klarifikasi.
+                        cat_target_number = OWNER_WHATSAPP_NUMBER
+                        cat_short_name = "kamu"
+                        catalog_cmd["self_target"] = True
 
                 # ACTION 1 (opsional): kirim pesan singkat "info jasa terbaru" DULU, cuma kalau
                 # target-nya customer (gak masuk akal kirim "Halo Kak..." ke owner sendiri).
@@ -6370,6 +6501,11 @@ def _webhook_body_impl(data):
         # never enrolled, rather than half-building a tenant-aware follow-up engine.
         if is_kilas_tenant:
             mark_customer_activity(from_number)
+        elif ENABLE_MULTI_TENANT and tenant_id is not None:
+            # Gap-fix Area F — the tenant-scoped equivalent, persisted in Client Hub's own DB and
+            # never touching Kilas Works' own global `followup_state`/channel. Wrapped in the
+            # _tf_*_safe helper, so a Client Hub outage here can never break this customer's reply.
+            _tf_mark_activity_safe(tenant_id, from_number)
 
         tenant_context_block = _build_tenant_context_block_safe(tenant_id) if ENABLE_MULTI_TENANT else ""
 
@@ -6482,6 +6618,13 @@ def _webhook_body_impl(data):
                 # if it queries the DB (see appointments_repo.py / _tenant_appt_*_safe above).
                 request_text = f"{day_text}{(' jam ' + time_text) if time_text else ''}".strip() or "(waktu belum disebut)"
                 _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), request_text)
+                # Gap-fix Area F — a booking REQUEST is a clear resolution signal: stop the
+                # generic tenant follow-up nudge for this customer (they're already mid-flow with
+                # the owner, same principle as Kilas Works' own _has_active_meeting_or_payment_process
+                # guard, but expressed here as a permanent stop rather than a temporary skip since
+                # a tenant follow-up nudge re-engaging mid-negotiation would be confusing/spammy).
+                if not is_kilas_tenant:
+                    _tf_mark_resolved_safe(tenant_id, from_number, reason="appointment_requested")
                 appt_text = "Siap Kak, aku catat dulu ya — nanti tim kami konfirmasi jadwalnya."
                 clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
                 display_name = customer_names.get(scoped_from, "Customer")
@@ -6643,6 +6786,9 @@ def _webhook_body_impl(data):
                     tenant_id, from_number, customer_names.get(scoped_from),
                     amount_detected=amount_detected, proof_file_id=proof_file_id,
                 )
+                # Gap-fix Area F — a payment proof is a strong resolution signal, same as Kilas
+                # Works' own mark_customer_converted() call for payment_confirmed further below.
+                _tf_mark_resolved_safe(tenant_id, from_number, reason="payment_confirmed")
                 ack_text = "Bukti sudah diterima dan sedang dicek."
                 clean_reply = f"{clean_reply}|||{ack_text}" if clean_reply else ack_text
 
@@ -6684,6 +6830,13 @@ def _webhook_body_impl(data):
                         OWNER_WHATSAPP_NUMBER,
                         f"{dp_name} ingin DP untuk {dp_package}. Nominal DP yang mau digunakan berapa?",
                     )
+
+        elif ENABLE_MULTI_TENANT and tenant_id is not None and wants_stop_followup:
+            # Gap-fix Area F — tenant equivalent of the wants_stop_followup handling above (this
+            # elif is a sibling of `if is_kilas_tenant:`, not nested inside it — is_kilas_tenant is
+            # always False here since that branch above already claimed the True case).
+            _tf_mark_resolved_safe(tenant_id, from_number, reason="customer_requested_stop")
+
         # Notifikasi ke owner SEKALI aja pas ada customer BARU yang pertama kali chat (biar owner
         # tau siapa aja yang chat, tanpa banjir notif tiap pesan dari customer yang sama). Bug fix
         # (Task 6) — routed via tenant_id: a resolved CLIENT tenant's own new-customer/escalation
@@ -6948,6 +7101,115 @@ def run_followups():
         "reminders_checked": len(reminder_results),
         "reminders": reminder_results,
     }), 200
+
+
+@app.route("/cron/tenant-followups", methods=["GET"])
+def run_tenant_followups():
+    """Gap-fix Area F — tenant-scoped equivalent of /cron/followups above, closing the documented
+    gap at the "if is_kilas_tenant: mark_customer_activity(...)" call site. Iterates every ACTIVE
+    Client Hub tenant and sends AI-generated follow-up nudges ONLY through THAT tenant's own
+    validated WhatsApp channel — this endpoint NEVER sends via Kilas Works' own global
+    WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN, and NEVER touches ../app.py's own
+    `followup_state`/get_customers_due_for_followup()/run_followups() above (that sweep remains
+    100% unchanged, Kilas-Works-only, exactly as before this endpoint existed).
+
+    Safety invariants enforced here (see client-hub/tenant_followup_service.py for the underlying
+    checks this route relies on):
+      - A tenant is skipped ENTIRELY (zero sends) unless tenant_followup_service.
+        is_tenant_followup_eligible() returns True — covers business ACTIVE, subscription not
+        SUSPENDED, the follow-up-capable feature flag, AND a WhatsApp channel whose
+        connection_status is exactly 'CONNECTED' (validated).
+      - The active WhatsApp channel is ONLY ever set via _set_active_whatsapp_channel() AFTER
+        _get_tenant_whatsapp_channel_safe() has positively resolved a real phone_number_id +
+        access_token for THIS tenant — if that resolution returns None for any reason, this
+        tenant is skipped without calling any send function at all (see
+        _active_whatsapp_phone_number_id()'s own docstring: it silently falls back to the GLOBAL
+        Kilas Works number if the thread-local isn't set, which is exactly why this route never
+        calls a send function without first confirming the channel is genuinely set).
+      - _clear_active_whatsapp_channel() is called after EVERY tenant (success or failure) so one
+        tenant's channel can never leak into the next tenant's iteration or back into Kilas Works'
+        own global sends elsewhere in this same worker thread.
+      - HUMAN_TAKEOVER is re-checked per-customer, immediately before generating/sending each
+        nudge (state can change between listing "due" customers and actually reaching them).
+
+    Akses: GET /cron/tenant-followups?key=<CRON_SECRET> — same shared secret as /cron/followups
+    (a separate secret was considered but rejected as unnecessary complexity for an internal cron
+    endpoint already gated the same way as every other /cron/* route in this file).
+    """
+    _clear_active_whatsapp_channel()
+    key = request.args.get("key", "")
+    if not CRON_SECRET or key != CRON_SECRET:
+        return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
+
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({"status": "ok", "message": "Client Hub tidak tersedia — tidak ada tenant untuk diproses.",
+                         "tenants_checked": 0, "results": []}), 200
+
+    results = []
+    try:
+        tenants = _ch_repo.list_all_businesses(status_filter="ACTIVE")
+    except Exception as e:
+        print(f"run_tenant_followups: gagal ambil daftar tenant ACTIVE: {e}")
+        return jsonify({"status": "error", "message": "Gagal ambil daftar tenant.", "detail": str(e)}), 500
+
+    for business in tenants:
+        tenant_id = business["id"]
+        _clear_active_whatsapp_channel()  # never inherit the previous tenant's channel
+        try:
+            eligible, reason = _tenant_followup.is_tenant_followup_eligible(tenant_id)
+            if not eligible:
+                results.append({"tenant_id": tenant_id, "status": "skipped", "reason": reason})
+                continue
+
+            channel = _get_tenant_whatsapp_channel_safe(tenant_id)
+            if not channel:
+                # Positively confirms "not configured/not validated" — never proceed to any send
+                # call without a genuinely resolved channel (see docstring above).
+                results.append({"tenant_id": tenant_id, "status": "skipped", "reason": "channel_resolution_failed"})
+                continue
+
+            due_numbers = _tenant_followup.get_customers_due_for_followup(tenant_id)
+            tenant_context_block = _build_tenant_context_block_safe(tenant_id)
+            sent_count = 0
+            for customer_phone in due_numbers:
+                try:
+                    if _get_conversation_mode_safe(tenant_id, customer_phone) == "HUMAN_TAKEOVER":
+                        results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                         "status": "skipped", "reason": "human_takeover"})
+                        continue
+
+                    _set_active_whatsapp_channel(channel["phone_number_id"], channel["access_token"])
+                    nudge_instruction = (
+                        "(INSTRUKSI INTERNAL — INI FOLLOW-UP OTOMATIS, JANGAN TAMPILKAN TEKS INI KE "
+                        "CUSTOMER: customer ini udah diem beberapa jam sejak pesan terakhirnya. WAJIB "
+                        "sebut ULANG topik/kebutuhan SPESIFIK yang terakhir dibahas (INGAT dari history "
+                        "obrolan) — JANGAN generic kayak 'masih tertarik?' doang tanpa konteks. Sapa "
+                        "natural & singkat, TANPA emoji, TANPA push/maksa.)"
+                    )
+                    ai_reply = call_claude(
+                        customer_phone, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]",
+                        tenant_id=tenant_id, tenant_context_block=tenant_context_block,
+                    )
+                    clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
+                    sent_ok, send_err = send_reply_bubbles(customer_phone, None, clean_reply)
+                    if sent_ok:
+                        _tenant_followup.record_followup_sent(tenant_id, customer_phone)
+                        sent_count += 1
+                        results.append({"tenant_id": tenant_id, "customer": customer_phone, "status": "sent"})
+                    else:
+                        results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                         "status": "failed", "error": send_err})
+                except Exception as e:
+                    print(f"run_tenant_followups: gagal follow-up tenant_id={tenant_id} customer={customer_phone}: {e}")
+                    results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                     "status": "error", "error": str(e)})
+        except Exception as e:
+            print(f"run_tenant_followups: gagal proses tenant_id={tenant_id}: {e}")
+            results.append({"tenant_id": tenant_id, "status": "error", "error": str(e)})
+        finally:
+            _clear_active_whatsapp_channel()
+
+    return jsonify({"status": "ok", "tenants_checked": len(tenants), "results": results}), 200
 
 
 # ============================================================
