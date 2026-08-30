@@ -381,6 +381,85 @@ def test_max_attempts_enforced():
 
 
 # ---------------------------------------------------------------------------
+# PRODUCTION MICRO-FIX — Meta error 131047: 8h gap / 23h safety gate / max 2 attempts (tenant path)
+# ---------------------------------------------------------------------------
+def test_tenant_max_attempts_is_2():
+    assert tenant_followup_service.DEFAULT_MAX_FOLLOWUPS == 2
+    print("test_tenant_max_attempts_is_2 OK")
+
+
+def test_tenant_followup_allowed_at_8h_gap():
+    reset_client_hub_db()
+    reset_bot_state()
+    bid = _make_active_tenant("tenant-8h", "62894000013")
+    customer = "62899990013"
+    _seed_due_followup(bid, customer, hours_silent=9)
+
+    with patch.object(appmod, "call_claude", return_value="Halo Kak"), \
+         patch.object(appmod, "send_reply_bubbles", return_value=(True, None)):
+        resp = _run_sweep()
+    assert resp.status_code == 200
+    assert tenant_followup_service._get_state(bid, customer)["followup_count"] == 1, \
+        "a customer silent for 9h (>= new 8h gap) must be followed up"
+    print("test_tenant_followup_allowed_at_8h_gap OK")
+
+
+def test_tenant_followup_not_yet_due_before_8h():
+    reset_client_hub_db()
+    reset_bot_state()
+    bid = _make_active_tenant("tenant-notyet8h", "62894000014")
+    customer = "62899990014"
+    _seed_due_followup(bid, customer, hours_silent=5)
+
+    with patch.object(appmod, "call_claude") as mock_claude, \
+         patch.object(appmod, "send_reply_bubbles") as mock_send:
+        resp = _run_sweep()
+    assert resp.status_code == 200
+    mock_claude.assert_not_called()
+    mock_send.assert_not_called()
+    print("test_tenant_followup_not_yet_due_before_8h OK")
+
+
+def test_tenant_second_followup_allowed_while_still_under_23h_safety_gate():
+    reset_client_hub_db()
+    reset_bot_state()
+    bid = _make_active_tenant("tenant-second-ok", "62894000015")
+    customer = "62899990015"
+    now = appmod._utcnow()
+    tenant_followup_service._upsert_state(
+        bid, customer,
+        last_customer_msg_at=(now - timedelta(hours=20)).isoformat(),
+        last_followup_at=(now - timedelta(hours=9)).isoformat(),
+        followup_count=1, resolved=False,
+    )
+
+    with patch.object(appmod, "call_claude", return_value="Halo Kak"), \
+         patch.object(appmod, "send_reply_bubbles", return_value=(True, None)):
+        resp = _run_sweep()
+    assert resp.status_code == 200
+    assert tenant_followup_service._get_state(bid, customer)["followup_count"] == 2
+    print("test_tenant_second_followup_allowed_while_still_under_23h_safety_gate OK")
+
+
+def test_tenant_followup_skipped_at_23h_safety_boundary():
+    """Must NEVER attempt a free-text follow-up at/beyond WhatsApp's 24h customer-service window
+    (23h safety buffer) — same rule as the global Kilas Works path, no template/channel fallback."""
+    reset_client_hub_db()
+    reset_bot_state()
+    bid = _make_active_tenant("tenant-23h-skip", "62894000016")
+    customer = "62899990016"
+    _seed_due_followup(bid, customer, hours_silent=23)
+
+    with patch.object(appmod, "call_claude") as mock_claude, \
+         patch.object(appmod, "send_reply_bubbles") as mock_send:
+        resp = _run_sweep()
+    assert resp.status_code == 200
+    mock_claude.assert_not_called()
+    mock_send.assert_not_called()
+    print("test_tenant_followup_skipped_at_23h_safety_boundary OK")
+
+
+# ---------------------------------------------------------------------------
 # 9. Tenant follow-up NEVER uses Kilas Works' own global WhatsApp channel
 # ---------------------------------------------------------------------------
 def test_tenant_followup_never_uses_kilas_global_channel():
@@ -471,6 +550,11 @@ if __name__ == "__main__":
     test_resolution_stops_followup_permanently()
     test_cooldown_prevents_immediate_resend()
     test_max_attempts_enforced()
+    test_tenant_max_attempts_is_2()
+    test_tenant_followup_allowed_at_8h_gap()
+    test_tenant_followup_not_yet_due_before_8h()
+    test_tenant_second_followup_allowed_while_still_under_23h_safety_gate()
+    test_tenant_followup_skipped_at_23h_safety_boundary()
     test_tenant_followup_never_uses_kilas_global_channel()
     test_missing_channel_never_falls_back_to_global()
     test_kilas_works_own_followup_unchanged()

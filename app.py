@@ -1974,11 +1974,20 @@ def add_agreed_fact(number, fact):
     save_customer_fact_to_db(number, fact)
 
 
-# ==== FOLLOW-UP OTOMATIS (chat lagi ke customer yang diem >12 jam) ====
+# ==== FOLLOW-UP OTOMATIS (chat lagi ke customer yang diem >8 jam) ====
 # Maksimal berapa kali follow-up otomatis dikirim per customer sebelum berhenti (biar gak keliatan spam
 # kalau customer emang udah gak minat/gak balas berkali-kali).
-MAX_AUTO_FOLLOWUPS = 3
-FOLLOWUP_GAP_HOURS = 12
+MAX_AUTO_FOLLOWUPS = 2
+FOLLOWUP_GAP_HOURS = 8
+
+# PRODUCTION MICRO-FIX — Meta Cloud API error 131047 ("Re-engagement message — more than 24 hours
+# have passed since the customer last replied"): WhatsApp's 24-hour customer-service window is
+# measured from the CUSTOMER's last inbound message, not from our last outbound message. A normal
+# free-text follow-up sent outside that window gets rejected by Meta. 23 (not 24) hours is used as
+# a safety buffer against clock drift/cron timing — never attempt a free-text follow-up this close
+# to or past the boundary. This does NOT send a WhatsApp template message as a fallback — outside
+# the window, the follow-up is simply skipped entirely for that customer this cycle.
+WHATSAPP_24H_SAFETY_HOURS = 23
 
 
 def _utcnow():
@@ -2085,9 +2094,13 @@ def _has_active_meeting_or_payment_process(number):
 def get_customers_due_for_followup(hours=FOLLOWUP_GAP_HOURS, max_count=MAX_AUTO_FOLLOWUPS):
     """Cari customer yang: (a) belum ditandain converted/udah closing, (b) followup_count masih di
     bawah batas, (c) terakhir chat >= `hours` jam lalu, (d) belum di-follow-up dalam `hours` jam
-    terakhir (biar gak dobel kirim kalau endpoint /cron/followups kepanggil lebih sering dari 12 jam),
-    (e) TIDAK lagi di tengah proses booking meeting (nunggu owner/pilih slot) atau proses pembayaran
-    (production hardening — follow-up jangan spam customer yang lagi di alur ini)."""
+    terakhir (biar gak dobel kirim kalau endpoint /cron/followups kepanggil lebih sering dari
+    interval-nya), (e) TIDAK lagi di tengah proses booking meeting (nunggu owner/pilih slot) atau
+    proses pembayaran (production hardening — follow-up jangan spam customer yang lagi di alur
+    ini), (f) MASIH DI DALAM jendela customer-service 24 jam WhatsApp dihitung dari pesan TERAKHIR
+    customer (production micro-fix — Meta Cloud API error 131047: follow-up teks biasa yang
+    dikirim di luar jendela ini DITOLAK Meta; >= WHATSAPP_24H_SAFETY_HOURS (23 jam) dari pesan
+    terakhir customer -> SKIP total, TIDAK fallback ke template atau channel lain)."""
     now = _utcnow()
     due = []
     for number, state in followup_state.items():
@@ -2100,6 +2113,8 @@ def get_customers_due_for_followup(hours=FOLLOWUP_GAP_HOURS, max_count=MAX_AUTO_
             continue
         if now - last_msg < timedelta(hours=hours):
             continue
+        if now - last_msg >= timedelta(hours=WHATSAPP_24H_SAFETY_HOURS):
+            continue  # di luar jendela 24 jam WhatsApp — jangan kirim follow-up teks biasa
         last_followup = state.get("last_followup_at")
         if last_followup and (now - last_followup < timedelta(hours=hours)):
             continue

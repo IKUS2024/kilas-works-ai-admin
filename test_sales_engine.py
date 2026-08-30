@@ -251,6 +251,66 @@ def test_followup_guard_still_skips_active_processes():
     print("test_followup_guard_still_skips_active_processes OK")
 
 
+# ---------- 13. PRODUCTION MICRO-FIX — Meta error 131047, 8h gap / 23h safety / max 2 attempts ----------
+def test_followup_allowed_at_8h_gap():
+    reset_all()
+    n = "628800000020"
+    appmod.followup_state[n] = {
+        "last_customer_msg_at": appmod._utcnow() - appmod.timedelta(hours=8, minutes=1),
+        "last_followup_at": None, "followup_count": 0, "converted": False,
+    }
+    assert n in appmod.get_customers_due_for_followup()
+    print("test_followup_allowed_at_8h_gap OK")
+
+
+def test_followup_not_yet_due_before_8h():
+    reset_all()
+    n = "628800000021"
+    appmod.followup_state[n] = {
+        "last_customer_msg_at": appmod._utcnow() - appmod.timedelta(hours=5),
+        "last_followup_at": None, "followup_count": 0, "converted": False,
+    }
+    assert n not in appmod.get_customers_due_for_followup()
+    print("test_followup_not_yet_due_before_8h OK")
+
+
+def test_second_followup_allowed_while_still_under_23h():
+    reset_all()
+    n = "628800000022"
+    appmod.followup_state[n] = {
+        "last_customer_msg_at": appmod._utcnow() - appmod.timedelta(hours=20),
+        "last_followup_at": appmod._utcnow() - appmod.timedelta(hours=9),
+        "followup_count": 1, "converted": False,
+    }
+    assert n in appmod.get_customers_due_for_followup()
+    print("test_second_followup_allowed_while_still_under_23h OK")
+
+
+def test_followup_skipped_at_23h_or_more_since_customer_message():
+    reset_all()
+    n = "628800000023"
+    appmod.followup_state[n] = {
+        "last_customer_msg_at": appmod._utcnow() - appmod.timedelta(hours=23),
+        "last_followup_at": None, "followup_count": 0, "converted": False,
+    }
+    assert n not in appmod.get_customers_due_for_followup(), \
+        "must NEVER attempt a free-text follow-up at/beyond the 23h WhatsApp safety boundary"
+    print("test_followup_skipped_at_23h_or_more_since_customer_message OK")
+
+
+def test_followup_max_attempts_is_2():
+    reset_all()
+    assert appmod.MAX_AUTO_FOLLOWUPS == 2
+    n = "628800000024"
+    appmod.followup_state[n] = {
+        "last_customer_msg_at": appmod._utcnow() - appmod.timedelta(hours=9),
+        "last_followup_at": appmod._utcnow() - appmod.timedelta(hours=9),
+        "followup_count": 2, "converted": False,
+    }
+    assert n not in appmod.get_customers_due_for_followup(), "must stop after 2 attempts"
+    print("test_followup_max_attempts_is_2 OK")
+
+
 if __name__ == "__main__":
     test_sales_prompt_contains_key_instructions()
     test_lead_stage_cold_then_warm()
@@ -264,4 +324,9 @@ if __name__ == "__main__":
     test_sales_prompt_has_no_informal_pronouns()
     test_typo_messages_still_processed_without_error()
     test_followup_guard_still_skips_active_processes()
+    test_followup_allowed_at_8h_gap()
+    test_followup_not_yet_due_before_8h()
+    test_second_followup_allowed_while_still_under_23h()
+    test_followup_skipped_at_23h_or_more_since_customer_message()
+    test_followup_max_attempts_is_2()
     print("ALL SALES ENGINE TESTS PASSED")

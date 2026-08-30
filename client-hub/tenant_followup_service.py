@@ -38,14 +38,22 @@ ELIGIBILITY (an ineligible tenant/customer is skipped ENTIRELY — no partial/fa
 COOLDOWN / MAX ATTEMPTS: mirrors ../app.py's own Kilas-Works-only get_customers_due_for_followup()
 — a customer is only "due" after `hours` since their last message AND `hours` since their last
 follow-up (never spam), and stops permanently once `followup_count` reaches `max_count` or the row
-is marked `resolved` (booking/sale/explicit stop-request/any other resolution).
+is marked `resolved` (booking/sale/explicit stop-request/any other resolution). A customer is ALSO
+never "due" once >= WHATSAPP_24H_SAFETY_HOURS have passed since their last inbound message — see
+that constant's comment for the Meta Cloud API 24-hour customer-service-window rationale.
 """
 import db
 import repo
 from datetime import datetime, timedelta, timezone
 
-DEFAULT_FOLLOWUP_GAP_HOURS = 12
-DEFAULT_MAX_FOLLOWUPS = 3
+DEFAULT_FOLLOWUP_GAP_HOURS = 8
+DEFAULT_MAX_FOLLOWUPS = 2
+
+# PRODUCTION MICRO-FIX — same Meta Cloud API error 131047 fix as ../app.py's
+# WHATSAPP_24H_SAFETY_HOURS (see that constant's comment for the full rationale). 23 hours, not
+# 24, as a safety buffer against clock drift/cron timing. No template fallback, no other-channel
+# fallback — outside the window, the tenant follow-up is simply skipped for that customer.
+WHATSAPP_24H_SAFETY_HOURS = 23
 
 # Fix 4 — subscription states allowed to receive paid AI automation (follow-up included). A
 # MISSING subscription row is deliberately NOT in this set: for an AI Admin tenant, "no
@@ -162,7 +170,13 @@ def get_customers_due_for_followup(business_id, hours=DEFAULT_FOLLOWUP_GAP_HOURS
     check eligibility (business ACTIVE/subscription/feature/WhatsApp-validated) — callers MUST call
     is_tenant_followup_eligible() first and skip the whole tenant if ineligible, since a tenant
     that just became ineligible mid-period should never resume sending just because old rows are
-    still sitting here (rows are never deleted, only stop advancing)."""
+    still sitting here (rows are never deleted, only stop advancing).
+
+    PRODUCTION MICRO-FIX — same 23-hour WhatsApp customer-service-window safety gate as
+    ../app.py's get_customers_due_for_followup() (see WHATSAPP_24H_SAFETY_HOURS above): a customer
+    whose last inbound message was >= 23 hours ago is skipped entirely, never sent a free-text
+    follow-up outside Meta's 24-hour window, and never falls back to a template or another
+    channel."""
     now_dt = datetime.now(timezone.utc)
     rows = db.query_all(
         "SELECT * FROM tenant_followup_state WHERE business_id = ? AND resolved = ?",
@@ -177,6 +191,8 @@ def get_customers_due_for_followup(business_id, hours=DEFAULT_FOLLOWUP_GAP_HOURS
             continue
         if now_dt - last_msg < timedelta(hours=hours):
             continue
+        if now_dt - last_msg >= timedelta(hours=WHATSAPP_24H_SAFETY_HOURS):
+            continue  # outside WhatsApp's 24h customer-service window — skip, no fallback
         last_followup = _parse(row["last_followup_at"])
         if last_followup and (now_dt - last_followup < timedelta(hours=hours)):
             continue
