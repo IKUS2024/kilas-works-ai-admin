@@ -45,6 +45,7 @@ try:
         sys.path.insert(0, _client_hub_dir)
     import tenant_config_service as _tcs
     import wa_takeover_service as _wa_takeover
+    import platform_inbox_service as _platform_inbox
     import wa_project_bridge as _wa_bridge
     import appointments_repo as _appt_repo
     import payment_reviews_repo as _pay_review_repo
@@ -157,15 +158,23 @@ def _resolve_tenant_or_unknown(phone_number_id):
 
 
 def _get_conversation_mode_safe(tenant_id, customer_phone):
-    """Patch 4 — human takeover check. Never raises; defaults to AI_ACTIVE so a Client Hub read
-    failure can never silently stop the bot from replying to a customer."""
-    if not _CLIENT_HUB_AVAILABLE or tenant_id is None:
-        return "AI_ACTIVE"
+    """Human-takeover safety check for BOTH Kilas Works and client tenants.
+
+    Kilas Works' own WhatsApp now has a persistent platform_wa_conversation_state table so a human
+    reply from WhatsApp Business / Admin Inbox can silence AI for that one customer exactly like a
+    client tenant. Any state-read failure fails safe to HUMAN_TAKEOVER: delaying one automated
+    reply is safer than talking over a human operator.
+    """
+    if not _CLIENT_HUB_AVAILABLE:
+        return "HUMAN_TAKEOVER" if tenant_id is not None else "AI_ACTIVE"
     try:
+        if tenant_id is None:
+            return _platform_inbox.get_state(customer_phone)
         return _tcs.get_conversation_mode(tenant_id, customer_phone)
     except Exception as e:
-        print(f"Cek human takeover gagal ({e}) — fallback AI_ACTIVE (AI tetap balas).")
-        return "AI_ACTIVE"
+        scope = "Kilas Works" if tenant_id is None else f"tenant_id={tenant_id}"
+        print(f"Cek human takeover {scope} gagal ({e}) — fail-safe HUMAN_TAKEOVER (AI diam sementara).")
+        return "HUMAN_TAKEOVER"
 
 
 # Bug fix: a resolved CLIENT tenant (e.g. a coffee shop) must NEVER fall back to "" here in a way
@@ -1761,6 +1770,24 @@ def init_db():
             );
             """
         )
+        # Kilas Works' own persistent Human Takeover state. This is intentionally separate from
+        # client-hub's tenant wa_conversation_state because the platform bot itself is not a
+        # businesses row. CREATE IF NOT EXISTS keeps old production DBs backward-compatible.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS platform_wa_conversation_state (
+                id SERIAL PRIMARY KEY,
+                customer_phone TEXT NOT NULL UNIQUE,
+                mode TEXT NOT NULL DEFAULT 'AI_ACTIVE',
+                updated_by_user_id BIGINT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_platform_wa_state_mode ON platform_wa_conversation_state (mode);"
+        )
+
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS customer_facts (
@@ -5314,6 +5341,86 @@ def parse_owner_catalog_command(text):
     }
 
 
+def _coexistence_echo_visible_text(echo):
+    """Convert one smb_message_echoes item into bounded text for Client Hub history.
+
+    Echoes are messages a HUMAN sent from WhatsApp Business App / a supported linked device.  We
+    never call AI on them; we only mirror what the customer actually saw and flip that customer to
+    Human Takeover.  Rich media is represented honestly as a short placeholder + caption because
+    the existing shared messages table is text-only.
+    """
+    if not isinstance(echo, dict):
+        return "[Human mengirim pesan dari WhatsApp Business]"
+    msg_type = (echo.get("type") or "").strip().lower()
+    if msg_type == "text":
+        return ((echo.get("text") or {}).get("body") or "").strip()[:4096] or "[Pesan teks dari WhatsApp Business]"
+    if msg_type in ("image", "video", "document"):
+        payload = echo.get(msg_type) or {}
+        caption = (payload.get("caption") or "").strip()
+        filename = (payload.get("filename") or "").strip()
+        label = {"image": "gambar", "video": "video", "document": "dokumen"}[msg_type]
+        detail = caption or filename
+        return f"[Human mengirim {label} dari WhatsApp Business]" + (f" {detail[:3500]}" if detail else "")
+    if msg_type == "audio":
+        return "[Human mengirim voice note dari WhatsApp Business]"
+    if msg_type == "sticker":
+        return "[Human mengirim stiker dari WhatsApp Business]"
+    if msg_type == "location":
+        loc = echo.get("location") or {}
+        name = (loc.get("name") or "").strip()
+        address = (loc.get("address") or "").strip()
+        detail = " — ".join(x for x in (name, address) if x)
+        return "[Human mengirim lokasi dari WhatsApp Business]" + (f" {detail[:3500]}" if detail else "")
+    if msg_type in ("edit", "revoke"):
+        return f"[Pesan WhatsApp Business {msg_type}]"
+    return f"[Human mengirim {msg_type or 'pesan'} dari WhatsApp Business]"
+
+
+def _handle_smb_message_echoes(value, tenant_id, incoming_phone_number_id):
+    """Mirror WhatsApp Business App human sends into history and automatically silence AI.
+
+    Works for Kilas Works' own channel (tenant_id=None, phone_number_id must match the configured
+    platform number) and for a positively-resolved client tenant. Unknown channels are never
+    allowed to fall back into the platform inbox.
+    """
+    if tenant_id is None and WHATSAPP_PHONE_NUMBER_ID and incoming_phone_number_id != WHATSAPP_PHONE_NUMBER_ID:
+        print("smb_message_echoes untuk channel non-platform diabaikan saat tenant tidak ter-resolve.")
+        return 0
+    echoes = value.get("message_echoes") or []
+    handled = 0
+    for echo in echoes:
+        if not isinstance(echo, dict):
+            continue
+        message_id = echo.get("id")
+        if is_duplicate_event(message_id):
+            continue
+        customer_phone = re.sub(r"\D", "", str(echo.get("to") or ""))
+        if not customer_phone:
+            continue
+        visible_text = _coexistence_echo_visible_text(echo)
+        scoped_number = _ck(tenant_id, customer_phone)
+        try:
+            if tenant_id is None:
+                _platform_inbox.start_human_takeover(customer_phone, actor_user_id=None)
+            else:
+                _wa_takeover.start_human_takeover(tenant_id, customer_phone, actor_user_id=None)
+        except Exception as e:
+            # Fail safe: if we cannot persist takeover, DO NOT pretend the echo is safely handled.
+            # The next customer inbound will hit _get_conversation_mode_safe(), which itself fails
+            # safe to HUMAN_TAKEOVER on DB errors.
+            print(f"Gagal set Human Takeover dari WhatsApp Business echo ({e}).")
+            continue
+
+        history = conversations.get(scoped_number)
+        if history is None:
+            history = load_recent_messages_from_db(scoped_number, "customer")
+        history.append({"role": "assistant", "content": visible_text})
+        conversations[scoped_number] = history[-20:]
+        save_message_to_db(scoped_number, "customer", "assistant", visible_text)
+        handled += 1
+    return handled
+
+
 @app.route("/webhook", methods=["GET"])
 def verify_webhook():
     """Meta bakal manggil ini pas kita setup webhook, buat verifikasi."""
@@ -5330,8 +5437,24 @@ def verify_webhook():
 def receive_webhook():
     """Nerima pesan masuk dari WhatsApp, balas pakai AI, dan proses tag internal (leads panas /
     katalog / tanya owner / konfirmasi bayar)."""
-    data = request.get_json()
-    print("Webhook masuk:", data)
+    data = request.get_json(silent=True) or {}
+    # Privacy: never dump full WhatsApp payloads/chat contents into Render logs. Log only routing
+    # metadata that is useful for operations; actual message text stays in the conversation DB.
+    try:
+        _change = ((data.get("entry") or [{}])[0].get("changes") or [{}])[0]
+        _value = _change.get("value") or {}
+        _meta = _value.get("metadata") or {}
+        print(
+            "Webhook masuk:",
+            {
+                "field": _change.get("field"),
+                "phone_number_id": _meta.get("phone_number_id"),
+                "has_messages": bool(_value.get("messages")),
+                "has_message_echoes": bool(_value.get("message_echoes")),
+            },
+        )
+    except Exception:
+        print("Webhook masuk: payload metadata tidak terbaca")
 
     try:
         result = _webhook_body_impl(data)
@@ -5380,6 +5503,20 @@ def _webhook_body_impl(data):
         else:
             # Flag off = pure legacy single-tenant behavior, unchanged from before this cycle.
             tenant_id = None
+
+        _webhook_field = changes.get("field")
+        if _webhook_field == "smb_message_echoes":
+            # WhatsApp Coexistence: a human sent this from WhatsApp Business App / linked device.
+            # Mirror it into the same history and automatically take over that ONE conversation;
+            # never call AI and never send a duplicate API reply.
+            handled = _handle_smb_message_echoes(value, tenant_id, _incoming_phone_number_id)
+            return jsonify({"status": "ok", "smb_message_echoes_handled": handled}), 200
+
+        if _webhook_field in ("history", "smb_app_state_sync"):
+            # Coexistence can emit one-time history/contact sync events. We deliberately don't
+            # ingest them into live AI history yet; acknowledging them avoids retries while keeping
+            # the realtime inbox source-of-truth limited to messages observed after connection.
+            return jsonify({"status": "ok", "coexistence_sync_event": _webhook_field}), 200
 
         if "messages" not in value:
             # ini notifikasi status (delivered/read), bukan pesan baru -> abaikan
@@ -6954,6 +7091,57 @@ _SUPPORTED_INTERNAL_NOTIFICATION_TYPES = (
 )
 
 
+@app.route("/internal/platform-cs-reply", methods=["POST"])
+def internal_platform_cs_reply():
+    """Authenticated Client Hub -> Kilas Works WhatsApp manual reply bridge.
+
+    Client Hub never receives Meta access tokens. This bot service already owns the platform's
+    WhatsApp credentials, so it performs the actual send after independently re-checking Human
+    Takeover and the conservative 23-hour free-text window. Destination is limited to an existing
+    Kilas Works customer conversation; arbitrary numbers cannot be used as an open relay.
+    """
+    _clear_active_whatsapp_channel()
+    provided_secret = request.headers.get("X-Internal-Service-Secret", "")
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided_secret, INTERNAL_SERVICE_SECRET):
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({"status": "error", "reason": "client_hub_bridge_unavailable"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    phone = re.sub(r"\D", "", str(payload.get("customer_phone") or ""))
+    text = (payload.get("message") or "").strip() if isinstance(payload.get("message"), str) else ""
+    if not re.fullmatch(r"\d{6,20}", phone):
+        return jsonify({"status": "error", "reason": "invalid_customer_phone"}), 400
+    if not text:
+        return jsonify({"status": "error", "reason": "empty_message"}), 400
+    if len(text) > 4096:
+        return jsonify({"status": "error", "reason": "message_too_long"}), 400
+
+    try:
+        if not _platform_inbox.customer_exists(phone):
+            return jsonify({"status": "error", "reason": "customer_not_found"}), 404
+        if _platform_inbox.get_state(phone) != "HUMAN_TAKEOVER":
+            return jsonify({"status": "error", "reason": "human_takeover_required"}), 409
+        window = _platform_inbox.freeform_window_status(phone)
+    except Exception as e:
+        print(f"Platform CS reply safety check gagal ({e}) — pesan tidak dikirim.")
+        return jsonify({"status": "error", "reason": "takeover_state_unavailable"}), 503
+    if not window.get("allowed"):
+        return jsonify({"status": "error", "reason": window.get("reason") or "outside_24h_window"}), 409
+
+    ok, err = send_whatsapp_message(phone, text)
+    if not ok:
+        return jsonify({"status": "error", "reason": "whatsapp_send_failed"}), 502
+
+    history = conversations.get(phone)
+    if history is None:
+        history = load_recent_messages_from_db(phone, "customer")
+    history.append({"role": "assistant", "content": text})
+    conversations[phone] = history[-20:]
+    save_message_to_db(phone, "customer", "assistant", text)
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/internal/owner-notify", methods=["POST"])
 def internal_owner_notify():
     """Absolute Final Production Patch — the ONE HTTP door Client Hub uses to ask this bot process
@@ -7058,7 +7246,7 @@ def run_owner_notifications():
 @app.route("/cron/followups", methods=["GET"])
 def run_followups():
     """Endpoint yang HARUS dipanggil dari luar secara berkala (misal cron-job.org tiap 1 jam) buat
-    ngirim follow-up otomatis ke customer yang udah diem >=12 jam & belum closing/bayar, SEKALIGUS
+    ngirim follow-up otomatis ke customer yang sudah melewati FOLLOWUP_GAP_HOURS & belum closing/bayar, SEKALIGUS
     reminder meeting H-1/hari-H (production hardening — sengaja digabung ke endpoint yang sama biar
     gak perlu setup scheduler eksternal kedua). Aman dipanggil sesering apapun — endpoint ini sendiri
     yang ngecek siapa aja yang beneran udah waktunya di-follow-up/di-reminder (gak akan dobel kirim),
@@ -7088,7 +7276,7 @@ def run_followups():
             # generik — biar kerasa natural, bukan kayak broadcast otomatis.
             nudge_instruction = (
                 "(INSTRUKSI INTERNAL — INI FOLLOW-UP SALES OTOMATIS, JANGAN TAMPILKAN TEKS INI KE "
-                "CUSTOMER: customer ini udah diem 12+ jam sejak pesan terakhirnya. WAJIB sebut ULANG "
+                "CUSTOMER: customer ini udah diem beberapa jam sejak pesan terakhirnya. WAJIB sebut ULANG "
                 "topik/paket/kebutuhan SPESIFIK yang terakhir dibahas (INGAT dari history obrolan &"
                 " FAKTA YANG SUDAH FIX kalau ada) — JANGAN generic kayak 'masih tertarik?' atau 'ada "
                 "yang bisa dibantu?' doang tanpa konteks. Contoh BENER: 'Halo Kak, kemarin sempat "
@@ -7155,6 +7343,14 @@ def run_tenant_followups():
     key = request.args.get("key", "")
     if not CRON_SECRET or key != CRON_SECRET:
         return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
+
+    if not ENABLE_MULTI_TENANT:
+        return jsonify({
+            "status": "disabled",
+            "message": "Tenant follow-up tidak dijalankan karena ENABLE_MULTI_TENANT belum aktif.",
+            "tenants_checked": 0,
+            "results": [],
+        }), 409
 
     if not _CLIENT_HUB_AVAILABLE:
         return jsonify({"status": "ok", "message": "Client Hub tidak tersedia — tidak ada tenant untuk diproses.",
