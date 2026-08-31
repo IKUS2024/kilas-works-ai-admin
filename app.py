@@ -1272,6 +1272,73 @@ def _get_new_talent_requests_safe():
         return {"count": 0, "items": []}
 
 
+
+def _build_live_talent_knowledge_note_safe(for_owner=False):
+    """Ground Kilas Works Talent Management from Client Hub's live talents table.
+
+    This fixes the knowledge gap where Talent Management existed end-to-end in Client Hub/catalog,
+    but the WhatsApp prompt only knew the older PRICING_CONFIG service list and could incorrectly
+    claim that Kilas Works did not offer Talent Management.
+
+    Customer mode exposes public fields only. Owner mode may additionally expose the internal rate
+    because the owner is the authorized operator. Never invents a talent or availability.
+    """
+    if _talent_service is None:
+        return (
+            "\n\nTALENT MANAGEMENT KILAS WORKS:\n"
+            "- Talent Management adalah layanan RESMI dan AKTIF Kilas Works dengan harga Custom Quote.\n"
+            "- Jangan pernah bilang Kilas Works tidak punya Talent Management. "
+            "Kalau daftar talent live sedang tidak tersedia, bilang daftar talent sedang dicek, jangan mengarang."
+        )
+    try:
+        rows = _talent_service.list_active_talents()
+        lines = [
+            "\n\nTALENT MANAGEMENT KILAS WORKS — DATA LIVE DARI CLIENT HUB:",
+            "- Talent Management adalah layanan RESMI dan AKTIF Kilas Works.",
+            "- Pricing: Custom Quote (jangan mengarang harga publik).",
+            "- Kalau ditanya apakah fitur/layanan Talent Management ada, jawab YA.",
+            "- Daftar talent aktif saat ini:",
+        ]
+        if not rows:
+            lines.append("  * (belum ada talent aktif saat ini)")
+        for t in rows[:50]:
+            name = t.get("name") or "-"
+            handle = t.get("social_handle") or "-"
+            followers = t.get("follower_count")
+            followers_text = f"{int(followers):,}".replace(",", ".") if followers is not None else "-"
+            niche = t.get("niche") or "-"
+            availability = t.get("availability_status") or "AVAILABLE"
+            line = (
+                f"  * {name} | {handle} | followers {followers_text} | "
+                f"niche {niche} | availability {availability}"
+            )
+            if for_owner and t.get("internal_rate") is not None:
+                try:
+                    rate_text = f"Rp{int(t.get('internal_rate')):,}".replace(",", ".")
+                except Exception:
+                    rate_text = str(t.get("internal_rate"))
+                line += f" | internal_rate {rate_text}"
+            lines.append(line)
+        lines.append(
+            "- Data di atas adalah source-of-truth saat ini. Kalau admin mengubah talent/status di Client Hub, "
+            "gunakan data live ini dan jangan mengandalkan daftar lama/hardcoded."
+        )
+        if not for_owner:
+            lines.append(
+                "- Ke customer, jangan pernah bocorkan internal_rate/internal_notes. "
+                "Kalau customer minta harga talent, arahkan ke Custom Quote sesuai campaign."
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        print(f"Build live talent knowledge gagal ({e}).")
+        return (
+            "\n\nTALENT MANAGEMENT KILAS WORKS:\n"
+            "- Talent Management adalah layanan RESMI dan AKTIF Kilas Works dengan harga Custom Quote.\n"
+            "- Jangan pernah bilang layanan ini tidak ada. Kalau detail talent live gagal dibaca, "
+            "jawab bahwa daftar/ketersediaan sedang dicek, jangan mengarang."
+        )
+
+
 def _get_recent_quotations_safe():
     """'Quotation Rina berapa?' / 'Kopi ABC udah bayar?' (context for) — recent quotations with
     business name, number, price, status."""
@@ -3350,7 +3417,8 @@ BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
 
 SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa aja", dst):
 - Kilas Works jasanya BUKAN cuma foto/video/edit/Reels doang — juga ada AI WhatsApp Admin (yang lagi kamu
-  jalanin sekarang buat chat ini), Website, dan layanan lain di data paket di bawah. Kalau customer nanya
+  jalanin sekarang buat chat ini), Website, Talent Management (Custom Quote), dan layanan lain di data
+  paket/live Client Hub di bawah. Kalau customer nanya
   cakupan layanan secara umum, jawab AKURAT & LENGKAP sesuai kategori resmi yang BENERAN ada di data paket
   di bawah — jangan cuma sebut sebagian kalau customer emang nanya semua, tapi juga jangan maksa nge-push
   satu layanan tertentu seolah itu jawaban paling penting. Jawab natural & proporsional aja sesuai yang
@@ -3849,6 +3917,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     # isn't installed/reachable. Does not run at all for a resolved multi-tenant client
     # (tenant_context_block already carries THAT business's own canonical catalog).
     live_price_sync_note = "" if tenant_context_block else _build_live_price_sync_note_safe()
+    live_talent_note = "" if tenant_context_block else _build_live_talent_knowledge_note_safe(for_owner=False)
 
     # Bug fix: SYSTEM_PROMPT is Kilas Works' OWN persona, built on top of its OWN PRICING_CONFIG
     # (AI Admin, Content packages, bundles, website pricing, etc.) — that must NEVER be the base
@@ -3861,7 +3930,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
     full_prompt = (
         base_prompt + language_context + name_context + scope_context + facts_context
-        + appointment_context + live_price_sync_note + (tenant_context_block or "")
+        + appointment_context + live_price_sync_note + live_talent_note + (tenant_context_block or "")
     )
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
@@ -3869,7 +3938,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
 
 
 SYSTEM_PROMPT_OWNER_BASE = """Kamu asisten pribadi Irvan, founder Kilas Works (jasa fotografi, videografi, konten
-short-form & AI WhatsApp Admin di Tangerang & Jakarta). Kamu lagi chat LANGSUNG sama Irvan (owner-nya sendiri),
+short-form, AI WhatsApp Admin, Website & Talent Management di Tangerang & Jakarta). Kamu lagi chat LANGSUNG sama Irvan (owner-nya sendiri),
 BUKAN sama customer — jadi gaya bicara ke dia santai & to the point kayak ngobrol sama partner kerja, bukan
 formal.
 
@@ -3881,6 +3950,14 @@ pas, kasih saran harga, atau ngobrol hal lain sama sekali — SEBELUM dia mutusi
 KNOWLEDGE LAYANAN & HARGA KILAS WORKS (RESMI — SATU-SATUNYA SUMBER, SAMA PERSIS yang dipakai AI
 customer-service & katalog PDF. JANGAN PERNAH sebut angka/paket lain di luar ini):
 {pricing_text_block}
+
+TALENT MANAGEMENT (PENTING):
+- Talent Management adalah layanan RESMI dan AKTIF Kilas Works, model harga Custom Quote.
+- Data talent aktif, handle, followers, niche, availability, dan (khusus owner) internal rate akan diberikan
+  dari Client Hub secara LIVE di konteks bawah.
+- JANGAN PERNAH bilang "Kilas Works tidak punya Talent Management" atau menganggap fitur ini cuma rencana.
+- Kalau data live talent sementara gagal dibaca, bilang detail/list talent sedang dicek — jangan mengarang dan
+  jangan menghapus keberadaan Talent Management sebagai layanan.
 
 Kalau Irvan nanya soal jasa/paket/harga Kilas Works MILIK SENDIRI (contoh: "jasa kita sekarang apa
 aja", "AI Admin sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
@@ -4083,6 +4160,7 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
     context += build_pending_meeting_requests_context()
     context += build_customer_context_summary()
     context += _build_business_hub_owner_query_context_safe()
+    context += _build_live_talent_knowledge_note_safe(for_owner=True)
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
