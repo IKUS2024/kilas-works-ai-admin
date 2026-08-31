@@ -28,6 +28,7 @@ import payment_service
 import talent_service
 import platform_assets_service
 import wa_takeover_service
+import platform_inbox_service
 import subscription_service
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -786,3 +787,110 @@ def simulate_page(business_id):
         session[token_key] = uuid.uuid4().hex
     history = repo.get_simulation_history(business_id, session[token_key])
     return render_template("simulate.html", business=business, history=history, is_admin_view=True)
+
+
+# ---------------------------------------------------------------------------
+# Kilas Works own WhatsApp Inbox — one professional web, database stays invisible.
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/inbox")
+@security.admin_required
+def platform_inbox():
+    search = (request.args.get("q") or "").strip()
+    mode_filter = (request.args.get("mode") or "").strip()
+    if mode_filter not in ("", "AI_ACTIVE", "HUMAN_TAKEOVER"):
+        mode_filter = ""
+    conversations = platform_inbox_service.list_conversations(
+        search=search,
+        mode_filter=mode_filter or None,
+    )
+    selected_phone = platform_inbox_service.normalize_customer_phone(request.args.get("customer"))
+    if not selected_phone and conversations:
+        selected_phone = conversations[0]["customer_phone"]
+
+    selected = None
+    thread = []
+    window = None
+    if selected_phone:
+        if not platform_inbox_service.customer_exists(selected_phone):
+            abort(404)
+        try:
+            mode = platform_inbox_service.get_state(selected_phone)
+        except Exception:
+            mode = "STATE_UNAVAILABLE"
+        selected = {
+            "customer_phone": selected_phone,
+            "customer_name": platform_inbox_service.get_customer_name(selected_phone),
+            "mode": mode,
+        }
+        thread = platform_inbox_service.get_thread(selected_phone)
+        window = platform_inbox_service.freeform_window_status(selected_phone)
+
+    return render_template(
+        "platform_inbox.html",
+        conversations=conversations,
+        selected=selected,
+        thread=thread,
+        window=window,
+        search=search,
+        mode_filter=mode_filter,
+    )
+
+
+@admin_bp.route("/inbox/takeover", methods=["POST"])
+@security.admin_required
+def platform_inbox_takeover():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    admin = security.current_user()
+    platform_inbox_service.start_human_takeover(phone, admin["id"])
+    repo.write_audit_no_business(admin["id"], "PLATFORM_HUMAN_TAKEOVER_STARTED", f"customer={phone}")
+    flash("Lu ambil alih chat ini. AI Kilas Works akan diam khusus customer tersebut.", "success")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/return-ai", methods=["POST"])
+@security.admin_required
+def platform_inbox_return_ai():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    admin = security.current_user()
+    platform_inbox_service.return_to_ai(phone, admin["id"])
+    repo.write_audit_no_business(admin["id"], "PLATFORM_HUMAN_TAKEOVER_ENDED", f"customer={phone}")
+    flash("Chat dikembalikan ke AI Kilas Works.", "success")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/reply", methods=["POST"])
+@security.admin_required
+def platform_inbox_reply():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    text = (request.form.get("message") or "").strip()
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    if not text:
+        flash("Pesan tidak boleh kosong.", "error")
+        return redirect(url_for("admin.platform_inbox", customer=phone))
+
+    ok, reason = platform_inbox_service.send_manual_reply(phone, text)
+    admin = security.current_user()
+    if ok:
+        repo.write_audit_no_business(admin["id"], "PLATFORM_CS_MANUAL_REPLY_SENT", f"customer={phone}")
+        if reason == "sent_history_write_failed":
+            flash("Pesan terkirim, tapi history lokal gagal tersimpan. Cek log.", "success")
+        else:
+            flash("Pesan Kilas Works terkirim.", "success")
+    else:
+        friendly = {
+            "human_takeover_required": "Klik Ambil Alih dulu sebelum balas manual.",
+            "outside_24h_window": "Sudah di luar window WhatsApp 24 jam. Free-text tidak dikirim; perlu template message.",
+            "no_customer_inbound": "Belum ada inbound customer yang membuka window WhatsApp 24 jam.",
+            "takeover_state_unavailable": "Status takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
+            "bot_internal_bridge_unavailable": "Koneksi internal Client Hub → bot belum dikonfigurasi.",
+            "bot_internal_bridge_network_error": "Bot WhatsApp sedang tidak terjangkau dari Client Hub. Coba lagi sebentar.",
+            "message_too_long": "Pesan terlalu panjang. Maksimal 4096 karakter.",
+        }.get(reason, "Pesan belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
+        flash(friendly, "error")
+    return redirect(url_for("admin.platform_inbox", customer=phone))

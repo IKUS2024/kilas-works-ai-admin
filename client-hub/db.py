@@ -119,7 +119,15 @@ def get_connection():
     str(exc) are therefore safe by construction; DATABASE_URL itself is never included either."""
     conn = getattr(_local, "conn", None)
     if conn is not None:
-        return conn
+        # psycopg2 can leave a cached connection object behind after a DB restart. If the driver
+        # already knows it is closed, discard it here instead of handing the dead object to every
+        # subsequent request on this worker thread. Half-open sockets are handled by the one-time
+        # SELECT retry in query_one()/query_all() below.
+        if BACKEND == "postgres" and getattr(conn, "closed", 0):
+            _discard_cached_connection()
+            conn = None
+        else:
+            return conn
 
     if BACKEND == "sqlite":
         conn = sqlite3.connect(SQLITE_PATH, check_same_thread=False)
@@ -160,6 +168,30 @@ def _rollback_quietly(conn):
         conn.rollback()
     except Exception:
         pass
+
+
+def _discard_cached_connection():
+    """Close and forget this thread's cached connection without leaking driver details."""
+    conn = getattr(_local, "conn", None)
+    if conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    _local.conn = None
+
+
+def _is_retryable_postgres_connection_error(exc):
+    """True only for broken/stale PostgreSQL connections, never ordinary SQL/data errors."""
+    if BACKEND != "postgres":
+        return False
+    try:
+        if isinstance(exc, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+            return True
+    except Exception:
+        pass
+    conn = getattr(_local, "conn", None)
+    return bool(conn is not None and getattr(conn, "closed", 0))
 
 
 def reset_connection_for_new_db_path():
@@ -203,6 +235,7 @@ MIGRATIONS = [
      "0013_tenant_appointments_payment_reviews_postgres.sql"),
     ("0014_ai_admin_subscriptions_sqlite.sql", "0014_ai_admin_subscriptions_postgres.sql"),
     ("0015_tenant_followup_state_sqlite.sql", "0015_tenant_followup_state_postgres.sql"),
+    ("0016_platform_takeover_sqlite.sql", "0016_platform_takeover_postgres.sql"),
 ]
 
 
@@ -281,8 +314,10 @@ def execute(query, params=()):
             cur.execute(query, params)
         conn.commit()
         return cur
-    except Exception:
+    except Exception as e:
         _rollback_quietly(conn)
+        if _is_retryable_postgres_connection_error(e):
+            _discard_cached_connection()
         raise
 
 
@@ -311,8 +346,10 @@ def insert_returning_id(query, params=(), id_column="id"):
         conn.commit()
         cur.close()
         return row[0] if row else None
-    except Exception:
+    except Exception as e:
         _rollback_quietly(conn)
+        if _is_retryable_postgres_connection_error(e):
+            _discard_cached_connection()
         raise
 
 
@@ -325,56 +362,61 @@ def _row_to_dict(row, columns=None):
 
 
 def query_one(query, params=()):
-    """Render cold-start hotfix (idle-in-transaction audit): psycopg2 connections here run with
-    autocommit OFF, so a plain SELECT still opens a transaction that Postgres considers "idle in
-    transaction" the moment the query returns — write paths (execute()/insert_returning_id()) were
-    already closing theirs with an explicit commit(), but reads were not, so a request that only
-    ever reads could leave its connection idle-in-transaction for the rest of that worker's life.
-    On a connection-limited instance (e.g. Render's free Postgres tier) enough of those pile up and
-    new connections start failing/hanging — a plausible contributor to the cold-start hang this was
-    written to fix. Reads are never mutating, so committing (a no-op on the data, just ends the
-    transaction) is always safe here; it mirrors what the write path already does and does not
-    change any query's result. Harmless on SQLite too, so applied unconditionally rather than
-    branching on BACKEND again."""
+    """Run one SELECT and recover once from a stale Postgres connection.
+
+    SELECTs are safe to repeat after a broken connection; writes are deliberately NOT auto-retried
+    elsewhere in this module because a lost ACK could otherwise duplicate a side effect.
+    """
     query = _adapt_placeholders(query)
-    conn = get_connection()
-    try:
-        if BACKEND == "sqlite":
-            cur = conn.execute(query, params)
+    for attempt in range(2):
+        conn = get_connection()
+        try:
+            if BACKEND == "sqlite":
+                cur = conn.execute(query, params)
+                row = cur.fetchone()
+                conn.commit()
+                return dict(row) if row is not None else None
+
+            cur = conn.cursor()
+            cur.execute(query, params)
             row = cur.fetchone()
+            columns = [d[0] for d in cur.description] if cur.description else []
+            cur.close()
             conn.commit()
-            return dict(row) if row is not None else None
-
-        cur = conn.cursor()
-        cur.execute(query, params)
-        row = cur.fetchone()
-        columns = [d[0] for d in cur.description] if cur.description else []
-        cur.close()
-        conn.commit()
-        return _row_to_dict(row, columns)
-    except Exception:
-        _rollback_quietly(conn)
-        raise
-
+            return _row_to_dict(row, columns)
+        except Exception as e:
+            _rollback_quietly(conn)
+            retryable = _is_retryable_postgres_connection_error(e)
+            if retryable:
+                _discard_cached_connection()
+            if attempt == 0 and retryable:
+                continue
+            raise
 
 def query_all(query, params=()):
-    """See the idle-in-transaction note on query_one() above — same fix applies here."""
+    """Run a SELECT-many and recover once from a stale Postgres connection. See query_one()."""
     query = _adapt_placeholders(query)
-    conn = get_connection()
-    try:
-        if BACKEND == "sqlite":
-            cur = conn.execute(query, params)
-            rows = [dict(row) for row in cur.fetchall()]
-            conn.commit()
-            return rows
+    for attempt in range(2):
+        conn = get_connection()
+        try:
+            if BACKEND == "sqlite":
+                cur = conn.execute(query, params)
+                rows = [dict(row) for row in cur.fetchall()]
+                conn.commit()
+                return rows
 
-        cur = conn.cursor()
-        cur.execute(query, params)
-        rows = cur.fetchall()
-        columns = [d[0] for d in cur.description] if cur.description else []
-        cur.close()
-        conn.commit()
-        return [_row_to_dict(row, columns) for row in rows]
-    except Exception:
-        _rollback_quietly(conn)
-        raise
+            cur = conn.cursor()
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            columns = [d[0] for d in cur.description] if cur.description else []
+            cur.close()
+            conn.commit()
+            return [_row_to_dict(row, columns) for row in rows]
+        except Exception as e:
+            _rollback_quietly(conn)
+            retryable = _is_retryable_postgres_connection_error(e)
+            if retryable:
+                _discard_cached_connection()
+            if attempt == 0 and retryable:
+                continue
+            raise

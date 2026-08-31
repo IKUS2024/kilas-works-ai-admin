@@ -14,6 +14,8 @@ import projects_repo
 import quotation_service
 import feature_flags
 import subscription_service
+import inbox_service
+import wa_takeover_service
 
 client_bp = Blueprint("client", __name__, url_prefix="")
 
@@ -24,6 +26,31 @@ REQUIRED_STEPS_FOR_AI_SETUP = ["basics", "services", "operations", "faq", "style
 def _business_or_404(business_id):
     user = security.current_user()
     return security.require_business_access(business_id, user=user)
+
+
+_REQUIRED_FIELD_LABELS = {
+    "business_name": "Nama bisnis",
+    "owner_name": "Nama owner",
+    "category": "Kategori bisnis",
+    "primary_language": "Bahasa utama",
+    "customer_salutation": "Sapaan customer",
+    "core_product_or_service": "Produk / layanan utama",
+}
+
+
+def _step_for_missing_fields(missing):
+    missing = set(missing or [])
+    if missing & {"business_name", "owner_name", "category"}:
+        return "basics"
+    if "core_product_or_service" in missing:
+        return "services"
+    if missing & {"primary_language", "customer_salutation"}:
+        return "style"
+    return "basics"
+
+
+def _human_missing_labels(missing):
+    return [_REQUIRED_FIELD_LABELS.get(field, field) for field in (missing or [])]
 
 
 @client_bp.route("/dashboard")
@@ -139,6 +166,13 @@ def wizard_step(business_id, step):
             import db
             db.execute("UPDATE businesses SET business_name = ? WHERE id = ?", (raw["business_name"].strip(), business_id))
         repo.upsert_business_profile(business_id, raw)
+        missing_here = [
+            label for key, label in (("business_name", "Nama bisnis"), ("category", "Kategori bisnis"), ("owner_name", "Nama owner"))
+            if not (raw.get(key) or "").strip()
+        ]
+        if missing_here:
+            flash("Lengkapi dulu: " + ", ".join(missing_here) + ".", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
         repo.mark_onboarding_step_done(business_id, "basics_done")
 
     elif step == "services":
@@ -146,6 +180,9 @@ def wizard_step(business_id, step):
         raw_lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
         repo.save_onboarding_session(business_id, "services", {"raw_lines": raw_lines}, user["id"])
         repo.replace_business_services(business_id, raw_lines)
+        if not raw_lines:
+            flash("Isi minimal 1 produk atau layanan utama sebelum lanjut.", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="services"))
         repo.mark_onboarding_step_done(business_id, "services_done")
 
     elif step == "operations":
@@ -183,6 +220,14 @@ def wizard_step(business_id, step):
         }
         repo.save_onboarding_session(business_id, "style", raw, user["id"])
         repo.upsert_business_profile(business_id, {**profile, **raw})
+        missing_here = []
+        if raw["primary_language"] not in ("id", "en"):
+            missing_here.append("Bahasa utama")
+        if not (raw["customer_salutation"] or "").strip():
+            missing_here.append("Sapaan customer")
+        if missing_here:
+            flash("Lengkapi dulu: " + ", ".join(missing_here) + ".", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="style"))
         repo.mark_onboarding_step_done(business_id, "style_done")
 
     elif step == "upload":
@@ -358,6 +403,8 @@ def review_page(business_id):
         files=repo.list_business_files(business_id), ai_settings=ai_settings,
         onboarding_status=repo.get_onboarding_status(business_id),
         missing_required=repo.required_fields_missing(business_id),
+        missing_required_labels=_human_missing_labels(repo.required_fields_missing(business_id)),
+        missing_fix_step=_step_for_missing_fields(repo.required_fields_missing(business_id)),
         is_admin_view=False,
     )
 
@@ -379,6 +426,16 @@ def submit_for_review(business_id):
         flash(f"Lengkapi dulu step: {', '.join(missing_steps)}.", "error")
         return redirect(url_for("client.review_page", business_id=business_id))
 
+    # Validate RAW business facts BEFORE spending an AI-normalization call. This prevents the old
+    # failure mode where a client could mark a wizard step done with an empty value, run AI setup,
+    # then only discover the missing business fact at admin approval time.
+    missing = repo.required_fields_missing(business_id)
+    if missing:
+        labels = _human_missing_labels(missing)
+        fix_step = _step_for_missing_fields(missing)
+        flash("Belum bisa Submit. Lengkapi dulu: " + ", ".join(labels) + ".", "error")
+        return redirect(url_for("client.wizard_step", business_id=business_id, step=fix_step))
+
     ai_settings = repo.get_ai_settings(business_id)
     if not ai_settings or ai_settings.get("ai_status") != "DONE":
         ok, error = _run_ai_normalization(business_id, business, user)
@@ -389,11 +446,6 @@ def submit_for_review(business_id):
                 "error",
             )
             return redirect(url_for("client.review_page", business_id=business_id))
-
-    missing = repo.required_fields_missing(business_id)
-    if missing:
-        flash(f"Lengkapi dulu data wajib: {', '.join(missing)}.", "error")
-        return redirect(url_for("client.review_page", business_id=business_id))
 
     repo.mark_onboarding_step_done(business_id, "reviewed_done")
     repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "client submitted for Kilas review")
@@ -456,3 +508,111 @@ def simulate_flag(business_id):
         return jsonify({"error": "missing message_id"}), 400
     repo.flag_simulation_message(int(message_id), business_id, note)
     return jsonify({"status": "ok"})
+
+
+# ---------------------------------------------------------------------------
+# Tenant CS Inbox — owner-facing click-to-takeover/manual reply UI.
+# ---------------------------------------------------------------------------
+
+@client_bp.route("/business/<int:business_id>/inbox")
+@security.login_required
+def inbox_page(business_id):
+    business = _business_or_404(business_id)
+    if business.get("package") == "NONE":
+        flash("CS Inbox tersedia untuk business yang memakai AI Admin.", "error")
+        return redirect(url_for("client.dashboard"))
+
+    conversations = inbox_service.list_conversations(business_id)
+    selected_phone = inbox_service.normalize_customer_phone(request.args.get("customer"))
+    selected = None
+    thread = []
+    window = None
+    if selected_phone:
+        if not inbox_service.customer_exists(business_id, selected_phone):
+            abort(404)
+        thread = inbox_service.get_thread(business_id, selected_phone)
+        try:
+            mode = wa_takeover_service.get_state(business_id, selected_phone)
+        except Exception:
+            # Fail safe in UI too: do not pretend AI is active if DB state could not be verified.
+            mode = "STATE_UNAVAILABLE"
+        selected = {
+            "customer_phone": selected_phone,
+            "customer_name": inbox_service.get_customer_name(business_id, selected_phone),
+            "mode": mode,
+        }
+        window = inbox_service.freeform_window_status(business_id, selected_phone)
+
+    return render_template(
+        "inbox.html",
+        business=business,
+        conversations=conversations,
+        selected=selected,
+        thread=thread,
+        window=window,
+    )
+
+
+@client_bp.route("/business/<int:business_id>/inbox/takeover", methods=["POST"])
+@security.login_required
+def inbox_takeover(business_id):
+    business = _business_or_404(business_id)
+    phone = inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not inbox_service.customer_exists(business_id, phone):
+        abort(404)
+    if business.get("status") != "ACTIVE":
+        flash("AI Admin business ini belum ACTIVE.", "error")
+        return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
+    user = security.current_user()
+    wa_takeover_service.start_human_takeover(business_id, phone, user["id"])
+    flash("CS mengambil alih chat ini. AI akan diam sampai dikembalikan ke AI.", "success")
+    return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
+
+
+@client_bp.route("/business/<int:business_id>/inbox/return-ai", methods=["POST"])
+@security.login_required
+def inbox_return_ai(business_id):
+    _business_or_404(business_id)
+    phone = inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not inbox_service.customer_exists(business_id, phone):
+        abort(404)
+    user = security.current_user()
+    wa_takeover_service.return_to_ai(business_id, phone, user["id"])
+    flash("Chat dikembalikan ke AI Admin.", "success")
+    return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
+
+
+@client_bp.route("/business/<int:business_id>/inbox/reply", methods=["POST"])
+@security.login_required
+def inbox_reply(business_id):
+    _business_or_404(business_id)
+    phone = inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    text = (request.form.get("message") or "").strip()
+    if not phone or not inbox_service.customer_exists(business_id, phone):
+        abort(404)
+    if not text:
+        flash("Pesan tidak boleh kosong.", "error")
+        return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
+
+    ok, reason = inbox_service.send_manual_reply(business_id, phone, text)
+    user = security.current_user()
+    if ok:
+        repo.write_audit(user["id"], business_id, "CS_MANUAL_REPLY_SENT", f"customer={phone}")
+        if reason == "sent_history_write_failed":
+            flash("Pesan terkirim, tapi history lokal gagal tersimpan. Cek log Client Hub.", "success")
+        else:
+            flash("Pesan CS terkirim.", "success")
+    else:
+        friendly = {
+            "human_takeover_required": "Klik Ambil Alih dulu sebelum CS mengirim pesan manual.",
+            "outside_24h_window": "Sudah di luar window WhatsApp 24 jam. Free-text tidak dikirim; perlu template message.",
+            "no_customer_inbound": "Belum ada inbound customer yang valid untuk membuka window WhatsApp 24 jam.",
+            "whatsapp_not_connected": "WhatsApp business ini belum berstatus CONNECTED.",
+            "business_not_active": "AI Admin business ini belum ACTIVE.",
+            "tenant_credentials_unavailable": "Credential WhatsApp tenant belum tersedia di server.",
+            "default_whatsapp_credentials_unavailable": "Credential WhatsApp platform belum tersedia di server.",
+            "takeover_state_unavailable": "Status Human Takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
+            "message_too_long": "Pesan terlalu panjang. Maksimal 4096 karakter.",
+        }.get(reason, "Pesan belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
+        flash(friendly, "error")
+    return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
