@@ -56,7 +56,7 @@
     {% elif b.status == 'ACTIVE' %}
       <p style="color:var(--green);margin-top:10px;">AI Admin — ACTIVE</p>
     {% elif b.status in ('APPROVED',) %}
-      <p class="muted" style="margin-top:10px;">Menunggu koneksi WhatsApp oleh tim Kilas Works.</p>
+      <p class="muted" style="margin-top:10px;">Business sudah disetujui. Hubungkan WhatsApp untuk melanjutkan aktivasi AI Admin.</p>
     {% elif b.status == 'NEEDS_REVISION' %}
       <p style="color:var(--red);margin-top:10px;">Perlu revisi — buka Review untuk detail.</p>
     {% endif %}
@@ -73,6 +73,8 @@
       <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Review Business</a>
       {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>{% endif %}
       {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Appointment & Pembayaran</a>{% endif %}
+      {% if b.package != 'NONE' and b.status == 'APPROVED' %}<a class="btn" href="{{ url_for('whatsapp.embedded_signup_start', business_id=b.id) }}">Hubungkan WhatsApp</a>{% endif %}
+      {% if b.package != 'NONE' and b.status == 'ACTIVE' %}<a class="btn secondary" href="{{ url_for('client.inbox_page', business_id=b.id) }}">CS Inbox</a>{% endif %}
       <a class="btn secondary" href="{{ url_for('projects.project_list', business_id=b.id, view='all') }}">Semua Proyek</a>
       <a class="btn secondary" href="{{ url_for('payments.invoice_list', business_id=b.id, view='all') }}">Invoice/Pembayaran</a>
     </div>
