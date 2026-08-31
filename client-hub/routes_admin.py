@@ -890,7 +890,15 @@ def platform_inbox_reply():
             "takeover_state_unavailable": "Status takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
             "bot_internal_bridge_unavailable": "Koneksi internal Client Hub → bot belum dikonfigurasi.",
             "bot_internal_bridge_network_error": "Bot WhatsApp sedang tidak terjangkau dari Client Hub. Coba lagi sebentar.",
+            "bot_internal_bridge_timeout": "Bot WhatsApp terlalu lama merespons (kemungkinan cold start Render). Coba sekali lagi setelah bot sudah Live.",
             "message_too_long": "Pesan terlalu panjang. Maksimal 4096 karakter.",
-        }.get(reason, "Pesan belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
+        }.get(reason)
+
+        if not friendly and str(reason).startswith("bot_internal_bridge_http_"):
+            # Safe operational diagnostic only; never exposes tokens/secrets/message bodies.
+            detail = str(reason).replace("bot_internal_bridge_http_", "HTTP ", 1)
+            friendly = f"Bridge Client Hub → bot menolak request ({detail}). Kirim kode ini ke admin untuk diagnosis."
+        if not friendly:
+            friendly = f"Pesan belum berhasil dikirim. Diagnostic: {reason}"
         flash(friendly, "error")
     return redirect(url_for("admin.platform_inbox", customer=phone))

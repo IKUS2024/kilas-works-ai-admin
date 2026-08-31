@@ -260,16 +260,31 @@ def send_manual_reply(customer_phone, message_text):
     if not endpoint or not secret:
         return False, "bot_internal_bridge_unavailable"
     try:
+        timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
         resp = requests.post(
             endpoint,
             json={"customer_phone": phone, "message": text},
             headers={"X-Internal-Service-Secret": secret},
-            timeout=12,
+            timeout=max(15.0, min(timeout_seconds, 120.0)),
         )
-    except requests.exceptions.RequestException:
+    except requests.exceptions.Timeout:
+        print("Platform Inbox manual reply bridge timeout — bot belum merespons tepat waktu.")
+        return False, "bot_internal_bridge_timeout"
+    except requests.exceptions.RequestException as exc:
+        print(f"Platform Inbox manual reply bridge network error: {type(exc).__name__}")
         return False, "bot_internal_bridge_network_error"
     if resp.status_code != 200:
-        return False, f"bot_internal_bridge_http_{resp.status_code}"
+        remote_reason = ""
+        try:
+            remote_reason = str((resp.json() or {}).get("reason") or "").strip()
+        except (ValueError, TypeError, AttributeError):
+            remote_reason = ""
+        print(
+            "Platform Inbox manual reply bridge rejected: "
+            f"http={resp.status_code} reason={remote_reason or 'unknown'}"
+        )
+        suffix = f":{remote_reason}" if remote_reason else ""
+        return False, f"bot_internal_bridge_http_{resp.status_code}{suffix}"
     try:
         body = resp.json()
     except ValueError:
