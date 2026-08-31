@@ -8,7 +8,10 @@
 {% if missing_required %}
   <div class="card" style="border-color:var(--red);">
     <h2 style="color:var(--red);">Data wajib belum lengkap</h2>
-    <p class="muted">{{ missing_required|join(', ') }}</p>
+    <p class="muted">{{ (missing_required_labels or missing_required)|join(', ') }}</p>
+    {% if not is_admin_view and missing_fix_step %}
+      <a class="btn" href="{{ url_for('client.wizard_step', business_id=business.id, step=missing_fix_step) }}">Lengkapi Sekarang</a>
+    {% endif %}
   </div>
 {% endif %}
 
@@ -139,10 +142,14 @@
     <h2>Langkah Selanjutnya</h2>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
-      <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn" type="submit">Submit ke Kilas Works</button>
-      </form>
+      {% if not missing_required %}
+        <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn" type="submit">Submit ke Kilas Works</button>
+        </form>
+      {% else %}
+        <span class="muted">Submit aktif setelah data wajib lengkap.</span>
+      {% endif %}
     </div>
   </div>
 {% endif %}

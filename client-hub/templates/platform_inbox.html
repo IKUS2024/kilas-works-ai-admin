@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Inbox Kilas Works{% endblock %}
+{% block content %}
+<style>
+  .wrap { max-width: 1280px; }
+  .kw-inbox-shell { display:grid; grid-template-columns:360px minmax(0,1fr); gap:14px; min-height:72vh; }
+  .kw-inbox-sidebar, .kw-chat { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .kw-inbox-toolbar { padding:14px; border-bottom:1px solid var(--border); }
+  .kw-conversations { max-height:68vh; overflow:auto; }
+  .kw-conversation { display:block; padding:12px 14px; color:inherit; border-bottom:1px solid var(--border); text-decoration:none; }
+  .kw-conversation:hover { background:rgba(255,255,255,.025); text-decoration:none; }
+  .kw-conversation.active { background:rgba(255,122,26,.08); }
+  .kw-row { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+  .kw-preview { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:5px; }
+  .kw-chat-head { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
+  .kw-thread { height:52vh; min-height:340px; overflow:auto; padding:18px; display:flex; flex-direction:column; gap:9px; }
+  .kw-bubble { max-width:78%; border:1px solid var(--border); border-radius:14px; padding:9px 11px; }
+  .kw-bubble.customer { align-self:flex-start; background:rgba(148,163,184,.11); }
+  .kw-bubble.business { align-self:flex-end; background:rgba(255,122,26,.09); }
+  .kw-compose { border-top:1px solid var(--border); padding:14px 16px; }
+  .kw-filters { display:grid; grid-template-columns:minmax(0,1fr) 135px; gap:8px; }
+  @media (max-width:900px) {
+    .kw-inbox-shell { grid-template-columns:1fr; }
+    .kw-conversations { max-height:34vh; }
+    .kw-thread { height:46vh; }
+  }
+</style>
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+  <div>
+    <h1 style="margin-bottom:4px;">Inbox Kilas Works</h1>
+    <p class="muted" style="margin:0;">Chat operasional WhatsApp Kilas Works. Database tetap di belakang layar; lu handle customer dari sini atau dari WhatsApp Business.</p>
+  </div>
+  <a class="btn secondary" href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+</div>
+
+<div class="kw-inbox-shell">
+  <section class="kw-inbox-sidebar">
+    <div class="kw-inbox-toolbar">
+      <form method="get" action="{{ url_for('admin.platform_inbox') }}">
+        <div class="kw-filters">
+          <input type="search" name="q" value="{{ search }}" placeholder="Cari nama, nomor, chat...">
+          <select name="mode" onchange="this.form.submit()">
+            <option value="" {{ 'selected' if not mode_filter else '' }}>Semua</option>
+            <option value="AI_ACTIVE" {{ 'selected' if mode_filter == 'AI_ACTIVE' else '' }}>AI aktif</option>
+            <option value="HUMAN_TAKEOVER" {{ 'selected' if mode_filter == 'HUMAN_TAKEOVER' else '' }}>Human</option>
+          </select>
+        </div>
+        <button class="btn secondary small" type="submit" style="margin-top:8px;">Cari</button>
+      </form>
+    </div>
+    <div class="kw-conversations">
+      {% for c in conversations %}
+        <a class="kw-conversation {{ 'active' if selected and selected.customer_phone == c.customer_phone else '' }}"
+           href="{{ url_for('admin.platform_inbox', customer=c.customer_phone, q=search, mode=mode_filter) }}">
+          <div class="kw-row">
+            <strong>{{ c.customer_name or c.customer_phone }}</strong>
+            {% if c.mode == 'HUMAN_TAKEOVER' %}
+              <span class="pill NEEDS_REVISION">Human</span>
+            {% else %}
+              <span class="pill ACTIVE">AI</span>
+            {% endif %}
+          </div>
+          {% if c.customer_name %}<div class="muted" style="font-size:12px;">{{ c.customer_phone }}</div>{% endif %}
+          <div class="muted kw-preview" style="font-size:13px;">{{ c.last_message }}</div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at }}</div>
+        </a>
+      {% else %}
+        <div style="padding:18px;"><p class="muted">Belum ada percakapan yang cocok.</p></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="kw-chat">
+    {% if selected %}
+      <div class="kw-chat-head">
+        <div>
+          <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
+          {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
+          <div style="margin-top:5px;">
+            {% if selected.mode == 'HUMAN_TAKEOVER' %}
+              <span class="pill NEEDS_REVISION">Human Handling</span>
+            {% elif selected.mode == 'AI_ACTIVE' %}
+              <span class="pill ACTIVE">AI Active</span>
+            {% else %}
+              <span class="pill SUSPENDED">State unavailable</span>
+            {% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          {% if selected.mode == 'AI_ACTIVE' %}
+            <form method="post" action="{{ url_for('admin.platform_inbox_takeover') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn" type="submit">Ambil Alih</button>
+            </form>
+          {% elif selected.mode == 'HUMAN_TAKEOVER' %}
+            <form method="post" action="{{ url_for('admin.platform_inbox_return_ai') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn secondary" type="submit">Kembalikan ke AI</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="kw-thread" id="kw-thread">
+        {% for m in thread %}
+          {% set customer = m.role == 'user' %}
+          <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
+            <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Kilas Works / AI' }}</div>
+            <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at }}</div>
+          </div>
+        {% else %}
+          <p class="muted">Belum ada history.</p>
+        {% endfor %}
+      </div>
+
+      <div class="kw-compose">
+        {% if selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
+          <form method="post" action="{{ url_for('admin.platform_inbox_reply') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai Kilas Works..." style="min-height:82px;"></textarea>
+            <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
+              <span class="muted" style="font-size:12px;">Free-text aman selama &lt;23 jam dari pesan masuk customer terakhir.</span>
+              <button class="btn" type="submit">Kirim</button>
+            </div>
+          </form>
+        {% elif selected.mode == 'HUMAN_TAKEOVER' %}
+          <p style="margin:0;color:var(--red);">Di luar window WhatsApp 24 jam. Sistem tidak akan memaksa free-text; gunakan template message setelah fitur template sender tersedia.</p>
+        {% elif selected.mode == 'AI_ACTIVE' %}
+          <p class="muted" style="margin:0;">AI sedang handle. Klik <strong>Ambil Alih</strong> kalau lu mau balas sendiri.</p>
+        {% else %}
+          <p class="muted" style="margin:0;">Status takeover belum bisa diverifikasi. AI tidak boleh diasumsikan aktif.</p>
+        {% endif %}
+      </div>
+    {% else %}
+      <div style="padding:28px;">
+        <h2>Pilih percakapan</h2>
+        <p class="muted">Customer WhatsApp Kilas Works akan muncul di kiri. Lu nggak perlu buka PostgreSQL buat baca chat.</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+  const thread = document.getElementById('kw-thread');
+  if (thread) thread.scrollTop = thread.scrollHeight;
+</script>
+{% endblock %}
