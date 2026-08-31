@@ -32,6 +32,7 @@ from routes_projects import projects_bp
 from routes_quotations import quotations_bp
 from routes_payments import payments_bp
 from routes_talent import talent_bp
+from routes_whatsapp import whatsapp_bp
 
 # Requests that carry state-changing verbs but are never form/browser submissions (JSON APIs) are
 # exempted from the form-field CSRF check below and instead must carry an X-CSRF-Token header —
@@ -118,6 +119,7 @@ def create_app():
     app.register_blueprint(quotations_bp)
     app.register_blueprint(payments_bp)
     app.register_blueprint(talent_bp)
+    app.register_blueprint(whatsapp_bp)
 
     # Make csrf_token() callable from any Jinja template without every route needing to pass it.
     app.jinja_env.globals["csrf_token"] = security.get_csrf_token
