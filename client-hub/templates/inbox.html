@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}CS Inbox — {{ business.business_name }}{% endblock %}
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+  <div>
+    <h1 style="margin-bottom:4px;">CS Inbox — {{ business.business_name }}</h1>
+    <p class="muted" style="margin-top:0;">Klik customer → Ambil Alih → balas dari dashboard. Saat Human Takeover aktif, AI diam untuk chat itu saja.</p>
+  </div>
+  <a class="btn secondary" href="{{ url_for('client.dashboard') }}">Kembali ke Dashboard</a>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(260px,0.85fr) minmax(0,1.6fr);gap:14px;align-items:start;" class="cs-inbox-grid">
+  <div class="card" style="margin-top:0;max-height:72vh;overflow:auto;">
+    <h2 style="margin-top:0;">Customer</h2>
+    {% if conversations %}
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        {% for c in conversations %}
+          <a href="{{ url_for('client.inbox_page', business_id=business.id, customer=c.customer_phone) }}"
+             style="display:block;text-decoration:none;color:inherit;padding:10px;border:1px solid var(--border);border-radius:10px;{% if selected and selected.customer_phone == c.customer_phone %}background:rgba(37,99,235,.08);{% endif %}">
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
+              <strong>{{ c.customer_name or c.customer_phone }}</strong>
+              <span class="pill {{ c.mode }}">{{ 'Human' if c.mode == 'HUMAN_TAKEOVER' else 'AI' }}</span>
+            </div>
+            {% if c.customer_name %}<div class="muted" style="font-size:12px;">{{ c.customer_phone }}</div>{% endif %}
+            <div class="muted" style="margin-top:5px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.last_message }}</div>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">Belum ada customer yang chat ke WhatsApp business ini.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:0;min-height:360px;">
+    {% if selected %}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:12px;">
+        <div>
+          <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
+          {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
+          <div style="margin-top:6px;">
+            {% if selected.mode == 'HUMAN_TAKEOVER' %}
+              <span class="pill">Human Takeover aktif</span>
+            {% elif selected.mode == 'AI_ACTIVE' %}
+              <span class="pill ACTIVE">AI aktif</span>
+            {% else %}
+              <span class="pill">Status takeover tidak tersedia</span>
+            {% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          {% if selected.mode == 'AI_ACTIVE' %}
+            <form method="post" action="{{ url_for('client.inbox_takeover', business_id=business.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn" type="submit">Ambil Alih</button>
+            </form>
+          {% elif selected.mode == 'HUMAN_TAKEOVER' %}
+            <form method="post" action="{{ url_for('client.inbox_return_ai', business_id=business.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn secondary" type="submit">Kembalikan ke AI</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <div style="height:46vh;min-height:260px;overflow:auto;padding:14px 2px;display:flex;flex-direction:column;gap:9px;">
+        {% for m in thread %}
+          {% set is_customer = m.role == 'user' %}
+          <div style="align-self:{{ 'flex-start' if is_customer else 'flex-end' }};max-width:82%;padding:9px 11px;border-radius:12px;background:{{ 'rgba(148,163,184,.13)' if is_customer else 'rgba(37,99,235,.11)' }};border:1px solid var(--border);">
+            <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if is_customer else 'Bisnis / AI' }}</div>
+            <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at }}</div>
+          </div>
+        {% else %}
+          <p class="muted">Belum ada history.</p>
+        {% endfor %}
+      </div>
+
+      {% if selected.mode == 'HUMAN_TAKEOVER' %}
+        {% if window and window.allowed %}
+          <form method="post" action="{{ url_for('client.inbox_reply', business_id=business.id) }}" style="border-top:1px solid var(--border);padding-top:12px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+            <label>Balasan CS</label>
+            <textarea name="message" maxlength="4096" required placeholder="Ketik balasan manual ke customer..." style="min-height:90px;"></textarea>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">
+              <span class="muted" style="font-size:12px;">Free-text hanya dikirim selama window WhatsApp masih aman (&lt;23 jam dari inbound terakhir).</span>
+              <button class="btn" type="submit">Kirim sebagai CS</button>
+            </div>
+          </form>
+        {% else %}
+          <div style="border-top:1px solid var(--border);padding-top:12px;">
+            <p style="margin:0;color:var(--red);">Chat ini sudah di luar window WhatsApp 24 jam. Demi keamanan sistem tidak akan mencoba free-text. Nanti kita bisa tambah template-message sender untuk kasus ini.</p>
+          </div>
+        {% endif %}
+      {% elif selected.mode == 'AI_ACTIVE' %}
+        <p class="muted" style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:0;">Klik <strong>Ambil Alih</strong> kalau CS mau membalas manual. AI akan berhenti khusus untuk customer ini.</p>
+      {% endif %}
+    {% else %}
+      <h2>Pilih customer</h2>
+      <p class="muted">Klik salah satu customer di kiri untuk lihat history, ambil alih, atau kembalikan chat ke AI.</p>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+@media (max-width: 820px) {
+  .cs-inbox-grid { grid-template-columns: 1fr !important; }
+}
+</style>
+{% endblock %}
