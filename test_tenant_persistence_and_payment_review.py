@@ -24,7 +24,6 @@ Run with:
 import os
 import sys
 import json
-import tempfile
 from unittest.mock import patch, MagicMock
 
 os.environ.setdefault("WHATSAPP_PHONE_NUMBER_ID", "123")
@@ -33,10 +32,12 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "key")
 os.environ.setdefault("VERIFY_TOKEN", "verify")
 os.environ.setdefault("OWNER_WHATSAPP_NUMBER", "628111111111")
 
-_TMP_DB = tempfile.mktemp(suffix=".db")
-os.environ["CLIENT_HUB_DB_PATH"] = _TMP_DB
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.pop("DATABASE_URL", None)
+
+import _test_bootstrap  # noqa: E402,F401 — must run before `import app`, see _test_bootstrap.py
+
+_TMP_DB = _test_bootstrap.get_temp_db_path()  # SAME path _test_bootstrap already set up (never a second, separate tempfile)
 
 import app as appmod  # noqa: E402
 

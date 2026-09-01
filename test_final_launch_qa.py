@@ -23,6 +23,8 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "key")
 os.environ.setdefault("VERIFY_TOKEN", "verify")
 os.environ.setdefault("OWNER_WHATSAPP_NUMBER", "628111111111")
 
+import _test_bootstrap  # noqa: E402,F401 — must run before `import app`, see _test_bootstrap.py
+
 import app as appmod
 from test_voice_note import reset_all, sent_log as _unused_placeholder, audio_payload, fake_send_whatsapp_message
 

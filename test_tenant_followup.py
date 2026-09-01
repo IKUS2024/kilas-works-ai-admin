@@ -10,7 +10,6 @@ Run with:
 """
 import os
 import sys
-import tempfile
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -21,10 +20,12 @@ os.environ.setdefault("VERIFY_TOKEN", "verify")
 os.environ.setdefault("OWNER_WHATSAPP_NUMBER", "628111111111")
 os.environ.setdefault("CRON_SECRET", "test-cron-secret")
 
-_TMP_DB = tempfile.mktemp(suffix=".db")
-os.environ["CLIENT_HUB_DB_PATH"] = _TMP_DB
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.pop("DATABASE_URL", None)
+
+import _test_bootstrap  # noqa: E402,F401 — must run before `import app`, see _test_bootstrap.py
+
+_TMP_DB = _test_bootstrap.get_temp_db_path()  # SAME path _test_bootstrap already set up (never a second, separate tempfile)
 
 import app as appmod  # noqa: E402
 
@@ -97,8 +98,34 @@ def _seed_due_followup(business_id, customer_phone, hours_silent=13, followup_co
     )
 
 
+class _enable_multi_tenant:
+    """Context manager — temporarily sets appmod.ENABLE_MULTI_TENANT = True for exactly the scope
+    of a `with` block, restoring the ORIGINAL value afterward in __exit__ (which always runs, even
+    if the block raises — a Python context manager's __exit__ is guaranteed to run on exception
+    unwind). Production's real, intentional gate on /cron/tenant-followups
+    (`if not ENABLE_MULTI_TENANT: return ... 409 disabled`, see app.py) is NEVER touched or
+    weakened by this — this only flips a Python-side test double for the duration of one sweep
+    call, in this test process, then puts it back. Never sets the flag globally/permanently for
+    the whole test process — see test_tenant_followup_disabled_when_enable_multi_tenant_false()
+    below, which explicitly verifies the flag is False again by the time it runs."""
+    def __enter__(self):
+        self._original = appmod.ENABLE_MULTI_TENANT
+        appmod.ENABLE_MULTI_TENANT = True
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        appmod.ENABLE_MULTI_TENANT = self._original
+        return False  # never suppress an exception raised inside the `with` block
+
+
 def _run_sweep():
-    return client.get(f"/cron/tenant-followups?key={appmod.CRON_SECRET}")
+    """Every dedicated tenant-follow-up test in this file wants to exercise the REAL
+    eligibility/send logic behind /cron/tenant-followups, not the production ENABLE_MULTI_TENANT
+    gate in front of it (that gate is tested explicitly and separately, see
+    test_tenant_followup_disabled_when_enable_multi_tenant_false()) — so the flag is scoped True
+    for exactly this one HTTP call via _enable_multi_tenant(), then restored immediately."""
+    with _enable_multi_tenant():
+        return client.get(f"/cron/tenant-followups?key={appmod.CRON_SECRET}")
 
 
 # ---------------------------------------------------------------------------
@@ -537,6 +564,38 @@ def test_kilas_works_own_followup_unchanged():
     print("test_kilas_works_own_followup_unchanged OK")
 
 
+# ---------------------------------------------------------------------------
+# Production gate regression — /cron/tenant-followups must return 409 disabled and send NOTHING
+# when ENABLE_MULTI_TENANT is False (the real, current, intentional production default). This
+# test deliberately does NOT use _run_sweep() (which scopes the flag to True) — it calls the
+# endpoint directly to verify the opposite, default-off case matches production right now.
+# ---------------------------------------------------------------------------
+def test_tenant_followup_disabled_when_enable_multi_tenant_false():
+    reset_client_hub_db()
+    reset_bot_state()
+    bid = _make_active_tenant("tenant-gate-test", "62894000099")
+    _seed_due_followup(bid, "62899990099")
+    assert appmod.ENABLE_MULTI_TENANT is False, \
+        "test process default must be False here, matching production's real current setting"
+
+    with patch.object(appmod, "call_claude") as mock_claude, \
+         patch.object(appmod, "send_reply_bubbles") as mock_send:
+        resp = client.get(f"/cron/tenant-followups?key={appmod.CRON_SECRET}")
+
+    assert resp.status_code == 409, resp.get_json()
+    body = resp.get_json()
+    assert body["status"] == "disabled"
+    assert body["tenants_checked"] == 0
+    assert body["results"] == []
+    mock_claude.assert_not_called()
+    mock_send.assert_not_called()
+    # And the flag must still be False afterward — nothing in this test process permanently
+    # changed it (this test ran BEFORE any _run_sweep()-based test in file order here, but the
+    # assertion holds regardless of order since _enable_multi_tenant() always restores in __exit__).
+    assert appmod.ENABLE_MULTI_TENANT is False
+    print("test_tenant_followup_disabled_when_enable_multi_tenant_false OK")
+
+
 if __name__ == "__main__":
     test_correct_tenant_channel_used()
     test_two_tenants_same_customer_phone_stay_isolated()
@@ -558,4 +617,5 @@ if __name__ == "__main__":
     test_tenant_followup_never_uses_kilas_global_channel()
     test_missing_channel_never_falls_back_to_global()
     test_kilas_works_own_followup_unchanged()
+    test_tenant_followup_disabled_when_enable_multi_tenant_false()
     print("ALL TENANT FOLLOWUP TESTS PASSED")
