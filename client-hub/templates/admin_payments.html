@@ -8,21 +8,25 @@
     {% for p in payments %}
     <tr>
       <td><a href="{{ url_for('admin.payment_detail', payment_id=p.id) }}">{{ p.id }}</a></td>
-      <td>{{ p.status|humanize_status('payment') }}</td>
-      <td>{{ p.ai_extracted_amount or '-' }}</td>
-      <td>{{ p.ai_risk_flags_json or '-' }}</td>
+      <td>{{ p.review_status|humanize_status('payment') }}</td>
+      <td>{{ p.ai_extracted_amount|display_or_missing }}</td>
+      <td>{{ p.ai_risk_flags_json|display_or_missing }}</td>
       <td>
         {% if p.proof_file_id %}<a href="{{ url_for('admin.payment_proof_view', payment_id=p.id) }}" target="_blank">Lihat bukti</a>{% endif %}
       </td>
       <td>
         <form method="post" action="{{ url_for('admin.payment_verify', payment_id=p.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn small" type="submit">Verify</button>
+          <button class="btn small" type="submit">Approve</button>
         </form>
         <form method="post" action="{{ url_for('admin.payment_reject', payment_id=p.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="text" name="admin_notes" placeholder="Alasan">
           <button class="btn small danger" type="submit">Reject</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.payment_request_reupload', payment_id=p.id) }}" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small secondary" type="submit">Minta Upload Ulang</button>
         </form>
       </td>
     </tr>

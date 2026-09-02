@@ -10,6 +10,7 @@ import security
 import payment_service
 import projects_repo
 import file_utils
+import ai_payment_review
 
 payments_bp = Blueprint("payments", __name__)
 
@@ -51,10 +52,11 @@ def invoice_page(invoice_id):
         abort(404)
     business = security.require_business_access(invoice["business_id"], user)
     payment = payment_service.get_payment_for_invoice(invoice_id)
+    review_status = payment_service.derive_review_status(payment) if payment else None
 
     if request.method == "GET":
         return render_template("invoice.html", business=business, invoice=invoice, payment=payment,
-                                bank=payment_service.BANK_DETAILS)
+                                review_status=review_status, bank=payment_service.BANK_DETAILS)
 
     upload = request.files.get("proof_file")
     if not upload or not upload.filename:
@@ -73,8 +75,10 @@ def invoice_page(invoice_id):
         "size_bytes, content, uploaded_by_user_id) VALUES (?, ?, 'PAYMENT_PROOF', ?, ?, ?, ?, ?)",
         (business["id"], invoice["project_id"], safe_name, mime_type, len(content), content, user["id"]),
     )
+    proof_hash = ai_payment_review.compute_file_hash(content)
     try:
-        payment_service.upload_payment_proof(payment["id"], business["id"], file_id, user["id"])
+        payment_service.upload_payment_proof(payment["id"], business["id"], file_id, user["id"],
+                                              proof_file_hash=proof_hash)
     except ValueError as e:
         flash(f"Tidak bisa upload bukti: {e}", "error")
         return redirect(url_for("payments.invoice_page", invoice_id=invoice_id))

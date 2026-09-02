@@ -530,6 +530,8 @@ def project_update_status(project_id):
 @security.admin_required
 def payments_admin():
     pending = payment_service.list_payments_pending_review()
+    for p in pending:
+        p["review_status"] = payment_service.derive_review_status(p)
     return render_template("admin_payments.html", payments=pending)
 
 
@@ -553,6 +555,9 @@ def payment_detail(payment_id):
     return render_template(
         "admin_payment_detail.html",
         payment=payment, invoice=invoice, business=business, project=project,
+        review_status=payment_service.derive_review_status(payment),
+        difference=(payment.get("ai_extracted_amount") - invoice["amount"]
+                    if payment.get("ai_extracted_amount") is not None and invoice else None),
     )
 
 
@@ -601,6 +606,26 @@ def payment_reject(payment_id):
         flash(f"Tidak bisa menolak: {e}", "error")
         return redirect(url_for("admin.payments_admin"))
     flash("Pembayaran ditolak.", "success")
+    return redirect(url_for("admin.payments_admin"))
+
+
+@admin_bp.route("/payments/<int:payment_id>/request-reupload", methods=["POST"])
+@security.admin_required
+def payment_request_reupload(payment_id):
+    """Section 9/11's third action — distinct from Reject: asks the customer for a fresh upload
+    without recording the payment as REJECTED. See payment_service.request_reupload()'s own
+    docstring for why this is a separate action/audit event."""
+    admin = security.current_user()
+    payment = payment_service.get_payment(payment_id)
+    if payment is None:
+        abort(404)
+    try:
+        payment_service.request_reupload(payment_id, payment["business_id"], admin["id"],
+                                          admin_notes=request.form.get("admin_notes"))
+    except ValueError as e:
+        flash(f"Tidak bisa minta upload ulang: {e}", "error")
+        return redirect(url_for("admin.payments_admin"))
+    flash("Customer diminta upload ulang bukti pembayaran.", "success")
     return redirect(url_for("admin.payments_admin"))
 
 

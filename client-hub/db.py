@@ -240,6 +240,8 @@ MIGRATIONS = [
      "0017_fix_operating_hours_column_type_postgres.sql"),
     ("0018_tenant_reengagement_template_sqlite.sql",
      "0018_tenant_reengagement_template_postgres.sql"),
+    ("0019_payment_proof_file_hash_sqlite.sql",
+     "0019_payment_proof_file_hash_postgres.sql"),
 ]
 
 

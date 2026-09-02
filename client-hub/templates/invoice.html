@@ -2,7 +2,8 @@
 {% block title %}{{ invoice.invoice_number }} — Kilas Works{% endblock %}
 {% block content %}
 <h1>Invoice {{ invoice.invoice_number }}</h1>
-<span class="pill APPROVED">{{ payment.status|humanize_status('payment') if payment else invoice.status|humanize_status('invoice') }}</span>
+<span class="pill APPROVED">{{ review_status|humanize_status('payment') if payment else invoice.status|humanize_status('invoice') }}</span>
+<p class="muted" style="margin-top:4px;">{{ review_status|humanize_payment_message if payment else '' }}</p>
 
 <div class="card">
   <h2>Total: Rp{{ '{:,}'.format(invoice.amount).replace(',', '.') }}</h2>
@@ -17,7 +18,7 @@
 {% if payment and payment.status in ('PAYMENT_PENDING', 'REJECTED') %}
 <div class="card">
   <h2>Upload Bukti Pembayaran</h2>
-  {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">Bukti sebelumnya ditolak: {{ payment.admin_notes|display_or_missing }}. Silakan upload ulang.</p>{% endif %}
+  {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">{{ review_status|humanize_payment_message }}{% if payment.admin_notes %} Catatan tim: {{ payment.admin_notes }}.{% endif %}</p>{% endif %}
   {# Mobile-friendly upload (Section 12): "capture" lets a phone browser offer the camera directly
      instead of forcing a trip through a file manager, while still allowing "choose from gallery". #}
   <form method="post" enctype="multipart/form-data">
@@ -29,12 +30,12 @@
 </div>
 {% elif payment and payment.status in ('UNDER_REVIEW', 'PROOF_UPLOADED') %}
 <div class="card">
-  <p class="muted">Bukti pembayaran sudah diterima — status: <strong>UNDER REVIEW</strong>. Tim Kilas Works sedang memverifikasi.</p>
+  <p class="muted">{{ review_status|humanize_payment_message }}</p>
   {% if payment.proof_file_id %}<a href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank">Lihat bukti yang sudah diupload</a>{% endif %}
 </div>
 {% elif payment and payment.status == 'VERIFIED' %}
 <div class="card">
-  <p style="color:var(--green);">Pembayaran <strong>TERVERIFIKASI</strong>. Project akan segera dimulai.</p>
+  <p style="color:var(--green);">{{ review_status|humanize_payment_message }} Project akan segera dimulai.</p>
   {% if payment.proof_file_id %}<a href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank">Lihat bukti pembayaran</a>{% endif %}
 </div>
 {% endif %}

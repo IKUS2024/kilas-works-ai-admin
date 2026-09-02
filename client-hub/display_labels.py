@@ -72,8 +72,33 @@ PAYMENT_STATUS_LABELS = {
     "PAYMENT_PENDING": "Menunggu pembayaran",
     "PAYMENT_NOT_STARTED": "Belum mulai bayar",
     "PENDING_VERIFICATION": "Menunggu verifikasi",
+    "UNDER_REVIEW": "Sedang diperiksa",
+    "AUTO_CHECK_PASSED": "Cek otomatis lolos",
+    "AMOUNT_MISMATCH": "Nominal tidak sesuai",
+    "DATA_MISMATCH": "Data tidak sesuai",
+    "UNREADABLE": "Tidak terbaca",
+    "POSSIBLE_DUPLICATE": "Kemungkinan duplikat",
+    "NEEDS_MANUAL_REVIEW": "Perlu review manual",
     "VERIFIED": "Terverifikasi",
     "REJECTED": "Ditolak",
+}
+
+# Full-sentence customer-facing messages (Section 12 of the payment-verification-strengthening
+# request) — deliberately SEPARATE from PAYMENT_STATUS_LABELS above, which stays short (used
+# inline in admin tables/pills where a full sentence would break the layout). These are for the
+# CUSTOMER'S OWN invoice page, where a complete, natural sentence is what was explicitly asked
+# for, not a short label.
+PAYMENT_CUSTOMER_MESSAGE_LABELS = {
+    "PAYMENT_PENDING": "Menunggu pembayaran. Silakan transfer sesuai nominal tagihan.",
+    "UNDER_REVIEW": "Bukti pembayaran sudah diterima dan sedang dikonfirmasi.",
+    "AUTO_CHECK_PASSED": "Bukti pembayaran sudah diterima dan sedang dikonfirmasi.",
+    "AMOUNT_MISMATCH": "Nominal pada bukti belum sesuai dengan tagihan.",
+    "DATA_MISMATCH": "Data pada bukti belum sesuai dengan tagihan.",
+    "UNREADABLE": "Bukti pembayaran kurang jelas. Silakan upload ulang.",
+    "POSSIBLE_DUPLICATE": "Pembayaran sedang diperiksa oleh tim.",
+    "NEEDS_MANUAL_REVIEW": "Pembayaran sedang diperiksa oleh tim.",
+    "VERIFIED": "Pembayaran berhasil diverifikasi.",
+    "REJECTED": "Bukti pembayaran belum bisa diverifikasi. Silakan hubungi tim atau upload ulang.",
 }
 
 QUOTATION_STATUS_LABELS = {
@@ -235,6 +260,16 @@ def humanize_tone(code):
     return TONE_LABELS.get(code, code.replace("-", " ").title())
 
 
+def humanize_payment_message(code):
+    """Full-sentence customer-facing message for a (possibly derived, see payment_service.
+    derive_review_status()) payment status code — see PAYMENT_CUSTOMER_MESSAGE_LABELS above.
+    Unknown code falls back to the short PAYMENT_STATUS_LABELS entry (still readable, never
+    hidden) rather than a blank message."""
+    if not code:
+        return "Belum diisi"
+    return PAYMENT_CUSTOMER_MESSAGE_LABELS.get(code, humanize_status(code, "payment"))
+
+
 def register_jinja_filters(app):
     """Wires every helper above into Jinja as a template filter, so templates use e.g.
     `{{ business.package|humanize_package }}` instead of a raw `{{ business.package }}`, and
@@ -243,6 +278,7 @@ def register_jinja_filters(app):
     app.jinja_env.filters["humanize_package"] = humanize_package
     app.jinja_env.filters["humanize_status"] = humanize_status
     app.jinja_env.filters["humanize_tone"] = humanize_tone
+    app.jinja_env.filters["humanize_payment_message"] = humanize_payment_message
     app.jinja_env.filters["display_or_missing"] = display_or_missing
     app.jinja_env.filters["humanize_audit_action"] = humanize_audit_action
     app.jinja_env.filters["humanize_audit_detail"] = humanize_audit_detail

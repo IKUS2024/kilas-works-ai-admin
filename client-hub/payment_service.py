@@ -80,6 +80,24 @@ def get_payment_for_invoice(invoice_id):
     return db.query_one("SELECT * FROM payments WHERE invoice_id = ? ORDER BY created_at DESC LIMIT 1", (invoice_id,))
 
 
+def get_latest_payment_for_project(project_id):
+    """Dashboard fix (Section 1 of the payment-verification-strengthening request): a project's
+    STATUS ('Disetujui'/APPROVED) and its PAYMENT status are genuinely different things read from
+    different tables — a project can be APPROVED (quotation-wise, or checkout-ready) while its
+    payment is still PAYMENT_PENDING or has no invoice/payment row at all yet. This is the one
+    query the customer dashboard needs to show both correctly: the most recent invoice for this
+    project (a project normally has exactly one, but this takes the latest defensively), and that
+    invoice's payment. Returns None if there is no invoice for this project yet at all — the
+    caller must treat that as "belum ada tagihan", never infer "already paid" from its absence."""
+    invoice = db.query_one(
+        "SELECT * FROM invoices WHERE project_id = ? ORDER BY created_at DESC LIMIT 1", (project_id,)
+    )
+    if invoice is None:
+        return None, None
+    payment = get_payment_for_invoice(invoice["id"])
+    return invoice, payment
+
+
 def get_payment(payment_id):
     return db.query_one("SELECT * FROM payments WHERE id = ?", (payment_id,))
 
@@ -94,7 +112,7 @@ def list_payments_pending_review():
     )
 
 
-def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id):
+def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id, proof_file_hash=None):
     payment = get_payment(payment_id)
     if payment is None or payment["business_id"] != business_id:
         raise ValueError("payment_not_found")
@@ -102,20 +120,23 @@ def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id):
         raise ValueError(f"invalid_state: payment is {payment['status']}, cannot upload proof")
 
     invoice = get_invoice(payment["invoice_id"])
-    assessment = ai_payment_review.assess_payment_proof(payment_id, business_id, invoice["amount"])
+    assessment = ai_payment_review.assess_payment_proof(
+        payment_id, business_id, invoice["amount"], proof_file_hash=proof_file_hash,
+    )
 
     db.execute(
         "UPDATE payments SET status = 'UNDER_REVIEW', proof_file_id = ?, ai_extracted_amount = ?, "
         "ai_extracted_date = ?, ai_extracted_bank = ?, ai_reference = ?, ai_risk_flags_json = ?, "
-        "ai_match_score = ?, duplicate_candidate = ?, updated_at = datetime('now') WHERE id = ?"
+        "ai_match_score = ?, duplicate_candidate = ?, proof_file_hash = ?, updated_at = datetime('now') "
+        "WHERE id = ?"
         if db.BACKEND == "sqlite" else
         "UPDATE payments SET status = 'UNDER_REVIEW', proof_file_id = ?, ai_extracted_amount = ?, "
         "ai_extracted_date = ?, ai_extracted_bank = ?, ai_reference = ?, ai_risk_flags_json = ?, "
-        "ai_match_score = ?, duplicate_candidate = ?, updated_at = now() WHERE id = ?",
+        "ai_match_score = ?, duplicate_candidate = ?, proof_file_hash = ?, updated_at = now() WHERE id = ?",
         (proof_file_id, assessment["ai_extracted_amount"], assessment["ai_extracted_date"],
          assessment["ai_extracted_bank"], assessment["ai_reference"],
          json.dumps(assessment["ai_risk_flags"]), assessment["ai_match_score"],
-         bool(assessment["duplicate_candidate"]), payment_id),
+         bool(assessment["duplicate_candidate"]), proof_file_hash, payment_id),
     )
     repo.write_audit(actor_user_id, business_id, "PAYMENT_PROOF_UPLOADED", f"payment_id={payment_id}",
                       project_id=invoice["project_id"])
@@ -142,6 +163,80 @@ def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
     projects_repo.set_project_status(invoice["project_id"], "PAID", actor_user_id, business_id,
                                       f"payment_id={payment_id} verified")
     repo.write_audit(actor_user_id, business_id, "PAYMENT_VERIFIED", f"payment_id={payment_id}",
+                      project_id=invoice["project_id"])
+
+
+def derive_review_status(payment):
+    """Derives a richer, more specific DISPLAY status from a stored payment row — WITHOUT changing
+    the underlying gating state machine (payments.status stays exactly PAYMENT_PENDING/
+    UNDER_REVIEW/VERIFIED/REJECTED; verify_payment()/reject_payment() still gate off those exact
+    values, completely unchanged by this function). This is purely a read-time refinement for
+    display (Section 8/12 of the payment-verification-strengthening request) — VERIFIED means
+    exactly what it always meant: a human approved it, never inferred from an AI check alone.
+
+    VERIFIED/REJECTED/PAYMENT_PENDING pass through unchanged. UNDER_REVIEW is refined into one of:
+      UNREADABLE           — the AI could not extract anything from the proof at all
+      AMOUNT_MISMATCH      — extracted amount doesn't match the invoice (or DP) amount
+      POSSIBLE_DUPLICATE   — same proof file hash or transaction reference seen on a different
+                              payment (see ai_payment_review.py's duplicate checks)
+      NEEDS_MANUAL_REVIEW  — some OTHER risk flag was raised (reserved for future flags, e.g.
+                              SUSPICIOUS_VISUAL_ANOMALY once real vision extraction exists)
+      AUTO_CHECK_PASSED    — no risk flags at all; STILL requires human approval — this status
+                              name deliberately does NOT say "verified" or "approved", since it
+                              never implies that (Section 5's "AI must never claim authenticity")
+
+    Priority when multiple flags are present: UNREADABLE > AMOUNT_MISMATCH > POSSIBLE_DUPLICATE >
+    NEEDS_MANUAL_REVIEW — the most actionable/blocking issue is surfaced first, so an admin's/
+    customer's first glance shows the thing most likely to need action."""
+    status = payment.get("status")
+    if status in ("PAYMENT_PENDING", "VERIFIED", "REJECTED"):
+        return status
+    if status != "UNDER_REVIEW":
+        return status  # unknown/future status — pass through unchanged, never hidden
+
+    raw_flags = payment.get("ai_risk_flags_json")
+    flags = []
+    if raw_flags:
+        try:
+            flags = json.loads(raw_flags) if isinstance(raw_flags, str) else raw_flags
+        except (ValueError, TypeError):
+            flags = []
+
+    if "UNREADABLE" in flags:
+        return "UNREADABLE"
+    if "AMOUNT_MISMATCH" in flags:
+        return "AMOUNT_MISMATCH"
+    if "DUPLICATE_REFERENCE_CANDIDATE" in flags or "DUPLICATE_FILE_CANDIDATE" in flags:
+        return "POSSIBLE_DUPLICATE"
+    if flags:
+        return "NEEDS_MANUAL_REVIEW"
+    return "AUTO_CHECK_PASSED"
+
+
+def request_reupload(payment_id, business_id, actor_user_id, admin_notes=None):
+    """Section 9/11's third admin action, distinct from reject_payment(): the proof itself wasn't
+    necessarily WRONG (e.g. UNREADABLE, or a minor mismatch worth double-checking with the
+    customer) — this asks for a fresh upload without recording it as a REJECTED payment. Reuses
+    the exact same PAYMENT_PENDING transition upload_payment_proof() already accepts re-upload
+    from, so the customer-facing re-upload flow is entirely unchanged — only the admin_notes/audit
+    event differ, making REQUEST_REUPLOAD distinguishable from an actual REJECTED in the audit
+    trail. The OLD proof file itself is never deleted — project_files rows are never removed by any
+    action in this module, preserving it for audit exactly as Section 11 requires."""
+    payment = get_payment(payment_id)
+    if payment is None or payment["business_id"] != business_id:
+        raise ValueError("payment_not_found")
+    if payment["status"] not in ("UNDER_REVIEW", "PROOF_UPLOADED"):
+        raise ValueError(f"invalid_state: payment is {payment['status']}, cannot request reupload")
+
+    db.execute(
+        "UPDATE payments SET status = 'PAYMENT_PENDING', admin_notes = ?, updated_at = datetime('now') "
+        "WHERE id = ?"
+        if db.BACKEND == "sqlite" else
+        "UPDATE payments SET status = 'PAYMENT_PENDING', admin_notes = ?, updated_at = now() WHERE id = ?",
+        (admin_notes, payment_id),
+    )
+    invoice = get_invoice(payment["invoice_id"])
+    repo.write_audit(actor_user_id, business_id, "PAYMENT_REUPLOAD_REQUESTED", f"payment_id={payment_id}",
                       project_id=invoice["project_id"])
 
 

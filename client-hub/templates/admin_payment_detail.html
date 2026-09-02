@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Payment #{{ payment.id }} — Admin{% endblock %}
 {% block content %}
-<h1>Payment #{{ payment.id }}</h1>
+<h1>Pembayaran Menunggu Verifikasi</h1>
+<span class="pill APPROVED">{{ review_status|humanize_status('payment') }}</span>
 
 <div class="card">
   <h2>Business</h2>
@@ -11,22 +12,30 @@
 <div class="card">
   <h2>Invoice</h2>
   {% if invoice %}
-  <p>Invoice: <strong>{{ invoice.invoice_number }}</strong> — Rp{{ "{:,}".format(invoice.amount).replace(",", ".") }}</p>
-  <p>Status invoice: {{ invoice.status|humanize_status('invoice') }}</p>
-  {% if project %}<p>Project: {{ project.title }} ({{ project.project_type }})</p>{% endif %}
+  <table>
+    <tr><th>Invoice</th><td>{{ invoice.invoice_number }}</td></tr>
+    <tr><th>Tagihan</th><td>Rp{{ "{:,}".format(invoice.amount).replace(",", ".") }}</td></tr>
+    <tr><th>Nominal terbaca</th><td>{{ 'Rp' + '{:,}'.format(payment.ai_extracted_amount).replace(',', '.') if payment.ai_extracted_amount is not none else 'Belum diisi' }}</td></tr>
+    <tr><th>Selisih</th><td>{{ 'Rp' + '{:,}'.format(difference).replace(',', '.') if difference is not none else 'Belum diisi' }}</td></tr>
+    <tr><th>Status invoice</th><td>{{ invoice.status|humanize_status('invoice') }}</td></tr>
+    {% if project %}<tr><th>Project</th><td>{{ project.title }} ({{ project.project_type }})</td></tr>{% endif %}
+  </table>
   {% else %}
   <p class="muted">Invoice tidak ditemukan.</p>
   {% endif %}
 </div>
 
 <div class="card">
-  <h2>Payment</h2>
-  <p>Status: <strong>{{ payment.status|humanize_status('payment') }}</strong></p>
-  <p>AI Extracted Amount: {{ payment.ai_extracted_amount or '-' }}</p>
-  <p>AI Extracted Date: {{ payment.ai_extracted_date or '-' }}</p>
-  <p>AI Extracted Bank: {{ payment.ai_extracted_bank or '-' }}</p>
-  <p>AI Reference: {{ payment.ai_reference or '-' }}</p>
-  <p>Risk Flags: {{ payment.ai_risk_flags_json or '-' }}</p>
+  <h2>Cek Pembayaran</h2>
+  <table>
+    <tr><th>Status</th><td><strong>{{ review_status|humanize_status('payment') }}</strong></td></tr>
+    <tr><th>Bank terbaca</th><td>{{ payment.ai_extracted_bank|display_or_missing }}</td></tr>
+    <tr><th>Tanggal terbaca</th><td>{{ payment.ai_extracted_date|display_or_missing }}</td></tr>
+    <tr><th>Reference</th><td>{{ payment.ai_reference|display_or_missing }}</td></tr>
+    <tr><th>Duplicate risk</th><td>{{ 'Perlu dicek' if payment.duplicate_candidate else 'Aman' }}</td></tr>
+    <tr><th>AI check</th><td>{{ 'Data terlihat sesuai dengan invoice' if review_status == 'AUTO_CHECK_PASSED' else 'Perlu review' }}</td></tr>
+  </table>
+  <p class="muted" style="margin-top:8px;">AI hanya membantu ekstraksi/deteksi risiko — keputusan akhir SELALU dari Kilas Admin. AI tidak pernah menyatakan bukti ini asli/valid.</p>
   {% if payment.admin_notes %}<p>Catatan Admin: {{ payment.admin_notes }}</p>{% endif %}
 </div>
 
@@ -45,12 +54,17 @@
   <h2>Aksi</h2>
   <form method="post" action="{{ url_for('admin.payment_verify', payment_id=payment.id) }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn small" type="submit">Verify</button>
+    <button class="btn small" type="submit">Approve</button>
   </form>
   <form method="post" action="{{ url_for('admin.payment_reject', payment_id=payment.id) }}" class="inline">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="text" name="admin_notes" placeholder="Alasan">
     <button class="btn small danger" type="submit">Reject</button>
+  </form>
+  <form method="post" action="{{ url_for('admin.payment_request_reupload', payment_id=payment.id) }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="text" name="admin_notes" placeholder="Catatan (opsional)">
+    <button class="btn small secondary" type="submit">Minta Upload Ulang</button>
   </form>
 </div>
 {% endif %}

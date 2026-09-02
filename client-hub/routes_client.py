@@ -82,10 +82,18 @@ def dashboard():
             if p["status"] in ("COMPLETED", "CANCELLED"):
                 continue
             latest_quote = quotation_service.get_latest_quotation_for_project(p["id"])
+            # Section 1 of the payment-verification-strengthening request: project status and
+            # payment status are genuinely different things (a project can be "Disetujui" while
+            # payment is still pending) — never let one imply the other on this dashboard.
+            invoice, payment = payment_service.get_latest_payment_for_project(p["id"])
+            payment_review_status = payment_service.derive_review_status(payment) if payment else None
             my_projects.append({
                 **p,
                 "business_name": b["business_name"],
                 "latest_quotation": latest_quote,
+                "invoice": invoice,
+                "payment": payment,
+                "payment_review_status": payment_review_status,
             })
     return render_template(
         "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects
