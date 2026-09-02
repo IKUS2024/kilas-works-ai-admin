@@ -81,6 +81,58 @@ ATURAN MUTLAK:
 
 Balasan kamu adalah data yang akan disimpan oleh sistem apa adanya — jangan sertakan apapun selain objek JSON di atas."""
 
+# Production reliability fix, ROUND 2 (real customer incident, confirmed recurring): a PRIOR fix
+# already raised this from 1500 -> 4096 tokens, citing this exact same failure signature
+# (RESPONSE_PARSE_ERROR around ~4,100 characters). The SAME symptom recurred for a business with a
+# genuinely large services list (e.g. many endorsement/package tiers) — proving 4096 is STILL too
+# low for a real, legitimate customer, not a one-off fluke. Raised again to a more generous bound.
+# Considered switching this call to Claude's native tool-use (forced JSON via a `tools` schema +
+# `tool_choice`) as the "strongest structured-output mechanism" available from the current
+# provider/client — deliberately DEFERRED, not because it isn't a good idea, but because the
+# confirmed root cause (token budget) is fully addressed by the fix below and by
+# _scaled_max_tokens() below, and a tool-use conversion is a larger structural change (different
+# response shape, different repair-attempt semantics) that deserves its own focused follow-up
+# rather than being bundled into an urgent customer-reliability fix.
+NORMALIZATION_MAX_TOKENS = int(os.environ.get("CLIENT_HUB_NORMALIZATION_MAX_TOKENS", "8192"))
+
+# Hard ceiling for the dynamic scaling below — bounded, not "absurdly high" (Section B of the
+# request): comfortably covers even an unusually large services/FAQ list while staying well short
+# of the model's full output ceiling.
+NORMALIZATION_MAX_TOKENS_CEILING = int(os.environ.get("CLIENT_HUB_NORMALIZATION_MAX_TOKENS_CEILING", "16000"))
+
+
+def _scaled_max_tokens(input_text):
+    """Safe bounded strategy for large business data (Section B of the request): a business with
+    an unusually long services/FAQ list needs more OUTPUT tokens to represent in the normalized
+    JSON schema than a small one does — a single flat token budget either wastes tokens on every
+    small business or truncates every large one. This scales the request's max_tokens with the
+    INPUT size (longer raw input -> proportionally more room for structured output), never
+    dropping below NORMALIZATION_MAX_TOKENS and never exceeding NORMALIZATION_MAX_TOKENS_CEILING.
+    The exact multiplier (2x input length in characters, converted to a rough token estimate) is a
+    deliberately simple, conservative heuristic — output JSON for a services list is usually
+    somewhat LARGER than the raw input text describing it (structured fields + punctuation add
+    overhead), so 2x input length is a safe, generous-but-bounded estimate, not a tight one."""
+    if not input_text:
+        return NORMALIZATION_MAX_TOKENS
+    estimated_input_tokens = len(input_text) // 3  # rough, conservative chars-per-token estimate
+    scaled = max(NORMALIZATION_MAX_TOKENS, estimated_input_tokens * 2)
+    return min(scaled, NORMALIZATION_MAX_TOKENS_CEILING)
+
+REPAIR_SYSTEM_PROMPT = """Kamu memperbaiki output JSON yang tidak valid/rusak jadi valid.
+
+Input yang kamu terima ADALAH OUTPUT ASLI (rusak) yang perlu diperbaiki — bukan data client baru.
+
+ATURAN MUTLAK:
+1. Perbaiki HANYA masalah FORMAT/STRUKTUR JSON-nya (kutip yang tidak ditutup, koma yang salah tempat,
+   kurung yang tidak seimbang, teks terpotong di tengah, dll).
+2. JANGAN mengubah, mengarang, atau menghapus informasi bisnis yang SUDAH ADA di output rusak itu — kalau
+   sebagian data terpotong di tengah kalimat/angka dan gak bisa dipastikan lanjutannya, potong/tutup
+   dengan aman di titik yang masuk akal (misal tutup string, tutup array/objek) daripada menebak isinya.
+3. Balas HANYA dengan satu objek JSON valid, tanpa teks lain, tanpa markdown code fence, tanpa penjelasan.
+4. Struktur JSON WAJIB tetap mengikuti schema yang sama persis dengan yang diminta di awal (field yang
+   sama, tipe yang sama) — kalau ada field yang datanya jadi tidak lengkap gara-gara perbaikan ini, isi
+   null / array kosong untuk field itu, JANGAN mengarang isinya."""
+
 SIMULATION_SYSTEM_PROMPT_TEMPLATE = """Kamu adalah SIMULASI AI Admin WhatsApp untuk bisnis "{business_name}" ({category}), dipakai HANYA untuk mode "Test AI" oleh calon client Kilas Works sebelum tenant ini beneran aktif.
 
 Data bisnis (draft, bisa saja belum lengkap):
@@ -105,8 +157,15 @@ def _extract_json_object(text):
 
 
 def _call_claude(system_prompt, messages, max_tokens=1500):
+    """Returns (text, stop_reason, error_str). stop_reason is Anthropic's own explicit signal for
+    WHY generation stopped ("end_turn" = complete, "max_tokens" = genuinely truncated mid-output)
+    — this is the strongest, most direct truncation signal the current API/client already
+    provides (no new SDK/provider needed), used instead of only inferring truncation indirectly
+    from a JSON parse failure. See normalize_business_data() for how this is used to distinguish
+    "malformed but complete" (worth a repair attempt) from "cut off mid-string" (also worth a
+    repair attempt, but logged/reported distinctly for diagnosis)."""
     if not ANTHROPIC_API_KEY:
-        return None, "ANTHROPIC_API_KEY_NOT_CONFIGURED"
+        return None, None, "ANTHROPIC_API_KEY_NOT_CONFIGURED"
     try:
         resp = requests.post(
             ANTHROPIC_API_URL,
@@ -125,9 +184,9 @@ def _call_claude(system_prompt, messages, max_tokens=1500):
         )
         resp.raise_for_status()
         data = resp.json()
-        return data["content"][0]["text"], None
+        return data["content"][0]["text"], data.get("stop_reason"), None
     except Exception as e:
-        return None, f"{type(e).__name__}: {e}"
+        return None, None, f"{type(e).__name__}: {e}"
 
 
 def build_normalization_input_text(business, profile, raw_services, raw_faqs, extracted_file_texts):
@@ -220,10 +279,27 @@ def _normalize_features_enabled(raw_value, tenant_features=None):
     return {k: False for k in feature_flags.ALL_FEATURE_KEYS}
 
 
+def _try_parse(raw_text):
+    """Returns (config_dict_or_None, error_str_or_None) — a thin wrapper around
+    _extract_json_object() that never raises, so callers can try a parse without a try/except at
+    every call site."""
+    try:
+        return _extract_json_object(raw_text), None
+    except Exception as e:
+        return None, f"RESPONSE_PARSE_ERROR: {e}"
+
+
 def normalize_business_data(business, profile, raw_services, raw_faqs, extracted_file_texts, tenant_features=None):
     """Returns (config_dict_or_None, error_str_or_None). Never raises — callers persist
     ai_status=FAILED + last_error on failure and keep the raw data untouched, so onboarding can
     be retried without the client re-entering anything (section 24).
+
+    Reliability fix (real production incident — see NORMALIZATION_MAX_TOKENS's own comment): if
+    the FIRST attempt's output is malformed (parse failure OR the API's own stop_reason says
+    "max_tokens", i.e. genuinely truncated), exactly ONE repair attempt is made — sending the
+    malformed output + the same schema to a dedicated repair prompt that fixes ONLY JSON
+    formatting, never invents/changes business information. Hard cap: initial attempt + one
+    repair, never more — a repair that also fails to parse results in FAILED, not a retry loop.
 
     tenant_features: optional dict of this business's REAL current feature entitlement (pass
     repo.get_tenant_features(business["id"]) from the caller, which already has DB access — this
@@ -233,17 +309,54 @@ def normalize_business_data(business, profile, raw_services, raw_faqs, extracted
     this specific field.
     """
     input_text = build_normalization_input_text(business, profile, raw_services, raw_faqs, extracted_file_texts)
-    raw_text, err = _call_claude(
+    scaled_tokens = _scaled_max_tokens(input_text)
+    raw_text, stop_reason, err = _call_claude(
         NORMALIZATION_SYSTEM_PROMPT,
         [{"role": "user", "content": input_text}],
+        max_tokens=scaled_tokens,
     )
     if err:
         return None, err
 
-    try:
-        config = _extract_json_object(raw_text)
-    except Exception as e:
-        return None, f"RESPONSE_PARSE_ERROR: {e}"
+    config, parse_err = _try_parse(raw_text)
+    attempted_repair = False
+    if parse_err or stop_reason == "max_tokens":
+        attempted_repair = True
+        reason_note = (
+            "Output sebelumnya TERPOTONG (kehabisan token) di tengah jalan."
+            if stop_reason == "max_tokens"
+            else f"Output sebelumnya gagal di-parse sebagai JSON valid: {parse_err}"
+        )
+        repair_text, _repair_stop_reason, repair_err = _call_claude(
+            REPAIR_SYSTEM_PROMPT,
+            [{
+                "role": "user",
+                "content": (
+                    f"{reason_note}\n\n"
+                    f"SCHEMA yang wajib diikuti:\n{NORMALIZATION_SYSTEM_PROMPT}\n\n"
+                    f"OUTPUT RUSAK yang perlu diperbaiki:\n{raw_text or '(kosong)'}"
+                ),
+            }],
+            # Repair fix (same root cause as the initial call above): the repair prompt is
+            # instructed to PRESERVE the original business information, so its output needs to be
+            # roughly as large as the (still-too-large-for-a-flat-budget) content that caused the
+            # first failure — reusing only NORMALIZATION_MAX_TOKENS here would let the repair
+            # attempt truncate at the exact same point for the exact same reason. Scale from the
+            # length of the malformed output itself (a good proxy for how much content actually
+            # needs to be represented), not the original input.
+            max_tokens=_scaled_max_tokens(raw_text),
+        )
+        if repair_err:
+            return None, f"REPAIR_CALL_FAILED: {repair_err} (original: {parse_err or 'stop_reason=max_tokens'})"
+        config, repair_parse_err = _try_parse(repair_text)
+        if repair_parse_err:
+            # Repair attempt ALSO failed to produce valid JSON — stop here (max: initial + 1
+            # repair, never an unbounded loop). Report the ORIGINAL failure reason as the primary
+            # diagnostic, since that's what actually needs fixing (prompt/schema/token budget).
+            return None, (
+                f"{parse_err or 'RESPONSE_TRUNCATED (stop_reason=max_tokens)'} "
+                f"(repair attempt also failed: {repair_parse_err})"
+            )
 
     if not isinstance(config, dict):
         return None, "AI_RESPONSE_SHAPE_INVALID: top-level response must be a JSON object"
@@ -280,7 +393,7 @@ def simulate_customer_reply(business, config, history, customer_message):
         salutation=salutation,
     )
     messages = history + [{"role": "user", "content": customer_message}]
-    reply_text, err = _call_claude(system_prompt, messages, max_tokens=500)
+    reply_text, _stop_reason, err = _call_claude(system_prompt, messages, max_tokens=500)
     if err:
         return None, err
     return reply_text, None

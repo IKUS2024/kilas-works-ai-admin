@@ -54,6 +54,39 @@ def _step_for_missing_fields(missing):
     return "basics"
 
 
+def _merge_profile_patch(existing_profile, new_raw_fields):
+    """Empty-value overwrite protection (Section G, real production incident: "customer sometimes
+    fills fields and later sees them empty"). Root cause traced to source: every wizard step's
+    <input> IS correctly bound to its saved value on page load (verified — no template prefill
+    bug), so the actual mechanism is a SAVE-time one — a step's own form ALWAYS submits every one
+    of its fields, even ones the browser happens to show blank on a stale/cached re-render (back
+    button, autofill quirks, etc.). The previous `{**profile, **raw}` merge only protected fields
+    from OTHER steps (missing from `raw` entirely) — repo.upsert_business_profile() already treats
+    an absent key as "don't touch". It never protected THIS step's OWN fields: if `raw["owner_name"]`
+    came back as "" while `profile["owner_name"]` already held a real value, the blank would
+    unconditionally win and silently erase previously-good data.
+
+    This applies PATCH semantics one level deeper: for each key in `new_raw_fields`, a
+    falsy/blank new value NEVER overwrites an existing non-blank value for that same key — the
+    existing value is kept. A non-blank new value always wins (a real edit/correction always
+    applies). This intentionally means a field, once given a real value through this wizard,
+    cannot be blanked back out through it — there is no legitimate business reason for a
+    completed onboarding field (owner name, hours, address, ...) to need to become blank again,
+    and protecting against silent data loss is the higher-value default. `False`/`0`/empty-list
+    are treated as legitimate explicit values, not blanks — only `None` and `""` (after
+    stripping whitespace for strings) count as "blank"."""
+    existing_profile = existing_profile or {}
+    merged = dict(existing_profile)
+    for key, new_value in new_raw_fields.items():
+        is_blank = new_value is None or (isinstance(new_value, str) and not new_value.strip())
+        existing_value = existing_profile.get(key)
+        existing_is_blank = existing_value is None or (isinstance(existing_value, str) and not existing_value.strip())
+        if is_blank and not existing_is_blank:
+            continue  # keep the existing non-blank value — do not overwrite with blank
+        merged[key] = new_value
+    return merged
+
+
 def _human_missing_labels(missing):
     return [_REQUIRED_FIELD_LABELS.get(field, field) for field in (missing or [])]
 
@@ -181,7 +214,7 @@ def wizard_step(business_id, step):
         if raw["business_name"].strip():
             import db
             db.execute("UPDATE businesses SET business_name = ? WHERE id = ?", (raw["business_name"].strip(), business_id))
-        repo.upsert_business_profile(business_id, raw)
+        repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
         missing_here = [
             label for key, label in (("business_name", "Nama bisnis"), ("category", "Kategori bisnis"), ("owner_name", "Nama owner"))
             if not (raw.get(key) or "").strip()
@@ -233,7 +266,7 @@ def wizard_step(business_id, step):
         try:
             print(f"PAYMENT_SAVE_START business_id={business_id}")
             repo.save_onboarding_session(business_id, "operations", raw, user["id"])
-            repo.upsert_business_profile(business_id, {**profile, **raw})
+            repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
             # db.execute() commits internally on success (see db.py's execute()) — reaching this
             # line without an exception means the write already committed, so SAVE_OK and
             # COMMIT_OK are logged together rather than as two separately-timed checkpoints.
@@ -262,7 +295,7 @@ def wizard_step(business_id, step):
             "customer_salutation": request.form.get("customer_salutation", "Kak"),
         }
         repo.save_onboarding_session(business_id, "style", raw, user["id"])
-        repo.upsert_business_profile(business_id, {**profile, **raw})
+        repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
         missing_here = []
         if raw["primary_language"] not in ("id", "en"):
             missing_here.append("Bahasa utama")
@@ -278,6 +311,14 @@ def wizard_step(business_id, step):
 
     if business["status"] == "DRAFT":
         repo.set_business_status(business_id, "ONBOARDING", user["id"], "client started onboarding")
+
+    # Stale-knowledge protection (Section I): if generated AI knowledge already exists (ai_status
+    # DONE) and the client just edited ANY onboarding data, that knowledge no longer reflects what
+    # was just saved — silently continuing to use it would risk stale info reaching customers.
+    # Mark it STALE (reusing the existing ai_status TEXT column, no migration needed — see
+    # repo.set_business_stale_if_done()'s own docstring) rather than leaving it DONE; the review
+    # page/admin flow can prompt a rerun before this business moves forward.
+    repo.set_business_stale_if_done(business_id)
 
     next_idx = WIZARD_STEPS.index(step) + 1
     if next_idx < len(WIZARD_STEPS):
@@ -318,7 +359,7 @@ def business_settings(business_id):
         "payment_account_name": request.form.get("payment_account_name", ""),
         "payment_instructions": request.form.get("payment_instructions", ""),
     }
-    repo.upsert_business_profile(business_id, {**profile, **raw})
+    repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
     repo.write_audit(user["id"], business_id, "settings_updated", "appointment/payment settings diubah oleh owner")
 
     flash("Pengaturan appointment & pembayaran berhasil disimpan.", "success")
