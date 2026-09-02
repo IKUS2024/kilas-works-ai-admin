@@ -101,7 +101,7 @@
   <table>
     <tr><th>Talent</th><th>Business</th><th>Status</th><th>Budget</th></tr>
     {% for r in requests %}
-    <tr><td>{{ r.talent_id }}</td><td>{{ r.business_id }}</td><td>{{ r.status }}</td><td>{{ r.budget or '-' }}</td></tr>
+    <tr><td>{{ r.talent_id }}</td><td>{{ r.business_id }}</td><td>{{ r.status|humanize_status('talent_request') }}</td><td>{{ r.budget|display_or_missing }}</td></tr>
     {% endfor %}
   </table>
   {% if not requests %}<p class="muted">Belum ada talent request.</p>{% endif %}

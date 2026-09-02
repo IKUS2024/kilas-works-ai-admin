@@ -2,13 +2,13 @@
 {% block title %}Review — {{ business.business_name }}{% endblock %}
 {% block content %}
 <h1>{{ business.business_name }}</h1>
-<span class="pill {{ business.display_status or business.status }}">{{ business.display_status or business.status }}</span>
-<span class="muted">· {{ business.package }}</span>
+<span class="pill {{ business.display_status or business.status }}">{{ (business.display_status or business.status)|humanize_status('business') }}</span>
+<span class="muted">· {{ business.package|humanize_package }}</span>
 
 {% if missing_required %}
   <div class="card" style="border-color:var(--red);">
-    <h2 style="color:var(--red);">Data wajib belum lengkap</h2>
-    <p class="muted">{{ (missing_required_labels or missing_required)|join(', ') }}</p>
+    <h2 style="color:var(--red);">Data bisnis belum lengkap</h2>
+    <p class="muted">{{ missing_required_sentence or (missing_required_labels or missing_required)|join(', ') }}</p>
     {% if not is_admin_view and missing_fix_step %}
       <a class="btn" href="{{ url_for('client.wizard_step', business_id=business.id, step=missing_fix_step) }}">Lengkapi Sekarang</a>
     {% endif %}
@@ -16,18 +16,18 @@
 {% endif %}
 
 <div class="card">
-  <h2>Data Bisnis (Raw)</h2>
+  <h2>Data Bisnis</h2>
   <table>
-    <tr><th>Kategori</th><td>{{ profile.category if profile else '-' }}</td></tr>
-    <tr><th>Deskripsi</th><td>{{ profile.short_description if profile else '-' }}</td></tr>
-    <tr><th>Owner</th><td>{{ profile.owner_name if profile else '-' }}</td></tr>
-    <tr><th>Telepon bisnis</th><td>{{ profile.business_phone if profile else '-' }}</td></tr>
-    <tr><th>Alamat</th><td>{{ profile.address if profile else '-' }}</td></tr>
-    <tr><th>Jam operasional</th><td>{{ profile.operating_hours if profile else '-' }}</td></tr>
-    <tr><th>Hari libur</th><td>{{ profile.closed_days if profile else '-' }}</td></tr>
-    <tr><th>Bahasa utama</th><td>{{ profile.primary_language if profile else '-' }}</td></tr>
-    <tr><th>Tone</th><td>{{ profile.tone if profile else '-' }}</td></tr>
-    <tr><th>Sapaan customer</th><td>{{ profile.customer_salutation if profile else '-' }}</td></tr>
+    <tr><th>Kategori</th><td>{{ profile.category|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Deskripsi</th><td>{{ profile.short_description|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Owner</th><td>{{ profile.owner_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Telepon bisnis</th><td>{{ profile.business_phone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Alamat</th><td>{{ profile.address|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Jam operasional</th><td>{{ profile.operating_hours|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Hari libur</th><td>{{ profile.closed_days|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Bahasa utama</th><td>{{ profile.primary_language|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Gaya bahasa AI</th><td>{{ profile.tone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Sapaan untuk pelanggan</th><td>{{ profile.customer_salutation|display_or_missing if profile else 'Belum diisi' }}</td></tr>
   </table>
 </div>
 
@@ -36,12 +36,12 @@
   <h2>Appointment & Pembayaran (read-only)</h2>
   <table>
     <tr><th>Appointment aktif</th><td>{{ 'Ya' if (profile and (profile.appointment_enabled or profile.appointment_enabled is none)) else 'Tidak' }}</td></tr>
-    <tr><th>Aturan booking</th><td>{{ profile.appointment_rules_raw if profile else '-' }}</td></tr>
-    <tr><th>Bank</th><td>{{ profile.payment_bank_name if profile else '-' }}</td></tr>
-    <tr><th>No. rekening</th><td>{{ profile.payment_account_number if profile else '-' }}</td></tr>
-    <tr><th>Nama pemilik rekening</th><td>{{ profile.payment_account_name if profile else '-' }}</td></tr>
-    <tr><th>Instruksi pembayaran</th><td>{{ profile.payment_instructions if profile else '-' }}</td></tr>
-    <tr><th>Nomor owner terpercaya</th><td>{{ business.trusted_owner_phone or '-' }}</td></tr>
+    <tr><th>Aturan booking</th><td>{{ profile.appointment_rules_raw|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Bank</th><td>{{ profile.payment_bank_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>No. rekening</th><td>{{ profile.payment_account_number|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Nama pemilik rekening</th><td>{{ profile.payment_account_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Instruksi pembayaran</th><td>{{ profile.payment_instructions|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+    <tr><th>Nomor owner terpercaya</th><td>{{ business.trusted_owner_phone|display_or_missing }}</td></tr>
   </table>
   <p class="muted" style="margin-top:8px;">Hanya bisa diubah oleh owner bisnis ini sendiri lewat halaman "Appointment & Pembayaran" di dashboard-nya.</p>
 </div>
@@ -257,7 +257,7 @@
       <table>
         <tr><th>Waktu</th><th>Aksi</th><th>Detail</th></tr>
         {% for a in audit_log %}
-          <tr><td>{{ a.created_at }}</td><td>{{ a.action }}</td><td>{{ a.detail or '-' }}</td></tr>
+          <tr><td>{{ a.created_at }}</td><td>{{ a.action|humanize_audit_action }}</td><td>{{ a.detail|humanize_audit_detail }}</td></tr>
         {% endfor %}
       </table>
     </div>

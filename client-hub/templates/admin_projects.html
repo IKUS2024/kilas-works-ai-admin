@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Projects — Admin{% endblock %}
+{% block title %}Proyek — Admin{% endblock %}
 {% block content %}
-<h1>Projects</h1>
+<h1>Proyek</h1>
 <form method="get" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
   <select name="status">
     <option value="">Semua status</option>
-    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s }}</option>{% endfor %}
+    {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == status_filter }}>{{ s|humanize_status('project') }}</option>{% endfor %}
   </select>
   <select name="type">
     <option value="">Semua tipe</option>
@@ -20,13 +20,13 @@
 </form>
 <div class="card">
   <table>
-    <tr><th>Title</th><th>Business</th><th>Tipe</th><th>Status</th><th>Budget</th><th></th></tr>
+    <tr><th>Nama Proyek</th><th>Business</th><th>Tipe</th><th>Status</th><th>Budget</th><th></th></tr>
     {% for p in projects %}
     <tr>
       <td>{{ p.title }}</td>
       <td>{{ p.business_name }}</td>
       <td>{{ p.project_type }}</td>
-      <td>{{ p.status }}</td>
+      <td>{{ p.status|humanize_status('project') }}</td>
       <td>
         {% if p.budget_min or p.budget_max %}
           Rp{{ '{:,}'.format(p.budget_min).replace(',', '.') if p.budget_min else '?' }} – Rp{{ '{:,}'.format(p.budget_max).replace(',', '.') if p.budget_max else '?' }}

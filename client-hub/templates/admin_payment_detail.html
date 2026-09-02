@@ -5,14 +5,14 @@
 
 <div class="card">
   <h2>Business</h2>
-  <p><strong>{{ business.business_name if business else '-' }}</strong> (ID: {{ payment.business_id }})</p>
+  <p><strong>{{ business.business_name|display_or_missing if business else 'Belum diisi' }}</strong> (ID: {{ payment.business_id }})</p>
 </div>
 
 <div class="card">
   <h2>Invoice</h2>
   {% if invoice %}
   <p>Invoice: <strong>{{ invoice.invoice_number }}</strong> — Rp{{ "{:,}".format(invoice.amount).replace(",", ".") }}</p>
-  <p>Status invoice: {{ invoice.status }}</p>
+  <p>Status invoice: {{ invoice.status|humanize_status('invoice') }}</p>
   {% if project %}<p>Project: {{ project.title }} ({{ project.project_type }})</p>{% endif %}
   {% else %}
   <p class="muted">Invoice tidak ditemukan.</p>
@@ -21,7 +21,7 @@
 
 <div class="card">
   <h2>Payment</h2>
-  <p>Status: <strong>{{ payment.status }}</strong></p>
+  <p>Status: <strong>{{ payment.status|humanize_status('payment') }}</strong></p>
   <p>AI Extracted Amount: {{ payment.ai_extracted_amount or '-' }}</p>
   <p>AI Extracted Date: {{ payment.ai_extracted_date or '-' }}</p>
   <p>AI Extracted Bank: {{ payment.ai_extracted_bank or '-' }}</p>

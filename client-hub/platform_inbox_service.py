@@ -1,46 +1,31 @@
 """Kilas Works' own WhatsApp inbox + human takeover helpers.
 
-This is intentionally separate from tenant inbox_service.py.  Tenant conversations are stored as
+This is intentionally separate from tenant inbox_service.py ONLY where it has to be — see
+wa_inbox_shared.py's own module docstring for exactly which pieces are now SHARED (phone
+validation, datetime coercion, 24h-window math, the outgoing template payload SHAPE) versus which
+pieces genuinely differ by design (row lookups by a different key shape; send TRANSPORT, since
+Client Hub never holds Kilas Works' own WhatsApp token). Tenant conversations are stored as
 T<business_id>:<customer_phone>; Kilas Works' own legacy bot stores plain numeric customer phones.
-The admin inbox below only reads those plain-number rows, so a KILAS_ADMIN cannot accidentally mix a
-client tenant's chats into the platform's own operational inbox.
+The admin inbox below only reads those plain-number rows, so a KILAS_ADMIN cannot accidentally mix
+a client tenant's chats into the platform's own operational inbox.
 
 The database remains an implementation detail. Humans read/reply through Client Hub or WhatsApp
 Business; PostgreSQL is never presented as a chat viewer.
 """
 from datetime import datetime, timezone
 import os
-import re
 from urllib.parse import urlparse
 
 import requests
 
 import db
+import wa_inbox_shared
 
-WHATSAPP_24H_SAFETY_HOURS = 23
-MAX_MANUAL_MESSAGE_CHARS = 4096
-_PHONE_RE = re.compile(r"^\d{6,20}$")
+WHATSAPP_24H_SAFETY_HOURS = wa_inbox_shared.WHATSAPP_24H_SAFETY_HOURS
+MAX_MANUAL_MESSAGE_CHARS = wa_inbox_shared.MAX_MANUAL_MESSAGE_CHARS
 
-
-def normalize_customer_phone(raw):
-    digits = re.sub(r"\D", "", raw or "")
-    return digits if _PHONE_RE.match(digits) else None
-
-
-def _coerce_datetime(value):
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        dt = value
-    else:
-        text = str(value).strip().replace("Z", "+00:00")
-        try:
-            dt = datetime.fromisoformat(text)
-        except ValueError:
-            return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+normalize_customer_phone = wa_inbox_shared.normalize_customer_phone
+_coerce_datetime = wa_inbox_shared.coerce_datetime
 
 
 def _is_platform_number_key(value):
@@ -198,18 +183,7 @@ def get_last_customer_inbound_at(customer_phone):
 
 def freeform_window_status(customer_phone, now=None):
     last_inbound = get_last_customer_inbound_at(customer_phone)
-    if last_inbound is None:
-        return {"allowed": False, "reason": "no_customer_inbound", "last_inbound_at": None, "age_hours": None}
-    now = now or datetime.now(timezone.utc)
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
-    age_hours = (now.astimezone(timezone.utc) - last_inbound).total_seconds() / 3600.0
-    return {
-        "allowed": age_hours < WHATSAPP_24H_SAFETY_HOURS,
-        "reason": "ok" if age_hours < WHATSAPP_24H_SAFETY_HOURS else "outside_24h_window",
-        "last_inbound_at": last_inbound,
-        "age_hours": age_hours,
-    }
+    return wa_inbox_shared.compute_freeform_window_status(last_inbound, now=now)
 
 
 def _bot_platform_reply_url():
@@ -285,6 +259,70 @@ def send_manual_reply(customer_phone, message_text):
         )
         suffix = f":{remote_reason}" if remote_reason else ""
         return False, f"bot_internal_bridge_http_{resp.status_code}{suffix}"
+    try:
+        body = resp.json()
+    except ValueError:
+        return False, "bot_internal_bridge_bad_response"
+    if body.get("status") == "ok":
+        return True, "sent"
+    return False, body.get("reason") or "bot_internal_bridge_rejected"
+
+
+def send_template_reply(customer_phone, params=None):
+    """Approved WhatsApp template send — the "Kirim Template & Lanjutkan" action for a
+    conversation whose 24h customer-service window has expired (Section 4 of the request). Unlike
+    send_manual_reply(), this path is deliberately allowed to fire EVEN WHEN freeform_window_status()
+    reports "not allowed" — that is exactly the situation an approved template exists to handle
+    (WhatsApp explicitly permits a template message outside the free-form window; that is the
+    entire reason templates exist). Still requires HUMAN_TAKEOVER to be active, for the same reason
+    a free-form reply does: a human, not the AI, is the one re-engaging this customer.
+
+    Uses the SAME internal bridge/transport as send_manual_reply() (Client Hub never holds Kilas
+    Works' own WhatsApp token) — only the outgoing payload shape differs (a template payload, built
+    by the shared wa_inbox_shared.build_template_message_payload(), instead of a free-text one).
+    Returns (False, "reengagement_template_not_configured") if no approved template name has been
+    set — see wa_inbox_shared.resolve_reengagement_template_config()'s own docstring for exactly
+    what needs to be created/approved in Meta Business Manager first; this function never invents a
+    template name to "make it work" anyway."""
+    phone = normalize_customer_phone(customer_phone)
+    if not phone:
+        return False, "invalid_customer_phone"
+    if not customer_exists(phone):
+        return False, "customer_not_found"
+    try:
+        if get_state(phone) != "HUMAN_TAKEOVER":
+            return False, "human_takeover_required"
+    except Exception:
+        return False, "takeover_state_unavailable"
+
+    template_name, language_code = wa_inbox_shared.resolve_reengagement_template_config(os.environ.get)
+    if not template_name:
+        return False, "reengagement_template_not_configured"
+
+    endpoint = _bot_platform_reply_url()
+    secret = (os.environ.get("INTERNAL_SERVICE_SECRET") or "").strip()
+    if not endpoint or not secret:
+        return False, "bot_internal_bridge_unavailable"
+    template_endpoint = endpoint.replace("/internal/platform-cs-reply", "/internal/platform-cs-template-reply")
+    try:
+        timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
+        resp = requests.post(
+            template_endpoint,
+            json={
+                "customer_phone": phone, "template_name": template_name,
+                "language_code": language_code, "params": params or [],
+            },
+            headers={"X-Internal-Service-Secret": secret},
+            timeout=max(15.0, min(timeout_seconds, 120.0)),
+        )
+    except requests.exceptions.Timeout:
+        print("Platform Inbox template reply bridge timeout — bot belum merespons tepat waktu.")
+        return False, "bot_internal_bridge_timeout"
+    except requests.exceptions.RequestException as exc:
+        print(f"Platform Inbox template reply bridge network error: {type(exc).__name__}")
+        return False, "bot_internal_bridge_network_error"
+    if resp.status_code != 200:
+        return False, f"bot_internal_bridge_http_{resp.status_code}"
     try:
         body = resp.json()
     except ValueError:

@@ -4988,6 +4988,86 @@ def send_whatsapp_message(to_number, message_text):
         return False, str(e)
 
 
+def send_whatsapp_template_message(to_number, template_name, language_code, params=None):
+    """Approved WhatsApp TEMPLATE send — Inbox unification, Section 4/5: the "Kirim Template &
+    Lanjutkan" re-engagement path for a conversation whose 24-hour customer-service window has
+    expired. Unlike send_whatsapp_message() above, Meta explicitly ALLOWS a template message
+    outside the free-form window — that is the entire reason approved templates exist — so this
+    function does NOT check/require the 23h window itself; the CALLER (internal_platform_cs_
+    template_reply() below) is responsible for every other safety check (Human Takeover active,
+    customer exists), exactly mirroring how send_whatsapp_message() itself doesn't duplicate those
+    checks either. Returns (success: bool, error_detail: str or None), same contract as
+    send_whatsapp_message()."""
+    url = f"https://graph.facebook.com/v21.0/{_active_whatsapp_phone_number_id()}/messages"
+    headers = {
+        "Authorization": f"Bearer {_active_whatsapp_access_token()}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "template",
+        "template": {"name": template_name, "language": {"code": language_code}},
+    }
+    if params:
+        payload["template"]["components"] = [{
+            "type": "body",
+            "parameters": [{"type": "text", "text": str(p)} for p in params],
+        }]
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        print("Kirim WA template response:", r.status_code, r.text)
+        if r.status_code == 200:
+            return True, None
+        try:
+            err = r.json().get("error", {}).get("message", r.text)
+        except Exception:
+            err = r.text
+        return False, err
+    except Exception as e:
+        print("Error kirim WA template message:", e)
+        return False, str(e)
+
+
+def _resolve_reengagement_template_config():
+    """Reads the GLOBAL approved WhatsApp re-engagement template configuration — SAME env vars as
+    client-hub/wa_inbox_shared.py's resolve_reengagement_template_config() (kept as two small,
+    independent readers rather than a cross-service import for 3 lines of logic, but intentionally
+    the SAME env var names). This is Kilas Works' OWN follow-up sweep's configuration
+    (run_followups() always uses this directly, matching platform_inbox_service.py's own
+    platform-inbox behavior — Kilas Works' own number always uses the global config). For a
+    TENANT's automated follow-up, use _resolve_reengagement_template_config_for_tenant() below
+    instead — it checks that tenant's own override FIRST. Returns (template_name, language_code)
+    or (None, None) if not configured — every caller MUST treat "not configured" as "cannot send a
+    template right now," never invent a template name."""
+    name = (os.environ.get("WHATSAPP_REENGAGEMENT_TEMPLATE_NAME") or "").strip()
+    if not name:
+        return None, None
+    language_code = (os.environ.get("WHATSAPP_REENGAGEMENT_TEMPLATE_LANGUAGE") or "id").strip() or "id"
+    return name, language_code
+
+
+def _resolve_reengagement_template_config_for_tenant(tenant_id):
+    """Tenant-scoped re-engagement template resolution for the AUTOMATED follow-up sweep — mirrors
+    client-hub/wa_inbox_shared.resolve_reengagement_template_config_for_tenant() exactly (same
+    resolution order: this tenant's own tenant_whatsapp_config.reengagement_template_name/_language
+    override first, then the global WHATSAPP_REENGAGEMENT_TEMPLATE_NAME/_LANGUAGE env vars, then
+    (None, None) if neither exists — see that function's own docstring for the full rationale). A
+    tenant is never forced to share the same approved template name as any other tenant or as
+    Kilas Works' own platform inbox. Fails safe to the global-only resolver (never crashes the
+    sweep) if Client Hub's config can't be read for any reason."""
+    if _CLIENT_HUB_AVAILABLE:
+        try:
+            row = _ch_repo.get_whatsapp_config(tenant_id) or {}
+            tenant_name = (row.get("reengagement_template_name") or "").strip()
+            if tenant_name:
+                tenant_language = (row.get("reengagement_template_language") or "").strip() or "id"
+                return tenant_name, tenant_language
+        except Exception as e:
+            print(f"_resolve_reengagement_template_config_for_tenant gagal (tenant_id={tenant_id}): {e}")
+    return _resolve_reengagement_template_config()
+
+
 def download_whatsapp_media(media_id):
     """Download media (gambar ATAU audio voice note) yang dikirim customer/owner lewat WhatsApp,
     balikin (base64_data, mime_type) — atau (None, None) kalau gagal di step manapun. Dipakai
@@ -7804,6 +7884,60 @@ def internal_platform_cs_reply():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route("/internal/platform-cs-template-reply", methods=["POST"])
+def internal_platform_cs_template_reply():
+    """Authenticated Client Hub -> Kilas Works WhatsApp APPROVED TEMPLATE bridge — Inbox
+    unification, Section 4/5: the "Kirim Template & Lanjutkan" action for a conversation whose
+    24-hour customer-service window has expired. Same auth/isolation model as
+    internal_platform_cs_reply() above (shared-secret header, Client Hub never holds the Meta
+    token, destination limited to an existing Kilas Works customer conversation) — the ONE
+    deliberate difference is this endpoint does NOT require the 23h free-form window to be open,
+    since Meta explicitly allows a template message specifically to re-open it. Human Takeover is
+    still required, for the same reason a free-form reply requires it: a human, not the AI, is the
+    one re-engaging this customer.
+    """
+    _clear_active_whatsapp_channel()
+    provided_secret = request.headers.get("X-Internal-Service-Secret", "")
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided_secret, INTERNAL_SERVICE_SECRET):
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({"status": "error", "reason": "client_hub_bridge_unavailable"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    phone = re.sub(r"\D", "", str(payload.get("customer_phone") or ""))
+    template_name = (payload.get("template_name") or "").strip() if isinstance(payload.get("template_name"), str) else ""
+    language_code = (payload.get("language_code") or "id").strip() if isinstance(payload.get("language_code"), str) else "id"
+    params = payload.get("params") if isinstance(payload.get("params"), list) else []
+    if not re.fullmatch(r"\d{6,20}", phone):
+        return jsonify({"status": "error", "reason": "invalid_customer_phone"}), 400
+    if not template_name:
+        return jsonify({"status": "error", "reason": "reengagement_template_not_configured"}), 400
+
+    try:
+        if not _platform_inbox.customer_exists(phone):
+            return jsonify({"status": "error", "reason": "customer_not_found"}), 404
+        if _platform_inbox.get_state(phone) != "HUMAN_TAKEOVER":
+            return jsonify({"status": "error", "reason": "human_takeover_required"}), 409
+    except Exception as e:
+        print(f"Platform CS template reply safety check gagal ({e}) — template tidak dikirim.")
+        return jsonify({"status": "error", "reason": "takeover_state_unavailable"}), 503
+    # Deliberately NO freeform_window_status() check here — see this route's own docstring: an
+    # approved template is exactly Meta's sanctioned way to send OUTSIDE that window.
+
+    ok, err = send_whatsapp_template_message(phone, template_name, language_code, params)
+    if not ok:
+        return jsonify({"status": "error", "reason": "whatsapp_send_failed"}), 502
+
+    marker = f"[Template: {template_name}]"
+    history = conversations.get(phone)
+    if history is None:
+        history = load_recent_messages_from_db(phone, "customer")
+    history.append({"role": "assistant", "content": marker})
+    conversations[phone] = history[-20:]
+    save_message_to_db(phone, "customer", "assistant", marker)
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/internal/owner-notify", methods=["POST"])
 def internal_owner_notify():
     """Absolute Final Production Patch — the ONE HTTP door Client Hub uses to ask this bot process
@@ -8082,6 +8216,50 @@ def run_tenant_followups():
                     print(f"run_tenant_followups: gagal follow-up tenant_id={tenant_id} customer={customer_phone}: {e}")
                     results.append({"tenant_id": tenant_id, "customer": customer_phone,
                                      "status": "error", "error": str(e)})
+
+            # Follow-up >24h handling — a customer whose window has expired is NOT simply
+            # abandoned: they become eligible for an APPROVED-TEMPLATE follow-up instead (never
+            # free-form — see tenant_followup_service.get_customers_due_for_template_followup()'s
+            # own docstring). Human Takeover is checked exactly the same way as the free-form loop
+            # above — a human, not the AI, decides when to re-engage a customer under active
+            # takeover, so an automated template send is skipped there too.
+            template_due_numbers = _tenant_followup.get_customers_due_for_template_followup(tenant_id)
+            if template_due_numbers:
+                template_name, language_code = _resolve_reengagement_template_config_for_tenant(tenant_id)
+                for customer_phone in template_due_numbers:
+                    try:
+                        if _get_conversation_mode_safe(tenant_id, customer_phone) == "HUMAN_TAKEOVER":
+                            results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                             "status": "skipped", "reason": "human_takeover"})
+                            continue
+                        if not template_name:
+                            # Fail closed, report clearly — NEVER fabricate a template name to
+                            # "make it work". See _resolve_reengagement_template_config()'s own
+                            # docstring for exactly what needs to be configured/approved first.
+                            print(
+                                f"run_tenant_followups: tenant_id={tenant_id} customer={customer_phone} "
+                                "butuh follow-up template (window >23h) tapi "
+                                "WHATSAPP_REENGAGEMENT_TEMPLATE_NAME belum dikonfigurasi — skip, "
+                                "TIDAK fallback ke free-text."
+                            )
+                            results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                             "status": "skipped", "reason": "reengagement_template_not_configured"})
+                            continue
+
+                        _set_active_whatsapp_channel(channel["phone_number_id"], channel["access_token"])
+                        sent_ok, send_err = send_whatsapp_template_message(customer_phone, template_name, language_code)
+                        if sent_ok:
+                            _tenant_followup.record_followup_sent(tenant_id, customer_phone)
+                            sent_count += 1
+                            results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                             "status": "sent", "channel": "template"})
+                        else:
+                            results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                             "status": "failed", "error": send_err, "channel": "template"})
+                    except Exception as e:
+                        print(f"run_tenant_followups: gagal template follow-up tenant_id={tenant_id} customer={customer_phone}: {e}")
+                        results.append({"tenant_id": tenant_id, "customer": customer_phone,
+                                         "status": "error", "error": str(e), "channel": "template"})
         except Exception as e:
             print(f"run_tenant_followups: gagal proses tenant_id={tenant_id}: {e}")
             results.append({"tenant_id": tenant_id, "status": "error", "error": str(e)})

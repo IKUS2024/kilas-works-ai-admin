@@ -14,19 +14,19 @@
   </div>
   <div class="card">
     <h2>Businesses ({{ results.businesses|length }})</h2>
-    {% for b in results.businesses %}<p><a href="{{ url_for('admin.review_business', business_id=b.id) }}">{{ b.business_name }}</a> — {{ b.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+    {% for b in results.businesses %}<p><a href="{{ url_for('admin.review_business', business_id=b.id) }}">{{ b.business_name }}</a> — {{ b.status|humanize_status('business') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
   </div>
   <div class="card">
     <h2>Projects ({{ results.projects|length }})</h2>
-    {% for p in results.projects %}<p><a href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">{{ p.title }}</a> — {{ p.project_type }} · {{ p.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+    {% for p in results.projects %}<p><a href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">{{ p.title }}</a> — {{ p.project_type }} · {{ p.status|humanize_status('project') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
   </div>
   <div class="card">
     <h2>Quotations ({{ results.quotations|length }})</h2>
-    {% for q in results.quotations %}<p>{{ q.quotation_number }} — Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+    {% for q in results.quotations %}<p>{{ q.quotation_number }} — Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status|humanize_status('quotation') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
   </div>
   <div class="card">
     <h2>Invoices ({{ results.invoices|length }})</h2>
-    {% for i in results.invoices %}<p><a href="{{ url_for('payments.invoice_page', invoice_id=i.id) }}">{{ i.invoice_number }}</a> — Rp{{ '{:,}'.format(i.amount).replace(',', '.') }} · {{ i.status }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
+    {% for i in results.invoices %}<p><a href="{{ url_for('payments.invoice_page', invoice_id=i.id) }}">{{ i.invoice_number }}</a> — Rp{{ '{:,}'.format(i.amount).replace(',', '.') }} · {{ i.status|humanize_status('invoice') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
   </div>
   <div class="card">
     <h2>Talent ({{ results.talents|length }})</h2>

@@ -200,6 +200,44 @@ def get_customers_due_for_followup(business_id, hours=DEFAULT_FOLLOWUP_GAP_HOURS
     return due
 
 
+def get_customers_due_for_template_followup(business_id, hours=DEFAULT_FOLLOWUP_GAP_HOURS,
+                                             max_count=DEFAULT_MAX_FOLLOWUPS):
+    """Follow-up >24h handling — the counterpart to get_customers_due_for_followup() above: a
+    customer whose last inbound message is now >= WHATSAPP_24H_SAFETY_HOURS (23h) old is no longer
+    eligible for a free-form nudge, but is NOT simply abandoned either — they become eligible for
+    an APPROVED-TEMPLATE follow-up instead (see ../app.py's run_tenant_followups(), which calls
+    this alongside get_customers_due_for_followup() and sends via the template path, NEVER
+    free-form, for anyone this returns). Same followup_count/max_count/cooldown gating as the
+    free-form function — a customer already at max_count is excluded here too, so a customer
+    doesn't get MORE total attempts just because some of them happened to fall on the template
+    side of the 23h line.
+
+    Whether a template is actually CONFIGURED at all (WHATSAPP_REENGAGEMENT_TEMPLATE_NAME) is
+    deliberately NOT checked here — this function only answers "who is eligible for this KIND of
+    follow-up", the same separation of concerns get_customers_due_for_followup() already has
+    (eligibility vs. actually being able to send). The caller fails closed and reports clearly if
+    no template is configured; this function never needs to know that to do its own job."""
+    now_dt = datetime.now(timezone.utc)
+    rows = db.query_all(
+        "SELECT * FROM tenant_followup_state WHERE business_id = ? AND resolved = ?",
+        (business_id, False),
+    )
+    due = []
+    for row in rows:
+        if row["followup_count"] >= max_count:
+            continue
+        last_msg = _parse(row["last_customer_msg_at"])
+        if not last_msg:
+            continue
+        if now_dt - last_msg < timedelta(hours=WHATSAPP_24H_SAFETY_HOURS):
+            continue  # still inside the free-form window — handled by get_customers_due_for_followup()
+        last_followup = _parse(row["last_followup_at"])
+        if last_followup and (now_dt - last_followup < timedelta(hours=hours)):
+            continue
+        due.append(row["customer_phone"])
+    return due
+
+
 def _parse(ts):
     """Normalize a tenant_followup_state timestamp value into an aware `datetime`, regardless of
     whether the DB driver handed back a plain ISO string (SQLite) or an already-parsed `datetime`

@@ -2,7 +2,7 @@
 {% block title %}{{ project.title }} — Kilas Works{% endblock %}
 {% block content %}
 <h1>{{ project.title }}</h1>
-<span class="pill APPROVED">{{ project.status }}</span>
+<span class="pill APPROVED">{{ project.status|humanize_status('project') }}</span>
 <span class="muted">· {{ project.project_type }} · {{ project.pricing_mode }}</span>
 
 <div class="card">
@@ -42,7 +42,7 @@
     <tr>
       <td>{{ q.quotation_number }}</td>
       <td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td>
-      <td>{{ q.status }}</td>
+      <td>{{ q.status|humanize_status('quotation') }}</td>
       <td><a href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=q.id) }}">Lihat</a></td>
     </tr>
     {% endfor %}

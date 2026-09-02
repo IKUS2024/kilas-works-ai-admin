@@ -579,6 +579,20 @@ def get_whatsapp_config(business_id):
     return db.query_one("SELECT * FROM tenant_whatsapp_config WHERE business_id = ?", (business_id,))
 
 
+def set_tenant_reengagement_template(business_id, template_name, language_code=None):
+    """Tenant-scoped WhatsApp re-engagement template override (see migration 0018's own docstring
+    for the full rationale) — lets ONE tenant use a different approved Meta template than Kilas
+    Works' own global default, without affecting any other tenant. Passing template_name=None
+    clears the override, falling back to the global config again."""
+    name = (template_name or "").strip() or None
+    lang = (language_code or "").strip() or None
+    db.execute(
+        "UPDATE tenant_whatsapp_config SET reengagement_template_name = ?, "
+        "reengagement_template_language = ? WHERE business_id = ?",
+        (name, lang, business_id),
+    )
+
+
 def find_business_id_by_phone_number_id(phone_number_id, exclude_business_id=None):
     """Multi-tenant runtime safety cycle (Task A) — uniqueness check for the admin "Connect
     WhatsApp" flow: is this Phone Number ID already assigned to a DIFFERENT tenant? Checks both

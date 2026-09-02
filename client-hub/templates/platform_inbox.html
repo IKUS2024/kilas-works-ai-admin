@@ -124,12 +124,27 @@
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
             <textarea name="message" maxlength="4096" required placeholder="Balas sebagai Kilas Works..." style="min-height:82px;"></textarea>
             <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
-              <span class="muted" style="font-size:12px;">Free-text aman selama &lt;23 jam dari pesan masuk customer terakhir.</span>
+              <span class="pill ACTIVE" style="font-size:12px;">24h Window Active</span>
               <button class="btn" type="submit">Kirim</button>
             </div>
           </form>
         {% elif selected.mode == 'HUMAN_TAKEOVER' %}
-          <p style="margin:0;color:var(--red);">Di luar window WhatsApp 24 jam. Sistem tidak akan memaksa free-text; gunakan template message setelah fitur template sender tersedia.</p>
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="pill" style="color:var(--red);">24h Window Expired</span>
+              <span class="pill">Template Required</span>
+            </div>
+            <p class="muted" style="margin:0 0 10px;">
+              Sudah lewat 24 jam sejak pesan masuk customer terakhir — WhatsApp tidak mengizinkan free-text
+              lagi. Kirim template resmi buat buka lagi percakapannya; begitu customer membalas, window 24
+              jam aktif lagi.
+            </p>
+            <form method="post" action="{{ url_for('admin.platform_inbox_send_template') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn" type="submit">Kirim Template &amp; Lanjutkan</button>
+            </form>
+          </div>
         {% elif selected.mode == 'AI_ACTIVE' %}
           <p class="muted" style="margin:0;">AI sedang handle. Klik <strong>Ambil Alih</strong> kalau lu mau balas sendiri.</p>
         {% else %}

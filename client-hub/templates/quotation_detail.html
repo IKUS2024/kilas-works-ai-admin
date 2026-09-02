@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ quotation.quotation_number }} — Kilas Works{% endblock %}
 {% block content %}
-<h1>Quotation {{ quotation.quotation_number }}</h1>
-<span class="pill APPROVED">{{ quotation.status }}</span>
+<h1>Penawaran {{ quotation.quotation_number }}</h1>
+<span class="pill APPROVED">{{ quotation.status|humanize_status('quotation') }}</span>
 
 <div class="card">
   <table>
-    <tr><th>Scope</th><td>{{ quotation.scope or '-' }}</td></tr>
-    <tr><th>Deliverables</th><td>{{ quotation.deliverables or '-' }}</td></tr>
-    <tr><th>Quantity</th><td>{{ quotation.quantity or '-' }}</td></tr>
+    <tr><th>Ruang Lingkup</th><td>{{ quotation.scope|display_or_missing }}</td></tr>
+    <tr><th>Hasil yang Diberikan</th><td>{{ quotation.deliverables|display_or_missing }}</td></tr>
+    <tr><th>Jumlah</th><td>{{ quotation.quantity|display_or_missing }}</td></tr>
     <tr><th>Harga Final</th><td>Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</td></tr>
-    <tr><th>Catatan</th><td>{{ quotation.notes or '-' }}</td></tr>
+    <tr><th>Catatan</th><td>{{ quotation.notes|display_or_missing }}</td></tr>
   </table>
 </div>
 

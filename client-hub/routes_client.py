@@ -20,6 +20,7 @@ import wa_takeover_service
 import catalog_service
 import db
 import payment_service
+import display_labels
 
 client_bp = Blueprint("client", __name__, url_prefix="")
 
@@ -443,6 +444,7 @@ def review_page(business_id):
         onboarding_status=repo.get_onboarding_status(business_id),
         missing_required=repo.required_fields_missing(business_id),
         missing_required_labels=_human_missing_labels(repo.required_fields_missing(business_id)),
+        missing_required_sentence=display_labels.missing_fields_sentence(repo.required_fields_missing(business_id)),
         missing_fix_step=_step_for_missing_fields(repo.required_fields_missing(business_id)),
         is_admin_view=False,
         # Business flow cleanup: lets review.html show whether AI Admin payment is already done
@@ -712,5 +714,35 @@ def inbox_reply(business_id):
             "takeover_state_unavailable": "Status Human Takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
             "message_too_long": "Pesan terlalu panjang. Maksimal 4096 karakter.",
         }.get(reason, "Pesan belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
+        flash(friendly, "error")
+    return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
+
+
+@client_bp.route("/business/<int:business_id>/inbox/send-template", methods=["POST"])
+@security.login_required
+def inbox_send_template(business_id):
+    """Inbox unification, Section 4/5 — "Kirim Template & Lanjutkan": the approved-template
+    re-engagement action shown once a conversation's 24h customer-service window has expired. See
+    inbox_service.send_template_reply()'s own docstring for the full safety/config rationale."""
+    _business_or_404(business_id)
+    phone = inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not inbox_service.customer_exists(business_id, phone):
+        abort(404)
+
+    ok, reason = inbox_service.send_template_reply(business_id, phone)
+    user = security.current_user()
+    if ok:
+        repo.write_audit(user["id"], business_id, "CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
+        flash("Template terkirim. Begitu customer membalas, window 24 jam aktif lagi dan kamu bisa balas bebas.", "success")
+    else:
+        friendly = {
+            "human_takeover_required": "Klik Ambil Alih dulu sebelum CS mengirim template.",
+            "reengagement_template_not_configured": "Template re-engagement belum dikonfigurasi di server (WHATSAPP_REENGAGEMENT_TEMPLATE_NAME).",
+            "whatsapp_not_connected": "WhatsApp business ini belum berstatus CONNECTED.",
+            "business_not_active": "AI Admin business ini belum ACTIVE.",
+            "tenant_credentials_unavailable": "Credential WhatsApp tenant belum tersedia di server.",
+            "default_whatsapp_credentials_unavailable": "Credential WhatsApp platform belum tersedia di server.",
+            "takeover_state_unavailable": "Status Human Takeover tidak bisa diverifikasi. Demi keamanan template tidak dikirim.",
+        }.get(reason, "Template belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
         flash(friendly, "error")
     return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))

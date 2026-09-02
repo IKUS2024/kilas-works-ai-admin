@@ -2,7 +2,7 @@
 {% block title %}{{ invoice.invoice_number }} — Kilas Works{% endblock %}
 {% block content %}
 <h1>Invoice {{ invoice.invoice_number }}</h1>
-<span class="pill APPROVED">{{ payment.status if payment else invoice.status }}</span>
+<span class="pill APPROVED">{{ payment.status|humanize_status('payment') if payment else invoice.status|humanize_status('invoice') }}</span>
 
 <div class="card">
   <h2>Total: Rp{{ '{:,}'.format(invoice.amount).replace(',', '.') }}</h2>
@@ -17,7 +17,7 @@
 {% if payment and payment.status in ('PAYMENT_PENDING', 'REJECTED') %}
 <div class="card">
   <h2>Upload Bukti Pembayaran</h2>
-  {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">Bukti sebelumnya ditolak: {{ payment.admin_notes or '-' }}. Silakan upload ulang.</p>{% endif %}
+  {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">Bukti sebelumnya ditolak: {{ payment.admin_notes|display_or_missing }}. Silakan upload ulang.</p>{% endif %}
   {# Mobile-friendly upload (Section 12): "capture" lets a phone browser offer the camera directly
      instead of forcing a trip through a file manager, while still allowing "choose from gallery". #}
   <form method="post" enctype="multipart/form-data">

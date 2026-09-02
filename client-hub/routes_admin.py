@@ -22,6 +22,7 @@ import security
 import file_utils
 import provisioning
 import catalog_service
+import display_labels
 import projects_repo
 import quotation_service
 import payment_service
@@ -149,6 +150,8 @@ def review_business(business_id):
         ai_settings=ai_settings,
         onboarding_status=onboarding_status,
         missing_required=missing_required,
+        missing_required_labels=display_labels.humanize_missing_fields(missing_required),
+        missing_required_sentence=display_labels.missing_fields_sentence(missing_required),
         audit_log=audit_log,
         flagged=flagged,
         whatsapp_config=whatsapp_config,
@@ -881,5 +884,40 @@ def platform_inbox_reply():
             friendly = f"Bridge Client Hub → bot menolak request ({detail}). Kirim kode ini ke admin untuk diagnosis."
         if not friendly:
             friendly = f"Pesan belum berhasil dikirim. Diagnostic: {reason}"
+        flash(friendly, "error")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/send-template", methods=["POST"])
+@security.admin_required
+def platform_inbox_send_template():
+    """Inbox unification, Section 4/5 — "Kirim Template & Lanjutkan" for Kilas Works' own inbox.
+    See platform_inbox_service.send_template_reply()'s own docstring for the full safety/config
+    rationale — same shared 24h-window/template logic as the tenant inbox's equivalent action
+    (client.inbox_send_template), differing only in send transport (internal bridge to the bot
+    process, since Client Hub never holds Kilas Works' own WhatsApp token)."""
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+
+    ok, reason = platform_inbox_service.send_template_reply(phone)
+    admin = security.current_user()
+    if ok:
+        repo.write_audit_no_business(admin["id"], "PLATFORM_CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
+        flash("Template terkirim. Begitu customer membalas, window 24 jam aktif lagi.", "success")
+    else:
+        friendly = {
+            "human_takeover_required": "Klik Ambil Alih dulu sebelum mengirim template.",
+            "reengagement_template_not_configured": "Template re-engagement belum dikonfigurasi di server (WHATSAPP_REENGAGEMENT_TEMPLATE_NAME).",
+            "takeover_state_unavailable": "Status takeover tidak bisa diverifikasi. Demi keamanan template tidak dikirim.",
+            "bot_internal_bridge_unavailable": "Koneksi internal Client Hub → bot belum dikonfigurasi.",
+            "bot_internal_bridge_network_error": "Bot WhatsApp sedang tidak terjangkau dari Client Hub. Coba lagi sebentar.",
+            "bot_internal_bridge_timeout": "Bot WhatsApp terlalu lama merespons. Coba sekali lagi setelah bot sudah Live.",
+        }.get(reason)
+        if not friendly and str(reason).startswith("bot_internal_bridge_http_"):
+            detail = str(reason).replace("bot_internal_bridge_http_", "HTTP ", 1)
+            friendly = f"Bridge Client Hub → bot menolak request ({detail})."
+        if not friendly:
+            friendly = f"Template belum berhasil dikirim. Diagnostic: {reason}"
         flash(friendly, "error")
     return redirect(url_for("admin.platform_inbox", customer=phone))

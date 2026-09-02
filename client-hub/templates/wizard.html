@@ -72,10 +72,10 @@
 
   {% elif step == 'style' %}
     <h2>Gaya AI Admin</h2>
-    <label>Tone</label>
+    <label>Gaya bahasa AI</label>
     <select name="tone">
       {% for t in ['friendly','formal','casual-professional'] %}
-        <option value="{{ t }}" {{ 'selected' if profile.tone == t else '' }}>{{ t }}</option>
+        <option value="{{ t }}" {{ 'selected' if profile.tone == t else '' }}>{{ t|humanize_tone }}</option>
       {% endfor %}
     </select>
     <label>Bahasa utama</label>
@@ -88,7 +88,7 @@
       <option value="id" {{ 'selected' if 'id' in (profile.additional_languages or []) else '' }}>Bahasa Indonesia</option>
       <option value="en" {{ 'selected' if 'en' in (profile.additional_languages or []) else '' }}>English</option>
     </select>
-    <label>Sapaan untuk customer</label>
+    <label>Sapaan untuk pelanggan</label>
     <input type="text" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}">
 
   {% elif step == 'upload' %}

@@ -238,6 +238,8 @@ MIGRATIONS = [
     ("0016_platform_takeover_sqlite.sql", "0016_platform_takeover_postgres.sql"),
     ("0017_fix_operating_hours_column_type_sqlite.sql",
      "0017_fix_operating_hours_column_type_postgres.sql"),
+    ("0018_tenant_reengagement_template_sqlite.sql",
+     "0018_tenant_reengagement_template_postgres.sql"),
 ]
 
 

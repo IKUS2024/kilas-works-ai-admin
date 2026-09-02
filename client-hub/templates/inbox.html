@@ -39,9 +39,9 @@
           {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
           <div style="margin-top:6px;">
             {% if selected.mode == 'HUMAN_TAKEOVER' %}
-              <span class="pill">Human Takeover aktif</span>
+              <span class="pill">Human Takeover</span>
             {% elif selected.mode == 'AI_ACTIVE' %}
-              <span class="pill ACTIVE">AI aktif</span>
+              <span class="pill ACTIVE">AI Active</span>
             {% else %}
               <span class="pill">Status takeover tidak tersedia</span>
             {% endif %}
@@ -85,13 +85,26 @@
             <label>Balasan CS</label>
             <textarea name="message" maxlength="4096" required placeholder="Ketik balasan manual ke customer..." style="min-height:90px;"></textarea>
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">
-              <span class="muted" style="font-size:12px;">Free-text hanya dikirim selama window WhatsApp masih aman (&lt;23 jam dari inbound terakhir).</span>
+              <span class="pill ACTIVE" style="font-size:12px;">24h Window Active</span>
               <button class="btn" type="submit">Kirim sebagai CS</button>
             </div>
           </form>
         {% else %}
           <div style="border-top:1px solid var(--border);padding-top:12px;">
-            <p style="margin:0;color:var(--red);">Chat ini sudah di luar window WhatsApp 24 jam. Demi keamanan sistem tidak akan mencoba free-text. Nanti kita bisa tambah template-message sender untuk kasus ini.</p>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="pill" style="color:var(--red);">24h Window Expired</span>
+              <span class="pill">Template Required</span>
+            </div>
+            <p style="margin:0 0 10px;color:var(--text-dim);">
+              Chat ini sudah lewat 24 jam sejak customer terakhir chat — WhatsApp tidak mengizinkan pesan
+              bebas lagi. Kirim template resmi buat buka lagi percakapannya; begitu customer membalas
+              template itu, window 24 jam aktif lagi dan kamu bisa langsung balas bebas seperti biasa.
+            </p>
+            <form method="post" action="{{ url_for('client.inbox_send_template', business_id=business.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn" type="submit">Kirim Template &amp; Lanjutkan</button>
+            </form>
           </div>
         {% endif %}
       {% elif selected.mode == 'AI_ACTIVE' %}

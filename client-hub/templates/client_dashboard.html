@@ -19,7 +19,7 @@
         <tr>
           <td>{{ p.business_name }}</td>
           <td>{{ p.title }}</td>
-          <td><span class="pill {{ p.status }}">{{ p.status.replace('_',' ') }}</span></td>
+          <td><span class="pill {{ p.status }}">{{ p.status|humanize_status('project') }}</span></td>
           <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Menunggu Penawaran' }}</td>
           <td><a href="{{ url_for('projects.project_detail', business_id=p.business_id, project_id=p.id) }}">Lihat</a></td>
         </tr>
@@ -39,8 +39,8 @@
           <span class="pill">Active Customer</span>
           <span class="muted">· Belum pakai AI Admin</span>
         {% else %}
-          <span class="pill {{ b.status }}">{{ b.status }}</span>
-          <span class="muted">· {{ b.package }}</span>
+          <span class="pill {{ b.status }}">{{ b.status|humanize_status('business') }}</span>
+          <span class="muted">· {{ b.package|humanize_package }}</span>
         {% endif %}
       </div>
       {% if b.package != 'NONE' %}<div class="muted">Setup {{ b.completion_percent }}%</div>{% endif %}

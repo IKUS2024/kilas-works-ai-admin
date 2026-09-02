@@ -171,11 +171,29 @@ def has_verified_ai_admin_payment(business_id):
     "never bought AI Admin" the same as "already paid for AI Admin", which let a business be
     activated without ever paying. "No invoice at all" must NEVER be treated as "already covered".
 
-    Returns True ONLY when there is an explicit VERIFIED payment tied to an AI Admin project
-    (catalog_key 'ai_admin_basic' or 'ai_admin_pro') for this business — the positive condition
-    activate_tenant() now requires before allowing activation, rather than the absence of a
-    negative one. A VERIFIED payment for a different, unrelated service (e.g. a website package)
-    never counts here, since it isn't joined through an ai_admin_* project at all.
+    K7 KOPI legacy-package fix (UI cleanup cycle): this used to accept a VERIFIED payment tied to
+    EITHER catalog_key ('ai_admin_basic' OR 'ai_admin_pro'), regardless of the business's CURRENT
+    `package` column. That is wrong whenever a business's package was ever changed after an
+    earlier payment — reachable in practice via routes_admin.py's admin-only
+    POST /business/<id>/package -> repo.set_business_package(), which updates `businesses.package`
+    freely without touching any existing projects/invoices/payments (by design — those are
+    historical records, never rewritten). A business currently on AI_ADMIN_BASIC but with an OLD
+    VERIFIED payment against an ai_admin_pro project (e.g. from before an admin corrected the
+    package, or from the now-fixed duplicate-checkout-flow bug) would incorrectly pass this gate
+    on the strength of a payment for a DIFFERENT tier than what they currently have. Now requires
+    a VERIFIED payment matching the business's CURRENT package specifically — a business whose
+    package was changed after paying must have a NEW verified payment for the NEW tier; the OLD
+    payment stays exactly as it is in the database (never deleted/modified), it simply no longer
+    satisfies a gate for a package it was never actually for.
+
+    Returns True ONLY when there is an explicit VERIFIED payment tied to an AI Admin project whose
+    catalog_key matches THIS business's CURRENT package (ai_admin_basic for AI_ADMIN_BASIC,
+    ai_admin_pro for AI_ADMIN_PRO) — the positive condition activate_tenant() now requires before
+    allowing activation, rather than the absence of a negative one. A VERIFIED payment for a
+    different, unrelated service (e.g. a website package) never counts here, since it isn't joined
+    through an ai_admin_* project at all. A business currently on package='NONE' (or any other
+    non-AI-Admin value) can never satisfy this gate, by construction — there is no catalog_key for
+    'NONE' to match against.
 
     Note: this only gates the ACTIVATION step (business.status -> ACTIVE / WhatsApp-connection
     readiness), not the package field itself — a business may freely pick/upgrade its `package` to
@@ -183,11 +201,20 @@ def has_verified_ai_admin_payment(business_id):
     repo.upgrade_business_package(). Already-ACTIVE tenants are unaffected: activate_tenant()
     returns early for a business that's already ACTIVE, so this gate only ever runs on the
     APPROVED -> ACTIVE transition, never re-checked against tenants activated before this fix."""
+    business = db.query_one("SELECT package FROM businesses WHERE id = ?", (business_id,))
+    if not business:
+        return False
+    catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(business["package"])
+    if not catalog_key:
+        # package is 'NONE' (or some other non-AI-Admin value) — no historical AI Admin payment,
+        # for any tier, can ever satisfy an activation gate for a package this business doesn't
+        # currently have.
+        return False
     rows = db.query_all(
         "SELECT p.status FROM payments p "
         "JOIN invoices i ON i.id = p.invoice_id "
         "JOIN projects pr ON pr.id = i.project_id "
-        "WHERE pr.business_id = ? AND pr.catalog_key IN ('ai_admin_basic', 'ai_admin_pro')",
-        (business_id,),
+        "WHERE pr.business_id = ? AND pr.catalog_key = ?",
+        (business_id, catalog_key),
     )
     return any(r["status"] == "VERIFIED" for r in rows)

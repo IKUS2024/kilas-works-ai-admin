@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 {% block title %}Projects — {{ business.business_name }}{% endblock %}
 {% block content %}
-<h1>Projects — {{ business.business_name }}</h1>
+<h1>Proyek — {{ business.business_name }}</h1>
 <div style="display:flex;gap:8px;margin-bottom:16px;">
-  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') }}">Active</a>
-  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') }}">History</a>
-  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') }}">All</a>
+  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') }}">Aktif</a>
+  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') }}">Riwayat</a>
+  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') }}">Semua</a>
 </div>
 <div class="card">
   <table>
-    <tr><th>Title</th><th>Tipe</th><th>Status</th><th>Harga</th><th></th></tr>
+    <tr><th>Nama Proyek</th><th>Tipe</th><th>Status</th><th>Harga</th><th></th></tr>
     {% for p in projects %}
     <tr>
       <td>{{ p.title }}</td>
       <td>{{ p.project_type }}</td>
-      <td><span class="pill APPROVED">{{ p.status }}</span></td>
-      <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else '-' }}</td>
+      <td><span class="pill APPROVED">{{ p.status|humanize_status('project') }}</span></td>
+      <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Belum ada harga' }}</td>
       <td><a href="{{ url_for('projects.project_detail', business_id=business.id, project_id=p.id) }}">Lihat</a></td>
     </tr>
     {% endfor %}

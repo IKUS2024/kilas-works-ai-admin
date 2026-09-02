@@ -12,22 +12,19 @@ send that Meta would reject with re-engagement error 131047.
 """
 from datetime import datetime, timezone
 import os
-import re
 
 import requests
 
 import db
 import repo
 import wa_takeover_service
+import wa_inbox_shared
 
-WHATSAPP_24H_SAFETY_HOURS = 23
-MAX_MANUAL_MESSAGE_CHARS = 4096
-_PHONE_RE = re.compile(r"^\d{6,20}$")
+WHATSAPP_24H_SAFETY_HOURS = wa_inbox_shared.WHATSAPP_24H_SAFETY_HOURS
+MAX_MANUAL_MESSAGE_CHARS = wa_inbox_shared.MAX_MANUAL_MESSAGE_CHARS
 
-
-def normalize_customer_phone(raw):
-    digits = re.sub(r"\D", "", raw or "")
-    return digits if _PHONE_RE.match(digits) else None
+normalize_customer_phone = wa_inbox_shared.normalize_customer_phone
+_coerce_datetime = wa_inbox_shared.coerce_datetime
 
 
 def _scoped_number(business_id, customer_phone):
@@ -36,22 +33,6 @@ def _scoped_number(business_id, customer_phone):
 
 def _prefix(business_id):
     return f"T{int(business_id)}:"
-
-
-def _coerce_datetime(value):
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        dt = value
-    else:
-        text = str(value).strip().replace("Z", "+00:00")
-        try:
-            dt = datetime.fromisoformat(text)
-        except ValueError:
-            return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
 
 
 def list_conversations(business_id, limit_messages=1500):
@@ -168,18 +149,7 @@ def get_last_customer_inbound_at(business_id, customer_phone):
 
 def freeform_window_status(business_id, customer_phone, now=None):
     last_inbound = get_last_customer_inbound_at(business_id, customer_phone)
-    if last_inbound is None:
-        return {"allowed": False, "reason": "no_customer_inbound", "last_inbound_at": None}
-    now = now or datetime.now(timezone.utc)
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc)
-    age_hours = max(0.0, (now.astimezone(timezone.utc) - last_inbound).total_seconds() / 3600.0)
-    return {
-        "allowed": age_hours < WHATSAPP_24H_SAFETY_HOURS,
-        "reason": "inside_customer_service_window" if age_hours < WHATSAPP_24H_SAFETY_HOURS else "outside_24h_window",
-        "last_inbound_at": last_inbound,
-        "age_hours": age_hours,
-    }
+    return wa_inbox_shared.compute_freeform_window_status(last_inbound, now=now)
 
 
 def _tenant_channel(business_id):
@@ -269,5 +239,70 @@ def send_manual_reply(business_id, customer_phone, message_text):
     except Exception:
         # The WhatsApp send already succeeded. Do not report the send as failed merely because the
         # history write failed; return a distinct success reason so the route can audit it.
+        return True, "sent_history_write_failed"
+    return True, "sent"
+
+
+def send_template_reply(business_id, customer_phone, params=None):
+    """Approved WhatsApp template send — the "Kirim Template & Lanjutkan" action for a
+    conversation whose 24h customer-service window has expired (Section 4/5 of the request).
+    Deliberately allowed to fire EVEN WHEN freeform_window_status() reports "not allowed" — that is
+    exactly the situation an approved template exists to handle. Still requires HUMAN_TAKEOVER to
+    be active, same as send_manual_reply().
+
+    TEMPLATE-SCOPED PER TENANT: the approved template name/language is resolved via
+    wa_inbox_shared.resolve_reengagement_template_config_for_tenant() — THIS tenant's own override
+    (repo.get_whatsapp_config(business_id).reengagement_template_name/_language, see migration
+    0018) first, falling back to the global WHATSAPP_REENGAGEMENT_TEMPLATE_NAME/_LANGUAGE env vars
+    only if this tenant has none configured. A tenant is never forced to share the same approved
+    template name as any other tenant or as Kilas Works' own platform inbox.
+
+    Uses the SAME direct-Graph-API transport as send_manual_reply() (Client Hub already holds this
+    tenant's own token) — only the payload shape differs (built by
+    wa_inbox_shared.build_template_message_payload() instead of a free-text body)."""
+    phone = normalize_customer_phone(customer_phone)
+    if not phone:
+        return False, "invalid_customer_phone"
+    if not customer_exists(business_id, phone):
+        return False, "customer_not_found"
+
+    try:
+        mode = wa_takeover_service.get_state(business_id, phone)
+    except Exception:
+        return False, "takeover_state_unavailable"
+    if mode != "HUMAN_TAKEOVER":
+        return False, "human_takeover_required"
+
+    tenant_config_row = repo.get_whatsapp_config(business_id)
+    template_name, language_code = wa_inbox_shared.resolve_reengagement_template_config_for_tenant(
+        tenant_config_row, os.environ.get,
+    )
+    if not template_name:
+        return False, "reengagement_template_not_configured"
+
+    channel, channel_err = _tenant_channel(business_id)
+    if not channel:
+        return False, channel_err
+
+    graph_version = (os.environ.get("META_GRAPH_API_VERSION") or "v21.0").strip()
+    url = f"https://graph.facebook.com/{graph_version}/{channel['phone_number_id']}/messages"
+    headers = {
+        "Authorization": f"Bearer {channel['access_token']}",
+        "Content-Type": "application/json",
+    }
+    payload = wa_inbox_shared.build_template_message_payload(phone, template_name, language_code, params)
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=20)
+    except Exception:
+        return False, "meta_request_failed"
+    if not (200 <= resp.status_code < 300):
+        return False, f"meta_http_{resp.status_code}"
+
+    try:
+        db.execute(
+            "INSERT INTO messages (number, mode, role, content) VALUES (?, 'customer', 'assistant', ?)",
+            (_scoped_number(business_id, phone), f"[Template: {template_name}]"),
+        )
+    except Exception:
         return True, "sent_history_write_failed"
     return True, "sent"

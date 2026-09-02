@@ -2,12 +2,12 @@
 {% block title %}{{ project.title }} — Admin{% endblock %}
 {% block content %}
 <h1>{{ project.title }}</h1>
-<p class="muted">{{ business.business_name if business else '-' }} · {{ project.project_type }} · {{ project.pricing_mode }}</p>
-<span class="pill APPROVED">{{ project.status }}</span>
+<p class="muted">{{ business.business_name|display_or_missing if business else 'Belum diisi' }} · {{ project.project_type }} · {{ project.pricing_mode }}</p>
+<span class="pill APPROVED">{{ project.status|humanize_status('project') }}</span>
 
 <div class="card">
   <h2>Requirements</h2>
-  <pre style="white-space:pre-wrap;font-size:13px;">{{ project.requirements or '-' }}</pre>
+  <pre style="white-space:pre-wrap;font-size:13px;">{{ project.requirements|display_or_missing }}</pre>
   <p class="muted">Budget: {% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }} – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}{% else %}-{% endif %}</p>
 </div>
 
@@ -49,7 +49,7 @@
   <table>
     <tr><th>Nomor</th><th>Harga</th><th>Status</th></tr>
     {% for q in quotations %}
-    <tr><td>{{ q.quotation_number }}</td><td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td><td>{{ q.status }}</td></tr>
+    <tr><td>{{ q.quotation_number }}</td><td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td><td>{{ q.status|humanize_status('quotation') }}</td></tr>
     {% endfor %}
   </table>
 </div>
@@ -60,7 +60,7 @@
   <form method="post" action="{{ url_for('admin.project_update_status', project_id=project.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <select name="status">
-      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == project.status }}>{{ s }}</option>{% endfor %}
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == project.status }}>{{ s|humanize_status('project') }}</option>{% endfor %}
     </select>
     <button class="btn secondary" type="submit">Simpan</button>
   </form>
@@ -72,7 +72,7 @@
   <table>
     <tr><th>Waktu</th><th>Aksi</th><th>Detail</th></tr>
     {% for a in audit_trail %}
-    <tr><td>{{ a.created_at }}</td><td>{{ a.action }}</td><td>{{ a.detail or '-' }}</td></tr>
+    <tr><td>{{ a.created_at }}</td><td>{{ a.action|humanize_audit_action }}</td><td>{{ a.detail|humanize_audit_detail }}</td></tr>
     {% endfor %}
   </table>
 </div>

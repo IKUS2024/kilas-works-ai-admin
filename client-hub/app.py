@@ -25,6 +25,7 @@ import security
 import catalog_service
 import talent_service
 import live_catalog_pdf
+import display_labels
 from routes_auth import auth_bp
 from routes_client import client_bp
 from routes_admin import admin_bp
@@ -118,6 +119,7 @@ def create_app():
     app.register_blueprint(projects_bp)
     app.register_blueprint(quotations_bp)
     app.register_blueprint(payments_bp)
+    display_labels.register_jinja_filters(app)
     app.register_blueprint(talent_bp)
     app.register_blueprint(whatsapp_bp)
 

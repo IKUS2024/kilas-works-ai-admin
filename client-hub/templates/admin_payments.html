@@ -8,7 +8,7 @@
     {% for p in payments %}
     <tr>
       <td><a href="{{ url_for('admin.payment_detail', payment_id=p.id) }}">{{ p.id }}</a></td>
-      <td>{{ p.status }}</td>
+      <td>{{ p.status|humanize_status('payment') }}</td>
       <td>{{ p.ai_extracted_amount or '-' }}</td>
       <td>{{ p.ai_risk_flags_json or '-' }}</td>
       <td>
