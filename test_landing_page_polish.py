@@ -39,11 +39,15 @@ def test_jadwalkan_live_demo_removed():
 
 
 def test_coba_demo_ai_admin_points_to_kilasworks_id():
+    """Demo domain integration cycle: the primary demo CTA now points to the dedicated,
+    professional demo subdomain (https://demo.kilasworks.id), which host-aware-redirects to the
+    existing /demo implementation server-side (see app.py's health_check() route) — no demo code
+    is duplicated, this is purely a link-destination change."""
     html = _read()
     assert "Coba Demo AI Admin" in html
     match = re.search(r'href="([^"]+)"[^>]*>\s*Coba Demo AI Admin', html)
     assert match, "Coba Demo AI Admin link not found"
-    assert match.group(1) == "https://kilasworks.id/demo", match.group(1)
+    assert match.group(1) == "https://demo.kilasworks.id", match.group(1)
     assert "kilas-works-ai-admin.onrender.com" not in html, "raw Render URL must no longer be exposed publicly"
     print("test_coba_demo_ai_admin_points_to_kilasworks_id OK")
 

@@ -9,7 +9,7 @@ import base64
 import requests
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for
 
 try:
     import psycopg2
@@ -3133,6 +3133,15 @@ PAYMENT_STATUS_NEEDS_RECHECK = "NEEDS_RECHECK"
 # number -> {status, package, dp_requested, updated_at}
 payment_state = {}
 
+# Demo domain integration — tracks which Kilas-Works-own customers have ALREADY been sent the
+# https://demo.kilasworks.id link, so the bot doesn't repeatedly re-offer it every turn once it's
+# been shared (Section 4 of the request: "One contextual offer is enough unless the customer asks
+# again"). Kilas-Works-own only, plain phone-number keyed — same scoping pattern as payment_state/
+# followup_state above, deliberately NEVER touched for a resolved tenant conversation (see
+# _enforce_customer_price_guardrail's own docstring for why Kilas-Works-own module-level dicts stay
+# unscoped-by-tenant: this code path is simply never reached for a tenant customer at all).
+demo_link_offered = set()
+
 
 def get_or_create_payment_state(number):
     return payment_state.setdefault(number, {
@@ -3619,6 +3628,28 @@ SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa 
 - Boleh natural nyebut AI Admin sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
   customer nanya soal respon cepat/chat admin) — lihat aturan CROSS-SELL di bawah, tetap harus relevan,
   BUKAN dipaksa disebut di semua balasan.
+
+SOAL DEMO AI ADMIN (link resmi: https://demo.kilasworks.id — WAJIB DIIKUTI):
+- Kalau customer nanya soal demo/coba/contoh AI Admin secara EKSPLISIT — contoh: "ada demo?", "bisa
+  coba?", "gimana cara kerjanya?", "saya mau lihat AI Adminnya", "ada contoh botnya?", "boleh test
+  dulu?" — WAJIB tawarin link demo secara natural, jangan muter-muter. Gaya yang BENER, contoh:
+  "Bisa Kak. Kalau mau coba langsung, ada demo AI Admin di sini: https://demo.kilasworks.id — di
+  situ Kakak bisa coba ngobrol kayak customer beneran." Boleh disesuaikan kalimatnya, yang penting
+  link-nya selalu PERSIS "https://demo.kilasworks.id" (jangan pakai link lain/link lama).
+- Demo ini JUGA boleh ditawarin PROAKTIF (customer belum minta duluan) kalau konteksnya emang pas —
+  misal: customer lagi mempertimbangkan AI Admin, nanya AI Admin bisa ngapain aja, kelihatan
+  tertarik tapi masih butuh bukti/contoh nyata, nanya soal gimana bot-nya jawab customer, mau
+  bandingin dulu sebelum lanjut, atau kelihatan ragu-ragu (demo langsung bakal lebih ngeyakinin
+  daripada dijelasin doang).
+- JANGAN asal nawarin demo di SETIAP obrolan — cuma kalau konteksnya emang soal AI Admin & customer
+  butuh "bukti nyata". Kalau customer lagi ngomongin Foto/Video/Website/Talent Management/layanan
+  lain yang GAK ADA hubungannya sama AI Admin, JANGAN tiba-tiba promosiin demo AI Admin — kecuali
+  AI Admin emang jadi relevan (misal mereka nanya sendiri soal AI Admin di tengah obrolan itu).
+- SATU KALI CUKUP per obrolan — kalau demo udah pernah ditawarin/dikasih ke customer ini sebelumnya
+  (lihat catatan di konteks kalau ada), JANGAN ulang-ulang nawarin lagi setiap balasan. Kalau
+  customer nanya LAGI soal demo secara eksplisit, tetap boleh/wajib jawab (link boleh disebut ulang
+  kalau memang DIMINTA lagi) — aturan "jangan spam" ini cuma buat penawaran PROAKTIF yang berulang,
+  bukan buat jawab pertanyaan langsung.
 
 INFO PAKET & HARGA (kamu WAJIB HAFAL & BISA SEBUT semua angka ini natural kalau ditanya, lihat ATURAN
 HARGA di bawah buat gaya nyebutnya — data di bawah ini di-generate dari satu sumber data pricing yang
@@ -4249,6 +4280,18 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     # this function's own docstring). Same tenant-safe "" guard as the two notes above: a resolved
     # CLIENT tenant must never see Kilas Works' own service catalog.
     active_services_note = "" if tenant_context_block else _build_active_service_categories_safe()
+    # Demo domain integration — "don't repeat the demo offer" signal (Section 4 of the request).
+    # Tenant-safe by construction: tenant_context_block is only truthy for a resolved CLIENT
+    # conversation, and demo_link_offered is only ever written to from the Kilas-Works-own send
+    # path (see the customer-webhook post-processing below) — this note would simply never be
+    # populated for a tenant even without the explicit guard, but the guard keeps the intent
+    # obvious and matches every other Kilas-Works-own-only note in this function.
+    demo_offer_note = (
+        "\n\nCATATAN: link demo AI Admin (https://demo.kilasworks.id) SUDAH pernah dikasih ke "
+        "customer ini sebelumnya di obrolan ini — JANGAN tawarin ulang secara proaktif. Kalau "
+        "customer nanya lagi soal demo secara eksplisit, tetap boleh/wajib jawab seperti biasa."
+        if (not tenant_context_block) and (user_number in demo_link_offered) else ""
+    )
 
     # Bug fix: SYSTEM_PROMPT is Kilas Works' OWN persona, built on top of its OWN PRICING_CONFIG
     # (AI Admin, Content packages, bundles, website pricing, etc.) — that must NEVER be the base
@@ -4262,7 +4305,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     full_prompt = (
         base_prompt + language_context + name_context + scope_context + facts_context
         + appointment_context + live_price_sync_note + live_talent_note + active_services_note
-        + (tenant_context_block or "")
+        + demo_offer_note + (tenant_context_block or "")
     )
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
@@ -7686,6 +7729,13 @@ def _webhook_body_impl(data):
         if not _in_active_payment_flow:
             clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block)
 
+        # Demo domain integration — record that the demo link was shared with this customer, so
+        # the "don't repeat proactive offers" note (see build_customer_system_prompt's demo_offer_
+        # note) fires on the NEXT turn. Kilas-Works-own only (tenant_context_block falsy) — see
+        # demo_link_offered's own module-level comment for the tenant-safety rationale.
+        if not tenant_context_block and "demo.kilasworks.id" in clean_reply:
+            demo_link_offered.add(from_number)
+
         send_reply_bubbles(from_number, incoming_message_id, clean_reply)
 
         # Bug fix (Task 5/7) — QR code, katalog.pdf, DP/payment-state tracking, and the AI sales
@@ -7793,6 +7843,17 @@ def _webhook_body_impl(data):
 
 @app.route("/", methods=["GET"])
 def health_check():
+    """Demo domain root routing (Section 1) — https://demo.kilasworks.id/ should directly open the
+    existing AI Admin Demo without the visitor needing to type /demo. This is the SAME "/" route
+    Render's own health-check probe (and any other uptime monitor) already depends on, so the
+    ORIGINAL plain-text "server jalan!" response is completely preserved for every host EXCEPT the
+    demo domain — nothing about health-check behavior changes. Host-aware (rather than an
+    unconditional redirect) so this stays correct for the bot's own actual service host, checked
+    case-insensitively with any port stripped. Reuses the EXISTING demo_page() view via a standard
+    redirect rather than duplicating any of its HTML/logic."""
+    host = (request.host or "").split(":")[0].lower()
+    if host == "demo.kilasworks.id" or host.startswith("demo."):
+        return redirect(url_for("demo_page"))
     return "Kilas Works AI Admin - server jalan!", 200
 
 
