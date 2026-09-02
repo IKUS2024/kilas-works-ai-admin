@@ -17,6 +17,9 @@ import feature_flags
 import subscription_service
 import inbox_service
 import wa_takeover_service
+import catalog_service
+import db
+import payment_service
 
 client_bp = Blueprint("client", __name__, url_prefix="")
 
@@ -442,6 +445,14 @@ def review_page(business_id):
         missing_required_labels=_human_missing_labels(repo.required_fields_missing(business_id)),
         missing_fix_step=_step_for_missing_fields(repo.required_fields_missing(business_id)),
         is_admin_view=False,
+        # Business flow cleanup: lets review.html show whether AI Admin payment is already done
+        # (so "Lanjut ke Pembayaran" only appears when it's actually still needed) — same check
+        # provisioning.activate_tenant() itself already uses to gate activation, so this is purely
+        # a display convenience, never a second source of truth.
+        has_ai_admin_payment=(
+            business["package"] in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
+            and payment_service.has_verified_ai_admin_payment(business_id)
+        ),
     )
 
 
@@ -487,8 +498,59 @@ def submit_for_review(business_id):
     repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "client submitted for Kilas review")
     repo.write_audit(user["id"], business_id, "submitted_for_review", None)
     provisioning.record_business_submitted(business_id, user["id"])
-    flash("Terkirim! Tim Kilas Works akan review setup AI Admin kamu.", "success")
-    return redirect(url_for("client.dashboard"))
+    flash(
+        "Data bisnis terkirim! Tim Kilas Works akan review setup AI Admin kamu — sekarang lanjut ke "
+        "pembayaran ya.",
+        "success",
+    )
+    # Business flow cleanup: Review -> Pembayaran -> Pending verification/activation -> Selesai.
+    # AI Admin now has exactly ONE purchase path (this wizard), never the generic /services
+    # instant-checkout — see ai_admin_checkout()'s own docstring below for the full rationale.
+    return redirect(url_for("client.ai_admin_checkout", business_id=business_id))
+
+
+@client_bp.route("/business/<int:business_id>/ai-admin/checkout")
+@security.login_required
+def ai_admin_checkout(business_id):
+    """Business flow cleanup (single AI Admin purchase path) — the ONLY route that starts payment
+    for an AI Admin business. Reached from the wizard/review flow (submit_for_review()'s own
+    redirect, and a "Lanjut ke Pembayaran" link on review.html for anyone revisiting later) —
+    NEVER from the generic /services catalog page, which no longer offers instant checkout for the
+    AI_ADMIN category (see service_catalog.html + start_fixed_checkout()'s own guard). Before this
+    fix, AI Admin could ALSO be bought as a plain FIXED_PRICE catalog item straight from
+    /services — completely bypassing the business-info wizard — which is exactly the "two
+    different AI Admin products" confusion this closes. This function does not introduce a new
+    payment mechanism: it only creates (or reuses) the SAME kind of `projects` row every other
+    fixed-price service already uses, then hands off to the SAME shared payments.checkout_page —
+    payment verification, proof upload, and admin review are completely unchanged.
+
+    Idempotent: revisiting this route (e.g. the customer navigates away mid-payment and comes back
+    via "Lanjut ke Pembayaran" on the review page) reuses the existing AI Admin project for this
+    business instead of creating a duplicate one — payment_service.checkout() is itself already
+    idempotent per-project (reuses the existing invoice), so this only needs to avoid creating a
+    second PROJECT row.
+    """
+    business = _business_or_404(business_id)
+    user = security.current_user()
+    catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(business["package"])
+    if not catalog_key:
+        flash("Business ini belum memilih paket AI Admin.", "error")
+        return redirect(url_for("client.dashboard"))
+
+    existing = db.query_one(
+        "SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? ORDER BY created_at DESC LIMIT 1",
+        (business_id, catalog_key),
+    )
+    if existing:
+        project_id = existing["id"]
+    else:
+        item = catalog_service.get_catalog_item(catalog_key)
+        if item is None:
+            flash("Paket AI Admin ini sedang tidak tersedia — hubungi Kilas Works.", "error")
+            return redirect(url_for("client.review_page", business_id=business_id))
+        project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
+
+    return redirect(url_for("payments.checkout_page", project_id=project_id))
 
 
 @client_bp.route("/business/<int:business_id>/simulate")

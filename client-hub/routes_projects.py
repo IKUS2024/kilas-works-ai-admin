@@ -39,6 +39,15 @@ def start_fixed_checkout(catalog_key):
     item = catalog_service.get_catalog_item(catalog_key)
     if item is None or item["pricing_mode"] not in ("FIXED_PRICE", "STARTING_FROM") or not item["is_active"]:
         abort(404)
+    if item["category"] == "AI_ADMIN":
+        # Business flow cleanup — AI Admin has exactly ONE purchase path: the business-info wizard
+        # (dashboard "+ Tambah AI Admin"/"Buat Business" -> wizard -> review ->
+        # client.ai_admin_checkout). This route is the generic instant-checkout path every OTHER
+        # fixed-price service uses; it must never also be a second, wizard-bypassing way to buy AI
+        # Admin (service_catalog.html no longer renders this form for the AI_ADMIN category at
+        # all — this is a defense-in-depth guard against a stale cached page or a direct POST).
+        flash("AI Admin diatur lewat Dashboard — isi data bisnis dulu sebelum pembayaran.", "error")
+        return redirect(url_for("client.dashboard"))
 
     project_id = projects_repo.create_fixed_price_project(business["id"], item, user["id"])
     flash(f"{item['name']} ditambahkan. Lanjut ke checkout.", "success")
