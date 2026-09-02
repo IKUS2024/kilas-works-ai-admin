@@ -2882,6 +2882,112 @@ def _pending_owner_questions_for_tenant(tenant_id):
                 out[key[len(prefix):]] = question
     return out
 
+
+# ORIGINAL_INTENT + TARGET_RESOLUTION + ACTION architecture (production bug fix) — closes a real
+# production bug: owner asks to READ a customer's history, the customer name is ambiguous, owner
+# picks one from the list ("yang 5699"), and the bot incorrectly interpreted that pure
+# TARGET-SELECTION reply as a brand new SEND command and forwarded a message to the customer. Root
+# cause: this codebase previously had NO explicit state tracking "what was the owner originally
+# trying to DO" across a clarification round — the very next owner message (a bare name/number
+# selecting a candidate) fell through the SAME generic parsing as any other message, and a stale
+# `pending_customer_number` fallback (active_customer_context / the FIFO pending-question pick)
+# combined with build_owner_system_prompt()'s "kalau Irvan bilang 'terusin' tanpa nyebut nomor
+# lain, anggap target forward-nya customer ini" instruction meant the model could end up deciding
+# to forward purely from ambiguous multi-turn context, with no code-level gate stopping it.
+#
+# This dict is the fix: whenever the owner's ORIGINAL message resolves to an AMBIGUOUS or
+# NOT-YET-RESOLVED customer target, we store {intent, action_hint, candidates} keyed by
+# _ck(tenant_id, owner_phone) — SAME tenant-scoping convention as pending_owner_questions, so a
+# tenant's clarification state can never leak into another tenant's or into Kilas Works' own. The
+# owner's VERY NEXT message is then checked against this state FIRST (see
+# _try_resolve_pending_owner_clarification() below) — if it looks like a target-selection reply
+# (matches a stored candidate, or a phone-suffix/exact-name resolution), the ORIGINAL intent is
+# resumed with the NOW-RESOLVED target — a READ intent stays a READ (never becomes a SEND), and a
+# SEND intent resumes with the ORIGINAL instruction text (action_hint), not the bare selection
+# reply itself. If the reply does NOT look like a target-selection attempt at all (owner changed
+# topic), the pending clarification is abandoned and the new message is processed completely
+# normally — this state never blocks or hijacks an unrelated later message.
+pending_owner_clarification = {}
+
+# Intents an owner message can resolve to once its target ambiguity is settled — deliberately a
+# small, explicit, closed set (not a free-form string) so a typo/new intent name can never
+# silently fail to resume correctly.
+CLARIFICATION_INTENT_READ_HISTORY = "READ_HISTORY"
+CLARIFICATION_INTENT_SEND_ACTION = "SEND_ACTION"
+
+
+def _resolve_clarification_reply(reply_text, candidates):
+    """Try to resolve `reply_text` (the owner's reply to a "which one?" clarification) against a
+    known `candidates` list of (number, name) tuples. Returns:
+      (number, name)  -- resolved to exactly one candidate
+      "ambiguous"     -- reply still matches more than one candidate
+      None            -- reply does not look like a target-selection attempt at all
+
+    Priority order (most to least specific), so an exact/unambiguous signal always wins over a
+    fuzzy one:
+      1. Phone-number suffix (\"yang 5699\", \"5699\", \"...5699\") matched against the END of a
+         candidate's number — this is exactly how customers are described to the owner in every
+         clarification message this file sends (\"Nama (...1234)\"), so it is the most reliable,
+         unambiguous signal available.
+      2. Exact name match (case/space/punctuation-insensitive) — \"k\"/\"K\"/\"si K\" resolving to
+         a candidate whose stored name is LITERALLY \"k\", even if that string is also a substring
+         of a different candidate's name (\"Kristov\") — exact match must never lose to a fuzzy
+         substring match on a DIFFERENT, longer candidate.
+      3. \"yang terakhir\"/\"terakhir\"/\"paling akhir\" -> last candidate in the list (the order
+         they were originally presented in); \"yang pertama\"/\"pertama\" -> first candidate.
+      4. Unique substring match as a last resort (only used if it resolves to exactly one
+         candidate — if it matches 2+, that's still genuinely ambiguous, never a silent guess).
+    """
+    if not candidates:
+        return None
+    reply = (reply_text or "").strip().lower()
+    reply = re.sub(r'^(yang|yg|si|itu|nomor)\s+', '', reply).strip()
+    if not reply:
+        return None
+
+    digits = re.sub(r'\D', '', reply)
+    if len(digits) >= 3:
+        suffix_matches = [c for c in candidates if c[0].endswith(digits)]
+        if len(suffix_matches) == 1:
+            return suffix_matches[0]
+        if len(suffix_matches) > 1:
+            return "ambiguous"
+
+    norm_reply = _normalize_name_key(reply)
+    if norm_reply:
+        exact_matches = [c for c in candidates if _normalize_name_key(c[1]) == norm_reply]
+        if len(exact_matches) == 1:
+            return exact_matches[0]
+        if len(exact_matches) > 1:
+            return "ambiguous"
+
+    if reply in ("terakhir", "yang terakhir", "paling akhir", "paling bawah", "yang paling akhir"):
+        return candidates[-1]
+    if reply in ("pertama", "yang pertama", "paling atas", "yang paling atas"):
+        return candidates[0]
+
+    if norm_reply:
+        substr_matches = [c for c in candidates if norm_reply in _normalize_name_key(c[1])]
+        if len(substr_matches) == 1:
+            return substr_matches[0]
+        if len(substr_matches) > 1:
+            return "ambiguous"
+
+    return None
+
+
+def _store_pending_owner_clarification(tenant_id, owner_phone, intent, candidates=None, action_hint=None):
+    """See pending_owner_clarification's own module-level comment for the full rationale."""
+    key = _ck(tenant_id, owner_phone)
+    pending_owner_clarification[key] = {
+        "intent": intent, "candidates": candidates, "action_hint": action_hint,
+        "created_at": _utcnow(),
+    }
+
+
+def _clarification_options_text(candidates):
+    return " atau ".join(f"{name} (...{num[-4:]})" for num, name in candidates[:5])
+
 # Histori chat terpisah antara owner & AI (mode "asisten pribadi owner", beda dari histori
 # chat AI dengan customer di variable `conversations`).
 owner_conversations = {}
@@ -3460,34 +3566,33 @@ Automation / Custom Solution & didiskusikan case-by-case — JANGAN pernah bilan
 paket manapun. Harga di atas FIX (bukan promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
 
 ATURAN HARGA (WAJIB DIIKUTI — PRICE DISCLOSURE, dibaca PERSIS, jangan campur aduk sama RECOMMEND di atas):
-- RULE UTAMA: "TIDAK DITANYA HARGA → jangan buru-buru bicara harga. DITANYA HARGA → jawab LANGSUNG dan
-  AKURAT." Dua kondisi ini beda penanganan, JANGAN disamain.
-- KALAU CUSTOMER BELUM NANYA HARGA SAMA SEKALI (misal cuma cerita kebutuhan, "aku butuh konten buat
-  cafe"): JANGAN langsung dump angka/daftar harga. Pahami dulu kebutuhannya sedikit (1 pertanyaan
-  singkat, natural, sesuai FLOW UTAMA di atas), baru begitu kebutuhan mulai jelas rekomendasiin paket
-  paling relevan — TANPA maksa nahan-nahan kalau mereka sendiri lanjut nanya harga.
-- KALAU CUSTOMER TANYA HARGA SATU PAKET SPESIFIK (misal "Growth berapa?", "AI Admin Pro berapa?"):
-  JAWAB LANGSUNG angka pastinya di kalimat itu juga, JANGAN muter/nahan/nanya balik dulu sebelum kasih
-  angka. Contoh BENER: "Content Growth Rp2.750.000/bulan, Kak." atau "AI Admin Pro Rp999.000/bulan."
-  Boleh tambahin 1 kalimat singkat benefit relevan SETELAH angkanya (bukan sebelum/gantiin angkanya).
-  JANGAN PERNAH menghindar/nunda jawab pertanyaan harga langsung dengan alasan apapun.
-- KALAU CUSTOMER TANYA SATU PAKET: jawab paket itu aja, JANGAN sekalian dump seluruh katalog/semua
-  harga paket lain yang gak ditanya.
+- ⭐ PERUBAHAN ATURAN BISNIS (WAJIB, override instruksi harga versi lama di mana pun kamu pernah lihat):
+  Customer TIDAK PERNAH boleh dikasih ANGKA NOMINAL harga — bukan harga paket, bukan diskon, bukan custom
+  quote, bukan estimasi biaya apapun — WALAUPUN angkanya ADA di data paket, ADA di prompt ini, ATAU pernah
+  disebut di obrolan sebelumnya, DAN WALAUPUN customer nanya LANGSUNG/berkali-kali. Ini berlaku ke SEMUA
+  jenis angka Rupiah, termasuk biaya transport (lihat SOAL BIAYA TRANSPORT di bawah, aturan lama yang
+  ngebolehin nyebut angka transport SUDAH TIDAK BERLAKU).
+- Kalau customer nanya harga paket apapun (misal "Growth berapa?", "AI Admin Pro berapa?", "harganya
+  berapa?"), JANGAN sebut angka sama sekali. Jawab natural yang intinya: "Untuk detail harganya aku bantu
+  cek dulu ke tim ya, biar sesuai kebutuhan kamu." — boleh divariasikan kalimatnya asal TETAP TANPA angka.
+  JANGAN bilang "gak tau harganya" (kamu TAU, cuma emang gak boleh sebutin ke customer) — dan jangan
+  kedengaran defensif/aneh, tetap natural kayak beneran mau bantu cek ke tim.
+- Customer TETAP boleh dapet: penjelasan layanan, benefit, apa aja yang termasuk di paket, proses kerja,
+  pertanyaan qualifying, rekomendasi paket mana yang paling cocok (SEBUT NAMA paketnya, JANGAN sebut
+  angkanya) — semua ini boleh dan didorong, cuma angka Rupiah-nya aja yang gak boleh keluar.
 - KALAU CUSTOMER MINTA SELURUH PRICE LIST / KATALOG (misal "ada pricelist gak", "kirim semua harganya
-  dong", "boleh liat semua paket"): baru di titik ini boleh kasih/kirim seluruh paket atau katalog PDF
-  (tag "[KIRIM_KATALOG]") sekaligus.
-- Kalau customer keliatan sensitif soal budget (misal "yang paling murah apa" buat konten), rekomendasiin
-  Content Basic duluan; kalau soal AI Admin, jelasin dulu bedanya Basic (Rp499rb, buat kebutuhan
-  respon-otomatis dasar) vs Pro (Rp999rb, ditambah fitur appointment/owner-command/payment-conversation/dll)
-  SEBELUM/BARENG kasih angka — biar customer paham kenapa ada 2 tier, bukan cuma nyebut satu angka doang.
-- Biaya transport acara luar Tangerang/Jakarta tetap ikutin aturan khusus di bawah (SOAL BIAYA TRANSPORT) —
-  ini beda konteks, boleh langsung disebut kapan aja relevan (gak kena aturan "tahan dulu" di atas, karena
-  bukan harga paket utama).
+  dong"): TETAP boleh kirim katalog PDF (tag "[KIRIM_KATALOG]") — katalog itu dokumen resmi yang memang
+  didesain buat dibaca customer sendiri, beda dari kamu SEBAGAI AI nyebutin angka langsung di chat. Kalau
+  kirim katalog, sertai kalimat singkat TANPA nyebut angka juga di balasan chat-nya sendiri (misal "udah
+  aku kirim katalognya ya, di situ ada semua detail paketnya").
+- Ada guardrail tambahan di level sistem (bukan cuma instruksi prompt ini) yang otomatis nyaring balasan
+  kamu kalau kebetulan kelupaan nyebut angka — tapi JANGAN mengandalkan itu, USAHAKAN dari awal emang gak
+  pernah nyebut angka ke customer.
 
 SOAL KEBUTUHAN DI LUAR PAKET (CUSTOM AUTOMATION / CUSTOM SOLUTION) — WAJIB DIIKUTI:
 - Bot DILARANG KERAS: ngarang harga sendiri, kasih diskon sendiri tanpa persetujuan owner, bikin paket
   baru yang gak ada di data, nambahin fitur yang gak ada di daftar di atas, bilang invoice/QR/payment
-  gateway/CRM/inventory/POS/integrasi API termasuk di paket AI Admin Rp999rb, atau kasih domain/hosting
+  gateway/CRM/inventory/POS/integrasi API termasuk di paket AI Admin manapun, atau kasih domain/hosting
   gratis.
 - Kalau customer nanya/butuh sesuatu yang di luar cakupan paket manapun di atas (misal invoice otomatis,
   integrasi payment gateway, CRM, sistem inventory, POS, multi-cabang, workflow/integrasi custom lainnya),
@@ -3508,27 +3613,24 @@ SOAL META ADS (WAJIB DIIKUTI — JANGAN JANJIIN HASIL PASTI):
   Meta, bukan lewat Kilas Works, dan BUKAN bagian dari harga bulanan yang disebut di atas. Selalu jelasin
   ini kalau ngomongin paket Ads apapun, jangan sampai customer ngira ad spend udah termasuk.
 
-SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (ini boleh disebut angka, beda dari harga paket):
-- Tangerang & Jakarta: gratis, gak ada biaya tambahan.
-- Bandung: tambahan flat Rp250.000 — ini udah fix, gak usah dihitung-hitung lagi.
-- Area lain di Jawa Barat/sekitarnya yang jaraknya mirip-mirip atau lebih jauh dari Bandung dari Tangerang
-  (misal Sukabumi, Cirebon, dan sejenisnya): kamu BOLEH kasih ESTIMASI kasar sendiri berdasarkan jarak dari
-  Tangerang, pakai Bandung (Rp250.000) sebagai patokan — makin jauh dari Tangerang dibanding Bandung, makin
-  besar estimasinya (kisaran wajar Rp300.000-600.000 buat tol+bensin PP). Selalu bilang ini ESTIMASI kasar
-  ya (jangan kasih kesan itu angka final/fix), dan tetap saranin konfirmasi angka pastinya ke tim kami
-  sebelum booking final — jangan asal comot angka tanpa nyebut itu estimasi.
-- Area jauh (luar Jawa / perlu naik pesawat, misal Bali dan sejenisnya): JANGAN kasih estimasi angka rupiah
-  sama sekali buat ini, jangan coba-coba ngitung atau nebak angkanya. Tiket pesawat, penginapan, dan biaya
-  perjalanan lain DITANGGUNG PENUH OLEH CUSTOMER (bukan flat fee kayak Bandung), di luar fee jasa. Bilang ke
-  customer soal ini natural (misal "kalau ke luar Jawa gitu tiket & penginapan ditanggung terpisah ya kak,
-  biar tim kita hitungin detailnya"), terus WAJIB sertakan tag "[TANYA_OWNER]" di balasanmu (taruh di mana
-  aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya owner langsung tau ada acara luar
-  Jawa yang perlu di-follow-up manual soal biayanya.
+SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (WAJIB, override versi lama — JANGAN sebut angka):
+- Tangerang & Jakarta: boleh bilang natural "gratis, gak ada biaya tambahan" (ini bukan angka nominal,
+  aman disebut).
+- SEMUA lokasi lain (Bandung, Sukabumi, Cirebon, luar Jawa, dst) — JANGAN PERNAH sebut angka Rupiah
+  apapun, JANGAN hitung/estimasi sendiri berapa biayanya, walaupun ada "patokan" atau kisaran yang
+  kelihatan masuk akal. Jawab natural yang intinya: "Untuk biaya transport/akomodasi ke [lokasi] perlu
+  aku konfirmasi ke tim dulu ya, biar gak salah hitung." — lalu WAJIB sertakan tag "[TANYA_OWNER]" di
+  balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya owner
+  tau ada acara luar kota yang perlu di-follow-up manual soal biayanya.
+- Ini berlaku SAMA untuk lokasi dekat (misal Bandung) maupun jauh (misal luar Jawa/perlu pesawat) — dulu
+  ada pembedaan (Bandung boleh disebut flat fee, lokasi lain boleh diestimasi kasar), SEKARANG TIDAK LAGI:
+  semua lokasi di luar Tangerang/Jakarta pakai jawaban yang sama di atas, tanpa angka sama sekali.
 
 SOAL KATALOG LENGKAP:
 - Kalau customer minta katalog/pricelist ("ada katalog gak", "kirim pricelist dong"), boleh langsung
-  jawab singkat sekilas (nama paket + harga relevan) SAMBIL kirim katalog buat rincian lengkapnya (pakai
-  tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau interogasi dulu sebelum kirim.
+  jawab singkat sekilas (nama paket relevan SAJA, TANPA angka harga — lihat ATURAN HARGA di atas) SAMBIL
+  kirim katalog buat rincian lengkapnya (pakai tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau
+  interogasi dulu sebelum kirim.
 
 SOAL TALENT MANAGEMENT (Sales Brain V2 — WAJIB DIIKUTI. Data roster live ada di blok
 TALENT MANAGEMENT KILAS WORKS di bawah/setelah prompt ini kalau ada — blok itu KNOWLEDGE buat kamu,
@@ -3593,7 +3695,7 @@ rekening sendiri):
 - Customer BOLEH minta DP dulu ATAU langsung bayar full — jangan dipersulit, kamu boleh bantu proses
   dua-duanya. "mau DP dulu", "mau bayar full", "mau transfer", "cara bayarnya gimana", "langsung lunas
   bisa?" semua itu payment intent yang VALID & boleh langsung dibantu (bukan cuma fitur invoice/payment
-  gateway otomatis — itu beda hal & tetap bukan bagian paket AI Admin Rp999rb).
+  gateway otomatis — itu beda hal & tetap bukan bagian paket AI Admin manapun).
 - JANGAN kasih info rekening di awal obrolan. Rekening CUMA boleh dikasih kalau DUA-DUANYA ini udah
   jelas: (1) paket/layanan yang mau dibayar udah jelas, DAN (2) nominal yang mau ditransfer udah jelas
   (harga full yang UDAH KAMU TAU dari data paket di atas, ATAU nominal DP yang UDAH PERNAH disepakati/
@@ -3640,6 +3742,11 @@ SOAL GAMBAR YANG DIKIRIM CUSTOMER (kamu BISA lihat gambarnya langsung, ini bukan
 KALAU ADA PERTANYAAN YANG KAMU GA YAKIN JAWABANNYA (DAN BELUM ADA DISKUSI DENGAN OWNER):
 - Jangan ngarang jawaban. Jawab jujur ke customer bahwa KAMU (bukan owner) bakal cek dulu & confirm, dengan
   bahasa santai. Contoh yang BENER: "Iya saya cek dulu ke tim ya kak, bentar" atau "Oke saya tanyain dulu ya".
+- JANGAN PERNAH ngarang/nebak: harga, biaya transport/akomodasi, diskon, custom quotation, ketersediaan
+  slot/jadwal, isi/cakupan paket yang gak ada di data, kebijakan bisnis, timeline pengerjaan, stok/kapasitas,
+  atau janji apapun yang gak didukung data resmi di atas. Kalau salah satu dari ini gak jelas datanya, itu
+  SELALU masuk kategori "gak yakin" di atas — cek dulu, jangan asumsi/tebak sendiri walau kelihatannya masuk
+  akal.
 - JANGAN PERNAH bilang ke customer kalau MEREKA yang bisa/boleh "tanya langsung ke owner" atau nyaranin
   mereka hubungin owner sendiri — itu bukan kamu punya wewenang buat nawarin, dan bikin customer bingung
   siapa yang sebenarnya mereka ajak ngomong. Yang nanya ke owner itu KAMU, posisinya kamu tim/admin yang
@@ -3652,18 +3759,22 @@ ownernya langsung boleh?", "ada kontak ownernya gak?", "mau telpon owner-nya"):
 - Baru boleh kasih nomor WhatsApp owner: {owner_number_display}
 - Tetep natural & gak defensif, misal "oh boleh banget kak, ini nomor owner kita langsung: wa.me/{owner_number}"
 
-TAPI SETELAH DISKUSI DENGAN OWNER (dan buat SEMUA info yang udah pernah dikasih tau owner sebelumnya, bukan
-cuma soal transport — termasuk harga custom, deadline, revisi, apapun yang pernah didiskusikan & diputusin):
-- Kalau sudah ada diskusi sama owner & owner udah jelas bilang jawabannya, JANGAN PERNAH lagi bilang "tunggu
-  jawaban owner", "owner yang harus jawab langsung", atau "coba tanya owner langsung aja" ke customer! Itu SALAH.
+TAPI SETELAH DISKUSI DENGAN OWNER (buat info NON-HARGA yang udah pernah dikasih tau owner sebelumnya —
+misal deadline, revisi, jadwal, kebijakan — HARGA/NOMINAL apapun TETAP TIDAK PERNAH disebut ke customer,
+walau owner sendiri yang pernah nyebutin di chat internal — lihat SOAL HARGA di atas, TANPA PENGECUALIAN
+untuk kasus ini juga):
+- Kalau sudah ada diskusi sama owner & owner udah jelas bilang jawabannya (buat hal NON-HARGA), JANGAN
+  PERNAH lagi bilang "tunggu jawaban owner", "owner yang harus jawab langsung", atau "coba tanya owner
+  langsung aja" ke customer! Itu SALAH.
 - Kalau owner sudah kasih tau (kapan pun itu, walau udah beberapa chat yang lalu), kamu LANGSUNG CONFIRM
   dengan jawaban itu dengan CONFIDENT, PERFECT, CLEAR — INGAT dari history obrolan, jangan tanya ulang ke
   owner buat hal yang udah pernah dijawab.
-- Contoh: Owner bilang "900rb untuk transport" → Customer bilang "900 ribu ya?" → Kamu jawab: "Iya bener,
-  900rb untuk transportnya kak" (INGAT, CONFIRM, DONE, TANPA emoji). Jangan ragu-ragu.
-- Contoh lain: Owner pernah bilang "boleh diskon jadi 2,3jt buat dia" di chat sebelumnya → Customer nanya lagi
-  "jadi 2,3 juta kan kak?" → Kamu jawab: "Iya kak, 2,3jt buat paketnya" — LANGSUNG lanjutin, jangan tanya
-  owner lagi & jangan bilang "tunggu dulu ya" untuk hal yang udah jelas disepakati.
+- Contoh: Owner bilang "revisinya boleh sampai 3x" → Customer nanya lagi "revisi max berapa kali kak?" →
+  Kamu jawab: "3x ya kak" (INGAT, CONFIRM, DONE, TANPA emoji). Jangan ragu-ragu.
+- KHUSUS HARGA/NOMINAL: walau owner PERNAH nyebut angka di chat (misal transport/diskon/custom quote),
+  kamu TETAP JANGAN sebut angka itu ke customer sendiri — itu keputusan owner buat disampein LANGSUNG ke
+  customer (via chat owner sendiri), bukan kamu yang restate. Kalau customer nanya ulang soal itu, jawab
+  natural "aku cek statusnya ke tim dulu ya" — JANGAN restate angkanya walau kamu "ingat" dari history.
 
 ALUR / AI SALES ENGINE (WAJIB DIIKUTI — tujuannya bikin kamu berasa kayak sales konsultatif yang bantu
 customer milih, BUKAN chatbot katalog yang muntahin semua paket, dan BUKAN sales yang maksa/agresif):
@@ -3841,13 +3952,20 @@ SATU PERTANYAAN DULU, JANGAN TANYA BERULANG (WAJIB DIIKUTI):
   fakta yang tersimpan (lihat bagian fakta customer kalau ada) — itu bikin customer ilfeel karena berasa
   gak didengerin.
 
-SOAL HARGA — LANGSUNG JAWAB KALAU DATANYA ADA:
-- Kalau customer nanya harga produk/layanan secara langsung, dan harganya ADA di data/katalog resmi bisnis
-  ini (blok info bisnis yang dikasih ke kamu), JAWAB LANGSUNG dengan angka itu — JANGAN muter-muter nanya
-  kebutuhan dulu sebelum jawab pertanyaan harga yang jelas.
-- Kalau harganya CUSTOM/gak ada angka pasti di data, bilang itu natural (misal "itu tergantung kebutuhan,
-  aku bantu cek dulu ya") — JANGAN PERNAH ngarang angka.
-- Boleh nanya SATU pertanyaan lanjutan yang relevan setelah jawab harga, kalau emang natural.
+SOAL HARGA — JANGAN SEBUT ANGKA KE CUSTOMER (WAJIB, override versi lama):
+- Customer TIDAK PERNAH boleh dikasih angka nominal harga — walaupun angkanya ADA di data/katalog resmi
+  bisnis ini (blok info bisnis yang dikasih ke kamu), dan walaupun customer nanya LANGSUNG/berkali-kali.
+  Jawab natural yang intinya: "Untuk detail harganya aku bantu cek dulu ya, biar sesuai kebutuhan kamu."
+  — boleh divariasikan kalimatnya asal TETAP TANPA angka.
+- Tetap boleh jelasin apa aja yang termasuk di layanan/paket, benefit, proses kerja, dan rekomendasi mana
+  yang paling cocok (SEBUT NAMA layanannya, JANGAN sebut angkanya).
+- Ada guardrail tambahan di level sistem (bukan cuma instruksi prompt ini) yang otomatis nyaring balasan
+  kamu kalau kebetulan kelupaan nyebut angka — tapi USAHAKAN dari awal emang gak pernah nyebut angka.
+- Pengecualian SATU-SATUNYA: kalau customer udah BENERAN masuk proses checkout/pembayaran (bukan cuma
+  nanya-nanya harga) dan sistem/pemilik bisnis udah confirm nominal yang harus dibayar, boleh sebut angka
+  itu SEBAGAI BAGIAN dari proses pembayaran yang udah disepakati — bukan sebagai jawaban pertanyaan harga
+  biasa. Kalau ragu apakah ini beneran checkout atau masih tahap nanya-nanya, anggap masih tahap nanya
+  (JANGAN sebut angka).
 
 OBJECTION HANDLING (WAJIB, jangan defensif/nyerah/push):
 - Kalau customer bilang "mahal", "belum yakin", "mikir dulu", "bandingin dulu sama yang lain", atau
@@ -4291,6 +4409,18 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
         "('wah keren', 'menarik banget', dll) — nada profesional, natural, fokus bisnis."
     )
 
+    context += (
+        "\n\nKALAU IRVAN NANYA SESUATU YANG DATANYA GAK ADA/GAK CUKUP DI KONTEKS INI (WAJIB DIIKUTI):\n"
+        "- JANGAN ngarang jawaban — bukan cuma soal harga/pelanggan, ini berlaku buat SEMUA hal: "
+        "ketersediaan, kebijakan, jadwal, isi paket, atau fakta bisnis apapun yang gak ada datanya di "
+        "atas. Jawab jujur, contoh: \"Aku belum punya data yang cukup untuk memastikan itu.\" — TETAP "
+        "boleh natural/singkat, bukan template kaku.\n"
+        "- Ini BEDA dari soal harga paket resmi Kilas Works (yang UDAH ADA lengkap di data KNOWLEDGE "
+        "LAYANAN & HARGA di atas) — buat itu kamu MEMANG tau & boleh jawab langsung, lihat instruksi "
+        "JAWAB LANGSUNG di bawah. Aturan \"jangan ngarang\" ini spesifik buat hal yang BENERAN gak ada "
+        "datanya, bukan alasan buat ragu-ragu soal hal yang sebenernya udah kamu tau."
+    )
+
     context += build_pending_meeting_requests_context()
     context += build_customer_context_summary()
     context += _build_business_hub_owner_query_context_safe()
@@ -4425,6 +4555,74 @@ ALL_TAGS = [
 # Tag dinamis buat nangkep nama customer, formatnya "[NAMA: Budi]" — beda dari tag lain di atas
 # karena isinya berubah-ubah, jadi dideteksi pakai regex, bukan exact match di ALL_TAGS.
 TAG_NAMA_PATTERN = re.compile(r"\[NAMA:\s*([^\]]+)\]", re.IGNORECASE)
+
+# CODE-LEVEL customer price/transport-quotation guardrail (production bug fix — NOT prompt wording
+# only). Business rule: NO customer-facing AI conversation — Kilas Works' own customers AND every
+# tenant business's own customers alike — may disclose a nominal Rupiah figure during normal sales
+# inquiry: no package price, no discount, no custom quote, no transport/travel/accommodation
+# estimate — even if the number exists in the catalog/database/prompt/prior conversation, and even
+# if the customer asks directly. This is enforced HERE, as a deterministic post-processing scan of
+# the AI's own generated customer-facing reply, specifically because a prompt instruction alone is
+# not a guarantee — the exact production incident this closes (an out-of-town transport cost of
+# "Rp250.000 sampai Rp300.000an" invented by the model) happened despite prompt wording existing at
+# the time; a regex-based scan that unconditionally replaces the ENTIRE reply with a safe, natural,
+# price-free fallback whenever ANY Rupiah-shaped figure slips through cannot be argued around by
+# the model the way a prompt instruction can.
+#
+# SCOPE: applies to EVERY customer-facing reply, Kilas Works' own AND every tenant's own — no
+# tenant-specific configuration anywhere in this codebase was found that explicitly authorizes a
+# tenant to disclose nominal prices to its own customers (confirmed by source search before this
+# fix), so the same safe default applies uniformly rather than leaving tenant conversations
+# unprotected. Owner/admin-facing replies (a completely separate prompt/call path,
+# SYSTEM_PROMPT_OWNER_BASE) are never touched by this function at all — the owner remains able to
+# retrieve configured prices whenever they ask.
+#
+# CHECKOUT/PAYMENT EXCEPTION: once a customer has moved PAST sales inquiry into an actual, already-
+# confirmed transaction (see the `_in_active_payment_flow` check at each call site), the amount to
+# transfer is a legitimate, system/order-derived checkout detail — not a sales-negotiation price
+# quote — and this guardrail is skipped for that turn so the existing payment flow keeps working.
+# The bank account itself is never at risk either way — build_payment_info_text()/
+# build_tenant_payment_info_text() only ever return bank/account-number/account-name text, which
+# never matches the Rp/rb/jt-shaped patterns this guardrail scans for.
+CUSTOMER_PRICE_DISCLOSURE_PATTERN = re.compile(
+    r'Rp\s?\d[\d.,]*(?:\s?(?:rb|ribu|jt|juta))?'          # "Rp999.000", "Rp 4.250.000", "Rp2jt"
+    r'|\b\d[\d.,]*\s?(?:rb|ribu|jt|juta)\b'                # "999rb", "4,25jt", "2 juta" (no Rp prefix)
+    r'|\b\d{1,3}(?:[.,]\d{3}){2,}\b',                       # bare thousands-grouped number, e.g. "4.250.000"
+    re.IGNORECASE,
+)
+
+CUSTOMER_PRICE_SAFE_FALLBACK_REPLY = (
+    "Untuk detail harganya aku bantu cek dulu ke tim ya, biar yang dikasih sesuai kebutuhan kamu."
+)
+
+
+def _customer_reply_contains_price_disclosure(text):
+    """Returns True if `text` contains a Rupiah-shaped nominal figure anywhere — the actual
+    code-level check behind the customer price/transport guardrail (see the constant above's
+    docstring for the full rationale)."""
+    if not text:
+        return False
+    return bool(CUSTOMER_PRICE_DISCLOSURE_PATTERN.search(text))
+
+
+def _enforce_customer_price_guardrail(reply_text, tenant_context_block):
+    """Applies the code-level guardrail: for ANY customer-facing reply — Kilas Works' own
+    customers AND every tenant business's own customers alike — that contains ANY Rupiah-shaped
+    figure, the ENTIRE reply is replaced with a safe, natural, price-free fallback — never just
+    the number stripped out (which would risk leaving broken/nonsensical grammar behind, e.g.
+    "Content Pro  , Kak." after removing just the price).
+
+    Applies UNIFORMLY to tenant customers too (as of this fix — previously exempted, but no
+    explicit per-tenant configuration was ever found anywhere in this codebase that authorizes a
+    tenant to disclose nominal prices to ITS OWN customers, so the same safe default now applies
+    consistently rather than leaving tenant conversations unprotected from a hallucinated price/
+    quote/discount/transport figure). `tenant_context_block` is still accepted as a parameter
+    (unused for the block-vs-allow decision itself now) so call sites don't need to change, and so
+    a future tenant-specific opt-out config — if one is ever added — has an obvious place to plug
+    into this exact function."""
+    if _customer_reply_contains_price_disclosure(reply_text):
+        return CUSTOMER_PRICE_SAFE_FALLBACK_REPLY
+    return reply_text
 
 # Tag booking meeting — isinya key=value dipisah "|" (date, time, name, business, need), dideteksi &
 # di-parse pakai parse_tag_kv(). SISTEM (bukan AI) yang generate kalimat konfirmasi final customer-nya,
@@ -5421,6 +5619,20 @@ def parse_owner_send_command(text):
         return None
     remainder = text[verb_match.end():].strip()
     if not remainder:
+        # Verb sits at/near the END of the sentence — natural Indonesian "target ... VERB" word
+        # order (e.g. "dia mau nego berapa coba tanyain" = "ask him/her how much they want to
+        # negotiate"), which the VERB-then-target assumption above can't parse (there's nothing
+        # left after the verb). Deliberately conservative: only recognize a PRONOUN
+        # (dia/nya/itu/dst) sitting right at the START of the sentence as the target in this
+        # reversed order — a full name/number in this position is rarer and riskier to guess
+        # correctly, so this closes exactly the reported gap without overreaching. The whole
+        # original sentence becomes the "rest"/instruction hint, since there's no separate
+        # trailing instruction text to split off in this word order.
+        before = text[:verb_match.start()].strip()
+        before_words = before.split()
+        if (before_words and before_words[0].lower() in PRONOUN_TARGETS
+                and not looks_like_question_or_draft_request(text)):
+            return {"target_raw": before_words[0], "separator": "", "rest": text}
         return None
 
     if ":" in remainder:
@@ -6184,101 +6396,213 @@ def _webhook_body_impl(data):
 
                 return jsonify({"status": "ok"}), 200
 
+            # ORIGINAL_INTENT + TARGET_RESOLUTION + ACTION (production bug fix — see
+            # pending_owner_clarification's module-level comment for the full rationale): if the
+            # owner has an OPEN clarification pending from a PRIOR message (they were asked "yang
+            # mana?" and this message might be their answer), try resolving THIS message against
+            # it FIRST, before any of the normal send/mention parsing below gets a chance to
+            # misinterpret a bare "yang 5699"/"k" selection as something else.
+            _clar_key = _ck(tenant_id, from_number)
+            _clar = pending_owner_clarification.get(_clar_key)
+            _clar_resolved_number = None
+            _clar_resolved_name = None
+            _clar_intent = None
+            _clar_action_hint = None
+
+            if _clar:
+                if _clar.get("candidates"):
+                    _match = _resolve_clarification_reply(owner_text, _clar["candidates"])
+                else:
+                    # Open clarification (e.g. "dia mau nego... -> yang dia maksud siapa?", no
+                    # candidate list yet) — try resolving the reply as a name/number directly.
+                    _m_status, _m_data, _m_name = extract_mentioned_customer(owner_text)
+                    if _m_status == "ok":
+                        _match = (_m_data, _m_name)
+                    elif _m_status == "ambiguous":
+                        # Even on this FIRST-pass ambiguous discovery (extract_mentioned_customer
+                        # does plain substring matching, so "si K" naturally matches multiple names
+                        # like "kimfong"/"Kristov" that merely CONTAIN the letter k), try the
+                        # smarter exact-match-priority resolver against these freshly-found
+                        # candidates before re-asking — "si K" should resolve straight to the
+                        # candidate literally named "k" in one round-trip, not need a third turn.
+                        _refined = _resolve_clarification_reply(owner_text, _m_data)
+                        if _refined and _refined != "ambiguous":
+                            _match = _refined
+                        else:
+                            _match = "ambiguous"
+                            _clar["candidates"] = _m_data
+                    else:
+                        _phone = normalize_phone_candidate(owner_text)
+                        _match = (_phone, customer_names.get(_phone, f"wa.me/{_phone}")) if _phone else None
+
+                if _match == "ambiguous":
+                    pending_owner_clarification[_clar_key] = _clar
+                    send_whatsapp_message(
+                        from_number,
+                        f"Ada beberapa customer namanya mirip: {_clarification_options_text(_clar['candidates'])}. "
+                        f"Maksudnya yang mana?",
+                    )
+                    return jsonify({"status": "ok"}), 200
+                elif _match:
+                    _clar_resolved_number, _clar_resolved_name = _match
+                    _clar_intent = _clar["intent"]
+                    _clar_action_hint = _clar.get("action_hint")
+                    pending_owner_clarification.pop(_clar_key, None)
+                    active_customer_context[from_number] = _clar_resolved_number
+                else:
+                    # Doesn't look like a target-selection reply at all (owner changed topic) —
+                    # abandon the pending clarification and process this message completely
+                    # normally below (NEVER force-interpret an unrelated message as a selection).
+                    pending_owner_clarification.pop(_clar_key, None)
+
+            if _clar_resolved_number and _clar_intent == CLARIFICATION_INTENT_SEND_ACTION:
+                # Resume the ORIGINAL send/ask instruction with the NOW-RESOLVED target — uses the
+                # STORED original instruction text (action_hint), never the bare selection reply
+                # ("yang 5699") itself, so the AI composes the message based on what the owner
+                # actually originally asked for.
+                pending_customer_number = _clar_resolved_number
+                pending_question = None
+                direct_send = True
+                owner_text_for_ai = _clar_action_hint or owner_text
+            elif _clar_resolved_number:
+                # READ_HISTORY (or any other non-action intent) resumed — target is resolved, but
+                # this is explicitly NOT a send: direct_send stays False, so build_owner_system_
+                # prompt() never enters its "WAJIB proses format PESAN_UNTUK_CUSTOMER" branch for
+                # this turn. The synthetic instruction text is unambiguous on its own (doesn't
+                # depend on the model re-inferring the original intent from multi-turn history).
+                pending_customer_number = _clar_resolved_number
+                pending_question = pending_owner_questions.get(_ck(tenant_id, _clar_resolved_number))
+                direct_send = False
+                owner_text_for_ai = (
+                    f"(lanjutan permintaan sebelumnya) Tampilkan riwayat/chat terakhir customer "
+                    f"{_clar_resolved_name}."
+                )
+            else:
+                owner_text_for_ai = None  # signal: fall through to normal parsing below
+
             # CEK apakah ini perintah EKSPLISIT buat kirim/balas/follow-up ke customer tertentu
             # (target boleh NAMA atau NOMOR). Beda dari dulu: kalau owner udah JELAS nyuruh kirim,
             # WAJIB LANGSUNG eksekusi kirim BENERAN saat itu juga — TIDAK ADA LAGI ronde "oke?/
             # terusin" kedua, kecuali target-nya ambigu (nama kembar) atau gak ketemu di data.
-            send_cmd = parse_owner_send_command(owner_text)
-            direct_send = False
+            #
+            # Semua ini SKIP total kalau owner_text_for_ai udah ke-set di atas (artinya pesan ini
+            # adalah balasan klarifikasi yang UDAH resolved & original intent-nya udah ditentuin) —
+            # jangan sampai pesan yang sama diproses DUA KALI lewat dua jalur intent yang beda.
+            if owner_text_for_ai is None:
+                send_cmd = parse_owner_send_command(owner_text)
+                direct_send = False
 
-            if send_cmd:
-                fallback_target = active_customer_context.get(from_number)
-                status, resolved, display_name = resolve_owner_target(send_cmd["target_raw"], fallback_target)
+                if send_cmd:
+                    fallback_target = active_customer_context.get(from_number)
+                    status, resolved, display_name = resolve_owner_target(send_cmd["target_raw"], fallback_target)
 
-                if status == "ambiguous":
-                    options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in resolved[:5])
-                    send_whatsapp_message(
-                        from_number,
-                        f"Ada beberapa customer namanya mirip '{send_cmd['target_raw']}': {options}. Maksudnya yang mana?",
-                    )
-                    return jsonify({"status": "ok"}), 200
-
-                if status == "not_found":
-                    send_whatsapp_message(
-                        from_number,
-                        f"Gak nemu customer bernama '{send_cmd['target_raw']}' di data. "
-                        f"Coba cek namanya lagi, atau kirim pakai nomor WA-nya ya.",
-                    )
-                    return jsonify({"status": "ok"}), 200
-
-                target_number = resolved
-
-                # Format "kirim ke X: <pesan persis>" (ada titik dua abis nama/nomor) = pesan
-                # VERBATIM yang mau di-relay APA ADANYA -> kirim LANGSUNG tanpa lewat AI sama
-                # sekali, paling cepat & paling PASTI kata-katanya gak berubah.
-                if send_cmd["separator"] == ":" and send_cmd["rest"]:
-                    msg_to_send = send_cmd["rest"]
-                    sent_ok, send_err = send_reply_bubbles(target_number, None, msg_to_send)
-
-                    if sent_ok:
-                        history = conversations.get(target_number, [])
-                        history.append({"role": "assistant", "content": msg_to_send})
-                        conversations[target_number] = history[-20:]
-                        save_message_to_db(target_number, "customer", "assistant", msg_to_send)
-                        log_customer_message(target_number, msg_to_send, sent_from="direct_command")
-                        add_agreed_fact(target_number, msg_to_send)
-                        send_whatsapp_message(from_number, f"Terkirim ke {short_display_name(display_name)}.")
-                    else:
+                    if status == "ambiguous":
+                        _store_pending_owner_clarification(
+                            tenant_id, from_number, CLARIFICATION_INTENT_SEND_ACTION,
+                            candidates=resolved, action_hint=owner_text,
+                        )
                         send_whatsapp_message(
                             from_number,
-                            f"Gagal kirim ke {display_name} — belum kekirim ke customer sama sekali.\n"
-                            f"Error: {send_err}",
+                            f"Ada beberapa customer namanya mirip '{send_cmd['target_raw']}': "
+                            f"{_clarification_options_text(resolved)}. Maksudnya yang mana?",
                         )
-                    return jsonify({"status": "ok"}), 200
+                        return jsonify({"status": "ok"}), 200
 
-                # Selain itu (balas/follow up/tanyain/dll TANPA pesan verbatim persis) — target-nya
-                # udah KEPASTI dari sini (override fallback lama), biarin AI yang nyusun pesan
-                # natural sesuai konteks & instruksi owner, lalu forward LANGSUNG di respons yang
-                # sama (lihat direct_send=True di build_owner_system_prompt).
-                pending_customer_number = target_number
-                pending_question = None
-                direct_send = True
-            else:
-                # Bukan perintah kirim eksplisit -> obrolan/pertanyaan/minta-saran biasa, ATAU
-                # pertanyaan HISTORY soal customer tertentu (mis. "itu jelajah visa chat apa aja").
-                # Coba dulu cari apakah owner EKSPLISIT nyebut nama customer di teks ini (bukan cuma
-                # pronoun) — kalau ketemu PERSIS 1, itu yang jadi konteks (override fallback lama)
-                # SEKALIGUS update active_customer_context biar pronoun ("dia"/"itu") abis ini nempel
-                # ke customer ini. Kalau nama-nya ambigu (2+ kandidat), TANYA balik, JANGAN nebak.
-                mention_status, mention_data, mention_name = extract_mentioned_customer(owner_text)
+                    if status == "not_found":
+                        # ACTION intent confirmed (send_cmd matched), target just not resolved yet
+                        # (e.g. a pronoun with no active context, or a name typo) — store the
+                        # ORIGINAL instruction as an OPEN clarification (no candidate list yet) so
+                        # whatever the owner names next resumes THIS send, never gets treated as a
+                        # brand new unrelated instruction.
+                        _store_pending_owner_clarification(
+                            tenant_id, from_number, CLARIFICATION_INTENT_SEND_ACTION,
+                            candidates=None, action_hint=owner_text,
+                        )
+                        send_whatsapp_message(
+                            from_number,
+                            f"Gak nemu customer bernama '{send_cmd['target_raw']}' di data. "
+                            f"Coba cek namanya lagi, atau kirim pakai nomor WA-nya ya.",
+                        )
+                        return jsonify({"status": "ok"}), 200
 
-                if mention_status == "ambiguous":
-                    options = " atau ".join(f"{name} (...{num[-4:]})" for num, name in mention_data[:5])
-                    send_whatsapp_message(from_number, f"Ada beberapa customer namanya mirip: {options}. Maksudnya yang mana?")
-                    return jsonify({"status": "ok"}), 200
+                    target_number = resolved
 
-                pending_customer_number, pending_question = (None, None)
-                if mention_status == "ok":
-                    pending_customer_number = mention_data
-                    active_customer_context[from_number] = mention_data
-                    pending_question = pending_owner_questions.get(_ck(tenant_id, mention_data))
+                    # Format "kirim ke X: <pesan persis>" (ada titik dua abis nama/nomor) = pesan
+                    # VERBATIM yang mau di-relay APA ADANYA -> kirim LANGSUNG tanpa lewat AI sama
+                    # sekali, paling cepat & paling PASTI kata-katanya gak berubah.
+                    if send_cmd["separator"] == ":" and send_cmd["rest"]:
+                        msg_to_send = send_cmd["rest"]
+                        sent_ok, send_err = send_reply_bubbles(target_number, None, msg_to_send)
+
+                        if sent_ok:
+                            history = conversations.get(target_number, [])
+                            history.append({"role": "assistant", "content": msg_to_send})
+                            conversations[target_number] = history[-20:]
+                            save_message_to_db(target_number, "customer", "assistant", msg_to_send)
+                            log_customer_message(target_number, msg_to_send, sent_from="direct_command")
+                            add_agreed_fact(target_number, msg_to_send)
+                            send_whatsapp_message(from_number, f"Terkirim ke {short_display_name(display_name)}.")
+                        else:
+                            send_whatsapp_message(
+                                from_number,
+                                f"Gagal kirim ke {display_name} — belum kekirim ke customer sama sekali.\n"
+                                f"Error: {send_err}",
+                            )
+                        return jsonify({"status": "ok"}), 200
+
+                    # Selain itu (balas/follow up/tanyain/dll TANPA pesan verbatim persis) — target-nya
+                    # udah KEPASTI dari sini (override fallback lama), biarin AI yang nyusun pesan
+                    # natural sesuai konteks & instruksi owner, lalu forward LANGSUNG di respons yang
+                    # sama (lihat direct_send=True di build_owner_system_prompt).
+                    pending_customer_number = target_number
+                    pending_question = None
+                    direct_send = True
                 else:
-                    # Task 5 — the FIFO "no name mentioned, just pick the oldest pending question"
-                    # fallback must only ever consider THIS tenant's (here: Kilas Works' own, since
-                    # this whole branch is gated to is_kilas_platform_tenant) own pending
-                    # questions, never a client tenant's.
-                    _own_pending = _pending_owner_questions_for_tenant(tenant_id)
-                    if _own_pending:
-                        pending_customer_number, pending_question = next(iter(_own_pending.items()))
+                    # Bukan perintah kirim eksplisit -> obrolan/pertanyaan/minta-saran biasa, ATAU
+                    # pertanyaan HISTORY soal customer tertentu (mis. "itu jelajah visa chat apa aja").
+                    # Coba dulu cari apakah owner EKSPLISIT nyebut nama customer di teks ini (bukan cuma
+                    # pronoun) — kalau ketemu PERSIS 1, itu yang jadi konteks (override fallback lama)
+                    # SEKALIGUS update active_customer_context biar pronoun ("dia"/"itu") abis ini nempel
+                    # ke customer ini. Kalau nama-nya ambigu (2+ kandidat), TANYA balik, JANGAN nebak.
+                    mention_status, mention_data, mention_name = extract_mentioned_customer(owner_text)
 
-                # Kalau gak ada pertanyaan customer yang formal pending & gak ada nama eksplisit yang
-                # kesebut (misal owner nyeletuk doang pakai pronoun "dia"/"itu"), fallback ke customer
-                # TERAKHIR yang beneran chat sama bot.
-                if not pending_customer_number:
-                    pending_customer_number = active_customer_context.get(from_number)
+                    if mention_status == "ambiguous":
+                        # NOT a send command (send_cmd was None) -> this is, by construction, a
+                        # READ/general intent, never an action. Storing READ_HISTORY here is the
+                        # safe default even if the owner's exact intent wasn't literally "show
+                        # history" — direct_send stays False either way once resumed, so the worst
+                        # case is a read-only answer, never an accidental send.
+                        _store_pending_owner_clarification(
+                            tenant_id, from_number, CLARIFICATION_INTENT_READ_HISTORY,
+                            candidates=mention_data,
+                        )
+                        send_whatsapp_message(from_number, f"Ada beberapa customer namanya mirip: {_clarification_options_text(mention_data)}. Maksudnya yang mana?")
+                        return jsonify({"status": "ok"}), 200
+
+                    pending_customer_number, pending_question = (None, None)
+                    if mention_status == "ok":
+                        pending_customer_number = mention_data
+                        active_customer_context[from_number] = mention_data
+                        pending_question = pending_owner_questions.get(_ck(tenant_id, mention_data))
+                    else:
+                        # Task 5 — the FIFO "no name mentioned, just pick the oldest pending question"
+                        # fallback must only ever consider THIS tenant's (here: Kilas Works' own, since
+                        # this whole branch is gated to is_kilas_platform_tenant) own pending
+                        # questions, never a client tenant's.
+                        _own_pending = _pending_owner_questions_for_tenant(tenant_id)
+                        if _own_pending:
+                            pending_customer_number, pending_question = next(iter(_own_pending.items()))
+
+                    # Kalau gak ada pertanyaan customer yang formal pending & gak ada nama eksplisit yang
+                    # kesebut (misal owner nyeletuk doang pakai pronoun "dia"/"itu"), fallback ke customer
+                    # TERAKHIR yang beneran chat sama bot.
+                    if not pending_customer_number:
+                        pending_customer_number = active_customer_context.get(from_number)
+
+                owner_text_for_ai = owner_text
 
             ai_owner_reply = call_claude_owner(
-                from_number, owner_text, pending_question, pending_customer_number,
+                from_number, owner_text_for_ai, pending_question, pending_customer_number,
                 image_b64=owner_image_b64, image_mime=owner_image_mime,
                 direct_send=direct_send, is_voice_note=owner_msg_is_voice_note,
             )
@@ -7156,6 +7480,42 @@ def _webhook_body_impl(data):
                 ack_text = "Bukti sudah diterima dan sedang dicek."
                 clean_reply = f"{clean_reply}|||{ack_text}" if clean_reply else ack_text
 
+        # Code-level customer price/transport-quotation guardrail (see
+        # CUSTOMER_PRICE_DISCLOSURE_PATTERN's module-level docstring) — applied here, as the VERY
+        # LAST step before the reply is actually sent, so it catches every Rupiah-shaped figure
+        # regardless of which part of the flow above produced it (the model's own free-form reply,
+        # NOT any of the system-generated appointment/payment-ack strings appended above, which
+        # never contain a Rupiah-formatted figure in the first place). Applies to BOTH Kilas Works'
+        # own customers AND every tenant's own customers — no per-tenant config anywhere in this
+        # codebase authorizes disclosing a nominal price to a customer, so the same safe default
+        # applies uniformly (see _enforce_customer_price_guardrail()'s own docstring).
+        #
+        # EXEMPTION — active checkout/payment flow: once a customer has moved PAST sales inquiry
+        # into an actual confirmed transaction (giving bank details, DP-amount clarification,
+        # payment-proof acknowledgment, or — Kilas Works' own customers only — an already-in-
+        # progress payment_state), the order summary/nominal-to-transfer is a legitimate, ALREADY-
+        # CONFIRMED checkout detail — not a sales-negotiation price quote — and must keep working
+        # (preserving the existing payment flow is an explicit requirement). The bank account
+        # itself is never at risk either way (build_payment_info_text() only returns bank/account-
+        # number/account-name text, which never matches the Rp/rb/jt-shaped patterns this
+        # guardrail scans for).
+        #
+        # payment_state is Kilas-Works-own global state, keyed by BARE phone number with no
+        # tenant scoping at all — checking it for a TENANT customer would risk reading an
+        # unrelated Kilas-Works-own customer's payment state if the phone numbers happen to
+        # coincide (a real cross-tenant leak, not a hypothetical one), so it is only consulted
+        # when this is genuinely a Kilas-Works-own conversation (tenant_context_block falsy). The
+        # tag-based signals (give_payment_info / DP-clarification / payment-proof) are always safe
+        # to check either way, since they are derived from THIS turn's own AI reply, never from
+        # any shared global dict.
+        _in_active_payment_flow = (
+            give_payment_info or bool(payment_dp_unclear_match) or bool(payment_proof_details_match)
+            or (not tenant_context_block
+                and payment_state.get(from_number, {}).get("status") not in (None, PAYMENT_STATUS_NOT_STARTED))
+        )
+        if not _in_active_payment_flow:
+            clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block)
+
         send_reply_bubbles(from_number, incoming_message_id, clean_reply)
 
         # Bug fix (Task 5/7) — QR code, katalog.pdf, DP/payment-state tracking, and the AI sales
@@ -7498,6 +7858,7 @@ def run_followups():
             )
             ai_reply = call_claude(number, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]")
             clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
+            clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block=None)
             sent_ok, send_err = send_reply_bubbles(number, None, clean_reply)
             if sent_ok:
                 record_followup_sent(number)
@@ -7614,6 +7975,11 @@ def run_tenant_followups():
                         tenant_id=tenant_id, tenant_context_block=tenant_context_block,
                     )
                     clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
+                    # Tenant follow-up nudge — same universal guardrail as every other
+                    # customer-facing send point (see _enforce_customer_price_guardrail()'s
+                    # docstring): a follow-up nudge is never part of an active checkout, so this
+                    # runs unconditionally here (no payment-flow exemption needed for a follow-up).
+                    clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block)
                     sent_ok, send_err = send_reply_bubbles(customer_phone, None, clean_reply)
                     if sent_ok:
                         _tenant_followup.record_followup_sent(tenant_id, customer_phone)

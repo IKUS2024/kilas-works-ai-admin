@@ -125,25 +125,34 @@ def test_pricing_text_block_contains_all_tiers_and_bundles():
     print("test_pricing_text_block_contains_all_tiers_and_bundles OK")
 
 
-# ---------- 4. Price-disclosure rule text: don't dump price unasked, but answer directly when asked ----------
+# ---------- 4. Price-disclosure rule text: business rule reversed — customer NEVER gets a nominal
+# price, regardless of asking (see the code-level guardrail this prompt text backs up:
+# CUSTOMER_PRICE_DISCLOSURE_PATTERN / _enforce_customer_price_guardrail in app.py) ----------
 def test_price_disclosure_rule_text_present():
     p = appmod.SYSTEM_PROMPT
-    assert "TIDAK DITANYA HARGA" in p and "DITANYA HARGA" in p
-    assert "JANGAN PERNAH menghindar" in p or "JANGAN PERNAH" in p
+    assert "TIDAK PERNAH boleh dikasih ANGKA NOMINAL" in p
+    assert "PERUBAHAN ATURAN BISNIS" in p
     print("test_price_disclosure_rule_text_present OK")
 
 
 # ---------- 5. Customer directly asks price of ONE package -> bot must answer that number (behavioral,
 # via prompt instruction check + a live webhook round-trip that the exact price appears verbatim) ----------
-def test_customer_asks_specific_package_price_gets_direct_answer():
+def test_customer_asks_specific_package_price_gets_no_nominal_number():
+    """Business rule reversed (production fix): a customer must NEVER receive a nominal price,
+    even if the model's own reply (mocked here, simulating a model that ignores the prompt
+    instruction) contains one — the CODE-LEVEL guardrail (_enforce_customer_price_guardrail)
+    catches it and replaces the entire reply with the safe fallback. This proves the protection
+    end-to-end through the real webhook flow, not just at the prompt-text level."""
     reset_all()
     number = "628900100001"
     ai_reply = "Content Growth Rp2.750.000/bulan, Kak."
     resp = send_customer_message(number, "Growth berapa?", ai_reply)
     assert resp.status_code == 200
     sent_texts = [t for n, t in sent_log if n == number]
-    assert any("2.750.000" in t for t in sent_texts), sent_texts
-    print("test_customer_asks_specific_package_price_gets_direct_answer OK")
+    assert not any("2.750.000" in t for t in sent_texts), \
+        f"BUG: a nominal price reached the customer despite the guardrail: {sent_texts}"
+    assert any(appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in t for t in sent_texts), sent_texts
+    print("test_customer_asks_specific_package_price_gets_no_nominal_number OK")
 
 
 # ---------- 6. Overclaim phrases are absent from SYSTEM_PROMPT / DEMO_SYSTEM_PROMPT / katalog / landing ----------
@@ -354,7 +363,7 @@ if __name__ == "__main__":
     test_new_bundle_prices()
     test_pricing_text_block_contains_all_tiers_and_bundles()
     test_price_disclosure_rule_text_present()
-    test_customer_asks_specific_package_price_gets_direct_answer()
+    test_customer_asks_specific_package_price_gets_no_nominal_number()
     test_no_overclaim_phrases_anywhere()
     test_bot_honesty_instruction_present()
     test_demo_sales_tool_instruction_present()

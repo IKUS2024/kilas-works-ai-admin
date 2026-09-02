@@ -166,12 +166,18 @@ def test_greeting_prompt_instructs_no_catalog_dump():
 
 
 # ---------------------------------------------------------------------------
-# 8. Direct price question -> current official price answered directly
+# 8. Direct price question -> customer NEVER gets the nominal price (business rule reversed —
+# see the code-level guardrail this backs up: CUSTOMER_PRICE_DISCLOSURE_PATTERN in app.py). The
+# raw price data still exists in the prompt as KNOWLEDGE (needed for internal reasoning/
+# recommendations and for owner-mode, a completely separate prompt), but the customer-facing
+# INSTRUCTION must say never to disclose it, not "answer directly."
 # ---------------------------------------------------------------------------
 def test_price_question_prompt_instructs_direct_answer():
     prompt = appmod.build_customer_system_prompt("628999000099")
-    assert "999.000" in prompt  # AI Admin Pro current price baked into PRICING_TEXT_BLOCK
-    assert "JAWAB LANGSUNG" in prompt
+    assert "999rb" in prompt  # AI Admin Pro price still present as KNOWLEDGE (for internal use)
+    assert "JAWAB LANGSUNG" not in prompt, \
+        "customer prompt must no longer instruct answering a price question with the number directly"
+    assert "TIDAK PERNAH boleh dikasih ANGKA NOMINAL" in prompt
     print("test_price_question_prompt_instructs_direct_answer OK")
 
 
@@ -294,11 +300,17 @@ def test_tenant_prompt_has_one_question_at_a_time_and_no_repeat():
     print("test_tenant_prompt_has_one_question_at_a_time_and_no_repeat OK")
 
 
-def test_tenant_prompt_has_direct_price_from_source_of_truth():
-    assert "LANGSUNG JAWAB KALAU DATANYA ADA" in appmod.TENANT_SYSTEM_PROMPT_BASE
-    assert "JAWAB LANGSUNG dengan angka itu" in appmod.TENANT_SYSTEM_PROMPT_BASE
-    assert "JANGAN PERNAH ngarang angka" in appmod.TENANT_SYSTEM_PROMPT_BASE
-    print("test_tenant_prompt_has_direct_price_from_source_of_truth OK")
+def test_tenant_prompt_has_no_nominal_price_disclosure_rule():
+    """Business rule reversed (production fix, applies to tenant customers too per explicit
+    clarification): a tenant's own customer must never receive a nominal price during normal
+    inquiry either — same safe default as Kilas Works' own customer bot, since no tenant-specific
+    config anywhere in this codebase authorizes disclosing a price. The payment/checkout exception
+    is still explicitly preserved in the prompt text."""
+    base = appmod.TENANT_SYSTEM_PROMPT_BASE
+    assert "JANGAN SEBUT ANGKA KE CUSTOMER" in base
+    assert "TIDAK PERNAH boleh dikasih angka nominal harga" in base
+    assert "Pengecualian SATU-SATUNYA" in base and "checkout/pembayaran" in base
+    print("test_tenant_prompt_has_no_nominal_price_disclosure_rule OK")
 
 
 def test_tenant_prompt_has_objection_handling_no_fake_discount():
@@ -369,7 +381,7 @@ if __name__ == "__main__":
     test_talent_service_unavailable_never_denies_service()
     test_tenant_prompt_has_style_adaptation()
     test_tenant_prompt_has_one_question_at_a_time_and_no_repeat()
-    test_tenant_prompt_has_direct_price_from_source_of_truth()
+    test_tenant_prompt_has_no_nominal_price_disclosure_rule()
     test_tenant_prompt_has_objection_handling_no_fake_discount()
     test_tenant_prompt_has_buying_signal_behavior()
     test_tenant_prompt_has_concise_close_and_banned_boilerplate()
