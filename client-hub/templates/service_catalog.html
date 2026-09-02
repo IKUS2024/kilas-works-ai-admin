@@ -2,7 +2,7 @@
 {% block title %}Layanan — Kilas Works{% endblock %}
 {% block content %}
 <h1>Layanan Kilas Works</h1>
-<p class="muted">Pilih layanan fixed-price untuk checkout langsung, atau ajukan project custom (foto/video/website) lewat menu Project Custom di dashboard.</p>
+<p class="muted">Pilih layanan Kilas Works di bawah. AI Admin WhatsApp diatur lewat Dashboard (perlu isi data bisnis dulu sebelum pembayaran) — layanan fixed-price lainnya bisa langsung dipilih, atau ajukan project custom (foto/video/website) lewat menu Project Custom di dashboard.</p>
 
 {% if businesses %}
 <div class="card">
@@ -23,12 +23,14 @@
       <td>{{ item.name }}{% if item.description %}<br><span class="muted">{{ item.description }}</span>{% endif %}</td>
       <td>{{ format_price(item.price_amount, item.price_unit) }}</td>
       <td>
-        {% if item.pricing_mode != 'CUSTOM_QUOTE' and businesses %}
+        {% if item.category == 'AI_ADMIN' %}
+          <a class="btn small" href="{{ url_for('client.dashboard') }}">Mulai di Dashboard</a>
+        {% elif item.pricing_mode != 'CUSTOM_QUOTE' and businesses %}
         <form method="post" action="{{ url_for('projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline"
               onsubmit="this.business_id.value = document.getElementById('business_select').value;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="business_id" value="">
-          <button class="btn small" type="submit">{{ item.cta_text or 'Checkout' }}</button>
+          <button class="btn small" type="submit">{{ item.cta_text or 'Pilih' }}</button>
         </form>
         {% elif item.pricing_mode == 'CUSTOM_QUOTE' and businesses %}
           {% if item.category == 'TALENT' %}

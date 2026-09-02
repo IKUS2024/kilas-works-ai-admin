@@ -147,6 +147,11 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn" type="submit">Submit ke Kilas Works</button>
         </form>
+        {% if not has_ai_admin_payment %}
+          <a class="btn" href="{{ url_for('client.ai_admin_checkout', business_id=business.id) }}">Lanjut ke Pembayaran</a>
+        {% else %}
+          <span class="pill ACTIVE">Pembayaran AI Admin sudah terverifikasi</span>
+        {% endif %}
       {% else %}
         <span class="muted">Submit aktif setelah data wajib lengkap.</span>
       {% endif %}
