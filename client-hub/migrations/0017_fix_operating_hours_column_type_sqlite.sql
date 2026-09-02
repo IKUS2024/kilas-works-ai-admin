@@ -1,0 +1,22 @@
+-- White-screen bug fix — "Info Pembayaran -> Simpan & Lanjut -> white screen".
+--
+-- ROOT CAUSE (confirmed by source code inspection, dialect comparison, and a reproduction against
+-- a simulated failure): migrations/0001_init_sqlite.sql types business_profiles.operating_hours as
+-- plain TEXT, but migrations/0001_init_postgres.sql types the SAME column as JSONB. Every actual
+-- caller in this codebase (routes_client.py's wizard "operations"/"basics" steps,
+-- business_settings.html's settings form, ai_onboarding.py, provisioning.py,
+-- tenant_config_service.py) treats this field as FREE TEXT ("Senin-Sabtu 09.00-18.00", etc.) —
+-- repo.py's upsert_business_profile() only json.dumps()-encodes the value when it is ALREADY a
+-- Python dict/list, which never happens for this field in practice (confirmed: nothing in this
+-- codebase ever passes a dict/list for operating_hours). So on SQLite, a plain string like
+-- "08-20" is accepted (SQLite has no real column typing). On PostgreSQL, the SAME plain string
+-- is REJECTED by the JSONB column with "invalid input syntax for type json" — an unhandled
+-- exception that (before this same investigation's routes_client.py defensive-handling fix)
+-- surfaced to the browser as a blank/white response, on exactly the step ("operations", which
+-- contains "Info Pembayaran") a client always submits a raw operating_hours string first.
+--
+-- FIX: change the PostgreSQL column type to TEXT, matching SQLite's actual type and how the
+-- application has always actually used this field. SQLite already has the correct type, so this
+-- file (the SQLite counterpart of migration 0017) is intentionally a documented no-op — kept only
+-- to preserve the established one-file-per-dialect convention for every migration in this folder.
+SELECT 1;
