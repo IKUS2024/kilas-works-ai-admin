@@ -297,26 +297,32 @@ def test_internal_rate_never_exposed_on_public_talent_list():
 # SERVICE CATALOG ADMIN MANAGEMENT
 # ---------------------------------------------------------------------------
 
-def test_catalog_admin_edits_price_description_cta_and_persists():
+def test_catalog_admin_page_is_read_only_no_edit_route():
+    """Business rule change: catalog editing has been REMOVED from the Admin Dashboard — the
+    official catalog is now a manually-maintained document/file. The admin catalog page itself
+    stays as a READ-ONLY status view (name/category/price/active/last-updated); the edit ROUTE is
+    gone entirely (404), and the page must never render an edit form/input/submit button."""
     reset_db()
     admin = _make_admin()
     client = fresh_client()
     _login_admin(client, admin)
     item = catalog_service.get_catalog_item("website_landing_page")
+
     resp = client.post(f"/admin/catalog/{item['id']}/update", data={
-        "name": "Landing Page Pro", "description": "Landing page 1 halaman, siap SEO dasar.",
-        "cta_text": "Pesan Sekarang", "pricing_mode": "FIXED_PRICE",
-        "price_amount": "899000", "price_unit": "one time", "sort_order": "5",
-        "is_active": "on",
+        "name": "Should Not Apply", "price_amount": "1", "is_active": "on",
     })
-    assert resp.status_code == 302
-    updated = catalog_service.get_catalog_item("website_landing_page")
-    assert updated["name"] == "Landing Page Pro"
-    assert updated["description"] == "Landing page 1 halaman, siap SEO dasar."
-    assert updated["cta_text"] == "Pesan Sekarang"
-    assert updated["price_amount"] == 899000
-    assert updated["sort_order"] == 5
-    print("test_catalog_admin_edits_price_description_cta_and_persists OK")
+    assert resp.status_code == 404, "the catalog edit route must no longer exist"
+    unchanged = catalog_service.get_catalog_item("website_landing_page")
+    assert unchanged["name"] == item["name"], "a 404'd edit attempt must never silently apply"
+
+    page = client.get("/admin/catalog")
+    assert page.status_code == 200
+    body = page.data.decode()
+    assert "<form" not in body.lower() or "update" not in body.lower(), \
+        "the catalog page must not render an edit form"
+    assert "<input" not in body.lower(), "the catalog page must not render any editable input"
+    assert item["name"] in body, "the catalog page must still show existing items (read-only)"
+    print("test_catalog_admin_page_is_read_only_no_edit_route OK")
 
 
 def test_catalog_seeding_never_overwrites_admin_edits_on_restart():
@@ -384,7 +390,12 @@ def test_catalog_custom_quote_never_carries_a_leftover_price():
     print("test_catalog_custom_quote_never_carries_a_leftover_price OK")
 
 
-def test_catalog_route_handles_invalid_state_gracefully_no_500():
+def test_catalog_route_no_longer_exists_service_layer_validation_still_direct():
+    """The edit ROUTE's graceful-handling behavior is obsolete now that the route is gone
+    (404, never reachable at all) — the underlying service-layer validation this used to exercise
+    through HTTP is still directly covered by test_catalog_invalid_pricing_state_rejected_fixed_
+    price_without_amount and test_catalog_custom_quote_never_carries_a_leftover_price above, which
+    call catalog_service.update_catalog_item() directly and are unaffected by this change."""
     reset_db()
     admin = _make_admin()
     client = fresh_client()
@@ -393,11 +404,10 @@ def test_catalog_route_handles_invalid_state_gracefully_no_500():
     resp = client.post(f"/admin/catalog/{item['id']}/update", data={
         "pricing_mode": "FIXED_PRICE", "price_amount": "", "price_unit": "",
     })
-    assert resp.status_code == 302  # graceful redirect with a flash, never a 500
-    # The bad update was rejected — the item is still CUSTOM_QUOTE with no leftover price.
+    assert resp.status_code == 404
     reloaded = catalog_service.get_catalog_item("custom_video")
-    assert reloaded["pricing_mode"] == "CUSTOM_QUOTE"
-    print("test_catalog_route_handles_invalid_state_gracefully_no_500 OK")
+    assert reloaded["pricing_mode"] == "CUSTOM_QUOTE", "a 404'd request must never mutate data"
+    print("test_catalog_route_no_longer_exists_service_layer_validation_still_direct OK")
 
 
 def test_historical_transaction_price_unchanged_after_catalog_price_update():
@@ -776,13 +786,13 @@ if __name__ == "__main__":
     test_stored_image_serving_rejects_unknown_asset_id()
     test_internal_rate_never_exposed_on_public_talent_list()
 
-    test_catalog_admin_edits_price_description_cta_and_persists()
+    test_catalog_admin_page_is_read_only_no_edit_route()
     test_catalog_seeding_never_overwrites_admin_edits_on_restart()
     test_catalog_activate_deactivate()
     test_catalog_display_order_respected_in_active_listing()
     test_catalog_invalid_pricing_state_rejected_fixed_price_without_amount()
     test_catalog_custom_quote_never_carries_a_leftover_price()
-    test_catalog_route_handles_invalid_state_gracefully_no_500()
+    test_catalog_route_no_longer_exists_service_layer_validation_still_direct()
     test_historical_transaction_price_unchanged_after_catalog_price_update()
 
     test_action_center_whatsapp_waiting_connection_count()

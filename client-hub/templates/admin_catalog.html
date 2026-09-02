@@ -1,41 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Katalog — Admin{% endblock %}
 {% block content %}
-<h1>Service Catalog</h1>
-<p class="muted">Harga resmi yang sudah ada saat seeding tetap jadi default awal. Perubahan di sini persisten dan TIDAK akan ditimpa ulang saat aplikasi restart.</p>
-<div class="card" style="margin-bottom:16px;">
-  <p class="muted" style="margin-top:0;">Katalog publik (<code>/catalog.pdf</code>) otomatis refresh saat harga/talent diubah. Tombol ini cuma buat regenerate manual instan kalau mau langsung cek hasilnya.</p>
-  <form method="post" action="{{ url_for('admin.catalog_regenerate') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn small" type="submit">Generate / Refresh Katalog</button>
-  </form>
-</div>
+<h1>Service Catalog (Read-Only)</h1>
+<p class="muted">Katalog resmi Kilas Works sekarang dikelola sebagai dokumen/file manual, bukan lewat
+  editor di dashboard ini. Halaman ini cuma menampilkan status data yang dipakai AI/Client Hub secara
+  internal (nama, kategori, harga, aktif/tidak, terakhir diubah) — TIDAK bisa diedit dari sini lagi.
+  Kalau ada perubahan layanan, hubungi tim engineering.</p>
 <div class="card">
-  {% for item in items %}
-  <div style="border-bottom:1px solid var(--border);padding:14px 0;">
-    <form method="post" action="{{ url_for('admin.catalog_update', catalog_id=item.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <h2 style="margin-bottom:2px;">{{ item.name }} <span class="muted">({{ item.category }}, urutan {{ item.sort_order }})</span></h2>
-      <label>Nama</label><input type="text" name="name" value="{{ item.name }}">
-      <label>Deskripsi</label><textarea name="description">{{ item.description or '' }}</textarea>
-      <label>CTA / copy singkat customer-facing</label><input type="text" name="cta_text" value="{{ item.cta_text or '' }}" placeholder="mis. 'Pesan sekarang'">
-      <label>Pricing Mode</label>
-      <select name="pricing_mode">
-        <option value="FIXED_PRICE" {{ 'selected' if item.pricing_mode == 'FIXED_PRICE' }}>FIXED_PRICE</option>
-        <option value="STARTING_FROM" {{ 'selected' if item.pricing_mode == 'STARTING_FROM' }}>STARTING_FROM</option>
-        <option value="CUSTOM_QUOTE" {{ 'selected' if item.pricing_mode == 'CUSTOM_QUOTE' }}>CUSTOM_QUOTE</option>
-      </select>
-      {% if item.pricing_mode != 'CUSTOM_QUOTE' %}
-      <label>Harga (Rp)</label><input type="number" name="price_amount" value="{{ item.price_amount }}">
-      <label>Satuan</label><input type="text" name="price_unit" value="{{ item.price_unit or '' }}">
-      {% else %}
-      <p class="muted">Custom Quote — harga akhir hanya dari quotation admin, tidak ada angka publik.</p>
-      {% endif %}
-      <label>Urutan Tampil</label><input type="number" name="sort_order" value="{{ item.sort_order }}" style="width:110px;">
-      <label><input type="checkbox" name="is_active" {{ 'checked' if item.is_active }} style="width:auto;display:inline-block;"> Aktif</label>
-      <div style="margin-top:10px;"><button class="btn small" type="submit">Simpan</button></div>
-    </form>
-  </div>
-  {% endfor %}
+  <table>
+    <tr><th>Layanan</th><th>Kategori</th><th>Harga</th><th>Status</th><th>Terakhir Diubah</th></tr>
+    {% for item in items %}
+    <tr>
+      <td>{{ item.name }}</td>
+      <td class="muted">{{ item.category }}</td>
+      <td>{{ format_price(item.price_amount, item.price_unit) if item.pricing_mode != 'CUSTOM_QUOTE' else 'Custom Quote' }}</td>
+      <td>{% if item.is_active %}<span class="pill ACTIVE">Aktif</span>{% else %}<span class="pill">Nonaktif</span>{% endif %}</td>
+      <td class="muted">{{ item.updated_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
 </div>
 {% endblock %}

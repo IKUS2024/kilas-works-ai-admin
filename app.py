@@ -1105,6 +1105,70 @@ def _get_full_catalog_sync_baseline_safe():
         return _CATALOG_SYNC_KEYS_FALLBACK
 
 
+# Knowledge architecture fix — SATU source of truth for "layanan Kilas Works apa aja" (owner AND
+# customer). Human-readable labels for each service_catalog category — this is display-name
+# mapping ONLY (cosmetic), never a second list of WHICH categories exist; the actual set of active
+# categories always comes live from Client Hub's service_catalog table (see
+# _build_active_service_categories_safe() below), never hardcoded here.
+_SERVICE_CATEGORY_DISPLAY_NAMES = {
+    "AI_ADMIN": "AI Admin WhatsApp",
+    "CONTENT": "Content Creation (foto/video/Reels rutin)",
+    "VIDEO": "Video Production (custom)",
+    "PHOTO": "Photo Production (custom)",
+    "WEBSITE": "Website / Landing Page",
+    "APPLICATION": "Website / Aplikasi Custom",
+    "EVENT": "Dokumentasi Event (Photo & Video)",
+    "ADS": "Meta Ads Management",
+    "BUNDLE": "Paket Bundle (gabungan beberapa layanan)",
+    "TALENT": "Talent Management",
+}
+
+
+def _build_active_service_categories_safe():
+    """Knowledge architecture fix (production bug: Talent Management known when asked about
+    specifically, but silently missing when asked for the FULL service list) — root cause was
+    that "jasa/layanan kita apa aja" was answered from PRICING_TEXT_BLOCK alone (a static,
+    hardcoded dict in this file that has never included Talent Management, since Talent
+    Management has no fixed price) with no single, comprehensive, LIVE list of every active
+    service CATEGORY ever actually assembled. This function IS that single source of truth: reads
+    Client Hub's service_catalog table LIVE (catalog_service.list_active_catalog() — the exact
+    same data /services shows admins/customers) and returns every DISTINCT active category,
+    including Talent Management, Bundles, Ads, etc. — anything an admin adds/deactivates there is
+    reflected on the very next request, with no prompt edit, redeploy, or restart needed.
+
+    Used for LISTING (answering "what do you offer, all of it") — NOT for recommendation
+    (deciding what to suggest for a specific need), which stays governed by the prompt's own
+    RECOMMENDATION LOGIC / SOAL TALENT MANAGEMENT sections, not this function.
+
+    Returns "" if Client Hub is unavailable or there are no active categories — fails safe (no
+    fabricated list) rather than guessing."""
+    if _catalog_service is None:
+        return ""
+    try:
+        items = _catalog_service.list_active_catalog()
+    except Exception as e:
+        print(f"Build active service categories gagal ({e}).")
+        return ""
+    if not items:
+        return ""
+    seen = []
+    for item in items:
+        cat = item.get("category")
+        if cat and cat not in seen:
+            seen.append(cat)
+    names = [_SERVICE_CATEGORY_DISPLAY_NAMES.get(c, c.replace("_", " ").title()) for c in seen]
+    return (
+        "\n\nDAFTAR KATEGORI LAYANAN AKTIF KILAS WORKS (data LIVE dari Client Hub — SATU-SATUNYA "
+        "sumber lengkap kalau ditanya \"jasa/layanan kita apa aja\" secara umum/menyeluruh. WAJIB "
+        "sebutkan SEMUA kategori ini kalau memang ditanya daftar LENGKAP — jangan lupakan salah "
+        "satu, termasuk Talent Management, cuma karena kelihatan kurang penting dibanding yang "
+        "lain. Kalau ini cuma dipakai buat REKOMENDASI ke kebutuhan spesifik, bukan daftar lengkap, "
+        "ikutin aturan RECOMMENDATION LOGIC/SOAL TALENT MANAGEMENT terpisah, jangan asal sebut "
+        "semua):\n"
+        + "\n".join(f"- {n}" for n in names)
+    )
+
+
 def _build_live_price_sync_note_safe():
     """Gap-fix Area H (extends Section 20's original price-only sync): returns an ADDITIVE
     system-prompt note covering THREE kinds of live Client Hub catalog divergence from the
@@ -3543,13 +3607,15 @@ BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
   isi/logic-nya sama.
 
 SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa aja", dst):
-- Kilas Works jasanya BUKAN cuma foto/video/edit/Reels doang — juga ada AI WhatsApp Admin (yang lagi kamu
-  jalanin sekarang buat chat ini), Website, Talent Management (Custom Quote), dan layanan lain di data
-  paket/live Client Hub di bawah. Kalau customer nanya
-  cakupan layanan secara umum, jawab AKURAT & LENGKAP sesuai kategori resmi yang BENERAN ada di data paket
-  di bawah — jangan cuma sebut sebagian kalau customer emang nanya semua, tapi juga jangan maksa nge-push
-  satu layanan tertentu seolah itu jawaban paling penting. Jawab natural & proporsional aja sesuai yang
-  ditanya.
+- LISTING vs RECOMMENDING — dua hal beda, JANGAN dicampur:
+  * LISTING (customer minta daftar/cakupan layanan secara umum, misal "jasa apa aja", "bisa bantu apa
+    aja"): sebutkan SEMUA kategori aktif dari blok "DAFTAR KATEGORI LAYANAN AKTIF KILAS WORKS" di
+    bawah (data live), termasuk Talent Management — jangan skip satupun cuma karena kelihatan kurang
+    relevan buat customer INI secara spesifik. Tetap ringkas & natural (satu-dua kalimat), BUKAN daftar
+    bullet panjang, kecuali customer emang minta rincian.
+  * RECOMMENDING (customer cerita kebutuhan spesifik / minta saran): JANGAN sebut semua, pilih yang
+    RELEVAN aja sesuai kebutuhan yang diceritain — lihat RECOMMENDATION LOGIC/SOAL TALENT MANAGEMENT
+    buat aturan detailnya, terutama soal kapan Talent Management relevan disebut vs enggak.
 - Boleh natural nyebut AI Admin sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
   customer nanya soal respon cepat/chat admin) — lihat aturan CROSS-SELL di bawah, tetap harus relevan,
   BUKAN dipaksa disebut di semua balasan.
@@ -3654,6 +3720,15 @@ BUKAN teks yang boleh kamu tempel mentah-mentah ke customer):
   kode statusnya mentah-mentah.
 - Follower count itu info publik, boleh disebut natural KALAU relevan/ditanya, tapi jangan jadi fokus
   utama tiap kali bahas talent — fokus ke kecocokan campaign dulu.
+- REKOMENDASI PROAKTIF (Talent Management BUKAN ditanya duluan oleh customer) — hanya boleh kalau
+  konteksnya BENERAN relevan, misal customer nyebut: butuh talent/model, creator, host, pemeran/talent
+  buat shooting, UGC talent, talent buat campaign/endorsement, atau kebutuhan sejenis yang JELAS
+  butuh ORANG di depan kamera/campaign — bukan cuma "produksi konten" secara umum (itu sudah cukup
+  dijawab pakai Content Creation, JANGAN otomatis nempelin Talent Management juga).
+- JANGAN random dorong Talent Management cuma karena layanannya tersedia. Contoh SALAH: customer bilang
+  butuh website, terus kamu ujug-ujug nawarin Talent Management juga — itu gak nyambung, JANGAN. Aturan
+  yang sama berlaku ke semua layanan lain: rekomendasi harus berdasarkan kebutuhan yang BENERAN
+  disebut/tersirat customer, bukan asal nawarin semua yang ada biar kelihatan lengkap.
 - Harga talent SELALU "Custom Quote sesuai kebutuhan campaign" — kalau customer nanya harga talent
   spesifik, jawab itu natural, JANGAN ngarang angka atau nyebut internal_rate.
 
@@ -4170,6 +4245,10 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     # (tenant_context_block already carries THAT business's own canonical catalog).
     live_price_sync_note = "" if tenant_context_block else _build_live_price_sync_note_safe()
     live_talent_note = "" if tenant_context_block else _build_live_talent_knowledge_note_safe(for_owner=False)
+    # Knowledge architecture fix — SATU source of truth for the FULL service-category list (see
+    # this function's own docstring). Same tenant-safe "" guard as the two notes above: a resolved
+    # CLIENT tenant must never see Kilas Works' own service catalog.
+    active_services_note = "" if tenant_context_block else _build_active_service_categories_safe()
 
     # Bug fix: SYSTEM_PROMPT is Kilas Works' OWN persona, built on top of its OWN PRICING_CONFIG
     # (AI Admin, Content packages, bundles, website pricing, etc.) — that must NEVER be the base
@@ -4182,7 +4261,8 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     owner_number_display = f"wa.me/{OWNER_WHATSAPP_NUMBER}"
     full_prompt = (
         base_prompt + language_context + name_context + scope_context + facts_context
-        + appointment_context + live_price_sync_note + live_talent_note + (tenant_context_block or "")
+        + appointment_context + live_price_sync_note + live_talent_note + active_services_note
+        + (tenant_context_block or "")
     )
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
@@ -4214,6 +4294,12 @@ TALENT MANAGEMENT (PENTING):
 Kalau Irvan nanya soal jasa/paket/harga Kilas Works MILIK SENDIRI (contoh: "jasa kita sekarang apa
 aja", "AI Admin sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
 isinya apa", "domain sama hosting berapa"), JAWAB LANGSUNG pakai data di atas dengan PERCAYA DIRI.
+KHUSUS kalau pertanyaannya soal DAFTAR LENGKAP layanan/jasa secara umum (bukan satu paket spesifik) —
+contoh "layanan kita apa aja", "kita jual apa aja", "jasa kita apa" — WAJIB pakai blok "DAFTAR
+KATEGORI LAYANAN AKTIF KILAS WORKS" di atas sebagai sumber PALING LENGKAP, sebutkan SEMUA kategori
+di situ (termasuk Talent Management) — JANGAN cuma sebut sebagian dari data pricing_text_block doang,
+karena blok pricing itu gak selalu mencakup semua kategori (misal Talent Management harga Custom
+Quote, gak ada di situ, tapi TETAP harus disebut kalau Irvan nanya daftar lengkap).
 JANGAN PERNAH bilang "aku butuh list jasa dari lo", "aku gak tau layanan yang sekarang ditawarkan",
 atau minta Irvan ngirim ulang data yang sebenernya udah ada persis di atas — itu SALAH, datanya udah
 ada. Pertanyaan kayak gini itu Irvan tanya soal bisnisnya SENDIRI buat dipakai/dicek, BUKAN instruksi
@@ -4425,6 +4511,10 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
     context += build_customer_context_summary()
     context += _build_business_hub_owner_query_context_safe()
     context += _build_live_talent_knowledge_note_safe(for_owner=True)
+    # Knowledge architecture fix — SATU source of truth for "layanan kita apa aja" (owner). Same
+    # live-from-Client-Hub category list the customer prompt uses (see this function's docstring),
+    # so the owner and customer paths can never disagree about which services currently exist.
+    context += _build_active_service_categories_safe()
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 

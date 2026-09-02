@@ -413,34 +413,15 @@ def download_file(business_id, file_id):
 @admin_bp.route("/catalog")
 @security.admin_required
 def catalog_admin():
+    """Business rule change: catalog editing has been REMOVED from the Admin Dashboard — the
+    official catalog is now managed as a manually-maintained document/file, uploaded/replaced
+    outside this app. This route stays as a READ-ONLY status view only (name/category/price/
+    active/last-updated) — see admin_catalog.html. The underlying service_catalog table, and
+    every AI/Client Hub capability that reads it (live pricing sync, /services browsing, the
+    "DAFTAR KATEGORI LAYANAN AKTIF" knowledge block, etc.), is completely unaffected — only the
+    EDIT UI/route is gone (catalog_update() below has been removed accordingly)."""
     items = catalog_service.list_all_catalog()
     return render_template("admin_catalog.html", items=items, format_price=catalog_service.format_price)
-
-
-@admin_bp.route("/catalog/<int:catalog_id>/update", methods=["POST"])
-@security.admin_required
-def catalog_update(catalog_id):
-    price_amount = request.form.get("price_amount", type=int)
-    price_unit = (request.form.get("price_unit") or "").strip() or None
-    is_active = request.form.get("is_active") == "on"
-    name = (request.form.get("name") or "").strip() or None
-    description = request.form.get("description")
-    cta_text = (request.form.get("cta_text") or "").strip() or None
-    sort_order = request.form.get("sort_order", type=int)
-    pricing_mode = request.form.get("pricing_mode") or None
-    try:
-        updated = catalog_service.update_catalog_item(
-            catalog_id, price_amount=price_amount, price_unit=price_unit, is_active=is_active,
-            description=description, name=name, cta_text=cta_text, sort_order=sort_order,
-            pricing_mode=pricing_mode,
-        )
-    except catalog_service.InvalidCatalogState as e:
-        flash(f"Tidak bisa disimpan: {e}", "error")
-        return redirect(url_for("admin.catalog_admin"))
-    if updated is None:
-        abort(404)
-    flash(f"{updated['name']} diperbarui.", "success")
-    return redirect(url_for("admin.catalog_admin"))
 
 
 @admin_bp.route("/catalog/regenerate", methods=["POST"])
