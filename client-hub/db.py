@@ -236,6 +236,8 @@ MIGRATIONS = [
     ("0014_ai_admin_subscriptions_sqlite.sql", "0014_ai_admin_subscriptions_postgres.sql"),
     ("0015_tenant_followup_state_sqlite.sql", "0015_tenant_followup_state_postgres.sql"),
     ("0016_platform_takeover_sqlite.sql", "0016_platform_takeover_postgres.sql"),
+    ("0017_fix_operating_hours_column_type_sqlite.sql",
+     "0017_fix_operating_hours_column_type_postgres.sql"),
 ]
 
 

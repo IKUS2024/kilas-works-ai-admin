@@ -177,6 +177,20 @@ def login_required(view):
             if request.path.startswith("/api/"):
                 abort(401)
             return redirect(url_for("auth.login_page"))
+        # Stale-session bug fix (white-screen investigation, found while auditing the same class
+        # of issue elsewhere): session.get("user_id") being truthy only proves a value is cached
+        # in the signed cookie — it does NOT prove that user still exists in the database (e.g.
+        # the account was deleted, or the database was reset/restored to an earlier point while a
+        # browser kept an old cookie — plausible on a fresh/ephemeral dev database, and not
+        # impossible in production either). Every protected view in this file eventually calls
+        # current_user() itself and uses the result WITHOUT a None-check (e.g. `admin["id"]`),
+        # which would otherwise crash with an unhandled TypeError. Checking here, once, means
+        # every view downstream of this decorator can keep assuming current_user() is never None.
+        if current_user() is None:
+            session.clear()
+            if request.path.startswith("/api/"):
+                abort(401)
+            return redirect(url_for("auth.login_page"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -188,7 +202,17 @@ def admin_required(view):
             if request.path.startswith("/api/"):
                 abort(401)
             return redirect(url_for("auth.login_page"))
-        if session.get("role") != "KILAS_ADMIN":
+        # Same stale-session fix as login_required above — session.get("role") is also just a
+        # cached cookie value from login time, not re-verified against the database on every
+        # request. Use current_user()'s real DB-backed role instead, and treat a missing user the
+        # same as "not logged in" rather than letting `admin["id"]` crash later in the view.
+        user = current_user()
+        if user is None:
+            session.clear()
+            if request.path.startswith("/api/"):
+                abort(401)
+            return redirect(url_for("auth.login_page"))
+        if user["role"] != "KILAS_ADMIN":
             abort(403)
         return view(*args, **kwargs)
     return wrapped

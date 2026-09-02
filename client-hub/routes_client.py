@@ -1,4 +1,5 @@
 import uuid
+import traceback
 
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, session, abort, send_file, jsonify
@@ -143,10 +144,13 @@ def wizard_step(business_id, step):
     faqs = repo.get_business_faqs(business_id)
 
     if request.method == "GET":
-        return render_template(
+        print(f"WIZARD_PAGE_START business_id={business_id} step={step}")
+        rendered = render_template(
             "wizard.html", business=business, step=step, steps=WIZARD_STEPS, profile=profile,
             services=services, faqs=faqs, files=repo.list_business_files(business_id),
         )
+        print(f"WIZARD_PAGE_RENDER_OK business_id={business_id} step={step}")
+        return rendered
 
     user = security.current_user()
 
@@ -186,6 +190,8 @@ def wizard_step(business_id, step):
         repo.mark_onboarding_step_done(business_id, "services_done")
 
     elif step == "operations":
+        print(f"PAYMENT_POST_START business_id={business_id}")
+        print(f"PAYMENT_BUSINESS_OK business_id={business_id} status={business['status']}")
         raw = {
             "operating_hours": request.form.get("operating_hours", ""),
             "closed_days": request.form.get("closed_days", ""),
@@ -199,8 +205,33 @@ def wizard_step(business_id, step):
             "payment_account_name": request.form.get("payment_account_name", ""),
             "payment_instructions": request.form.get("payment_instructions", ""),
         }
-        repo.save_onboarding_session(business_id, "operations", raw, user["id"])
-        repo.upsert_business_profile(business_id, {**profile, **raw})
+        # White-screen bug investigation — defensive error handling. A save failure here (e.g. a
+        # production database that's missing a migration-added column, or any other unexpected
+        # DB/driver error) must NEVER surface to the client as an unhandled 500/blank response.
+        # db.execute() (see db.py) already rolls back the transaction internally on any exception
+        # before re-raising, so it's always safe to catch here — this never leaves a half-written
+        # row or a poisoned connection behind.
+        #
+        # LOGGING SAFETY: only business_id, step name, and (on failure) the exception TYPE/message
+        # and a full server-side traceback are logged. The traceback can legitimately contain a
+        # SQL error message (e.g. "column \"appointment_enabled\" of relation \"business_profiles\"
+        # does not exist") but NEVER the payment field VALUES themselves (account number, account
+        # holder name, payment instructions) — `raw`/`profile` dicts are never passed to a logging
+        # call, only used as function arguments to the repo layer.
+        try:
+            print(f"PAYMENT_SAVE_START business_id={business_id}")
+            repo.save_onboarding_session(business_id, "operations", raw, user["id"])
+            repo.upsert_business_profile(business_id, {**profile, **raw})
+            # db.execute() commits internally on success (see db.py's execute()) — reaching this
+            # line without an exception means the write already committed, so SAVE_OK and
+            # COMMIT_OK are logged together rather than as two separately-timed checkpoints.
+            print(f"PAYMENT_SAVE_OK business_id={business_id}")
+            print(f"PAYMENT_COMMIT_OK business_id={business_id}")
+        except Exception as e:
+            print(f"PAYMENT_SAVE_FAILED business_id={business_id} error_type={type(e).__name__}: {e}")
+            traceback.print_exc()
+            flash("Data belum berhasil disimpan. Silakan coba lagi.", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="operations"))
         repo.mark_onboarding_step_done(business_id, "operations_done")
 
     elif step == "faq":
@@ -238,7 +269,12 @@ def wizard_step(business_id, step):
 
     next_idx = WIZARD_STEPS.index(step) + 1
     if next_idx < len(WIZARD_STEPS):
-        return redirect(url_for("client.wizard_step", business_id=business_id, step=WIZARD_STEPS[next_idx]))
+        next_step = WIZARD_STEPS[next_idx]
+        if step == "operations":
+            print(f"PAYMENT_REDIRECT business_id={business_id} next_step={next_step}")
+        return redirect(url_for("client.wizard_step", business_id=business_id, step=next_step))
+    if step == "operations":
+        print(f"PAYMENT_REDIRECT business_id={business_id} next_step=review")
     return redirect(url_for("client.review_page", business_id=business_id))
 
 
