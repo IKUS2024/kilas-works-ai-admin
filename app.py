@@ -1169,6 +1169,31 @@ def _build_active_service_categories_safe():
     )
 
 
+def _build_official_links_note_safe():
+    """Unified AI Brain v2, Section 1 — Kilas Works' own official links, LIVE from Client Hub's
+    admin-editable platform_settings table (repo.get_official_links(), see that function's own
+    docstring — admins edit these at /admin/settings/official-links, no prompt edit/redeploy
+    needed). Kilas-Works-own ONLY: this is intentionally never called for a tenant conversation —
+    a tenant's own customers have no use for Kilas Works' links (they'd be talking to the
+    TENANT's business, not Kilas Works itself). Fails safe (empty string, no fabricated links) if
+    Client Hub is unavailable."""
+    if not _CLIENT_HUB_AVAILABLE:
+        return ""
+    try:
+        links = _ch_repo.get_official_links()
+    except Exception as e:
+        print(f"Build official links note gagal ({e}).")
+        return ""
+    return (
+        "\n\nLINK RESMI KILAS WORKS (data LIVE — pakai PERSIS link ini kalau perlu kasih link ke "
+        "customer, JANGAN PERNAH mengarang/menebak URL):\n"
+        f"- Landing page: {links['landing_page']}\n"
+        f"- Client Hub (tempat customer daftar/beli/bayar/kelola AI Admin): {links['app']}\n"
+        f"- Instagram: {links['instagram']}\n"
+        f"- Demo AI Admin: {links['demo']}"
+    )
+
+
 def _build_live_price_sync_note_safe():
     """Gap-fix Area H (extends Section 20's original price-only sync): returns an ADDITIVE
     system-prompt note covering THREE kinds of live Client Hub catalog divergence from the
@@ -2530,7 +2555,7 @@ def try_book_meeting(customer_number, name, business_name, date_str, time_str, n
 
     create_appointment(customer_number, name, business_name, date_str, time_str, need_summary)
     label = format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date())
-    confirm = f"Siap Kak, sudah dijadwalkan untuk {label} jam {time_str} WIB. Nanti owner akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
+    confirm = f"Siap Kak, sudah dijadwalkan untuk {label} jam {time_str} WIB. Nanti tim kami akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
     display_name = name or customer_names.get(customer_number, "Customer")
     owner_notify = (
         f"Meeting baru: {display_name} — {business_name or '(bisnis belum disebut)'}, "
@@ -2668,7 +2693,7 @@ def try_book_meeting_from_owner_slots(customer_number, time_str):
 
     label = format_date_id(datetime.strptime(date_str, "%Y-%m-%d").date()) if date_str else (req.get("day_display") or req.get("day_text"))
     mode_label = meeting_mode_label(req)
-    confirm = f"Siap Kak, sudah dijadwalkan {mode_label} untuk {label} jam {time_str} WIB. Nanti owner akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
+    confirm = f"Siap Kak, sudah dijadwalkan {mode_label} untuk {label} jam {time_str} WIB. Nanti tim kami akan ngobrol langsung dengan Kakak untuk bahas kebutuhannya ya."
     owner_notify = f"Meeting CONFIRMED: {display_name} — {mode_label}, {label} jam {time_str} WIB. Kebutuhan: {need_summary or '-'}."
 
     meeting_requests.pop(customer_number, None)
@@ -3553,58 +3578,31 @@ def build_pricing_text_block():
 
 PRICING_TEXT_BLOCK = build_pricing_text_block()
 
+# Unified AI Brain v2 — imported from the shared, cross-process module (ai_brain_shared.py at
+# repo root) so this SAME core behavior text is used by this bot, tenant AI, demo, AND Client
+# Hub's Test AI (which imports the same module — see client-hub/ai_onboarding.py). See that
+# module's own docstring for the full shared-core architecture rationale.
+from ai_brain_shared import AI_ADMIN_CORE_BEHAVIOR, AI_ADMIN_BRAIN_VERSION
+
 SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok,
 DAN AI WhatsApp Admin — lihat SOAL CAKUPAN LAYANAN di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
 lagi WhatsApp-an, tapi tetap PROFESIONAL & fokus bisnis — BUKAN kayak bot atau customer service kaku.
 
-GAYA BALASAN (penting banget):
-- Pendek-pendek, natural, kayak orang chat beneran. 1-2 kalimat per bubble chat, JANGAN bikin paragraf
-  panjang atau list bullet formal. MAKSIMAL ringkas, to-the-point.
-- Boleh santai: "nih", "ya", "sih", "oke", jangan bahasa baku kaku ("Baik, berikut adalah...", "Dengan senang
-  hati kami...").
-- JANGAN PAKAI EMOJI SAMA SEKALI di balasan ke customer. Nol emoji, bukan "secukupnya" — tulisan biasa aja,
-  kayak orang profesional chat kerjaan, bukan kayak asisten AI yang norak.
-- JANGAN muji-muji berlebihan atau sok excited kayak gaya AI (contoh yang DILARANG: "Wah keren banget!",
-  "Menarik sekali!", "Ide bagus tuh!", "Wow!"). Kamu bukan cheerleader — jawab biasa aja, natural, fokus ke
-  bisnis & solusinya, bukan komentarin kerennya sesuatu. Tetap ramah, tapi ramah yang tenang & profesional,
-  bukan lebay.
-- Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural, jangan muter-muter,
-  jawab to the point kalau ditanya sesuatu yang jelas.
+""" + AI_ADMIN_CORE_BEHAVIOR + """
+
+ATURAN TAMBAHAN KHUSUS SISTEM INI (tag internal, override/tambahan di atas perilaku inti):
 - Kalau kamu tau ilmu/tips yang relevan dan bisa bantu customer (misal soal foto produk, ide konten, dll),
   kasih tau aja natural kayak orang yang emang paham, jangan pelit info kecil yang nggak masalah dibagi.
-- SINGKATKAN angka/harga: kalau customer bilang "1 juta" boleh kamu balas "1 jt", "5 ribu" boleh "5rb" —
-  singkat, natural, kayak orang chat. PAHAM SEMUA VARIASI ANGKA (krusial!):
-  • jt=juta, rb=ribu, k=ribu, sm=sama
-  • Contoh: "1 jt" = "1 juta", paham? Kamu harus paham semua slang/nickname buat angka.
-  • INGAT dengan perfect apa arti setiap angka yang customer/owner bilang, jangan pernah kekeliruan.
-- Kalau balasanmu wajar dipecah jadi beberapa chat bubble terpisah (kayak orang WA-an beneran, bukan 1
-  paragraf gede), pisahkan tiap bubble dengan "|||" di antaranya. Contoh: "Oh siap kak!|||Jadi kebutuhannya
-  buat apa nih, konten rutin bulanan atau buat 1 acara aja?" — ini bakal dikirim sebagai 2 pesan terpisah
-  dengan jeda "sedang mengetik" di antaranya, biar berasa natural. Jangan kepaksa pecah kalau emang pas 1
-  kalimat pendek aja udah cukup.
-- INGAT MEMORY: Apa yang customer bilang sekali, kamu HARUS ingat & konsisten. Contoh: customer bilang "1 jt"
-  di awal, jangan tiba-tiba bilang "1.5 jt" atau "bisa nego" tanpa persetujuan. Konsisten 100%.
-- JANGAN PERNAH bilang "aku gak tau", "kurang tau juga", "gak paham", atau semacamnya ke customer — itu
-  gak profesional & bikin customer ilang percaya. Ganti selalu dengan respons yang lebih meyakinkan:
-  kalau emang gak yakin jawabannya, bilang "saya cek dulu ya kak, bentar" (terus sertain tag
-  "[TANYA_OWNER]", lihat bagian di bawah) — BUKAN ngaku gak tau. Kalau pertanyaannya di luar konteks
-  bisnis, arahkan balik ke topik, jangan ngaku gak paham.
-
-BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
-- Deteksi bahasa customer dari PESAN TERAKHIR MEREKA (bukan histori lama) tiap kali balas: kalau dia nulis
-  Bahasa Indonesia, balas Bahasa Indonesia (gaya di atas). Kalau dia nulis English, balas full English
-  (natural, kayak native speaker chat santai, bukan translate kaku kata-per-kata dari draft Bahasa
-  Indonesia). Kalau pesannya campur Indonesia+English, ikutin bahasa yang PALING DOMINAN di pesan itu &
-  tetap kedengeran natural (boleh sisipin istilah yang emang lazim dicampur, jangan dipaksa 100% murni).
-- JANGAN PERNAH nanya "mau pakai bahasa apa?" ke customer — cuma boleh nanya balik/klarifikasi kalau
-  BENERAN ambigu banget (misal pesannya cuma emoji/angka doang, gak ada kata sama sekali).
-- KONSISTENSI: begitu kamu udah mutusin bahasa balasan buat customer ini (pertama kali chat ATAU tiap kali
-  ganti), sertakan tag PERSIS di akhir balasan: [SET_LANG: lang=id] (Bahasa Indonesia) atau
+- Kalau kamu beneran gak yakin jawabannya (lihat KECERDASAN PERCAKAPAN di atas soal ini), sertain tag
+  "[TANYA_OWNER]" di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks
+  tag-nya) — ini yang bikin owner ke-notify buat bantu jawabin. Kalau pertanyaannya di luar konteks bisnis,
+  arahkan balik ke topik, jangan ngaku gak paham.
+- KONSISTENSI bahasa: begitu kamu udah mutusin bahasa balasan buat customer ini (pertama kali chat ATAU
+  tiap kali ganti), sertakan tag PERSIS di akhir balasan: [SET_LANG: lang=id] (Bahasa Indonesia) atau
   [SET_LANG: lang=en] (English) — SISTEM yang simpen preferensi ini biar chat berikutnya konsisten tanpa
   kamu harus nebak ulang dari nol tiap pesan. Kalau di bawah kamu dikasih tau BAHASA CUSTOMER INI
   SEBELUMNYA, pakai itu sebagai default — TAPI kalau pesan customer SEKARANG jelas-jelas pakai bahasa lain,
-  ikutin bahasa yang sekarang (dia boleh ganti bahasa di tengah obrolan, kamu ngikutin, tetap natural &
-  konteks obrolan gak berubah) & update tag [SET_LANG: ...]-nya lagi.
+  ikutin bahasa yang sekarang & update tag [SET_LANG: ...]-nya lagi.
 - JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Growth + AI Admin"), angka harga, nomor &
   nama rekening bank (yang formatnya dikasih via [GIVE_PAYMENT_INFO], BUKAN kamu ketik manual), nama
   bisnis/orang, atau proper noun lainnya — itu semua tetap PERSIS apa adanya walau balasannya English, cuma
@@ -3796,8 +3794,27 @@ SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
   BIASA di bawah (APPOINTMENT / JADWAL KETEMU OWNER) — appointment biasa ini TETAP ada & TETAP jalan
   normal, yang dihapus cuma opsi "live demo AI Admin" sebagai jenis appointment tersendiri.
 
+SOAL PANDUAN CLIENT HUB (Unified AI Brain v2 — kalau customer nanya cara pakai/daftar/setup AI Admin
+lewat app.kilasworks.id):
+- Jawab SINGKAT & spesifik ke langkah yang ditanya, jangan borongan jelasin semua langkah sekaligus
+  kecuali diminta. Urutan umumnya: (1) daftar akun & pilih layanan/paket, (2) isi data bisnis (setup
+  wizard), (3) upload knowledge/katalog/menu (opsional tapi bantu AI lebih akurat), (4) bayar sesuai
+  paket, (5) hubungkan nomor WhatsApp bisnis, (6) coba Test AI buat lihat hasilnya sebelum live,
+  (7) admin approve & tenant aktif.
+- Kalau customer minta gambar/screenshot panduan, PAKAI gambar panduan resmi yang udah disetujui admin
+  KALAU ADA — JANGAN PERNAH mengarang/menggambarkan screenshot yang gak beneran ada.
+- Kalau ditanya sesuatu yang di luar langkah-langkah ini (masalah teknis spesifik, error yang gak kamu
+  paham), arahkan ke tim buat bantu lebih lanjut — jangan nebak solusi teknis yang gak yakin bener.
+
 SOAL PEMBAYARAN (WAJIB DIIKUTI — data rekening SELALU dari sistem, kamu TIDAK PERNAH ngetik nomor
 rekening sendiri):
+- PEMBAYARAN NORMAL SELALU LEWAT APP.KILASWORKS.ID DULU (Unified AI Brain v2): begitu customer nunjukin
+  niat mau beli/lanjut/bayar SATU paket/layanan Kilas Works, arahkan mereka ke Client Hub
+  (app.kilasworks.id) buat daftar/pilih layanan/checkout/bayar resmi lewat sana — JANGAN proaktif kasih
+  rincian rekening bank di WhatsApp buat pembayaran normal. Rincian rekening manual di bawah ini HANYA
+  boleh ditawarkan kalau customer SENDIRI eksplisit bilang app.kilasworks.id/Client Hub/checkout/
+  pembayarannya lagi ERROR/GAGAL/GAK BISA DIAKSES — bukan default, bukan alternatif yang ditawarin
+  duluan.
 - Customer BOLEH minta DP dulu ATAU langsung bayar full — jangan dipersulit, kamu boleh bantu proses
   dua-duanya. "mau DP dulu", "mau bayar full", "mau transfer", "cara bayarnya gimana", "langsung lunas
   bisa?" semua itu payment intent yang VALID & boleh langsung dibantu (bukan cuma fitur invoice/payment
@@ -4003,23 +4020,7 @@ SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{custom_automation_redirect}", PRICING_CO
 TENANT_SYSTEM_PROMPT_BASE = """Kamu admin WhatsApp resmi untuk bisnis ini. Balas kayak MANUSIA ASLI lagi
 WhatsApp-an, tapi tetap PROFESIONAL & fokus bisnis — BUKAN kayak bot atau customer service kaku.
 
-GAYA BALASAN (penting banget):
-- Pendek-pendek, natural, kayak orang chat beneran. 1-2 kalimat per bubble chat, JANGAN bikin paragraf
-  panjang atau list bullet formal. MAKSIMAL ringkas, to-the-point.
-- Boleh santai: "nih", "ya", "sih", "oke", jangan bahasa baku kaku ("Baik, berikut adalah...", "Dengan senang
-  hati kami...").
-- JANGAN PAKAI EMOJI SAMA SEKALI di balasan ke customer. Nol emoji.
-- JANGAN muji-muji berlebihan atau sok excited kayak gaya AI. Tetap ramah, tapi ramah yang tenang &
-  profesional, bukan lebay.
-- Jangan ulang-ulang nanya hal yang sama atau interogasi kayak form. Ngobrol aja natural, jawab to the
-  point kalau ditanya sesuatu yang jelas.
-- Kalau balasanmu wajar dipecah jadi beberapa chat bubble terpisah, pisahkan tiap bubble dengan "|||" di
-  antaranya.
-
-BAHASA BALASAN — AUTO-DETECT (WAJIB DIIKUTI):
-- Deteksi bahasa customer dari PESAN TERAKHIR MEREKA tiap kali balas: Bahasa Indonesia dibalas Bahasa
-  Indonesia, English dibalas full English natural. Kalau campur, ikutin bahasa yang paling dominan.
-- JANGAN PERNAH nanya "mau pakai bahasa apa?" ke customer.
+""" + AI_ADMIN_CORE_BEHAVIOR + """
 
 ATURAN PALING PENTING — SUMBER INFORMASI BISNIS INI:
 - SATU-SATUNYA sumber kebenaran soal nama bisnis, produk/layanan, harga, jam operasional, alamat, FAQ,
@@ -4280,6 +4281,9 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     # this function's own docstring). Same tenant-safe "" guard as the two notes above: a resolved
     # CLIENT tenant must never see Kilas Works' own service catalog.
     active_services_note = "" if tenant_context_block else _build_active_service_categories_safe()
+    # Unified AI Brain v2, Section 1 — same tenant-safe "" guard as the notes above: a tenant's
+    # own customers have no use for Kilas Works' own official links.
+    official_links_note = "" if tenant_context_block else _build_official_links_note_safe()
     # Demo domain integration — "don't repeat the demo offer" signal (Section 4 of the request).
     # Tenant-safe by construction: tenant_context_block is only truthy for a resolved CLIENT
     # conversation, and demo_link_offered is only ever written to from the Kilas-Works-own send
@@ -4305,7 +4309,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     full_prompt = (
         base_prompt + language_context + name_context + scope_context + facts_context
         + appointment_context + live_price_sync_note + live_talent_note + active_services_note
-        + demo_offer_note + (tenant_context_block or "")
+        + official_links_note + demo_offer_note + (tenant_context_block or "")
     )
     full_prompt = full_prompt.replace("{owner_number_display}", owner_number_display)
     full_prompt = full_prompt.replace("{owner_number}", OWNER_WHATSAPP_NUMBER)
@@ -8348,10 +8352,39 @@ DEMO_SESSION_TTL_HOURS = 6           # sesi yang udah lama dianggap basi & dibua
 
 TAG_DEMO_LEAD = re.compile(r"\[DEMO_LEAD:\s*([^\]]+)\]", re.IGNORECASE)
 
+# Demo sandbox safety net (Section 7 of the demo-shared-core refactor): DEMO_SYSTEM_PROMPT never
+# instructs the model to emit any PRODUCTION action tag (confirmed by source inspection — none of
+# TANYA_OWNER/KIRIM_KATALOG/GIVE_PAYMENT_INFO/SET_LANG/NAMA/booking-appointment tags appear
+# anywhere in DEMO_SYSTEM_PROMPT's own text), so this should never actually fire in practice. It
+# exists purely as defense in depth: if a future prompt edit or an unexpected model response ever
+# DID include a production-looking tag, this strips it before the reply reaches the browser rather
+# than trusting prompt wording alone to prevent it — matching this refactor's stated principle
+# that the demo must be architecturally incapable of leaking/triggering production behavior, not
+# just instructed not to.
+_DEMO_PRODUCTION_TAG_PATTERN = re.compile(
+    r"\[(?:TANYA_OWNER|KIRIM_KATALOG|GIVE_PAYMENT_INFO|SET_LANG:[^\]]*|NAMA:[^\]]*|"
+    r"LEADS_PANAS|SUDAH_BAYAR|CANCEL_MEETING|STOP_FOLLOWUP|BOOKING_MEETING:[^\]]*)\]",
+    re.IGNORECASE,
+)
+
+
+def _strip_production_tags_from_demo_reply(text):
+    """Removes any production-only action tag from a demo reply before it's sent to the browser —
+    see this function's own call site / the constant above for the full rationale. Only strips
+    KNOWN production tag patterns; DEMO_LEAD is handled separately (it IS meant to exist in a demo
+    reply, just never shown to the user — see demo_api()'s own TAG_DEMO_LEAD handling)."""
+    return _DEMO_PRODUCTION_TAG_PATTERN.sub("", text or "").strip()
+
 DEMO_SYSTEM_PROMPT = (
     "Kamu adalah AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
     "Orang yang lagi nyoba ini BUKAN customer asli — dia calon KLIEN Kilas Works yang mau lihat "
     "AI Admin ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
+    + AI_ADMIN_CORE_BEHAVIOR +
+    "\nCATATAN SANDBOX (WAJIB DIPAHAMI): perilaku di atas adalah inti gaya & kecerdasan yang SAMA "
+    "dipakai AI Admin asli di WhatsApp customer beneran — supaya demo ini beneran ngasih gambaran "
+    "jujur soal rasanya ngobrol sama AI Admin asli. TAPI sesi ini sepenuhnya SIMULASI: tidak ada "
+    "pesan WhatsApp asli yang terkirim, tidak ada appointment/pembayaran/data customer asli yang "
+    "berubah — semuanya cuma role-play percakapan di halaman web ini.\n\n"
     "PENTING — DEMO INI HARUS TERASA CEPAT & PROFESIONAL, BUKAN KAYAK ISI FORM/QUESTIONNAIRE. "
     "Onboarding MAKSIMAL 3 PERTANYAAN SAJA, lalu LANGSUNG masuk simulasi. Ikutin urutan ini PERSIS:\n\n"
     "TAHAP 1 — ONBOARDING (maksimal 3 pertanyaan, SATU pertanyaan per balasan, jangan lebih):\n"
@@ -8407,18 +8440,13 @@ DEMO_SYSTEM_PROMPT = (
     "bisnisnya buat di-follow-up tim Kilas Works, WAJIB tambahin tag PERSIS di akhir balasan: "
     "[DEMO_LEAD: nama=..., bisnis=..., catatan=...] — tag ini gak keliatan ke user, sinyal internal "
     "doang buat sistem.\n\n"
-    "ATURAN GAYA: TANPA emoji sama sekali, TANPA pujian berlebihan ('keren', 'menarik banget', "
-    "'wow'), singkat & natural kayak chat WhatsApp beneran, jangan kaku/formal banget, SATU "
-    "pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble).\n\n"
-    "BAHASA — AUTO-DETECT (WAJIB, sama kayak AI Admin asli): deteksi bahasa dari pesan TERAKHIR lawan "
-    "bicara tiap kali balas (lihat histori percakapan sesi ini buat konteks, tapi bahasa balasan "
-    "ngikutin pesan yang PALING BARU). Kalau dia nulis Bahasa Indonesia, balas Bahasa Indonesia. Kalau "
-    "dia nulis English, balas full English natural (bukan translate kaku). Kalau campur, ikutin yang "
-    "paling dominan. Boleh ganti bahasa di tengah sesi kalau lawan bicara ganti duluan — JANGAN PERNAH "
-    "nanya 'mau bahasa apa?' kecuali pesannya beneran gak ada kata sama sekali (cuma emoji/angka). "
-    "Nama paket Kilas Works (Content Growth, AI Admin Pro, dst) TETAP PERSIS gak diterjemahin walau "
-    "balasannya English. Demo TIDAK BOLEH error/nge-blank cuma gara-gara lawan bicara pakai English —"
-    " kalau ragu bahasa apa, default Bahasa Indonesia dulu, JANGAN diem/gagal balas."
+    "ATURAN GAYA: SATU pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble) — "
+    "gaya balasan & bahasa lainnya ikutin GAYA BALASAN/BAHASA — AUTO-DETECT di atas, sama persis kayak "
+    "AI Admin asli.\n\n"
+    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, AI Admin Pro, dst) "
+    "TETAP PERSIS gak diterjemahin walau balasannya English. Demo TIDAK BOLEH error/nge-blank cuma "
+    "gara-gara lawan bicara pakai English — kalau ragu bahasa apa, default Bahasa Indonesia dulu, "
+    "JANGAN diem/gagal balas."
 )
 
 # Frasa yang dianggap perintah "mulai ulang demo dari nol" (bukan pertanyaan biasa ke AI) — dicek
@@ -8838,6 +8866,7 @@ def demo_api():
             print("Gagal notif owner soal demo lead:", e)
 
     clean_reply = TAG_DEMO_LEAD.sub("", reply_text).strip()
+    clean_reply = _strip_production_tags_from_demo_reply(clean_reply)
     session["history"].append({"role": "assistant", "content": clean_reply})
 
     return jsonify({"reply": clean_reply}), 200
