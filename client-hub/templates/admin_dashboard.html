@@ -54,7 +54,7 @@
         <td>{{ b.business_name }}</td>
         <td>{{ b.package|humanize_package }}</td>
         <td><span class="pill {{ b.display_status }}">{{ b.display_status|humanize_status('business') }}</span></td>
-        <td>{{ b.created_at }}</td>
+        <td class="muted">{{ b.created_at|humanize_timestamp }}</td>
         <td><a href="{{ url_for('admin.review_business', business_id=b.id) }}">Review</a></td>
       </tr>
     {% else %}

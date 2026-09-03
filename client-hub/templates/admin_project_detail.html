@@ -2,7 +2,7 @@
 {% block title %}{{ project.title }} — Admin{% endblock %}
 {% block content %}
 <h1>{{ project.title }}</h1>
-<p class="muted">{{ business.business_name|display_or_missing if business else 'Belum diisi' }} · {{ project.project_type }} · {{ project.pricing_mode }}</p>
+<p class="muted">{{ business.business_name|display_or_missing if business else 'Belum diisi' }} · {{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</p>
 <span class="pill APPROVED">{{ project.status|humanize_status('project') }}</span>
 
 <div class="card">
@@ -20,7 +20,7 @@
     <tr>
       <td>{{ a.original_filename }}</td>
       <td>{{ (a.size_bytes / 1024) | round(1) }} KB</td>
-      <td>{{ a.created_at }}</td>
+      <td>{{ a.created_at|humanize_timestamp }}</td>
       <td><a href="{{ url_for('projects.project_attachment_download', business_id=project.business_id, project_id=project.id, file_id=a.id) }}" target="_blank">Lihat/Download</a></td>
     </tr>
     {% endfor %}

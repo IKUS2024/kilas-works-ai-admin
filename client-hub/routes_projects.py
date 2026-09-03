@@ -167,8 +167,59 @@ def project_detail(business_id, project_id):
         "WHERE project_id = ? AND business_id = ? AND kind = 'REFERENCE' ORDER BY created_at DESC",
         (project_id, business["id"]),
     )
+    # Customer order actions (Batch 1, Section 3) — the payment's OWN status (not just the
+    # project's) determines whether self-cancel is safe: a project can be PAYMENT_PENDING with NO
+    # payment attempt yet (safe to cancel) or PAYMENT_PENDING with a proof already under human
+    # review (must NOT be self-cancellable — a human is actively reviewing money that may have
+    # already been sent). Reuses payment_service's existing invoice/payment lookups, no new table.
+    import payment_service
+    invoice, payment = payment_service.get_latest_payment_for_project(project_id)
+    can_cancel = _project_can_be_self_cancelled(project, payment)
     return render_template("project_detail.html", business=business, project=project,
-                            quotations=quotations, attachments=attachments)
+                            quotations=quotations, attachments=attachments,
+                            payment=payment, can_cancel=can_cancel)
+
+
+def _project_can_be_self_cancelled(project, payment):
+    """A customer may only cancel their OWN order before any money is genuinely in flight:
+    WAITING_FOR_QUOTE (no price agreed yet) or APPROVED/PAYMENT_PENDING with NO payment proof
+    uploaded yet (payment is None, or still PAYMENT_PENDING/REJECTED — REJECTED means an earlier
+    proof was rejected and no new one is under review, so cancelling is still safe). Once a proof
+    is UNDER_REVIEW, or the payment is VERIFIED, or the project has moved to PAID/IN_PROGRESS/
+    COMPLETED, self-cancel is no longer offered — matches the exact behavior requested."""
+    if project["status"] in ("CANCELLED", "REJECTED", "COMPLETED"):
+        return False
+    if project["status"] in ("WAITING_FOR_QUOTE", "APPROVED"):
+        return True
+    if project["status"] == "PAYMENT_PENDING":
+        if payment is None:
+            return True
+        return payment["status"] in ("PAYMENT_PENDING", "REJECTED")
+    return False
+
+
+@projects_bp.route("/business/<int:business_id>/projects/<int:project_id>/cancel", methods=["POST"])
+@security.login_required
+def cancel_project(business_id, project_id):
+    """Customer-initiated cancellation (Batch 1, Section 3) — reuses projects_repo.
+    set_project_status() exactly as every other status transition in this codebase does (writes
+    an audit row, never deletes anything). The project/invoice/payment rows all remain in the
+    database permanently as a CANCELLED historical record — this route has no DELETE statement
+    anywhere in it."""
+    user = security.current_user()
+    business = security.require_business_access(business_id, user)
+    project = projects_repo.get_project(project_id)
+    if project is None or project["business_id"] != business["id"]:
+        abort(404)
+    import payment_service
+    _invoice, payment = payment_service.get_latest_payment_for_project(project_id)
+    if not _project_can_be_self_cancelled(project, payment):
+        flash("Pesanan ini tidak bisa dibatalkan sendiri — bukti pembayaran sedang direview atau sudah diproses.", "error")
+        return redirect(url_for("projects.project_detail", business_id=business_id, project_id=project_id))
+    projects_repo.set_project_status(project_id, "CANCELLED", user["id"], business_id,
+                                      detail=f"Dibatalkan oleh customer (project_id={project_id})")
+    flash("Pesanan dibatalkan.", "success")
+    return redirect(url_for("projects.project_list", business_id=business_id, view="all"))
 
 
 @projects_bp.route("/business/<int:business_id>/projects/<int:project_id>/attachments/<int:file_id>")

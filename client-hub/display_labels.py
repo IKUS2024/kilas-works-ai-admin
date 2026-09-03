@@ -130,6 +130,12 @@ TALENT_REQUEST_STATUS_LABELS = {
     "DECLINED": "Ditolak",
 }
 
+PRICING_MODE_LABELS = {
+    "FIXED_PRICE": "Harga Tetap",
+    "STARTING_FROM": "Mulai Dari",
+    "CUSTOM_QUOTE": "Custom Quote",
+}
+
 AI_SETUP_STATUS_LABELS = {
     "PENDING": "Menunggu diproses",
     "RUNNING": "Sedang diproses",
@@ -153,6 +159,7 @@ _STATUS_TABLES = {
     "subscription": SUBSCRIPTION_STATUS_LABELS,
     "talent_request": TALENT_REQUEST_STATUS_LABELS,
     "ai_setup": AI_SETUP_STATUS_LABELS,
+    "pricing_mode": PRICING_MODE_LABELS,
 }
 
 AUDIT_ACTION_LABELS = {

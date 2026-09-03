@@ -110,7 +110,7 @@
           <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Kilas Works / AI' }}</div>
             <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
-            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at }}</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at|humanize_timestamp }}</div>
           </div>
         {% else %}
           <p class="muted">Belum ada history.</p>

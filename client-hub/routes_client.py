@@ -377,23 +377,35 @@ def business_settings(business_id):
 @client_bp.route("/business/<int:business_id>/files/upload", methods=["POST"])
 @security.login_required
 def upload_file(business_id):
+    """Multi-file business knowledge upload (Batch 1, Section 1) — accepts multiple files in one
+    submission via request.files.getlist(), looping the SAME per-file validate/save path
+    (file_utils.validate_and_extract + repo.save_business_file) that already existed for a single
+    file — no new schema, no new helper, just no longer stopping at the first file. Each file is
+    validated/saved independently: one rejected file (wrong type, too big) does not block the
+    other valid files in the same submission from saving."""
     business = _business_or_404(business_id)
     user = security.current_user()
-    f = request.files.get("file")
-    if not f or not f.filename:
-        flash("Pilih file dulu.", "error")
+    uploaded_files = [f for f in request.files.getlist("file") if f and f.filename]
+    if not uploaded_files:
+        flash("Pilih minimal 1 file dulu.", "error")
         return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
 
-    content = f.read()
-    try:
-        safe_name, mime_type, extracted_text = file_utils.validate_and_extract(f.filename, content, f.mimetype)
-    except file_utils.UploadRejected as e:
-        flash(str(e), "error")
-        return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
+    saved_names, failed = [], []
+    for f in uploaded_files:
+        content = f.read()
+        try:
+            safe_name, mime_type, extracted_text = file_utils.validate_and_extract(f.filename, content, f.mimetype)
+        except file_utils.UploadRejected as e:
+            failed.append(f"{f.filename}: {e}")
+            continue
+        repo.save_business_file(business_id, safe_name, mime_type, len(content), content, extracted_text, user["id"])
+        repo.write_audit(user["id"], business_id, "file_uploaded", safe_name)
+        saved_names.append(safe_name)
 
-    repo.save_business_file(business_id, safe_name, mime_type, len(content), content, extracted_text, user["id"])
-    repo.write_audit(user["id"], business_id, "file_uploaded", safe_name)
-    flash(f"File '{safe_name}' berhasil diupload.", "success")
+    if saved_names:
+        flash(f"{len(saved_names)} file berhasil diupload: {', '.join(saved_names)}.", "success")
+    if failed:
+        flash("Sebagian file gagal diupload — " + "; ".join(failed), "error")
     return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
 
 
@@ -512,6 +524,7 @@ def review_page(business_id):
             business["package"] in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
             and payment_service.has_verified_ai_admin_payment(business_id)
         ),
+        activation_checklist=payment_service.build_activation_checklist(business_id),
     )
 
 

@@ -70,7 +70,7 @@
           <div style="align-self:{{ 'flex-start' if is_customer else 'flex-end' }};max-width:82%;padding:9px 11px;border-radius:12px;background:{{ 'rgba(148,163,184,.13)' if is_customer else 'rgba(37,99,235,.11)' }};border:1px solid var(--border);">
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if is_customer else 'Bisnis / AI' }}</div>
             <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
-            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at }}</div>
+            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at|humanize_timestamp }}</div>
           </div>
         {% else %}
           <p class="muted">Belum ada history.</p>

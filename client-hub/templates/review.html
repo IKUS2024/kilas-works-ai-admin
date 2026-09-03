@@ -5,6 +5,19 @@
 <span class="pill {{ business.display_status or business.status }}">{{ (business.display_status or business.status)|humanize_status('business') }}</span>
 <span class="muted">· {{ business.package|humanize_package }}</span>
 
+{% if activation_checklist %}
+<div class="card">
+  <h2>Progres Aktivasi</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;">
+    {% for item in activation_checklist %}
+      <span class="pill {{ 'ACTIVE' if item.done else '' }}" style="display:flex;align-items:center;gap:4px;">
+        {{ '✓' if item.done else '○' }} {{ item.label }}
+      </span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 {% if missing_required %}
   <div class="card" style="border-color:var(--red);">
     <h2 style="color:var(--red);">Data bisnis belum lengkap</h2>
@@ -89,10 +102,11 @@
   <h2>Files</h2>
   {% if files %}
     <table>
-      <tr><th>File</th><th></th></tr>
+      <tr><th>File</th><th>Diupload</th><th></th></tr>
       {% for f in files %}
         <tr>
           <td>{{ f.original_filename }}</td>
+          <td class="muted">{{ f.created_at|humanize_timestamp }}</td>
           <td>
             {% if is_admin_view %}
               <a href="{{ url_for('admin.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a>
@@ -204,7 +218,7 @@
       {% endif %}
     </div>
     {% if subscription %}
-      <p class="muted">AI Admin Subscription: <strong>{{ subscription.status }}</strong> ({{ subscription.plan_key }}) — periode s/d {{ subscription.period_end|humanize_timestamp }}{% if subscription.grace_started_at %}, grace mulai {{ subscription.grace_started_at|humanize_timestamp }}{% endif %}</p>
+      <p class="muted">AI Admin Subscription: <strong>{{ subscription.status|humanize_status('subscription') }}</strong> ({{ subscription.plan_key }}) — periode s/d {{ subscription.period_end|humanize_timestamp }}{% if subscription.grace_started_at %}, grace mulai {{ subscription.grace_started_at|humanize_timestamp }}{% endif %}</p>
       {% if subscription.status in ('GRACE', 'SUSPENDED') %}
         <form method="post" action="{{ url_for('admin.renew_subscription', business_id=business.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -168,6 +168,7 @@ def review_business(business_id):
         tenant_config_row=tenant_config_row,
         takeover_conversations=takeover_conversations,
         subscription=subscription,
+        activation_checklist=payment_service.build_activation_checklist(business_id),
         is_admin_view=True,
     )
 

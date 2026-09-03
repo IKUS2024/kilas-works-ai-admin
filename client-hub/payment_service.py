@@ -352,3 +352,31 @@ def has_verified_ai_admin_payment(business_id):
         (business_id, catalog_key),
     )
     return any(r["status"] == "VERIFIED" for r in rows)
+
+
+def build_activation_checklist(business_id):
+    """Activation checklist (Batch 1, Section 4): Data Bisnis / Knowledge / Payment / WhatsApp /
+    Test AI / Active. Uses ONLY existing tracked state — no new table, no duplicate source of
+    truth. Returns an ordered list of {"key", "label", "done"} dicts.
+
+    "Test AI" has no dedicated tracked completion state anywhere in this codebase (there's no
+    "customer clicked Test AI" flag) — marking it done once WhatsApp is CONNECTED is the closest
+    honest proxy available (by that point the sandbox at /business/<id>/simulate has been
+    reachable for a while), documented here explicitly rather than silently inventing a new
+    tracking mechanism just for this checklist."""
+    business = repo.get_business(business_id)
+    onboarding = repo.get_onboarding_status(business_id) or {}
+    ai_settings = repo.get_ai_settings(business_id) or {}
+    data_bisnis_done = all(onboarding.get(f) for f in
+                            ("basics_done", "services_done", "operations_done", "faq_done", "style_done"))
+    payment_done = (business["package"] in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
+                    and has_verified_ai_admin_payment(business_id))
+    whatsapp_done = bool(business.get("whatsapp_connected"))
+    return [
+        {"key": "data_bisnis", "label": "Data Bisnis", "done": data_bisnis_done},
+        {"key": "knowledge", "label": "Knowledge (AI Setup)", "done": ai_settings.get("ai_status") == "DONE"},
+        {"key": "payment", "label": "Payment", "done": payment_done},
+        {"key": "whatsapp", "label": "WhatsApp", "done": whatsapp_done},
+        {"key": "test_ai", "label": "Test AI", "done": whatsapp_done},
+        {"key": "active", "label": "Active", "done": business["status"] == "ACTIVE"},
+    ]

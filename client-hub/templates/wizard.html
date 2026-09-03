@@ -183,7 +183,7 @@
 
   {% elif step == 'upload' %}
     <h2>Upload Katalog / Menu</h2>
-    <p class="muted">PDF, PNG, JPG, atau TXT — maks 10MB.</p>
+    <p class="muted">PDF, PNG, JPG, atau TXT — maks 10MB per file. Bisa pilih beberapa file sekaligus.</p>
   {% endif %}
 
     <div style="margin-top:20px;"><button class="btn" type="submit">Simpan & Lanjut</button></div>
@@ -192,16 +192,17 @@
   {% if step == 'upload' %}
     <form method="post" action="{{ url_for('client.upload_file', business_id=business.id) }}" enctype="multipart/form-data" style="margin-top:16px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" required>
+      <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" multiple required>
       <div style="margin-top:10px;"><button class="btn secondary" type="submit">Upload File</button></div>
     </form>
     {% if files %}
       <table style="margin-top:16px;">
-        <tr><th>File</th><th>Ukuran</th><th></th></tr>
+        <tr><th>File</th><th>Ukuran</th><th>Diupload</th><th></th></tr>
         {% for f in files %}
           <tr>
             <td>{{ f.original_filename }}</td>
             <td>{{ (f.size_bytes / 1024)|round(1) }} KB</td>
+            <td class="muted">{{ f.created_at|humanize_timestamp }}</td>
             <td><a href="{{ url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a></td>
           </tr>
         {% endfor %}
