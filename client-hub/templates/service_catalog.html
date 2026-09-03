@@ -2,9 +2,23 @@
 {% block title %}Layanan — Kilas Works{% endblock %}
 {% block content %}
 <h1>Layanan Kilas Works</h1>
-<p class="muted">Pilih layanan Kilas Works di bawah. AI Admin WhatsApp diatur lewat Dashboard (perlu isi data bisnis dulu sebelum pembayaran) — layanan fixed-price lainnya bisa langsung dipilih, atau ajukan project custom (foto/video/website) lewat menu Project Custom di dashboard.</p>
+<p class="muted">Pilih layanan yang kamu butuhkan. AI Admin diatur lewat data bisnis dulu sebelum pembayaran —
+  layanan lain bisa langsung dipilih, atau minta penawaran untuk layanan yang harganya custom.</p>
 
-{% if businesses %}
+{% if not businesses %}
+<div class="card">
+  <h2>Buat Bisnis Dulu</h2>
+  <p class="muted">Sebelum memilih layanan, buat data bisnis kamu dulu (cukup nama bisnis) — semua pesanan
+    tersimpan di bawah bisnis ini.</p>
+  <form method="post" action="{{ url_for('client.create_business') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="package" value="NONE">
+    <label>Nama Bisnis</label>
+    <input type="text" name="business_name" required placeholder="mis. Kedai Kopi Senja">
+    <div style="margin-top:10px;"><button class="btn" type="submit">Buat Bisnis &amp; Lihat Layanan</button></div>
+  </form>
+</div>
+{% elif businesses|length > 1 %}
 <div class="card">
   <label>Bisnis</label>
   <select id="business_select">
@@ -23,27 +37,34 @@
       <td>{{ item.name }}{% if item.description %}<br><span class="muted">{{ item.description }}</span>{% endif %}</td>
       <td>{{ format_price(item.price_amount, item.price_unit) }}</td>
       <td>
+        {% set unfinished = unfinished_by_catalog_key.get(item.catalog_key) if single_business else None %}
         {% if item.category == 'AI_ADMIN' %}
           <a class="btn small" href="{{ url_for('client.dashboard') }}">Mulai di Dashboard</a>
-        {% elif item.pricing_mode != 'CUSTOM_QUOTE' and businesses %}
+        {% elif not businesses %}
+          <span class="muted" style="font-size:12px;">Buat bisnis dulu di atas</span>
+        {% elif unfinished %}
+          <a class="btn small secondary" href="{{ url_for('projects.project_detail', business_id=single_business.id, project_id=unfinished.id) }}">Lanjutkan</a>
+        {% elif item.pricing_mode != 'CUSTOM_QUOTE' %}
         <form method="post" action="{{ url_for('projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline"
-              onsubmit="this.business_id.value = document.getElementById('business_select').value;">
+              onsubmit="return setBusinessId(this);">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="business_id" value="">
-          <button class="btn small" type="submit">{{ item.cta_text or 'Pilih' }}</button>
+          <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
+          <button class="btn small" type="submit">{{ item.cta_text or 'Pilih Layanan' }}</button>
         </form>
-        {% elif item.pricing_mode == 'CUSTOM_QUOTE' and businesses %}
-          {% if item.category == 'TALENT' %}
-            <a class="btn small" href="{{ url_for('talent.talent_list') }}">{{ item.cta_text or 'Isi Kebutuhan' }}</a>
-          {% elif item.category in ('CONTENT', 'VIDEO', 'PHOTO', 'WEBSITE', 'APPLICATION') %}
-            <a class="btn small" id="custom-cta-{{ item.catalog_key }}"
-               data-project-type="{{ item.category }}"
-               href="#" onclick="return goCustomProject(this);">{{ item.cta_text or 'Ajukan Project' }}</a>
-          {% else %}
-            <span class="muted">{{ item.cta_text or 'Custom Quote' }}</span>
-          {% endif %}
-        {% elif item.pricing_mode == 'CUSTOM_QUOTE' %}
-          <span class="muted">{{ item.cta_text or 'Custom Quote' }}</span>
+        {% elif item.category == 'TALENT' %}
+          <a class="btn small" href="{{ url_for('talent.talent_list') }}">{{ item.cta_text or 'Minta Penawaran' }}</a>
+        {% elif item.category in ('CONTENT', 'VIDEO', 'PHOTO', 'WEBSITE', 'APPLICATION') %}
+          <a class="btn small" id="custom-cta-{{ item.catalog_key }}"
+             data-project-type="{{ item.category }}"
+             href="{{ url_for('projects.custom_project_request', business_id=single_business.id, project_type=item.category) if single_business else '#' }}"
+             onclick="return goCustomProject(this);">{{ item.cta_text or 'Minta Penawaran' }}</a>
+        {% else %}
+        <form method="post" action="{{ url_for('projects.request_generic_quote', catalog_key=item.catalog_key) }}" class="inline"
+              onsubmit="return setBusinessId(this);">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
+          <button class="btn small" type="submit">{{ item.cta_text or 'Minta Penawaran' }}</button>
+        </form>
         {% endif %}
       </td>
     </tr>
@@ -52,10 +73,16 @@
 </div>
 {% endfor %}
 <script>
+function setBusinessId(form) {
+  var businessSelect = document.getElementById('business_select');
+  if (businessSelect) { form.business_id.value = businessSelect.value; }
+  return !!form.business_id.value;
+}
 function goCustomProject(el) {
   var businessSelect = document.getElementById('business_select');
-  var businessId = businessSelect ? businessSelect.value : null;
-  if (!businessId) { return true; }
+  if (!businessSelect) { return true; }
+  var businessId = businessSelect.value;
+  if (!businessId) { return false; }
   var projectType = el.getAttribute('data-project-type');
   el.href = "{{ url_for('projects.custom_project_request', business_id=0, project_type='TYPE') }}"
     .replace('/0/', '/' + businessId + '/').replace('TYPE', projectType);

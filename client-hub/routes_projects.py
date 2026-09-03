@@ -24,8 +24,25 @@ def service_catalog_page():
     for item in items:
         by_category.setdefault(item["category"], []).append(item)
     businesses = repo.list_businesses_for_user(user["id"]) if user["role"] != "KILAS_ADMIN" else []
-    return render_template("service_catalog.html", by_category=by_category,
-                            format_price=catalog_service.format_price, businesses=businesses)
+    # New-customer purchase-flow fix, Section 6/8: when the customer has exactly ONE business (the
+    # overwhelmingly common new-customer case), pre-compute which catalog items already have an
+    # unfinished project for THAT business, so the template can show "Lanjutkan" instead of
+    # "Pilih Layanan"/"Minta Penawaran" without needing JavaScript to react to a business-picker
+    # dropdown. With 2+ businesses the picker stays dynamic (JS-driven, as before) — the
+    # server-side reuse-on-click safety in start_fixed_checkout()/request_generic_quote() still
+    # protects against duplicates either way, this only affects which LABEL is shown up front.
+    single_business = businesses[0] if len(businesses) == 1 else None
+    unfinished_by_catalog_key = {}
+    if single_business:
+        for item in items:
+            existing = projects_repo.get_unfinished_project_for_catalog_key(single_business["id"], item["catalog_key"])
+            if existing:
+                unfinished_by_catalog_key[item["catalog_key"]] = existing
+    return render_template(
+        "service_catalog.html", by_category=by_category, format_price=catalog_service.format_price,
+        businesses=businesses, single_business=single_business,
+        unfinished_by_catalog_key=unfinished_by_catalog_key,
+    )
 
 
 @projects_bp.route("/services/<catalog_key>/checkout-fixed", methods=["POST"])
@@ -48,6 +65,14 @@ def start_fixed_checkout(catalog_key):
         # all — this is a defense-in-depth guard against a stale cached page or a direct POST).
         flash("AI Admin diatur lewat Dashboard — isi data bisnis dulu sebelum pembayaran.", "error")
         return redirect(url_for("client.dashboard"))
+
+    # Repeat-click / refresh safety (purchase-flow fix, Section 6): reuse an existing unfinished
+    # project for this exact business+catalog_key instead of creating a second one — a customer
+    # clicking "Pilih Layanan" again (double-click, back button, refresh) lands on the SAME
+    # project/checkout, never a duplicate.
+    existing = projects_repo.get_unfinished_project_for_catalog_key(business["id"], catalog_key)
+    if existing:
+        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=existing["id"]))
 
     project_id = projects_repo.create_fixed_price_project(business["id"], item, user["id"])
     flash(f"{item['name']} ditambahkan. Lanjut ke checkout.", "success")
@@ -130,6 +155,48 @@ def custom_project_request(business_id, project_type):
 
 
 _HISTORY_STATUSES = ("COMPLETED", "CANCELLED")
+
+
+@projects_bp.route("/services/<catalog_key>/request-quote", methods=["POST"])
+@security.login_required
+def request_generic_quote(catalog_key):
+    """Generic "Minta Penawaran" for CUSTOM_QUOTE catalog items whose category has no
+    dedicated requirement-specific form (BUNDLE, ADS, EVENT, or any future category) — the
+    purchase-flow fix's Section 1/4/5 gap: these previously had literally no actionable CTA on
+    the catalog page (service_catalog.html rendered a bare, unclickable "Custom Quote" label).
+    Reuses the SAME generic projects_repo.create_custom_project() every type-specific custom
+    request already goes through — this is a simpler ENTRY POINT (one free-text notes field
+    instead of a type-specific requirements form), not a second data path. Never invents a price:
+    the created project starts at WAITING_FOR_QUOTE with final_price=NULL, identical to every
+    other custom request."""
+    user = security.current_user()
+    business_id = request.form.get("business_id", type=int)
+    business = security.require_business_access(business_id, user)
+    item = catalog_service.get_catalog_item(catalog_key)
+    if item is None or item["pricing_mode"] != "CUSTOM_QUOTE" or not item["is_active"]:
+        abort(404)
+    if item["category"] in ("TALENT", "CONTENT", "VIDEO", "PHOTO", "WEBSITE", "APPLICATION"):
+        # These categories already have their own dedicated, more detailed request flow
+        # (talent.talent_list / custom_project_request) — this generic route is only the
+        # fallback for categories that don't, so it never becomes a second, competing path for
+        # a category that already has a purpose-built one.
+        abort(404)
+
+    # Repeat-click / refresh safety (Section 6): reuse an existing unfinished quote request for
+    # this exact business+catalog_key rather than creating a second one.
+    existing = projects_repo.get_unfinished_project_for_catalog_key(business["id"], catalog_key)
+    if existing:
+        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=existing["id"]))
+
+    project_type = item["category"] if item["category"] in projects_repo.PROJECT_TYPES else "OTHER"
+    notes = (request.form.get("notes") or "").strip()
+    requirements = {"notes": notes} if notes else {}
+    project_id = projects_repo.create_custom_project(
+        business["id"], project_type, item["name"], requirements, None, None, user["id"],
+        catalog_key=catalog_key,
+    )
+    flash(f"Permintaan penawaran untuk {item['name']} terkirim. Tim Kilas Works akan follow up.", "success")
+    return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
 
 
 @projects_bp.route("/business/<int:business_id>/projects")

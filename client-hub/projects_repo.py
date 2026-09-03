@@ -88,6 +88,22 @@ def list_projects_for_business(business_id):
     return db.query_all("SELECT * FROM projects WHERE business_id = ? ORDER BY created_at DESC", (business_id,))
 
 
+def get_unfinished_project_for_catalog_key(business_id, catalog_key):
+    """Repeat-click / refresh safety (Client Hub purchase-flow fix, Section 6): finds an existing
+    NON-TERMINAL project for this exact business+catalog_key combination, if one exists — the
+    service catalog page uses this to show "Lanjutkan" instead of creating a second project for
+    the same intended purchase. "Non-terminal" excludes CANCELLED/REJECTED (those are dead ends,
+    a customer should be able to start fresh) but includes everything else (WAITING_FOR_QUOTE
+    through IN_PROGRESS) — COMPLETED is also excluded since a completed order is historical, not
+    "unfinished"."""
+    return db.query_one(
+        "SELECT * FROM projects WHERE business_id = ? AND catalog_key = ? "
+        "AND status NOT IN ('CANCELLED', 'REJECTED', 'COMPLETED') "
+        "ORDER BY created_at DESC LIMIT 1",
+        (business_id, catalog_key),
+    )
+
+
 def list_all_projects(status_filter=None, project_type_filter=None, business_id_filter=None):
     """Final Operations Polish, Section 13: admin project list filters. Each filter is optional and
     independent — pass any combination. Built with a plain, safe WHERE-clause accumulator (no
