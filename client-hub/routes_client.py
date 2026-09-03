@@ -422,6 +422,26 @@ def download_file(business_id, file_id):
     )
 
 
+@client_bp.route("/business/<int:business_id>/files/<int:file_id>/delete", methods=["POST"])
+@security.login_required
+def delete_file(business_id, file_id):
+    """Explicit file removal (Batch 2/3, Section A) — scoped to THIS business only (repo.
+    delete_business_file() re-checks business_id, so a stale/crafted file_id from another
+    business can never be deleted here). If AI-generated knowledge already exists, mark it STALE
+    using the SAME existing mechanism edits already use (repo.set_business_stale_if_done()) — a
+    removed file that was already read into the knowledge must not silently keep being
+    represented in stale, unregenenerated knowledge."""
+    _business_or_404(business_id)
+    deleted = repo.delete_business_file(file_id, business_id)
+    if not deleted:
+        abort(404)
+    user = security.current_user()
+    repo.write_audit(user["id"], business_id, "file_deleted", f"file_id={file_id}")
+    repo.set_business_stale_if_done(business_id)
+    flash("File dihapus.", "success")
+    return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
+
+
 def _run_ai_normalization(business_id, business, user):
     """Shared normalization core — Gap-fix Area D. Used by BOTH the manual 'Jalankan (Ulang) AI
     Setup' button (unchanged, still available for re-runs/admin retries) AND the automatic

@@ -350,6 +350,19 @@ def get_business_file_content(file_id, business_id):
     )
 
 
+def delete_business_file(file_id, business_id):
+    """Explicit customer-initiated file removal (Batch 2/3, Section A) — a plain DELETE scoped to
+    THIS business_id, so removing one file can never affect another business's files or this
+    business's other data (profile/services/faqs untouched). Returns True if a row was actually
+    deleted, False if the file didn't exist/belong to this business (so the caller can 404
+    correctly rather than silently no-op)."""
+    row = get_business_file_content(file_id, business_id)
+    if row is None:
+        return False
+    db.execute("DELETE FROM business_files WHERE id = ? AND business_id = ?", (file_id, business_id))
+    return True
+
+
 # ---------------------------------------------------------------------------
 # AI settings (normalization result)
 # ---------------------------------------------------------------------------

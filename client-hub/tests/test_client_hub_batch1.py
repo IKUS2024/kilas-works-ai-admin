@@ -298,11 +298,13 @@ def test_cancel_never_hard_deletes_historical_record():
 # 4. ACTIVATION CHECKLIST
 # ---------------------------------------------------------------------------
 def test_activation_checklist_has_six_items_in_order():
+    """Extended in Batch 2/3 with a "template" health item — this now checks the current,
+    intentional 7-item order rather than the pre-extension 6."""
     reset_db()
     uid, bid = _make_owner_and_business("Biz Checklist", "checklist@test.com", package="AI_ADMIN_PRO")
     checklist = payment_service.build_activation_checklist(bid)
     keys = [c["key"] for c in checklist]
-    assert keys == ["data_bisnis", "knowledge", "payment", "whatsapp", "test_ai", "active"]
+    assert keys == ["data_bisnis", "knowledge", "payment", "whatsapp", "template", "test_ai", "active"]
     print("test_activation_checklist_has_six_items_in_order OK")
 
 

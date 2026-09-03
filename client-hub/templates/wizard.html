@@ -15,11 +15,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if step == 'basics' %}
     <h2>Data Dasar Bisnis</h2>
-    <label>Nama bisnis</label>
+    <label>Nama bisnis <span class="muted" style="font-size:12px;">(Wajib)</span></label>
     <input type="text" name="business_name" value="{{ profile.business_name or business.business_name or '' }}" required>
-    <label>Kategori (mis. Kedai kopi, Klinik gigi, Fotografi)</label>
+    <label>Kategori (mis. Kedai kopi, Klinik gigi, Fotografi) <span class="muted" style="font-size:12px;">(Wajib)</span></label>
     <input type="text" name="category" value="{{ profile.category or '' }}">
-    <label>Deskripsi singkat</label>
+    <label>Deskripsi singkat <span class="muted" style="font-size:12px;">(Opsional)</span></label>
     <textarea name="short_description" id="field_short_description">{{ profile.short_description or '' }}</textarea>
     <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="short_description" data-target="field_short_description">
       <button type="button" class="btn secondary ai-help-btn">Bantu dengan AI</button>
@@ -40,7 +40,7 @@
         </div>
       </div>
     </div>
-    <label>Negara</label>
+    <label>Negara <span class="muted" style="font-size:12px;">(Opsional)</span></label>
     <input type="text" name="country" value="{{ profile.country or 'Indonesia' }}">
     <label>Timezone</label>
     <input type="text" name="timezone" value="{{ profile.timezone or 'Asia/Jakarta' }}">
@@ -48,7 +48,7 @@
     <input type="text" name="address" value="{{ profile.address or '' }}">
     <label>Nomor telepon bisnis</label>
     <input type="text" name="business_phone" value="{{ profile.business_phone or '' }}">
-    <label>Nama owner</label>
+    <label>Nama owner <span class="muted" style="font-size:12px;">(Wajib)</span></label>
     <input type="text" name="owner_name" value="{{ profile.owner_name or '' }}">
 
   {% elif step == 'services' %}
@@ -162,23 +162,23 @@
 
   {% elif step == 'style' %}
     <h2>Gaya AI Admin</h2>
-    <label>Gaya bahasa AI</label>
+    <label>Gaya bahasa AI <span class="muted" style="font-size:12px;">(Opsional)</span></label>
     <select name="tone">
       {% for t in ['friendly','formal','casual-professional'] %}
         <option value="{{ t }}" {{ 'selected' if profile.tone == t else '' }}>{{ t|humanize_tone }}</option>
       {% endfor %}
     </select>
-    <label>Bahasa utama</label>
+    <label>Bahasa utama <span class="muted" style="font-size:12px;">(Wajib)</span></label>
     <select name="primary_language">
       <option value="id" {{ 'selected' if profile.primary_language == 'id' else '' }}>Bahasa Indonesia</option>
       <option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>English</option>
     </select>
-    <label>Bahasa tambahan</label>
+    <label>Bahasa tambahan <span class="muted" style="font-size:12px;">(Opsional)</span></label>
     <select name="additional_languages" multiple>
       <option value="id" {{ 'selected' if 'id' in (profile.additional_languages or []) else '' }}>Bahasa Indonesia</option>
       <option value="en" {{ 'selected' if 'en' in (profile.additional_languages or []) else '' }}>English</option>
     </select>
-    <label>Sapaan untuk pelanggan</label>
+    <label>Sapaan untuk pelanggan <span class="muted" style="font-size:12px;">(Wajib)</span></label>
     <input type="text" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}">
 
   {% elif step == 'upload' %}
@@ -203,7 +203,14 @@
             <td>{{ f.original_filename }}</td>
             <td>{{ (f.size_bytes / 1024)|round(1) }} KB</td>
             <td class="muted">{{ f.created_at|humanize_timestamp }}</td>
-            <td><a href="{{ url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a></td>
+            <td>
+              <a href="{{ url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a>
+              &nbsp;
+              <form method="post" action="{{ url_for('client.delete_file', business_id=business.id, file_id=f.id) }}" class="inline" onsubmit="return confirm('Hapus file ini? Tindakan ini tidak bisa dibatalkan.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn small danger" type="submit">Hapus</button>
+              </form>
+            </td>
           </tr>
         {% endfor %}
       </table>

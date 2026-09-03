@@ -7,6 +7,7 @@ quotation_service.approve_quotation() has run. There is no other path to APPROVE
 project, so a custom project can never reach checkout before its quotation is approved.
 """
 import json
+import os
 
 import db
 import repo
@@ -355,15 +356,20 @@ def has_verified_ai_admin_payment(business_id):
 
 
 def build_activation_checklist(business_id):
-    """Activation checklist (Batch 1, Section 4): Data Bisnis / Knowledge / Payment / WhatsApp /
-    Test AI / Active. Uses ONLY existing tracked state — no new table, no duplicate source of
-    truth. Returns an ordered list of {"key", "label", "done"} dicts.
+    """Activation checklist (Batch 1 Section 4, extended in Batch 2/3 Section B with "Template"
+    health + a human-readable next_action per item). Uses ONLY existing tracked state — no new
+    table, no duplicate source of truth. Returns an ordered list of
+    {"key", "label", "done", "next_action"} dicts — next_action is None when done=True.
 
     "Test AI" has no dedicated tracked completion state anywhere in this codebase (there's no
     "customer clicked Test AI" flag) — marking it done once WhatsApp is CONNECTED is the closest
     honest proxy available (by that point the sandbox at /business/<id>/simulate has been
     reachable for a while), documented here explicitly rather than silently inventing a new
-    tracking mechanism just for this checklist."""
+    tracking mechanism just for this checklist.
+
+    "Template" reuses the EXACT SAME tenant-scoped resolver the real send path uses
+    (wa_inbox_shared.resolve_reengagement_template_config_for_tenant) — this checklist item can
+    never drift from what would actually be used on a real send, since it's the same function."""
     business = repo.get_business(business_id)
     onboarding = repo.get_onboarding_status(business_id) or {}
     ai_settings = repo.get_ai_settings(business_id) or {}
@@ -372,11 +378,29 @@ def build_activation_checklist(business_id):
     payment_done = (business["package"] in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
                     and has_verified_ai_admin_payment(business_id))
     whatsapp_done = bool(business.get("whatsapp_connected"))
-    return [
-        {"key": "data_bisnis", "label": "Data Bisnis", "done": data_bisnis_done},
-        {"key": "knowledge", "label": "Knowledge (AI Setup)", "done": ai_settings.get("ai_status") == "DONE"},
-        {"key": "payment", "label": "Payment", "done": payment_done},
-        {"key": "whatsapp", "label": "WhatsApp", "done": whatsapp_done},
-        {"key": "test_ai", "label": "Test AI", "done": whatsapp_done},
-        {"key": "active", "label": "Active", "done": business["status"] == "ACTIVE"},
+    knowledge_done = ai_settings.get("ai_status") == "DONE"
+
+    import wa_inbox_shared
+    tenant_whatsapp_config = repo.get_whatsapp_config(business_id)
+    template_name, _lang = wa_inbox_shared.resolve_reengagement_template_config_for_tenant(
+        tenant_whatsapp_config, os.environ.get,
+    )
+    template_done = bool(template_name)
+
+    items = [
+        {"key": "data_bisnis", "label": "Data Bisnis", "done": data_bisnis_done,
+         "next_action": None if data_bisnis_done else "Lengkapi semua langkah di wizard setup."},
+        {"key": "knowledge", "label": "Knowledge (AI Setup)", "done": knowledge_done,
+         "next_action": None if knowledge_done else "Jalankan AI Setup setelah Data Bisnis lengkap."},
+        {"key": "payment", "label": "Payment", "done": payment_done,
+         "next_action": None if payment_done else "Selesaikan pembayaran paket AI Admin & tunggu verifikasi admin."},
+        {"key": "whatsapp", "label": "WhatsApp", "done": whatsapp_done,
+         "next_action": None if whatsapp_done else "Hubungkan nomor WhatsApp di halaman admin."},
+        {"key": "template", "label": "Template Re-engagement", "done": template_done,
+         "next_action": None if template_done else "Konfigurasi template WhatsApp resmi (per-tenant atau fallback global)."},
+        {"key": "test_ai", "label": "Test AI", "done": whatsapp_done,
+         "next_action": None if whatsapp_done else "Hubungkan WhatsApp dulu, lalu coba Test AI."},
+        {"key": "active", "label": "Active", "done": business["status"] == "ACTIVE",
+         "next_action": None if business["status"] == "ACTIVE" else "Lengkapi semua langkah di atas, lalu Activate."},
     ]
+    return items

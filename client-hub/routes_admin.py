@@ -1025,6 +1025,7 @@ def platform_inbox_send_template():
             "bot_internal_bridge_unavailable": "Koneksi internal Client Hub → bot belum dikonfigurasi.",
             "bot_internal_bridge_network_error": "Bot WhatsApp sedang tidak terjangkau dari Client Hub. Coba lagi sebentar.",
             "bot_internal_bridge_timeout": "Bot WhatsApp terlalu lama merespons. Coba sekali lagi setelah bot sudah Live.",
+            "bot_internal_bridge_http_429": "Koneksi ke bot sempat sibuk. Coba lagi sebentar lagi.",
         }.get(reason)
         if not friendly and str(reason).startswith("bot_internal_bridge_http_"):
             detail = str(reason).replace("bot_internal_bridge_http_", "HTTP ", 1)

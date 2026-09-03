@@ -10,11 +10,19 @@
   <h2>Progres Aktivasi</h2>
   <div style="display:flex;flex-wrap:wrap;gap:10px;">
     {% for item in activation_checklist %}
-      <span class="pill {{ 'ACTIVE' if item.done else '' }}" style="display:flex;align-items:center;gap:4px;">
+      <span class="pill {{ 'ACTIVE' if item.done else '' }}" style="display:flex;align-items:center;gap:4px;" title="{{ item.next_action or '' }}">
         {{ '✓' if item.done else '○' }} {{ item.label }}
       </span>
     {% endfor %}
   </div>
+  {% set pending_items = activation_checklist|selectattr('done', 'equalto', False)|list %}
+  {% if pending_items %}
+    <ul style="margin-top:10px;font-size:13px;color:var(--text-dim);">
+      {% for item in pending_items %}
+        <li><strong>{{ item.label }}:</strong> {{ item.next_action }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 </div>
 {% endif %}
 

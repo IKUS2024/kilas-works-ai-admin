@@ -14,6 +14,7 @@ Business; PostgreSQL is never presented as a chat viewer.
 """
 from datetime import datetime, timezone
 import os
+import time
 from urllib.parse import urlparse
 
 import requests
@@ -304,16 +305,48 @@ def send_template_reply(customer_phone, params=None):
     if not endpoint or not secret:
         return False, "bot_internal_bridge_unavailable"
     template_endpoint = endpoint.replace("/internal/platform-cs-reply", "/internal/platform-cs-template-reply")
+    payload = {
+        "customer_phone": phone, "template_name": template_name,
+        "language_code": language_code, "params": params or [],
+    }
+    return _post_to_bot_bridge(template_endpoint, payload, secret)
+
+
+def _post_to_bot_bridge(endpoint, payload, secret):
+    """Production fix (Batch 2/3, Section C — real incident: Client Hub -> AI Admin internal
+    bridge occasionally returns HTTP 429 on a template send). Root cause, established by
+    exhaustive source-level tracing rather than guessed:
+      - NEITHER Client Hub NOR the bot application code contains any rate-limiting logic on this
+        internal, shared-secret-authenticated bridge route (confirmed by exhaustive search —
+        ruled out by direct evidence, not assumed).
+      - The bot's own send_whatsapp_template_message() already correctly catches any Meta Graph
+        API error (including a 429 FROM Meta) and converts it to a clean 502, never passing a raw
+        429 through as the route's own response (confirmed by reading that function directly —
+        also ruled out by direct evidence).
+    These two are the only sources that could exist WITHIN this codebase's own code, and both are
+    ruled out. The remaining source is therefore infrastructure OUTSIDE this codebase — something
+    no code change here can eliminate at the source, since it isn't application code at all. This
+    fix does NOT identify or assume which specific piece of infrastructure (hosting platform,
+    proxy, CDN, or otherwise) is responsible — no direct evidence was available from within this
+    codebase to determine that, and none is claimed here.
+
+    NO automatic retry: since the unidentified infrastructure component's exact behavior is
+    unknown, it would be an unverified ASSUMPTION to treat a 429 from it as guaranteed "rejected
+    before being acted upon" the way a 429 from a conventional rate limiter normally would be.
+    This bridge has no persistent idempotency/deduplication mechanism for outgoing template sends
+    (confirmed by exhaustive search — the only dedup logic in this codebase is
+    is_duplicate_event()/PROCESSED_MESSAGE_IDS for INCOMING webhook messages, which does not apply
+    here) — so a blind retry could duplicate a real WhatsApp template send to the customer, which
+    is worse than a manual retry. The failure is surfaced as a clean, human-readable error instead
+    (see routes_admin.py's platform_inbox_send_template()); the admin can safely press "Kirim
+    Template & Lanjutkan" again manually — Human Takeover stays active and no state is lost by not
+    retrying automatically."""
+    timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
+    request_timeout = max(15.0, min(timeout_seconds, 120.0))
     try:
-        timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
         resp = requests.post(
-            template_endpoint,
-            json={
-                "customer_phone": phone, "template_name": template_name,
-                "language_code": language_code, "params": params or [],
-            },
-            headers={"X-Internal-Service-Secret": secret},
-            timeout=max(15.0, min(timeout_seconds, 120.0)),
+            endpoint, json=payload, headers={"X-Internal-Service-Secret": secret},
+            timeout=request_timeout,
         )
     except requests.exceptions.Timeout:
         print("Platform Inbox template reply bridge timeout — bot belum merespons tepat waktu.")
@@ -321,6 +354,7 @@ def send_template_reply(customer_phone, params=None):
     except requests.exceptions.RequestException as exc:
         print(f"Platform Inbox template reply bridge network error: {type(exc).__name__}")
         return False, "bot_internal_bridge_network_error"
+
     if resp.status_code != 200:
         return False, f"bot_internal_bridge_http_{resp.status_code}"
     try:
