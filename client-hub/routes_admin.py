@@ -428,6 +428,24 @@ def download_file(business_id, file_id):
     )
 
 
+@admin_bp.route("/settings/official-links", methods=["GET", "POST"])
+@security.admin_required
+def official_links_admin():
+    """Unified AI Brain v2, Section 1 — admin-editable source of truth for Kilas Works' own
+    official links, consumed by the production SYSTEM_PROMPT (see app.py's
+    _build_official_links_note_safe()) instead of being hardcoded/duplicated inside the prompt
+    string. Reuses repo.get_official_links()/set_platform_setting() — the SAME functions any
+    future admin surface for this should call, never a second config path."""
+    if request.method == "POST":
+        for key in ("landing_page", "app", "instagram", "demo"):
+            value = (request.form.get(key) or "").strip()
+            if value:
+                repo.set_platform_setting(f"official_link_{key}", value)
+        flash("Link resmi diperbarui.", "success")
+        return redirect(url_for("admin.official_links_admin"))
+    return render_template("admin_official_links.html", links=repo.get_official_links())
+
+
 @admin_bp.route("/catalog")
 @security.admin_required
 def catalog_admin():

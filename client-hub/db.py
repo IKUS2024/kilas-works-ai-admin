@@ -242,6 +242,8 @@ MIGRATIONS = [
      "0018_tenant_reengagement_template_postgres.sql"),
     ("0019_payment_proof_file_hash_sqlite.sql",
      "0019_payment_proof_file_hash_postgres.sql"),
+    ("0020_platform_settings_sqlite.sql",
+     "0020_platform_settings_postgres.sql"),
 ]
 
 

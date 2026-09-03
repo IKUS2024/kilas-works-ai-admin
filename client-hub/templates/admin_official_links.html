@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Link Resmi — Admin{% endblock %}
+{% block content %}
+<h1>Link Resmi Kilas Works</h1>
+<p class="muted">Link ini dipakai AI Admin (WhatsApp Kilas Works) sebagai satu sumber kebenaran — ubah di sini,
+  otomatis kepakai di percakapan, tanpa perlu ubah kode/prompt.</p>
+<div class="card">
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Landing Page</label>
+    <input type="text" name="landing_page" value="{{ links.landing_page }}">
+    <label>Client Hub (app.kilasworks.id)</label>
+    <input type="text" name="app" value="{{ links.app }}">
+    <label>Instagram</label>
+    <input type="text" name="instagram" value="{{ links.instagram }}">
+    <label>Demo AI Admin</label>
+    <input type="text" name="demo" value="{{ links.demo }}">
+    <div style="margin-top:10px;"><button class="btn" type="submit">Simpan</button></div>
+  </form>
+</div>
+{% endblock %}

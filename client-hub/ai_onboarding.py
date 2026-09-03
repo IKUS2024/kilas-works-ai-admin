@@ -20,8 +20,34 @@ was just re-audited as clean in the main bot's Final Launch QA cycle).
 import json
 import os
 import re
+import sys
 
 import requests
+
+# Unified AI Brain v2 — Test AI must use the SAME shared core behavior text the real production/
+# tenant bot uses (see ../ai_brain_shared.py's own docstring for the full architecture). This repo
+# is deployed with client-hub/ as a subdirectory of the same checkout the bot runs from (the bot
+# itself already imports client-hub/*.py modules directly via an equivalent sys.path bridge, in
+# the opposite direction — see app.py's _CLIENT_HUB_AVAILABLE import block), so this mirrors that
+# existing, already-proven pattern rather than inventing a new one.
+#
+# Deliberately sys.path.append(), NOT insert(0, ...): appending puts the repo root LAST in the
+# search order, so any bare-name module client-hub's own code already imports (routes_admin,
+# repo, security, etc.) is still found in client-hub/'s own directory first, exactly as before
+# this change — only a genuinely new top-level name (ai_brain_shared) that doesn't already exist
+# in client-hub/ ever resolves from the repo root. Prepending was tried first during development
+# and found to risk exactly this kind of bare-name collision if the repo root ever contains a
+# same-named file — appending avoids that risk entirely.
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from ai_brain_shared import AI_ADMIN_CORE_BEHAVIOR, AI_ADMIN_BRAIN_VERSION
+except ImportError:
+    # Fails closed to the previous, safe (if less rich) simulation-only behavior rather than
+    # crashing Test AI entirely if the shared module isn't reachable for any reason (e.g. a
+    # deployment that genuinely only ships the client-hub/ subdirectory on its own) — see
+    # simulate_customer_reply()'s own handling of this fallback below.
+    AI_ADMIN_CORE_BEHAVIOR = ""
+    AI_ADMIN_BRAIN_VERSION = "unavailable"
 
 import feature_flags
 
@@ -133,17 +159,24 @@ ATURAN MUTLAK:
    sama, tipe yang sama) — kalau ada field yang datanya jadi tidak lengkap gara-gara perbaikan ini, isi
    null / array kosong untuk field itu, JANGAN mengarang isinya."""
 
-SIMULATION_SYSTEM_PROMPT_TEMPLATE = """Kamu adalah SIMULASI AI Admin WhatsApp untuk bisnis "{business_name}" ({category}), dipakai HANYA untuk mode "Test AI" oleh calon client Kilas Works sebelum tenant ini beneran aktif.
+SIMULATION_SYSTEM_PROMPT_TEMPLATE = """Kamu adalah AI Admin WhatsApp untuk bisnis "{business_name}" ({category}) --
+sesi ini adalah mode "Test AI" di Client Hub: SANDBOX, dipakai calon client Kilas Works untuk coba
+sebelum tenant ini beneran aktif. Kamu pakai OTAK & GAYA YANG SAMA PERSIS dengan AI Admin yang beneran
+akan aktif di WhatsApp produksi tenant ini nanti -- bedanya HANYA di sini tidak ada pesan WhatsApp asli
+yang terkirim, tidak ada appointment/pembayaran asli yang dibuat.
 
-Data bisnis (draft, bisa saja belum lengkap):
+""" + AI_ADMIN_CORE_BEHAVIOR + """
+
+DATA BISNIS UNTUK SESI TEST AI INI (draft, bisa saja belum lengkap):
 {config_text}
 
-ATURAN:
-- Ini SIMULASI, bukan percakapan customer asli. JANGAN pernah bilang pesan ini "sudah dikirim ke WhatsApp asli" atau semacamnya.
-- Jawab pakai bahasa & tone sesuai data di atas ("primary language" = {primary_language}), sapaan customer pakai "{salutation}" kalau bahasanya Indonesia.
-- JANGAN PERNAH mengarang harga/jam operasional/kebijakan/alamat yang tidak ada di data di atas — kalau ditanya sesuatu yang datanya belum ada, jawab jujur bahwa informasi itu belum tersedia dan perlu dilengkapi client di tahap onboarding.
-- Jawab natural & ringkas seperti admin WhatsApp asli, bukan seperti membaca database.
-- Auto-detect bahasa pesan customer dan balas di bahasa yang sama kalau bahasa itu ada di daftar languages di atas; kalau tidak ada di daftar, tetap balas pakai primary language."""
+ATURAN TAMBAHAN KHUSUS TEST AI:
+- Ini SIMULASI/sandbox -- JANGAN pernah bilang pesan ini "sudah dikirim ke WhatsApp asli" atau semacamnya.
+- Bahasa utama bisnis ini = {primary_language}, sapaan customer pakai "{salutation}" kalau bahasanya
+  Indonesia (mengikuti aturan auto-detect bahasa di atas).
+- JANGAN PERNAH mengarang harga/jam operasional/kebijakan/alamat yang tidak ada di data di atas -- kalau
+  ditanya sesuatu yang datanya belum ada, jawab jujur bahwa informasi itu belum tersedia dan perlu
+  dilengkapi client di tahap onboarding."""
 
 
 def _extract_json_object(text):

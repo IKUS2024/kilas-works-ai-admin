@@ -58,6 +58,51 @@ def set_trusted_owner_phone(business_id, raw_phone):
                (normalized, _now(), business_id))
 
 
+# Unified AI Brain v2, Section 1 — official links (landing page, app.kilasworks.id, Instagram,
+# demo/portfolio) admin-editable source of truth. Every AI surface that needs Kilas Works' own
+# official links (currently: SYSTEM_PROMPT only — a tenant's own customers have no use for Kilas
+# Works' links) reads through get_platform_setting(), never hardcodes a URL in a prompt string.
+OFFICIAL_LINK_DEFAULTS = {
+    "official_link_landing_page": "https://kilasworks.id",
+    "official_link_app": "https://app.kilasworks.id",
+    "official_link_instagram": "https://instagram.com/kilasworks",
+    "official_link_demo": "https://demo.kilasworks.id",
+}
+
+
+def get_platform_setting(key, default=None):
+    row = db.query_one("SELECT value FROM platform_settings WHERE key = ?", (key,))
+    if row is not None and row["value"]:
+        return row["value"]
+    return OFFICIAL_LINK_DEFAULTS.get(key, default)
+
+
+def set_platform_setting(key, value):
+    """Upsert, portable across SQLite/Postgres without relying on either's native ON CONFLICT
+    syntax (matching this codebase's existing preference for explicit, boring, backend-agnostic
+    SQL over backend-specific upsert syntax elsewhere in repo.py)."""
+    existing = db.query_one("SELECT key FROM platform_settings WHERE key = ?", (key,))
+    if existing:
+        db.execute("UPDATE platform_settings SET value = ?, updated_at = ? WHERE key = ?",
+                   (value, _now(), key))
+    else:
+        db.execute("INSERT INTO platform_settings (key, value, updated_at) VALUES (?, ?, ?)",
+                   (key, value, _now()))
+
+
+def get_official_links():
+    """Returns {"landing_page": ..., "app": ..., "instagram": ..., "demo": ...} — always fully
+    populated (falls back to OFFICIAL_LINK_DEFAULTS per-key), so a caller never has to
+    null-check individual links. This is the ONE function every AI surface/admin page should call
+    for these — never read platform_settings directly, never hardcode a URL elsewhere."""
+    return {
+        "landing_page": get_platform_setting("official_link_landing_page"),
+        "app": get_platform_setting("official_link_app"),
+        "instagram": get_platform_setting("official_link_instagram"),
+        "demo": get_platform_setting("official_link_demo"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Users / auth
 # ---------------------------------------------------------------------------
