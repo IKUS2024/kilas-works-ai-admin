@@ -68,13 +68,25 @@
 
 {% if audit_trail %}
 <div class="card">
-  <h2>Riwayat (Audit Trail)</h2>
-  <table>
-    <tr><th>Waktu</th><th>Aksi</th><th>Detail</th></tr>
+  <h2>Riwayat Aktivitas</h2>
+  <div class="audit-log-list">
     {% for a in audit_trail %}
-    <tr><td>{{ a.created_at }}</td><td>{{ a.action|humanize_audit_action }}</td><td>{{ a.detail|humanize_audit_detail }}</td></tr>
+      <div class="audit-log-entry">
+        <div class="audit-log-time">{{ a.created_at|humanize_timestamp }}</div>
+        <div class="audit-log-action">{{ a.action|humanize_audit_action }}</div>
+        {% set humanized_detail = a.detail|humanize_audit_detail %}
+        {% if humanized_detail and humanized_detail != '-' %}
+          <div class="audit-log-detail">{{ humanized_detail }}</div>
+        {% endif %}
+        {% if a.detail|looks_technical %}
+          <details class="audit-log-raw">
+            <summary>Lihat detail</summary>
+            <code>{{ a.detail }}</code>
+          </details>
+        {% endif %}
+      </div>
     {% endfor %}
-  </table>
+  </div>
 </div>
 {% endif %}
 {% endblock %}

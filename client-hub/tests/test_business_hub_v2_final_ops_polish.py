@@ -297,11 +297,12 @@ def test_internal_rate_never_exposed_on_public_talent_list():
 # SERVICE CATALOG ADMIN MANAGEMENT
 # ---------------------------------------------------------------------------
 
-def test_catalog_admin_page_is_read_only_no_edit_route():
-    """Business rule change: catalog editing has been REMOVED from the Admin Dashboard — the
-    official catalog is now a manually-maintained document/file. The admin catalog page itself
-    stays as a READ-ONLY status view (name/category/price/active/last-updated); the edit ROUTE is
-    gone entirely (404), and the page must never render an edit form/input/submit button."""
+def test_catalog_admin_edit_restored_for_safe_categories():
+    """Business rule REVERSAL (UX pass — explicitly reverses the earlier "catalog editing
+    removed" decision, at the user's own later explicit request): routine editing is restored for
+    generic (non-AI_ADMIN/TALENT) categories, using the exact same single service_catalog source
+    of truth every other consumer (/services, project creation, the bot's live knowledge block)
+    already reads from — never a second, parallel catalog."""
     reset_db()
     admin = _make_admin()
     client = fresh_client()
@@ -309,20 +310,20 @@ def test_catalog_admin_page_is_read_only_no_edit_route():
     item = catalog_service.get_catalog_item("website_landing_page")
 
     resp = client.post(f"/admin/catalog/{item['id']}/update", data={
-        "name": "Should Not Apply", "price_amount": "1", "is_active": "on",
+        "csrf_token": "x", "name": "Landing Page Diedit", "price_amount": "850000",
+        "price_unit": "one time", "pricing_mode": "FIXED_PRICE", "is_active": "on",
     })
-    assert resp.status_code == 404, "the catalog edit route must no longer exist"
-    unchanged = catalog_service.get_catalog_item("website_landing_page")
-    assert unchanged["name"] == item["name"], "a 404'd edit attempt must never silently apply"
+    assert resp.status_code == 302
+    updated = catalog_service.get_catalog_item("website_landing_page")
+    assert updated["name"] == "Landing Page Diedit"
+    assert updated["price_amount"] == 850000
 
     page = client.get("/admin/catalog")
     assert page.status_code == 200
     body = page.data.decode()
-    assert "<form" not in body.lower() or "update" not in body.lower(), \
-        "the catalog page must not render an edit form"
-    assert "<input" not in body.lower(), "the catalog page must not render any editable input"
-    assert item["name"] in body, "the catalog page must still show existing items (read-only)"
-    print("test_catalog_admin_page_is_read_only_no_edit_route OK")
+    assert "Landing Page Diedit" in body
+    assert "<form" in body.lower(), "the restored catalog page must render edit/create forms"
+    print("test_catalog_admin_edit_restored_for_safe_categories OK")
 
 
 def test_catalog_seeding_never_overwrites_admin_edits_on_restart():
@@ -390,24 +391,25 @@ def test_catalog_custom_quote_never_carries_a_leftover_price():
     print("test_catalog_custom_quote_never_carries_a_leftover_price OK")
 
 
-def test_catalog_route_no_longer_exists_service_layer_validation_still_direct():
-    """The edit ROUTE's graceful-handling behavior is obsolete now that the route is gone
-    (404, never reachable at all) — the underlying service-layer validation this used to exercise
-    through HTTP is still directly covered by test_catalog_invalid_pricing_state_rejected_fixed_
-    price_without_amount and test_catalog_custom_quote_never_carries_a_leftover_price above, which
-    call catalog_service.update_catalog_item() directly and are unaffected by this change."""
+def test_catalog_route_rejects_invalid_pricing_state_via_flash_not_crash():
+    """The edit ROUTE is restored (UX pass reversal — see catalog_service.py's own module notes).
+    An invalid pricing-state request (FIXED_PRICE with no amount) must be rejected gracefully via
+    a flash + redirect, never a raw 500/crash, and must never mutate the existing row — matching
+    the same InvalidCatalogState guard update_catalog_item() itself already enforces (see
+    test_catalog_invalid_pricing_state_rejected_fixed_price_without_amount above, which covers the
+    service layer directly; this covers the HTTP route wrapping it)."""
     reset_db()
     admin = _make_admin()
     client = fresh_client()
     _login_admin(client, admin)
     item = catalog_service.get_catalog_item("custom_video")
     resp = client.post(f"/admin/catalog/{item['id']}/update", data={
-        "pricing_mode": "FIXED_PRICE", "price_amount": "", "price_unit": "",
+        "csrf_token": "x", "pricing_mode": "FIXED_PRICE", "price_amount": "", "price_unit": "",
     })
-    assert resp.status_code == 404
+    assert resp.status_code == 302, "an invalid request must redirect gracefully, never crash"
     reloaded = catalog_service.get_catalog_item("custom_video")
-    assert reloaded["pricing_mode"] == "CUSTOM_QUOTE", "a 404'd request must never mutate data"
-    print("test_catalog_route_no_longer_exists_service_layer_validation_still_direct OK")
+    assert reloaded["pricing_mode"] == "CUSTOM_QUOTE", "a rejected request must never mutate data"
+    print("test_catalog_route_rejects_invalid_pricing_state_via_flash_not_crash OK")
 
 
 def test_historical_transaction_price_unchanged_after_catalog_price_update():
@@ -786,13 +788,13 @@ if __name__ == "__main__":
     test_stored_image_serving_rejects_unknown_asset_id()
     test_internal_rate_never_exposed_on_public_talent_list()
 
-    test_catalog_admin_page_is_read_only_no_edit_route()
+    test_catalog_admin_edit_restored_for_safe_categories()
     test_catalog_seeding_never_overwrites_admin_edits_on_restart()
     test_catalog_activate_deactivate()
     test_catalog_display_order_respected_in_active_listing()
     test_catalog_invalid_pricing_state_rejected_fixed_price_without_amount()
     test_catalog_custom_quote_never_carries_a_leftover_price()
-    test_catalog_route_no_longer_exists_service_layer_validation_still_direct()
+    test_catalog_route_rejects_invalid_pricing_state_via_flash_not_crash()
     test_historical_transaction_price_unchanged_after_catalog_price_update()
 
     test_action_center_whatsapp_waiting_connection_count()

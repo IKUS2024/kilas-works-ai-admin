@@ -51,6 +51,71 @@
   .steps span.done { color:var(--green); }
   .needs-review { color: var(--yellow); font-size:12px; }
   footer { text-align:center; color:var(--text-dim); font-size:12px; padding:20px; }
+
+  /* Audit Log — human-readable cards (Section 1/Q/R/S/T/U of the UX pass) */
+  .audit-log-list { display:flex; flex-direction:column; gap:10px; }
+  .audit-log-entry { padding:10px 0; border-bottom:1px solid var(--border); }
+  .audit-log-entry:last-child { border-bottom:none; }
+  .audit-log-time { font-size:12px; color:var(--text-dim); }
+  .audit-log-action { font-size:14px; font-weight:600; margin-top:2px; }
+  .audit-log-detail { font-size:13px; color:var(--text-dim); margin-top:2px; }
+  .audit-log-raw { margin-top:6px; font-size:12px; color:var(--text-dim); }
+  .audit-log-raw summary { cursor:pointer; color:var(--orange); }
+  .audit-log-raw code { display:block; margin-top:4px; word-break:break-all; white-space:pre-wrap; }
+
+  /* Mobile/tablet responsive pass (Section N/O/P) — 360/390/430px phones, and tablet. Kept
+     CSS-only (no template markup changes needed): tables scroll horizontally in place rather
+     than ever forcing the whole page to overflow sideways, nav links wrap onto their own row
+     instead of getting clipped, and tap targets grow enough to comfortably hit with a thumb. The
+     dark/orange visual identity is untouched — only spacing/layout adapts. */
+  @media (max-width: 900px) {
+    .wrap { padding: 20px 14px 48px; }
+  }
+  @media (max-width: 600px) {
+    .topbar { flex-direction:column; align-items:flex-start; gap:8px; padding:12px 14px; }
+    .topbar nav { display:flex; flex-wrap:wrap; gap:4px 12px; }
+    .topbar nav a { margin-left:0; }
+    .wrap { padding: 16px 12px 40px; }
+    .card { padding:16px; border-radius:10px; }
+    h1 { font-size:19px; }
+    h2 { font-size:16px; }
+    /* Tables: horizontal scroll WITHIN the table itself, never the whole page — this works with
+       every existing <table> markup unchanged, no wrapper div required anywhere. */
+    table { display:block; overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch; }
+    th, td { padding:8px; }
+    /* Comfortable tap targets on narrow screens — deliberately NOT forcing width:100% on every
+       .btn (many buttons live inside table cells that already scroll horizontally; forcing full
+       width there would look broken) — min-height alone already meaningfully improves tap
+       comfort without any layout risk. A standalone primary action (the common case: a lone
+       <a class="btn"> outside a table/form-row) still benefits from more presence on a narrow
+       screen, so that ONE common pattern is targeted specifically instead of a blanket rule. */
+    .btn, .btn.small, input, select, textarea, button { min-height:38px; }
+    .card > a.btn:only-child { display:block; width:100%; text-align:center; }
+    form.inline { display:inline-block; margin:0 6px 6px 0; }
+    /* Button groups that are explicitly flex-wrap already (most action rows in this app) stack
+       naturally; this just ensures they never get clipped/overlapped. */
+    div[style*="display:flex"] { flex-wrap: wrap; }
+  }
+
+  /* Reusable "Bantu dengan AI" writing helper (UX pass, Section A) — ONE set of classes shared by
+     every eligible field, driven by ai-helper.js below via data-* attributes rather than one-off
+     markup/JS per field. */
+  .ai-help-wrap { margin-top:6px; }
+  .ai-help-btn { font-size:12px; padding:4px 10px; }
+  .ai-help-menu { display:none; margin-top:8px; padding:10px; background:var(--bg-soft); border:1px solid var(--border); border-radius:8px; flex-wrap:wrap; gap:6px; }
+  .ai-help-menu.open { display:flex; }
+  .ai-help-menu button { font-size:12px; padding:5px 10px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; }
+  .ai-help-menu button:hover { border-color:var(--orange); color:var(--orange); }
+  .ai-help-status { display:none; margin-top:8px; font-size:13px; color:var(--text-dim); }
+  .ai-help-status.open { display:block; }
+  .ai-help-preview { display:none; margin-top:8px; padding:10px; background:var(--bg-soft); border:1px solid var(--orange); border-radius:8px; }
+  .ai-help-preview.open { display:block; }
+  .ai-help-preview-text { font-size:14px; white-space:pre-wrap; margin:0 0 10px; }
+  .ai-help-preview-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  @media (max-width: 600px) {
+    .ai-help-menu { flex-direction:column; }
+    .ai-help-menu button, .ai-help-preview-actions .btn { width:100%; }
+  }
 </style>
 </head>
 <body>
@@ -87,5 +152,180 @@
   {% block content %}{% endblock %}
 </div>
 <footer>Kilas Works Client Hub — V1</footer>
+<script>
+// Reusable "Bantu dengan AI" writing helper (UX pass, Section A/D) — ONE module driving EVERY
+// eligible field via data-* attributes, so adding the helper to a new field elsewhere never needs
+// new JS, just the same markup pattern (see wizard.html's use of it). Talks to the existing
+// /business/<id>/ai-writing-help endpoint only; never touches the actual form field until the
+// customer explicitly clicks "Gunakan hasil".
+(function () {
+  function csrfToken() {
+    var el = document.querySelector('input[name="csrf_token"]');
+    return el ? el.value : '';
+  }
+
+  function humanAiError(status) {
+    // Never expose raw JSON/API error strings or provider/model names to the customer (Section C).
+    if (status === 502) return 'AI belum bisa membantu dari informasi yang tersedia. Coba lagi.';
+    return 'Terjadi kendala. Coba lagi.';
+  }
+
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.ai-help-btn');
+    if (btn) {
+      var wrap = btn.closest('.ai-help-wrap');
+      var menu = wrap.querySelector('.ai-help-menu');
+      menu.classList.toggle('open');
+      return;
+    }
+
+    var actionBtn = e.target.closest('.ai-help-menu button[data-action]');
+    if (actionBtn) {
+      var wrap2 = actionBtn.closest('.ai-help-wrap');
+      runWritingHelp(wrap2, actionBtn.getAttribute('data-action'));
+      return;
+    }
+
+    var acceptBtn = e.target.closest('.ai-help-accept');
+    if (acceptBtn) {
+      var wrap3 = acceptBtn.closest('.ai-help-wrap');
+      var target = document.getElementById(wrap3.getAttribute('data-target'));
+      target.value = wrap3.getAttribute('data-suggestion') || '';
+      wrap3.querySelector('.ai-help-preview').classList.remove('open');
+      return;
+    }
+
+    var cancelBtn = e.target.closest('.ai-help-cancel');
+    if (cancelBtn) {
+      var wrap4 = cancelBtn.closest('.ai-help-wrap');
+      wrap4.querySelector('.ai-help-preview').classList.remove('open');
+      // Original field is untouched — nothing to restore, since we never wrote to it.
+      return;
+    }
+  });
+
+  function runWritingHelp(wrap, action) {
+    var businessId = wrap.getAttribute('data-business-id');
+    var fieldType = wrap.getAttribute('data-field-type');
+    var targetEl = document.getElementById(wrap.getAttribute('data-target'));
+    var status = wrap.querySelector('.ai-help-status');
+    var preview = wrap.querySelector('.ai-help-preview');
+    var previewText = wrap.querySelector('.ai-help-preview-text');
+
+    preview.classList.remove('open');
+    status.textContent = 'Membuat saran...';
+    status.classList.add('open');
+
+    var body = new URLSearchParams();
+    body.set('csrf_token', csrfToken());
+    body.set('field_type', fieldType);
+    body.set('action', action);
+    body.set('current_text', targetEl.value || '');
+
+    fetch('/business/' + businessId + '/ai-writing-help', {
+      method: 'POST', body: body, headers: {'X-Requested-With': 'XMLHttpRequest'},
+    }).then(function (resp) {
+      if (!resp.ok) { throw {status: resp.status}; }
+      return resp.json();
+    }).then(function (data) {
+      status.classList.remove('open');
+      if (data.needs_more_info) {
+        status.textContent = data.needs_more_info;
+        status.classList.add('open');
+        return;
+      }
+      if (data.suggestion) {
+        previewText.textContent = data.suggestion;
+        wrap.setAttribute('data-suggestion', data.suggestion);
+        preview.classList.add('open');
+      }
+    }).catch(function (err) {
+      status.textContent = humanAiError(err && err.status);
+      status.classList.add('open');
+    });
+  }
+
+  // Smart FAQ Assistant (Section B) — same "never auto-save" principle: suggestions are shown as
+  // a list the customer picks from individually; only "Tambahkan" appends a line to the SAME
+  // faq_raw textarea the AI writing helper above also targets — the normal wizard form submit is
+  // still what actually persists it, nothing here writes to the database directly.
+  document.addEventListener('click', function (e) {
+    var suggestBtn = e.target.closest('#faq-suggest-btn');
+    if (suggestBtn) {
+      var panel = suggestBtn.closest('#faq-suggestions-panel');
+      var businessId = panel.getAttribute('data-business-id');
+      var status = panel.querySelector('#faq-suggest-status');
+      var list = panel.querySelector('#faq-suggest-list');
+      list.innerHTML = '';
+      status.textContent = 'Membuat saran...';
+      status.classList.add('open');
+
+      var body = new URLSearchParams();
+      body.set('csrf_token', csrfToken());
+
+      fetch('/business/' + businessId + '/ai-faq-suggestions', {
+        method: 'POST', body: body, headers: {'X-Requested-With': 'XMLHttpRequest'},
+      }).then(function (resp) {
+        if (!resp.ok) { throw {status: resp.status}; }
+        return resp.json();
+      }).then(function (data) {
+        status.classList.remove('open');
+        var suggestions = (data && data.suggestions) || [];
+        if (!suggestions.length) {
+          status.textContent = 'AI belum bisa membantu dari informasi yang tersedia.';
+          status.classList.add('open');
+          return;
+        }
+        suggestions.forEach(function (s) {
+          var card = document.createElement('div');
+          card.className = 'card';
+          card.style.marginBottom = '8px';
+          var answerText = s.answer
+            ? s.answer
+            : 'Jawaban belum tersedia — isi informasi terlebih dahulu.';
+          card.innerHTML =
+            '<p style="margin:0 0 4px;font-weight:600;">' + escapeHtml(s.question) + '</p>' +
+            '<p class="muted" style="margin:0 0 8px;">' + escapeHtml(answerText) + '</p>' +
+            '<button type="button" class="btn small faq-suggest-add">Tambahkan</button> ' +
+            '<button type="button" class="btn small secondary faq-suggest-skip">Lewati</button>';
+          card.setAttribute('data-question', s.question);
+          card.setAttribute('data-answer', s.answer || '');
+          list.appendChild(card);
+        });
+      }).catch(function (err) {
+        status.textContent = humanAiError(err && err.status);
+        status.classList.add('open');
+      });
+      return;
+    }
+
+    var addBtn = e.target.closest('.faq-suggest-add');
+    if (addBtn) {
+      var card2 = addBtn.closest('[data-question]');
+      var faqField = document.getElementById('field_faq_raw');
+      if (faqField) {
+        var q = card2.getAttribute('data-question');
+        var a = card2.getAttribute('data-answer');
+        var line = a ? (q + ' ' + a) : q;
+        faqField.value = (faqField.value ? faqField.value.replace(/\n+$/, '') + '\n' : '') + line + '\n';
+      }
+      card2.remove();
+      return;
+    }
+
+    var skipBtn = e.target.closest('.faq-suggest-skip');
+    if (skipBtn) {
+      skipBtn.closest('[data-question]').remove();
+      return;
+    }
+  });
+
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+})();
+</script>
 </body>
 </html>

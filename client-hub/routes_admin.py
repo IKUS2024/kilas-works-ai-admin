@@ -22,6 +22,7 @@ import security
 import file_utils
 import provisioning
 import catalog_service
+import pricing_config
 import display_labels
 import projects_repo
 import quotation_service
@@ -133,7 +134,14 @@ def review_business(business_id):
     ai_settings = repo.get_ai_settings(business_id)
     onboarding_status = repo.get_onboarding_status(business_id)
     missing_required = repo.required_fields_missing(business_id)
-    audit_log = repo.get_audit_log(business_id)
+    # Audit Log pagination (Section T: "do not dump an endless table") — ?audit_page=N in the URL,
+    # 20 per page, newest first (unchanged ordering) — never deletes/hides rows from the database,
+    # only how many render on one page load.
+    audit_page = request.args.get("audit_page", 1, type=int)
+    audit_page = max(1, audit_page)
+    audit_log = repo.get_audit_log(business_id, limit=20, offset=(audit_page - 1) * 20)
+    audit_log_total = repo.count_audit_log(business_id)
+    audit_log_has_more = audit_page * 20 < audit_log_total
     flagged = repo.list_flagged_simulation_messages(business_id)
     whatsapp_config = repo.get_whatsapp_config(business_id)
     tenant_config_row = repo.get_tenant_config_row(business_id)
@@ -153,6 +161,8 @@ def review_business(business_id):
         missing_required_labels=display_labels.humanize_missing_fields(missing_required),
         missing_required_sentence=display_labels.missing_fields_sentence(missing_required),
         audit_log=audit_log,
+        audit_page=audit_page,
+        audit_log_has_more=audit_log_has_more,
         flagged=flagged,
         whatsapp_config=whatsapp_config,
         tenant_config_row=tenant_config_row,
@@ -309,7 +319,11 @@ def connect_whatsapp(business_id):
         return redirect(url_for("admin.review_business", business_id=business_id))
 
     phone_number_id = (request.form.get("whatsapp_phone_number_id") or "").strip()
-    trusted_owner_phone = (request.form.get("trusted_owner_phone") or "").strip()
+    # Owner/pengelola phone (Section J: "Do NOT create a second duplicate owner-phone data
+    # source") — same normalize_owner_phone() the customer-facing wizard entry point uses, so
+    # "0851...", "+62851...", "62851..." always converge on the SAME stored value regardless of
+    # which of the two entry points (customer wizard vs admin WhatsApp-connect) was used.
+    trusted_owner_phone = repo.normalize_owner_phone(request.form.get("trusted_owner_phone")) or ""
     waba_id = (request.form.get("waba_id") or "").strip() or None
     credentials_reference = (request.form.get("credentials_reference") or "").strip() or None
     if not phone_number_id or not trusted_owner_phone:
@@ -416,15 +430,87 @@ def download_file(business_id, file_id):
 @admin_bp.route("/catalog")
 @security.admin_required
 def catalog_admin():
-    """Business rule change: catalog editing has been REMOVED from the Admin Dashboard — the
-    official catalog is now managed as a manually-maintained document/file, uploaded/replaced
-    outside this app. This route stays as a READ-ONLY status view only (name/category/price/
-    active/last-updated) — see admin_catalog.html. The underlying service_catalog table, and
-    every AI/Client Hub capability that reads it (live pricing sync, /services browsing, the
-    "DAFTAR KATEGORI LAYANAN AKTIF" knowledge block, etc.), is completely unaffected — only the
-    EDIT UI/route is gone (catalog_update() below has been removed accordingly)."""
+    """Business rule REVERSAL (UX pass, Section F/G/H — explicitly reverses the earlier "catalog
+    editing removed, manual-file-only" decision, at the user's own explicit later request):
+    routine service/package management is restored, but strictly scoped to what the SAME single
+    source of truth (service_catalog, the exact table /services, project creation, and the bot's
+    own live "DAFTAR KATEGORI LAYANAN AKTIF" knowledge block already all read from) can safely
+    represent — never a second, parallel catalog. AI_ADMIN/TALENT categories remain excluded from
+    dashboard creation (see catalog_service.SAFE_NEW_ITEM_CATEGORIES's own docstring for why) —
+    those keep their existing special-workflow-only creation paths untouched."""
     items = catalog_service.list_all_catalog()
-    return render_template("admin_catalog.html", items=items, format_price=catalog_service.format_price)
+    return render_template(
+        "admin_catalog.html", items=items, format_price=catalog_service.format_price,
+        safe_categories=catalog_service.SAFE_NEW_ITEM_CATEGORIES,
+        pricing_modes=pricing_config.VALID_PRICING_MODES,
+    )
+
+
+@admin_bp.route("/catalog/create", methods=["POST"])
+@security.admin_required
+def catalog_create():
+    name = (request.form.get("name") or "").strip()
+    category = (request.form.get("category") or "").strip()
+    pricing_mode = (request.form.get("pricing_mode") or "").strip()
+    price_amount = request.form.get("price_amount", type=int)
+    price_unit = (request.form.get("price_unit") or "").strip() or None
+    description = (request.form.get("description") or "").strip() or None
+    if not name or not category or not pricing_mode:
+        flash("Isi nama, kategori, dan jenis harga dulu.", "error")
+        return redirect(url_for("admin.catalog_admin"))
+    try:
+        catalog_service.create_catalog_item(
+            category, name, pricing_mode, price_amount=price_amount, price_unit=price_unit,
+            description=description,
+        )
+    except catalog_service.InvalidCatalogState as e:
+        flash(f"Tidak bisa disimpan: {e}", "error")
+        return redirect(url_for("admin.catalog_admin"))
+    flash(f"{name} ditambahkan ke katalog.", "success")
+    return redirect(url_for("admin.catalog_admin"))
+
+
+@admin_bp.route("/catalog/<int:catalog_id>/update", methods=["POST"])
+@security.admin_required
+def catalog_update(catalog_id):
+    price_amount = request.form.get("price_amount", type=int)
+    price_unit = (request.form.get("price_unit") or "").strip() or None
+    is_active = request.form.get("is_active") == "on"
+    name = (request.form.get("name") or "").strip() or None
+    description = request.form.get("description")
+    cta_text = (request.form.get("cta_text") or "").strip() or None
+    sort_order = request.form.get("sort_order", type=int)
+    pricing_mode = request.form.get("pricing_mode") or None
+    try:
+        updated = catalog_service.update_catalog_item(
+            catalog_id, price_amount=price_amount, price_unit=price_unit, is_active=is_active,
+            description=description, name=name, cta_text=cta_text, sort_order=sort_order,
+            pricing_mode=pricing_mode,
+        )
+    except catalog_service.InvalidCatalogState as e:
+        flash(f"Tidak bisa disimpan: {e}", "error")
+        return redirect(url_for("admin.catalog_admin"))
+    if updated is None:
+        abort(404)
+    flash(f"{updated['name']} diperbarui.", "success")
+    return redirect(url_for("admin.catalog_admin"))
+
+
+@admin_bp.route("/catalog/<int:catalog_id>/toggle-active", methods=["POST"])
+@security.admin_required
+def catalog_toggle_active(catalog_id):
+    """Aktifkan/Nonaktifkan (Section G/H). Deactivating ONLY flips service_catalog.is_active —
+    list_active_catalog() (the SAME function /services, project creation, and the bot's live
+    knowledge block all call) immediately stops returning it everywhere at once, with no separate
+    sync step. Never touches any existing projects/invoices/quotations row — those reference the
+    catalog by catalog_key at the time they were created, not a live join, so historical orders
+    are structurally unreachable from this action and remain exactly as they were."""
+    item = catalog_service.get_catalog_item_by_id(catalog_id)
+    if item is None:
+        abort(404)
+    catalog_service.update_catalog_item(catalog_id, is_active=not item["is_active"])
+    flash(f"{item['name']} {'diaktifkan' if not item['is_active'] else 'dinonaktifkan'}.", "success")
+    return redirect(url_for("admin.catalog_admin"))
 
 
 @admin_bp.route("/catalog/regenerate", methods=["POST"])

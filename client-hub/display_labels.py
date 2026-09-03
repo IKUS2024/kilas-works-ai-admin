@@ -12,6 +12,7 @@ Nothing here ever deletes, alters, or hides underlying data — an unmapped code
 doesn't yet know about is still visible and diagnosable, just not perfectly phrased.
 """
 import re
+from datetime import datetime, timezone, timedelta
 
 FIELD_LABELS = {
     "business_name": "Nama bisnis",
@@ -129,6 +130,14 @@ TALENT_REQUEST_STATUS_LABELS = {
     "DECLINED": "Ditolak",
 }
 
+AI_SETUP_STATUS_LABELS = {
+    "PENDING": "Menunggu diproses",
+    "RUNNING": "Sedang diproses",
+    "DONE": "Selesai",
+    "STALE": "Perlu diproses ulang (data bisnis baru diubah)",
+    "FAILED": "Belum berhasil — data kamu tetap aman",
+}
+
 TONE_LABELS = {
     "friendly": "Ramah & santai",
     "formal": "Formal",
@@ -143,6 +152,7 @@ _STATUS_TABLES = {
     "invoice": INVOICE_STATUS_LABELS,
     "subscription": SUBSCRIPTION_STATUS_LABELS,
     "talent_request": TALENT_REQUEST_STATUS_LABELS,
+    "ai_setup": AI_SETUP_STATUS_LABELS,
 }
 
 AUDIT_ACTION_LABELS = {
@@ -222,6 +232,7 @@ _DETAIL_PATTERNS = [
     (re.compile(r'^package=NONE$'), lambda m: "Belum memiliki paket AI Admin"),
     (re.compile(r'^package=(\S+)$'), lambda m: f"Paket: {humanize_package(m.group(1))}"),
     (re.compile(r'^customer=(\S+)$'), lambda m: f"Customer: {m.group(1)}"),
+    (re.compile(r'^config_version=(\d+)$'), lambda m: f"Konfigurasi tenant diperbarui (versi {m.group(1)})"),
 ]
 
 
@@ -270,6 +281,56 @@ def humanize_payment_message(code):
     return PAYMENT_CUSTOMER_MESSAGE_LABELS.get(code, humanize_status(code, "payment"))
 
 
+def humanize_timestamp(value):
+    """Raw UTC timestamp (e.g. "2026-09-03 02:51:58.217447+00:00", or a naive SQLite string with
+    no offset at all, or a datetime object) -> Indonesia-friendly WIB display (e.g.
+    "3 Sep 2026, 09:51 WIB"). Real timezone conversion (UTC -> UTC+7), never a string-replace
+    trick — a naive/offset-less timestamp is explicitly assumed to already be UTC (matching how
+    every timestamp in this codebase is actually stored, both SQLite's `datetime('now')` and
+    PostgreSQL's `now()`), so it is converted the same way a tz-aware one is. Unparseable/empty
+    input returns "Belum diisi" (display_or_missing's own convention) rather than raising."""
+    if value is None:
+        return "Belum diisi"
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip()
+        if not text:
+            return "Belum diisi"
+        # Normalize a SQL-style "YYYY-MM-DD HH:MM:SS[.ffffff][+00:00]" into something
+        # datetime.fromisoformat() accepts (it wants a "T" separator, or Python 3.11+ which
+        # accepts a space too — stay compatible either way by inserting "T" explicitly).
+        normalized = text.replace(" ", "T", 1) if " " in text and "T" not in text else text
+        normalized = normalized.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(normalized)
+        except ValueError:
+            return text  # unrecognized format — show as-is rather than hide real information
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    wib = dt.astimezone(timezone(timedelta(hours=7)))
+    months = ("Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des")
+    return f"{wib.day} {months[wib.month - 1]} {wib.year}, {wib.strftime('%H:%M')} WIB"
+
+
+def looks_technical(detail):
+    """Section S: hide technical details (config_version=N, internal enum names, etc.) from the
+    default audit log view, available behind "Lihat detail" instead. Used to decide whether the
+    RAW detail string should also be shown (collapsed) alongside the humanized one — a detail that
+    humanize_audit_detail() already fully replaced (e.g. matched one of _DETAIL_PATTERNS) has
+    nothing further to hide; this specifically catches whatever's LEFT OVER after that pass:
+    raw key=value pairs, SCREAMING_SNAKE_CASE tokens, or a detail with no matched pattern at all
+    that still isn't plain human sentence."""
+    if not detail:
+        return False
+    text = detail.strip()
+    if re.search(r'[a-zA-Z_]+=\S', text):  # key=value pattern (config_version=2, project_id=1, ...)
+        return True
+    if re.fullmatch(r'[A-Z0-9_]+', text):  # bare SCREAMING_SNAKE_CASE token
+        return True
+    return False
+
+
 def register_jinja_filters(app):
     """Wires every helper above into Jinja as a template filter, so templates use e.g.
     `{{ business.package|humanize_package }}` instead of a raw `{{ business.package }}`, and
@@ -279,6 +340,8 @@ def register_jinja_filters(app):
     app.jinja_env.filters["humanize_status"] = humanize_status
     app.jinja_env.filters["humanize_tone"] = humanize_tone
     app.jinja_env.filters["humanize_payment_message"] = humanize_payment_message
+    app.jinja_env.filters["humanize_timestamp"] = humanize_timestamp
+    app.jinja_env.filters["looks_technical"] = looks_technical
     app.jinja_env.filters["display_or_missing"] = display_or_missing
     app.jinja_env.filters["humanize_audit_action"] = humanize_audit_action
     app.jinja_env.filters["humanize_audit_detail"] = humanize_audit_detail

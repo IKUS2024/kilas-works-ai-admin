@@ -193,6 +193,7 @@ def wizard_step(business_id, step):
         rendered = render_template(
             "wizard.html", business=business, step=step, steps=WIZARD_STEPS, profile=profile,
             services=services, faqs=faqs, files=repo.list_business_files(business_id),
+            tenant_features=repo.get_tenant_features(business_id),
         )
         print(f"WIZARD_PAGE_RENDER_OK business_id={business_id} step={step}")
         return rendered
@@ -267,6 +268,13 @@ def wizard_step(business_id, step):
             print(f"PAYMENT_SAVE_START business_id={business_id}")
             repo.save_onboarding_session(business_id, "operations", raw, user["id"])
             repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
+            # Owner/pengelola phone (Section I/J/K) — only meaningful (and only shown in the
+            # template) for a package with owner_commands enabled; the form field itself is
+            # absent from the template otherwise, so request.form.get() returning None/"" here for
+            # a Basic tenant is expected and correctly results in set_trusted_owner_phone() being
+            # a no-op (patch semantics — never overwrites with blank).
+            if request.form.get("trusted_owner_phone"):
+                repo.set_trusted_owner_phone(business_id, request.form.get("trusted_owner_phone"))
             # db.execute() commits internally on success (see db.py's execute()) — reaching this
             # line without an exception means the write already committed, so SAVE_OK and
             # COMMIT_OK are logged together rather than as two separately-timed checkpoints.
@@ -602,6 +610,62 @@ def ai_admin_checkout(business_id):
         project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
 
     return redirect(url_for("payments.checkout_page", project_id=project_id))
+
+
+@client_bp.route("/business/<int:business_id>/ai-writing-help", methods=["POST"])
+@security.login_required
+def ai_writing_help(business_id):
+    """Reusable "Bantu dengan AI" writing helper (UX pass, Section 2/3) — ONE endpoint used by
+    every eligible text field. Returns JSON only (called via fetch() from the wizard's inline JS,
+    never a full page load) — the suggestion is shown as a PREVIEW client-side; nothing is ever
+    saved to the database from this route. The actual field only changes when the customer clicks
+    "Gunakan hasil" and the NORMAL wizard-step form is submitted exactly as before — this route
+    has no write path to business_profiles/business_faqs at all.
+
+    field_type is checked against the SAME whitelist ai_onboarding.generate_writing_suggestion()
+    itself enforces — checked here too (not just trusting the function) so a malformed/unexpected
+    field_type gets a clean 400 before any AI call is even attempted."""
+    business = _business_or_404(business_id)
+    field_type = (request.form.get("field_type") or "").strip()
+    action = (request.form.get("action") or "").strip()
+    current_text = request.form.get("current_text") or ""
+
+    if field_type not in ai_onboarding.WRITING_HELPER_FIELD_TYPES:
+        return jsonify({"error": "unsupported_field"}), 400
+    if action not in ai_onboarding.WRITING_HELPER_ACTIONS:
+        return jsonify({"error": "unsupported_action"}), 400
+
+    profile = repo.get_business_profile(business_id)
+    services = [s["raw_input"] for s in repo.get_business_services(business_id)]
+    faqs = [f["raw_input"] for f in repo.get_business_faqs(business_id)]
+
+    result, error = ai_onboarding.generate_writing_suggestion(
+        business, profile, services, faqs, field_type, current_text, action,
+    )
+    if error:
+        print(f"AI writing helper gagal (business_id={business_id}, field={field_type}): {error}")
+        return jsonify({"error": "ai_unavailable"}), 502
+    return jsonify(result), 200
+
+
+@client_bp.route("/business/<int:business_id>/ai-faq-suggestions", methods=["POST"])
+@security.login_required
+def ai_faq_suggestions(business_id):
+    """Smart FAQ assistant, missing-topics mode (Section 4/H): analyzes existing business data and
+    suggests useful FAQ questions the customer hasn't added yet — each with either a real,
+    fact-grounded answer, or an explicit "belum tersedia" marker if the data doesn't support one
+    (never fabricated). Returns a LIST of suggestions; the customer picks which ones to add
+    client-side — this route never writes any FAQ row itself."""
+    business = _business_or_404(business_id)
+    profile = repo.get_business_profile(business_id)
+    services = [s["raw_input"] for s in repo.get_business_services(business_id)]
+    faqs = [f["raw_input"] for f in repo.get_business_faqs(business_id)]
+
+    result, error = ai_onboarding.generate_faq_suggestions(business, profile, services, faqs)
+    if error:
+        print(f"AI FAQ suggestion gagal (business_id={business_id}): {error}")
+        return jsonify({"error": "ai_unavailable"}), 502
+    return jsonify(result), 200
 
 
 @client_bp.route("/business/<int:business_id>/simulate")

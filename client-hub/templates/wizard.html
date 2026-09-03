@@ -20,7 +20,26 @@
     <label>Kategori (mis. Kedai kopi, Klinik gigi, Fotografi)</label>
     <input type="text" name="category" value="{{ profile.category or '' }}">
     <label>Deskripsi singkat</label>
-    <textarea name="short_description">{{ profile.short_description or '' }}</textarea>
+    <textarea name="short_description" id="field_short_description">{{ profile.short_description or '' }}</textarea>
+    <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="short_description" data-target="field_short_description">
+      <button type="button" class="btn secondary ai-help-btn">Bantu dengan AI</button>
+      <div class="ai-help-menu">
+        <button type="button" data-action="rapikan">Rapikan kalimat</button>
+        <button type="button" data-action="profesional">Lebih profesional</button>
+        <button type="button" data-action="singkat">Lebih singkat</button>
+        <button type="button" data-action="ramah">Lebih ramah</button>
+        <button type="button" data-action="perjelas">Perjelas</button>
+        <button type="button" data-action="draft">Buatkan draft</button>
+      </div>
+      <div class="ai-help-status"></div>
+      <div class="ai-help-preview">
+        <p class="ai-help-preview-text"></p>
+        <div class="ai-help-preview-actions">
+          <button type="button" class="btn small ai-help-accept">Gunakan hasil</button>
+          <button type="button" class="btn small secondary ai-help-cancel">Batal</button>
+        </div>
+      </div>
+    </div>
     <label>Negara</label>
     <input type="text" name="country" value="{{ profile.country or 'Indonesia' }}">
     <label>Timezone</label>
@@ -47,7 +66,25 @@
     <label>Layanan online, offline, atau keduanya?</label>
     <input type="text" name="online_or_offline" value="{{ profile.online_or_offline or '' }}">
     <label>Aturan appointment (jika ada)</label>
-    <textarea name="appointment_rules_raw">{{ profile.appointment_rules_raw or '' }}</textarea>
+    <textarea name="appointment_rules_raw" id="field_appointment_rules_raw">{{ profile.appointment_rules_raw or '' }}</textarea>
+    <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="appointment_rules_raw" data-target="field_appointment_rules_raw">
+      <button type="button" class="btn secondary ai-help-btn">Bantu dengan AI</button>
+      <div class="ai-help-menu">
+        <button type="button" data-action="rapikan">Rapikan kalimat</button>
+        <button type="button" data-action="profesional">Lebih profesional</button>
+        <button type="button" data-action="singkat">Lebih singkat</button>
+        <button type="button" data-action="perjelas">Perjelas</button>
+        <button type="button" data-action="draft">Buatkan draft</button>
+      </div>
+      <div class="ai-help-status"></div>
+      <div class="ai-help-preview">
+        <p class="ai-help-preview-text"></p>
+        <div class="ai-help-preview-actions">
+          <button type="button" class="btn small ai-help-accept">Gunakan hasil</button>
+          <button type="button" class="btn small secondary ai-help-cancel">Batal</button>
+        </div>
+      </div>
+    </div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
       <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
       Aktifkan booking appointment lewat chat (khusus paket AI Admin Pro)
@@ -62,13 +99,66 @@
     <label>Nama pemilik rekening</label>
     <input type="text" name="payment_account_name" value="{{ profile.payment_account_name or '' }}">
     <label>Instruksi tambahan untuk customer (opsional)</label>
-    <textarea name="payment_instructions" placeholder="mis. kirim bukti transfer ke chat ini setelah bayar">{{ profile.payment_instructions or '' }}</textarea>
+    <textarea name="payment_instructions" id="field_payment_instructions" placeholder="mis. kirim bukti transfer ke chat ini setelah bayar">{{ profile.payment_instructions or '' }}</textarea>
+    <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="payment_instructions" data-target="field_payment_instructions">
+      <button type="button" class="btn secondary ai-help-btn">Bantu dengan AI</button>
+      <div class="ai-help-menu">
+        <button type="button" data-action="rapikan">Rapikan kalimat</button>
+        <button type="button" data-action="profesional">Lebih profesional</button>
+        <button type="button" data-action="ramah">Lebih ramah</button>
+        <button type="button" data-action="perjelas">Perjelas</button>
+        <button type="button" data-action="draft">Buatkan draft</button>
+      </div>
+      <div class="ai-help-status"></div>
+      <div class="ai-help-preview">
+        <p class="ai-help-preview-text"></p>
+        <div class="ai-help-preview-actions">
+          <button type="button" class="btn small ai-help-accept">Gunakan hasil</button>
+          <button type="button" class="btn small secondary ai-help-cancel">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    {% if tenant_features and tenant_features.owner_commands %}
+    <h3 style="margin-top:20px;">Nomor WhatsApp Pemilik / Pengelola Bisnis</h3>
+    <p class="muted">Nomor ini digunakan agar AI Admin mengenali pemilik atau pengelola bisnis. Dari nomor
+      ini, kamu bisa memberikan instruksi khusus kepada AI untuk membantu menangani customer.</p>
+    <label>Nomor WhatsApp pemilik/pengelola</label>
+    <input type="text" name="trusted_owner_phone" value="{{ business.trusted_owner_phone or '' }}"
+           placeholder="Contoh: 6285128018184">
+    <p class="muted" style="font-size:13px;">Jika nomor kamu 0851 2801 8184, isi 6285128018184 (tanpa spasi,
+      awali dengan 62, tanpa tanda +).</p>
+    {% endif %}
 
   {% elif step == 'faq' %}
     <h2>FAQ & Kebijakan</h2>
     <p class="muted">Satu pertanyaan/kebijakan per baris. Contoh: "Apakah bisa reschedule? Bisa, H-1 sebelum jadwal."</p>
-    <textarea name="faq_raw" rows="8">{% for f in faqs %}{{ f.raw_input }}
+    <textarea name="faq_raw" id="field_faq_raw" rows="8">{% for f in faqs %}{{ f.raw_input }}
 {% endfor %}</textarea>
+    <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="faq_raw" data-target="field_faq_raw">
+      <button type="button" class="btn secondary ai-help-btn">Bantu dengan AI</button>
+      <div class="ai-help-menu">
+        <button type="button" data-action="rapikan">Rapikan kalimat</button>
+        <button type="button" data-action="profesional">Lebih profesional</button>
+        <button type="button" data-action="singkat">Lebih singkat</button>
+        <button type="button" data-action="perjelas">Perjelas</button>
+      </div>
+      <div class="ai-help-status"></div>
+      <div class="ai-help-preview">
+        <p class="ai-help-preview-text"></p>
+        <div class="ai-help-preview-actions">
+          <button type="button" class="btn small ai-help-accept">Gunakan hasil</button>
+          <button type="button" class="btn small secondary ai-help-cancel">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;" id="faq-suggestions-panel" data-business-id="{{ business.id }}">
+      <h3 style="margin-top:0;">Saran FAQ dari AI</h3>
+      <button type="button" class="btn secondary" id="faq-suggest-btn">Cari saran FAQ</button>
+      <div class="ai-help-status" id="faq-suggest-status"></div>
+      <div id="faq-suggest-list" style="margin-top:10px;"></div>
+    </div>
 
   {% elif step == 'style' %}
     <h2>Gaya AI Admin</h2>

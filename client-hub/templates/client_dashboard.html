@@ -76,8 +76,10 @@
           <input type="hidden" name="package" value="AI_ADMIN_BASIC">
           <button class="btn" type="submit">+ Tambah AI Admin</button>
         </form>
-      {% elif b.status in ('DRAFT','ONBOARDING','NEEDS_REVISION') %}
+      {% elif b.status in ('DRAFT','ONBOARDING') %}
         <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup</a>
+      {% elif b.status in ('READY_FOR_REVIEW','NEEDS_REVISION') %}
+        <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Edit Data Bisnis</a>
       {% endif %}
       <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Review Business</a>
       {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>{% endif %}

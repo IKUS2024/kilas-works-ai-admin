@@ -397,3 +397,180 @@ def simulate_customer_reply(business, config, history, customer_message):
     if err:
         return None, err
     return reply_text, None
+
+
+# ---------------------------------------------------------------------------
+# Reusable "Bantu dengan AI" writing helper (UX pass, Sections D-H) — ONE function used by every
+# eligible text field (business description, FAQ question/answer, ordering instructions, payment
+# explanation, booking/cancellation policy, service notes) instead of one-off code per field.
+# ---------------------------------------------------------------------------
+
+# Whitelist of field types this helper may ever touch — enforced HERE (not just in the route),
+# so calling this function directly with an unlisted field_type fails loudly rather than silently
+# running anyway. Deliberately excludes phone numbers, prices, IDs, bank account numbers, dates,
+# credentials, package selectors — anything factual/technical where an AI "rewrite" makes no sense
+# and could introduce risk (Section D/E: "Do NOT put it on... phone numbers... prices... bank
+# account numbers... credentials... technical fields").
+WRITING_HELPER_FIELD_TYPES = {
+    "short_description": "Deskripsi singkat bisnis",
+    "faq_question": "Pertanyaan FAQ",
+    "faq_answer": "Jawaban FAQ",
+    "faq_raw": "FAQ & Kebijakan (daftar pertanyaan-jawaban)",
+    "appointment_rules_raw": "Aturan booking/appointment",
+    "payment_instructions": "Instruksi pembayaran untuk customer",
+    "closed_days": "Keterangan hari libur",
+}
+
+WRITING_HELPER_ACTIONS = {
+    "rapikan": "Rapikan kalimatnya — perbaiki tata bahasa & alur, TANPA mengubah maksud/fakta.",
+    "profesional": "Buat lebih profesional — nada lebih formal & terpercaya, TANPA mengubah maksud/fakta.",
+    "singkat": "Buat lebih singkat — padatkan jadi lebih ringkas, TANPA menghilangkan fakta penting.",
+    "ramah": "Buat lebih ramah — nada lebih hangat & personal, TANPA mengubah maksud/fakta.",
+    "perjelas": "Perjelas kalimatnya — hilangkan ambiguitas, TANPA menambah fakta baru yang tidak ada.",
+    "draft": "Buat draft teks baru dari nol, HANYA berdasarkan data bisnis yang tersedia di bawah.",
+}
+
+WRITING_HELPER_SYSTEM_PROMPT = """Kamu adalah asisten penulisan untuk pemilik bisnis yang sedang mengisi
+profil bisnisnya di Client Hub. Tugasmu membantu merapikan/memperbaiki TEKS yang customer tulis sendiri,
+BUKAN membuat fakta bisnis baru.
+
+ATURAN MUTLAK (WAJIB DIIKUTI PERSIS):
+1. JANGAN PERNAH menambahkan fakta yang TIDAK ADA di teks asli ATAU di data bisnis yang diberikan —
+   termasuk harga, ketersediaan, kebijakan refund, aturan booking, jam operasional, timeline
+   pengerjaan, cakupan layanan, info rekening, diskon, atau janji apapun.
+2. Kalau field-nya KOSONG dan data bisnis yang diberikan TIDAK CUKUP buat bikin draft yang jujur
+   (bukan karangan), JANGAN mengarang — balas dengan needs_more_info berisi kalimat singkat yang
+   natural minta customer isi sedikit info dulu (jangan template kaku, sesuaikan konteks field-nya).
+3. Kalau field-nya KOSONG tapi data bisnis CUKUP, boleh bikin draft HANYA dari fakta yang benar-benar
+   ada di data itu.
+4. Kalau field-nya SUDAH ADA ISINYA, perbaiki sesuai aksi yang diminta TANPA mengubah maksud/fakta
+   aslinya sama sekali — kamu MERAPIKAN, bukan MENULIS ULANG dari sudut pandang berbeda.
+5. Balas HANYA dengan satu objek JSON valid, tanpa markdown fence, tanpa teks lain:
+{
+  "suggestion": string|null (hasil teks yang disarankan, null kalau needs_more_info diisi),
+  "needs_more_info": string|null (pesan minta info tambahan, null kalau suggestion diisi)
+}
+Salah satu dari "suggestion"/"needs_more_info" HARUS diisi, yang lain null — jangan dua-duanya diisi,
+jangan dua-duanya null."""
+
+
+def _build_business_facts_context(business, profile, raw_services, raw_faqs):
+    """The ONLY source of truth the writing helper may draw NEW facts from (Section G: "AI may
+    draft text ONLY from existing saved business information") — same idea as
+    build_normalization_input_text() above, kept as a separate, smaller function since the writing
+    helper doesn't need extracted file text and is called far more frequently (once per click, not
+    once per onboarding submit)."""
+    profile = profile or {}
+    lines = [
+        f"Nama bisnis: {business['business_name']}",
+        f"Kategori: {profile.get('category') or '(tidak diisi)'}",
+        f"Jam operasional: {profile.get('operating_hours') or '(tidak diisi)'}",
+        f"Jenis layanan: {profile.get('online_or_offline') or '(tidak diisi)'}",
+    ]
+    if raw_services:
+        lines.append("Layanan/produk: " + "; ".join(raw_services))
+    if raw_faqs:
+        lines.append("FAQ yang sudah ada: " + "; ".join(raw_faqs))
+    return "\n".join(lines)
+
+
+def generate_writing_suggestion(business, profile, raw_services, raw_faqs, field_type, current_text, action):
+    """Returns (result_dict_or_None, error_str_or_None) where result_dict is
+    {"suggestion": str} or {"needs_more_info": str} — NEVER both, never neither. Never raises;
+    callers show a generic "coba lagi" message on error, matching every other AI call in this
+    module. field_type/action are validated against the whitelists above — an unlisted value is a
+    caller bug (route-level validation should have already rejected it), not something this
+    function silently tolerates."""
+    if field_type not in WRITING_HELPER_FIELD_TYPES:
+        return None, f"UNSUPPORTED_FIELD_TYPE: {field_type}"
+    if action not in WRITING_HELPER_ACTIONS:
+        return None, f"UNSUPPORTED_ACTION: {action}"
+
+    field_label = WRITING_HELPER_FIELD_TYPES[field_type]
+    action_instruction = WRITING_HELPER_ACTIONS[action]
+    facts_context = _build_business_facts_context(business, profile, raw_services, raw_faqs)
+    current_text = (current_text or "").strip()
+
+    user_content = (
+        f"FIELD: {field_label}\n"
+        f"AKSI YANG DIMINTA: {action_instruction}\n\n"
+        f"DATA BISNIS YANG TERSEDIA (satu-satunya sumber fakta yang boleh kamu pakai):\n{facts_context}\n\n"
+        + (f"TEKS SAAT INI (perbaiki ini, jangan tulis ulang dari nol):\n{current_text}"
+           if current_text else "TEKS SAAT INI: (kosong — field ini belum diisi customer)")
+    )
+
+    raw_text, stop_reason, err = _call_claude(
+        WRITING_HELPER_SYSTEM_PROMPT, [{"role": "user", "content": user_content}], max_tokens=800,
+    )
+    if err:
+        return None, err
+
+    try:
+        parsed = _extract_json_object(raw_text)
+    except (ValueError, TypeError) as e:
+        return None, f"RESPONSE_PARSE_ERROR: {e}"
+
+    if not isinstance(parsed, dict):
+        return None, "AI_RESPONSE_SHAPE_INVALID"
+
+    suggestion = parsed.get("suggestion")
+    needs_more_info = parsed.get("needs_more_info")
+    if suggestion:
+        return {"suggestion": str(suggestion).strip()}, None
+    if needs_more_info:
+        return {"needs_more_info": str(needs_more_info).strip()}, None
+    return None, "AI_RESPONSE_SHAPE_INVALID: neither suggestion nor needs_more_info was set"
+
+
+FAQ_SUGGESTION_SYSTEM_PROMPT = """Kamu membantu pemilik bisnis melengkapi FAQ untuk AI Admin mereka.
+
+Analisis data bisnis yang diberikan, lalu sarankan pertanyaan FAQ yang BELUM ada di daftar tapi
+kemungkinan besar akan ditanyakan customer (contoh topik umum: cara booking, area/kota yang dilayani,
+metode pembayaran, lama waktu konfirmasi, kebijakan pembatalan/reschedule — sesuaikan dengan jenis
+bisnisnya, jangan asal tempel semua topik ini kalau gak relevan).
+
+ATURAN MUTLAK:
+1. JANGAN sarankan pertanyaan yang JAWABANNYA HARUS DIKARANG — kalau data bisnis yang diberikan tidak
+   cukup untuk menjawab pertanyaan itu secara jujur, tetap boleh disarankan sebagai TOPIK, tapi answer
+   HARUS null (bukan jawaban karangan).
+2. JANGAN duplikasi pertanyaan yang sudah ada di "FAQ yang sudah ada".
+3. Maksimal 5 saran per panggilan — kualitas di atas kuantitas.
+4. Balas HANYA dengan objek JSON valid, tanpa markdown fence, tanpa teks lain:
+{
+  "suggestions": [
+    {"question": string, "answer": string|null}
+  ]
+}
+answer null berarti "topik ini relevan tapi datanya belum cukup buat dijawab otomatis" — JANGAN
+mengarang jawaban hanya supaya field-nya keisi."""
+
+
+def generate_faq_suggestions(business, profile, raw_services, raw_faqs):
+    """Smart FAQ assistant, missing-topics mode (Section H). Returns
+    ({"suggestions": [{"question": str, "answer": str|None}, ...]}, None) or (None, error_str).
+    An entry with answer=None means the topic is relevant but not supported by saved data yet —
+    the caller/template must show "Jawaban belum tersedia — isi informasi terlebih dahulu." for
+    those, never silently drop them or fabricate a value."""
+    facts_context = _build_business_facts_context(business, profile, raw_services, raw_faqs)
+    raw_text, stop_reason, err = _call_claude(
+        FAQ_SUGGESTION_SYSTEM_PROMPT,
+        [{"role": "user", "content": f"DATA BISNIS:\n{facts_context}"}],
+        max_tokens=1000,
+    )
+    if err:
+        return None, err
+    try:
+        parsed = _extract_json_object(raw_text)
+    except (ValueError, TypeError) as e:
+        return None, f"RESPONSE_PARSE_ERROR: {e}"
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("suggestions"), list):
+        return None, "AI_RESPONSE_SHAPE_INVALID"
+    cleaned = []
+    for item in parsed["suggestions"][:5]:
+        if not isinstance(item, dict) or not item.get("question"):
+            continue
+        cleaned.append({
+            "question": str(item["question"]).strip(),
+            "answer": (str(item["answer"]).strip() if item.get("answer") else None),
+        })
+    return {"suggestions": cleaned}, None

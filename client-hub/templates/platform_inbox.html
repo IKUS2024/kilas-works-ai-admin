@@ -124,15 +124,15 @@
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
             <textarea name="message" maxlength="4096" required placeholder="Balas sebagai Kilas Works..." style="min-height:82px;"></textarea>
             <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
-              <span class="pill ACTIVE" style="font-size:12px;">24h Window Active</span>
+              <span class="pill ACTIVE" style="font-size:12px;">Masa chat 24 jam masih aktif</span>
               <button class="btn" type="submit">Kirim</button>
             </div>
           </form>
         {% elif selected.mode == 'HUMAN_TAKEOVER' %}
           <div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-              <span class="pill" style="color:var(--red);">24h Window Expired</span>
-              <span class="pill">Template Required</span>
+              <span class="pill" style="color:var(--red);">Masa chat 24 jam sudah berakhir</span>
+              <span class="pill">Perlu kirim template</span>
             </div>
             <p class="muted" style="margin:0 0 10px;">
               Sudah lewat 24 jam sejak pesan masuk customer terakhir — WhatsApp tidak mengizinkan free-text

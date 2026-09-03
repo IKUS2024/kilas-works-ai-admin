@@ -167,7 +167,7 @@ def test_D_freeform_blocked_at_25h_template_offered():
     _login_owner(client, "ownerd@test.com")
     resp = client.get(f"/business/{bid}/inbox?customer={phone}")
     body = resp.data.decode()
-    assert "Template Required" in body
+    assert "Perlu kirim template" in body
     assert "Kirim Template" in body
     print("test_D_freeform_blocked_at_25h_template_offered OK")
 

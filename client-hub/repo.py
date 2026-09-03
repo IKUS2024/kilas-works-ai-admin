@@ -2,6 +2,7 @@
 tenant-scoping and audit logging happen in one place, consistently.
 """
 import json
+import re
 from datetime import datetime, timezone
 
 import db
@@ -20,6 +21,41 @@ DEFAULT_FEATURES = feature_flags.FEATURE_MATRIX
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def normalize_owner_phone(raw):
+    """Owner/pengelola phone UX (Section I/J of the request) — a customer or admin may type this
+    as "0851 2801 8184", "+62 851 2801 8184", or "62851...", and the bot's own owner-recognition
+    logic needs a single consistent digits-only 62-prefixed form (matching how every other
+    WhatsApp number is stored/compared throughout this codebase). Returns None for input with no
+    digits at all (never silently stores an empty/garbage value)."""
+    digits = re.sub(r"\D", "", raw or "")
+    if not digits:
+        return None
+    if digits.startswith("0"):
+        digits = "62" + digits[1:]
+    elif not digits.startswith("62"):
+        # A number with no recognizable Indonesian prefix at all (e.g. someone typed only the
+        # local part without a leading 0) — prepend 62 rather than guessing further; this matches
+        # how a bare "851..." most plausibly maps to a real WhatsApp-format number.
+        digits = "62" + digits
+    return digits
+
+
+def set_trusted_owner_phone(business_id, raw_phone):
+    """Single source of truth for the owner/pengelola WhatsApp number (Section J: "Do NOT create a
+    second duplicate owner-phone data source") — writes the SAME businesses.trusted_owner_phone
+    column the admin's connect_whatsapp() route already writes to (routes_admin.py), just reached
+    from a second, customer-facing entry point (the onboarding wizard's operations step) now that
+    Pro tenants can provide it themselves instead of only an admin typing it in during WhatsApp
+    connection. Both entry points now go through the SAME normalize_owner_phone() first, so
+    "0851...", "+62851...", "62851..." all converge on one consistent stored value regardless of
+    which entry point was used."""
+    normalized = normalize_owner_phone(raw_phone)
+    if normalized is None:
+        return  # blank/unparseable input — leave the existing value untouched (patch semantics)
+    db.execute("UPDATE businesses SET trusted_owner_phone = ?, updated_at = ? WHERE id = ?",
+               (normalized, _now(), business_id))
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +196,17 @@ def save_onboarding_session(business_id, step, raw_payload, user_id=None):
 
 
 def upsert_business_profile(business_id, fields):
+    """PATCH-like semantics (empty-value overwrite protection — see the caller-audit finding this
+    fixes): a column is only written when its key is ACTUALLY PRESENT in `fields` — a caller that
+    only knows about ONE wizard step's own fields (e.g. only business_name/category/owner_name for
+    the "basics" step) must never silently NULL out every OTHER step's already-saved data (e.g.
+    operating_hours/payment info from a later step) just because those keys weren't in ITS dict.
+    Previously this function always updated every column, defaulting anything the caller's dict
+    didn't include to None via fields.get(c) — one caller (the "basics" wizard step) genuinely
+    didn't merge with the existing profile first, so re-saving "basics" after already filling in
+    later steps wiped them out. That call site is now ALSO fixed to merge explicitly (defense in
+    depth — belt AND suspenders), but this function no longer trusts every caller to remember to
+    merge; a missing key is now always treated as "don't touch this column," never as "clear it.\""""
     existing = db.query_one("SELECT business_id FROM business_profiles WHERE business_id = ?", (business_id,))
     cols = [
         "category", "short_description", "country", "timezone", "address", "business_phone",
@@ -170,28 +217,35 @@ def upsert_business_profile(business_id, fields):
         "appointment_enabled", "payment_bank_name", "payment_account_number",
         "payment_account_name", "payment_instructions",
     ]
-    values = {c: fields.get(c) for c in cols}
+    present_cols = [c for c in cols if c in fields] if existing else cols
+    # A brand-new profile row (INSERT) still needs every column NOT-NULL-safe defaulted (existing
+    # behavior, e.g. appointment_enabled's True default below) — but an UPDATE on an EXISTING row
+    # only ever touches columns the caller actually supplied.
+    values = {c: fields.get(c) for c in present_cols}
     if isinstance(values.get("additional_languages"), (list, tuple)):
         values["additional_languages"] = json.dumps(values["additional_languages"])
     if isinstance(values.get("operating_hours"), (dict, list)):
         values["operating_hours"] = json.dumps(values["operating_hours"])
-    if values.get("appointment_enabled") is None:
-        values["appointment_enabled"] = True
-    else:
-        values["appointment_enabled"] = bool(values["appointment_enabled"]) and values["appointment_enabled"] not in ("false", "0", "off", "")
+    if "appointment_enabled" in values:
+        if values.get("appointment_enabled") is None:
+            values["appointment_enabled"] = True
+        else:
+            values["appointment_enabled"] = bool(values["appointment_enabled"]) and values["appointment_enabled"] not in ("false", "0", "off", "")
 
     if existing:
-        set_clause = ", ".join(f"{c} = ?" for c in cols)
+        if not present_cols:
+            return  # nothing to update — caller passed no known profile fields at all
+        set_clause = ", ".join(f"{c} = ?" for c in present_cols)
         db.execute(
             f"UPDATE business_profiles SET {set_clause}, updated_at = ? WHERE business_id = ?",
-            (*[values[c] for c in cols], _now(), business_id),
+            (*[values[c] for c in present_cols], _now(), business_id),
         )
     else:
-        col_list = ", ".join(cols)
-        placeholders = ", ".join("?" for _ in cols)
+        col_list = ", ".join(present_cols)
+        placeholders = ", ".join("?" for _ in present_cols)
         db.execute(
             f"INSERT INTO business_profiles (business_id, {col_list}) VALUES (?, {placeholders})",
-            (business_id, *[values[c] for c in cols]),
+            (business_id, *[values[c] for c in present_cols]),
         )
 
 
@@ -304,6 +358,23 @@ def set_ai_status(business_id, status, error=None):
     db.execute(
         "UPDATE ai_settings SET ai_status = ?, last_error = ?, updated_at = ? WHERE business_id = ?",
         (status, error, _now(), business_id),
+    )
+
+
+def set_business_stale_if_done(business_id):
+    """Stale-knowledge protection (Section I of the onboarding reliability fix): if this business's
+    generated AI knowledge is currently DONE, mark it STALE — reusing the existing ai_status TEXT
+    column (no CHECK constraint enforces a fixed value set, confirmed in migration 0001, so this
+    needs no migration at all). Deliberately a no-op for every OTHER status (PENDING/RUNNING/
+    FAILED/STALE itself) — only a genuinely-completed, now-outdated result needs this transition;
+    re-marking an already-FAILED or already-STALE business STALE would be meaningless, and
+    interrupting a RUNNING generation would be actively wrong. normalized_config_json/
+    normalized_summary/missing_fields_json are deliberately left untouched — the last known-good
+    generated knowledge stays visible/usable for reference until a fresh run replaces it; only the
+    STATUS changes, signaling "this is now out of date, rerun before relying on it.\""""
+    db.execute(
+        "UPDATE ai_settings SET ai_status = 'STALE', updated_at = ? WHERE business_id = ? AND ai_status = 'DONE'",
+        (_now(), business_id),
     )
 
 
@@ -460,11 +531,20 @@ def write_audit(actor_user_id, business_id, action, detail, project_id=None):
     )
 
 
-def get_audit_log(business_id, limit=50):
+def get_audit_log(business_id, limit=20, offset=0):
+    """Section T: "do not dump an endless table" — default page size reduced from the old flat 50
+    to a genuinely readable 20 (still ordered newest-first, unchanged), with `offset` added so the
+    review page's "Lihat lainnya" can page through older history without ever deleting/hiding
+    audit rows from the database — this only limits how many are rendered on one page load."""
     return db.query_all(
-        "SELECT * FROM audit_log WHERE business_id = ? ORDER BY created_at DESC LIMIT ?",
-        (business_id, limit),
+        "SELECT * FROM audit_log WHERE business_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        (business_id, limit, offset),
     )
+
+
+def count_audit_log(business_id):
+    row = db.query_one("SELECT COUNT(*) AS n FROM audit_log WHERE business_id = ?", (business_id,))
+    return row["n"] if row else 0
 
 
 def get_project_audit_log(project_id, limit=100):

@@ -6,6 +6,8 @@ every boot, like db.init_schema()) and provides the only read/write functions an
 Never hardcode a price in a template or route — always go through here.
 """
 import json
+import re
+import uuid
 
 import db
 import pricing_config
@@ -42,6 +44,55 @@ def list_all_catalog():
 
 def get_catalog_item(catalog_key):
     return db.query_one("SELECT * FROM service_catalog WHERE catalog_key = ?", (catalog_key,))
+
+
+# Routine "Tambah Layanan" (UX pass, Section F/G/H/I) — categories a NEW dashboard-created service
+# is safely allowed to use. Deliberately EXCLUDES "AI_ADMIN" (has its own special onboarding/
+# payment/activation workflow — see routes_client.py's ai_admin_checkout()/start_fixed_checkout()'s
+# own guard, which independently blocks instant-checkout for this category regardless of this
+# whitelist, so this is defense-in-depth, not the only safeguard) and "TALENT" (managed through its
+# own dedicated admin_talent.html page with its own request/quote flow, not this generic catalog
+# form). Every other category maps to one of the two genuinely generic workflows already supported
+# end-to-end: FIXED_PRICE/STARTING_FROM (instant checkout) or CUSTOM_QUOTE (brief -> quotation ->
+# approval -> checkout) — no new workflow type is invented here.
+SAFE_NEW_ITEM_CATEGORIES = ("CONTENT", "VIDEO", "PHOTO", "WEBSITE", "APPLICATION", "EVENT", "ADS", "BUNDLE")
+
+
+def create_catalog_item(category, name, pricing_mode, price_amount=None, price_unit=None,
+                         description=None, cta_text=None):
+    """New routine service/package creation from the admin dashboard (Section G: "Tambah Layanan /
+    Paket", explicitly NOT "Tambah Project" — a project is a customer ORDER, this creates a
+    LAYANAN/PAKET a customer can later order). Auto-generates a unique catalog_key from the name
+    (slugified + a short random suffix to avoid collisions) — admins never type a raw key by hand.
+    Raises InvalidCatalogState for an unsafe category/pricing_mode combination, or the same
+    price-consistency violations update_catalog_item() already guards against, so both the create
+    and edit paths enforce identical invariants (one set of rules, not two)."""
+    if category not in SAFE_NEW_ITEM_CATEGORIES:
+        raise InvalidCatalogState(
+            f"unsupported_category_for_dashboard_creation: {category!r} — categories with a "
+            "special workflow (AI_ADMIN, TALENT) cannot be created from this generic form."
+        )
+    if pricing_mode not in pricing_config.VALID_PRICING_MODES:
+        raise InvalidCatalogState(f"invalid_pricing_mode: {pricing_mode!r}")
+    if pricing_mode in ("FIXED_PRICE", "STARTING_FROM") and not price_amount:
+        raise InvalidCatalogState("fixed_price_requires_amount: harga wajib diisi untuk mode harga tetap")
+    if pricing_mode == "CUSTOM_QUOTE":
+        price_amount = None
+        price_unit = None
+
+    slug = re.sub(r"[^a-z0-9]+", "_", name.strip().lower()).strip("_") or "layanan"
+    catalog_key = f"{slug}_{uuid.uuid4().hex[:6]}"
+    max_sort = db.query_one("SELECT COALESCE(MAX(sort_order), 0) AS m FROM service_catalog WHERE category = ?", (category,))
+    sort_order = (max_sort["m"] if max_sort else 0) + 1
+
+    new_id = db.insert_returning_id(
+        "INSERT INTO service_catalog (catalog_key, category, name, pricing_mode, price_amount, "
+        "price_unit, description, cta_text, sort_order, is_active) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (catalog_key, category, name.strip(), pricing_mode, price_amount, price_unit,
+         description, cta_text, sort_order, True),
+    )
+    return new_id
 
 
 def get_catalog_item_by_id(catalog_id):

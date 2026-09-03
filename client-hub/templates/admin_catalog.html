@@ -1,21 +1,72 @@
 {% extends "base.html" %}
-{% block title %}Katalog — Admin{% endblock %}
+{% block title %}Katalog Layanan — Admin{% endblock %}
 {% block content %}
-<h1>Service Catalog (Read-Only)</h1>
-<p class="muted">Katalog resmi Kilas Works sekarang dikelola sebagai dokumen/file manual, bukan lewat
-  editor di dashboard ini. Halaman ini cuma menampilkan status data yang dipakai AI/Client Hub secara
-  internal (nama, kategori, harga, aktif/tidak, terakhir diubah) — TIDAK bisa diedit dari sini lagi.
-  Kalau ada perubahan layanan, hubungi tim engineering.</p>
+<h1>Katalog Layanan</h1>
+<p class="muted">Kelola layanan/paket rutin (Foto, Video, Website, dll). Paket AI Admin dan Talent Management
+  punya alur khusus tersendiri, tidak dibuat dari sini.</p>
+
 <div class="card">
+  <h2>Tambah Layanan</h2>
+  <form method="post" action="{{ url_for('admin.catalog_create') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Nama layanan</label>
+    <input type="text" name="name" required placeholder="mis. Foto Produk Basic">
+    <label>Kategori</label>
+    <select name="category" required>
+      {% for c in safe_categories %}<option value="{{ c }}">{{ c.replace('_',' ').title() }}</option>{% endfor %}
+    </select>
+    <label>Jenis harga</label>
+    <select name="pricing_mode" required>
+      {% for m in pricing_modes %}<option value="{{ m }}">{{ 'Harga Tetap' if m == 'FIXED_PRICE' else ('Mulai Dari' if m == 'STARTING_FROM' else 'Custom Quote') }}</option>{% endfor %}
+    </select>
+    <label>Harga (Rp, kosongkan untuk Custom Quote)</label>
+    <input type="number" name="price_amount" placeholder="mis. 799000">
+    <label>Satuan harga (opsional)</label>
+    <input type="text" name="price_unit" placeholder="mis. per project, per bulan">
+    <label>Deskripsi (opsional)</label>
+    <textarea name="description"></textarea>
+    <div style="margin-top:10px;"><button class="btn" type="submit">Tambah Layanan</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Daftar Layanan</h2>
   <table>
-    <tr><th>Layanan</th><th>Kategori</th><th>Harga</th><th>Status</th><th>Terakhir Diubah</th></tr>
+    <tr><th>Nama</th><th>Kategori</th><th>Harga</th><th>Status</th><th>Terakhir Diubah</th><th></th></tr>
     {% for item in items %}
     <tr>
       <td>{{ item.name }}</td>
       <td class="muted">{{ item.category }}</td>
       <td>{{ format_price(item.price_amount, item.price_unit) if item.pricing_mode != 'CUSTOM_QUOTE' else 'Custom Quote' }}</td>
       <td>{% if item.is_active %}<span class="pill ACTIVE">Aktif</span>{% else %}<span class="pill">Nonaktif</span>{% endif %}</td>
-      <td class="muted">{{ item.updated_at }}</td>
+      <td class="muted">{{ item.updated_at|humanize_timestamp }}</td>
+      <td>
+        {% if item.category in safe_categories %}
+        <details>
+          <summary>Edit</summary>
+          <form method="post" action="{{ url_for('admin.catalog_update', catalog_id=item.id) }}" style="margin-top:8px;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label>Nama</label>
+            <input type="text" name="name" value="{{ item.name }}">
+            <label>Harga (Rp)</label>
+            <input type="number" name="price_amount" value="{{ item.price_amount or '' }}">
+            <label>Satuan</label>
+            <input type="text" name="price_unit" value="{{ item.price_unit or '' }}">
+            <label>Deskripsi</label>
+            <textarea name="description">{{ item.description or '' }}</textarea>
+            <input type="hidden" name="pricing_mode" value="{{ item.pricing_mode }}">
+            <input type="hidden" name="is_active" value="{{ 'on' if item.is_active else '' }}">
+            <div style="margin-top:8px;"><button class="btn small" type="submit">Simpan</button></div>
+          </form>
+        </details>
+        <form method="post" action="{{ url_for('admin.catalog_toggle_active', catalog_id=item.id) }}" class="inline" style="margin-top:6px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn small secondary" type="submit">{{ 'Nonaktifkan' if item.is_active else 'Aktifkan' }}</button>
+        </form>
+        {% else %}
+        <span class="muted" style="font-size:12px;">Alur khusus — dikelola terpisah</span>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </table>
