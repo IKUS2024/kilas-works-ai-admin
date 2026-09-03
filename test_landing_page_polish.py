@@ -68,20 +68,21 @@ def test_mobile_media_queries_present():
     print("test_mobile_media_queries_present OK")
 
 
-def test_meta_ads_still_present_but_deemphasized():
-    """FINAL PRODUCT DECISIONS #1: do NOT delete Meta Ads architecture/data; keep it
-    dormant/secondary, not prominently exposed in the primary flow."""
+def test_meta_ads_still_present_and_not_over_featured_card():
+    """FINAL PRODUCT DECISIONS #1 (superseded in part by the Brand/Landing hero rework task):
+    Meta Ads must never be deleted, and its SERVICE CARD must not be the oversized "wide" featured
+    card (that visual prominence is reserved for AI WhatsApp Admin, the flagship product). The
+    EARLIER "never mention Meta Ads in the hero subcopy" restriction is intentionally REVERSED by
+    the hero rework task, which explicitly requires the subcopy to summarize the full service
+    ecosystem including Meta Ads — so mentioning it in hero-sub is now correct, expected
+    behavior, not a regression."""
     html = _read()
     assert "Meta Ads" in html, "Meta Ads card must NOT be deleted"
-    # De-emphasized: no longer the "wide" 2-column featured card.
     meta_ads_idx = html.find(">Meta Ads<")
     card_start = html.rfind('<div class="service-card', 0, meta_ads_idx)
     card_tag = html[card_start:card_start + 40]
     assert "wide" not in card_tag, card_tag
-    # De-emphasized: no longer mentioned in the hero's primary one-line pitch.
-    hero_sub_match = re.search(r'<p class="hero-sub">(.*?)</p>', html)
-    assert hero_sub_match and "Meta Ads" not in hero_sub_match.group(1)
-    print("test_meta_ads_still_present_but_deemphasized OK")
+    print("test_meta_ads_still_present_and_not_over_featured_card OK")
 
 
 def test_html_tags_balanced():
@@ -99,6 +100,6 @@ if __name__ == "__main__":
     test_coba_demo_ai_admin_points_to_kilasworks_id()
     test_masuk_daftar_contrast_improved()
     test_mobile_media_queries_present()
-    test_meta_ads_still_present_but_deemphasized()
+    test_meta_ads_still_present_and_not_over_featured_card()
     test_html_tags_balanced()
     print("ALL LANDING PAGE POLISH TESTS PASSED")

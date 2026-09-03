@@ -243,6 +243,35 @@ def test_brain_version_identifier_present_and_matches_across_surfaces():
     print("test_brain_version_identifier_present_and_matches_across_surfaces OK")
 
 
+# ---------------------------------------------------------------------------
+# 12. Complaint/support overrides sales; helpful knowledge stays low-pressure.
+# ---------------------------------------------------------------------------
+def test_complaint_support_overrides_sales_rule_present():
+    core = ai_brain_shared.AI_ADMIN_CORE_BEHAVIOR
+    assert "KELUHAN / SUPPORT" in core
+    assert "OVERRIDE mode jualan" in core
+    assert "STOP upsell" in core
+    print("test_complaint_support_overrides_sales_rule_present OK")
+
+
+def test_complaint_never_invents_solution_says_tim_escalates_on_explicit_request():
+    core = ai_brain_shared.AI_ADMIN_CORE_BEHAVIOR
+    idx = core.find("KELUHAN / SUPPORT")
+    section = core[idx:idx + 900]
+    assert "JANGAN PERNAH mengarang status refund" in section
+    assert 'sebut "tim"' in section
+    assert "SECARA EKSPLISIT minta bicara sama manusia" in section
+    print("test_complaint_never_invents_solution_says_tim_escalates_on_explicit_request OK")
+
+
+def test_helpful_knowledge_no_cta_without_buying_intent():
+    core = ai_brain_shared.AI_ADMIN_CORE_BEHAVIOR
+    idx = core.find("HELPFUL KNOWLEDGE MODE")
+    section = core[idx:idx + 700]
+    assert "belum ada tanda-tanda niat beli" in section
+    print("test_helpful_knowledge_no_cta_without_buying_intent OK")
+
+
 if __name__ == "__main__":
     test_short_by_default_rule_present()
     test_no_praise_rule_present()
@@ -266,4 +295,7 @@ if __name__ == "__main__":
     test_demo_api_never_sends_real_whatsapp()
     test_client_hub_test_ai_never_sends_real_whatsapp_or_writes_appointments()
     test_brain_version_identifier_present_and_matches_across_surfaces()
+    test_complaint_support_overrides_sales_rule_present()
+    test_complaint_never_invents_solution_says_tim_escalates_on_explicit_request()
+    test_helpful_knowledge_no_cta_without_buying_intent()
     print("ALL UNIFIED AI BRAIN V2 TESTS PASSED")

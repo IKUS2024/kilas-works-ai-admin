@@ -35,6 +35,7 @@ import os
 
 import catalog_cache
 import catalog_service
+import repo
 import talent_service
 
 _CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated")
@@ -103,11 +104,21 @@ def generate_catalog_pdf_bytes():
         return t
 
     story = []
+    story.append(Spacer(1, 18 * mm))
     story.append(Paragraph("KILAS WORKS", styles["KWTitle"]))
-    story.append(Paragraph("Katalog Layanan &amp; Harga — Content, AI &amp; Digital Solutions", styles["KWSubtitle"]))
+    story.append(Paragraph("AI, Content &amp; Digital Solutions", styles["KWSubtitle"]))
     story.append(Spacer(1, 4 * mm))
     story.append(HRFlowable(width="100%", thickness=1.4, color=ORANGE))
-    story.append(Spacer(1, 6 * mm))
+    story.append(Spacer(1, 8 * mm))
+    story.append(Paragraph(
+        "Kilas Works membantu bisnis bergerak lebih cepat lewat satu partner untuk kebutuhan "
+        "digital: AI WhatsApp Admin yang merespons customer 24/7, Content &amp; Creative untuk "
+        "kehadiran brand yang konsisten, Meta Ads untuk distribusi &amp; traffic, Website &amp; "
+        "Digital Solutions, sampai kolaborasi Talent &amp; Creator untuk campaign — dikerjakan oleh "
+        "tim yang sama, dengan satu titik komunikasi.",
+        styles["KWBody"],
+    ))
+    story.append(Spacer(1, 14 * mm))
 
     category_labels = {
         "AI_ADMIN": "AI WHATSAPP ADMIN",
@@ -178,8 +189,9 @@ def generate_catalog_pdf_bytes():
                 ))
             body.append(Spacer(1, 2 * mm))
             body.append(Paragraph(
-                "<b>Harga:</b> Custom quote — tergantung jenis campaign, jumlah konten, dan kebutuhan "
-                "brand. Hubungi kami untuk konsultasi &amp; penawaran.",
+                "<b>Harga:</b> Penawaran disesuaikan dengan kebutuhan campaign — tergantung jenis "
+                "campaign, jumlah konten, dan kebutuhan brand. Hubungi kami untuk konsultasi &amp; "
+                "penawaran.",
                 styles["KWNote"],
             ))
             story.append(KeepTogether(
@@ -189,33 +201,42 @@ def generate_catalog_pdf_bytes():
             continue
 
         # Generic fixed-price-or-custom-quote table for every other category (AI_ADMIN, CONTENT,
-        # BUNDLE, ADS, WEBSITE, EVENT, APPLICATION).
-        rows = [header_row(["Layanan", "Harga", "Mode"])]
+        # BUNDLE, ADS, WEBSITE, EVENT, APPLICATION). Two columns only (Layanan, Harga) — no "Mode"
+        # column: that used to literally print "Fixed"/"Custom Quote" as a raw internal-sounding
+        # label, which the premium redesign explicitly forbids. format_price() already returns the
+        # correct customer-facing text for BOTH cases (a real Rupiah figure, or the natural
+        # "Penawaran disesuaikan dengan kebutuhan project." sentence for CUSTOM_QUOTE) — the price
+        # column alone communicates everything a customer needs, professionally.
+        rows = [header_row(["Layanan", "Harga"])]
         for it in rows_for_cat:
             price_label = catalog_service.format_price(it.get("price_amount"), it.get("price_unit"))
-            mode_label = "Custom Quote" if it["pricing_mode"] == "CUSTOM_QUOTE" else "Fixed"
+            desc = it.get("description")
+            name_cell = it["name"] if not desc else f"<b>{it['name']}</b><br/><font size=8 color='#777777'>{desc}</font>"
             rows.append([
-                cell(it["name"], "KWCellBold"),
+                cell(name_cell, "KWCellBold" if not desc else "KWCell"),
                 cell(price_label, "KWCellPrice" if it["pricing_mode"] != "CUSTOM_QUOTE" else "KWCell"),
-                cell(mode_label),
             ])
-        body = [pkg_table(rows, [70 * mm, 55 * mm, 40 * mm])]
+        body = [pkg_table(rows, [110 * mm, 55 * mm])]
         story.append(KeepTogether(
             [Paragraph(f"{section_number}. {title}", styles["KWSection"])] + body + [Spacer(1, 5 * mm)]
         ))
         section_number += 1
 
     story.append(HRFlowable(width="100%", thickness=0.75, color=colors.HexColor("#CCCCCC")))
-    story.append(Spacer(1, 3 * mm))
+    story.append(Spacer(1, 5 * mm))
+    story.append(Paragraph("Mulai Sekarang", styles["KWSection"]))
     story.append(Paragraph(
-        "Semua harga berlaku sampai pemberitahuan lebih lanjut. Kebutuhan di luar cakupan paket di "
-        "atas bisa didiskusikan langsung dengan tim kami. Hubungi kami via WhatsApp untuk konsultasi "
-        "lebih lanjut.",
-        styles["KWNote"],
+        "Kebutuhan di luar cakupan paket di atas bisa didiskusikan langsung dengan tim kami. "
+        "Semua harga berlaku sampai pemberitahuan lebih lanjut.",
+        styles["KWBody"],
     ))
-    story.append(Spacer(1, 2 * mm))
+    story.append(Spacer(1, 3 * mm))
+    official_links = repo.get_official_links()
     story.append(Paragraph(
-        "<b>Kilas Works</b> — Tangerang &amp; Jakarta, Indonesia &middot; instagram.com/kilasworks &middot; kilasworks.id",
+        f"<b>Kilas Works</b> — Tangerang &amp; Jakarta, Indonesia<br/>"
+        f"Client Hub: {official_links['app']}<br/>"
+        f"Instagram: {official_links['instagram']}<br/>"
+        f"{official_links['landing_page']}",
         styles["KWNote"],
     ))
 

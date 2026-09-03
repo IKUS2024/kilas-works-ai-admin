@@ -73,7 +73,7 @@
   /* ---------- HERO ---------- */
   .hero{
     position:relative;
-    padding:96px 24px 88px;
+    padding:72px 24px 64px;
     overflow:hidden;
   }
   .hero-glow{
@@ -103,7 +103,7 @@
     font-size:1.1rem;color:var(--ink-dim);
     max-width:46ch;margin-bottom:40px;
   }
-  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:64px;}
+  .hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:28px;}
   .btn-primary{
     background:var(--orange);color:#161311;font-weight:600;
     padding:14px 26px;border-radius:10px;text-decoration:none;
@@ -118,6 +118,13 @@
     transition:border-color .15s ease, background .15s ease;
   }
   .btn-ghost:hover{border-color:var(--ink-faint);background:var(--bg-raised);}
+
+  .ecosystem-strip{
+    display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+    font-size:0.82rem;color:var(--ink-faint);font-weight:600;
+    margin-bottom:44px;
+  }
+  .ecosystem-strip .dot{width:3px;height:3px;border-radius:50%;background:var(--ink-faint);opacity:.6;}
 
   /* hero visual: phone mockup + laptop dashboard */
   .hero-visual{
@@ -163,6 +170,14 @@
   .tag-pill.new{background:rgba(95,216,138,0.14);color:#5fd88a;}
   .tag-pill.wait{background:rgba(255,255,255,0.08);color:var(--ink-dim);}
   .dash-card-note{margin-top:12px;font-size:0.68rem;color:var(--ink-faint);font-style:italic;}
+  .dash-stack{display:flex;flex-direction:column;gap:14px;}
+  .mini-stat-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .mini-stat{
+    display:flex;align-items:center;gap:6px;
+    background:var(--bg-card);border:1px solid var(--line);border-radius:999px;
+    padding:7px 12px;font-size:0.72rem;font-weight:600;color:var(--ink-dim);
+  }
+  .mini-stat-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);}
 
   /* ---------- SECTION SHELL ---------- */
   section{padding:88px 0;}
@@ -336,6 +351,7 @@
     .why-grid{grid-template-columns:1fr;}
     .hero-visual{grid-template-columns:1fr;}
     .phone{max-width:280px;margin:0 auto;}
+    .dash-stack{align-items:center;}
     .ai-tier-grid{grid-template-columns:1fr;}
   }
 
@@ -349,6 +365,8 @@
     .hero-ctas{gap:10px;}
     .hero-ctas .btn-primary,.hero-ctas .btn-ghost,.demo-ctas .btn-primary{width:100%;justify-content:center;text-align:center;}
     .eyebrow{font-size:0.75rem;}
+    .ecosystem-strip{font-size:0.76rem;gap:8px;margin-bottom:32px;}
+    .mini-stat-row{justify-content:center;}
   }
 </style>
 </head>
@@ -368,14 +386,28 @@
   <div class="hero-glow" aria-hidden="true"></div>
   <div class="hero-inner">
     <span class="eyebrow">Tangerang &amp; Jakarta</span>
-    <h1 class="headline">Bantu Bisnis Tumbuh dari <span class="accent">Konten sampai Customer Handling.</span></h1>
-    <p class="hero-sub">Kilas Works membantu bisnis melalui content creation, website, AI WhatsApp Admin, dan event content.</p>
+    <h1 class="headline">Satu Partner untuk <span class="accent">AI, Content, Ads &amp; Digital Growth.</span></h1>
+    <p class="hero-sub">Kilas Works menjalankan AI WhatsApp Admin, Content &amp; Creative, Meta Ads, Website
+      &amp; Digital Solutions, sampai Talent/Creator campaign — satu partner, banyak kebutuhan digital.</p>
     <div class="hero-ctas">
-      <a class="btn-primary" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20konsultasi" target="_blank" rel="noopener">
-        Konsultasikan Kebutuhan
+      <a class="btn-primary" href="#layanan">
+        Lihat Layanan
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </a>
-      <a class="btn-ghost" href="#layanan">Lihat Layanan</a>
+      <a class="btn-ghost" href="https://demo.kilasworks.id" target="_blank" rel="noopener">Coba AI Admin</a>
+      <a class="btn-ghost" href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20aku%20mau%20tanya" target="_blank" rel="noopener">Tanya Kilas Works</a>
+    </div>
+
+    <div class="ecosystem-strip" role="list" aria-label="Layanan Kilas Works">
+      <span role="listitem">AI WhatsApp Admin</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span role="listitem">Content &amp; Creative</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span role="listitem">Meta Ads</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span role="listitem">Website &amp; Digital</span>
+      <span class="dot" aria-hidden="true"></span>
+      <span role="listitem">Talent &amp; Creator</span>
     </div>
 
     <div class="hero-visual">
@@ -395,41 +427,19 @@
           <div class="typing">mengetik…</div>
         </div>
       </div>
-      <div class="dash-card" aria-hidden="true">
-        <h4>Contoh Alur AI Admin</h4>
-        <div class="dash-row"><span>Customer A</span><span class="tag-pill hot">Tertarik</span></div>
-        <div class="dash-row"><span>Customer B</span><span class="tag-pill new">Minta Demo</span></div>
-        <div class="dash-row"><span>Customer C</span><span class="tag-pill wait">Menunggu Jadwal</span></div>
-        <p class="dash-card-note">Ilustrasi cara kerja AI Admin.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="masalah">
-  <div class="wrap">
-    <div class="section-head">
-      <span class="kicker">Kenapa Kilas Works</span>
-      <h2>Bisnis lokal biasanya stuck di dua hal ini.</h2>
-      <p>Dua masalah yang paling sering bikin bisnis susah berkembang secara online — dan keduanya bisa diselesaikan sekaligus.</p>
-    </div>
-    <div class="problems">
-      <div class="problem-card">
-        <span class="num">Masalah 01</span>
-        <h3>Sulit konsisten membuat konten</h3>
-        <p>Feed jarang update, konten seadanya, gak ada waktu mikirin ide tiap bulan — akhirnya kehadiran online jalan di tempat.</p>
-        <div class="solution-line">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3L13 4" stroke="#ff6a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Produksi konten rutin tiap bulan — foto, video Reels/TikTok, siap posting.
+      <div class="dash-stack">
+        <div class="dash-card" aria-hidden="true">
+          <h4>Contoh Alur AI Admin</h4>
+          <div class="dash-row"><span>Customer A</span><span class="tag-pill hot">Tertarik</span></div>
+          <div class="dash-row"><span>Customer B</span><span class="tag-pill new">Minta Demo</span></div>
+          <div class="dash-row"><span>Customer C</span><span class="tag-pill wait">Menunggu Jadwal</span></div>
+          <p class="dash-card-note">Ilustrasi cara kerja AI Admin.</p>
         </div>
-      </div>
-      <div class="problem-card">
-        <span class="num">Masalah 02</span>
-        <h3>Chat customer sering terlewat</h3>
-        <p>Chat masuk tengah malam, pas lagi sibuk shoot, atau pas libur — calon customer nunggu lama, akhirnya pindah ke kompetitor.</p>
-        <div class="solution-line">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3L13 4" stroke="#ff6a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          AI WhatsApp Admin balas otomatis 24/7, saring leads yang serius.
+        <div class="mini-stat-row" aria-hidden="true">
+          <div class="mini-stat"><span class="mini-stat-label">Content</span><span class="mini-stat-dot"></span></div>
+          <div class="mini-stat"><span class="mini-stat-label">Ads</span><span class="mini-stat-dot"></span></div>
+          <div class="mini-stat"><span class="mini-stat-label">Website</span><span class="mini-stat-dot"></span></div>
+          <div class="mini-stat"><span class="mini-stat-label">Talent</span><span class="mini-stat-dot"></span></div>
         </div>
       </div>
     </div>
@@ -467,20 +477,23 @@
 
       <div class="service-card">
         <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#ff6a2c" stroke-width="1.5"/><path d="M8 9h.01M8 13h.01M8 17h8" stroke="#ff6a2c" stroke-width="1.5" stroke-linecap="round"/></svg></div>
-        <h3>Content Creation</h3>
-        <p>Reels/TikTok, static visual, creative concept, editing, dan content planning untuk membantu bisnis terlihat lebih profesional secara online.</p>
+        <h3>Content &amp; Creative</h3>
+        <p>Reels/TikTok, static visual, creative concept, editing, dan content planning untuk membantu bisnis
+          terlihat lebih profesional secara online — termasuk dokumentasi foto/video untuk event seperti
+          wedding, corporate event, dan gathering.</p>
         <div class="service-visual tag-row">
-          <span class="tag-chip">Automotive</span>
-          <span class="tag-chip">Product</span>
-          <span class="tag-chip">Lifestyle</span>
-          <span class="tag-chip">Travel</span>
+          <span class="tag-chip">Reels/TikTok</span>
+          <span class="tag-chip">Brand Visual</span>
+          <span class="tag-chip">Campaign Content</span>
+          <span class="tag-chip">Event Photo/Video</span>
         </div>
       </div>
 
       <div class="service-card">
         <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 6.5a1 1 0 011-1h6l1.5 2H20a1 1 0 011 1V17a1 1 0 01-1 1H4a1 1 0 01-1-1V6.5z" stroke="#ff6a2c" stroke-width="1.5"/></svg></div>
-        <h3>Website</h3>
-        <p>Landing page dan company profile yang responsive dan dirancang agar customer mudah menemukan informasi dan menghubungi bisnis.</p>
+        <h3>Website &amp; Digital Solutions</h3>
+        <p>Landing page, company profile, dan aplikasi/sistem custom yang responsive dan dirancang agar
+          customer mudah menemukan informasi dan menghubungi bisnis.</p>
         <div class="service-visual">
           <div class="mini-browser">
             <div class="bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
@@ -494,21 +507,9 @@
       </div>
 
       <div class="service-card">
-        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 8.5l8-4 8 4-8 4-8-4z" stroke="#ff6a2c" stroke-width="1.5" stroke-linejoin="round"/><path d="M4 8.5V16l8 4 8-4V8.5" stroke="#ff6a2c" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
-        <h3>Event Photo &amp; Video</h3>
-        <p>Dokumentasi foto/video untuk wedding, ulang tahun, corporate event, gathering, dan acara lainnya.</p>
-        <div class="service-visual tag-row">
-          <span class="tag-chip">Wedding</span>
-          <span class="tag-chip">Ulang Tahun</span>
-          <span class="tag-chip">Corporate Event</span>
-          <span class="tag-chip">Gathering</span>
-        </div>
-      </div>
-
-      <div class="service-card">
         <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3" stroke="#ff6a2c" stroke-width="1.5"/><circle cx="17" cy="9" r="2.4" stroke="#ff6a2c" stroke-width="1.5"/><path d="M4 19c0-3 2.5-5 5-5s5 2 5 5" stroke="#ff6a2c" stroke-width="1.5" stroke-linecap="round"/><path d="M14.5 15.2c2 .3 3.5 1.9 3.5 3.8" stroke="#ff6a2c" stroke-width="1.5" stroke-linecap="round"/></svg></div>
-        <h3>Talent Management</h3>
-        <p>Kolaborasi endorsement/konten dengan talent yang sudah kami kurasi untuk campaign brand dan bisnis lokal. Harga custom sesuai kebutuhan campaign — hubungi kami untuk penawaran.</p>
+        <h3>Talent &amp; Creator Management</h3>
+        <p>Kolaborasi endorsement/konten dengan talent yang sudah kami kurasi untuk campaign brand dan bisnis lokal. Penawaran disesuaikan dengan kebutuhan campaign — hubungi kami untuk penawaran.</p>
         <div class="service-visual tag-row">
           <span class="tag-chip">Endorsement</span>
           <span class="tag-chip">Instagram</span>
@@ -536,6 +537,47 @@
               <polyline points="0,26 20,22 40,23 60,14 80,16 100,7 120,9" fill="none" stroke="#ff6a2c" stroke-width="2"/>
             </svg>
           </div>
+        </div>
+      </div>
+
+      <div class="service-card">
+        <div class="icon-badge"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 3l2.2 4.6L19 9l-3.6 3.2.9 4.9L12 14.9 7.7 17.1l.9-4.9L5 9l4.8-1.4L12 3z" stroke="#ff6a2c" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+        <h3>Custom Solutions</h3>
+        <p>Kebutuhan digital/automation di luar paket standar — kami bantu rancang solusi yang sesuai skala
+          dan proses bisnis kamu. Penawaran disesuaikan dengan kebutuhan project.</p>
+        <div class="service-visual tag-row">
+          <span class="tag-chip">Konsultasi Kebutuhan</span>
+          <span class="tag-chip">Custom Quote</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="masalah">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Kenapa Kilas Works</span>
+      <h2>Bisnis lokal biasanya stuck di dua hal ini.</h2>
+      <p>Dua masalah yang paling sering bikin bisnis susah berkembang secara online — dan keduanya bisa diselesaikan sekaligus.</p>
+    </div>
+    <div class="problems">
+      <div class="problem-card">
+        <span class="num">Masalah 01</span>
+        <h3>Sulit konsisten membuat konten</h3>
+        <p>Feed jarang update, konten seadanya, gak ada waktu mikirin ide tiap bulan — akhirnya kehadiran online jalan di tempat.</p>
+        <div class="solution-line">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3L13 4" stroke="#ff6a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Produksi konten rutin tiap bulan — foto, video Reels/TikTok, siap posting.
+        </div>
+      </div>
+      <div class="problem-card">
+        <span class="num">Masalah 02</span>
+        <h3>Chat customer sering terlewat</h3>
+        <p>Chat masuk tengah malam, pas lagi sibuk shoot, atau pas libur — calon customer nunggu lama, akhirnya pindah ke kompetitor.</p>
+        <div class="solution-line">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.2 3L13 4" stroke="#ff6a2c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          AI WhatsApp Admin balas otomatis 24/7, saring leads yang serius.
         </div>
       </div>
     </div>

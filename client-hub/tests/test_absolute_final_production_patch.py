@@ -285,9 +285,14 @@ def test_live_catalog_never_shows_internal_rate():
 
 
 def test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_content():
+    """Premium catalog/PDF redesign task: the raw "Custom Quote" label was intentionally replaced
+    with a natural, professional Indonesian sentence — "Penawaran disesuaikan dengan kebutuhan
+    project." (catalog_service.format_price()) — plus explicit prose in the Photo/Video/Talent
+    sections. This test now checks for that current, correct wording instead."""
     reset_db()
     text = _pdf_text(live_catalog_pdf.generate_catalog_pdf_bytes())
-    assert "Custom Quote" in text
+    assert "disesuaikan dengan kebutuhan" in text
+    assert "Custom Quote" not in text, "the raw 'Custom Quote' label must no longer appear in the customer-facing PDF"
     # No numeric currency amount anywhere near a talent name (talents are only ever custom quote).
     for talent in talent_service.list_active_talents():
         assert talent["name"] in text
