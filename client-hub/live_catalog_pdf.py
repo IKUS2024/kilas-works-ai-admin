@@ -47,18 +47,28 @@ _CUSTOM_QUOTE_ONLY_CATEGORIES = ("PHOTO", "VIDEO", "TALENT")
 
 def generate_catalog_pdf_bytes():
     """Builds the current catalog PDF from live DB state and returns it as raw bytes (never writes
-    to disk itself — callers decide whether/where to cache)."""
+    to disk itself — callers decide whether/where to cache).
+
+    Premium service-deck redesign: raw service_catalog categories (AI_ADMIN, CONTENT, BUNDLE, ADS,
+    WEBSITE, EVENT, VIDEO, PHOTO, APPLICATION, TALENT) are consolidated into the 6 customer-facing
+    groups Kilas Works actually sells as (see _CUSTOMER_FACING_GROUPS below) — a presentation-layer
+    grouping only; the underlying live data/source-of-truth (catalog_service.list_active_catalog())
+    is completely unchanged, so an admin price/description/active-state edit still propagates here
+    exactly as before, just displayed under the right customer-facing heading instead of a raw
+    internal category code."""
     import io
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
     from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether,
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether, PageBreak,
     )
 
     items = catalog_service.list_active_catalog()
     talents = talent_service.list_active_talents()
+    official_links = repo.get_official_links()
 
     by_category = {}
     for item in items:
@@ -68,17 +78,25 @@ def generate_catalog_pdf_bytes():
     DARK = colors.HexColor("#1A1A1A")
     GREY = colors.HexColor("#555555")
     LIGHT_BG = colors.HexColor("#F5F3F0")
+    LINE = colors.HexColor("#E4E0DA")
 
     styles = getSampleStyleSheet()
-    styles.add(ParagraphStyle(name="KWTitle", fontSize=24, leading=28, textColor=DARK, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="KWCoverTitle", fontSize=40, leading=44, textColor=DARK, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="KWCoverSub", fontSize=13, leading=18, textColor=ORANGE, fontName="Helvetica-Bold", spaceBefore=6))
+    styles.add(ParagraphStyle(name="KWCoverTag", fontSize=10.5, leading=15, textColor=GREY, fontName="Helvetica", spaceBefore=18))
+    styles.add(ParagraphStyle(name="KWEyebrow", fontSize=8.5, leading=11, textColor=ORANGE, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="KWTitle", fontSize=22, leading=26, textColor=DARK, fontName="Helvetica-Bold"))
     styles.add(ParagraphStyle(name="KWSubtitle", fontSize=11, leading=15, textColor=GREY, fontName="Helvetica"))
-    styles.add(ParagraphStyle(name="KWSection", fontSize=14, leading=18, textColor=ORANGE, fontName="Helvetica-Bold", spaceBefore=14, spaceAfter=6))
+    styles.add(ParagraphStyle(name="KWGroupTitle", fontSize=17, leading=21, textColor=DARK, fontName="Helvetica-Bold", spaceBefore=2, spaceAfter=4))
+    styles.add(ParagraphStyle(name="KWGroupTitleFlagship", fontSize=20, leading=24, textColor=ORANGE, fontName="Helvetica-Bold", spaceBefore=2, spaceAfter=4))
+    styles.add(ParagraphStyle(name="KWGroupDesc", fontSize=10, leading=14.5, textColor=GREY, fontName="Helvetica", spaceAfter=10))
     styles.add(ParagraphStyle(name="KWNote", fontSize=8.5, leading=12, textColor=GREY, fontName="Helvetica-Oblique"))
     styles.add(ParagraphStyle(name="KWBody", fontSize=9.5, leading=13.5, textColor=DARK, fontName="Helvetica"))
     styles.add(ParagraphStyle(name="KWCell", fontSize=9, leading=12.5, textColor=DARK, fontName="Helvetica"))
     styles.add(ParagraphStyle(name="KWCellBold", fontSize=9.5, leading=12.5, textColor=DARK, fontName="Helvetica-Bold"))
     styles.add(ParagraphStyle(name="KWCellPrice", fontSize=9.5, leading=12.5, textColor=ORANGE, fontName="Helvetica-Bold"))
     styles.add(ParagraphStyle(name="KWCellHead", fontSize=9.5, leading=12.5, textColor=colors.white, fontName="Helvetica-Bold"))
+    styles.add(ParagraphStyle(name="KWFooterCenter", fontSize=9, leading=13, textColor=GREY, fontName="Helvetica", alignment=TA_CENTER))
 
     def cell(text, style="KWCell"):
         return Paragraph(text, styles[style])
@@ -103,148 +121,175 @@ def generate_catalog_pdf_bytes():
         ]))
         return t
 
+    # Customer-facing service grouping (presentation layer only — see this function's own
+    # docstring). Maps to raw service_catalog categories; "custom" has no catalog items at all
+    # (Custom Solutions is marketing-only, matching the landing page — no invented price, no fake
+    # catalog entry) and "talent" deliberately never lists individual catalog rows even though
+    # TALENT items may exist in service_catalog, since talent pricing is per-talent internal data,
+    # not a public package list.
+    _CUSTOMER_FACING_GROUPS = [
+        {
+            "key": "ai_admin", "title": "AI WhatsApp Admin", "categories": ["AI_ADMIN"], "flagship": True,
+            "description": (
+                "AI Admin membalas customer di WhatsApp secara otomatis menggunakan data & pengetahuan "
+                "bisnis kamu sendiri — menjawab pertanyaan, membantu proses penjualan, dan follow-up "
+                "customer. Kalau situasinya butuh manusia, percakapan bisa langsung diambil alih tim."
+            ),
+        },
+        {
+            "key": "content", "title": "Content & Creative", "categories": ["CONTENT", "BUNDLE", "EVENT", "VIDEO", "PHOTO"],
+            "description": (
+                "Produksi foto, video, reels, dan konten campaign untuk kebutuhan brand — dari konten "
+                "rutin bulanan sampai dokumentasi event, disesuaikan dengan kebutuhan project."
+            ),
+        },
+        {
+            "key": "ads", "title": "Meta Ads", "categories": ["ADS"],
+            "description": (
+                "Setup dan pengelolaan campaign iklan Meta (Instagram &amp; Facebook) — membantu bisnis "
+                "menyusun campaign yang terstruktur dan menjangkau audiens yang relevan."
+            ),
+        },
+        {
+            "key": "website", "title": "Website &amp; Digital Solutions", "categories": ["WEBSITE", "APPLICATION"],
+            "description": (
+                "Landing page, website company profile, sampai sistem/aplikasi custom sesuai kebutuhan "
+                "bisnis dan proses kerja kamu."
+            ),
+        },
+        {
+            "key": "talent", "title": "Talent &amp; Creator Management", "categories": ["TALENT"], "no_roster": True,
+            "description": (
+                "Kilas Works membantu brand menjalankan kolaborasi dengan talent dan creator untuk "
+                "kebutuhan endorsement, campaign, product placement, social content, dan brand "
+                "collaboration. Pemilihan talent disesuaikan dengan target audience, konsep campaign, "
+                "platform, budget, dan availability."
+            ),
+        },
+        {
+            "key": "custom", "title": "Custom Solutions", "categories": [], "text_only": True,
+            "description": (
+                "Kebutuhan digital/automation di luar paket standar di atas bisa didiskusikan dan "
+                "ditawarkan sesuai kebutuhan project kamu."
+            ),
+        },
+    ]
+
     story = []
-    story.append(Spacer(1, 18 * mm))
-    story.append(Paragraph("KILAS WORKS", styles["KWTitle"]))
-    story.append(Paragraph("AI, Content &amp; Digital Solutions", styles["KWSubtitle"]))
-    story.append(Spacer(1, 4 * mm))
-    story.append(HRFlowable(width="100%", thickness=1.4, color=ORANGE))
-    story.append(Spacer(1, 8 * mm))
+
+    # ---------------- PAGE 1 — COVER ----------------
+    story.append(Spacer(1, 60 * mm))
+    story.append(Paragraph("KILAS WORKS", styles["KWCoverTitle"]))
+    story.append(Paragraph("AI, CONTENT &amp; DIGITAL SOLUTIONS", styles["KWCoverSub"]))
     story.append(Paragraph(
-        "Kilas Works membantu bisnis bergerak lebih cepat lewat satu partner untuk kebutuhan "
-        "digital: AI WhatsApp Admin yang merespons customer 24/7, Content &amp; Creative untuk "
-        "kehadiran brand yang konsisten, Meta Ads untuk distribusi &amp; traffic, Website &amp; "
-        "Digital Solutions, sampai kolaborasi Talent &amp; Creator untuk campaign — dikerjakan oleh "
-        "tim yang sama, dengan satu titik komunikasi.",
+        "Satu partner untuk AI WhatsApp Admin, content &amp; creative, Meta Ads, website, dan "
+        "kolaborasi talent/creator — dikerjakan tim yang sama, satu titik komunikasi.",
+        styles["KWCoverTag"],
+    ))
+    story.append(PageBreak())
+
+    # ---------------- PAGE 2 — ABOUT / WHAT WE DO ----------------
+    story.append(Paragraph("TENTANG KAMI", styles["KWEyebrow"]))
+    story.append(Paragraph("Satu Partner, Banyak Kebutuhan Digital", styles["KWTitle"]))
+    story.append(Spacer(1, 3 * mm))
+    story.append(HRFlowable(width=38 * mm, thickness=2, color=ORANGE))
+    story.append(Spacer(1, 6 * mm))
+    story.append(Paragraph(
+        "Kilas Works membantu bisnis bergerak lebih cepat lewat AI WhatsApp Admin yang merespons "
+        "customer 24/7, Content &amp; Creative untuk kehadiran brand yang konsisten, Meta Ads untuk "
+        "distribusi &amp; traffic, Website &amp; Digital Solutions, sampai kolaborasi Talent &amp; "
+        "Creator untuk campaign. Semua layanan dikerjakan oleh tim yang sama, jadi kamu cukup satu "
+        "titik komunikasi untuk banyak kebutuhan.",
         styles["KWBody"],
     ))
-    story.append(Spacer(1, 14 * mm))
+    story.append(Spacer(1, 10 * mm))
+    overview_rows = [[
+        Paragraph(f"<b>{g['title']}</b>", styles["KWCellBold"]),
+    ] for g in _CUSTOMER_FACING_GROUPS]
+    story.append(Table(overview_rows, colWidths=[150 * mm], style=TableStyle([
+        ("LINEBELOW", (0, 0), (-1, -2), 0.5, LINE),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+    ])))
+    story.append(PageBreak())
 
-    category_labels = {
-        "AI_ADMIN": "AI WHATSAPP ADMIN",
-        "CONTENT": "CONTENT PACKAGES",
-        "BUNDLE": "BUNDLE",
-        "ADS": "META ADS",
-        "WEBSITE": "WEBSITE",
-        "EVENT": "EVENT PHOTO & VIDEO",
-        "VIDEO": "VIDEO",
-        "PHOTO": "PHOTO",
-        "APPLICATION": "APPLICATION / CUSTOM SYSTEM",
-        "TALENT": "TALENT MANAGEMENT",
-    }
-    # Fixed, deliberate section order (AI Admin first, Talent last before the closing note) rather
-    # than whatever order categories happen to appear in the DB.
-    category_order = ["AI_ADMIN", "CONTENT", "BUNDLE", "ADS", "WEBSITE", "EVENT", "VIDEO", "PHOTO",
-                       "APPLICATION", "TALENT"]
+    # ---------------- SERVICE SECTIONS ----------------
+    for group in _CUSTOMER_FACING_GROUPS:
+        rows_for_group = []
+        for cat in group["categories"]:
+            rows_for_group.extend(by_category.get(cat, []))
 
-    section_number = 1
-    for category in category_order:
-        rows_for_cat = by_category.get(category, [])
-        if not rows_for_cat and category != "TALENT":
-            continue
-        title = category_labels.get(category, category)
+        title_style = "KWGroupTitleFlagship" if group.get("flagship") else "KWGroupTitle"
+        block = [Paragraph(group["title"], styles[title_style])]
+        if group.get("flagship"):
+            block.append(Paragraph("PRODUK UNGGULAN", styles["KWEyebrow"]))
+        block.append(Spacer(1, 2 * mm))
+        block.append(Paragraph(group["description"], styles["KWGroupDesc"]))
 
-        if category in _CUSTOM_QUOTE_ONLY_CATEGORIES and category != "TALENT":
-            # Photo/Video: always Custom Quote, never a public number — even if a row somehow
-            # carries a stray price_amount, this section never prints it.
-            body = [
-                Paragraph(
-                    f"{title.title()} sifatnya custom quote — harga tergantung kebutuhan campaign/"
-                    "project. Hubungi kami untuk konsultasi & penawaran.",
-                    styles["KWBody"],
-                ),
-            ]
-            story.append(KeepTogether(
-                [Paragraph(f"{section_number}. {title}", styles["KWSection"])] + body + [Spacer(1, 5 * mm)]
-            ))
-            section_number += 1
-            continue
-
-        if category == "TALENT":
-            body = []
-            if talents:
-                talent_lines = "<br/>".join(
-                    f"&bull; <b>{t['name']}</b>"
-                    + (f" ({t['social_handle']})" if t.get("social_handle") else "")
-                    + (f" — {'{:,}'.format(t['follower_count']).replace(',', '.')} followers" if t.get("follower_count") else "")
-                    + (f", {t['niche']}" if t.get("niche") else "")
-                    for t in talents
-                )
-                body.append(Paragraph(
-                    "Kilas Works juga membuka kerja sama endorsement/kolaborasi konten dengan talent berikut:",
-                    styles["KWBody"],
-                ))
-                body.append(Spacer(1, 2 * mm))
-                body.append(Paragraph(talent_lines, styles["KWBody"]))
-                body.append(Spacer(1, 2 * mm))
-                body.append(Paragraph(
-                    "<i>Follower count dapat berubah. Harga dan ketersediaan tergantung kebutuhan campaign.</i>",
-                    styles["KWNote"],
-                ))
-            else:
-                body.append(Paragraph(
-                    "Kilas Works membuka kerja sama endorsement/kolaborasi konten dengan talent pilihan — "
-                    "hubungi kami untuk daftar talent terkini.",
-                    styles["KWBody"],
-                ))
-            body.append(Spacer(1, 2 * mm))
-            body.append(Paragraph(
-                "<b>Harga:</b> Penawaran disesuaikan dengan kebutuhan campaign — tergantung jenis "
-                "campaign, jumlah konten, dan kebutuhan brand. Hubungi kami untuk konsultasi &amp; "
-                "penawaran.",
+        if group.get("text_only"):
+            # Custom Solutions — no live catalog entries at all, marketing text only, matching the
+            # landing page's own "no invented product/price" rule for this category.
+            pass
+        elif group.get("no_roster"):
+            # Talent & Creator Management — SERVICE explanation only, deliberately never lists
+            # individual talents/handles/follower counts here (public catalog must never expose
+            # the internal roster) — confirmed no talents variable is even referenced in this
+            # branch.
+            block.append(Spacer(1, 2 * mm))
+            block.append(Paragraph(
+                "Hubungi kami untuk diskusi campaign &amp; rekomendasi talent yang sesuai — "
+                "penawaran disesuaikan dengan kebutuhan project.",
                 styles["KWNote"],
             ))
-            story.append(KeepTogether(
-                [Paragraph(f"{section_number}. {title}", styles["KWSection"])] + body + [Spacer(1, 6 * mm)]
+        elif rows_for_group:
+            block.append(Spacer(1, 3 * mm))
+            rows = [header_row(["Layanan", "Harga"])]
+            for it in rows_for_group:
+                price_label = catalog_service.format_price(it.get("price_amount"), it.get("price_unit"))
+                desc = it.get("description")
+                name_cell = it["name"] if not desc else f"<b>{it['name']}</b><br/><font size=8 color='#777777'>{desc}</font>"
+                rows.append([
+                    cell(name_cell, "KWCellBold" if not desc else "KWCell"),
+                    cell(price_label, "KWCellPrice" if it["pricing_mode"] != "CUSTOM_QUOTE" else "KWCell"),
+                ])
+            block.append(pkg_table(rows, [110 * mm, 55 * mm]))
+        else:
+            block.append(Spacer(1, 2 * mm))
+            block.append(Paragraph(
+                "Hubungi kami untuk konsultasi kebutuhan &amp; penawaran.", styles["KWNote"],
             ))
-            section_number += 1
-            continue
 
-        # Generic fixed-price-or-custom-quote table for every other category (AI_ADMIN, CONTENT,
-        # BUNDLE, ADS, WEBSITE, EVENT, APPLICATION). Two columns only (Layanan, Harga) — no "Mode"
-        # column: that used to literally print "Fixed"/"Custom Quote" as a raw internal-sounding
-        # label, which the premium redesign explicitly forbids. format_price() already returns the
-        # correct customer-facing text for BOTH cases (a real Rupiah figure, or the natural
-        # "Penawaran disesuaikan dengan kebutuhan project." sentence for CUSTOM_QUOTE) — the price
-        # column alone communicates everything a customer needs, professionally.
-        rows = [header_row(["Layanan", "Harga"])]
-        for it in rows_for_cat:
-            price_label = catalog_service.format_price(it.get("price_amount"), it.get("price_unit"))
-            desc = it.get("description")
-            name_cell = it["name"] if not desc else f"<b>{it['name']}</b><br/><font size=8 color='#777777'>{desc}</font>"
-            rows.append([
-                cell(name_cell, "KWCellBold" if not desc else "KWCell"),
-                cell(price_label, "KWCellPrice" if it["pricing_mode"] != "CUSTOM_QUOTE" else "KWCell"),
-            ])
-        body = [pkg_table(rows, [110 * mm, 55 * mm])]
-        story.append(KeepTogether(
-            [Paragraph(f"{section_number}. {title}", styles["KWSection"])] + body + [Spacer(1, 5 * mm)]
-        ))
-        section_number += 1
+        block.append(Spacer(1, 4 * mm))
+        story.append(KeepTogether(block))
+        story.append(Spacer(1, 10 * mm))
 
-    story.append(HRFlowable(width="100%", thickness=0.75, color=colors.HexColor("#CCCCCC")))
-    story.append(Spacer(1, 5 * mm))
-    story.append(Paragraph("Mulai Sekarang", styles["KWSection"]))
+    # ---------------- FINAL PAGE — CTA ----------------
+    story.append(PageBreak())
+    story.append(Spacer(1, 40 * mm))
+    story.append(Paragraph("Mulai Sekarang", styles["KWTitle"]))
+    story.append(Spacer(1, 3 * mm))
+    story.append(HRFlowable(width=38 * mm, thickness=2, color=ORANGE))
+    story.append(Spacer(1, 8 * mm))
     story.append(Paragraph(
         "Kebutuhan di luar cakupan paket di atas bisa didiskusikan langsung dengan tim kami. "
         "Semua harga berlaku sampai pemberitahuan lebih lanjut.",
         styles["KWBody"],
     ))
-    story.append(Spacer(1, 3 * mm))
-    official_links = repo.get_official_links()
-    story.append(Paragraph(
-        f"<b>Kilas Works</b> — Tangerang &amp; Jakarta, Indonesia<br/>"
-        f"Client Hub: {official_links['app']}<br/>"
-        f"Instagram: {official_links['instagram']}<br/>"
-        f"{official_links['landing_page']}",
-        styles["KWNote"],
-    ))
+    story.append(Spacer(1, 14 * mm))
+    story.append(Paragraph(f"Mulai di Client Hub &nbsp;&mdash;&nbsp; {official_links['app']}", styles["KWCellBold"]))
+    story.append(Spacer(1, 4 * mm))
+    story.append(Paragraph(f"Instagram &nbsp;&mdash;&nbsp; {official_links['instagram']}", styles["KWBody"]))
+    story.append(Spacer(1, 2 * mm))
+    story.append(Paragraph(f"{official_links['landing_page']}", styles["KWBody"]))
+    story.append(Spacer(1, 2 * mm))
+    story.append(Paragraph("Tangerang &amp; Jakarta, Indonesia", styles["KWNote"]))
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
-        topMargin=18 * mm, bottomMargin=16 * mm, leftMargin=18 * mm, rightMargin=18 * mm,
-        title="Katalog Layanan & Harga Kilas Works",
+        topMargin=20 * mm, bottomMargin=18 * mm, leftMargin=20 * mm, rightMargin=20 * mm,
+        title="Kilas Works — Service Catalog",
     )
     doc.build(story)
     return buf.getvalue()

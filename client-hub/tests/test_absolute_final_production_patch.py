@@ -265,11 +265,21 @@ def test_live_catalog_does_not_change_historical_project_price():
 
 
 def test_live_catalog_reflects_talent_follower_update():
+    """Talent privacy (a LATER, explicit business requirement in the same overall project):
+    individual talent follower counts must NEVER appear in the public PDF at all anymore — this
+    test's original assertion ("250.000" appears in the text) was actually a false-positive
+    coincidental substring match against unrelated price figures like "Rp1.500.000", not a real
+    verification of follower-count display. Rewritten as a precise, genuine check: after updating
+    a talent's follower count, neither the OLD nor the NEW value, nor the talent's name/handle,
+    ever appears in the public PDF — only the Talent & Creator Management SERVICE explanation."""
     reset_db()
     putri = next(t for t in talent_service.list_all_talents() if t["name"] == "Putri Maudy")
     talent_service.update_talent(putri["id"], follower_count=250_000)
     text = _pdf_text(live_catalog_pdf.generate_catalog_pdf_bytes())
-    assert "250.000" in text
+    assert putri["name"] not in text
+    if putri.get("social_handle"):
+        assert putri["social_handle"] not in text
+    assert "Talent" in text and "Creator" in text
     print("test_live_catalog_reflects_talent_follower_update OK")
 
 
@@ -288,14 +298,23 @@ def test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_conte
     """Premium catalog/PDF redesign task: the raw "Custom Quote" label was intentionally replaced
     with a natural, professional Indonesian sentence — "Penawaran disesuaikan dengan kebutuhan
     project." (catalog_service.format_price()) — plus explicit prose in the Photo/Video/Talent
-    sections. This test now checks for that current, correct wording instead."""
+    sections.
+
+    Talent privacy (a LATER, explicit business requirement in the same overall project):
+    individual talent names/handles/follower counts must NEVER appear in the public PDF — only the
+    Talent & Creator Management SERVICE is explained. This reverses this test's own earlier
+    assumption (which expected talent names to be listed); the assertion below now checks the
+    current, correct, privacy-preserving behavior instead."""
     reset_db()
     text = _pdf_text(live_catalog_pdf.generate_catalog_pdf_bytes())
     assert "disesuaikan dengan kebutuhan" in text
     assert "Custom Quote" not in text, "the raw 'Custom Quote' label must no longer appear in the customer-facing PDF"
-    # No numeric currency amount anywhere near a talent name (talents are only ever custom quote).
+    # Talent names/handles must NEVER appear in the public PDF (privacy requirement).
     for talent in talent_service.list_active_talents():
-        assert talent["name"] in text
+        assert talent["name"] not in text, f"talent name leaked into public PDF: {talent['name']}"
+        if talent.get("social_handle"):
+            assert talent["social_handle"] not in text
+    assert "Talent" in text and "Creator" in text, "the Talent & Creator Management SERVICE must still be explained"
     custom_content_item = catalog_service.get_catalog_item("custom_content")
     assert custom_content_item["pricing_mode"] == "CUSTOM_QUOTE"
     print("test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_content OK")
