@@ -26,9 +26,20 @@ def checkout_page(project_id):
 
     if request.method == "GET":
         try:
-            # A GET here is a "can I even reach checkout" pre-check — if not APPROVED yet, bounce
-            # back to the project detail with the correct guidance rather than a raw error.
-            if project["status"] != "APPROVED":
+            # Bug fix (real production incident): PAYMENT_PENDING means checkout ALREADY
+            # happened once for this project — that is a normal, expected state (customer
+            # refreshed, went back, or revisited "Lanjut ke Pembayaran"), never a reason to bounce
+            # them away. Only a status that genuinely ISN'T checkout-ready yet (WAITING_FOR_QUOTE,
+            # DRAFT, etc.) gets the "not available yet" message — matches payment_service.
+            # checkout()'s own gate exactly, so GET and POST never disagree about what's allowed.
+            if project["status"] == "PAYMENT_PENDING":
+                existing_invoice = payment_service.get_latest_invoice_for_project(project_id)
+                if existing_invoice is not None:
+                    return redirect(url_for("payments.invoice_page", invoice_id=existing_invoice["id"]))
+                # PAYMENT_PENDING with no invoice yet found (data-integrity edge case) — fall
+                # through to payment_service.checkout() below, which safely recovers this exact
+                # case (creates the missing invoice idempotently, see its own docstring).
+            elif project["status"] != "APPROVED":
                 flash("Checkout belum tersedia — project ini menunggu quotation disetujui.", "error")
                 return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
         except Exception:
@@ -78,7 +89,8 @@ def invoice_page(invoice_id):
     proof_hash = ai_payment_review.compute_file_hash(content)
     try:
         payment_service.upload_payment_proof(payment["id"], business["id"], file_id, user["id"],
-                                              proof_file_hash=proof_hash)
+                                              proof_file_hash=proof_hash, image_bytes=content,
+                                              image_mime=mime_type)
     except ValueError as e:
         flash(f"Tidak bisa upload bukti: {e}", "error")
         return redirect(url_for("payments.invoice_page", invoice_id=invoice_id))

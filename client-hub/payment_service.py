@@ -31,11 +31,23 @@ def _generate_invoice_number(invoice_id):
 def checkout(project_id, business_id, actor_user_id):
     """Creates the invoice + a PAYMENT_PENDING payment row together (Section 12: 'Create
     invoice/payment record before proof upload'). Raises ValueError if the project isn't actually
-    checkout-ready — this is the one gate that keeps an unapproved custom quote from being paid."""
+    checkout-ready — this is the one gate that keeps an unapproved custom quote from being paid.
+
+    Bug fix (real production incident: "checkout_locked: project status is 'PAYMENT_PENDING', must
+    be APPROVED" for a customer who had already legitimately started checkout once): the ONLY way
+    a project's status ever becomes PAYMENT_PENDING is THIS function itself, a few lines below —
+    meaning a project sitting at PAYMENT_PENDING has, by construction, already passed the
+    APPROVED/CUSTOM_QUOTE-approval gate once. Revisiting checkout (refresh, back button, clicking
+    "Lanjut ke Pembayaran" again, log out/in) must reuse the existing invoice, never be treated as
+    invalid — the idempotent "reuse existing invoice" logic below already existed, but was
+    unreachable because the OLD guard rejected PAYMENT_PENDING before ever reaching it. Any OTHER
+    status (WAITING_FOR_QUOTE, DRAFT, PAID, COMPLETED, CANCELLED, etc.) is still correctly
+    rejected — CUSTOM_QUOTE safety (Section C) is unchanged: a quote must still be APPROVED before
+    its first checkout, exactly as before."""
     project = projects_repo.get_project(project_id)
     if project is None or project["business_id"] != business_id:
         raise ValueError("project_not_found")
-    if project["status"] != "APPROVED":
+    if project["status"] not in ("APPROVED", "PAYMENT_PENDING"):
         raise ValueError(
             f"checkout_locked: project status is {project['status']!r}, must be APPROVED "
             "(fixed-price projects are APPROVED at creation; custom projects only after quotation approval)"
@@ -49,6 +61,12 @@ def checkout(project_id, business_id, actor_user_id):
     )
     if existing_invoice is not None:
         return existing_invoice["id"]  # idempotent — re-clicking checkout doesn't double-invoice
+
+    # PAYMENT_PENDING with NO existing invoice is a genuine data-integrity edge case (Section A:
+    # "PAYMENT_PENDING + invoice unexpectedly missing -> recover safely and idempotently"). Rather
+    # than crash or silently do nothing, fall through to the SAME invoice-creation path an
+    # APPROVED project uses below — this is safe because final_price is already confirmed present
+    # above, and creating exactly one invoice here is the correct recovery, not a workaround.
 
     quotation = None
     if project["pricing_mode"] == "CUSTOM_QUOTE":
@@ -67,13 +85,25 @@ def checkout(project_id, business_id, actor_user_id):
         "INSERT INTO payments (business_id, invoice_id, status) VALUES (?, ?, 'PAYMENT_PENDING')",
         (business_id, invoice_id),
     )
-    projects_repo.set_project_status(project_id, "PAYMENT_PENDING", actor_user_id, business_id,
-                                      f"checkout: {invoice_number}")
+    if project["status"] != "PAYMENT_PENDING":
+        projects_repo.set_project_status(project_id, "PAYMENT_PENDING", actor_user_id, business_id,
+                                          f"checkout: {invoice_number}")
     return invoice_id
 
 
 def get_invoice(invoice_id):
     return db.query_one("SELECT * FROM invoices WHERE id = ?", (invoice_id,))
+
+
+def get_latest_invoice_for_project(project_id):
+    """Same query checkout()'s own idempotent-reuse logic uses — exposed separately so the
+    checkout PAGE's GET handler can redirect straight to an already-existing invoice for a
+    PAYMENT_PENDING project without needing to call checkout() itself (which would be a POST-style
+    mutation on a plain page-load)."""
+    return db.query_one(
+        "SELECT * FROM invoices WHERE project_id = ? AND status != 'CANCELLED' ORDER BY created_at DESC",
+        (project_id,),
+    )
 
 
 def get_payment_for_invoice(invoice_id):
@@ -112,7 +142,8 @@ def list_payments_pending_review():
     )
 
 
-def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id, proof_file_hash=None):
+def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id, proof_file_hash=None,
+                          image_bytes=None, image_mime=None):
     payment = get_payment(payment_id)
     if payment is None or payment["business_id"] != business_id:
         raise ValueError("payment_not_found")
@@ -120,8 +151,16 @@ def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id, 
         raise ValueError(f"invalid_state: payment is {payment['status']}, cannot upload proof")
 
     invoice = get_invoice(payment["invoice_id"])
+    # Real vision extraction (Part B of the request) — only attempted for an actual supported
+    # image (JPG/PNG); a PDF or unsupported type safely falls through to "unreadable" rather than
+    # attempting a vision call the model can't use, exactly as extract_payment_proof_fields()
+    # itself already handles internally for a mismatched MIME type.
+    extracted_fields = None
+    if image_bytes and image_mime in ai_payment_review.ALLOWED_PROOF_MIME_TYPES:
+        extracted_fields = ai_payment_review.extract_payment_proof_fields(image_bytes, image_mime)
     assessment = ai_payment_review.assess_payment_proof(
-        payment_id, business_id, invoice["amount"], proof_file_hash=proof_file_hash,
+        payment_id, business_id, invoice["amount"], extracted_fields=extracted_fields,
+        proof_file_hash=proof_file_hash,
     )
 
     db.execute(
