@@ -6,7 +6,7 @@
 
 <div class="card">
   <h2>Business</h2>
-  <p><strong>{{ business.business_name|display_or_missing if business else 'Belum diisi' }}</strong> (ID: {{ payment.business_id }})</p>
+  <p><strong>{{ business.business_name|display_or_missing if business else 'Belum diisi (customer belum melampirkan bisnis)' }}</strong>{% if payment.business_id %} (ID: {{ payment.business_id }}){% endif %}</p>
 </div>
 
 <div class="card">

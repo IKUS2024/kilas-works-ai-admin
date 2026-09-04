@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ project.title }} — Kilas Works{% endblock %}
+{% block content %}
+<h1>{{ project.title }}</h1>
+<span class="pill {{ project.status }}">{{ project.status|humanize_status('project') }}</span>
+
+<div class="card">
+  {% if project.status == 'WAITING_FOR_QUOTE' %}
+    <p class="muted">Permintaan penawaran kamu sudah diterima. Tim Kilas Works akan follow up begitu
+      penawarannya siap — belum ada tagihan yang perlu dibayar sekarang.</p>
+  {% elif project.status == 'APPROVED' %}
+    <p class="muted">Layanan ini siap dilanjutkan ke pembayaran.</p>
+    <div style="margin-top:10px;">
+      <a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut ke Checkout</a>
+    </div>
+  {% elif project.status in ('PAYMENT_PENDING', 'PAID', 'IN_PROGRESS') %}
+    <p class="muted">Pesanan ini sedang diproses.</p>
+    {% if project.status == 'PAYMENT_PENDING' %}
+    <div style="margin-top:10px;">
+      <a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Bayar</a>
+    </div>
+    {% endif %}
+  {% elif project.status == 'CANCELLED' %}
+    <p class="muted">Pesanan ini sudah dibatalkan.</p>
+  {% else %}
+    <p class="muted">Status: {{ project.status|humanize_status('project') }}</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -198,10 +198,17 @@ def notify_quotation_approved(quotation_id, project_id, business_id, quotation_n
 
 
 def notify_payment_proof_uploaded(payment_id, invoice_id, business_id, business_name, amount):
-    """Section 10(E): VERY IMPORTANT / highest priority notification."""
+    """Section 10(E): VERY IMPORTANT / highest priority notification.
+
+    business_name may be None for a business-less payment (purchase-flow correction — general
+    fixed-price services work end-to-end without ever requiring a business). The message falls
+    back to identifying the invoice by number instead of inventing/faking a business name — never
+    silently drops the "who is this from" context the admin needs, just derives it from what
+    genuinely exists (the invoice) instead of what doesn't (a business)."""
     amount_fmt = f"Rp{amount:,}".replace(",", ".") if amount else "-"
+    source_label = f'"{business_name}"' if business_name else f"invoice #{invoice_id}"
     message = (
-        f"\U0001F4B0 Bukti pembayaran baru masuk dari \"{business_name}\" untuk invoice #{invoice_id} "
+        f"\U0001F4B0 Bukti pembayaran baru masuk dari {source_label} untuk invoice #{invoice_id} "
         f"— {amount_fmt}. Cek & verifikasi: {_ADMIN_BASE}/payments/{payment_id}"
     )
     return notify_owner_once(

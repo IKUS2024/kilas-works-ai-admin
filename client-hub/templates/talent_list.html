@@ -4,7 +4,7 @@
 <h1>Talent Management</h1>
 <p class="muted">{{ disclaimer }}</p>
 
-{% if businesses %}
+{% if businesses|length > 1 %}
 <div class="card">
   <label>Bisnis</label>
   <select id="business_select">
@@ -27,10 +27,25 @@
     {% if t.niche %}<p class="muted">{{ t.niche }}</p>{% endif %}
     <p class="muted">Availability: {{ t.availability_status }}{% if t.availability_note %} — {{ t.availability_note }}{% endif %}</p>
     <p><strong>Custom Quote</strong></p>
-    {% if businesses %}
-    <a class="btn small" href="#" onclick="window.location.href='/business/' + document.getElementById('business_select').value + '/talent/{{ t.id }}/request'; return false;">Request Talent</a>
-    {% endif %}
+    <a class="btn small" id="request-talent-{{ t.id }}"
+       href="{{ url_for('talent.request_talent', business_id=businesses[0].id, talent_id=t.id) if businesses|length == 1 else url_for('talent.request_talent_no_business', talent_id=t.id) }}"
+       onclick="return goRequestTalent(this);">Request Talent</a>
   </div>
 {% endfor %}
 </div>
+<script>
+function goRequestTalent(el) {
+  var businessSelect = document.getElementById('business_select');
+  if (!businessSelect) { return true; }  // single-business or zero-business case: href already correct
+  var businessId = businessSelect.value;
+  if (!businessId) { return true; }
+  var talentId = el.id.replace('request-talent-', '');
+  // Build the business-scoped URL using a real placeholder business id (1, never a sentinel 0)
+  // as the base for string substitution — the no-business and business-scoped routes now have
+  // genuinely different URL shapes, so this only ever rewrites TOWARD the business-scoped one.
+  el.href = "{{ url_for('talent.request_talent', business_id=1, talent_id=0) }}"
+    .replace('/1/', '/' + businessId + '/').replace('/0/request', '/' + talentId + '/request');
+  return true;
+}
+</script>
 {% endblock %}

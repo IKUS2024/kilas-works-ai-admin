@@ -19,11 +19,13 @@
 <div class="card">
   <h2>Upload Bukti Pembayaran</h2>
   {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">{{ review_status|humanize_payment_message }}{% if payment.admin_notes %} Catatan tim: {{ payment.admin_notes }}.{% endif %}</p>{% endif %}
-  {# Mobile-friendly upload (Section 12): "capture" lets a phone browser offer the camera directly
-     instead of forcing a trip through a file manager, while still allowing "choose from gallery". #}
+  {# Mobile-friendly upload: NO "capture" attribute — on many mobile browsers "capture" forces
+     the camera app open directly and skips the native file picker entirely, which would prevent
+     choosing an existing screenshot from Gallery/Photos or a file from Files. Omitting it lets
+     the browser's own file picker offer Camera, Gallery/Photos, AND Files as equal choices. #}
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="file" name="proof_file" accept=".pdf,.png,.jpg,.jpeg,.webp,image/*" capture="environment" required>
+    <input type="file" name="proof_file" accept=".pdf,.png,.jpg,.jpeg,.webp,image/*" required>
     <p class="muted" style="margin-top:6px;">Foto/screenshot bukti transfer, atau file PDF. Maks 10MB.</p>
     <div style="margin-top:12px;"><button class="btn" type="submit">Upload Bukti</button></div>
   </form>

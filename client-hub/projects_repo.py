@@ -88,19 +88,33 @@ def list_projects_for_business(business_id):
     return db.query_all("SELECT * FROM projects WHERE business_id = ? ORDER BY created_at DESC", (business_id,))
 
 
-def get_unfinished_project_for_catalog_key(business_id, catalog_key):
+def get_unfinished_project_for_catalog_key(business_id, catalog_key, created_by_user_id=None):
     """Repeat-click / refresh safety (Client Hub purchase-flow fix, Section 6): finds an existing
     NON-TERMINAL project for this exact business+catalog_key combination, if one exists — the
     service catalog page uses this to show "Lanjutkan" instead of creating a second project for
     the same intended purchase. "Non-terminal" excludes CANCELLED/REJECTED (those are dead ends,
     a customer should be able to start fresh) but includes everything else (WAITING_FOR_QUOTE
     through IN_PROGRESS) — COMPLETED is also excluded since a completed order is historical, not
-    "unfinished"."""
+    "unfinished".
+
+    A business-less project (business_id IS NULL — the normal state right after selecting a
+    general service, before any business is attached) has no business_id to match on, so
+    created_by_user_id is matched instead in that case — the only identity such a project has."""
+    if business_id is not None:
+        return db.query_one(
+            "SELECT * FROM projects WHERE business_id = ? AND catalog_key = ? "
+            "AND status NOT IN ('CANCELLED', 'REJECTED', 'COMPLETED') "
+            "ORDER BY created_at DESC LIMIT 1",
+            (business_id, catalog_key),
+        )
+    if created_by_user_id is None:
+        return None
     return db.query_one(
-        "SELECT * FROM projects WHERE business_id = ? AND catalog_key = ? "
+        "SELECT * FROM projects WHERE business_id IS NULL AND catalog_key = ? "
+        "AND created_by_user_id = ? "
         "AND status NOT IN ('CANCELLED', 'REJECTED', 'COMPLETED') "
         "ORDER BY created_at DESC LIMIT 1",
-        (business_id, catalog_key),
+        (catalog_key, created_by_user_id),
     )
 
 

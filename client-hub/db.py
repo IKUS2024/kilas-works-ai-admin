@@ -244,6 +244,10 @@ MIGRATIONS = [
      "0019_payment_proof_file_hash_postgres.sql"),
     ("0020_platform_settings_sqlite.sql",
      "0020_platform_settings_postgres.sql"),
+    ("0021_projects_business_id_nullable_sqlite.sql",
+     "0021_projects_business_id_nullable_postgres.sql"),
+    ("0022_invoices_payments_business_id_nullable_sqlite.sql",
+     "0022_invoices_payments_business_id_nullable_postgres.sql"),
 ]
 
 

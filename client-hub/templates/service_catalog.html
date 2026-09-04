@@ -2,23 +2,10 @@
 {% block title %}Layanan — Kilas Works{% endblock %}
 {% block content %}
 <h1>Layanan Kilas Works</h1>
-<p class="muted">Pilih layanan yang kamu butuhkan. AI Admin diatur lewat data bisnis dulu sebelum pembayaran —
-  layanan lain bisa langsung dipilih, atau minta penawaran untuk layanan yang harganya custom.</p>
+<p class="muted">Pilih layanan yang kamu butuhkan — bisa langsung dipilih atau minta penawaran, tanpa perlu
+  bikin data bisnis dulu. Khusus AI Admin, data bisnis diisi dulu sebagai bagian dari proses setup.</p>
 
-{% if not businesses %}
-<div class="card">
-  <h2>Buat Bisnis Dulu</h2>
-  <p class="muted">Sebelum memilih layanan, buat data bisnis kamu dulu (cukup nama bisnis) — semua pesanan
-    tersimpan di bawah bisnis ini.</p>
-  <form method="post" action="{{ url_for('client.create_business') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="package" value="NONE">
-    <label>Nama Bisnis</label>
-    <input type="text" name="business_name" required placeholder="mis. Kedai Kopi Senja">
-    <div style="margin-top:10px;"><button class="btn" type="submit">Buat Bisnis &amp; Lihat Layanan</button></div>
-  </form>
-</div>
-{% elif businesses|length > 1 %}
+{% if businesses|length > 1 %}
 <div class="card">
   <label>Bisnis</label>
   <select id="business_select">
@@ -40,13 +27,11 @@
         {% set unfinished = unfinished_by_catalog_key.get(item.catalog_key) if single_business else None %}
         {% if item.category == 'AI_ADMIN' %}
           <a class="btn small" href="{{ url_for('client.dashboard') }}">Mulai di Dashboard</a>
-        {% elif not businesses %}
-          <span class="muted" style="font-size:12px;">Buat bisnis dulu di atas</span>
         {% elif unfinished %}
           <a class="btn small secondary" href="{{ url_for('projects.project_detail', business_id=single_business.id, project_id=unfinished.id) }}">Lanjutkan</a>
         {% elif item.pricing_mode != 'CUSTOM_QUOTE' %}
         <form method="post" action="{{ url_for('projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline"
-              onsubmit="return setBusinessId(this);">
+              onsubmit="setBusinessId(this);">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
           <button class="btn small" type="submit">{{ item.cta_text or 'Pilih Layanan' }}</button>
@@ -56,11 +41,11 @@
         {% elif item.category in ('CONTENT', 'VIDEO', 'PHOTO', 'WEBSITE', 'APPLICATION') %}
           <a class="btn small" id="custom-cta-{{ item.catalog_key }}"
              data-project-type="{{ item.category }}"
-             href="{{ url_for('projects.custom_project_request', business_id=single_business.id, project_type=item.category) if single_business else '#' }}"
+             href="{{ url_for('projects.custom_project_request', business_id=single_business.id, project_type=item.category) if single_business else url_for('projects.custom_project_request_no_business', project_type=item.category) }}"
              onclick="return goCustomProject(this);">{{ item.cta_text or 'Minta Penawaran' }}</a>
         {% else %}
         <form method="post" action="{{ url_for('projects.request_generic_quote', catalog_key=item.catalog_key) }}" class="inline"
-              onsubmit="return setBusinessId(this);">
+              onsubmit="setBusinessId(this);">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
           <button class="btn small" type="submit">{{ item.cta_text or 'Minta Penawaran' }}</button>
@@ -76,16 +61,21 @@
 function setBusinessId(form) {
   var businessSelect = document.getElementById('business_select');
   if (businessSelect) { form.business_id.value = businessSelect.value; }
-  return !!form.business_id.value;
+  // A blank business_id is fine — the service works without one (only AI Admin requires a
+  // business, and AI Admin never renders this form at all — see the template above).
 }
 function goCustomProject(el) {
   var businessSelect = document.getElementById('business_select');
-  if (!businessSelect) { return true; }
+  if (!businessSelect) { return true; }  // single-business or zero-business case: href already correct
   var businessId = businessSelect.value;
-  if (!businessId) { return false; }
+  if (!businessId) { return true; }
   var projectType = el.getAttribute('data-project-type');
-  el.href = "{{ url_for('projects.custom_project_request', business_id=0, project_type='TYPE') }}"
-    .replace('/0/', '/' + businessId + '/').replace('TYPE', projectType);
+  // Build the business-scoped URL using a real placeholder business id (1, never a sentinel 0)
+  // as the base for string substitution — the no-business and business-scoped routes now have
+  // genuinely different URL shapes, so this only ever rewrites TOWARD the business-scoped one,
+  // matching the dropdown's own selected business.
+  el.href = "{{ url_for('projects.custom_project_request', business_id=1, project_type='TYPE') }}"
+    .replace('/1/', '/' + businessId + '/').replace('TYPE', projectType);
   return true;
 }
 </script>

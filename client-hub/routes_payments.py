@@ -22,7 +22,9 @@ def checkout_page(project_id):
     project = projects_repo.get_project(project_id)
     if project is None:
         abort(404)
-    business = security.require_business_access(project["business_id"], user)
+    business = security.require_business_access(project["business_id"], user) if project["business_id"] else None
+    if business is None:
+        security.require_project_access(project_id, user)
 
     if request.method == "GET":
         try:
@@ -41,16 +43,20 @@ def checkout_page(project_id):
                 # case (creates the missing invoice idempotently, see its own docstring).
             elif project["status"] != "APPROVED":
                 flash("Checkout belum tersedia — project ini menunggu quotation disetujui.", "error")
-                return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+                if business:
+                    return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+                return redirect(url_for("projects.project_view", project_id=project_id))
         except Exception:
             abort(404)
         return render_template("checkout.html", business=business, project=project, bank=payment_service.BANK_DETAILS)
 
     try:
-        invoice_id = payment_service.checkout(project_id, business["id"], user["id"])
+        invoice_id = payment_service.checkout(project_id, business["id"] if business else None, user["id"])
     except ValueError as e:
         flash(f"Checkout tidak tersedia: {e}", "error")
-        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+        if business:
+            return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+        return redirect(url_for("projects.project_view", project_id=project_id))
     return redirect(url_for("payments.invoice_page", invoice_id=invoice_id))
 
 
@@ -61,7 +67,10 @@ def invoice_page(invoice_id):
     invoice = payment_service.get_invoice(invoice_id)
     if invoice is None:
         abort(404)
-    business = security.require_business_access(invoice["business_id"], user)
+    business = security.require_business_access(invoice["business_id"], user) if invoice["business_id"] else None
+    if business is None:
+        project = projects_repo.get_project(invoice["project_id"])
+        security.require_project_access(project["id"], user) if project else abort(404)
     payment = payment_service.get_payment_for_invoice(invoice_id)
     review_status = payment_service.derive_review_status(payment) if payment else None
 
@@ -84,12 +93,13 @@ def invoice_page(invoice_id):
     file_id = db.insert_returning_id(
         "INSERT INTO project_files (business_id, project_id, kind, original_filename, mime_type, "
         "size_bytes, content, uploaded_by_user_id) VALUES (?, ?, 'PAYMENT_PROOF', ?, ?, ?, ?, ?)",
-        (business["id"], invoice["project_id"], safe_name, mime_type, len(content), content, user["id"]),
+        (business["id"] if business else None, invoice["project_id"], safe_name, mime_type,
+         len(content), content, user["id"]),
     )
     proof_hash = ai_payment_review.compute_file_hash(content)
     try:
-        payment_service.upload_payment_proof(payment["id"], business["id"], file_id, user["id"],
-                                              proof_file_hash=proof_hash, image_bytes=content,
+        payment_service.upload_payment_proof(payment["id"], business["id"] if business else None, file_id,
+                                              user["id"], proof_file_hash=proof_hash, image_bytes=content,
                                               image_mime=mime_type)
     except ValueError as e:
         flash(f"Tidak bisa upload bukti: {e}", "error")
@@ -98,7 +108,8 @@ def invoice_page(invoice_id):
     try:
         import owner_notifications
         owner_notifications.notify_payment_proof_uploaded(
-            payment["id"], invoice_id, business["id"], business["business_name"], invoice["amount"],
+            payment["id"], invoice_id, business["id"] if business else None,
+            business["business_name"] if business else None, invoice["amount"],
         )
     except Exception:
         pass
@@ -111,19 +122,27 @@ def invoice_page(invoice_id):
 @security.login_required
 def invoice_proof_view(invoice_id):
     """Final Operations Polish, Section 11: customer can see (open) their own uploaded proof —
-    tenant-scoped through require_business_access exactly like invoice_page above, streamed by id
-    from project_files, never a raw storage path."""
+    tenant-scoped through require_business_access exactly like invoice_page above when a business
+    exists, or owner-based access (require_project_access, via the invoice's project) when it
+    doesn't — streamed by id from project_files, never a raw storage path."""
     user = security.current_user()
     invoice = payment_service.get_invoice(invoice_id)
     if invoice is None:
         abort(404)
-    business = security.require_business_access(invoice["business_id"], user)
+    if invoice["business_id"]:
+        security.require_business_access(invoice["business_id"], user)
+    else:
+        project = projects_repo.get_project(invoice["project_id"])
+        security.require_project_access(project["id"], user) if project else abort(404)
     payment = payment_service.get_payment_for_invoice(invoice_id)
     if payment is None or not payment.get("proof_file_id"):
         abort(404)
+    # Access to this exact invoice/payment was already verified above (business membership or
+    # project ownership) — the file lookup itself matches by id + invoice's project_id, never a
+    # bare business_id equality, so it works identically whether business_id is set or NULL.
     row = db.query_one(
-        "SELECT * FROM project_files WHERE id = ? AND business_id = ?",
-        (payment["proof_file_id"], business["id"]),
+        "SELECT * FROM project_files WHERE id = ? AND project_id = ?",
+        (payment["proof_file_id"], invoice["project_id"]),
     )
     if row is None:
         abort(404)

@@ -51,8 +51,6 @@ def start_fixed_checkout(catalog_key):
     """FIXED_PRICE items are checkout-ready immediately (Section 6) — this creates the project
     (status APPROVED) so the very next step is payment_service.checkout()."""
     user = security.current_user()
-    business_id = request.form.get("business_id", type=int)
-    business = security.require_business_access(business_id, user)
     item = catalog_service.get_catalog_item(catalog_key)
     if item is None or item["pricing_mode"] not in ("FIXED_PRICE", "STARTING_FROM") or not item["is_active"]:
         abort(404)
@@ -66,15 +64,27 @@ def start_fixed_checkout(catalog_key):
         flash("AI Admin diatur lewat Dashboard — isi data bisnis dulu sebelum pembayaran.", "error")
         return redirect(url_for("client.dashboard"))
 
-    # Repeat-click / refresh safety (purchase-flow fix, Section 6): reuse an existing unfinished
-    # project for this exact business+catalog_key instead of creating a second one — a customer
-    # clicking "Pilih Layanan" again (double-click, back button, refresh) lands on the SAME
-    # project/checkout, never a duplicate.
-    existing = projects_repo.get_unfinished_project_for_catalog_key(business["id"], catalog_key)
-    if existing:
-        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=existing["id"]))
+    # Purchase-flow correction: AI Admin is the ONLY service that requires a business. Every other
+    # fixed-price service must work with business_id=None — NEVER auto-create a placeholder
+    # business as a side effect of selecting one (see projects_repo.get_unfinished_project_for_
+    # catalog_key()'s own docstring for how repeat-click safety still works without one).
+    business_id = request.form.get("business_id", type=int)
+    business = security.require_business_access(business_id, user) if business_id else None
 
-    project_id = projects_repo.create_fixed_price_project(business["id"], item, user["id"])
+    # Repeat-click / refresh safety (purchase-flow fix, Section 6): reuse an existing unfinished
+    # project for this exact catalog_key instead of creating a second one — a customer clicking
+    # "Pilih Layanan" again (double-click, back button, refresh) lands on the SAME project/
+    # checkout, never a duplicate. Matched by business_id when one is set, otherwise by
+    # created_by_user_id (the only identity a business-less project has to match against).
+    existing = projects_repo.get_unfinished_project_for_catalog_key(
+        business["id"] if business else None, catalog_key, created_by_user_id=user["id"],
+    )
+    if existing:
+        return redirect(url_for("payments.checkout_page", project_id=existing["id"]))
+
+    project_id = projects_repo.create_fixed_price_project(
+        business["id"] if business else None, item, user["id"],
+    )
     flash(f"{item['name']} ditambahkan. Lanjut ke checkout.", "success")
     return redirect(url_for("payments.checkout_page", project_id=project_id))
 
@@ -82,11 +92,25 @@ def start_fixed_checkout(catalog_key):
 @projects_bp.route("/business/<int:business_id>/projects/custom/<project_type>", methods=["GET", "POST"])
 @security.login_required
 def custom_project_request(business_id, project_type):
+    return _custom_project_request_impl(project_type, business_id=business_id)
+
+
+@projects_bp.route("/projects/custom/<project_type>", methods=["GET", "POST"])
+@security.login_required
+def custom_project_request_no_business(project_type):
+    """Purchase-flow correction: CUSTOM_QUOTE services (Content/Video/Photo/Website/Application)
+    must work end-to-end without ever requiring a business — a true parallel route (not a sentinel
+    business_id that resolves/creates one), sharing the exact same implementation as the
+    business-scoped route above via _custom_project_request_impl()."""
+    return _custom_project_request_impl(project_type, business_id=None)
+
+
+def _custom_project_request_impl(project_type, business_id):
     project_type = project_type.upper()
     if project_type not in ("VIDEO", "PHOTO", "WEBSITE", "APPLICATION", "CONTENT"):
         abort(404)
     user = security.current_user()
-    business = security.require_business_access(business_id, user)
+    business = security.require_business_access(business_id, user) if business_id else None
 
     if request.method == "GET":
         return render_template("custom_project_request.html", business=business, project_type=project_type)
@@ -130,8 +154,8 @@ def custom_project_request(business_id, project_type):
         title = f"Custom {project_type.title()} — {form.get('project_name') or 'Tanpa nama'}"
 
     project_id = projects_repo.create_custom_project(
-        business["id"], project_type, title, requirements, budget_min, budget_max, user["id"],
-        catalog_key=catalog_key,
+        business["id"] if business else None, project_type, title, requirements, budget_min, budget_max,
+        user["id"], catalog_key=catalog_key,
     )
 
     # Optional "Upload Brief / Referensi" attachment (Section: custom project attachments). Never
@@ -145,13 +169,15 @@ def custom_project_request(business_id, project_type):
             db.execute(
                 "INSERT INTO project_files (business_id, project_id, kind, original_filename, "
                 "mime_type, size_bytes, content, uploaded_by_user_id) VALUES (?, ?, 'REFERENCE', ?, ?, ?, ?, ?)",
-                (business["id"], project_id, safe_name, mime_type, len(content), content, user["id"]),
+                (business["id"] if business else None, project_id, safe_name, mime_type, len(content), content, user["id"]),
             )
         except file_utils.UploadRejected as e:
             flash(f"Permintaan terkirim, tapi file lampiran ditolak: {e}", "error")
 
     flash("Permintaan custom terkirim. Tim Kilas Works akan menyiapkan penawaran.", "success")
-    return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+    if business:
+        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+    return redirect(url_for("projects.project_view", project_id=project_id))
 
 
 _HISTORY_STATUSES = ("COMPLETED", "CANCELLED")
@@ -171,7 +197,7 @@ def request_generic_quote(catalog_key):
     other custom request."""
     user = security.current_user()
     business_id = request.form.get("business_id", type=int)
-    business = security.require_business_access(business_id, user)
+    business = security.require_business_access(business_id, user) if business_id else None
     item = catalog_service.get_catalog_item(catalog_key)
     if item is None or item["pricing_mode"] != "CUSTOM_QUOTE" or not item["is_active"]:
         abort(404)
@@ -183,20 +209,27 @@ def request_generic_quote(catalog_key):
         abort(404)
 
     # Repeat-click / refresh safety (Section 6): reuse an existing unfinished quote request for
-    # this exact business+catalog_key rather than creating a second one.
-    existing = projects_repo.get_unfinished_project_for_catalog_key(business["id"], catalog_key)
+    # this exact catalog_key rather than creating a second one. Matched by business_id when one is
+    # set, otherwise by created_by_user_id (the only identity a business-less project has).
+    existing = projects_repo.get_unfinished_project_for_catalog_key(
+        business["id"] if business else None, catalog_key, created_by_user_id=user["id"],
+    )
     if existing:
-        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=existing["id"]))
+        if business:
+            return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=existing["id"]))
+        return redirect(url_for("projects.project_view", project_id=existing["id"]))
 
     project_type = item["category"] if item["category"] in projects_repo.PROJECT_TYPES else "OTHER"
     notes = (request.form.get("notes") or "").strip()
     requirements = {"notes": notes} if notes else {}
     project_id = projects_repo.create_custom_project(
-        business["id"], project_type, item["name"], requirements, None, None, user["id"],
-        catalog_key=catalog_key,
+        business["id"] if business else None, project_type, item["name"], requirements, None, None,
+        user["id"], catalog_key=catalog_key,
     )
     flash(f"Permintaan penawaran untuk {item['name']} terkirim. Tim Kilas Works akan follow up.", "success")
-    return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+    if business:
+        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
+    return redirect(url_for("projects.project_view", project_id=project_id))
 
 
 @projects_bp.route("/business/<int:business_id>/projects")
@@ -216,6 +249,23 @@ def project_list(business_id):
     elif view == "history":
         projects = [p for p in projects if p["status"] in _HISTORY_STATUSES]
     return render_template("project_list.html", business=business, projects=projects, view=view)
+
+
+@projects_bp.route("/projects/<int:project_id>")
+@security.login_required
+def project_view(project_id):
+    """Business-less project view (purchase-flow correction) — the canonical URL for a project
+    that has no business attached yet (business_id IS NULL): a general fixed-price selection
+    before checkout, or a custom-quote/Talent request, made by a customer who has never created a
+    business. Uses require_project_access() (owner-based, since there's no business_memberships
+    row to check) instead of require_business_access(). If the project DOES have a business
+    (already attached, or simply a normal business-scoped project), redirect to the existing
+    canonical business-scoped URL instead of duplicating that page here."""
+    user = security.current_user()
+    project = security.require_project_access(project_id, user)
+    if project["business_id"] is not None:
+        return redirect(url_for("projects.project_detail", business_id=project["business_id"], project_id=project_id))
+    return render_template("project_view_no_business.html", project=project)
 
 
 @projects_bp.route("/business/<int:business_id>/projects/<int:project_id>")

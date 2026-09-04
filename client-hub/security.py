@@ -244,3 +244,32 @@ def require_business_access(business_id, user=None):
     if membership is None:
         abort(404)
     return business
+
+
+def require_project_access(project_id, user=None):
+    """Purchase-flow correction: a project created WITHOUT a business (business_id IS NULL — the
+    normal case for a customer selecting a general fixed-price/custom-quote service before ever
+    creating a business) has no business_memberships row to check access through. This is the
+    parallel access-control path for that case: if the project has a business, delegate to
+    require_business_access() exactly as before (unchanged behavior for every business-scoped
+    project); if it doesn't, ownership is checked directly via created_by_user_id instead. Same
+    404-not-403 policy as require_business_access() for the same IDOR-probing reason. Returns the
+    project row (never a business — callers needing the business too should check
+    project["business_id"] and call require_business_access() themselves if it's set)."""
+    user = user or current_user()
+    if user is None:
+        abort(401)
+
+    project = db.query_one("SELECT * FROM projects WHERE id = ?", (project_id,))
+    if project is None:
+        abort(404)
+
+    if project["business_id"] is not None:
+        require_business_access(project["business_id"], user)
+        return project
+
+    if user["role"] == "KILAS_ADMIN":
+        return project
+    if project["created_by_user_id"] != user["id"]:
+        abort(404)
+    return project
