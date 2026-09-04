@@ -238,8 +238,8 @@ def test_H_landing_page_demo_button_points_to_demo_subdomain():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "landing-page-kilasworks.html")
     with open(path, encoding="utf-8") as f:
         html = f.read()
-    match = re.search(r'href="([^"]+)"[^>]*>\s*Coba Demo AI Admin', html)
-    assert match, "Coba Demo AI Admin link not found"
+    match = re.search(r'href="([^"]+)"[^>]*>\s*Coba Demo Kilas Brain', html)
+    assert match, "Coba Demo Kilas Brain link not found"
     assert match.group(1) == "https://demo.kilasworks.id", match.group(1)
     assert "kilasworks.id/demo" not in html.replace("demo.kilasworks.id", ""), \
         "the obsolete kilasworks.id/demo link must no longer be the primary CTA"

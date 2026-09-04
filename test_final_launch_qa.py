@@ -222,8 +222,8 @@ def test_generic_availability_confirm_pattern_matches_english_words():
 def test_landing_page_lead_visual_is_clearly_illustrative():
     with open("landing-page-kilasworks.html", encoding="utf-8") as f:
         html = f.read()
-    assert "Contoh Alur AI Admin" in html
-    assert "Ilustrasi cara kerja AI Admin" in html
+    assert "Contoh Alur Kilas Brain" in html  # 2026 rebrand
+    assert "Ilustrasi cara kerja Kilas Brain" in html  # 2026 rebrand
     assert "Customer A" in html and "Customer B" in html and "Customer C" in html
     # Nama bisnis lama yang bisa disalahartikan sebagai client asli HARUS sudah hilang.
     for old_name in ("Studio Kopi Senja", "Rumah Skincare", "Bengkel Detailing X"):

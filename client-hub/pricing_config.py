@@ -25,10 +25,12 @@ pricing_mode:
 """
 
 CATALOG_ITEMS = [
-    # --- AI ADMIN ---
-    {"key": "ai_admin_basic", "category": "AI_ADMIN", "name": "AI Admin Basic",
+    # --- KILAS BRAIN (2026 public rebrand — internal category/key stay AI_ADMIN/ai_admin_* on
+    # purpose: changing them would touch tenant onboarding, subscription, and feature-flag code
+    # that keys off these exact strings — only the public-facing "name" changes) ---
+    {"key": "ai_admin_basic", "category": "AI_ADMIN", "name": "Kilas Brain Basic",
      "pricing_mode": "FIXED_PRICE", "price_amount": 499_000, "price_unit": "per bulan"},
-    {"key": "ai_admin_pro", "category": "AI_ADMIN", "name": "AI Admin Pro",
+    {"key": "ai_admin_pro", "category": "AI_ADMIN", "name": "Kilas Brain Pro",
      "pricing_mode": "FIXED_PRICE", "price_amount": 999_000, "price_unit": "per bulan"},
 
     # --- CONTENT ---
@@ -39,33 +41,29 @@ CATALOG_ITEMS = [
     {"key": "content_pro", "category": "CONTENT", "name": "Content Pro",
      "pricing_mode": "FIXED_PRICE", "price_amount": 4_250_000, "price_unit": "per bulan"},
 
-    # --- BUNDLES (Content + AI Admin) ---
-    {"key": "bundle_growth_ai_basic", "category": "BUNDLE", "name": "Growth + AI Basic",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 2_990_000, "price_unit": "per bulan"},
-    {"key": "bundle_growth_ai_pro", "category": "BUNDLE", "name": "Growth + AI Pro",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 3_490_000, "price_unit": "per bulan"},
-    {"key": "bundle_pro_ai_pro", "category": "BUNDLE", "name": "Pro + AI Pro",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 4_990_000, "price_unit": "per bulan"},
+    # --- BUNDLES (2026 rebrand: ONLY these 3 Content+Kilas Brain combinations remain public.
+    # Every previous bundle involving Ads or Landing Page — bundle_growth_ai_basic,
+    # bundle_growth_ai_pro, bundle_pro_ai_pro, bundle_ai_basic_ads, bundle_ai_pro_ads,
+    # bundle_growth_ai_pro_ads, bundle_pro_ai_pro_ads, bundle_ads_landing_page — is deactivated
+    # below (Section RETIRED_BUNDLES), never deleted, so historical orders that referenced them
+    # stay fully readable) ---
+    {"key": "bundle_content_growth_brain_basic", "category": "BUNDLE",
+     "name": "Content Growth + Kilas Brain Basic",
+     "pricing_mode": "FIXED_PRICE", "price_amount": 3_100_000, "price_unit": "per bulan"},
+    {"key": "bundle_content_growth_brain_pro", "category": "BUNDLE",
+     "name": "Content Growth + Kilas Brain Pro",
+     "pricing_mode": "FIXED_PRICE", "price_amount": 3_600_000, "price_unit": "per bulan"},
+    {"key": "bundle_content_pro_brain_pro", "category": "BUNDLE",
+     "name": "Content Pro + Kilas Brain Pro",
+     "pricing_mode": "FIXED_PRICE", "price_amount": 5_100_000, "price_unit": "per bulan"},
 
-    # --- META ADS ---
+    # --- META ADS (always a separate service — never bundled with Kilas Brain or Content) ---
     {"key": "ads_management", "category": "ADS", "name": "Meta Ads Management",
      "pricing_mode": "FIXED_PRICE", "price_amount": 799_000, "price_unit": "per bulan"},
     {"key": "ads_setup_only", "category": "ADS", "name": "Meta Ads Setup Only",
      "pricing_mode": "FIXED_PRICE", "price_amount": 399_000, "price_unit": "one time"},
 
-    # --- AI + ADS ---
-    {"key": "bundle_ai_basic_ads", "category": "BUNDLE", "name": "AI Basic + Ads",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 1_190_000, "price_unit": "per bulan"},
-    {"key": "bundle_ai_pro_ads", "category": "BUNDLE", "name": "AI Pro + Ads",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 1_690_000, "price_unit": "per bulan"},
-
-    # --- CONTENT + AI + ADS ---
-    {"key": "bundle_growth_ai_pro_ads", "category": "BUNDLE", "name": "Growth + AI Pro + Ads",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 4_290_000, "price_unit": "per bulan"},
-    {"key": "bundle_pro_ai_pro_ads", "category": "BUNDLE", "name": "Pro + AI Pro + Ads",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 5_790_000, "price_unit": "per bulan"},
-
-    # --- WEBSITE ---
+    # --- WEBSITE (always a separate service — never bundled with Kilas Brain or Content) ---
     {"key": "website_landing_page", "category": "WEBSITE", "name": "Landing Page",
      "pricing_mode": "FIXED_PRICE", "price_amount": 799_000, "price_unit": "one time"},
     {"key": "website_company_profile", "category": "WEBSITE", "name": "Company Profile Website",
@@ -78,10 +76,6 @@ CATALOG_ITEMS = [
      "pricing_mode": "FIXED_PRICE", "price_amount": 999_000, "price_unit": "per tahun"},
     {"key": "website_domain_id_hosting", "category": "WEBSITE", "name": ".id + Hosting",
      "pricing_mode": "FIXED_PRICE", "price_amount": 1_099_000, "price_unit": "per tahun"},
-
-    # --- ADS + LANDING PAGE ---
-    {"key": "bundle_ads_landing_page", "category": "BUNDLE", "name": "Ads + Landing Page",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 1_490_000, "price_unit": "bulan pertama (ad spend terpisah)"},
 
     # --- EVENT ---
     {"key": "event_standard", "category": "EVENT", "name": "Event Standard",
@@ -103,5 +97,17 @@ CATALOG_ITEMS = [
     {"key": "talent_management", "category": "TALENT", "name": "Talent Management",
      "pricing_mode": "CUSTOM_QUOTE", "price_amount": None, "price_unit": None},
 ]
+
+# 2026 rebrand: these catalog_keys are retired from public/AI/checkout availability. Listed here
+# (rather than deleted from any table) specifically so seed_catalog_if_needed() below can
+# deactivate them if they already exist in a live database — a catalog_key is NEVER deleted, so
+# any historical project/invoice/quotation that referenced one of these keeps working exactly as
+# before; it simply stops being offered to NEW customers.
+RETIRED_BUNDLE_KEYS = (
+    "bundle_growth_ai_basic", "bundle_growth_ai_pro", "bundle_pro_ai_pro",
+    "bundle_ai_basic_ads", "bundle_ai_pro_ads",
+    "bundle_growth_ai_pro_ads", "bundle_pro_ai_pro_ads",
+    "bundle_ads_landing_page",
+)
 
 VALID_PRICING_MODES = ("FIXED_PRICE", "STARTING_FROM", "CUSTOM_QUOTE")

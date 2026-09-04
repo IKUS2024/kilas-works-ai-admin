@@ -17,7 +17,7 @@ client = appmod.app.test_client()
 r = client.get("/demo")
 html = r.get_data(as_text=True)
 assert "Demo Simulation" in html, "label Demo Simulation harus ada"
-assert "demo AI WhatsApp Admin Kilas Works" in html, "greeting harus ke-inject ke halaman"
+assert "demo Kilas Brain" in html, "greeting harus ke-inject ke halaman"  # 2026 rebrand: public flagship name is now Kilas Brain
 assert "__DEMO_GREETING_JS__" not in html, "placeholder greeting harusnya udah diganti"
 assert "__OWNER_WA_LINK__" not in html, "placeholder link WA harusnya udah diganti"
 print("Test 1 (halaman /demo render benar) OK")

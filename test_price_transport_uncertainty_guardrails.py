@@ -77,17 +77,21 @@ def send_customer_message(number, text, ai_reply, msg_id):
 # ---------------------------------------------------------------------------
 # TEST C — customer asks package/service price -> no nominal price reaches them.
 # ---------------------------------------------------------------------------
-def test_C_customer_asks_price_gets_no_nominal_number():
+def test_C_customer_asks_price_gets_direct_answer_2026():
+    """2026 update: a genuine Kilas Works customer asking a direct price question NOW gets the
+    real number (narrow carve-out — see _enforce_customer_price_guardrail's own docstring).
+    Companion coverage for the DEFAULT (no carve-out) behavior is
+    test_C_price_guardrail_catches_various_number_formats() right below, which calls the function
+    directly without allow_kilas_works_prices and confirms it still blocks."""
     reset_state()
     number = "628900300001"
     ai_reply = "Content Pro Rp4.250.000/bulan, Kak — paket paling lengkap buat kebutuhan konten rutin."
     resp = send_customer_message(number, "berapa harga Content Pro?", ai_reply, "wamid.C.1")
     assert resp.status_code == 200
     texts = [t for n, t in sent_log if n == number]
-    assert not any("4.250.000" in t or "4250000" in t for t in texts), \
-        f"BUG: a nominal price reached the customer: {texts}"
-    assert any(appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in t for t in texts), texts
-    print("test_C_customer_asks_price_gets_no_nominal_number OK")
+    assert any("4.250.000" in t for t in texts), \
+        f"a genuine Kilas Works customer must receive the real price when asked directly: {texts}"
+    print("test_C_customer_asks_price_gets_direct_answer_2026 OK")
 
 
 def test_C_price_guardrail_catches_various_number_formats():
@@ -96,7 +100,7 @@ def test_C_price_guardrail_catches_various_number_formats():
     reset_state()
     cases = [
         "Content Growth Rp2.750.000/bulan, Kak.",
-        "AI Admin Pro 999rb/bulan aja kok.",
+        "Kilas Brain Pro 999rb/bulan aja kok.",
         "Sekitar 4,25jt buat paket itu.",
         "Totalnya 2750000 rupiah.",  # bare number, no separators — deliberately NOT flagged (see note below)
     ]
@@ -258,7 +262,7 @@ def test_cross_tenant_payment_state_exemption_logic_scoped_to_kilas_works_only()
 
 
 if __name__ == "__main__":
-    test_C_customer_asks_price_gets_no_nominal_number()
+    test_C_customer_asks_price_gets_direct_answer_2026()
     test_C_price_guardrail_catches_various_number_formats()
     test_D_magelang_transport_question_gets_no_invented_estimate()
     test_D_prompt_no_longer_instructs_inventing_transport_estimate()

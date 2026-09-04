@@ -1076,8 +1076,8 @@ except Exception as _pricing_config_import_err:
 # file copied somewhere without client-hub/) — _get_full_catalog_sync_baseline_safe() below prefers
 # the full generic set and only drops to this tiny dict when that genuinely fails.
 _CATALOG_SYNC_KEYS_FALLBACK = {
-    "ai_admin_basic": ("AI Admin Basic", 499_000),
-    "ai_admin_pro": ("AI Admin Pro", 999_000),
+    "ai_admin_basic": ("Kilas Brain Basic", 499_000),
+    "ai_admin_pro": ("Kilas Brain Pro", 999_000),
     "content_basic": ("Content Basic", 1_500_000),
     "content_growth": ("Content Growth", 2_750_000),
     "content_pro": ("Content Pro", 4_250_000),
@@ -1111,7 +1111,7 @@ def _get_full_catalog_sync_baseline_safe():
 # categories always comes live from Client Hub's service_catalog table (see
 # _build_active_service_categories_safe() below), never hardcoded here.
 _SERVICE_CATEGORY_DISPLAY_NAMES = {
-    "AI_ADMIN": "AI Admin WhatsApp",
+    "AI_ADMIN": "Kilas Brain",
     "CONTENT": "Content Creation (foto/video/Reels rutin)",
     "VIDEO": "Video Production (custom)",
     "PHOTO": "Photo Production (custom)",
@@ -3272,7 +3272,7 @@ def build_payment_info_text():
 PRICING_CONFIG = {
     "ai_admin": {
         "basic": {
-            "nama": "AI Admin Basic",
+            "nama": "Kilas Brain Basic",
             "harga": 499000,
             "satuan": "bulan",
             "positioning": "AI Customer Service untuk bisnis kecil/UMKM yang butuh respon otomatis dasar.",
@@ -3290,16 +3290,16 @@ PRICING_CONFIG = {
                 "Invoice otomatis", "QR payment otomatis", "Payment tracking",
                 "Payment gateway custom", "CRM custom", "Inventory/stock integration",
                 "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
-                "Owner command & appointment (lihat AI Admin Pro)",
+                "Owner command & appointment (lihat Kilas Brain Pro)",
             ],
         },
         "pro": {
-            "nama": "AI Admin Pro",
+            "nama": "Kilas Brain Pro",
             "harga": 999000,
             "satuan": "bulan",
-            "positioning": "Semua fitur AI Admin Basic, ditambah workflow advanced untuk bisnis yang butuh lead qualification, appointment, dan kontrol owner penuh lewat chat.",
+            "positioning": "Semua fitur Kilas Brain Basic, ditambah workflow advanced untuk bisnis yang butuh lead qualification, appointment, dan kontrol owner penuh lewat chat.",
             "fitur": [
-                "Semua fitur AI Admin Basic",
+                "Semua fitur Kilas Brain Basic",
                 "Kualifikasi calon customer / lead",
                 "Mengumpulkan nama dan kebutuhan customer",
                 "Menyimpan data lead",
@@ -3342,17 +3342,17 @@ PRICING_CONFIG = {
         "visual sesuai kebutuhan brand — bukan selalu hasil photography murni."
     ),
     "bundles": {
-        "growth_ai_basic": {
-            "nama": "Content Growth + AI Admin Basic", "harga": 2990000,
-            "isi": ["Semua benefit Content Growth", "AI Admin Basic"],
+        "growth_brain_basic": {
+            "nama": "Content Growth + Kilas Brain Basic", "harga": 3100000,
+            "isi": ["Semua benefit Content Growth", "Kilas Brain Basic"],
         },
-        "growth_ai": {
-            "nama": "Content Growth + AI Admin Pro", "harga": 3490000,
-            "isi": ["Semua benefit Content Growth", "AI Admin Pro"],
+        "growth_brain_pro": {
+            "nama": "Content Growth + Kilas Brain Pro", "harga": 3600000,
+            "isi": ["Semua benefit Content Growth", "Kilas Brain Pro"],
         },
-        "pro_ai": {
-            "nama": "Content Pro + AI Admin Pro", "harga": 4990000,
-            "isi": ["Semua benefit Content Pro", "AI Admin Pro"],
+        "pro_brain_pro": {
+            "nama": "Content Pro + Kilas Brain Pro", "harga": 5100000,
+            "isi": ["Semua benefit Content Pro", "Kilas Brain Pro"],
         },
     },
     "meta_ads": {
@@ -3384,31 +3384,6 @@ PRICING_CONFIG = {
             "atau conversion — TIDAK PERNAH menjanjikan omzet pasti, ROAS pasti, penjualan pasti, "
             "atau jumlah leads pasti."
         ),
-    },
-    "ads_bundles": {
-        "ai_basic_ads": {
-            "nama": "AI Admin Basic + Meta Ads", "harga": 1190000,
-            "isi": ["AI Admin Basic", "Meta Ads Management"],
-        },
-        "ai_ads": {
-            "nama": "AI Admin Pro + Meta Ads", "harga": 1690000,
-            "isi": ["AI Admin Pro", "Meta Ads Management"],
-        },
-        "growth_ai_ads": {
-            "nama": "Content Growth + AI Admin Pro + Ads", "harga": 4290000, "recommended": True,
-            "isi": ["Content Growth", "AI Admin Pro", "Meta Ads Management"],
-        },
-        "pro_ai_ads": {
-            "nama": "Content Pro + AI Admin Pro + Ads", "harga": 5790000,
-            "isi": ["Content Pro", "AI Admin Pro", "Meta Ads Management"],
-        },
-        "ads_landing_page": {
-            "nama": "Ads + Landing Page", "harga": 1490000, "satuan": "bulan pertama",
-            "isi": ["Landing Page", "Meta Ads Management (bulan pertama)"],
-            "harga_lanjutan": 799000,
-            "catatan_lanjutan": "Bulan berikutnya kalau Ads diteruskan: Rp799.000/bulan.",
-        },
-        "ad_spend_note": "Ad spend TIDAK termasuk di semua bundle Ads di atas — dibayar terpisah langsung ke Meta oleh customer.",
     },
     "website": {
         "landing_page": {
@@ -3503,7 +3478,7 @@ def build_pricing_text_block():
         )
         lines.append("")
     lines.append(
-        "Catatan AI Admin: Basic (Rp499rb) buat respon-otomatis dasar (FAQ, info produk/harga, katalog, "
+        "Catatan Kilas Brain: Basic (Rp499rb) buat respon-otomatis dasar (FAQ, info produk/harga, katalog, "
         "typo/informal). Pro (Rp999rb) tambahin appointment (booking/reschedule/cancel/availability), "
         "payment conversation, lead qualification, owner command penuh lewat chat, vision/baca gambar, "
         "anti-duplicate-send, & notifikasi owner buat lead penting — Pro = Basic + semua itu, BUKAN "
@@ -3519,10 +3494,15 @@ def build_pricing_text_block():
     lines.append(f"Catatan Static Visual: {cfg['static_visual_note']}")
 
     lines.append("")
-    lines.append("Bundle Content + AI Admin (paling hemat kalau butuh dua-duanya):")
-    for key in ("growth_ai_basic", "growth_ai", "pro_ai"):
+    lines.append("Bundle Content + Kilas Brain (paling hemat kalau butuh dua-duanya):")
+    for key in ("growth_brain_basic", "growth_brain_pro", "pro_brain_pro"):
         b = cfg["bundles"][key]
         lines.append(f"- {b['nama']} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
+    lines.append(
+        "Catatan bundle: HANYA 3 kombinasi Content + Kilas Brain di atas yang tersedia. Ads dan "
+        "Website/Landing Page SELALU layanan terpisah — jangan pernah menawarkan gabungan Ads "
+        "atau Landing Page ke dalam paket bulanan manapun."
+    )
 
     lines.append("")
     ma = cfg["meta_ads"]
@@ -3534,17 +3514,7 @@ def build_pricing_text_block():
     lines.append(f"  Catatan: {mgmt['catatan']}")
     lines.append(f"- {setup['nama']} — Rp{fp(setup['harga'])} ({setup['satuan']}): {setup['deskripsi']}")
     lines.append(f"Catatan penting Ads: {ma['no_guarantee_note']}")
-
-    lines.append("")
-    lines.append("Ads Bundles (Content/AI Admin + Meta Ads):")
-    ab = cfg["ads_bundles"]
-    for key in ("ai_basic_ads", "ai_ads", "growth_ai_ads", "pro_ai_ads"):
-        b = ab[key]
-        label = f"{b['nama']} (direkomendasikan)" if b.get("recommended") else b["nama"]
-        lines.append(f"- {label} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
-    alp = ab["ads_landing_page"]
-    lines.append(f"- {alp['nama']} — Rp{fp(alp['harga'])} ({alp['satuan']}): " + " + ".join(alp["isi"]) + f". {alp['catatan_lanjutan']}")
-    lines.append(f"Catatan: {ab['ad_spend_note']}")
+    lines.append("Meta Ads SELALU layanan terpisah dari Kilas Brain/Content — tidak pernah dijual sebagai satu paket gabungan.")
 
     lines.append("")
     lines.append("Website (sekali bayar, bukan bulanan):")
@@ -3603,7 +3573,7 @@ ATURAN TAMBAHAN KHUSUS SISTEM INI (tag internal, override/tambahan di atas peril
   kamu harus nebak ulang dari nol tiap pesan. Kalau di bawah kamu dikasih tau BAHASA CUSTOMER INI
   SEBELUMNYA, pakai itu sebagai default — TAPI kalau pesan customer SEKARANG jelas-jelas pakai bahasa lain,
   ikutin bahasa yang sekarang & update tag [SET_LANG: ...]-nya lagi.
-- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Growth + AI Admin"), angka harga, nomor &
+- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Kilas Brain Pro"), angka harga, nomor &
   nama rekening bank (yang formatnya dikasih via [GIVE_PAYMENT_INFO], BUKAN kamu ketik manual), nama
   bisnis/orang, atau proper noun lainnya — itu semua tetap PERSIS apa adanya walau balasannya English, cuma
   kalimat di sekitarnya yang ikut bahasa customer. Angka harga tetap format sama (misal "999K"/"Rp999rb"
@@ -3661,33 +3631,33 @@ Automation / Custom Solution & didiskusikan case-by-case — JANGAN pernah bilan
 paket manapun. Harga di atas FIX (bukan promo), jadi jawab dengan yakin, bukan ragu-ragu kayak takut salah.
 
 ATURAN HARGA (WAJIB DIIKUTI — PRICE DISCLOSURE, dibaca PERSIS, jangan campur aduk sama RECOMMEND di atas):
-- ⭐ PERUBAHAN ATURAN BISNIS (WAJIB, override instruksi harga versi lama di mana pun kamu pernah lihat):
-  Customer TIDAK PERNAH boleh dikasih ANGKA NOMINAL harga — bukan harga paket, bukan diskon, bukan custom
-  quote, bukan estimasi biaya apapun — WALAUPUN angkanya ADA di data paket, ADA di prompt ini, ATAU pernah
-  disebut di obrolan sebelumnya, DAN WALAUPUN customer nanya LANGSUNG/berkali-kali. Ini berlaku ke SEMUA
-  jenis angka Rupiah, termasuk biaya transport (lihat SOAL BIAYA TRANSPORT di bawah, aturan lama yang
-  ngebolehin nyebut angka transport SUDAH TIDAK BERLAKU).
-- Kalau customer nanya harga paket apapun (misal "Growth berapa?", "AI Admin Pro berapa?", "harganya
-  berapa?"), JANGAN sebut angka sama sekali. Jawab natural yang intinya: "Untuk detail harganya aku bantu
-  cek dulu ke tim ya, biar sesuai kebutuhan kamu." — boleh divariasikan kalimatnya asal TETAP TANPA angka.
-  JANGAN bilang "gak tau harganya" (kamu TAU, cuma emang gak boleh sebutin ke customer) — dan jangan
-  kedengaran defensif/aneh, tetap natural kayak beneran mau bantu cek ke tim.
+- ⭐ ATURAN HARGA TERBARU (2026, override instruksi harga versi lama di mana pun kamu pernah lihat —
+  termasuk instruksi lama yang bilang "jangan pernah sebut angka sama sekali", itu SUDAH TIDAK BERLAKU):
+  Kalau customer nanya harga LANGSUNG (misal "Kilas Brain Basic berapa?", "Growth berapa?", "bundle
+  Growth + Brain Pro berapa?", "ads berapa?"), JAWAB LANGSUNG & SINGKAT pakai angka PERSIS dari data paket
+  di atas — jangan muter-muter, jangan bilang "cek dulu ke tim" untuk layanan yang harganya FIXED/jelas.
+  Jawab HANYA layanan yang ditanya (satu ditanya, satu dijawab; dua ditanya, dua dijawab) — jangan dump
+  semua harga kalau yang ditanya cuma satu, KECUALI customer eksplisit minta "semua harga"/pricelist
+  lengkap. Untuk item yang CUSTOM QUOTE (video/photo custom, custom website/app, talent/creator) —
+  JANGAN PERNAH mengarang angka, jawab natural bahwa harganya disesuaikan kebutuhan & tim bisa siapin
+  penawaran. JANGAN nawarin/nyebut bundle Ads apapun (semua bundle Ads/Landing Page SUDAH TIDAK ADA lagi
+  per 2026) — kalau customer nanya bundling Ads, jelasin Ads itu layanan TERPISAH dari Kilas Brain/
+  Content, bukan bagian dari bundle manapun.
 - Customer TETAP boleh dapet: penjelasan layanan, benefit, apa aja yang termasuk di paket, proses kerja,
-  pertanyaan qualifying, rekomendasi paket mana yang paling cocok (SEBUT NAMA paketnya, JANGAN sebut
-  angkanya) — semua ini boleh dan didorong, cuma angka Rupiah-nya aja yang gak boleh keluar.
+  pertanyaan qualifying, rekomendasi paket mana yang paling cocok — semua ini boleh dan didorong.
 - KALAU CUSTOMER MINTA SELURUH PRICE LIST / KATALOG (misal "ada pricelist gak", "kirim semua harganya
   dong"): TETAP boleh kirim katalog PDF (tag "[KIRIM_KATALOG]") — katalog itu dokumen resmi yang memang
-  didesain buat dibaca customer sendiri, beda dari kamu SEBAGAI AI nyebutin angka langsung di chat. Kalau
-  kirim katalog, sertai kalimat singkat TANPA nyebut angka juga di balasan chat-nya sendiri (misal "udah
-  aku kirim katalognya ya, di situ ada semua detail paketnya").
-- Ada guardrail tambahan di level sistem (bukan cuma instruksi prompt ini) yang otomatis nyaring balasan
-  kamu kalau kebetulan kelupaan nyebut angka — tapi JANGAN mengandalkan itu, USAHAKAN dari awal emang gak
-  pernah nyebut angka ke customer.
+  didesain buat dibaca customer sendiri. Kalau
+  kirim katalog, boleh sertai kalimat singkat yang natural (misal "udah aku kirim katalognya ya, di situ
+  ada semua detail paketnya — kalau mau tanya salah satu langsung juga boleh").
+- Guardrail di level sistem (bukan cuma instruksi prompt ini) tetap ada sebagai jaring pengaman kalau
+  kebetulan kamu salah nyebut angka yang BUKAN dari data resmi di atas — tapi USAHAKAN dari awal emang
+  selalu pakai angka PERSIS dari data resmi, jangan pernah menebak/mengarang.
 
 SOAL KEBUTUHAN DI LUAR PAKET (CUSTOM AUTOMATION / CUSTOM SOLUTION) — WAJIB DIIKUTI:
 - Bot DILARANG KERAS: ngarang harga sendiri, kasih diskon sendiri tanpa persetujuan owner, bikin paket
   baru yang gak ada di data, nambahin fitur yang gak ada di daftar di atas, bilang invoice/QR/payment
-  gateway/CRM/inventory/POS/integrasi API termasuk di paket AI Admin manapun, atau kasih domain/hosting
+  gateway/CRM/inventory/POS/integrasi API termasuk di paket Kilas Brain manapun, atau kasih domain/hosting
   gratis.
 - Kalau customer nanya/butuh sesuatu yang di luar cakupan paket manapun di atas (misal invoice otomatis,
   integrasi payment gateway, CRM, sistem inventory, POS, multi-cabang, workflow/integrasi custom lainnya),
@@ -3704,7 +3674,7 @@ SOAL META ADS (WAJIB DIIKUTI — JANGAN JANJIIN HASIL PASTI):
 - Gaya jawab yang BENER kalau ditanya soal hasil Ads: "Campaign dioptimalkan berdasarkan objective bisnis
   seperti awareness, leads, inquiries, atau conversion" — bukan janji angka.
 - Ad spend (budget iklan ke Meta) SELALU TERPISAH dari fee Kilas Works di SEMUA paket/bundle Ads (termasuk
-  yang bundling kayak "AI Admin + Ads", "Growth + AI + Ads", dst) — budget dibayar customer LANGSUNG ke
+  yang bundling kayak "Kilas Brain + Ads", "Growth + Kilas Brain + Ads", dst) — budget dibayar customer LANGSUNG ke
   Meta, bukan lewat Kilas Works, dan BUKAN bagian dari harga bulanan yang disebut di atas. Selalu jelasin
   ini kalau ngomongin paket Ads apapun, jangan sampai customer ngira ad spend udah termasuk.
 
@@ -3722,10 +3692,11 @@ SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (WAJIB, override versi lama
   semua lokasi di luar Tangerang/Jakarta pakai jawaban yang sama di atas, tanpa angka sama sekali.
 
 SOAL KATALOG LENGKAP:
-- Kalau customer minta katalog/pricelist ("ada katalog gak", "kirim pricelist dong"), boleh langsung
-  jawab singkat sekilas (nama paket relevan SAJA, TANPA angka harga — lihat ATURAN HARGA di atas) SAMBIL
-  kirim katalog buat rincian lengkapnya (pakai tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau
-  interogasi dulu sebelum kirim.
+- Kalau customer minta katalog/pricelist (mis. "ada katalog?", "ada katalog gak",
+  "kirim katalog dong", "boleh lihat layanan?", "minta pricelist/katalog", "katalog kilas works",
+  "kirim pricelist dong", atau variasi natural sejenis), boleh langsung jawab singkat dan natural
+  SAMBIL kirim katalog resmi (pakai tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau interogasi
+  dulu sebelum kirim. Contoh gaya balasan: "Boleh Kak, ini katalog Kilas Works ya 👇".
 
 SOAL TALENT MANAGEMENT (Sales Brain V2 — WAJIB DIIKUTI. Data roster live ada di blok
 TALENT MANAGEMENT KILAS WORKS di bawah/setelah prompt ini kalau ada — blok itu KNOWLEDGE buat kamu,
@@ -4339,7 +4310,7 @@ TALENT MANAGEMENT (PENTING):
   jangan menghapus keberadaan Talent Management sebagai layanan.
 
 Kalau Irvan nanya soal jasa/paket/harga Kilas Works MILIK SENDIRI (contoh: "jasa kita sekarang apa
-aja", "AI Admin sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
+aja", "Kilas Brain sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
 isinya apa", "domain sama hosting berapa"), JAWAB LANGSUNG pakai data di atas dengan PERCAYA DIRI.
 KHUSUS kalau pertanyaannya soal DAFTAR LENGKAP layanan/jasa secara umum (bukan satu paket spesifik) —
 contoh "layanan kita apa aja", "kita jual apa aja", "jasa kita apa" — WAJIB pakai blok "DAFTAR
@@ -4742,21 +4713,119 @@ def _customer_reply_contains_price_disclosure(text):
     return bool(CUSTOMER_PRICE_DISCLOSURE_PATTERN.search(text))
 
 
-def _enforce_customer_price_guardrail(reply_text, tenant_context_block):
+def _parse_rupiah_amount_safe(match_text):
+    """Normalizes ONE matched Rupiah-shaped substring (e.g. "Rp999.000", "999rb", "4,25jt",
+    "4.250.000") into a plain integer Rupiah amount, or None if it can't be parsed confidently.
+    Used only by _reply_prices_are_all_canonical_kilas_works() below — never for anything
+    customer-facing on its own."""
+    t = match_text.strip().lower().replace("rp", "").strip()
+    try:
+        if "jt" in t or "juta" in t:
+            num = t.replace("juta", "").replace("jt", "").strip().replace(",", ".")
+            return round(float(num) * 1_000_000)
+        if "rb" in t or "ribu" in t:
+            num = t.replace("ribu", "").replace("rb", "").strip().replace(",", ".")
+            return round(float(num) * 1_000)
+        # Bare thousands-grouped number, e.g. "4.250.000" — dots are grouping separators here.
+        return int(t.replace(".", "").replace(",", ""))
+    except (ValueError, TypeError):
+        return None
+
+
+def _kilas_works_canonical_price_amounts_safe():
+    """The full set of every currently-valid Kilas Works Rupiah figure — every `harga` value
+    across PRICING_CONFIG (ai_admin/content_packages/bundles/meta_ads/website/domain_hosting/
+    event), PLUS the live Client Hub catalog's current prices when available (so an admin price
+    edit is honored immediately, not just the bot's own static mirror). Never raises."""
+    amounts = set()
+    try:
+        cfg = PRICING_CONFIG
+        for tier in cfg["ai_admin"].values():
+            amounts.add(tier["harga"])
+        for pkg in cfg["content_packages"].values():
+            amounts.add(pkg["harga"])
+        for b in cfg["bundles"].values():
+            amounts.add(b["harga"])
+        amounts.add(cfg["meta_ads"]["management"]["harga"])
+        amounts.add(cfg["meta_ads"]["setup_only"]["harga"])
+        for w in cfg["website"].values():
+            if isinstance(w, dict) and "harga" in w:
+                amounts.add(w["harga"])
+        for d in cfg["domain_hosting"].values():
+            if isinstance(d, dict) and "harga" in d:
+                amounts.add(d["harga"])
+        for e in cfg["event"].values():
+            if isinstance(e, dict) and "harga" in e:
+                amounts.add(e["harga"])
+    except Exception as ex:
+        print(f"Build canonical Kilas Works price set gagal ({ex}) — pakai set kosong (fail closed).")
+    try:
+        if _CLIENT_HUB_AVAILABLE:
+            for item in _catalog_service.list_active_catalog():
+                if item.get("price_amount") is not None:
+                    amounts.add(item["price_amount"])
+    except Exception:
+        pass
+    return amounts
+
+
+def _reply_prices_are_all_canonical_kilas_works(reply_text):
+    """Stricter check for the Kilas-Works-own price carve-out (see
+    _enforce_customer_price_guardrail's docstring): EVERY Rupiah-shaped figure found in the reply
+    must match a REAL, currently-valid Kilas Works price (from PRICING_CONFIG or the live Client
+    Hub catalog) — never an arbitrary/invented number (a hallucinated transport estimate,
+    fabricated discount, or made-up custom-quote figure). If EVEN ONE match fails to parse or
+    doesn't match any known canonical amount, this returns False and the whole reply is blocked,
+    exactly as if the carve-out were never granted — fail closed, never fail open."""
+    matches = CUSTOMER_PRICE_DISCLOSURE_PATTERN.findall(reply_text)
+    if not matches:
+        return True  # no price mentioned at all — nothing to validate, guardrail check is moot
+    valid_amounts = _kilas_works_canonical_price_amounts_safe()
+    if not valid_amounts:
+        return False  # fail closed if the canonical set itself couldn't be built
+    for m in matches:
+        parsed = _parse_rupiah_amount_safe(m)
+        if parsed is None or parsed not in valid_amounts:
+            return False
+    return True
+
+
+def _enforce_customer_price_guardrail(reply_text, tenant_context_block, allow_kilas_works_prices=False):
     """Applies the code-level guardrail: for ANY customer-facing reply — Kilas Works' own
     customers AND every tenant business's own customers alike — that contains ANY Rupiah-shaped
     figure, the ENTIRE reply is replaced with a safe, natural, price-free fallback — never just
     the number stripped out (which would risk leaving broken/nonsensical grammar behind, e.g.
     "Content Pro  , Kak." after removing just the price).
 
-    Applies UNIFORMLY to tenant customers too (as of this fix — previously exempted, but no
+    Applies UNIFORMLY to tenant customers (as of an earlier fix — previously exempted, but no
     explicit per-tenant configuration was ever found anywhere in this codebase that authorizes a
-    tenant to disclose nominal prices to ITS OWN customers, so the same safe default now applies
+    tenant to disclose nominal prices to ITS OWN customers, so the same safe default applies
     consistently rather than leaving tenant conversations unprotected from a hallucinated price/
-    quote/discount/transport figure). `tenant_context_block` is still accepted as a parameter
-    (unused for the block-vs-allow decision itself now) so call sites don't need to change, and so
-    a future tenant-specific opt-out config — if one is ever added — has an obvious place to plug
-    into this exact function."""
+    quote/discount/transport figure). This has NOT changed and is not touched by the carve-out
+    below.
+
+    2026 Kilas Brain rebrand — narrow Kilas-Works-own carve-out: `allow_kilas_works_prices=True`
+    lifts the block, but ONLY when the CALLER has already independently established this is a
+    genuine Kilas-Works-own surface via its own existing brand/routing context — never derived
+    inside this function from `tenant_context_block` alone (a bare "tenant_id is None" check would
+    be too generic/fragile on its own; every call site below instead reuses whatever surface
+    identity signal it ALREADY has: `not tenant_context_block` in the real customer webhook
+    handler, `tenant_context_block=None` in the Kilas-Works-only global follow-up sweep function,
+    or the Demo surface's own hardcoded Kilas-Works identity). A tenant conversation's own call
+    site never passes True, so tenant customers keep the exact same protection as before with zero
+    change to their behavior. `tenant_context_block` truthy always wins regardless of the flag —
+    belt-and-suspenders defense in depth, so even a mistaken True can never leak Kilas Works
+    pricing into an actual tenant conversation.
+
+    Even when the carve-out flag is True, EVERY Rupiah-shaped figure in the reply must still match
+    a real, currently-valid Kilas Works price (see _reply_prices_are_all_canonical_kilas_works()) —
+    an invented transport estimate, fabricated discount, or hallucinated custom-quote number is
+    still blocked exactly as before, carve-out or not. The carve-out only ever lifts the block for
+    numbers that are demonstrably real prices, never for arbitrary model output."""
+    if tenant_context_block:
+        allow_kilas_works_prices = False
+    if allow_kilas_works_prices and _reply_prices_are_all_canonical_kilas_works(reply_text):
+        return reply_text
     if _customer_reply_contains_price_disclosure(reply_text):
         return CUSTOMER_PRICE_SAFE_FALLBACK_REPLY
     return reply_text
@@ -5332,10 +5401,9 @@ def get_catalog_media_id(force_refresh=False):
     belum pernah diupload, atau media_id lama udah expired (force_refresh=True dari caller), upload
     ulang. Return None kalau katalog.pdf gak ketemu sama sekali atau upload gagal.
 
-    Prefers the live Client-Hub-generated catalog (see _get_live_catalog_pdf_path_safe) and falls
-    back to the static ../katalog.pdf search only if the live one is unavailable — mtime-based
-    cache invalidation below works unchanged either way since both paths are real files on disk."""
-    path = _get_live_catalog_pdf_path_safe() or find_catalog_pdf_path()
+    Uses the official static katalog.pdf resolved by find_catalog_pdf_path(). The mtime-based
+    cache invalidation below automatically re-uploads the file when katalog.pdf is replaced."""
+    path = find_catalog_pdf_path()
     if not path:
         return None
     try:
@@ -5363,7 +5431,7 @@ def send_catalog_pdf(to_number):
     di mana-mana — lihat find_catalog_pdf_path()) ke suatu nomor WhatsApp sebagai dokumen.
     Balikin (success: bool, error_detail: str atau None) — JANGAN PERNAH dianggap kekirim cuma
     karena gak exception (sama prinsipnya kayak send_whatsapp_message/send_whatsapp_image)."""
-    path = _get_live_catalog_pdf_path_safe() or find_catalog_pdf_path()
+    path = find_catalog_pdf_path()
     if not path:
         return False, "katalog.pdf gak ketemu di repository (sudah dicari recursive)."
 
@@ -7054,7 +7122,7 @@ def _webhook_body_impl(data):
                 if msg_type in ("text", "image", "audio"):
                     send_whatsapp_message(
                         from_number,
-                        "Fitur asisten owner lewat chat ini baru tersedia di paket AI Admin Pro ya Kak — "
+                        "Fitur asisten owner lewat chat ini baru tersedia di paket Kilas Brain Pro ya Kak — "
                         "silakan hubungi tim Kilas Works kalau mau upgrade.",
                     )
                 return jsonify({"status": "ok"}), 200
@@ -7731,7 +7799,9 @@ def _webhook_body_impl(data):
                 and payment_state.get(from_number, {}).get("status") not in (None, PAYMENT_STATUS_NOT_STARTED))
         )
         if not _in_active_payment_flow:
-            clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block)
+            clean_reply = _enforce_customer_price_guardrail(
+                clean_reply, tenant_context_block, allow_kilas_works_prices=not tenant_context_block,
+            )
 
         # Demo domain integration — record that the demo link was shared with this customer, so
         # the "don't repeat proactive offers" note (see build_customer_system_prompt's demo_offer_
@@ -8147,7 +8217,9 @@ def run_followups():
             )
             ai_reply = call_claude(number, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]")
             clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
-            clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block=None)
+            clean_reply = _enforce_customer_price_guardrail(
+                clean_reply, tenant_context_block=None, allow_kilas_works_prices=True,
+            )
             sent_ok, send_err = send_reply_bubbles(number, None, clean_reply)
             if sent_ok:
                 record_followup_sent(number)
@@ -8376,13 +8448,13 @@ def _strip_production_tags_from_demo_reply(text):
     return _DEMO_PRODUCTION_TAG_PATTERN.sub("", text or "").strip()
 
 DEMO_SYSTEM_PROMPT = (
-    "Kamu adalah AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
+    "Kamu adalah Kilas Brain, AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
     "Orang yang lagi nyoba ini BUKAN customer asli — dia calon KLIEN Kilas Works yang mau lihat "
-    "AI Admin ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
+    "Kilas Brain ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
     + AI_ADMIN_CORE_BEHAVIOR +
     "\nCATATAN SANDBOX (WAJIB DIPAHAMI): perilaku di atas adalah inti gaya & kecerdasan yang SAMA "
-    "dipakai AI Admin asli di WhatsApp customer beneran — supaya demo ini beneran ngasih gambaran "
-    "jujur soal rasanya ngobrol sama AI Admin asli. TAPI sesi ini sepenuhnya SIMULASI: tidak ada "
+    "dipakai Kilas Brain asli di WhatsApp customer beneran — supaya demo ini beneran ngasih gambaran "
+    "jujur soal rasanya ngobrol sama Kilas Brain asli. TAPI sesi ini sepenuhnya SIMULASI: tidak ada "
     "pesan WhatsApp asli yang terkirim, tidak ada appointment/pembayaran/data customer asli yang "
     "berubah — semuanya cuma role-play percakapan di halaman web ini.\n\n"
     "PENTING — DEMO INI HARUS TERASA CEPAT & PROFESIONAL, BUKAN KAYAK ISI FORM/QUESTIONNAIRE. "
@@ -8391,21 +8463,21 @@ DEMO_SYSTEM_PROMPT = (
     "  Pertanyaan 1: nama bisnisnya apa.\n"
     "  Pertanyaan 2: bisnisnya bergerak di bidang apa.\n"
     "  Pertanyaan 3: produk/layanan utamanya apa.\n"
-    "Di balasan PERTAMA, kasih tau singkat ini demo AI WhatsApp Admin Kilas Works, terus langsung "
+    "Di balasan PERTAMA, kasih tau singkat ini demo Kilas Brain (AI WhatsApp Admin Kilas Works), terus langsung "
     "lempar Pertanyaan 1 (jangan ada basa-basi panjang sebelum pertanyaan). Setelah pertanyaan 1 "
     "dijawab, lempar pertanyaan 2. Setelah dijawab, lempar pertanyaan 3. SETELAH PERTANYAAN 3 "
     "DIJAWAB, STOP ONBOARDING — JANGAN nanya hal lain lagi (jangan nanya soal FAQ customer, masalah "
     "WhatsApp selama ini, tujuan pakai AI Admin, dll — itu semua BOLEH kegali natural nanti SELAMA "
     "simulasi berjalan, bukan di tahap onboarding).\n\n"
     "TRANSISI KE SIMULASI (WAJIB persis setelah pertanyaan 3 dijawab, dalam SATU balasan):\n"
-    "Bilang natural kira-kira: 'Oke, aku udah punya gambaran. Sekarang aku akan coba jadi AI Admin "
+    "Bilang natural kira-kira: 'Oke, aku udah punya gambaran. Sekarang aku akan coba jadi Kilas Brain "
     "untuk [Nama Bisnis]. Mulai dari sini, coba chat aku seperti Kakak adalah customer bisnis "
     "tersebut.' (sesuaikan kalimat, gak perlu persis kata-katanya, tapi WAJIB: sebut nama bisnisnya "
     "& jelas ngasih tau simulasi dimulai SEKARANG). Setelah baris ini, jangan tanya apapun lagi di "
     "balasan yang sama — biarkan lawan bicara yang mulai chat duluan sebagai customer.\n\n"
     "TAHAP 2 — SIMULATION MODE (roleplay jadi AI Admin bisnis DIA, bukan Kilas Works):\n"
     "Begitu lawan bicara kirim pesan pertama SEBAGAI CUSTOMER (misal nanya menu/harga/jam buka/mau "
-    "booking), MULAI BERPERAN jadi AI Admin bisnis itu sepenuhnya — bukan kedai kopi, bukan bisnis "
+    "booking), MULAI BERPERAN jadi Kilas Brain bisnis itu sepenuhnya — bukan kedai kopi, bukan bisnis "
     "contoh lain, PERSIS bisnis yang tadi dia sebutin.\n"
     "SOAL FAKTA SPESIFIK (harga, jam buka, menu detail dll) — INI YANG PALING PENTING: kamu BELUM "
     "PUNYA data asli bisnis dia, jadi JANGAN PERNAH ngarang fakta spesifik lalu bilang seolah itu "
@@ -8414,18 +8486,18 @@ DEMO_SYSTEM_PROMPT = (
     "buka jam 10.00-22.00 ya Kak. Nanti pada implementasi asli, jam operasionalnya bakal ikut data "
     "bisnis Kakak beneran.' Pola yang sama buat harga/menu/paket — selalu tempelin catatan jujur "
     "kayak gitu, jangan cuma sekali di awal terus abis itu ngarang fakta tanpa disclaimer lagi.\n\n"
-    "TUNJUKKAN VALUE AI ADMIN, JANGAN JADI CUMA FAQ BOT: selama simulasi, tunjukkan secara natural "
-    "kemampuan kayak AI Admin asli — jawab pertanyaan, gali kebutuhan customer lebih detail (nanya "
+    "TUNJUKKAN VALUE KILAS BRAIN, JANGAN JADI CUMA FAQ BOT: selama simulasi, tunjukkan secara natural "
+    "kemampuan kayak Kilas Brain asli — jawab pertanyaan, gali kebutuhan customer lebih detail (nanya "
     "balik seperlunya, bukan interogasi), qualifikasi lead (makin serius makin digali detailnya), "
     "kalau customer keliatan cukup serius (nanya harga+detail, mau booking, kasih info kontak) baru "
     "nawarin appointment/lanjut ke tim secara natural, dan implisit tunjukkan konsep handoff ke owner "
     "& follow-up (misal 'nanti owner saya yang lanjutin bahas detailnya ya'). JANGAN nawarin meeting "
     "di PESAN PERTAMA simulasi — biarkan minimal 2-3 balasan ngobrol dulu sebelum nawarin ketemu/"
     "lanjut ke tim, biar kerasa natural bukan buru-buru jualan.\n"
-    "Gaya jawab: SAMA kayak AI Admin asli (singkat, natural, TANPA emoji, TANPA pujian lebay), "
+    "Gaya jawab: SAMA kayak Kilas Brain asli (singkat, natural, TANPA emoji, TANPA pujian lebay), "
     "inget jawaban sebelumnya di sesi yang sama, dan kalau ada hal di luar wewenang bilang 'saya cek "
     "dulu ke owner ya' (ini simulasi, gak usah beneran nunggu).\n\n"
-    "ATURAN PENTING — JANGAN NGARANG FITUR YANG BELUM TENTU ADA: AI Admin asli TIDAK otomatis "
+    "ATURAN PENTING — JANGAN NGARANG FITUR YANG BELUM TENTU ADA: Kilas Brain asli TIDAK otomatis "
     "terintegrasi ke sistem pembayaran, CRM, kalender booking asli, atau software inventory customer "
     "kecuali memang di-setup khusus. Kalau selama roleplay muncul hal kayak 'oke saya proses "
     "pembayarannya' atau 'otomatis update ke sistem kasir', WAJIB kasih catatan jujur bahwa itu contoh "
@@ -8434,16 +8506,18 @@ DEMO_SYSTEM_PROMPT = (
     "TAHAP 3 — SETELAH DEMO KELIATAN COCOK:\n"
     "Kalau lawan bicara keliatan tertarik/puas sama simulasinya (misal bilang 'wah mirip', 'oke juga', "
     "nanya lanjutannya gimana, atau nanya harga paket Kilas Works), transisi natural dulu, misal: "
-    "'Kira-kira flow seperti ini sudah mirip dengan yang Kakak butuhkan?' — baru abis itu tawarin "
-    "ngobrol sama tim/owner Kilas Works buat bahas kebutuhan spesifik & harga paket bulanan (JANGAN "
-    "ngarang harga paket Kilas Works di sini, arahkan ke tim). Kalau dia kasih nama & kontak & jenis "
+    "'Kira-kira flow seperti ini sudah mirip dengan yang Kakak butuhkan?' — kalau di titik ini dia "
+    "nanya harga paket Kilas Works secara LANGSUNG, jawab pakai DATA HARGA RESMI KILAS WORKS di atas "
+    "(jangan mengarang angka lain, jangan nolak jawab) — abis itu, atau kalau dia belum nanya harga "
+    "spesifik, baru tawarin ngobrol sama tim/owner Kilas Works buat bahas kebutuhan lebih spesifik. "
+    "Kalau dia kasih nama & kontak & jenis "
     "bisnisnya buat di-follow-up tim Kilas Works, WAJIB tambahin tag PERSIS di akhir balasan: "
     "[DEMO_LEAD: nama=..., bisnis=..., catatan=...] — tag ini gak keliatan ke user, sinyal internal "
     "doang buat sistem.\n\n"
     "ATURAN GAYA: SATU pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble) — "
     "gaya balasan & bahasa lainnya ikutin GAYA BALASAN/BAHASA — AUTO-DETECT di atas, sama persis kayak "
-    "AI Admin asli.\n\n"
-    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, AI Admin Pro, dst) "
+    "Kilas Brain asli.\n\n"
+    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, Kilas Brain Pro, dst) "
     "TETAP PERSIS gak diterjemahin walau balasannya English. Demo TIDAK BOLEH error/nge-blank cuma "
     "gara-gara lawan bicara pakai English — kalau ragu bahasa apa, default Bahasa Indonesia dulu, "
     "JANGAN diem/gagal balas."
@@ -8459,7 +8533,7 @@ DEMO_RESET_PATTERN = re.compile(
 )
 
 DEMO_GREETING = (
-    "Halo! Ini demo AI WhatsApp Admin Kilas Works. Biar demo-nya pas sama bisnis Kakak, "
+    "Halo! Ini demo Kilas Brain (AI WhatsApp Admin Kilas Works). Biar demo-nya pas sama bisnis Kakak, "
     "boleh cerita dikit dulu — bisnis Kakak namanya apa?"
 )
 
@@ -8803,6 +8877,19 @@ def demo_api():
     # model itu SELALU gagal sejak tanggal tersebut. Ganti ke pengganti resminya, DAN kasih fallback
     # ke Sonnet (persis pola yang udah dipakai call_claude() buat bot WhatsApp asli) biar demo tetap
     # jalan walau model utamanya lagi bermasalah/rate-limit, bukan cuma diam nyerah kayak sebelumnya.
+    # 2026 Kilas Brain rebrand — Demo AI may state OFFICIAL Kilas Works prices when explicitly
+    # asked (see _enforce_customer_price_guardrail()'s own docstring for the narrow carve-out
+    # rationale). Grounded in the SAME canonical PRICING_TEXT_BLOCK the real production bot uses
+    # — never a separate/stale figure — appended per-request rather than baked into the
+    # module-level DEMO_SYSTEM_PROMPT constant, so a live price change is reflected on next boot
+    # without needing to touch the demo prompt text itself.
+    demo_system_prompt_for_this_request = (
+        DEMO_SYSTEM_PROMPT
+        + "\n\nDATA HARGA RESMI KILAS WORKS (LIVE, PAKAI PERSIS ANGKA INI KALAU CALON KLIEN NANYA "
+        "HARGA PAKET KILAS WORKS BENERAN — BUKAN roleplay bisnis dia — jangan mengarang angka lain):\n"
+        + PRICING_TEXT_BLOCK
+    )
+
     model_to_use = MODEL_FAST
     try:
         resp = requests.post(
@@ -8815,7 +8902,7 @@ def demo_api():
             json={
                 "model": model_to_use,
                 "max_tokens": 300,
-                "system": DEMO_SYSTEM_PROMPT,
+                "system": demo_system_prompt_for_this_request,
                 "messages": session["history"][-20:],
             },
             timeout=30,
@@ -8838,7 +8925,7 @@ def demo_api():
                 json={
                     "model": model_to_use,
                     "max_tokens": 300,
-                    "system": DEMO_SYSTEM_PROMPT,
+                    "system": demo_system_prompt_for_this_request,
                     "messages": session["history"][-20:],
                 },
                 timeout=30,
@@ -8850,6 +8937,11 @@ def demo_api():
         except Exception as e2:
             print(f"Demo API fallback ke Sonnet juga gagal: {e2}")
             reply_text = "Maaf, ada gangguan teknis sebentar. Coba kirim ulang pesannya ya."
+
+    reply_text = _enforce_customer_price_guardrail(
+        reply_text, tenant_context_block=None, allow_kilas_works_prices=True,
+    )
+
 
     lead_match = TAG_DEMO_LEAD.search(reply_text)
     if lead_match and not session["notified"]:

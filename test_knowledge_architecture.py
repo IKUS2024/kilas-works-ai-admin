@@ -55,7 +55,7 @@ def test_A_owner_service_listing_includes_talent_management():
     prompt = appmod.build_owner_system_prompt(None, None)
     assert "DAFTAR KATEGORI LAYANAN AKTIF KILAS WORKS" in prompt
     assert "Talent Management" in prompt
-    assert "AI Admin WhatsApp" in prompt
+    assert "Kilas Brain" in prompt  # 2026 rebrand: category display name changed from "AI Admin WhatsApp"
     assert "Website" in prompt
     # The explicit instruction connecting a general "jasa kita apa aja" question to this block.
     assert "DAFTAR KATEGORI LAYANAN AKTIF" in prompt and "WAJIB pakai blok" in prompt

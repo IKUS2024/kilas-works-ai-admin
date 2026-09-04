@@ -202,20 +202,20 @@ def test_followup_nudge_is_contextual_not_generic():
     print("test_followup_nudge_is_contextual_not_generic OK")
 
 
-# ---------- 9. Bundle/paket: PRICING_CONFIG cocok sama struktur final yang disetujui (pre-launch
-# hardening menambahkan AI Admin Basic/Pro + bundle turunannya secara EKSPLISIT diminta user — jadi
-# guard ini sekarang mengunci struktur BARU itu, bukan lagi struktur lama sebelum AI Admin Basic ada) ----------
+# ---------- 9. Bundle/paket: PRICING_CONFIG cocok sama struktur final yang disetujui (2026 Kilas
+# Brain rebrand: ads_bundles removed entirely, 3 bundles renamed to Content+Kilas Brain
+# combinations at new prices — this guard now locks THAT structure, not the pre-2026 one) ----------
 def test_no_new_bundle_or_package_added():
     expected_top_keys = {
         "ai_admin", "content_packages", "static_visual_note", "bundles", "meta_ads",
-        "ads_bundles", "website", "domain_hosting", "event", "transport_acara", "custom_automation_redirect",
+        "website", "domain_hosting", "event", "transport_acara", "custom_automation_redirect",
     }
     assert set(appmod.PRICING_CONFIG.keys()) == expected_top_keys, appmod.PRICING_CONFIG.keys()
     assert set(appmod.PRICING_CONFIG["ai_admin"].keys()) == {"basic", "pro"}
-    assert set(appmod.PRICING_CONFIG["bundles"].keys()) == {"growth_ai_basic", "growth_ai", "pro_ai"}
-    assert set(appmod.PRICING_CONFIG["ads_bundles"].keys()) == {
-        "ai_basic_ads", "ai_ads", "growth_ai_ads", "pro_ai_ads", "ads_landing_page", "ad_spend_note",
+    assert set(appmod.PRICING_CONFIG["bundles"].keys()) == {
+        "growth_brain_basic", "growth_brain_pro", "pro_brain_pro",
     }
+    assert "ads_bundles" not in appmod.PRICING_CONFIG, "ads_bundles must be fully removed, not just relabeled"
     print("test_no_new_bundle_or_package_added OK")
 
 

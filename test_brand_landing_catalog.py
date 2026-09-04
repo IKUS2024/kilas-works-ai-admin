@@ -5,6 +5,7 @@ Run with:
 """
 import os
 import re
+import io
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -43,7 +44,7 @@ def test_landing_page_services_immediately_after_hero():
 
 def test_landing_page_shows_all_six_core_service_groups():
     html = _read_landing()
-    for group in ("AI WhatsApp Admin", "Content &amp; Creative", "Meta Ads",
+    for group in ("Kilas Brain", "Content &amp; Creative", "Meta Ads",  # 2026 rebrand: AI WhatsApp Admin -> Kilas Brain
                   "Website &amp; Digital Solutions", "Talent &amp; Creator Management",
                   "Custom Solutions"):
         assert group in html, f"missing core service group: {group}"
@@ -180,14 +181,16 @@ def test_pdf_never_shows_raw_mode_or_fixed_label():
     import live_catalog_pdf
     pdf_bytes = live_catalog_pdf.generate_catalog_pdf_bytes()
     assert pdf_bytes[:4] == b"%PDF"
-    # Precise check: the actual table header call must be exactly ["Layanan", "Harga"] — never a
-    # 3rd "Mode" column. A comment mentioning the word "Mode" (explaining the fix) is fine and
-    # expected; only the literal header_row(...) call argument list matters here.
-    with open(os.path.join(REPO_ROOT, "client-hub", "live_catalog_pdf.py"), encoding="utf-8") as f:
-        source = f.read()
-    assert 'header_row(["Layanan", "Harga"])' in source
-    assert 'header_row(["Layanan", "Harga", "Mode"])' not in source
-    assert 'mode_label = "Fixed"' not in source
+    # Precise text-extraction check on the ACTUAL rendered output — more reliable than a
+    # source-level structural check, and robust to internal implementation changes (e.g. the v2
+    # premium redesign's benefits-list + pricing-card layout, which no longer uses a raw
+    # header_row(["Layanan", "Harga", "Mode"]) table at all).
+    from pypdf import PdfReader
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    full_text = " ".join(p.extract_text() for p in reader.pages)
+    assert "Fixed" not in full_text
+    assert "FIXED" not in full_text
+    assert "pricing_mode" not in full_text
     print("test_pdf_never_shows_raw_mode_or_fixed_label OK")
 
 

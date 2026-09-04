@@ -88,71 +88,78 @@ def send_owner_message_deterministic(text):
         return client.post("/webhook", data=json.dumps(owner_payload(text)), content_type="application/json")
 
 
-# ---------- 1. PRICING_CONFIG structure: AI Admin Basic/Pro tiers present with correct prices ----------
+# ---------- 1. PRICING_CONFIG structure: Kilas Brain Basic/Pro tiers present with correct prices ----------
 def test_ai_admin_basic_and_pro_prices():
     ai = appmod.PRICING_CONFIG["ai_admin"]
     assert ai["basic"]["harga"] == 499000, ai["basic"]
     assert ai["pro"]["harga"] == 999000, ai["pro"]
-    assert "AI Admin Basic" in ai["basic"]["nama"]
-    assert "AI Admin Pro" in ai["pro"]["nama"]
+    assert "Kilas Brain Basic" in ai["basic"]["nama"]  # 2026 rebrand: public display name
+    assert "Kilas Brain Pro" in ai["pro"]["nama"]
     print("test_ai_admin_basic_and_pro_prices OK")
 
 
-# ---------- 2. New bundle prices match the FINAL spec ----------
+# ---------- 2. New bundle prices match the 2026 FINAL spec (Ads bundles retired) ----------
 def test_new_bundle_prices():
     b = appmod.PRICING_CONFIG["bundles"]
-    assert b["growth_ai_basic"]["harga"] == 2990000, b["growth_ai_basic"]
-    assert b["growth_ai"]["harga"] == 3490000, b["growth_ai"]
-    assert b["pro_ai"]["harga"] == 4990000, b["pro_ai"]
-
-    ab = appmod.PRICING_CONFIG["ads_bundles"]
-    assert ab["ai_basic_ads"]["harga"] == 1190000, ab["ai_basic_ads"]
-    assert ab["ai_ads"]["harga"] == 1690000, ab["ai_ads"]
-    assert ab["growth_ai_ads"]["harga"] == 4290000, ab["growth_ai_ads"]
-    assert ab["pro_ai_ads"]["harga"] == 5790000, ab["pro_ai_ads"]
+    assert b["growth_brain_basic"]["harga"] == 3100000, b["growth_brain_basic"]
+    assert b["growth_brain_pro"]["harga"] == 3600000, b["growth_brain_pro"]
+    assert b["pro_brain_pro"]["harga"] == 5100000, b["pro_brain_pro"]
+    assert "ads_bundles" not in appmod.PRICING_CONFIG, "ads_bundles must be fully removed, not just relabeled"
     print("test_new_bundle_prices OK")
 
 
 # ---------- 3. build_pricing_text_block() renders both tiers + all new bundles (no crash, no dupes) ----------
 def test_pricing_text_block_contains_all_tiers_and_bundles():
     block = appmod.build_pricing_text_block()
-    assert "AI Admin Basic" in block and "499" in block
-    assert "AI Admin Pro" in block and "999" in block
-    assert "Content Growth + AI Admin Basic" in block
-    assert "Content Growth + AI Admin Pro" in block
-    assert "Content Pro + AI Admin Pro" in block
-    assert "AI Admin Basic + Meta Ads" in block
+    assert "Kilas Brain Basic" in block and "499" in block
+    assert "Kilas Brain Pro" in block and "999" in block
+    assert "Content Growth + Kilas Brain Basic" in block
+    assert "Content Growth + Kilas Brain Pro" in block
+    assert "Content Pro + Kilas Brain Pro" in block
+    assert "Ads" not in block or "Ads Bundles" not in block  # no retired Ads-bundle section header
     print("test_pricing_text_block_contains_all_tiers_and_bundles OK")
 
 
-# ---------- 4. Price-disclosure rule text: business rule reversed — customer NEVER gets a nominal
-# price, regardless of asking (see the code-level guardrail this prompt text backs up:
-# CUSTOMER_PRICE_DISCLOSURE_PATTERN / _enforce_customer_price_guardrail in app.py) ----------
+# ---------- 4. Price-disclosure rule text: 2026 update — Kilas Works' own customers CAN get a
+# direct price when they ask (narrow carve-out via _enforce_customer_price_guardrail's
+# allow_kilas_works_prices parameter); tenant customers still never do (unchanged). ----------
 def test_price_disclosure_rule_text_present():
     p = appmod.SYSTEM_PROMPT
-    assert "TIDAK PERNAH boleh dikasih ANGKA NOMINAL" in p
-    assert "PERUBAHAN ATURAN BISNIS" in p
+    assert "JAWAB LANGSUNG & SINGKAT pakai angka PERSIS" in p
+    assert "ATURAN HARGA TERBARU" in p
     print("test_price_disclosure_rule_text_present OK")
 
 
 # ---------- 5. Customer directly asks price of ONE package -> bot must answer that number (behavioral,
 # via prompt instruction check + a live webhook round-trip that the exact price appears verbatim) ----------
-def test_customer_asks_specific_package_price_gets_no_nominal_number():
-    """Business rule reversed (production fix): a customer must NEVER receive a nominal price,
-    even if the model's own reply (mocked here, simulating a model that ignores the prompt
-    instruction) contains one — the CODE-LEVEL guardrail (_enforce_customer_price_guardrail)
-    catches it and replaces the entire reply with the safe fallback. This proves the protection
-    end-to-end through the real webhook flow, not just at the prompt-text level."""
+def test_customer_asks_specific_package_price_gets_direct_answer_2026():
+    """2026 update: a genuine Kilas Works customer asking a direct price question NOW gets the
+    real number — the narrow Kilas-Works-own carve-out in _enforce_customer_price_guardrail
+    (allow_kilas_works_prices=True at this exact webhook call site, since tenant_context_block is
+    falsy here) intentionally allows this through end-to-end via the real webhook flow. This is
+    the deliberate reversal of the OLD "never a nominal price, ever" rule for Kilas Works' own
+    customers specifically — tenant customers are NOT affected (see the companion test below)."""
     reset_all()
     number = "628900100001"
     ai_reply = "Content Growth Rp2.750.000/bulan, Kak."
     resp = send_customer_message(number, "Growth berapa?", ai_reply)
     assert resp.status_code == 200
     sent_texts = [t for n, t in sent_log if n == number]
-    assert not any("2.750.000" in t for t in sent_texts), \
-        f"BUG: a nominal price reached the customer despite the guardrail: {sent_texts}"
-    assert any(appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in t for t in sent_texts), sent_texts
-    print("test_customer_asks_specific_package_price_gets_no_nominal_number OK")
+    assert any("2.750.000" in t for t in sent_texts), \
+        f"a genuine Kilas Works customer must receive the real price when asked directly: {sent_texts}"
+    print("test_customer_asks_specific_package_price_gets_direct_answer_2026 OK")
+
+
+def test_price_guardrail_still_blocks_when_carve_out_not_applicable():
+    """Regression lock: the guardrail's default (no carve-out passed) still fully blocks any
+    Rupiah figure — proven directly at the function level, since every actual tenant-routed
+    webhook call site in production always passes tenant_context_block truthy (never triggering
+    the carve-out) and this is already covered by test_enforce_customer_price_guardrail.py-style
+    unit coverage; this test locks the DEFAULT behavior of the function itself."""
+    guarded = appmod._enforce_customer_price_guardrail("Rp2.750.000/bulan, Kak.", tenant_context_block=None)
+    assert "2.750.000" not in guarded
+    assert appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in guarded
+    print("test_price_guardrail_still_blocks_when_carve_out_not_applicable OK")
 
 
 # ---------- 6. Overclaim phrases are absent from SYSTEM_PROMPT / DEMO_SYSTEM_PROMPT / katalog / landing ----------
@@ -363,7 +370,8 @@ if __name__ == "__main__":
     test_new_bundle_prices()
     test_pricing_text_block_contains_all_tiers_and_bundles()
     test_price_disclosure_rule_text_present()
-    test_customer_asks_specific_package_price_gets_no_nominal_number()
+    test_customer_asks_specific_package_price_gets_direct_answer_2026()
+    test_price_guardrail_still_blocks_when_carve_out_not_applicable()
     test_no_overclaim_phrases_anywhere()
     test_bot_honesty_instruction_present()
     test_demo_sales_tool_instruction_present()

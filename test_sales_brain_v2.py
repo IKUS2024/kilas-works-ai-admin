@@ -173,11 +173,15 @@ def test_greeting_prompt_instructs_no_catalog_dump():
 # INSTRUCTION must say never to disclose it, not "answer directly."
 # ---------------------------------------------------------------------------
 def test_price_question_prompt_instructs_direct_answer():
+    """2026 update: reverses the prior "never state a number" prompt instruction — Kilas Works'
+    own customers now get a direct, concise answer when they ask a price question, sourced from
+    the live canonical data above it in the prompt. See _enforce_customer_price_guardrail's own
+    docstring for the code-level carve-out that backs this up (every disclosed number must still
+    match a real canonical Kilas Works price, never an invented one)."""
     prompt = appmod.build_customer_system_prompt("628999000099")
-    assert "999rb" in prompt  # AI Admin Pro price still present as KNOWLEDGE (for internal use)
-    assert "JAWAB LANGSUNG" not in prompt, \
-        "customer prompt must no longer instruct answering a price question with the number directly"
-    assert "TIDAK PERNAH boleh dikasih ANGKA NOMINAL" in prompt
+    assert "999rb" in prompt  # Kilas Brain Pro price present as live knowledge
+    assert "JAWAB LANGSUNG & SINGKAT pakai angka PERSIS" in prompt
+    assert "ATURAN HARGA TERBARU" in prompt
     print("test_price_question_prompt_instructs_direct_answer OK")
 
 

@@ -214,11 +214,12 @@ def test_build_language_context_reflects_stored_preference():
 
 
 # ---------- 12. Regression guard: PAYMENT_CONFIG untouched; PRICING_CONFIG matches current
-# approved structure (updated by the pre-launch hardening cycle that added AI Admin Basic/Pro) ----------
+# approved structure (2026 Kilas Brain rebrand: ads_bundles removed entirely, "ai_admin" key
+# retained internally with public display name now "Kilas Brain") ----------
 def test_pricing_config_and_payment_config_untouched():
     assert set(appmod.PRICING_CONFIG.keys()) == {
         "ai_admin", "content_packages", "static_visual_note", "bundles",
-        "meta_ads", "ads_bundles", "website", "domain_hosting", "event",
+        "meta_ads", "website", "domain_hosting", "event",
         "transport_acara", "custom_automation_redirect",
     }
     assert appmod.PAYMENT_CONFIG == {

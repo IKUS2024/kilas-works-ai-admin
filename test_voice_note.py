@@ -95,19 +95,21 @@ def send_owner_voice(transcript_result, owner_ai_reply=None, msg_id="wamid.vn.o1
 # ---------- 1. Customer VN with clear pricing question -> price guardrail applies through the
 # SAME pipeline as text messages (voice notes are transcribed then processed identically) ----------
 def test_customer_voice_note_pricing_question():
+    """2026 update: the voice-note pipeline routes through the exact same webhook price-guardrail
+    call site as text messages, so a genuine Kilas Works customer asking a price question via
+    voice note now correctly gets the real number too (same narrow carve-out)."""
     global sent_log
     reset_all()
     sent_log = []
     number = "628900200001"
     resp = send_customer_voice(
-        number, "media-c1", ("AI Admin Pro berapa?", None),
-        ai_reply="AI Admin Pro Rp999.000/bulan, Kak.",
+        number, "media-c1", ("Kilas Brain Pro berapa?", None),
+        ai_reply="Kilas Brain Pro Rp999.000/bulan, Kak.",
     )
     assert resp.status_code == 200
     texts = [t for n, t in sent_log if n == number]
-    assert not any("999.000" in t for t in texts), \
-        f"BUG: a nominal price reached the customer via voice-note pipeline: {texts}"
-    assert any(appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in t for t in texts), texts
+    assert any("999.000" in t for t in texts), \
+        f"a genuine Kilas Works customer must receive the real price via voice note too: {texts}"
     print("test_customer_voice_note_pricing_question OK")
 
 
@@ -328,10 +330,11 @@ def test_voice_note_duplicate_webhook_no_double_send():
         r1 = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
         r2 = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
     assert r1.status_code == 200 and r2.status_code == 200
-    # Guardrail replaces the price with the safe fallback (see other tests in this file for that
-    # specific behavior) — this test is about DEDUP, not pricing, so check for the actual sent
-    # text (the fallback) appearing exactly once, proving the duplicate webhook was skipped.
-    texts = [t for n, t in sent_log if n == number and appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in t]
+    # 2026 update: Content Growth's price is a real canonical amount, so the carve-out lets it
+    # through unchanged now (no fallback text at all) — this test is about DEDUP, not pricing, so
+    # check the actual sent reply text appears exactly once, proving the duplicate webhook was
+    # skipped rather than double-sent.
+    texts = [t for n, t in sent_log if n == number and "2.750.000" in t]
     assert len(texts) == 1, texts
     print("test_voice_note_duplicate_webhook_no_double_send OK")
 

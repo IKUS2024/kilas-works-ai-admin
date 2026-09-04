@@ -15,11 +15,18 @@ import pricing_config
 
 def seed_catalog_if_needed():
     """Idempotent: inserts any catalog_key from pricing_config.py that doesn't exist yet. Does NOT
-    overwrite an existing row's price/name — if Kilas Works wants to change a price, that happens
-    via the admin catalog-edit screen (routes_admin.py), not by re-seeding. This function only
-    ever adds rows that are missing, so pricing_config.py additions (e.g. a brand new service)
-    show up automatically on next boot without clobbering any admin edits already made to existing
-    ones."""
+    overwrite an existing row's price/name for routine admin edits — if Kilas Works wants to
+    change a price day-to-day, that happens via the admin catalog-edit screen (routes_admin.py),
+    not by re-seeding. This function only ever adds rows that are missing, so pricing_config.py
+    additions (e.g. a brand new service) show up automatically on next boot without clobbering
+    any admin edits already made to existing ones.
+
+    2026 rebrand exception: renaming "AI Admin Basic/Pro" to "Kilas Brain Basic/Pro" and
+    deactivating the 8 retired Ads/Landing-Page bundles are DELIBERATE, one-time canonical
+    corrections tied to this exact rebrand — not routine admin edits — so they're applied
+    explicitly below via _apply_rebrand_corrections(), the one narrowly-scoped exception to the
+    "never overwrite existing rows" rule, rather than a blanket overwrite of every field on every
+    boot (which would fight with genuine future admin edits)."""
     for item in pricing_config.CATALOG_ITEMS:
         existing = db.query_one("SELECT id FROM service_catalog WHERE catalog_key = ?", (item["key"],))
         if existing is None:
@@ -29,6 +36,29 @@ def seed_catalog_if_needed():
                 (item["key"], item["category"], item["name"], item["pricing_mode"],
                  item["price_amount"], item["price_unit"]),
             )
+    _apply_rebrand_corrections()
+
+
+def _apply_rebrand_corrections():
+    """2026 Kilas Brain rebrand — one-time, narrowly-scoped canonical corrections (see
+    seed_catalog_if_needed()'s own docstring for why this is a deliberate exception, not a
+    reusable overwrite-everything mechanism). Each statement below only touches a row if it still
+    has the OLD value, so re-running this on every boot is safe/idempotent and never re-fights an
+    admin who has since made their own further edit to the display name."""
+    db.execute(
+        "UPDATE service_catalog SET name = 'Kilas Brain Basic' "
+        "WHERE catalog_key = 'ai_admin_basic' AND name = 'AI Admin Basic'"
+    )
+    db.execute(
+        "UPDATE service_catalog SET name = 'Kilas Brain Pro' "
+        "WHERE catalog_key = 'ai_admin_pro' AND name = 'AI Admin Pro'"
+    )
+    if pricing_config.RETIRED_BUNDLE_KEYS:
+        placeholders = ", ".join(["?"] * len(pricing_config.RETIRED_BUNDLE_KEYS))
+        db.execute(
+            f"UPDATE service_catalog SET is_active = ? WHERE catalog_key IN ({placeholders})",
+            (False, *pricing_config.RETIRED_BUNDLE_KEYS),
+        )
 
 
 def list_active_catalog():
@@ -164,7 +194,11 @@ def update_catalog_item(catalog_id, price_amount=None, price_unit=None, is_activ
 
 
 def format_price(price_amount, price_unit):
+    """Customer-facing price formatting — used by the public catalog page and the PDF export
+    (live_catalog_pdf.py). CUSTOM_QUOTE items (price_amount is None) get a natural, professional
+    Indonesian sentence rather than a raw two-word label or an invented number (Unified Brand +
+    Catalog task, Section 4)."""
     if price_amount is None:
-        return "Custom Quote"
+        return "Penawaran disesuaikan dengan kebutuhan project."
     formatted = f"Rp{price_amount:,}".replace(",", ".")
     return f"{formatted} {price_unit}" if price_unit else formatted
