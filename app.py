@@ -2951,6 +2951,16 @@ conversations = {}
 # _pending_owner_questions_for_tenant() supaya gak pernah lagi keliru scope.
 pending_owner_questions = {}
 
+# Human handoff notification reliability fix — parallel dict tracking whether the LAST owner
+# notification attempt for this active handoff actually succeeded, keyed the exact same way as
+# pending_owner_questions (_ck(tenant_id, phone)). Needed because a repeat customer message during
+# an already-active handoff does NOT re-attempt the notification (see notify_owner_question's
+# already_pending param, spam-prevention) — but the customer-facing wording still needs to know
+# whether "sudah diteruskan ke tim" is currently TRUE (the one attempt for this handoff succeeded)
+# or FALSE (it failed) without re-sending anything. Cleared alongside pending_owner_questions
+# whenever a handoff is resolved (see the FORWARD_MARKER relay path's .pop() calls).
+handoff_notification_status = {}
+
 
 def _pending_owner_questions_for_tenant(tenant_id):
     """Task 5 — this tenant's (or, for tenant_id=None, Kilas Works' own) slice of
@@ -3567,6 +3577,9 @@ ATURAN TAMBAHAN KHUSUS SISTEM INI (tag internal, override/tambahan di atas peril
   "[TANYA_OWNER]" di balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks
   tag-nya) — ini yang bikin owner ke-notify buat bantu jawabin. Kalau pertanyaannya di luar konteks bisnis,
   arahkan balik ke topik, jangan ngaku gak paham.
+- PENTING: kalimat kayak "sudah aku hubungkan ke tim"/"aku terusin ke tim ya"/semacamnya HANYA boleh
+  dipakai kalau kamu BENERAN sertain tag "[TANYA_OWNER]" di balasan yang SAMA — jangan pernah bilang
+  kalimat itu tanpa tag-nya (itu ngaku udah eskalasi padahal belum beneran kejadian).
 - KONSISTENSI bahasa: begitu kamu udah mutusin bahasa balasan buat customer ini (pertama kali chat ATAU
   tiap kali ganti), sertakan tag PERSIS di akhir balasan: [SET_LANG: lang=id] (Bahasa Indonesia) atau
   [SET_LANG: lang=en] (English) — SISTEM yang simpen preferensi ini biar chat berikutnya konsisten tanpa
@@ -3692,11 +3705,12 @@ SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (WAJIB, override versi lama
   semua lokasi di luar Tangerang/Jakarta pakai jawaban yang sama di atas, tanpa angka sama sekali.
 
 SOAL KATALOG LENGKAP:
-- Kalau customer minta katalog/pricelist (mis. "ada katalog?", "ada katalog gak",
-  "kirim katalog dong", "boleh lihat layanan?", "minta pricelist/katalog", "katalog kilas works",
-  "kirim pricelist dong", atau variasi natural sejenis), boleh langsung jawab singkat dan natural
-  SAMBIL kirim katalog resmi (pakai tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau interogasi
-  dulu sebelum kirim. Contoh gaya balasan: "Boleh Kak, ini katalog Kilas Works ya 👇".
+- Kalau customer minta katalog/pricelist/daftar layanan dengan bahasa natural apapun — contoh: "ada
+  katalog gak", "kirim pricelist dong", "boleh lihat layanan?", "minta katalog", "katalog kilas works",
+  "ada daftar harga?" — boleh langsung jawab singkat & natural (misal "Boleh Kak, ini katalog Kilas Works
+  ya" — variasikan kalimatnya, TANPA angka harga di teks — lihat ATURAN HARGA di atas) SAMBIL kirim
+  katalog buat rincian lengkapnya (pakai tag "[KIRIM_KATALOG]") — gak perlu nahan-nahan atau interogasi
+  dulu sebelum kirim.
 
 SOAL TALENT MANAGEMENT (Sales Brain V2 — WAJIB DIIKUTI. Data roster live ada di blok
 TALENT MANAGEMENT KILAS WORKS di bawah/setelah prompt ini kalau ada — blok itu KNOWLEDGE buat kamu,
@@ -4790,6 +4804,53 @@ def _reply_prices_are_all_canonical_kilas_works(reply_text):
     return True
 
 
+_HANDOFF_CONFIRMATION_CLAIM_PATTERN = re.compile(
+    r"(sudah|udah)\s+(aku|saya|kami)?\s*"
+    r"(hubungk[ae]n|teruskan|forward(?:kan)?|sampaikan|kasih\s*tau|kontak)\s*"
+    r"(ke|sama|dengan)\s*(tim|owner|admin|pihak\s*terkait)",
+    re.IGNORECASE,
+)
+
+HANDOFF_SAFE_SUCCESS_REPLY = "Aku sudah teruskan ke tim ya."
+HANDOFF_SAFE_FAILURE_REPLY = "Aku sudah catat permintaanmu untuk ditangani tim."
+
+
+def _enforce_handoff_notification_truthfulness(reply_text, needs_owner, handoff_notification_ok):
+    """Production reliability fix: [TANYA_OWNER] used to let the AI's OWN generated wording
+    (e.g. "sudah aku hubungkan ke tim") reach the customer completely independent of whether the
+    owner WhatsApp notification actually succeeded — the AI has no way to know that at generation
+    time, since the send attempt happens after the reply text already exists. This function is
+    the one place that reconciles the two: called AFTER the real notify_owner_question() attempt
+    (see its call site) but BEFORE the reply is sent to the customer, so the wording the customer
+    actually sees always matches reality.
+
+    - needs_owner is False (no [TANYA_OWNER] this turn): reply is returned completely unchanged —
+      this function has nothing to do with any other kind of reply.
+    - needs_owner True AND handoff_notification_ok True: reply is returned unchanged UNLESS it
+      contains no clear confirmation claim at all, in which case HANDOFF_SAFE_SUCCESS_REPLY is
+      appended so the customer still gets an honest, truthful confirmation even if the model's own
+      wording was vague.
+    - needs_owner True AND handoff_notification_ok False (delivery genuinely failed) OR None (this
+      customer's handoff was already active/pending — see notify_owner_question's own
+      already_pending docstring, no NEW send was attempted this turn so there is nothing to
+      confirm): ANY confirmation-claiming phrase in the reply (via
+      _HANDOFF_CONFIRMATION_CLAIM_PATTERN — "sudah aku hubungkan ke tim", "udah saya teruskan ke
+      admin", etc., in any casing/wording variant it matches) is replaced with
+      HANDOFF_SAFE_FAILURE_REPLY — truthful, never exposes the technical error, never claims a
+      notification that didn't genuinely go out this turn. If no such phrase is present at all,
+      the reply is left alone (the AI never claimed success in the first place, nothing to fix).
+    """
+    if not needs_owner:
+        return reply_text
+    if handoff_notification_ok:
+        if _HANDOFF_CONFIRMATION_CLAIM_PATTERN.search(reply_text):
+            return reply_text
+        return (reply_text.rstrip() + " " + HANDOFF_SAFE_SUCCESS_REPLY).strip()
+    if _HANDOFF_CONFIRMATION_CLAIM_PATTERN.search(reply_text):
+        return _HANDOFF_CONFIRMATION_CLAIM_PATTERN.sub(HANDOFF_SAFE_FAILURE_REPLY, reply_text)
+    return reply_text
+
+
 def _enforce_customer_price_guardrail(reply_text, tenant_context_block, allow_kilas_works_prices=False):
     """Applies the code-level guardrail: for ANY customer-facing reply — Kilas Works' own
     customers AND every tenant business's own customers alike — that contains ANY Rupiah-shaped
@@ -5401,8 +5462,13 @@ def get_catalog_media_id(force_refresh=False):
     belum pernah diupload, atau media_id lama udah expired (force_refresh=True dari caller), upload
     ulang. Return None kalau katalog.pdf gak ketemu sama sekali atau upload gagal.
 
-    Uses the official static katalog.pdf resolved by find_catalog_pdf_path(). The mtime-based
-    cache invalidation below automatically re-uploads the file when katalog.pdf is replaced."""
+    Static PDF ONLY (2026 catalog-send integration) — the live, DB-generated Client Hub catalog
+    module (client-hub/live_catalog_pdf.py) is deliberately NOT consulted here anymore. The
+    customer-facing catalog is now a single, pre-approved final PDF
+    (see find_catalog_pdf_path() / CATALOG_PDF_PATH) that is replaced by hand when the design is
+    updated, never auto-regenerated — this function/its caller never need to change for that; only
+    the file on disk (or the CATALOG_PDF_PATH env var, if pointed elsewhere) does. mtime-based cache
+    invalidation below still picks up a manually-replaced file automatically on the next send."""
     path = find_catalog_pdf_path()
     if not path:
         return None
@@ -5427,10 +5493,13 @@ def get_catalog_media_id(force_refresh=False):
 
 
 def send_catalog_pdf(to_number):
-    """Kirim katalog PDF (daftar lengkap layanan & harga, SATU-SATUNYA sumber file yang sama dipakai
-    di mana-mana — lihat find_catalog_pdf_path()) ke suatu nomor WhatsApp sebagai dokumen.
-    Balikin (success: bool, error_detail: str atau None) — JANGAN PERNAH dianggap kekirim cuma
-    karena gak exception (sama prinsipnya kayak send_whatsapp_message/send_whatsapp_image)."""
+    """Kirim katalog PDF resmi (SATU file statis, pre-approved — lihat find_catalog_pdf_path() /
+    CATALOG_PDF_PATH; tidak pernah di-generate ulang oleh kode ini) ke suatu nomor WhatsApp sebagai
+    dokumen, lewat jalur upload+kirim dokumen WhatsApp yang sudah ada (upload_media/graph API
+    "document" message — sama persis dipakai fitur kirim-file lain di file ini, tidak ada sistem
+    media baru). Balikin (success: bool, error_detail: str atau None) — JANGAN PERNAH dianggap
+    kekirim cuma karena gak exception (sama prinsipnya kayak send_whatsapp_message/
+    send_whatsapp_image)."""
     path = find_catalog_pdf_path()
     if not path:
         return False, "katalog.pdf gak ketemu di repository (sudah dicari recursive)."
@@ -5475,6 +5544,22 @@ def send_catalog_pdf(to_number):
     return False, r.text
 
 
+def _send_owner_notification_safe(target, text, context_label):
+    """Shared by notify_owner_new_message/notify_owner/notify_owner_question below — a REAL,
+    confirmed production bug fix: all three used to call send_whatsapp_message(target, text) and
+    discard its (success, error) return value entirely, so a delivery failure (expired token,
+    network error, Meta API error) was completely silent — no log line, nothing visible anywhere.
+    This is the exact failure mode reported: the AI tells the customer it "connected them to the
+    team" while the owner never actually received anything, with zero trace of why. Never exposes
+    the access token or full message text — only the target phone number, the failure reason
+    (already token-free — see send_whatsapp_message's own contract), and which notification type
+    failed, so this is safe to print to Render logs."""
+    ok, err = send_whatsapp_message(target, text)
+    if not ok:
+        print(f"OWNER NOTIFICATION GAGAL ({context_label}) ke wa.me/{target}: {err}")
+    return ok
+
+
 def notify_owner_new_message(from_number, message_text, name=None, tenant_id=None):
     """Kirim notifikasi ringan ke owner SEKALI AJA pas ada customer BARU pertama kali chat (dipanggil
     dari receive_webhook cuma kalau is_new_customer True) — biar owner tau siapa aja yang mulai chat,
@@ -5492,7 +5577,7 @@ def notify_owner_new_message(from_number, message_text, name=None, tenant_id=Non
         return
     who = f"{name} (wa.me/{from_number})" if name else f"wa.me/{from_number}"
     text = f'💬 Customer baru chat: {who}\nPesan pertama: "{message_text}"'
-    send_whatsapp_message(target, text)
+    _send_owner_notification_safe(target, text, "new_customer")
 
 
 def notify_owner(from_number, reason, last_message, tenant_id=None):
@@ -5511,10 +5596,10 @@ def notify_owner(from_number, reason, last_message, tenant_id=None):
         f'Pesan terakhir: "{last_message}"\n\n'
         f"Cek & follow up langsung ke nomor itu ya."
     )
-    send_whatsapp_message(target, text)
+    _send_owner_notification_safe(target, text, f"escalation:{reason}")
 
 
-def notify_owner_question(from_number, last_message, tenant_id=None):
+def notify_owner_question(from_number, last_message, tenant_id=None, already_pending=False):
     """Kirim notifikasi ke owner soal pertanyaan yang AI belum yakin jawabnya, DAN simpan sebagai
     pending. Owner bisa diskusi bebas dulu soal ini di chat yang sama (lihat call_claude_owner &
     cabang OWNER di receive_webhook) — baru pas owner bilang eksplisit suruh forward, jawabannya
@@ -5527,10 +5612,28 @@ def notify_owner_question(from_number, last_message, tenant_id=None):
     tenant's or Kilas Works' own owner data. NOTE: the "diskusi bebas + terusin ke customer"
     auto-relay flow above (FORWARD_MARKER, mention lookup, FIFO fallback pick) is still wired only
     for Kilas Works' own owner branch — a tenant owner gets the notification, but replying here to
-    relay it back through that specific UX is a known limitation of this cycle."""
+    relay it back through that specific UX is a known limitation of this cycle.
+
+    `already_pending` (production reliability fix — real bug found and fixed): the caller passes
+    True when this exact customer ALREADY had an unresolved pending question before this call (the
+    entry in pending_owner_questions was NOT freshly created this turn). In that case this
+    function still updates the stored question text (so the owner sees the LATEST message when
+    they do check), but skips sending a SECOND WhatsApp ping for what is still fundamentally the
+    same unresolved handoff — this is what stops the owner from being spammed once per customer
+    message while a handoff is still active, satisfying the exact "no repeated notifications for
+    the same active handoff" requirement. pending_owner_questions.pop() (see the FORWARD_MARKER
+    relay path elsewhere in this file) is what marks a handoff resolved; the NEXT [TANYA_OWNER]
+    after that pop() naturally starts fresh with already_pending=False, so resuming and then
+    hitting a genuinely NEW handoff correctly sends a NEW notification.
+
+    Returns True (sent successfully), False (delivery failed OR no target configured), or None
+    (skipped because already_pending — no NEW attempt was made this turn, caller should reuse the
+    last known result from handoff_notification_status instead of treating this as a failure)."""
     target = _get_tenant_owner_notify_target_safe(tenant_id)
     if not target:
-        return
+        return False
+    if already_pending:
+        return None
     text = (
         f"🔔 Ada pertanyaan yang AI belum yakin jawabnya, tolong cek manual\n\n"
         f"Dari: wa.me/{from_number}\n"
@@ -5538,7 +5641,7 @@ def notify_owner_question(from_number, last_message, tenant_id=None):
         f"Chat aja di sini kalau mau diskusi dulu, nanti kalau udah fix jawabannya tinggal bilang "
         f'"terusin ke customer" (atau semacamnya), baru aku kirimin ke dia 👍'
     )
-    send_whatsapp_message(target, text)
+    return _send_owner_notification_safe(target, text, "human_handoff")
 
 
 def log_customer_message(to_number, message_text, sent_from="automated"):
@@ -7087,6 +7190,10 @@ def _webhook_body_impl(data):
                 # (direct_send) yang emang gak pernah masuk pending_owner_questions sama sekali.
                 # Task 5 — pop lewat _ck(tenant_id, ...), key yang sama persis dipakai buat nulis.
                 pending_owner_questions.pop(_ck(tenant_id, pending_customer_number), None)
+                # Handoff notification reliability fix — clear the parallel status entry too, so a
+                # genuinely NEW handoff for this same customer later starts fresh (no stale
+                # success/failure carried over from this now-resolved one).
+                handoff_notification_status.pop(_ck(tenant_id, pending_customer_number), None)
                 sisa = len(_pending_owner_questions_for_tenant(tenant_id))
                 if sisa:
                     send_whatsapp_message(
@@ -7803,6 +7910,34 @@ def _webhook_body_impl(data):
                 clean_reply, tenant_context_block, allow_kilas_works_prices=not tenant_context_block,
             )
 
+        # Human handoff notification reliability fix — the notification attempt MUST happen
+        # before the reply is sent, not after (as it previously was), so the customer-facing
+        # wording can be reconciled with what ACTUALLY happened rather than the AI's own guess.
+        # Task 5 — keyed by _ck(tenant_id, from_number) (== scoped_from), NOT the plain phone
+        # number, so this can never surface in another tenant's (or Kilas Works' own) owner
+        # interface just because the same customer phone number happens to also be talking to a
+        # different tenant.
+        if needs_owner and not is_leads_panas and not payment_confirmed:
+            # Notification-spam fix: check BEFORE overwriting whether this customer already had
+            # an unresolved pending question — if so, this is still the SAME active handoff (the
+            # owner hasn't relayed an answer / cleared it yet via the FORWARD_MARKER path below),
+            # so only the stored question text is refreshed; no second WhatsApp ping is sent. A
+            # fresh entry (first time, or right after a previous one was resolved) DOES send —
+            # that's a genuinely new handoff event.
+            already_pending = scoped_from in pending_owner_questions
+            pending_owner_questions[scoped_from] = user_text
+            _notify_result = notify_owner_question(from_number, user_text, tenant_id=tenant_id, already_pending=already_pending)
+            if _notify_result is not None:
+                # A real attempt was made this turn (fresh handoff, not a repeat) — record its
+                # outcome as the current truth for this active handoff.
+                handoff_notification_status[scoped_from] = _notify_result
+            # already_pending case (_notify_result is None): reuse whatever the LAST real attempt
+            # for this still-active handoff resolved to — defaults to False (never claim success)
+            # if somehow no prior status was recorded, which fail-safes toward the honest "hasn't
+            # been confirmed sent" wording rather than an unverified success claim.
+            _handoff_notification_ok = handoff_notification_status.get(scoped_from, False)
+            clean_reply = _enforce_handoff_notification_truthfulness(clean_reply, True, _handoff_notification_ok)
+
         # Demo domain integration — record that the demo link was shared with this customer, so
         # the "don't repeat proactive offers" note (see build_customer_system_prompt's demo_offer_
         # note) fires on the NEXT turn. Kilas-Works-own only (tenant_context_block falsy) — see
@@ -7871,13 +8006,9 @@ def _webhook_body_impl(data):
                 "Customer kirim bukti transfer (PENDING_VERIFICATION) — mohon verifikasi pembayaran manual",
                 user_text, tenant_id=tenant_id,
             )
-        elif needs_owner:
-            # Task 5 — keyed by _ck(tenant_id, from_number) (== scoped_from), NOT the plain phone
-            # number, so this can never surface in another tenant's (or Kilas Works' own) owner
-            # interface just because the same customer phone number happens to also be talking to
-            # a different tenant.
-            pending_owner_questions[scoped_from] = user_text
-            notify_owner_question(from_number, user_text, tenant_id=tenant_id)
+        # needs_owner handling moved earlier (before send_reply_bubbles) — see the human handoff
+        # notification reliability fix above, so the customer-facing wording can be reconciled
+        # with the ACTUAL notification outcome before it's sent, not guessed at afterward.
 
         if meeting_owner_notify:
             # Task 3/6 — a resolved CLIENT tenant's own appointment notification goes to THAT
