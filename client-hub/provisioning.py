@@ -359,9 +359,34 @@ def _check_whatsapp_phone_number_reachable(phone_number_id, credentials_referenc
         )
         if resp.status_code == 200:
             return True, "ok"
-        return False, f"graph_api_status_{resp.status_code}"
+        return False, _describe_graph_api_failure_safe(resp.status_code, phone_number_id)
+    except requests.exceptions.Timeout:
+        return False, "graph_api_error_Timeout: Meta Graph API tidak merespons dalam 8 detik (cek koneksi/coba lagi)"
+    except requests.exceptions.RequestException as e:
+        return False, f"graph_api_error_{type(e).__name__}: gagal menghubungi Meta Graph API (jaringan/DNS)"
     except Exception as e:
         return False, f"graph_api_error: {type(e).__name__}"
+
+
+def _describe_graph_api_failure_safe(status_code, phone_number_id):
+    """Production-readiness improvement: a bare 'graph_api_status_401' is technically distinct
+    from '_403'/'_404' but doesn't tell an admin without deep Meta API knowledge what it actually
+    means or what to check — this pairs the raw status code (kept, for anyone who wants to search
+    Meta's own docs by number) with the most common real-world cause for THAT code specifically on
+    a WhatsApp Phone Number ID lookup. Never includes the token value or any other secret — only
+    the status code and the phone_number_id being checked (not sensitive, an admin already typed
+    it into the form themselves)."""
+    hints = {
+        400: "request tidak valid — kemungkinan Phone Number ID salah format",
+        401: "token tidak valid/sudah expired — cek WHATSAPP_ACCESS_TOKEN (atau credentials_reference "
+             "custom kalau diisi), token System User biasanya tidak expired tapi bisa di-revoke manual",
+        403: "token valid tapi TIDAK punya akses ke Phone Number ID ini — WABA/nomor ini kemungkinan "
+             "belum di-share/assign ke Business Portfolio Kilas Works di Meta Business Settings",
+        404: "Phone Number ID tidak ditemukan — kemungkinan salah ketik ID, atau token memang tidak "
+             "bisa melihat resource ini sama sekali (hasilnya sama seperti tidak ada, dari sisi Meta)",
+    }
+    hint = hints.get(status_code, "cek Meta Business Settings & pastikan Phone Number ID benar")
+    return f"graph_api_status_{status_code}: {hint}"
 
 
 def activate_tenant(business_id, actor):
