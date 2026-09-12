@@ -126,7 +126,7 @@ def test_db_postgres_requires_psycopg2_fails_loudly_not_silently():
     env["DATABASE_URL"] = "postgresql://user:pass@localhost:5432/doesnotmatter"
     env.pop("CLIENT_HUB_DB_PATH", None)
     result = subprocess.run(
-        [sys.executable, "-c", "import db"],
+        [sys.executable, "-c", "import sys; sys.modules['psycopg2'] = None; import db"],
         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         env=env, capture_output=True, text=True, timeout=30,
     )

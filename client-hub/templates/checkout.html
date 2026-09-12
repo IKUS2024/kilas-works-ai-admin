@@ -5,9 +5,10 @@
 <div class="card">
   <h2>{{ project.title }}</h2>
   <p class="muted">Harga: Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</p>
+  <p class="muted">Tagihan dibuat setelah kamu melanjutkan. Pembayaran belum dilakukan pada langkah ini.</p>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn" type="submit">Buat Invoice</button>
+    <button class="btn" type="submit">Lanjut ke Pembayaran</button>
   </form>
 </div>
 {% endblock %}

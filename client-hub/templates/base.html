@@ -116,6 +116,16 @@
     .ai-help-menu { flex-direction:column; }
     .ai-help-menu button, .ai-help-preview-actions .btn { width:100%; }
   }
+  .card, .wrap, .topbar nav { min-width:0; }
+  .card p, .card h2, .flash, .audit-log-detail { overflow-wrap:anywhere; }
+  input[type="file"] { max-width:100%; }
+  :focus-visible { outline:2px solid var(--orange); outline-offset:3px; }
+  form[aria-busy="true"] button[type="submit"] { opacity:.7; cursor:wait; }
+  @media (max-width:600px) {
+    input, select, textarea { font-size:16px; }
+    .btn, .btn.small, button, .topbar nav a { min-height:44px; }
+    .topbar nav a { display:inline-flex; align-items:center; }
+  }
 </style>
 </head>
 <body>
@@ -146,7 +156,7 @@
 <div class="wrap">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
-      <div class="flash {{ category }}">{{ message }}</div>
+      <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}" aria-live="polite">{{ message }}</div>
     {% endfor %}
   {% endwith %}
   {% block content %}{% endblock %}
@@ -326,6 +336,36 @@
     return div.innerHTML;
   }
 })();
+</script>
+<script>
+(function () {
+  function validateFiles(input) {
+    var files = Array.from(input.files || []), total = 0, error = '';
+    files.forEach(function (file) { total += file.size; if (file.size > 10 * 1024 * 1024) error = 'Setiap file maksimal 10MB.'; });
+    if (total > 11 * 1024 * 1024) error = 'Total file maksimal 11MB per unggahan. Unggah file lainnya secara terpisah.';
+    input.setCustomValidity(error);
+    return !error;
+  }
+  document.addEventListener('change', function (event) {
+    if (event.target.matches('input[type="file"]')) { validateFiles(event.target); event.target.reportValidity(); }
+  });
+  document.addEventListener('submit', function (event) {
+    var form = event.target;
+    if (event.defaultPrevented || form.method.toLowerCase() !== 'post') return;
+    var invalid = Array.from(form.querySelectorAll('input[type="file"]')).find(function (input) { return !validateFiles(input); });
+    if (invalid) { event.preventDefault(); invalid.reportValidity(); return; }
+    if (form.dataset.submitting === 'true') { event.preventDefault(); return; }
+    form.dataset.submitting = 'true'; form.setAttribute('aria-busy', 'true');
+    if (event.submitter && event.submitter.tagName === 'BUTTON') {
+      event.submitter.dataset.originalText = event.submitter.textContent;
+      event.submitter.textContent = form.enctype === 'multipart/form-data' ? 'Mengunggah…' : 'Memproses…';
+    }
+  });
+  window.addEventListener('pageshow', function () {
+    document.querySelectorAll('form[data-submitting]').forEach(function (form) { delete form.dataset.submitting; form.removeAttribute('aria-busy'); });
+    document.querySelectorAll('button[data-original-text]').forEach(function (button) { button.textContent = button.dataset.originalText; delete button.dataset.originalText; });
+  });
+}());
 </script>
 </body>
 </html>

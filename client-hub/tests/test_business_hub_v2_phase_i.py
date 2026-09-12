@@ -22,8 +22,8 @@ import talent_service  # noqa: E402
 def test_landing_page_mentions_talent_management_without_prices():
     with open(os.path.join(REPO_ROOT, "landing-page-kilasworks.html"), encoding="utf-8") as f:
         html = f.read()
-    assert "Talent Management" in html
-    idx = html.find("Talent Management")
+    assert "Talent &amp; Creator Management" in html
+    idx = html.find("Talent &amp; Creator Management")
     snippet = html[idx:idx + 600]
     assert "Custom Quote" in snippet or "custom" in snippet.lower()
     # marketing-only: no talent names/handles/follower counts on the public landing page
@@ -38,15 +38,17 @@ def test_katalog_pdf_talent_section_has_no_invented_price():
     katalog_path = os.path.join(REPO_ROOT, "katalog.pdf")
     reader = pypdf.PdfReader(katalog_path)
     full_text = "\n".join(page.extract_text() for page in reader.pages)
-    assert "TALENT MANAGEMENT" in full_text
-    idx = full_text.find("TALENT MANAGEMENT")
-    section_text = full_text[idx:idx + 800]
-    assert "Custom quote" in section_text
-    # every seeded talent's name and handle appear (this IS the internal/WA catalog, unlike the
-    # public landing page — but still never an invented rupiah figure for talent pricing)
+    # The attached CURRENT public PDF uses customer-facing names, not the old internal roster.
+    section_text = next(page.extract_text() for page in reader.pages
+                        if "Custom System & Talent" in page.extract_text())
+    compact = "".join(section_text.upper().split())
+    assert "TALENT&CREATOR" in compact
+    assert "CUSTOMQUOTE" in compact
+    assert "availability" in section_text.lower()
+    assert "campaign" in section_text.lower()
+    # A static customer PDF must not imply that the seed roster is current availability.
     for talent in talent_service.SEED_TALENTS:
-        assert talent["name"] in section_text
-        assert talent["social_handle"] in section_text
+        assert talent["social_handle"] not in section_text
     assert "Rp" not in section_text, "talent pricing must never show an invented rupiah figure"
     print("test_katalog_pdf_talent_section_has_no_invented_price OK")
 
@@ -57,8 +59,8 @@ def test_katalog_pdf_still_has_all_prior_sections():
     reader = pypdf.PdfReader(katalog_path)
     full_text = "\n".join(page.extract_text() for page in reader.pages)
     for expected_section in (
-        "AI WHATSAPP ADMIN", "CONTENT PACKAGES", "META ADS", "WEBSITE",
-        "DOMAIN", "EVENT PHOTO", "TALENT MANAGEMENT",
+        "Kilas Brain", "Content Basic", "Meta Ads", "Website & Digital",
+        ".com + Hosting", ".id + Hosting", "Event, Video & Photo", "Custom System & Talent",
     ):
         assert expected_section in full_text, f"missing section: {expected_section}"
     print("test_katalog_pdf_still_has_all_prior_sections OK")

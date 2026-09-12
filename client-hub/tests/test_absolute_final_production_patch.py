@@ -323,8 +323,8 @@ def test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_conte
 def test_live_catalog_ai_admin_fixed_only_no_custom_option():
     reset_db()
     text = _pdf_text(live_catalog_pdf.generate_catalog_pdf_bytes())
-    assert "AI Admin Basic" in text
-    assert "AI Admin Pro" in text
+    assert "Kilas Brain Basic" in text
+    assert "Kilas Brain Pro" in text
     assert "Custom AI Admin" not in text
     ai_items = [i for i in catalog_service.list_active_catalog() if i["category"] == "AI_ADMIN"]
     assert all(i["pricing_mode"] == "FIXED_PRICE" for i in ai_items)

@@ -94,7 +94,7 @@ def test_ai_admin_never_uses_generic_checkout_route():
     client = fresh_client()
     _login_owner(client, "aiadmin@test.com")
     body = client.get("/services").data.decode()
-    ai_idx = body.find("AI Admin Basic")
+    ai_idx = body.find("Kilas Brain Basic")
     assert ai_idx != -1
     section = body[ai_idx:ai_idx + 400]
     assert "Mulai di Dashboard" in section

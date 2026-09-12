@@ -181,7 +181,7 @@ def test_H_services_page_still_renders_full_catalog():
     resp = client.get("/services")
     assert resp.status_code == 200
     body = resp.data.decode()
-    assert "AI Admin Basic" in body
+    assert "Kilas Brain Basic" in body
     assert "Landing Page" in body
     print("test_H_services_page_still_renders_full_catalog OK")
 

@@ -144,12 +144,12 @@
         <p style="color:var(--red);">AI belum berhasil menyiapkan knowledge bisnis kamu. Data yang sudah diisi tetap aman. Kamu bisa coba lagi tanpa mengisi ulang.</p>
       {% endif %}
     {% elif ai_settings.ai_status == 'STALE' %}
-      <p style="color:var(--orange, #b8860b);">Data bisnis baru diubah — knowledge AI Admin sebelumnya sudah tidak sesuai lagi. Jalankan ulang AI Setup di bawah supaya AI Admin pakai data terbaru.</p>
+      <p style="color:var(--orange, #b8860b);">Data bisnis sudah berubah. Pengetahuan Kilas Brain perlu diperbarui. Jalankan ulang AI Setup di bawah supaya Kilas Brain pakai data terbaru.</p>
       <p>{{ ai_settings.normalized_summary }}</p>
     {% elif ai_settings.ai_status == 'DONE' %}
       <p>{{ ai_settings.normalized_summary }}</p>
       {% if ai_settings.missing_fields %}
-        <p class="needs-review">Field yang AI tandai belum lengkap: {{ ai_settings.missing_fields|join(', ') }}</p>
+        <p class="needs-review">{{ ai_settings.missing_fields|missing_fields_sentence }}</p>
       {% endif %}
     {% endif %}
   {% else %}
@@ -164,7 +164,7 @@
   {% endif %}
 
   {% if not is_admin_view %}
-    <p class="muted" style="margin-top:8px;">AI Setup sekarang jalan otomatis begitu kamu klik Submit di bawah — tombol ini cuma buat jalanin ULANG secara manual kalau kamu habis ubah data & mau lihat hasilnya duluan sebelum submit.</p>
+    <p class="muted" style="margin-top:8px;">Kilas Brain akan mempelajari data bisnis saat kamu mengirimnya untuk ditinjau. Jika baru mengubah data, kamu juga bisa memperbarui pengetahuan AI lebih dulu di sini.</p>
     <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}" style="margin-top:12px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn secondary" type="submit">Jalankan Ulang AI Setup (opsional)</button>
@@ -185,15 +185,15 @@
       {% if not missing_required %}
         <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Submit ke Kilas Works</button>
+          <button class="btn" type="submit">Kirim untuk Ditinjau</button>
         </form>
         {% if not has_ai_admin_payment %}
           <a class="btn" href="{{ url_for('client.ai_admin_checkout', business_id=business.id) }}">Lanjut ke Pembayaran</a>
         {% else %}
-          <span class="pill ACTIVE">Pembayaran AI Admin sudah terverifikasi</span>
+          <span class="pill ACTIVE">Pembayaran Kilas Brain sudah terverifikasi</span>
         {% endif %}
       {% else %}
-        <span class="muted">Submit aktif setelah data wajib lengkap.</span>
+        <span class="muted">Lengkapi data wajib untuk mengirim bisnis ke tim Kilas Works.</span>
       {% endif %}
     </div>
   </div>
@@ -226,7 +226,7 @@
       {% endif %}
     </div>
     {% if subscription %}
-      <p class="muted">AI Admin Subscription: <strong>{{ subscription.status|humanize_status('subscription') }}</strong> ({{ subscription.plan_key }}) — periode s/d {{ subscription.period_end|humanize_timestamp }}{% if subscription.grace_started_at %}, grace mulai {{ subscription.grace_started_at|humanize_timestamp }}{% endif %}</p>
+      <p class="muted">Kilas Brain Subscription: <strong>{{ subscription.status|humanize_status('subscription') }}</strong> ({{ subscription.plan_key }}) — periode s/d {{ subscription.period_end|humanize_timestamp }}{% if subscription.grace_started_at %}, grace mulai {{ subscription.grace_started_at|humanize_timestamp }}{% endif %}</p>
       {% if subscription.status in ('GRACE', 'SUSPENDED') %}
         <form method="post" action="{{ url_for('admin.renew_subscription', business_id=business.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -278,8 +278,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>Ubah paket</label>
       <select name="package">
-        <option value="AI_ADMIN_BASIC" {{ 'selected' if business.package == 'AI_ADMIN_BASIC' else '' }}>AI Admin Basic</option>
-        <option value="AI_ADMIN_PRO" {{ 'selected' if business.package == 'AI_ADMIN_PRO' else '' }}>AI Admin Pro</option>
+        <option value="AI_ADMIN_BASIC" {{ 'selected' if business.package == 'AI_ADMIN_BASIC' else '' }}>Kilas Brain Basic</option>
+        <option value="AI_ADMIN_PRO" {{ 'selected' if business.package == 'AI_ADMIN_PRO' else '' }}>Kilas Brain Pro</option>
       </select>
       <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
     </form>

@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Layanan Kilas Works</h1>
 <p class="muted">Pilih layanan yang kamu butuhkan — bisa langsung dipilih atau minta penawaran, tanpa perlu
-  bikin data bisnis dulu. Khusus AI Admin, data bisnis diisi dulu sebagai bagian dari proses setup.</p>
+  bikin data bisnis dulu. Khusus Kilas Brain, data bisnis diisi dulu sebagai bagian dari proses setup.</p>
 
 {% if businesses|length > 1 %}
 <div class="card">
@@ -16,7 +16,7 @@
 
 {% for category, items in by_category.items() %}
 <div class="card">
-  <h2>{{ category }}</h2>
+  <h2>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Konten','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Aplikasi','TALENT':'Talent'}.get(category, category.replace('_', ' ').title()) }}</h2>
   <table>
     <tr><th>Layanan</th><th>Harga</th><th></th></tr>
     {% for item in items %}
@@ -61,8 +61,8 @@
 function setBusinessId(form) {
   var businessSelect = document.getElementById('business_select');
   if (businessSelect) { form.business_id.value = businessSelect.value; }
-  // A blank business_id is fine — the service works without one (only AI Admin requires a
-  // business, and AI Admin never renders this form at all — see the template above).
+  // A blank business_id is fine — the service works without one (only Kilas Brain requires a
+  // business, and Kilas Brain never renders this form at all — see the template above).
 }
 function goCustomProject(el) {
   var businessSelect = document.getElementById('business_select');

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Ukuran Unggahan Terlalu Besar — Kilas Works{% endblock %}
+{% block content %}
+<div class="card" role="alert">
+  <h1>Ukuran unggahan terlalu besar</h1>
+  <p>File belum tersimpan. Pilih file maksimal 10MB, dengan total maksimal 11MB per unggahan. Kamu bisa mengunggah file lainnya secara terpisah.</p>
+  <button class="btn" type="button" onclick="history.back()">Kembali dan Pilih File</button>
+  <a class="btn secondary" href="{{ url_for('client.dashboard') }}">Ke Dashboard</a>
+</div>
+{% endblock %}

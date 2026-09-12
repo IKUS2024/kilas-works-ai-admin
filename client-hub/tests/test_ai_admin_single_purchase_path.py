@@ -94,7 +94,7 @@ def test_catalog_page_has_no_instant_checkout_for_ai_admin():
         resp = c.get("/services")
     assert resp.status_code == 200
     body = resp.data.decode()
-    idx = body.find("AI Admin Basic")
+    idx = body.find("Kilas Brain Basic")
     assert idx != -1
     snippet = body[idx:idx + 600]
     assert "checkout-fixed" not in snippet

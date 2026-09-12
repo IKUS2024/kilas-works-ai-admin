@@ -2,7 +2,7 @@
 {% block title %}Appointment & Pembayaran — {{ business.business_name }}{% endblock %}
 {% block content %}
 <h1>{{ business.business_name }}</h1>
-<p class="muted">Pengaturan appointment & pembayaran untuk AI Admin bisnismu.</p>
+<p class="muted">Pengaturan appointment & pembayaran untuk Kilas Brain bisnismu.</p>
 
 <div class="card">
   <form method="post">
@@ -11,7 +11,7 @@
     <h2>Appointment / Booking</h2>
     <label style="display:flex;align-items:center;gap:8px;">
       <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
-      Aktifkan booking appointment lewat chat (khusus paket AI Admin Pro)
+      Aktifkan booking appointment lewat chat (khusus paket Kilas Brain Pro)
     </label>
     <label>Jam operasional</label>
     <input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Senin-Sabtu 09.00-18.00">
@@ -21,7 +21,7 @@
     <textarea name="appointment_rules_raw">{{ profile.appointment_rules_raw or '' }}</textarea>
 
     <h2 style="margin-top:24px;">Info Pembayaran (untuk customer bisnis ini)</h2>
-    <p class="muted">Rekening ini yang akan disampaikan AI Admin ke customer kamu sendiri kalau mereka tanya cara bayar — tidak ada hubungannya dengan tagihan/pembayaranmu ke Kilas Works.</p>
+    <p class="muted">Rekening ini yang akan disampaikan Kilas Brain ke customer kamu sendiri kalau mereka tanya cara bayar — tidak ada hubungannya dengan tagihan/pembayaranmu ke Kilas Works.</p>
     <label>Nama bank</label>
     <input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="mis. BCA">
     <label>Nomor rekening</label>

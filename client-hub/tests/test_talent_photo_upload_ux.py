@@ -88,10 +88,10 @@ def test_other_uploads_unchanged_scope():
     with open(os.path.join(repo_root, "templates", "custom_project_request.html"), encoding="utf-8") as f:
         custom_html = f.read()
 
-    invoice_match = re.search(r'<input type="file" name="proof_file"[^>]*>', invoice_html)
+    invoice_match = re.search(r'<input(?=[^>]*type="file")(?=[^>]*name="proof_file")[^>]*>', invoice_html)
     assert invoice_match, "payment proof file input not found"
-    assert 'capture="environment"' in invoice_match.group(0), \
-        "payment-proof upload must keep its original capture attribute (out of Area G scope)"
+    assert 'capture=' not in invoice_match.group(0), \
+        "Payment proof must allow existing PDF/image selection without forcing the camera"
     assert ".pdf" in invoice_match.group(0), \
         "payment-proof upload must keep accepting non-image types (out of Area G scope)"
 

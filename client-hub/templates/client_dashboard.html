@@ -2,7 +2,7 @@
 {% block title %}Dashboard — Kilas Works Client Hub{% endblock %}
 {% block content %}
 <h1>Halo, {{ user.full_name or user.email }}</h1>
-<p class="muted">Kelola setup AI Admin dan proyek Kilas Works-mu di sini.</p>
+<p class="muted">Kelola setup Kilas Brain dan proyek Kilas Works-mu di sini.</p>
 
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -14,7 +14,7 @@
   </div>
   {% if my_projects %}
     <table style="margin-top:10px;">
-      <tr><th>Business</th><th>Proyek</th><th>Status Layanan</th><th>Status Pembayaran</th><th>Harga</th><th></th></tr>
+      <tr><th>Bisnis</th><th>Proyek</th><th>Status Layanan</th><th>Status Pembayaran</th><th>Harga</th><th></th></tr>
       {% for p in my_projects %}
         <tr>
           <td>{{ p.business_name }}</td>
@@ -30,7 +30,7 @@
             {% endif %}
           </td>
           <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Menunggu Penawaran' }}</td>
-          <td><a href="{{ url_for('projects.project_detail', business_id=p.business_id, project_id=p.id) }}">Lihat</a></td>
+          <td><a href="{{ url_for('projects.project_detail', business_id=p.business_id, project_id=p.id) if p.business_id else url_for('projects.project_view', project_id=p.id) }}">Lihat</a></td>
         </tr>
       {% endfor %}
     </table>
@@ -45,8 +45,8 @@
       <div>
         <h2 style="margin-bottom:4px;">{{ b.business_name }}</h2>
         {% if b.package == 'NONE' %}
-          <span class="pill">Active Customer</span>
-          <span class="muted">· Belum pakai AI Admin</span>
+          <span class="pill">Pelanggan aktif</span>
+          <span class="muted">· Belum pakai Kilas Brain</span>
         {% else %}
           <span class="pill {{ b.status }}">{{ b.status|humanize_status('business') }}</span>
           <span class="muted">· {{ b.package|humanize_package }}</span>
@@ -61,11 +61,11 @@
       </p>
     {% endif %}
     {% if b.package == 'NONE' %}
-      <p class="muted" style="margin-top:10px;">Business ini belum punya AI Admin. Kamu tetap bisa pakai layanan Kilas Works lainnya (Content, Foto, Video, Website, Ads, Event, Talent) dari menu Layanan di atas.</p>
+      <p class="muted" style="margin-top:10px;">Bisnis ini belum punya Kilas Brain. Kamu tetap bisa pakai layanan Kilas Works lainnya (Content, Foto, Video, Website, Ads, Event, Talent) dari menu Layanan di atas.</p>
     {% elif b.status == 'ACTIVE' %}
-      <p style="color:var(--green);margin-top:10px;">AI Admin — ACTIVE</p>
+      <p style="color:var(--green);margin-top:10px;">Kilas Brain — Aktif</p>
     {% elif b.status in ('APPROVED',) %}
-      <p class="muted" style="margin-top:10px;">Business sudah disetujui. Hubungkan WhatsApp untuk melanjutkan aktivasi AI Admin.</p>
+      <p class="muted" style="margin-top:10px;">Bisnis sudah disetujui. Hubungkan WhatsApp untuk melanjutkan aktivasi Kilas Brain.</p>
     {% elif b.status == 'NEEDS_REVISION' %}
       <p style="color:var(--red);margin-top:10px;">Perlu revisi — buka Review untuk detail.</p>
     {% endif %}
@@ -74,14 +74,14 @@
         <form method="post" action="{{ url_for('client.upgrade_to_ai_admin', business_id=b.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="package" value="AI_ADMIN_BASIC">
-          <button class="btn" type="submit">+ Tambah AI Admin</button>
+          <button class="btn" type="submit">+ Tambah Kilas Brain</button>
         </form>
       {% elif b.status in ('DRAFT','ONBOARDING') %}
         <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup</a>
       {% elif b.status in ('READY_FOR_REVIEW','NEEDS_REVISION') %}
         <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Edit Data Bisnis</a>
       {% endif %}
-      <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Review Business</a>
+      <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Tinjau Bisnis</a>
       {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>{% endif %}
       {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Appointment & Pembayaran</a>{% endif %}
       {% if b.package != 'NONE' and b.status == 'APPROVED' %}<a class="btn" href="{{ url_for('whatsapp.embedded_signup_start', business_id=b.id) }}">Hubungkan WhatsApp</a>{% endif %}
@@ -91,23 +91,23 @@
     </div>
   </div>
 {% else %}
-  <p class="muted">Belum ada business. Buat yang pertama di bawah.</p>
+  <p class="muted">Belum ada profil bisnis. Kamu tetap bisa memilih layanan; profil bisnis hanya wajib untuk Kilas Brain.</p>
 {% endfor %}
 
 <div class="card">
-  <h2>Buat Business Baru</h2>
+  <h2>Buat Bisnis Baru</h2>
   <form method="post" action="{{ url_for('client.create_business') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Nama bisnis</label>
     <input type="text" name="business_name" required>
-    <label>Paket AI Admin (opsional)</label>
+    <label>Paket Kilas Brain (opsional)</label>
     <select name="package">
-      <option value="NONE" selected>Belum pakai AI Admin — jelajahi layanan lain dulu</option>
-      <option value="AI_ADMIN_BASIC">AI Admin Basic — Rp499.000/bulan</option>
-      <option value="AI_ADMIN_PRO">AI Admin Pro — Rp999.000/bulan</option>
+      <option value="NONE" selected>Belum pakai Kilas Brain — jelajahi layanan lain dulu</option>
+      <option value="AI_ADMIN_BASIC">Kilas Brain Basic</option>
+      <option value="AI_ADMIN_PRO">Kilas Brain Pro</option>
     </select>
-    <p class="muted" style="margin-top:4px;">AI Admin bersifat opsional. Kamu bisa langsung ke dashboard dan pakai layanan lain (Content/Foto/Video/Website/Ads/Event/Talent), lalu tambah AI Admin kapan saja.</p>
-    <div style="margin-top:16px;"><button class="btn" type="submit">Buat Business</button></div>
+    <p class="muted" style="margin-top:4px;">Kilas Brain bersifat opsional. Kamu bisa langsung ke dashboard dan pakai layanan lain (Content/Foto/Video/Website/Ads/Event/Talent), lalu tambah Kilas Brain kapan saja.</p>
+    <div style="margin-top:16px;"><button class="btn" type="submit">Buat Bisnis</button></div>
   </form>
 </div>
 {% endblock %}

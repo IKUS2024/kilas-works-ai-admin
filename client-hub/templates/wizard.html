@@ -2,11 +2,11 @@
 {% block title %}Onboarding — {{ business.business_name }}{% endblock %}
 {% block content %}
 <h1>{{ business.business_name }}</h1>
-<p class="muted">Step {{ steps.index(step) + 1 }} dari {{ steps|length }}</p>
+<p class="muted">Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p>
 
 <div class="steps">
   {% for s in steps %}
-    <span class="{{ 'active' if s == step else '' }}">{{ loop.index }}. {{ s|capitalize }}</span>
+    <span class="{{ 'active' if s == step else '' }}">{{ loop.index }}. {{ {'basics':'Data Bisnis','services':'Layanan','faq':'Pertanyaan Umum','style':'Gaya Bahasa','operations':'Operasional','upload':'Dokumen'}.get(s, s|capitalize) }}</span>
   {% endfor %}
 </div>
 
@@ -87,11 +87,11 @@
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
       <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
-      Aktifkan booking appointment lewat chat (khusus paket AI Admin Pro)
+      Aktifkan booking appointment lewat chat (khusus paket Kilas Brain Pro)
     </label>
 
     <h3 style="margin-top:20px;">Info Pembayaran (untuk customer bisnis ini)</h3>
-    <p class="muted">Rekening ini yang akan disampaikan AI Admin ke customer kamu sendiri kalau mereka tanya cara bayar — TIDAK ada hubungannya dengan pembayaran kamu ke Kilas Works.</p>
+    <p class="muted">Rekening ini yang akan disampaikan Kilas Brain ke customer kamu sendiri kalau mereka tanya cara bayar — TIDAK ada hubungannya dengan pembayaran kamu ke Kilas Works.</p>
     <label>Nama bank</label>
     <input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="mis. BCA">
     <label>Nomor rekening</label>
@@ -121,7 +121,7 @@
 
     {% if tenant_features and tenant_features.owner_commands %}
     <h3 style="margin-top:20px;">Nomor WhatsApp Pemilik / Pengelola Bisnis</h3>
-    <p class="muted">Nomor ini digunakan agar AI Admin mengenali pemilik atau pengelola bisnis. Dari nomor
+    <p class="muted">Nomor ini digunakan agar Kilas Brain mengenali pemilik atau pengelola bisnis. Dari nomor
       ini, kamu bisa memberikan instruksi khusus kepada AI untuk membantu menangani customer.</p>
     <label>Nomor WhatsApp pemilik/pengelola</label>
     <input type="text" name="trusted_owner_phone" value="{{ business.trusted_owner_phone or '' }}"
@@ -161,7 +161,7 @@
     </div>
 
   {% elif step == 'style' %}
-    <h2>Gaya AI Admin</h2>
+    <h2>Gaya Kilas Brain</h2>
     <label>Gaya bahasa AI <span class="muted" style="font-size:12px;">(Opsional)</span></label>
     <select name="tone">
       {% for t in ['friendly','formal','casual-professional'] %}
@@ -183,7 +183,7 @@
 
   {% elif step == 'upload' %}
     <h2>Upload Katalog / Menu</h2>
-    <p class="muted">PDF, PNG, JPG, atau TXT — maks 10MB per file. Bisa pilih beberapa file sekaligus.</p>
+    <p class="muted">PDF, PNG, JPG, atau TXT — maks 10MB per file. Bisa pilih beberapa file sekaligus, total maksimal 11MB per unggahan.</p>
   {% endif %}
 
     <div style="margin-top:20px;"><button class="btn" type="submit">Simpan & Lanjut</button></div>
@@ -192,7 +192,7 @@
   {% if step == 'upload' %}
     <form method="post" action="{{ url_for('client.upload_file', business_id=business.id) }}" enctype="multipart/form-data" style="margin-top:16px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" multiple required>
+      <input type="file" id="business-files" aria-label="Pilih katalog atau menu bisnis" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" multiple required>
       <div style="margin-top:10px;"><button class="btn secondary" type="submit">Upload File</button></div>
     </form>
     {% if files %}

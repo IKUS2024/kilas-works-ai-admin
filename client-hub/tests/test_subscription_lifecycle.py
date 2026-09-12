@@ -604,7 +604,7 @@ def test_admin_review_page_renders_with_subscription_card():
             sess["role"] = "KILAS_ADMIN"
         resp = c.get(f"/admin/business/{bid}")
         assert resp.status_code == 200
-        assert b"AI Admin Subscription" in resp.data
+        assert b"Kilas Brain Subscription" in resp.data
     print("test_admin_review_page_renders_with_subscription_card OK")
 
 
