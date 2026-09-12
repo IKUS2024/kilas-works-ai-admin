@@ -1,3 +1,4 @@
+from runtime_environment import is_production
 """Kilas Works Client Hub — self-service multi-tenant AI Admin onboarding, V1.
 
 This is a FULLY SEPARATE Flask application from ../app.py (the production WhatsApp bot). It has
@@ -46,7 +47,7 @@ def create_app():
 
     secret_key = os.environ.get("SECRET_KEY")
     if not secret_key:
-        if os.environ.get("CLIENT_HUB_ENV") == "production":
+        if is_production():
             raise RuntimeError(
                 "SECRET_KEY environment variable is required in production — refusing to start "
                 "with an insecure default session-signing key."
@@ -58,7 +59,7 @@ def create_app():
     app.config.update(
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.environ.get("CLIENT_HUB_ENV") == "production",
+        SESSION_COOKIE_SECURE=is_production(),
         MAX_CONTENT_LENGTH=12 * 1024 * 1024,  # slightly above per-file cap, covers small multi-field posts
     )
 
@@ -194,5 +195,5 @@ if __name__ == "__main__":
     # meant any deploy that forgot to set CLIENT_HUB_ENV at all would silently run with Flask's
     # interactive debugger (arbitrary code execution via the debugger console) exposed to the
     # internet. Opt-in is the safe default; opt-out was not.
-    debug_mode = os.environ.get("CLIENT_HUB_ENV") == "development"
+    debug_mode = not is_production() and os.environ.get("CLIENT_HUB_ENV") == "development"
     app.run(host="0.0.0.0", port=port, debug=debug_mode)

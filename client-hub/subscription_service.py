@@ -200,8 +200,13 @@ def create_subscription(business_id, plan_key, actor_user_id=None,
     provisioning.activate_tenant()'s hook) — never invents a plan_key; the caller must pass the
     exact package actually paid for."""
     assert plan_key in PLAN_KEYS, f"unknown plan_key {plan_key!r}"
+    business = repo.get_business(business_id)
+    if not business or business['package'].lower() != plan_key:
+        raise ValueError('subscription_package_mismatch')
     existing = get_subscription(business_id)
     if existing:
+        if existing["plan_key"] != plan_key:
+            raise ValueError("subscription_package_mismatch")
         return existing
     now = _now()
     period_end = _add_days(now, period_days)
@@ -233,6 +238,12 @@ def renew_subscription(business_id, actor_user_id, period_days=DEFAULT_PERIOD_DA
     base = sub["period_end"] if sub["period_end"] and _gt(sub["period_end"], now) else now
     new_period_end = _add_days(base, period_days)
     new_plan = plan_key or sub["plan_key"]
+    if new_plan not in PLAN_KEYS:
+        raise ValueError("invalid_subscription_plan")
+    business = repo.get_business(business_id)
+    if business["package"] != new_plan.upper():
+        repo.set_business_package(business_id, new_plan.upper(), actor_user_id)
+
     was_suspended = sub["status"] == "SUSPENDED"
     reactivated_at = now if was_suspended else sub["reactivated_at"]
     db.execute(

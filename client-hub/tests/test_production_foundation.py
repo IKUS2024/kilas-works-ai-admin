@@ -457,8 +457,8 @@ def test_debug_mode_defaults_off():
     # by re-reading the source (the safest way to test "does the default choice stay safe" without
     # actually spawning app.run()).
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")).read()
-    assert 'debug_mode = os.environ.get("CLIENT_HUB_ENV") == "development"' in src, \
-        "debug mode must be opt-in (only for CLIENT_HUB_ENV=development), never opt-out"
+    assert 'debug_mode = not is_production() and os.environ.get("CLIENT_HUB_ENV") == "development"' in src, \
+        "debug mode must be opt-in and disabled when either environment selects production"
     print("test_debug_mode_defaults_off OK")
 
 

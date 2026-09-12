@@ -81,8 +81,8 @@ def logout_page():
 # ---------------------------------------------------------------------------
 
 _GENERIC_RESET_MESSAGE = (
-    "Kalau email itu terdaftar di Kilas Works Business Hub, kami sudah mengirim link reset "
-    "password ke email tersebut. Cek juga folder spam kalau belum masuk dalam beberapa menit."
+    "Kalau email itu terdaftar di Kilas Works Business Hub, permintaan link reset "
+    "password akan diproses. Cek email dan folder spam; jika belum masuk, coba lagi nanti."
 )
 
 
@@ -97,7 +97,7 @@ def forgot_password_page():
         # Deliberately still the generic message — a rate-limit-specific message would itself leak
         # information (confirms *something* about that email being requested a lot).
         flash(_GENERIC_RESET_MESSAGE, "success")
-        return render_template("forgot_password.html", email=email)
+        return render_template("forgot_password.html", email="")
 
     security.record_reset_request(email)
 
@@ -108,10 +108,13 @@ def forgot_password_page():
             expires_at = (datetime.now(timezone.utc) + timedelta(seconds=security.RESET_TOKEN_TTL_SECONDS)).isoformat()
             requested_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
             repo.create_password_reset_token(user["id"], token_hash, expires_at, requested_ip)
-            reset_url = email_utils.build_reset_url(
-                url_for("auth.reset_password_page", token=raw_token, _external=True), raw_token,
-            )
-            email_utils.send_password_reset_email(user["email"], reset_url)
+            try:
+                reset_url = email_utils.build_reset_url(
+                    url_for("auth.reset_password_page", token=raw_token, _external=True), raw_token,
+                )
+                email_utils.send_password_reset_email(user["email"], reset_url)
+            except Exception as exc:
+                print("EMAIL: reset delivery unavailable; exception_type=" + type(exc).__name__)
             repo.write_audit_no_business(user["id"], "PASSWORD_RESET_REQUESTED", f"ip={requested_ip}")
         # else: user is None — say nothing different. Same generic message either way, below.
 

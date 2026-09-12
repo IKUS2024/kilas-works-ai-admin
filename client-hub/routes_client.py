@@ -241,6 +241,7 @@ def wizard_step(business_id, step):
         repo.mark_onboarding_step_done(business_id, "services_done")
 
     elif step == "operations":
+        _check_settings_entitlement(business_id)
         print(f"PAYMENT_POST_START business_id={business_id}")
         print(f"PAYMENT_BUSINESS_OK business_id={business_id} status={business['status']}")
         raw = {
@@ -344,6 +345,48 @@ def wizard_step(business_id, step):
     return redirect(url_for("client.review_page", business_id=business_id))
 
 
+def _check_settings_entitlement(business_id):
+    features = repo.get_tenant_features(business_id) or {}
+    restricted = {
+        "owner_commands": ("trusted_owner_phone",),
+        "appointment": ("appointment_enabled", "appointment_rules_raw"),
+        "payment_conversation": ("payment_bank_name", "payment_account_number", "payment_account_name", "payment_instructions"),
+    }
+    for feature, fields in restricted.items():
+        if not features.get(feature) and any(request.form.get(k, "").strip() for k in fields):
+            abort(403, description="Pengaturan ini memerlukan langganan Kilas Brain Pro yang berlaku.")
+    return features
+
+
+@client_bp.route("/business/<int:business_id>/memory", methods=["GET", "POST"])
+@security.login_required
+def business_memory(business_id):
+    business = _business_or_404(business_id)
+    if business["package"] == "NONE":
+        abort(403)
+    profile = repo.get_business_profile(business_id) or {}
+    fields = ('short_description', 'tone', 'primary_language', 'customer_salutation',
+              'operating_hours', 'closed_days', 'address', 'business_phone')
+    if request.method == "POST":
+        data = {k: request.form.get(k, profile.get(k) or '').strip() for k in fields}
+        services = [line.strip() for line in request.form.get('services_raw', '').splitlines() if line.strip()]
+        faqs = [line.strip() for line in request.form.get('faq_raw', '').splitlines() if line.strip()]
+        if data['primary_language'] not in ('id', 'en') or not data['customer_salutation'] or not services:
+            abort(400, description="Isi bahasa, sapaan, dan minimal satu layanan.")
+        if any(len(v) > 4000 for v in data.values()) or len(services) > 50 or len(faqs) > 50 or sum(map(len, services + faqs)) > 16000:
+            abort(400, description="Data terlalu panjang. Ringkas informasi bisnis terlebih dahulu.")
+        try:
+            repo.save_live_business_memory(business_id, data, services, faqs, security.current_user()['id'])
+        except Exception as exc:
+            print('BUSINESS_MEMORY: save failed; exception_type=' + type(exc).__name__)
+            flash('Memori bisnis belum tersimpan. Coba lagi sebentar.', 'error')
+        else:
+            flash('Memori bisnis tersimpan dan digunakan Kilas Brain untuk chat berikutnya.', 'success')
+        return redirect(url_for('client.business_memory', business_id=business_id))
+    return render_template('business_memory.html', business=business, profile=profile,
+                           services=repo.get_business_services(business_id), faqs=repo.get_business_faqs(business_id))
+
+
 @client_bp.route("/business/<int:business_id>/settings", methods=["GET", "POST"])
 @security.login_required
 def business_settings(business_id):
@@ -359,8 +402,9 @@ def business_settings(business_id):
     profile = repo.get_business_profile(business_id) or {}
 
     if request.method == "GET":
-        return render_template("business_settings.html", business=business, profile=profile)
+        return render_template("business_settings.html", business=business, profile=profile, tenant_features=repo.get_tenant_features(business_id))
 
+    _check_settings_entitlement(business_id)
     user = security.current_user()
     raw = {
         "appointment_enabled": bool(request.form.get("appointment_enabled")),
@@ -372,6 +416,9 @@ def business_settings(business_id):
         "payment_account_name": request.form.get("payment_account_name", ""),
         "payment_instructions": request.form.get("payment_instructions", ""),
     }
+    raw = {key: value for key, value in raw.items() if key in request.form}
+    if (repo.get_tenant_features(business_id) or {}).get("appointment"):
+        raw["appointment_enabled"] = bool(request.form.get("appointment_enabled"))
     repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
     repo.write_audit(user["id"], business_id, "settings_updated", "appointment/payment settings diubah oleh owner")
 
@@ -629,21 +676,31 @@ def ai_admin_checkout(business_id):
     """
     business = _business_or_404(business_id)
     user = security.current_user()
-    catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(business["package"])
+    target_package = request.args.get('package', business['package'])
+    upgrade = target_package == 'AI_ADMIN_PRO' and business['package'] == 'AI_ADMIN_BASIC' and business['status'] == 'ACTIVE'
+    if target_package != business['package'] and not upgrade:
+        abort(403)
+    catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(target_package)
     if not catalog_key:
-        flash("Business ini belum memilih paket AI Admin.", "error")
+        flash("Bisnis ini belum memilih paket Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))
 
     existing = db.query_one(
         "SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? ORDER BY created_at DESC LIMIT 1",
         (business_id, catalog_key),
     )
+    if existing and upgrade:
+        used = db.query_one("SELECT a.id FROM audit_log a JOIN payments p ON a.detail = CAST(p.id AS TEXT) "
+            "JOIN invoices i ON i.id = p.invoice_id WHERE a.business_id = ? "
+            "AND a.action = 'PRO_ENTITLEMENT_APPLIED' AND i.project_id = ?", (business_id, existing['id']))
+        if used:
+            existing = None
     if existing:
         project_id = existing["id"]
     else:
         item = catalog_service.get_catalog_item(catalog_key)
         if item is None:
-            flash("Paket AI Admin ini sedang tidak tersedia — hubungi Kilas Works.", "error")
+            flash("Paket Kilas Brain ini sedang tidak tersedia — hubungi Kilas Works.", "error")
             return redirect(url_for("client.review_page", business_id=business_id))
         project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
 
@@ -668,6 +725,9 @@ def ai_writing_help(business_id):
     action = (request.form.get("action") or "").strip()
     current_text = request.form.get("current_text") or ""
 
+    needed_feature = {'appointment_rules_raw': 'appointment', 'payment_instructions': 'payment_conversation'}.get(field_type)
+    if needed_feature and not (repo.get_tenant_features(business_id) or {}).get(needed_feature):
+        return jsonify({"error": "pro_entitlement_required"}), 403
     if field_type not in ai_onboarding.WRITING_HELPER_FIELD_TYPES:
         return jsonify({"error": "unsupported_field"}), 400
     if action not in ai_onboarding.WRITING_HELPER_ACTIONS:

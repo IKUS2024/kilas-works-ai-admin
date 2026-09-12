@@ -409,8 +409,12 @@ def change_package(business_id):
     if package not in repo.DEFAULT_FEATURES:
         flash("Paket tidak valid.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
-    repo.set_business_package(business_id, package, actor_user_id=admin["id"])
-    flash(f"Paket diubah ke {package}.", "success")
+    try:
+        repo.set_business_package(business_id, package, actor_user_id=admin["id"])
+    except ValueError:
+        flash("Perubahan paket belum diizinkan. Upgrade Pro membutuhkan pembayaran Pro yang sudah diverifikasi.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+    flash("Paket Kilas Brain berhasil diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 

@@ -4,7 +4,7 @@ tenant-scoping and audit logging happen in one place, consistently.
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import db
 import feature_flags
@@ -160,6 +160,9 @@ def upgrade_business_package(business_id, package, actor_user_id):
     business currently on 'NONE' — callers (routes_client.py) enforce that."""
     if not feature_flags.is_valid_package(package) or package == "NONE":
         raise ValueError(f"invalid upgrade target package {package!r}")
+    business = get_business(business_id)
+    if not business or business["package"] != "NONE":
+        raise ValueError("initial_upgrade_requires_none_package")
     db.execute("UPDATE businesses SET package = ?, updated_at = ? WHERE id = ?",
                (package, _now(), business_id))
     feats = feature_flags.features_for_package(package)
@@ -219,13 +222,61 @@ def set_business_status(business_id, new_status, actor_user_id=None, detail=None
         pass
 
 
+def _require_paid_package_change(business, package, subscription):
+    if business["package"] == package or package != "AI_ADMIN_PRO":
+        return
+    if business["status"] not in ("ACTIVE", "APPROVED", "SUSPENDED") and not subscription:
+        return  # Initial purchase/onboarding keeps its existing activation payment gate.
+    # A new Pro upgrade must have a verified Pro receipt after the last entitlement change.
+    cutoff = (subscription or {}).get("updated_at") or business.get("updated_at") or business.get("created_at")
+    rows = db.query_all("SELECT p.id, p.verified_at FROM payments p JOIN invoices i ON i.id = p.invoice_id "
+        "JOIN projects pr ON pr.id = i.project_id WHERE pr.business_id = ? "
+        "AND pr.catalog_key = 'ai_admin_pro' AND p.status = 'VERIFIED'", (business["id"],))
+    def stamp(value):
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=value.tzinfo or timezone.utc)
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00')) if value else datetime.min
+        return parsed.replace(tzinfo=parsed.tzinfo or timezone.utc)
+    used = {r['detail'] for r in db.query_all("SELECT detail FROM audit_log WHERE business_id = ? AND action = 'PRO_ENTITLEMENT_APPLIED'", (business['id'],))}
+    for row in rows:
+        if row.get('verified_at') and stamp(row['verified_at']) >= stamp(cutoff).replace(microsecond=0) and str(row['id']) not in used:
+            return row['id']
+    raise ValueError("verified_pro_upgrade_required")
+
+
 def set_business_package(business_id, package, actor_user_id=None):
-    assert feature_flags.is_valid_package(package), f"unknown package {package}"
-    db.execute("UPDATE businesses SET package = ?, updated_at = ? WHERE id = ?", (package, _now(), business_id))
-    # Bugfix (production-foundation cycle): changing package must re-seed tenant_features —
-    # previously this only updated the `package` column and left feature flags at whatever the
-    # ORIGINAL package was, silently granting/denying the wrong features until a human noticed.
-    set_tenant_features_for_package(business_id, package)
+    if not feature_flags.is_valid_package(package):
+        raise ValueError("invalid_package")
+    business = get_business(business_id)
+    if not business:
+        raise ValueError("business_not_found")
+    subscription = db.query_one("SELECT * FROM subscriptions WHERE business_id = ?", (business_id,))
+    receipt_id = _require_paid_package_change(business, package, subscription)
+    feats = feature_flags.features_for_package(package)
+    conn = db.get_connection()
+    cur = conn.cursor()
+    now = _now()
+    try:
+        cur.execute(db._adapt_placeholders("UPDATE businesses SET package = ?, updated_at = ? WHERE id = ?"),
+                    (package, now, business_id))
+        cols = list(feats)
+        cur.execute(db._adapt_placeholders("UPDATE tenant_features SET " + ", ".join(k + " = ?" for k in cols) + " WHERE business_id = ?"),
+                    (*[bool(feats[k]) for k in cols], business_id))
+        if subscription:
+            if package == "NONE":
+                cur.execute(db._adapt_placeholders("UPDATE subscriptions SET status = 'CANCELLED', updated_at = ? WHERE business_id = ?"), (now, business_id))
+            else:
+                cur.execute(db._adapt_placeholders("UPDATE subscriptions SET plan_key = ?, updated_at = ? WHERE business_id = ?"),
+                            (package.lower(), now, business_id))
+        if receipt_id is not None:
+            cur.execute(db._adapt_placeholders("INSERT INTO audit_log (actor_user_id, business_id, action, detail) VALUES (?, ?, 'PRO_ENTITLEMENT_APPLIED', ?)"),
+                        (actor_user_id, business_id, str(receipt_id)))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
     write_audit(actor_user_id, business_id, "package_changed", f"package={package}")
 
 
@@ -480,7 +531,26 @@ def get_ai_settings(business_id):
 # ---------------------------------------------------------------------------
 
 def get_tenant_features(business_id):
-    return db.query_one("SELECT * FROM tenant_features WHERE business_id = ?", (business_id,))
+    row = db.query_one("SELECT * FROM tenant_features WHERE business_id = ?", (business_id,))
+    if not row:
+        return row
+    business = get_business(business_id)
+    allowed = feature_flags.features_for_package(business["package"])
+    sub = db.query_one("SELECT * FROM subscriptions WHERE business_id = ?", (business_id,))
+    if sub:
+        import subscription_service
+        entitled = sub["status"] in ("ACTIVE", "GRACE")
+        end = subscription_service._parse(sub.get("period_end"))
+        if not end or datetime.now(timezone.utc) >= end + timedelta(days=sub.get("grace_days") or 0):
+            entitled = False
+        sub_package = str(sub.get("plan_key", "")).upper()
+        sub_allowed = feature_flags.FEATURE_MATRIX.get(sub_package, feature_flags.FEATURE_MATRIX["NONE"])
+        if sub_package != business["package"] and sub["status"] != "CANCELLED":
+            print(f"ENTITLEMENT: package/subscription mismatch business_id={business_id}")
+        allowed = {k: allowed[k] and sub_allowed[k] and entitled for k in allowed}
+    # Legacy ACTIVE tenants without a subscription retain their current tier, never an upgrade.
+    return {**row, **{k: bool(row.get(k)) and allowed[k] for k in allowed}}
+
 
 
 def set_tenant_features_for_package(business_id, package):
@@ -902,3 +972,66 @@ def save_tenant_config(business_id, config_dict):
         (new_version, config_json, now, business_id),
     )
     return new_version, True
+
+
+def save_live_business_memory(business_id, fields, service_lines, faq_lines, actor_user_id):
+    """Atomically update existing tenant memory rows and their live config snapshot; no AI call."""
+    import copy
+    import provisioning
+    allowed = {'short_description', 'tone', 'primary_language', 'customer_salutation',
+               'operating_hours', 'closed_days', 'address', 'business_phone'}
+    if set(fields) - allowed:
+        raise ValueError('unsupported_memory_field')
+    row = get_tenant_config_row(business_id)
+    config = copy.deepcopy(row['config'] if row else provisioning.build_tenant_config(business_id))
+    ai = config.setdefault('ai', {})
+    for field in ('tone', 'customer_salutation'):
+        ai[field] = fields[field]
+    ai.setdefault('language', {})['primary'] = fields['primary_language']
+    ai['business_description'] = fields['short_description']
+    ai['system_instructions'] = fields['short_description']
+    info = config.setdefault('business_info', {})
+    info['address'] = fields['address']
+    info.setdefault('business_hours', {}).update(raw=fields['operating_hours'], closed_days=fields['closed_days'])
+    info.setdefault('contact_info', {})['business_phone'] = fields['business_phone']
+    knowledge = config.setdefault('knowledge', {})
+    old_services = get_business_services(business_id)
+    old_faqs = get_business_faqs(business_id)
+    change_services = service_lines != [s['raw_input'] for s in old_services]
+    change_faqs = faq_lines != [f['raw_input'] for f in old_faqs]
+    if change_services:
+        knowledge['services'] = [{'raw_input': raw, 'service_name': None, 'price_from': None,
+                                 'price_to': None, 'currency': None, 'needs_review': True} for raw in service_lines]
+    if change_faqs:
+        knowledge['faq'] = [{'question': raw.partition('|')[0].strip(),
+                             'answer': raw.partition('|')[2].strip() or None, 'needs_review': False} for raw in faq_lines]
+    conn = db.get_connection()
+    cur = conn.cursor()
+    def execute(sql, params): cur.execute(db._adapt_placeholders(sql), params)
+    try:
+        execute('UPDATE business_profiles SET ' + ', '.join(k + ' = ?' for k in fields) + ' WHERE business_id = ?',
+                (*fields.values(), business_id))
+        if cur.rowcount != 1:
+            raise ValueError('business_profile_missing')
+        if change_services:
+            execute('DELETE FROM business_services WHERE business_id = ?', (business_id,))
+            for i, raw in enumerate(service_lines):
+                execute('INSERT INTO business_services (business_id, raw_input, needs_review, sort_order) VALUES (?, ?, ?, ?)', (business_id, raw, True, i))
+        if change_faqs:
+            execute('DELETE FROM business_faqs WHERE business_id = ?', (business_id,))
+            for raw in faq_lines:
+                q, _, answer = raw.partition('|')
+                execute('INSERT INTO business_faqs (business_id, raw_input, question, answer, needs_review) VALUES (?, ?, ?, ?, ?)',
+                        (business_id, raw, q.strip(), answer.strip() or None, False))
+        payload = json.dumps(config, ensure_ascii=False, sort_keys=True)
+        if row:
+            execute('UPDATE tenant_configs SET config_json = ?, config_version = config_version + 1, updated_at = ? WHERE business_id = ?', (payload, _now(), business_id))
+        else:
+            execute('INSERT INTO tenant_configs (business_id, config_version, config_json, provisioned_at, updated_at) VALUES (?, 1, ?, ?, ?)', (business_id, payload, _now(), _now()))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+    write_audit(actor_user_id, business_id, 'BUSINESS_MEMORY_UPDATED', 'Tenant updated live business memory')

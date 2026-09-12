@@ -113,7 +113,7 @@ def build_tenant_config(business_id):
                 "additional": profile.get("additional_languages") or [],
             },
             "tone": profile.get("tone") or "friendly",
-            "system_instructions": normalized.get("description") or profile.get("short_description"),
+            "system_instructions": profile.get("short_description") or normalized.get("description"),
             "business_description": profile.get("short_description"),
             "customer_salutation": profile.get("customer_salutation") or "Kak",
         },

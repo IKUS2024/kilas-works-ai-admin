@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Memori Bisnis — {{ business.business_name }}{% endblock %}
+{% block content %}
+<h1>Memori Bisnis</h1>
+<p>{{ business.business_name }} — Perbarui informasi yang digunakan Kilas Brain tanpa mengulang pendaftaran.</p>
+<form method="post" class="card">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="description">Tentang bisnis & informasi penting</label>
+<textarea id="description" name="short_description" maxlength="4000">{{ profile.short_description or '' }}</textarea>
+<label for="services">Layanan dan harga yang berlaku (satu per baris)</label>
+<textarea id="services" name="services_raw" required>{% for s in services %}{{ s.raw_input }}{{ '\n' if not loop.last else '' }}{% endfor %}</textarea>
+<p class="muted">Cantumkan harga hanya jika sudah pasti. Untuk penawaran khusus, tulis “sesuai penawaran”.</p>
+<label for="faqs">Pertanyaan & jawaban (satu per baris: pertanyaan | jawaban)</label>
+<textarea id="faqs" name="faq_raw">{% for f in faqs %}{{ f.raw_input }}{{ '\n' if not loop.last else '' }}{% endfor %}</textarea>
+<label for="tone">Gaya bicara</label><input id="tone" name="tone" value="{{ profile.tone or 'friendly' }}" maxlength="4000">
+<label for="language">Bahasa utama</label><select id="language" name="primary_language"><option value="id" {{ 'selected' if profile.primary_language != 'en' else '' }}>Indonesia</option><option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>English</option></select>
+<label for="salutation">Sapaan customer</label><input id="salutation" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}" required>
+{% for key, label in [('operating_hours','Jam operasional'),('closed_days','Hari tutup'),('address','Alamat'),('business_phone','Nomor bisnis')] %}
+<label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" value="{{ profile[key] or '' }}" maxlength="4000">
+{% endfor %}
+<button class="btn" type="submit">Simpan Memori Bisnis</button>
+<a href="{{ url_for('client.dashboard') }}">Kembali</a>
+</form>
+{% endblock %}

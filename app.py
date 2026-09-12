@@ -1,3 +1,4 @@
+import owner_intent_routing as _owner_intent
 import os
 import sys
 import re
@@ -820,7 +821,27 @@ def _tenant_customer_index(tenant_id):
     for key, name in customer_names.items():
         if isinstance(key, str) and key.startswith(prefix):
             out[key[len(prefix):]] = name
+    # Customers without a saved name still belong in owner analysis; conversation keys are scoped.
+    for key in conversations:
+        if isinstance(key, str) and key.startswith(prefix):
+            out.setdefault(key[len(prefix):], "Customer")
     return out
+
+
+def _global_owner_summary(tenant_id):
+    if tenant_id is None:
+        summary = build_customer_context_summary(max_customers=25, max_messages_per_customer=4,
+            max_msg_len=160, query="", target=None)
+    else:
+        lines = []
+        for phone, name in list(_tenant_customer_index(tenant_id).items())[-25:]:
+            history = conversations.get(_ck(tenant_id, phone)) or load_recent_messages_from_db(_ck(tenant_id, phone), "customer")
+            excerpt = " | ".join(str(m.get("content", ""))[:160] for m in history[-4:] if isinstance(m.get("content"), str))
+            lines.append(f"{str(name)[:80]} ({phone}): {excerpt}")
+        summary = "\n".join(lines)
+    return ("Ringkasan maksimal 25 customer; bukan daftar lengkap seluruh database. "
+            "Bandingkan bukti minat, kebutuhan, keberatan dan komitmen; jangan mengarang status pembayaran. "
+            "Kalau bukti kurang, katakan belum cukup. Ini analisis saja, bukan izin mengirim pesan.\n" + summary)[:22000]
 
 
 def _build_tenant_owner_query_context(tenant_id, owner_phone, query=None):
@@ -829,6 +850,8 @@ def _build_tenant_owner_query_context(tenant_id, owner_phone, query=None):
     history only), open appointment requests, and open Business Hub projects. Every piece here is
     resolved via tenant_id, never via message content, so it can never mix in another tenant's or
     Kilas Works' own data."""
+    if _owner_intent.classify(query) == "GLOBAL_ANALYZE":
+        return _global_owner_summary(tenant_id)
     lines = []
     known = _tenant_customer_index(tenant_id)
     if query:
@@ -889,7 +912,7 @@ def _build_tenant_owner_query_context(tenant_id, owner_phone, query=None):
         lines.append("\nPROJECT BUSINESS HUB YANG MASIH JALAN:\n" + "\n".join(proj_lines))
 
     active_target = _tenant_active_customer_context.get((tenant_id, owner_phone))
-    if active_target:
+    if active_target and _owner_intent.classify(query) not in _owner_intent.READ_INTENTS:
         active_name = known.get(active_target, f"wa.me/{active_target}")
         lines.append(f"\nCUSTOMER TERAKHIR YANG CHAT: {active_name} ({active_target}).")
 
@@ -903,7 +926,7 @@ def build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name, quer
     console) or forwarding them into any customer-facing message."""
     return (
         f"Kamu adalah asisten pribadi WhatsApp untuk pemilik bisnis \"{business_name}\" (bukan "
-        "Kilas Works — ini bisnis KLIEN Kilas Works yang pakai produk AI Admin). Kamu HANYA boleh "
+        "Kilas Works — ini bisnis KLIEN Kilas Works yang pakai produk Kilas Brain). Kamu HANYA boleh "
         "membahas data/customer/appointment/project milik bisnis INI — JANGAN PERNAH menyebut atau "
         "mencampur data bisnis lain manapun, termasuk Kilas Works sendiri.\n\n"
         "Balas natural, santai, seperti asisten pribadi manusia lewat chat WhatsApp — dalam Bahasa "
@@ -986,11 +1009,11 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
     save_message_to_db(scoped_key, "owner", "user", memory_text)
 
     system_prompt = build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name,
-        query=_ctx.conversation_query(owner_message, history[:-1]))
+        query=owner_message if _owner_intent.classify(owner_message) in _owner_intent.READ_INTENTS else _ctx.conversation_query(owner_message, history[:-1]))
     stable, _, dynamic = system_prompt.partition("DATA BISNIS INI SAAT INI:")
     system_prompt = _ctx.cache_blocks(stable + "\n" + _ctx.POLICY, dynamic)
     model_to_use = MODEL_PRIMARY if image_b64 else MODEL_FAST
-    if not image_b64 and _ctx.wants(owner_message, r'(analisis|analisa|bandingkan|evaluasi|strategi).*(risiko|skenario|trade.?off|alternatif)'):
+    if not image_b64 and (_owner_intent.needs_stronger_reasoning(owner_message) or _ctx.wants(owner_message, r'(analisis|analisa|bandingkan|evaluasi|strategi).*(risiko|skenario|trade.?off|alternatif)')):
         model_to_use = MODEL_PRIMARY
     print("[AI_MODEL] " + json.dumps({"model": model_to_use,
         "reason": "vision" if image_b64 else ("complex_reasoning" if model_to_use != MODEL_FAST else "ordinary"),
@@ -4667,6 +4690,9 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
 
     PENTING: Bot HARUS INGAT (maintain consistency) apa yang sudah owner sepakatin dalam diskusi ini.
     Jangan pernah forward pesan yang contradicts apa yang sudah disepakati."""
+    if _owner_intent.classify(query) == "GLOBAL_ANALYZE":
+        return _ctx.cache_blocks(SYSTEM_PROMPT_OWNER_BASE + "\n" + _ctx.POLICY,
+                                 _global_owner_summary(None))
     if direct_send and pending_customer_number:
         target_name = customer_names.get(pending_customer_number, f"wa.me/{pending_customer_number}")
         context = (
@@ -4799,9 +4825,9 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     history.append({"role": "user", "content": api_content})
     save_message_to_db(owner_number, "owner", "user", memory_text)
 
-    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number, direct_send=direct_send, query=_ctx.conversation_query(owner_message, history[:-1]))
+    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number, direct_send=direct_send, query=owner_message if _owner_intent.classify(owner_message) in _owner_intent.READ_INTENTS else _ctx.conversation_query(owner_message, history[:-1]))
     model_to_use = MODEL_PRIMARY if image_b64 else MODEL_FAST
-    if not image_b64 and _ctx.wants(owner_message, r'(analisis|analisa|bandingkan|evaluasi|strategi).*(risiko|skenario|trade.?off|alternatif)'):
+    if not image_b64 and (_owner_intent.needs_stronger_reasoning(owner_message) or _ctx.wants(owner_message, r'(analisis|analisa|bandingkan|evaluasi|strategi).*(risiko|skenario|trade.?off|alternatif)')):
         model_to_use = MODEL_PRIMARY
 
     print("[AI_MODEL] " + json.dumps({"model": model_to_use,
@@ -6950,6 +6976,23 @@ def _webhook_body_impl(data):
                     )
                     return jsonify({"status": "ok"}), 200
 
+            if _owner_intent.classify(owner_text) in _owner_intent.READ_INTENTS:
+                pending_owner_clarification.pop(_ck(tenant_id, from_number), None)
+                target = None
+                if _owner_intent.classify(owner_text) != "GLOBAL_ANALYZE":
+                    status, found, _ = extract_mentioned_customer(owner_text)
+                    if status == "ambiguous":
+                        _store_pending_owner_clarification(tenant_id, from_number, CLARIFICATION_INTENT_READ_HISTORY, candidates=found)
+                        send_whatsapp_message(from_number, f"Ada beberapa customer namanya mirip: {_clarification_options_text(found)}. Maksudnya yang mana?")
+                        return jsonify({"status": "ok"}), 200
+                    if status == "ok":
+                        target = found
+                        active_customer_context[from_number] = found
+                reply = call_claude_owner(from_number, owner_text, None, target,
+                    image_b64=owner_image_b64, image_mime=owner_image_mime, is_voice_note=owner_msg_is_voice_note)
+                send_whatsapp_message(from_number, _guard_owner_reply_without_action(reply.split(FORWARD_MARKER)[0]))
+                return jsonify({"status": "ok"}), 200
+
             # CEK apakah ini balesan AVAILABILITY MEETING dari owner buat salah satu customer yang
             # lagi PENDING_OWNER_CONFIRMATION/SLOTS_OFFERED — BUG FIX: sebelumnya balesan generik
             # ("bisa"/"available"/"iya"/"oke", TANPA nyebut jam) diserahin ke AI, riskan ke-drift
@@ -7745,6 +7788,13 @@ def _webhook_body_impl(data):
                 return jsonify({"status": "ok"}), 200
             else:
                 owner_text = message["text"]["body"]
+
+            if _owner_intent.classify(owner_text) in _owner_intent.READ_INTENTS:
+                _tenant_biz_name = (_tcs.get_tenant_config(tenant_id) or {}).get("business_name") or "bisnis kamu"
+                reply = call_tenant_owner_ai(tenant_id, _tenant_owner_phone, owner_text, _tenant_biz_name,
+                    image_b64=owner_image_b64, image_mime=owner_image_mime, is_voice_note=owner_msg_is_voice_note)
+                send_whatsapp_message(from_number, _guard_owner_reply_without_action(reply.split(FORWARD_MARKER)[0]))
+                return jsonify({"status": "ok"}), 200
 
             # Tenant-persistence cycle (Task 1/2) — natural-language RECORD COMMANDS ("Confirm
             # booking Budi.", "Tolak yang jam 4, bilang penuh.", "Confirm pembayaran Budi.", "Tolak
