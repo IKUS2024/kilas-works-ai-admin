@@ -195,7 +195,7 @@ def test_appointment_persists_across_simulated_restart_and_owner_query_still_see
     captured_prompts = []
 
     def fake_owner_post(url, headers=None, json=None, timeout=None):
-        captured_prompts.append(json["system"])
+        captured_prompts.append("\n".join(b["text"] for b in json["system"]) if isinstance(json["system"], list) else json["system"])
         resp = MagicMock()
         resp.raise_for_status.return_value = None
         resp.json.return_value = {"content": [{"text": "Ada 1 booking besok."}]}

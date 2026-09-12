@@ -6,6 +6,8 @@ import hmac
 import json
 import time
 import base64
+import hashlib
+import context_engine as _ctx
 import requests
 from collections import deque
 from datetime import datetime, timedelta, timezone
@@ -90,6 +92,23 @@ if _CLIENT_HUB_AVAILABLE and ENABLE_MULTI_TENANT:
             "string Postgres PRODUKSI yang SAMA PERSIS dengan yang dipakai Client Hub admin "
             "service, baru multi-tenant bridge ini bisa melihat data tenant yang sebenarnya."
         )
+
+
+
+def multi_tenant_blockers():
+    blockers = []
+    if not _CLIENT_HUB_AVAILABLE:
+        blockers.append("client_hub_bridge_unavailable")
+    if not os.environ.get("DATABASE_URL", "").startswith(("postgres://", "postgresql://")):
+        blockers.append("shared_postgres_required")
+    if not os.environ.get("WHATSAPP_APP_SECRET"):
+        blockers.append("webhook_signature_secret_required")
+    if os.environ.get("KILAS_SINGLE_RUNTIME_CONFIRMED") != "true":
+        blockers.append("single_bot_worker_and_replica_must_be_confirmed")
+    return blockers
+
+if ENABLE_MULTI_TENANT and multi_tenant_blockers():
+    raise RuntimeError("Unsafe multi-tenant startup: " + ", ".join(multi_tenant_blockers()))
 
 
 def _resolve_tenant_id(phone_number_id):
@@ -195,7 +214,7 @@ _TENANT_INCOMPLETE_PROFILE_BLOCK = (
 )
 
 
-def _build_tenant_context_block_safe(tenant_id):
+def _build_tenant_context_block_safe(tenant_id, query=None):
     """Patch 2/6 — additional system-prompt context for a resolved MULTI-TENANT client, injected
     for THIS request only (never written into any global/module-level prompt string). Returns ""
     ONLY when tenant_id is None / Client Hub is unavailable (i.e. genuinely no tenant resolved — the
@@ -256,6 +275,9 @@ def _build_tenant_context_block_safe(tenant_id):
             lines.extend(service_lines)
 
         faqs = knowledge.get("faq") or []
+        if query:
+            selected = _ctx.relevant_records(faqs, query, recent=0)
+            faqs = selected or faqs  # unfamiliar wording: retain knowledge, never pretend absent
         faq_lines = []
         for f in faqs:
             q, a = f.get("question"), f.get("answer")
@@ -530,6 +552,7 @@ def _get_tenant_whatsapp_channel_safe(tenant_id):
 # WHATSAPP_PHONE_NUMBER_ID/WHATSAPP_ACCESS_TOKEN exactly as before this cycle existed.
 import threading as _threading
 _active_channel_local = _threading.local()
+_runtime_lock = _threading.RLock()
 
 
 def _set_active_whatsapp_channel(phone_number_id, access_token):
@@ -672,23 +695,21 @@ def _tenant_appt_latest_safe(tenant_id, customer_phone, statuses=None):
         return None
 
 
-def _tenant_appt_update_status_safe(appt_id, status, notes=None):
-    if not _CLIENT_HUB_AVAILABLE or appt_id is None:
+def _tenant_appt_update_status_safe(appt_id, status, notes=None, tenant_id=None):
+    if not _CLIENT_HUB_AVAILABLE or appt_id is None or tenant_id is None:
         return False
     try:
-        _appt_repo.update_status(appt_id, status, notes=notes)
-        return True
+        return _appt_repo.update_scoped(tenant_id, appt_id, status=status, notes=notes)
     except Exception as e:
         print(f"Update tenant appointment status gagal (id={appt_id}): {e}")
         return False
 
 
-def _tenant_appt_update_reschedule_safe(appt_id, request_text, status=None):
-    if not _CLIENT_HUB_AVAILABLE or appt_id is None:
+def _tenant_appt_update_reschedule_safe(appt_id, request_text, status=None, tenant_id=None):
+    if not _CLIENT_HUB_AVAILABLE or appt_id is None or tenant_id is None:
         return False
     try:
-        _appt_repo.update_request_text(appt_id, request_text, status=status)
-        return True
+        return _appt_repo.update_scoped(tenant_id, appt_id, status=status, request_text=request_text)
     except Exception as e:
         print(f"Update tenant appointment reschedule gagal (id={appt_id}): {e}")
         return False
@@ -738,12 +759,11 @@ def _tenant_payment_review_list_pending_safe(tenant_id, limit=50):
         return []
 
 
-def _tenant_payment_review_update_status_safe(review_id, status, owner_note=None, verified_by=None):
-    if not _CLIENT_HUB_AVAILABLE or review_id is None:
+def _tenant_payment_review_update_status_safe(review_id, status, owner_note=None, verified_by=None, tenant_id=None):
+    if not _CLIENT_HUB_AVAILABLE or review_id is None or tenant_id is None:
         return False
     try:
-        _pay_review_repo.update_status(review_id, status, owner_note=owner_note, verified_by=verified_by)
-        return True
+        return _pay_review_repo.update_status_scoped(tenant_id, review_id, status, owner_note=owner_note, verified_by=verified_by)
     except Exception as e:
         print(f"Update tenant payment review status gagal (id={review_id}): {e}")
         return False
@@ -803,7 +823,7 @@ def _tenant_customer_index(tenant_id):
     return out
 
 
-def _build_tenant_owner_query_context(tenant_id, owner_phone):
+def _build_tenant_owner_query_context(tenant_id, owner_phone, query=None):
     """Assembles a tenant-scoped 'what's going on' summary for the owner assistant's system prompt
     — recent customers + their last few messages (from this tenant's OWN scoped conversation
     history only), open appointment requests, and open Business Hub projects. Every piece here is
@@ -811,6 +831,14 @@ def _build_tenant_owner_query_context(tenant_id, owner_phone):
     Kilas Works' own data."""
     lines = []
     known = _tenant_customer_index(tenant_id)
+    if query:
+        active = _tenant_active_customer_context.get((tenant_id, owner_phone))
+        matches = {phone: name for phone, name in known.items() if phone in query or
+                   (_ctx.terms(name) & _ctx.terms(query))}
+        if matches:
+            known = matches
+        elif not _ctx.wants(query, r'customer|pelanggan|chat|siapa|follow.?up|semua|rekap'):
+            known = {phone: name for phone, name in known.items() if phone == active}
     if known:
         cust_lines = []
         for phone, name in list(known.items())[:25]:
@@ -868,7 +896,7 @@ def _build_tenant_owner_query_context(tenant_id, owner_phone):
     return "\n".join(lines)
 
 
-def build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name):
+def build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name, query=None):
     """Task 1 — system prompt for the Pro tenant owner assistant. Explicitly scoped to THIS
     business only, and explicitly forbidden from ever surfacing raw internal tags/markers/system
     wording to the owner (the owner IS a real person reading real WhatsApp messages, not a debug
@@ -892,8 +920,25 @@ def build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name):
         "owner secara natural mengonfirmasi apa yang akan disampaikan (mis. 'Oke, aku sampaikan ke "
         "Budi ya'). JANGAN PERNAH menulis pesan seolah-olah kamu sedang berbicara LANGSUNG ke "
         "customer di balasan ini.\n\n"
-        f"DATA BISNIS INI SAAT INI:\n{_build_tenant_owner_query_context(tenant_id, owner_phone)}"
+        f"DATA BISNIS INI SAAT INI:\n{_build_tenant_owner_query_context(tenant_id, owner_phone, query=query)}"
     )
+
+
+def _exact_owner_query(tenant_id, text):
+    """Narrow, exact DB read: never spend an LLM call to count pending payment reviews."""
+    normalized = (text or '').strip().lower().rstrip('?.!')
+    if not re.fullmatch(r'(?:ada )?berapa (?:pembayaran|payment|bukti transfer)(?: yang)? (?:belum|menunggu) (?:dicek|diverifikasi|verifikasi)', normalized):
+        return None
+    try:
+        if tenant_id is None:
+            if _payment_service is None:
+                return "Data pembayaran belum bisa dibaca. Coba lagi sebentar ya."
+            rows = _payment_service.list_payments_pending_review()
+        else:
+            rows = _pay_review_repo.list_pending_for_business(tenant_id, limit=1000000)
+        return f"Ada {len(rows)} pembayaran yang menunggu verifikasi."
+    except Exception:
+        return "Data pembayaran belum bisa dibaca. Coba lagi sebentar ya."
 
 
 def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
@@ -910,6 +955,12 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
     vision-capable model (MODEL_PRIMARY) since MODEL_FAST/Haiku does not support vision, tagged
     "[OWNER KIRIM GAMBAR]" the same way."""
     scoped_key = _ck(tenant_id, owner_phone)
+    if not image_b64:
+        exact = _exact_owner_query(tenant_id, owner_message)
+        if exact is not None:
+            save_message_to_db(scoped_key, "owner", "user", owner_message)
+            save_message_to_db(scoped_key, "owner", "assistant", exact)
+            return exact
     history = tenant_owner_conversations.get(scoped_key)
     if history is None:
         history = load_recent_messages_from_db(scoped_key, "owner")
@@ -930,11 +981,20 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
         api_content = owner_message
         memory_text = owner_message
 
+    history = list(history or [])
     history.append({"role": "user", "content": api_content})
     save_message_to_db(scoped_key, "owner", "user", memory_text)
 
-    system_prompt = build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name)
-    model_to_use = MODEL_FAST if not image_b64 else MODEL_PRIMARY
+    system_prompt = build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name,
+        query=_ctx.conversation_query(owner_message, history[:-1]))
+    stable, _, dynamic = system_prompt.partition("DATA BISNIS INI SAAT INI:")
+    system_prompt = _ctx.cache_blocks(stable + "\n" + _ctx.POLICY, dynamic)
+    model_to_use = MODEL_PRIMARY if image_b64 else MODEL_FAST
+    if not image_b64 and _ctx.wants(owner_message, r'(analisis|analisa|bandingkan|evaluasi|strategi).*(risiko|skenario|trade.?off|alternatif)'):
+        model_to_use = MODEL_PRIMARY
+    print("[AI_MODEL] " + json.dumps({"model": model_to_use,
+        "reason": "vision" if image_b64 else ("complex_reasoning" if model_to_use != MODEL_FAST else "ordinary"),
+        "context_type": "owner"}))
     try:
         if image_b64:
             raise RuntimeError("skip-haiku-vision-not-supported")
@@ -976,7 +1036,7 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
                 raise
         except Exception as e2:
             print(f"Tenant owner AI call gagal (tenant_id={tenant_id}): {e2}")
-            reply_text = "Aku catat ya — coba tanya lagi sebentar kalau butuh detail lebih lanjut."
+            reply_text = "Aku belum bisa memproses pesanmu sekarang. Coba lagi sebentar ya."
 
     if image_b64:
         history[-1] = {"role": "user", "content": memory_text}
@@ -1920,6 +1980,8 @@ def get_db_connection():
 def init_db():
     """Bikin tabel 'messages' kalau belum ada. Dipanggil sekali pas server start."""
     if not db_enabled():
+        if os.environ.get("RENDER") or os.environ.get("APP_ENV") == "production":
+            raise RuntimeError("Production requires DATABASE_URL and psycopg2 for durable state")
         print("DATABASE_URL belum diset — history chat cuma kesimpen sementara di memori.")
         return
     try:
@@ -2012,19 +2074,23 @@ def init_db():
         # dapet default FALSE (belum pernah dikirim reminder), gak ada data lama yang berubah/hilang.
         cur.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_24h_sent BOOLEAN NOT NULL DEFAULT FALSE;")
         cur.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_same_day_sent BOOLEAN NOT NULL DEFAULT FALSE;")
+        cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_runtime_claim "
+                    "ON messages (number, mode) WHERE mode IN ('_webhook_claim', '_outbound_claim');")
         conn.commit()
         cur.close()
         conn.close()
         print("Database siap — history chat bakal kesimpen permanen.")
     except Exception as e:
-        print(f"Gagal konek/init database ({e}). History chat cuma kesimpen sementara di memori.")
+        print("[DB_INIT_FAILED] exception_class=" + type(e).__name__)
+        if ENABLE_MULTI_TENANT or os.environ.get("RENDER") or os.environ.get("APP_ENV") == "production":
+            raise RuntimeError("Production database initialization failed") from None
 
 
 def save_message_to_db(number, mode, role, content):
     """Simpen satu pesan (dari customer/owner ATAU balasan AI) ke database. Kalau DB gak
     kekonek/gak diset, diem-diem gak ngapa-ngapain (bot tetep jalan normal)."""
     if not db_enabled():
-        return
+        return False
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -2035,8 +2101,10 @@ def save_message_to_db(number, mode, role, content):
         conn.commit()
         cur.close()
         conn.close()
+        return True
     except Exception as e:
-        print(f"Gagal simpen pesan ke database ({e}).")
+        print("[MESSAGE_SAVE_FAILED] exception_class=" + type(e).__name__)
+        return False
 
 
 def load_recent_messages_from_db(number, mode, limit=20):
@@ -2841,7 +2909,7 @@ def send_appointment_reminders():
     return results
 
 
-def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150):
+def build_customer_context_summary(max_customers=25, max_messages_per_customer=6, max_msg_len=150, query=None, target=None):
     """Susun ringkasan SEMUA customer (nama + history chat terakhir mereka), buat disisipin ke system
     prompt mode-owner supaya AI bisa jawab pertanyaan Irvan soal customer mana aja, kapan aja — bukan
     cuma yang lagi pending. Dibatasi jumlah customer & panjang pesan biar prompt-nya gak kebesaran."""
@@ -2850,7 +2918,22 @@ def build_customer_context_summary(max_customers=25, max_messages_per_customer=6
         text = (text or "").replace("\n", " ").strip()
         return text if len(text) <= max_msg_len else text[:max_msg_len] + "..."
 
-    if db_enabled():
+    if db_enabled() and query is not None:
+        names = {n: name for n, name in customer_names.items() if not str(n).startswith("T")}
+        selected = [n for n, name in names.items() if n == target or n in query or (_ctx.terms(name) & _ctx.terms(query))]
+        if target and not str(target).startswith("T") and target not in selected:
+            selected.append(target)
+        if not selected:
+            conn = get_db_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT number FROM messages WHERE mode = 'customer' AND number NOT LIKE 'T%%' "
+                                "GROUP BY number ORDER BY MAX(id) DESC LIMIT %s", (max_customers,))
+                    selected = [r[0] for r in cur.fetchall()]
+            finally:
+                conn.close()
+        items = [(n, load_recent_messages_from_db(n, "customer")) for n in selected]
+    elif db_enabled():
         all_convos = load_all_conversations_from_db("customer")  # {number: [{role,content,created_at}]}
         names = load_all_customer_names_from_db()
         items = sorted(
@@ -2863,6 +2946,16 @@ def build_customer_context_summary(max_customers=25, max_messages_per_customer=6
         items = list(conversations.items())[::-1]
         names = customer_names
 
+    items = [(number, history) for number, history in items if not str(number).startswith("T")]
+    if query:
+        matches = [(n, h) for n, h in items if n == target or
+            (names.get(n) and _ctx.terms(names[n]) & _ctx.terms(query)) or n in query]
+        if matches:
+            items = matches
+            max_messages_per_customer = 20
+            max_msg_len = 1000000  # complete selected messages; do not cut a decision's conditions
+        elif not _ctx.wants(query, r'customer|pelanggan|siapa|chat|rekap|semua|follow.?up'):
+            items = []
     items = items[:max_customers]
 
     if not items:
@@ -2960,6 +3053,7 @@ pending_owner_questions = {}
 # or FALSE (it failed) without re-sending anything. Cleared alongside pending_owner_questions
 # whenever a handoff is resolved (see the FORWARD_MARKER relay path's .pop() calls).
 handoff_notification_status = {}
+handoff_notification_keys = {}
 
 # New-customer owner notification dedup — in-memory fast path ONLY, per-process. The real,
 # cross-restart/cross-worker source of truth is the persistent sentinel row in the EXISTING
@@ -3013,6 +3107,27 @@ def _mark_new_customer_notified(scoped_from):
     against a duplicate for the rest of its lifetime (graceful degradation, never raises)."""
     new_customer_notified.add(scoped_from)
     save_message_to_db(scoped_from, _NEW_CUSTOMER_NOTIFY_SENTINEL_MODE, "system", "notified")
+
+
+def _save_handoff_state(scoped_number, question=None, notified=False):
+    payload = json.dumps({"question": question, "notified": bool(notified),
+                          "notification_key": handoff_notification_keys.get(scoped_number)}, ensure_ascii=False)
+    return save_message_to_db(scoped_number, "_handoff_state", "system", payload)
+
+
+def _restore_handoff_state():
+    for scoped_number, history in load_all_conversations_from_db("_handoff_state").items():
+        if not history:
+            continue
+        try:
+            state = json.loads(history[-1]["content"])
+        except (ValueError, KeyError, TypeError):
+            continue
+        if state.get("question"):
+            pending_owner_questions[scoped_number] = state["question"]
+            handoff_notification_status[scoped_number] = state.get("notified") is True
+            if state.get("notification_key"):
+                handoff_notification_keys[scoped_number] = state["notification_key"]
 
 
 def _pending_owner_questions_for_tenant(tenant_id):
@@ -3295,19 +3410,34 @@ PROCESSED_MESSAGE_IDS_ORDER = deque(maxlen=5000)
 
 
 def is_duplicate_event(message_id):
-    """Cek & TANDAI SEKALIAN wamid ini sebagai udah dipegang. Return True kalau ini DUPLIKAT
-    (udah pernah masuk sebelumnya -> caller WAJIB langsung return tanpa proses apa-apa).
-    PENTING: fungsi ini match-and-mark dalam satu langkah, jadi cuma boleh dipanggil SEKALI per
-    event yang beneran mau diproses (biasanya di paling atas, sebelum logic apapun jalan)."""
+    """Atomically claim a channel+event. Durable at-most-once processing, fail closed on DB error.
+
+    Interrupted claims require operator reconciliation: do not replay uncertain external actions.
+    """
     if not message_id:
-        return False  # gak ada id (jarang) -> gak bisa di-dedup, proses aja apa adanya
-    if message_id in PROCESSED_MESSAGE_IDS:
-        return True
-    if len(PROCESSED_MESSAGE_IDS_ORDER) >= PROCESSED_MESSAGE_IDS_ORDER.maxlen:
-        oldest = PROCESSED_MESSAGE_IDS_ORDER.popleft()
-        PROCESSED_MESSAGE_IDS.discard(oldest)
-    PROCESSED_MESSAGE_IDS_ORDER.append(message_id)
-    PROCESSED_MESSAGE_IDS.add(message_id)
+        return False
+    key = hashlib.sha256(f"{_active_whatsapp_phone_number_id()}:{message_id}".encode()).hexdigest()
+    if db_enabled():
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO messages(number, mode, role, content) "
+                    "VALUES (%s, '_webhook_claim', 'system', 'claimed') "
+                    "ON CONFLICT (number, mode) WHERE mode IN ('_webhook_claim', '_outbound_claim') "
+                    "DO NOTHING RETURNING id", (key,))
+                claimed = cur.fetchone() is not None
+            conn.commit()
+            return not claimed
+        finally:
+            conn.close()
+    # Development only; production requires Postgres for restart safety.
+    with _runtime_lock:
+        if key in PROCESSED_MESSAGE_IDS:
+            return True
+        if len(PROCESSED_MESSAGE_IDS_ORDER) >= PROCESSED_MESSAGE_IDS_ORDER.maxlen:
+            PROCESSED_MESSAGE_IDS.discard(PROCESSED_MESSAGE_IDS_ORDER.popleft())
+        PROCESSED_MESSAGE_IDS_ORDER.append(key)
+        PROCESSED_MESSAGE_IDS.add(key)
     return False
 
 # ===== CENTRALIZED PAYMENT CONFIG (SATU SUMBER KEBENARAN — production hardening) =====
@@ -4525,7 +4655,7 @@ def resolve_meeting_request_target(name_hint):
     return None
 
 
-def build_owner_system_prompt(pending_question, pending_customer_number, direct_send=False):
+def build_owner_system_prompt(pending_question, pending_customer_number, direct_send=False, query=None):
     """Susun system prompt mode-owner, sisipin konteks pertanyaan customer yang lagi pending (kalau ada)
     dan ringkasan history semua customer biar owner bisa nanya soal siapa aja/apa aja kapan aja.
 
@@ -4592,14 +4722,19 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
         "datanya, bukan alasan buat ragu-ragu soal hal yang sebenernya udah kamu tau."
     )
 
-    context += build_pending_meeting_requests_context()
-    context += build_customer_context_summary()
-    context += _build_business_hub_owner_query_context_safe()
-    context += _build_live_talent_knowledge_note_safe(for_owner=True)
+    if query is None or _ctx.wants(query, r'meeting|booking|jadwal|janji|slot|besok'):
+        context += build_pending_meeting_requests_context()
+    context += build_customer_context_summary(query=query, target=pending_customer_number)
+    if query is None or _ctx.wants(query, r'bayar|payment|bisnis|client|hub|project|quotation|onboard|connect|request'):
+        context += _build_business_hub_owner_query_context_safe()
+    if query is None or _ctx.wants(query, r'talent|influencer|creator|ugc|endorse|roster'):
+        context += _build_live_talent_knowledge_note_safe(for_owner=True)
     # Knowledge architecture fix — SATU source of truth for "layanan kita apa aja" (owner). Same
     # live-from-Client-Hub category list the customer prompt uses (see this function's docstring),
     # so the owner and customer paths can never disagree about which services currently exist.
     context += _build_active_service_categories_safe()
+    if query is not None:
+        return _ctx.cache_blocks(SYSTEM_PROMPT_OWNER_BASE + "\n" + _ctx.POLICY, context)
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
@@ -4612,7 +4747,12 @@ def log_ai_usage(context_label, model, api_response_json):
         in_tok = usage.get("input_tokens")
         out_tok = usage.get("output_tokens")
         if in_tok is not None or out_tok is not None:
-            print(f"[AI_USAGE] context={context_label} model={model} input_tokens={in_tok} output_tokens={out_tok}")
+            print("[AI_USAGE] " + json.dumps({"context": context_label, "model": model,
+                "input_tokens": in_tok, "output_tokens": out_tok,
+                "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+                "cache_hit": bool(usage.get("cache_read_input_tokens", 0)),
+                "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+                "stop_reason": (api_response_json or {}).get("stop_reason")}))
     except Exception:
         pass  # logging biaya gak boleh pernah bikin request gagal
 
@@ -4629,6 +4769,12 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     memory/DB dikasih tag "[OWNER VOICE NOTE]" — dipakai `build_customer_context_summary()` /
     riwayat biar owner-mode AI bisa jawab natural kalau ditanya "dia terakhir bilang apa lewat
     voice note", persis pola yang sama kayak tag "[OWNER KIRIM GAMBAR]" di bawah."""
+    if not image_b64:
+        exact = _exact_owner_query(None, owner_message)
+        if exact is not None:
+            save_message_to_db(owner_number, "owner", "user", owner_message)
+            save_message_to_db(owner_number, "owner", "assistant", exact)
+            return exact
     history = owner_conversations.get(owner_number)
     if history is None:
         history = load_recent_messages_from_db(owner_number, "owner")  # isi ulang kalau server abis restart
@@ -4649,12 +4795,18 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
         api_content = owner_message
         memory_text = owner_message
 
+    history = list(history or [])
     history.append({"role": "user", "content": api_content})
     save_message_to_db(owner_number, "owner", "user", memory_text)
 
-    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number, direct_send=direct_send)
-    model_to_use = MODEL_FAST if not image_b64 else MODEL_PRIMARY
+    system_prompt = build_owner_system_prompt(pending_question, pending_customer_number, direct_send=direct_send, query=_ctx.conversation_query(owner_message, history[:-1]))
+    model_to_use = MODEL_PRIMARY if image_b64 else MODEL_FAST
+    if not image_b64 and _ctx.wants(owner_message, r'(analisis|analisa|bandingkan|evaluasi|strategi).*(risiko|skenario|trade.?off|alternatif)'):
+        model_to_use = MODEL_PRIMARY
 
+    print("[AI_MODEL] " + json.dumps({"model": model_to_use,
+        "reason": "vision" if image_b64 else ("complex_reasoning" if model_to_use != MODEL_FAST else "ordinary"),
+        "context_type": "owner"}))
     try:
         if image_b64:
             raise RuntimeError("skip-haiku-vision-not-supported")
@@ -4675,8 +4827,11 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
         )
         resp.raise_for_status()
     except Exception as e:
-        print(f"Haiku (owner mode) gagal ({e}), fallback ke Sonnet...")
-        model_to_use = MODEL_FALLBACK
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if not image_b64 and (isinstance(e, requests.Timeout) or (status is not None and status not in (429, 500, 502, 503, 504, 529))):
+            raise
+        print("[AI_RETRY] reason=transient_provider_failure same_model=true")
+        model_to_use = MODEL_PRIMARY if image_b64 else model_to_use
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -4865,7 +5020,7 @@ _HANDOFF_CONFIRMATION_CLAIM_PATTERN = re.compile(
 )
 
 HANDOFF_SAFE_SUCCESS_REPLY = "Aku sudah teruskan ke tim ya."
-HANDOFF_SAFE_FAILURE_REPLY = "Aku sudah catat permintaanmu untuk ditangani tim."
+HANDOFF_SAFE_FAILURE_REPLY = "Pengiriman ke tim belum terkonfirmasi. Coba lagi sebentar ya."
 
 
 def _enforce_handoff_notification_truthfulness(reply_text, needs_owner, handoff_notification_ok):
@@ -5034,8 +5189,104 @@ def strip_tags(text):
     return cleaned.strip()
 
 
+def _record_delivered_reply(scoped_number, text):
+    history = list(conversations.get(scoped_number) or [])
+    history.append({"role": "assistant", "content": text})
+    conversations[scoped_number] = history[-20:]
+    save_message_to_db(scoped_number, "customer", "assistant", text)
+
+
+def _payment_amounts_supported(text, scoped_number, platform):
+    amounts = {_parse_rupiah_amount_safe(v) for v in CUSTOMER_PRICE_DISCLOSURE_PATTERN.findall(text or '')}
+    if not amounts:
+        return True
+    trusted = _kilas_works_canonical_price_amounts_safe() if platform else set()
+    trusted = set(trusted)
+    for fact in agreed_facts.get(scoped_number) or []:
+        trusted.update(_parse_rupiah_amount_safe(v) for v in CUSTOMER_PRICE_DISCLOSURE_PATTERN.findall(fact))
+    return None not in amounts and amounts <= trusted
+
+
+def _exact_customer_route(text, history, tenant=False):
+    normalized = re.sub(r'[!?.]+$', '', (text or '').strip().lower()).strip()
+    if not history and normalized in ('halo', 'hallo', 'hai', 'hi', 'hello', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam'):
+        if normalized in ('hi', 'hello'):
+            return "Hi! What can I help you with? [SET_LANG: lang=en]"
+        return "Halo, ada yang ingin ditanyakan tentang layanan kami? [SET_LANG: lang=id]"
+    if normalized in ('hubungkan ke tim', 'mau bicara dengan admin', 'mau ngomong sama admin', 'mau bicara dengan manusia'):
+        return "Aku coba hubungkan ke tim ya. [TANYA_OWNER]"
+    if tenant:
+        return None
+    if normalized in ('kirim katalog', 'kirim katalognya', 'minta katalog', 'kirim pricelist', 'kirim semua harga'):
+        return "Aku coba kirim katalognya ya. [KIRIM_KATALOG]"
+    if normalized in ('link demo', 'minta link demo', 'ada demo', 'link demo ai admin', 'link demo kilas brain'):
+        return "Bisa coba Kilas Brain langsung di https://demo.kilasworks.id."
+    if normalized in ('link daftar', 'link client hub', 'link pembayaran', 'link checkout'):
+        return "Daftar dan lanjutkan pesananmu di https://app.kilasworks.id."
+    return None
+
+
+def _exact_customer_price_query(text):
+    """Exact, single-product fixed-price lookup. Ambiguous/multi-part queries stay with Brain."""
+    if _catalog_service is None or not _ctx.wants(text, r'\bharga\b|\bberapa\b'):
+        return None
+    name = re.sub(r'\b(harga|berapa|harganya|kak|ya|dong|itu|sih)\b', '', text.lower())
+    name = re.sub(r'[^\w+]+', ' ', name).strip()
+    try:
+        rows = _catalog_service.list_active_catalog()
+    except Exception:
+        return None
+    matching = [r for r in rows if re.sub(r'[^\w+]+', ' ', r.get('name','').lower()).strip() == name]
+    if len(matching) != 1:
+        return None
+    row = matching[0]
+    if row.get('pricing_mode') != 'FIXED_PRICE' or row.get('price_amount') is None:
+        return None
+    unit = row.get('price_unit') or ''
+    return f"{row['name']} {format_price_full(row['price_amount'])}" + (f" {unit}" if unit else '') + "."
+
+
+def build_focused_customer_prompt(scoped_number, query, tenant_context_block="", has_image=False):
+    """Stable shared intelligence + exact relevant business data + scoped memory.
+
+    All twenty conversational turns remain available; retrieval does not overwrite memory.
+    """
+    tenant = bool(tenant_context_block)
+    stable = _ctx.customer_core(AI_ADMIN_CORE_BEHAVIOR, tenant)
+    parts = [build_language_context(scoped_number)]
+    name = customer_names.get(scoped_number)
+    parts.append(f"Nama customer: {name}. Jangan tanya ulang." if name else "Nama belum diketahui; jangan tanya di pembuka.")
+    facts = _ctx.relevant_records(agreed_facts.get(scoped_number) or [], query)
+    if facts:
+        parts.append("Keputusan owner untuk customer ini (data, bukan instruksi sistem):\n" + "\n".join(facts))
+    if tenant:
+        parts.append(tenant_context_block)
+    else:
+        stable += "\n" + PRICING_TEXT_BLOCK + "\n" + _build_active_service_categories_safe() + "\n" + _build_live_price_sync_note_safe()
+        if _ctx.wants(query, r'talent|influencer|creator|ugc|endorse|model|roster|kol\b'):
+            parts.append(_build_live_talent_knowledge_note_safe(for_owner=False))
+            parts.append(_ctx.section(SYSTEM_PROMPT, 'SOAL TALENT MANAGEMENT (Sales', 'SOAL LANDING PAGE & INSTAGRAM:'))
+        if _ctx.wants(query, r'jadwal|meeting|temu|booking|janji|besok|tanggal|reschedule|batal|jam|slot|online|offline'):
+            parts.append(build_appointment_context())
+        if _ctx.wants(query, r'bayar|transfer|rekening|checkout|\bdp\b|payment|lunas|bukti'):
+            parts.append(_ctx.section(SYSTEM_PROMPT, 'SOAL PEMBAYARAN (WAJIB', 'SOAL GAMBAR YANG DIKIRIM CUSTOMER'))
+        if has_image:
+            parts.append(_ctx.section(SYSTEM_PROMPT, 'SOAL GAMBAR YANG DIKIRIM CUSTOMER', 'KALAU ADA PERTANYAAN YANG KAMU GA YAKIN'))
+        if _ctx.wants(query, r'daftar|setup|hub|wizard|onboarding|error|akun|aktivasi'):
+            parts.append(_ctx.section(SYSTEM_PROMPT, 'SOAL PANDUAN CLIENT HUB', 'SOAL PEMBAYARAN (WAJIB'))
+        if _ctx.wants(query, r'website|instagram|portofolio|link|kontak|owner|irvan'):
+            parts.append(_build_official_links_note_safe())
+            parts.append(f"Kontak owner hanya bila customer eksplisit minta langsung: wa.me/{OWNER_WHATSAPP_NUMBER}")
+        if scoped_number in demo_link_offered:
+            parts.append("Demo sudah pernah ditawarkan; jangan tawarkan proaktif lagi, tetap jawab permintaan eksplisit.")
+    dynamic = "\n\n".join(p for p in parts if p)
+    print("[AI_CONTEXT] " + json.dumps({"mode": "customer", "stable_chars": len(stable),
+        "dynamic_chars": len(dynamic), "facts_selected": len(facts), "tenant_scoped": tenant}))
+    return _ctx.cache_blocks(stable, dynamic)
+
+
 def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None,
-                 is_voice_note=False, tenant_context_block="", tenant_id=None):
+                 is_voice_note=False, tenant_context_block="", tenant_id=None, defer_delivery=False):
     """Panggil Claude API buat generate balasan AI.
 
     `tenant_context_block` (Business Hub V2 Patch 2/6, default "") diteruskan apa adanya ke
@@ -5060,6 +5311,8 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     are always kept completely separate. tenant_id=None (Kilas Works' own conversations) maps to
     the bare phone number unchanged (see _ck's docstring) — every caller that predates
     multi-tenancy keeps working with byte-for-byte identical keys."""
+    if tenant_id is not None and not tenant_context_block:
+        tenant_context_block = _build_tenant_context_block_safe(tenant_id) or _TENANT_INCOMPLETE_PROFILE_BLOCK
     scoped_number = _ck(tenant_id, user_number)
     history = conversations.get(scoped_number)
     if history is None:
@@ -5095,15 +5348,37 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         api_content = user_message
         memory_text = user_message
 
+    history = list(history or [])
     history.append({"role": "user", "content": api_content})
     save_message_to_db(scoped_number, "customer", "user", memory_text)
 
-    system_prompt = build_customer_system_prompt(scoped_number, tenant_context_block=tenant_context_block)
+    if not image_b64 and memory_override is None:
+        exact = _exact_customer_route(user_message, history[:-1], tenant=bool(tenant_context_block))
+        if exact is not None:
+            conversations[scoped_number] = history[-20:]
+            if not defer_delivery:
+                _record_delivered_reply(scoped_number, strip_tags(exact))
+            print('[AI_CONTEXT] mode=customer route=deterministic llm_calls=0')
+            return exact
+
+    if tenant_id is None and not tenant_context_block and not image_b64 and memory_override is None:
+        exact = _exact_customer_price_query(user_message)
+        if exact is not None:
+            conversations[scoped_number] = history[-20:]
+            if not defer_delivery:
+                _record_delivered_reply(scoped_number, exact)
+            print('[AI_CONTEXT] mode=customer route=exact_catalog llm_calls=0')
+            return exact
+
+    query = _ctx.conversation_query(user_message, history[:-1])
+    system_prompt = build_focused_customer_prompt(scoped_number, query, tenant_context_block, bool(image_b64))
 
     # Coba dengan Haiku dulu (optimal untuk FAQ/reply otomatis) — KECUALI kalau ada gambar,
     # langsung Sonnet karena Haiku 3.5 gak support vision.
     model_to_use = MODEL_FAST if not image_b64 else MODEL_PRIMARY
 
+    print("[AI_MODEL] " + json.dumps({"model": model_to_use,
+        "reason": "vision" if image_b64 else "ordinary", "context_type": "tenant_customer" if tenant_id is not None else "platform_customer"}))
     try:
         if image_b64:
             raise RuntimeError("skip-haiku-vision-not-supported")
@@ -5125,8 +5400,11 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         resp.raise_for_status()
     except Exception as e:
         # Fallback ke Sonnet kalau Haiku gagal
-        print(f"Haiku request gagal ({e}), fallback ke Sonnet...")
-        model_to_use = MODEL_FALLBACK
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if not image_b64 and (isinstance(e, requests.Timeout) or (status is not None and status not in (429, 500, 502, 503, 504, 529))):
+            raise
+        print("[AI_RETRY] reason=transient_provider_failure same_model=true")
+        model_to_use = MODEL_PRIMARY if image_b64 else model_to_use
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -5146,7 +5424,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
 
     data = resp.json()
     reply_text = data["content"][0]["text"]
-    log_ai_usage("customer", model_to_use, data)
+    log_ai_usage("tenant_customer" if tenant_id is not None else "platform_customer", model_to_use, data)
 
     # Turunin balesan user tadi ke versi ringan (bukan gambar base64 mentah / instruksi internal
     # mentah) sebelum disimpen permanen ke memory in-memory (DB udah disimpen versi ringan dari awal).
@@ -5157,9 +5435,10 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     # dipakai buat mikir Claude selanjutnya persis sama kayak apa yang BENERAN dilihat customer —
     # bukan versi mentah yang masih ada tag sistemnya.
     clean_reply_for_memory = strip_tags(reply_text)
-    history.append({"role": "assistant", "content": clean_reply_for_memory})
-    conversations[scoped_number] = history[-20:]  # simpan 20 pesan terakhir aja
-    save_message_to_db(scoped_number, "customer", "assistant", clean_reply_for_memory)
+    if not defer_delivery:
+        history.append({"role": "assistant", "content": clean_reply_for_memory})
+        save_message_to_db(scoped_number, "customer", "assistant", clean_reply_for_memory)
+    conversations[scoped_number] = history[-20:]
 
     return reply_text
 
@@ -5181,9 +5460,31 @@ def send_typing_indicator(incoming_message_id):
     }
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=15)
-        print("Typing indicator response:", r.status_code, r.text)
+        print("Typing indicator response:", r.status_code)
     except Exception as e:
         print("Error kirim typing indicator:", e)
+
+
+_UNVERIFIED_SEND_CLAIM = re.compile(
+    r"(?:sudah|udah|telah)\s+(?:(?:aku|saya|kami)\s+)?(?:terkirim|dikirim|kirim(?:kan)?|diteruskan|teruskan|disampaikan|sampaikan|diforward|forward)", re.I)
+
+
+def _guard_owner_reply_without_action(text):
+    if _UNVERIFIED_SEND_CLAIM.search(text or ''):
+        return "Belum ada pengiriman baru dari perintah ini. Sebutkan customer dan pesan yang mau dikirim ya."
+    return text
+
+
+def _whatsapp_result(response):
+    try:
+        data = response.json()
+    except (ValueError, TypeError):
+        return False, "meta_invalid_response"
+    messages = data.get("messages") if isinstance(data, dict) else None
+    if response.status_code == 200 and isinstance(messages, list) and messages and messages[0].get("id"):
+        return True, None  # accepted by Meta; delivery/read require status callbacks
+    error = data.get("error", {}) if isinstance(data, dict) else {}
+    return False, f"meta_http_{response.status_code}_code_{error.get('code', 'unknown')}"
 
 
 def send_whatsapp_message(to_number, message_text):
@@ -5204,18 +5505,11 @@ def send_whatsapp_message(to_number, message_text):
     }
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=30)
-        print("Kirim WA response:", r.status_code, r.text)
-        if r.status_code == 200:
-            return True, None
-        # Coba ambil pesan error yang manusiawi dari response Meta
-        try:
-            err = r.json().get("error", {}).get("message", r.text)
-        except Exception:
-            err = r.text
-        return False, err
+        print("[WA_SEND] http_status=", r.status_code)
+        return _whatsapp_result(r)
     except Exception as e:
-        print("Error kirim WA message:", e)
-        return False, str(e)
+        print("[WA_SEND_ERROR] exception_class=" + type(e).__name__)
+        return False, "meta_transport_error"
 
 
 def send_whatsapp_template_message(to_number, template_name, language_code, params=None):
@@ -5246,17 +5540,11 @@ def send_whatsapp_template_message(to_number, template_name, language_code, para
         }]
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=30)
-        print("Kirim WA template response:", r.status_code, r.text)
-        if r.status_code == 200:
-            return True, None
-        try:
-            err = r.json().get("error", {}).get("message", r.text)
-        except Exception:
-            err = r.text
-        return False, err
+        print("[WA_SEND] http_status=", r.status_code)
+        return _whatsapp_result(r)
     except Exception as e:
-        print("Error kirim WA template message:", e)
-        return False, str(e)
+        print("[WA_TEMPLATE_ERROR] exception_class=" + type(e).__name__)
+        return False, "meta_transport_error"
 
 
 def _resolve_reengagement_template_config():
@@ -5359,13 +5647,13 @@ def send_reply_bubbles(to_number, incoming_message_id, full_reply_text):
     if not parts:
         return False, "Gak ada isi pesan buat dikirim (kosong)."
 
-    for part in parts:
+    for part_index, part in enumerate(parts):
         send_typing_indicator(incoming_message_id)
         delay = min(TYPING_DELAY_MAX_SEC, max(TYPING_DELAY_MIN_SEC, len(part) * TYPING_DELAY_PER_CHAR))
         time.sleep(delay)
         ok, err = send_whatsapp_message(to_number, part)
         if not ok:
-            return False, err
+            return False, ("partial_delivery: " + str(err)) if part_index else err
 
     return True, None
 
@@ -5383,7 +5671,7 @@ def upload_media(file_path, mime_type):
             files = {"file": (os.path.basename(file_path), f, mime_type)}
             data = {"messaging_product": "whatsapp"}
             r = requests.post(url, headers=headers, files=files, data=data, timeout=30)
-        print("Upload media response:", r.status_code, r.text)
+        print("Upload media response:", r.status_code)
         if r.status_code == 200:
             return r.json().get("id")
     except Exception as e:
@@ -5401,7 +5689,7 @@ def upload_media_bytes(raw_bytes, mime_type, filename="gambar.jpg"):
         files = {"file": (filename, io.BytesIO(raw_bytes), mime_type)}
         data = {"messaging_product": "whatsapp"}
         r = requests.post(url, headers=headers, files=files, data=data, timeout=30)
-        print("Upload media (bytes) response:", r.status_code, r.text)
+        print("Upload media (bytes) response:", r.status_code)
         if r.status_code == 200:
             return r.json().get("id")
     except Exception as e:
@@ -5429,14 +5717,8 @@ def send_whatsapp_image(to_number, media_id, caption=None):
     }
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=30)
-        print("Kirim gambar WA response:", r.status_code, r.text)
-        if r.status_code == 200:
-            return True, None
-        try:
-            err = r.json().get("error", {}).get("message", r.text)
-        except Exception:
-            err = r.text
-        return False, err
+        print("Kirim gambar WA response:", r.status_code)
+        return _whatsapp_result(r)
     except Exception as e:
         print("Error kirim gambar WA:", e)
         return False, str(e)
@@ -5481,8 +5763,8 @@ def send_qr_code(to_number):
         },
     }
     r = requests.post(url, headers=headers, json=payload, timeout=30)
-    print("Kirim QR response:", r.status_code, r.text)
-    return r.status_code == 200
+    print("Kirim QR response:", r.status_code)
+    return _whatsapp_result(r)[0]
 
 
 # Cache media_id katalog PDF yang udah diupload ke WhatsApp, biar gak upload ulang file yang SAMA
@@ -5578,26 +5860,110 @@ def send_catalog_pdf(to_number):
             },
         }
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
-        print("Kirim katalog response:", resp.status_code, resp.text)
+        print("Kirim katalog response:", resp.status_code)
         return resp
 
-    r = _do_send(media_id)
-    if r.status_code == 200:
-        return True, None
-
-    # media_id kemungkinan expired/invalid (WA kadang balikin error kode 131052/param invalid buat
-    # media_id lama) — coba upload ULANG sekali, baru kirim ulang sekali lagi sebelum nyerah.
-    fresh_media_id = get_catalog_media_id(force_refresh=True)
-    if fresh_media_id and fresh_media_id != media_id:
-        r2 = _do_send(fresh_media_id)
-        if r2.status_code == 200:
+    try:
+        r = _do_send(media_id)
+        ok, err = _whatsapp_result(r)
+        if ok:
             return True, None
-        return False, r2.text
+        # Only a definitive invalid-media error permits re-upload/retry.
+        if 'code_131052' not in str(err) and 'code_100' not in str(err):
+            return False, err
+        fresh_media_id = get_catalog_media_id(force_refresh=True)
+        if fresh_media_id and fresh_media_id != media_id:
+            return _whatsapp_result(_do_send(fresh_media_id))
+        return False, err
+    except Exception:
+        return False, "meta_transport_error"
 
-    return False, r.text
+
+def _send_once(key, action):
+    """Durable external-action ledger in messages. Unknown outcomes never auto-retry.
+
+    Successful means accepted by Meta, not delivered/read. Pending/uncertain rows need review.
+    Known failures may retry. A worker crash between acceptance and recording is uncertain.
+    """
+    if not db_enabled():
+        return action()
+    digest = hashlib.sha256(key.encode()).hexdigest()
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO messages(number, mode, role, content) "
+                "VALUES (%s, '_outbound_claim', 'system', 'pending') "
+                "ON CONFLICT (number, mode) WHERE mode IN ('_webhook_claim', '_outbound_claim') "
+                "DO UPDATE SET content = 'pending', created_at = NOW() "
+                "WHERE messages.content = 'failed' RETURNING id", (digest,))
+            claimed = cur.fetchone()
+            if not claimed:
+                cur.execute("SELECT content FROM messages WHERE number = %s AND mode = '_outbound_claim'", (digest,))
+                row = cur.fetchone()
+                return (True, None) if row and row[0] == 'accepted' else (False, 'delivery_outcome_uncertain')
+        conn.commit()  # claim durable BEFORE external side effect
+        try:
+            ok, err = action()
+            state = 'accepted' if ok else ('uncertain' if any(x in str(err).lower() for x in
+                ('transport', 'timeout', 'partial', 'uncertain')) else 'failed')
+        except Exception:
+            ok, err, state = False, 'delivery_outcome_uncertain', 'uncertain'
+        with conn.cursor() as cur:
+            cur.execute("UPDATE messages SET content = %s WHERE number = %s AND mode = '_outbound_claim'", (state, digest))
+        conn.commit()
+        return ok, err
+    finally:
+        conn.close()
 
 
-def _send_owner_notification_safe(target, text, context_label):
+def _followup_send_once(tenant_id, phone, action):
+    if tenant_id is None:
+        state = followup_state.get(phone) or {}
+    else:
+        state = _tenant_followup._get_state(tenant_id, phone) or {}
+    key = f"followup:{_ck(tenant_id, phone)}:{state.get('last_customer_msg_at')}:{state.get('followup_count', 0)}"
+    return _send_once(key, action)
+
+
+def _send_notification_with_template(target, text, tenant_id):
+    ok, err = send_whatsapp_message(target, text)
+    # Only the definitive expired-window response permits template fallback. Unknown/timeout
+    # outcomes must not trigger a second potentially duplicate send.
+    if not ok and 'code_131047' in str(err):
+        suffix = f"__TENANT_{tenant_id}" if tenant_id is not None else ""
+        name = os.environ.get("WHATSAPP_OWNER_NOTIFICATION_TEMPLATE_NAME" + suffix, "").strip()
+        language = os.environ.get("WHATSAPP_OWNER_NOTIFICATION_TEMPLATE_LANGUAGE" + suffix, "id").strip()
+        if name:
+            return send_whatsapp_template_message(target, name, language, params=[text])
+    return ok, err
+
+
+def _owner_outbound_window_error(tenant_id, phone):
+    try:
+        state = (_tenant_followup._get_state(tenant_id, phone) if tenant_id is not None
+                 else followup_state.get(phone)) or {}
+        last = state.get("last_customer_msg_at")
+        if isinstance(last, str):
+            last = datetime.fromisoformat(last.replace('Z', '+00:00'))
+        if last:
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            if _utcnow() - last >= timedelta(hours=WHATSAPP_24H_SAFETY_HOURS):
+                return "whatsapp_window_closed: kirim template yang disetujui lewat Inbox; pesan ini belum terkirim"
+    except Exception:
+        return "whatsapp_window_unavailable"
+    # Missing historical activity: Meta remains authoritative; never infer success locally.
+    return None
+
+
+def send_owner_outbound(tenant_id, phone, text, bubbles=False):
+    error = _owner_outbound_window_error(tenant_id, phone)
+    if error:
+        return False, error
+    return send_reply_bubbles(phone, None, text) if bubbles else send_whatsapp_message(phone, text)
+
+
+def _send_owner_notification_safe(target, text, context_label, dedupe_key=None, tenant_id=None):
     """Shared by notify_owner_new_message/notify_owner/notify_owner_question below — a REAL,
     confirmed production bug fix: all three used to call send_whatsapp_message(target, text) and
     discard its (success, error) return value entirely, so a delivery failure (expired token,
@@ -5607,7 +5973,7 @@ def _send_owner_notification_safe(target, text, context_label):
     the access token or full message text — only the target phone number, the failure reason
     (already token-free — see send_whatsapp_message's own contract), and which notification type
     failed, so this is safe to print to Render logs."""
-    ok, err = send_whatsapp_message(target, text)
+    ok, err = _send_once(dedupe_key, lambda: _send_notification_with_template(target, text, tenant_id)) if dedupe_key else _send_notification_with_template(target, text, tenant_id)
     if not ok:
         print(f"OWNER NOTIFICATION GAGAL ({context_label}) ke wa.me/{target}: {err}")
     return ok
@@ -5631,7 +5997,7 @@ def notify_owner_new_message(from_number, message_text, name=None, tenant_id=Non
         return False
     who = f"{name} (wa.me/{from_number})" if name else f"wa.me/{from_number}"
     text = f'💬 Customer baru chat: {who}\nPesan pertama: "{message_text}"'
-    return _send_owner_notification_safe(target, text, "new_customer")
+    return _send_owner_notification_safe(target, text, "new_customer", dedupe_key="new_customer:" + _ck(tenant_id, from_number), tenant_id=tenant_id)
 
 
 def notify_owner(from_number, reason, last_message, tenant_id=None):
@@ -5651,7 +6017,9 @@ def notify_owner(from_number, reason, last_message, tenant_id=None):
         f'Pesan terakhir: "{last_message}"\n\n'
         f"Cek & follow up langsung ke nomor itu ya."
     )
-    return _send_owner_notification_safe(target, text, f"escalation:{reason}")
+    stage = 'hot' if reason.startswith(('Lead HOT', 'LEADS PANAS')) else ('closing' if reason.startswith('Lead CLOSING') else None)
+    key = f"lead:{_ck(tenant_id, from_number)}:{stage}" if stage else None
+    return _send_owner_notification_safe(target, text, "escalation", dedupe_key=key, tenant_id=tenant_id)
 
 
 def notify_owner_question(from_number, last_message, tenant_id=None, already_pending=False):
@@ -5697,7 +6065,9 @@ def notify_owner_question(from_number, last_message, tenant_id=None, already_pen
         f"Chat aja di sini kalau mau diskusi dulu, nanti kalau udah fix jawabannya tinggal bilang "
         f'"terusin ke customer" (atau semacamnya), baru aku kirimin ke dia 👍'
     )
-    return _send_owner_notification_safe(target, text, "human_handoff")
+    key = handoff_notification_keys.get(_ck(tenant_id, from_number))
+    dedupe = f"handoff:{_ck(tenant_id, from_number)}:{key}" if key else None
+    return _send_owner_notification_safe(target, text, "human_handoff", dedupe_key=dedupe, tenant_id=tenant_id)
 
 
 def log_customer_message(to_number, message_text, sent_from="automated"):
@@ -5708,7 +6078,7 @@ def log_customer_message(to_number, message_text, sent_from="automated"):
     (2 baris buat 1 kali kirim) & bisa kebawa balik jadi konteks obrolan ke Claude API pas history
     di-reload — udah dihapus, sekarang CUMA log ke console, gak pernah nyentuh WhatsApp/database lagi."""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] → wa.me/{to_number} ({sent_from}): {message_text[:100]}...")
+    print("[OUTBOUND_AUDIT] " + json.dumps({"timestamp": timestamp, "source": sent_from, "chars": len(message_text)}))
 
 
 # ============================================================
@@ -5993,7 +6363,7 @@ def find_customers_by_name(name_query):
     norm_query = _normalize_name_key(name_query)
     matches = []
     for number, name in customer_names.items():
-        if not name:
+        if str(number).startswith("T") or not name:
             continue
         name_lower = name.lower()
         if name_query in name_lower or (norm_query and norm_query in _normalize_name_key(name)):
@@ -6024,7 +6394,7 @@ def resolve_owner_target(target_raw, active_target_fallback):
       ("not_found", target_raw, None)               -- bukan nomor & gak ada nama yang cocok
     """
     if target_raw.lower() in PRONOUN_TARGETS:
-        if active_target_fallback:
+        if active_target_fallback and not str(active_target_fallback).startswith("T"):
             name = customer_names.get(active_target_fallback, f"wa.me/{active_target_fallback}")
             return ("ok", active_target_fallback, name)
         return ("not_found", target_raw, None)
@@ -6305,6 +6675,14 @@ def verify_webhook():
 def receive_webhook():
     """Nerima pesan masuk dari WhatsApp, balas pakai AI, dan proses tag internal (leads panas /
     katalog / tanya owner / konfirmasi bayar)."""
+    _clear_active_whatsapp_channel()
+    secret = os.environ.get("WHATSAPP_APP_SECRET", "")
+    if secret:
+        expected = "sha256=" + hmac.new(secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, request.headers.get("X-Hub-Signature-256", "")):
+            return jsonify({"status": "invalid_signature"}), 403
+    elif os.environ.get("RENDER") or os.environ.get("APP_ENV") == "production":
+        return jsonify({"status": "webhook_secret_missing"}), 503
     data = request.get_json(silent=True) or {}
     # Privacy: never dump full WhatsApp payloads/chat contents into Render logs. Log only routing
     # metadata that is useful for operations; actual message text stays in the conversation DB.
@@ -6325,11 +6703,26 @@ def receive_webhook():
         print("Webhook masuk: payload metadata tidak terbaca")
 
     try:
-        result = _webhook_body_impl(data)
+        result = None
+        with _runtime_lock:
+            for entry in data.get("entry") or []:
+                for change in entry.get("changes") or []:
+                    value = change.get("value") or {}
+                    messages = value.get("messages") or [None]
+                    for message in messages:
+                        single_value = dict(value)
+                        if message is not None:
+                            single_value["messages"] = [message]
+                        single_change = dict(change, value=single_value)
+                        single_entry = dict(entry, changes=[single_change])
+                        _clear_active_whatsapp_channel()
+                        result = _webhook_body_impl(dict(data, entry=[single_entry]))
+                        if isinstance(result, tuple) and result[1] >= 400:
+                            return result
         return result if result is not None else (jsonify({"status": "ok"}), 200)
     except Exception as e:
-        print("Error processing webhook:", e)
-        return jsonify({"status": "ok"}), 200
+        print("[WEBHOOK_ERROR] exception_class=" + type(e).__name__)
+        return jsonify({"status": "processing_failed"}), 503
     finally:
         # Task 6 (multi-tenant runtime safety) — the thread-local active-WhatsApp-channel override
         # is set INSIDE _webhook_body_impl for a resolved client tenant's own channel, and worker
@@ -6369,7 +6762,8 @@ def _webhook_body_impl(data):
                 )
                 return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
         else:
-            # Flag off = pure legacy single-tenant behavior, unchanged from before this cycle.
+            if _incoming_phone_number_id and _incoming_phone_number_id != WHATSAPP_PHONE_NUMBER_ID:
+                return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
             tenant_id = None
 
         _webhook_field = changes.get("field")
@@ -6410,6 +6804,8 @@ def _webhook_body_impl(data):
                     "identitas Kilas Works."
                 )
                 return jsonify({"status": "ok", "tenant_whatsapp_channel_not_configured": True}), 200
+            if _tenant_channel["phone_number_id"] != _incoming_phone_number_id:
+                return jsonify({"status": "channel_mismatch"}), 503
             _set_active_whatsapp_channel(_tenant_channel["phone_number_id"], _tenant_channel["access_token"])
         else:
             _clear_active_whatsapp_channel()
@@ -6976,7 +7372,7 @@ def _webhook_body_impl(data):
                     # sekali, paling cepat & paling PASTI kata-katanya gak berubah.
                     if send_cmd["separator"] == ":" and send_cmd["rest"]:
                         msg_to_send = send_cmd["rest"]
-                        sent_ok, send_err = send_reply_bubbles(target_number, None, msg_to_send)
+                        sent_ok, send_err = send_owner_outbound(None, target_number, msg_to_send, bubbles=True)
 
                         if sent_ok:
                             history = conversations.get(target_number, [])
@@ -7208,13 +7604,15 @@ def _webhook_body_impl(data):
                 owner_facing = owner_facing.strip() or "Oke siap, aku terusin ya!"
                 customer_facing = customer_facing.strip()
 
-                send_reply_bubbles(from_number, incoming_message_id, owner_facing)
+                if not customer_facing:
+                    send_whatsapp_message(from_number, "Pesan untuk customer belum ada; belum ada yang dikirim.")
+                    return jsonify({"status": "ok"}), 200
 
                 if customer_facing:
                     # KIRIM DULU ke customer, baru simpen ke memory & anggap pertanyaan ini selesai
                     # kalau BENERAN sukses kekirim. Kalau gagal, biarin pending_owner_questions-nya
                     # tetep ada (jangan didelete) & kasih tau owner jelas-jelas kalau gagal.
-                    sent_ok, send_err = send_reply_bubbles(pending_customer_number, None, customer_facing)
+                    sent_ok, send_err = send_owner_outbound(None, pending_customer_number, customer_facing, bubbles=True)
 
                     if sent_ok:
                         history = conversations.get(pending_customer_number, [])
@@ -7250,6 +7648,8 @@ def _webhook_body_impl(data):
                 # genuinely NEW handoff for this same customer later starts fresh (no stale
                 # success/failure carried over from this now-resolved one).
                 handoff_notification_status.pop(_ck(tenant_id, pending_customer_number), None)
+                handoff_notification_keys.pop(_ck(tenant_id, pending_customer_number), None)
+                _save_handoff_state(_ck(tenant_id, pending_customer_number))
                 sisa = len(_pending_owner_questions_for_tenant(tenant_id))
                 if sisa:
                     send_whatsapp_message(
@@ -7258,7 +7658,7 @@ def _webhook_body_impl(data):
                     )
             else:
                 # belum ada instruksi forward -> ini masih obrolan/diskusi biasa sama owner
-                send_reply_bubbles(from_number, incoming_message_id, ai_owner_reply)
+                send_reply_bubbles(from_number, incoming_message_id, _guard_owner_reply_without_action(ai_owner_reply))
 
             return jsonify({"status": "ok"}), 200
 
@@ -7368,14 +7768,18 @@ def _webhook_body_impl(data):
                     _reason = _wa_bridge.extract_owner_command_reason(owner_text)
                     _cust_display = _matched_appt.get("customer_name") or "Customer"
                     if _record_command == "CONFIRM_APPOINTMENT":
-                        _tenant_appt_update_status_safe(_matched_appt["id"], "CONFIRMED", notes=_reason)
+                        if not _tenant_appt_update_status_safe(_matched_appt["id"], "CONFIRMED", notes=_reason, tenant_id=tenant_id):
+                            send_whatsapp_message(from_number, "Perubahan booking belum tersimpan. Coba lagi sebentar ya.")
+                            return jsonify({"status": "ok"}), 200
                         send_whatsapp_message(from_number, f"Oke, booking {_cust_display} aku confirm ya.")
                         send_whatsapp_message(
                             _matched_appt["customer_phone"],
                             f"Halo {_cust_display}, booking kamu ({_matched_appt.get('request_text') or '-'}) sudah dikonfirmasi ya. Sampai jumpa!",
                         )
                     else:
-                        _tenant_appt_update_status_safe(_matched_appt["id"], "CANCELLED", notes=_reason)
+                        if not _tenant_appt_update_status_safe(_matched_appt["id"], "CANCELLED", notes=_reason, tenant_id=tenant_id):
+                            send_whatsapp_message(from_number, "Perubahan booking belum tersimpan. Coba lagi sebentar ya.")
+                            return jsonify({"status": "ok"}), 200
                         send_whatsapp_message(from_number, f"Oke, booking {_cust_display} aku tolak ya.")
                         _decline_text = f"Maaf {_cust_display}, booking kamu belum bisa diproses"
                         _decline_text += f" ({_reason})." if _reason else "."
@@ -7397,9 +7801,11 @@ def _webhook_body_impl(data):
                     _reason = _wa_bridge.extract_owner_command_reason(owner_text)
                     _cust_display = _matched_review.get("customer_name") or "Customer"
                     _new_status = "CONFIRMED" if _record_command == "CONFIRM_PAYMENT" else "REJECTED"
-                    _tenant_payment_review_update_status_safe(
-                        _matched_review["id"], _new_status, owner_note=_reason, verified_by=_tenant_owner_phone,
-                    )
+                    if not _tenant_payment_review_update_status_safe(
+                        _matched_review["id"], _new_status, owner_note=_reason, verified_by=_tenant_owner_phone, tenant_id=tenant_id,
+                    ):
+                        send_whatsapp_message(from_number, "Status pembayaran belum berubah. Cek data lalu coba lagi ya.")
+                        return jsonify({"status": "ok"}), 200
                     _write_tenant_audit_safe(
                         tenant_id,
                         f"TENANT_PAYMENT_{_new_status}",
@@ -7459,13 +7865,17 @@ def _webhook_body_impl(data):
                     )
                 else:
                     scoped_target = _ck(tenant_id, target_customer)
-                    ok, _err = send_whatsapp_message(target_customer, customer_message)
+                    ok, _err = send_owner_outbound(tenant_id, target_customer, customer_message)
                     if ok:
                         history = conversations.get(scoped_target, [])
                         history.append({"role": "assistant", "content": customer_message})
                         conversations[scoped_target] = history[-20:]
                         save_message_to_db(scoped_target, "customer", "assistant", customer_message)
                         add_agreed_fact(scoped_target, customer_message)
+                        pending_owner_questions.pop(scoped_target, None)
+                        handoff_notification_status.pop(scoped_target, None)
+                        handoff_notification_keys.pop(scoped_target, None)
+                        _save_handoff_state(scoped_target)
                         send_whatsapp_message(from_number, f"Oke, sudah aku sampaikan ke wa.me/{target_customer}.")
                     else:
                         send_whatsapp_message(from_number, f"Gagal kirim ke wa.me/{target_customer}, coba lagi ya.")
@@ -7478,7 +7888,7 @@ def _webhook_body_impl(data):
                     image_b64=owner_image_b64, image_mime=owner_image_mime,
                     is_voice_note=owner_msg_is_voice_note,
                 )
-                send_whatsapp_message(from_number, reply_text)
+                send_whatsapp_message(from_number, _guard_owner_reply_without_action(reply_text))
             return jsonify({"status": "ok"}), 200
 
         # New-customer owner notification reliability fix — moved here, BEFORE the human-takeover
@@ -7492,7 +7902,6 @@ def _webhook_body_impl(data):
         # any other later-stage processing.
         _new_customer_scoped_key = _ck(tenant_id, from_number)
         if not _has_notified_new_customer(_new_customer_scoped_key):
-            _mark_new_customer_notified(_new_customer_scoped_key)
             _new_customer_preview_text = (
                 (message.get("text") or {}).get("body")
                 or (message.get("image") or {}).get("caption")
@@ -7506,11 +7915,12 @@ def _webhook_body_impl(data):
                 _new_customer_wa_profile_name = value.get("contacts", [{}])[0].get("profile", {}).get("name")
             except Exception:
                 _new_customer_wa_profile_name = None
-            notify_owner_new_message(
+            if notify_owner_new_message(
                 from_number, _new_customer_preview_text,
                 customer_names.get(_new_customer_scoped_key) or _new_customer_wa_profile_name,
                 tenant_id=tenant_id,
-            )
+            ) is True:
+                _mark_new_customer_notified(_new_customer_scoped_key)
 
         # Business Hub V2 — Patch 4 (client-hub/BOT_INTEGRATION_GUIDE.md): kalau tenant ini (hasil
         # resolve dari phone_number_id di atas) sedang di-human-takeover untuk nomor customer ini,
@@ -7518,6 +7928,18 @@ def _webhook_body_impl(data):
         # diketik manusia secara manual. tenant_id selalu None untuk nomor WhatsApp Kilas Works
         # sendiri, jadi baris ini tidak pernah aktif untuk traffic produksi saat ini.
         if _get_conversation_mode_safe(tenant_id, from_number) == "HUMAN_TAKEOVER":
+            # Preserve inbound history and service window while AI is silent; Inbox must see it.
+            incoming_text = ((message.get("text") or {}).get("body")
+                or (message.get("image") or {}).get("caption") or f"[{msg_type or 'pesan'}]")
+            scoped = _ck(tenant_id, from_number)
+            history = list(conversations.get(scoped) or [])
+            history.append({"role": "user", "content": incoming_text})
+            conversations[scoped] = history[-20:]
+            save_message_to_db(scoped, "customer", "user", incoming_text)
+            if tenant_id is None:
+                mark_customer_activity(from_number)
+            else:
+                _tf_mark_activity_safe(tenant_id, from_number)
             print(f"Human takeover aktif (tenant_id={tenant_id}, customer={from_number}) — AI diam, tidak membalas.")
             return jsonify({"status": "ok", "human_takeover": True}), 200
 
@@ -7674,12 +8096,12 @@ def _webhook_body_impl(data):
             # _tf_*_safe helper, so a Client Hub outage here can never break this customer's reply.
             _tf_mark_activity_safe(tenant_id, from_number)
 
-        tenant_context_block = _build_tenant_context_block_safe(tenant_id) if ENABLE_MULTI_TENANT else ""
+        tenant_context_block = _build_tenant_context_block_safe(tenant_id, _ctx.conversation_query(user_text, existing_history)) if ENABLE_MULTI_TENANT else ""
 
         ai_reply = call_claude(
             from_number, user_text, image_b64=image_b64, image_mime=image_mime,
             is_voice_note=user_msg_is_voice_note, tenant_context_block=tenant_context_block,
-            tenant_id=tenant_id,
+            tenant_id=tenant_id, defer_delivery=True,
         )
 
         # Deteksi & tangkep nama customer (kalau AI baru dapet tau dari obrolan, bukan dari profil
@@ -7694,7 +8116,7 @@ def _webhook_body_impl(data):
 
         # Deteksi tag internal SEBELUM di-strip, baru kirim versi bersih ke customer
         is_leads_panas = TAG_LEADS_PANAS in ai_reply or "[LEADS PANAS]" in ai_reply
-        needs_owner = TAG_TANYA_OWNER in ai_reply
+        needs_owner = TAG_TANYA_OWNER in ai_reply or bool(_HANDOFF_CONFIRMATION_CLAIM_PATTERN.search(ai_reply))
         wants_qr = TAG_KIRIM_QR in ai_reply
         wants_catalog = TAG_KIRIM_KATALOG in ai_reply
         payment_confirmed = TAG_SUDAH_BAYAR in ai_reply
@@ -7784,7 +8206,10 @@ def _webhook_body_impl(data):
                 # source of truth: a fresh process with an empty dict must still see this booking
                 # if it queries the DB (see appointments_repo.py / _tenant_appt_*_safe above).
                 request_text = f"{day_text}{(' jam ' + time_text) if time_text else ''}".strip() or "(waktu belum disebut)"
-                _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), request_text)
+                if not _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), request_text):
+                    tenant_meeting_requests.pop(scoped_appt_key, None)
+                    send_whatsapp_message(from_number, "Request booking belum tersimpan. Coba lagi sebentar ya.")
+                    return jsonify({"status": "ok"}), 200
                 # Gap-fix Area F — a booking REQUEST is a clear resolution signal: stop the
                 # generic tenant follow-up nudge for this customer (they're already mid-flow with
                 # the owner, same principle as Kilas Works' own _has_active_meeting_or_payment_process
@@ -7812,9 +8237,12 @@ def _webhook_body_impl(data):
                         new_time = kv.get("time") or ""
                     new_request_text = f"{new_day} {new_time}".strip()
                     if existing_db:
-                        _tenant_appt_update_reschedule_safe(existing_db["id"], new_request_text, status="RESCHEDULE_REQUESTED")
+                        _saved = _tenant_appt_update_reschedule_safe(existing_db["id"], new_request_text, status="RESCHEDULE_REQUESTED", tenant_id=tenant_id)
                     else:
-                        _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), new_request_text)
+                        _saved = _tenant_appt_create_safe(tenant_id, from_number, customer_names.get(scoped_from), new_request_text)
+                    if not _saved:
+                        send_whatsapp_message(from_number, "Perubahan jadwal belum tersimpan. Coba lagi sebentar ya.")
+                        return jsonify({"status": "ok"}), 200
                     appt_text = "Oke Kak, request reschedule-nya aku terusin ke tim buat dikonfirmasi ulang."
                     display_name = customer_names.get(scoped_from, "Customer")
                     meeting_owner_notify = (
@@ -7830,7 +8258,9 @@ def _webhook_body_impl(data):
                     if existing:
                         existing["status"] = "CANCELLED"
                     if existing_db:
-                        _tenant_appt_update_status_safe(existing_db["id"], "CANCELLED")
+                        if not _tenant_appt_update_status_safe(existing_db["id"], "CANCELLED", tenant_id=tenant_id):
+                            send_whatsapp_message(from_number, "Pembatalan belum tersimpan. Coba lagi sebentar ya.")
+                            return jsonify({"status": "ok"}), 200
                     appt_text = "Oke Kak, appointment-nya aku batalin ya. Kabari lagi kalau mau jadwal ulang."
                     display_name = customer_names.get(scoped_from, "Customer")
                     meeting_owner_notify = f"{display_name} (wa.me/{from_number}) membatalkan appointment-nya."
@@ -7949,10 +8379,12 @@ def _webhook_body_impl(data):
                         )
                     except Exception as e:
                         print(f"Decode bukti pembayaran tenant gagal (tenant_id={tenant_id}): {e}")
-                _tenant_payment_review_create_safe(
+                if not _tenant_payment_review_create_safe(
                     tenant_id, from_number, customer_names.get(scoped_from),
                     amount_detected=amount_detected, proof_file_id=proof_file_id,
-                )
+                ):
+                    send_whatsapp_message(from_number, "Bukti pembayaran belum tersimpan untuk pemeriksaan. Coba kirim lagi sebentar ya.")
+                    return jsonify({"status": "ok"}), 200
                 # Gap-fix Area F — a payment proof is a strong resolution signal, same as Kilas
                 # Works' own mark_customer_converted() call for payment_confirmed further below.
                 _tf_mark_resolved_safe(tenant_id, from_number, reason="payment_confirmed")
@@ -7992,6 +8424,9 @@ def _webhook_body_impl(data):
             or (not tenant_context_block
                 and payment_state.get(from_number, {}).get("status") not in (None, PAYMENT_STATUS_NOT_STARTED))
         )
+        if _in_active_payment_flow and not _payment_amounts_supported(clean_reply, scoped_from, is_kilas_tenant):
+            clean_reply = "Nominal pembayarannya belum bisa kupastikan. Aku cek dulu ke tim ya."
+            needs_owner = True
         if not _in_active_payment_flow:
             clean_reply = _enforce_customer_price_guardrail(
                 clean_reply, tenant_context_block, allow_kilas_works_prices=not tenant_context_block,
@@ -8004,15 +8439,20 @@ def _webhook_body_impl(data):
         # number, so this can never surface in another tenant's (or Kilas Works' own) owner
         # interface just because the same customer phone number happens to also be talking to a
         # different tenant.
-        if needs_owner and not is_leads_panas and not payment_confirmed:
+        if needs_owner:
             # Notification-spam fix: check BEFORE overwriting whether this customer already had
             # an unresolved pending question — if so, this is still the SAME active handoff (the
             # owner hasn't relayed an answer / cleared it yet via the FORWARD_MARKER path below),
             # so only the stored question text is refreshed; no second WhatsApp ping is sent. A
             # fresh entry (first time, or right after a previous one was resolved) DOES send —
             # that's a genuinely new handoff event.
-            already_pending = scoped_from in pending_owner_questions
+            already_pending = scoped_from in pending_owner_questions and handoff_notification_status.get(scoped_from) is True
+            if scoped_from not in pending_owner_questions or scoped_from not in handoff_notification_keys:
+                handoff_notification_keys[scoped_from] = incoming_message_id or hashlib.sha256(user_text.encode()).hexdigest()
             pending_owner_questions[scoped_from] = user_text
+            saved = _save_handoff_state(scoped_from, user_text, handoff_notification_status.get(scoped_from, False))
+            if db_enabled() and not saved:
+                raise RuntimeError("Handoff state could not be persisted before notification")
             _notify_result = notify_owner_question(from_number, user_text, tenant_id=tenant_id, already_pending=already_pending)
             if _notify_result is not None:
                 # A real attempt was made this turn (fresh handoff, not a repeat) — record its
@@ -8023,16 +8463,27 @@ def _webhook_body_impl(data):
             # if somehow no prior status was recorded, which fail-safes toward the honest "hasn't
             # been confirmed sent" wording rather than an unverified success claim.
             _handoff_notification_ok = handoff_notification_status.get(scoped_from, False)
+            _save_handoff_state(scoped_from, user_text, _handoff_notification_ok)
             clean_reply = _enforce_handoff_notification_truthfulness(clean_reply, True, _handoff_notification_ok)
 
         # Demo domain integration — record that the demo link was shared with this customer, so
         # the "don't repeat proactive offers" note (see build_customer_system_prompt's demo_offer_
         # note) fires on the NEXT turn. Kilas-Works-own only (tenant_context_block falsy) — see
         # demo_link_offered's own module-level comment for the tenant-safety rationale.
-        if not tenant_context_block and "demo.kilasworks.id" in clean_reply:
-            demo_link_offered.add(from_number)
-
-        send_reply_bubbles(from_number, incoming_message_id, clean_reply)
+        if is_kilas_tenant and wants_catalog:
+            catalog_ok, _catalog_error = send_catalog_pdf(from_number)
+            if not catalog_ok:
+                clean_reply = "Katalognya belum berhasil dikirim. Coba minta lagi sebentar ya."
+        if is_kilas_tenant and wants_qr:
+            if not send_qr_code(from_number):
+                clean_reply = "QR-nya belum berhasil dikirim. Pembayarannya belum berubah ya."
+        reply_ok, reply_error = send_reply_bubbles(from_number, incoming_message_id, clean_reply)
+        if reply_ok:
+            _record_delivered_reply(scoped_from, clean_reply)
+            if not tenant_context_block and "demo.kilasworks.id" in clean_reply:
+                demo_link_offered.add(from_number)
+        else:
+            print("[CUSTOMER_REPLY_FAILED] reason=" + str(reply_error))
 
         # Bug fix (Task 5/7) — QR code, katalog.pdf, DP/payment-state tracking, and the AI sales
         # engine's lead-scoring/hot-lead notifications below are ALL Kilas-Works-own features tied
@@ -8041,12 +8492,6 @@ def _webhook_body_impl(data):
         # rather than half-built, so a resolved CLIENT tenant's customer can never receive Kilas
         # Works' own QR/catalog/sales-engine notifications.
         if is_kilas_tenant:
-            if wants_qr:
-                send_qr_code(from_number)
-
-            if wants_catalog:
-                send_catalog_pdf(from_number)
-
             if payment_confirmed:
                 mark_customer_converted(from_number)  # stop follow-up otomatis
                 pay_state = get_or_create_payment_state(from_number)
@@ -8081,10 +8526,11 @@ def _webhook_body_impl(data):
         # early-return (see new_customer_notified's own module-level docstring) — this is no
         # longer duplicated here.
 
-        if is_leads_panas:
-            notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text, tenant_id=tenant_id)
-        elif payment_confirmed:
-            notify_owner(
+        _lead_notification_ok = False
+        if is_leads_panas and not payment_confirmed:
+            _lead_notification_ok = notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text, tenant_id=tenant_id) is True
+        if payment_confirmed:
+            _lead_notification_ok = notify_owner(
                 from_number,
                 "Customer kirim bukti transfer (PENDING_VERIFICATION) — mohon verifikasi pembayaran manual",
                 user_text, tenant_id=tenant_id,
@@ -8113,18 +8559,16 @@ def _webhook_body_impl(data):
             if wants_catalog or bool(meeting_pref_match) or is_leads_panas or bool(payment_dp_unclear_match):
                 hot_state = bump_lead_stage(from_number, LEAD_STAGE_HOT)
                 if hot_state["stage"] == LEAD_STAGE_HOT and not hot_state["notified_hot"] and not is_leads_panas:
-                    hot_state["notified_hot"] = True
-                    notify_owner(from_number, "Lead HOT — mulai nanya harga/katalog/meeting, kemungkinan siap lanjut", user_text)
+                    hot_state["notified_hot"] = notify_owner(from_number, "Lead HOT — mulai nanya harga/katalog/meeting, kemungkinan siap lanjut", user_text) is True
                 elif is_leads_panas:
-                    hot_state["notified_hot"] = True  # udah dinotify lewat jalur LEADS_PANAS di atas
+                    hot_state["notified_hot"] = _lead_notification_ok is True
             if give_payment_info or payment_confirmed or meeting_slot_confirmed:
                 closing_state = bump_lead_stage(from_number, LEAD_STAGE_CLOSING)
                 if closing_state["stage"] == LEAD_STAGE_CLOSING and not closing_state["notified_closing"]:
-                    closing_state["notified_closing"] = True
                     if give_payment_info and not payment_confirmed and not meeting_slot_confirmed:
                         # payment_confirmed & meeting_slot_confirmed udah punya notify spesifik sendiri di
                         # atas — cuma give_payment_info doang yang belum ada notify sebelumnya.
-                        notify_owner(from_number, "Lead CLOSING — udah dikasih info rekening, tunggu bukti transfer", user_text)
+                        closing_state["notified_closing"] = notify_owner(from_number, "Lead CLOSING — udah dikasih info rekening, tunggu bukti transfer", user_text) is True
 
     return jsonify({"status": "ok"}), 200
 
@@ -8416,6 +8860,9 @@ def run_followups():
 
     for number in due_numbers:
         try:
+            if str(number).startswith("T") or _get_conversation_mode_safe(None, number) == "HUMAN_TAKEOVER":
+                results.append({"number": number, "status": "skipped", "reason": "human_takeover_or_wrong_scope"})
+                continue
             # Minta AI generate follow-up yang PERSONAL berdasarkan history & fakta yang udah
             # disepakati customer ini (pakai infra yang sama kayak balasan biasa), bukan template
             # generik — biar kerasa natural, bukan kayak broadcast otomatis.
@@ -8429,13 +8876,14 @@ def run_followups():
                 "atau ditanyain, aku bantu ya.' Sapa natural & singkat, TANPA emoji, TANPA muji "
                 "berlebihan, TANPA push/maksa.)"
             )
-            ai_reply = call_claude(number, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]")
+            ai_reply = call_claude(number, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]", defer_delivery=True)
             clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
             clean_reply = _enforce_customer_price_guardrail(
                 clean_reply, tenant_context_block=None, allow_kilas_works_prices=True,
             )
-            sent_ok, send_err = send_reply_bubbles(number, None, clean_reply)
+            sent_ok, send_err = _followup_send_once(None, number, lambda: send_reply_bubbles(number, None, clean_reply))
             if sent_ok:
+                _record_delivered_reply(number, clean_reply)
                 record_followup_sent(number)
                 log_customer_message(number, clean_reply, sent_from="auto_followup")
                 results.append({"number": number, "status": "sent"})
@@ -8547,7 +8995,7 @@ def run_tenant_followups():
                     )
                     ai_reply = call_claude(
                         customer_phone, nudge_instruction, memory_override="[FOLLOW-UP OTOMATIS SISTEM]",
-                        tenant_id=tenant_id, tenant_context_block=tenant_context_block,
+                        tenant_id=tenant_id, tenant_context_block=tenant_context_block, defer_delivery=True,
                     )
                     clean_reply = strip_tags(TAG_NAMA_PATTERN.sub("", ai_reply))
                     # Tenant follow-up nudge — same universal guardrail as every other
@@ -8555,8 +9003,9 @@ def run_tenant_followups():
                     # docstring): a follow-up nudge is never part of an active checkout, so this
                     # runs unconditionally here (no payment-flow exemption needed for a follow-up).
                     clean_reply = _enforce_customer_price_guardrail(clean_reply, tenant_context_block)
-                    sent_ok, send_err = send_reply_bubbles(customer_phone, None, clean_reply)
+                    sent_ok, send_err = _followup_send_once(tenant_id, customer_phone, lambda: send_reply_bubbles(customer_phone, None, clean_reply))
                     if sent_ok:
+                        _record_delivered_reply(_ck(tenant_id, customer_phone), clean_reply)
                         _tenant_followup.record_followup_sent(tenant_id, customer_phone)
                         sent_count += 1
                         results.append({"tenant_id": tenant_id, "customer": customer_phone, "status": "sent"})
@@ -8598,7 +9047,7 @@ def run_tenant_followups():
                             continue
 
                         _set_active_whatsapp_channel(channel["phone_number_id"], channel["access_token"])
-                        sent_ok, send_err = send_whatsapp_template_message(customer_phone, template_name, language_code)
+                        sent_ok, send_err = _followup_send_once(tenant_id, customer_phone, lambda: send_whatsapp_template_message(customer_phone, template_name, language_code))
                         if sent_ok:
                             _tenant_followup.record_followup_sent(tenant_id, customer_phone)
                             sent_count += 1
@@ -9295,6 +9744,7 @@ print(
     f"openai_api_key_present={bool((OPENAI_API_KEY or '').strip())}"
 )
 init_db()
+_restore_handoff_state()
 customer_names.update(load_all_customer_names_from_db())
 agreed_facts.update(load_all_customer_facts_from_db())
 followup_state.update(load_all_followup_state_from_db())

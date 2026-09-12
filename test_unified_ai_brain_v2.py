@@ -144,8 +144,8 @@ def test_helpful_knowledge_mode_present():
     normalized = " ".join(core.split())  # collapse line-wrapping before substring checks
     assert "di luar keahlian saya" in normalized
     idx = normalized.find("di luar keahlian saya")
-    preceding = normalized[max(0, idx - 60):idx]
-    assert "JANGAN" in preceding
+    preceding = normalized[max(0, idx - 300):idx]
+    assert "DILARANG KERAS pakai kalimat kaku/robotic" in preceding
     print("test_helpful_knowledge_mode_present OK")
 
 

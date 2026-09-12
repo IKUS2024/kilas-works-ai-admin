@@ -204,7 +204,7 @@ def test_pro_tenant_owner_query_scoped_to_own_customers_only():
     captured = []
 
     def fake_post(url, headers=None, json=None, timeout=None):
-        captured.append(json["system"])
+        captured.append("\n".join(b["text"] for b in json["system"]) if isinstance(json["system"], list) else json["system"])
         resp = MagicMock()
         resp.raise_for_status.return_value = None
         resp.json.return_value = {"content": [{"text": "Ada 1 customer aktif."}]}
@@ -305,7 +305,7 @@ def test_pro_tenant_appointment_request_uses_own_business_hours_and_notifies_own
     captured_prompts = []
 
     def fake_post(url, headers=None, json=None, timeout=None):
-        captured_prompts.append(json["system"])
+        captured_prompts.append("\n".join(b["text"] for b in json["system"]) if isinstance(json["system"], list) else json["system"])
         resp = MagicMock()
         resp.raise_for_status.return_value = None
         resp.json.return_value = {
@@ -490,7 +490,7 @@ def test_channel_cleared_after_exception_mid_webhook():
             data=json.dumps(_text_payload("62899555030", "halo", phone_number_id="pnid-t6-a")),
             content_type="application/json",
         )
-    assert resp.status_code == 200, "webhook must still return a clean 200 even on internal exception"
+    assert resp.status_code == 503, "Internal processing failure must not be falsely acknowledged as success"
     assert appmod._active_whatsapp_phone_number_id() == appmod.WHATSAPP_PHONE_NUMBER_ID, (
         "the tenant channel must be cleared even though the request raised mid-processing"
     )
@@ -828,7 +828,8 @@ def test_render_warns_when_client_hub_available_but_multi_tenant_disabled():
         [sys.executable, "-c", "import app"],
         cwd=repo_root, env=env, capture_output=True, text=True, timeout=30,
     )
-    assert result.returncode == 0, f"import must still succeed (warning, not a hard fail): {result.stderr}"
+    assert result.returncode != 0, "Production without durable DB must fail closed"
+    assert "Production requires DATABASE_URL" in result.stderr
     combined = result.stdout + result.stderr
     assert "ENABLE_MULTI_TENANT" in combined, (
         "must warn by name when Client Hub is available but ENABLE_MULTI_TENANT is off on Render"
@@ -855,7 +856,10 @@ def test_render_no_warning_when_multi_tenant_already_enabled():
         [sys.executable, "-c", "import app"],
         cwd=repo_root, env=env, capture_output=True, text=True, timeout=30,
     )
-    assert result.returncode == 0, result.stderr
+    assert result.returncode != 0, "Unsafe multi-tenant infrastructure must fail startup"
+    assert "Unsafe multi-tenant startup" in result.stderr
+    assert "webhook_signature_secret_required" in result.stderr
+    assert "single_bot_worker_and_replica_must_be_confirmed" in result.stderr
     combined = result.stdout + result.stderr
     assert "SINGLE-TENANT-ONLY" not in combined, "must not warn when multi-tenant mode is already on"
     print("test_render_no_warning_when_multi_tenant_already_enabled OK")

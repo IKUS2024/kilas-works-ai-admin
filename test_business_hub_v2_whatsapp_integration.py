@@ -205,7 +205,12 @@ def test_multi_tenant_off_kilas_works_customer_flow_unchanged():
         resp = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
 
     assert resp.status_code == 200
-    # flag is off -> tenant_context_block must be empty even though a real tenant matched
+    # A foreign channel must be ignored while multi-tenant is disabled.
+    assert captured == {}, "Foreign channel reached the platform AI"
+    payload = _text_payload("628999111111", "bantu pilih layanan untuk usaha baru", phone_number_id=appmod.WHATSAPP_PHONE_NUMBER_ID)
+    with patch.object(appmod, "call_claude", side_effect=fake_call_claude), patch.object(appmod, "send_reply_bubbles", return_value=(True, None)):
+        resp = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
+    assert resp.status_code == 200
     assert captured.get("tenant_context_block") == "", captured
     print("test_multi_tenant_off_kilas_works_customer_flow_unchanged OK")
 
@@ -427,7 +432,8 @@ def test_owner_bridge_disabled_when_flag_off_falls_through_to_normal_owner_path(
             content_type="application/json",
         )
     assert resp.status_code == 200
-    assert mock_call.called, "with the flag off, this must fall through to the normal customer AI path"
+    mock_call.assert_not_called()
+    mock_send.assert_not_called()  # foreign channel must never fall through to platform
     print("test_owner_bridge_disabled_when_flag_off_falls_through_to_normal_owner_path OK")
 
 
@@ -468,7 +474,7 @@ def test_owner_bridge_query_answers_from_open_projects_summary():
 
     assert resp.status_code == 200
     assert captured_requests, "owner query must actually call the AI"
-    assert "Video Rina" in captured_requests[0]["system"], "this tenant's own open project must reach the model's context"
+    assert "Video Rina" in "\n".join(b["text"] for b in captured_requests[0]["system"]), "this tenant's own open project must reach the model's context"
     assert sent, "owner query should get a direct reply"
     assert "Video Rina" in sent[0][1]
     print("test_owner_bridge_query_answers_from_open_projects_summary OK")

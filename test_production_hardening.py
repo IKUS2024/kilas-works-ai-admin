@@ -44,7 +44,7 @@ def fake_post(url, headers=None, json=None, timeout=None):
     return resp
 
 with patch.object(appmod.requests, "post", side_effect=fake_post):
-    appmod.call_claude("628999900001", "halo")
+    appmod.call_claude("628999900001", "bantu pilih layanan untuk usaha baru")
 assert captured_models == ["claude-haiku-4-5-20251001"], captured_models
 print("Test 2 (call_claude pakai MODEL_FAST utk teks biasa) OK")
 

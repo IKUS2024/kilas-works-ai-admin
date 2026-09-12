@@ -251,7 +251,8 @@ def test_human_takeover_silences_ai_for_kilas_customer():
         resp = client.post("/webhook", data=json.dumps(payload), content_type="application/json")
     assert resp.status_code == 200
     mock_claude.assert_not_called()
-    mock_post.assert_not_called()
+    assert all(c.kwargs.get("json", {}).get("to") == appmod.OWNER_WHATSAPP_NUMBER
+               for c in mock_post.call_args_list), "Only owner notifications allowed; no customer reply or typing during takeover"
     print("test_human_takeover_silences_ai_for_kilas_customer OK")
 
 

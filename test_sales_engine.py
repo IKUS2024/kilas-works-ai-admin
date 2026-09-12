@@ -189,7 +189,8 @@ def test_followup_nudge_is_contextual_not_generic():
     }
     captured = {}
 
-    def fake_call_claude(num, text, memory_override=None):
+    def fake_call_claude(num, text, memory_override=None, defer_delivery=False):
+        assert defer_delivery is True, "Cron must not persist an unsent draft"
         captured["instruction"] = text
         return "Halo Kak Yutha, kemarin sempat tanya soal Content Growth, ada yang mau dibandingin lagi?"
 
