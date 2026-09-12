@@ -76,11 +76,11 @@ def resolve_tenant_id_by_whatsapp_phone_number_id(whatsapp_phone_number_id):
     have its config consumed by the live bot."""
     if not whatsapp_phone_number_id:
         return None
-    row = db.query_one(
-        "SELECT id FROM businesses WHERE whatsapp_phone_number_id = ? AND status = 'ACTIVE'",
+    rows = db.query_all(
+        "SELECT id FROM businesses WHERE whatsapp_phone_number_id = ? AND status = 'ACTIVE' LIMIT 2",
         (whatsapp_phone_number_id,),
     )
-    return row["id"] if row else None
+    return rows[0]["id"] if len(rows) == 1 else None
 
 
 def get_trusted_owner_phone(tenant_id):
@@ -177,7 +177,8 @@ def get_tenant_whatsapp_channel(tenant_id):
     if not config:
         return None
     phone_number_id = config.get("phone_number_id")
-    if not phone_number_id:
+    if (not phone_number_id or config.get("connection_status") != "CONNECTED"
+            or phone_number_id != business.get("whatsapp_phone_number_id")):
         return None
     # Task 8 — credentials_reference is now OPTIONAL: absent/empty means this tenant shares Kilas
     # Works' own default server-side access value (see app.py's _get_tenant_whatsapp_channel_safe

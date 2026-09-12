@@ -401,7 +401,7 @@ def query_one(query, params=()):
             retryable = _is_retryable_postgres_connection_error(e)
             if retryable:
                 _discard_cached_connection()
-            if attempt == 0 and retryable:
+            if attempt == 0 and retryable and query.lstrip().upper().startswith("SELECT "):
                 continue
             raise
 

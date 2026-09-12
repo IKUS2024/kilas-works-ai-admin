@@ -18,7 +18,7 @@ Run locally against Postgres instead of SQLite:
 """
 import os
 
-from flask import Flask, redirect, url_for, session, request, abort, current_app, send_file
+from flask import Flask, render_template, redirect, url_for, session, request, abort, current_app, send_file
 
 import db
 import security
@@ -125,6 +125,10 @@ def create_app():
 
     # Make csrf_token() callable from any Jinja template without every route needing to pass it.
     app.jinja_env.globals["csrf_token"] = security.get_csrf_token
+
+    @app.errorhandler(413)
+    def upload_too_large(error):
+        return render_template("upload_too_large.html"), 413
 
     @app.after_request
     def _set_security_headers(response):

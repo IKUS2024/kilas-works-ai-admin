@@ -128,6 +128,11 @@ def dashboard():
                 "payment": payment,
                 "payment_review_status": payment_review_status,
             })
+    for p in projects_repo.list_businessless_projects_for_user(user["id"]):
+        invoice, payment = payment_service.get_latest_payment_for_project(p["id"])
+        my_projects.append({**p, "business_name": "Pesanan pribadi", "invoice": invoice,
+            "payment": payment, "payment_review_status": payment_service.derive_review_status(payment) if payment else None,
+            "latest_quotation": quotation_service.get_latest_quotation_for_project(p["id"])})
     return render_template(
         "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects
     )

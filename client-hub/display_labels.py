@@ -42,9 +42,9 @@ FIELD_LABELS = {
 }
 
 PACKAGE_LABELS = {
-    "NONE": "Belum pakai AI Admin",
-    "AI_ADMIN_BASIC": "AI Admin Basic",
-    "AI_ADMIN_PRO": "AI Admin Pro",
+    "NONE": "Belum pakai Kilas Brain",
+    "AI_ADMIN_BASIC": "Kilas Brain Basic",
+    "AI_ADMIN_PRO": "Kilas Brain Pro",
 }
 
 BUSINESS_STATUS_LABELS = {
@@ -193,7 +193,7 @@ def humanize_missing_fields(fields):
 def missing_fields_sentence(fields):
     """Natural full-sentence Indonesian for a missing-required-fields warning, replacing a bare
     comma-separated list of raw/label field names. E.g. ["Bahasa utama", "Sapaan untuk pelanggan"]
-    -> "Lengkapi Bahasa utama dan Sapaan untuk pelanggan agar AI Admin dapat berkomunikasi sesuai
+    -> "Lengkapi Bahasa utama dan Sapaan untuk pelanggan agar Kilas Brain dapat berkomunikasi sesuai
     gaya bisnis ini." Falls back gracefully for 1 or 3+ items."""
     labels = humanize_missing_fields(fields)
     if not labels:
@@ -202,7 +202,7 @@ def missing_fields_sentence(fields):
         joined = labels[0]
     else:
         joined = ", ".join(labels[:-1]) + f" dan {labels[-1]}"
-    return f"Lengkapi {joined} agar AI Admin dapat berkomunikasi sesuai gaya bisnis ini."
+    return f"Lengkapi {joined} agar Kilas Brain dapat berkomunikasi sesuai gaya bisnis ini."
 
 
 def humanize_package(code):
@@ -343,6 +343,7 @@ def register_jinja_filters(app):
     `{{ business.package|humanize_package }}` instead of a raw `{{ business.package }}`, and
     `{{ a.action|humanize_audit_action }}` instead of `{{ a.action }}`."""
     app.jinja_env.filters["humanize_field"] = humanize_field
+    app.jinja_env.filters["missing_fields_sentence"] = missing_fields_sentence
     app.jinja_env.filters["humanize_package"] = humanize_package
     app.jinja_env.filters["humanize_status"] = humanize_status
     app.jinja_env.filters["humanize_tone"] = humanize_tone

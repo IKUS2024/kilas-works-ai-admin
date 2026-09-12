@@ -88,6 +88,13 @@ def list_projects_for_business(business_id):
     return db.query_all("SELECT * FROM projects WHERE business_id = ? ORDER BY created_at DESC", (business_id,))
 
 
+def list_businessless_projects_for_user(user_id):
+    """Orders made before creating a business still belong to their authenticated creator."""
+    return db.query_all(
+        "SELECT * FROM projects WHERE business_id IS NULL AND created_by_user_id = ? "
+        "AND status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY created_at DESC", (user_id,))
+
+
 def get_unfinished_project_for_catalog_key(business_id, catalog_key, created_by_user_id=None):
     """Repeat-click / refresh safety (Client Hub purchase-flow fix, Section 6): finds an existing
     NON-TERMINAL project for this exact business+catalog_key combination, if one exists — the

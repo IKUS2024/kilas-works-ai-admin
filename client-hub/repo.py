@@ -3,6 +3,7 @@ tenant-scoping and audit logging happen in one place, consistently.
 """
 import json
 import re
+import uuid
 from datetime import datetime, timezone
 
 import db
@@ -123,7 +124,7 @@ def create_user(email, password_hash, role="CLIENT_OWNER", full_name=None):
 # ---------------------------------------------------------------------------
 
 def create_business(owner_user_id, business_name, package="AI_ADMIN_BASIC"):
-    tenant_slug = f"tenant_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+    tenant_slug = "tenant_" + uuid.uuid4().hex
     business_id = db.insert_returning_id(
         "INSERT INTO businesses (tenant_slug, business_name, package, status) VALUES (?, ?, ?, 'DRAFT')",
         (tenant_slug, business_name.strip(), package),

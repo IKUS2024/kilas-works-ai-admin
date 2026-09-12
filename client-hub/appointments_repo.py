@@ -121,3 +121,22 @@ def find_by_customer_name(business_id, name_fragment, statuses=OPEN_STATUSES):
             seen_customers.add(row["customer_phone"])
             matches.append(row)
     return matches
+
+
+def update_scoped(business_id, appointment_id, status=None, notes=None, request_text=None):
+    """Atomic mutation includes authorization scope in SQL, not just a prior lookup."""
+    if status is not None and status not in STATUSES:
+        raise ValueError('Invalid appointment status')
+    fields, values = [], []
+    for name, value in [('status', status), ('notes', notes), ('request_text', request_text)]:
+        if value is not None:
+            fields.append(name + ' = ?')
+            values.append(value)
+    if not fields:
+        return False
+    row = db.query_one(
+        "UPDATE tenant_appointments SET " + ', '.join(fields) +
+        ", updated_at = datetime('now') WHERE id = ? AND business_id = ? RETURNING id",
+        (*values, appointment_id, business_id),
+    )
+    return row is not None

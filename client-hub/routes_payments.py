@@ -78,6 +78,13 @@ def invoice_page(invoice_id):
         return render_template("invoice.html", business=business, invoice=invoice, payment=payment,
                                 review_status=review_status, bank=payment_service.BANK_DETAILS)
 
+    if not payment:
+        flash("Data pembayaran belum tersedia. Coba buka tagihan ini lagi sebentar.", "error")
+        return redirect(url_for("payments.invoice_page", invoice_id=invoice_id))
+    if payment["status"] not in ("PAYMENT_PENDING", "REJECTED"):
+        flash("Bukti sudah diterima atau pembayaran sudah diverifikasi. Tidak perlu mengunggah ulang.", "error")
+        return redirect(url_for("payments.invoice_page", invoice_id=invoice_id))
+
     upload = request.files.get("proof_file")
     if not upload or not upload.filename:
         flash("Pilih file bukti transfer dulu.", "error")

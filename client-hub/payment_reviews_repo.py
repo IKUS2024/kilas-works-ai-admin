@@ -48,6 +48,8 @@ def create_review(business_id, customer_phone, customer_name, amount_claimed=Non
     """Always starts PENDING_OWNER_VERIFICATION — nothing in this module is ever allowed to insert
     a row that is already CONFIRMED/REJECTED (that transition only ever happens via
     update_status(), driven by an explicit owner decision)."""
+    if proof_file_id is not None and not get_proof_file_scoped(proof_file_id, business_id):
+        raise ValueError("Payment proof does not belong to this business")
     return db.insert_returning_id(
         "INSERT INTO tenant_payment_reviews "
         "(business_id, customer_phone, customer_name, amount_claimed, amount_detected, proof_file_id, status) "
@@ -118,3 +120,16 @@ def update_status(review_id, status, owner_note=None, verified_by=None):
             "UPDATE tenant_payment_reviews SET status = ?, owner_note = ? WHERE id = ?",
             (status, owner_note, review_id),
         )
+
+
+def update_status_scoped(business_id, review_id, status, owner_note=None, verified_by=None):
+    """A review can be decided only once and only inside its business."""
+    if status not in ('CONFIRMED', 'REJECTED'):
+        raise ValueError('Invalid review decision')
+    row = db.query_one(
+        "UPDATE tenant_payment_reviews SET status = ?, owner_note = ?, verified_by = ?, "
+        "verified_at = datetime('now') WHERE id = ? AND business_id = ? "
+        "AND status = 'PENDING_OWNER_VERIFICATION' RETURNING id",
+        (status, owner_note, verified_by, review_id, business_id),
+    )
+    return row is not None
