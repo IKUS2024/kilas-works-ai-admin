@@ -2961,6 +2961,59 @@ pending_owner_questions = {}
 # whenever a handoff is resolved (see the FORWARD_MARKER relay path's .pop() calls).
 handoff_notification_status = {}
 
+# New-customer owner notification dedup — in-memory fast path ONLY, per-process. The real,
+# cross-restart/cross-worker source of truth is the persistent sentinel row in the EXISTING
+# `messages` table (see _has_notified_new_customer/_mark_new_customer_notified below) — this set
+# just avoids a DB round-trip for every message from a customer already confirmed notified within
+# this same process's lifetime. Never relied upon alone: a fresh process (restart/redeploy, or a
+# different Gunicorn worker that never saw this customer before) always falls back to the
+# persistent check, so a customer is never notified twice across a restart or between workers.
+new_customer_notified = set()
+
+
+_NEW_CUSTOMER_NOTIFY_SENTINEL_MODE = "_new_customer_notify"
+
+
+def _has_notified_new_customer(scoped_from):
+    """Persistent (survives restart/redeploy, shared across every worker) check for whether the
+    owner has ALREADY been notified about this customer's first-ever message — reuses the
+    EXISTING `messages` table (see save_message_to_db/load_recent_messages_from_db) with a
+    dedicated sentinel `mode` value that can never collide with real conversation history (which
+    is always queried filtered to mode="customer" or mode="owner" — see call sites elsewhere in
+    this file). No new table/migration needed. Checks the in-memory set first (fast path, no DB
+    round-trip for a customer already confirmed within this same process); falls back to a real
+    DB query otherwise, which is what makes this safe across a restart or a different worker
+    process that never saw this customer in memory at all. If the DB itself isn't configured
+    (db_enabled() False — e.g. local/dev), falls back to the in-memory set alone (best effort,
+    matches this whole file's existing "DB optional, bot still works" pattern)."""
+    if scoped_from in new_customer_notified:
+        return True
+    if not db_enabled():
+        return False
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT 1 FROM messages WHERE number = %s AND mode = %s LIMIT 1",
+            (scoped_from, _NEW_CUSTOMER_NOTIFY_SENTINEL_MODE),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return row is not None
+    except Exception as e:
+        print(f"Cek status new-customer-notified gagal ({e}) — fallback ke status in-memory aja.")
+        return False
+
+
+def _mark_new_customer_notified(scoped_from):
+    """Persists the "owner already notified about this customer" marker — see
+    _has_notified_new_customer's docstring for the full rationale. Always updates the in-memory
+    fast-path set too; if the DB write itself fails, the in-memory set still protects THIS process
+    against a duplicate for the rest of its lifetime (graceful degradation, never raises)."""
+    new_customer_notified.add(scoped_from)
+    save_message_to_db(scoped_from, _NEW_CUSTOMER_NOTIFY_SENTINEL_MODE, "system", "notified")
+
 
 def _pending_owner_questions_for_tenant(tenant_id):
     """Task 5 — this tenant's (or, for tenant_id=None, Kilas Works' own) slice of
@@ -5574,10 +5627,11 @@ def notify_owner_new_message(from_number, message_text, name=None, tenant_id=Non
     every pre-multi-tenant caller sending to Kilas Works' own OWNER_WHATSAPP_NUMBER unchanged."""
     target = _get_tenant_owner_notify_target_safe(tenant_id)
     if not target:
-        return
+        print(f"OWNER NOTIFICATION DILEWATI (new_customer, tenant_id={tenant_id}): tidak ada target owner terkonfigurasi")
+        return False
     who = f"{name} (wa.me/{from_number})" if name else f"wa.me/{from_number}"
     text = f'💬 Customer baru chat: {who}\nPesan pertama: "{message_text}"'
-    _send_owner_notification_safe(target, text, "new_customer")
+    return _send_owner_notification_safe(target, text, "new_customer")
 
 
 def notify_owner(from_number, reason, last_message, tenant_id=None):
@@ -5589,14 +5643,15 @@ def notify_owner(from_number, reason, last_message, tenant_id=None):
     escalation goes to THAT tenant's own owner, never to Kilas Works' own platform owner."""
     target = _get_tenant_owner_notify_target_safe(tenant_id)
     if not target:
-        return
+        print(f"OWNER NOTIFICATION DILEWATI (escalation:{reason}, tenant_id={tenant_id}): tidak ada target owner terkonfigurasi")
+        return False
     text = (
         f"🔔 {reason}\n\n"
         f"Dari: wa.me/{from_number}\n"
         f'Pesan terakhir: "{last_message}"\n\n'
         f"Cek & follow up langsung ke nomor itu ya."
     )
-    _send_owner_notification_safe(target, text, f"escalation:{reason}")
+    return _send_owner_notification_safe(target, text, f"escalation:{reason}")
 
 
 def notify_owner_question(from_number, last_message, tenant_id=None, already_pending=False):
@@ -5631,6 +5686,7 @@ def notify_owner_question(from_number, last_message, tenant_id=None, already_pen
     last known result from handoff_notification_status instead of treating this as a failure)."""
     target = _get_tenant_owner_notify_target_safe(tenant_id)
     if not target:
+        print(f"OWNER NOTIFICATION DILEWATI (human_handoff, tenant_id={tenant_id}): tidak ada target owner terkonfigurasi")
         return False
     if already_pending:
         return None
@@ -7425,6 +7481,37 @@ def _webhook_body_impl(data):
                 send_whatsapp_message(from_number, reply_text)
             return jsonify({"status": "ok"}), 200
 
+        # New-customer owner notification reliability fix — moved here, BEFORE the human-takeover
+        # early-return right below, so a brand-new customer's very first message ALWAYS notifies
+        # the owner regardless of whether the AI itself goes on to reply (genuine takeover, or the
+        # fail-safe HUMAN_TAKEOVER default on a DB error — see _has_notified_new_customer's own
+        # module-level docstring for the full rationale, including cross-restart/cross-worker
+        # persistence). This runs BEFORE user_text's own type-specific extraction further down
+        # (voice transcription, etc.), so a safe, independent preview is built here instead — good
+        # enough for "which customer/what did they send", never blocking on a transcription or
+        # any other later-stage processing.
+        _new_customer_scoped_key = _ck(tenant_id, from_number)
+        if not _has_notified_new_customer(_new_customer_scoped_key):
+            _mark_new_customer_notified(_new_customer_scoped_key)
+            _new_customer_preview_text = (
+                (message.get("text") or {}).get("body")
+                or (message.get("image") or {}).get("caption")
+                or f"[{msg_type or 'pesan'}]"
+            )
+            # customer_names isn't populated from the WhatsApp contact profile until later in this
+            # function (only reached if the AI actually proceeds past the human-takeover check
+            # below) — extracted independently here, same source/logic, so the name is still
+            # available even when this notification fires before that point is ever reached.
+            try:
+                _new_customer_wa_profile_name = value.get("contacts", [{}])[0].get("profile", {}).get("name")
+            except Exception:
+                _new_customer_wa_profile_name = None
+            notify_owner_new_message(
+                from_number, _new_customer_preview_text,
+                customer_names.get(_new_customer_scoped_key) or _new_customer_wa_profile_name,
+                tenant_id=tenant_id,
+            )
+
         # Business Hub V2 — Patch 4 (client-hub/BOT_INTEGRATION_GUIDE.md): kalau tenant ini (hasil
         # resolve dari phone_number_id di atas) sedang di-human-takeover untuk nomor customer ini,
         # AI TIDAK PERNAH balas apapun — diam total, supaya tidak tabrakan dengan pesan yang lagi
@@ -7990,13 +8077,9 @@ def _webhook_body_impl(data):
             # always False here since that branch above already claimed the True case).
             _tf_mark_resolved_safe(tenant_id, from_number, reason="customer_requested_stop")
 
-        # Notifikasi ke owner SEKALI aja pas ada customer BARU yang pertama kali chat (biar owner
-        # tau siapa aja yang chat, tanpa banjir notif tiap pesan dari customer yang sama). Bug fix
-        # (Task 6) — routed via tenant_id: a resolved CLIENT tenant's own new-customer/escalation
-        # notification goes to THAT business's own trusted_owner_phone, never to Kilas Works' own
-        # platform owner (see notify_owner*'s docstrings / _get_tenant_owner_notify_target_safe).
-        if is_new_customer:
-            notify_owner_new_message(from_number, user_text, customer_names.get(scoped_from), tenant_id=tenant_id)
+        # New-customer owner notification now happens earlier, before the human-takeover
+        # early-return (see new_customer_notified's own module-level docstring) — this is no
+        # longer duplicated here.
 
         if is_leads_panas:
             notify_owner(from_number, "LEADS PANAS — ada yang serius mau booking!", user_text, tenant_id=tenant_id)
