@@ -3,6 +3,7 @@
 {% macro service_card(row) %}
 <fieldset class="knowledge-card">
   <legend>Produk / layanan</legend>
+  <button type="button" class="btn secondary" data-assist-scope="services">✨ Bantu Rapikan</button>
   <input type="hidden" name="services_id" value="{{ row.id or '' }}">
   {% if row.raw %}<details><summary>Lihat catatan yang saat ini digunakan</summary><p class="knowledge-old">{{ row.raw }}</p></details>
   <p class="muted">Jika kamu mengubah kartu ini, isi kartu akan menjadi informasi terbaru. Versi sebelumnya tetap disimpan.</p>{% endif %}
@@ -16,6 +17,7 @@
 {% macro faq_card(row) %}
 <fieldset class="knowledge-card">
   <legend>Pertanyaan customer</legend>
+  <button type="button" class="btn secondary" data-assist-scope="faqs">✨ Bantu Jawab</button>
   <input type="hidden" name="faqs_id" value="{{ row.id or '' }}">
   {% if row.raw %}<details><summary>Lihat catatan yang saat ini digunakan</summary><p class="knowledge-old">{{ row.raw }}</p></details>{% endif %}
   <label>Pertanyaan yang sering ditanyakan<textarea name="faqs_question" maxlength="4000" rows="2" placeholder="Contoh: Apakah bisa diantar?">{{ row.question or '' }}</textarea></label>
@@ -32,11 +34,13 @@
 .knowledge-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
 .knowledge-page textarea,.knowledge-page input,.knowledge-page select {width:100%;min-width:0;max-width:100%;}
 .knowledge-page textarea {min-height:64px;resize:vertical;}
+.knowledge-assist-panel {overflow-wrap:anywhere;border-left:3px solid var(--orange);padding:12px;margin:12px 0;}
+.knowledge-assist-panel pre {white-space:pre-wrap;font:inherit;}
 .knowledge-old {white-space:pre-wrap;overflow-wrap:anywhere;}
 .knowledge-actions {display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
 @media(max-width:640px){.knowledge-grid{grid-template-columns:1fr;}.knowledge-card{padding:12px;}}
 </style>
-<div class="knowledge-page">
+<div class="knowledge-page" data-assist-url="{{ url_for('client.knowledge_assist_draft', business_id=business.id) }}">
 <h1>Ajari Kilas Brain tentang bisnismu</h1>
 <p>{{ business.business_name }} — Ceritakan informasi yang benar agar Kilas Brain bisa membantu customer dengan lebih tepat. Tidak perlu mengulang pendaftaran.</p>
 <div class="card" aria-label="Kelengkapan pengetahuan bisnis">
@@ -47,12 +51,14 @@
   {% else %}<p>Informasi dasar sudah lengkap. Pastikan tetap sesuai dengan kondisi bisnismu.</p>{% endif %}
   <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan operasional</a>
 </div>
+<p class="muted">Bantuan AI bersifat opsional dan hanya berjalan saat tombol ditekan. Periksa draft; hasil baru tersimpan setelah kamu menekan “Simpan pengetahuan bisnis”.</p>
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="knowledge_form" value="v2">
   <input type="hidden" name="knowledge_revision" value="{{ setup.revision }}">
   <section class="card knowledge-section" data-knowledge-section="business" id="tentang-bisnis">
     <h2>1. Tentang bisnis</h2>
+    <button type="button" class="btn secondary" data-assist-scope="business">✨ Bantu Isi dengan AI</button>
     <label>Deskripsi bisnis dan aturan penting<textarea name="short_description" maxlength="4000" rows="5" placeholder="Apa yang kamu tawarkan, siapa customermu, dan aturan yang perlu diketahui?">{{ profile.short_description or '' }}</textarea></label>
     <p class="muted">Boleh sertakan tipe customer, batasan layanan, dan hal yang perlu dikonfirmasi kepada tim. Jangan memasukkan password atau kunci akses.</p>
     <div class="knowledge-grid">
@@ -78,6 +84,7 @@
   </section>
   <section class="card knowledge-section" data-knowledge-section="communication">
     <h2>4. Cara Kilas Brain berkomunikasi</h2>
+    <button type="button" class="btn secondary" data-assist-scope="communication">✨ Bantu Atur Gaya Chat</button>
     <label>Gaya bicara<textarea name="tone" maxlength="4000" rows="2" placeholder="Contoh: ramah, singkat, sopan, tidak terlalu formal">{{ profile.tone or '' }}</textarea></label>
     <div class="knowledge-grid">
       <label>Bahasa utama<select name="primary_language"><option value="id" {{ 'selected' if profile.primary_language != 'en' else '' }}>Bahasa Indonesia</option><option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>Bahasa Inggris</option></select></label>
@@ -101,4 +108,5 @@ document.querySelectorAll('[data-add-knowledge]').forEach(button => {
 });
 </script>
 </div>
+<script src="{{ url_for('static', filename='knowledge_assist.js') }}" defer></script>
 {% endblock %}

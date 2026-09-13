@@ -1,4 +1,5 @@
 import uuid
+import json
 import traceback
 
 from flask import (
@@ -9,6 +10,7 @@ import inbox_media_service
 
 import ai_onboarding
 import knowledge_setup
+import knowledge_assist
 import file_utils
 import repo
 import security
@@ -412,6 +414,36 @@ def business_memory(business_id):
                            services=services_existing, faqs=faqs_existing, setup=setup,
                            readiness=knowledge_setup.readiness(profile, services_existing, faqs_existing,
                                repo.get_tenant_features(business_id) or {}, setup))
+
+
+@client_bp.route('/business/<int:business_id>/knowledge-assist', methods=['POST'])
+@security.login_required
+def knowledge_assist_draft(business_id):
+    business = _business_or_404(business_id)
+    if business['package'] == 'NONE':
+        return jsonify({'error': 'Bantuan ini tersedia untuk pengguna Kilas Brain.'}), 403
+    if request.content_length is not None and request.content_length > knowledge_assist.MAX_REQUEST_BYTES:
+        return jsonify({'error': 'Permintaan terlalu besar. Ringkas isianmu.'}), 413
+    if not request.is_json:
+        return jsonify({'error': 'Format permintaan tidak sesuai.'}), 400
+    raw_body = request.stream.read(knowledge_assist.MAX_REQUEST_BYTES + 1)
+    if len(raw_body) > knowledge_assist.MAX_REQUEST_BYTES:
+        return jsonify({'error': 'Permintaan terlalu besar. Ringkas isianmu.'}), 413
+    try:
+        payload = json.loads(raw_body)
+    except (ValueError, UnicodeError):
+        return jsonify({'error': 'Format permintaan tidak sesuai.'}), 400
+    try:
+        scope, content = knowledge_assist.build_input(business, payload)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    if not knowledge_assist.allow_click(security.current_user()['id'], business_id):
+        return jsonify({'error': 'Tunggu sebentar sebelum meminta bantuan lagi.'}), 429
+    draft, reason = knowledge_assist.generate(scope, content)
+    if reason:
+        print('KNOWLEDGE_ASSIST: ' + reason)
+        return jsonify({'error': knowledge_assist.ERROR}), 502
+    return jsonify(draft)
 
 
 @client_bp.route("/business/<int:business_id>/settings", methods=["GET", "POST"])
