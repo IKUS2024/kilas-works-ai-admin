@@ -8709,14 +8709,18 @@ def internal_platform_cs_reply():
             return jsonify({"status": "error", "reason": "human_takeover_required"}), 409
         window = _platform_inbox.freeform_window_status(phone)
     except Exception as e:
-        print(f"Platform CS reply safety check gagal ({e}) — pesan tidak dikirim.")
+        print("Platform CS reply safety check failed: takeover_state_unavailable")
         return jsonify({"status": "error", "reason": "takeover_state_unavailable"}), 503
     if not window.get("allowed"):
         return jsonify({"status": "error", "reason": window.get("reason") or "outside_24h_window"}), 409
 
     ok, err = send_whatsapp_message(phone, text)
     if not ok:
-        return jsonify({"status": "error", "reason": "whatsapp_send_failed"}), 502
+        # Only bounded provider status/code, never raw response bodies or exception text.
+        safe_error = err if isinstance(err, str) and re.fullmatch(
+            r"meta_http_[0-9]{3}_code_(?:[0-9]{1,12}|unknown)|meta_transport_error|meta_invalid_response", err
+        ) else "whatsapp_send_failed"
+        return jsonify({"status": "error", "reason": safe_error}), 502
 
     history = conversations.get(phone)
     if history is None:

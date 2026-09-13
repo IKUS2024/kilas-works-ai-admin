@@ -14,6 +14,7 @@ Business; PostgreSQL is never presented as a chat viewer.
 """
 from datetime import datetime, timezone
 import os
+import re
 import time
 from urllib.parse import urlparse
 
@@ -254,6 +255,16 @@ def send_manual_reply(customer_phone, message_text):
             remote_reason = str((resp.json() or {}).get("reason") or "").strip()
         except (ValueError, TypeError, AttributeError):
             remote_reason = ""
+        allowed_reasons = {
+            "access_denied", "client_hub_bridge_unavailable", "invalid_customer_phone",
+            "empty_message", "message_too_long", "customer_not_found", "human_takeover_required",
+            "takeover_state_unavailable", "outside_24h_window", "no_customer_inbound",
+            "whatsapp_send_failed", "meta_transport_error", "meta_invalid_response",
+        }
+        if remote_reason not in allowed_reasons and not re.fullmatch(
+            r"meta_http_[0-9]{3}_code_(?:[0-9]{1,12}|unknown)", remote_reason
+        ):
+            remote_reason = "unclassified_bridge_response"
         print(
             "Platform Inbox manual reply bridge rejected: "
             f"http={resp.status_code} reason={remote_reason or 'unknown'}"
