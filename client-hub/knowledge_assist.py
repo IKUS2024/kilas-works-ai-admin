@@ -1,6 +1,7 @@
 """Explicit-click knowledge copilot. No database writes or normalization calls."""
 import json
 import os
+import re
 import threading
 import time
 import requests
@@ -72,8 +73,20 @@ def build_input(business, payload):
     return scope, content
 
 
+def parse_model_text(raw):
+    """Accept one JSON document, optionally wrapped in one complete Markdown fence."""
+    text = raw.strip()
+    if text.startswith('```'):
+        match = re.fullmatch(r'```(?:json)?[ \t]*\r?\n(.*?)\r?\n```', text, re.DOTALL)
+        if not match:
+            raise ValueError('Invalid JSON fence')
+        text = match.group(1).strip()
+    return json.loads(text)
+
+
 def validate_result(value, scope):
-    if not isinstance(value, dict) or set(value) != {'draft_fields', 'questions', 'warnings'}:
+    if (not isinstance(value, dict) or 'draft_fields' not in value
+            or set(value) - {'draft_fields', 'questions', 'warnings'}):
         raise ValueError('Invalid result')
     fields = value['draft_fields']
     if not isinstance(fields, dict) or set(fields) - set(SCOPES[scope]):
@@ -82,9 +95,10 @@ def validate_result(value, scope):
     if 'primary_language' in fields and fields['primary_language'] not in ('id', 'en'):
         raise ValueError('Invalid language')
     for key in ('questions', 'warnings'):
-        if not isinstance(value[key], list) or len(value[key]) > 3:
+        items = value.get(key, [])
+        if not isinstance(items, list) or len(items) > 3:
             raise ValueError('Invalid result list')
-        result[key] = [text_field(item, 400) for item in value[key]]
+        result[key] = [text_field(item, 400) for item in items]
     if len(json.dumps(result, ensure_ascii=False)) > 8000: raise ValueError('Result too large')
     return result
 
@@ -124,15 +138,26 @@ def generate(scope, content):
             timeout=(5, 25), allow_redirects=False)
         if not 200 <= response.status_code < 300:
             return None, 'upstream_http_' + str(response.status_code)
-        result = response.json()
-        if result.get('stop_reason') != 'end_turn': return None, 'incomplete_result'
-        blocks = result.get('content')
-        if not isinstance(blocks, list) or len(blocks) != 1 or blocks[0].get('type') != 'text':
-            return None, 'invalid_result'
-        raw = blocks[0]['text']
-        if not isinstance(raw, str) or len(raw) > 10000: return None, 'invalid_result'
-        return validate_result(json.loads(raw), scope), None
     except requests.RequestException:
         return None, 'network_failure'
-    except (ValueError, TypeError, KeyError, AttributeError):
-        return None, 'invalid_result'
+    try:
+        result = response.json()
+    except (ValueError, TypeError):
+        return None, 'invalid_json'
+    if not isinstance(result, dict): return None, 'invalid_content_block'
+    if result.get('stop_reason') != 'end_turn': return None, 'incomplete_result'
+    blocks = result.get('content')
+    if (not isinstance(blocks, list) or len(blocks) != 1
+            or not isinstance(blocks[0], dict) or blocks[0].get('type') != 'text'):
+        return None, 'invalid_content_block'
+    raw = blocks[0].get('text')
+    if not isinstance(raw, str) or len(raw) > 10000:
+        return None, 'invalid_content_block'
+    try:
+        value = parse_model_text(raw)
+    except (ValueError, RecursionError):
+        return None, 'invalid_json'
+    try:
+        return validate_result(value, scope), None
+    except (ValueError, TypeError, KeyError):
+        return None, 'invalid_schema'
