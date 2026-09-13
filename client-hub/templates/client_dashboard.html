@@ -83,7 +83,7 @@
       {% endif %}
       <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Tinjau Bisnis</a>
       {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>{% endif %}
-      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Pengaturan operasional</a> <a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Memori Bisnis</a>{% endif %}
+      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Pengaturan operasional</a> <a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Ajari Kilas Brain</a>{% endif %}
       {% if b.package != 'NONE' and b.status == 'APPROVED' %}<a class="btn" href="{{ url_for('whatsapp.embedded_signup_start', business_id=b.id) }}">Hubungkan WhatsApp</a>{% endif %}
       {% if b.package != 'NONE' and b.status == 'ACTIVE' %}<a class="btn secondary" href="{{ url_for('client.inbox_page', business_id=b.id) }}">CS Inbox</a>{% endif %}
       <a class="btn secondary" href="{{ url_for('projects.project_list', business_id=b.id, view='all') }}">Semua Proyek</a>

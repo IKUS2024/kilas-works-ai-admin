@@ -1,24 +1,104 @@
 {% extends "base.html" %}
-{% block title %}Memori Bisnis — {{ business.business_name }}{% endblock %}
+{% block title %}Ajari Kilas Brain — {{ business.business_name }}{% endblock %}
+{% macro service_card(row) %}
+<fieldset class="knowledge-card">
+  <legend>Produk / layanan</legend>
+  <input type="hidden" name="services_id" value="{{ row.id or '' }}">
+  {% if row.raw %}<details><summary>Lihat catatan yang saat ini digunakan</summary><p class="knowledge-old">{{ row.raw }}</p></details>
+  <p class="muted">Jika kamu mengubah kartu ini, isi kartu akan menjadi informasi terbaru. Versi sebelumnya tetap disimpan.</p>{% endif %}
+  {% for key, label, hint in [('name','Nama produk / layanan','Contoh: Cuci sepatu'),('description','Deskripsi singkat','Jelaskan layanan ini'),('pricing','Harga atau ketentuan penawaran','Contoh: Rp50.000 per pasang, atau harga sesuai penawaran'),('inclusions','Yang didapat customer','Isi paket, jumlah, atau fasilitas'),('duration','Proses / perkiraan durasi','Contoh: selesai 3 hari kerja'),('notes','Catatan layanan','Batasan, syarat, atau informasi lain')] %}
+  <label>{{ label }}{% if key != 'name' %} <span class="muted">(opsional)</span>{% endif %}
+    <textarea name="services_{{ key }}" maxlength="4000" rows="2" placeholder="{{ hint }}">{{ row[key] or '' }}</textarea>
+  </label>
+  {% endfor %}
+</fieldset>
+{% endmacro %}
+{% macro faq_card(row) %}
+<fieldset class="knowledge-card">
+  <legend>Pertanyaan customer</legend>
+  <input type="hidden" name="faqs_id" value="{{ row.id or '' }}">
+  {% if row.raw %}<details><summary>Lihat catatan yang saat ini digunakan</summary><p class="knowledge-old">{{ row.raw }}</p></details>{% endif %}
+  <label>Pertanyaan yang sering ditanyakan<textarea name="faqs_question" maxlength="4000" rows="2" placeholder="Contoh: Apakah bisa diantar?">{{ row.question or '' }}</textarea></label>
+  <label>Jawaban yang benar dari bisnismu<textarea name="faqs_answer" maxlength="4000" rows="3" placeholder="Isi hanya kebijakan yang benar-benar berlaku">{{ row.answer or '' }}</textarea></label>
+  <label>Topik <span class="muted">(opsional)</span><input name="faqs_category" maxlength="4000" value="{{ row.category or '' }}" placeholder="Contoh: pengiriman"></label>
+</fieldset>
+{% endmacro %}
 {% block content %}
-<h1>Memori Bisnis</h1>
-<p>{{ business.business_name }} — Perbarui informasi yang digunakan Kilas Brain tanpa mengulang pendaftaran.</p>
-<form method="post" class="card">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label for="description">Tentang bisnis & informasi penting</label>
-<textarea id="description" name="short_description" maxlength="4000">{{ profile.short_description or '' }}</textarea>
-<label for="services">Layanan dan harga yang berlaku (satu per baris)</label>
-<textarea id="services" name="services_raw" required>{% for s in services %}{{ s.raw_input }}{{ '\n' if not loop.last else '' }}{% endfor %}</textarea>
-<p class="muted">Cantumkan harga hanya jika sudah pasti. Untuk penawaran khusus, tulis “sesuai penawaran”.</p>
-<label for="faqs">Pertanyaan & jawaban (satu per baris: pertanyaan | jawaban)</label>
-<textarea id="faqs" name="faq_raw">{% for f in faqs %}{{ f.raw_input }}{{ '\n' if not loop.last else '' }}{% endfor %}</textarea>
-<label for="tone">Gaya bicara</label><input id="tone" name="tone" value="{{ profile.tone or 'friendly' }}" maxlength="4000">
-<label for="language">Bahasa utama</label><select id="language" name="primary_language"><option value="id" {{ 'selected' if profile.primary_language != 'en' else '' }}>Indonesia</option><option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>English</option></select>
-<label for="salutation">Sapaan customer</label><input id="salutation" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}" required>
-{% for key, label in [('operating_hours','Jam operasional'),('closed_days','Hari tutup'),('address','Alamat'),('business_phone','Nomor bisnis')] %}
-<label for="{{ key }}">{{ label }}</label><input id="{{ key }}" name="{{ key }}" value="{{ profile[key] or '' }}" maxlength="4000">
-{% endfor %}
-<button class="btn" type="submit">Simpan Memori Bisnis</button>
-<a href="{{ url_for('client.dashboard') }}">Kembali</a>
+<style>
+.knowledge-page {max-width:900px;margin:auto;min-width:0;}
+.knowledge-page *, .knowledge-page *::before {box-sizing:border-box;}
+.knowledge-section,.knowledge-card {min-width:0;max-width:100%;}
+.knowledge-card {border:1px solid var(--border);border-radius:12px;padding:16px;margin:14px 0;}
+.knowledge-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.knowledge-page textarea,.knowledge-page input,.knowledge-page select {width:100%;min-width:0;max-width:100%;}
+.knowledge-page textarea {min-height:64px;resize:vertical;}
+.knowledge-old {white-space:pre-wrap;overflow-wrap:anywhere;}
+.knowledge-actions {display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+@media(max-width:640px){.knowledge-grid{grid-template-columns:1fr;}.knowledge-card{padding:12px;}}
+</style>
+<div class="knowledge-page">
+<h1>Ajari Kilas Brain tentang bisnismu</h1>
+<p>{{ business.business_name }} — Ceritakan informasi yang benar agar Kilas Brain bisa membantu customer dengan lebih tepat. Tidak perlu mengulang pendaftaran.</p>
+<div class="card" aria-label="Kelengkapan pengetahuan bisnis">
+  <h2>Kilas Brain Knowledge: {{ readiness.score }}% lengkap</h2>
+  <progress value="{{ readiness.score }}" max="100" style="width:100%;" aria-label="Kelengkapan pengetahuan">{{ readiness.score }}%</progress>
+  <p class="muted">Dihitung dari kelengkapan isian, bukan penilaian AI atau jaminan jawaban benar. Isian opsional tidak mengurangi nilai jika tidak relevan.</p>
+  {% if readiness.missing %}<ul>{% for item in readiness.missing %}<li>{{ item }}</li>{% endfor %}</ul>
+  {% else %}<p>Informasi dasar sudah lengkap. Pastikan tetap sesuai dengan kondisi bisnismu.</p>{% endif %}
+  <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan operasional</a>
+</div>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="knowledge_form" value="v2">
+  <input type="hidden" name="knowledge_revision" value="{{ setup.revision }}">
+  <section class="card knowledge-section" data-knowledge-section="business" id="tentang-bisnis">
+    <h2>1. Tentang bisnis</h2>
+    <label>Deskripsi bisnis dan aturan penting<textarea name="short_description" maxlength="4000" rows="5" placeholder="Apa yang kamu tawarkan, siapa customermu, dan aturan yang perlu diketahui?">{{ profile.short_description or '' }}</textarea></label>
+    <p class="muted">Boleh sertakan tipe customer, batasan layanan, dan hal yang perlu dikonfirmasi kepada tim. Jangan memasukkan password atau kunci akses.</p>
+    <div class="knowledge-grid">
+    {% for key,label,hint in [('category','Jenis bisnis','Contoh: laundry, toko, atau jasa foto'),('business_phone','Nomor kontak bisnis (opsional)','Nomor yang boleh dihubungi customer'),('operating_hours','Jam operasional','Contoh: Senin–Sabtu 09.00–18.00'),('closed_days','Hari tutup (opsional)','Contoh: Minggu dan hari raya')] %}
+    <label>{{ label }}<input name="{{ key }}" value="{{ profile[key] or '' }}" maxlength="4000" placeholder="{{ hint }}"></label>
+    {% endfor %}
+    </div>
+    <label>Alamat / lokasi <span class="muted">(jika customer datang ke tempatmu)</span><textarea name="address" maxlength="4000" rows="2">{{ profile.address or '' }}</textarea></label>
+  </section>
+  <section class="card knowledge-section" data-knowledge-section="services">
+    <h2>2. Produk / layanan</h2>
+    <p>Satu kartu untuk satu produk atau layanan. Tulis harga hanya jika sudah pasti; boleh memakai “sesuai penawaran”. Catatan lama tidak diubah jika kartunya tidak kamu edit.</p>
+    <div id="knowledge-services">{% for row in setup.services %}{{ service_card(row) }}{% endfor %}{% if setup.services|length < 50 %}{{ service_card({}) }}{% endif %}</div>
+    <button type="button" class="btn secondary" data-add-knowledge="services">Tambah produk / layanan</button>
+    <p class="muted">Kartu baru yang kosong tidak disimpan. Maksimal 50 layanan.</p>
+  </section>
+  <section class="card knowledge-section" data-knowledge-section="faqs">
+    <h2>3. Pertanyaan yang sering ditanyakan</h2>
+    <p>Pisahkan pertanyaan dan jawabannya. Tidak perlu format khusus.</p>
+    <div id="knowledge-faqs">{% for row in setup.faqs %}{{ faq_card(row) }}{% endfor %}{% if setup.faqs|length < 50 %}{{ faq_card({}) }}{% endif %}</div>
+    <button type="button" class="btn secondary" data-add-knowledge="faqs">Tambah pertanyaan</button>
+    <p class="muted">FAQ boleh dilengkapi nanti. Kartu baru yang kosong tidak disimpan. Maksimal 50 FAQ.</p>
+  </section>
+  <section class="card knowledge-section" data-knowledge-section="communication">
+    <h2>4. Cara Kilas Brain berkomunikasi</h2>
+    <label>Gaya bicara<textarea name="tone" maxlength="4000" rows="2" placeholder="Contoh: ramah, singkat, sopan, tidak terlalu formal">{{ profile.tone or '' }}</textarea></label>
+    <div class="knowledge-grid">
+      <label>Bahasa utama<select name="primary_language"><option value="id" {{ 'selected' if profile.primary_language != 'en' else '' }}>Bahasa Indonesia</option><option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>Bahasa Inggris</option></select></label>
+      <label>Sapaan customer<input name="customer_salutation" maxlength="4000" value="{{ profile.customer_salutation or 'Kak' }}" required placeholder="Contoh: Kak, Bapak/Ibu"></label>
+    </div>
+    <p class="muted">Ada janji yang tidak boleh dibuat atau situasi yang harus ditangani manusia? Tuliskan dalam <a href="#tentang-bisnis">deskripsi dan aturan penting</a>. Contoh: diskon harus dikonfirmasi kepada tim. Pengaturan ini tidak mengubah izin paket atau mengaktifkan fitur baru.</p>
+  </section>
+  <div class="knowledge-actions"><button class="btn" type="submit">Simpan pengetahuan bisnis</button><a href="{{ url_for('client.dashboard') }}">Kembali ke dashboard</a></div>
 </form>
+<template id="knowledge-template-services">{{ service_card({}) }}</template>
+<template id="knowledge-template-faqs">{{ faq_card({}) }}</template>
+<script>
+document.querySelectorAll('[data-add-knowledge]').forEach(button => {
+  button.addEventListener('click', () => {
+    const kind = button.dataset.addKnowledge;
+    const container = document.getElementById('knowledge-' + kind);
+    if (container.querySelectorAll('fieldset').length >= 50) return;
+    container.appendChild(document.getElementById('knowledge-template-' + kind).content.cloneNode(true));
+    container.lastElementChild.querySelector('textarea').focus();
+  });
+});
+</script>
+</div>
 {% endblock %}

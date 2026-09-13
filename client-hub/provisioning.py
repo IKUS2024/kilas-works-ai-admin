@@ -20,6 +20,7 @@ Every function here is:
 import os
 
 import repo
+import db
 import feature_flags
 
 # Canonical provisioning event names (Phase 4's exact list). These are ADDITIONAL audit_log rows
@@ -197,6 +198,7 @@ def build_tenant_config(business_id):
     }
 
 
+@db.knowledge_writer
 def provision_tenant(business_id, actor):
     """Phase 4's `provision_tenant(business_id)`. Requires the business to already be APPROVED (or
     further along, e.g. ACTIVE — re-provisioning an active tenant, say after an admin edits its

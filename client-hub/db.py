@@ -249,6 +249,7 @@ MIGRATIONS = [
     ("0022_invoices_payments_business_id_nullable_sqlite.sql",
      "0022_invoices_payments_business_id_nullable_postgres.sql"),
     ("0023_inbox_media_sqlite.sql", "0023_inbox_media_postgres.sql"),
+    ("0024_business_knowledge_revisions_sqlite.sql", "0024_business_knowledge_revisions_postgres.sql"),
 ]
 
 
@@ -325,7 +326,7 @@ def execute(query, params=()):
         else:
             cur = conn.cursor()
             cur.execute(query, params)
-        conn.commit()
+        _knowledge_commit(conn)
         return cur
     except Exception as e:
         _rollback_quietly(conn)
@@ -346,7 +347,7 @@ def insert_returning_id(query, params=(), id_column="id"):
     try:
         if BACKEND == "sqlite":
             cur = conn.execute(query, params)
-            conn.commit()
+            _knowledge_commit(conn)
             return cur.lastrowid
 
         q = query.rstrip().rstrip(";")
@@ -356,7 +357,7 @@ def insert_returning_id(query, params=(), id_column="id"):
         cur = conn.cursor()
         cur.execute(q, params)
         row = cur.fetchone()
-        conn.commit()
+        _knowledge_commit(conn)
         cur.close()
         return row[0] if row else None
     except Exception as e:
@@ -387,7 +388,7 @@ def query_one(query, params=()):
             if BACKEND == "sqlite":
                 cur = conn.execute(query, params)
                 row = cur.fetchone()
-                conn.commit()
+                _knowledge_commit(conn)
                 return dict(row) if row is not None else None
 
             cur = conn.cursor()
@@ -395,14 +396,14 @@ def query_one(query, params=()):
             row = cur.fetchone()
             columns = [d[0] for d in cur.description] if cur.description else []
             cur.close()
-            conn.commit()
+            _knowledge_commit(conn)
             return _row_to_dict(row, columns)
         except Exception as e:
             _rollback_quietly(conn)
             retryable = _is_retryable_postgres_connection_error(e)
             if retryable:
                 _discard_cached_connection()
-            if attempt == 0 and retryable and query.lstrip().upper().startswith("SELECT "):
+            if getattr(_local, 'knowledge_business', None) is None and attempt == 0 and retryable and query.lstrip().upper().startswith("SELECT "):
                 continue
             raise
 
@@ -415,7 +416,7 @@ def query_all(query, params=()):
             if BACKEND == "sqlite":
                 cur = conn.execute(query, params)
                 rows = [dict(row) for row in cur.fetchall()]
-                conn.commit()
+                _knowledge_commit(conn)
                 return rows
 
             cur = conn.cursor()
@@ -423,13 +424,63 @@ def query_all(query, params=()):
             rows = cur.fetchall()
             columns = [d[0] for d in cur.description] if cur.description else []
             cur.close()
-            conn.commit()
+            _knowledge_commit(conn)
             return [_row_to_dict(row, columns) for row in rows]
         except Exception as e:
             _rollback_quietly(conn)
             retryable = _is_retryable_postgres_connection_error(e)
             if retryable:
                 _discard_cached_connection()
-            if attempt == 0 and retryable:
+            if getattr(_local, 'knowledge_business', None) is None and attempt == 0 and retryable:
                 continue
             raise
+
+
+# Opt-in transaction boundary used only by business-knowledge writers.
+def _knowledge_commit(conn):
+    if getattr(_local, 'knowledge_business', None) is None:
+        conn.commit()
+
+
+def knowledge_writer(function=None, *, row_table=None, id_argument='business_id'):
+    """Serialize knowledge writers on the business row, including initial profile creation.
+
+    Nested repository calls share the same connection/transaction; DB helper reads must
+    neither commit the lock nor retry on another connection after a transaction failure.
+    """
+    import functools
+    import inspect
+    def decorate(fn):
+        signature = inspect.signature(fn)
+        @functools.wraps(fn)
+        def wrapped(*args, **kwargs):
+            value = signature.bind(*args, **kwargs).arguments[id_argument]
+            if row_table:
+                row = query_one('SELECT business_id FROM ' + row_table + ' WHERE id = ?', (value,))
+                if row is None:
+                    return None
+                value = row['business_id']
+            current = getattr(_local, 'knowledge_business', None)
+            if current is not None:
+                if current != value:
+                    raise ValueError('Cross-business knowledge transaction')
+                return fn(*args, **kwargs)
+            conn = get_connection()
+            cur = conn.cursor()
+            try:
+                # Both engines hold this write lock until the outer commit/rollback.
+                cur.execute(_adapt_placeholders('UPDATE businesses SET id = id WHERE id = ?'), (value,))
+                if cur.rowcount != 1:
+                    raise ValueError('Business not found')
+                _local.knowledge_business = value
+                result = fn(*args, **kwargs)
+                conn.commit()
+                return result
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                _local.knowledge_business = None
+                cur.close()
+        return wrapped
+    return decorate(function) if function else decorate

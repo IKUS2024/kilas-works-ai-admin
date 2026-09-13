@@ -292,6 +292,7 @@ def save_onboarding_session(business_id, step, raw_payload, user_id=None):
     )
 
 
+@db.knowledge_writer
 def upsert_business_profile(business_id, fields):
     """PATCH-like semantics (empty-value overwrite protection — see the caller-audit finding this
     fixes): a column is only written when its key is ACTUALLY PRESENT in `fields` — a caller that
@@ -346,10 +347,25 @@ def upsert_business_profile(business_id, fields):
         )
 
 
+@db.knowledge_writer
+def save_business_settings(business_id, fields):
+    """Existing settings blank protection, merged against current values under the lock."""
+    profile = get_business_profile(business_id) or {}
+    patch = {}
+    for key, value in fields.items():
+        blank = value is None or (isinstance(value, str) and not value.strip())
+        old = profile.get(key)
+        old_blank = old is None or (isinstance(old, str) and not old.strip())
+        if not blank or old_blank:
+            patch[key] = value
+    upsert_business_profile(business_id, patch)
+
+
 def get_business_profile(business_id):
     return db.query_one("SELECT * FROM business_profiles WHERE business_id = ?", (business_id,))
 
 
+@db.knowledge_writer
 def replace_business_services(business_id, raw_service_rows):
     """Client re-submits the whole services list each time (simplest correct semantics for a
     wizard step) — old rows are cleared and re-inserted as RAW input, needs_review defaults to 1
@@ -364,10 +380,11 @@ def replace_business_services(business_id, raw_service_rows):
 
 def get_business_services(business_id):
     return db.query_all(
-        "SELECT * FROM business_services WHERE business_id = ? ORDER BY sort_order", (business_id,)
+        "SELECT * FROM business_services WHERE business_id = ? ORDER BY sort_order, id", (business_id,)
     )
 
 
+@db.knowledge_writer(row_table='business_services', id_argument='service_id')
 def update_normalized_service(service_id, service_name, description, price_from, price_to, currency, needs_review):
     db.execute(
         """UPDATE business_services SET service_name = ?, description = ?, price_from = ?,
@@ -376,6 +393,7 @@ def update_normalized_service(service_id, service_name, description, price_from,
     )
 
 
+@db.knowledge_writer
 def replace_business_faqs(business_id, raw_faq_rows):
     db.execute("DELETE FROM business_faqs WHERE business_id = ?", (business_id,))
     for raw in raw_faq_rows:
@@ -389,6 +407,7 @@ def get_business_faqs(business_id):
     return db.query_all("SELECT * FROM business_faqs WHERE business_id = ? ORDER BY id", (business_id,))
 
 
+@db.knowledge_writer(row_table='business_faqs', id_argument='faq_id')
 def update_normalized_faq(faq_id, question, answer, category, needs_review):
     db.execute(
         "UPDATE business_faqs SET question = ?, answer = ?, category = ?, needs_review = ? WHERE id = ?",
@@ -424,6 +443,7 @@ def onboarding_completion_percent(business_id):
 # Files
 # ---------------------------------------------------------------------------
 
+@db.knowledge_writer
 def save_business_file(business_id, original_filename, mime_type, size_bytes, content_bytes, extracted_text, user_id):
     return db.insert_returning_id(
         """INSERT INTO business_files
@@ -447,6 +467,7 @@ def get_business_file_content(file_id, business_id):
     )
 
 
+@db.knowledge_writer(id_argument='business_id')
 def delete_business_file(file_id, business_id):
     """Explicit customer-initiated file removal (Batch 2/3, Section A) — a plain DELETE scoped to
     THIS business_id, so removing one file can never affect another business's files or this
@@ -488,6 +509,7 @@ def set_business_stale_if_done(business_id):
     )
 
 
+@db.knowledge_writer
 def save_ai_normalized_config(business_id, summary, config_dict, missing_fields):
     db.execute(
         """UPDATE ai_settings SET ai_status = 'DONE', normalized_summary = ?,
@@ -931,6 +953,7 @@ def get_tenant_config_row(business_id):
     return row
 
 
+@db.knowledge_writer
 def save_tenant_config(business_id, config_dict):
     """Upserts the tenant_configs row and returns (config_version, changed: bool). `changed` is
     False when the new config is semantically identical to what's already stored — used by
@@ -974,6 +997,7 @@ def save_tenant_config(business_id, config_dict):
     return new_version, True
 
 
+@db.knowledge_writer
 def save_live_business_memory(business_id, fields, service_lines, faq_lines, actor_user_id):
     """Atomically update existing tenant memory rows and their live config snapshot; no AI call."""
     import copy
@@ -1028,7 +1052,7 @@ def save_live_business_memory(business_id, fields, service_lines, faq_lines, act
             execute('UPDATE tenant_configs SET config_json = ?, config_version = config_version + 1, updated_at = ? WHERE business_id = ?', (payload, _now(), business_id))
         else:
             execute('INSERT INTO tenant_configs (business_id, config_version, config_json, provisioned_at, updated_at) VALUES (?, 1, ?, ?, ?)', (business_id, payload, _now(), _now()))
-        conn.commit()
+        db._knowledge_commit(conn)
     except Exception:
         conn.rollback()
         raise

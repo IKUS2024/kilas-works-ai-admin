@@ -8,6 +8,7 @@ import io
 import inbox_media_service
 
 import ai_onboarding
+import knowledge_setup
 import file_utils
 import repo
 import security
@@ -366,8 +367,31 @@ def business_memory(business_id):
     if business["package"] == "NONE":
         abort(403)
     profile = repo.get_business_profile(business_id) or {}
+    services_existing = repo.get_business_services(business_id)
+    faqs_existing = repo.get_business_faqs(business_id)
+    setup = knowledge_setup.editor(business_id, services_existing, faqs_existing, profile)
     fields = ('short_description', 'tone', 'primary_language', 'customer_salutation',
               'operating_hours', 'closed_days', 'address', 'business_phone')
+    if request.method == 'POST' and request.form.get('knowledge_form') == 'v2':
+        try:
+            data = {k: request.form.get(k, profile.get(k) or '').strip() for k in knowledge_setup.PROFILE_FIELDS}
+            if data['primary_language'] not in ('id','en') or not data['customer_salutation']:
+                raise ValueError('Isi bahasa utama dan sapaan customer.')
+            cards = {kind: knowledge_setup.parse_rows(request.form, kind, setup[kind]) for kind in ('services','faqs')}
+            if not cards['services']:
+                raise ValueError('Tambahkan minimal satu produk atau layanan.')
+            if any(len(v) > 4000 for v in data.values()) or sum(len(c['raw']) for kind in cards for c in cards[kind]) > 16000:
+                raise ValueError('Informasi terlalu panjang. Ringkas informasi bisnis terlebih dahulu.')
+            knowledge_setup.save(business_id, data, cards, profile, services_existing, faqs_existing,
+                                 request.form.get('knowledge_revision'), security.current_user()['id'])
+        except ValueError as exc:
+            abort(400, description=str(exc))
+        except Exception as exc:
+            print('KNOWLEDGE_SETUP: save_failed; exception_type=' + type(exc).__name__)
+            flash('Informasi belum tersimpan. Coba lagi sebentar.', 'error')
+        else:
+            flash('Informasi bisnis tersimpan untuk Kilas Brain.', 'success')
+        return redirect(url_for('client.business_memory', business_id=business_id))
     if request.method == "POST":
         data = {k: request.form.get(k, profile.get(k) or '').strip() for k in fields}
         services = [line.strip() for line in request.form.get('services_raw', '').splitlines() if line.strip()]
@@ -385,7 +409,9 @@ def business_memory(business_id):
             flash('Memori bisnis tersimpan dan digunakan Kilas Brain untuk chat berikutnya.', 'success')
         return redirect(url_for('client.business_memory', business_id=business_id))
     return render_template('business_memory.html', business=business, profile=profile,
-                           services=repo.get_business_services(business_id), faqs=repo.get_business_faqs(business_id))
+                           services=services_existing, faqs=faqs_existing, setup=setup,
+                           readiness=knowledge_setup.readiness(profile, services_existing, faqs_existing,
+                               repo.get_tenant_features(business_id) or {}, setup))
 
 
 @client_bp.route("/business/<int:business_id>/settings", methods=["GET", "POST"])
@@ -420,7 +446,7 @@ def business_settings(business_id):
     raw = {key: value for key, value in raw.items() if key in request.form}
     if (repo.get_tenant_features(business_id) or {}).get("appointment"):
         raw["appointment_enabled"] = bool(request.form.get("appointment_enabled"))
-    repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
+    repo.save_business_settings(business_id, raw)
     repo.write_audit(user["id"], business_id, "settings_updated", "appointment/payment settings diubah oleh owner")
 
     flash("Pengaturan appointment & pembayaran berhasil disimpan.", "success")
