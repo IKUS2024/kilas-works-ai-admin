@@ -22,6 +22,7 @@ import repo
 import security
 import file_utils
 import provisioning
+import catalog_cache
 import catalog_service
 import pricing_config
 import display_labels
@@ -442,10 +443,11 @@ def official_links_admin():
     string. Reuses repo.get_official_links()/set_platform_setting() — the SAME functions any
     future admin surface for this should call, never a second config path."""
     if request.method == "POST":
-        for key in ("landing_page", "app", "instagram", "demo"):
+        for key in ("landing_page", "app", "instagram", "demo", "catalog"):
             value = (request.form.get(key) or "").strip()
             if value:
                 repo.set_platform_setting(f"official_link_{key}", value)
+        catalog_cache.bump_version()
         flash("Link resmi diperbarui.", "success")
         return redirect(url_for("admin.official_links_admin"))
     return render_template("admin_official_links.html", links=repo.get_official_links())
@@ -462,9 +464,10 @@ def catalog_admin():
     represent — never a second, parallel catalog. AI_ADMIN/TALENT categories remain excluded from
     dashboard creation (see catalog_service.SAFE_NEW_ITEM_CATEGORIES's own docstring for why) —
     those keep their existing special-workflow-only creation paths untouched."""
-    items = catalog_service.list_all_catalog()
+    archived = request.args.get("view") == "archive"
+    items = [item for item in catalog_service.list_all_catalog() if bool(item["is_active"]) != archived]
     return render_template(
-        "admin_catalog.html", items=items, format_price=catalog_service.format_price,
+        "admin_catalog.html", items=items, archived=archived, format_price=catalog_service.format_price,
         safe_categories=catalog_service.SAFE_NEW_ITEM_CATEGORIES,
         pricing_modes=pricing_config.VALID_PRICING_MODES,
     )

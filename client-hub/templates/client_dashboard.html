@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Kilas Works Client Hub{% endblock %}
 {% block content %}
+<style>.business-actions{min-width:0}.business-actions .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}</style>
 <h1>Halo, {{ user.full_name or user.email }}</h1>
 <p class="muted">Kelola setup Kilas Brain dan proyek Kilas Works-mu di sini.</p>
 
@@ -69,22 +70,21 @@
     {% elif b.status == 'NEEDS_REVISION' %}
       <p style="color:var(--red);margin-top:10px;">Perlu revisi — buka Review untuk detail.</p>
     {% endif %}
-    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+    <div class="business-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
       {% if b.package == 'NONE' %}
         <form method="post" action="{{ url_for('client.upgrade_to_ai_admin', business_id=b.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="package" value="AI_ADMIN_BASIC">
           <button class="btn" type="submit">+ Tambah Kilas Brain</button>
         </form>
-      {% elif b.status in ('DRAFT','ONBOARDING') %}
-        <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup</a>
-      {% elif b.status in ('READY_FOR_REVIEW','NEEDS_REVISION') %}
-        <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Edit Data Bisnis</a>
+      {% elif b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
+        <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup Awal</a>
+
       {% endif %}
       <a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Tinjau Bisnis</a>
-      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Test AI</a>{% endif %}
-      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Pengaturan operasional</a> <a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Ajari Kilas Brain</a>{% endif %}
-      {% if b.package != 'NONE' and b.status == 'APPROVED' %}<a class="btn" href="{{ url_for('whatsapp.embedded_signup_start', business_id=b.id) }}">Hubungkan WhatsApp</a>{% endif %}
+      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Coba Kilas Brain</a>{% endif %}
+      {% if b.package != 'NONE' %}<a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Pengaturan Operasional</a> {% if b.status not in ('DRAFT', 'ONBOARDING', 'READY_FOR_AI_SETUP') %}<a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Ajari Kilas Brain</a>{% endif %}{% endif %}
+      {% if b.package != 'NONE' and b.status == 'APPROVED' %}<a class="btn" href="{{ url_for('whatsapp.embedded_signup_start', business_id=b.id) }}">Hubungkan WhatsApp ke Kilas Brain</a>{% endif %}
       {% if b.package != 'NONE' and b.status == 'ACTIVE' %}<a class="btn secondary" href="{{ url_for('client.inbox_page', business_id=b.id) }}">CS Inbox</a>{% endif %}
       <a class="btn secondary" href="{{ url_for('projects.project_list', business_id=b.id, view='all') }}">Semua Proyek</a>
       <a class="btn secondary" href="{{ url_for('payments.invoice_list', business_id=b.id, view='all') }}">Invoice/Pembayaran</a>

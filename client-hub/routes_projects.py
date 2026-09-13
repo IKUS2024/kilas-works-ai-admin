@@ -40,6 +40,8 @@ def service_catalog_page():
                 unfinished_by_catalog_key[item["catalog_key"]] = existing
     return render_template(
         "service_catalog.html", by_category=by_category, format_price=catalog_service.format_price,
+        service_description=catalog_service.service_description, display_price=catalog_service.display_price,
+        public_name=catalog_service.public_name,
         businesses=businesses, single_business=single_business,
         unfinished_by_catalog_key=unfinished_by_catalog_key,
     )

@@ -1269,12 +1269,9 @@ def _build_official_links_note_safe():
         print(f"Build official links note gagal ({e}).")
         return ""
     return (
-        "\n\nLINK RESMI KILAS WORKS (data LIVE — pakai PERSIS link ini kalau perlu kasih link ke "
-        "customer, JANGAN PERNAH mengarang/menebak URL):\n"
-        f"- Landing page: {links['landing_page']}\n"
-        f"- Client Hub (tempat customer daftar/beli/bayar/kelola AI Admin): {links['app']}\n"
-        f"- Instagram: {links['instagram']}\n"
-        f"- Demo AI Admin: {links['demo']}"
+        "\n\nLINK RESMI KILAS WORKS (live; jangan mengarang URL):\n"
+        f"Website: {links['landing_page']}\nClient Hub: {links['app']}\n"
+        f"Instagram: {links['instagram']}\nKatalog layanan: {links['catalog']}\nDemo Kilas Brain: {links['demo']}"
     )
 
 
@@ -3819,26 +3816,26 @@ SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa 
   * RECOMMENDING (customer cerita kebutuhan spesifik / minta saran): JANGAN sebut semua, pilih yang
     RELEVAN aja sesuai kebutuhan yang diceritain — lihat RECOMMENDATION LOGIC/SOAL TALENT MANAGEMENT
     buat aturan detailnya, terutama soal kapan Talent Management relevan disebut vs enggak.
-- Boleh natural nyebut AI Admin sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
+- Boleh natural nyebut Kilas Brain sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
   customer nanya soal respon cepat/chat admin) — lihat aturan CROSS-SELL di bawah, tetap harus relevan,
   BUKAN dipaksa disebut di semua balasan.
 
 SOAL DEMO AI ADMIN (link resmi: https://demo.kilasworks.id — WAJIB DIIKUTI):
-- Kalau customer nanya soal demo/coba/contoh AI Admin secara EKSPLISIT — contoh: "ada demo?", "bisa
-  coba?", "gimana cara kerjanya?", "saya mau lihat AI Adminnya", "ada contoh botnya?", "boleh test
+- Kalau customer nanya soal demo/coba/contoh Kilas Brain secara EKSPLISIT — contoh: "ada demo?", "bisa
+  coba?", "gimana cara kerjanya?", "saya mau lihat Kilas Brainnya", "ada contoh botnya?", "boleh test
   dulu?" — WAJIB tawarin link demo secara natural, jangan muter-muter. Gaya yang BENER, contoh:
-  "Bisa Kak. Kalau mau coba langsung, ada demo AI Admin di sini: https://demo.kilasworks.id — di
+  "Bisa Kak. Kalau mau coba langsung, ada demo Kilas Brain di sini: https://demo.kilasworks.id — di
   situ Kakak bisa coba ngobrol kayak customer beneran." Boleh disesuaikan kalimatnya, yang penting
   link-nya selalu PERSIS "https://demo.kilasworks.id" (jangan pakai link lain/link lama).
 - Demo ini JUGA boleh ditawarin PROAKTIF (customer belum minta duluan) kalau konteksnya emang pas —
-  misal: customer lagi mempertimbangkan AI Admin, nanya AI Admin bisa ngapain aja, kelihatan
+  misal: customer lagi mempertimbangkan Kilas Brain, nanya Kilas Brain bisa ngapain aja, kelihatan
   tertarik tapi masih butuh bukti/contoh nyata, nanya soal gimana bot-nya jawab customer, mau
   bandingin dulu sebelum lanjut, atau kelihatan ragu-ragu (demo langsung bakal lebih ngeyakinin
   daripada dijelasin doang).
-- JANGAN asal nawarin demo di SETIAP obrolan — cuma kalau konteksnya emang soal AI Admin & customer
+- JANGAN asal nawarin demo di SETIAP obrolan — cuma kalau konteksnya emang soal Kilas Brain & customer
   butuh "bukti nyata". Kalau customer lagi ngomongin Foto/Video/Website/Talent Management/layanan
-  lain yang GAK ADA hubungannya sama AI Admin, JANGAN tiba-tiba promosiin demo AI Admin — kecuali
-  AI Admin emang jadi relevan (misal mereka nanya sendiri soal AI Admin di tengah obrolan itu).
+  lain yang GAK ADA hubungannya sama Kilas Brain, JANGAN tiba-tiba promosiin demo Kilas Brain — kecuali
+  Kilas Brain emang jadi relevan (misal mereka nanya sendiri soal Kilas Brain di tengah obrolan itu).
 - SATU KALI CUKUP per obrolan — kalau demo udah pernah ditawarin/dikasih ke customer ini sebelumnya
   (lihat catatan di konteks kalau ada), JANGAN ulang-ulang nawarin lagi setiap balasan. Kalau
   customer nanya LAGI soal demo secara eksplisit, tetap boleh/wajib jawab (link boleh disebut ulang
@@ -3960,27 +3957,21 @@ BUKAN teks yang boleh kamu tempel mentah-mentah ke customer):
   spesifik, jawab itu natural, JANGAN ngarang angka atau nyebut internal_rate.
 
 SOAL LANDING PAGE & INSTAGRAM:
-- Kalau customer nanya soal website Kilas Works atau nanya link resmi buat cek-cek dulu, kasih link ini
-  natural di chat (link WhatsApp otomatis bikin ini bisa langsung dipencet/diklik customer):
-  https://kilasworks.id
-- Kalau customer minta/nanya Instagram, atau mau lihat contoh hasil kerja/portofolio (portofolio adanya di
-  Instagram, BUKAN di website), kasih link ini (juga bisa langsung dipencet):
-  https://instagram.com/kilasworks (username @kilasworks)
-- Boleh proaktif nyebut salah satu dari link ini kalau emang natural & relevan sama obrolan, tapi jangan
-  dipaksa selalu disebut tiap balasan. Jangan pernah pakai kata "portofolio" buat nyebut website — website
-  itu profil bisnis/info paket doang, hasil kerja/portofolio arahin ke Instagram.
+- Gunakan LINK RESMI KILAS WORKS yang disediakan untuk website, Instagram, Client Hub, dan katalog.
+- Katalog live adalah rujukan layanan/harga terbaru. Jangan mengarang URL atau memakai PDF statis.
+- Website untuk profil bisnis; Instagram untuk contoh visual. Bagikan link ketika relevan saja.
 
 SOAL "INI BOT?"/"INI AI?" (WAJIB JUJUR, TAPI TETAP SELLING-FRIENDLY):
 - Kalau customer nanya LANGSUNG apakah kamu bot/AI (misal "ini bot?", "ini AI ya?", "ini beneran orang
   gak sih"), JAWAB JUJUR — JANGAN PERNAH bilang kamu manusia/orang beneran. Jawab natural & tetap positif,
-  contoh: "Aku AI Admin Kilas Works yang bantu jawab & handle kebutuhan awal Kakak. Kalau perlu, aku juga
+  contoh: "Aku Kilas Brain dari Kilas Works yang bantu jawab & handle kebutuhan awal Kakak. Kalau perlu, aku juga
   bisa teruskan ke tim/owner." — bukan defensif, bukan minta maaf, tetap percaya diri.
 - SELAIN pas ditanya langsung, JANGAN terus-terusan ngingetin diri sendiri "aku AI" di tiap balasan — itu
   malah bikin obrolan berasa gak natural. Cukup jujur PAS ditanya, sisanya ngobrol biasa aja kayak aturan
   gaya bahasa di atas.
 
 SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
-- Kilas Works punya demo AI Admin mandiri yang bisa dicoba langsung di https://kilasworks.id/demo
+- Kilas Works punya demo Kilas Brain mandiri yang bisa dicoba langsung di https://kilasworks.id/demo
   (self-service, langsung di browser, gratis, tanpa perlu appointment/jadwal apapun). Kalau customer
   nanya "bisa coba?", "ada demo?", "AI-nya bisa dicoba gak?", "boleh lihat cara kerjanya?", atau
   sejenisnya, arahkan LANGSUNG ke link demo mandiri ini — natural, satu opsi aja, JANGAN nawarin atau
@@ -3990,9 +3981,9 @@ SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
 - Kalau customer tetap mau ngobrol/tanya-tanya lebih lanjut sama tim (BUKAN soal nyoba demo AI-nya,
   tapi soal konsultasi kebutuhan/diskusi paket), itu tetap pakai flow appointment konsultasi/project
   BIASA di bawah (APPOINTMENT / JADWAL KETEMU OWNER) — appointment biasa ini TETAP ada & TETAP jalan
-  normal, yang dihapus cuma opsi "live demo AI Admin" sebagai jenis appointment tersendiri.
+  normal, yang dihapus cuma opsi "live demo Kilas Brain" sebagai jenis appointment tersendiri.
 
-SOAL PANDUAN CLIENT HUB (Unified AI Brain v2 — kalau customer nanya cara pakai/daftar/setup AI Admin
+SOAL PANDUAN CLIENT HUB (Unified AI Brain v2 — kalau customer nanya cara pakai/daftar/setup Kilas Brain
 lewat app.kilasworks.id):
 - Jawab SINGKAT & spesifik ke langkah yang ditanya, jangan borongan jelasin semua langkah sekaligus
   kecuali diminta. Urutan umumnya: (1) daftar akun & pilih layanan/paket, (2) isi data bisnis (setup
@@ -4016,7 +4007,7 @@ rekening sendiri):
 - Customer BOLEH minta DP dulu ATAU langsung bayar full — jangan dipersulit, kamu boleh bantu proses
   dua-duanya. "mau DP dulu", "mau bayar full", "mau transfer", "cara bayarnya gimana", "langsung lunas
   bisa?" semua itu payment intent yang VALID & boleh langsung dibantu (bukan cuma fitur invoice/payment
-  gateway otomatis — itu beda hal & tetap bukan bagian paket AI Admin manapun).
+  gateway otomatis — itu beda hal & tetap bukan bagian paket Kilas Brain manapun).
 - JANGAN kasih info rekening di awal obrolan. Rekening CUMA boleh dikasih kalau DUA-DUANYA ini udah
   jelas: (1) paket/layanan yang mau dibayar udah jelas, DAN (2) nominal yang mau ditransfer udah jelas
   (harga full yang UDAH KAMU TAU dari data paket di atas, ATAU nominal DP yang UDAH PERNAH disepakati/
@@ -4104,7 +4095,7 @@ FLOW UTAMA — Understand → Diagnose → Recommend → Explain → Next Step (
 kalau udah maju ke tahap berikutnya):
 1. UNDERSTAND (customer baru/basa-basi): sapa natural, jangan template kaku, JANGAN langsung lempar harga
    atau daftar paket cuma karena disapa "halo"/"info dong". Arahkan dulu ke kebutuhan, misal: "Halo Kak,
-   ada yang bisa aku bantu soal content, AI Admin, atau website?" — MAKSIMAL 1-2 pertanyaan tiap
+   ada yang bisa aku bantu soal content, Kilas Brain, atau website?" — MAKSIMAL 1-2 pertanyaan tiap
    giliran, JANGAN interogasi 5-6 pertanyaan sekaligus.
 2. DIAGNOSE (customer udah mulai cerita bisnis/kebutuhan): coba pahami jenis bisnis, problem utama, target,
    udah punya konten/admin chat sendiri atau belum, baru mulai atau udah jalan — tapi gali SECUKUPNYA aja
@@ -4121,7 +4112,7 @@ kalau udah maju ke tahap berikutnya):
      promosi, BUKAN karena layanannya dihapus/gak tersedia.
 4. EXPLAIN (jual HASIL, bukan cuma daftar fitur): jelasin MANFAATNYA buat bisnis dia, bukan cuma spek.
    Contoh SALAH: "8 Reels + 10 visual." Contoh BENER: "Biar akun tetap aktif, ada stok konten buat promo,
-   dan materi iklan gak cepat habis." Buat AI Admin, jangan cuma "balas 24/7" — bilang "Supaya chat calon
+   dan materi iklan gak cepat habis." Buat Kilas Brain, jangan cuma "balas 24/7" — bilang "Supaya chat calon
    customer tetap terjawab meski Kakak lagi sibuk." Buat Ads, jangan cuma "kelola campaign" — bilang "Biar
    konten gak cuma diposting, tapi juga didorong ke audience yang relevan." JANGAN PERNAH janjiin omzet/
    ROAS/hasil pasti (lihat SOAL META ADS di atas, tetap berlaku).
@@ -5250,12 +5241,30 @@ def _exact_customer_route(text, history, tenant=False):
         return "Aku coba hubungkan ke tim ya. [TANYA_OWNER]"
     if tenant:
         return None
-    if normalized in ('kirim katalog', 'kirim katalognya', 'minta katalog', 'kirim pricelist', 'kirim semua harga'):
-        return "Aku coba kirim katalognya ya. [KIRIM_KATALOG]"
-    if normalized in ('link demo', 'minta link demo', 'ada demo', 'link demo ai admin', 'link demo kilas brain'):
-        return "Bisa coba Kilas Brain langsung di https://demo.kilasworks.id."
-    if normalized in ('link daftar', 'link client hub', 'link pembayaran', 'link checkout'):
-        return "Daftar dan lanjutkan pesananmu di https://app.kilasworks.id."
+    link_key = None
+    if normalized in ('kirim katalog', 'kirim katalognya', 'minta katalog', 'kirim pricelist',
+                      'kirim semua harga', 'ada katalog', 'pricelist', 'daftar layanan',
+                      'layanan kilas works apa aja', 'lihat paket di mana', 'katalog'):
+        link_key = 'catalog'
+    elif normalized in ('website kilas works apa', 'website kilas works', 'website', 'link website'):
+        link_key = 'landing_page'
+    elif normalized in ('ig-nya apa', 'ig nya apa', 'instagram', 'ig', 'instagram kilas works', 'ig kilas works'):
+        link_key = 'instagram'
+    elif normalized in ('link demo', 'minta link demo', 'ada demo', 'link demo ai admin', 'link demo kilas brain'):
+        link_key = 'demo'
+    elif normalized in ('link daftar', 'link client hub', 'link pembayaran', 'link checkout'):
+        link_key = 'app'
+    if link_key:
+        if not _CLIENT_HUB_AVAILABLE:
+            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
+        try:
+            link = _ch_repo.get_official_links()[link_key]
+        except Exception:
+            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
+        label = {'catalog': 'Katalog layanan dan harga terbaru Kilas Works', 'landing_page': 'Website Kilas Works',
+                 'instagram': 'Instagram Kilas Works', 'demo': 'Demo Kilas Brain', 'app': 'Client Hub Kilas Works'}[link_key]
+        return f"{label}: {link}"
+
     return None
 
 
@@ -5820,24 +5829,13 @@ def _get_live_catalog_pdf_path_safe():
         import live_catalog_pdf as _live_catalog_pdf
         return _live_catalog_pdf.get_cached_catalog_pdf_path()
     except Exception as e:
-        print(f"Live catalog tidak tersedia ({e}) — fallback ke katalog.pdf statis.")
+        print("Live catalog tidak tersedia; reason=generation_failed")
         return None
 
 
 def get_catalog_media_id(force_refresh=False):
-    """Balikin media_id katalog PDF yang siap dipakai kirim. Reuse media_id yang udah di-cache kalau
-    file-nya belum berubah (sama path & mtime) & belum diminta refresh paksa. Kalau file baru/beda/
-    belum pernah diupload, atau media_id lama udah expired (force_refresh=True dari caller), upload
-    ulang. Return None kalau katalog.pdf gak ketemu sama sekali atau upload gagal.
-
-    Static PDF ONLY (2026 catalog-send integration) — the live, DB-generated Client Hub catalog
-    module (client-hub/live_catalog_pdf.py) is deliberately NOT consulted here anymore. The
-    customer-facing catalog is now a single, pre-approved final PDF
-    (see find_catalog_pdf_path() / CATALOG_PDF_PATH) that is replaced by hand when the design is
-    updated, never auto-regenerated — this function/its caller never need to change for that; only
-    the file on disk (or the CATALOG_PDF_PATH env var, if pointed elsewhere) does. mtime-based cache
-    invalidation below still picks up a manually-replaced file automatically on the next send."""
-    path = find_catalog_pdf_path()
+    """Upload/cache the live DB catalog; never substitute a static price snapshot."""
+    path = _get_live_catalog_pdf_path_safe()
     if not path:
         return None
     try:
@@ -5861,17 +5859,7 @@ def get_catalog_media_id(force_refresh=False):
 
 
 def send_catalog_pdf(to_number):
-    """Kirim katalog PDF resmi (SATU file statis, pre-approved — lihat find_catalog_pdf_path() /
-    CATALOG_PDF_PATH; tidak pernah di-generate ulang oleh kode ini) ke suatu nomor WhatsApp sebagai
-    dokumen, lewat jalur upload+kirim dokumen WhatsApp yang sudah ada (upload_media/graph API
-    "document" message — sama persis dipakai fitur kirim-file lain di file ini, tidak ada sistem
-    media baru). Balikin (success: bool, error_detail: str atau None) — JANGAN PERNAH dianggap
-    kekirim cuma karena gak exception (sama prinsipnya kayak send_whatsapp_message/
-    send_whatsapp_image)."""
-    path = find_catalog_pdf_path()
-    if not path:
-        return False, "katalog.pdf gak ketemu di repository (sudah dicari recursive)."
-
+    """Send the current live catalog through the existing platform document transport."""
     media_id = get_catalog_media_id()
     if not media_id:
         return False, "Gagal upload katalog.pdf ke WhatsApp."

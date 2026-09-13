@@ -2,7 +2,7 @@
 {% block title %}Katalog Layanan — Admin{% endblock %}
 {% block content %}
 <h1>Katalog Layanan</h1>
-<p class="muted">Kelola layanan/paket rutin (Foto, Video, Website, dll). Paket AI Admin dan Talent Management
+<p class="muted">Kelola layanan/paket rutin (Foto, Video, Website, dll). Paket Kilas Brain dan Talent Management
   punya alur khusus tersendiri, tidak dibuat dari sini.</p>
 
 <div class="card">
@@ -30,7 +30,9 @@
 </div>
 
 <div class="card">
-  <h2>Daftar Layanan</h2>
+  <h2>{{ 'Arsip / Nonaktif' if archived else 'Layanan Aktif' }}</h2>
+  <p><a href="{{ url_for('admin.catalog_admin') }}">Aktif</a> · <a href="{{ url_for('admin.catalog_admin', view='archive') }}">Arsip / Nonaktif</a></p>
+  <div style="overflow-x:auto;">
   <table>
     <tr><th>Nama</th><th>Kategori</th><th>Harga</th><th>Status</th><th>Terakhir Diubah</th><th></th></tr>
     {% for item in items %}
@@ -41,7 +43,6 @@
       <td>{% if item.is_active %}<span class="pill ACTIVE">Aktif</span>{% else %}<span class="pill">Nonaktif</span>{% endif %}</td>
       <td class="muted">{{ item.updated_at|humanize_timestamp }}</td>
       <td>
-        {% if item.category in safe_categories %}
         <details>
           <summary>Edit</summary>
           <form method="post" action="{{ url_for('admin.catalog_update', catalog_id=item.id) }}" style="margin-top:8px;">
@@ -61,14 +62,12 @@
         </details>
         <form method="post" action="{{ url_for('admin.catalog_toggle_active', catalog_id=item.id) }}" class="inline" style="margin-top:6px;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn small secondary" type="submit">{{ 'Nonaktifkan' if item.is_active else 'Aktifkan' }}</button>
+          <button class="btn small secondary" type="submit">{{ 'Arsipkan' if item.is_active else 'Aktifkan kembali' }}</button>
         </form>
-        {% else %}
-        <span class="muted" style="font-size:12px;">Alur khusus — dikelola terpisah</span>
-        {% endif %}
       </td>
     </tr>
     {% endfor %}
   </table>
+  </div>
 </div>
 {% endblock %}

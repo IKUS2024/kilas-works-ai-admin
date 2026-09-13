@@ -21,20 +21,16 @@ def seed_catalog_if_needed():
     additions (e.g. a brand new service) show up automatically on next boot without clobbering
     any admin edits already made to existing ones.
 
-    2026 rebrand exception: renaming "AI Admin Basic/Pro" to "Kilas Brain Basic/Pro" and
-    deactivating the 8 retired Ads/Landing-Page bundles are DELIBERATE, one-time canonical
-    corrections tied to this exact rebrand — not routine admin edits — so they're applied
-    explicitly below via _apply_rebrand_corrections(), the one narrowly-scoped exception to the
-    "never overwrite existing rows" rule, rather than a blanket overwrite of every field on every
-    boot (which would fight with genuine future admin edits)."""
+    Existing active/archive decisions remain authoritative. Retired keys start inactive only
+    when first inserted; subsequent admin reactivation is preserved."""
     for item in pricing_config.CATALOG_ITEMS:
         existing = db.query_one("SELECT id FROM service_catalog WHERE catalog_key = ?", (item["key"],))
         if existing is None:
             db.execute(
                 "INSERT INTO service_catalog (catalog_key, category, name, pricing_mode, "
-                "price_amount, price_unit) VALUES (?, ?, ?, ?, ?, ?)",
+                "price_amount, price_unit, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (item["key"], item["category"], item["name"], item["pricing_mode"],
-                 item["price_amount"], item["price_unit"]),
+                 item["price_amount"], item["price_unit"], item["key"] not in pricing_config.RETIRED_BUNDLE_KEYS),
             )
     _apply_rebrand_corrections()
 
@@ -53,12 +49,6 @@ def _apply_rebrand_corrections():
         "UPDATE service_catalog SET name = 'Kilas Brain Pro' "
         "WHERE catalog_key = 'ai_admin_pro' AND name = 'AI Admin Pro'"
     )
-    if pricing_config.RETIRED_BUNDLE_KEYS:
-        placeholders = ", ".join(["?"] * len(pricing_config.RETIRED_BUNDLE_KEYS))
-        db.execute(
-            f"UPDATE service_catalog SET is_active = ? WHERE catalog_key IN ({placeholders})",
-            (False, *pricing_config.RETIRED_BUNDLE_KEYS),
-        )
 
 
 def list_active_catalog():
@@ -122,6 +112,8 @@ def create_catalog_item(category, name, pricing_mode, price_amount=None, price_u
         (catalog_key, category, name.strip(), pricing_mode, price_amount, price_unit,
          description, cta_text, sort_order, True),
     )
+    import catalog_cache
+    catalog_cache.bump_version()
     return new_id
 
 
@@ -202,3 +194,41 @@ def format_price(price_amount, price_unit):
         return "Penawaran disesuaikan dengan kebutuhan project."
     formatted = f"Rp{price_amount:,}".replace(",", ".")
     return f"{formatted} {price_unit}" if price_unit else formatted
+
+
+def public_name(item):
+    return item["name"].replace("AI Admin", "Kilas Brain")
+
+
+def display_price(item):
+    if item["pricing_mode"] == "CUSTOM_QUOTE":
+        return "Penawaran sesuai kebutuhan"
+    label = format_price(item.get("price_amount"), item.get("price_unit"))
+    return ("Mulai dari " if item["pricing_mode"] == "STARTING_FROM" else "") + label
+
+
+def service_description(item):
+    """Copy fallback only. Admin descriptions and the live price/status always win."""
+    if (item.get("description") or "").strip():
+        return item["description"].replace("AI Admin", "Kilas Brain")
+    package = {"ai_admin_basic": "AI_ADMIN_BASIC", "ai_admin_pro": "AI_ADMIN_PRO"}.get(item["catalog_key"])
+    if package:
+        from feature_flags import features_for_package
+        flags = features_for_package(package)
+        labels = {
+            "faq": "menjawab pertanyaan umum", "business_info": "menjelaskan informasi bisnis",
+            "catalog": "memberi informasi layanan", "basic_lead_capture": "mencatat calon customer",
+            "owner_commands": "perintah owner", "advanced_history": "riwayat percakapan lanjutan",
+            "image_understanding": "pemahaman gambar", "voice_note": "voice note",
+            "lead_qualification": "kualifikasi prospek", "appointment": "alur booking",
+            "payment_conversation": "percakapan pembayaran",
+        }
+        return "Asisten bisnis berbasis AI dari Kilas Works untuk " + ", ".join(v for k,v in labels.items() if flags.get(k)) + ". Tim dapat mengambil alih chat melalui Kilas Inbox."
+    descriptions = {
+        "CONTENT": "Produksi konten untuk kebutuhan brand dan media sosial. Detail output dan scope mengikuti paket/brief.",
+        "VIDEO": "Produksi video untuk kebutuhan brand, termasuk arah kreatif short-form sesuai brief. Detail output dan scope mengikuti paket/brief.",
+        "PHOTO": "Fotografi untuk kebutuhan visual brand, produk atau menu sesuai brief. Detail output dan scope mengikuti paket/brief.",
+        "WEBSITE": "Website atau landing page untuk menyajikan informasi bisnis. Fitur dan scope mengikuti layanan yang dipilih serta brief.",
+        "APPLICATION": "Sistem atau aplikasi untuk proses bisnis. Fitur dan integrasi ditentukan berdasarkan brief.",
+    }
+    return descriptions.get(item["category"], "Layanan " + public_name(item) + ". Detail output dan scope mengikuti paket/brief.")

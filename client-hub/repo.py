@@ -67,6 +67,7 @@ OFFICIAL_LINK_DEFAULTS = {
     "official_link_landing_page": "https://kilasworks.id",
     "official_link_app": "https://app.kilasworks.id",
     "official_link_instagram": "https://instagram.com/kilasworks",
+    "official_link_catalog": "https://app.kilasworks.id/catalog.pdf",
     "official_link_demo": "https://demo.kilasworks.id",
 }
 
@@ -100,6 +101,7 @@ def get_official_links():
         "landing_page": get_platform_setting("official_link_landing_page"),
         "app": get_platform_setting("official_link_app"),
         "instagram": get_platform_setting("official_link_instagram"),
+        "catalog": get_platform_setting("official_link_catalog"),
         "demo": get_platform_setting("official_link_demo"),
     }
 

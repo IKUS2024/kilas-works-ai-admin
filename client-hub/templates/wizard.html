@@ -1,7 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Onboarding — {{ business.business_name }}{% endblock %}
+{% block title %}Setup Awal — {{ business.business_name }}{% endblock %}
 {% block content %}
-<h1>{{ business.business_name }}</h1>
+<h1>Setup Awal — {{ business.business_name }}</h1>
+<p class="muted">Kenalkan bisnismu untuk pertama kali. Setelah setup selesai, perbarui informasi melalui Ajari Kilas Brain.</p>
 <p class="muted">Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p>
 
 <div class="steps">

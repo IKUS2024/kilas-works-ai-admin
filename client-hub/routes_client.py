@@ -189,9 +189,8 @@ def wizard_step(business_id, step):
     business = _business_or_404(business_id)
     if step not in WIZARD_STEPS:
         abort(404)
-    if business["status"] in ("APPROVED", "ACTIVE", "SUSPENDED"):
-        flash("Bisnis ini sudah melewati tahap onboarding — hubungi Kilas Works kalau perlu perubahan.", "error")
-        return redirect(url_for("client.dashboard"))
+    if business["status"] in ("READY_FOR_REVIEW", "NEEDS_REVISION", "APPROVED", "ACTIVE", "SUSPENDED"):
+        return redirect(url_for("client.business_memory", business_id=business_id))
 
     profile = repo.get_business_profile(business_id) or {}
     services = repo.get_business_services(business_id)
