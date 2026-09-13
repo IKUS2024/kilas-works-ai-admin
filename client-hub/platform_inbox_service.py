@@ -21,6 +21,7 @@ from urllib.parse import urlparse
 import requests
 
 import db
+import inbox_media_service
 import wa_inbox_shared
 
 WHATSAPP_24H_SAFETY_HOURS = wa_inbox_shared.WHATSAPP_24H_SAFETY_HOURS
@@ -154,7 +155,7 @@ def get_thread(customer_phone, limit=160):
     except Exception:
         return []
     rows.reverse()
-    return rows
+    return inbox_media_service.attach(rows, None)
 
 
 def get_customer_name(customer_phone):

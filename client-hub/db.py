@@ -248,6 +248,7 @@ MIGRATIONS = [
      "0021_projects_business_id_nullable_postgres.sql"),
     ("0022_invoices_payments_business_id_nullable_sqlite.sql",
      "0022_invoices_payments_business_id_nullable_postgres.sql"),
+    ("0023_inbox_media_sqlite.sql", "0023_inbox_media_postgres.sql"),
 ]
 
 

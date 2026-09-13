@@ -12,7 +12,7 @@ import context_engine as _ctx
 import requests
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from flask import Flask, request, jsonify, redirect, url_for
+from flask import Flask, request, jsonify, redirect, url_for, has_request_context
 
 try:
     import psycopg2
@@ -48,6 +48,7 @@ try:
         sys.path.insert(0, _client_hub_dir)
     import tenant_config_service as _tcs
     import wa_takeover_service as _wa_takeover
+    import inbox_media_service as _inbox_media
     import platform_inbox_service as _platform_inbox
     import wa_project_bridge as _wa_bridge
     import appointments_repo as _appt_repo
@@ -2112,6 +2113,12 @@ def init_db():
 def save_message_to_db(number, mode, role, content):
     """Simpen satu pesan (dari customer/owner ATAU balasan AI) ke database. Kalau DB gak
     kekonek/gak diset, diem-diem gak ngapa-ngapain (bot tetep jalan normal)."""
+    media_row = request.environ.get('inbox_media_row') if has_request_context() else None
+    if media_row and mode == 'customer' and role == 'user' and number == media_row['number']:
+        # Reuse the persisted event for caption/transcript history; never create a second message.
+        _inbox_media.db.execute('UPDATE messages SET content = ? WHERE id = ? AND number = ?',
+                                (content, media_row['message_row_id'], number))
+        return True
     if not db_enabled():
         return False
     try:
@@ -6841,6 +6848,24 @@ def _webhook_body_impl(data):
         incoming_message_id = message.get("id")
         msg_type = message.get("type")
 
+        # The wrapper processes each batched event within one request: clear its previous media link.
+        request.environ.pop('inbox_media_row', None)
+        # Persist media before duplicate-claim and all AI/voice/HUMAN early returns.
+        if _CLIENT_HUB_AVAILABLE and any(e.get('type') in _inbox_media.TYPES for e in value['messages']):
+            owner_phone = OWNER_WHATSAPP_NUMBER if tenant_id is None else _get_trusted_owner_phone_safe(tenant_id)
+            try:
+                for media_event in value['messages']:
+                    media_phone = media_event.get('from')
+                    if media_event.get('type') not in _inbox_media.TYPES or media_phone == owner_phone:
+                        continue
+                    row = _inbox_media.record(tenant_id, media_phone, media_event)
+                    if media_event is message and row:
+                        request.environ['inbox_media_row'] = {
+                            'message_row_id': row['message_row_id'], 'number': _ck(tenant_id, media_phone)}
+            except Exception:
+                print('[INBOX_MEDIA] reason=metadata_persistence_failed')
+                return jsonify({'status': 'media_persistence_unavailable'}), 503
+
         # WAJIB paling awal: kalau wamid ini udah pernah kepegang sebelumnya (WhatsApp ngirim ulang
         # webhook yang sama), STOP DI SINI — jangan proses apa-apa lagi, jangan panggil AI, jangan
         # kirim pesan apapun. Satu event id = satu kali proses, biar gak ada pengiriman dobel ke
@@ -8674,6 +8699,40 @@ _SUPPORTED_INTERNAL_NOTIFICATION_TYPES = (
     "PAYMENT_PROOF_UPLOADED",
     "WHATSAPP_CONNECTION_READY",
 )
+
+
+@app.route('/internal/platform-inbox-media/<media_key>', methods=['GET'])
+def internal_platform_inbox_media(media_key):
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided, INTERNAL_SERVICE_SECRET):
+        return jsonify({'status': 'error', 'reason': 'access_denied'}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({'status': 'error', 'reason': 'media_unavailable'}), 503
+    row = _inbox_media.get(media_key, None)
+    if not row:
+        return jsonify({'status': 'error', 'reason': 'media_unavailable'}), 404
+    return _inbox_media.serve(row, lambda: _inbox_media.download(
+        row, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID))
+
+
+@app.route('/internal/platform-inbox-media', methods=['POST'])
+def internal_platform_inbox_media_send():
+    provided = request.headers.get('X-Internal-Service-Secret', '')
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided, INTERNAL_SERVICE_SECRET):
+        return jsonify({'status': 'error', 'reason': 'access_denied'}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({'status': 'error', 'reason': 'media_unavailable'}), 503
+    if not request.content_length or request.content_length > 12 * 1024 * 1024:
+        return jsonify({'status': 'error', 'reason': 'upload_too_large'}), 413
+    phone = request.form.get('customer_phone', '')
+    try:
+        ok, reason = _inbox_media.send_upload(None, phone, request.files.get('file'),
+            request.form.get('caption'),
+            {'access_token': WHATSAPP_ACCESS_TOKEN, 'phone_number_id': WHATSAPP_PHONE_NUMBER_ID},
+            lambda: _inbox_media.human_window_allowed(None, phone))
+    except Exception:
+        ok, reason = False, 'media_send_unconfirmed'
+    return jsonify({'status': 'ok' if ok else 'error', 'reason': reason}), 200 if ok else 409
 
 
 @app.route("/internal/platform-cs-reply", methods=["POST"])

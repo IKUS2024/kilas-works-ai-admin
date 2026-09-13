@@ -16,6 +16,7 @@ import os
 import requests
 
 import db
+import inbox_media_service
 import repo
 import wa_takeover_service
 import wa_inbox_shared
@@ -115,7 +116,7 @@ def get_thread(business_id, customer_phone, limit=120):
     except Exception:
         return []
     rows.reverse()
-    return rows
+    return inbox_media_service.attach(rows, business_id)
 
 
 def get_customer_name(business_id, customer_phone):

@@ -109,7 +109,7 @@
           {% set customer = m.role == 'user' %}
           <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Kilas Works / AI' }}</div>
-            <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
+            {% include '_inbox_media.html' %}
             <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at|humanize_timestamp }}</div>
           </div>
         {% else %}
@@ -128,6 +128,16 @@
               <button class="btn" type="submit">Kirim</button>
             </div>
           </form>
+          <details style="margin-top:10px;"><summary>Kirim gambar atau PDF</summary>
+            <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.inbox_media_send') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" required aria-label="Gambar atau PDF">
+              <input name="caption" maxlength="1024" placeholder="Keterangan (opsional)" aria-label="Keterangan media">
+              <p class="muted" style="font-size:12px;">JPG/PNG maks. 5 MB · PDF maks. 10 MB</p>
+              <button class="btn secondary" type="submit">Kirim media</button>
+            </form>
+          </details>
         {% elif selected.mode == 'HUMAN_TAKEOVER' %}
           <div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">

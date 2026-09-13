@@ -12,6 +12,7 @@ Until (b), the UI shows "APPROVED — WAITING_WHATSAPP_CONNECTION" even though t
 is still literally "APPROVED" — see get_display_status() below, reused by templates.
 """
 import io
+import inbox_media_service
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, send_file
 
@@ -1056,3 +1057,25 @@ def platform_inbox_send_template():
             friendly = f"Template belum berhasil dikirim. Diagnostic: {reason}"
         flash(friendly, "error")
     return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route('/inbox/media/<media_key>')
+@security.admin_required
+def inbox_media(media_key):
+    row = inbox_media_service.get(media_key, None)
+    if not row:
+        abort(404)
+    return inbox_media_service.serve(row, lambda: inbox_media_service.platform_download(row))
+
+
+@admin_bp.route('/inbox/media', methods=['POST'])
+@security.admin_required
+def inbox_media_send():
+    if not request.content_length or request.content_length > 12 * 1024 * 1024:
+        abort(413)
+    phone = request.form.get('customer_phone', '')
+    if not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    ok, reason = inbox_media_service.platform_send(phone, request.files.get('file'), request.form.get('caption'))
+    flash(*inbox_media_service.upload_flash(ok, reason))
+    return redirect(url_for('admin.platform_inbox', customer=phone))

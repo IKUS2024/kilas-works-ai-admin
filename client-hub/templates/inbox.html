@@ -69,7 +69,7 @@
           {% set is_customer = m.role == 'user' %}
           <div style="align-self:{{ 'flex-start' if is_customer else 'flex-end' }};max-width:82%;padding:9px 11px;border-radius:12px;background:{{ 'rgba(148,163,184,.13)' if is_customer else 'rgba(37,99,235,.11)' }};border:1px solid var(--border);">
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if is_customer else 'Bisnis / AI' }}</div>
-            <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
+            {% include '_inbox_media.html' %}
             <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at|humanize_timestamp }}</div>
           </div>
         {% else %}
@@ -89,6 +89,16 @@
               <button class="btn" type="submit">Kirim sebagai CS</button>
             </div>
           </form>
+          <details style="margin-top:10px;"><summary>Kirim gambar atau PDF</summary>
+            <form method="post" enctype="multipart/form-data" action="{{ url_for('client.inbox_media_send', business_id=business.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" required aria-label="Gambar atau PDF">
+              <input name="caption" maxlength="1024" placeholder="Keterangan (opsional)" aria-label="Keterangan media">
+              <p class="muted" style="font-size:12px;">JPG/PNG maks. 5 MB · PDF maks. 10 MB</p>
+              <button class="btn secondary" type="submit">Kirim media</button>
+            </form>
+          </details>
         {% else %}
           <div style="border-top:1px solid var(--border);padding-top:12px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">

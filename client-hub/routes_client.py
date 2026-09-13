@@ -5,6 +5,7 @@ from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, session, abort, send_file, jsonify
 )
 import io
+import inbox_media_service
 
 import ai_onboarding
 import file_utils
@@ -957,3 +958,38 @@ def inbox_send_template(business_id):
         }.get(reason, "Template belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
         flash(friendly, "error")
     return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
+
+
+@client_bp.route('/business/<int:business_id>/inbox/media/<media_key>')
+@security.login_required
+def inbox_media(business_id, media_key):
+    _business_or_404(business_id)
+    row = inbox_media_service.get(media_key, business_id)
+    if not row:
+        abort(404)
+    def fetch():
+        channel, _ = inbox_service._tenant_channel(business_id)
+        if not channel:
+            raise ValueError('media_unavailable')
+        return inbox_media_service.download(row, channel['access_token'], channel['phone_number_id'])
+    return inbox_media_service.serve(row, fetch)
+
+
+@client_bp.route('/business/<int:business_id>/inbox/media', methods=['POST'])
+@security.login_required
+def inbox_media_send(business_id):
+    _business_or_404(business_id)
+    if not request.content_length or request.content_length > 12 * 1024 * 1024:
+        abort(413)
+    phone = request.form.get('customer_phone', '')
+    if not inbox_service.customer_exists(business_id, phone):
+        abort(404)
+    try:
+        channel, _ = inbox_service._tenant_channel(business_id)
+        ok, reason = inbox_media_service.send_upload(business_id, phone, request.files.get('file'),
+            request.form.get('caption'), channel or {},
+            lambda: inbox_media_service.human_window_allowed(business_id, phone))
+    except Exception:
+        ok, reason = False, 'media_send_unconfirmed'
+    flash(*inbox_media_service.upload_flash(ok, reason))
+    return redirect(url_for('client.inbox_page', business_id=business_id, customer=phone))
