@@ -3958,7 +3958,7 @@ BUKAN teks yang boleh kamu tempel mentah-mentah ke customer):
 
 SOAL LANDING PAGE & INSTAGRAM:
 - Gunakan LINK RESMI KILAS WORKS yang disediakan untuk website, Instagram, Client Hub, dan katalog.
-- Katalog live adalah rujukan layanan/harga terbaru. Jangan mengarang URL atau memakai PDF statis.
+- Katalog resmi adalah PDF pilihan owner. Jangan mengarang URL portfolio atau folder Drive.
 - Website untuk profil bisnis; Instagram untuk contoh visual. Bagikan link ketika relevan saja.
 
 SOAL "INI BOT?"/"INI AI?" (WAJIB JUJUR, TAPI TETAP SELLING-FRIENDLY):
@@ -5241,14 +5241,52 @@ def _exact_customer_route(text, history, tenant=False):
         return "Aku coba hubungkan ke tim ya. [TANYA_OWNER]"
     if tenant:
         return None
+    normalized = re.sub(r"\s+(kak|dong|ya)$", "", normalized).strip()
+    generic_link = normalized in ('ada linknya', 'linknya mana', 'ada link', 'boleh minta linknya', 'minta linknya')
+    portfolio = bool(re.search(r'\b(portofolio|portfolio|project|proyek)(?:nya)?\b', normalized)
+                     and re.search(r'\b(link|url|lihat|contoh)\b', normalized))
+    if generic_link or portfolio:
+        if not _CLIENT_HUB_AVAILABLE:
+            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
+        try:
+            links = _ch_repo.get_official_links()
+        except Exception:
+            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
+        preferred = 'landing_page'
+        if generic_link:
+            # Recent text only, bounded and already scoped by the caller. No model invocation.
+            for turn in reversed(history[-6:]):
+                content = turn.get('content', '')
+                if not isinstance(content, str):
+                    continue
+                context = content[-600:].lower()
+                if re.search(r'portofolio|portfolio|link (?:project|proyek)', context):
+                    portfolio = True
+                    break
+                for key, pattern in (('instagram', r'instagram|\big\b'), ('catalog', r'katalog|pricelist'),
+                                     ('landing_page', r'website|landing page|company profile'), ('app', r'client hub|login')):
+                    if re.search(pattern, context):
+                        preferred = key
+                        break
+                else:
+                    continue
+                break
+        keys = list(dict.fromkeys([preferred, 'landing_page', 'catalog', 'instagram']))
+        labels = {'landing_page':'Website Kilas Works', 'catalog':'Katalog layanan',
+                  'instagram':'Instagram', 'app':'Client Hub'}
+        intro = ("Belum ada link khusus portfolio/project yang tersimpan. Ini website dan Instagram resmi Kilas Works:" if portfolio
+                 else "Bisa kak:")
+        if portfolio:
+            keys = ['landing_page', 'instagram']
+        return intro + "\n" + "\n".join(f"{labels[k]}: {links[k]}" for k in keys)
     link_key = None
     if normalized in ('kirim katalog', 'kirim katalognya', 'minta katalog', 'kirim pricelist',
                       'kirim semua harga', 'ada katalog', 'pricelist', 'daftar layanan',
                       'layanan kilas works apa aja', 'lihat paket di mana', 'katalog'):
         link_key = 'catalog'
-    elif normalized in ('website kilas works apa', 'website kilas works', 'website', 'link website'):
+    elif normalized in ('website kilas works apa', 'website kilas works', 'website', 'link website', 'ada webnya', 'websitenya'):
         link_key = 'landing_page'
-    elif normalized in ('ig-nya apa', 'ig nya apa', 'instagram', 'ig', 'instagram kilas works', 'ig kilas works'):
+    elif normalized in ('ig-nya apa', 'ig nya apa', 'instagram', 'ig', 'instagram kilas works', 'ig kilas works', 'ada ig', 'instagramnya'):
         link_key = 'instagram'
     elif normalized in ('link demo', 'minta link demo', 'ada demo', 'link demo ai admin', 'link demo kilas brain'):
         link_key = 'demo'
@@ -5261,7 +5299,7 @@ def _exact_customer_route(text, history, tenant=False):
             link = _ch_repo.get_official_links()[link_key]
         except Exception:
             return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
-        label = {'catalog': 'Katalog layanan dan harga terbaru Kilas Works', 'landing_page': 'Website Kilas Works',
+        label = {'catalog': 'Katalog resmi Kilas Works', 'landing_page': 'Website Kilas Works',
                  'instagram': 'Instagram Kilas Works', 'demo': 'Demo Kilas Brain', 'app': 'Client Hub Kilas Works'}[link_key]
         return f"{label}: {link}"
 
@@ -5833,9 +5871,16 @@ def _get_live_catalog_pdf_path_safe():
         return None
 
 
+def _get_static_catalog_pdf_path_safe():
+    """The same committed asset served by Client Hub /catalog.pdf; no DB/generator fallback."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client-hub", "static",
+                        "kilas-works-official-catalog.pdf")
+    return path if os.path.isfile(path) else None
+
+
 def get_catalog_media_id(force_refresh=False):
-    """Upload/cache the live DB catalog; never substitute a static price snapshot."""
-    path = _get_live_catalog_pdf_path_safe()
+    """Upload/cache the exact owner-approved static catalog."""
+    path = _get_static_catalog_pdf_path_safe()
     if not path:
         return None
     try:
@@ -5859,7 +5904,7 @@ def get_catalog_media_id(force_refresh=False):
 
 
 def send_catalog_pdf(to_number):
-    """Send the current live catalog through the existing platform document transport."""
+    """Send the owner-approved static catalog through the existing platform document transport."""
     media_id = get_catalog_media_id()
     if not media_id:
         return False, "Gagal upload katalog.pdf ke WhatsApp."

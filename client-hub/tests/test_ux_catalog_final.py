@@ -5,7 +5,8 @@ import json
 from html.parser import HTMLParser
 import re
 import unittest
-import tempfile
+import hashlib
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -23,9 +24,9 @@ ROOT = Path(__file__).resolve().parents[2]
 def bot_functions():
     tree = ast.parse((ROOT / 'app.py').read_text())
     names = {'_exact_customer_route', '_build_official_links_note_safe', 'build_focused_customer_prompt',
-             '_get_live_catalog_pdf_path_safe', 'get_catalog_media_id'}
+             '_get_live_catalog_pdf_path_safe', '_get_static_catalog_pdf_path_safe', 'get_catalog_media_id', 'send_catalog_pdf'}
     module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
-    ns = {'re': re, 'json': json, '_CLIENT_HUB_AVAILABLE': True, '_ch_repo': repo}
+    ns = {'__file__':str(ROOT/'app.py'), 'os':os, 're': re, 'json': json, '_CLIENT_HUB_AVAILABLE': True, '_ch_repo': repo}
     exec(compile(module, 'platform-functions', 'exec'), ns)
     return ns
 
@@ -165,31 +166,84 @@ class CatalogUXTests(unittest.TestCase):
             self.assertNotIn('AI Admin',self.client.get(path).get_data(as_text=True))
         self.assertIn('AI_ADMIN_BASIC',self.client.get('/dashboard').get_data(as_text=True))
 
-    def test_public_pdf_cache_reflects_admin_price_and_archive(self):
+    def test_public_pdf_is_exact_static_asset_despite_catalog_changes(self):
+        asset=ROOT/'client-hub/static/kilas-works-official-catalog.pdf'
+        expected=asset.read_bytes()
+        self.assertEqual(hashlib.sha256(expected).hexdigest(), 'a69937d7723de11211ddbedf290ac9408897b626b7d804ff140c6f4d2176ef43')
         item=catalog.get_catalog_item('content_basic')
-        with tempfile.TemporaryDirectory() as directory, patch.object(pdf,'_CACHE_DIR',directory), patch.object(pdf,'_CACHE_PATH',directory+'/catalog.pdf'), patch.dict(pdf._CACHE_STATE,version=None,path=None):
-            def text():
-                response=self.client.get('/catalog.pdf')
+        # Public endpoint needs neither login nor catalog reads/generation.
+        client=hub.app.test_client()
+        with patch.object(pdf,'get_cached_catalog_pdf_path',side_effect=AssertionError('generator called')), patch.object(catalog,'list_active_catalog',side_effect=AssertionError('catalog read')):
+            for active,price in ((True,123456),(False,987654),(True,234567)):
+                catalog.update_catalog_item(item['id'],is_active=active,price_amount=price)
+                response=client.get('/catalog.pdf')
                 self.assertEqual(response.status_code,200)
-                data=response.data; response.close()
-                return '\n'.join(p.extract_text() for p in PdfReader(io.BytesIO(data)).pages)
-            self.assertIn('Content Basic',text())
-            catalog.update_catalog_item(item['id'],price_amount=987654)
-            self.assertIn('987.654',text())
-            catalog.update_catalog_item(item['id'],is_active=False)
-            self.assertNotIn('Content Basic',text())
+                self.assertEqual(response.mimetype,'application/pdf')
+                self.assertEqual(response.data,expected); response.close()
 
-    def test_platform_document_upload_uses_live_catalog_only(self):
+    def test_platform_document_upload_uses_static_catalog_only(self):
         bot=bot_functions(); uploads=[]
-        bot.update(_get_live_catalog_pdf_path_safe=lambda:'/live/catalog.pdf',
-                   os=SimpleNamespace(path=SimpleNamespace(getmtime=lambda _:123)),
+        asset=ROOT/'client-hub/static/kilas-works-official-catalog.pdf'
+        bot.update(_get_live_catalog_pdf_path_safe=lambda:self.fail('live generator called'),
                    _CATALOG_MEDIA_ID_CACHE={'media_id':None,'path':None,'mtime':None},
-                   upload_media=lambda path,mime: uploads.append((path,mime)) or 'media-id')
+                   upload_media=lambda path,mime: uploads.append((Path(path).read_bytes(),mime)) or 'media-id')
+        self.assertEqual(Path(bot['_get_static_catalog_pdf_path_safe']()),asset)
         self.assertEqual(bot['get_catalog_media_id'](),'media-id')
         self.assertEqual(bot['get_catalog_media_id'](),'media-id')
-        self.assertEqual(uploads,[('/live/catalog.pdf','application/pdf')])
-        bot['_get_live_catalog_pdf_path_safe']=lambda:None
+        self.assertEqual(uploads,[(asset.read_bytes(),'application/pdf')])
+        bot['_get_static_catalog_pdf_path_safe']=lambda:None
         self.assertIsNone(bot['get_catalog_media_id']())
+
+    def test_catalog_document_send_uses_uploaded_static_bytes(self):
+        bot=bot_functions(); uploads=[]; sends=[]
+        bot.update(_CATALOG_MEDIA_ID_CACHE={'media_id':None,'path':None,'mtime':None},
+                   upload_media=lambda path,mime: uploads.append(Path(path).read_bytes()) or 'static-id',
+                   _active_whatsapp_phone_number_id=lambda:'test-id', _active_whatsapp_access_token=lambda:'test-token',
+                   CATALOG_PDF_FILENAME='Katalog Kilas Works.pdf',
+                   requests=SimpleNamespace(post=lambda *a,**k:sends.append(k['json']) or SimpleNamespace(status_code=200)),
+                   _whatsapp_result=lambda response:(True,None))
+        self.assertEqual(bot['send_catalog_pdf']('test-recipient'),(True,None))
+        self.assertEqual(uploads,[(ROOT/'client-hub/static/kilas-works-official-catalog.pdf').read_bytes()])
+        self.assertEqual(len(sends),1); self.assertEqual(sends[0]['document']['id'],'static-id')
+
+    def test_short_link_followups_without_clarification(self):
+        bot=bot_functions(); links=repo.get_official_links()
+        for question,key in (('ada linknya?','landing_page'),('linknya mana?','catalog'),('ada webnya?','landing_page'),
+                             ('websitenya?','landing_page'),('ada katalog?','catalog'),('kirim katalog','catalog'),
+                             ('ada IG?','instagram'),('instagramnya?','instagram')):
+            reply=bot['_exact_customer_route'](question,[])
+            self.assertIn(links[key],reply)
+            self.assertNotIn('?',reply); self.assertNotIn('Drive',reply)
+
+    def test_context_orders_relevant_official_link_first(self):
+        bot=bot_functions(); links=repo.get_official_links()
+        for context,key in (('Company Profile / Landing Page / Website','landing_page'),('Katalog layanan','catalog'),('Instagram','instagram'),('Client Hub login','app')):
+            reply=bot['_exact_customer_route']('ada linknya?',[{'role':'assistant','content':context}])
+            self.assertIn(links[key],reply.splitlines()[1])
+
+    def test_portfolio_request_never_invents_a_project_or_folder_link(self):
+        bot=bot_functions(); links=repo.get_official_links()
+        for question in ('ada link portfolio?', 'link portofolionya?', 'ada URL project?'):
+            reply=bot['_exact_customer_route'](question,[])
+            self.assertIn('Belum ada link khusus',reply)
+            self.assertIn(links['landing_page'],reply); self.assertIn(links['instagram'],reply)
+            self.assertNotIn('Drive',reply); self.assertNotIn('folder',reply)
+        reply=bot['_exact_customer_route']('ada linknya?',[{'role':'user','content':'portfolio'}])
+        self.assertIn('Belum ada link khusus',reply)
+
+    def test_new_link_routes_tenant_guard_precedes_settings_and_history(self):
+        bot=bot_functions()
+        bot['_ch_repo']=SimpleNamespace(get_official_links=lambda:self.fail('tenant accessed platform settings'))
+        for question in ('ada linknya?', 'linknya mana?', 'ada webnya?', 'websitenya?', 'ada katalog?', 'kirim katalog', 'ada IG?', 'instagramnya?', 'link portfolio?'):
+            self.assertIsNone(bot['_exact_customer_route'](question,[{'content':'website Kilas Works'}],tenant=True))
+
+    def test_missing_links_fail_safely_and_history_is_bounded(self):
+        bot=bot_functions(); bot['_CLIENT_HUB_AVAILABLE']=False
+        self.assertIn('belum bisa diambil',bot['_exact_customer_route']('ada linknya?',[]))
+        bot['_CLIENT_HUB_AVAILABLE']=True
+        history=[{'content':'Instagram'}]+[{'content':[]}] * 6
+        reply=bot['_exact_customer_route']('ada linknya?',history)
+        self.assertIn('Website Kilas Works:',reply.splitlines()[1])
 
     def test_catalog_add_invalidates_pdf(self):
         before=catalog_cache.get_version(); catalog.create_catalog_item('CONTENT','New live','CUSTOM_QUOTE')

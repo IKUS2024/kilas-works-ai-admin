@@ -25,7 +25,6 @@ import db
 import security
 import catalog_service
 import talent_service
-import live_catalog_pdf
 import display_labels
 from routes_auth import auth_bp
 from routes_client import client_bp
@@ -172,13 +171,9 @@ def create_app():
 
     @app.route("/catalog.pdf")
     def public_catalog_pdf():
-        """Absolute Final Production Patch (Sections 6-10): the current catalog, generated fresh
-        from live DB state (service_catalog + talents), never a hand-edited static file. Public —
-        no login required, same trust level as the existing static katalog.pdf the bot has always
-        been able to send to any customer on WhatsApp. Cached (see live_catalog_pdf.py) and
-        auto-invalidated whenever an admin edits a price, toggles a service, or edits a talent."""
-        path = live_catalog_pdf.get_cached_catalog_pdf_path()
-        if not path:
+        """Serve the owner's exact official PDF; catalog DB changes never rebuild this asset."""
+        path = os.path.join(app.static_folder, "kilas-works-official-catalog.pdf")
+        if not os.path.isfile(path):
             abort(503, description="Katalog sedang tidak tersedia, coba lagi sebentar lagi.")
         return send_file(path, mimetype="application/pdf", as_attachment=False,
                           download_name="Katalog Kilas Works.pdf")
