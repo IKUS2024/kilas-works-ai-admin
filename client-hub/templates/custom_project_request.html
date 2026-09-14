@@ -6,7 +6,7 @@
   <p class="muted">Isi kebutuhan dan budget. Harga final akan disiapkan tim Kilas Works sebagai quotation — tidak otomatis ditentukan sistem.</p>
   <form method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>Nama Project</label>
+    <label>Nama project / bisnis atau brand</label>
     <input type="text" name="project_name" required>
 
     {% if project_type == 'CONTENT' %}
@@ -18,7 +18,8 @@
       <label>Deadline</label><input type="date" name="deadline">
       <label>Style</label><input type="text" name="style">
     {% elif project_type == 'VIDEO' %}
-      <label>Jumlah Video</label><input type="number" name="num_videos">
+      <p class="muted">Ceritakan jenis dan tujuan video di catatan: short-form sosial atau produksi custom. Cantumkan kebutuhan talent bila ada.</p>
+      <label>Jumlah Video / Output Diinginkan</label><input type="number" name="num_videos">
       <label>Estimasi Durasi</label><input type="text" name="duration" placeholder="mis. 30 detik">
       <label>Platform</label>
       <select name="platform"><option>Instagram Reels</option><option>TikTok</option><option>YouTube</option><option>Ads</option><option>Other</option></select>
@@ -28,7 +29,7 @@
       <label>Referensi (link/deskripsi)</label><input type="text" name="reference">
       <label><input type="checkbox" name="editing_required" style="width:auto;display:inline-block;"> Butuh editing</label>
     {% elif project_type == 'PHOTO' %}
-      <label>Jenis Photoshoot</label><input type="text" name="photoshoot_type">
+      <label>Objek / produk yang difoto</label><input type="text" name="photoshoot_type" placeholder="Jenis produk dan perkiraan jumlah produk">
       <label>Estimasi Jumlah Foto Final</label><input type="number" name="num_final_photos">
       <label>Lokasi</label><input type="text" name="location">
       <label>Tanggal Diinginkan</label><input type="date" name="preferred_date">
@@ -43,7 +44,8 @@
 
     <label>Budget Minimum (Rp)</label><input type="number" name="budget_min">
     <label>Budget Maksimum (Rp)</label><input type="number" name="budget_max">
-    <label>Catatan Tambahan</label><textarea name="notes"></textarea>
+    <label>Catatan / kelengkapan brief</label>
+    <textarea name="notes" placeholder="{% if project_type in ('WEBSITE','APPLICATION') %}Status domain, logo/foto/copy yang tersedia, kontak/WhatsApp, dan catatan lain.{% elif project_type == 'PHOTO' %}Perkiraan jumlah produk, kebutuhan khusus, dan catatan lain.{% elif project_type == 'VIDEO' %}Jenis/tujuan video, short-form atau produksi custom, talent dan output yang diinginkan.{% else %}Kebutuhan khusus sesuai brief.{% endif %}"></textarea>
 
     <label>Upload Brief / Referensi (opsional)</label>
     {# Mobile-friendly upload (same pattern as payment proof upload): "capture" lets a phone

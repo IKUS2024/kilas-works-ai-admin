@@ -24,6 +24,14 @@ pricing_mode:
     CUSTOM_QUOTE     — no public price; always goes through the quotation flow (Phase C).
 """
 
+CONTENT_PACKAGES = {
+    'basic': {'nama':'Content Basic','harga':1990000,'reels':4,'photos':4},
+    'growth': {'nama':'Content Growth','harga':3490000,'reels':8,'photos':6},
+    'pro': {'nama':'Content Pro','harga':5490000,'reels':12,'photos':10},
+}
+CONTENT_SCOPE = 'Reels/short-form sosial sesuai brief. Produksi kompleks, banyak lokasi/talent atau output berbeda melalui penawaran Custom Video/Content.'
+TALENT_FEE_RULE = 'Fee jasa Kilas Works untuk pencarian, shortlist, koordinasi dan manajemen talent terpisah dari fee talent yang dipilih; nominal mengikuti penawaran.'
+
 CATALOG_ITEMS = [
     # --- KILAS BRAIN (2026 public rebrand — internal category/key stay AI_ADMIN/ai_admin_* on
     # purpose: changing them would touch tenant onboarding, subscription, and feature-flag code
@@ -35,11 +43,11 @@ CATALOG_ITEMS = [
 
     # --- CONTENT ---
     {"key": "content_basic", "category": "CONTENT", "name": "Content Basic",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 1_500_000, "price_unit": "per bulan"},
+     "pricing_mode": "FIXED_PRICE", "price_amount": CONTENT_PACKAGES['basic']['harga'], "price_unit": "per bulan"},
     {"key": "content_growth", "category": "CONTENT", "name": "Content Growth",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 2_750_000, "price_unit": "per bulan"},
+     "pricing_mode": "FIXED_PRICE", "price_amount": CONTENT_PACKAGES['growth']['harga'], "price_unit": "per bulan"},
     {"key": "content_pro", "category": "CONTENT", "name": "Content Pro",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 4_250_000, "price_unit": "per bulan"},
+     "pricing_mode": "FIXED_PRICE", "price_amount": CONTENT_PACKAGES['pro']['harga'], "price_unit": "per bulan"},
 
     # --- BUNDLES (2026 rebrand: ONLY these 3 Content+Kilas Brain combinations remain public.
     # Every previous bundle involving Ads or Landing Page — bundle_growth_ai_basic,

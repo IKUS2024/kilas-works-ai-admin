@@ -1162,9 +1162,9 @@ except Exception as _pricing_config_import_err:
 _CATALOG_SYNC_KEYS_FALLBACK = {
     "ai_admin_basic": ("Kilas Brain Basic", 499_000),
     "ai_admin_pro": ("Kilas Brain Pro", 999_000),
-    "content_basic": ("Content Basic", 1_500_000),
-    "content_growth": ("Content Growth", 2_750_000),
-    "content_pro": ("Content Pro", 4_250_000),
+    "content_basic": ("Content Basic", 1_990_000),
+    "content_growth": ("Content Growth", 3_490_000),
+    "content_pro": ("Content Pro", 5_490_000),
     "website_landing_page": ("Landing Page", 799_000),
     "website_company_profile": ("Company Profile Website", 1_500_000),
 }
@@ -3489,6 +3489,8 @@ def build_payment_info_text():
 # Ini SATU-SATUNYA tempat harga/paket Kilas Works didefinisikan. SYSTEM_PROMPT (info yang dihafal
 # AI WhatsApp Admin) & katalog PDF (lihat generate_katalog_pdf.py / script terpisah) HARUS baca dari
 # sini, JANGAN pernah hardcode angka harga di tempat lain. Kalau harga berubah, cukup edit di sini.
+from pricing_config import CONTENT_PACKAGES as _CONTENT_PACKAGES
+
 PRICING_CONFIG = {
     "ai_admin": {
         "basic": {
@@ -3543,38 +3545,9 @@ PRICING_CONFIG = {
             ],
         },
     },
-    "content_packages": {
-        "basic": {
-            "nama": "Content Basic", "harga": 1500000,
-            "deliverables": ["4 Reels/TikTok", "6 Static Visuals", "Editing", "Basic color", "Caption ideas"],
-        },
-        "growth": {
-            "nama": "Content Growth", "harga": 2750000, "most_popular": True,
-            "deliverables": ["8 Reels/TikTok", "10 Static Visuals", "Ide & hook konten", "Editing", "Color", "Caption ideas"],
-        },
-        "pro": {
-            "nama": "Content Pro", "harga": 4250000,
-            "deliverables": ["12 Reels/TikTok", "14 Static Visuals", "Content planning", "Ide & hook", "Script ringan", "Editing & color", "Caption ideas"],
-        },
-    },
-    "static_visual_note": (
-        "Static Visual bisa berupa kombinasi foto, desain/poster, carousel, dan AI-assisted creative "
-        "visual sesuai kebutuhan brand — bukan selalu hasil photography murni."
-    ),
-    "bundles": {
-        "growth_brain_basic": {
-            "nama": "Content Growth + Kilas Brain Basic", "harga": 3100000,
-            "isi": ["Semua benefit Content Growth", "Kilas Brain Basic"],
-        },
-        "growth_brain_pro": {
-            "nama": "Content Growth + Kilas Brain Pro", "harga": 3600000,
-            "isi": ["Semua benefit Content Growth", "Kilas Brain Pro"],
-        },
-        "pro_brain_pro": {
-            "nama": "Content Pro + Kilas Brain Pro", "harga": 5100000,
-            "isi": ["Semua benefit Content Pro", "Kilas Brain Pro"],
-        },
-    },
+    "content_packages": {key: dict(facts, deliverables=[f"{facts['reels']} Reels / short-form videos", f"{facts['photos']} foto final"], most_popular=key=='growth') for key,facts in _CONTENT_PACKAGES.items()},
+    "static_visual_note": "Foto final, bukan pengganti berupa static visual. Produksi kompleks memakai Custom Video/Content quotation.",
+    "bundles": {},
     "meta_ads": {
         "management": {
             "nama": "Meta Ads Management", "harga": 799000, "satuan": "bulan",
@@ -3709,21 +3682,12 @@ def build_pricing_text_block():
     lines.append("Content Packages (langganan bulanan produksi konten, TANPA AI Admin):")
     for key in ("basic", "growth", "pro"):
         p = cfg["content_packages"][key]
-        label = f"{p['nama']} (paling diminati)" if p.get("most_popular") else p["nama"]
+        label = f"{p['nama']} (pilihan tengah)" if p.get("most_popular") else p["nama"]
         lines.append(f"- {label} — Rp{fp(p['harga'])}/bulan: " + ", ".join(p["deliverables"]))
     lines.append(f"Catatan Static Visual: {cfg['static_visual_note']}")
 
     lines.append("")
-    lines.append("Bundle Content + Kilas Brain (paling hemat kalau butuh dua-duanya):")
-    for key in ("growth_brain_basic", "growth_brain_pro", "pro_brain_pro"):
-        b = cfg["bundles"][key]
-        lines.append(f"- {b['nama']} — Rp{fp(b['harga'])}/bulan: " + " + ".join(b["isi"]))
-    lines.append(
-        "Catatan bundle: HANYA 3 kombinasi Content + Kilas Brain di atas yang tersedia. Ads dan "
-        "Website/Landing Page SELALU layanan terpisah — jangan pernah menawarkan gabungan Ads "
-        "atau Landing Page ke dalam paket bulanan manapun."
-    )
-
+    lines.append("Content dan Kilas Brain dibeli terpisah; tidak ada paket bundle atau diskon otomatis.")
     lines.append("")
     ma = cfg["meta_ads"]
     mgmt = ma["management"]
@@ -4103,7 +4067,7 @@ kalau udah maju ke tahap berikutnya):
 3. RECOMMEND (begitu konteks udah cukup): JANGAN tampilkan SEMUA paket sekaligus. Kasih PERSIS 1 rekomendasi
    UTAMA + 1 alternatif (pakai nama & bundle yang BENERAN ada di data paket/bundle di atas — JANGAN bikin
    paket/bundle baru). Kalau kebutuhan customer memang nyambung ke lebih dari satu layanan (misal konten +
-   chat), baru rekomendasiin bundle resmi yang sesuai (lihat data bundle di atas) — JANGAN otomatis upsell semua layanan sekaligus kalau customer cuma nanya satu hal.
+   chat), jelaskan bahwa layanan dibeli terpisah tanpa diskon otomatis — JANGAN otomatis upsell semua layanan sekaligus kalau customer cuma nanya satu hal.
    - SOAL META ADS (STATUS SEKARANG: SEKUNDER/TIDAK DIPROMOSIKAN AKTIF): Meta Ads/Ads Bundles TETAP ada di
      data paket & TETAP boleh/wajib dijawab AKURAT & LENGKAP kalau customer nanya LANGSUNG soal ads/iklan
      Meta/Instagram/Facebook. TAPI jangan pernah jadi rekomendasi UTAMA atau alternatif proaktif di langkah
@@ -4781,6 +4745,27 @@ def log_ai_usage(context_label, model, api_response_json):
         pass  # logging biaya gak boleh pernah bikin request gagal
 
 
+def _exact_platform_owner_customer(text, target):
+    query = (text or '').lower().strip().rstrip('?.!')
+    if query in ('customer ini terakhir nanya apa', 'customer ini terakhir ngomong apa', 'ringkas chat customer ini'):
+        if not target or str(target).startswith('T'):
+            return 'Belum ada customer platform aktif yang terpilih.'
+        history = conversations.get(target) or load_recent_messages_from_db(target, 'customer')
+        messages = [m['content'] for m in history if m.get('role') == 'user' and isinstance(m.get('content'), str)]
+        if not messages:
+            return 'Belum ada pesan customer yang bisa dibaca.'
+        if query.startswith('ringkas'):
+            return 'Pesan customer terbaru (cuplikan, bukan penilaian lead):\n' + '\n'.join(m[:240] for m in messages[-3:])
+        return 'Pesan terakhir customer: ' + messages[-1][:600]
+    if query in ('ada chat yang perlu gue takeover', 'ada chat yang perlu saya takeover'):
+        pending = _pending_owner_questions_for_tenant(None)
+        return (f'Ada {len(pending)} chat yang menunggu bantuan owner; cek Inbox sebelum mengambil alih.' if pending
+                else 'Tidak ada permintaan bantuan owner yang tercatat saat ini.')
+    if query == 'siapa yang nanya website hari ini':
+        return 'Belum ada laporan harian terverifikasi untuk pertanyaan website. Aku tidak bisa memastikan daftarnya dari konteks chat yang terbatas.'
+    return None
+
+
 def call_claude_owner(owner_number, owner_message, pending_question, pending_customer_number,
                        image_b64=None, image_mime=None, direct_send=False, is_voice_note=False):
     """Panggil Claude buat mode 'asisten pribadi owner' — beda histori & system prompt dari
@@ -4794,7 +4779,11 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     riwayat biar owner-mode AI bisa jawab natural kalau ditanya "dia terakhir bilang apa lewat
     voice note", persis pola yang sama kayak tag "[OWNER KIRIM GAMBAR]" di bawah."""
     if not image_b64:
-        exact = _exact_owner_query(None, owner_message)
+        exact = _catalog_service.exact_sales_answer(owner_message, owner_conversations.get(owner_number, [])) if _catalog_service is not None else None
+        if exact is None:
+            exact = _exact_platform_owner_customer(owner_message, pending_customer_number)
+        if exact is None:
+            exact = _exact_owner_query(None, owner_message)
         if exact is not None:
             save_message_to_db(owner_number, "owner", "user", owner_message)
             save_message_to_db(owner_number, "owner", "assistant", exact)
@@ -4832,8 +4821,6 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
         "reason": "vision" if image_b64 else ("complex_reasoning" if model_to_use != MODEL_FAST else "ordinary"),
         "context_type": "owner"}))
     try:
-        if image_b64:
-            raise RuntimeError("skip-haiku-vision-not-supported")
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={
@@ -4850,28 +4837,8 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
             timeout=30,
         )
         resp.raise_for_status()
-    except Exception as e:
-        status = getattr(getattr(e, "response", None), "status_code", None)
-        if not image_b64 and (isinstance(e, requests.Timeout) or (status is not None and status not in (429, 500, 502, 503, 504, 529))):
-            raise
-        print("[AI_RETRY] reason=transient_provider_failure same_model=true")
-        model_to_use = MODEL_PRIMARY if image_b64 else model_to_use
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": ANTHROPIC_API_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model_to_use,
-                "max_tokens": 400,
-                "system": system_prompt,
-                "messages": history,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
+    except Exception:
+        raise  # One provider attempt; no automatic paid retry.
 
     data = resp.json()
     reply_text = data["content"][0]["text"]
@@ -5241,6 +5208,13 @@ def _exact_customer_route(text, history, tenant=False):
         return "Aku coba hubungkan ke tim ya. [TANYA_OWNER]"
     if tenant:
         return None
+    if _catalog_service is not None:
+        try:
+            exact = _catalog_service.exact_sales_answer(text, history)
+        except Exception:
+            exact = "Data layanan belum bisa dibaca. Coba lagi sebentar ya kak."
+        if exact is not None:
+            return exact
     normalized = re.sub(r"\s+(kak|dong|ya)$", "", normalized).strip()
     generic_link = normalized in ('ada linknya', 'linknya mana', 'ada link', 'boleh minta linknya', 'minta linknya')
     portfolio = bool(re.search(r'\b(portofolio|portfolio|project|proyek)(?:nya)?\b', normalized)
@@ -5342,7 +5316,12 @@ def build_focused_customer_prompt(scoped_number, query, tenant_context_block="",
     if tenant:
         parts.append(tenant_context_block)
     else:
-        stable += "\n" + PRICING_TEXT_BLOCK + "\n" + _build_active_service_categories_safe() + "\n" + _build_live_price_sync_note_safe()
+        stable += "\nJawab dulu, natural, 1–3 kalimat; maksimal satu pertanyaan. Jangan mengarang harga, diskon, deadline atau hasil. Keberatan harga: tawarkan paket lebih rendah/scope custom, tanyakan budget hanya jika belum diketahui. Eskalasi hanya keputusan berisiko/approval manusia, bukan setiap pertanyaan unik."
+        if _catalog_service is not None:
+            try:
+                parts.append(_catalog_service.sales_context(query, conversations.get(scoped_number, [])))
+            except Exception:
+                parts.append("Data layanan belum bisa dibaca; jangan menyebut angka harga atau output yang tidak tersedia.")
         if _ctx.wants(query, r'talent|influencer|creator|ugc|endorse|model|roster|kol\b'):
             parts.append(_build_live_talent_knowledge_note_safe(for_owner=False))
             parts.append(_ctx.section(SYSTEM_PROMPT, 'SOAL TALENT MANAGEMENT (Sales', 'SOAL LANDING PAGE & INSTAGRAM:'))
@@ -5460,7 +5439,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     print("[AI_MODEL] " + json.dumps({"model": model_to_use,
         "reason": "vision" if image_b64 else "ordinary", "context_type": "tenant_customer" if tenant_id is not None else "platform_customer"}))
     try:
-        if image_b64:
+        if image_b64 and (tenant_id is not None or tenant_context_block):
             raise RuntimeError("skip-haiku-vision-not-supported")
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -5479,6 +5458,8 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         )
         resp.raise_for_status()
     except Exception as e:
+        if tenant_id is None and not tenant_context_block:
+            raise  # Platform: one model request only, including transient failures.
         # Fallback ke Sonnet kalau Haiku gagal
         status = getattr(getattr(e, "response", None), "status_code", None)
         if not image_b64 and (isinstance(e, requests.Timeout) or (status is not None and status not in (429, 500, 502, 503, 504, 529))):

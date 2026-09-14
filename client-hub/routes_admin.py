@@ -535,6 +535,9 @@ def catalog_toggle_active(catalog_id):
     item = catalog_service.get_catalog_item_by_id(catalog_id)
     if item is None:
         abort(404)
+    if item['category'] == 'BUNDLE' and not item['is_active']:
+        flash('Bundle tidak ditawarkan lagi; layanan dibeli terpisah.', 'error')
+        return redirect(url_for('admin.catalog_admin', view='archive'))
     catalog_service.update_catalog_item(catalog_id, is_active=not item["is_active"])
     flash(f"{item['name']} {'diaktifkan' if not item['is_active'] else 'dinonaktifkan'}.", "success")
     return redirect(url_for("admin.catalog_admin"))

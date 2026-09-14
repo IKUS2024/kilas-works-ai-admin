@@ -62,7 +62,7 @@
         </details>
         <form method="post" action="{{ url_for('admin.catalog_toggle_active', catalog_id=item.id) }}" class="inline" style="margin-top:6px;">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn small secondary" type="submit">{{ 'Arsipkan' if item.is_active else 'Aktifkan kembali' }}</button>
+          {% if item.category != 'BUNDLE' or item.is_active %}<button class="btn small secondary" type="submit">{{ 'Arsipkan' if item.is_active else 'Aktifkan kembali' }}</button>{% else %}<span class="muted">Bundle sudah diarsipkan</span>{% endif %}
         </form>
       </td>
     </tr>

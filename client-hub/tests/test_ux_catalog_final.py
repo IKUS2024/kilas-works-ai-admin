@@ -26,7 +26,7 @@ def bot_functions():
     names = {'_exact_customer_route', '_build_official_links_note_safe', 'build_focused_customer_prompt',
              '_get_live_catalog_pdf_path_safe', '_get_static_catalog_pdf_path_safe', 'get_catalog_media_id', 'send_catalog_pdf'}
     module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
-    ns = {'__file__':str(ROOT/'app.py'), 'os':os, 're': re, 'json': json, '_CLIENT_HUB_AVAILABLE': True, '_ch_repo': repo}
+    ns = {'_catalog_service':catalog, '__file__':str(ROOT/'app.py'), 'os':os, 're': re, 'json': json, '_CLIENT_HUB_AVAILABLE': True, '_ch_repo': repo}
     exec(compile(module, 'platform-functions', 'exec'), ns)
     return ns
 

@@ -27,6 +27,7 @@
     {% for item in items %}
     <article class="service-item">
       <h3>{{ public_name(item) }}</h3>
+      {% if item.catalog_key == 'content_growth' %}<span class="pill">Rekomendasi · Pilihan Tengah</span>{% endif %}
       <p class="muted">{{ service_description(item) }}</p>
       <p class="service-price">{{ display_price(item) }}</p>
       <div class="service-action">
