@@ -3490,6 +3490,7 @@ def build_payment_info_text():
 # AI WhatsApp Admin) & katalog PDF (lihat generate_katalog_pdf.py / script terpisah) HARUS baca dari
 # sini, JANGAN pernah hardcode angka harga di tempat lain. Kalau harga berubah, cukup edit di sini.
 from pricing_config import CONTENT_PACKAGES as _CONTENT_PACKAGES
+import pricing_config as _service_facts
 
 PRICING_CONFIG = {
     "ai_admin": {
@@ -3563,7 +3564,7 @@ PRICING_CONFIG = {
                 "Monthly performance summary/report",
                 "Rekomendasi creative berdasarkan performa",
             ],
-            "catatan": "Ad spend TIDAK termasuk fee Kilas Works — budget iklan dibayar langsung oleh customer ke Meta.",
+            "catatan": _service_facts.ADS_DESCRIPTION,
         },
         "setup_only": {
             "nama": "Ads Setup Only", "harga": 399000, "satuan": "sekali",
@@ -3601,29 +3602,17 @@ PRICING_CONFIG = {
         },
     },
     "domain_hosting": {
-        "com": {"nama": ".COM + Hosting", "harga": 999000, "satuan": "tahun"},
-        "id": {"nama": ".ID + Hosting", "harga": 1099000, "satuan": "tahun"},
-        "termasuk": ["Setup domain", "Connect domain", "DNS configuration", "SSL", "Hosting configuration awal"],
+        "com": {"nama": "Managed .com + Hosting", "harga": 999000, "satuan": "tahun"},
+        "id": {"nama": "Managed .id + Hosting", "harga": 1099000, "satuan": "tahun"},
+        "termasuk": _service_facts.MANAGED_HOSTING_INCLUSIONS,
         "catatan": (
             "Domain & hosting berlaku 1 tahun. Harga renewal dapat mengikuti harga provider pada saat "
             "perpanjangan. Kalau customer mau beli domain/hosting sendiri, Kilas Works tetap bisa bantu "
             "proses connect ke website."
         ),
     },
-    "event": {
-        "standard": {"nama": "Acara Standard", "harga": 1200000, "deskripsi": "1 fotografer, hingga 5 jam, semua file foto digital"},
-        "lengkap": {"nama": "Acara Lengkap", "harga": 2800000, "deskripsi": "1 fotografer + 1 videografer, hingga 8 jam, video highlight sinematik"},
-        "premium": {"nama": "Acara Premium", "harga": 4400000, "deskripsi": "2 fotografer + 1 videografer, hingga 8 jam, video sinematik + teaser Reels + album cetak"},
-    },
-    "transport_acara": {
-        "tangerang_jakarta": 0,
-        "bandung": 250000,
-        "notes": (
-            "Area menengah lain (Sukabumi, Cirebon, dll): estimasi sesuai jarak dari Tangerang (kisaran "
-            "Rp300rb-600rb, dikonfirmasi sebelum booking). Area jauh/luar Jawa (Bali, dll): tiket "
-            "pesawat, penginapan, perjalanan ditanggung customer, di luar fee jasa."
-        ),
-    },
+    "event": {tier: dict(nama=facts['nama'], harga=facts['harga'], deskripsi=_service_facts.event_description(tier)) for tier, facts in _service_facts.EVENT_PACKAGES.items()},
+    "transport_acara": {"notes": _service_facts.TRANSPORT_POLICY},
     "custom_automation_redirect": (
         "Untuk kebutuhan tersebut bisa dibuat sebagai custom solution. Aku bantu teruskan ke owner "
         "supaya kebutuhan dan biayanya bisa dibahas lebih lanjut ya."
@@ -3865,18 +3854,9 @@ SOAL META ADS (WAJIB DIIKUTI — JANGAN JANJIIN HASIL PASTI):
   Meta, bukan lewat Kilas Works, dan BUKAN bagian dari harga bulanan yang disebut di atas. Selalu jelasin
   ini kalau ngomongin paket Ads apapun, jangan sampai customer ngira ad spend udah termasuk.
 
-SOAL BIAYA TRANSPORT ACARA DI LUAR TANGERANG/JAKARTA (WAJIB, override versi lama — JANGAN sebut angka):
-- Tangerang & Jakarta: boleh bilang natural "gratis, gak ada biaya tambahan" (ini bukan angka nominal,
-  aman disebut).
-- SEMUA lokasi lain (Bandung, Sukabumi, Cirebon, luar Jawa, dst) — JANGAN PERNAH sebut angka Rupiah
-  apapun, JANGAN hitung/estimasi sendiri berapa biayanya, walaupun ada "patokan" atau kisaran yang
-  kelihatan masuk akal. Jawab natural yang intinya: "Untuk biaya transport/akomodasi ke [lokasi] perlu
-  aku konfirmasi ke tim dulu ya, biar gak salah hitung." — lalu WAJIB sertakan tag "[TANYA_OWNER]" di
-  balasanmu (taruh di mana aja, sistem yang proses, customer gak bakal lihat teks tag-nya) supaya owner
-  tau ada acara luar kota yang perlu di-follow-up manual soal biayanya.
-- Ini berlaku SAMA untuk lokasi dekat (misal Bandung) maupun jauh (misal luar Jawa/perlu pesawat) — dulu
-  ada pembedaan (Bandung boleh disebut flat fee, lokasi lain boleh diestimasi kasar), SEKARANG TIDAK LAGI:
-  semua lokasi di luar Tangerang/Jakarta pakai jawaban yang sama di atas, tanpa angka sama sekali.
+SOAL BIAYA TRANSPORT PRODUKSI:
+""" + _service_facts.TRANSPORT_POLICY + """
+Jangan menebak jarak dari nama kota/link. Nominal tol/parkir tidak boleh dikarang.
 
 SOAL KATALOG LENGKAP:
 - Kalau customer minta katalog/pricelist/daftar layanan dengan bahasa natural apapun — contoh: "ada
@@ -5084,6 +5064,8 @@ def _enforce_customer_price_guardrail(reply_text, tenant_context_block, allow_ki
     numbers that are demonstrably real prices, never for arbitrary model output."""
     if tenant_context_block:
         allow_kilas_works_prices = False
+    if allow_kilas_works_prices and _catalog_service is not None and _catalog_service.is_exact_transport_reply(reply_text):
+        return reply_text
     if allow_kilas_works_prices and _reply_prices_are_all_canonical_kilas_works(reply_text):
         return reply_text
     if _customer_reply_contains_price_disclosure(reply_text):

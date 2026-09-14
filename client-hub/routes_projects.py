@@ -21,6 +21,8 @@ def service_catalog_page():
     user = security.current_user()
     items = catalog_service.list_active_catalog()
     by_category = {}
+    category_order = catalog_service.CUSTOMER_CATEGORY_ORDER
+    items.sort(key=lambda item: category_order.index(item['category']) if item['category'] in category_order else len(category_order) - 1.5)
     for item in items:
         by_category.setdefault(item["category"], []).append(item)
     businesses = repo.list_businesses_for_user(user["id"]) if user["role"] != "KILAS_ADMIN" else []
@@ -41,7 +43,7 @@ def service_catalog_page():
     return render_template(
         "service_catalog.html", by_category=by_category, format_price=catalog_service.format_price,
         service_description=catalog_service.service_description, display_price=catalog_service.display_price,
-        public_name=catalog_service.public_name,
+        public_name=catalog_service.public_name, transport_policy=catalog_service.pricing_config.TRANSPORT_POLICY,
         businesses=businesses, single_business=single_business,
         unfinished_by_catalog_key=unfinished_by_catalog_key,
     )

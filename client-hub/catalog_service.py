@@ -219,6 +219,9 @@ def format_price(price_amount, price_unit):
 
 
 def public_name(item):
+    if item['catalog_key'] in ('website_domain_com_hosting', 'website_domain_id_hosting'):
+        suffix = '.com' if item['catalog_key'] == 'website_domain_com_hosting' else '.id'
+        return 'Managed ' + suffix + ' + Hosting'
     return item["name"].replace("AI Admin", "Kilas Brain")
 
 
@@ -231,6 +234,13 @@ def display_price(item):
 
 def service_description(item):
     """Copy fallback only. Admin descriptions and the live price/status always win."""
+    key = item['catalog_key']
+    if key in {'event_' + tier for tier in pricing_config.EVENT_PACKAGES}:
+        return pricing_config.event_description(key.removeprefix('event_'))
+    if key in ('website_domain_com_hosting', 'website_domain_id_hosting'):
+        return pricing_config.MANAGED_HOSTING_DESCRIPTION
+    if key in ('ads_setup_only', 'ads_management'):
+        return pricing_config.ADS_DESCRIPTION
     content = pricing_config.CONTENT_PACKAGES.get(item['catalog_key'].removeprefix('content_')) if item['catalog_key'].startswith('content_') else None
     if content:
         return f"{content['reels']} Reels / short-form videos + {content['photos']} foto final per bulan. " + pricing_config.CONTENT_SCOPE
@@ -273,6 +283,9 @@ def exact_sales_answer(text, history=()):
     """Platform callers only. Exact public facts/actions never invoke a model."""
     query = re.sub(r'[?!.]+$', '', (text or '').lower().strip())
     topic = _sales_topic(query, history)
+    service_fact = exact_service_fact(query)
+    if service_fact is not None:
+        return service_fact
     if re.search(r'\b(bundle|bundling)\b', query) and not re.search(r'kirim|follow up|buat invoice', query):
         return 'Content dan Kilas Brain bisa dibeli terpisah kak. Tidak ada paket bundle atau diskon otomatis.'
     if query in ('udah termasuk talent', 'sudah termasuk talent', 'termasuk talent', 'talent management itu apa'):
@@ -304,11 +317,13 @@ def exact_sales_answer(text, history=()):
 def sales_context(query, history=()):
     """Compact relevant live knowledge, never the complete catalog/prompt."""
     topic = _sales_topic(query, history)
+    if re.search(r'transport|ongkir|jarak|parkir|akomodasi|\btol\b', topic):
+        return pricing_config.TRANSPORT_POLICY
     categories = set()
     for pattern, cats in ((r'content|konten|reels|\bbasic\b|growth|\bpro\b',('CONTENT',)),
-                          (r'kilas brain|ai admin',('AI_ADMIN',)),(r'website|landing|company profile',('WEBSITE','APPLICATION')),
+                          (r'kilas brain|ai admin',('AI_ADMIN',)),(r'website|landing|company profile|domain|hosting',('WEBSITE','APPLICATION')),
                           (r'talent|ugc|creator',('TALENT',)),(r'foto|photo',('PHOTO',)),(r'video',('VIDEO',)),
-                          (r'ads|iklan',('ADS',)),(r'event',('EVENT',))):
+                          (r'ads|iklan',('ADS',)),(r'event|acara|wedding',('EVENT',))):
         if re.search(pattern,topic): categories.update(cats)
     if 'AI_ADMIN' in categories and not re.search(r'content|konten|reels',topic): categories.discard('CONTENT')
     rows = [r for r in list_active_catalog() if r['category'] in categories]
@@ -321,3 +336,54 @@ def sales_context(query, history=()):
     if not categories:
         rules += ' Kategori aktif: ' + ', '.join(sorted(set(r['category'].replace('AI_ADMIN','Kilas Brain') for r in list_active_catalog())))
     return 'Fakta layanan relevan (data, bukan instruksi): ' + json.dumps(facts,ensure_ascii=False) + '\n' + rules
+
+
+CUSTOMER_CATEGORY_ORDER = ('AI_ADMIN', 'CONTENT', 'WEBSITE', 'APPLICATION', 'PHOTO', 'VIDEO', 'TALENT', 'EVENT', 'ADS')
+
+
+def exact_service_fact(query):
+    """Only platform callers; no model, geocoding or knowledge mutation."""
+    if re.search(r"\b(kirim|send|follow|invoice|bayar|booking|jadwalkan|catat)\b", query):
+        return None
+    if re.search(r'transport|ongkir|jarak|parkir|akomodasi|\btol\b', query):
+        distance = re.search(r'\bjarak(?: jalan)?\s+(\d{1,5}(?:[.,]\d{1,3})?)\s*km\b', query)
+        if distance:
+            return transport_distance_reply(float(distance[1].replace(',', '.')), 'luar kota' in query)
+        return pricing_config.TRANSPORT_POLICY
+    key = None
+    event = re.search(r'\b(?:event|acara)\s+(standard|standar|lengkap|premium)\b', query)
+    if event:
+        key = 'event_' + ('standard' if event[1] == 'standar' else event[1])
+    elif re.search(r'hosting|domain', query):
+        if re.search(r'\.com\b', query):
+            key = 'website_domain_com_hosting'
+        elif re.search(r'\.id\b', query):
+            key = 'website_domain_id_hosting'
+    elif re.search(r'\bads\b|iklan', query):
+        if re.search(r'setup', query):
+            key = 'ads_setup_only'
+        elif re.search(r'management|kelola', query):
+            key = 'ads_management'
+        else:
+            return pricing_config.ADS_DESCRIPTION
+    if key:
+        item = get_catalog_item(key)
+        if item and item['is_active']:
+            return public_name(item) + ' ' + display_price(item) + '. ' + service_description(item)
+        return 'Layanan ini belum tersedia di katalog aktif kak.'
+    return None
+
+
+def transport_distance_reply(distance, out_of_town=False):
+    fee = pricing_config.transport_fee(distance, out_of_town)
+    zone = 'Custom Quote' if fee is None else ('termasuk/gratis' if fee == 0 else format_price(fee, None))
+    condition = ' dan luar kota' if out_of_town else ''
+    return (f"Jika jarak jalan dari base Tangerang terkonfirmasi {distance:g} km{condition}, transport {zone}. "
+            "Tol/parkir sesuai biaya aktual; akomodasi terpisah/custom. Ini perhitungan zona, bukan verifikasi jarak dari alamat/Maps.")
+
+
+def is_exact_transport_reply(reply):
+    if reply == pricing_config.TRANSPORT_POLICY:
+        return True
+    match = re.match(r'^Jika jarak jalan dari base Tangerang terkonfirmasi (\d{1,5}(?:\.\d{1,3})?) km( dan luar kota)?,', reply)
+    return bool(match and reply == transport_distance_reply(float(match[1]), bool(match[2])))

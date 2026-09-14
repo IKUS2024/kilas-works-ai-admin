@@ -20,9 +20,11 @@
 </div>
 {% endif %}
 
+<details class="card"><summary>Biaya transport produksi</summary><p class="muted">{{ transport_policy }}</p></details>
+
 {% for category, items in by_category.items() %}
 <div class="card">
-  <h2>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Konten','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Aplikasi','TALENT':'Talent'}.get(category, category.replace('_', ' ').title()) }}</h2>
+  <h2>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Content / Creative','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Business Systems','TALENT':'Talent Management','ADS':'Meta Ads'}.get(category, category.replace('_', ' ').title()) }}</h2>
   <div class="service-grid">
     {% for item in items %}
     <article class="service-item">

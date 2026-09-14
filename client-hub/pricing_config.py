@@ -32,6 +32,40 @@ CONTENT_PACKAGES = {
 CONTENT_SCOPE = 'Reels/short-form sosial sesuai brief. Produksi kompleks, banyak lokasi/talent atau output berbeda melalui penawaran Custom Video/Content.'
 TALENT_FEE_RULE = 'Fee jasa Kilas Works untuk pencarian, shortlist, koordinasi dan manajemen talent terpisah dari fee talent yang dipilih; nominal mengikuti penawaran.'
 
+EVENT_PACKAGES = {
+    'standard': {'nama': 'Event Standard', 'harga': 1200000, 'minutes': '1', 'photos': 20},
+    'lengkap': {'nama': 'Event Lengkap', 'harga': 2800000, 'minutes': '2–3', 'photos': 50},
+    'premium': {'nama': 'Event Premium', 'harga': 4400000, 'minutes': '4–5', 'photos': 80},
+}
+
+def event_description(tier):
+    facts = EVENT_PACKAGES[tier]
+    return (f"1 video highlight final hasil edit sekitar {facts['minutes']} menit + sekitar {facts['photos']} foto final hasil edit. "
+            "RAW foto termasuk; RAW video tidak termasuk. Scope event yang tidak biasa/kompleks melalui Custom Quote.")
+
+MANAGED_HOSTING_INCLUSIONS = ['domain 1 tahun', 'hosting', 'SSL', 'setup/deployment website', 'DNS/konfigurasi', 'dukungan teknis dasar Kilas Works']
+MANAGED_HOSTING_DESCRIPTION = 'Layanan managed: ' + ', '.join(MANAGED_HOSTING_INCLUSIONS) + '.'
+ADS_DESCRIPTION = ('Budget/ad spend dibayar customer terpisah ke Meta. Produksi konten/foto/video iklan terpisah. '
+                   'Tidak ada jaminan ROAS, sales, leads, atau hasil performa.')
+TRANSPORT_POLICY = ('Transport produksi dari base Kilas Works di Tangerang: 0–20 km termasuk/gratis; '
+                    '>20–35 km +Rp100.000; >35–50 km +Rp150.000; >50–70 km +Rp200.000; '
+                    '>70 km atau luar kota melalui Custom Quote. Tol dan parkir sesuai biaya aktual, '
+                    'akomodasi bila diperlukan terpisah/custom. Jarak jalan tidak ditebak; kirim lokasi/alamat/link Maps '
+                    'untuk konfirmasi zona transport final.')
+
+
+def transport_fee(distance_km, out_of_town=False):
+    """Pure zone calculation for a supplied reliable road distance, never geocoding."""
+    import math
+    if isinstance(distance_km, bool) or not isinstance(distance_km, (int, float)) or not math.isfinite(distance_km) or distance_km < 0:
+        raise ValueError('invalid_distance')
+    if out_of_town or distance_km > 70:
+        return None
+    for bound, fee in ((20, 0), (35, 100000), (50, 150000), (70, 200000)):
+        if distance_km <= bound:
+            return fee
+
+
 CATALOG_ITEMS = [
     # --- KILAS BRAIN (2026 public rebrand — internal category/key stay AI_ADMIN/ai_admin_* on
     # purpose: changing them would touch tenant onboarding, subscription, and feature-flag code
