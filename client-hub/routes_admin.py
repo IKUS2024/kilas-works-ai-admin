@@ -1107,6 +1107,7 @@ def renew_wa_order_link(project_id):
 @security.admin_required
 def ai_usage_dashboard():
     import ai_usage
+    import ai_usage_fx
     # Aggregate all scopes only behind the admin gate. Clients get their own count only.
     phase = 'request_schema'
     try:
@@ -1123,8 +1124,10 @@ def ai_usage_dashboard():
                 usage.extend(ai_usage.monthly(business['id']))
         for row in usage:
             row['name'] = names.get(row['tenant_id'], 'Kilas Works platform' if row['tenant_id'] is None else 'Bisnis historis')
+        fx = ai_usage_fx.get_usd_idr()
+        usage = ai_usage_fx.display_rows(usage, fx)
         phase = 'render'
-        return render_template('admin_ai_usage.html', usage=usage, pricing_date=ai_usage.PRICING_DATE, unavailable=False)
+        return render_template('admin_ai_usage.html', usage=usage, pricing_date=ai_usage.PRICING_DATE, unavailable=False, fx=fx)
     except Exception as exc:
         ai_usage.log_dashboard_failure(exc, phase)
         try:
