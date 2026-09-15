@@ -1,3 +1,4 @@
+from brief_test_helpers import complete_brief
 """Kilas Works Client Hub — Business Hub V2, FINAL OPERATIONS POLISH test suite.
 
 Covers Section 20's enumerated list: talent CRUD/archive/reorder/image-upload, service catalog
@@ -693,29 +694,17 @@ def test_project_attachment_valid_jpg_and_pdf_accepted_via_request_form():
     uid, bid = _make_owner_and_business("attach_owner1@test.com")
     client = fresh_client()
     _login_owner(client, "attach_owner1@test.com")
-
-    resp = client.post(
-        f"/business/{bid}/projects/custom/photo",
-        data={"project_name": "Foto Produk", "csrf_token": "x",
-              "attachment": (io.BytesIO(_tiny_png_bytes()), "referensi.jpg")},
-        content_type="multipart/form-data",
-    )
-    assert resp.status_code in (302, 200)
+    for key, reference in [('custom_photo',(io.BytesIO(_tiny_png_bytes()),'referensi.png')),
+                           ('custom_website_app',(io.BytesIO(_tiny_pdf_bytes()),'brief.pdf'))]:
+        item=catalog_service.get_catalog_item(key)
+        assert item is not None
+        response=client.post(f'/services/{key}/request-quote',data={'business_id':bid})
+        assert response.status_code==302
+        complete_brief(client,response.location,reference)
     rows = db.query_all("SELECT * FROM project_files WHERE business_id = ? AND kind = 'REFERENCE'", (bid,))
-    assert len(rows) == 1 and rows[0]["original_filename"] == "referensi.jpg"
-
-    resp2 = client.post(
-        f"/business/{bid}/projects/custom/website",
-        data={"project_name": "Landing Page Brief", "csrf_token": "x",
-              "attachment": (io.BytesIO(_tiny_pdf_bytes()), "brief.pdf")},
-        content_type="multipart/form-data",
-    )
-    assert resp2.status_code in (302, 200)
-    rows = db.query_all("SELECT * FROM project_files WHERE business_id = ? AND kind = 'REFERENCE'", (bid,))
-    assert len(rows) == 2
-    assert any(r["mime_type"] == "application/pdf" for r in rows)
-    print("test_project_attachment_valid_jpg_and_pdf_accepted_via_request_form OK")
-
+    assert len(rows)==2
+    assert {r['original_filename'] for r in rows}=={'referensi.png','brief.pdf'}
+    assert {r['mime_type'] for r in rows}=={'image/png','application/pdf'}
 
 def test_project_attachment_rejected_but_project_still_created():
     """A rejected attachment must never block the underlying custom project request itself."""
@@ -723,13 +712,12 @@ def test_project_attachment_rejected_but_project_still_created():
     uid, bid = _make_owner_and_business("attach_owner2@test.com")
     client = fresh_client()
     _login_owner(client, "attach_owner2@test.com")
-    resp = client.post(
-        f"/business/{bid}/projects/custom/video",
-        data={"project_name": "Video Promo", "csrf_token": "x",
-              "attachment": (io.BytesIO(b"<script>alert(1)</script>"), "evil.jpg")},
-        content_type="multipart/form-data",
-    )
-    assert resp.status_code in (302, 200)
+    from brief_test_helpers import required_values
+    response=client.post('/services/custom_video/request-quote',data={'business_id':bid})
+    assert response.status_code==302
+    resp=client.post(response.location,data={'action':'brief',**required_values(catalog_service.get_catalog_item('custom_video')),
+        'reference_file':(io.BytesIO(b'<script>alert(1)</script>'),'evil.jpg')},content_type='multipart/form-data')
+    assert resp.status_code==400
     projects = projects_repo.list_projects_for_business(bid)
     assert any(p["title"].startswith("Custom Video") for p in projects)
     rows = db.query_all("SELECT * FROM project_files WHERE business_id = ? AND kind = 'REFERENCE'", (bid,))
@@ -745,12 +733,9 @@ def test_project_attachment_access_isolated_between_customers_and_open_to_admin(
 
     client1 = fresh_client()
     _login_owner(client1, "attach_owner_a@test.com")
-    client1.post(
-        f"/business/{bid1}/projects/custom/photo",
-        data={"project_name": "Foto A", "csrf_token": "x",
-              "attachment": (io.BytesIO(_tiny_png_bytes()), "a.jpg")},
-        content_type="multipart/form-data",
-    )
+    response=client1.post('/services/custom_photo/request-quote',data={'business_id':bid1})
+    assert response.status_code==302
+    complete_brief(client1,response.location,(io.BytesIO(_tiny_png_bytes()),'a.png'))
     project = projects_repo.list_projects_for_business(bid1)[0]
     file_row = db.query_one("SELECT * FROM project_files WHERE business_id = ? AND kind = 'REFERENCE'", (bid1,))
 

@@ -2,6 +2,7 @@
 {% block title %}Setup Awal — {{ business.business_name }}{% endblock %}
 {% block content %}
 <h1>Setup Awal — {{ business.business_name }}</h1>
+{% include "_brain_plan_notice.html" %}
 <p class="muted">Kenalkan bisnismu untuk pertama kali. Setelah setup selesai, perbarui informasi melalui Ajari Kilas Brain.</p>
 <p class="muted">Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p>
 
@@ -89,10 +90,10 @@
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
       <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
-      Aktifkan booking appointment lewat chat (khusus paket Kilas Brain Pro)
+      Aktifkan booking appointment lewat chat (sesuai akses paket)
     </label>
 
-    {% else %}<p class="muted">Booking otomatis tersedia dengan Kilas Brain Pro.</p>{% endif %}
+    {% else %}<p class="muted">Booking otomatis tersedia pada paket Kilas Brain saat ini; paket lama mengikuti akses sebelumnya.</p>{% endif %}
     {% if tenant_features and tenant_features.payment_conversation %}
     <h3 style="margin-top:20px;">Info Pembayaran (untuk customer bisnis ini)</h3>
     <p class="muted">Rekening ini yang akan disampaikan Kilas Brain ke customer kamu sendiri kalau mereka tanya cara bayar — TIDAK ada hubungannya dengan pembayaran kamu ke Kilas Works.</p>
@@ -123,7 +124,7 @@
       </div>
     </div>
 
-    {% else %}<p class="muted">Instruksi pembayaran otomatis tersedia dengan Kilas Brain Pro.</p>{% endif %}
+    {% else %}<p class="muted">Instruksi pembayaran otomatis tersedia pada paket Kilas Brain saat ini; paket lama mengikuti akses sebelumnya.</p>{% endif %}
     {% if tenant_features and tenant_features.owner_commands %}
     <h3 style="margin-top:20px;">Nomor WhatsApp Pemilik / Pengelola Bisnis</h3>
     <p class="muted">Nomor ini digunakan agar Kilas Brain mengenali pemilik atau pengelola bisnis. Dari nomor

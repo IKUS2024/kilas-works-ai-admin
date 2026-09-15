@@ -85,11 +85,11 @@ def test_C_customer_asks_price_gets_direct_answer_2026():
     directly without allow_kilas_works_prices and confirms it still blocks."""
     reset_state()
     number = "628900300001"
-    ai_reply = "Content Pro Rp4.250.000/bulan, Kak — paket paling lengkap buat kebutuhan konten rutin."
+    ai_reply = "Content Pro Rp5.490.000/bulan, Kak — paket paling lengkap buat kebutuhan konten rutin."
     resp = send_customer_message(number, "berapa harga Content Pro?", ai_reply, "wamid.C.1")
     assert resp.status_code == 200
     texts = [t for n, t in sent_log if n == number]
-    assert any("4.250.000" in t for t in texts), \
+    assert any("5.490.000" in t for t in texts), \
         f"a genuine Kilas Works customer must receive the real price when asked directly: {texts}"
     print("test_C_customer_asks_price_gets_direct_answer_2026 OK")
 
@@ -135,7 +135,7 @@ def test_D_prompt_no_longer_instructs_inventing_transport_estimate():
     prompt = appmod.SYSTEM_PROMPT
     assert "kisaran wajar Rp300.000-600.000" not in prompt
     assert "BOLEH kasih ESTIMASI kasar sendiri" not in prompt
-    assert "JANGAN sebut angka Rupiah" in prompt or "JANGAN PERNAH sebut angka Rupiah" in prompt
+    assert "JANGAN PERNAH ngarang/nebak: harga, biaya transport" in prompt
     print("test_D_prompt_no_longer_instructs_inventing_transport_estimate OK")
 
 

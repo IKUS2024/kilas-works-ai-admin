@@ -218,6 +218,11 @@ def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
     db.execute("UPDATE invoices SET status = 'PAID' WHERE id = ?", (invoice["id"],))
     projects_repo.set_project_status(invoice["project_id"], "PAID", actor_user_id, business_id,
                                       f"payment_id={payment_id} verified")
+    project = projects_repo.get_project(invoice["project_id"])
+    if business_id is not None and project and project.get('catalog_key') == 'ai_admin':
+        business = repo.get_business(business_id)
+        if business and business['package'] != 'AI_ADMIN':
+            repo.set_business_package(business_id, 'AI_ADMIN', actor_user_id)
     repo.write_audit(actor_user_id, business_id, "PAYMENT_VERIFIED", f"payment_id={payment_id}",
                       project_id=invoice["project_id"])
 
@@ -355,7 +360,7 @@ def has_verified_ai_admin_payment(business_id):
     business = db.query_one("SELECT package FROM businesses WHERE id = ?", (business_id,))
     if not business:
         return False
-    catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(business["package"])
+    catalog_key = {"AI_ADMIN": "ai_admin", "AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(business["package"])
     if not catalog_key:
         # package is 'NONE' (or some other non-AI-Admin value) — no historical AI Admin payment,
         # for any tier, can ever satisfy an activation gate for a package this business doesn't
@@ -391,7 +396,7 @@ def build_activation_checklist(business_id):
     ai_settings = repo.get_ai_settings(business_id) or {}
     data_bisnis_done = all(onboarding.get(f) for f in
                             ("basics_done", "services_done", "operations_done", "faq_done", "style_done"))
-    payment_done = (business["package"] in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
+    payment_done = (business["package"] in ("AI_ADMIN", "AI_ADMIN_BASIC", "AI_ADMIN_PRO")
                     and has_verified_ai_admin_payment(business_id))
     whatsapp_done = bool(business.get("whatsapp_connected"))
     knowledge_done = ai_settings.get("ai_status") == "DONE"

@@ -442,7 +442,7 @@ def _tenant_subscription_permits_ai_runtime_safe(tenant_id):
         business = _ch_repo.get_business(tenant_id)
         if not business:
             return False
-        if business.get("package") not in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
+        if business.get("package") not in ("AI_ADMIN", "AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
             return True  # no AI Admin package -> no subscription requirement applies
         import subscription_service
         sub = subscription_service.get_subscription(tenant_id)
@@ -990,6 +990,7 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
         history = load_recent_messages_from_db(scoped_key, "owner")
 
     if image_b64:
+        image_b64, image_mime = _ctx.prepare_vision_image(image_b64, image_mime)
         api_content = [
             {
                 "type": "image",
@@ -1029,13 +1030,13 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
                 "anthropic-version": "2023-06-01",
                 "content-type": "application/json",
             },
-            json={"model": model_to_use, "max_tokens": 300, "system": system_prompt, "messages": history},
+            json={"model": model_to_use, "max_tokens": 300, "system": system_prompt, "messages": _ctx.compact_history(history, owner_message)},
             timeout=30,
         )
         resp.raise_for_status()
         data = resp.json()
+        log_ai_usage("tenant_owner", model_to_use, data, tenant_id=tenant_id, classification="vision" if image_b64 else ("complex" if model_to_use != MODEL_FAST else "normal"))
         reply_text = data["content"][0]["text"]
-        log_ai_usage("tenant_owner", model_to_use, data)
     except Exception as e:
         if not image_b64:
             print(f"Tenant owner AI call gagal (tenant_id={tenant_id}): {e}")
@@ -1049,13 +1050,13 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
                         "anthropic-version": "2023-06-01",
                         "content-type": "application/json",
                     },
-                    json={"model": model_to_use, "max_tokens": 300, "system": system_prompt, "messages": history},
+                    json={"model": model_to_use, "max_tokens": 300, "system": system_prompt, "messages": _ctx.compact_history(history, owner_message)},
                     timeout=30,
                 )
                 resp.raise_for_status()
                 data = resp.json()
+                log_ai_usage("tenant_owner", model_to_use, data, tenant_id=tenant_id, classification="vision" if image_b64 else ("complex" if model_to_use != MODEL_FAST else "normal"))
                 reply_text = data["content"][0]["text"]
-                log_ai_usage("tenant_owner", model_to_use, data)
             else:
                 raise
         except Exception as e2:
@@ -1160,8 +1161,7 @@ except Exception as _pricing_config_import_err:
 # file copied somewhere without client-hub/) — _get_full_catalog_sync_baseline_safe() below prefers
 # the full generic set and only drops to this tiny dict when that genuinely fails.
 _CATALOG_SYNC_KEYS_FALLBACK = {
-    "ai_admin_basic": ("Kilas Brain Basic", 499_000),
-    "ai_admin_pro": ("Kilas Brain Pro", 999_000),
+    "ai_admin": ("Kilas Brain", 499_000),
     "content_basic": ("Content Basic", 1_990_000),
     "content_growth": ("Content Growth", 3_490_000),
     "content_pro": ("Content Pro", 5_490_000),
@@ -1182,7 +1182,7 @@ def _get_full_catalog_sync_baseline_safe():
         return {
             item["key"]: (item["name"], item["price_amount"])
             for item in _pricing_config_module.CATALOG_ITEMS
-            if item.get("pricing_mode") in ("FIXED_PRICE", "STARTING_FROM") and item.get("price_amount") is not None
+            if item.get("pricing_mode") in ("FIXED_PRICE", "STARTING_FROM") and item.get("price_amount") is not None and item["key"] not in _pricing_config_module.RETIRED_BRAIN_KEYS and item["category"] != "BUNDLE"
         }
     except Exception as e:
         print(f"Baca pricing_config.CATALOG_ITEMS gagal ({e}) — pakai fallback kecil.")
@@ -3495,59 +3495,7 @@ from pricing_config import CONTENT_PACKAGES as _CONTENT_PACKAGES
 import pricing_config as _service_facts
 
 PRICING_CONFIG = {
-    "ai_admin": {
-        "basic": {
-            "nama": "Kilas Brain Basic",
-            "harga": 499000,
-            "satuan": "bulan",
-            "positioning": "AI Customer Service untuk bisnis kecil/UMKM yang butuh respon otomatis dasar.",
-            "fitur": [
-                "Balas WhatsApp customer otomatis",
-                "Menjawab FAQ",
-                "Menjelaskan produk/layanan, harga, jam operasional, dan info bisnis lainnya",
-                "Bisa memberikan katalog/informasi layanan",
-                "Memahami bahasa customer yang informal dan typo dasar",
-                "Basic customer history/data",
-                "Tone/gaya bahasa bisa disesuaikan dengan bisnis",
-            ],
-            "catatan": "Fair usage applies.",
-            "tidak_termasuk": [
-                "Invoice otomatis", "QR payment otomatis", "Payment tracking",
-                "Payment gateway custom", "CRM custom", "Inventory/stock integration",
-                "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
-                "Owner command & appointment (lihat Kilas Brain Pro)",
-            ],
-        },
-        "pro": {
-            "nama": "Kilas Brain Pro",
-            "harga": 999000,
-            "satuan": "bulan",
-            "positioning": "Semua fitur Kilas Brain Basic, ditambah workflow advanced untuk bisnis yang butuh lead qualification, appointment, dan kontrol owner penuh lewat chat.",
-            "fitur": [
-                "Semua fitur Kilas Brain Basic",
-                "Kualifikasi calon customer / lead",
-                "Mengumpulkan nama dan kebutuhan customer",
-                "Menyimpan data lead",
-                "Follow-up dasar ke customer yang sempat diam (aktif setelah scheduler follow-up disetup owner)",
-                "Mengenali customer yang mulai menunjukkan ketertarikan",
-                "Bisa menawarkan konsultasi/meeting secara natural jika customer sudah tertarik",
-                "Appointment: online meeting / ketemu langsung, cek availability owner, reschedule, cancel, riwayat appointment",
-                "Payment conversation (DP/full) & pengiriman info pembayaran resmi kalau customer mau membayar",
-                "Owner command lewat chat natural: tanya history customer, kirim pesan/katalog/media ke customer, contact matching & alias/partial name matching, active customer context",
-                "Owner bisa membaca gambar/screenshot (vision) yang dikirim customer, misalnya bukti transfer",
-                "Owner mendapat notifikasi untuk lead penting",
-                "Anti duplicate send (pesan tidak terkirim dobel)",
-                "Handoff percakapan ke owner — owner bisa ambil alih & chat customer secara bebas, AI tetap memahami konteksnya",
-                "Knowledge bisnis bisa disesuaikan + basic maintenance/update knowledge",
-            ],
-            "catatan": "Fair usage applies.",
-            "tidak_termasuk": [
-                "Invoice otomatis", "QR payment otomatis", "Payment tracking",
-                "Payment gateway custom", "CRM custom", "Inventory/stock integration",
-                "POS", "Multi-cabang", "Integrasi API kompleks", "Workflow khusus yang besar",
-            ],
-        },
-    },
+    "ai_admin": {"current": _service_facts.BRAIN_PLAN},
     "content_packages": {key: dict(facts, deliverables=[f"{facts['reels']} Reels / short-form videos", f"{facts['photos']} foto final"], most_popular=key=='growth') for key,facts in _CONTENT_PACKAGES.items()},
     "static_visual_note": "Foto final, bukan pengganti berupa static visual. Produksi kompleks memakai Custom Video/Content quotation.",
     "bundles": {},
@@ -3650,7 +3598,7 @@ def build_pricing_text_block():
     fp = format_price_short
     lines = []
 
-    for tier in ("basic", "pro"):
+    for tier in cfg["ai_admin"]:
         ai = cfg["ai_admin"][tier]
         lines.append(f"{ai['nama']} — Rp{fp(ai['harga'])}/{ai['satuan']} ({ai['catatan']}):")
         lines.append(f"  Positioning: {ai['positioning']}")
@@ -3661,13 +3609,7 @@ def build_pricing_text_block():
             " — semua ini masuk kategori Custom Automation / Custom Solution (harga berdasarkan kebutuhan)."
         )
         lines.append("")
-    lines.append(
-        "Catatan Kilas Brain: Basic (Rp499rb) buat respon-otomatis dasar (FAQ, info produk/harga, katalog, "
-        "typo/informal). Pro (Rp999rb) tambahin appointment (booking/reschedule/cancel/availability), "
-        "payment conversation, lead qualification, owner command penuh lewat chat, vision/baca gambar, "
-        "anti-duplicate-send, & notifikasi owner buat lead penting — Pro = Basic + semua itu, BUKAN "
-        "produk terpisah."
-    )
+    lines.append("Kilas Brain hanya satu paket saat ini. Basic/Pro adalah nama historis, bukan pilihan penjualan baru.")
 
     lines.append("")
     lines.append("Content Packages (langganan bulanan produksi konten, TANPA AI Admin):")
@@ -3751,7 +3693,7 @@ ATURAN TAMBAHAN KHUSUS SISTEM INI (tag internal, override/tambahan di atas peril
   kamu harus nebak ulang dari nol tiap pesan. Kalau di bawah kamu dikasih tau BAHASA CUSTOMER INI
   SEBELUMNYA, pakai itu sebagai default — TAPI kalau pesan customer SEKARANG jelas-jelas pakai bahasa lain,
   ikutin bahasa yang sekarang & update tag [SET_LANG: ...]-nya lagi.
-- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Kilas Brain Pro"), angka harga, nomor &
+- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Kilas Brain"), angka harga, nomor &
   nama rekening bank (yang formatnya dikasih via [GIVE_PAYMENT_INFO], BUKAN kamu ketik manual), nama
   bisnis/orang, atau proper noun lainnya — itu semua tetap PERSIS apa adanya walau balasannya English, cuma
   kalimat di sekitarnya yang ikut bahasa customer. Angka harga tetap format sama (misal "999K"/"Rp999rb"
@@ -3811,8 +3753,7 @@ paket manapun. Harga di atas FIX (bukan promo), jadi jawab dengan yakin, bukan r
 ATURAN HARGA (WAJIB DIIKUTI — PRICE DISCLOSURE, dibaca PERSIS, jangan campur aduk sama RECOMMEND di atas):
 - ⭐ ATURAN HARGA TERBARU (2026, override instruksi harga versi lama di mana pun kamu pernah lihat —
   termasuk instruksi lama yang bilang "jangan pernah sebut angka sama sekali", itu SUDAH TIDAK BERLAKU):
-  Kalau customer nanya harga LANGSUNG (misal "Kilas Brain Basic berapa?", "Growth berapa?", "bundle
-  Growth + Brain Pro berapa?", "ads berapa?"), JAWAB LANGSUNG & SINGKAT pakai angka PERSIS dari data paket
+  Kalau customer nanya harga LANGSUNG (misal "Kilas Brain berapa?", "Growth berapa?", "Content Growth plus Kilas Brain berapa?", "ads berapa?"), JAWAB LANGSUNG & SINGKAT pakai angka PERSIS dari data paket
   di atas — jangan muter-muter, jangan bilang "cek dulu ke tim" untuk layanan yang harganya FIXED/jelas.
   Jawab HANYA layanan yang ditanya (satu ditanya, satu dijawab; dua ditanya, dua dijawab) — jangan dump
   semua harga kalau yang ditanya cuma satu, KECUALI customer eksplisit minta "semua harga"/pricelist
@@ -4708,10 +4649,15 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
     return SYSTEM_PROMPT_OWNER_BASE + context
 
 
-def log_ai_usage(context_label, model, api_response_json):
+def log_ai_usage(context_label, model, api_response_json, *, tenant_id=None, classification="normal"):
     """Log internal (server log doang, TIDAK pernah dikirim ke customer/owner) soal token usage per
     panggilan Claude — biar nanti kelihatan estimasi biaya AI per customer/mode. Aman dipanggil
     walau response gak punya field 'usage' (misal error response), gak bakal nge-crash apapun."""
+    try:
+        import ai_usage
+        ai_usage.record(model, api_response_json, tenant_id=tenant_id, context=context_label, classification=classification)
+    except Exception:
+        print('[AI_USAGE] persistence_failed')
     try:
         usage = (api_response_json or {}).get("usage") or {}
         in_tok = usage.get("input_tokens")
@@ -4775,6 +4721,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
         history = load_recent_messages_from_db(owner_number, "owner")  # isi ulang kalau server abis restart
 
     if image_b64:
+        image_b64, image_mime = _ctx.prepare_vision_image(image_b64, image_mime)
         api_content = [
             {
                 "type": "image",
@@ -4814,7 +4761,7 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
                 "model": model_to_use,
                 "max_tokens": 400,
                 "system": system_prompt,
-                "messages": history,
+                "messages": _ctx.compact_history(history, owner_message),
             },
             timeout=30,
         )
@@ -4823,8 +4770,8 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
         raise  # One provider attempt; no automatic paid retry.
 
     data = resp.json()
+    log_ai_usage("owner", model_to_use, data, classification="vision" if image_b64 else ("complex" if model_to_use != MODEL_FAST else "normal"))
     reply_text = data["content"][0]["text"]
-    log_ai_usage("owner", model_to_use, data)
 
     if image_b64:
         history[-1] = {"role": "user", "content": memory_text}
@@ -5364,6 +5311,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         history = load_recent_messages_from_db(scoped_number, "customer")  # isi ulang kalau server abis restart
 
     if image_b64:
+        image_b64, image_mime = _ctx.prepare_vision_image(image_b64, image_mime)
         # Content buat dikirim ke API request INI AJA (termasuk gambar beneran)
         api_content = [
             {
@@ -5452,7 +5400,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
                 "model": model_to_use,
                 "max_tokens": 400,
                 "system": system_prompt,
-                "messages": history,
+                "messages": _ctx.compact_history(history, user_message),
             },
             timeout=30,
         )
@@ -5477,15 +5425,15 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
                 "model": model_to_use,
                 "max_tokens": 400,
                 "system": system_prompt,
-                "messages": history,
+                "messages": _ctx.compact_history(history, user_message),
             },
             timeout=30,
         )
         resp.raise_for_status()
 
     data = resp.json()
+    log_ai_usage("tenant_customer" if tenant_id is not None else "platform_customer", model_to_use, data, tenant_id=tenant_id, classification="vision" if image_b64 else "normal")
     reply_text = data["content"][0]["text"]
-    log_ai_usage("tenant_customer" if tenant_id is not None else "platform_customer", model_to_use, data)
 
     # Turunin balesan user tadi ke versi ringan (bukan gambar base64 mentah / instruksi internal
     # mentah) sebelum disimpen permanen ke memory in-memory (DB udah disimpen versi ringan dari awal).
@@ -7767,7 +7715,7 @@ def _webhook_body_impl(data):
                 if msg_type in ("text", "image", "audio"):
                     send_whatsapp_message(
                         from_number,
-                        "Fitur asisten owner lewat chat ini baru tersedia di paket Kilas Brain Pro ya Kak — "
+                        "Fitur asisten owner lewat chat ini baru tersedia di paket Kilas Brain ya Kak — "
                         "silakan hubungi tim Kilas Works kalau mau upgrade.",
                     )
                 return jsonify({"status": "ok"}), 200
@@ -9307,7 +9255,7 @@ DEMO_SYSTEM_PROMPT = (
     "ATURAN GAYA: SATU pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble) — "
     "gaya balasan & bahasa lainnya ikutin GAYA BALASAN/BAHASA — AUTO-DETECT di atas, sama persis kayak "
     "Kilas Brain asli.\n\n"
-    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, Kilas Brain Pro, dst) "
+    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, Kilas Brain, dst) "
     "TETAP PERSIS gak diterjemahin walau balasannya English. Demo TIDAK BOLEH error/nge-blank cuma "
     "gara-gara lawan bicara pakai English — kalau ragu bahasa apa, default Bahasa Indonesia dulu, "
     "JANGAN diem/gagal balas."

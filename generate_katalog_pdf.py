@@ -104,11 +104,10 @@ def section(number_label, title, body_flowables, gap_after=5 * mm):
     story.append(KeepTogether(block))
 
 
-# ===== 1. AI WHATSAPP ADMIN (Basic vs Pro) =====
-ai_basic = cfg["ai_admin"]["basic"]
-ai_pro = cfg["ai_admin"]["pro"]
+# ===== 1. CURRENT KILAS BRAIN PLAN =====
+ai_plan = cfg["ai_admin"]["current"]
 ai_body = []
-for tier in (ai_basic, ai_pro):
+for tier in (ai_plan,):
     ai_body.append(Paragraph(f"{tier['nama']}", styles["KWPakName"]))
     ai_body.append(Paragraph(f"{fmt(tier['harga'])} / {tier['satuan']}  <font size=8 color='#777777'>({tier['catatan']})</font>", styles["KWPrice"]))
     ai_body.append(Spacer(1, 1.5 * mm))
@@ -117,11 +116,11 @@ for tier in (ai_basic, ai_pro):
     ai_body.append(Paragraph("<b>Yang didapat:</b><br/>" + bullet_list(tier["fitur"]), styles["KWBody"]))
     ai_body.append(Spacer(1, 3 * mm))
 ai_body.append(Paragraph(
-    "<b>Tidak termasuk di kedua paket AI Admin:</b> " + ", ".join(ai_pro["tidak_termasuk"]) +
+    "<b>Tidak termasuk di paket Kilas Brain:</b> " + ", ".join(ai_plan["tidak_termasuk"]) +
     " — di luar paket ini, bisa didiskusikan terpisah dengan tim sesuai kebutuhan.",
     styles["KWNote"],
 ))
-section("1", "AI WHATSAPP ADMIN — BASIC vs PRO", ai_body)
+section("1", "KILAS BRAIN", ai_body)
 
 # ===== 2. CONTENT PACKAGES =====
 rows = [header_row(["Paket", "Harga/bulan", "Deliverables"])]

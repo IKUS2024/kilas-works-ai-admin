@@ -34,6 +34,8 @@ def seed_catalog_if_needed():
             )
     _apply_rebrand_corrections()
     _apply_content_launch()
+    # Retire only NEW sales; historical project/invoice references remain untouched.
+    db.execute("UPDATE service_catalog SET is_active = FALSE WHERE catalog_key IN ('ai_admin_basic', 'ai_admin_pro') AND is_active = TRUE")
 
 
 def _apply_content_launch():
@@ -73,7 +75,7 @@ def _apply_rebrand_corrections():
 
 def list_active_catalog():
     return db.query_all(
-        "SELECT * FROM service_catalog WHERE is_active = ? AND category <> 'BUNDLE' ORDER BY category, sort_order, name",
+        "SELECT * FROM service_catalog WHERE is_active = ? AND category <> 'BUNDLE' AND catalog_key NOT IN ('ai_admin_basic', 'ai_admin_pro') ORDER BY category, sort_order, name",
         (True,),
     )
 
@@ -167,6 +169,8 @@ def update_catalog_item(catalog_id, price_amount=None, price_unit=None, is_activ
     row = get_catalog_item_by_id(catalog_id)
     if row is None:
         return None
+    if row['catalog_key'] in pricing_config.RETIRED_BRAIN_KEYS and is_active:
+        raise InvalidCatalogState('Paket historis tidak dapat dijual kembali; gunakan Kilas Brain.')
     if row['category'] == 'BUNDLE' and is_active:
         raise InvalidCatalogState('Bundle sudah diarsipkan; pilih layanan secara terpisah.')
     new_price_amount = row["price_amount"] if price_amount is None else price_amount
@@ -234,6 +238,9 @@ def display_price(item):
 
 def service_description(item):
     """Copy fallback only. Admin descriptions and the live price/status always win."""
+    if item.get('catalog_key') == 'ai_admin':
+        plan = pricing_config.BRAIN_PLAN
+        return plan['positioning'] + ' ' + '; '.join(plan['fitur']) + '. ' + plan['catatan']
     key = item['catalog_key']
     if key in {'event_' + tier for tier in pricing_config.EVENT_PACKAGES}:
         return pricing_config.event_description(key.removeprefix('event_'))

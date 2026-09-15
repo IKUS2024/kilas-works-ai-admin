@@ -253,6 +253,7 @@ MIGRATIONS = [
     ("0023_inbox_media_sqlite.sql", "0023_inbox_media_postgres.sql"),
     ("0024_business_knowledge_revisions_sqlite.sql", "0024_business_knowledge_revisions_postgres.sql"),
     ("0025_whatsapp_checkout_sqlite.sql", "0025_whatsapp_checkout_postgres.sql"),
+    ("0026_ai_usage_sqlite.sql", "0026_ai_usage_postgres.sql"),
 ]
 
 

@@ -85,6 +85,7 @@ def reset_client_hub_db():
         os.remove(_TMP_DB)
     chdb._local.conn = None
     chdb.init_schema()
+    _test_bootstrap.ensure_message_schema()
     catalog_service.seed_catalog_if_needed()
 
 
@@ -334,7 +335,7 @@ def test_payment_proof_image_creates_pending_review_notifies_tenant_owner_not_ki
         return True, None
 
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
-         patch.object(appmod, "download_whatsapp_media", return_value=("ZmFrZS1pbWFnZQ==", "image/jpeg")), \
+         patch.object(appmod, "download_whatsapp_media", return_value=(_test_bootstrap.valid_test_image(), "image/jpeg")), \
          patch.object(appmod, "call_claude", return_value=ai_reply), \
          patch.object(appmod, "send_reply_bubbles", return_value=(True, None)) as mock_bubbles, \
          patch.object(appmod, "send_whatsapp_message", side_effect=fake_send), \
@@ -460,7 +461,7 @@ def test_kilas_platform_payment_flow_unaffected_by_tenant_payment_code():
     reset_bot_state()
 
     ai_reply = "Makasih ya, aku cek dulu.[SUDAH_BAYAR][PAYMENT_PROOF_DETAILS: amount=999000]"
-    with patch.object(appmod, "download_whatsapp_media", return_value=("ZmFrZQ==", "image/jpeg")), \
+    with patch.object(appmod, "download_whatsapp_media", return_value=(_test_bootstrap.valid_test_image(), "image/jpeg")), \
          patch.object(appmod, "call_claude", return_value=ai_reply), \
          patch.object(appmod, "send_reply_bubbles", return_value=(True, None)), \
          patch.object(appmod, "send_whatsapp_message", return_value=(True, None)):

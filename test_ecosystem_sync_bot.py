@@ -107,11 +107,11 @@ def test_live_catalog_price_sync_note_fires_only_when_price_actually_changed():
     _reset_client_hub_db()
     import db as _db
     # Admin changes AI Admin Basic's live price in Client Hub.
-    _db.execute("UPDATE service_catalog SET price_amount = 599000 WHERE catalog_key = 'ai_admin_basic'")
+    _db.execute("UPDATE service_catalog SET price_amount = 599000 WHERE catalog_key = 'ai_admin'")
     with patch.object(appmod, "_catalog_service", __import__("catalog_service")):
         note = appmod._build_live_price_sync_note_safe()
         assert "599.000" in note or "599000" in note
-        assert "Kilas Brain Basic" in note  # 2026 rebrand: bot's own PRICING_CONFIG name updated too
+        assert "Kilas Brain" in note  # 2026 rebrand: bot's own PRICING_CONFIG name updated too
         # An untouched item must not appear in the diff.
         assert "Content Basic" not in note
     print("test_live_catalog_price_sync_note_fires_only_when_price_actually_changed OK")
@@ -141,7 +141,7 @@ def test_live_price_sync_covers_full_catalog_generically_not_just_a_handful():
         "ads_management": 899_000,
         "event_lengkap": 3_100_000,
         "website_maintenance": 249_000,
-        "bundle_content_growth_brain_pro": 3_690_000,  # 2026 rebrand: retired key renamed
+        "ai_admin": 590_000,  # 2026 rebrand: retired key renamed
     }
     for key, new_price in changes.items():
         _db.execute("UPDATE service_catalog SET price_amount = ? WHERE catalog_key = ?", (new_price, key))

@@ -83,7 +83,8 @@ def test_edit_data_bisnis_visible_for_ready_for_review():
     _login_owner(client, "edit1@test.com")
     resp = client.get("/dashboard")
     body = resp.data.decode()
-    assert "Edit Data Bisnis" in body
+    assert "Ajari Kilas Brain" in body
+    assert "Edit Data Bisnis" not in body
     print("test_edit_data_bisnis_visible_for_ready_for_review OK")
 
 

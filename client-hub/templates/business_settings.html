@@ -5,9 +5,9 @@
 <p><a href="{{ url_for('client.business_memory', business_id=business.id) }}">Ajari Kilas Brain tentang bisnismu</a></p>
 <p class="muted">Pengaturan appointment & pembayaran untuk Kilas Brain bisnismu.</p>
 
-{% if business.package == 'AI_ADMIN_BASIC' and business.status == 'ACTIVE' %}
-<p><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN_PRO') }}">Ajukan upgrade Kilas Brain Pro</a></p>
-<p class="muted">Fitur Pro aktif setelah pembayaran Pro diverifikasi dan upgrade diterapkan oleh tim. Paket saat ini tetap berlaku sampai proses selesai.</p>
+{% if business.package in ('AI_ADMIN_BASIC', 'AI_ADMIN_PRO') and business.status == 'ACTIVE' %}
+<p><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN') }}">Pilih paket Kilas Brain saat ini</a></p>
+<p class="muted">Fitur paket saat ini aktif setelah pembayaran paket tujuan diverifikasi. Paket saat ini tetap berlaku sampai proses selesai.</p>
 {% endif %}
 <div class="card">
   <form method="post">
@@ -17,9 +17,9 @@
     {% if tenant_features and tenant_features.appointment %}
     <label style="display:flex;align-items:center;gap:8px;">
       <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
-      Aktifkan booking appointment lewat chat (khusus paket Kilas Brain Pro)
+      Aktifkan booking appointment lewat chat (sesuai akses paket)
     </label>
-    {% else %}<p class="muted">Booking otomatis tersedia dengan Kilas Brain Pro.</p>{% endif %}
+    {% else %}<p class="muted">Booking otomatis tersedia pada paket Kilas Brain saat ini; paket lama mengikuti akses sebelumnya.</p>{% endif %}
     <label>Jam operasional</label>
     <input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Senin-Sabtu 09.00-18.00">
     <label>Hari libur / tutup</label>
@@ -41,7 +41,7 @@
     <label>Instruksi tambahan untuk customer (opsional)</label>
     <textarea name="payment_instructions" placeholder="mis. kirim bukti transfer ke chat ini setelah bayar">{{ profile.payment_instructions or '' }}</textarea>
 
-    {% else %}<p class="muted">Instruksi pembayaran otomatis tersedia dengan Kilas Brain Pro.</p>{% endif %}
+    {% else %}<p class="muted">Instruksi pembayaran otomatis tersedia pada paket Kilas Brain saat ini; paket lama mengikuti akses sebelumnya.</p>{% endif %}
     <div style="margin-top:20px;"><button class="btn" type="submit">Simpan Pengaturan</button></div>
   </form>
 </div>

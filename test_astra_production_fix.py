@@ -50,7 +50,7 @@ class ProductionFixTests(unittest.TestCase):
         blocks = bot.build_focused_customer_prompt('62811','halo')
         self.assertLess(sum(len(b['text']) for b in blocks), len(old)*0.5)
         self.assertIn(bot.AI_ADMIN_CORE_BEHAVIOR, blocks[0]['text'])
-        self.assertIn(bot.PRICING_TEXT_BLOCK, blocks[0]['text'])
+        self.assertNotIn(bot.PRICING_TEXT_BLOCK, blocks[0]['text'])  # focused greeting does not need the full catalog
         self.assertEqual(blocks[0]['cache_control'], {'type':'ephemeral'})
         self.assertNotIn('cache_control', blocks[1])
 
@@ -101,9 +101,11 @@ class ProductionFixTests(unittest.TestCase):
             self.assertFalse(any(c.args[-1]=='sudah diteruskan' for c in save.call_args_list))
 
     def test_transport_retry_does_not_escalate_model(self):
-        with patch('requests.post',side_effect=[OSError('offline'),self.response()]) as post:
-            bot.call_claude('62811','layanan mana yang cocok untuk cafe?')
-        self.assertEqual([c.kwargs['json']['model'] for c in post.call_args_list],[bot.MODEL_FAST]*2)
+        with patch('requests.post', side_effect=OSError('offline')) as post:
+            with self.assertRaises(OSError):
+                bot.call_claude('62811','layanan mana yang cocok untuk cafe?')
+        self.assertEqual(post.call_count,1)
+        self.assertEqual(post.call_args.kwargs['json']['model'],bot.MODEL_FAST)
 
     def test_meta_requires_message_acceptance_and_redacts_errors(self):
         r=Mock(status_code=200);r.json.return_value={}
@@ -200,17 +202,17 @@ class ProductionFixTests(unittest.TestCase):
         with patch('requests.post') as post:
             self.assertIn('Halo',bot.call_claude('628new','halo'))
             self.assertIn('demo.kilasworks.id',bot.call_claude('628demo','link demo'))
-            self.assertIn('[KIRIM_KATALOG]',bot.call_claude('628catalog','kirim katalog'))
+            self.assertIn('https://app.kilasworks.id/catalog.pdf',bot.call_claude('628catalog','kirim katalog'))
         post.assert_not_called()
         self.assertIsNone(bot._exact_customer_route('halo',[{'role':'user','content':'komplain'}]))
 
     def test_exact_catalog_price_bypasses_llm_and_uses_current_row(self):
-        row={'name':'Kilas Brain Basic','pricing_mode':'FIXED_PRICE','price_amount':523000,'price_unit':'per bulan'}
-        with patch.object(bot._catalog_service,'list_active_catalog',return_value=[row]),patch('requests.post') as post:
-            result=bot.call_claude('62811','harga Kilas Brain Basic berapa?',defer_delivery=True)
+        row={'catalog_key':'ai_admin','category':'AI_ADMIN','is_active':True,'name':'Kilas Brain','pricing_mode':'FIXED_PRICE','price_amount':523000,'price_unit':'per bulan'}
+        with patch.object(bot._catalog_service,'list_active_catalog',return_value=[row]),patch.object(bot._catalog_service,'get_catalog_item',return_value=row),patch('requests.post') as post:
+            result=bot.call_claude('62811','harga Kilas Brain berapa?',defer_delivery=True)
         self.assertIn('523.000',result);post.assert_not_called()
         with patch.object(bot._catalog_service,'list_active_catalog',return_value=[row]):
-            self.assertIsNone(bot._exact_customer_price_query('Kilas Brain Basic berapa dan apa cocok buat cafe?'))
+            self.assertIsNone(bot._exact_customer_price_query('Kilas Brain berapa dan apa cocok buat cafe?'))
 
     def test_platform_name_resolver_excludes_tenant_names(self):
         bot.customer_names.update({'T8:62811':'Private Tenant Customer','62812':'Platform Customer'})

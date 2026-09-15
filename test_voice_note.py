@@ -322,7 +322,7 @@ def test_voice_note_duplicate_webhook_no_double_send():
     number = "628900200012"
     payload = audio_payload(number, "media-c12", "wamid.vn.dup1")
     with patch.object(appmod, "transcribe_audio_whatsapp", return_value=("growth berapa?", None)), \
-         patch.object(appmod, "call_claude", return_value="Content Growth Rp2.750.000/bulan, Kak."), \
+         patch.object(appmod, "call_claude", return_value="Content Growth Rp3.490.000/bulan, Kak."), \
          patch.object(appmod, "send_reply_bubbles", side_effect=fake_send_reply_bubbles), \
          patch.object(appmod, "send_whatsapp_message", side_effect=fake_send_whatsapp_message), \
          patch.object(appmod, "send_typing_indicator", return_value=None), \
@@ -334,7 +334,7 @@ def test_voice_note_duplicate_webhook_no_double_send():
     # through unchanged now (no fallback text at all) — this test is about DEDUP, not pricing, so
     # check the actual sent reply text appears exactly once, proving the duplicate webhook was
     # skipped rather than double-sent.
-    texts = [t for n, t in sent_log if n == number and "2.750.000" in t]
+    texts = [t for n, t in sent_log if n == number and "3.490.000" in t]
     assert len(texts) == 1, texts
     print("test_voice_note_duplicate_webhook_no_double_send OK")
 

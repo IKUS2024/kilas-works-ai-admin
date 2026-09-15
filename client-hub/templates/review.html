@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Review — {{ business.business_name }}{% endblock %}
 {% block content %}
+{% if business.package != "NONE" %}{% include "_brain_plan_notice.html" %}{% endif %}
 <h1>{{ business.business_name }}</h1>
 <span class="pill {{ business.display_status or business.status }}">{{ (business.display_status or business.status)|humanize_status('business') }}</span>
-<span class="muted">· {{ business.package|humanize_package }}</span>
+<span class="muted">· {{ business.package }}</span>
 
 {% if activation_checklist %}
 <div class="card">
@@ -273,13 +274,13 @@
 
   <div class="card">
     <h2>Paket</h2>
-    <p class="muted">Paket saat ini: <strong>{{ business.package|humanize_package }}</strong></p>
+    <p class="muted">Paket saat ini: <strong>{{ business.package }}</strong></p>
     <form method="post" action="{{ url_for('admin.change_package', business_id=business.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>Ubah paket</label>
       <select name="package">
-        <option value="AI_ADMIN_BASIC" {{ 'selected' if business.package == 'AI_ADMIN_BASIC' else '' }}>Kilas Brain Basic</option>
-        <option value="AI_ADMIN_PRO" {{ 'selected' if business.package == 'AI_ADMIN_PRO' else '' }}>Kilas Brain Pro</option>
+        {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') %}<option value="{{ business.package }}" selected>{{ business.package }} (historis)</option>{% endif %}
+        <option value="AI_ADMIN" {{ 'selected' if business.package == 'AI_ADMIN' else '' }}>Kilas Brain — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
       </select>
       <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
     </form>

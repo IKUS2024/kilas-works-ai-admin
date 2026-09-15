@@ -288,10 +288,12 @@ def test_save_tenant_config_postgres_style_unchanged_dict_does_not_bump_version(
     SELECT for `existing`), so the same single-shot stub used for the read-path tests above works
     here too."""
     config_dict = {"business_name": "Kopi ABC", "features_enabled": {"faq": True}}
+    reset_db()
+    bid = _make_business()
     fake_existing = {"config_json": dict(config_dict), "config_version": 5}
     original = _stub_query_one_returning(fake_existing)
     try:
-        version, changed = repo.save_tenant_config(20, config_dict)
+        version, changed = repo.save_tenant_config(bid, config_dict)
     finally:
         db.query_one = original
     assert changed is False, "an unchanged config must not look changed just because Postgres returns a native dict"
@@ -334,11 +336,13 @@ def test_save_tenant_config_actually_changed_config_increments_version_exactly_o
 
 
 def test_save_tenant_config_malformed_existing_json_still_raises_same_error_as_before():
+    reset_db()
+    bid = _make_business()
     fake_existing = {"config_json": "{not valid json", "config_version": 1}
     original = _stub_query_one_returning(fake_existing)
     raised = False
     try:
-        repo.save_tenant_config(21, {"business_name": "Kopi ABC"})
+        repo.save_tenant_config(bid, {"business_name": "Kopi ABC"})
     except json.JSONDecodeError:
         raised = True
     finally:

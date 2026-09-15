@@ -75,6 +75,7 @@ def reset_client_hub_db():
         os.remove(_TMP_DB)
     chdb._local.conn = None
     chdb.init_schema()
+    _test_bootstrap.ensure_message_schema()
     catalog_service.seed_catalog_if_needed()
 
 
@@ -407,7 +408,7 @@ def test_basic_tenant_image_understanding_blocked_pro_tenant_allowed():
         }}]}]
     }
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
-         patch.object(appmod, "download_whatsapp_media", return_value=("YmFzZTY0", "image/jpeg")), \
+         patch.object(appmod, "download_whatsapp_media", return_value=(_test_bootstrap.valid_test_image(), "image/jpeg")), \
          patch.object(appmod, "call_claude", return_value="Sip, aku lihat gambarnya."), \
          patch.object(appmod, "send_reply_bubbles", return_value=(True, None)) as mock_bubbles:
         resp2 = client.post("/webhook", data=json.dumps(image_payload_pro), content_type="application/json")
@@ -440,7 +441,7 @@ def test_basic_tenant_owner_commands_blocked_pro_tenant_allowed():
     assert mock_send_basic.called, "Basic tenant owner must get a real reply, not silence"
     decline_text = mock_send_basic.call_args[0][1].lower()
     assert "feature" not in decline_text and "flag" not in decline_text, "must be natural wording, not internal jargon"
-    assert "pro" in decline_text, "should naturally point to the Pro upgrade"
+    assert "kilas brain" in decline_text, "should explain current Kilas Brain entitlement without selling retired Pro"
 
     # Pro tenant's owner: bridge IS reachable (classify_owner_message runs instead of call_claude).
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
@@ -466,6 +467,7 @@ def test_upgraded_tenant_sees_new_features_on_very_next_message():
 
     chdb.execute("UPDATE businesses SET package = 'AI_ADMIN_PRO' WHERE id = ?", (business_id,))
     chrepo.set_tenant_features_for_package(business_id, "AI_ADMIN_PRO")
+    chdb.execute("UPDATE subscriptions SET plan_key='ai_admin_pro' WHERE business_id=?",(business_id,))
 
     assert appmod._get_tenant_features_safe(business_id).get("image_understanding") is True
     print("test_upgraded_tenant_sees_new_features_on_very_next_message OK")

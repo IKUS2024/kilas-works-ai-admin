@@ -102,7 +102,7 @@ class SalesTests(unittest.TestCase):
                 failure=requests.HTTPError(response=SimpleNamespace(status_code=503))
                 post=Mock(side_effect=failure)
                 ns=dict(requests=SimpleNamespace(post=post),image_b64=image,tenant_id=None,tenant_context_block='',
-                        model_to_use='unchanged-model',ANTHROPIC_API_KEY='test',system_prompt='',history=[])
+                        model_to_use='unchanged-model',ANTHROPIC_API_KEY='test',system_prompt='',history=[], user_message="test", owner_message="test", _ctx=__import__("context_engine"))
                 with self.assertRaises(requests.HTTPError):exec(compile(ast.Module(body=[attempt],type_ignores=[]),'attempt','exec'),ns)
                 self.assertEqual(post.call_count,1)
 

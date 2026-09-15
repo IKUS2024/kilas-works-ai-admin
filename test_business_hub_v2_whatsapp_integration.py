@@ -72,6 +72,7 @@ def reset_client_hub_db():
         os.remove(_TMP_DB)
     chdb._local.conn = None
     chdb.init_schema()
+    _test_bootstrap.ensure_message_schema()
     catalog_service.seed_catalog_if_needed()
 
 

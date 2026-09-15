@@ -70,15 +70,15 @@ class CatalogUXTests(unittest.TestCase):
         self.assertIn(self.client.get(f'/business/{bid}/wizard/basics').status_code,(403,404))
 
     def test_customer_active_only_cards_safe_description(self):
-        item=catalog.get_catalog_item('content_basic')
+        item=catalog.get_catalog_item('website_landing_page')
         catalog.update_catalog_item(item['id'],description='<script>alert(1)</script>')
         page=self.client.get('/services').get_data(as_text=True)
         parser=HTMLParser(); tags=[]; parser.handle_starttag=lambda tag,attrs:tags.append(tag); parser.feed(page)
         self.assertNotIn('table',tags); self.assertIn('service-grid',page); self.assertIn('minmax(min(100%',page)
         self.assertIn('&lt;script&gt;',page); self.assertNotIn('<script>alert',page)
         catalog.update_catalog_item(item['id'],is_active=False)
-        self.assertNotIn('<h3>Content Basic</h3>',self.client.get('/services').get_data(as_text=True))
-        self.assertIsNotNone(catalog.get_catalog_item('content_basic'))
+        self.assertNotIn('<h3>Landing Page</h3>',self.client.get('/services').get_data(as_text=True))
+        self.assertIsNotNone(catalog.get_catalog_item('website_landing_page'))
 
     def test_admin_archive_restore_survives_restart(self):
         client=self.admin(); key=pricing_config.RETIRED_BUNDLE_KEYS[0]
@@ -89,18 +89,20 @@ class CatalogUXTests(unittest.TestCase):
         self.assertIn(item['name'],client.get('/admin/catalog?view=archive').get_data(as_text=True))
         self.assertEqual(client.post(f"/admin/catalog/{item['id']}/toggle-active").status_code,302)
         catalog.seed_catalog_if_needed()
-        self.assertTrue(catalog.get_catalog_item(key)['is_active'])
-        self.assertIn(item['name'],client.get('/admin/catalog').get_data(as_text=True))
+        self.assertFalse(catalog.get_catalog_item(key)['is_active'])
+        self.assertNotIn(item['name'],client.get('/admin/catalog').get_data(as_text=True))
 
     def test_description_admin_edit_survives_boot(self):
-        item=catalog.get_catalog_item('content_basic'); catalog.update_catalog_item(item['id'],description='Scope resmi dari admin')
+        item=catalog.get_catalog_item('website_landing_page'); catalog.update_catalog_item(item['id'],description='Scope resmi dari admin')
         catalog.seed_catalog_if_needed()
-        self.assertEqual(catalog.service_description(catalog.get_catalog_item('content_basic')),'Scope resmi dari admin')
+        self.assertEqual(catalog.service_description(catalog.get_catalog_item('website_landing_page')),'Scope resmi dari admin')
 
     def test_defaults_no_fabricated_counts_and_matrix(self):
         for key in ('content_basic','content_growth','content_pro'):
             text=catalog.service_description(catalog.get_catalog_item(key))
-            self.assertIn('scope mengikuti paket/brief',text); self.assertIsNone(re.search(r'\d',text))
+            facts=pricing_config.CONTENT_PACKAGES[key.removeprefix('content_')]
+            self.assertIn(f"{facts['reels']} Reels",text); self.assertIn(f"{facts['photos']} foto final",text)
+            self.assertNotRegex(text,r'\d+ (?:revisi|jam)')
         basic=catalog.service_description(catalog.get_catalog_item('ai_admin_basic'))
         pro=catalog.service_description(catalog.get_catalog_item('ai_admin_pro'))
         for phrase in ('alur booking','percakapan pembayaran','perintah owner','voice note'):
@@ -144,7 +146,7 @@ class CatalogUXTests(unittest.TestCase):
         self.assertIn('TOKO SENDIRI',str(result)); self.assertNotIn('kilasworks',str(result).lower())
 
     def test_pdf_live_values_active_archive_and_safe_text(self):
-        item=catalog.get_catalog_item('content_basic')
+        item=catalog.get_catalog_item('website_landing_page')
         catalog.update_catalog_item(item['id'],name='LIVE UNIQUE',price_amount=876543,description='Admin <b>literal</b> & scope')
         def text(): return '\n'.join(page.extract_text() for page in PdfReader(io.BytesIO(pdf.generate_catalog_pdf_bytes())).pages)
         generated=text(); self.assertIn('LIVE UNIQUE',generated); self.assertIn('876.543',generated)
@@ -164,7 +166,8 @@ class CatalogUXTests(unittest.TestCase):
         item=catalog.get_catalog_item('ai_admin_basic'); self.assertEqual(item['category'],'AI_ADMIN')
         for path in ('/services','/dashboard',f'/business/{self.bid}/simulate'):
             self.assertNotIn('AI Admin',self.client.get(path).get_data(as_text=True))
-        self.assertIn('AI_ADMIN_BASIC',self.client.get('/dashboard').get_data(as_text=True))
+        self.assertIn('value="AI_ADMIN"',self.client.get('/dashboard').get_data(as_text=True))
+        self.assertNotIn('value="AI_ADMIN_BASIC"',self.client.get('/dashboard').get_data(as_text=True))
 
     def test_public_pdf_is_exact_static_asset_despite_catalog_changes(self):
         asset=ROOT/'client-hub/static/kilas-works-official-catalog.pdf'

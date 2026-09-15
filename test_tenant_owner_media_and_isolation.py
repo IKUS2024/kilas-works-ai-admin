@@ -85,6 +85,7 @@ def reset_client_hub_db():
         os.remove(_TMP_DB)
     chdb._local.conn = None
     chdb.init_schema()
+    _test_bootstrap.ensure_message_schema()
     catalog_service.seed_catalog_if_needed()
 
 
@@ -254,7 +255,7 @@ def test_pro_tenant_owner_image_handled_via_owner_path_scoped_to_tenant():
         return True, None
 
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
-         patch.object(appmod, "download_whatsapp_media", return_value=("YmFzZTY0aW1n", "image/jpeg")), \
+         patch.object(appmod, "download_whatsapp_media", return_value=(_test_bootstrap.valid_test_image(), "image/jpeg")), \
          patch.object(appmod, "call_claude") as mock_customer_ai, \
          patch("requests.post") as mock_post, \
          patch.object(appmod, "send_whatsapp_message", side_effect=fake_send):

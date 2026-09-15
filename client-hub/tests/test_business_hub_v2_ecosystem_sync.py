@@ -104,7 +104,7 @@ def test_upgrade_to_ai_admin_is_explicit_and_only_from_none():
                         follow_redirects=True)
     assert resp.status_code == 200
     upgraded = repo.get_business(business["id"])
-    assert upgraded["package"] == "AI_ADMIN_PRO"
+    assert upgraded["package"] == "AI_ADMIN"
     feats = db.query_one("SELECT * FROM tenant_features WHERE business_id = ?", (business["id"],))
     assert feats["faq"] and feats["owner_commands"], "Pro features must be seeded after upgrade"
     # Calling upgrade again (already upgraded) must not silently re-run / error.
@@ -112,7 +112,7 @@ def test_upgrade_to_ai_admin_is_explicit_and_only_from_none():
                          follow_redirects=True)
     assert resp2.status_code == 200
     still = repo.get_business(business["id"])
-    assert still["package"] == "AI_ADMIN_PRO", "already-upgraded business must not be silently downgraded"
+    assert still["package"] == "AI_ADMIN", "already-upgraded business must not be silently downgraded"
     print("test_upgrade_to_ai_admin_is_explicit_and_only_from_none OK")
 
 
@@ -123,10 +123,10 @@ def test_upgrade_to_ai_admin_is_explicit_and_only_from_none():
 def test_no_custom_ai_admin_catalog_entry_exists_anywhere():
     reset_db()
     ai_admin_items = [i for i in pricing_config.CATALOG_ITEMS if i["category"] == "AI_ADMIN"]
-    assert len(ai_admin_items) == 2
+    assert len(ai_admin_items) == 3  # current plan plus two historical catalog rows
     for item in ai_admin_items:
         assert item["pricing_mode"] == "FIXED_PRICE", "AI Admin must never be CUSTOM_QUOTE"
-    assert set(feature_flags.PACKAGES) == {"AI_ADMIN_BASIC", "AI_ADMIN_PRO", "NONE"}
+    assert set(feature_flags.PACKAGES) == {"AI_ADMIN", "AI_ADMIN_BASIC", "AI_ADMIN_PRO", "NONE"}
     # No route accepts an AI Admin custom_project_request — only VIDEO/PHOTO/WEBSITE/APPLICATION/CONTENT.
     email = "aiadmin_guard@test.com"
     _make_owner(email)
@@ -176,14 +176,10 @@ def test_custom_content_request_creates_waiting_for_quote_project():
     _login_owner(client, email)
     client.post("/business/create", data={"business_name": "Content Biz", "package": "NONE"})
     business = db.query_one("SELECT * FROM businesses WHERE business_name = ?", ("Content Biz",))
-    resp = client.post(
-        f"/business/{business['id']}/projects/custom/CONTENT",
-        data={"project_name": "Reels Bundle", "need": "Reels", "quantity": "8",
-              "platform": "Instagram", "location": "Tangerang", "deadline": "2026-09-01",
-              "style": "casual", "budget_min": "1000000", "budget_max": "2000000", "notes": "urgent"},
-        follow_redirects=True,
-    )
-    assert resp.status_code == 200
+    from brief_test_helpers import complete_brief
+    response=client.post('/services/custom_content/request-quote',data={'business_id':business['id']})
+    assert response.status_code==302
+    complete_brief(client,response.location)
     project = db.query_one("SELECT * FROM projects WHERE business_id = ? AND project_type = 'CONTENT'",
                             (business["id"],))
     assert project is not None
@@ -237,8 +233,8 @@ def test_service_catalog_page_has_real_cta_for_every_custom_quote_category():
     body = resp.data.decode()
     assert resp.status_code == 200
     # Not just a passive label — an actual <a> tag wired to a real route must exist per category.
-    for project_type in ("CONTENT", "VIDEO", "PHOTO", "APPLICATION"):
-        assert f'data-project-type="{project_type}"' in body, f"missing real CTA for {project_type}"
+    for key in ("custom_content", "custom_video", "custom_photo", "custom_website_app"):
+        assert f'/services/{key}/request-quote' in body, f"missing real shared brief CTA for {key}"
     assert "talent_list" not in body  # sanity: endpoint name shouldn't leak, only its resolved href
     assert "/talent" in body, "Talent CTA must link to the talent flow"
     print("test_service_catalog_page_has_real_cta_for_every_custom_quote_category OK")
@@ -254,7 +250,11 @@ def test_custom_project_request_route_reachable_for_every_custom_type():
     business = db.query_one("SELECT * FROM businesses WHERE business_name = ?", ("CTA Route Biz",))
     for project_type in ("CONTENT", "VIDEO", "PHOTO", "APPLICATION"):
         resp = client.get(f"/business/{business['id']}/projects/custom/{project_type}")
-        assert resp.status_code == 200, f"{project_type} custom request form must be reachable"
+        assert resp.status_code == 302 and resp.location.endswith('/services')
+        key={'CONTENT':'custom_content','VIDEO':'custom_video','PHOTO':'custom_photo','APPLICATION':'custom_website_app'}[project_type]
+        selected=client.post(f'/services/{key}/request-quote',data={'business_id':business['id']})
+        assert selected.status_code==302
+        assert client.get(selected.location).status_code==200
     print("test_custom_project_request_route_reachable_for_every_custom_type OK")
 
 

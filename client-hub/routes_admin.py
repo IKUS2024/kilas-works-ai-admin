@@ -414,7 +414,7 @@ def change_package(business_id):
     try:
         repo.set_business_package(business_id, package, actor_user_id=admin["id"])
     except ValueError:
-        flash("Perubahan paket belum diizinkan. Upgrade Pro membutuhkan pembayaran Pro yang sudah diverifikasi.", "error")
+        flash("Perubahan paket belum diizinkan. Perubahan entitlement memerlukan pembayaran paket tujuan yang sudah diverifikasi.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
     flash("Paket Kilas Brain berhasil diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
@@ -1101,3 +1101,23 @@ def renew_wa_order_link(project_id):
     wa_checkout.renew(project_id)
     flash('Tautan diperbarui. Salin dan kirim ke customer yang tercatat pada order ini.', 'success')
     return redirect(url_for('admin.project_admin_detail',project_id=project_id))
+
+
+@admin_bp.route('/ai-usage')
+@security.admin_required
+def ai_usage_dashboard():
+    import ai_usage
+    # Aggregate all scopes only behind the admin gate. Clients get their own count only.
+    try:
+        usage = ai_usage.monthly(admin=True)
+        seen = {row['tenant_id'] for row in usage}
+        businesses = repo.list_all_businesses()
+        names = {b['id']: b['business_name'] for b in businesses}
+        for business in businesses:
+            if business['package'] != 'NONE' and business['id'] not in seen:
+                usage.extend(ai_usage.monthly(business['id']))
+        for row in usage:
+            row['name'] = names.get(row['tenant_id'], 'Kilas Works platform' if row['tenant_id'] is None else 'Bisnis historis')
+        return render_template('admin_ai_usage.html', usage=usage, pricing_date=ai_usage.PRICING_DATE, unavailable=False)
+    except Exception:
+        return render_template('admin_ai_usage.html', usage=[], pricing_date=ai_usage.PRICING_DATE, unavailable=True), 503

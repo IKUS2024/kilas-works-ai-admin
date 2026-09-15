@@ -151,7 +151,7 @@ class AppBriefTests(unittest.TestCase):
             suffix='request-quote' if item['pricing_mode']=='CUSTOM_QUOTE' else 'checkout-fixed'
             self.assertIn(f"/services/{item['catalog_key']}/{suffix}",page)
         before=db.query_one('SELECT COUNT(*) AS n FROM projects')['n']
-        response=self.client.post('/services/ai_admin_basic/checkout-fixed')
+        response=self.client.post('/services/ai_admin/checkout-fixed')
         self.assertEqual(response.status_code,302);self.assertNotIn('/brief',response.location)
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM projects')['n'],before)
 

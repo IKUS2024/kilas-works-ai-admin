@@ -120,6 +120,8 @@ def _call_claude_vision(image_b64, image_mime, extra_instruction=None):
         )
         resp.raise_for_status()
         data = resp.json()
+        import ai_usage
+        ai_usage.record(CLIENT_HUB_MODEL, data, context="payment_review", classification="vision")
         return data["content"][0]["text"], data.get("stop_reason"), None
     except Exception as e:
         return None, None, f"{type(e).__name__}: {e}"
@@ -155,6 +157,8 @@ def _call_claude_text_repair(malformed_text):
         )
         resp.raise_for_status()
         data = resp.json()
+        import ai_usage
+        ai_usage.record(CLIENT_HUB_MODEL, data, context="payment_review", classification="normal")
         return data["content"][0]["text"], data.get("stop_reason"), None
     except Exception as e:
         return None, None, f"{type(e).__name__}: {e}"

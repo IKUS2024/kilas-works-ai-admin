@@ -50,6 +50,7 @@ except ImportError:
     AI_ADMIN_BRAIN_VERSION = "unavailable"
 
 import feature_flags
+import ai_usage
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLIENT_HUB_MODEL = os.environ.get("CLIENT_HUB_MODEL", "claude-sonnet-4-6")
@@ -218,6 +219,7 @@ def _call_claude(system_prompt, messages, max_tokens=1500, *, model=None):
         )
         resp.raise_for_status()
         data = resp.json()
+        ai_usage.record(model or CLIENT_HUB_MODEL, data)
         return data["content"][0]["text"], data.get("stop_reason"), None
     except Exception as e:
         return None, None, f"{type(e).__name__}: {e}"
@@ -323,6 +325,7 @@ def _try_parse(raw_text):
         return None, f"RESPONSE_PARSE_ERROR: {e}"
 
 
+@ai_usage.for_business("normalization")
 def normalize_business_data(business, profile, raw_services, raw_faqs, extracted_file_texts, tenant_features=None):
     """Returns (config_dict_or_None, error_str_or_None). Never raises — callers persist
     ai_status=FAILED + last_error on failure and keep the raw data untouched, so onboarding can
@@ -410,6 +413,7 @@ def normalize_business_data(business, profile, raw_services, raw_faqs, extracted
     return config, None
 
 
+@ai_usage.for_business("simulation")
 def simulate_customer_reply(business, config, history, customer_message):
     """`history` is a list of {"role": "user"|"assistant", "content": str} from
     simulation_messages — entirely separate storage from production `conversations`, and this
@@ -509,6 +513,7 @@ def _build_business_facts_context(business, profile, raw_services, raw_faqs):
     return "\n".join(lines)
 
 
+@ai_usage.for_business("writing")
 def generate_writing_suggestion(business, profile, raw_services, raw_faqs, field_type, current_text, action):
     """Returns (result_dict_or_None, error_str_or_None) where result_dict is
     {"suggestion": str} or {"needs_more_info": str} — NEVER both, never neither. Never raises;
@@ -580,6 +585,7 @@ answer null berarti "topik ini relevan tapi datanya belum cukup buat dijawab oto
 mengarang jawaban hanya supaya field-nya keisi."""
 
 
+@ai_usage.for_business("faq")
 def generate_faq_suggestions(business, profile, raw_services, raw_faqs):
     """Smart FAQ assistant, missing-topics mode (Section H). Returns
     ({"suggestions": [{"question": str, "answer": str|None}, ...]}, None) or (None, error_str).

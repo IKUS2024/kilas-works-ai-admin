@@ -51,7 +51,7 @@ def _give_verified_ai_admin_payment(bid, admin_user_id):
     reaches a genuinely activatable state."""
     catalog_service.seed_catalog_if_needed()
     business = repo.get_business(bid)
-    catalog_key = "ai_admin_pro" if business["package"] == "AI_ADMIN_PRO" else "ai_admin_basic"
+    catalog_key = business["package"].lower()
     owner_row = db.query_one(
         "SELECT user_id FROM business_memberships WHERE business_id = ? AND role_in_business = 'OWNER'", (bid,)
     )
@@ -502,8 +502,8 @@ def test_staging_two_tenants_no_cross_talk():
 
     coffee_features = repo.get_tenant_features(bid_coffee)
     dental_features = repo.get_tenant_features(bid_dental)
-    assert coffee_features["appointment"] == 0, "Basic package must not have appointment feature"
-    assert dental_features["appointment"] == 1, "Pro package must have appointment feature"
+    assert coffee_features["appointment"] == 1, "new purchases use the single plan with appointment"
+    assert dental_features["appointment"] == 1, "new single plan includes appointment for both businesses"
 
     # simulate on each — sessions are per-business, verify no bleed
     c.get(f"/business/{bid_dental}/simulate")

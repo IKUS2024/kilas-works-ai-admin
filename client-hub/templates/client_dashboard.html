@@ -55,7 +55,11 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <h2 style="margin-bottom:4px;">{{ b.business_name }}</h2>
-        {% if b.package == 'NONE' %}
+        {% if b.package != 'NONE' %}
+      <p>Respons AI bulan ini: {% if b.ai_usage %}<strong>{{ b.ai_usage.replies }}</strong>{% else %}Belum tersedia{% endif %}</p>
+      {% if b.ai_usage and b.ai_usage.status != 'NORMAL' %}<p class="muted">Penggunaan AI tinggi. Kilas Works dapat menghubungimu untuk meninjau kebutuhan; layanan tetap berjalan.</p>{% endif %}
+    {% endif %}
+    {% if b.package == 'NONE' %}
           <span class="pill">Pelanggan aktif</span>
           <span class="muted">· Belum pakai Kilas Brain</span>
         {% else %}
@@ -84,7 +88,7 @@
       {% if b.package == 'NONE' %}
         <form method="post" action="{{ url_for('client.upgrade_to_ai_admin', business_id=b.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="package" value="AI_ADMIN_BASIC">
+          <input type="hidden" name="package" value="AI_ADMIN">
           <button class="btn" type="submit">+ Tambah Kilas Brain</button>
         </form>
       {% elif b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
@@ -110,11 +114,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Nama bisnis</label>
     <input type="text" name="business_name" required>
+    {% include "_brain_plan_notice.html" %}
     <label>Paket Kilas Brain (opsional)</label>
     <select name="package">
       <option value="NONE" selected>Belum pakai Kilas Brain — jelajahi layanan lain dulu</option>
-      <option value="AI_ADMIN_BASIC">Kilas Brain Basic</option>
-      <option value="AI_ADMIN_PRO">Kilas Brain Pro</option>
+      <option value="AI_ADMIN">Kilas Brain — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
     </select>
     <p class="muted" style="margin-top:4px;">Kilas Brain bersifat opsional. Kamu bisa langsung ke dashboard dan pakai layanan lain (Content/Foto/Video/Website/Ads/Event/Talent), lalu tambah Kilas Brain kapan saja.</p>
     <div style="margin-top:16px;"><button class="btn" type="submit">Buat Bisnis</button></div>

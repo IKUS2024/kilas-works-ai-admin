@@ -157,9 +157,9 @@ class TargetedHubTests(unittest.TestCase):
 
     def test_upgrade_checkout_does_not_grant_entitlement(self):
         self.subscribe()
-        r=self.client.get(f'/business/{self.bid}/ai-admin/checkout?package=AI_ADMIN_PRO')
+        r=self.client.get(f'/business/{self.bid}/ai-admin/checkout?package=AI_ADMIN')
         self.assertEqual(r.status_code,302)
-        self.assertTrue(db.query_one("SELECT id FROM projects WHERE business_id=? AND catalog_key='ai_admin_pro'",(self.bid,)))
+        self.assertTrue(db.query_one("SELECT id FROM projects WHERE business_id=? AND catalog_key='ai_admin'",(self.bid,)))
         self.assertEqual(repo.get_business(self.bid)['package'],'AI_ADMIN_BASIC');self.assertFalse(tcs.get_tenant_features(self.bid)['owner_commands'])
 
 if __name__=='__main__':unittest.main()

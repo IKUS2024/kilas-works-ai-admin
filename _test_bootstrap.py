@@ -77,6 +77,21 @@ import tempfile
 _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 _CLIENT_HUB_DIR = os.path.join(_REPO_ROOT, "client-hub")
 
+def ensure_message_schema():
+    """Bot init_db owns this table in production; media integration tests need it too."""
+    import db
+    db.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+               "number TEXT, mode TEXT, role TEXT, content TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+
+
+def valid_test_image():
+    import base64, io
+    from PIL import Image
+    output=io.BytesIO()
+    Image.new('RGB',(32,32),'white').save(output,format='JPEG')
+    return base64.b64encode(output.getvalue()).decode('ascii')
+
+
 _bootstrapped = False
 _temp_db_path = None
 
@@ -148,6 +163,7 @@ def _bootstrap():
     try:
         import db as _client_hub_db
         _client_hub_db.init_schema()
+        ensure_message_schema()
     except Exception as e:
         print(
             f"test_bootstrap: gagal init Client Hub test schema ({e}) — human-takeover checks "

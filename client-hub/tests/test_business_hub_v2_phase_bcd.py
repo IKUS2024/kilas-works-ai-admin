@@ -66,7 +66,7 @@ def test_catalog_seeded_matches_pricing_config():
     reset_db()
     items = catalog_service.list_active_catalog()
     keys = {i["catalog_key"] for i in items}
-    expected_keys = {i["key"] for i in pricing_config.CATALOG_ITEMS}
+    expected_keys = {i["key"] for i in pricing_config.CATALOG_ITEMS if i["category"] != "BUNDLE" and i["key"] not in pricing_config.RETIRED_BRAIN_KEYS}
     assert keys == expected_keys
     ai_basic = catalog_service.get_catalog_item("ai_admin_basic")
     assert ai_basic["price_amount"] == 499_000

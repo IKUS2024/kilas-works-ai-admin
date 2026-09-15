@@ -1,3 +1,4 @@
+from brief_test_helpers import complete_brief
 """Client Hub new-customer service selection + purchase flow — regression tests.
 
 Run with:
@@ -70,7 +71,7 @@ def test_new_customer_can_select_fixed_price_service_and_reach_checkout():
     client = fresh_client()
     _login_owner(client, "fixed@test.com")
     body_before = client.get("/services").data.decode()
-    assert "Pilih Layanan" in body_before
+    assert "Isi Brief" in body_before
 
     item = catalog_service.get_catalog_item("website_landing_page")
     resp = client.post(f"/services/{item['catalog_key']}/checkout-fixed", data={
@@ -80,7 +81,10 @@ def test_new_customer_can_select_fixed_price_service_and_reach_checkout():
     assert "/checkout" in resp.headers["Location"] or "/projects/" in resp.headers["Location"]
     projects = projects_repo.list_projects_for_business(bid)
     assert len(projects) == 1
-    assert projects[0]["status"] == "APPROVED"
+    assert projects[0]["status"] == "REQUESTED"
+    complete_brief(client,resp.headers["Location"])
+    assert projects_repo.get_project(projects[0]["id"])["status"] == "PAYMENT_PENDING"
+    assert db.query_one("SELECT COUNT(*) n FROM invoices WHERE project_id=?",(projects[0]["id"],))["n"]==1
     assert projects[0]["catalog_key"] == item["catalog_key"]
     print("test_new_customer_can_select_fixed_price_service_and_reach_checkout OK")
 
@@ -94,7 +98,7 @@ def test_ai_admin_never_uses_generic_checkout_route():
     client = fresh_client()
     _login_owner(client, "aiadmin@test.com")
     body = client.get("/services").data.decode()
-    ai_idx = body.find("Kilas Brain Basic")
+    ai_idx = body.find("<h3>Kilas Brain</h3>")
     assert ai_idx != -1
     # Service descriptions can grow; inspect the whole card so the checkout prohibition
     # is still tested rather than depending on an arbitrary 400-character window.
@@ -103,9 +107,9 @@ def test_ai_admin_never_uses_generic_checkout_route():
     assert card_start >= 0 and card_end > ai_idx
     section = body[card_start:card_end]
     assert "Mulai di Dashboard" in section
-    assert 'action="/services/ai_admin_basic/checkout-fixed"' not in section
+    assert 'action="/services/ai_admin/checkout-fixed"' not in section
 
-    ai_item = catalog_service.get_catalog_item("ai_admin_basic")
+    ai_item = catalog_service.get_catalog_item("ai_admin")
     resp = client.post(f"/services/{ai_item['catalog_key']}/checkout-fixed", data={
         "csrf_token": "x", "business_id": str(bid),
     })
@@ -133,12 +137,13 @@ def test_custom_quote_generic_route_creates_request_without_price():
     item = catalog_service.get_catalog_item_by_id(new_id)
 
     body = client.get("/services").data.decode()
-    assert "Minta Penawaran" in body
+    assert "Isi Brief" in body
 
     resp = client.post(f"/services/{item['catalog_key']}/request-quote", data={
         "csrf_token": "x", "business_id": str(bid), "notes": "Butuh dokumentasi untuk gathering kantor",
     })
     assert resp.status_code == 302
+    complete_brief(client,resp.headers["Location"])
     projects = projects_repo.list_projects_for_business(bid)
     assert len(projects) == 1
     assert projects[0]["status"] == "WAITING_FOR_QUOTE"
@@ -157,12 +162,16 @@ def test_custom_quote_talent_and_content_still_use_dedicated_flows():
     resp = client.post(f"/services/{talent_item['catalog_key']}/request-quote", data={
         "csrf_token": "x", "business_id": str(bid),
     })
-    assert resp.status_code == 404, "TALENT must never be reachable via the generic quote route"
+    assert resp.status_code == 302
+    complete_brief(client,resp.location)
+    assert projects_repo.list_projects_for_business(bid)[0]["status"]=="WAITING_FOR_QUOTE"
     custom_video_item = catalog_service.get_catalog_item("custom_video")
     resp2 = client.post(f"/services/{custom_video_item['catalog_key']}/request-quote", data={
         "csrf_token": "x", "business_id": str(bid),
     })
-    assert resp2.status_code == 404, "VIDEO must never be reachable via the generic quote route either"
+    assert resp2.status_code == 302
+    complete_brief(client,resp2.location)
+    assert all(p["status"]=="WAITING_FOR_QUOTE" for p in projects_repo.list_projects_for_business(bid))
     print("test_custom_quote_talent_and_content_still_use_dedicated_flows OK")
 
 
@@ -290,8 +299,8 @@ def test_zero_business_customer_sees_actionable_ctas_not_blocking_gate():
     client = fresh_client()
     _login_owner(client, "zero@test.com")
     body = client.get("/services").data.decode()
-    assert "Pilih Layanan" in body
-    assert "Minta Penawaran" in body
+    assert "Isi Brief" in body
+    assert "Isi Brief" in body
     assert "Buat Bisnis Dulu" not in body
     print("test_zero_business_customer_sees_actionable_ctas_not_blocking_gate OK")
 
@@ -315,7 +324,7 @@ def test_zero_business_fixed_service_reaches_invoice_and_payment_no_business_cre
     r2 = client.get(r1.headers["Location"])
     assert r2.status_code == 200
 
-    r3 = client.post(r1.headers["Location"])
+    r3 = complete_brief(client,r1.headers["Location"])
     assert r3.status_code == 302
     invoice_url = r3.headers["Location"]
     invoice_id = int(invoice_url.rstrip("/").split("/")[-1])
@@ -346,7 +355,7 @@ def test_zero_business_payment_proof_upload_and_ai_review_work_with_null_busines
     _login_owner(client, "zeroproof@test.com")
     item = catalog_service.get_catalog_item("website_landing_page")
     r1 = client.post(f"/services/{item['catalog_key']}/checkout-fixed", data={"csrf_token": "x", "business_id": ""})
-    r3 = client.post(r1.headers["Location"])
+    r3 = complete_brief(client,r1.headers["Location"])
     invoice_id = int(r3.headers["Location"].rstrip("/").split("/")[-1])
 
     proof_hash_before = ai_payment_review.compute_file_hash(_valid_png_bytes())
@@ -370,7 +379,7 @@ def test_zero_business_admin_verify_reject_reupload_all_work():
     def new_invoice(catalog_key):
         item = catalog_service.get_catalog_item(catalog_key)
         r1 = client.post(f"/services/{item['catalog_key']}/checkout-fixed", data={"csrf_token": "x", "business_id": ""})
-        r3 = client.post(r1.headers["Location"])
+        r3 = complete_brief(client,r1.headers["Location"])
         invoice_id = int(r3.headers["Location"].rstrip("/").split("/")[-1])
         client.post(r3.headers["Location"], data={
             "csrf_token": "x", "proof_file": (io.BytesIO(_valid_png_bytes()), "proof.png"),
@@ -424,10 +433,9 @@ def test_zero_business_custom_project_request_creates_no_business():
     uid = repo.create_user("zerocustom@test.com", security.hash_password("password123"))
     client = fresh_client()
     _login_owner(client, "zerocustom@test.com")
-    resp = client.post("/projects/custom/CONTENT", data={
-        "csrf_token": "x", "need": "foto produk", "quantity": "10",
-    })
-    assert resp.status_code == 302
+    resp=client.post('/services/custom_content/request-quote')
+    assert resp.status_code==302
+    complete_brief(client,resp.location)
     assert repo.list_businesses_for_user(uid) == []
     projects = db.query_all("SELECT * FROM projects WHERE created_by_user_id = ?", (uid,))
     assert len(projects) == 1
@@ -473,7 +481,7 @@ def test_ai_admin_still_requires_business_even_with_zero_businesses():
     uid = repo.create_user("zeroai@test.com", security.hash_password("password123"))
     client = fresh_client()
     _login_owner(client, "zeroai@test.com")
-    ai_item = catalog_service.get_catalog_item("ai_admin_basic")
+    ai_item = catalog_service.get_catalog_item("ai_admin")
     resp = client.post(f"/services/{ai_item['catalog_key']}/checkout-fixed", data={
         "csrf_token": "x", "business_id": "",
     })
@@ -499,7 +507,10 @@ def test_existing_business_purchase_flow_unaffected():
     assert len(projects) == 1
     assert projects[0]["business_id"] == bid
     detail = client.get(f"/business/{bid}/projects/{projects[0]['id']}")
-    assert detail.status_code == 200
+    assert detail.status_code == 302
+    assert detail.location.endswith(f"/projects/{projects[0]['id']}/brief")
+    assert client.get(detail.location).status_code == 200
+    assert len(projects_repo.list_projects_for_business(bid)) == 1
     print("test_existing_business_purchase_flow_unaffected OK")
 
 

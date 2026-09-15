@@ -207,7 +207,8 @@ def test_webhook_catalog_query_does_not_send():
             "text": {"body": "katalog kita isinya apa?"},
         }]}}]}]
     }
-    with patch.object(appmod, "send_catalog_pdf", side_effect=fake_send_catalog_pdf), \
+    with patch.object(appmod, "send_whatsapp_message", side_effect=lambda to,text: fake_send_reply_bubbles(to,None,text)), \
+         patch.object(appmod, "send_catalog_pdf", side_effect=fake_send_catalog_pdf), \
          patch.object(appmod, "call_claude_owner", side_effect=fake_call_claude_owner), \
          patch.object(appmod, "send_reply_bubbles", side_effect=fake_send_reply_bubbles):
         resp = client.post("/webhook", data=json.dumps(payload), content_type="application/json")

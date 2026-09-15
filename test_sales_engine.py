@@ -212,10 +212,8 @@ def test_no_new_bundle_or_package_added():
         "website", "domain_hosting", "event", "transport_acara", "custom_automation_redirect",
     }
     assert set(appmod.PRICING_CONFIG.keys()) == expected_top_keys, appmod.PRICING_CONFIG.keys()
-    assert set(appmod.PRICING_CONFIG["ai_admin"].keys()) == {"basic", "pro"}
-    assert set(appmod.PRICING_CONFIG["bundles"].keys()) == {
-        "growth_brain_basic", "growth_brain_pro", "pro_brain_pro",
-    }
+    assert set(appmod.PRICING_CONFIG["ai_admin"].keys()) == {"current"}
+    assert appmod.PRICING_CONFIG["bundles"] == {}
     assert "ads_bundles" not in appmod.PRICING_CONFIG, "ads_bundles must be fully removed, not just relabeled"
     print("test_no_new_bundle_or_package_added OK")
 

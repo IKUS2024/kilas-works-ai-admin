@@ -125,7 +125,7 @@ def create_user(email, password_hash, role="CLIENT_OWNER", full_name=None):
 # Businesses (tenants)
 # ---------------------------------------------------------------------------
 
-def create_business(owner_user_id, business_name, package="AI_ADMIN_BASIC"):
+def create_business(owner_user_id, business_name, package="AI_ADMIN"):
     tenant_slug = "tenant_" + uuid.uuid4().hex
     business_id = db.insert_returning_id(
         "INSERT INTO businesses (tenant_slug, business_name, package, status) VALUES (?, ?, ?, 'DRAFT')",
@@ -225,7 +225,7 @@ def set_business_status(business_id, new_status, actor_user_id=None, detail=None
 
 
 def _require_paid_package_change(business, package, subscription):
-    if business["package"] == package or package != "AI_ADMIN_PRO":
+    if business["package"] == package or package not in ("AI_ADMIN", "AI_ADMIN_PRO"):
         return
     if business["status"] not in ("ACTIVE", "APPROVED", "SUSPENDED") and not subscription:
         return  # Initial purchase/onboarding keeps its existing activation payment gate.
@@ -233,7 +233,7 @@ def _require_paid_package_change(business, package, subscription):
     cutoff = (subscription or {}).get("updated_at") or business.get("updated_at") or business.get("created_at")
     rows = db.query_all("SELECT p.id, p.verified_at FROM payments p JOIN invoices i ON i.id = p.invoice_id "
         "JOIN projects pr ON pr.id = i.project_id WHERE pr.business_id = ? "
-        "AND pr.catalog_key = 'ai_admin_pro' AND p.status = 'VERIFIED'", (business["id"],))
+        "AND pr.catalog_key = ? AND p.status = 'VERIFIED'", (business["id"], package.lower()))
     def stamp(value):
         if isinstance(value, datetime):
             return value.replace(tzinfo=value.tzinfo or timezone.utc)

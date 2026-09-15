@@ -66,7 +66,20 @@ def transport_fee(distance_km, out_of_town=False):
             return fee
 
 
+BRAIN_PLAN = {
+    "nama": "Kilas Brain", "harga": 499000, "satuan": "bulan",
+    "positioning": "AI WhatsApp Admin + Owner Assistant untuk 1 bisnis / 1 nomor WhatsApp.",
+    "fitur": ["FAQ, info bisnis dan katalog", "Riwayat dan kualifikasi lead",
+              "Owner Assistant, gambar dan voice note", "Appointment dan payment conversation",
+              "Human Takeover dan follow-up sesuai konfigurasi"],
+    "catatan": "Biaya penggunaan WhatsApp Business Platform dari Meta tidak termasuk biaya langganan Kilas Brain dan mengikuti penggunaan akun WhatsApp Business terkait. Fair usage berlaku. Penggunaan sangat tinggi dapat memerlukan paket penggunaan tambahan.",
+    "tidak_termasuk": ["Payment gateway custom", "CRM/POS/inventory custom", "Integrasi API kompleks"],
+}
+RETIRED_BRAIN_KEYS = ("ai_admin_basic", "ai_admin_pro")
+
 CATALOG_ITEMS = [
+    {"key": "ai_admin", "category": "AI_ADMIN", "name": BRAIN_PLAN["nama"],
+     "pricing_mode": "FIXED_PRICE", "price_amount": BRAIN_PLAN["harga"], "price_unit": "per bulan"},
     # --- KILAS BRAIN (2026 public rebrand — internal category/key stay AI_ADMIN/ai_admin_* on
     # purpose: changing them would touch tenant onboarding, subscription, and feature-flag code
     # that keys off these exact strings — only the public-facing "name" changes) ---

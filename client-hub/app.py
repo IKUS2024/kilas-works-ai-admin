@@ -115,6 +115,7 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
+    app.jinja_env.globals["brain_plan"] = __import__("pricing_config").BRAIN_PLAN
     app.register_blueprint(admin_bp)
     app.register_blueprint(projects_bp)
     from routes_wa_checkout import wa_checkout_bp

@@ -52,7 +52,7 @@ from datetime import datetime, timedelta, timezone
 import db
 import repo
 
-PLAN_KEYS = ("ai_admin_basic", "ai_admin_pro")
+PLAN_KEYS = ("ai_admin", "ai_admin_basic", "ai_admin_pro")
 STATUSES = ("ACTIVE", "GRACE", "SUSPENDED", "CANCELLED")
 DEFAULT_GRACE_DAYS = 3
 DEFAULT_PERIOD_DAYS = 30
@@ -63,7 +63,7 @@ REMINDER_STAGES = (("H7", 7), ("H3", 3), ("H1", 1))
 REMINDER_STAGE_RANK = {stage: rank for rank, (stage, _) in enumerate(REMINDER_STAGES, start=1)}
 
 PACKAGE_TO_PLAN_KEY = {
-    "AI_ADMIN_BASIC": "ai_admin_basic",
+    "AI_ADMIN": "ai_admin", "AI_ADMIN_BASIC": "ai_admin_basic",
     "AI_ADMIN_PRO": "ai_admin_pro",
 }
 
@@ -182,7 +182,7 @@ def list_active_ai_admin_businesses_missing_subscription():
         "SELECT b.id AS business_id, b.business_name, b.package, b.status, b.created_at "
         "FROM businesses b "
         "LEFT JOIN subscriptions s ON s.business_id = b.id "
-        "WHERE b.status = 'ACTIVE' AND b.package IN ('AI_ADMIN_BASIC', 'AI_ADMIN_PRO') "
+        "WHERE b.status = 'ACTIVE' AND b.package IN ('AI_ADMIN', 'AI_ADMIN_BASIC', 'AI_ADMIN_PRO') "
         "AND s.id IS NULL "
         "ORDER BY b.created_at ASC"
     )

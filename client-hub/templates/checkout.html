@@ -6,6 +6,7 @@
   <h2>{{ project.title }}</h2>
   <p class="muted">Harga: Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</p>
   <p class="muted">Tagihan dibuat setelah kamu melanjutkan. Pembayaran belum dilakukan pada langkah ini.</p>
+  {% if project.catalog_key in ("ai_admin", "ai_admin_basic", "ai_admin_pro") %}{% include "_brain_plan_notice.html" %}{% endif %}
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button class="btn" type="submit">Lanjut ke Pembayaran</button>

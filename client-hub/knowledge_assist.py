@@ -142,6 +142,8 @@ def generate(scope, content):
         return None, 'network_failure'
     try:
         result = response.json()
+        import ai_usage
+        ai_usage.record(model, result)
     except (ValueError, TypeError):
         return None, 'invalid_json'
     if not isinstance(result, dict): return None, 'invalid_content_block'

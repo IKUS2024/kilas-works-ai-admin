@@ -9,6 +9,7 @@ import io
 import inbox_media_service
 
 import ai_onboarding
+import ai_usage
 import knowledge_setup
 import knowledge_assist
 import file_utils
@@ -111,6 +112,7 @@ def dashboard():
             # this business's OWN AI Admin subscription only. None when there's no subscription
             # row yet (e.g. this business was never activated with an AI Admin package).
             "subscription_banner": subscription_service.get_subscription_banner(b["id"]),
+            "ai_usage": ai_usage.client_summary(b["id"]) if b["package"] != "NONE" else None,
         })
         # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
         # across every business they own, so "what's happening with my order" doesn't require
@@ -155,6 +157,8 @@ def create_business():
     user = security.current_user()
     name = (request.form.get("business_name") or "").strip()
     package = request.form.get("package") or "NONE"
+    if package in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
+        package = "AI_ADMIN"  # old bookmarks/forms cannot create retired offers
     if not feature_flags.is_valid_package(package):
         package = "NONE"
     if not name:
@@ -176,13 +180,11 @@ def upgrade_to_ai_admin(business_id):
     user = security.current_user()
     business = _business_or_404(business_id)
     if business["package"] != "NONE":
-        flash("Business ini sudah punya paket AI Admin.", "error")
+        flash("Bisnis ini sudah punya paket Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))
-    package = request.form.get("package") or "AI_ADMIN_BASIC"
-    if package not in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
-        package = "AI_ADMIN_BASIC"
+    package = "AI_ADMIN"
     repo.upgrade_business_package(business_id, package, user["id"])
-    flash("AI Admin ditambahkan. Lanjutkan onboarding di bawah ini.", "success")
+    flash("Kilas Brain ditambahkan. Lanjutkan setup awal di bawah ini.", "success")
     return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
 
 
@@ -360,7 +362,7 @@ def _check_settings_entitlement(business_id):
     }
     for feature, fields in restricted.items():
         if not features.get(feature) and any(request.form.get(k, "").strip() for k in fields):
-            abort(403, description="Pengaturan ini memerlukan langganan Kilas Brain Pro yang berlaku.")
+            abort(403, description="Pengaturan ini memerlukan entitlement Kilas Brain yang berlaku.")
     return features
 
 
@@ -441,7 +443,8 @@ def knowledge_assist_draft(business_id):
         return jsonify({'error': str(exc)}), 400
     if not knowledge_assist.allow_click(security.current_user()['id'], business_id):
         return jsonify({'error': 'Tunggu sebentar sebelum meminta bantuan lagi.'}), 429
-    draft, reason = knowledge_assist.generate(scope, content)
+    with ai_usage.scope(business_id, "knowledge_assist"):
+        draft, reason = knowledge_assist.generate(scope, content)
     if reason:
         print('KNOWLEDGE_ASSIST: ' + reason)
         return jsonify({'error': knowledge_assist.ERROR}), 502
@@ -654,7 +657,7 @@ def review_page(business_id):
         # provisioning.activate_tenant() itself already uses to gate activation, so this is purely
         # a display convenience, never a second source of truth.
         has_ai_admin_payment=(
-            business["package"] in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO")
+            business["package"] in ("AI_ADMIN", "AI_ADMIN_BASIC", "AI_ADMIN_PRO")
             and payment_service.has_verified_ai_admin_payment(business_id)
         ),
         activation_checklist=payment_service.build_activation_checklist(business_id),
@@ -737,11 +740,22 @@ def ai_admin_checkout(business_id):
     """
     business = _business_or_404(business_id)
     user = security.current_user()
-    target_package = request.args.get('package', business['package'])
-    upgrade = target_package == 'AI_ADMIN_PRO' and business['package'] == 'AI_ADMIN_BASIC' and business['status'] == 'ACTIVE'
-    if target_package != business['package'] and not upgrade:
+    if business['package'] == 'NONE':
+        flash('Bisnis ini belum memilih paket Kilas Brain.', 'error')
+        return redirect(url_for('client.dashboard'))
+    target_package = request.args.get('package', 'AI_ADMIN')
+    if target_package not in ('AI_ADMIN', business['package']):
         abort(403)
-    catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(target_package)
+    upgrade = business['package'] != 'AI_ADMIN'
+    catalog_key = 'ai_admin'
+    # Only resume a historical order when opening the existing legacy payment path.
+    # No new legacy-priced orders are created.
+    if 'package' not in request.args and upgrade:
+        legacy = db.query_one("SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? "
+                              "AND status NOT IN ('CANCELLED', 'COMPLETED', 'PAID', 'IN_PROGRESS') ORDER BY id DESC LIMIT 1",
+                              (business_id, business['package'].lower()))
+        if legacy:
+            return redirect(url_for('payments.checkout_page', project_id=legacy['id']))
     if not catalog_key:
         flash("Bisnis ini belum memilih paket Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))

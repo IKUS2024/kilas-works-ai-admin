@@ -1,0 +1,200 @@
+"""PII-free Anthropic usage accounting; no provider calls and no quota enforcement."""
+import contextlib
+import contextvars
+import functools
+import json
+import logging
+import math
+import os
+import sqlite3
+from datetime import datetime, timezone
+
+import db
+from pricing_config import BRAIN_PLAN
+
+# USD per million tokens, first-party standard inference, verified 2026-09-15:
+# https://platform.claude.com/docs/en/about-claude/pricing
+PRICING_DATE = os.environ.get('AI_PRICING_DATE', '2026-09-15')
+MODEL_PRICING = {
+    'claude-haiku-4-5-20251001': dict(input=1, output=5, read=.10, write=1.25, write_1h=2),
+    'claude-sonnet-4-6': dict(input=3, output=15, read=.30, write=3.75, write_1h=6),
+}
+_scope = contextvars.ContextVar('ai_usage_scope', default=(None, 'platform_helper'))
+log = logging.getLogger(__name__)
+
+
+def number(name, default, minimum=0):
+    try:
+        value = float(os.environ.get(name, default))
+        return value if math.isfinite(value) and value > minimum else float(default)
+    except (ValueError, TypeError):
+        return float(default)
+
+
+def fair_use_limit():
+    return int(number('KILAS_BRAIN_FAIR_USE_RESPONSES', 2000))
+
+
+@contextlib.contextmanager
+def scope(tenant_id, context):
+    token = _scope.set((tenant_id, context))
+    try:
+        yield
+    finally:
+        _scope.reset(token)
+
+
+def for_business(context):
+    def decorate(fn):
+        @functools.wraps(fn)
+        def wrapped(business, *args, **kwargs):
+            with scope(business.get('id'), context):
+                return fn(business, *args, **kwargs)
+        return wrapped
+    return decorate
+
+
+def estimate(model, usage):
+    """Unknown model/config/usage -> unknown; never apply a guessed family rate."""
+    try:
+        rates = json.loads(os.environ['AI_MODEL_PRICING_JSON']) if os.environ.get('AI_MODEL_PRICING_JSON') else MODEL_PRICING
+        rate = rates.get(model)
+        if not rate or usage.get('input_tokens') is None or usage.get('output_tokens') is None:
+            return None
+        values = [float(rate[k]) for k in ('input','output','read','write','write_1h')]
+        if any(not math.isfinite(v) or v < 0 for v in values):
+            return None
+        created = usage.get('cache_creation_input_tokens', 0)
+        hour = (usage.get('cache_creation') or {}).get('ephemeral_1h_input_tokens', 0)
+        if hour > created:
+            return None
+        return (usage['input_tokens']*rate['input'] + usage['output_tokens']*rate['output']
+                + usage.get('cache_read_input_tokens',0)*rate['read']
+                + (created-hour)*rate['write'] + hour*rate['write_1h'])/1_000_000
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return None
+
+
+def _insert(values):
+    # Never reuse a caller's DB transaction: accounting cannot commit or roll it back.
+    if db.BACKEND == 'sqlite':
+        conn = sqlite3.connect(db.SQLITE_PATH, timeout=1)
+        conn.execute('PRAGMA foreign_keys=ON')
+    else:
+        options = dict(db._postgres_connect_kwargs())
+        options['connect_timeout'] = 2
+        options['options'] = '-c statement_timeout=1500 -c lock_timeout=1000'
+        conn = db.psycopg2.connect(db.DATABASE_URL, **options)
+    try:
+        cur = conn.cursor()
+        cur.execute(db._adapt_placeholders('INSERT INTO ai_usage_ledger '
+            '(tenant_id,context_type,model,classification,is_reply,input_tokens,output_tokens,'
+            'cache_read_input_tokens,cache_creation_input_tokens,estimated_cost_usd,estimated_cost_idr,pricing_date,created_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'), values)
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+
+
+def record(model, response, *, tenant_id=None, context=None, classification='normal'):
+    """Count actual returned usage, even when content parsing later fails. No content stored."""
+    try:
+        if context is None:
+            tenant_id, context = _scope.get()
+        usage = (response or {}).get('usage')
+        if not isinstance(usage, dict):
+            return False  # Missing provider usage is not a fabricated zero-cost call.
+        keys = ('input_tokens','output_tokens','cache_read_input_tokens','cache_creation_input_tokens')
+        counts = [usage.get(k, 0) for k in keys]
+        if any(type(v) is not int or v < 0 for v in counts):
+            return False
+        if tenant_id is not None and (type(tenant_id) is not int or tenant_id <= 0):
+            raise ValueError('invalid_scope')
+        # Context/model come from code/config, never customer text.
+        allowed = {'platform_customer','tenant_customer','owner','tenant_owner','demo','demo_fallback',
+                   'normalization','simulation','writing','faq','knowledge_assist','payment_review','platform_helper'}
+        if context not in allowed or classification not in ('normal','vision','complex'):
+            raise ValueError('invalid_classification')
+        if not isinstance(model,str) or len(model)>100 or not all(c.isalnum() or c in '-_.' for c in model):
+            raise ValueError('invalid_model')
+        usd = estimate(model, usage)
+        fx = number('AI_COST_USD_IDR', 0)
+        idr = usd*fx if usd is not None and fx>0 else None
+        log.info('[AI_USAGE] %s', json.dumps(dict(context=context, tenant_id=tenant_id, model=model,
+            classification=classification, **dict(zip(keys,counts)))))
+        blocks = response.get('content') or []
+        is_reply = context in ('tenant_customer','tenant_owner','platform_customer','owner','simulation') and isinstance(blocks,list) and any(
+            isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip() for block in blocks)
+        _insert((tenant_id,context,model,classification,bool(is_reply),*counts,usd,idr,PRICING_DATE,
+                 datetime.now(timezone.utc).isoformat()))
+        return True
+    except Exception:
+        log.warning('[AI_USAGE] persistence_failed')
+        return False
+
+
+def month_bounds(now=None):
+    now = now or datetime.now(timezone.utc)
+    start = now.astimezone(timezone.utc).replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+    end = start.replace(year=start.year+1,month=1) if start.month==12 else start.replace(month=start.month+1)
+    return start.isoformat(),end.isoformat()
+
+
+def monthly(tenant_id=None, *, admin=False, now=None):
+    """Callers enforce authentication; non-admin reads always have one explicit tenant scope."""
+    if not admin and (type(tenant_id) is not int or tenant_id <= 0):
+        raise ValueError('tenant_required')
+    start,end = month_bounds(now)
+    where = 'created_at >= ? AND created_at < ?'
+    params = [start,end]
+    if not admin:
+        where += ' AND tenant_id = ?'
+        params.append(tenant_id)
+    # SQL aggregation bounds memory regardless of number of monthly calls.
+    rows = db.query_all("SELECT tenant_id, COUNT(*) AS calls, "
+        "SUM(CASE WHEN is_reply THEN 1 ELSE 0 END) AS replies, "
+        "SUM(input_tokens) AS input_tokens,SUM(output_tokens) AS output_tokens, "
+        "SUM(cache_read_input_tokens) AS cache_read_input_tokens,SUM(cache_creation_input_tokens) AS cache_creation_input_tokens, "
+        "SUM(CASE WHEN cache_read_input_tokens>0 THEN 1 ELSE 0 END) AS cache_hits, "
+        "SUM(CASE WHEN model LIKE 'claude-haiku-%' THEN 1 ELSE 0 END) AS haiku_calls, "
+        "SUM(CASE WHEN model LIKE 'claude-sonnet-%' THEN 1 ELSE 0 END) AS sonnet_calls, "
+        "SUM(estimated_cost_usd) AS cost_usd,SUM(estimated_cost_idr) AS cost_idr, "
+        "SUM(CASE WHEN estimated_cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_usd, "
+        "SUM(CASE WHEN estimated_cost_idr IS NULL THEN 1 ELSE 0 END) AS unknown_idr, "
+        "AVG(CASE WHEN classification='normal' AND context_type IN ('tenant_customer','tenant_owner','platform_customer','owner','simulation') "
+        "THEN input_tokens+cache_read_input_tokens+cache_creation_input_tokens ELSE NULL END) AS normal_input "
+        "FROM ai_usage_ledger WHERE " + where + ' GROUP BY tenant_id', params)
+    if not admin and not rows:
+        rows = [dict(tenant_id=tenant_id,calls=0,replies=0,cost_usd=0,cost_idr=0)]
+    result=[]
+    for row in rows:
+        row=dict(row)
+        for k in ('calls','replies','input_tokens','output_tokens','cache_read_input_tokens','cache_creation_input_tokens','cache_hits','haiku_calls','sonnet_calls'):
+            row[k]=int(row.get(k) or 0)
+        if row.get('unknown_usd'): row['cost_usd']=None
+        if row.get('unknown_idr'): row['cost_idr']=None
+        row['cache_hit_ratio']=row['cache_hits']/row['calls'] if row['calls'] else 0
+        row['cost_per_reply']=row['cost_usd']/row['replies'] if row['cost_usd'] is not None and row['replies'] else None
+        row['reference_revenue_idr']=BRAIN_PLAN['harga'] if row['tenant_id'] is not None else None
+        row['gross_contribution_idr']=(BRAIN_PLAN['harga']-row['cost_idr']) if row['tenant_id'] is not None and row['cost_idr'] is not None else None
+        row['fair_use']=fair_use_limit()
+        row['status']='HIGH' if row['replies']>=row['fair_use'] else ('WARNING' if row['replies']>=row['fair_use']*.75 else 'NORMAL')
+        warnings=[]
+        if row['status']!='NORMAL': warnings.append('Pemakaian respons mencapai batas pemantauan; tindak lanjut manual, tanpa penghentian otomatis.')
+        if row['cost_usd'] is not None and row['cost_usd']>=number('AI_COST_WARNING_USD',10): warnings.append('Estimasi biaya AI tinggi.')
+        if row['calls']>=10 and row['sonnet_calls']/row['calls']>number('AI_SONNET_WARNING_RATIO',.25): warnings.append('Proporsi Sonnet tinggi; periksa pemakaian vision/analisis.')
+        if (row.get('normal_input') or 0)>number('AI_NORMAL_INPUT_WARNING_TOKENS',8000): warnings.append('Input teks normal tinggi (termasuk cache).')
+        if warnings and row['status']=='NORMAL': row['status']='WARNING'
+        row['warnings']=warnings
+        result.append(row)
+    return result
+
+
+def client_summary(tenant_id):
+    try:
+        row=monthly(tenant_id)[0]
+        return {k:row[k] for k in ('replies','status','fair_use')}
+    except Exception:
+        log.warning('[AI_USAGE] summary_unavailable')
+        return None

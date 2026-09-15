@@ -91,33 +91,23 @@ def send_owner_message_deterministic(text):
 # ---------- 1. PRICING_CONFIG structure: Kilas Brain Basic/Pro tiers present with correct prices ----------
 def test_ai_admin_basic_and_pro_prices():
     ai = appmod.PRICING_CONFIG["ai_admin"]
-    assert ai["basic"]["harga"] == 499000, ai["basic"]
-    assert ai["pro"]["harga"] == 999000, ai["pro"]
-    assert "Kilas Brain Basic" in ai["basic"]["nama"]  # 2026 rebrand: public display name
-    assert "Kilas Brain Pro" in ai["pro"]["nama"]
-    print("test_ai_admin_basic_and_pro_prices OK")
+    assert set(ai) == {"current"}
+    assert ai["current"]["harga"] == 499000
+    assert ai["current"]["nama"] == "Kilas Brain"
 
 
-# ---------- 2. New bundle prices match the 2026 FINAL spec (Ads bundles retired) ----------
 def test_new_bundle_prices():
-    b = appmod.PRICING_CONFIG["bundles"]
-    assert b["growth_brain_basic"]["harga"] == 3100000, b["growth_brain_basic"]
-    assert b["growth_brain_pro"]["harga"] == 3600000, b["growth_brain_pro"]
-    assert b["pro_brain_pro"]["harga"] == 5100000, b["pro_brain_pro"]
-    assert "ads_bundles" not in appmod.PRICING_CONFIG, "ads_bundles must be fully removed, not just relabeled"
-    print("test_new_bundle_prices OK")
+    assert appmod.PRICING_CONFIG["bundles"] == {}, "retired bundles must not be offered"
+    assert "ads_bundles" not in appmod.PRICING_CONFIG
 
 
-# ---------- 3. build_pricing_text_block() renders both tiers + all new bundles (no crash, no dupes) ----------
 def test_pricing_text_block_contains_all_tiers_and_bundles():
     block = appmod.build_pricing_text_block()
-    assert "Kilas Brain Basic" in block and "499" in block
-    assert "Kilas Brain Pro" in block and "999" in block
-    assert "Content Growth + Kilas Brain Basic" in block
-    assert "Content Growth + Kilas Brain Pro" in block
-    assert "Content Pro + Kilas Brain Pro" in block
-    assert "Ads" not in block or "Ads Bundles" not in block  # no retired Ads-bundle section header
-    print("test_pricing_text_block_contains_all_tiers_and_bundles OK")
+    assert "Kilas Brain — Rp499rb/bulan" in block
+    assert "Kilas Brain Basic" not in block and "Kilas Brain Pro" not in block
+    assert "Content Growth + Kilas Brain" not in block
+    assert "Biaya penggunaan WhatsApp Business Platform" in block
+    assert "Content Basic" in block and "Content Growth" in block and "Content Pro" in block
 
 
 # ---------- 4. Price-disclosure rule text: 2026 update — Kilas Works' own customers CAN get a
@@ -141,11 +131,11 @@ def test_customer_asks_specific_package_price_gets_direct_answer_2026():
     customers specifically — tenant customers are NOT affected (see the companion test below)."""
     reset_all()
     number = "628900100001"
-    ai_reply = "Content Growth Rp2.750.000/bulan, Kak."
+    ai_reply = "Content Growth Rp3.490.000/bulan, Kak."
     resp = send_customer_message(number, "Growth berapa?", ai_reply)
     assert resp.status_code == 200
     sent_texts = [t for n, t in sent_log if n == number]
-    assert any("2.750.000" in t for t in sent_texts), \
+    assert any("3.490.000" in t for t in sent_texts), \
         f"a genuine Kilas Works customer must receive the real price when asked directly: {sent_texts}"
     print("test_customer_asks_specific_package_price_gets_direct_answer_2026 OK")
 
@@ -156,8 +146,8 @@ def test_price_guardrail_still_blocks_when_carve_out_not_applicable():
     webhook call site in production always passes tenant_context_block truthy (never triggering
     the carve-out) and this is already covered by test_enforce_customer_price_guardrail.py-style
     unit coverage; this test locks the DEFAULT behavior of the function itself."""
-    guarded = appmod._enforce_customer_price_guardrail("Rp2.750.000/bulan, Kak.", tenant_context_block=None)
-    assert "2.750.000" not in guarded
+    guarded = appmod._enforce_customer_price_guardrail("Rp3.490.000/bulan, Kak.", tenant_context_block=None)
+    assert "3.490.000" not in guarded
     assert appmod.CUSTOMER_PRICE_SAFE_FALLBACK_REPLY in guarded
     print("test_price_guardrail_still_blocks_when_carve_out_not_applicable OK")
 
@@ -187,7 +177,7 @@ def test_no_overclaim_phrases_anywhere():
 def test_bot_honesty_instruction_present():
     p = appmod.SYSTEM_PROMPT
     assert "INI BOT" in p.upper() or "INI AI" in p.upper()
-    assert "AI Admin Kilas Works" in p
+    assert "Kilas Brain dari Kilas Works" in p
     print("test_bot_honesty_instruction_present OK")
 
 
@@ -341,7 +331,9 @@ def test_landing_page_ai_tier_distinction_no_prices():
     with open("landing-page-kilasworks.html", encoding="utf-8") as f:
         html = f.read()
     assert "ai-tier-card" in html
-    assert "Basic" in html and "Pro" in html
+    assert 'ai-tier-name">Basic' not in html and 'ai-tier-name">Pro' not in html
+    assert 'ai-tier-name">Kilas Brain' in html
+    assert "Meta terpisah" in html
     assert not re.search(r"Rp[\d.]+", html), "landing page must not show any Rupiah price"
     assert "/demo" in html
     print("test_landing_page_ai_tier_distinction_no_prices OK")
@@ -350,7 +342,7 @@ def test_landing_page_ai_tier_distinction_no_prices():
 # ---------- 18. Katalog PDF generator: no reference to unauthorized features (invoice/QR/CRM/POS) as
 # AI Admin Pro benefits ----------
 def test_katalog_no_unauthorized_ai_admin_features():
-    ai_pro = appmod.PRICING_CONFIG["ai_admin"]["pro"]
+    ai_pro = appmod.PRICING_CONFIG["ai_admin"]["current"]
     fitur_text = " ".join(ai_pro["fitur"]).lower()
     for banned in ("invoice otomatis", "qr payment", "crm", "pos ", "inventory"):
         assert banned not in fitur_text, f"'{banned}' found in AI Admin Pro fitur list"

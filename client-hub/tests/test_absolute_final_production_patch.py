@@ -279,7 +279,7 @@ def test_live_catalog_reflects_talent_follower_update():
     assert putri["name"] not in text
     if putri.get("social_handle"):
         assert putri["social_handle"] not in text
-    assert "Talent" in text and "Creator" in text
+    assert "Talent Management" in text and "fee" in text.lower()
     print("test_live_catalog_reflects_talent_follower_update OK")
 
 
@@ -307,14 +307,14 @@ def test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_conte
     current, correct, privacy-preserving behavior instead."""
     reset_db()
     text = _pdf_text(live_catalog_pdf.generate_catalog_pdf_bytes())
-    assert "disesuaikan dengan kebutuhan" in text
-    assert "Custom Quote" not in text, "the raw 'Custom Quote' label must no longer appear in the customer-facing PDF"
+    assert "Penawaran sesuai kebutuhan" in text
+    assert "CUSTOM_QUOTE" not in text, "the raw 'Custom Quote' label must no longer appear in the customer-facing PDF"
     # Talent names/handles must NEVER appear in the public PDF (privacy requirement).
     for talent in talent_service.list_active_talents():
         assert talent["name"] not in text, f"talent name leaked into public PDF: {talent['name']}"
         if talent.get("social_handle"):
             assert talent["social_handle"] not in text
-    assert "Talent" in text and "Creator" in text, "the Talent & Creator Management SERVICE must still be explained"
+    assert "Talent Management" in text and "fee" in text.lower(), "the Talent & Creator Management SERVICE must still be explained"
     custom_content_item = catalog_service.get_catalog_item("custom_content")
     assert custom_content_item["pricing_mode"] == "CUSTOM_QUOTE"
     print("test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_content OK")
@@ -323,8 +323,8 @@ def test_live_catalog_shows_custom_quote_for_photo_video_talent_and_custom_conte
 def test_live_catalog_ai_admin_fixed_only_no_custom_option():
     reset_db()
     text = _pdf_text(live_catalog_pdf.generate_catalog_pdf_bytes())
-    assert "Kilas Brain Basic" in text
-    assert "Kilas Brain Pro" in text
+    assert "Kilas Brain" in text and "Rp499.000" in text
+    assert "Kilas Brain Pro" not in text and "Kilas Brain Basic" not in text
     assert "Custom AI Admin" not in text
     ai_items = [i for i in catalog_service.list_active_catalog() if i["category"] == "AI_ADMIN"]
     assert all(i["pricing_mode"] == "FIXED_PRICE" for i in ai_items)

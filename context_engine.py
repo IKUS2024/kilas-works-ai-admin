@@ -76,3 +76,66 @@ def cache_blocks(stable, dynamic):
     if dynamic.strip():
         blocks.append({'type': 'text', 'text': dynamic})
     return blocks
+
+
+def compact_history(history, query, recent=8, older=4):
+    """Request-only selection; caller's complete storage/history is never mutated.
+
+    Preserve recent turns and up to four older lexical matches, stable tie-break by recency.
+    Deduplication retains the latest identical role/content, including the current user turn.
+    Ranking text blocks excludes image bytes and never crosses the supplied conversation scope.
+    """
+    import json
+    rows = list(history)
+    def text(row):
+        value = row.get('content', '')
+        if isinstance(value, str): return value
+        return ' '.join(b.get('text','') for b in value if isinstance(b,dict) and b.get('type')=='text') if isinstance(value,list) else ''
+    cutoff=max(0,len(rows)-recent)
+    query_terms=terms(query)
+    ranked=sorted(((len(query_terms & terms(text(row))),i) for i,row in enumerate(rows[:cutoff])), reverse=True)
+    selected=set(range(cutoff,len(rows)))
+    selected.update(i for score,i in [p for p in ranked if p[0]>0][:older])
+    seen=set()
+    result=[]
+    for i in sorted(selected,reverse=True):
+        row=rows[i]
+        key=json.dumps({'role':row.get('role'),'content':row.get('content')},sort_keys=True,ensure_ascii=False,separators=(',',':'))
+        if key not in seen:
+            seen.add(key)
+            result.append(row)
+    return list(reversed(result))
+
+
+def prepare_vision_image(encoded, mime):
+    """Orient and bound model-only images. Originals and inbox media are never changed.
+
+    Prefer PNG for receipt text; large photographic payloads use high-quality JPEG.
+    No upscaling, max edge 2048, encoded bytes below the provider image size limit.
+    Invalid input fails before a paid request rather than uploading an unreadable original.
+    """
+    import base64
+    import io
+    from PIL import Image, ImageOps
+    raw=base64.b64decode(encoded,validate=True)
+    with Image.open(io.BytesIO(raw)) as image:
+        image=ImageOps.exif_transpose(image)
+        image.thumbnail((2048,2048),Image.Resampling.LANCZOS)
+        if image.mode not in ('RGB','RGBA','L'): image=image.convert('RGB')
+        output=io.BytesIO()
+        image.save(output,format='PNG')
+        output_mime='image/png'
+        if output.tell()>4_500_000:
+            # A noisy 2048px PNG can exceed Anthropic's 5MB image limit.
+            if image.mode=='RGBA':
+                background=Image.new('RGB',image.size,'white')
+                background.paste(image,mask=image.getchannel('A'))
+                image=background
+            else:
+                image=image.convert('RGB')
+            output=io.BytesIO()
+            image.save(output,format='JPEG',quality=92)
+            output_mime='image/jpeg'
+            if output.tell()>4_500_000:
+                raise ValueError('vision_image_too_large')
+    return base64.b64encode(output.getvalue()).decode('ascii'),output_mime
