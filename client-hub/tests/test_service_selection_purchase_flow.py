@@ -96,7 +96,12 @@ def test_ai_admin_never_uses_generic_checkout_route():
     body = client.get("/services").data.decode()
     ai_idx = body.find("Kilas Brain Basic")
     assert ai_idx != -1
-    section = body[ai_idx:ai_idx + 400]
+    # Service descriptions can grow; inspect the whole card so the checkout prohibition
+    # is still tested rather than depending on an arbitrary 400-character window.
+    card_start = body.rfind('<article', 0, ai_idx)
+    card_end = body.find('</article>', ai_idx)
+    assert card_start >= 0 and card_end > ai_idx
+    section = body[card_start:card_end]
     assert "Mulai di Dashboard" in section
     assert 'action="/services/ai_admin_basic/checkout-fixed"' not in section
 

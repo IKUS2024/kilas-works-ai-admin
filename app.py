@@ -2110,6 +2110,8 @@ def init_db():
 def save_message_to_db(number, mode, role, content):
     """Simpen satu pesan (dari customer/owner ATAU balasan AI) ke database. Kalau DB gak
     kekonek/gak diset, diem-diem gak ngapa-ngapain (bot tetep jalan normal)."""
+    if isinstance(content, str):
+        content = re.sub(r"https://[^\s]+/wa-checkout#[^\s]+", "[Tautan order pribadi]", content)
     media_row = request.environ.get('inbox_media_row') if has_request_context() else None
     if media_row and mode == 'customer' and role == 'user' and number == media_row['number']:
         # Reuse the persisted event for caption/transcript history; never create a second message.
@@ -5163,6 +5165,7 @@ def strip_tags(text):
 
 
 def _record_delivered_reply(scoped_number, text):
+    text = re.sub(r"https://[^\s]+/wa-checkout#[^\s]+", "[Tautan order pribadi]", text)
     history = list(conversations.get(scoped_number) or [])
     history.append({"role": "assistant", "content": text})
     conversations[scoped_number] = history[-20:]
@@ -5354,6 +5357,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     multi-tenancy keeps working with byte-for-byte identical keys."""
     if tenant_id is not None and not tenant_context_block:
         tenant_context_block = _build_tenant_context_block_safe(tenant_id) or _TENANT_INCOMPLETE_PROFILE_BLOCK
+    user_message = re.sub(r"https://[^\s]+/wa-checkout#[^\s]+", "[Tautan order pribadi]", user_message)
     scoped_number = _ck(tenant_id, user_number)
     history = conversations.get(scoped_number)
     if history is None:
@@ -5392,6 +5396,20 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     history = list(history or [])
     history.append({"role": "user", "content": api_content})
     save_message_to_db(scoped_number, "customer", "user", memory_text)
+
+    if not image_b64 and memory_override is None and tenant_id is None and not tenant_context_block:
+        import wa_checkout
+        try:
+            order_reply = wa_checkout.intake(user_number, user_message, history[:-1], tenant=False, customer_name=customer_names.get(scoped_number))
+        except Exception:
+            # No customer data, token, URL, or raw exception in logs.
+            print('[WA_CHECKOUT] intake_unavailable')
+            order_reply = 'Order belum bisa diproses sekarang. Coba lagi sebentar ya.' if re.search(r'\b(mau|beli|pesan|ambil|order|checkout)\b', user_message.lower()) else None
+        if order_reply is not None:
+            conversations[scoped_number] = history[-20:]
+            if not defer_delivery:
+                _record_delivered_reply(scoped_number, order_reply)
+            return order_reply
 
     if not image_b64 and memory_override is None:
         exact = _exact_customer_route(user_message, history[:-1], tenant=bool(tenant_context_block))

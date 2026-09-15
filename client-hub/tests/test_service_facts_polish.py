@@ -91,7 +91,7 @@ class ServiceFactsTests(unittest.TestCase):
         for key,price in [('ads_setup_only',399000),('ads_management',799000)]:
             row=catalog.get_catalog_item(key)
             self.assertEqual(row['price_amount'],price)
-            self.assertEqual(catalog.service_description(row),facts.ADS_DESCRIPTION)
+            self.assertIn(facts.ADS_DESCRIPTION,catalog.service_description(row))
         for part in ('terpisah ke Meta','konten/foto/video iklan terpisah','Tidak ada jaminan ROAS, sales, leads'):
             self.assertIn(part,catalog.exact_sales_answer('meta ads termasuk apa?'))
 

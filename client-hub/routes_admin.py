@@ -591,15 +591,19 @@ def project_admin_detail(project_id):
     if project is None:
         abort(404)
     business = repo.get_business(project["business_id"])
-    quotations = quotation_service.list_quotations_for_business(project["business_id"])
-    quotations = [q for q in quotations if q["project_id"] == project_id]
+    quotations = db.query_all("SELECT * FROM quotations WHERE project_id=? ORDER BY id DESC",(project_id,))
     audit_trail = repo.get_project_audit_log(project_id)
     attachments = db.query_all(
         "SELECT id, original_filename, mime_type, size_bytes, created_at FROM project_files "
         "WHERE project_id = ? AND kind = 'REFERENCE' ORDER BY created_at DESC",
         (project_id,),
     )
+    import wa_checkout
+    wa_order = wa_checkout.session_for_project(project_id)
+    wa_link = wa_checkout.link(wa_order) if wa_order and wa_order["expires_at"] > __import__("time").time() else None
     return render_template("admin_project_detail.html", project=project, business=business,
+                            wa_order=wa_order, wa_link=wa_link, wa_labels=wa_checkout.FIELDS,
+                            wa_missing=wa_checkout.missing(catalog_service.get_catalog_item(wa_order["catalog_key"]), project.get("requirements") or {}) if wa_order else [],
                             quotations=quotations, format_price=catalog_service.format_price,
                             audit_trail=audit_trail, attachments=attachments)
 
@@ -615,13 +619,14 @@ def project_create_quotation(project_id):
     if not final_price or final_price <= 0:
         flash("Harga final harus diisi dan lebih dari 0.", "error")
         return redirect(url_for("admin.project_admin_detail", project_id=project_id))
-    quotation_service.create_quotation(
+    import wa_checkout
+    wa_checkout.admin_quote(
         project_id, project["business_id"],
         scope=request.form.get("scope"), deliverables=request.form.get("deliverables"),
         quantity=request.form.get("quantity", type=int), final_price=final_price,
         notes=request.form.get("notes"), created_by_user_id=admin["id"],
     )
-    flash("Quotation dibuat dan dikirim ke customer.", "success")
+    flash("Penawaran tersedia. Untuk order WhatsApp, kirim tautan order pribadi dari halaman project.", "success")
     return redirect(url_for("admin.project_admin_detail", project_id=project_id))
 
 
@@ -1085,3 +1090,23 @@ def inbox_media_send():
     ok, reason = inbox_media_service.platform_send(phone, request.files.get('file'), request.form.get('caption'))
     flash(*inbox_media_service.upload_flash(ok, reason))
     return redirect(url_for('admin.platform_inbox', customer=phone))
+
+
+@admin_bp.route('/projects/<int:project_id>/reference/<int:file_id>')
+@security.admin_required
+def guest_project_reference(project_id,file_id):
+    row=db.query_one("SELECT * FROM project_files WHERE id=? AND project_id=? AND kind='REFERENCE'",(file_id,project_id))
+    if not row:abort(404)
+    import io
+    from flask import send_file
+    return send_file(io.BytesIO(bytes(row['content'])),mimetype=row['mime_type'],as_attachment=True,download_name=row['original_filename'])
+
+
+@admin_bp.route('/projects/<int:project_id>/wa-link', methods=['POST'])
+@security.admin_required
+def renew_wa_order_link(project_id):
+    import wa_checkout
+    if not wa_checkout.session_for_project(project_id):abort(404)
+    wa_checkout.renew(project_id)
+    flash('Tautan diperbarui. Salin dan kirim ke customer yang tercatat pada order ini.', 'success')
+    return redirect(url_for('admin.project_admin_detail',project_id=project_id))

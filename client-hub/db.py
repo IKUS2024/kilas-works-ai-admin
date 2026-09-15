@@ -164,6 +164,8 @@ def _rollback_quietly(conn):
     would permanently wedge that thread's cached connection for the rest of the process's life.
     SQLite connections don't need this, but calling rollback() on them is harmless, so this helper
     is used unconditionally in the except-blocks below rather than branching on BACKEND again."""
+    if getattr(_local, 'commerce_transaction', False):
+        _local.commerce_failed = True
     try:
         conn.rollback()
     except Exception:
@@ -250,6 +252,7 @@ MIGRATIONS = [
      "0022_invoices_payments_business_id_nullable_postgres.sql"),
     ("0023_inbox_media_sqlite.sql", "0023_inbox_media_postgres.sql"),
     ("0024_business_knowledge_revisions_sqlite.sql", "0024_business_knowledge_revisions_postgres.sql"),
+    ("0025_whatsapp_checkout_sqlite.sql", "0025_whatsapp_checkout_postgres.sql"),
 ]
 
 
@@ -403,7 +406,7 @@ def query_one(query, params=()):
             retryable = _is_retryable_postgres_connection_error(e)
             if retryable:
                 _discard_cached_connection()
-            if getattr(_local, 'knowledge_business', None) is None and attempt == 0 and retryable and query.lstrip().upper().startswith("SELECT "):
+            if not _transaction_active() and attempt == 0 and retryable and query.lstrip().upper().startswith("SELECT "):
                 continue
             raise
 
@@ -431,14 +434,14 @@ def query_all(query, params=()):
             retryable = _is_retryable_postgres_connection_error(e)
             if retryable:
                 _discard_cached_connection()
-            if getattr(_local, 'knowledge_business', None) is None and attempt == 0 and retryable:
+            if not _transaction_active() and attempt == 0 and retryable:
                 continue
             raise
 
 
 # Opt-in transaction boundary used only by business-knowledge writers.
 def _knowledge_commit(conn):
-    if getattr(_local, 'knowledge_business', None) is None:
+    if not _transaction_active():
         conn.commit()
 
 
@@ -484,3 +487,33 @@ def knowledge_writer(function=None, *, row_table=None, id_argument='business_id'
                 cur.close()
         return wrapped
     return decorate(function) if function else decorate
+
+
+def _transaction_active():
+    return getattr(_local, 'knowledge_business', None) is not None or getattr(_local, 'commerce_transaction', False)
+
+
+from contextlib import contextmanager
+
+@contextmanager
+def commerce_transaction(phone_hash):
+    """Serialize guest commerce per verified WhatsApp sender; nested DB helpers cannot commit."""
+    if _transaction_active():
+        raise RuntimeError('nested_commerce_transaction')
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(_adapt_placeholders('INSERT INTO wa_checkout_customers(phone_hash) VALUES (?) ON CONFLICT(phone_hash) DO NOTHING'), (phone_hash,))
+        cur.execute(_adapt_placeholders('UPDATE wa_checkout_customers SET phone_hash=phone_hash WHERE phone_hash=?'), (phone_hash,))
+        _local.commerce_transaction = True
+        _local.commerce_failed = False
+        yield
+        if _local.commerce_failed:
+            raise RuntimeError('commerce_transaction_aborted')
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _local.commerce_transaction = False
+        cur.close()

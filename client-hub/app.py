@@ -117,6 +117,8 @@ def create_app():
     app.register_blueprint(client_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(projects_bp)
+    from routes_wa_checkout import wa_checkout_bp
+    app.register_blueprint(wa_checkout_bp)
     app.register_blueprint(quotations_bp)
     app.register_blueprint(payments_bp)
     display_labels.register_jinja_filters(app)

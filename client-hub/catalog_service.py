@@ -240,7 +240,7 @@ def service_description(item):
     if key in ('website_domain_com_hosting', 'website_domain_id_hosting'):
         return pricing_config.MANAGED_HOSTING_DESCRIPTION
     if key in ('ads_setup_only', 'ads_management'):
-        return pricing_config.ADS_DESCRIPTION
+        return pricing_config.ADS_DESCRIPTION + (' Management termasuk setup awal; tidak dikenakan biaya Setup Only tambahan.' if key == 'ads_management' else ' Setup Only: setup awal lalu handover.')
     content = pricing_config.CONTENT_PACKAGES.get(item['catalog_key'].removeprefix('content_')) if item['catalog_key'].startswith('content_') else None
     if content:
         return f"{content['reels']} Reels / short-form videos + {content['photos']} foto final per bulan. " + pricing_config.CONTENT_SCOPE

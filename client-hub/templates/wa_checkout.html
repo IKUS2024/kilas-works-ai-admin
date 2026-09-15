@@ -1,0 +1,32 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Order — Kilas Works</title>
+<style>body{font:16px system-ui;background:#101114;color:#eee;margin:0}main{max-width:680px;margin:auto;padding:24px 16px}section,details{background:#1c1e23;padding:18px;margin:16px 0;border-radius:14px;overflow-wrap:anywhere}label{display:block;margin-top:16px}input,select,textarea,button{font:inherit;box-sizing:border-box;width:100%;padding:12px;border-radius:8px;margin-top:7px}button{background:#f5f5f5;color:#111;border:0;font-weight:650;cursor:pointer}small{color:#bbb}dl{overflow-wrap:anywhere}dd{margin:4px 0 15px}a{color:#9cd5ff}</style></head><body><main>
+<h1>Kilas Works</h1><p>Brief → Review → Bayar</p><p id="access-error" role="alert"></p>
+<input id="csrf" type="hidden" value="{{ csrf_token() }}">
+{% if project %}
+<h2>{{ project.title }}</h2><p>{{ price }}</p><p>{{ description }}</p>
+{% if item.category in ('CONTENT','PHOTO','VIDEO','EVENT','TALENT') %}<p>Transport mengikuti lokasi dan akan dikonfirmasi sebelum produksi. Tol/parkir aktual, akomodasi terpisah bila diperlukan.</p>{% endif %}
+{% if item.category == 'ADS' %}<p>Jangan kirim password Facebook, Instagram, atau Meta. Akses aset diberikan melalui undangan partner resmi setelah pembayaran.</p>{% endif %}
+{% if item.catalog_key == 'ads_management' %}<p>Management termasuk setup awal. Tidak ada tambahan biaya Setup Only Rp399.000. Budget iklan dan produksi creative terpisah.</p>{% endif %}
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% macro field(key,needed=false) %}<label>{{ labels[key][0] }}{% if not needed %} <small>(opsional)</small>{% endif %}
+{% if labels[key][1] %}<select name="{{ key }}" {% if needed %}required{% endif %}><option value="">Pilih</option>{% for choice in labels[key][1] %}<option {% if brief.get(key)==choice %}selected{% endif %}>{{ choice }}</option>{% endfor %}</select>
+{% else %}<textarea name="{{ key }}" maxlength="1500" rows="2" {% if needed %}required{% endif %}>{{ brief.get(key,'') }}</textarea>{% endif %}</label>{% endmacro %}
+{% if project.status == 'REQUESTED' %}
+<form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="brief">
+<section>{% for key in required %}{{ field(key,true) }}{% endfor %}</section>
+<details><summary>Detail tambahan (opsional)</summary>{% for key in optional %}{{ field(key) }}{% endfor %}<label>Referensi / logo (JPG, PNG, WEBP, PDF; maks 5 MB)<input type="file" name="reference_file" accept=".jpg,.jpeg,.png,.webp,.pdf"></label></details>
+<button>{{ 'Review Order' if project.pricing_mode == 'FIXED_PRICE' else 'Kirim Brief & Minta Penawaran' }}</button></form>
+{% else %}
+<section><h2>Ringkasan brief</h2><dl>{% for key,value in brief.items() %}<dt>{{ labels.get(key,(key,))[0] }}</dt><dd>{{ value }}</dd>{% endfor %}</dl></section>
+{% if project.status in ('PAID','IN_PROGRESS','WAITING_FOR_CLIENT','REVISION','COMPLETED') %}<section><h2>{{ 'Project selesai' if project.status == 'COMPLETED' else ('Pembayaran telah diverifikasi' if payment and payment.status == 'VERIFIED' else 'Project sedang diproses') }}</h2><p>Tim Kilas Works melanjutkan project dan menghubungi kakak untuk langkah berikutnya.</p>{% if item.category == 'ADS' %}<p>Jangan kirim password. Tim akan memberikan identitas bisnis untuk diundang sebagai partner melalui pengaturan akses bisnis Meta, sesuai aset yang diperlukan. Setup Only dilanjutkan dengan handover; Management termasuk setup awal.</p>{% endif %}</section>
+{% elif project.status == 'CANCELLED' %}<p>Order dibatalkan. Hubungi tim jika perlu bantuan.</p>
+{% elif invoice %}<section><h2>Tagihan {{ invoice.invoice_number }}</h2><p>Rp{{ '{:,}'.format(invoice.amount).replace(',','.') }}</p><p>{{ bank.bank_name }} · {{ bank.account_number }}<br>{{ bank.account_holder }}</p>
+{% if payment.status in ('PAYMENT_PENDING','REJECTED') %}<form method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="proof"><label>Bukti pembayaran (maks 5 MB)<input required type="file" name="proof_file" accept=".jpg,.jpeg,.png,.webp,.pdf"></label><button>Upload Bukti Pembayaran</button></form>{% else %}<p>Bukti diterima. Menunggu verifikasi tim.</p>{% endif %}</section>
+{% elif project.status == 'APPROVED' %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="checkout"><button>Lanjut ke Pembayaran</button></form>
+{% elif quote and quote.status in ('SENT','VIEWED') %}<section><h2>Penawaran {{ quote.quotation_number }}</h2><p>{{ quote.scope }}</p><p>{{ quote.deliverables }}</p><p>{{ quote.notes }}</p><p>Rp{{ '{:,}'.format(quote.final_price).replace(',','.') }}</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="quotation_id" value="{{ quote.id }}"><button>Setujui Penawaran & Lanjut Pembayaran</button></form></section>
+{% else %}<p>Brief diterima. Tim sedang menyiapkan penawaran. Buka kembali tautan ini untuk melihat pembaruan.</p>{% endif %}
+{% endif %}
+{% if user and not project.created_by_user_id %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="attach"><button>Simpan order ini ke akun saya</button></form>{% endif %}
+{% else %}<p>Buka tautan pribadi dari WhatsApp untuk mengakses order.</p>{% endif %}
+<p><small>Tautan ini hanya untuk order kakak. Jangan bagikan kepada orang lain.</small></p>
+</main><script src="{{ url_for('static',filename='wa_checkout.js') }}" defer></script></body></html>

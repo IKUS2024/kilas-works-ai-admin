@@ -30,6 +30,15 @@ def _generate_invoice_number(invoice_id):
 
 
 def checkout(project_id, business_id, actor_user_id):
+    if not db._transaction_active():
+        row=db.query_one('SELECT phone_hash FROM wa_checkout_sessions WHERE project_id=?',(project_id,))
+        if row:
+            with db.commerce_transaction(row['phone_hash']):
+                return _checkout_existing(project_id,business_id,actor_user_id)
+    return _checkout_existing(project_id,business_id,actor_user_id)
+
+
+def _checkout_existing(project_id, business_id, actor_user_id):
     """Creates the invoice + a PAYMENT_PENDING payment row together (Section 12: 'Create
     invoice/payment record before proof upload'). Raises ValueError if the project isn't actually
     checkout-ready — this is the one gate that keeps an unapproved custom quote from being paid.
