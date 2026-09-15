@@ -23,10 +23,14 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def bot_functions():
     tree = ast.parse((ROOT / 'app.py').read_text())
-    names = {'_exact_customer_route', '_build_official_links_note_safe', 'build_focused_customer_prompt',
+    names = {'_official_link_answer', '_exact_customer_route', '_build_official_links_note_safe', 'build_focused_customer_prompt',
              '_get_live_catalog_pdf_path_safe', '_get_static_catalog_pdf_path_safe', 'get_catalog_media_id', 'send_catalog_pdf'}
     module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names], type_ignores=[])
     ns = {'_catalog_service':catalog, '__file__':str(ROOT/'app.py'), 'os':os, 're': re, 'json': json, '_CLIENT_HUB_AVAILABLE': True, '_ch_repo': repo}
+    import sys
+    sys.path.insert(0,str(ROOT))
+    import official_link_routing
+    ns['_links']=official_link_routing
     exec(compile(module, 'platform-functions', 'exec'), ns)
     return ns
 
@@ -132,7 +136,7 @@ class CatalogUXTests(unittest.TestCase):
                              ('ada katalog?','catalog'),('kirim katalog','catalog'),('pricelist','catalog'),('daftar layanan','catalog'),
                              ('layanan Kilas Works apa aja?','catalog'),('lihat paket di mana?','catalog')]:
             self.assertIn(repo.get_official_links()[key],bot['_exact_customer_route'](question,[]))
-            self.assertIsNone(bot['_exact_customer_route'](question,[],tenant=True))
+            self.assertIn('belum tersedia',bot['_exact_customer_route'](question,[],tenant=True))
         repo.set_platform_setting('official_link_instagram','https://instagram.com/updated')
         self.assertIn('/updated',bot['_exact_customer_route']('Instagram?',[]))
 
@@ -211,7 +215,7 @@ class CatalogUXTests(unittest.TestCase):
 
     def test_short_link_followups_without_clarification(self):
         bot=bot_functions(); links=repo.get_official_links()
-        for question,key in (('ada linknya?','landing_page'),('linknya mana?','catalog'),('ada webnya?','landing_page'),
+        for question,key in (('ada linknya?','landing_page'),('linknya mana?','landing_page'),('ada webnya?','landing_page'),
                              ('websitenya?','landing_page'),('ada katalog?','catalog'),('kirim katalog','catalog'),
                              ('ada IG?','instagram'),('instagramnya?','instagram')):
             reply=bot['_exact_customer_route'](question,[])
@@ -222,14 +226,14 @@ class CatalogUXTests(unittest.TestCase):
         bot=bot_functions(); links=repo.get_official_links()
         for context,key in (('Company Profile / Landing Page / Website','landing_page'),('Katalog layanan','catalog'),('Instagram','instagram'),('Client Hub login','app')):
             reply=bot['_exact_customer_route']('ada linknya?',[{'role':'assistant','content':context}])
-            self.assertIn(links[key],reply.splitlines()[1])
+            self.assertIn(links[key],reply)
 
     def test_portfolio_request_never_invents_a_project_or_folder_link(self):
         bot=bot_functions(); links=repo.get_official_links()
         for question in ('ada link portfolio?', 'link portofolionya?', 'ada URL project?'):
             reply=bot['_exact_customer_route'](question,[])
             self.assertIn('Belum ada link khusus',reply)
-            self.assertIn(links['landing_page'],reply); self.assertIn(links['instagram'],reply)
+            self.assertIn(links['landing_page'],reply); self.assertNotIn(links['instagram'],reply)
             self.assertNotIn('Drive',reply); self.assertNotIn('folder',reply)
         reply=bot['_exact_customer_route']('ada linknya?',[{'role':'user','content':'portfolio'}])
         self.assertIn('Belum ada link khusus',reply)
@@ -238,7 +242,7 @@ class CatalogUXTests(unittest.TestCase):
         bot=bot_functions()
         bot['_ch_repo']=SimpleNamespace(get_official_links=lambda:self.fail('tenant accessed platform settings'))
         for question in ('ada linknya?', 'linknya mana?', 'ada webnya?', 'websitenya?', 'ada katalog?', 'kirim katalog', 'ada IG?', 'instagramnya?', 'link portfolio?'):
-            self.assertIsNone(bot['_exact_customer_route'](question,[{'content':'website Kilas Works'}],tenant=True))
+            self.assertIn('belum tersedia',bot['_exact_customer_route'](question,[{'content':'website Kilas Works'}],tenant=True))
 
     def test_missing_links_fail_safely_and_history_is_bounded(self):
         bot=bot_functions(); bot['_CLIENT_HUB_AVAILABLE']=False
@@ -246,7 +250,7 @@ class CatalogUXTests(unittest.TestCase):
         bot['_CLIENT_HUB_AVAILABLE']=True
         history=[{'content':'Instagram'}]+[{'content':[]}] * 6
         reply=bot['_exact_customer_route']('ada linknya?',history)
-        self.assertIn('Website Kilas Works:',reply.splitlines()[1])
+        self.assertIn('Website resmi Kilas Works:',reply)
 
     def test_catalog_add_invalidates_pdf(self):
         before=catalog_cache.get_version(); catalog.create_catalog_item('CONTENT','New live','CUSTOM_QUOTE')

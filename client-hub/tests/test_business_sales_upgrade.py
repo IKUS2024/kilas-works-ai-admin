@@ -79,7 +79,7 @@ class SalesTests(unittest.TestCase):
         tree=ast.parse((ROOT/'app.py').read_text())
         names={'_exact_platform_owner_customer','call_claude_owner'}
         ns={'_catalog_service':catalog,'owner_conversations':{},'conversations':{},'load_recent_messages_from_db':lambda *a:[],
-            'save_message_to_db':Mock(),'_exact_owner_query':lambda *a:None,'_pending_owner_questions_for_tenant':lambda _: {}}
+            '_official_link_answer':previous.bot_functions()['_official_link_answer'], 'save_message_to_db':Mock(),'_exact_owner_query':lambda *a:None,'_pending_owner_questions_for_tenant':lambda _: {}}
         exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in names],type_ignores=[]),'owner','exec'),ns)
         return ns
 

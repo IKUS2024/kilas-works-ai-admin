@@ -1,3 +1,4 @@
+import official_link_routing as _links
 import owner_intent_routing as _owner_intent
 import os
 import sys
@@ -980,7 +981,9 @@ def call_tenant_owner_ai(tenant_id, owner_phone, owner_message, business_name,
     "[OWNER KIRIM GAMBAR]" the same way."""
     scoped_key = _ck(tenant_id, owner_phone)
     if not image_b64:
-        exact = _exact_owner_query(tenant_id, owner_message)
+        exact = _official_link_answer(owner_message, tenant_owner_conversations.get(scoped_key, []), tenant=True, owner=True)
+        if exact is None:
+            exact = _exact_owner_query(tenant_id, owner_message)
         if exact is not None:
             save_message_to_db(scoped_key, "owner", "user", owner_message)
             save_message_to_db(scoped_key, "owner", "assistant", exact)
@@ -4644,6 +4647,9 @@ def build_owner_system_prompt(pending_question, pending_customer_number, direct_
     # live-from-Client-Hub category list the customer prompt uses (see this function's docstring),
     # so the owner and customer paths can never disagree about which services currently exist.
     context += _build_active_service_categories_safe()
+    if query and re.search(r'website|landing page|link|demo|instagram|\big\b|client hub', query, re.I):
+        context += _build_official_links_note_safe()
+        context += "\nLink resmi di atas otoritatif. Jangan buat domain alternatif atau minta owner mengirim ulang link yang sudah tersedia."
     if query is not None:
         return _ctx.cache_blocks(SYSTEM_PROMPT_OWNER_BASE + "\n" + _ctx.POLICY, context)
     return SYSTEM_PROMPT_OWNER_BASE + context
@@ -4707,7 +4713,11 @@ def call_claude_owner(owner_number, owner_message, pending_question, pending_cus
     riwayat biar owner-mode AI bisa jawab natural kalau ditanya "dia terakhir bilang apa lewat
     voice note", persis pola yang sama kayak tag "[OWNER KIRIM GAMBAR]" di bawah."""
     if not image_b64:
-        exact = _catalog_service.exact_sales_answer(owner_message, owner_conversations.get(owner_number, [])) if _catalog_service is not None else None
+        exact = _official_link_answer(owner_message, owner_conversations.get(owner_number, []), owner=True) if not direct_send else None
+        if exact is not None:
+            owner_conversations[owner_number] = (owner_conversations.get(owner_number, []) + [{"role":"user", "content":owner_message}, {"role":"assistant", "content":exact}])[-20:]
+        if exact is None:
+            exact = _catalog_service.exact_sales_answer(owner_message, owner_conversations.get(owner_number, [])) if _catalog_service is not None else None
         if exact is None:
             exact = _exact_platform_owner_customer(owner_message, pending_customer_number)
         if exact is None:
@@ -5130,6 +5140,26 @@ def _payment_amounts_supported(text, scoped_number, platform):
     return None not in amounts and amounts <= trusted
 
 
+def _official_link_answer(text, history=None, *, tenant=False, owner=False):
+    intent = _links.classify_official_link_intent(text, history, 'owner' if owner else 'customer')
+    if not intent or (owner and intent == 'catalog'):
+        return None  # Existing owner attachment transport remains authoritative.
+    if tenant:
+        # No structured tenant official-link fields exist in the current setup schema.
+        # Never mine arbitrary knowledge/config or substitute platform settings.
+        return _links.link_reply(intent, {}, tenant=True, owner=owner)
+    try:
+        links = _ch_repo.get_official_links() if _CLIENT_HUB_AVAILABLE else {}
+    except Exception:
+        links = {}
+    reply = _links.link_reply(intent, links, owner=owner)
+    if not owner and intent == 'landing_page':
+        recent = ' '.join(t.get('content','')[-600:] for t in (history or [])[-6:] if isinstance(t.get('content'),str))
+        if re.search(r'portfolio|portofolio|(?:link|URL) (?:project|proyek)', text + ' ' + recent, re.I):
+            reply = 'Belum ada link khusus portfolio/project yang tersimpan. ' + reply
+    return reply
+
+
 def _exact_customer_route(text, history, tenant=False):
     normalized = re.sub(r'[!?.]+$', '', (text or '').strip().lower()).strip()
     if not history and normalized in ('halo', 'hallo', 'hai', 'hi', 'hello', 'selamat pagi', 'selamat siang', 'selamat sore', 'selamat malam'):
@@ -5139,7 +5169,7 @@ def _exact_customer_route(text, history, tenant=False):
     if normalized in ('hubungkan ke tim', 'mau bicara dengan admin', 'mau ngomong sama admin', 'mau bicara dengan manusia'):
         return "Aku coba hubungkan ke tim ya. [TANYA_OWNER]"
     if tenant:
-        return None
+        return _official_link_answer(text, history, tenant=True)
     if _catalog_service is not None:
         try:
             exact = _catalog_service.exact_sales_answer(text, history)
@@ -5147,69 +5177,7 @@ def _exact_customer_route(text, history, tenant=False):
             exact = "Data layanan belum bisa dibaca. Coba lagi sebentar ya kak."
         if exact is not None:
             return exact
-    normalized = re.sub(r"\s+(kak|dong|ya)$", "", normalized).strip()
-    generic_link = normalized in ('ada linknya', 'linknya mana', 'ada link', 'boleh minta linknya', 'minta linknya')
-    portfolio = bool(re.search(r'\b(portofolio|portfolio|project|proyek)(?:nya)?\b', normalized)
-                     and re.search(r'\b(link|url|lihat|contoh)\b', normalized))
-    if generic_link or portfolio:
-        if not _CLIENT_HUB_AVAILABLE:
-            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
-        try:
-            links = _ch_repo.get_official_links()
-        except Exception:
-            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
-        preferred = 'landing_page'
-        if generic_link:
-            # Recent text only, bounded and already scoped by the caller. No model invocation.
-            for turn in reversed(history[-6:]):
-                content = turn.get('content', '')
-                if not isinstance(content, str):
-                    continue
-                context = content[-600:].lower()
-                if re.search(r'portofolio|portfolio|link (?:project|proyek)', context):
-                    portfolio = True
-                    break
-                for key, pattern in (('instagram', r'instagram|\big\b'), ('catalog', r'katalog|pricelist'),
-                                     ('landing_page', r'website|landing page|company profile'), ('app', r'client hub|login')):
-                    if re.search(pattern, context):
-                        preferred = key
-                        break
-                else:
-                    continue
-                break
-        keys = list(dict.fromkeys([preferred, 'landing_page', 'catalog', 'instagram']))
-        labels = {'landing_page':'Website Kilas Works', 'catalog':'Katalog layanan',
-                  'instagram':'Instagram', 'app':'Client Hub'}
-        intro = ("Belum ada link khusus portfolio/project yang tersimpan. Ini website dan Instagram resmi Kilas Works:" if portfolio
-                 else "Bisa kak:")
-        if portfolio:
-            keys = ['landing_page', 'instagram']
-        return intro + "\n" + "\n".join(f"{labels[k]}: {links[k]}" for k in keys)
-    link_key = None
-    if normalized in ('kirim katalog', 'kirim katalognya', 'minta katalog', 'kirim pricelist',
-                      'kirim semua harga', 'ada katalog', 'pricelist', 'daftar layanan',
-                      'layanan kilas works apa aja', 'lihat paket di mana', 'katalog'):
-        link_key = 'catalog'
-    elif normalized in ('website kilas works apa', 'website kilas works', 'website', 'link website', 'ada webnya', 'websitenya'):
-        link_key = 'landing_page'
-    elif normalized in ('ig-nya apa', 'ig nya apa', 'instagram', 'ig', 'instagram kilas works', 'ig kilas works', 'ada ig', 'instagramnya'):
-        link_key = 'instagram'
-    elif normalized in ('link demo', 'minta link demo', 'ada demo', 'link demo ai admin', 'link demo kilas brain'):
-        link_key = 'demo'
-    elif normalized in ('link daftar', 'link client hub', 'link pembayaran', 'link checkout'):
-        link_key = 'app'
-    if link_key:
-        if not _CLIENT_HUB_AVAILABLE:
-            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
-        try:
-            link = _ch_repo.get_official_links()[link_key]
-        except Exception:
-            return "Link resmi belum bisa diambil. Coba lagi sebentar ya."
-        label = {'catalog': 'Katalog resmi Kilas Works', 'landing_page': 'Website Kilas Works',
-                 'instagram': 'Instagram Kilas Works', 'demo': 'Demo Kilas Brain', 'app': 'Client Hub Kilas Works'}[link_key]
-        return f"{label}: {link}"
-
-    return None
+    return _official_link_answer(text, history)
 
 
 def _exact_customer_price_query(text):
@@ -6938,6 +6906,14 @@ def _webhook_body_impl(data):
                 return jsonify({"status": "ok"}), 200
             else:
                 owner_text = normalize_owner_text_light(message["text"]["body"])
+                official_reply = _official_link_answer(owner_text, owner_conversations.get(from_number, []), owner=True)
+                if official_reply is not None:
+                    save_message_to_db(from_number, "owner", "user", owner_text)
+                    sent, _ = send_whatsapp_message(from_number, official_reply)
+                    if sent:
+                        owner_conversations[from_number] = (owner_conversations.get(from_number, []) + [{"role":"user", "content":owner_text}, {"role":"assistant", "content":official_reply}])[-20:]
+                        save_message_to_db(from_number, "owner", "assistant", official_reply)
+                    return jsonify({"status": "ok"}), 200
 
                 # Owner cuma bilang "kirim ke 628xxx" doang (gak ada pesan lain) DAN ada gambar
                 # yang baru aja dia kirim sebelumnya tanpa instruksi -> anggap ini nyuruh forward
