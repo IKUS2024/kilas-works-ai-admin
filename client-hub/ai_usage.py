@@ -286,7 +286,7 @@ def monthly(tenant_id=None, *, admin=False, now=None):
         raise ValueError('tenant_required')
     start,end = month_bounds(now)
     where = 'created_at >= ? AND created_at < ?'
-    params = [start,end]
+    params = ['claude-haiku-%', 'claude-sonnet-%', start, end]
     if not admin:
         where += ' AND tenant_id = ?'
         params.append(tenant_id)
@@ -297,8 +297,8 @@ def monthly(tenant_id=None, *, admin=False, now=None):
             "SUM(input_tokens) AS input_tokens,SUM(output_tokens) AS output_tokens, "
             "SUM(cache_read_input_tokens) AS cache_read_input_tokens,SUM(cache_creation_input_tokens) AS cache_creation_input_tokens, "
             "SUM(CASE WHEN cache_read_input_tokens>0 THEN 1 ELSE 0 END) AS cache_hits, "
-            "SUM(CASE WHEN model LIKE 'claude-haiku-%' THEN 1 ELSE 0 END) AS haiku_calls, "
-            "SUM(CASE WHEN model LIKE 'claude-sonnet-%' THEN 1 ELSE 0 END) AS sonnet_calls, "
+            "SUM(CASE WHEN model LIKE ? THEN 1 ELSE 0 END) AS haiku_calls, "
+            "SUM(CASE WHEN model LIKE ? THEN 1 ELSE 0 END) AS sonnet_calls, "
             "SUM(estimated_cost_usd) AS cost_usd,SUM(estimated_cost_idr) AS cost_idr, "
             "SUM(CASE WHEN estimated_cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_usd, "
             "SUM(CASE WHEN estimated_cost_idr IS NULL THEN 1 ELSE 0 END) AS unknown_idr, "
