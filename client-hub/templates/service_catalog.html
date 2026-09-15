@@ -36,28 +36,11 @@
         {% set unfinished = unfinished_by_catalog_key.get(item.catalog_key) if single_business else None %}
         {% if item.category == 'AI_ADMIN' %}
           <a class="btn small" href="{{ url_for('client.dashboard') }}">Mulai di Dashboard</a>
-        {% elif unfinished %}
-          <a class="btn small secondary" href="{{ url_for('projects.project_detail', business_id=single_business.id, project_id=unfinished.id) }}">Lanjutkan</a>
-        {% elif item.pricing_mode != 'CUSTOM_QUOTE' %}
-        <form method="post" action="{{ url_for('projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline"
-              onsubmit="setBusinessId(this);">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
-          <button class="btn small" type="submit">{{ item.cta_text or 'Pilih Layanan' }}</button>
-        </form>
-        {% elif item.category == 'TALENT' %}
-          <a class="btn small" href="{{ url_for('talent.talent_list') }}">{{ item.cta_text or 'Minta Penawaran' }}</a>
-        {% elif item.category in ('CONTENT', 'VIDEO', 'PHOTO', 'WEBSITE', 'APPLICATION') %}
-          <a class="btn small" id="custom-cta-{{ item.catalog_key }}"
-             data-project-type="{{ item.category }}"
-             href="{{ url_for('projects.custom_project_request', business_id=single_business.id, project_type=item.category) if single_business else url_for('projects.custom_project_request_no_business', project_type=item.category) }}"
-             onclick="return goCustomProject(this);">{{ item.cta_text or 'Minta Penawaran' }}</a>
         {% else %}
-        <form method="post" action="{{ url_for('projects.request_generic_quote', catalog_key=item.catalog_key) }}" class="inline"
-              onsubmit="setBusinessId(this);">
+        <form method="post" action="{{ url_for('projects.request_generic_quote' if item.pricing_mode == 'CUSTOM_QUOTE' else 'projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline" onsubmit="setBusinessId(this);">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
-          <button class="btn small" type="submit">{{ item.cta_text or 'Minta Penawaran' }}</button>
+          <button class="btn small" type="submit">{{ 'Lanjutkan' if unfinished else 'Isi Brief' }}</button>
         </form>
         {% endif %}
       </div>
@@ -72,20 +55,6 @@ function setBusinessId(form) {
   if (businessSelect) { form.business_id.value = businessSelect.value; }
   // A blank business_id is fine — the service works without one (only Kilas Brain requires a
   // business, and Kilas Brain never renders this form at all — see the template above).
-}
-function goCustomProject(el) {
-  var businessSelect = document.getElementById('business_select');
-  if (!businessSelect) { return true; }  // single-business or zero-business case: href already correct
-  var businessId = businessSelect.value;
-  if (!businessId) { return true; }
-  var projectType = el.getAttribute('data-project-type');
-  // Build the business-scoped URL using a real placeholder business id (1, never a sentinel 0)
-  // as the base for string substitution — the no-business and business-scoped routes now have
-  // genuinely different URL shapes, so this only ever rewrites TOWARD the business-scoped one,
-  // matching the dropdown's own selected business.
-  el.href = "{{ url_for('projects.custom_project_request', business_id=1, project_type='TYPE') }}"
-    .replace('/1/', '/' + businessId + '/').replace('TYPE', projectType);
-  return true;
 }
 </script>
 {% endblock %}

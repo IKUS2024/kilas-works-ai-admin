@@ -517,3 +517,33 @@ def commerce_transaction(phone_hash):
     finally:
         _local.commerce_transaction = False
         cur.close()
+
+
+@contextmanager
+def app_purchase_transaction(business_id, user_id):
+    """Serialize authenticated purchases on their existing owner row, without new lock rows.
+
+    Selection, brief/review and invoice creation use this same lock. The existing transaction
+    flag prevents nested repository helpers from committing before the operation is complete.
+    """
+    if _transaction_active():
+        raise RuntimeError('nested_app_purchase_transaction')
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        table, owner_id = ('businesses', business_id) if business_id is not None else ('users', user_id)
+        cur.execute(_adapt_placeholders(f'UPDATE {table} SET id=id WHERE id=?'), (owner_id,))
+        if cur.rowcount != 1:
+            raise ValueError('purchase_owner_missing')
+        _local.commerce_transaction = True
+        _local.commerce_failed = False
+        yield
+        if _local.commerce_failed:
+            raise RuntimeError('app_purchase_transaction_aborted')
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        _local.commerce_transaction = False
+        cur.close()

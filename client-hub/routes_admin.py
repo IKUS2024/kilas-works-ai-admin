@@ -602,7 +602,7 @@ def project_admin_detail(project_id):
     wa_order = wa_checkout.session_for_project(project_id)
     wa_link = wa_checkout.link(wa_order) if wa_order and wa_order["expires_at"] > __import__("time").time() else None
     return render_template("admin_project_detail.html", project=project, business=business,
-                            wa_order=wa_order, wa_link=wa_link, wa_labels=wa_checkout.FIELDS,
+                            wa_order=wa_order, wa_link=wa_link, wa_labels=wa_checkout.FIELDS, app_brief=(project.get('requirements') or {}).get('_app_brief') == 1,
                             wa_missing=wa_checkout.missing(catalog_service.get_catalog_item(wa_order["catalog_key"]), project.get("requirements") or {}) if wa_order else [],
                             quotations=quotations, format_price=catalog_service.format_price,
                             audit_trail=audit_trail, attachments=attachments)
@@ -620,12 +620,16 @@ def project_create_quotation(project_id):
         flash("Harga final harus diisi dan lebih dari 0.", "error")
         return redirect(url_for("admin.project_admin_detail", project_id=project_id))
     import wa_checkout
-    wa_checkout.admin_quote(
-        project_id, project["business_id"],
-        scope=request.form.get("scope"), deliverables=request.form.get("deliverables"),
-        quantity=request.form.get("quantity", type=int), final_price=final_price,
-        notes=request.form.get("notes"), created_by_user_id=admin["id"],
-    )
+    try:
+        wa_checkout.admin_quote(
+            project_id, project["business_id"],
+            scope=request.form.get("scope"), deliverables=request.form.get("deliverables"),
+            quantity=request.form.get("quantity", type=int), final_price=final_price,
+            notes=request.form.get("notes"), created_by_user_id=admin["id"],
+        )
+    except ValueError:
+        flash("Brief belum dikonfirmasi atau status penawaran telah berubah. Muat ulang project.", "error")
+        return redirect(url_for("admin.project_admin_detail", project_id=project_id))
     flash("Penawaran tersedia. Untuk order WhatsApp, kirim tautan order pribadi dari halaman project.", "success")
     return redirect(url_for("admin.project_admin_detail", project_id=project_id))
 

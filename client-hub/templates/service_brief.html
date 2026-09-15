@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Brief {{ project.title }} — Kilas Works{% endblock %}
+{% block content %}
+<style>
+.purchase{max-width:720px;margin:auto;min-width:0;overflow-wrap:anywhere}.purchase input,.purchase select,.purchase textarea{box-sizing:border-box;width:100%;max-width:100%;min-width:0}.purchase label{display:block;margin-top:16px}.purchase .btn{max-width:100%;white-space:normal;margin-top:12px}.purchase dd{margin:4px 0 16px}.purchase details{margin:16px 0}.purchase summary{cursor:pointer}
+</style>
+<div class="purchase">
+<p>Step 1: Brief → Step 2: Review → Step 3: Bayar</p>
+{% if project.pricing_mode == 'CUSTOM_QUOTE' %}<p class="muted">Penawaran dari tim perlu disetujui sebelum pembayaran.</p>{% endif %}
+<h1>{{ project.title }}</h1><p><strong>{{ price }}</strong></p><p>{{ description }}</p>
+{% if item.category in ('CONTENT','PHOTO','VIDEO','EVENT','TALENT') %}<p>Transport mengikuti lokasi dan akan dikonfirmasi sebelum produksi.</p>{% endif %}
+{% if item.category == 'TALENT' %}<p>Fee jasa Kilas Works untuk pencarian, shortlist, koordinasi dan manajemen talent terpisah dari fee talent.</p>{% endif %}
+{% if item.category in ('ADS','WEBSITE','APPLICATION') %}<p class="muted">Jangan masukkan password atau kredensial akun dalam brief.</p>{% endif %}
+{% if item.category == 'ADS' %}<p>Budget iklan dibayar terpisah. Produksi foto/video/creative terpisah. Tidak ada jaminan ROAS, leads atau penjualan.</p>{% endif %}
+{% if item.catalog_key == 'ads_management' %}<p>Management termasuk setup awal, tanpa tambahan biaya Setup Only Rp399.000.</p>{% endif %}
+{% if item.catalog_key.startswith('website_domain_') %}<p>Ketersediaan domain akan dicek sebelum dikonfirmasi.</p>{% endif %}
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+{% macro field(key,needed=false) %}
+<label>{{ labels[key][0] }}{% if not needed %} <small>(opsional)</small>{% endif %}
+{% if labels[key][1] %}<select name="{{ key }}" {% if needed %}required{% endif %}><option value="">Pilih</option>{% for choice in labels[key][1] %}<option {% if brief.get(key)==choice %}selected{% endif %}>{{ choice }}</option>{% endfor %}</select>
+{% else %}<textarea name="{{ key }}" maxlength="1500" rows="2" {% if needed %}required{% endif %}>{{ brief.get(key,'') }}</textarea>{% endif %}</label>
+{% endmacro %}
+{% if project.status == 'REQUESTED' and not review %}
+<form method="post" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="brief">
+<div class="card">{% for key in required %}{{ field(key,true) }}{% endfor %}</div>
+<details class="card"><summary>Detail tambahan (opsional)</summary>{% for key in optional %}{{ field(key) }}{% endfor %}<label>Upload referensi / logo (maks 5 MB)<input type="file" name="reference_file" accept=".jpg,.jpeg,.png,.webp,.pdf"></label></details>
+<button class="btn">Review Order</button></form>
+{% else %}
+<div class="card"><h2>Ringkasan brief</h2><dl>{% for key,value in brief.items() %}<dt>{{ labels[key][0] }}</dt><dd>{{ value }}</dd>{% endfor %}</dl></div>
+{% if review %}
+<a href="{{ url_for('projects.purchase_brief',project_id=project.id,edit=1) }}">Ubah brief</a>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="confirm"><input type="hidden" name="review_version" value="{{ version }}"><button class="btn">{{ 'Kirim Brief & Minta Penawaran' if project.pricing_mode == 'CUSTOM_QUOTE' else 'Lanjut ke Pembayaran' }}</button></form>
+{% elif invoice %}<a class="btn" href="{{ url_for('payments.invoice_page',invoice_id=invoice.id) }}">Lihat Tagihan / Pembayaran</a>
+{% elif project.status == 'QUOTED' and quote and quote.status in ('SENT','VIEWED') %}
+<div class="card"><h2>Penawaran {{ quote.quotation_number }}</h2><p>{{ quote.scope }}</p><p>{{ quote.deliverables }}</p><p>{{ quote.notes }}</p><strong>Rp{{ '{:,}'.format(quote.final_price).replace(',','.') }}</strong>
+<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="approve"><input type="hidden" name="quotation_id" value="{{ quote.id }}"><button class="btn">Setujui Penawaran & Lanjut Pembayaran</button></form></div>
+{% elif project.status == 'APPROVED' %}<a class="btn" href="{{ url_for('payments.checkout_page',project_id=project.id) }}">Lanjut ke Pembayaran</a>
+{% elif project.status == 'WAITING_FOR_QUOTE' %}<p>Brief diterima. Tim Kilas Works akan menyiapkan penawaran.</p>
+{% else %}<p>{{ project.status|humanize_status('project') }}</p>{% endif %}
+{% endif %}
+{% if project.business_id and project.status != 'REQUESTED' %}<p><a href="{{ url_for('projects.project_detail',business_id=project.business_id,project_id=project.id) }}">Lihat detail project</a></p>{% endif %}
+<p><a href="{{ url_for('projects.service_catalog_page') }}">Kembali ke Layanan</a></p>
+</div>
+{% endblock %}

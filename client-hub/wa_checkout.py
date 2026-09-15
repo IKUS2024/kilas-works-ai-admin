@@ -26,6 +26,10 @@ FIELDS = {
  'quantity': ('Perkiraan jumlah produk / output', ()), 'features': ('Fitur / halaman utama', ()),
  'niche': ('Jenis / niche talent', ()), 'domain': ('Domain yang diinginkan (ketersediaan belum dijamin)', ()),
  'extension': ('Ekstensi domain', ('.com','.id')), 'alternatives': ('Alternatif domain', ()),
+ 'website_project': ('Nama / URL website atau project', ()),
+ 'page': ('Halaman yang ingin ditambahkan', ()),
+ 'changes': ('Perubahan yang diminta', ()),
+ 'page_content': ('Tujuan / isi halaman', ()),
  'associated_project': ('Website / project terkait (opsional)', ()),
  'reference': ('Link referensi', ()), 'maps': ('Link Maps', ()), 'audience': ('Target audiens', ()),
  'talent': ('Butuh talent?', ('Ya','Tidak','Belum tahu')),
@@ -46,6 +50,8 @@ OPTIONAL = ('reference','maps','date','goal','audience','talent','notes','durati
 def fields(item):
     key, cat = item['catalog_key'], item['category']
     if key.startswith('website_domain_'): required=('domain','extension','alternatives')
+    elif key=='website_extra_page': required=('website_project','page','page_content')
+    elif key=='website_maintenance': required=('website_project','changes')
     elif cat=='CONTENT': required=('name','product','platform','location')
     elif cat=='EVENT': required=('event','date','location','contact')
     elif cat=='ADS': required=('product','objective','destination','area','ad_budget')
@@ -66,7 +72,9 @@ def fields(item):
         'APPLICATION':('system_needs','contact','reference','date','domain_status','assets','notes'),
     }
     optional=tuple(k for k in options.get(cat,('notes',)) if k not in required)
+    if cat=='WEBSITE' and item['pricing_mode']=='CUSTOM_QUOTE': optional=optional+('system_needs','date')
     if key.startswith('website_domain_'): optional=('associated_project','notes')
+    if key in ('website_extra_page','website_maintenance'): optional=('reference','assets','notes')
     return required, optional
 
 def secret():
@@ -213,7 +221,18 @@ def approve_current_quote(row,quotation_id):
 
 def admin_quote(project_id,business_id,**kwargs):
     row=session_for_project(project_id)
-    if not row:return quotation_service.create_quotation(project_id,business_id,**kwargs)
+    if not row:
+        project=projects_repo.get_project(project_id)
+        if project and (project.get('requirements') or {}).get('_app_brief') == 1:
+            with db.app_purchase_transaction(project['business_id'], project['created_by_user_id']):
+                project=projects_repo.get_project(project_id)
+                existing=quotation_service.get_latest_quotation_for_project(project_id)
+                if project['status']=='QUOTED' and existing:
+                    return existing['id']
+                if project['status'] != 'WAITING_FOR_QUOTE' or not project['requirements'].get('_brief_confirmed'):
+                    raise ValueError('brief_or_quote_not_ready')
+                return quotation_service.create_quotation(project_id,business_id,**kwargs)
+        return quotation_service.create_quotation(project_id,business_id,**kwargs)
     with db.commerce_transaction(row['phone_hash']):
         project=projects_repo.get_project(project_id)
         if project['status'] not in ('WAITING_FOR_QUOTE','REQUESTED'):

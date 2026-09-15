@@ -52,45 +52,7 @@ def service_catalog_page():
 @projects_bp.route("/services/<catalog_key>/checkout-fixed", methods=["POST"])
 @security.login_required
 def start_fixed_checkout(catalog_key):
-    """FIXED_PRICE items are checkout-ready immediately (Section 6) — this creates the project
-    (status APPROVED) so the very next step is payment_service.checkout()."""
-    user = security.current_user()
-    item = catalog_service.get_catalog_item(catalog_key)
-    if item is None or item["pricing_mode"] not in ("FIXED_PRICE", "STARTING_FROM") or not item["is_active"]:
-        abort(404)
-    if item["category"] == "AI_ADMIN":
-        # Business flow cleanup — AI Admin has exactly ONE purchase path: the business-info wizard
-        # (dashboard "+ Tambah AI Admin"/"Buat Business" -> wizard -> review ->
-        # client.ai_admin_checkout). This route is the generic instant-checkout path every OTHER
-        # fixed-price service uses; it must never also be a second, wizard-bypassing way to buy AI
-        # Admin (service_catalog.html no longer renders this form for the AI_ADMIN category at
-        # all — this is a defense-in-depth guard against a stale cached page or a direct POST).
-        flash("AI Admin diatur lewat Dashboard — isi data bisnis dulu sebelum pembayaran.", "error")
-        return redirect(url_for("client.dashboard"))
-
-    # Purchase-flow correction: AI Admin is the ONLY service that requires a business. Every other
-    # fixed-price service must work with business_id=None — NEVER auto-create a placeholder
-    # business as a side effect of selecting one (see projects_repo.get_unfinished_project_for_
-    # catalog_key()'s own docstring for how repeat-click safety still works without one).
-    business_id = request.form.get("business_id", type=int)
-    business = security.require_business_access(business_id, user) if business_id else None
-
-    # Repeat-click / refresh safety (purchase-flow fix, Section 6): reuse an existing unfinished
-    # project for this exact catalog_key instead of creating a second one — a customer clicking
-    # "Pilih Layanan" again (double-click, back button, refresh) lands on the SAME project/
-    # checkout, never a duplicate. Matched by business_id when one is set, otherwise by
-    # created_by_user_id (the only identity a business-less project has to match against).
-    existing = projects_repo.get_unfinished_project_for_catalog_key(
-        business["id"] if business else None, catalog_key, created_by_user_id=user["id"],
-    )
-    if existing:
-        return redirect(url_for("payments.checkout_page", project_id=existing["id"]))
-
-    project_id = projects_repo.create_fixed_price_project(
-        business["id"] if business else None, item, user["id"],
-    )
-    flash(f"{item['name']} ditambahkan. Lanjut ke checkout.", "success")
-    return redirect(url_for("payments.checkout_page", project_id=project_id))
+    return _start_catalog_brief(catalog_key, fixed_only=True)
 
 
 @projects_bp.route("/business/<int:business_id>/projects/custom/<project_type>", methods=["GET", "POST"])
@@ -110,78 +72,13 @@ def custom_project_request_no_business(project_type):
 
 
 def _custom_project_request_impl(project_type, business_id):
-    project_type = project_type.upper()
-    if project_type not in ("VIDEO", "PHOTO", "WEBSITE", "APPLICATION", "CONTENT"):
+    # Retain old URLs without keeping a second set of questions or a submission bypass.
+    if business_id:
+        security.require_business_access(business_id, security.current_user())
+    if project_type.upper() not in ("VIDEO", "PHOTO", "WEBSITE", "APPLICATION", "CONTENT"):
         abort(404)
-    user = security.current_user()
-    business = security.require_business_access(business_id, user) if business_id else None
-
-    if request.method == "GET":
-        return render_template("custom_project_request.html", business=business, project_type=project_type)
-
-    form = request.form
-    budget_min = form.get("budget_min", type=int)
-    budget_max = form.get("budget_max", type=int)
-
-    catalog_key = None
-    if project_type == "CONTENT":
-        requirements = {
-            "need": form.get("need"), "quantity": form.get("quantity"),
-            "platform": form.get("platform"), "location": form.get("location"),
-            "deadline": form.get("deadline"), "style": form.get("style"),
-            "notes": form.get("notes"),
-        }
-        title = f"Custom Content — {form.get('project_name') or 'Tanpa nama'}"
-        catalog_key = "custom_content"
-    elif project_type == "VIDEO":
-        requirements = {
-            "num_videos": form.get("num_videos"), "duration": form.get("duration"),
-            "platform": form.get("platform"), "location": form.get("location"),
-            "preferred_date": form.get("preferred_date"), "style": form.get("style"),
-            "reference": form.get("reference"), "editing_required": form.get("editing_required") == "on",
-            "notes": form.get("notes"),
-        }
-        title = f"Custom Video — {form.get('project_name') or 'Tanpa nama'}"
-    elif project_type == "PHOTO":
-        requirements = {
-            "photoshoot_type": form.get("photoshoot_type"), "num_final_photos": form.get("num_final_photos"),
-            "location": form.get("location"), "preferred_date": form.get("preferred_date"),
-            "usage": form.get("usage"), "style": form.get("style"), "notes": form.get("notes"),
-        }
-        title = f"Custom Photo — {form.get('project_name') or 'Tanpa nama'}"
-    else:  # WEBSITE / APPLICATION
-        requirements = {
-            "goal": form.get("goal"), "pages_features": form.get("pages_features"),
-            "references": form.get("references"), "target_date": form.get("target_date"),
-            "notes": form.get("notes"),
-        }
-        title = f"Custom {project_type.title()} — {form.get('project_name') or 'Tanpa nama'}"
-
-    project_id = projects_repo.create_custom_project(
-        business["id"] if business else None, project_type, title, requirements, budget_min, budget_max,
-        user["id"], catalog_key=catalog_key,
-    )
-
-    # Optional "Upload Brief / Referensi" attachment (Section: custom project attachments). Never
-    # blocks the request itself — a rejected/missing file just skips this step with a flash message,
-    # the project is still created (matches the existing text-only reference field's behavior).
-    upload = request.files.get("attachment")
-    if upload and upload.filename:
-        content = upload.read()
-        try:
-            safe_name, mime_type = file_utils.validate_project_attachment_upload(upload.filename, content)
-            db.execute(
-                "INSERT INTO project_files (business_id, project_id, kind, original_filename, "
-                "mime_type, size_bytes, content, uploaded_by_user_id) VALUES (?, ?, 'REFERENCE', ?, ?, ?, ?, ?)",
-                (business["id"] if business else None, project_id, safe_name, mime_type, len(content), content, user["id"]),
-            )
-        except file_utils.UploadRejected as e:
-            flash(f"Permintaan terkirim, tapi file lampiran ditolak: {e}", "error")
-
-    flash("Permintaan custom terkirim. Tim Kilas Works akan menyiapkan penawaran.", "success")
-    if business:
-        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
-    return redirect(url_for("projects.project_view", project_id=project_id))
+    flash("Pilih layanan untuk melanjutkan brief dan review order.", "info")
+    return redirect(url_for("projects.service_catalog_page"))
 
 
 _HISTORY_STATUSES = ("COMPLETED", "CANCELLED")
@@ -190,50 +87,129 @@ _HISTORY_STATUSES = ("COMPLETED", "CANCELLED")
 @projects_bp.route("/services/<catalog_key>/request-quote", methods=["POST"])
 @security.login_required
 def request_generic_quote(catalog_key):
-    """Generic "Minta Penawaran" for CUSTOM_QUOTE catalog items whose category has no
-    dedicated requirement-specific form (BUNDLE, ADS, EVENT, or any future category) — the
-    purchase-flow fix's Section 1/4/5 gap: these previously had literally no actionable CTA on
-    the catalog page (service_catalog.html rendered a bare, unclickable "Custom Quote" label).
-    Reuses the SAME generic projects_repo.create_custom_project() every type-specific custom
-    request already goes through — this is a simpler ENTRY POINT (one free-text notes field
-    instead of a type-specific requirements form), not a second data path. Never invents a price:
-    the created project starts at WAITING_FOR_QUOTE with final_price=NULL, identical to every
-    other custom request."""
+    return _start_catalog_brief(catalog_key, custom_only=True)
+
+
+def _start_catalog_brief(catalog_key, fixed_only=False, custom_only=False):
     user = security.current_user()
-    business_id = request.form.get("business_id", type=int)
-    business = security.require_business_access(business_id, user) if business_id else None
     item = catalog_service.get_catalog_item(catalog_key)
-    if item is None or item["pricing_mode"] != "CUSTOM_QUOTE" or not item["is_active"]:
+    if not item or not item['is_active'] or item['category'] == 'BUNDLE':
         abort(404)
-    if item["category"] in ("TALENT", "CONTENT", "VIDEO", "PHOTO", "WEBSITE", "APPLICATION"):
-        # These categories already have their own dedicated, more detailed request flow
-        # (talent.talent_list / custom_project_request) — this generic route is only the
-        # fallback for categories that don't, so it never becomes a second, competing path for
-        # a category that already has a purpose-built one.
+    if item['category'] == 'AI_ADMIN':
+        return redirect(url_for('client.dashboard'))
+    if fixed_only and item['pricing_mode'] not in ('FIXED_PRICE', 'STARTING_FROM'):
         abort(404)
+    if custom_only and item['pricing_mode'] != 'CUSTOM_QUOTE':
+        abort(404)
+    business_id = request.form.get('business_id', type=int)
+    if business_id:
+        security.require_business_access(business_id, user)
+    with db.app_purchase_transaction(business_id, user['id']):
+        existing = projects_repo.get_unfinished_project_for_catalog_key(business_id, catalog_key, user['id'])
+        if existing:
+            project_id = existing['id']
+        else:
+            if item['pricing_mode'] == 'CUSTOM_QUOTE':
+                project_id = projects_repo.create_custom_project(
+                    business_id, projects_repo._project_type_for_category(item['category']), item['name'],
+                    {}, None, None, user['id'], catalog_key=catalog_key, draft=True)
+            else:
+                project_id = projects_repo.create_fixed_price_project(business_id, item, user['id'], draft=True)
+            db.execute('UPDATE projects SET requirements_json=? WHERE id=?',
+                       (json.dumps({'_app_brief': 1}), project_id))
+    project = projects_repo.get_project(project_id)
+    endpoint = 'projects.purchase_brief' if (project.get('requirements') or {}).get('_app_brief') == 1 else 'projects.project_view'
+    return redirect(url_for(endpoint, project_id=project_id))
 
-    # Repeat-click / refresh safety (Section 6): reuse an existing unfinished quote request for
-    # this exact catalog_key rather than creating a second one. Matched by business_id when one is
-    # set, otherwise by created_by_user_id (the only identity a business-less project has).
-    existing = projects_repo.get_unfinished_project_for_catalog_key(
-        business["id"] if business else None, catalog_key, created_by_user_id=user["id"],
-    )
-    if existing:
-        if business:
-            return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=existing["id"]))
-        return redirect(url_for("projects.project_view", project_id=existing["id"]))
 
-    project_type = item["category"] if item["category"] in projects_repo.PROJECT_TYPES else "OTHER"
-    notes = (request.form.get("notes") or "").strip()
-    requirements = {"notes": notes} if notes else {}
-    project_id = projects_repo.create_custom_project(
-        business["id"] if business else None, project_type, item["name"], requirements, None, None,
-        user["id"], catalog_key=catalog_key,
-    )
-    flash(f"Permintaan penawaran untuk {item['name']} terkirim. Tim Kilas Works akan follow up.", "success")
-    if business:
-        return redirect(url_for("projects.project_detail", business_id=business["id"], project_id=project_id))
-    return redirect(url_for("projects.project_view", project_id=project_id))
+def _review_version(brief):
+    import hashlib
+    return hashlib.sha256(json.dumps(brief, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode()).hexdigest()
+
+
+@projects_bp.route('/projects/<int:project_id>/brief', methods=['GET', 'POST'])
+@security.login_required
+def purchase_brief(project_id):
+    import wa_checkout as shared
+    import payment_service
+    import quotation_service
+    user = security.current_user()
+    security.require_project_access(project_id, user)
+    project = projects_repo.get_project(project_id)
+    if (project.get('requirements') or {}).get('_app_brief') != 1:
+        return redirect(url_for('projects.project_view', project_id=project_id))
+    item = catalog_service.get_catalog_item(project['catalog_key'])
+    if not item or item['category'] == 'AI_ADMIN':
+        abort(404)
+    item = dict(item, pricing_mode=project['pricing_mode'])
+    error = None
+    if request.method == 'POST':
+        notify_submitted = False
+        try:
+            with db.app_purchase_transaction(project['business_id'], project['created_by_user_id']):
+                security.require_project_access(project_id, user)
+                project = projects_repo.get_project(project_id)
+                saved = project.get('requirements') or {}
+                action = request.form.get('action')
+                if action == 'brief' and project['status'] == 'REQUESTED':
+                    brief = shared.clean(request.form, item)
+                    if shared.missing(item, brief):
+                        raise ValueError('brief_incomplete')
+                    upload = request.files.get('reference_file')
+                    if upload and upload.filename:
+                        content = upload.read(file_utils.MAX_ATTACHMENT_UPLOAD_BYTES + 1)
+                        name, mime = file_utils.validate_project_attachment_upload(upload.filename, content)
+                        existing = db.query_one("SELECT id FROM project_files WHERE project_id=? AND kind='REFERENCE' AND original_filename=? AND content=?", (project_id, name, content))
+                        if not existing:
+                            db.execute("INSERT INTO project_files (business_id,project_id,kind,original_filename,mime_type,size_bytes,content,uploaded_by_user_id) VALUES (?,?,'REFERENCE',?,?,?,?,?)", (project['business_id'],project_id,name,mime,len(content),content,user['id']))
+                    brief.update(_app_brief=1, _review_version=_review_version(brief))
+                    db.execute('UPDATE projects SET requirements_json=? WHERE id=?', (json.dumps(brief, ensure_ascii=False), project_id))
+                elif action == 'confirm' and project['status'] == 'REQUESTED':
+                    brief = shared.clean(saved, item)
+                    if shared.missing(item, brief) or not saved.get('_review_version') or request.form.get('review_version') != saved['_review_version']:
+                        raise ValueError('review_required')
+                    saved['_brief_confirmed'] = True
+                    db.execute('UPDATE projects SET requirements_json=? WHERE id=?', (json.dumps(saved, ensure_ascii=False), project_id))
+                    status = 'WAITING_FOR_QUOTE' if project['pricing_mode'] == 'CUSTOM_QUOTE' else 'APPROVED'
+                    projects_repo.set_project_status(project_id, status, user['id'], project['business_id'], 'Customer confirmed service brief')
+                    notify_submitted = status == 'WAITING_FOR_QUOTE'
+                    if status == 'APPROVED':
+                        invoice_id = payment_service.checkout(project_id, project['business_id'], user['id'])
+                        return redirect(url_for('payments.invoice_page', invoice_id=invoice_id))
+                elif action == 'approve' and project['status'] == 'QUOTED':
+                    quote = quotation_service.get_latest_quotation_for_project(project_id)
+                    if not quote or str(quote['id']) != request.form.get('quotation_id'):
+                        raise ValueError('quote_changed')
+                    quotation_service.approve_quotation(quote['id'], project['business_id'], user['id'])
+                    invoice_id = payment_service.checkout(project_id, project['business_id'], user['id'])
+                    return redirect(url_for('payments.invoice_page', invoice_id=invoice_id))
+                elif project['status'] == 'REQUESTED':
+                    raise ValueError('review_required')
+            if notify_submitted:
+                import owner_notifications
+                try:
+                    owner_notifications.notify_custom_project_submitted(project_id, project['business_id'], project['project_type'], project['title'])
+                except Exception:
+                    pass  # Notification failure must not undo an already committed brief.
+            return redirect(url_for('projects.purchase_brief', project_id=project_id))
+        except (ValueError, file_utils.UploadRejected):
+            error = 'Lengkapi brief dan periksa kembali review atau lampiran sebelum melanjutkan.'
+    project = projects_repo.get_project(project_id)
+    saved = project.get('requirements') or {}
+    brief = {k:v for k,v in saved.items() if k in shared.FIELDS}
+    if error and request.form.get('action') == 'brief':
+        try:
+            brief = shared.clean(request.form, item)
+        except ValueError:
+            pass
+    review = project['status'] == 'REQUESTED' and bool(saved.get('_review_version')) and request.args.get('edit') != '1' and not error
+    required, optional = shared.fields(item)
+    price = 'Penawaran' if project['pricing_mode'] == 'CUSTOM_QUOTE' else catalog_service.format_price(project['final_price'], item['price_unit'])
+    return render_template('service_brief.html', project=project, item=item, brief=brief, labels=shared.FIELDS,
+                           required=required, optional=optional, review=review, version=saved.get('_review_version'),
+                           error=error, price=price, description=catalog_service.service_description(item),
+                           invoice=payment_service.get_latest_invoice_for_project(project_id),
+                           quote=quotation_service.get_latest_quotation_for_project(project_id)), 400 if error else 200
 
 
 @projects_bp.route("/business/<int:business_id>/projects")
@@ -267,6 +243,9 @@ def project_view(project_id):
     canonical business-scoped URL instead of duplicating that page here."""
     user = security.current_user()
     project = security.require_project_access(project_id, user)
+    loaded = projects_repo.get_project(project_id)
+    if (loaded.get('requirements') or {}).get('_app_brief') == 1 and (project['business_id'] is None or project['status'] == 'REQUESTED'):
+        return redirect(url_for('projects.purchase_brief', project_id=project_id))
     if project["business_id"] is not None:
         return redirect(url_for("projects.project_detail", business_id=project["business_id"], project_id=project_id))
     return render_template("project_view_no_business.html", project=project)
@@ -280,6 +259,8 @@ def project_detail(business_id, project_id):
     project = projects_repo.get_project(project_id)
     if project is None or project["business_id"] != business["id"]:
         abort(404)
+    if (project.get('requirements') or {}).get('_app_brief') == 1 and project['status'] == 'REQUESTED':
+        return redirect(url_for('projects.purchase_brief', project_id=project_id))
     import quotation_service
     quotations = quotation_service.list_quotations_for_business(business["id"])
     quotations = [q for q in quotations if q["project_id"] == project_id]

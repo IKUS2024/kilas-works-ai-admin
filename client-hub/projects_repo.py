@@ -22,14 +22,13 @@ PROJECT_STATUSES = (
 )
 
 
-def create_fixed_price_project(business_id, catalog_item, created_by_user_id):
-    """A fixed-price catalog selection. Checkout-ready immediately (Section 6) — no quotation
-    needed, since the price is already known from the catalog."""
+def create_fixed_price_project(business_id, catalog_item, created_by_user_id, *, draft=False):
+    """Lock the catalog price. App drafts wait for brief/review; existing callers keep their status."""
     project_id = db.insert_returning_id(
         "INSERT INTO projects (business_id, project_type, catalog_key, pricing_mode, title, "
-        "status, final_price, created_by_user_id) VALUES (?, ?, ?, 'FIXED_PRICE', ?, 'APPROVED', ?, ?)",
+        "status, final_price, created_by_user_id) VALUES (?, ?, ?, 'FIXED_PRICE', ?, ?, ?, ?)",
         (business_id, _project_type_for_category(catalog_item["category"]), catalog_item["catalog_key"],
-         catalog_item["name"], catalog_item["price_amount"], created_by_user_id),
+         catalog_item["name"], "REQUESTED" if draft else "APPROVED", catalog_item["price_amount"], created_by_user_id),
     )
     repo.write_audit(created_by_user_id, business_id, "PROJECT_CREATED",
                       f"fixed-price: {catalog_item['name']} (project_id={project_id})",
@@ -38,15 +37,14 @@ def create_fixed_price_project(business_id, catalog_item, created_by_user_id):
 
 
 def create_custom_project(business_id, project_type, title, requirements, budget_min, budget_max,
-                           created_by_user_id, catalog_key=None):
-    """A CUSTOM_QUOTE request (Section 7/8: video/photo/website-app). Always starts at
-    WAITING_FOR_QUOTE with final_price = NULL — the system NEVER invents a price here."""
+                           created_by_user_id, catalog_key=None, *, draft=False):
+    """Create a quote request with no price. App drafts wait for confirmation before submission."""
     assert project_type in PROJECT_TYPES, f"unknown project_type {project_type}"
     project_id = db.insert_returning_id(
         "INSERT INTO projects (business_id, project_type, catalog_key, pricing_mode, title, "
         "status, requirements_json, budget_min, budget_max, created_by_user_id) "
-        "VALUES (?, ?, ?, 'CUSTOM_QUOTE', ?, 'WAITING_FOR_QUOTE', ?, ?, ?, ?)",
-        (business_id, project_type, catalog_key, title, json.dumps(requirements, ensure_ascii=False),
+        "VALUES (?, ?, ?, 'CUSTOM_QUOTE', ?, ?, ?, ?, ?, ?)",
+        (business_id, project_type, catalog_key, title, "REQUESTED" if draft else "WAITING_FOR_QUOTE", json.dumps(requirements, ensure_ascii=False),
          budget_min, budget_max, created_by_user_id),
     )
     repo.write_audit(created_by_user_id, business_id, "PROJECT_CREATED",
@@ -56,7 +54,7 @@ def create_custom_project(business_id, project_type, title, requirements, budget
     # is excluded here — talent_service.create_talent_request (which calls this function) sends
     # its own more specific TALENT_REQUEST_SUBMITTED notification right after this returns, so
     # notifying here too would double-notify the owner for the exact same submission.
-    if project_type != "TALENT":
+    if project_type != "TALENT" and not draft:
         try:
             import owner_notifications
             owner_notifications.notify_custom_project_submitted(project_id, business_id, project_type, title)

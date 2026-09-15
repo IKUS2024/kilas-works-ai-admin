@@ -35,6 +35,10 @@ def checkout(project_id, business_id, actor_user_id):
         if row:
             with db.commerce_transaction(row['phone_hash']):
                 return _checkout_existing(project_id,business_id,actor_user_id)
+        project = projects_repo.get_project(project_id)
+        if project and (project.get('requirements') or {}).get('_app_brief') == 1:
+            with db.app_purchase_transaction(project['business_id'], project['created_by_user_id']):
+                return _checkout_existing(project_id,business_id,actor_user_id)
     return _checkout_existing(project_id,business_id,actor_user_id)
 
 
@@ -57,6 +61,9 @@ def _checkout_existing(project_id, business_id, actor_user_id):
     project = projects_repo.get_project(project_id)
     if project is None or project["business_id"] != business_id:
         raise ValueError("project_not_found")
+    requirements = project.get('requirements') or {}
+    if requirements.get('_app_brief') == 1 and not requirements.get('_brief_confirmed'):
+        raise ValueError('brief_review_required')
     if project["status"] not in ("APPROVED", "PAYMENT_PENDING"):
         raise ValueError(
             f"checkout_locked: project status is {project['status']!r}, must be APPROVED "
