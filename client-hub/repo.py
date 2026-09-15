@@ -598,6 +598,24 @@ def save_simulation_message(business_id, session_token, role, content):
     )
 
 
+def reserve_simulation_user_message(business_id, session_token, content):
+    """Reserve one of 30 daily business-wide attempts before calling the model.
+
+    Reuse the existing business-row transaction lock, releasing it before any network call.
+    Count across browser sessions; rejected requests never create simulated assistant rows.
+    """
+    with db.app_purchase_transaction(business_id, None):
+        utc_date = ("date(created_at)=date('now')" if db.BACKEND == 'sqlite' else
+                    "(created_at AT TIME ZONE 'UTC')::date=(now() AT TIME ZONE 'UTC')::date")
+        usage = db.query_one(
+            "SELECT COUNT(*) AS total FROM simulation_messages WHERE business_id=? "
+            "AND role='user' AND " + utc_date, (business_id,))
+        if usage is None or usage['total'] >= 30:
+            return False
+        save_simulation_message(business_id, session_token, 'user', content)
+    return True
+
+
 def get_simulation_history(business_id, session_token, limit=20):
     rows = db.query_all(
         """SELECT * FROM simulation_messages WHERE business_id = ? AND session_token = ?

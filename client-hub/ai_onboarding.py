@@ -53,6 +53,7 @@ import feature_flags
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLIENT_HUB_MODEL = os.environ.get("CLIENT_HUB_MODEL", "claude-sonnet-4-6")
+CLIENT_HUB_SIMULATION_MODEL = os.environ.get("CLIENT_HUB_SIMULATION_MODEL") or "claude-haiku-4-5-20251001"
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 REQUIRED_CONFIG_KEYS = (
@@ -189,7 +190,7 @@ def _extract_json_object(text):
     return json.loads(text)
 
 
-def _call_claude(system_prompt, messages, max_tokens=1500):
+def _call_claude(system_prompt, messages, max_tokens=1500, *, model=None):
     """Returns (text, stop_reason, error_str). stop_reason is Anthropic's own explicit signal for
     WHY generation stopped ("end_turn" = complete, "max_tokens" = genuinely truncated mid-output)
     — this is the strongest, most direct truncation signal the current API/client already
@@ -208,7 +209,7 @@ def _call_claude(system_prompt, messages, max_tokens=1500):
                 "content-type": "application/json",
             },
             json={
-                "model": CLIENT_HUB_MODEL,
+                "model": model or CLIENT_HUB_MODEL,
                 "max_tokens": max_tokens,
                 "system": system_prompt,
                 "messages": messages,
@@ -425,8 +426,9 @@ def simulate_customer_reply(business, config, history, customer_message):
         primary_language=languages.get("primary", "id"),
         salutation=salutation,
     )
-    messages = history + [{"role": "user", "content": customer_message}]
-    reply_text, _stop_reason, err = _call_claude(system_prompt, messages, max_tokens=500)
+    messages = history[-10:] + [{"role": "user", "content": customer_message}]
+    reply_text, _stop_reason, err = _call_claude(
+        system_prompt, messages, max_tokens=300, model=CLIENT_HUB_SIMULATION_MODEL)
     if err:
         return None, err
     return reply_text, None

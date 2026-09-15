@@ -9208,9 +9208,9 @@ def run_tenant_followups():
 demo_sessions = {}  # session_id -> {"history": [...], "count": int, "created_at": datetime, "notified": bool}
 demo_daily_usage = {"date": None, "messages": 0}
 
-DEMO_MAX_MESSAGES_PER_SESSION = 20   # batas pesan per 1 orang nyoba, biar 1 sesi gak dipakai spam
-DEMO_MAX_MESSAGES_PER_DAY = 150      # batas TOTAL pesan demo per hari (gabungan semua orang) — jaga biaya API
-DEMO_SESSION_TTL_HOURS = 6           # sesi yang udah lama dianggap basi & dibuang dari memori
+DEMO_MAX_MESSAGES_PER_SESSION = 10   # batas pesan per 1 orang nyoba, biar 1 sesi gak dipakai spam
+DEMO_MAX_MESSAGES_PER_DAY = 100      # batas TOTAL pesan demo per hari (gabungan semua orang) — jaga biaya API
+DEMO_SESSION_TTL_HOURS = 3           # sesi yang udah lama dianggap basi & dibuang dari memori
 
 TAG_DEMO_LEAD = re.compile(r"\[DEMO_LEAD:\s*([^\]]+)\]", re.IGNORECASE)
 

@@ -854,11 +854,13 @@ def simulate_message(business_id):
     ai_settings = repo.get_ai_settings(business_id)
     config = ai_settings.get("normalized_config") if ai_settings else None
 
-    history_rows = repo.get_simulation_history(business_id, token, limit=20)
+    history_rows = repo.get_simulation_history(business_id, token, limit=10)
     history = [{"role": r["role"], "content": r["content"]} for r in history_rows]
 
+    if not repo.reserve_simulation_user_message(business_id, token, user_message):
+        return jsonify({"reply": "Batas Test AI hari ini sudah tercapai. Coba lagi besok ya.",
+                        "error": "daily_simulation_quota", "message_id": None}), 429
     reply, error = ai_onboarding.simulate_customer_reply(business, config, history, user_message)
-    repo.save_simulation_message(business_id, token, "user", user_message)
     if error:
         reply = "(Simulasi gagal memproses pesan ini — coba lagi. Detail teknis dicatat untuk Kilas Works.)"
         repo.write_audit(security.current_user()["id"], business_id, "simulation_error", error)
