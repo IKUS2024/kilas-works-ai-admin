@@ -1108,16 +1108,27 @@ def renew_wa_order_link(project_id):
 def ai_usage_dashboard():
     import ai_usage
     # Aggregate all scopes only behind the admin gate. Clients get their own count only.
+    phase = 'request_schema'
     try:
+        ai_usage.check_monthly_schema()
+        phase = 'monthly'
         usage = ai_usage.monthly(admin=True)
         seen = {row['tenant_id'] for row in usage}
+        phase = 'businesses'
         businesses = repo.list_all_businesses()
         names = {b['id']: b['business_name'] for b in businesses}
         for business in businesses:
             if business['package'] != 'NONE' and business['id'] not in seen:
+                phase = 'monthly'
                 usage.extend(ai_usage.monthly(business['id']))
         for row in usage:
             row['name'] = names.get(row['tenant_id'], 'Kilas Works platform' if row['tenant_id'] is None else 'Bisnis historis')
+        phase = 'render'
         return render_template('admin_ai_usage.html', usage=usage, pricing_date=ai_usage.PRICING_DATE, unavailable=False)
-    except Exception:
-        return render_template('admin_ai_usage.html', usage=[], pricing_date=ai_usage.PRICING_DATE, unavailable=True), 503
+    except Exception as exc:
+        ai_usage.log_dashboard_failure(exc, phase)
+        try:
+            return render_template('admin_ai_usage.html', usage=[], pricing_date=ai_usage.PRICING_DATE, unavailable=True), 503
+        except Exception as render_exc:
+            ai_usage.log_dashboard_failure(render_exc, 'fallback_render')
+            return 'Pemakaian AI belum tersedia. Coba lagi sebentar.', 503

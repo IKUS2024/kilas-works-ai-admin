@@ -105,6 +105,9 @@ def create_app():
                 "adding a new migration file)"
             )
 
+        import ai_usage
+        ai_usage.startup_schema_check()
+
         print("Catalog seed: starting")
         catalog_service.seed_catalog_if_needed()
         print("Catalog seed: OK")

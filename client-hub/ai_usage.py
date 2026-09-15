@@ -134,6 +134,93 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
         return False
 
 
+# Explicit projection used by monthly(); no row values are read by the probe.
+MONTHLY_COLUMNS = (
+    'tenant_id', 'context_type', 'model', 'classification', 'is_reply',
+    'input_tokens', 'output_tokens', 'cache_read_input_tokens',
+    'cache_creation_input_tokens', 'estimated_cost_usd', 'estimated_cost_idr', 'created_at',
+)
+
+
+def log_dashboard_failure(exc, phase):
+    """Allowlisted diagnostic text, never a scrubbed copy of a raw DB exception.
+
+    Driver messages may contain SQL parameters, DSNs or user data anywhere, so regex
+    replacement alone is insufficient. Unknown messages are intentionally redacted.
+    """
+    import re
+    known_types = {'OperationalError', 'ProgrammingError', 'DatabaseError', 'InterfaceError',
+        'UndefinedTable', 'UndefinedColumn', 'InsufficientPrivilege', 'QueryCanceled',
+        'InvalidTextRepresentation', 'DatatypeMismatch', 'TypeError', 'ValueError',
+        'KeyError', 'AttributeError', 'RuntimeError', 'ConnectionError', 'TimeoutError',
+        'TemplateNotFound', 'UndefinedError', 'InvalidOperation', 'OverflowError'}
+    kind = type(exc).__name__
+    if kind not in known_types:
+        kind = 'Exception'
+    try:
+        raw = str(exc).lower()
+    except Exception:
+        raw = ''
+    state = getattr(exc, 'pgcode', None)
+    reason = 'details_redacted'
+    if state == '42P01' or 'no such table:' in raw or ('relation ' in raw and 'does not exist' in raw):
+        reason = 'required_relation_missing'
+    elif state == '42703' or 'no such column:' in raw or ('column ' in raw and 'does not exist' in raw):
+        reason = 'required_column_missing'
+        match = re.search(r'(?:no such column:|column)\s+["\']?([a-z_]+)', raw)
+        if match and match.group(1) in MONTHLY_COLUMNS:
+            reason += ':' + match.group(1)
+    elif state == '42501' or 'permission denied' in raw:
+        reason = 'database_permission_denied'
+    elif state == '57014' or 'timeout' in raw or 'timed out' in raw:
+        reason = 'database_timeout'
+    elif state == '28P01' or 'authentication failed' in raw:
+        reason = 'database_authentication_failed'
+    elif 'could not connect' in raw or 'connection refused' in raw or 'unable to open database file' in raw:
+        reason = 'database_connection_unavailable'
+    elif 'unsupported operand type' in raw:
+        reason = 'incompatible_calculation_types'
+    if phase not in ('startup_schema', 'request_schema', 'monthly', 'businesses', 'render', 'fallback_render'):
+        phase = 'dashboard'
+    log.error('[AI_USAGE_DIAGNOSTIC] phase=%s exception_type=%s message=%s', phase, kind, reason)
+
+
+def check_monthly_schema():
+    """Read-only, zero-row probe on an independent connection; raises the real error.
+
+    Never create a SQLite database, run migrations, or touch a caller transaction.
+    PostgreSQL is explicitly read-only with bounded connect/query/lock timeouts.
+    """
+    if db.BACKEND == 'sqlite':
+        from pathlib import Path
+        conn = sqlite3.connect(Path(db.SQLITE_PATH).resolve().as_uri() + '?mode=ro', uri=True, timeout=1)
+    else:
+        options = dict(db._postgres_connect_kwargs())
+        options['connect_timeout'] = 2
+        options['options'] = '-c statement_timeout=1500 -c lock_timeout=1000'
+        conn = db.psycopg2.connect(db.DATABASE_URL, **options)
+    try:
+        if db.BACKEND != 'sqlite':
+            conn.set_session(readonly=True, autocommit=True)
+        cursor = conn.cursor()
+        try:
+            cursor.execute('SELECT ' + ', '.join(MONTHLY_COLUMNS) + ' FROM ai_usage_ledger WHERE 1=0')
+        finally:
+            cursor.close()
+    finally:
+        conn.close()
+
+
+def startup_schema_check():
+    try:
+        check_monthly_schema()
+        log.info('[AI_USAGE_DIAGNOSTIC] phase=startup_schema schema=ready')
+        return True
+    except Exception as exc:
+        log_dashboard_failure(exc, 'startup_schema')
+        return False  # Dashboard diagnostics must not prevent unrelated routes from starting.
+
+
 def month_bounds(now=None):
     now = now or datetime.now(timezone.utc)
     start = now.astimezone(timezone.utc).replace(day=1,hour=0,minute=0,second=0,microsecond=0)
