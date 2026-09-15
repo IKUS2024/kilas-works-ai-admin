@@ -893,10 +893,14 @@ def simulate_flag(business_id):
 def inbox_page(business_id):
     business = _business_or_404(business_id)
     if business.get("package") == "NONE":
-        flash("CS Inbox tersedia untuk business yang memakai AI Admin.", "error")
+        flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))
 
-    conversations = inbox_service.list_conversations(business_id)
+    search = (request.args.get('q') or '').strip()
+    mode_filter = (request.args.get('mode') or '').strip()
+    if mode_filter not in ('', 'AI_ACTIVE', 'HUMAN_TAKEOVER'):
+        mode_filter = ''
+    conversations = inbox_service.list_conversations(business_id, search=search, mode_filter=mode_filter or None)
     selected_phone = inbox_service.normalize_customer_phone(request.args.get("customer"))
     selected = None
     thread = []
@@ -919,6 +923,8 @@ def inbox_page(business_id):
 
     return render_template(
         "inbox.html",
+        search=search, mode_filter=mode_filter,
+        template_readiness=inbox_service.template_readiness(business_id) if selected and selected["mode"] == "HUMAN_TAKEOVER" and not (window and window.get("allowed")) else None,
         business=business,
         conversations=conversations,
         selected=selected,
@@ -1009,15 +1015,8 @@ def inbox_send_template(business_id):
         repo.write_audit(user["id"], business_id, "CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
         flash("Template terkirim. Begitu customer membalas, window 24 jam aktif lagi dan kamu bisa balas bebas.", "success")
     else:
-        friendly = {
-            "human_takeover_required": "Klik Ambil Alih dulu sebelum CS mengirim template.",
-            "reengagement_template_not_configured": "Template re-engagement belum dikonfigurasi di server (WHATSAPP_REENGAGEMENT_TEMPLATE_NAME).",
-            "whatsapp_not_connected": "WhatsApp business ini belum berstatus CONNECTED.",
-            "business_not_active": "AI Admin business ini belum ACTIVE.",
-            "tenant_credentials_unavailable": "Credential WhatsApp tenant belum tersedia di server.",
-            "default_whatsapp_credentials_unavailable": "Credential WhatsApp platform belum tersedia di server.",
-            "takeover_state_unavailable": "Status Human Takeover tidak bisa diverifikasi. Demi keamanan template tidak dikirim.",
-        }.get(reason, "Template belum berhasil dikirim. Coba lagi atau cek koneksi WhatsApp.")
+        import wa_inbox_shared
+        friendly = wa_inbox_shared.template_error_message(reason)
         flash(friendly, "error")
     return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
 

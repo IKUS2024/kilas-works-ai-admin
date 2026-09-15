@@ -36,7 +36,7 @@ def _prefix(business_id):
     return f"T{int(business_id)}:"
 
 
-def list_conversations(business_id, limit_messages=1500):
+def list_conversations(business_id, limit_messages=1500, *, search=None, mode_filter=None):
     """Return one row per customer for THIS business, newest first.
 
     The shared bot DB can contain Kilas Works + many tenant conversations. We only query keys with
@@ -86,7 +86,11 @@ def list_conversations(business_id, limit_messages=1500):
             "last_message_at": row.get("created_at"),
             "mode": modes.get(phone, "AI_ACTIVE"),
         })
-    return conversations
+    query = (search or '').strip().casefold()
+    return [c for c in conversations
+            if (not mode_filter or c['mode'] == mode_filter)
+            and (not query or query in ' '.join(str(c.get(k) or '') for k in
+                 ('customer_name','customer_phone','last_message')).casefold())]
 
 
 def customer_exists(business_id, customer_phone):
@@ -242,6 +246,19 @@ def send_manual_reply(business_id, customer_phone, message_text):
         # history write failed; return a distinct success reason so the route can audit it.
         return True, "sent_history_write_failed"
     return True, "sent"
+
+
+def template_readiness(business_id):
+    name, _language = wa_inbox_shared.resolve_reengagement_template_config_for_tenant(
+        repo.get_whatsapp_config(business_id), os.environ.get)
+    reason = None
+    if not name:
+        reason = 'reengagement_template_not_configured'
+    else:
+        _channel, reason = _tenant_channel(business_id)
+    return {'ready': reason is None,
+            'message': wa_inbox_shared.template_error_message(reason) if reason else
+                       'Template tersedia. Pengiriman tetap mengikuti persetujuan Meta.'}
 
 
 def send_template_reply(business_id, customer_phone, params=None):

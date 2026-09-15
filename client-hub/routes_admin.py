@@ -939,8 +939,6 @@ def platform_inbox():
         mode_filter=mode_filter or None,
     )
     selected_phone = platform_inbox_service.normalize_customer_phone(request.args.get("customer"))
-    if not selected_phone and conversations:
-        selected_phone = conversations[0]["customer_phone"]
 
     selected = None
     thread = []
@@ -962,6 +960,7 @@ def platform_inbox():
 
     return render_template(
         "platform_inbox.html",
+        template_readiness=platform_inbox_service.template_readiness() if selected and selected["mode"] == "HUMAN_TAKEOVER" and not (window and window.get("allowed")) else None,
         conversations=conversations,
         selected=selected,
         thread=thread,
@@ -1056,20 +1055,8 @@ def platform_inbox_send_template():
         repo.write_audit_no_business(admin["id"], "PLATFORM_CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
         flash("Template terkirim. Begitu customer membalas, window 24 jam aktif lagi.", "success")
     else:
-        friendly = {
-            "human_takeover_required": "Klik Ambil Alih dulu sebelum mengirim template.",
-            "reengagement_template_not_configured": "Template re-engagement belum dikonfigurasi di server (WHATSAPP_REENGAGEMENT_TEMPLATE_NAME).",
-            "takeover_state_unavailable": "Status takeover tidak bisa diverifikasi. Demi keamanan template tidak dikirim.",
-            "bot_internal_bridge_unavailable": "Koneksi internal Client Hub → bot belum dikonfigurasi.",
-            "bot_internal_bridge_network_error": "Bot WhatsApp sedang tidak terjangkau dari Client Hub. Coba lagi sebentar.",
-            "bot_internal_bridge_timeout": "Bot WhatsApp terlalu lama merespons. Coba sekali lagi setelah bot sudah Live.",
-            "bot_internal_bridge_http_429": "Koneksi ke bot sempat sibuk. Coba lagi sebentar lagi.",
-        }.get(reason)
-        if not friendly and str(reason).startswith("bot_internal_bridge_http_"):
-            detail = str(reason).replace("bot_internal_bridge_http_", "HTTP ", 1)
-            friendly = f"Bridge Client Hub → bot menolak request ({detail})."
-        if not friendly:
-            friendly = f"Template belum berhasil dikirim. Diagnostic: {reason}"
+        import wa_inbox_shared
+        friendly = wa_inbox_shared.template_error_message(reason, platform=True)
         flash(friendly, "error")
     return redirect(url_for("admin.platform_inbox", customer=phone))
 

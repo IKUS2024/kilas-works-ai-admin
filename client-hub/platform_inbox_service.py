@@ -281,6 +281,18 @@ def send_manual_reply(customer_phone, message_text):
     return False, body.get("reason") or "bot_internal_bridge_rejected"
 
 
+def template_readiness():
+    name, _language = wa_inbox_shared.resolve_reengagement_template_config(os.environ.get)
+    reason = None
+    if not name:
+        reason = 'reengagement_template_not_configured'
+    elif not _bot_platform_reply_url() or not (os.environ.get('INTERNAL_SERVICE_SECRET') or '').strip():
+        reason = 'bot_internal_bridge_unavailable'
+    return {'ready': reason is None,
+            'message': wa_inbox_shared.template_error_message(reason, platform=True) if reason else
+                       'Pastikan nama dan bahasa template sesuai template yang disetujui Meta. Koneksi bot diperiksa saat mengirim.'}
+
+
 def send_template_reply(customer_phone, params=None):
     """Approved WhatsApp template send — the "Kirim Template & Lanjutkan" action for a
     conversation whose 24h customer-service window has expired (Section 4 of the request). Unlike
@@ -353,7 +365,10 @@ def _post_to_bot_bridge(endpoint, payload, secret):
     (see routes_admin.py's platform_inbox_send_template()); the admin can safely press "Kirim
     Template & Lanjutkan" again manually — Human Takeover stays active and no state is lost by not
     retrying automatically."""
-    timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
+    try:
+        timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
+    except (TypeError, ValueError):
+        timeout_seconds = 75.0
     request_timeout = max(15.0, min(timeout_seconds, 120.0))
     try:
         resp = requests.post(
@@ -372,6 +387,8 @@ def _post_to_bot_bridge(endpoint, payload, secret):
     try:
         body = resp.json()
     except ValueError:
+        return False, "bot_internal_bridge_bad_response"
+    if not isinstance(body, dict):
         return False, "bot_internal_bridge_bad_response"
     if body.get("status") == "ok":
         return True, "sent"

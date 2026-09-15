@@ -1,40 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Inbox Kilas Works{% endblock %}
 {% block content %}
-<style>
-  .wrap { max-width: 1280px; }
-  .kw-inbox-shell { display:grid; grid-template-columns:360px minmax(0,1fr); gap:14px; min-height:72vh; }
-  .kw-inbox-sidebar, .kw-chat { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
-  .kw-inbox-toolbar { padding:14px; border-bottom:1px solid var(--border); }
-  .kw-conversations { max-height:68vh; overflow:auto; }
-  .kw-conversation { display:block; padding:12px 14px; color:inherit; border-bottom:1px solid var(--border); text-decoration:none; }
-  .kw-conversation:hover { background:rgba(255,255,255,.025); text-decoration:none; }
-  .kw-conversation.active { background:rgba(255,122,26,.08); }
-  .kw-row { display:flex; justify-content:space-between; gap:10px; align-items:center; }
-  .kw-preview { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:5px; }
-  .kw-chat-head { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; gap:12px; align-items:center; flex-wrap:wrap; }
-  .kw-thread { height:52vh; min-height:340px; overflow:auto; padding:18px; display:flex; flex-direction:column; gap:9px; }
-  .kw-bubble { max-width:78%; border:1px solid var(--border); border-radius:14px; padding:9px 11px; }
-  .kw-bubble.customer { align-self:flex-start; background:rgba(148,163,184,.11); }
-  .kw-bubble.business { align-self:flex-end; background:rgba(255,122,26,.09); }
-  .kw-compose { border-top:1px solid var(--border); padding:14px 16px; }
-  .kw-filters { display:grid; grid-template-columns:minmax(0,1fr) 135px; gap:8px; }
-  @media (max-width:900px) {
-    .kw-inbox-shell { grid-template-columns:1fr; }
-    .kw-conversations { max-height:34vh; }
-    .kw-thread { height:46vh; }
-  }
-</style>
+{% include '_inbox_layout.html' %}
 
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
   <div>
     <h1 style="margin-bottom:4px;">Inbox Kilas Works</h1>
-    <p class="muted" style="margin:0;">Chat operasional WhatsApp Kilas Works. Database tetap di belakang layar; lu handle customer dari sini atau dari WhatsApp Business.</p>
+    <p class="muted" style="margin:0;">Kelola percakapan WhatsApp, ambil alih chat, dan balas customer dari satu tempat.</p>
   </div>
   <a class="btn secondary" href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
 </div>
 
-<div class="kw-inbox-shell">
+<div class="kw-inbox-shell {{ 'has-selection' if selected else 'no-selection' }}">
   <section class="kw-inbox-sidebar">
     <div class="kw-inbox-toolbar">
       <form method="get" action="{{ url_for('admin.platform_inbox') }}">
@@ -74,6 +51,7 @@
   <section class="kw-chat">
     {% if selected %}
       <div class="kw-chat-head">
+        <a class="kw-back btn secondary small" href="{{ url_for('admin.platform_inbox', q=search, mode=mode_filter) }}">← Percakapan</a>
         <div>
           <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
           {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
@@ -83,7 +61,7 @@
             {% elif selected.mode == 'AI_ACTIVE' %}
               <span class="pill ACTIVE">AI Active</span>
             {% else %}
-              <span class="pill SUSPENDED">State unavailable</span>
+              <span class="pill SUSPENDED">Status belum tersedia</span>
             {% endif %}
           </div>
         </div>
@@ -149,14 +127,15 @@
               lagi. Kirim template resmi buat buka lagi percakapannya; begitu customer membalas, window 24
               jam aktif lagi.
             </p>
+            {% if template_readiness %}<p class="muted" role="status">{{ template_readiness.message }}</p>{% endif %}
             <form method="post" action="{{ url_for('admin.platform_inbox_send_template') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
-              <button class="btn" type="submit">Kirim Template &amp; Lanjutkan</button>
+              <button class="btn" type="submit" {% if not template_readiness or not template_readiness.ready %}disabled{% endif %}>Kirim Template &amp; Lanjutkan</button>
             </form>
           </div>
         {% elif selected.mode == 'AI_ACTIVE' %}
-          <p class="muted" style="margin:0;">AI sedang handle. Klik <strong>Ambil Alih</strong> kalau lu mau balas sendiri.</p>
+          <p class="muted" style="margin:0;">AI sedang menangani chat. Klik <strong>Ambil Alih</strong> untuk membalas sendiri.</p>
         {% else %}
           <p class="muted" style="margin:0;">Status takeover belum bisa diverifikasi. AI tidak boleh diasumsikan aktif.</p>
         {% endif %}
@@ -164,14 +143,11 @@
     {% else %}
       <div style="padding:28px;">
         <h2>Pilih percakapan</h2>
-        <p class="muted">Customer WhatsApp Kilas Works akan muncul di kiri. Lu nggak perlu buka PostgreSQL buat baca chat.</p>
+        <p class="muted">Pilih customer dari daftar untuk melihat percakapan.</p>
       </div>
     {% endif %}
   </section>
 </div>
 
-<script>
-  const thread = document.getElementById('kw-thread');
-  if (thread) thread.scrollTop = thread.scrollHeight;
-</script>
+
 {% endblock %}

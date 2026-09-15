@@ -158,3 +158,30 @@ def resolve_reengagement_template_config_for_tenant(tenant_whatsapp_config_row, 
         tenant_language = (row.get("reengagement_template_language") or "").strip()
         return tenant_name, (tenant_language or "id")
     return resolve_reengagement_template_config(env_get)
+
+
+def template_error_message(reason, platform=False):
+    """Customer-safe copy only: never interpolate a bridge/Meta response or credentials."""
+    if reason == 'human_takeover_required':
+        return 'Klik Ambil Alih dulu sebelum mengirim template.'
+    if reason == 'reengagement_template_not_configured':
+        if platform:
+            return ('Template WhatsApp belum dikonfigurasi. Atur WHATSAPP_REENGAGEMENT_TEMPLATE_NAME '
+                    'dan cocokkan WHATSAPP_REENGAGEMENT_TEMPLATE_LANGUAGE dengan template yang disetujui Meta (default bahasa: id).')
+        return 'Template WhatsApp untuk melanjutkan chat belum dikonfigurasi. Hubungi Kilas Works.'
+    if reason == 'takeover_state_unavailable':
+        return 'Status Human Takeover belum dapat diverifikasi. Template tidak dikirim.'
+    if platform and reason == 'bot_internal_bridge_unavailable':
+        return ('Koneksi ke bot belum dikonfigurasi. Periksa KILAS_BOT_PLATFORM_REPLY_URL atau '
+                'KILAS_BOT_INTERNAL_URL dan INTERNAL_SERVICE_SECRET pada layanan terkait.')
+    if reason in ('bot_internal_bridge_timeout','bot_internal_bridge_network_error',
+                  'bot_internal_bridge_bad_response','meta_request_failed'):
+        return 'Status pengiriman template belum dapat dipastikan. Periksa percakapan sebelum mencoba kembali.'
+    if platform and reason in ('bot_internal_bridge_http_401','bot_internal_bridge_http_403','access_denied'):
+        return 'Akses ke bot ditolak. Periksa kecocokan INTERNAL_SERVICE_SECRET pada Client Hub dan bot.'
+    if reason in ('whatsapp_not_connected','business_not_active','tenant_credentials_unavailable','default_whatsapp_credentials_unavailable'):
+        return 'Koneksi WhatsApp bisnis belum siap. Hubungi Kilas Works untuk memeriksanya.'
+    if platform:
+        return ('Template belum berhasil dikirim. Periksa status layanan bot, persetujuan template di Meta, '
+                'serta kecocokan nama dan bahasanya. Periksa percakapan sebelum mencoba kembali.')
+    return 'Template belum berhasil dikirim. Hubungi Kilas Works untuk memeriksa koneksi dan persetujuan template WhatsApp.'
