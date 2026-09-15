@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Inbox Kilas Works{% endblock %}
+{% block content %}
+{% include '_inbox_layout.html' %}
+
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+  <div>
+    <h1 style="margin-bottom:4px;">Inbox Kilas Works</h1>
+    <p class="muted" style="margin:0;">Kelola percakapan WhatsApp, ambil alih chat, dan balas customer dari satu tempat.</p>
+  </div>
+  <a class="btn secondary" href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+</div>
+
+<div class="kw-inbox-shell {{ 'has-selection' if selected else 'no-selection' }}">
+  <section class="kw-inbox-sidebar">
+    <div class="kw-inbox-toolbar">
+      <form method="get" action="{{ url_for('admin.platform_inbox') }}">
+        <div class="kw-filters">
+          <input type="search" name="q" value="{{ search }}" placeholder="Cari nama, nomor, chat...">
+          <select name="mode" onchange="this.form.submit()">
+            <option value="" {{ 'selected' if not mode_filter else '' }}>Semua</option>
+            <option value="AI_ACTIVE" {{ 'selected' if mode_filter == 'AI_ACTIVE' else '' }}>AI aktif</option>
+            <option value="HUMAN_TAKEOVER" {{ 'selected' if mode_filter == 'HUMAN_TAKEOVER' else '' }}>Human</option>
+          </select>
+        </div>
+        <button class="btn secondary small" type="submit" style="margin-top:8px;">Cari</button>
+      </form>
+    </div>
+    <div class="kw-conversations">
+      {% for c in conversations %}
+        <a class="kw-conversation {{ 'active' if selected and selected.customer_phone == c.customer_phone else '' }}"
+           href="{{ url_for('admin.platform_inbox', customer=c.customer_phone, q=search, mode=mode_filter) }}">
+          <div class="kw-row">
+            <strong>{{ c.customer_name or c.customer_phone }}</strong>
+            {% if c.mode == 'HUMAN_TAKEOVER' %}
+              <span class="pill NEEDS_REVISION">Human</span>
+            {% else %}
+              <span class="pill ACTIVE">AI</span>
+            {% endif %}
+          </div>
+          {% if c.customer_name %}<div class="muted" style="font-size:12px;">{{ c.customer_phone }}</div>{% endif %}
+          <div class="muted kw-preview" style="font-size:13px;">{{ c.last_message }}</div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at }}</div>
+        </a>
+      {% else %}
+        <div style="padding:18px;"><p class="muted">Belum ada percakapan yang cocok.</p></div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="kw-chat">
+    {% if selected %}
+      <div class="kw-chat-head">
+        <a class="kw-back btn secondary small" href="{{ url_for('admin.platform_inbox', q=search, mode=mode_filter) }}">← Percakapan</a>
+        <div>
+          <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
+          {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
+          <div style="margin-top:5px;">
+            {% if selected.mode == 'HUMAN_TAKEOVER' %}
+              <span class="pill NEEDS_REVISION">Human Handling</span>
+            {% elif selected.mode == 'AI_ACTIVE' %}
+              <span class="pill ACTIVE">AI Active</span>
+            {% else %}
+              <span class="pill SUSPENDED">Status belum tersedia</span>
+            {% endif %}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          {% if selected.mode == 'AI_ACTIVE' %}
+            <form method="post" action="{{ url_for('admin.platform_inbox_takeover') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn" type="submit">Ambil Alih</button>
+            </form>
+          {% elif selected.mode == 'HUMAN_TAKEOVER' %}
+            <form method="post" action="{{ url_for('admin.platform_inbox_return_ai') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn secondary" type="submit">Kembalikan ke AI</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="kw-thread" id="kw-thread">
+        {% for m in thread %}
+          {% set customer = m.role == 'user' %}
+          <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
+            <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Kilas Works / AI' }}</div>
+            {% include '_inbox_media.html' %}
+            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at|humanize_timestamp }}</div>
+          </div>
+        {% else %}
+          <p class="muted">Belum ada history.</p>
+        {% endfor %}
+      </div>
+
+      <div class="kw-compose">
+        {% if selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
+          <form method="post" action="{{ url_for('admin.platform_inbox_reply') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai Kilas Works..." style="min-height:82px;"></textarea>
+            <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
+              <span class="pill ACTIVE" style="font-size:12px;">Masa chat 24 jam masih aktif</span>
+              <button class="btn" type="submit">Kirim</button>
+            </div>
+          </form>
+          <details style="margin-top:10px;"><summary>Kirim gambar atau PDF</summary>
+            <form method="post" enctype="multipart/form-data" action="{{ url_for('admin.inbox_media_send') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" required aria-label="Gambar atau PDF">
+              <input name="caption" maxlength="1024" placeholder="Keterangan (opsional)" aria-label="Keterangan media">
+              <p class="muted" style="font-size:12px;">JPG/PNG maks. 5 MB · PDF maks. 10 MB</p>
+              <button class="btn secondary" type="submit">Kirim media</button>
+            </form>
+          </details>
+        {% elif selected.mode == 'HUMAN_TAKEOVER' %}
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="pill" style="color:var(--red);">Masa chat 24 jam sudah berakhir</span>
+              <span class="pill">Perlu kirim template</span>
+            </div>
+            <p class="muted" style="margin:0 0 10px;">
+              Sudah lewat 24 jam sejak pesan masuk customer terakhir — WhatsApp tidak mengizinkan free-text
+              lagi. Kirim template resmi buat buka lagi percakapannya; begitu customer membalas, window 24
+              jam aktif lagi.
+            </p>
+            {% if template_readiness %}<p class="muted" role="status">{{ template_readiness.message }}</p>{% endif %}
+            <form method="post" action="{{ url_for('admin.platform_inbox_send_template') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+              <button class="btn" type="submit" {% if not template_readiness or not template_readiness.ready %}disabled{% endif %}>Kirim Template &amp; Lanjutkan</button>
+            </form>
+          </div>
+        {% elif selected.mode == 'AI_ACTIVE' %}
+          <p class="muted" style="margin:0;">AI sedang menangani chat. Klik <strong>Ambil Alih</strong> untuk membalas sendiri.</p>
+        {% else %}
+          <p class="muted" style="margin:0;">Status takeover belum bisa diverifikasi. AI tidak boleh diasumsikan aktif.</p>
+        {% endif %}
+      </div>
+    {% else %}
+      <div style="padding:28px;">
+        <h2>Pilih percakapan</h2>
+        <p class="muted">Pilih customer dari daftar untuk melihat percakapan.</p>
+      </div>
+    {% endif %}
+  </section>
+</div>
+
+
+{% endblock %}

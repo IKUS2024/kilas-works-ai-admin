@@ -12,6 +12,7 @@ Until (b), the UI shows "APPROVED — WAITING_WHATSAPP_CONNECTION" even though t
 is still literally "APPROVED" — see get_display_status() below, reused by templates.
 """
 import io
+import inbox_media_service
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, send_file
 
@@ -21,13 +22,18 @@ import repo
 import security
 import file_utils
 import provisioning
+import catalog_cache
 import catalog_service
+import pricing_config
+import display_labels
 import projects_repo
 import quotation_service
 import payment_service
 import talent_service
 import platform_assets_service
 import wa_takeover_service
+import platform_inbox_service
+import subscription_service
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -130,12 +136,20 @@ def review_business(business_id):
     ai_settings = repo.get_ai_settings(business_id)
     onboarding_status = repo.get_onboarding_status(business_id)
     missing_required = repo.required_fields_missing(business_id)
-    audit_log = repo.get_audit_log(business_id)
+    # Audit Log pagination (Section T: "do not dump an endless table") — ?audit_page=N in the URL,
+    # 20 per page, newest first (unchanged ordering) — never deletes/hides rows from the database,
+    # only how many render on one page load.
+    audit_page = request.args.get("audit_page", 1, type=int)
+    audit_page = max(1, audit_page)
+    audit_log = repo.get_audit_log(business_id, limit=20, offset=(audit_page - 1) * 20)
+    audit_log_total = repo.count_audit_log(business_id)
+    audit_log_has_more = audit_page * 20 < audit_log_total
     flagged = repo.list_flagged_simulation_messages(business_id)
     whatsapp_config = repo.get_whatsapp_config(business_id)
     tenant_config_row = repo.get_tenant_config_row(business_id)
     business["display_status"] = get_display_status(business)
     takeover_conversations = wa_takeover_service.list_takeover_conversations_for_business(business_id)
+    subscription = subscription_service.get_subscription(business_id)
     return render_template(
         "review.html",
         business=business,
@@ -146,13 +160,56 @@ def review_business(business_id):
         ai_settings=ai_settings,
         onboarding_status=onboarding_status,
         missing_required=missing_required,
+        missing_required_labels=display_labels.humanize_missing_fields(missing_required),
+        missing_required_sentence=display_labels.missing_fields_sentence(missing_required),
         audit_log=audit_log,
+        audit_page=audit_page,
+        audit_log_has_more=audit_log_has_more,
         flagged=flagged,
         whatsapp_config=whatsapp_config,
         tenant_config_row=tenant_config_row,
         takeover_conversations=takeover_conversations,
+        subscription=subscription,
+        activation_checklist=payment_service.build_activation_checklist(business_id),
         is_admin_view=True,
     )
+
+
+@admin_bp.route("/business/<int:business_id>/subscription/renew", methods=["POST"])
+@security.admin_required
+def renew_subscription(business_id):
+    """Gap-fix Area E — admin marks a renewal payment verified and extends/reactivates the
+    tenant's AI Admin subscription. Never touches creative-service projects, never re-runs
+    onboarding, never re-provisions the tenant — see subscription_service.renew_subscription()'s
+    docstring for the exact (minimal) side effects."""
+    business = repo.get_business(business_id)
+    if not business:
+        abort(404)
+    admin = security.current_user()
+    try:
+        subscription_service.renew_subscription(business_id, admin["id"])
+    except ValueError as e:
+        flash(f"Belum bisa perpanjang: {e}. Subscription record belum ada untuk business ini.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+    flash("Subscription AI Admin diperpanjang. Business aktif kembali (kalau sebelumnya SUSPENDED).", "success")
+    return redirect(url_for("admin.review_business", business_id=business_id))
+
+
+@admin_bp.route("/subscriptions/sweep", methods=["GET", "POST"])
+def subscriptions_sweep():
+    """Cron-secured lifecycle sweep trigger — same shape/secret convention as ../app.py's existing
+    /cron/followups and /cron/owner-notifications endpoints. Intended to be called periodically
+    (e.g. once a day) by an external scheduler (cron-job.org or similar), exactly like those two.
+    Deliberately NOT behind @security.admin_required (a cron job has no logged-in admin session) —
+    protected instead by a shared secret query param, matching the existing /cron/* pattern
+    elsewhere in this codebase."""
+    import os
+    key = request.args.get("key", "")
+    secret = os.environ.get("CLIENT_HUB_CRON_SECRET", "")
+    if not secret or key != secret:
+        return {"status": "error", "message": "Akses ditolak, key salah/kosong."}, 403
+    result = subscription_service.run_lifecycle_sweep()
+    return {"status": "ok", **result}, 200
 
 
 @admin_bp.route("/business/<int:business_id>/ai-setup/retry", methods=["POST"])
@@ -265,7 +322,11 @@ def connect_whatsapp(business_id):
         return redirect(url_for("admin.review_business", business_id=business_id))
 
     phone_number_id = (request.form.get("whatsapp_phone_number_id") or "").strip()
-    trusted_owner_phone = (request.form.get("trusted_owner_phone") or "").strip()
+    # Owner/pengelola phone (Section J: "Do NOT create a second duplicate owner-phone data
+    # source") — same normalize_owner_phone() the customer-facing wizard entry point uses, so
+    # "0851...", "+62851...", "62851..." always converge on the SAME stored value regardless of
+    # which of the two entry points (customer wizard vs admin WhatsApp-connect) was used.
+    trusted_owner_phone = repo.normalize_owner_phone(request.form.get("trusted_owner_phone")) or ""
     waba_id = (request.form.get("waba_id") or "").strip() or None
     credentials_reference = (request.form.get("credentials_reference") or "").strip() or None
     if not phone_number_id or not trusted_owner_phone:
@@ -350,8 +411,12 @@ def change_package(business_id):
     if package not in repo.DEFAULT_FEATURES:
         flash("Paket tidak valid.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
-    repo.set_business_package(business_id, package, actor_user_id=admin["id"])
-    flash(f"Paket diubah ke {package}.", "success")
+    try:
+        repo.set_business_package(business_id, package, actor_user_id=admin["id"])
+    except ValueError:
+        flash("Perubahan paket belum diizinkan. Upgrade Pro membutuhkan pembayaran Pro yang sudah diverifikasi.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+    flash("Paket Kilas Brain berhasil diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
@@ -369,11 +434,67 @@ def download_file(business_id, file_id):
     )
 
 
+@admin_bp.route("/settings/official-links", methods=["GET", "POST"])
+@security.admin_required
+def official_links_admin():
+    """Unified AI Brain v2, Section 1 — admin-editable source of truth for Kilas Works' own
+    official links, consumed by the production SYSTEM_PROMPT (see app.py's
+    _build_official_links_note_safe()) instead of being hardcoded/duplicated inside the prompt
+    string. Reuses repo.get_official_links()/set_platform_setting() — the SAME functions any
+    future admin surface for this should call, never a second config path."""
+    if request.method == "POST":
+        for key in ("landing_page", "app", "instagram", "demo", "catalog"):
+            value = (request.form.get(key) or "").strip()
+            if value:
+                repo.set_platform_setting(f"official_link_{key}", value)
+        catalog_cache.bump_version()
+        flash("Link resmi diperbarui.", "success")
+        return redirect(url_for("admin.official_links_admin"))
+    return render_template("admin_official_links.html", links=repo.get_official_links())
+
+
 @admin_bp.route("/catalog")
 @security.admin_required
 def catalog_admin():
-    items = catalog_service.list_all_catalog()
-    return render_template("admin_catalog.html", items=items, format_price=catalog_service.format_price)
+    """Business rule REVERSAL (UX pass, Section F/G/H — explicitly reverses the earlier "catalog
+    editing removed, manual-file-only" decision, at the user's own explicit later request):
+    routine service/package management is restored, but strictly scoped to what the SAME single
+    source of truth (service_catalog, the exact table /services, project creation, and the bot's
+    own live "DAFTAR KATEGORI LAYANAN AKTIF" knowledge block already all read from) can safely
+    represent — never a second, parallel catalog. AI_ADMIN/TALENT categories remain excluded from
+    dashboard creation (see catalog_service.SAFE_NEW_ITEM_CATEGORIES's own docstring for why) —
+    those keep their existing special-workflow-only creation paths untouched."""
+    archived = request.args.get("view") == "archive"
+    items = [item for item in catalog_service.list_all_catalog() if bool(item["is_active"]) != archived]
+    return render_template(
+        "admin_catalog.html", items=items, archived=archived, format_price=catalog_service.format_price,
+        safe_categories=catalog_service.SAFE_NEW_ITEM_CATEGORIES,
+        pricing_modes=pricing_config.VALID_PRICING_MODES,
+    )
+
+
+@admin_bp.route("/catalog/create", methods=["POST"])
+@security.admin_required
+def catalog_create():
+    name = (request.form.get("name") or "").strip()
+    category = (request.form.get("category") or "").strip()
+    pricing_mode = (request.form.get("pricing_mode") or "").strip()
+    price_amount = request.form.get("price_amount", type=int)
+    price_unit = (request.form.get("price_unit") or "").strip() or None
+    description = (request.form.get("description") or "").strip() or None
+    if not name or not category or not pricing_mode:
+        flash("Isi nama, kategori, dan jenis harga dulu.", "error")
+        return redirect(url_for("admin.catalog_admin"))
+    try:
+        catalog_service.create_catalog_item(
+            category, name, pricing_mode, price_amount=price_amount, price_unit=price_unit,
+            description=description,
+        )
+    except catalog_service.InvalidCatalogState as e:
+        flash(f"Tidak bisa disimpan: {e}", "error")
+        return redirect(url_for("admin.catalog_admin"))
+    flash(f"{name} ditambahkan ke katalog.", "success")
+    return redirect(url_for("admin.catalog_admin"))
 
 
 @admin_bp.route("/catalog/<int:catalog_id>/update", methods=["POST"])
@@ -399,6 +520,26 @@ def catalog_update(catalog_id):
     if updated is None:
         abort(404)
     flash(f"{updated['name']} diperbarui.", "success")
+    return redirect(url_for("admin.catalog_admin"))
+
+
+@admin_bp.route("/catalog/<int:catalog_id>/toggle-active", methods=["POST"])
+@security.admin_required
+def catalog_toggle_active(catalog_id):
+    """Aktifkan/Nonaktifkan (Section G/H). Deactivating ONLY flips service_catalog.is_active —
+    list_active_catalog() (the SAME function /services, project creation, and the bot's live
+    knowledge block all call) immediately stops returning it everywhere at once, with no separate
+    sync step. Never touches any existing projects/invoices/quotations row — those reference the
+    catalog by catalog_key at the time they were created, not a live join, so historical orders
+    are structurally unreachable from this action and remain exactly as they were."""
+    item = catalog_service.get_catalog_item_by_id(catalog_id)
+    if item is None:
+        abort(404)
+    if item['category'] == 'BUNDLE' and not item['is_active']:
+        flash('Bundle tidak ditawarkan lagi; layanan dibeli terpisah.', 'error')
+        return redirect(url_for('admin.catalog_admin', view='archive'))
+    catalog_service.update_catalog_item(catalog_id, is_active=not item["is_active"])
+    flash(f"{item['name']} {'diaktifkan' if not item['is_active'] else 'dinonaktifkan'}.", "success")
     return redirect(url_for("admin.catalog_admin"))
 
 
@@ -450,15 +591,19 @@ def project_admin_detail(project_id):
     if project is None:
         abort(404)
     business = repo.get_business(project["business_id"])
-    quotations = quotation_service.list_quotations_for_business(project["business_id"])
-    quotations = [q for q in quotations if q["project_id"] == project_id]
+    quotations = db.query_all("SELECT * FROM quotations WHERE project_id=? ORDER BY id DESC",(project_id,))
     audit_trail = repo.get_project_audit_log(project_id)
     attachments = db.query_all(
         "SELECT id, original_filename, mime_type, size_bytes, created_at FROM project_files "
         "WHERE project_id = ? AND kind = 'REFERENCE' ORDER BY created_at DESC",
         (project_id,),
     )
+    import wa_checkout
+    wa_order = wa_checkout.session_for_project(project_id)
+    wa_link = wa_checkout.link(wa_order) if wa_order and wa_order["expires_at"] > __import__("time").time() else None
     return render_template("admin_project_detail.html", project=project, business=business,
+                            wa_order=wa_order, wa_link=wa_link, wa_labels=wa_checkout.FIELDS, app_brief=(project.get('requirements') or {}).get('_app_brief') == 1,
+                            wa_missing=wa_checkout.missing(catalog_service.get_catalog_item(wa_order["catalog_key"]), project.get("requirements") or {}) if wa_order else [],
                             quotations=quotations, format_price=catalog_service.format_price,
                             audit_trail=audit_trail, attachments=attachments)
 
@@ -474,13 +619,18 @@ def project_create_quotation(project_id):
     if not final_price or final_price <= 0:
         flash("Harga final harus diisi dan lebih dari 0.", "error")
         return redirect(url_for("admin.project_admin_detail", project_id=project_id))
-    quotation_service.create_quotation(
-        project_id, project["business_id"],
-        scope=request.form.get("scope"), deliverables=request.form.get("deliverables"),
-        quantity=request.form.get("quantity", type=int), final_price=final_price,
-        notes=request.form.get("notes"), created_by_user_id=admin["id"],
-    )
-    flash("Quotation dibuat dan dikirim ke customer.", "success")
+    import wa_checkout
+    try:
+        wa_checkout.admin_quote(
+            project_id, project["business_id"],
+            scope=request.form.get("scope"), deliverables=request.form.get("deliverables"),
+            quantity=request.form.get("quantity", type=int), final_price=final_price,
+            notes=request.form.get("notes"), created_by_user_id=admin["id"],
+        )
+    except ValueError:
+        flash("Brief belum dikonfirmasi atau status penawaran telah berubah. Muat ulang project.", "error")
+        return redirect(url_for("admin.project_admin_detail", project_id=project_id))
+    flash("Penawaran tersedia. Untuk order WhatsApp, kirim tautan order pribadi dari halaman project.", "success")
     return redirect(url_for("admin.project_admin_detail", project_id=project_id))
 
 
@@ -505,6 +655,8 @@ def project_update_status(project_id):
 @security.admin_required
 def payments_admin():
     pending = payment_service.list_payments_pending_review()
+    for p in pending:
+        p["review_status"] = payment_service.derive_review_status(p)
     return render_template("admin_payments.html", payments=pending)
 
 
@@ -528,6 +680,9 @@ def payment_detail(payment_id):
     return render_template(
         "admin_payment_detail.html",
         payment=payment, invoice=invoice, business=business, project=project,
+        review_status=payment_service.derive_review_status(payment),
+        difference=(payment.get("ai_extracted_amount") - invoice["amount"]
+                    if payment.get("ai_extracted_amount") is not None and invoice else None),
     )
 
 
@@ -576,6 +731,26 @@ def payment_reject(payment_id):
         flash(f"Tidak bisa menolak: {e}", "error")
         return redirect(url_for("admin.payments_admin"))
     flash("Pembayaran ditolak.", "success")
+    return redirect(url_for("admin.payments_admin"))
+
+
+@admin_bp.route("/payments/<int:payment_id>/request-reupload", methods=["POST"])
+@security.admin_required
+def payment_request_reupload(payment_id):
+    """Section 9/11's third action — distinct from Reject: asks the customer for a fresh upload
+    without recording the payment as REJECTED. See payment_service.request_reupload()'s own
+    docstring for why this is a separate action/audit event."""
+    admin = security.current_user()
+    payment = payment_service.get_payment(payment_id)
+    if payment is None:
+        abort(404)
+    try:
+        payment_service.request_reupload(payment_id, payment["business_id"], admin["id"],
+                                          admin_notes=request.form.get("admin_notes"))
+    except ValueError as e:
+        flash(f"Tidak bisa minta upload ulang: {e}", "error")
+        return redirect(url_for("admin.payments_admin"))
+    flash("Customer diminta upload ulang bukti pembayaran.", "success")
     return redirect(url_for("admin.payments_admin"))
 
 
@@ -746,3 +921,183 @@ def simulate_page(business_id):
         session[token_key] = uuid.uuid4().hex
     history = repo.get_simulation_history(business_id, session[token_key])
     return render_template("simulate.html", business=business, history=history, is_admin_view=True)
+
+
+# ---------------------------------------------------------------------------
+# Kilas Works own WhatsApp Inbox — one professional web, database stays invisible.
+# ---------------------------------------------------------------------------
+
+@admin_bp.route("/inbox")
+@security.admin_required
+def platform_inbox():
+    search = (request.args.get("q") or "").strip()
+    mode_filter = (request.args.get("mode") or "").strip()
+    if mode_filter not in ("", "AI_ACTIVE", "HUMAN_TAKEOVER"):
+        mode_filter = ""
+    conversations = platform_inbox_service.list_conversations(
+        search=search,
+        mode_filter=mode_filter or None,
+    )
+    selected_phone = platform_inbox_service.normalize_customer_phone(request.args.get("customer"))
+
+    selected = None
+    thread = []
+    window = None
+    if selected_phone:
+        if not platform_inbox_service.customer_exists(selected_phone):
+            abort(404)
+        try:
+            mode = platform_inbox_service.get_state(selected_phone)
+        except Exception:
+            mode = "STATE_UNAVAILABLE"
+        selected = {
+            "customer_phone": selected_phone,
+            "customer_name": platform_inbox_service.get_customer_name(selected_phone),
+            "mode": mode,
+        }
+        thread = platform_inbox_service.get_thread(selected_phone)
+        window = platform_inbox_service.freeform_window_status(selected_phone)
+
+    return render_template(
+        "platform_inbox.html",
+        template_readiness=platform_inbox_service.template_readiness() if selected and selected["mode"] == "HUMAN_TAKEOVER" and not (window and window.get("allowed")) else None,
+        conversations=conversations,
+        selected=selected,
+        thread=thread,
+        window=window,
+        search=search,
+        mode_filter=mode_filter,
+    )
+
+
+@admin_bp.route("/inbox/takeover", methods=["POST"])
+@security.admin_required
+def platform_inbox_takeover():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    admin = security.current_user()
+    platform_inbox_service.start_human_takeover(phone, admin["id"])
+    repo.write_audit_no_business(admin["id"], "PLATFORM_HUMAN_TAKEOVER_STARTED", f"customer={phone}")
+    flash("Lu ambil alih chat ini. AI Kilas Works akan diam khusus customer tersebut.", "success")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/return-ai", methods=["POST"])
+@security.admin_required
+def platform_inbox_return_ai():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    admin = security.current_user()
+    platform_inbox_service.return_to_ai(phone, admin["id"])
+    repo.write_audit_no_business(admin["id"], "PLATFORM_HUMAN_TAKEOVER_ENDED", f"customer={phone}")
+    flash("Chat dikembalikan ke AI Kilas Works.", "success")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/reply", methods=["POST"])
+@security.admin_required
+def platform_inbox_reply():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    text = (request.form.get("message") or "").strip()
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    if not text:
+        flash("Pesan tidak boleh kosong.", "error")
+        return redirect(url_for("admin.platform_inbox", customer=phone))
+
+    ok, reason = platform_inbox_service.send_manual_reply(phone, text)
+    admin = security.current_user()
+    if ok:
+        repo.write_audit_no_business(admin["id"], "PLATFORM_CS_MANUAL_REPLY_SENT", f"customer={phone}")
+        if reason == "sent_history_write_failed":
+            flash("Pesan terkirim, tapi history lokal gagal tersimpan. Cek log.", "success")
+        else:
+            flash("Pesan Kilas Works terkirim.", "success")
+    else:
+        friendly = {
+            "human_takeover_required": "Klik Ambil Alih dulu sebelum balas manual.",
+            "outside_24h_window": "Sudah di luar window WhatsApp 24 jam. Free-text tidak dikirim; perlu template message.",
+            "no_customer_inbound": "Belum ada inbound customer yang membuka window WhatsApp 24 jam.",
+            "takeover_state_unavailable": "Status takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
+            "bot_internal_bridge_unavailable": "Koneksi internal Client Hub → bot belum dikonfigurasi.",
+            "bot_internal_bridge_network_error": "Bot WhatsApp sedang tidak terjangkau dari Client Hub. Coba lagi sebentar.",
+            "bot_internal_bridge_timeout": "Bot WhatsApp terlalu lama merespons (kemungkinan cold start Render). Coba sekali lagi setelah bot sudah Live.",
+            "message_too_long": "Pesan terlalu panjang. Maksimal 4096 karakter.",
+        }.get(reason)
+
+        if not friendly and str(reason).startswith("bot_internal_bridge_http_"):
+            # Safe operational diagnostic only; never exposes tokens/secrets/message bodies.
+            detail = str(reason).replace("bot_internal_bridge_http_", "HTTP ", 1)
+            friendly = f"Bridge Client Hub → bot menolak request ({detail}). Kirim kode ini ke admin untuk diagnosis."
+        if not friendly:
+            friendly = f"Pesan belum berhasil dikirim. Diagnostic: {reason}"
+        flash(friendly, "error")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/send-template", methods=["POST"])
+@security.admin_required
+def platform_inbox_send_template():
+    """Inbox unification, Section 4/5 — "Kirim Template & Lanjutkan" for Kilas Works' own inbox.
+    See platform_inbox_service.send_template_reply()'s own docstring for the full safety/config
+    rationale — same shared 24h-window/template logic as the tenant inbox's equivalent action
+    (client.inbox_send_template), differing only in send transport (internal bridge to the bot
+    process, since Client Hub never holds Kilas Works' own WhatsApp token)."""
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+
+    ok, reason = platform_inbox_service.send_template_reply(phone)
+    admin = security.current_user()
+    if ok:
+        repo.write_audit_no_business(admin["id"], "PLATFORM_CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
+        flash("Template terkirim. Begitu customer membalas, window 24 jam aktif lagi.", "success")
+    else:
+        import wa_inbox_shared
+        friendly = wa_inbox_shared.template_error_message(reason, platform=True)
+        flash(friendly, "error")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route('/inbox/media/<media_key>')
+@security.admin_required
+def inbox_media(media_key):
+    row = inbox_media_service.get(media_key, None)
+    if not row:
+        abort(404)
+    return inbox_media_service.serve(row, lambda: inbox_media_service.platform_download(row))
+
+
+@admin_bp.route('/inbox/media', methods=['POST'])
+@security.admin_required
+def inbox_media_send():
+    if not request.content_length or request.content_length > 12 * 1024 * 1024:
+        abort(413)
+    phone = request.form.get('customer_phone', '')
+    if not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    ok, reason = inbox_media_service.platform_send(phone, request.files.get('file'), request.form.get('caption'))
+    flash(*inbox_media_service.upload_flash(ok, reason))
+    return redirect(url_for('admin.platform_inbox', customer=phone))
+
+
+@admin_bp.route('/projects/<int:project_id>/reference/<int:file_id>')
+@security.admin_required
+def guest_project_reference(project_id,file_id):
+    row=db.query_one("SELECT * FROM project_files WHERE id=? AND project_id=? AND kind='REFERENCE'",(file_id,project_id))
+    if not row:abort(404)
+    import io
+    from flask import send_file
+    return send_file(io.BytesIO(bytes(row['content'])),mimetype=row['mime_type'],as_attachment=True,download_name=row['original_filename'])
+
+
+@admin_bp.route('/projects/<int:project_id>/wa-link', methods=['POST'])
+@security.admin_required
+def renew_wa_order_link(project_id):
+    import wa_checkout
+    if not wa_checkout.session_for_project(project_id):abort(404)
+    wa_checkout.renew(project_id)
+    flash('Tautan diperbarui. Salin dan kirim ke customer yang tercatat pada order ini.', 'success')
+    return redirect(url_for('admin.project_admin_detail',project_id=project_id))
