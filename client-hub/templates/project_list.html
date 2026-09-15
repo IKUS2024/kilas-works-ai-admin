@@ -1,13 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Projects — {{ business.business_name }}{% endblock %}
+{% block title %}{{ 'Proyek — ' ~ business.business_name if business else 'Proyek Saya' }}{% endblock %}
 {% block content %}
-<h1>Proyek — {{ business.business_name }}</h1>
-<div style="display:flex;gap:8px;margin-bottom:16px;">
-  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') }}">Aktif</a>
-  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') }}">Riwayat</a>
-  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') }}">Semua</a>
+<h1>{{ 'Proyek — ' ~ business.business_name if business else ('Riwayat Proyek' if view == 'history' else 'Proyek Saya') }}</h1>
+<p><a href="{{ url_for('client.dashboard') }}">Kembali ke Dashboard</a></p>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') if business else url_for('projects.my_project_list',view='active') }}">Aktif</a>
+  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') if business else url_for('projects.my_project_list',view='history') }}">Riwayat</a>
+  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') if business else url_for('projects.my_project_list',view='all') }}">Semua</a>
 </div>
-<div class="card">
+<div class="card" style="overflow-x:auto;">
   <table>
     <tr><th>Nama Proyek</th><th>Tipe</th><th>Status</th><th>Harga</th><th></th></tr>
     {% for p in projects %}
@@ -16,7 +17,7 @@
       <td>{{ p.project_type }}</td>
       <td><span class="pill APPROVED">{{ p.status|humanize_status('project') }}</span></td>
       <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Belum ada harga' }}</td>
-      <td><a href="{{ url_for('projects.project_detail', business_id=business.id, project_id=p.id) }}">Lihat</a></td>
+      <td><a href="{{ url_for('projects.project_view', project_id=p.id) }}">Lihat</a></td>
     </tr>
     {% endfor %}
   </table>

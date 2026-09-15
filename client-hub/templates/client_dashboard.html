@@ -1,27 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Kilas Works Client Hub{% endblock %}
 {% block content %}
-<style>.business-actions{min-width:0}.business-actions .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}</style>
+<style>.business-actions{min-width:0}.business-actions .btn{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.customer-projects{width:100%;table-layout:fixed}.customer-projects td{overflow-wrap:anywhere}.project-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.project-actions .btn{max-width:100%;white-space:normal}
+@media(max-width:680px){.customer-projects,.customer-projects tbody,.customer-projects tr,.customer-projects td{display:block;width:100%;box-sizing:border-box}.customer-projects thead{display:none}.customer-projects tr{border-bottom:1px solid var(--border);padding:12px 0}.customer-projects td{border:0;padding:5px 0}.customer-projects td[data-label]::before{content:attr(data-label) ": ";color:var(--text-dim);font-weight:600}}
+</style>
 <h1>Halo, {{ user.full_name or user.email }}</h1>
 <p class="muted">Kelola setup Kilas Brain dan proyek Kilas Works-mu di sini.</p>
 
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
     <h2 style="margin:0;">Proyek & Layanan Saya</h2>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a class="btn small secondary" href="{{ url_for('projects.my_project_list',view='history') }}">Riwayat Proyek</a>
       <a class="btn small secondary" href="{{ url_for('projects.service_catalog_page') }}">Lihat Layanan</a>
       <a class="btn small secondary" href="{{ url_for('talent.talent_list') }}">Talent Management</a>
     </div>
   </div>
   {% if my_projects %}
-    <table style="margin-top:10px;">
-      <tr><th>Bisnis</th><th>Proyek</th><th>Status Layanan</th><th>Status Pembayaran</th><th>Harga</th><th></th></tr>
+    <table class="customer-projects" style="margin-top:10px;">
+      <thead><tr><th>Bisnis</th><th>Proyek</th><th>Status Layanan</th><th>Status Pembayaran</th><th>Harga</th><th>Aksi</th></tr></thead><tbody>
       {% for p in my_projects %}
         <tr>
-          <td>{{ p.business_name }}</td>
-          <td>{{ p.title }}</td>
-          <td><span class="pill {{ p.status }}">{{ p.status|humanize_status('project') }}</span></td>
-          <td>
+          <td data-label="Bisnis">{{ p.business_name }}</td>
+          <td data-label="Proyek">{{ p.title }}</td>
+          <td data-label="Status layanan"><span class="pill {{ p.status }}">{{ p.status|humanize_status('project') }}</span></td>
+          <td data-label="Pembayaran">
             {% if p.payment %}
               <span class="pill {{ p.payment.status }}">{{ p.payment_review_status|humanize_status('payment') }}</span>
             {% elif p.invoice %}
@@ -30,11 +34,17 @@
               <span class="pill">Belum ada tagihan</span>
             {% endif %}
           </td>
-          <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Menunggu Penawaran' }}</td>
-          <td><a href="{{ url_for('projects.project_detail', business_id=p.business_id, project_id=p.id) if p.business_id else url_for('projects.project_view', project_id=p.id) }}">Lihat</a></td>
+          <td data-label="Harga">{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Menunggu Penawaran' }}</td>
+          <td><div class="project-actions">
+            {% if p.can_edit_brief %}<a class="btn small secondary" href="{{ url_for('projects.purchase_brief',project_id=p.id,edit=1) }}">Edit Brief</a>
+            {% else %}<a class="btn small secondary" href="{{ url_for('projects.project_detail', business_id=p.business_id, project_id=p.id) if p.business_id else url_for('projects.project_view', project_id=p.id) }}">Lihat</a>{% endif %}
+            {% if p.can_cancel %}<form method="post" action="{{ url_for('projects.cancel_project',business_id=p.business_id,project_id=p.id) if p.business_id else url_for('projects.cancel_personal_project',project_id=p.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger">Batalkan</button>
+            </form>{% endif %}
+          </div></td>
         </tr>
       {% endfor %}
-    </table>
+    </tbody></table>
   {% else %}
     <p class="muted" style="margin-top:10px;">Belum ada proyek/pesanan aktif. Cek Layanan atau Talent Management di atas.</p>
   {% endif %}

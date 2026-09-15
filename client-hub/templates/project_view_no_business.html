@@ -26,4 +26,7 @@
     <p class="muted">Status: {{ project.status|humanize_status('project') }}</p>
   {% endif %}
 </div>
+{% if can_cancel %}<form method="post" action="{{ url_for('projects.cancel_personal_project',project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">Batalkan</button>
+</form>{% endif %}
 {% endblock %}

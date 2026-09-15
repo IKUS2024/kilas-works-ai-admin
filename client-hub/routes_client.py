@@ -137,6 +137,9 @@ def dashboard():
         my_projects.append({**p, "business_name": "Pesanan pribadi", "invoice": invoice,
             "payment": payment, "payment_review_status": payment_service.derive_review_status(payment) if payment else None,
             "latest_quotation": quotation_service.get_latest_quotation_for_project(p["id"])})
+    for project in my_projects:
+        project['can_edit_brief'] = projects_repo.is_editable_app_brief(project)
+        project['can_cancel'] = projects_repo.customer_can_cancel(project, project.get('payment'))
     return render_template(
         "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects
     )

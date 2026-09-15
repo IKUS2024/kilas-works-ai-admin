@@ -86,11 +86,42 @@ def list_projects_for_business(business_id):
     return db.query_all("SELECT * FROM projects WHERE business_id = ? ORDER BY created_at DESC", (business_id,))
 
 
-def list_businessless_projects_for_user(user_id):
+def list_businessless_projects_for_user(user_id, *, include_history=False):
     """Orders made before creating a business still belong to their authenticated creator."""
     return db.query_all(
         "SELECT * FROM projects WHERE business_id IS NULL AND created_by_user_id = ? "
-        "AND status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY created_at DESC", (user_id,))
+        + ("" if include_history else "AND status NOT IN ('COMPLETED', 'CANCELLED') ")
+        + "ORDER BY created_at DESC, id DESC", (user_id,))
+
+
+def is_editable_app_brief(project):
+    if project['status'] != 'REQUESTED':
+        return False
+    data = project.get('requirements_json') or {}
+    if isinstance(data, (str, bytes)):
+        try:
+            data = json.loads(data)
+        except (TypeError, ValueError):
+            return False
+    return isinstance(data, dict) and data.get('_app_brief') == 1
+
+
+def customer_can_cancel(project, payment=None):
+    """One conservative policy for dashboard actions and both authenticated cancel routes.
+
+    Payment safety is checked before accepting any project status. Check all invoices/payments
+    too, so an older verified payment cannot be hidden by a newer unpaid invoice.
+    """
+    if project['status'] not in ('REQUESTED', 'WAITING_FOR_QUOTE', 'APPROVED', 'PAYMENT_PENDING'):
+        return False
+    if payment and payment['status'] not in ('PAYMENT_PENDING', 'REJECTED'):
+        return False
+    blocked = db.query_one(
+        "SELECT i.id FROM invoices i LEFT JOIN payments p ON p.invoice_id=i.id "
+        "WHERE i.project_id=? AND (i.status='PAID' OR "
+        "(p.id IS NOT NULL AND p.status NOT IN ('PAYMENT_PENDING','REJECTED'))) LIMIT 1",
+        (project['id'],))
+    return blocked is None
 
 
 def get_unfinished_project_for_catalog_key(business_id, catalog_key, created_by_user_id=None):

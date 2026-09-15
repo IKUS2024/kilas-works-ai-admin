@@ -212,6 +212,25 @@ def purchase_brief(project_id):
                            quote=quotation_service.get_latest_quotation_for_project(project_id)), 400 if error else 200
 
 
+@projects_bp.route('/projects')
+@security.login_required
+def my_project_list():
+    """Reuse the project list/history view for this customer's business and personal orders."""
+    user = security.current_user()
+    view = request.args.get('view', 'active')
+    if view not in ('active', 'history', 'all'):
+        view = 'active'
+    projects = projects_repo.list_businessless_projects_for_user(user['id'], include_history=True)
+    for business in repo.list_businesses_for_user(user['id']):
+        projects.extend(projects_repo.list_projects_for_business(business['id']))
+    if view == 'history':
+        projects = [p for p in projects if p['status'] in _HISTORY_STATUSES]
+    elif view == 'active':
+        projects = [p for p in projects if p['status'] not in _HISTORY_STATUSES]
+    projects.sort(key=lambda p: p['id'], reverse=True)
+    return render_template('project_list.html', business=None, projects=projects, view=view)
+
+
 @projects_bp.route("/business/<int:business_id>/projects")
 @security.login_required
 def project_list(business_id):
@@ -248,7 +267,8 @@ def project_view(project_id):
         return redirect(url_for('projects.purchase_brief', project_id=project_id))
     if project["business_id"] is not None:
         return redirect(url_for("projects.project_detail", business_id=project["business_id"], project_id=project_id))
-    return render_template("project_view_no_business.html", project=project)
+    return render_template("project_view_no_business.html", project=project,
+                           can_cancel=projects_repo.customer_can_cancel(project))
 
 
 @projects_bp.route("/business/<int:business_id>/projects/<int:project_id>")
@@ -283,45 +303,50 @@ def project_detail(business_id, project_id):
 
 
 def _project_can_be_self_cancelled(project, payment):
-    """A customer may only cancel their OWN order before any money is genuinely in flight:
-    WAITING_FOR_QUOTE (no price agreed yet) or APPROVED/PAYMENT_PENDING with NO payment proof
-    uploaded yet (payment is None, or still PAYMENT_PENDING/REJECTED — REJECTED means an earlier
-    proof was rejected and no new one is under review, so cancelling is still safe). Once a proof
-    is UNDER_REVIEW, or the payment is VERIFIED, or the project has moved to PAID/IN_PROGRESS/
-    COMPLETED, self-cancel is no longer offered — matches the exact behavior requested."""
-    if project["status"] in ("CANCELLED", "REJECTED", "COMPLETED"):
-        return False
-    if project["status"] in ("WAITING_FOR_QUOTE", "APPROVED"):
-        return True
-    if project["status"] == "PAYMENT_PENDING":
-        if payment is None:
-            return True
-        return payment["status"] in ("PAYMENT_PENDING", "REJECTED")
-    return False
+    return projects_repo.customer_can_cancel(project, payment)
 
 
 @projects_bp.route("/business/<int:business_id>/projects/<int:project_id>/cancel", methods=["POST"])
 @security.login_required
 def cancel_project(business_id, project_id):
-    """Customer-initiated cancellation (Batch 1, Section 3) — reuses projects_repo.
-    set_project_status() exactly as every other status transition in this codebase does (writes
-    an audit row, never deletes anything). The project/invoice/payment rows all remain in the
-    database permanently as a CANCELLED historical record — this route has no DELETE statement
-    anywhere in it."""
+    return _cancel_project_for_customer(project_id, business_id)
+
+
+@projects_bp.route('/projects/<int:project_id>/cancel', methods=['POST'])
+@security.login_required
+def cancel_personal_project(project_id):
+    return _cancel_project_for_customer(project_id)
+
+
+def _cancel_project_for_customer(project_id, business_id=None):
     user = security.current_user()
-    business = security.require_business_access(business_id, user)
-    project = projects_repo.get_project(project_id)
-    if project is None or project["business_id"] != business["id"]:
+    project = security.require_project_access(project_id, user)
+    if business_id is not None and project['business_id'] != business_id:
         abort(404)
-    import payment_service
-    _invoice, payment = payment_service.get_latest_payment_for_project(project_id)
-    if not _project_can_be_self_cancelled(project, payment):
-        flash("Pesanan ini tidak bisa dibatalkan sendiri — bukti pembayaran sedang direview atau sudah diproses.", "error")
-        return redirect(url_for("projects.project_detail", business_id=business_id, project_id=project_id))
-    projects_repo.set_project_status(project_id, "CANCELLED", user["id"], business_id,
-                                      detail=f"Dibatalkan oleh customer (project_id={project_id})")
-    flash("Pesanan dibatalkan.", "success")
-    return redirect(url_for("projects.project_list", business_id=business_id, view="all"))
+    # Reuse the order's existing lock; attached WhatsApp orders keep their sender lock.
+    session_row = db.query_one('SELECT phone_hash FROM wa_checkout_sessions WHERE project_id=?', (project_id,))
+    transaction = (db.commerce_transaction(session_row['phone_hash']) if session_row else
+                   db.app_purchase_transaction(project['business_id'], project['created_by_user_id']))
+    with transaction:
+        # PostgreSQL payment rows are locked before reading their state. SQLite's owner-row
+        # write already serializes writers. No payment, invoice or quotation is changed here.
+        if db.BACKEND == 'postgres':
+            db.query_all('SELECT p.id FROM payments p JOIN invoices i ON i.id=p.invoice_id '
+                         'WHERE i.project_id=? ORDER BY p.id FOR UPDATE OF p', (project_id,))
+            db.query_all('SELECT id FROM invoices WHERE project_id=? ORDER BY id FOR UPDATE', (project_id,))
+            db.query_one('SELECT id FROM projects WHERE id=? FOR UPDATE', (project_id,))
+        project = security.require_project_access(project_id, user)
+        if business_id is not None and project['business_id'] != business_id:
+            abort(404)
+        if not _project_can_be_self_cancelled(project, None):
+            flash('Pesanan tidak dapat dibatalkan: pembayaran sedang direview atau sudah diproses.', 'error')
+        else:
+            detail = f'Dibatalkan oleh customer (project_id={project_id}); riwayat tetap tersimpan'
+            projects_repo.set_project_status(project_id, 'CANCELLED', user['id'], project['business_id'], detail)
+            if project['business_id'] is None:
+                repo.write_audit(user['id'], None, 'PROJECT_STATUS_CHANGED', detail, project_id=project_id)
+            flash('Pesanan dibatalkan. Riwayat transaksi tetap tersimpan.', 'success')
+    return redirect(url_for('client.dashboard'))
 
 
 @projects_bp.route("/business/<int:business_id>/projects/<int:project_id>/attachments/<int:file_id>")
