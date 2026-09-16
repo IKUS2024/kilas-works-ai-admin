@@ -1,97 +1,115 @@
-"""WhatsApp Embedded Signup entry/callback foundation for Kilas Works Client Hub.
-
-This module intentionally does NOT exchange OAuth codes or persist Meta tokens yet.  It creates a
-stable, HTTPS callback endpoint that can be registered in Meta while Tech Provider/App Review is
-still pending, without ever logging OAuth query parameters or app secrets.  The actual token
-exchange + WABA/phone binding will be enabled only after the Meta configuration ID/permissions are
-approved and the post-signup flow is wired end-to-end.
-"""
-import os
-from urllib.parse import urlparse
-
-from flask import Blueprint, flash, redirect, request, session, url_for
-
+"""Authenticated, CSRF-protected Embedded Signup. No credentials in customer responses."""
+import logging
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from werkzeug.exceptions import HTTPException
 import security
+import repo
+import provisioning
+import whatsapp_signup as signup
 
-whatsapp_bp = Blueprint("whatsapp", __name__)
+whatsapp_bp = Blueprint('whatsapp', __name__)
+log = logging.getLogger(__name__)
 
-
-def _safe_meta_signup_url():
-    """Return the configured Meta-hosted Embedded Signup URL only if it is HTTPS on facebook.com."""
-    raw = (os.environ.get("META_EMBEDDED_SIGNUP_URL") or "").strip()
-    if not raw:
-        return None
-    try:
-        parsed = urlparse(raw)
-    except Exception:
-        return None
-    host = (parsed.hostname or "").lower()
-    if parsed.scheme != "https" or not (host == "facebook.com" or host.endswith(".facebook.com")):
-        return None
-    return raw
+MESSAGES = {
+    'configuration_missing': 'Hubungkan WhatsApp belum tersedia. Hubungi Kilas Works.',
+    'approval_required': 'Setup bisnis sedang direview. Tunggu persetujuan Kilas Works.',
+    'payment_verification_required': 'Pembayaran menunggu verifikasi Kilas Works.',
+    'provisioning_required': 'Persiapan bisnis belum selesai. Hubungi Kilas Works.',
+    'package_ineligible': 'Bisnis ini belum menggunakan Kilas Brain.',
+    'invalid_state': 'Sesi koneksi sudah digunakan atau berakhir. Muat ulang halaman untuk mencoba lagi.',
+}
 
 
-@whatsapp_bp.route("/business/<int:business_id>/whatsapp/connect", methods=["GET"])
+@whatsapp_bp.route('/business/<int:business_id>/whatsapp/connect')
 @security.login_required
 def embedded_signup_start(business_id):
-    """Owner-facing entry point for Meta-hosted Embedded Signup.
-
-    The hosted URL itself lives in Render Environment rather than source control.  We remember the
-    selected business in the signed Flask session so the callback can later bind the Meta result to
-    the correct tenant once server-side code exchange is enabled.
-    """
     user = security.current_user()
     business = security.require_business_access(business_id, user=user)
+    error = None
+    config = None
+    state = None
+    if business['status'] != 'ACTIVE':
+        try:
+            signup.eligible(business_id, user)
+            config = signup.settings()
+            state = signup.new_state(business_id, user['id'])
+        except signup.SignupError as exc:
+            error = MESSAGES.get(str(exc), signup.PUBLIC_ERROR)
+    public_config = None if not config else {
+        'appId': config['META_APP_ID'], 'configId': config['META_EMBEDDED_SIGNUP_CONFIG_ID'],
+        'version': config['version'], 'state': state,
+        'endpoint': url_for('whatsapp.embedded_signup_complete', business_id=business_id),
+    }
+    channel = repo.get_whatsapp_config(business_id) or {}
+    retry_activation = business['status'] == 'APPROVED' and channel.get('connection_status') == 'CONNECTED' and not channel.get('credentials_reference')
+    response = render_template('whatsapp_connect.html', business=business, signup_config=public_config, error=error, retry_activation=retry_activation)
+    return response, 200, {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'}
 
-    if business.get("package") == "NONE":
-        flash("Business ini belum menggunakan AI Admin.", "error")
-        return redirect(url_for("client.dashboard"))
-    if business.get("status") not in ("APPROVED", "ACTIVE", "SUSPENDED"):
-        flash("Selesaikan onboarding dan approval sebelum menghubungkan WhatsApp.", "error")
-        return redirect(url_for("client.dashboard"))
 
-    signup_url = _safe_meta_signup_url()
-    if not signup_url:
-        flash("Konfigurasi Hubungkan WhatsApp belum tersedia. Hubungi Kilas Works.", "error")
-        return redirect(url_for("client.dashboard"))
+@whatsapp_bp.route('/business/<int:business_id>/whatsapp/complete', methods=['POST'])
+@security.login_required
+def embedded_signup_complete(business_id):
+    user = security.current_user()
+    security.require_business_access(business_id, user=user)
+    if not request.is_json or not request.content_length or request.content_length > 8192:
+        return jsonify(error=signup.PUBLIC_ERROR), 400
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or set(data) != {'state', 'code', 'waba_id', 'phone_number_id'}:
+            raise signup.SignupError('invalid_payload')
+        signup.consume_state(business_id, user['id'], data['state'])
+        signup.eligible(business_id, user)
+        # Local duplicate guard before any Meta mutation, followed by an atomic recheck at binding.
+        if repo.find_business_id_by_phone_number_id(data['phone_number_id'], exclude_business_id=business_id) is not None:
+            raise signup.SignupError('duplicate_phone')
+        waba, phone = signup.verify_and_prepare(data['code'], data['waba_id'], data['phone_number_id'])
+        result = provisioning.complete_self_service_whatsapp(business_id, user, waba, phone)
+        active = result['status'] == 'ACTIVE'
+        return jsonify(status='active' if active else 'connected', message=(
+            'Kilas Brain aktif.' if active else
+            'WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan Kilas Works.'))
+    except signup.SignupError as exc:
+        # Only locally constructed categories, never Graph messages/payloads or identifiers.
+        log.warning('WHATSAPP_SIGNUP reason=%s', str(exc))
+        if str(exc) != 'invalid_state':
+            try:
+                repo.write_audit(user['id'], business_id, 'WHATSAPP_SIGNUP_FAILED', str(exc))
+            except Exception:
+                log.warning('WHATSAPP_SIGNUP reason=audit_unavailable')
+        return jsonify(error=MESSAGES.get(str(exc), signup.PUBLIC_ERROR)), 400
+    except HTTPException:
+        raise
+    except Exception:
+        log.warning('WHATSAPP_SIGNUP reason=internal_failure')
+        return jsonify(error=signup.PUBLIC_ERROR), 503
 
-    session["wa_embedded_signup_business_id"] = int(business_id)
-    return redirect(signup_url)
 
-
-@whatsapp_bp.route("/whatsapp/embedded-signup/callback", methods=["GET"])
+@whatsapp_bp.route('/whatsapp/embedded-signup/callback')
 @security.login_required
 def embedded_signup_callback():
-    """Stable OAuth redirect URI for Meta Embedded Signup.
+    # Legacy registered URL remains safe, but never treats unverified query data as success.
+    flash('Lanjutkan Hubungkan WhatsApp dari halaman bisnis. Koneksi belum dikonfirmasi.', 'error')
+    return redirect(url_for('client.dashboard'))
 
-    Security notes:
-    - Never prints/logs request.args because it can contain a short-lived OAuth code.
-    - Does not accept or persist access tokens in the browser callback.
-    - Until the server-side code exchange is implemented, an OAuth code is deliberately NOT used.
-      This keeps the endpoint safe to register now without pretending onboarding is complete.
-    """
-    error = (request.args.get("error") or "").strip()
-    error_description = (request.args.get("error_description") or "").strip()
-    code_present = bool((request.args.get("code") or "").strip())
-    pending_business_id = session.pop("wa_embedded_signup_business_id", None)
 
-    if error:
-        # Keep the user-facing message useful but bounded; never echo arbitrary long query text.
-        detail = error_description[:240] if error_description else error[:120]
-        flash(f"Koneksi WhatsApp dibatalkan atau gagal di Meta. {detail}", "error")
-        return redirect(url_for("client.dashboard"))
-
-    if code_present:
-        # IMPORTANT: do not claim CONNECTED. The code exchange/binding step is not wired yet.
-        if pending_business_id:
-            # Re-check access so a stale/tampered session can never bind a Meta result to another tenant.
-            security.require_business_access(int(pending_business_id), user=security.current_user())
-        flash(
-            "Meta berhasil kembali ke Kilas Works. Tahap login/izin selesai; penyambungan final "
-            "akan aktif setelah pertukaran kode Meta dan binding nomor selesai di server.",
-            "success",
-        )
-    else:
-        flash("Kembali dari Meta. Belum ada data koneksi WhatsApp yang dapat diproses.", "error")
-
-    return redirect(url_for("client.dashboard"))
+@whatsapp_bp.route('/business/<int:business_id>/whatsapp/activate', methods=['POST'])
+@security.login_required
+def retry_activation(business_id):
+    user = security.current_user()
+    business = security.require_business_access(business_id, user=user)
+    if business['status'] == 'ACTIVE':
+        return redirect(url_for('client.dashboard'))
+    channel = repo.get_whatsapp_config(business_id) or {}
+    try:
+        signup.eligible(business_id, user)
+        if channel.get('connection_status') != 'CONNECTED' or channel.get('credentials_reference'):
+            raise signup.SignupError('channel_validation_failed')
+        result = provisioning.complete_self_service_whatsapp(business_id, user, channel['waba_id'], channel['phone_number_id'])
+        flash('Kilas Brain aktif.' if result['status'] == 'ACTIVE' else
+              'WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan Kilas Works.', 'success' if result['status'] == 'ACTIVE' else 'error')
+    except HTTPException:
+        raise
+    except Exception:
+        log.warning('WHATSAPP_SIGNUP reason=activation_pending')
+        flash('Aktivasi belum selesai. Hubungi Kilas Works untuk memeriksa kesiapan bisnis.', 'error')
+    return redirect(url_for('whatsapp.embedded_signup_start', business_id=business_id))

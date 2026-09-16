@@ -282,6 +282,12 @@ def validate_and_connect_whatsapp(business_id, actor, phone_number_id, waba_id, 
     required fields), matching every other function in this module.
     """
     _require_admin(actor)
+    from whatsapp_signup import binding_lock
+    with binding_lock():
+        return _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, credentials_reference)
+
+
+def _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, credentials_reference):
     business = repo.get_business(business_id)
     if not business:
         raise ProvisioningError("business_not_found")
@@ -352,7 +358,8 @@ def _check_whatsapp_phone_number_reachable(phone_number_id, credentials_referenc
             return False, "shared default WHATSAPP_ACCESS_TOKEN has no value set in this environment"
     try:
         import requests
-        url = f"https://graph.facebook.com/v21.0/{phone_number_id}"
+        version = os.environ.get("META_GRAPH_API_VERSION", "v21.0")
+        url = f"https://graph.facebook.com/{version}/{phone_number_id}"
         resp = requests.get(
             url,
             headers={"Authorization": f"Bearer {access_token}"},
@@ -405,6 +412,10 @@ def activate_tenant(business_id, actor):
     block below for the full fail-closed rationale.
     """
     _require_admin(actor)
+    return _activate_tenant_core(business_id, actor)
+
+
+def _activate_tenant_core(business_id, actor):
     business = repo.get_business(business_id)
     if not business:
         raise ProvisioningError("business_not_found")
@@ -516,3 +527,38 @@ def approve_and_provision(business_id, actor):
     repo.approve_business(business_id, actor["id"])
     repo.write_audit(actor["id"], business_id, EVENT_BUSINESS_APPROVED, None)
     return provision_tenant(business_id, actor)
+
+
+def complete_self_service_whatsapp(business_id, actor, waba_id, phone_number_id):
+    """Called only after server-side Meta verification; never impersonates an admin."""
+    from whatsapp_signup import binding_lock
+    with binding_lock():
+        db.execute('UPDATE businesses SET id=id WHERE id=?', (business_id,))
+        db._local.knowledge_business = business_id
+        try:
+            return _complete_self_service_locked(business_id, actor, waba_id, phone_number_id)
+        finally:
+            db._local.knowledge_business = None
+
+
+def _complete_self_service_locked(business_id, actor, waba_id, phone_number_id):
+    from whatsapp_signup import eligible, SignupError
+    eligible(business_id, actor)
+    if repo.find_business_id_by_phone_number_id(phone_number_id, exclude_business_id=business_id) is not None:
+        raise SignupError('duplicate_phone')
+    result = _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, None)
+    if result['status'] != 'CONNECTED':
+        raise SignupError('channel_validation_failed')
+    db.execute('UPDATE businesses SET whatsapp_phone_number_id=?,whatsapp_connected=?,updated_at=? WHERE id=?',
+               (phone_number_id, True, repo._now(), business_id))
+    config = repo.get_tenant_config_row(business_id)['config']
+    config['whatsapp'] = {'phone_number_id': phone_number_id, 'waba_id': waba_id,
+                          'credentials_reference': None, 'connection_status': 'CONNECTED'}
+    repo.save_tenant_config(business_id, config)
+    repo.write_audit(actor['id'], business_id, 'WHATSAPP_SELF_SERVICE_CONNECTED', 'provider_shared')
+    try:
+        return _activate_tenant_core(business_id, actor)
+    except ProvisioningError:
+        # Keep a validated connection; no fabricated success if a remaining activation gate fails.
+        repo.write_audit(actor['id'], business_id, 'WHATSAPP_AUTO_ACTIVATION_PENDING', 'activation_gate_pending')
+        return {'status': 'CONNECTED', 'changed': True}

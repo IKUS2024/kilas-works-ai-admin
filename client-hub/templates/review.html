@@ -239,6 +239,7 @@
 
   <div class="card">
     <h2>Koneksi WhatsApp</h2>
+    <p class="muted">Customer dapat menghubungkan WhatsApp setelah pembayaran diverifikasi dan bisnis disetujui. Form di bawah adalah koneksi manual / bantuan cadangan.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
       <a class="btn secondary" href="{{ url_for('admin.simulate_page', business_id=business.id) }}">Test AI</a>
       <span class="pill {{ 'ACTIVE' if business.whatsapp_connected else '' }}">{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</span>

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:680px;margin:20px auto;overflow-wrap:anywhere;">
+  <h1>Hubungkan WhatsApp</h1>
+  {% if business.status == 'ACTIVE' %}
+    <p>Kilas Brain aktif.</p>
+  {% else %}
+    <p>Masuk dengan akun Meta pemilik bisnis, lalu pilih atau buat akun WhatsApp Business dan nomor bisnis.</p>
+    <p>Kilas Works tidak pernah meminta password Meta. Jika diperlukan, masukkan OTP langsung di Meta. Proses biasanya memerlukan beberapa menit.</p>
+    <p class="muted">Gunakan nomor yang sesuai petunjuk Meta. Nomor yang sedang digunakan di aplikasi WhatsApp mungkin memerlukan langkah tambahan dari tim Kilas Works.</p>
+    {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+    {% if retry_activation %}
+      <p>WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan kesiapan bisnis.</p>
+      <form method="post" action="{{ url_for('whatsapp.retry_activation', business_id=business.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn">Coba aktivasi kembali</button>
+      </form>
+    {% endif %}
+    {% if signup_config and not retry_activation %}
+      <button type="button" class="btn" id="wa-signup" disabled>Hubungkan WhatsApp</button>
+      <p id="wa-status" role="status" aria-live="polite">Menyiapkan koneksi Meta…</p>
+      <script type="application/json" id="wa-config">{{ signup_config|tojson }}</script>
+      <input type="hidden" id="wa-csrf" value="{{ csrf_token() }}">
+      <script src="{{ url_for('static', filename='whatsapp_signup.js') }}" defer></script>
+    {% endif %}
+  {% endif %}
+  <p><a href="{{ url_for('client.dashboard') }}">Kembali ke dashboard</a></p>
+</div>
+{% endblock %}
