@@ -3,6 +3,7 @@ import calendar
 from datetime import date
 import os
 import re
+import uuid
 from functools import wraps
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
@@ -29,6 +30,16 @@ def finance_access(view):
 
 
 ERRORS = {
+    'customer_unavailable': 'Customer tidak tersedia untuk bisnis ini.',
+    'invalid_items': 'Isi 1–100 baris dengan deskripsi, jumlah, dan harga yang valid.',
+    'invalid_period': 'Tanggal jatuh tempo tidak boleh sebelum tanggal terbit.',
+    'invalid_invoice_state': 'Status invoice tidak mengizinkan tindakan ini. Muat ulang halaman.',
+    'invoice_cannot_void': 'Invoice yang sudah memiliki pembayaran tidak dapat dibatalkan.',
+    'empty_invoice_total': 'Total invoice harus lebih dari nol sebelum diterbitkan.',
+    'overpayment': 'Nominal melebihi sisa tagihan. Muat ulang untuk melihat saldo terbaru.',
+    'payment_key_conflict': 'Form pembayaran sudah digunakan. Muat ulang untuk pembayaran baru.',
+    'invalid_payment_key': 'Form pembayaran tidak valid. Muat ulang halaman.',
+    'invoice_ledger_managed': 'Transaksi ini berasal dari pembayaran invoice dan tidak dapat diubah atau dibatalkan langsung.',
     'invalid_money_minor': 'Nominal belum valid. Masukkan angka rupiah yang benar.',
     'account_unavailable': 'Akun keuangan tidak tersedia.',
     'account_currency_mismatch': 'Pilih akun dalam rupiah untuk transaksi ini.',
@@ -100,20 +111,21 @@ def dashboard(business_id, user, business):
     return render_template('finance_dashboard.html', user=user, business=business,
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
+        customers=finance.list_customers(business_id, **actor),
         initialized=bool(accounts and categories), month=month, direction=direction,
         today=date.today().isoformat(), account_types={'CASH':'Kas','BANK':'Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
 
 
-def mutate(business_id, action, success):
+def mutate(business_id, action, success, destination=None):
     try:
         action()
     except finance.FinanceError as error:
-        if str(error) in ('transaction_unavailable', 'business_unavailable'):
+        if str(error) in ('transaction_unavailable', 'business_unavailable', 'invoice_unavailable'):
             abort(404)
         flash(ERRORS.get(str(error), 'Data belum valid. Periksa isian dan coba lagi.'), 'error')
     else:
         flash(success, 'success')
-    return redirect(url_for('finance.dashboard', business_id=business_id), code=303)
+    return redirect(destination or url_for('finance.dashboard', business_id=business_id), code=303)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/start', methods=['POST'])
@@ -131,6 +143,7 @@ def create_transaction(business_id, user, business):
             record_id(request.form.get('account_id')), record_id(request.form.get('category_id')),
             request.form.get('occurred_on'), currency='IDR', description=request.form.get('description'),
             counterparty_name=request.form.get('counterparty_name'),
+            customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
             actor_user_id=user['id'])
     return mutate(business_id, action, 'Transaksi dicatat.')
@@ -157,3 +170,96 @@ def create_account(business_id, user, business):
 def create_category(business_id, user, business):
     return mutate(business_id, lambda: finance.create_category(business_id, request.form.get('direction'),
         request.form.get('name'), actor_user_id=user['id']), 'Kategori ditambahkan.')
+
+
+INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dibayar sebagian','PAID':'Lunas','VOID':'Dibatalkan'}
+
+
+@finance_bp.route('/business/<int:business_id>/finance/receivables')
+@finance_access
+def receivables(business_id, user, business):
+    actor = {'actor_user_id': user['id']}
+    customers = finance.list_customers(business_id, include_inactive=True, **actor)
+    invoices = finance.list_finance_invoices(business_id, **actor)
+    totals = {i['id']: finance.get_invoice_totals(business_id, i['id'], **actor) for i in invoices}
+    return render_template('finance_receivables.html', user=user, business=business, customers=customers,
+        customer_map={c['id']:c for c in customers}, invoices=invoices, totals=totals,
+        summary=finance.get_receivables_summary(business_id, **actor), labels=INVOICE_LABELS)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/customers', methods=['POST'])
+@finance_access
+def create_customer(business_id, user, business):
+    return mutate(business_id, lambda: finance.create_customer(business_id,request.form.get('name'),
+        phone=request.form.get('phone'), email=request.form.get('email'), notes=request.form.get('notes'),
+        actor_user_id=user['id']), 'Customer ditambahkan.', url_for('finance.receivables',business_id=business_id))
+
+
+def nonnegative_idr(value):
+    amount = whole_idr(value, signed=True)
+    if amount < 0:
+        raise finance.FinanceError('invalid_money_minor')
+    return amount
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/new', methods=['GET','POST'])
+@finance_access
+def new_invoice(business_id, user, business):
+    if request.method == 'POST':
+        try:
+            descriptions = request.form.getlist('item_description')
+            quantities = request.form.getlist('quantity')
+            prices = request.form.getlist('unit_price')
+            if not 1 <= len(descriptions) <= 100 or len(descriptions) != len(quantities) or len(prices) != len(descriptions):
+                raise finance.FinanceError('invalid_items')
+            items = [dict(description=d,quantity=whole_idr(q),unit_price_minor=nonnegative_idr(p))
+                     for d,q,p in zip(descriptions,quantities,prices)]
+            invoice_id = finance.create_finance_invoice(business_id, record_id(request.form.get('customer_id')),
+                request.form.get('issue_date'),request.form.get('due_date'),items,
+                notes=request.form.get('notes'),actor_user_id=user['id'])
+        except finance.FinanceError as error:
+            flash(ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.'),'error')
+            return redirect(url_for('finance.new_invoice',business_id=business_id),code=303)
+        return redirect(url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id),code=303)
+    return render_template('finance_invoice_form.html',user=user,business=business,
+        customers=finance.list_customers(business_id,actor_user_id=user['id']),today=date.today().isoformat())
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>')
+@finance_access
+def invoice_detail(business_id, user, business, invoice_id):
+    actor = {'actor_user_id':user['id']}
+    invoice = finance.get_finance_invoice(business_id,invoice_id,**actor)
+    if not invoice:
+        abort(404)
+    return render_template('finance_invoice_detail.html',user=user,business=business,invoice=invoice,
+        customer=finance.get_customer(business_id,invoice['customer_id'],**actor),
+        items=finance.list_invoice_items(business_id,invoice_id,**actor),
+        payments=finance.list_invoice_payments(business_id,invoice_id,**actor),
+        totals=finance.get_invoice_totals(business_id,invoice_id,**actor),
+        accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'INCOME',**actor),
+        today=date.today().isoformat(),payment_key=uuid.uuid4().hex,labels=INVOICE_LABELS)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/issue',methods=['POST'])
+@finance_access
+def issue_invoice(business_id,user,business,invoice_id):
+    return mutate(business_id,lambda: finance.issue_finance_invoice(business_id,invoice_id,actor_user_id=user['id']),
+        'Invoice diterbitkan.',url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/void',methods=['POST'])
+@finance_access
+def void_invoice(business_id,user,business,invoice_id):
+    return mutate(business_id,lambda: finance.void_finance_invoice(business_id,invoice_id,actor_user_id=user['id']),
+        'Invoice dibatalkan. Riwayat tetap tersimpan.',url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/payments',methods=['POST'])
+@finance_access
+def record_payment(business_id,user,business,invoice_id):
+    return mutate(business_id,lambda: finance.record_invoice_payment(business_id,invoice_id,
+        whole_idr(request.form.get('amount')),request.form.get('paid_on'),record_id(request.form.get('account_id')),
+        record_id(request.form.get('category_id')),note=request.form.get('note'),actor_user_id=user['id'],
+        idempotency_key=request.form.get('payment_key')), 'Pembayaran dicatat.',
+        url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))

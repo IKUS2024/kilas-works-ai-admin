@@ -7,6 +7,7 @@
 <div class="finance-page">
 <a href="{{ url_for('client.dashboard') }}">← Dashboard</a>
 <h1 style="margin-top:16px;">Kilas Finance</h1>
+<a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
 <p class="muted">{{ business.business_name }} · Kelola pemasukan, pengeluaran, dan arus kas bisnis dalam satu tempat.</p>
 {% if not initialized %}
 <div class="card">
@@ -38,6 +39,7 @@
 <label for="{{ kind }}-account">Akun</label><select id="{{ kind }}-account" name="account_id" required><option value="">Pilih akun rupiah</option>{% for a in accounts if a.is_active and a.currency == 'IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
 <label for="{{ kind }}-category">Kategori {{ label|lower }}</label><select id="{{ kind }}-category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active and c.direction == kind %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <details style="margin-top:14px;"><summary>Detail tambahan (opsional)</summary>
+<label for="{{ kind }}-customer">Customer tersimpan (opsional)</label><select id="{{ kind }}-customer" name="customer_id"><option value="">Tanpa customer tersimpan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="{{ kind }}-party">Customer / pihak terkait</label><input id="{{ kind }}-party" name="counterparty_name" maxlength="160">
 <label for="{{ kind }}-note">Catatan</label><textarea id="{{ kind }}-note" name="description" maxlength="4000"></textarea>
 </details>
@@ -52,7 +54,7 @@
 <p class="{{ 'finance-income' if t.direction == 'INCOME' else 'finance-expense' }}"><strong>{{ '+' if t.direction == 'INCOME' else '−' }}{% if t.currency == 'IDR' %}{{ t.amount_minor|finance_idr }}{% else %}{{ t.currency }} {{ t.amount_minor }} (unit terkecil){% endif %}</strong></p>
 <p>{{ t.description or 'Tanpa catatan' }}</p>
 <p class="muted">{{ account_map.get(t.account_id, {}).get('name', 'Akun tidak tersedia') }} · {{ category_map.get(t.category_id, {}).get('name', 'Kategori tidak tersedia') }}{% if t.counterparty_name %} · {{ t.counterparty_name }}{% endif %}</p>
-{% if t.status == 'POSTED' %}<form method="post" action="{{ url_for('finance.void_transaction', business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Batalkan transaksi ini? Transaksi tetap tersimpan di riwayat.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger">Batalkan transaksi</button></form>{% endif %}
+{% if t.status == 'POSTED' and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<form method="post" action="{{ url_for('finance.void_transaction', business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Batalkan transaksi ini? Transaksi tetap tersimpan di riwayat.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger">Batalkan transaksi</button></form>{% endif %}
 </article>
 {% else %}<p class="muted">Belum ada transaksi pada periode dan filter ini.</p>{% endfor %}
 </div>

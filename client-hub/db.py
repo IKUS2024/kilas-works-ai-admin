@@ -256,6 +256,7 @@ MIGRATIONS = [
     ("0026_ai_usage_sqlite.sql", "0026_ai_usage_postgres.sql"),
     ("0027_whatsapp_signup_sqlite.sql", "0027_whatsapp_signup_postgres.sql"),
     ("0028_finance_foundation_sqlite.sql", "0028_finance_foundation_postgres.sql"),
+    ("0029_finance_receivables_sqlite.sql", "0029_finance_receivables_postgres.sql"),
 ]
 
 
@@ -297,6 +298,19 @@ def init_schema():
         with open(path, "r", encoding="utf-8") as f:
             script = f.read()
         if BACKEND == "sqlite":
+            if sqlite_name == "0029_finance_receivables_sqlite.sql":
+                # Continue past the existing nullable column on repeat runs so the following
+                # index is also repaired after an interrupted migration. Fixed SQL only.
+                for statement in script.split(';'):
+                    if not statement.strip():
+                        continue
+                    try:
+                        conn.execute(statement)
+                    except sqlite3.OperationalError as error:
+                        if not (statement.strip().startswith('ALTER TABLE finance_transactions ADD COLUMN customer_id')
+                                and 'duplicate column name' in str(error)):
+                            raise
+                continue
             try:
                 conn.executescript(script)
             except sqlite3.OperationalError as e:
