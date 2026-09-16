@@ -9,6 +9,8 @@ from functools import wraps
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 import finance_service as finance
 import finance_reports
+import finance_analyst
+from flask import jsonify, current_app
 import security
 
 finance_bp = Blueprint('finance', __name__)
@@ -117,6 +119,7 @@ def dashboard(business_id, user, business):
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
         initialized=bool(accounts and categories), month=month, direction=direction,
+        analyst_enabled=finance_analyst.enabled(business_id),
         today=date.today().isoformat(), account_types={'CASH':'Kas','BANK':'Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
 
 
@@ -369,3 +372,33 @@ def report_zip(business_id,user,business):
     return Response(data,content_type='application/zip',headers={
         'Content-Disposition':f'attachment; filename="kilas-finance-laporan-{filters["start"]}_{filters["end"]}.zip"',
         'Cache-Control':'private, no-store'})
+
+
+@finance_bp.route('/business/<int:business_id>/finance/analyst', methods=['GET', 'POST'])
+@finance_access
+def analyst(business_id, user, business):
+    if not finance_analyst.enabled(business_id):
+        abort(404)
+    if request.method == 'GET':
+        return render_template('finance_analyst.html', user=user, business=business,
+                               month=date.today().strftime('%Y-%m'))
+    if request.content_length is None or request.content_length > 8192:
+        return jsonify(error='Permintaan terlalu besar.'), 413
+    try:
+        question, start, scope = finance_analyst.validate(request.get_json(silent=True))
+    except (ValueError, TypeError):
+        return jsonify(error='Isi pertanyaan dan pilih periode serta fokus yang valid.'), 400
+    if not finance_analyst.allow_click(user['id']):
+        return jsonify(error='Tunggu sebentar sebelum meminta analisis lagi.'), 429
+    try:
+        context = finance_analyst.build_context(business_id, user['id'], start, scope)
+        result, reason = finance_analyst.generate(question, context)
+        if result is not None:
+            response = jsonify(context=context, analysis=result)
+            response.headers['Cache-Control'] = 'private, no-store'
+            return response
+    except Exception:
+        # Never emit exception messages, finance text, query parameters or credentials.
+        reason = 'context_unavailable'
+    current_app.logger.warning('FINANCE_ANALYST: %s', reason)
+    return jsonify(error=finance_analyst.ERROR), 503
