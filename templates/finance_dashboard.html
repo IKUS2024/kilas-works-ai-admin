@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Kilas Finance{% endblock %}
+{% block content %}
+<style>
+.finance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}.finance-grid>*{min-width:0}.finance-page{overflow-wrap:anywhere}.finance-page .btn{max-width:100%;white-space:normal;margin-top:12px}.finance-total{font-size:24px;font-weight:700}.finance-income{color:var(--green)}.finance-expense{color:var(--red)}.finance-entry{border-top:1px solid var(--border);padding:14px 0}.finance-entry p{margin:6px 0}.finance-filter{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.finance-filter>div{flex:1;min-width:140px}.finance-page summary{cursor:pointer}.finance-page input,.finance-page select{min-width:0;max-width:100%}
+</style>
+<div class="finance-page">
+<a href="{{ url_for('client.dashboard') }}">← Dashboard</a>
+<h1 style="margin-top:16px;">Kilas Finance</h1>
+<a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
+<p class="muted">{{ business.business_name }} · Kelola pemasukan, pengeluaran, dan arus kas bisnis dalam satu tempat.</p>
+{% if not initialized %}
+<div class="card">
+<p>Mulai dengan akun Kas dan kategori dasar. Kamu bisa menambah akun dan kategori sesuai kebutuhan.</p>
+<form method="post" action="{{ url_for('finance.start',business_id=business.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<button class="btn">Mulai Kilas Finance</button>
+</form>
+</div>
+{% else %}
+<form method="get" class="card finance-filter">
+<div><label for="month">Bulan</label><input id="month" type="month" name="month" value="{{ month }}" required></div>
+<div><label for="filter-direction">Jenis transaksi</label><select id="filter-direction" name="direction"><option value="">Semua</option><option value="INCOME" {{ 'selected' if direction == 'INCOME' }}>Pemasukan</option><option value="EXPENSE" {{ 'selected' if direction == 'EXPENSE' }}>Pengeluaran</option></select></div>
+<button class="btn">Tampilkan</button>
+</form>
+<div class="finance-grid">
+{% for label,key in [('Pemasukan','total_income_minor'),('Pengeluaran','total_expense_minor'),('Arus Kas Bersih','net_cashflow_minor')] %}
+<div class="card"><h2>{{ label }}</h2><div class="finance-total">{{ summary[key]|finance_idr }}</div></div>
+{% endfor %}
+</div>
+<p class="muted">Ringkasan rupiah untuk bulan yang dipilih, berdasarkan transaksi yang tidak dibatalkan. Arus kas adalah pemasukan dikurangi pengeluaran, bukan laba akuntansi.</p>
+<div class="finance-grid">
+{% for kind,label in [('INCOME','Pemasukan'),('EXPENSE','Pengeluaran')] %}
+<form class="card" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id) }}">
+<h2>Catat {{ label }}</h2>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="direction" value="{{ kind }}">
+<label for="{{ kind }}-amount">Nominal (rupiah)</label><input id="{{ kind }}-amount" name="amount" inputmode="numeric" pattern="[0-9]+" maxlength="19" placeholder="Contoh: 1250000" required><small class="muted">Angka bulat, tanpa titik atau koma.</small>
+<label for="{{ kind }}-date">Tanggal</label><input id="{{ kind }}-date" type="date" name="occurred_on" value="{{ today }}" required>
+<label for="{{ kind }}-account">Akun</label><select id="{{ kind }}-account" name="account_id" required><option value="">Pilih akun rupiah</option>{% for a in accounts if a.is_active and a.currency == 'IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<label for="{{ kind }}-category">Kategori {{ label|lower }}</label><select id="{{ kind }}-category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active and c.direction == kind %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+<details style="margin-top:14px;"><summary>Detail tambahan (opsional)</summary>
+<label for="{{ kind }}-customer">Customer tersimpan (opsional)</label><select id="{{ kind }}-customer" name="customer_id"><option value="">Tanpa customer tersimpan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+<label for="{{ kind }}-party">Customer / pihak terkait</label><input id="{{ kind }}-party" name="counterparty_name" maxlength="160">
+<label for="{{ kind }}-note">Catatan</label><textarea id="{{ kind }}-note" name="description" maxlength="4000"></textarea>
+</details>
+<button class="btn">Simpan {{ label }}</button>
+</form>
+{% endfor %}
+</div>
+<div class="card"><h2>Transaksi · {{ month }}</h2><p class="muted">Maksimal 100 transaksi terbaru sesuai filter. Ringkasan mencakup seluruh transaksi rupiah bulan ini.</p>
+{% for t in transactions %}
+<article class="finance-entry">
+<p><strong>{{ t.occurred_on }}</strong> · {{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }} · {{ 'Dibatalkan' if t.status == 'VOID' else 'Tercatat' }}</p>
+<p class="{{ 'finance-income' if t.direction == 'INCOME' else 'finance-expense' }}"><strong>{{ '+' if t.direction == 'INCOME' else '−' }}{% if t.currency == 'IDR' %}{{ t.amount_minor|finance_idr }}{% else %}{{ t.currency }} {{ t.amount_minor }} (unit terkecil){% endif %}</strong></p>
+<p>{{ t.description or 'Tanpa catatan' }}</p>
+<p class="muted">{{ account_map.get(t.account_id, {}).get('name', 'Akun tidak tersedia') }} · {{ category_map.get(t.category_id, {}).get('name', 'Kategori tidak tersedia') }}{% if t.counterparty_name %} · {{ t.counterparty_name }}{% endif %}</p>
+{% if t.status == 'POSTED' and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<form method="post" action="{{ url_for('finance.void_transaction', business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Batalkan transaksi ini? Transaksi tetap tersimpan di riwayat.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger">Batalkan transaksi</button></form>{% endif %}
+</article>
+{% else %}<p class="muted">Belum ada transaksi pada periode dan filter ini.</p>{% endfor %}
+</div>
+{% endif %}
+<details class="card"><summary>Pengaturan akun &amp; kategori</summary>
+<div class="finance-grid" style="margin-top:16px;">
+<section><h2>Akun keuangan</h2>{% for a in accounts %}<p>{{ a.name }} · {{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}<br><span class="muted">Saldo awal: {% if a.currency == 'IDR' %}{{ a.opening_balance_minor|finance_idr }}{% else %}{{ a.opening_balance_minor }} (unit terkecil){% endif %}{{ ' · Nonaktif' if not a.is_active }}</span></p>{% else %}<p class="muted">Belum ada akun.</p>{% endfor %}
+<form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="account-name">Nama akun</label><input id="account-name" name="name" maxlength="160" required>
+<label for="account-type">Jenis akun</label><select id="account-type" name="account_type">{% for key,label in account_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
+<label for="opening-balance">Saldo awal (rupiah)</label><input id="opening-balance" name="opening_balance" value="0" inputmode="text" pattern="-?[0-9]+" maxlength="20" required><small class="muted">Angka bulat tanpa titik/koma; boleh negatif.</small>
+<button class="btn secondary">Tambah akun</button></form></section>
+<section><h2>Kategori</h2>{% for kind,label in [('INCOME','Pemasukan'),('EXPENSE','Pengeluaran')] %}<h3>{{ label }}</h3>{% for c in categories if c.direction == kind %}<p>{{ c.name }}{{ ' · Nonaktif' if not c.is_active }}</p>{% else %}<p class="muted">Belum ada kategori.</p>{% endfor %}{% endfor %}
+<form method="post" action="{{ url_for('finance.create_category',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="category-direction">Jenis</label><select id="category-direction" name="direction"><option value="INCOME">Pemasukan</option><option value="EXPENSE">Pengeluaran</option></select>
+<label for="category-name">Nama kategori</label><input id="category-name" name="name" maxlength="160" required><button class="btn secondary">Tambah kategori</button></form></section>
+</div>
+</details>
+</div>
+{% endblock %}
