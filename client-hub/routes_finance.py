@@ -9,6 +9,7 @@ from functools import wraps
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 import finance_service as finance
 import finance_reports
+import finance_invoice_view
 import finance_analyst
 import finance_operator
 import finance_ai_safety as ai_safety
@@ -238,15 +239,18 @@ def new_invoice(business_id, user, business):
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>')
 @finance_access
 def invoice_detail(business_id, user, business, invoice_id):
+    return render_invoice_detail(business_id,user,business,invoice_id)
+
+
+def render_invoice_detail(business_id,user,business,invoice_id,share_url=None):
     actor = {'actor_user_id':user['id']}
-    invoice = finance.get_finance_invoice(business_id,invoice_id,**actor)
-    if not invoice:
-        abort(404)
+    try: doc=finance_invoice_view.document(business_id,invoice_id,user['id'])
+    except ValueError: abort(404)
+    invoice=dict(doc['invoice'],id=invoice_id)
     return render_template('finance_invoice_detail.html',user=user,business=business,invoice=invoice,
-        customer=finance.get_customer(business_id,invoice['customer_id'],**actor),
-        items=finance.list_invoice_items(business_id,invoice_id,**actor),
+        doc=doc,share_url=share_url,
         payments=finance.list_invoice_payments(business_id,invoice_id,**actor),
-        totals=finance.get_invoice_totals(business_id,invoice_id,**actor),
+        totals=doc['totals'],
         accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'INCOME',**actor),
         today=date.today().isoformat(),payment_key=uuid.uuid4().hex,labels=INVOICE_LABELS)
 
@@ -477,3 +481,48 @@ def finance_ai_payload(user_id, business_id, kind):
         ai_safety.event('invalid_request')
         return None,(jsonify(error='Format permintaan tidak valid.'),400)
     return payload,None
+
+
+@finance_bp.after_request
+def invoice_privacy(response):
+    if request.endpoint in ('finance.invoice_detail','finance.invoice_print','finance.invoice_share','finance.customer_invoice'):
+        response.headers['Cache-Control']='private, no-store'
+        response.headers['Referrer-Policy']='no-referrer'
+        response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
+        response.headers['X-Frame-Options']='DENY'
+    return response
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/print')
+@finance_access
+def invoice_print(business_id,user,business,invoice_id):
+    try: doc=finance_invoice_view.document(business_id,invoice_id,user['id'])
+    except ValueError: abort(404)
+    return render_template('finance_invoice_public.html',doc=doc)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/share',methods=['POST'])
+@finance_access
+def invoice_share(business_id,user,business,invoice_id):
+    invoice=finance.get_finance_invoice(business_id,invoice_id,actor_user_id=user['id'])
+    if not invoice or invoice['status'] not in finance_invoice_view.VISIBLE: abort(404)
+    try:
+        base=finance_invoice_view.base_url()
+        token=finance_invoice_view.create_token(business_id,invoice_id,user['id'])
+    except ValueError:
+        return 'Tautan invoice belum tersedia. Hubungi pengelola aplikasi.',503
+    share_url=base+url_for('finance.customer_invoice',token=token)
+    return render_invoice_detail(business_id,user,business,invoice_id,share_url)
+
+
+@finance_bp.route('/finance/invoice-share/<token>')
+def customer_invoice(token):
+    try:
+        business_id,invoice_id=finance_invoice_view.resolve_token(token)
+        doc=finance_invoice_view.document(business_id,invoice_id,public=True)
+    except (ValueError,TypeError):
+        return 'Tautan invoice tidak tersedia atau sudah kedaluwarsa.',404
+    except Exception:
+        current_app.logger.warning('FINANCE_INVOICE_SHARE: unavailable')
+        return 'Invoice belum dapat ditampilkan. Coba lagi nanti.',503
+    return render_template('finance_invoice_public.html',doc=doc)

@@ -4,14 +4,16 @@
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page">
 <a class="no-print" href="{{ url_for('finance.receivables',business_id=business.id) }}">← Pelanggan &amp; Piutang</a>
-<div class="card" style="margin-top:16px;"><h1>{{ invoice.invoice_number }}</h1><p>{{ business.business_name }}</p>
-<p><strong>{{ labels[invoice.status] }}</strong>{% if totals.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}</p>
-<h2>Kepada {{ customer.name }}</h2><p>{{ customer.phone or '' }} {{ customer.email or '' }}</p>
-<p class="muted">Terbit {{ invoice.issue_date }} · Jatuh tempo {{ invoice.due_date }}</p>
-{% for item in items %}<div class="fin-entry"><strong>{{ item.description }}</strong><p>{{ item.quantity }} × {{ item.unit_price_minor|finance_idr }} = {{ (item.quantity*item.unit_price_minor)|finance_idr }}</p></div>{% endfor %}
-<div class="fin-grid"><p>Total<br><strong>{{ totals.total_minor|finance_idr }}</strong></p><p>Dibayar<br><strong>{{ totals.paid_minor|finance_idr }}</strong></p><p>Sisa tagihan<br><strong>{% if invoice.status in ('DRAFT','VOID') %}—{% else %}{{ totals.outstanding_minor|finance_idr }}{% endif %}</strong></p></div>
-{% if invoice.notes %}<p>{{ invoice.notes }}</p>{% endif %}
-<button class="btn secondary no-print" type="button" onclick="window.print()">Cetak</button>
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice.css') }}">
+{% include '_finance_invoice_document.html' %}
+<div class="card no-print invoice-controls invoice-share">
+<button class="btn secondary" type="button" onclick="window.print()">Cetak halaman ini</button>
+<a class="btn secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=invoice.id) }}" target="_blank" rel="noopener noreferrer">Print / Download PDF</a>
+{% if invoice.status in ('ISSUED','PARTIALLY_PAID','PAID') %}
+<form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Share Invoice</button></form>
+<p class="muted">Tautan berlaku 7 hari. Siapa pun yang menerima tautan dapat membaca invoice ini. Tidak ada pengiriman otomatis.</p>
+{% if share_url %}<label for="invoice-link">Tautan customer</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Open Customer View</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
+{% endif %}
 {% if invoice.status=='DRAFT' %}<form class="no-print" method="post" action="{{ url_for('finance.issue_invoice',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Terbitkan Invoice</button></form>{% endif %}
 {% if invoice.status in ('DRAFT','ISSUED') and not payments %}<form class="no-print" method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=invoice.id) }}" onsubmit="return confirm('Batalkan invoice ini? Riwayat tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">Batalkan Invoice</button></form>{% endif %}
 </div>
@@ -26,6 +28,7 @@
 <label for="category">Kategori pemasukan</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="note">Catatan (opsional)</label><textarea id="note" name="note" maxlength="1000"></textarea><button class="btn">Simpan Pembayaran</button>
 </form>{% endif %}
-<div class="card"><h2>Riwayat pembayaran</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_idr }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">Belum ada pembayaran.</p>{% endfor %}</div>
+<div class="card no-print invoice-controls"><h2>Riwayat pembayaran</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_idr }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">Belum ada pembayaran.</p>{% endfor %}</div>
 </div>
+<script src="{{ url_for('static',filename='finance_invoice.js') }}" defer></script>
 {% endblock %}
