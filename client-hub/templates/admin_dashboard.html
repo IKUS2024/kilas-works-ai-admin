@@ -16,19 +16,19 @@
       {{ action_center.new_client_requests }} Business baru
     </a>
     <a class="btn secondary" href="{{ url_for('admin.dashboard', status='READY_FOR_REVIEW') }}">
-      {{ action_center.ai_onboarding_waiting_review }} AI onboarding menunggu review
+      {{ action_center.ai_onboarding_waiting_review }} Bisnis perlu ditinjau
     </a>
     <a class="btn secondary" href="{{ url_for('admin.projects_admin', status='WAITING_FOR_QUOTE') }}">
       {{ action_center.custom_projects_waiting_quote }} Custom project menunggu quote
     </a>
     <a class="btn secondary" href="{{ url_for('admin.payments_admin') }}">
-      {{ action_center.payments_waiting_verification }} Pembayaran menunggu verifikasi
+      {{ action_center.payments_waiting_verification }} Pembayaran perlu diverifikasi
     </a>
     <a class="btn secondary" href="{{ url_for('admin.talent_admin') }}">
       {{ action_center.talent_requests_waiting }} Talent request menunggu review
     </a>
     <a class="btn secondary" href="{{ url_for('admin.projects_admin') }}">
-      {{ action_center.projects_waiting_admin_action }} Project menunggu aksi admin
+      {{ action_center.projects_waiting_admin_action }} Proyek perlu tindakan
     </a>
     <a class="btn secondary" href="{{ url_for('admin.dashboard', status='APPROVED') }}">
       {{ action_center.whatsapp_tenants_waiting_connection }} Tenant menunggu koneksi WhatsApp

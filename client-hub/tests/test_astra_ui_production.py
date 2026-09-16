@@ -31,7 +31,7 @@ class ClientHubProductionTests(unittest.TestCase):
     def test_target_templates_compile_and_public_brand_is_human_readable(self):
         for name in ('base.html','wizard.html','review.html','invoice.html','checkout.html','client_dashboard.html','upload_too_large.html'):
             hub.app.jinja_env.get_template(name)
-        self.assertEqual(hub.app.jinja_env.filters['humanize_package']('AI_ADMIN_BASIC'),'Kilas Brain Basic')
+        self.assertEqual(hub.app.jinja_env.filters['humanize_package']('AI_ADMIN_BASIC'),'Kilas Brain')
         self.assertIn('Bahasa utama',hub.app.jinja_env.filters['missing_fields_sentence'](['primary_language']))
 
     def test_verified_invoice_does_not_request_another_transfer(self):

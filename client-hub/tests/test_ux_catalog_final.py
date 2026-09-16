@@ -51,7 +51,7 @@ class CatalogUXTests(unittest.TestCase):
         for status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP'):
             db.execute('UPDATE businesses SET status=? WHERE id=?',(status,self.bid))
             page = self.client.get('/dashboard').get_data(as_text=True)
-            self.assertIn('Lanjutkan Setup Awal',page)
+            self.assertIn('Lanjutkan Setup',page)
             self.assertEqual(self.client.get(f'/business/{self.bid}/wizard/basics').status_code,200)
         for status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','ACTIVE','SUSPENDED'):
             db.execute('UPDATE businesses SET status=? WHERE id=?',(status,self.bid))
@@ -63,8 +63,17 @@ class CatalogUXTests(unittest.TestCase):
     def test_review_operational_payment_activation_links_preserved(self):
         db.execute("UPDATE businesses SET status='APPROVED' WHERE id=?",(self.bid,))
         page=self.client.get('/dashboard').get_data(as_text=True)
-        for label in ('Tinjau Bisnis','Pengaturan Operasional','Invoice/Pembayaran','Hubungkan WhatsApp ke Kilas Brain'):
+        for label in ('Lihat Data','Pengaturan Operasional','Invoice &amp; Pembayaran'):
             self.assertIn(label,page)
+        self.assertNotIn('/whatsapp/connect', page)
+        import projects_repo, payment_service
+        key = repo.get_business(self.bid)['package'].lower()
+        pid = projects_repo.create_fixed_price_project(self.bid, catalog.get_catalog_item(key), self.base.uid)
+        iid = payment_service.checkout(pid, self.bid, self.base.uid)
+        db.execute("UPDATE payments SET status='VERIFIED' WHERE invoice_id=?", (iid,))
+        page = self.client.get('/dashboard').get_data(as_text=True)
+        self.assertIn(f'/business/{self.bid}/whatsapp/connect', page)
+        self.assertIn('Hubungkan WhatsApp', page)
         self.assertEqual(self.client.get(f'/business/{self.bid}/review').status_code,200)
 
     def test_wizard_redirect_preserves_ownership(self):

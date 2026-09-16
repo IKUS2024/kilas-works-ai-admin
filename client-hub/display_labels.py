@@ -44,8 +44,8 @@ FIELD_LABELS = {
 PACKAGE_LABELS = {
     "NONE": "Belum pakai Kilas Brain",
     "AI_ADMIN": "Kilas Brain",
-    "AI_ADMIN_BASIC": "Kilas Brain Basic",
-    "AI_ADMIN_PRO": "Kilas Brain Pro",
+    "AI_ADMIN_BASIC": "Kilas Brain",
+    "AI_ADMIN_PRO": "Kilas Brain",
 }
 
 BUSINESS_STATUS_LABELS = {
