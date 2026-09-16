@@ -8,8 +8,10 @@ from decimal import Decimal, InvalidOperation
 
 import requests
 from flask import current_app
-from itsdangerous import URLSafeTimedSerializer, BadData
+from itsdangerous import URLSafeTimedSerializer, BadData, SignatureExpired
 import finance_service as finance
+import finance_ai_safety as safety
+import db
 
 ACTIONS = {'create_expense':'Catat pengeluaran', 'create_income':'Catat pemasukan',
            'record_invoice_payment':'Catat pembayaran invoice Finance'}
@@ -33,8 +35,7 @@ class OperatorError(ValueError):
 
 
 def enabled(business_id):
-    values = os.environ.get('KILAS_FINANCE_OPERATOR_BUSINESS_IDS', '').split(',')
-    return str(business_id) in {v.strip() for v in values if re.fullmatch(r'[1-9][0-9]*', v.strip())}
+    return safety.allowlisted('KILAS_FINANCE_OPERATOR_BUSINESS_IDS', business_id)
 
 
 def text(value, maximum, required=True):
@@ -73,17 +74,17 @@ def validate_request(payload):
 def resolve(business_id, user_id, action, fields, *, draft):
     """Read-only reference validation, repeated immediately before service execution."""
     finance._scope(business_id,user_id)
-    if action not in ACTIONS or set(fields)!={'account_id','category_id','date','invoice_id','currency','amount_minor','description'}:
+    if not isinstance(action,str) or action not in ACTIONS or not isinstance(fields,dict) or set(fields)!={'account_id','category_id','date','invoice_id','currency','amount_minor','description'}:
         raise OperatorError('invalid_fields')
     if fields['currency']!='IDR': raise OperatorError('currency')
     finance._money(fields['amount_minor'],positive=True);finance._date(fields['date'])
     text(fields['description'],500)
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
-    accounts=finance.list_accounts(business_id,actor_user_id=user_id)
     direction='EXPENSE' if action=='create_expense' else 'INCOME'
-    categories=finance.list_categories(business_id,direction,actor_user_id=user_id)
-    account=next((a for a in accounts if a['id']==account_id and a['currency']=='IDR'),None)
-    category=next((c for c in categories if c['id']==category_id),None)
+    account=db.query_one('SELECT name FROM finance_accounts WHERE business_id=? AND id=? AND currency=? AND is_active=TRUE',
+                         (business_id,account_id,'IDR'))
+    category=db.query_one('SELECT name FROM finance_categories WHERE business_id=? AND id=? AND direction=? AND is_active=TRUE',
+                          (business_id,category_id,direction))
     if not account or not category: raise OperatorError('reference_unavailable')
     preview=[['Aksi',ACTIONS[action]],['Nominal','Rp'+format(fields['amount_minor'],',').replace(',','.')],
              ['Tanggal',fields['date']],['Akun',account['name']],['Kategori',category['name']],['Keterangan',fields['description']]]
@@ -100,9 +101,8 @@ def resolve(business_id, user_id, action, fields, *, draft):
 
 
 def interpret(action, question):
-    key=os.environ.get('ANTHROPIC_API_KEY','')
-    if not key: raise OperatorError('not_configured')
-    model=os.environ.get('CLIENT_HUB_FINANCE_ANALYST_MODEL') or 'claude-haiku-4-5-20251001'
+    try: key,model=safety.configuration()
+    except ValueError: raise OperatorError('not_configured') from None
     try:
         response=requests.post('https://api.anthropic.com/v1/messages',
             headers={'x-api-key':key,'anthropic-version':'2023-06-01','content-type':'application/json'},
@@ -110,18 +110,15 @@ def interpret(action, question):
                   'messages':[{'role':'user','content':json.dumps({'selected_action':action,'request':question},ensure_ascii=False)}]},
             timeout=(5,25),allow_redirects=False)
         if response.status_code!=200: raise OperatorError('upstream_failure')
-        body=response.json()
-        if body['stop_reason']!='end_turn' or len(body['content'])!=1 or body['content'][0]['type']!='text':
-            raise OperatorError('invalid_result')
-        raw=body['content'][0]['text']
-        if not isinstance(raw,str) or len(raw)>4000: raise OperatorError('invalid_result')
-        result=json.loads(raw)
+        result=safety.json_object(safety.response_text(response.json(),4000))
         if not isinstance(result,dict) or set(result)!={'action','amount_text','description'} or result['action']!=action:
             raise OperatorError('unsupported_or_missing')
         amount=text(result['amount_text'],60);description=text(result['description'],500)
         if description not in question or not re.search(r'(?<![\w.,+−-])'+re.escape(amount)+r'(?![\w.,])', question):
             raise OperatorError('ungrounded_result')
         return dict(amount_minor=rupiah(amount),description=description)
+    except requests.Timeout:
+        raise OperatorError('timeout') from None
     except requests.RequestException:
         raise OperatorError('network_failure') from None
     except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as error:
@@ -130,19 +127,22 @@ def interpret(action, question):
 
 
 def signer():
-    if not current_app.secret_key: raise OperatorError('not_configured')
+    if not current_app.secret_key or (not current_app.testing and
+            (len(current_app.secret_key)<32 or current_app.secret_key=='dev-only-insecure-secret-key-do-not-use-in-production')):
+        raise OperatorError('not_configured')
     return URLSafeTimedSerializer(current_app.secret_key,salt='kilas-finance-operator-v1',
                                   signer_kwargs={'digest_method':hashlib.sha256})
 
 
 def prepare(business_id,user_id,payload):
     if not enabled(business_id): raise OperatorError('not_allowed')
+    draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
     action,question,fields=validate_request(payload)
     # Validate scope/references BEFORE sending any user text to the model.
     resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
     fields.update(interpret(action,question))
     preview=resolve(business_id,user_id,action,fields,draft=True)
-    token=signer().dumps(dict(version=1,user_id=user_id,business_id=business_id,action=action,
+    token=draft_signer.dumps(dict(version=1,user_id=user_id,business_id=business_id,action=action,
                              fields=fields,nonce=uuid.uuid4().hex))
     return dict(token=token,preview=preview,expires_in=TTL,
                 interpretation='Usulan: '+ACTIONS[action]+'. Belum disimpan; periksa semua detail sebelum konfirmasi.')
@@ -152,9 +152,12 @@ def confirm(business_id,user_id,token):
     if not enabled(business_id): raise OperatorError('not_allowed')
     token=text(token,6000)
     try: data=signer().loads(token,max_age=TTL)
-    except BadData: raise OperatorError('expired_or_invalid') from None
+    except SignatureExpired: raise OperatorError('expired_draft') from None
+    except BadData: raise OperatorError('tampered_draft') from None
     if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','action','fields','nonce'}
-            or data['version']!=1 or data['user_id']!=user_id or data['business_id']!=business_id
+            or type(data['version']) is not int or data['version']!=1
+            or type(data['user_id']) is not int or data['user_id']!=user_id
+            or type(data['business_id']) is not int or data['business_id']!=business_id
             or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
         raise OperatorError('invalid_draft')
     action,fields=data['action'],data['fields']

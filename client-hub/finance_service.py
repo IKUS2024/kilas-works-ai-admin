@@ -15,6 +15,7 @@ import uuid
 
 import db
 import repo
+import finance_ai_safety
 
 ACCOUNT_TYPES = ('CASH', 'BANK', 'EWALLET', 'OTHER')
 DIRECTIONS = ('INCOME', 'EXPENSE')
@@ -219,6 +220,7 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
             if existing:
                 if existing['created_by_user_id'] != actor_user_id or any(existing[key] != data[key] for key in FIELDS):
                     raise FinanceError('operator_key_conflict')
+                finance_ai_safety.event('operator_replay')
                 return existing['id']
         if data['source_type'] == 'FINANCE_RECURRING_EXPENSE':
             raise FinanceError('recurring_ledger_managed')
@@ -278,6 +280,11 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
         current = get_transaction(business_id, transaction_id, actor_user_id=actor_user_id)
         if current is None:
             raise FinanceError('transaction_unavailable')
+        if current['source_type'] == 'FINANCE_OPERATOR':
+            if any(key in changes and changes[key] != current[key] for key in ('source_type','source_ref')):
+                raise FinanceError('operator_origin_immutable')
+        elif changes.get('source_type') == 'FINANCE_OPERATOR':
+            raise FinanceError('operator_origin_immutable')
         if current['source_type'] == 'FINANCE_INVOICE_PAYMENT' or changes.get('source_type') == 'FINANCE_INVOICE_PAYMENT':
             raise FinanceError('invoice_ledger_managed')
         if current['source_type'] == 'FINANCE_RECURRING_EXPENSE':
@@ -487,6 +494,8 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
                             account_id=account_id, category_id=income_category_id, note=note, created_by_user_id=actor_user_id)
             if any(existing[k] != v for k,v in expected.items()) or existing['ledger_transaction_id'] is None:
                 raise FinanceError('payment_key_conflict')
+            if idempotency_key.startswith('operator_'):
+                finance_ai_safety.event('operator_replay')
             return existing['id']
         if invoice['status'] not in ('ISSUED','PARTIALLY_PAID'):
             raise FinanceError('invalid_invoice_state')
@@ -882,3 +891,11 @@ def get_monthly_cashflow_trend(business_id, start_month, end_month, actor_user_i
         item=trend[r['occurred_on'][:7]];item['income_minor' if r['direction']=='INCOME' else 'expense_minor']+=r['amount_minor']
         item['net_cashflow_minor']=item['income_minor']-item['expense_minor']
     return list(trend.values())
+
+
+def operator_invoice_choices(business_id, actor_user_id=None):
+    """Bounded picker only; does not load invoice notes or the whole history."""
+    _scope(business_id,actor_user_id)
+    return db.query_all("SELECT id,invoice_number FROM finance_invoices WHERE business_id=? "
+        "AND currency='IDR' AND status IN ('ISSUED','PARTIALLY_PAID') "
+        "ORDER BY issue_date DESC,id DESC LIMIT 100",(business_id,))

@@ -11,6 +11,7 @@ import finance_service as finance
 import finance_reports
 import finance_analyst
 import finance_operator
+import finance_ai_safety as ai_safety
 from flask import jsonify, current_app
 import security
 
@@ -377,75 +378,102 @@ def report_zip(business_id,user,business):
 
 
 @finance_bp.route('/business/<int:business_id>/finance/analyst', methods=['GET', 'POST'])
+@ai_safety.endpoint
 @finance_access
 def analyst(business_id, user, business):
     if not finance_analyst.enabled(business_id):
-        abort(404)
+        ai_safety.event('allowlist_denied'); abort(404)
     if request.method == 'GET':
         return render_template('finance_analyst.html', user=user, business=business,
                                month=date.today().strftime('%Y-%m'),
                                operator_enabled=finance_operator.enabled(business_id))
-    if request.content_length is None or request.content_length > 8192:
-        return jsonify(error='Permintaan terlalu besar.'), 413
+    payload, error = finance_ai_payload(user['id'],business_id,'ai')
+    if error is not None: return error
     try:
-        question, start, scope = finance_analyst.validate(request.get_json(silent=True))
+        question, start, scope = finance_analyst.validate(payload)
     except (ValueError, TypeError):
+        ai_safety.event('invalid_request')
         return jsonify(error='Isi pertanyaan dan pilih periode serta fokus yang valid.'), 400
-    if not finance_analyst.allow_click(user['id']):
-        return jsonify(error='Tunggu sebentar sebelum meminta analisis lagi.'), 429
     try:
         context = finance_analyst.build_context(business_id, user['id'], start, scope)
         result, reason = finance_analyst.generate(question, context)
         if result is not None:
+            ai_safety.event('analyst_success')
             response = jsonify(context=context, analysis=result)
             response.headers['Cache-Control'] = 'private, no-store'
             return response
     except Exception:
         # Never emit exception messages, finance text, query parameters or credentials.
         reason = 'context_unavailable'
-    current_app.logger.warning('FINANCE_ANALYST: %s', reason)
+    ai_safety.event(reason)
+    ai_safety.event('analyst_failure')
     return jsonify(error=finance_analyst.ERROR), 503
 
 
 @finance_bp.route('/business/<int:business_id>/finance/operator')
+@ai_safety.endpoint
 @finance_access
 def operator(business_id, user, business):
-    if not finance_operator.enabled(business_id): abort(404)
+    if not finance_operator.enabled(business_id):
+        ai_safety.event('allowlist_denied'); abort(404)
     actor = {'actor_user_id': user['id']}
-    invoices = finance.list_finance_invoices(business_id, **actor)
+    invoices = finance.operator_invoice_choices(business_id, **actor)
     return render_template('finance_operator.html', user=user, business=business,
         actions=finance_operator.ACTIONS, today=date.today().isoformat(),
         accounts=[a for a in finance.list_accounts(business_id, **actor) if a['currency']=='IDR'],
         categories=finance.list_categories(business_id, **actor),
-        invoices=[i for i in invoices if i['status'] in ('ISSUED','PARTIALLY_PAID')][:100])
+        invoices=invoices)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/operator/<stage>', methods=['POST'])
+@ai_safety.endpoint
 @finance_access
 def operator_action(business_id, user, business, stage):
-    if not finance_operator.enabled(business_id) or stage not in ('draft','confirm'): abort(404)
-    if request.content_length is None or request.content_length > 8192:
-        return jsonify(error='Permintaan terlalu besar.'), 413
-    payload = request.get_json(silent=True)
+    if not finance_operator.enabled(business_id):
+        ai_safety.event('allowlist_denied'); abort(404)
+    if stage not in ('draft','confirm'): abort(404)
+    payload, error = finance_ai_payload(user['id'],business_id,'ai' if stage=='draft' else 'confirm')
+    if error is not None: return error
     try:
         if stage == 'draft':
-            # Input is checked before consuming quota; no model call on invalid input.
             finance_operator.validate_request(payload)
-            if not finance_analyst.allow_click(user['id']):
-                return jsonify(error='Tunggu sebentar sebelum membuat draft lagi.'), 429
             result = finance_operator.prepare(business_id, user['id'], payload)
+            ai_safety.event('draft_generated')
         else:
             if not isinstance(payload,dict) or set(payload)!={'token','confirm'} or payload['confirm'] is not True:
                 raise finance_operator.OperatorError('confirmation_required')
             result = finance_operator.confirm(business_id, user['id'], payload['token'])
+            ai_safety.event('confirmation_accepted')
         response = jsonify(result)
         response.headers['Cache-Control'] = 'private, no-store'
         return response
     except (finance_operator.OperatorError, finance.FinanceError) as error:
         # Messages are fixed categories, never log submitted fields, tokens or model text.
-        unavailable = str(error) in ('not_configured','network_failure','upstream_failure','invalid_result')
+        ai_safety.event(str(error))
+        if stage=='confirm': ai_safety.event('confirmation_rejected')
+        unavailable = str(error) in ('not_configured','network_failure','timeout','upstream_failure','invalid_result')
         return jsonify(error=(finance_operator.ERROR if unavailable else
             'Data atau draft tidak valid, kedaluwarsa, tidak didukung, atau sudah berubah. Periksa pilihan dan buat draft baru bila perlu. Nominal serta keterangan harus disebutkan jelas.')), 503 if unavailable else 400
     except Exception:
-        current_app.logger.warning('FINANCE_OPERATOR: request_failed')
+        ai_safety.event('request_failed')
         return jsonify(error='Hasil belum dapat dipastikan. Jangan buat draft baru; ulangi konfirmasi draft yang sama atau periksa riwayat Finance.'), 503
+
+
+def finance_ai_payload(user_id, business_id, kind):
+    # Scoped only to Finance AI; normal finance routes and global CSRF are unchanged.
+    if request.content_length is None or request.content_length > 8192:
+        ai_safety.event('invalid_request')
+        return None, (jsonify(error='Permintaan terlalu besar.'),413)
+    if not request.is_json:
+        ai_safety.event('invalid_request')
+        return None, (jsonify(error='Gunakan permintaan JSON yang valid.'),415)
+    if not ai_safety.allow_attempt(user_id,business_id,kind):
+        response=jsonify(error='Terlalu banyak percobaan. Tunggu sebentar; jangan buat draft pengganti untuk konfirmasi yang belum pasti.')
+        response.status_code=429;response.headers['Retry-After']='60'
+        return None,response
+    try:
+        payload=ai_safety.json_object(request.get_data().decode('utf-8'))
+    except (ValueError,UnicodeError,RecursionError):
+        ai_safety.event('invalid_request')
+        return None,(jsonify(error='Format permintaan tidak valid.'),400)
+    return payload,None
