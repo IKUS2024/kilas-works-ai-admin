@@ -255,6 +255,7 @@ MIGRATIONS = [
     ("0025_whatsapp_checkout_sqlite.sql", "0025_whatsapp_checkout_postgres.sql"),
     ("0026_ai_usage_sqlite.sql", "0026_ai_usage_postgres.sql"),
     ("0027_whatsapp_signup_sqlite.sql", "0027_whatsapp_signup_postgres.sql"),
+    ("0028_finance_foundation_sqlite.sql", "0028_finance_foundation_postgres.sql"),
 ]
 
 
