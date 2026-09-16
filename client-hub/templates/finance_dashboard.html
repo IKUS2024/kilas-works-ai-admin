@@ -8,6 +8,7 @@
 <a href="{{ url_for('client.dashboard') }}">← Dashboard</a>
 <a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
 {% if analyst_enabled %}<a class="btn secondary" href="{{ url_for('finance.analyst',business_id=business.id) }}">AI Analyst · Beta</a>{% endif %}
+{% if operator_enabled %}<a class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">AI Operator · Beta</a>{% endif %}
 <h1 style="margin-top:16px;">Kilas Finance</h1>
 <a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
 <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>

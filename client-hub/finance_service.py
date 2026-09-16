@@ -209,6 +209,17 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
     raw = {key: value for key, value in locals().items() if key in FIELDS}
     with _write(business_id, actor_user_id):
         data = _transaction_data(business_id, raw)
+        if data['source_type'] == 'FINANCE_OPERATOR':
+            # One signed draft = one persistent ledger row, across workers/restarts.
+            # The existing business lock is held until ledger + audit commit together.
+            if not data['source_ref'] or not re.fullmatch('[a-f0-9]{32}', data['source_ref']):
+                raise FinanceError('invalid_operator_key')
+            existing = db.query_one('SELECT * FROM finance_transactions WHERE business_id=? '
+                'AND source_type=? AND source_ref=?', (business_id, 'FINANCE_OPERATOR', data['source_ref']))
+            if existing:
+                if existing['created_by_user_id'] != actor_user_id or any(existing[key] != data[key] for key in FIELDS):
+                    raise FinanceError('operator_key_conflict')
+                return existing['id']
         if data['source_type'] == 'FINANCE_RECURRING_EXPENSE':
             raise FinanceError('recurring_ledger_managed')
         if data['source_type'] == 'FINANCE_INVOICE_PAYMENT':
