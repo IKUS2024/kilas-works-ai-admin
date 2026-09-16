@@ -124,6 +124,7 @@
     </div>
     <details style="margin-top:12px;">
       <summary>Kelola Bisnis</summary>
+      {% if finance_beta_enabled %}<a class="btn secondary" style="margin-top:10px;" href="{{ url_for('finance.dashboard', business_id=b.id) }}">Kilas Finance</a>{% endif %}
       <div class="business-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         {% if not review_primary %}<a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Lihat Data</a>{% endif %}
         {% if b.package != 'NONE' %}

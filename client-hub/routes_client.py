@@ -143,7 +143,8 @@ def dashboard():
         project['can_edit_brief'] = projects_repo.is_editable_app_brief(project)
         project['can_cancel'] = projects_repo.customer_can_cancel(project, project.get('payment'))
     return render_template(
-        "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects
+        "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects,
+        finance_beta_enabled=__import__("routes_finance").beta_enabled()
     )
 
 
