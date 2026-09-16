@@ -5,6 +5,7 @@
 <div class="fin-page">
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
 <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
+<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
 <h1 style="margin-top:16px;">Biaya Rutin &amp; Proyek</h1><p class="muted">{{ business.business_name }}</p>
 <div class="card"><h2>Biaya rutin</h2><p class="muted">Proses hanya biaya yang sudah terjadi. Maksimal {{ max_occurrences }} jadwal per proses. Membuka halaman ini tidak mencatat transaksi. Pemrosesan otomatis belum diaktifkan.</p>
 <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" onsubmit="return confirm('Catat semua biaya rutin yang sudah jatuh tempo sampai hari ini?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Proses Jatuh Tempo Sekarang</button></form>

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Laporan & Export · Kilas Finance{% endblock %}
+{% block content %}
+{% include '_finance_receivables_style.html' %}
+<style>
+.report-table td{overflow-wrap:anywhere}.report-table{table-layout:fixed}.report-controls{display:flex;flex-wrap:wrap;gap:10px}.report-controls>*{flex:1;min-width:150px}.report-row{break-inside:avoid}
+@media(max-width:600px){.report-table thead{display:none}.report-table,.report-table tbody,.report-table tr,.report-table td{display:block;width:100%}.report-table tr{padding:10px 0;border-bottom:1px solid var(--border)}.report-table td{border:0;padding:4px 0}.report-table td::before{content:attr(data-label) ': ';color:var(--text-dim);font-size:12px}}
+@media print{nav,button,form,.no-print,.topbar,footer{display:none!important}.card{background:#fff;color:#000;break-inside:auto}.report-table{display:table;table-layout:auto}.report-table thead{display:table-header-group}.report-table tbody{display:table-row-group}.report-table tr{display:table-row;break-inside:avoid}.report-table td{display:table-cell;width:auto;color:#000}.report-table td::before{content:none}.report-table th{color:#222}body{color:#000!important;background:#fff!important}}
+</style>
+{% macro report_table(rows,columns) %}
+{% if rows %}<table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in rows %}<tr class="report-row">{% for label,key,kind in columns %}<td data-label="{{ label }}">{% if kind=='money' %}{{ row[key]|finance_idr }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ account_types[row[key]] }}{% elif kind=='active' %}{{ 'Aktif' if row[key] else 'Nonaktif' }}{% else %}{{ row[key] or '—' if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table>{% else %}<p class="muted">Belum ada data pada periode ini.</p>{% endif %}
+{% endmacro %}
+<div class="fin-page">
+<nav class="no-print"><a class="btn secondary" href="{{ url_for('finance.dashboard',business_id=business.id) }}">Kilas Finance</a><a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a><a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a></nav>
+<h1 style="margin-top:16px;">Laporan &amp; Export</h1><p>{{ business.business_name }}</p>
+{% if error %}<div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id) }}">Kembali ke periode awal</a></div>
+{% else %}
+<p class="muted">Periode {{ filters.start }} hingga {{ filters.end }} · Tanggal acuan {{ filters.as_of }} · IDR</p>
+<div class="card no-print"><nav>{% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id,preset=value) }}">{{ label }}</a>{% endfor %}</nav>
+<form method="get"><div class="report-controls"><label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" required></label><label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" required></label><label>Tanggal acuan saldo &amp; piutang<input type="date" name="as_of" value="{{ filters.as_of }}" required></label></div>
+<details style="margin-top:12px;"><summary>Rentang komitmen biaya rutin</summary><div class="report-controls"><label>Mulai<input type="date" name="commitment_start" value="{{ filters.commitment_start }}" required></label><label>Selesai<input type="date" name="commitment_end" value="{{ filters.commitment_end }}" required></label></div></details><button class="btn">Tampilkan Laporan</button></form>
+<button type="button" class="btn secondary" onclick="window.print()">Cetak / Simpan PDF</button>
+<a class="btn" href="{{ url_for('finance.report_zip',business_id=business.id,**filters) }}">Download Semua CSV</a>
+<details style="margin-top:12px;"><summary>Download CSV per laporan</summary>
+{% set export_labels={'transactions':'Transaksi','invoices':'Invoice bisnis','category_breakdown':'Kategori','accounts':'Saldo akun','customers':'Kontribusi customer','projects':'Kontribusi proyek','receivables_aging':'Aging piutang','recurring_commitments':'Komitmen biaya rutin'} %}
+{% for name in export_names %}<a class="btn small secondary" href="{{ url_for('finance.report_csv',business_id=business.id,report_name=name,**filters) }}">{{ export_labels[name] }}</a>{% endfor %}</details>
+<p class="muted">CSV transaksi menyertakan riwayat dibatalkan dengan status. Maksimal 50.000 baris per CSV; unduhan terlalu besar ditolak tanpa memotong data.</p></div>
+<div class="fin-grid">{% for label,key in [('Pemasukan','total_income_minor'),('Pengeluaran','total_expense_minor'),('Arus Kas Bersih','net_cashflow_minor')] %}<div class="card"><h2>{{ label }}</h2><div class="fin-total">{{ summary[key]|finance_idr }}</div></div>{% endfor %}</div>
+<p>{{ summary.transaction_count }} transaksi tercatat.</p><p class="muted">Laporan ini berbasis arus kas transaksi yang tercatat di Kilas Finance, bukan laporan laba rugi akuntansi.</p>
+<div class="card"><h2>Tren Arus Kas Bulanan</h2><p class="muted">Transaksi tetap dibatasi periode yang dipilih.</p>{{ report_table(trend,[('Bulan','month','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Arus Kas Bersih','net_cashflow_minor','money')]) }}</div>
+<div class="card"><h2>Rincian Kategori</h2>{{ report_table(data.category_breakdown,[('Jenis','direction','direction'),('Kategori','name','text'),('Nominal','amount_minor','money'),('Transaksi','transaction_count','number'),('Persentase','percentage','percent')]) }}</div>
+<div class="card"><h2>Saldo Akun · {{ filters.as_of }}</h2><p class="muted">Saldo ini berdasarkan transaksi yang tercatat di Kilas Finance dan belum tentu sama dengan saldo bank aktual. Saldo awal mengikuti nilai akun yang tersimpan saat ini.</p>{{ report_table(data.accounts,[('Akun','name','text'),('Jenis','account_type','account_type'),('Status','is_active','active'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Saldo','balance_minor','money')]) }}</div>
+<div class="card"><h2>Kontribusi Kas Customer</h2>{{ report_table(data.customers,[('Customer','name','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Kontribusi Kas','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</div>
+<div class="card"><h2>Kontribusi Kas Proyek</h2>{{ report_table(data.projects,[('Proyek','title','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Arus Kas Bersih','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</div>
+<div class="card"><h2>Aging Piutang · {{ filters.as_of }}</h2><p class="muted">Hanya invoice bisnis yang saat ini belum lunas atau dibayar sebagian, diterbitkan paling lambat tanggal acuan. Pembayaran dihitung sampai tanggal acuan; ini bukan rekonstruksi status invoice historis.</p>{{ report_table(data.receivables_aging,[('Kelompok','label','text'),('Piutang','amount_minor','money'),('Invoice','invoice_count','number')]) }}
+<p>Total piutang: <strong>{{ data.receivables_aging|sum(attribute='amount_minor')|finance_idr }}</strong> · Terlambat: <strong>{{ data.receivables_aging[1:]|sum(attribute='amount_minor')|finance_idr }}</strong></p></div>
+<div class="card"><h2>Komitmen Biaya Rutin Mendatang</h2><p class="muted">{{ filters.commitment_start }} hingga {{ filters.commitment_end }}. Berdasarkan jadwal aktif, bukan transaksi yang sudah dicatat. Laporan ini tidak memproses biaya rutin.</p>{{ report_table(data.recurring_commitments,[('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Nominal','amount_minor','money'),('Proyek','project_name','text'),('Akun','account_name','text'),('Kategori','category_name','text')]) }}</div>
+{% endif %}</div>
+{% endblock %}

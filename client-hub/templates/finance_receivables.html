@@ -5,6 +5,7 @@
 <div class="fin-page">
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
 <a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
+<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
 <h1 style="margin-top:16px;">Pelanggan &amp; Piutang</h1><p class="muted">{{ business.business_name }} · Tagihan bisnismu kepada customer.</p>
 <div class="fin-grid">
 {% for key,label in [('total_outstanding_minor','Total piutang'),('overdue_outstanding_minor','Piutang jatuh tempo'),('open_invoice_count','Invoice terbuka'),('overdue_invoice_count','Invoice terlambat')] %}

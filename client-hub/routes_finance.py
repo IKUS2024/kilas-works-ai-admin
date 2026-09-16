@@ -6,8 +6,9 @@ import re
 import uuid
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 import finance_service as finance
+import finance_reports
 import security
 
 finance_bp = Blueprint('finance', __name__)
@@ -316,3 +317,55 @@ def process_recurring(business_id,user,business):
     if result['limit_reached']:
         flash('Batas pemrosesan tercapai. Masih ada jadwal jatuh tempo; proses kembali untuk melanjutkan.','error')
     return redirect(url_for('finance.operations',business_id=business_id),code=303)
+
+
+def report_error(error):
+    if str(error) in ('report_limit','forecast_limit'):
+        return 'Data laporan terlalu banyak. Persempit rentang tanggal atau komitmen biaya rutin.'
+    return 'Filter laporan belum valid. Gunakan tanggal yang benar, maksimal 366 hari dan 12 bulan.'
+
+
+@finance_bp.route('/business/<int:business_id>/finance/reports')
+@finance_access
+def reports(business_id,user,business):
+    try:
+        filters=finance_reports.parse_filters(request.args)
+        actor={'actor_user_id':user['id']}
+        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
+        summary=finance.get_cashflow_report(business_id,filters['start'],filters['end'],**actor)
+        trend=finance.get_monthly_cashflow_trend(business_id,filters['start'][:7],filters['end'][:7],
+            start_date=filters['start'],end_date=filters['end'],**actor)
+    except finance.FinanceError as error:
+        return render_template('finance_reports.html',user=user,business=business,error=report_error(error)),400
+    response=Response(render_template('finance_reports.html',user=user,business=business,filters=filters,
+        data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
+        account_types=finance_reports.ACCOUNT_TYPES,export_names=finance_reports.REPORT_NAMES))
+    response.headers['Cache-Control']='private, no-store'
+    return response
+
+
+@finance_bp.route('/business/<int:business_id>/finance/reports/export/<report_name>.csv')
+@finance_access
+def report_csv(business_id,user,business,report_name):
+    if report_name not in finance_reports.REPORT_NAMES:abort(404)
+    try:
+        filters=finance_reports.parse_filters(request.args)
+        data=finance_reports.export_csv(report_name,business_id,filters,user['id'])
+    except finance.FinanceError as error:
+        return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
+    return Response(data,content_type='text/csv; charset=utf-8',headers={
+        'Content-Disposition':f'attachment; filename="{report_name}-{filters["start"]}_{filters["end"]}.csv"',
+        'Cache-Control':'private, no-store'})
+
+
+@finance_bp.route('/business/<int:business_id>/finance/reports/export/all.zip')
+@finance_access
+def report_zip(business_id,user,business):
+    try:
+        filters=finance_reports.parse_filters(request.args)
+        data=finance_reports.export_zip(business_id,filters,user['id'])
+    except finance.FinanceError as error:
+        return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
+    return Response(data,content_type='application/zip',headers={
+        'Content-Disposition':f'attachment; filename="kilas-finance-laporan-{filters["start"]}_{filters["end"]}.zip"',
+        'Cache-Control':'private, no-store'})
