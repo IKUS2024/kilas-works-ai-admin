@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Biaya Rutin & Proyek · Kilas Finance{% endblock %}
+{% block content %}
+{% include '_finance_receivables_style.html' %}
+<div class="fin-page">
+<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
+<a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
+<h1 style="margin-top:16px;">Biaya Rutin &amp; Proyek</h1><p class="muted">{{ business.business_name }}</p>
+<div class="card"><h2>Biaya rutin</h2><p class="muted">Proses hanya biaya yang sudah terjadi. Maksimal {{ max_occurrences }} jadwal per proses. Membuka halaman ini tidak mencatat transaksi. Pemrosesan otomatis belum diaktifkan.</p>
+<form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" onsubmit="return confirm('Catat semua biaya rutin yang sudah jatuh tempo sampai hari ini?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Proses Jatuh Tempo Sekarang</button></form>
+{% for r in rules %}<article class="fin-entry"><strong>{{ r.name }}</strong> · {{ 'Aktif' if r.is_active else 'Nonaktif' }}
+<p>{{ r.amount_minor|finance_idr }} · {{ 'Mingguan' if r.cadence=='WEEKLY' else 'Bulanan' }}</p><p class="muted">Jadwal berikutnya {{ r.next_due_on }}{% if r.end_on %} · Berakhir {{ r.end_on }}{% endif %}</p>
+{% if r.project_id %}<p>Proyek: {{ project_map.get(r.project_id,{}).get('title','Tidak tersedia') }}</p>{% endif %}
+{% if attention.get(r.id) %}<p class="fin-overdue">Perlu perhatian: akun, kategori, atau proyek tidak tersedia atau tidak sesuai. Jadwal tidak akan dilewati.</p>{% endif %}
+{% if r.is_active %}<form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,recurring_id=r.id) }}" onsubmit="return confirm('Nonaktifkan biaya rutin ini? Transaksi terdahulu tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary small">Nonaktifkan</button></form>{% endif %}
+</article>{% else %}<p class="muted">Belum ada biaya rutin.</p>{% endfor %}</div>
+<details class="card"><summary>+ Tambah Biaya Rutin</summary>
+<form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="name">Nama</label><input id="name" name="name" maxlength="160" required>
+<label for="amount">Nominal (rupiah)</label><input id="amount" name="amount" inputmode="numeric" pattern="[0-9]+" maxlength="19" required><small class="muted">Angka bulat tanpa titik atau koma.</small>
+<label for="account">Akun</label><select id="account" name="account_id" required><option value="">Pilih akun rupiah</option>{% for a in accounts if a.currency=='IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<label for="category">Kategori pengeluaran</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+<label for="cadence">Frekuensi</label><select id="cadence" name="cadence"><option value="MONTHLY">Bulanan</option><option value="WEEKLY">Mingguan</option></select>
+<div class="fin-grid"><label>Jatuh tempo pertama<input type="date" name="next_due_on" value="{{ today }}" required></label><label>Berakhir (opsional)<input type="date" name="end_on"></label></div>
+<label for="project">Proyek (opsional)</label><select id="project" name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select>
+<label for="counterparty">Vendor / penerima (opsional)</label><input id="counterparty" name="counterparty_name" maxlength="160">
+<label for="description">Deskripsi (opsional)</label><textarea id="description" name="description" maxlength="4000"></textarea><button class="btn">Simpan Biaya Rutin</button>
+</form></details>
+<div class="card"><h2>Kontribusi Kas Proyek</h2><p class="muted">Berdasarkan transaksi rupiah yang tercatat dan terhubung ke proyek. Perhitungan berbasis arus kas, bukan laba akuntansi. Transaksi dibatalkan tidak dihitung.</p>
+<form method="get"><label for="month">Bulan</label><input id="month" name="month" type="month" value="{{ month }}" required><button class="btn secondary">Tampilkan</button></form>
+{% for p in contributions %}<article class="fin-entry"><h3>{{ p.title }}</h3><div class="fin-grid"><p>Pemasukan<br><strong>{{ p.income_minor|finance_idr }}</strong></p><p>Pengeluaran<br><strong>{{ p.expense_minor|finance_idr }}</strong></p><p>Arus Kas Bersih<br><strong>{{ p.net_cash_contribution_minor|finance_idr }}</strong></p></div><p class="muted">{{ p.transaction_count }} transaksi</p></article>{% else %}<p class="muted">Belum ada transaksi terhubung ke proyek untuk periode ini.</p>{% endfor %}
+</div></div>
+{% endblock %}

@@ -7,6 +7,7 @@
 <div class="finance-page">
 <a href="{{ url_for('client.dashboard') }}">← Dashboard</a>
 <h1 style="margin-top:16px;">Kilas Finance</h1>
+<a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
 <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
 <p class="muted">{{ business.business_name }} · Kelola pemasukan, pengeluaran, dan arus kas bisnis dalam satu tempat.</p>
 {% if not initialized %}
@@ -39,6 +40,7 @@
 <label for="{{ kind }}-account">Akun</label><select id="{{ kind }}-account" name="account_id" required><option value="">Pilih akun rupiah</option>{% for a in accounts if a.is_active and a.currency == 'IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
 <label for="{{ kind }}-category">Kategori {{ label|lower }}</label><select id="{{ kind }}-category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active and c.direction == kind %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <details style="margin-top:14px;"><summary>Detail tambahan (opsional)</summary>
+<label for="{{ kind }}-project">Proyek (opsional)</label><select id="{{ kind }}-project" name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select>
 <label for="{{ kind }}-customer">Customer tersimpan (opsional)</label><select id="{{ kind }}-customer" name="customer_id"><option value="">Tanpa customer tersimpan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="{{ kind }}-party">Customer / pihak terkait</label><input id="{{ kind }}-party" name="counterparty_name" maxlength="160">
 <label for="{{ kind }}-note">Catatan</label><textarea id="{{ kind }}-note" name="description" maxlength="4000"></textarea>

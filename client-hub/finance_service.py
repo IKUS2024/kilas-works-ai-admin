@@ -8,7 +8,8 @@ No operation hard-deletes a transaction. All monetary amounts are caller-supplie
 minor units of the stated currency (IDR defaults); there is no conversion or float calculation.
 """
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
+import calendar
 import re
 import uuid
 
@@ -208,6 +209,8 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
     raw = {key: value for key, value in locals().items() if key in FIELDS}
     with _write(business_id, actor_user_id):
         data = _transaction_data(business_id, raw)
+        if data['source_type'] == 'FINANCE_RECURRING_EXPENSE':
+            raise FinanceError('recurring_ledger_managed')
         if data['source_type'] == 'FINANCE_INVOICE_PAYMENT':
             raise FinanceError('invoice_ledger_managed')
         return _insert_transaction(business_id, data, actor_user_id)
@@ -266,10 +269,14 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
             raise FinanceError('transaction_unavailable')
         if current['source_type'] == 'FINANCE_INVOICE_PAYMENT' or changes.get('source_type') == 'FINANCE_INVOICE_PAYMENT':
             raise FinanceError('invoice_ledger_managed')
+        if current['source_type'] == 'FINANCE_RECURRING_EXPENSE':
+            raise FinanceError('recurring_ledger_managed')
         if current['status'] == 'VOID':
             raise FinanceError('transaction_void')
         original = {key: current[key] for key in FIELDS}
         data = _transaction_data(business_id, dict(original, **changes))
+        if data['source_type'] == 'FINANCE_RECURRING_EXPENSE':
+            raise FinanceError('recurring_ledger_managed')
         if data != original:
             db.execute('UPDATE finance_transactions SET ' + ','.join(key+'=?' for key in FIELDS) +
                        ',updated_at=? WHERE business_id=? AND id=? AND status=\'POSTED\'',
@@ -526,3 +533,165 @@ def get_customer_cash_contribution(business_id, start_date, end_date, actor_user
         item[key] += row['amount_minor']
         item['net_cash_contribution_minor'] = item['income_minor']-item['expense_minor']
     return [result[k] for k in sorted(result)]
+
+
+# Phase 2B: no GET/boot scheduler, no platform commerce amounts, no automatic external actions.
+MAX_RECURRING_OCCURRENCES = 100
+
+
+def _recurring_data(business_id, rule):
+    return _transaction_data(business_id, dict(direction='EXPENSE', amount_minor=rule['amount_minor'],
+        currency=rule['currency'], account_id=rule['account_id'], category_id=rule['category_id'],
+        occurred_on=rule['next_due_on'], project_id=rule['project_id'], customer_id=None,
+        counterparty_name=rule['counterparty_name'], description=rule['description'] or rule['name'],
+        source_type='FINANCE_RECURRING_EXPENSE', source_ref=None))
+
+
+def create_recurring_expense(business_id, name, amount_minor, account_id, category_id, cadence,
+                             next_due_on, end_on=None, project_id=None, counterparty_name=None,
+                             description=None, actor_user_id=None):
+    name, cadence = _text(name,160,True), _enum(cadence,('WEEKLY','MONTHLY'))
+    next_due_on = _date(next_due_on)
+    end_on = _period(next_due_on,end_on)[1] if end_on is not None else None
+    anchor = date.fromisoformat(next_due_on).day if cadence=='MONTHLY' else None
+    rule = dict(name=name,amount_minor=amount_minor,currency='IDR',account_id=account_id,category_id=category_id,
+                next_due_on=next_due_on,project_id=project_id,counterparty_name=counterparty_name,description=description)
+    with _write(business_id,actor_user_id):
+        data = _recurring_data(business_id,rule)
+        now = repo._now()
+        recurring_id = db.insert_returning_id('INSERT INTO finance_recurring_expenses '
+            '(business_id,name,amount_minor,account_id,category_id,project_id,counterparty_name,description,cadence,anchor_day,next_due_on,end_on,created_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (business_id,name,data['amount_minor'],account_id,category_id,
+            data['project_id'],data['counterparty_name'],_text(description,4000),cadence,anchor,next_due_on,end_on,actor_user_id,now,now))
+        _audit(business_id,actor_user_id,'FINANCE_RECURRING_CREATED',recurring_id)
+        return recurring_id
+
+
+def get_recurring_expense(business_id, recurring_id, actor_user_id=None):
+    _scope(business_id,actor_user_id)
+    return db.query_one('SELECT * FROM finance_recurring_expenses WHERE business_id=? AND id=?',
+                        (business_id,_id(recurring_id)))
+
+
+def list_recurring_expenses(business_id, include_inactive=False, actor_user_id=None):
+    _scope(business_id,actor_user_id)
+    return db.query_all('SELECT * FROM finance_recurring_expenses WHERE business_id=?' +
+        ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY next_due_on,id',(business_id,))
+
+
+def recurring_needs_attention(business_id, recurring_id, actor_user_id=None):
+    """Read-only configuration check; safe category, never counterparty/account data in errors."""
+    rule = get_recurring_expense(business_id,recurring_id,actor_user_id)
+    if not rule:
+        raise FinanceError('recurring_unavailable')
+    try:
+        _recurring_data(business_id,rule)
+    except FinanceError:
+        return True
+    return False
+
+
+def deactivate_recurring_expense(business_id, recurring_id, actor_user_id=None):
+    with _write(business_id,actor_user_id):
+        rule = get_recurring_expense(business_id,recurring_id,actor_user_id)
+        if not rule:
+            raise FinanceError('recurring_unavailable')
+        if rule['is_active']:
+            db.execute('UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? WHERE business_id=? AND id=?',
+                       (repo._now(),business_id,recurring_id))
+            _audit(business_id,actor_user_id,'FINANCE_RECURRING_DEACTIVATED',recurring_id)
+
+
+def list_recurring_postings(business_id, recurring_id, actor_user_id=None):
+    if not get_recurring_expense(business_id,recurring_id,actor_user_id):
+        raise FinanceError('recurring_unavailable')
+    return db.query_all('SELECT * FROM finance_recurring_postings WHERE business_id=? AND recurring_expense_id=? ORDER BY scheduled_on,id',
+                        (business_id,recurring_id))
+
+
+def _next_recurring_date(rule):
+    scheduled = date.fromisoformat(rule['next_due_on'])
+    try:
+        if rule['cadence']=='WEEKLY':
+            return (scheduled+timedelta(days=7)).isoformat()
+        month = scheduled.month % 12 + 1
+        year = scheduled.year + (scheduled.month == 12)
+        return date(year,month,min(rule['anchor_day'],calendar.monthrange(year,month)[1])).isoformat()
+    except (ValueError,OverflowError):
+        raise FinanceError('invalid_date') from None
+
+
+def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_occurrences=MAX_RECURRING_OCCURRENCES):
+    """At most 100 occurrences per call, including already-posted recovery checks.
+
+    One business transaction: any SQL/audit failure rolls back all writes in this call. Invalid
+    configuration stays due and is reported; other valid rules can progress. A shared business
+    lock serializes UI/cron and the occurrence UNIQUE constraint adds duplicate protection.
+    VOID is not a missing occurrence: its posting stays recorded and is never regenerated.
+    """
+    as_of = _date(as_of)
+    if type(max_occurrences) is not int or not 1 <= max_occurrences <= MAX_RECURRING_OCCURRENCES:
+        raise FinanceError('invalid_recurring_limit')
+    posted, handled, attention = 0, 0, 0
+    with _write(business_id,actor_user_id):
+        rules = db.query_all('SELECT * FROM finance_recurring_expenses WHERE business_id=? AND is_active=TRUE AND next_due_on<=? ORDER BY next_due_on,id', (business_id,as_of))
+        for rule in rules:
+            while rule['is_active'] and rule['next_due_on']<=as_of and handled<max_occurrences:
+                if rule['end_on'] and rule['next_due_on']>rule['end_on']:
+                    deactivate_sql = 'UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? WHERE business_id=? AND id=?'
+                    db.execute(deactivate_sql,(repo._now(),business_id,rule['id']))
+                    _audit(business_id,actor_user_id,'FINANCE_RECURRING_DEACTIVATED',rule['id'])
+                    break
+                try:
+                    data = _recurring_data(business_id,rule)
+                    next_due = _next_recurring_date(rule)
+                except FinanceError:
+                    attention += 1
+                    break
+                existing = db.query_one('SELECT ledger_transaction_id FROM finance_recurring_postings WHERE business_id=? AND recurring_expense_id=? AND scheduled_on=?',
+                                         (business_id,rule['id'],rule['next_due_on']))
+                if existing and existing['ledger_transaction_id'] is None:
+                    attention += 1
+                    break  # fail closed; never duplicate an unresolved occurrence
+                if not existing:
+                    posting_id = db.insert_returning_id('INSERT INTO finance_recurring_postings '
+                        '(business_id,recurring_expense_id,scheduled_on,created_at) VALUES (?,?,?,?)',
+                        (business_id,rule['id'],rule['next_due_on'],repo._now()))
+                    data['source_ref'] = str(posting_id)
+                    ledger_id = _insert_transaction(business_id,data,actor_user_id)
+                    db.execute('UPDATE finance_recurring_postings SET ledger_transaction_id=? WHERE business_id=? AND id=?',
+                               (ledger_id,business_id,posting_id))
+                    _audit(business_id,actor_user_id,'FINANCE_RECURRING_POSTED',posting_id)
+                    posted += 1
+                handled += 1
+                active = not rule['end_on'] or next_due<=rule['end_on']
+                db.execute('UPDATE finance_recurring_expenses SET next_due_on=?,is_active=?,updated_at=? WHERE business_id=? AND id=?',
+                           (next_due,active,repo._now(),business_id,rule['id']))
+                if not active:
+                    _audit(business_id,actor_user_id,'FINANCE_RECURRING_DEACTIVATED',rule['id'])
+                rule.update(next_due_on=next_due,is_active=active)
+        remaining = db.query_one('SELECT id FROM finance_recurring_expenses WHERE business_id=? AND is_active=TRUE AND next_due_on<=? LIMIT 1',(business_id,as_of))
+    return dict(posted_count=posted,needs_attention_count=attention,has_more=bool(remaining),limit_reached=handled>=max_occurrences and bool(remaining))
+
+
+def list_finance_projects(business_id, actor_user_id=None):
+    """Existing Client Hub project identity only, never platform billing amounts."""
+    _scope(business_id,actor_user_id)
+    return db.query_all('SELECT id,title,status FROM projects WHERE business_id=? ORDER BY title,id',(business_id,))
+
+
+def get_project_cash_contribution(business_id, start_date, end_date, actor_user_id=None):
+    _scope(business_id,actor_user_id)
+    start,end = _period(start_date,end_date)
+    rows = db.query_all("SELECT t.project_id,p.title,p.status,t.direction,t.amount_minor FROM finance_transactions t "
+        "JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id "
+        "WHERE t.business_id=? AND t.status='POSTED' AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=? "
+        "ORDER BY p.title,p.id,t.id",(business_id,start,end))
+    result = {}
+    for row in rows:
+        item = result.setdefault(row['project_id'],dict(project_id=row['project_id'],title=row['title'],status=row['status'],
+            income_minor=0,expense_minor=0,net_cash_contribution_minor=0,transaction_count=0))
+        item['income_minor' if row['direction']=='INCOME' else 'expense_minor'] += row['amount_minor']
+        item['net_cash_contribution_minor'] = item['income_minor']-item['expense_minor']
+        item['transaction_count'] += 1
+    return list(result.values())

@@ -30,6 +30,8 @@ def finance_access(view):
 
 
 ERRORS = {
+    'recurring_ledger_managed': 'Biaya rutin tidak dapat diedit langsung. Batalkan transaksi jika keliru; riwayat kejadian tetap tersimpan.',
+    'invalid_recurring_limit': 'Batas pemrosesan belum valid.',
     'customer_unavailable': 'Customer tidak tersedia untuk bisnis ini.',
     'invalid_items': 'Isi 1–100 baris dengan deskripsi, jumlah, dan harga yang valid.',
     'invalid_period': 'Tanggal jatuh tempo tidak boleh sebelum tanggal terbit.',
@@ -112,6 +114,7 @@ def dashboard(business_id, user, business):
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
+        projects=finance.list_finance_projects(business_id, **actor),
         initialized=bool(accounts and categories), month=month, direction=direction,
         today=date.today().isoformat(), account_types={'CASH':'Kas','BANK':'Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
 
@@ -120,7 +123,7 @@ def mutate(business_id, action, success, destination=None):
     try:
         action()
     except finance.FinanceError as error:
-        if str(error) in ('transaction_unavailable', 'business_unavailable', 'invoice_unavailable'):
+        if str(error) in ('transaction_unavailable', 'business_unavailable', 'invoice_unavailable', 'recurring_unavailable'):
             abort(404)
         flash(ERRORS.get(str(error), 'Data belum valid. Periksa isian dan coba lagi.'), 'error')
     else:
@@ -263,3 +266,53 @@ def record_payment(business_id,user,business,invoice_id):
         record_id(request.form.get('category_id')),note=request.form.get('note'),actor_user_id=user['id'],
         idempotency_key=request.form.get('payment_key')), 'Pembayaran dicatat.',
         url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/operations')
+@finance_access
+def operations(business_id,user,business):
+    month = request.args.get('month',date.today().strftime('%Y-%m'))
+    try:
+        start,end = period(month)
+    except ValueError:
+        flash('Periode belum valid. Pilih kembali.','error')
+        return redirect(url_for('finance.operations',business_id=business_id))
+    actor = {'actor_user_id':user['id']}
+    rules = finance.list_recurring_expenses(business_id,include_inactive=True,**actor)
+    projects = finance.list_finance_projects(business_id,**actor)
+    return render_template('finance_operations.html',user=user,business=business,rules=rules,projects=projects,
+        project_map={p['id']:p for p in projects},
+        attention={r['id']:finance.recurring_needs_attention(business_id,r['id'],**actor) for r in rules if r['is_active']},
+        accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'EXPENSE',**actor),
+        contributions=finance.get_project_cash_contribution(business_id,start,end,**actor),
+        month=month,today=date.today().isoformat(),max_occurrences=finance.MAX_RECURRING_OCCURRENCES)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/recurring',methods=['POST'])
+@finance_access
+def create_recurring(business_id,user,business):
+    return mutate(business_id,lambda:finance.create_recurring_expense(business_id,request.form.get('name'),
+        whole_idr(request.form.get('amount')),record_id(request.form.get('account_id')),record_id(request.form.get('category_id')),
+        request.form.get('cadence'),request.form.get('next_due_on'),end_on=request.form.get('end_on') or None,
+        project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
+        counterparty_name=request.form.get('counterparty_name'),description=request.form.get('description'),actor_user_id=user['id']),
+        'Biaya rutin disimpan.',url_for('finance.operations',business_id=business_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/recurring/<int:recurring_id>/deactivate',methods=['POST'])
+@finance_access
+def deactivate_recurring(business_id,user,business,recurring_id):
+    return mutate(business_id,lambda:finance.deactivate_recurring_expense(business_id,recurring_id,actor_user_id=user['id']),
+        'Biaya rutin dinonaktifkan. Riwayat tetap tersimpan.',url_for('finance.operations',business_id=business_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/recurring/process',methods=['POST'])
+@finance_access
+def process_recurring(business_id,user,business):
+    result = finance.process_due_recurring_expenses(business_id,date.today(),actor_user_id=user['id'])
+    flash(f"{result['posted_count']} biaya rutin dicatat.",'success')
+    if result['needs_attention_count']:
+        flash('Ada biaya rutin yang belum dapat dicatat. Periksa akun, kategori, dan proyek. Jadwalnya tetap tersimpan.','error')
+    if result['limit_reached']:
+        flash('Batas pemrosesan tercapai. Masih ada jadwal jatuh tempo; proses kembali untuk melanjutkan.','error')
+    return redirect(url_for('finance.operations',business_id=business_id),code=303)
