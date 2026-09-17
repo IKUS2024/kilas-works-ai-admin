@@ -2,21 +2,21 @@
 {% block title %}Kilas Finance{% endblock %}
 {% block content %}
 <style>
-.finance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}.finance-grid>*{min-width:0}.finance-page{overflow-wrap:anywhere}.finance-page .btn{max-width:100%;white-space:normal;margin-top:12px}.finance-total{font-size:24px;font-weight:700}.finance-income{color:var(--green)}.finance-expense{color:var(--red)}.finance-entry{border-top:1px solid var(--border);padding:14px 0}.finance-entry p{margin:6px 0}.finance-filter{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.finance-filter>div{flex:1;min-width:140px}.finance-page summary{cursor:pointer}.finance-page input,.finance-page select{min-width:0;max-width:100%}
+.finance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px}.finance-grid>*{min-width:0}.finance-page{overflow-wrap:anywhere}.finance-page .btn{max-width:100%;white-space:normal;margin-top:12px}.finance-total{font-size:24px;font-weight:700}.finance-income{color:var(--green)}.finance-expense{color:var(--red)}.finance-entry{border-top:1px solid var(--border);padding:14px 0}.finance-entry p{margin:6px 0}.finance-filter{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.finance-filter>div{flex:1 1 140px;min-width:0}.finance-filter select{width:100%;box-sizing:border-box}@media(max-width:480px){.finance-filter>div{flex-basis:100%}}.finance-page summary{cursor:pointer}.finance-page input,.finance-page select{min-width:0;max-width:100%}
 </style>
 <div class="finance-page">
 <a href="{{ url_for('client.dashboard') }}">← Dashboard</a>
-<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
-{% if analyst_enabled %}<a class="btn secondary" href="{{ url_for('finance.analyst',business_id=business.id) }}">AI Analyst · Beta</a>{% endif %}
-{% if operator_enabled %}<a class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">AI Operator · Beta</a>{% endif %}
-<a class="btn secondary" href="{{ url_for('finance.assistant',business_id=business.id) }}">Upload File</a>
-<a class="btn secondary" href="#INCOME-amount">Catat Manual</a>
 <h1 style="margin-top:16px;">Kilas Finance</h1>
+{% include "_finance_business_selector.html" %}
 <p><a class="btn" href="{{ url_for('finance.assistant',business_id=business.id) }}">AI Assistant</a></p>
+<p class="muted">Tanya laporan, catat transaksi, baca struk, atau upload mutasi bank melalui Assistant.</p>
+<details class="card"><summary>Alat Finance Lainnya</summary>
+<a class="btn secondary" href="#INCOME-amount">Catat Manual</a>
+<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
 <a class="btn secondary" href="{{ url_for('finance.bank_index',business_id=business.id) }}">Cocokkan Mutasi Bank</a>
-<a class="btn secondary" href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Foto Struk / PDF</a>
 <a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
 <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
+</details>
 <p class="muted">{{ business.business_name }} · Kelola pemasukan, pengeluaran, dan arus kas bisnis dalam satu tempat.</p>
 {% if not initialized %}
 <div class="card">
@@ -28,7 +28,7 @@
 </div>
 {% else %}
 <form method="get" class="card finance-filter">
-<div><label for="month">Bulan</label><input id="month" type="month" name="month" value="{{ month }}" required></div>
+{% include "_finance_period_selector.html" %}
 <div><label for="filter-direction">Jenis transaksi</label><select id="filter-direction" name="direction"><option value="">Semua</option><option value="INCOME" {{ 'selected' if direction == 'INCOME' }}>Pemasukan</option><option value="EXPENSE" {{ 'selected' if direction == 'EXPENSE' }}>Pengeluaran</option></select></div>
 <button class="btn">Tampilkan</button>
 </form>

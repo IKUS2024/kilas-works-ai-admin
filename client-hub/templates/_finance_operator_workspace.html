@@ -1,10 +1,10 @@
 <style>.operator{max-width:850px;overflow-wrap:anywhere}.operator input,.operator select,.operator textarea{width:100%;min-width:0;box-sizing:border-box}.operator button{max-width:100%;white-space:normal}.operator .actions{display:flex;gap:12px;flex-wrap:wrap}.operator dt{font-weight:bold;margin-top:12px}.operator dd{margin-left:0;white-space:pre-wrap}</style>
 <div class="operator">
 {% if not assistant_embedded %}<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>{% endif %}
-{% if not assistant_embedded %}<h1>AI Finance Operator · Beta Internal</h1>{% endif %}
+{% if not assistant_embedded %}<h1>Catat Transaksi</h1>{% endif %}
 <p>{{ business.business_name }} · Usulan → Periksa → Konfirmasi → Catatan tersimpan.</p>
 <p>AI hanya menyiapkan draft. Tidak ada data yang disimpan sebelum kamu menekan <strong>Konfirmasi pencatatan</strong>. Ini pencatatan keuangan, bukan transfer uang atau pembayaran bank.</p>
-<p class="muted">Untuk analisis saja, gunakan AI Analyst. Pembuatan invoice tetap melalui form Invoice Finance. Jangan masukkan kredensial atau informasi pribadi ke permintaan AI.</p>
+<p class="muted">Untuk analisis saja, pilih Tanya / analisis laporan di AI Assistant. Pembuatan invoice tetap melalui form Invoice Finance. Jangan masukkan kredensial atau informasi pribadi ke permintaan AI.</p>
 <form id="operator-form" class="card" data-draft="{{ url_for('finance.operator_action',business_id=business.id,stage='draft') }}" data-confirm="{{ url_for('finance.operator_action',business_id=business.id,stage='confirm') }}" data-csrf="{{ csrf_token() }}">
 <fieldset id="operator-fields" style="border:0;padding:0;min-width:0">
 <label for="op-action">Tindakan yang ingin disiapkan</label><select id="op-action" required>{% if assistant_embedded %}<option value="">Pilih tindakan</option>{% endif %}{% for key,label in actions.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>

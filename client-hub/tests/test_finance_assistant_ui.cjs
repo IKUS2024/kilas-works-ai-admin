@@ -143,3 +143,52 @@ test('pending review cannot be replaced by a camera selection',async()=>{
   e['assistant-camera'].files=[{name:'new.jpg'}];await e['assistant-camera'].fire('change');
   assert.equal(e['assistant-files'].files[0].name,'original.pdf');assert.equal(h.calls.length,0);
 });
+
+test('camera selection exposes Baca Struk; one explicit click uploads once with loading',async()=>{
+  const h=setup(),e=h.elements;e['assistant-camera'].files=[{name:'camera.jpg'}];
+  await e['assistant-camera'].fire('change');
+  assert.equal(e['assistant-send'].textContent,'Baca Struk');
+  assert.equal(e['assistant-send'].focused,true);
+  assert.equal(h.uploads.length,0);assert.equal(h.calls.length,0);
+  await h.route();await h.route();
+  assert.equal(h.uploads.length,1);assert.equal(h.calls.length,0);
+  assert.equal(h.uploads[0].action,'/business/1/finance/receipts/analyze');
+  assert.equal(e['assistant-send'].disabled,true);
+  assert.match(e['assistant-status'].textContent,/Membaca struk.*Review Hasil/);
+});
+
+test('explicit receipt file selection and mode changes update primary action without sending',async()=>{
+  const h=setup(),e=h.elements;e['assistant-mode'].value='receipt';
+  e['assistant-files'].files=[{name:'receipt.pdf'}];await e['assistant-files'].fire('change');
+  assert.equal(e['assistant-send'].textContent,'Baca Struk');assert.equal(h.uploads.length,0);
+  e['assistant-mode'].value='bank';await e['assistant-mode'].fire('input');
+  assert.equal(e['assistant-send'].textContent,'Lanjut');assert.equal(h.uploads.length,0);
+  e['assistant-mode'].value='receipt';await e['assistant-mode'].fire('input');
+  await h.route();assert.equal(h.uploads.length,1);assert.equal(h.uploads[0].name,'receipt');
+});
+
+test('ambiguous gallery image still needs workflow choice and never auto uploads',async()=>{
+  const h=setup(),e=h.elements;e['assistant-files'].files=[{name:'unknown.jpg'}];
+  await e['assistant-files'].fire('change');assert.equal(e['assistant-send'].textContent,'Lanjut');
+  assert.equal(h.calls.length,0);assert.equal(h.uploads.length,0);
+  await h.route();assert.equal(e['assistant-clarification'].hidden,false);assert.equal(h.uploads.length,0);
+});
+
+test('analyst browser shows safe errors, never provider body or exception text',async()=>{
+  for (const kind of ['http','network','json']) {
+    const h=setup(),e=h.elements, Element=e['assistant-text'].constructor;
+    for (const id of ['analyst-form','send','status','month']) e[id]=new Element(id);
+    e.month.value='2026-09';e.question.value='Ringkas laporan';e.scope.value='summary';
+    const analystScript=fs.readFileSync(path.join(__dirname,'../static/finance_analyst.js'),'utf8');
+    vm.runInNewContext(analystScript,{
+      document:{getElementById:id=>e[id],createElement:tag=>new Element(tag)},location:{pathname:'/analyst'},
+      fetch:async()=>{
+        if(kind==='network') throw new Error('PRIVATE_EXCEPTION');
+        return {ok:false,json:async()=>{if(kind==='json')throw new Error('PRIVATE_JSON');return {error:'PRIVATE_PROVIDER_BODY'};}};
+      }
+    });
+    await e['analyst-form'].fire('submit');
+    assert.match(e.status.textContent,/Laporan & Export/);
+    assert.equal(e.status.textContent.includes('PRIVATE'),false);assert.equal(e.send.disabled,false);
+  }
+});

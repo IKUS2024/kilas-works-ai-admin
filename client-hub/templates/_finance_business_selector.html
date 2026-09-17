@@ -1,0 +1,10 @@
+<form method="get" action="{{ url_for('finance.overview') }}" class="card finance-filter">
+<input type="hidden" name="month" value="{{ month }}">
+<div><label for="finance-business">Bisnis</label>
+<select id="finance-business" name="business_id">
+{% if business and business.id not in businesses|map(attribute='id')|list %}<option disabled selected>{{ business.business_name }}</option>{% endif %}
+<option value="all" {% if not business %}selected{% endif %}>Semua Bisnis</option>
+{% for item in businesses %}<option value="{{ item.id }}" {% if business and item.id == business.id %}selected{% endif %}>{{ item.business_name }}</option>{% endfor %}
+</select></div>
+<button class="btn secondary">Tampilkan Bisnis</button>
+</form>

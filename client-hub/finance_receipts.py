@@ -17,6 +17,7 @@ import finance_ai_safety as safety
 TTL = 600
 MAX_BYTES = 5 * 1024 * 1024
 PURPOSE = 'finance_receipt_review'
+READ_ERROR = 'AI belum berhasil membaca struk ini. Coba foto ulang lebih dekat dan terang, atau isi manual.'
 FIELDS = {'merchant_name', 'transaction_date', 'total_minor', 'currency', 'receipt_number',
           'description', 'suggested_category_name', 'readable'}
 SYSTEM = '''You extract candidate expense information from a receipt for HUMAN REVIEW ONLY.
@@ -104,10 +105,17 @@ def extract(raw, mime, pdf_text, category_names):
             json={'model': model, 'max_tokens': 700, 'system': SYSTEM,
                   'messages': [{'role': 'user', 'content': content}]},
             timeout=(5, 25), allow_redirects=False)
-        if response.status_code != 200:
-            raise ReceiptError('upstream_failure')
+    except requests.Timeout:
+        raise ReceiptError('timeout') from None
+    except requests.RequestException:
+        raise ReceiptError('network_failure') from None
+    if response.status_code == 429:
+        raise ReceiptError('rate_limited')
+    if response.status_code != 200:
+        raise ReceiptError('upstream_failure')
+    try:
         return validate_result(safety.json_object(safety.response_text(response.json(), 6000)), category_names)
-    except (requests.RequestException, ValueError, TypeError, KeyError, AttributeError, RecursionError):
+    except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
         raise ReceiptError('invalid_result') from None
 
 
@@ -126,17 +134,21 @@ def analyze(business_id, user_id, filename, raw):
     names = [c['name'] for c in categories[:100]]
     result = empty_result()
     fallback = True
+    reason = 'rate_limited'
     if safety.allow_attempt(user_id, business_id, 'ai'):
         try:
             __import__("finance_entitlements").require_ai(business_id,user_id)
             result = extract(raw, mime, pdf_text, names)
-            fallback = not result['readable']
-        except ReceiptError:
-            safety.event('invalid_result')
+            fallback = not result['readable'] or all(result[key] is None for key in
+                ('merchant_name', 'transaction_date', 'total_minor', 'description', 'suggested_category_name'))
+            reason = 'unreadable' if fallback else 'success'
+        except ReceiptError as error:
+            reason = str(error)
+    safety.receipt_event(reason)
     token = analysis_signer.dumps(dict(purpose=PURPOSE, version=1, user_id=user_id,
         business_id=business_id, receipt_hash=receipt_hash, filename=safe_name,
         extraction=result, nonce=uuid.uuid4().hex))
-    return dict(duplicate=False, token=token, extraction=result, filename=safe_name, fallback=fallback)
+    return dict(duplicate=False, token=token, extraction=result, filename=safe_name, fallback=fallback, message=READ_ERROR if fallback else None)
 
 
 def resolve_token(token, business_id, user_id):

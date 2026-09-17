@@ -8,8 +8,11 @@
   let busy = false, proposed = null;
   const workflows = new Set(['READ_ONLY_ANALYSIS','TEXT_OPERATOR','RECEIPT','BANK_STATEMENT','NEEDS_CLARIFICATION','UNSUPPORTED']);
   const activeDraft = () => el('operator-fields')?.disabled || (el('op-preview') && !el('op-preview').hidden);
+  const receiptReady = () => mode.value === 'receipt' && files.files.length === 1;
+  const buttonLabel = () => { el('assistant-send').textContent = busy ? 'Memproses…' : receiptReady() ? 'Baca Struk' : 'Lanjut'; };
   const state = value => {
     busy = value;
+    buttonLabel();
     composer.setAttribute('aria-busy', String(value));
     if (el('assistant-camera')) el('assistant-camera').disabled = value;
     for (const id of ['assistant-send','assistant-clear','assistant-receipt-continue','assistant-bank-continue']) el(id).disabled = value;
@@ -35,6 +38,7 @@
     if (el('op-request')) el('op-request').value = '';
     if (el('op-details')) el('op-details').replaceChildren();
     if (el('op-interpretation')) el('op-interpretation').textContent = '';
+    buttonLabel();
     status.textContent = 'Pesan dan lampiran dihapus dari halaman ini. Tidak ada pencatatan.';
   };
   const display = (workflow, action = '') => {
@@ -57,8 +61,13 @@
         status.textContent = workflow === 'RECEIPT' ? 'Pilih tepat satu file struk sebelum melanjutkan.' : 'Pilih file mutasi sebelum melanjutkan.';
         return;
       }
-      show(workflow === 'RECEIPT' ? 'assistant-receipt' : 'assistant-bank');
-      status.textContent = 'Periksa alur yang dipilih lalu lanjutkan. File belum diekstrak.';
+      if (workflow === 'RECEIPT' && receiptReady()) {
+        el('assistant-receipt').hidden = false;
+        el('assistant-send').focus();
+      } else { show(workflow === 'RECEIPT' ? 'assistant-receipt' : 'assistant-bank'); }
+      el('assistant-receipt-continue').hidden = receiptReady();
+      buttonLabel();
+      status.textContent = workflow === 'RECEIPT' ? 'Tekan Baca Struk untuk membaca file, lalu Review Hasil. Belum ada pencatatan.' : 'Periksa alur yang dipilih lalu lanjutkan. File belum diekstrak.';
     } else if (workflow === 'READ_ONLY_ANALYSIS') {
       if (el('question')) {
         el('question').value = text.value;
@@ -116,18 +125,31 @@
     // Native multipart navigation uses the original validator/review endpoint. No
     // prompt, file bytes or token is placed in a URL, session or browser storage.
     files.disabled = false;
-    status.textContent = 'Mengirim untuk ekstraksi dan review… Belum ada transaksi dibuat.';
+    status.textContent = workflow === 'RECEIPT' ? 'Membaca struk… Berikutnya Review Hasil. Belum ada transaksi dibuat.' : 'Mengirim untuk ekstraksi dan review… Belum ada transaksi dibuat.';
     HTMLFormElement.prototype.submit.call(composer);
   };
-  composer.addEventListener('submit', event => { event.preventDefault(); route(); });
+  composer.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!busy && !activeDraft() && receiptReady()) {
+      display('RECEIPT'); handoff('RECEIPT');
+    } else { route(); }
+  });
   files.addEventListener('change', () => {
     if (!activeDraft()) hide();
     el('assistant-file-list').replaceChildren();
+    if (!busy && !activeDraft() && receiptReady()) display('RECEIPT');
+    buttonLabel();
     for (const file of files.files) {
       const item = document.createElement('li'); item.textContent = file.name; el('assistant-file-list').append(item);
     }
   });
-  for (const node of [mode,text]) node.addEventListener('input', () => { if (!activeDraft()) hide(); });
+  for (const node of [mode,text]) node.addEventListener('input', () => {
+    if (!activeDraft()) {
+      hide();
+      if (node === mode && receiptReady()) display('RECEIPT');
+    }
+    buttonLabel();
+  });
   el('assistant-clear').addEventListener('click', reset);
   el('assistant-cancel').addEventListener('click', reset);
   document.querySelectorAll('[data-assistant-choice]').forEach(button => button.addEventListener('click', () => {
@@ -142,7 +164,7 @@
     if (!camera.files.length) return;
     files.files = camera.files; mode.value = 'receipt';
     files.dispatchEvent(new Event('change'));
-    status.textContent = 'Foto siap ditinjau sebagai struk. Belum ada pencatatan.';
+    status.textContent = 'Foto siap. Tekan Baca Struk, lalu Review Hasil. Belum ada pencatatan.';
   });
   state(false);
 })();

@@ -8,7 +8,7 @@ import requests
 import finance_service as finance
 import finance_ai_safety as safety
 
-ERROR = 'Analisis belum tersedia. Data keuangan tetap aman; coba lagi nanti.'
+ERROR = 'AI belum berhasil menganalisis laporan. Buka Laporan & Export untuk melihat angka, atau coba lagi nanti. Data keuangan tidak diubah.'
 SCOPES = {'summary', 'comparison', 'categories', 'receivables'}
 _RATE = safety._RATE
 SYSTEM = '''Kamu analis Kilas Finance read-only, bahasa Indonesia ringkas. Pertanyaan dan seluruh

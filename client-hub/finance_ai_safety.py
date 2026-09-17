@@ -1,6 +1,7 @@
 """Finance AI-only validation, bounded local quotas and redacted operational events."""
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -23,6 +24,12 @@ _LOG.setLevel(logging.INFO)
 def event(name):
     # No free-form exception/model/request content, IDs, tokens or financial values.
     _LOG.info('FINANCE_AI event=%s', name if name in _EVENTS else 'request_failed')
+
+
+def receipt_event(reason):
+    allowed = {'success', 'not_configured', 'upstream_failure', 'network_failure',
+               'timeout', 'invalid_result', 'unreadable', 'rate_limited'}
+    _LOG.info('FINANCE_AI receipt_reason=%s', reason if reason in allowed else 'invalid_result')
 
 
 def endpoint(view):
@@ -91,7 +98,11 @@ def json_object(raw):
         return result
     def invalid_constant(value):
         raise ValueError('nonfinite')
-    value=json.loads(raw,object_pairs_hook=unique,parse_constant=invalid_constant)
+    def finite_float(value):
+        number = float(value)
+        if not math.isfinite(number): raise ValueError('nonfinite')
+        return number
+    value=json.loads(raw,object_pairs_hook=unique,parse_constant=invalid_constant,parse_float=finite_float)
     if not isinstance(value,dict): raise ValueError('object_required')
     return value
 
@@ -103,4 +114,11 @@ def response_text(body, maximum):
         raise ValueError('invalid_content')
     raw=blocks[0].get('text')
     if not isinstance(raw,str) or not raw.strip() or len(raw)>maximum: raise ValueError('invalid_text')
+    # Provider output only: accept one complete JSON fence, never surrounding prose.
+    # Incoming HTTP JSON still goes directly to json_object and remains strict.
+    text = raw.strip()
+    if text.startswith('```'):
+        fenced = re.fullmatch(r'```json[ \t]*\r?\n([\s\S]*?)\r?\n```', text)
+        if not fenced: raise ValueError('invalid_fence')
+        return fenced.group(1)
     return raw

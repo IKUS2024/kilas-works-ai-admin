@@ -20,6 +20,7 @@ import finance_assistant
 import finance_ai_safety as ai_safety
 from flask import jsonify, current_app
 import security
+import repo
 
 finance_bp = Blueprint('finance', __name__)
 
@@ -110,10 +111,58 @@ def period(value):
     return first.isoformat(), last.isoformat()
 
 
+@finance_bp.route('/finance')
+@security.login_required
+def overview():
+    """Membership-only, read-only overview; ledgers and write routes remain tenant-scoped."""
+    user = security.current_user()
+    import finance_entitlements as entitlement
+    if not (beta_enabled() or entitlement.self_service()) and user['role'] != 'KILAS_ADMIN':
+        abort(404)
+    businesses = repo.list_businesses_for_user(user['id'])
+    selected = request.args.get('business_id', 'all')
+    # Even admins use their memberships here, never the global admin business list.
+    business = next((b for b in businesses if str(b['id']) == selected), None)
+    if selected != 'all' and business is None:
+        abort(404)
+    month = request.args.get('month', date.today().strftime('%Y-%m'))
+    split_period = 'period_month' in request.args or 'period_year' in request.args
+    if split_period:
+        month = request.args.get('period_year', '') + '-' + request.args.get('period_month', '')
+    try:
+        start, end = period(month)
+    except ValueError:
+        flash('Periode atau filter belum valid. Pilih kembali.', 'error')
+        return redirect(url_for('finance.overview', business_id=selected))
+    if business is not None:
+        return redirect(url_for('finance.dashboard', business_id=business['id'], month=month))
+    if split_period:
+        return redirect(url_for('finance.overview', month=month))
+    keys = ('total_income_minor', 'total_expense_minor', 'net_cashflow_minor',
+            'total_outstanding_minor', 'total_overdue_minor', 'open_invoice_count', 'overdue_invoice_count')
+    totals = dict.fromkeys(keys, 0)
+    breakdown = []
+    for business in businesses:
+        security.require_business_access(business['id'], user=user)
+        values = finance.get_finance_summary(business['id'], start, end, actor_user_id=user['id'])
+        values.update(finance_collections.position(business['id'], user['id'], today=end)['aging'])
+        breakdown.append(dict(business=business, summary=values))
+        for key in keys:
+            totals[key] += values[key]
+    selected_year = int(month[:4])
+    period_years = sorted(set(range(max(1, date.today().year - 10), min(9999, date.today().year + 5) + 1)) | {selected_year})
+    return Response(render_template('finance_overview.html', user=user, businesses=businesses,
+        business=None, month=month, period_years=period_years, selected_year=selected_year,
+        summary=totals, breakdown=breakdown, as_of=end), headers={'Cache-Control': 'private, no-store'})
+
+
 @finance_bp.route('/business/<int:business_id>/finance')
 @finance_access
 def dashboard(business_id, user, business):
     month = request.args.get('month', date.today().strftime('%Y-%m'))
+    split_period = 'period_month' in request.args or 'period_year' in request.args
+    if split_period:
+        month = request.args.get('period_year', '') + '-' + request.args.get('period_month', '')
     direction = request.args.get('direction') or None
     try:
         start, end = period(month)
@@ -122,6 +171,10 @@ def dashboard(business_id, user, business):
     except ValueError:
         flash('Periode atau filter belum valid. Pilih kembali.', 'error')
         return redirect(url_for('finance.dashboard', business_id=business_id))
+    if split_period:
+        return redirect(url_for('finance.dashboard', business_id=business_id, month=month, direction=direction))
+    selected_year = int(month[:4])
+    period_years = sorted(set(range(max(1, date.today().year - 10), min(9999, date.today().year + 5) + 1)) | {selected_year})
     actor = {'actor_user_id': user['id']}
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
@@ -129,12 +182,14 @@ def dashboard(business_id, user, business):
     transactions = finance.list_transactions(business_id, start_date=start, end_date=end,
                                             direction=direction, limit=100, **actor)
     return render_template('finance_dashboard.html', user=user, business=business,
+        businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
         initialized=bool(accounts and categories), month=month, direction=direction,
+        period_years=period_years, selected_year=selected_year,
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
         today=date.today().isoformat(), account_types={'CASH':'Kas','BANK':'Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
@@ -650,6 +705,9 @@ def receipt_analyze(business_id, user, business):
         raise
     except file_utils.UploadRejected as error:
         return receipt_page(user, business, error=str(error), status=400)
+    except finance_receipts.ReceiptError as error:
+        ai_safety.receipt_event(str(error))
+        return receipt_page(user, business, error=finance_receipts.READ_ERROR, status=503)
     except Exception:
         ai_safety.event('request_failed')
         return receipt_page(user, business, error='Struk belum dapat dianalisis. Gunakan form pengeluaran manual di Finance.', status=503)

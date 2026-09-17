@@ -2,7 +2,7 @@
 <div class="analyst">
 {% if not assistant_embedded %}<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>{% endif %}
 {% if operator_enabled and not assistant_embedded %}<p><a class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">Siapkan tindakan · AI Operator</a></p>{% endif %}
-{% if not assistant_embedded %}<h1>AI Finance Analyst · Beta Internal</h1>{% endif %}
+{% if not assistant_embedded %}<h1>Analisis Laporan</h1>{% endif %}
 <p>{{ business.business_name }} · Membaca laporan, tanpa mengubah data atau melakukan pembayaran.</p>
 <p class="muted">Angka dihitung aplikasi. Interpretasi AI perlu ditinjau dan bukan keputusan akuntansi. Pertanyaan dikirim ke penyedia AI bersama ringkasan terbatas. Jangan masukkan kredensial atau data pribadi. Chat tidak disimpan.</p>
 <form id="analyst-form" class="card" data-endpoint="{{ url_for('finance.analyst',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">

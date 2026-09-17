@@ -14,7 +14,7 @@
       data-bank="{{ url_for('finance.bank_analyze',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="assistant-mode">Bantu saya dengan</label>
-<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Ask Finance · Tanya laporan</option><option value="record">Record Transaction · Catat transaksi</option><option value="receipt">Scan Receipt · Struk / Pengeluaran</option><option value="bank">Bank Statement · Mutasi bank</option></select>
+<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Tanya / analisis laporan</option><option value="record">Catat transaksi</option><option value="receipt">Scan / foto struk</option><option value="bank">Mutasi / rekening bank</option></select>
 <label for="assistant-text">Pesan</label>
 <textarea id="assistant-text" maxlength="2000" rows="3" placeholder="Bulan ini pengeluaran terbesar apa? Atau: catat bensin 300 ribu hari ini." aria-describedby="assistant-text-help"></textarea>
 <p id="assistant-text-help" class="muted">Maksimal 2.000 karakter. Form analisis dan draft berikutnya menerima maksimal 1.000 karakter; kamu dapat meringkas sebelum melanjutkan.</p>
@@ -22,7 +22,7 @@
 <input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" aria-describedby="assistant-file-help">
 <label class="attachment-label" for="assistant-files">Upload File — galeri, screenshot, PDF atau CSV</label>
 <input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" aria-describedby="assistant-file-help">
-<p id="assistant-file-help" class="muted">Pilih kamera/galeri dari pemilih file bila tersedia. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p>
+<p id="assistant-file-help" class="muted">Isi struk baru dikirim ke penyedia AI setelah kamu menekan Baca Struk. Pilih kamera/galeri dari pemilih file bila tersedia. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p>
 <ul id="assistant-file-list" aria-live="polite"></ul>
 <div class="assistant-actions"><button id="assistant-send" class="btn" type="submit" disabled>Lanjut</button><button id="assistant-clear" class="btn secondary" type="button">Hapus pesan dan lampiran</button></div>
 </form>
@@ -38,7 +38,7 @@
 <button type="button" class="btn secondary" id="assistant-cancel">Batal</button></div></section>
 <section id="assistant-receipt" class="card assistant-workflow" hidden tabindex="-1"><h2>Review struk pengeluaran</h2>
 <p>File akan dibaca sebagai struk. Hasilnya dapat diedit; pilih akun dan kategori sebelum menekan Catat Pengeluaran. Isi struk dikirim ke penyedia AI.</p>
-<button type="button" class="btn" id="assistant-receipt-continue">Lanjut Review Struk</button></section>
+<button type="button" class="btn" id="assistant-receipt-continue">Baca Struk</button></section>
 <section id="assistant-bank" class="card assistant-workflow" hidden tabindex="-1"><h2>Import mutasi bank</h2>
 <p>Pilih akun untuk seluruh mutasi. Setelah ekstraksi, review baris terlebih dahulu. Rekonsiliasi dan pencatatan membutuhkan keputusan terpisah. PDF/gambar dikirim ke penyedia AI; CSV diproses tanpa AI.</p>
 <label for="assistant-bank-account">Akun Finance (IDR)</label><select id="assistant-bank-account"><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>

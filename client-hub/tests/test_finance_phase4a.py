@@ -28,7 +28,7 @@ class AnalystTests(unittest.TestCase):
     def test_allowed_page_and_dashboard_zero_ai(self):
         with patch.object(a,'generate',side_effect=AssertionError('No AI')):
             self.assertEqual(self.client.get(self.url).status_code,200)
-            self.assertIn(b'AI Analyst',self.client.get(self.url.rsplit('/analyst',1)[0]).data)
+            self.assertIn(b'AI Assistant',self.client.get(self.url.rsplit('/analyst',1)[0]).data)
 
     def test_nonallowlisted_hidden_and_direct_denied(self):
         with patch.dict(os.environ,{'KILAS_FINANCE_ANALYST_BUSINESS_IDS':''}),patch.object(a,'generate') as call:
@@ -132,7 +132,7 @@ class AnalystTests(unittest.TestCase):
         self.assertIn("addEventListener('submit'",js);self.assertEqual(js.count('fetch('),1)
         self.assertNotIn('innerHTML',js)
         html=self.client.get(self.url).data
-        self.assertNotIn(b'test-only',html);self.assertIn(b'Beta Internal',html)
+        self.assertNotIn(b'test-only',html);self.assertIn(b'Analisis Laporan',html);self.assertNotIn(b'Beta Internal',html)
 
 
 if __name__=='__main__': unittest.main()
