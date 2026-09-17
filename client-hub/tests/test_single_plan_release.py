@@ -63,21 +63,21 @@ class SinglePlanTests(unittest.TestCase):
             self.assertEqual(db.query_one('SELECT package FROM businesses WHERE business_name=?',(old,))['package'],'AI_ADMIN')
 
     def test_checkout_current_and_historical_resume(self):
-        response=self.client.get(f'/business/{self.bid}/ai-admin/checkout')
+        response=self.client.post(f'/business/{self.bid}/ai-admin/checkout')
         self.assertEqual(response.status_code,302)
         project=db.query_one('SELECT * FROM projects WHERE business_id=?',(self.bid,))
         self.assertEqual(project['catalog_key'],'ai_admin');self.assertEqual(project['final_price'],499000)
-        self.client.get(f'/business/{self.bid}/ai-admin/checkout')
+        self.client.post(f'/business/{self.bid}/ai-admin/checkout')
         self.assertEqual(db.query_one('SELECT COUNT(*) n FROM projects WHERE business_id=?',(self.bid,))['n'],1)
         legacy=projects_repo.create_fixed_price_project(self.other,catalog.get_catalog_item('ai_admin_pro'),self.uid)
-        response=self.client.get(f'/business/{self.other}/ai-admin/checkout')
+        response=self.client.post(f'/business/{self.other}/ai-admin/checkout')
         self.assertIn(str(legacy),response.location)
 
     def test_legacy_to_current_requires_verified_entitlement(self):
         bid=repo.create_business(self.uid,'Legacy Basic','AI_ADMIN_BASIC')
         db.execute("UPDATE businesses SET status='ACTIVE' WHERE id=?",(bid,));subs.create_subscription(bid,'ai_admin_basic')
         with self.assertRaises(ValueError): repo.set_business_package(bid,'AI_ADMIN')
-        response=self.client.get(f'/business/{bid}/ai-admin/checkout?package=AI_ADMIN')
+        response=self.client.post(f'/business/{bid}/ai-admin/checkout?package=AI_ADMIN')
         project=db.query_one('SELECT * FROM projects WHERE business_id=?',(bid,))
         self.assertEqual(project['catalog_key'],'ai_admin')
         invoice=payments.checkout(project['id'],bid,self.uid)

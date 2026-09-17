@@ -1,5 +1,7 @@
 'use strict';
+(() => {
 const form = document.getElementById('analyst-form');
+if (!form) return;
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const send = document.getElementById('send'), status = document.getElementById('status'), answer = document.getElementById('answer');
@@ -7,7 +9,7 @@ form.addEventListener('submit', async (event) => {
   send.disabled = true; status.textContent = 'Menganalisis laporan…'; answer.hidden = true; answer.replaceChildren();
   const line = (tag, text) => { const node = document.createElement(tag); node.textContent = text; answer.append(node); };
   try {
-    const response = await fetch(location.pathname, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':form.dataset.csrf}, body:JSON.stringify({question:document.getElementById('question').value, month:document.getElementById('month').value, scope:document.getElementById('scope').value})});
+    const response = await fetch(form.dataset.endpoint || location.pathname, {method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':form.dataset.csrf}, body:JSON.stringify({question:document.getElementById('question').value, month:document.getElementById('month').value, scope:document.getElementById('scope').value})});
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Analisis belum tersedia. Coba lagi nanti.');
     line('h2','Fakta dari catatan keuangan');
@@ -22,3 +24,4 @@ form.addEventListener('submit', async (event) => {
   } catch (error) { status.textContent = error instanceof SyntaxError ? 'Analisis belum tersedia. Coba lagi nanti.' : error.message; }
   finally { send.disabled = false; }
 });
+})();

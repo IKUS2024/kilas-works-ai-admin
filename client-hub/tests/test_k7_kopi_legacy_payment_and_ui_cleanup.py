@@ -232,7 +232,9 @@ def test_C_customer_dashboard_no_raw_enum_codes():
     # "AI Admin Pro — Rp499.000/bulan" etc., which is what a real user sees.
     assert ">AI_ADMIN_PRO<" not in body
     assert ">ONBOARDING<" not in body
-    assert "Kilas Brain Pro" in body
+    # Canonical single plan supersedes the retired Pro label; raw enums still forbidden.
+    assert "Kilas Brain" in body
+    assert "Kilas Brain Pro" not in body
     assert "Sedang setup" in body
     print("test_C_customer_dashboard_no_raw_enum_codes OK")
 

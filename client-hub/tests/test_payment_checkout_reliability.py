@@ -189,7 +189,7 @@ def test_7_refresh_relogin_reopen_same_payment_state():
     # Simulate logout/login (new client session) + reopening via ai_admin_checkout again.
     client = fresh_client()
     _login_owner(client, "t7@test.com")
-    resp = client.get(f"/business/{bid}/ai-admin/checkout", follow_redirects=False)
+    resp = client.post(f"/business/{bid}/ai-admin/checkout", follow_redirects=False)
     assert resp.status_code == 302
     assert f"/invoices/" in resp.headers.get("Location", "") or "/payments/" in resp.headers.get("Location", "").lower() \
         or str(invoice_id) in resp.headers.get("Location", "")

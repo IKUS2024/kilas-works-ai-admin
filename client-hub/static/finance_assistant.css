@@ -1,0 +1,15 @@
+.finance-assistant { max-width:850px; width:100%; min-width:0; overflow-wrap:anywhere; }
+.finance-assistant [hidden] { display:none !important; }
+.finance-assistant input,.finance-assistant select,.finance-assistant textarea { width:100%; min-width:0; box-sizing:border-box; font-size:16px; }
+.finance-assistant button,.finance-assistant .attachment-label { min-height:48px; max-width:100%; white-space:normal; }
+.finance-assistant button { margin-top:10px; }
+.finance-assistant .attachment-label { border:1px dashed var(--border); border-radius:8px; padding:14px; cursor:pointer; font-size:16px; }
+.assistant-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.finance-assistant p { white-space:pre-wrap; }
+.finance-assistant ul { padding-left:20px; }
+.finance-assistant :focus-visible { outline:3px solid var(--orange); outline-offset:3px; }
+.finance-assistant [aria-busy="true"] { opacity:.75; }
+@media (max-width:540px) {
+  .finance-assistant .card { padding:16px; }
+  .assistant-actions>* { flex:1 1 100%; }
+}

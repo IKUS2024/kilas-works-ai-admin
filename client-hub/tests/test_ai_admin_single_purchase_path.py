@@ -166,7 +166,10 @@ def test_full_wizard_to_payment_flow_end_to_end():
         assert resp.status_code == 302
         assert "/ai-admin/checkout" in resp.headers.get("Location", ""), resp.headers.get("Location")
 
-        resp2 = c.get(resp.headers.get("Location"), follow_redirects=False)
+        review = c.get(resp.headers.get("Location"), follow_redirects=False)
+        assert review.status_code == 200
+        assert 'Buat Pesanan' in review.get_data(as_text=True)
+        resp2 = c.post(resp.headers.get("Location"), follow_redirects=False)
         assert resp2.status_code == 302
         assert "/checkout" in resp2.headers.get("Location", "")
 
@@ -182,9 +185,9 @@ def test_ai_admin_checkout_is_idempotent_no_duplicate_project():
         with c.session_transaction() as sess:
             sess["user_id"] = uid
             sess["role"] = "CLIENT_OWNER"
-        c.get(f"/business/{bid}/ai-admin/checkout")
+        c.post(f"/business/{bid}/ai-admin/checkout")
         projects_first = projects_repo.list_projects_for_business(bid)
-        c.get(f"/business/{bid}/ai-admin/checkout")
+        c.post(f"/business/{bid}/ai-admin/checkout")
         projects_second = projects_repo.list_projects_for_business(bid)
     assert len(projects_first) == 1
     assert len(projects_second) == 1, \
@@ -200,7 +203,7 @@ def test_ai_admin_checkout_rejects_none_package_business():
         with c.session_transaction() as sess:
             sess["user_id"] = uid
             sess["role"] = "CLIENT_OWNER"
-        resp = c.get(f"/business/{bid}/ai-admin/checkout", follow_redirects=False)
+        resp = c.post(f"/business/{bid}/ai-admin/checkout", follow_redirects=False)
     assert resp.status_code == 302
     assert "dashboard" in resp.headers.get("Location", "").lower()
     assert projects_repo.list_projects_for_business(bid) == []

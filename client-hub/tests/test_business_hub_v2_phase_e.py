@@ -111,7 +111,7 @@ def test_admin_dashboard_counts_project_and_payment_and_talent_needing_action():
     # talent request auto-creates, both WAITING_FOR_QUOTE; the fixed-price project sits at
     # PAYMENT_PENDING after checkout, which neither count includes).
     assert "2 Custom project menunggu quote" in body
-    assert "2 Project menunggu aksi admin" in body
+    assert "2 Proyek perlu tindakan" in body
     assert "1 Talent request menunggu review" in body
     print("test_admin_dashboard_counts_project_and_payment_and_talent_needing_action OK")
 

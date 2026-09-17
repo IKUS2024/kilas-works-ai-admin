@@ -199,7 +199,7 @@ class RecurringTests(unittest.TestCase):
         self.rule();before=f.list_transactions(self.b)
         html=self.client.get(self.url+'/operations').get_data(as_text=True)
         self.assertIn('Biaya Rutin &amp; Proyek',html);self.assertNotIn('PRIVATE project',html)
-        self.assertIn('Kontribusi Kas Proyek',html);self.assertEqual(before,f.list_transactions(self.b))
+        self.assertIn('Uang Masuk &amp; Keluar per Proyek',html);self.assertEqual(before,f.list_transactions(self.b))
         html=self.client.get(self.url).get_data(as_text=True)
         self.assertIn('name="project_id"',html);self.assertNotIn('PRIVATE project',html)
         self.assertIn('name="customer_id"',html)
@@ -226,7 +226,7 @@ class RecurringTests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+'/recurring',data=data).status_code,303)
         r=f.list_recurring_expenses(self.b)[0]
         self.assertEqual(r['anchor_day'],31)
-        self.assertEqual(self.client.post(self.url+'/recurring/process').status_code,303)
+        self.assertEqual(self.client.post(self.url+'/recurring/process',data={'occurrence':f"{r['id']}:2026-01-31"}).status_code,303)
         self.assertGreater(len(f.list_transactions(self.b)),0)
         self.assertEqual(self.client.post(self.url+f'/recurring/{r["id"]}/deactivate').status_code,303)
         self.assertFalse(f.get_recurring_expense(self.b,r['id'])['is_active'])

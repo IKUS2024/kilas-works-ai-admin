@@ -81,7 +81,7 @@ class FinanceUITests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+'/transactions',data=self.data(description='Sale')).status_code,303)
         self.assertEqual(self.client.post(self.url+'/transactions',data=self.data('EXPENSE',amount='250000')).status_code,303)
         html = self.client.get(self.url+'?month=2026-09').get_data(as_text=True)
-        for text in ('Rp1.250.000','Rp250.000','Rp1.000.000','Arus Kas Bersih','Sale'): self.assertIn(text,html)
+        for text in ('Rp1.250.000','Rp250.000','Rp1.000.000','Selisih Masuk–Keluar','Sale'): self.assertIn(text,html)
         self.assertEqual(len(finance.list_transactions(self.bid)), 2)
         self.assertEqual(finance.list_transactions(self.bid)[0]['created_by_user_id'], self.uid)
 

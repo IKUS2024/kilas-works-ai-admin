@@ -2,6 +2,7 @@
 (() => {
   const el = id => document.getElementById(id);
   const form = el('operator-form');
+  if (!form) return;
   let token = null, busy = false, confirmationAttempted = false;
   const clear = () => { token = null; el('op-preview').hidden = true; el('operator-fields').disabled = false; };
   const state = value => { busy = value; el('operator-fields').disabled = value || !!token; el('op-confirm').disabled = value; el('op-cancel').disabled = value; };
