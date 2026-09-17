@@ -73,10 +73,14 @@ Brain tetap Rp499.000/bulan, tanpa trial. Pilih/gunakan bisnis → lengkapi fakt
 
 “Data setup lengkap, sedang ditinjau” tidak berarti WhatsApp aktif. Approval setup juga tidak membuktikan pembayaran. Ikuti status dan langkah berikutnya pada review; jangan menganggap demo atau persentase setup sebagai aktivasi layanan. Paket Basic/Pro lama tidak ditawarkan kembali.
 
+Di Beranda bisnis yang memakai Brain, **Ajari Kilas Brain** membuka knowledge, FAQ, produk/layanan, dan instruksi; tetap tersedia saat READY_FOR_REVIEW, APPROVED, dan ACTIVE. **Booking & Pembayaran** membuka pengaturan operasional existing: jam buka, aturan booking, serta rekening milik bisnis Anda untuk pelanggan. Rekening ini berbeda dari rekening Kilas Works untuk langganan Finance. **Review & Langkah Berikutnya** dan **Coba Simulasi** tetap tersedia; **Buka Inbox Brain** ditampilkan ketika ACTIVE. Bisnis tanpa Brain tidak mendapat kontrol tersebut.
+
 ## Layanan kreatif dan sistem
 
 Pilih kategori/paket → login → bisnis yang sesuai atau pesanan pribadi → brief → tinjau scope dan biaya transport yang berlaku. Harga fixed mengikuti server; layanan custom menunggu penawaran dan persetujuan sebelum checkout. Setelah pembayaran, progress mengikuti status pesanan nyata. **Pesanan** menyimpan jalur untuk melanjutkan brief, melihat penawaran, membayar, dan melihat progress; tidak perlu membuat order baru setiap kembali.
 
 ## Admin pemeriksa Finance
 
-Login sebagai `KILAS_ADMIN` → **Verifikasi Finance**. Antrean menampilkan maksimal 200 bukti menunggu pemeriksaan. Buka tagihan dan unduh bukti. Periksa mutasi penerima, nominal, identitas dan duplikasi transfer secara nyata, lalu pilih **Verifikasi Pembayaran Finance** atau **Tolak Bukti**. AI tidak menyetujui pembayaran. Konfirmasi ulang/verifikasi bersamaan tidak menambahkan periode dua kali. Tidak ada perubahan ke Brain, project kreatif, atau ledger pelanggan dari tindakan ini.
+Login sebagai `KILAS_ADMIN` → **Action Center**. **Finance trial aktif** menampilkan jumlah bisnis dengan status Finance TRIAL_ACTIVE saat halaman dibuka. Klik untuk melihat nama bisnis, status Finance, waktu trial berakhir dalam WIB, dan tautan Lihat Finance. Trial aktif setelah pelanggan memulainya sendiri; admin tidak menyetujui trial. Bisnis PAID_ACTIVE atau trial yang sudah kedaluwarsa tidak dihitung.
+
+**Pembayaran Finance perlu ditinjau** menghitung seluruh tagihan Finance berstatus REVIEW dan membuka antrean existing `/admin/finance-subscription-bills`. Angka ini terpisah dari pembayaran proyek/layanan. Menu **Verifikasi Finance** juga tetap dapat digunakan. Antrean menampilkan maksimal 200 bukti menunggu pemeriksaan. Buka tagihan dan unduh bukti. Periksa mutasi penerima, nominal, identitas dan duplikasi transfer secara nyata, lalu pilih **Verifikasi Pembayaran Finance** atau **Tolak Bukti**. AI tidak menyetujui pembayaran. Konfirmasi ulang/verifikasi bersamaan tidak menambahkan periode dua kali. Tidak ada perubahan ke Brain, project kreatif, atau ledger pelanggan dari tindakan ini.

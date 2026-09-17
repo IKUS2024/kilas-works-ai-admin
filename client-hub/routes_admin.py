@@ -34,6 +34,7 @@ import platform_assets_service
 import wa_takeover_service
 import platform_inbox_service
 import subscription_service
+import finance_entitlements
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -57,7 +58,8 @@ def get_display_status(business):
 @admin_bp.route("/")
 @security.admin_required
 def dashboard():
-    status_filter = request.args.get("status") or None
+    finance_trials_only = request.args.get("finance") == "trial"
+    status_filter = None if finance_trials_only else request.args.get("status") or None
     if status_filter not in (None, *STATUS_FILTERS):
         status_filter = None
     businesses = repo.list_all_businesses(status_filter=status_filter)
@@ -88,7 +90,23 @@ def dashboard():
         b for b in all_businesses if get_display_status(b) == "APPROVED_WAITING_WHATSAPP_CONNECTION"
     ]
 
+    # Use the same current entitlement calculation as Finance (paid takes precedence;
+    # expired trials are never counted). Viewing this list does not activate trials.
+    finance_trials = []
+    for business in all_businesses:
+        entitlement = finance_entitlements.state(business["id"])
+        if entitlement["status"] == "TRIAL_ACTIVE":
+            finance_trials.append({**business, "finance_entitlement": entitlement,
+                                   "display_status": get_display_status(business)})
+    finance_bills_review = db.query_one(
+        "SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"
+    )["n"]
+    if finance_trials_only:
+        businesses = finance_trials
+
     action_center = {
+        "finance_trials_active": len(finance_trials),
+        "finance_bills_waiting_review": finance_bills_review,
         "new_client_requests": len(new_client_requests),
         "ai_onboarding_waiting_review": len(businesses_needing_review),
         "custom_projects_waiting_quote": len(quotations_needing_action),
@@ -109,6 +127,7 @@ def dashboard():
         talent_requests_waiting=talent_requests_waiting,
         businesses_needing_review_count=len(businesses_needing_review),
         action_center=action_center,
+        finance_trials_only=finance_trials_only,
     )
 
 

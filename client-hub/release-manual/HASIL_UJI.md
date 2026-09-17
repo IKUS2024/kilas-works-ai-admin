@@ -1,4 +1,6 @@
-# Hasil pengujian final
+# Hasil pengujian rilis self-service sebelumnya
+
+Hasil berikut milik commit `69acf4d5281804b07faf091a7e76ceb726092923`. Tidak dijalankan ulang seluruhnya untuk patch integrasi dashboard. Hasil patch terbaru: `INTEGRASI_DASHBOARD_FINAL.md` dan `FINAL_REVIEW_METADATA/test-summary.txt`.
 
 Client Hub: 71 file ditemukan; 70 modul berisi tes, 1470 tes Python, 0 failure, 0 error, 0 skip. Satu file historical test_ai_onboarding_features_enabled_fix.py kosong, tidak dihitung sebagai tes lulus.
 Root aplikasi (source tidak diubah): 39 modul, 491 tes Python, 0 failure, 0 error, 0 skip; 3 pemeriksaan script saat import dilaporkan terpisah.

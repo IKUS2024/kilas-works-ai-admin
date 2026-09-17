@@ -4,6 +4,28 @@
 {% for b in businesses %}<section class="card"><h2>{{ b.business_name }}</h2>
 <h3>Kilas Finance</h3><p>{{ {'NOT_ACTIVATED':'Belum diaktifkan','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis — data hanya-baca'}[b.finance_entitlement.status] }}{% if b.finance_entitlement.until_local %} · {{ b.finance_entitlement.until_local }}{% endif %}</p>
 {% if b.finance_entitlement.active %}<a class="btn" href="{{ url_for('finance.dashboard',business_id=b.id) }}">Buka Finance</a>{% endif %}<a class="btn secondary" href="{{ url_for('products.finance_setup',business_id=b.id) }}">{{ 'Lihat Data & Perpanjang' if b.finance_entitlement.status=='EXPIRED' else ('Coba Gratis 7 Hari' if b.finance_entitlement.status=='NOT_ACTIVATED' else 'Trial & Tagihan Finance') }}</a>
-<h3>Kilas Brain</h3>{% if b.package=='NONE' %}<p>Belum berlangganan Brain.</p><form method="post" action="{{ url_for('products.select') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="brain"><button class="btn secondary">Kenali &amp; Siapkan Brain</button></form>{% else %}<p>Status layanan: {{ b.status|humanize_status('business') }}{% if b.subscription_banner %} · Langganan: {{ b.subscription_banner.status }}{% endif %}</p><p>Setup {{ b.completion_percent }}%. Simulasi tidak mengaktifkan WhatsApp. Koneksi tersedia setelah langkah review dan pembayaran selesai.</p>{% if b.status=='ACTIVE' %}<a class="btn" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox Brain</a>{% elif b.status=='READY_FOR_REVIEW' %}<p>Data setup lengkap, sedang ditinjau. Ini belum berarti WhatsApp aktif.</p>{% else %}<a class="btn secondary" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>{% endif %}<a class="btn secondary" href="{{ url_for('client.review_page',business_id=b.id) }}">Review &amp; Langkah Berikutnya</a><a class="btn secondary" href="{{ url_for('client.simulate_page',business_id=b.id) }}">Coba Simulasi</a>{% endif %}</section>{% else %}<p>Belum ada bisnis. Pilih produk untuk memulai.</p>{% endfor %}
+<h3>Kilas Brain</h3>
+{% if b.package=='NONE' %}
+  <p>Belum berlangganan Brain.</p>
+  <form method="post" action="{{ url_for('products.select') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="brain"><button class="btn secondary">Kenali &amp; Siapkan Brain</button></form>
+{% else %}
+  <p>Status layanan: {{ b.status|humanize_status('business') }}{% if b.subscription_banner %} · Langganan: {{ b.subscription_banner.status }}{% endif %}</p>
+  <p>Setup {{ b.completion_percent }}%. Simulasi tidak mengaktifkan WhatsApp. Koneksi tersedia setelah langkah review dan pembayaran selesai.</p>
+  {% if b.status=='READY_FOR_REVIEW' %}<p>Data setup lengkap, sedang ditinjau. Ini belum berarti WhatsApp aktif.</p>{% endif %}
+  <div class="business-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+    {% if b.status=='ACTIVE' %}
+      <a class="btn" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox Brain</a>
+    {% elif b.status!='READY_FOR_REVIEW' %}
+      <a class="btn secondary" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>
+    {% endif %}
+    {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
+      <a class="btn secondary" href="{{ url_for('client.business_memory',business_id=b.id) }}">Ajari Kilas Brain</a>
+    {% endif %}
+    <a class="btn secondary" href="{{ url_for('client.business_settings',business_id=b.id) }}">Booking &amp; Pembayaran</a>
+    <a class="btn secondary" href="{{ url_for('client.review_page',business_id=b.id) }}">Review &amp; Langkah Berikutnya</a>
+    <a class="btn secondary" href="{{ url_for('client.simulate_page',business_id=b.id) }}">Coba Simulasi</a>
+  </div>
+  <p class="muted">Ajari Brain tentang bisnis, FAQ, produk/layanan, dan instruksi. Booking &amp; Pembayaran mengatur jam operasional, aturan booking, dan rekening bisnismu untuk pelanggan.</p>
+{% endif %}</section>{% else %}<p>Belum ada bisnis. Pilih produk untuk memulai.</p>{% endfor %}
 <section class="card"><h2>Pesanan Layanan</h2>{% for p in my_projects %}<p><a href="{{ url_for('projects.project_view',project_id=p.id) }}">{{ p.title }}</a> · {{ p.status|humanize_status('project') }}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status }}{% endif %}</p>{% else %}<p>Belum ada pesanan berjalan.</p>{% endfor %}<a class="btn" href="{{ url_for('products.index') }}">Produk &amp; Layanan</a></section>
 {% endblock %}

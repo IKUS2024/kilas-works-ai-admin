@@ -8,7 +8,7 @@ Paket ini berisi **source aplikasi lengkap**, bukan hanya patch. Perubahan rilis
 2. Ikuti `PANDUAN_UJI_ID.md` pada database baru yang bisa dibuang.
 3. Baca `PANDUAN_PENGGUNA_ID.md` untuk alur pelanggan dan admin.
 4. Gunakan `DEPLOYMENT_ID.md` untuk menyiapkan staging dan rencana production; jangan melewati backup dan pengujian PostgreSQL.
-5. Baca `HASIL_UJI.md` untuk jumlah per suite dan pemeriksaan tertahan, serta `ARSITEKTUR_DAN_AUDIT.md` untuk batas layanan.
+5. Baca `INTEGRASI_DASHBOARD_FINAL.md` untuk patch dan pengujian terbaru. `HASIL_UJI.md` mencatat pengujian rilis self-service sebelumnya; `ARSITEKTUR_DAN_AUDIT.md` menjelaskan batas layanan.
 6. Lihat daftar file, commit, dan checksum di `review-metadata/`; daftar tindakan Anda tersedia di `FINAL_REVIEW_METADATA/manual-configuration-required.txt`.
 
 ## Yang sudah tersedia

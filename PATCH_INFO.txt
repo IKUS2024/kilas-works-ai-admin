@@ -1,0 +1,12 @@
+KILAS WORKS FINAL PATCH — 9 FILES
+
+Source package:
+KILAS_WORKS_FINAL_READY_PACKAGE.zip
+
+Local source commit from package:
+3df1a53c95a315ad57181e94c81767e35bcec653
+
+This patch contains ONLY the 9 files changed by the final dashboard integration.
+Extract over the repository root while preserving directories.
+
+Do not upload this ZIP file itself into the repository.

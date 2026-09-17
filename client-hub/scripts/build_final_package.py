@@ -31,7 +31,8 @@ def build(output,verification):
     status=git('status','--porcelain').decode()
     if status:raise SystemExit('Working tree must be clean before packaging')
     head=git('rev-parse','HEAD').decode().strip();parent=git('rev-parse','HEAD^').decode().strip()
-    if parent!=PARENT:raise SystemExit('Unexpected parent; preserve Phase 6C history')
+    if subprocess.run(['git','merge-base','--is-ancestor',PARENT,head],cwd=ROOT).returncode:
+        raise SystemExit('Missing Phase 6C ancestor; preserve existing history')
     changed=git('diff','--name-only',PARENT,head).decode().splitlines()
     if any(not x.startswith('client-hub/') for x in changed):raise SystemExit('Changes outside authorized scope')
     payload={};omitted=[]

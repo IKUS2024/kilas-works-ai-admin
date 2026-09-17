@@ -33,32 +33,41 @@
     <a class="btn secondary" href="{{ url_for('admin.dashboard', status='APPROVED') }}">
       {{ action_center.whatsapp_tenants_waiting_connection }} Tenant menunggu koneksi WhatsApp
     </a>
+    <a class="btn secondary" href="{{ url_for('admin.dashboard', finance='trial') }}">
+      {{ action_center.finance_trials_active }} Finance trial aktif
+    </a>
+    <a class="btn secondary" href="{{ url_for('products.admin_bills') }}">
+      {{ action_center.finance_bills_waiting_review }} Pembayaran Finance perlu ditinjau
+    </a>
   </div>
-  {% if not (action_center.new_client_requests or action_center.ai_onboarding_waiting_review or action_center.custom_projects_waiting_quote or action_center.payments_waiting_verification or action_center.talent_requests_waiting or action_center.projects_waiting_admin_action or action_center.whatsapp_tenants_waiting_connection) %}
+  <p class="muted">Trial Finance dimulai oleh pelanggan tanpa persetujuan admin. Pembayaran Finance terpisah dari pembayaran proyek/layanan.</p>
+  {% if not (action_center.new_client_requests or action_center.ai_onboarding_waiting_review or action_center.custom_projects_waiting_quote or action_center.payments_waiting_verification or action_center.talent_requests_waiting or action_center.projects_waiting_admin_action or action_center.whatsapp_tenants_waiting_connection or action_center.finance_bills_waiting_review) %}
     <p class="muted" style="margin-top:10px;">Tidak ada yang perlu aksi saat ini.</p>
   {% endif %}
 </div>
 
 <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-  <a class="btn small {{ 'secondary' if status_filter else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
+  <a class="btn small {{ 'secondary' if status_filter or finance_trials_only else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
   {% for f in status_filters %}
     <a class="btn small {{ 'secondary' if status_filter != f else '' }}" href="{{ url_for('admin.dashboard', status=f) }}">{{ f|humanize_status('business') }}</a>
   {% endfor %}
 </div>
 
-<div class="card">
+<div class="card" style="overflow-x:auto;">
+  {% if finance_trials_only %}<h2>Finance trial aktif</h2><p>Daftar bisnis dengan trial yang masih aktif. Tidak ada persetujuan trial yang perlu dilakukan.</p>{% endif %}
   <table>
-    <tr><th>Business</th><th>Paket</th><th>Status</th><th>Dibuat</th><th></th></tr>
+    <tr><th>Business</th><th>Paket</th><th>Status</th><th>Dibuat</th>{% if finance_trials_only %}<th>Status Finance</th><th>Trial berakhir</th>{% endif %}<th></th></tr>
     {% for b in businesses %}
       <tr>
         <td>{{ b.business_name }}</td>
         <td>{{ b.package|humanize_package }}</td>
         <td><span class="pill {{ b.display_status }}">{{ b.display_status|humanize_status('business') }}</span></td>
         <td class="muted">{{ b.created_at|humanize_timestamp }}</td>
-        <td><a href="{{ url_for('admin.review_business', business_id=b.id) }}">Review</a></td>
+        {% if finance_trials_only %}<td>TRIAL_ACTIVE</td><td>{{ b.finance_entitlement.until_local }}</td>{% endif %}
+        <td>{% if finance_trials_only %}<a href="{{ url_for('products.finance_setup', business_id=b.id) }}">Lihat Finance</a>{% else %}<a href="{{ url_for('admin.review_business', business_id=b.id) }}">Review</a>{% endif %}</td>
       </tr>
     {% else %}
-      <tr><td colspan="5" class="muted">Belum ada business.</td></tr>
+      <tr><td colspan="{{ 7 if finance_trials_only else 5 }}" class="muted">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else 'Belum ada business.' }}</td></tr>
     {% endfor %}
   </table>
 </div>
