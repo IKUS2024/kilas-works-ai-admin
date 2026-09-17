@@ -7,12 +7,12 @@
 <a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
 <a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
 <h1 style="margin-top:16px;">Pelanggan &amp; Piutang</h1><p class="muted">{{ business.business_name }} · Tagihan bisnismu kepada customer.</p>
-<a class="btn" href="{{ url_for('finance.collections',business_id=business.id) }}">Penagihan &amp; Aging</a>
+<a class="btn" href="{{ url_for('finance.collections',business_id=business.id) }}">Tagihan Pelanggan yang Belum Dibayar</a>
 <div class="fin-grid">
 {% for key,label in [('total_outstanding_minor','Total piutang'),('overdue_outstanding_minor','Piutang jatuh tempo'),('open_invoice_count','Invoice terbuka'),('overdue_invoice_count','Invoice terlambat')] %}
 <div class="card"><h2>{{ label }}</h2><div class="fin-total">{{ summary[key]|finance_idr if key.endswith('_minor') else summary[key] }}</div></div>{% endfor %}
 </div>
-<a class="btn secondary" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">+ Buat Invoice</a>
+<a class="btn secondary" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">+ Buat Invoice Pelanggan</a>
 <details class="card" style="margin-top:16px;"><summary>+ Tambah Customer</summary>
 <form method="post" action="{{ url_for('finance.create_customer',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="name">Nama customer</label><input id="name" name="name" maxlength="160" required>
@@ -21,7 +21,7 @@
 <label for="notes">Catatan (opsional)</label><textarea id="notes" name="notes" maxlength="4000"></textarea>
 <button class="btn">Simpan Customer</button></form></details>
 <details class="card"><summary>Customer · {{ customers|length }}</summary>{% for c in customers %}<article class="fin-entry"><strong>{{ c.name }}</strong><p class="muted">{{ c.phone or '' }} {{ c.email or '' }}{{ ' · Nonaktif' if not c.is_active }}</p>{% if c.notes %}<p>{{ c.notes }}</p>{% endif %}<a class="btn small secondary" href="{{ url_for('finance.customer_statement',business_id=business.id,customer_id=c.id) }}">Statement Customer</a></article>{% else %}<p class="muted">Belum ada customer. Tambahkan customer sebelum membuat invoice.</p>{% endfor %}</details>
-<div class="card"><h2>Invoice bisnis</h2>{% for i in invoices %}{% set t=totals[i.id] %}<article class="fin-entry">
+<div class="card"><h2>Invoice Pelanggan</h2>{% for i in invoices %}{% set t=totals[i.id] %}<article class="fin-entry">
 <strong>{{ i.invoice_number }}</strong> · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
 <p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p>
 <p>Total {{ t.total_minor|finance_idr }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_idr }}{% endif %}</p><p class="muted">Jatuh tempo {{ i.due_date }}</p>

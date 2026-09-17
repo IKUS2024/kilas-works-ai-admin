@@ -4,7 +4,7 @@
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page">
 <a href="{{ url_for('finance.receivables',business_id=business.id) }}">← Pelanggan &amp; Piutang</a>
-<h1>Penagihan &amp; Aging</h1><p>{{ business.business_name }} · Per {{ data.as_of }}</p>
+<h1>Tagihan Pelanggan yang Belum Dibayar</h1><p>{{ business.business_name }} · Per {{ data.as_of }}</p>
 <p class="muted">Invoice terbuka dan pembayaran tercatat hingga tanggal ini. Jatuh tempo hari ini belum terlambat. Tidak ada pengiriman otomatis.</p>
 <div class="fin-grid">{% for key,label in [('total_outstanding_minor','Total piutang'),('total_overdue_minor','Lewat jatuh tempo'),('open_invoice_count','Invoice terbuka'),('overdue_invoice_count','Invoice terlambat')] %}<div class="card"><h2>{{ label }}</h2><strong class="fin-total">{{ data.aging[key]|finance_idr if key.endswith('_minor') else data.aging[key] }}</strong></div>{% endfor %}</div>
 <h2>Umur piutang</h2><div class="fin-grid">{% for b in data.aging.buckets %}<div class="card"><strong>{{ b.label }}</strong><p>{{ b.amount_minor|finance_idr }} · {{ b.invoice_count }} invoice</p></div>{% endfor %}</div>

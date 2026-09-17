@@ -1,26 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}AI Operator · Kilas Finance{% endblock %}
 {% block content %}
-<style>.operator{max-width:850px;overflow-wrap:anywhere}.operator input,.operator select,.operator textarea{width:100%;min-width:0;box-sizing:border-box}.operator button{max-width:100%;white-space:normal}.operator .actions{display:flex;gap:12px;flex-wrap:wrap}.operator dt{font-weight:bold;margin-top:12px}.operator dd{margin-left:0;white-space:pre-wrap}</style>
-<div class="operator">
-<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
-<h1>AI Finance Operator · Beta Internal</h1>
-<p>{{ business.business_name }} · Usulan → Periksa → Konfirmasi → Catatan tersimpan.</p>
-<p>AI hanya menyiapkan draft. Tidak ada data yang disimpan sebelum kamu menekan <strong>Konfirmasi pencatatan</strong>. Ini pencatatan keuangan, bukan transfer uang atau pembayaran bank.</p>
-<p class="muted">Untuk analisis saja, gunakan AI Analyst. Pembuatan invoice tetap melalui form Invoice Finance. Jangan masukkan kredensial atau informasi pribadi ke permintaan AI.</p>
-<form id="operator-form" class="card" data-draft="{{ url_for('finance.operator_action',business_id=business.id,stage='draft') }}" data-confirm="{{ url_for('finance.operator_action',business_id=business.id,stage='confirm') }}" data-csrf="{{ csrf_token() }}">
-<fieldset id="operator-fields" style="border:0;padding:0;min-width:0">
-<label for="op-action">Tindakan yang ingin disiapkan</label><select id="op-action">{% for key,label in actions.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
-<label for="op-request">Permintaan dan nominal rupiah</label><textarea id="op-request" maxlength="1000" rows="3" required placeholder="Catat pengeluaran Rp500.000 untuk Grab meeting client"></textarea>
-<p class="muted">Sebutkan satu nominal pasti dan keterangannya. Tidak menghitung perkiraan atau menjumlahkan beberapa nominal dari chat.</p>
-<label for="op-date">Tanggal pencatatan</label><input id="op-date" type="date" value="{{ today }}" required>
-<label for="op-account">Akun kas/bank (rupiah)</label><select id="op-account" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
-<label for="op-category">Kategori</label><select id="op-category" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>{% endfor %}</select>
-<div id="op-invoice-wrap" hidden><label for="op-invoice">Invoice Finance yang telah menerima pembayaran</label><select id="op-invoice"><option value="">Pilih invoice</option>{% for i in invoices %}<option value="{{ i.id }}">{{ i.invoice_number }}</option>{% endfor %}</select><p class="muted">Maksimal 100 invoice belum lunas terbaru. Hanya catat uang yang benar-benar sudah diterima. Bukan invoice langganan/platform Kilas Works.</p></div>
-<button class="btn" type="submit">Siapkan draft — belum menyimpan</button>
-</fieldset></form>
-<p id="op-status" role="status" aria-live="polite">Pilih tindakan dan referensi, lalu jelaskan apa yang ingin dicatat.</p>
-<section id="op-preview" class="card" hidden><h2>Usulan tindakan · Belum disimpan</h2><p id="op-interpretation"></p><dl id="op-details"></dl><p>Periksa nominal, akun, kategori, tanggal dan invoice. Draft berlaku 10 menit. Setiap draft baru yang dikonfirmasi dapat menjadi pencatatan baru.</p><div class="actions"><button id="op-confirm" type="button" class="btn">Konfirmasi pencatatan</button><button id="op-cancel" type="button" class="btn secondary">Batal</button></div></section>
-</div>
+{% include '_finance_operator_workspace.html' %}
 <script src="{{ url_for('static',filename='finance_operator.js') }}" defer></script>
 {% endblock %}

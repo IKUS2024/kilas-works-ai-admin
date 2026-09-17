@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Scan Struk · Kilas Finance{% endblock %}
+{% block content %}
+{% include '_finance_receivables_style.html' %}
+<div class="fin-page">
+<a href="{{ url_for('finance.dashboard', business_id=business.id) }}">← Finance / Form Pengeluaran Manual</a>
+<h1>Scan Struk / Receipt</h1>
+<p>{{ business.business_name }} · Upload → Periksa → Catat Pengeluaran</p>
+<p>Upload dan analisis tidak menyimpan transaksi. File diproses sementara dan tidak diarsipkan. Analisis AI mengirim isi struk ke penyedia AI; periksa hasilnya sebelum mencatat.</p>
+{% if error %}<div class="card" role="alert">{{ error }}</div>{% endif %}
+{% if review and review.duplicate %}
+<div class="card"><h2>Struk sudah tercatat</h2><p>File ini sudah digunakan pada pengeluaran bisnis ini, termasuk jika transaksi dibatalkan. Tidak ada analisis AI atau pengeluaran baru dibuat.</p></div>
+{% elif review %}
+{% set e = review.extraction %}
+<div class="card"><h2>Hasil ekstraksi AI — belum disimpan</h2><p>File: {{ review.filename }}</p>
+{% if review.fallback %}<p role="status">AI belum dapat membaca struk dengan andal atau sedang tidak tersedia. Isi semua nilai akhir secara manual.</p>{% endif %}
+<div class="fin-grid"><p>Merchant: {{ e.merchant_name or 'Belum diketahui' }}</p><p>Tanggal: {{ e.transaction_date or 'Belum diketahui' }}</p><p>Total: {{ e.total_minor if e.total_minor is not none else 'Belum diketahui' }} · {{ e.currency or 'Mata uang belum diketahui' }}</p><p>Nomor struk: {{ e.receipt_number or 'Tidak terbaca' }}</p></div>
+<p>Deskripsi: {{ e.description or 'Belum diketahui' }}</p><p><strong>Saran AI:</strong> {{ e.suggested_category_name or 'Tidak ada' }}. Pilih kategori akhir sendiri.</p>
+{% if e.currency != 'IDR' %}<p>Konfirmasi hanya mendukung struk rupiah (IDR). Pastikan mata uang asli IDR; jangan konversi struk mata uang lain di form ini.</p>{% endif %}
+</div>
+<form class="card" method="post" action="{{ url_for('finance.receipt_confirm',business_id=business.id) }}" autocomplete="off">
+<h2>Nilai akhir yang akan dicatat</h2><p>Periksa struk asli. Review berlaku 10 menit. Akun dan kategori harus dipilih; AI tidak memilih akun.</p>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="analysis_token" value="{{ review.token }}"><input type="hidden" name="currency" value="IDR">
+<div class="fin-grid"><div><label for="merchant">Merchant / pihak terkait</label><input id="merchant" name="merchant_name" maxlength="160" value="{{ values.merchant_name if values else e.merchant_name or '' }}"></div>
+<div><label for="date">Tanggal transaksi</label><input id="date" name="occurred_on" type="date" required value="{{ values.occurred_on if values else e.transaction_date or '' }}"></div>
+<div><label for="amount">Nominal IDR (rupiah bulat)</label><input id="amount" name="amount" required inputmode="numeric" pattern="[0-9]+" maxlength="19" value="{{ values.amount if values else e.total_minor if e.currency == 'IDR' and e.total_minor is not none else '' }}"></div>
+<div><label for="account">Akun rupiah</label><select id="account" name="account_id" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}" {% if values and values.account_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select></div>
+<div><label for="category">Kategori pengeluaran</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" {% if values and values.category_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div></div>
+<label for="description">Deskripsi</label><textarea id="description" name="description" maxlength="500">{{ values.description if values else e.description or '' }}</textarea>
+<label><input type="checkbox" name="confirmed" value="yes" required> Saya telah memeriksa nilai akhir dan memastikan struk asli dalam IDR.</label>
+<button class="btn" {% if not accounts or not categories %}disabled{% endif %}>Catat Pengeluaran</button>
+<a class="btn secondary" href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Batal — Tidak Menyimpan</a>
+{% if not accounts or not categories %}<p>Tambahkan akun rupiah dan kategori pengeluaran aktif melalui Finance terlebih dahulu.</p>{% endif %}
+</form>
+{% endif %}
+{% if not review or review.duplicate %}
+<form class="card" method="post" enctype="multipart/form-data" action="{{ url_for('finance.receipt_analyze',business_id=business.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="receipt">Struk JPG, JPEG, PNG, WEBP atau PDF</label><input id="receipt" name="receipt" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
+<p>Maksimum 5 MB; PDF maksimum 10 halaman. Upload satu struk per percobaan.</p>
+<button class="btn">Analisis untuk Review</button>
+</form>
+{% endif %}
+</div>
+{% endblock %}

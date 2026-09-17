@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}AI Assistant · Kilas Finance{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css') }}">
+<main class="finance-assistant" id="finance-assistant">
+<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
+<h1>AI Assistant</h1>
+<p>{{ business.business_name }} · Tanya laporan, siapkan catatan, atau review dokumen.</p>
+<p class="muted">Kamu tetap memeriksa dan mengonfirmasi setiap pencatatan. Percakapan tidak disimpan; muat ulang akan menghapus tampilan sementara. Jangan masukkan kredensial atau nomor rekening.</p>
+<form id="assistant-composer" class="card" method="post" enctype="multipart/form-data" autocomplete="off"
+      action="{{ url_for('finance.assistant_route',business_id=business.id) }}"
+      data-route="{{ url_for('finance.assistant_route',business_id=business.id) }}"
+      data-receipt="{{ url_for('finance.receipt_analyze',business_id=business.id) }}"
+      data-bank="{{ url_for('finance.bank_analyze',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<label for="assistant-mode">Bantu saya dengan</label>
+<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Ask Finance · Tanya laporan</option><option value="record">Record Transaction · Catat transaksi</option><option value="receipt">Scan Receipt · Struk / Pengeluaran</option><option value="bank">Bank Statement · Mutasi bank</option></select>
+<label for="assistant-text">Pesan</label>
+<textarea id="assistant-text" maxlength="2000" rows="3" placeholder="Bulan ini pengeluaran terbesar apa? Atau: catat bensin 300 ribu hari ini." aria-describedby="assistant-text-help"></textarea>
+<p id="assistant-text-help" class="muted">Maksimal 2.000 karakter. Form analisis dan draft berikutnya menerima maksimal 1.000 karakter; kamu dapat meringkas sebelum melanjutkan.</p>
+<label class="attachment-label" for="assistant-camera">Foto Struk (kamera)</label>
+<input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" aria-describedby="assistant-file-help">
+<label class="attachment-label" for="assistant-files">Upload File — galeri, screenshot, PDF atau CSV</label>
+<input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" aria-describedby="assistant-file-help">
+<p id="assistant-file-help" class="muted">Pilih kamera/galeri dari pemilih file bila tersedia. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p>
+<ul id="assistant-file-list" aria-live="polite"></ul>
+<div class="assistant-actions"><button id="assistant-send" class="btn" type="submit" disabled>Lanjut</button><button id="assistant-clear" class="btn secondary" type="button">Hapus pesan dan lampiran</button></div>
+</form>
+<noscript><p>Aktifkan JavaScript untuk Assistant, atau gunakan alat langsung di bawah. File belum diproses.</p></noscript>
+<p id="assistant-status" role="status" aria-live="polite">Tulis pesan atau pilih file. Belum ada pencatatan.</p>
+<section id="assistant-message" class="card" hidden><h2>Pesan kamu</h2><p id="assistant-message-text"></p></section>
+<section id="assistant-clarification" class="card" hidden tabindex="-1"><h2 id="assistant-clarification-title">File ini mau diproses sebagai apa?</h2>
+<p>Belum ada ekstraksi atau pencatatan. Pilih alur untuk melanjutkan.</p><div class="assistant-actions">
+<button type="button" class="btn secondary" data-assistant-choice="receipt">Struk / Pengeluaran</button>
+<button type="button" class="btn secondary" data-assistant-choice="bank">Mutasi Bank</button>
+<button type="button" class="btn secondary" data-assistant-choice="ask">Tanya Finance</button>
+<button type="button" class="btn secondary" data-assistant-choice="record">Catat Transaksi</button>
+<button type="button" class="btn secondary" id="assistant-cancel">Batal</button></div></section>
+<section id="assistant-receipt" class="card assistant-workflow" hidden tabindex="-1"><h2>Review struk pengeluaran</h2>
+<p>File akan dibaca sebagai struk. Hasilnya dapat diedit; pilih akun dan kategori sebelum menekan Catat Pengeluaran. Isi struk dikirim ke penyedia AI.</p>
+<button type="button" class="btn" id="assistant-receipt-continue">Lanjut Review Struk</button></section>
+<section id="assistant-bank" class="card assistant-workflow" hidden tabindex="-1"><h2>Import mutasi bank</h2>
+<p>Pilih akun untuk seluruh mutasi. Setelah ekstraksi, review baris terlebih dahulu. Rekonsiliasi dan pencatatan membutuhkan keputusan terpisah. PDF/gambar dikirim ke penyedia AI; CSV diproses tanpa AI.</p>
+<label for="assistant-bank-account">Akun Finance (IDR)</label><select id="assistant-bank-account"><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<button type="button" class="btn" id="assistant-bank-continue">Lanjut Import Mutasi</button></section>
+<section id="assistant-analysis" class="assistant-workflow" hidden tabindex="-1"><h2>Tanya Finance</h2>
+{% if analyst_enabled %}{% include '_finance_analyst_workspace.html' %}{% else %}<p>Analisis AI belum diaktifkan untuk bisnis ini. Laporan Finance tetap tersedia melalui menu Finance.</p>{% endif %}</section>
+<section id="assistant-operator" class="assistant-workflow" hidden tabindex="-1"><h2>Siapkan catatan transaksi</h2>
+{% if operator_enabled %}{% include '_finance_operator_workspace.html' %}{% else %}<p>Draft AI belum diaktifkan untuk bisnis ini. Gunakan form transaksi manual melalui menu Finance.</p>{% endif %}</section>
+<nav class="assistant-actions" aria-label="Alat Finance langsung">
+<a href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Scan Struk</a>
+<a href="{{ url_for('finance.bank_index',business_id=business.id) }}">Cocokkan Mutasi Bank</a>
+<a href="{{ url_for('finance.reports',business_id=business.id) }}">Reports</a>
+<a href="{{ url_for('finance.receivables',business_id=business.id) }}">Receivables</a></nav>
+</main>
+<script src="{{ url_for('static',filename='finance_analyst.js') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_operator.js') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_assistant.js') }}" defer></script>
+{% endblock %}

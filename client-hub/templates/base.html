@@ -143,10 +143,13 @@
         <a href="{{ url_for('admin.talent_admin') }}">Talent</a>
         <a href="{{ url_for('admin.admin_search') }}">Search</a>
       {% else %}
-        <a href="{{ url_for('client.dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('projects.service_catalog_page') }}">Layanan</a>
+        <a href="{{ url_for('client.dashboard') }}">Beranda</a>
+        <a href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
+        <a href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
+        <a href="{{ url_for('products.account_bills') }}">Tagihan &amp; Akun</a>
         <a href="{{ url_for('talent.talent_list') }}">Talent</a>
       {% endif %}
+      {% if session.get('role')=='KILAS_ADMIN' %}<a href="{{ url_for('products.admin_bills') }}">Verifikasi Finance</a>{% endif %}
       <a href="{{ url_for('auth.logout_page') }}">Logout</a>
     {% else %}
       <a href="{{ url_for('auth.login_page') }}">Login</a>
@@ -160,7 +163,10 @@
       <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}" aria-live="polite">{{ message }}</div>
     {% endfor %}
   {% endwith %}
+  {% if finance_read_only %}<section class="card" role="status"><h2>Finance hanya-baca</h2><p>Data dan laporan tetap tersedia. Aktifkan trial atau perpanjang langganan untuk mencatat dan memakai AI.</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">Trial &amp; Langganan Finance</a></section>{% endif %}
   {% block content %}{% endblock %}
+  {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
+  {% if finance_read_only %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>
 <footer>Kilas Works Client Hub — V1</footer>
 <script>

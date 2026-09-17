@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Pemeriksaan Tagihan Finance</h1>{% for bill in bills %}<p><a href="{{ url_for('products.bill_page',business_id=bill.business_id,bill_id=bill.id) }}">#{{ bill.id }} · {{ bill.business_name }} · Menunggu pemeriksaan</a></p>{% else %}<p>Tidak ada bukti menunggu pemeriksaan.</p>{% endfor %}
+{% endblock %}

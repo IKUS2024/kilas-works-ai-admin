@@ -9,7 +9,12 @@
 <a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
 {% if analyst_enabled %}<a class="btn secondary" href="{{ url_for('finance.analyst',business_id=business.id) }}">AI Analyst · Beta</a>{% endif %}
 {% if operator_enabled %}<a class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">AI Operator · Beta</a>{% endif %}
+<a class="btn secondary" href="{{ url_for('finance.assistant',business_id=business.id) }}">Upload File</a>
+<a class="btn secondary" href="#INCOME-amount">Catat Manual</a>
 <h1 style="margin-top:16px;">Kilas Finance</h1>
+<p><a class="btn" href="{{ url_for('finance.assistant',business_id=business.id) }}">AI Assistant</a></p>
+<a class="btn secondary" href="{{ url_for('finance.bank_index',business_id=business.id) }}">Cocokkan Mutasi Bank</a>
+<a class="btn secondary" href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Foto Struk / PDF</a>
 <a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
 <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
 <p class="muted">{{ business.business_name }} · Kelola pemasukan, pengeluaran, dan arus kas bisnis dalam satu tempat.</p>
@@ -27,8 +32,9 @@
 <div><label for="filter-direction">Jenis transaksi</label><select id="filter-direction" name="direction"><option value="">Semua</option><option value="INCOME" {{ 'selected' if direction == 'INCOME' }}>Pemasukan</option><option value="EXPENSE" {{ 'selected' if direction == 'EXPENSE' }}>Pengeluaran</option></select></div>
 <button class="btn">Tampilkan</button>
 </form>
+<div class="card"><h2>Tagihan Pelanggan yang Belum Dibayar</h2><p>{{ collection_summary.overdue_invoice_count }} invoice terlambat · {{ collection_summary.total_overdue_minor|finance_idr }}</p><a href="{{ url_for('finance.collections',business_id=business.id,view='overdue') }}">Lihat Tagihan Terlambat</a></div>
 <div class="finance-grid">
-{% for label,key in [('Pemasukan','total_income_minor'),('Pengeluaran','total_expense_minor'),('Arus Kas Bersih','net_cashflow_minor')] %}
+{% for label,key in [('Uang Masuk','total_income_minor'),('Uang Keluar','total_expense_minor'),('Selisih Masuk–Keluar','net_cashflow_minor')] %}
 <div class="card"><h2>{{ label }}</h2><div class="finance-total">{{ summary[key]|finance_idr }}</div></div>
 {% endfor %}
 </div>
@@ -66,7 +72,7 @@
 {% endif %}
 <details class="card"><summary>Pengaturan akun &amp; kategori</summary>
 <div class="finance-grid" style="margin-top:16px;">
-<section><h2>Akun keuangan</h2>{% for a in accounts %}<p>{{ a.name }} · {{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}<br><span class="muted">Saldo awal: {% if a.currency == 'IDR' %}{{ a.opening_balance_minor|finance_idr }}{% else %}{{ a.opening_balance_minor }} (unit terkecil){% endif %}{{ ' · Nonaktif' if not a.is_active }}</span></p>{% else %}<p class="muted">Belum ada akun.</p>{% endfor %}
+<section><h2>Kas, Bank &amp; E-Wallet</h2>{% for a in accounts %}<p>{{ a.name }} · {{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}<br><span class="muted">Saldo awal: {% if a.currency == 'IDR' %}{{ a.opening_balance_minor|finance_idr }}{% else %}{{ a.opening_balance_minor }} (unit terkecil){% endif %}{{ ' · Nonaktif' if not a.is_active }}</span></p>{% else %}<p class="muted">Belum ada akun.</p>{% endfor %}
 <form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="account-name">Nama akun</label><input id="account-name" name="name" maxlength="160" required>
 <label for="account-type">Jenis akun</label><select id="account-type" name="account_type">{% for key,label in account_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>

@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Buat Invoice · Kilas Finance{% endblock %}
+{% block title %}Buat Invoice Pelanggan · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page"><a href="{{ url_for('finance.receivables',business_id=business.id) }}">← Pelanggan &amp; Piutang</a>
-<h1 style="margin-top:16px;">Buat Invoice</h1><p class="muted">{{ business.business_name }} · Disimpan sebagai draft. Periksa sebelum diterbitkan.</p>
+<h1 style="margin-top:16px;">Buat Invoice Pelanggan</h1><p class="muted">{{ business.business_name }} · Disimpan sebagai draft. Periksa sebelum diterbitkan.</p>
 {% if not customers %}<p class="card">Tambahkan customer terlebih dahulu di Pelanggan &amp; Piutang.</p>{% else %}
 <form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="customer">Customer</label><select id="customer" name="customer_id" required><option value="">Pilih customer</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>

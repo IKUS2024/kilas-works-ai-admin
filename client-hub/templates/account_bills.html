@@ -1,0 +1,4 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Tagihan &amp; Akun</h1><p>Pembayaran layanan Kilas Works terpisah dari Invoice Pelanggan di Finance.</p>{% for b in businesses %}<section class="card"><h2>{{ b.business_name }}</h2><a class="btn" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Tagihan Finance</a>{% if b.package!='NONE' %}<a class="btn secondary" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">Tagihan Brain</a>{% endif %}</section>{% endfor %}<a class="btn secondary" href="{{ url_for('projects.my_project_list') }}">Pesanan &amp; Tagihan Layanan</a>
+{% endblock %}

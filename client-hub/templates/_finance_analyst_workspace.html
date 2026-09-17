@@ -1,0 +1,17 @@
+<style>.analyst{max-width:850px;overflow-wrap:anywhere}.analyst input,.analyst select,.analyst textarea{width:100%;box-sizing:border-box;min-width:0}.analyst button{max-width:100%;white-space:normal}.analyst p{white-space:pre-wrap}</style>
+<div class="analyst">
+{% if not assistant_embedded %}<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>{% endif %}
+{% if operator_enabled and not assistant_embedded %}<p><a class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">Siapkan tindakan · AI Operator</a></p>{% endif %}
+{% if not assistant_embedded %}<h1>AI Finance Analyst · Beta Internal</h1>{% endif %}
+<p>{{ business.business_name }} · Membaca laporan, tanpa mengubah data atau melakukan pembayaran.</p>
+<p class="muted">Angka dihitung aplikasi. Interpretasi AI perlu ditinjau dan bukan keputusan akuntansi. Pertanyaan dikirim ke penyedia AI bersama ringkasan terbatas. Jangan masukkan kredensial atau data pribadi. Chat tidak disimpan.</p>
+<form id="analyst-form" class="card" data-endpoint="{{ url_for('finance.analyst',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">
+<label for="month">Bulan kalender</label><input id="month" type="month" value="{{ month }}" required>
+<label for="scope">Fokus data</label><select id="scope"><option value="summary">Ringkasan arus kas</option><option value="comparison">Bandingkan bulan sebelumnya</option><option value="categories">Kategori pengeluaran terbesar</option><option value="receivables">Piutang dan keterlambatan</option></select>
+<label for="question">Pertanyaan</label><textarea id="question" maxlength="1000" rows="3" required placeholder="Apa yang perlu saya perhatikan dari arus kas bulan ini?"></textarea>
+<p class="muted">Contoh: Bagaimana kinerja bulan ini? Apa perubahan dari bulan lalu? Kategori pengeluaran apa yang terbesar? Bagaimana kondisi piutang? Pilih fokus yang sesuai. Rincian invoice tetap tersedia di halaman Piutang.</p>
+<button class="btn" id="send">Analisis</button>
+</form>
+<p id="status" role="status" aria-live="polite">Ajukan pertanyaan untuk melihat fakta laporan, interpretasi, dan saran.</p>
+<div id="answer" class="card" hidden></div>
+</div>
