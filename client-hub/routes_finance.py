@@ -10,6 +10,7 @@ from flask import Blueprint, Response, abort, flash, redirect, render_template, 
 import finance_service as finance
 import finance_reports
 import finance_invoice_view
+import finance_collections
 import finance_analyst
 import finance_operator
 import finance_ai_safety as ai_safety
@@ -485,7 +486,9 @@ def finance_ai_payload(user_id, business_id, kind):
 
 @finance_bp.after_request
 def invoice_privacy(response):
-    if request.endpoint in ('finance.invoice_detail','finance.invoice_print','finance.invoice_share','finance.customer_invoice'):
+    if request.endpoint in ('finance.invoice_detail','finance.invoice_print','finance.invoice_share','finance.customer_invoice',
+                            'finance.collections','finance.customer_statement','finance.statement_print',
+                            'finance.statement_share','finance.public_statement','finance.collection_reminder'):
         response.headers['Cache-Control']='private, no-store'
         response.headers['Referrer-Policy']='no-referrer'
         response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
@@ -526,3 +529,73 @@ def customer_invoice(token):
         current_app.logger.warning('FINANCE_INVOICE_SHARE: unavailable')
         return 'Invoice belum dapat ditampilkan. Coba lagi nanti.',503
     return render_template('finance_invoice_public.html',doc=doc)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/collections')
+@finance_access
+def collections(business_id,user,business):
+    sort=request.args.get('sort','overdue');view=request.args.get('view','all')
+    try:
+        page=int(request.args.get('page','1'))
+        if sort not in finance_collections.SORTS or view not in finance_collections.FILTERS or page<1:raise ValueError()
+        data=finance_collections.position(business_id,user['id'])
+        queue=finance_collections.queue(data,sort,view,page)
+    except finance.FinanceError:
+        return 'Daftar piutang belum dapat ditampilkan. Hubungi pengelola aplikasi.',503
+    except ValueError:abort(400)
+    return render_template('finance_collections.html',user=user,business=business,data=data,queue=queue,
+                           sort=sort,view=view,labels=INVOICE_LABELS)
+
+
+def render_statement(business_id,user,business,customer_id,standalone=False,share_url=None):
+    if not finance.get_customer(business_id,customer_id,actor_user_id=user['id']):abort(404)
+    try:doc=finance_collections.statement(business_id,customer_id,user['id'])
+    except finance.FinanceError:
+        return 'Statement belum dapat ditampilkan. Hubungi pengelola aplikasi.',503
+    except ValueError:abort(404)
+    return render_template('finance_statement_public.html' if standalone else 'finance_statement.html',
+                           doc=doc,user=None if standalone else user,business=business,customer_id=customer_id,share_url=share_url)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/statement')
+@finance_access
+def customer_statement(business_id,user,business,customer_id):
+    return render_statement(business_id,user,business,customer_id)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/statement/print')
+@finance_access
+def statement_print(business_id,user,business,customer_id):
+    return render_statement(business_id,user,business,customer_id,standalone=True)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/statement/share',methods=['POST'])
+@finance_access
+def statement_share(business_id,user,business,customer_id):
+    if not finance.get_customer(business_id,customer_id,actor_user_id=user['id']):abort(404)
+    try:
+        base=finance_invoice_view.base_url()
+        token=finance_collections.create_token(business_id,customer_id,user['id'])
+    except ValueError:return 'Tautan statement belum tersedia. Hubungi pengelola aplikasi.',503
+    return render_statement(business_id,user,business,customer_id,
+                            share_url=base+url_for('finance.public_statement',token=token))
+
+
+@finance_bp.route('/finance/statement-share/<token>')
+def public_statement(token):
+    try:
+        business_id,customer_id=finance_collections.resolve_token(token)
+        doc=finance_collections.statement(business_id,customer_id)
+    except (ValueError,TypeError):return 'Tautan statement tidak tersedia atau sudah kedaluwarsa.',404
+    except Exception:
+        current_app.logger.warning('FINANCE_STATEMENT_SHARE: unavailable')
+        return 'Statement belum dapat ditampilkan. Coba lagi nanti.',503
+    return render_template('finance_statement_public.html',doc=doc)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/reminder')
+@finance_access
+def collection_reminder(business_id,user,business,invoice_id):
+    try:text=finance_collections.reminder(business_id,invoice_id,user['id'],request.args.get('tone','friendly'))
+    except ValueError:abort(404)
+    return render_template('finance_reminder.html',user=user,business=business,invoice_id=invoice_id,reminder=text)

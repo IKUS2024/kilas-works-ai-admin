@@ -813,9 +813,10 @@ def get_project_contribution_report(business_id, start_date, end_date, actor_use
     return get_project_cash_contribution(business_id,start_date,end_date,actor_user_id)
 
 
-def get_report_invoices(business_id, as_of, start_date=None, end_date=None, actor_user_id=None):
+def get_report_invoices(business_id, as_of, start_date=None, end_date=None, actor_user_id=None,
+                        customer_id=None, open_only=False):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    sql='''SELECT i.id,i.invoice_number,i.issue_date,i.due_date,i.status,c.name AS customer_name,
+    sql='''SELECT i.id,i.customer_id,i.invoice_number,i.issue_date,i.due_date,i.status,c.name AS customer_name,
         COALESCE((SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
             WHERE x.business_id=i.business_id AND x.invoice_id=i.id),0) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
@@ -823,6 +824,12 @@ def get_report_invoices(business_id, as_of, start_date=None, end_date=None, acto
         FROM finance_invoices i LEFT JOIN finance_customers c ON c.business_id=i.business_id AND c.id=i.customer_id
         WHERE i.business_id=? AND i.currency='IDR' AND i.issue_date<=?'''
     params=[as_of,business_id,as_of]
+    if customer_id is not None:
+        if not get_customer(business_id, customer_id, actor_user_id):
+            raise FinanceError('customer_unavailable')
+        sql+=' AND i.customer_id=?';params.append(customer_id)
+    if open_only:
+        sql+=" AND i.status IN ('ISSUED','PARTIALLY_PAID')"
     if start_date is not None or end_date is not None:
         start,end=report_period(start_date,end_date)
         sql+=' AND i.issue_date>=? AND i.issue_date<=?';params.extend([start,end])
@@ -836,9 +843,14 @@ def get_report_invoices(business_id, as_of, start_date=None, end_date=None, acto
 
 
 def get_receivables_aging(business_id, as_of, actor_user_id=None):
+    return receivables_aging_rows(get_report_invoices(business_id,as_of,actor_user_id=actor_user_id))
+
+
+def receivables_aging_rows(rows):
+    """Shared deterministic aging for Phase 3 reports and the collection workspace."""
     labels=('Belum jatuh tempo','1–30 hari terlambat','31–60 hari terlambat','61–90 hari terlambat','>90 hari terlambat')
     buckets=[dict(label=label,amount_minor=0,invoice_count=0) for label in labels]
-    for r in get_report_invoices(business_id,as_of,actor_user_id=actor_user_id):
+    for r in rows:
         # Current invoice state is authoritative; no historical issue/void status reconstruction.
         if r['status'] not in ('ISSUED','PARTIALLY_PAID') or r['outstanding_minor']<=0:continue
         days=r['days_late'];index=0 if days==0 else 1 if days<=30 else 2 if days<=60 else 3 if days<=90 else 4
