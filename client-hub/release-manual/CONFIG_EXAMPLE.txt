@@ -1,0 +1,53 @@
+# CONTOH SAJA. Masukkan variabel ini di konfigurasi service/secret manager.
+# Aplikasi tidak otomatis membaca file ini. Jangan commit .env berisi nilai nyata.
+
+# WAJIB untuk Client Hub production
+CLIENT_HUB_ENV=production
+APP_ENV=production
+SECRET_KEY=<RAHASIA_ACAK_MINIMAL_32_KARAKTER>
+PUBLIC_APP_BASE_URL=https://<DOMAIN_CLIENT_HUB_ANDA>
+DATABASE_URL=<URL_POSTGRESQL_DARI_SECRET_MANAGER>
+RUN_MIGRATIONS_ON_BOOT=false
+PORT=5050
+
+# Kebijakan Finance: default program internal_beta; isi self_service SETELAH staging lulus.
+KILAS_FINANCE_ACCESS_MODE=self_service
+KILAS_FINANCE_EMERGENCY_DISABLE=false
+# AI Analyst/Operator untuk pelanggan berhak akses; flag mati tidak mematikan form manual.
+KILAS_FINANCE_ANALYST_ENABLED=true
+KILAS_FINANCE_OPERATOR_ENABLED=true
+# Provider wajib hanya jika fitur AI hendak digunakan. CSV tetap tanpa panggilan AI.
+ANTHROPIC_API_KEY=<API_KEY_ANTHROPIC>
+CLIENT_HUB_FINANCE_ANALYST_MODEL=claude-haiku-4-5-20251001
+CLIENT_HUB_MODEL=claude-sonnet-4-6
+
+# WAJIB agar checkout Finance dibuka. Tidak ada rekening yang ditebak.
+KILAS_FINANCE_PAYMENT_BANK_NAME=<NAMA_BANK_PENERIMA>
+KILAS_FINANCE_PAYMENT_BANK_ACCOUNT=<NOMOR_REKENING_PENERIMA>
+KILAS_FINANCE_PAYMENT_BANK_HOLDER=<NAMA_PEMILIK_REKENING>
+
+# Hanya mode internal_beta; tidak membuka akses self_service atau membuktikan pembayaran.
+KILAS_FINANCE_BETA=false
+KILAS_FINANCE_ANALYST_BUSINESS_IDS=
+KILAS_FINANCE_OPERATOR_BUSINESS_IDS=
+
+# Email reset password: pilih konfigurasi pengiriman yang telah digunakan deployment.
+# SMTP opsional untuk pengiriman email, dibutuhkan jika memakai alur reset melalui SMTP.
+SMTP_HOST=<HOST_SMTP>
+SMTP_PORT=587
+SMTP_USERNAME=<USER_SMTP>
+SMTP_PASSWORD=<PASSWORD_SMTP>
+RESET_EMAIL_FROM=<ALAMAT_PENGIRIM>
+# Alternatif Resend memakai konfigurasi existing; lihat email_utils.py/panduan deployment.
+RESEND_API_KEY=<ISI_HANYA_JIKA_MEMAKAI_RESEND>
+
+# Integrasi Brain yang SUDAH ADA; jangan ganti jika tidak sedang migrasi service Brain.
+KILAS_BOT_INTERNAL_URL=<URL_INTERNAL_SERVICE_BOT>
+INTERNAL_SERVICE_SECRET=<RAHASIA_SAMA_DI_CLIENT_HUB_DAN_BOT>
+WHATSAPP_ACCESS_TOKEN=<TOKEN_WHATSAPP_EXISTING_JIKA_DIPERLUKAN>
+# Variable Meta/WhatsApp lain tetap mengikuti deployment existing, bukan syarat Finance.
+
+# LOKAL SAJA: DATABASE_URL harus unset, pilih database baru yang dapat dibuang.
+# CLIENT_HUB_ENV=test
+# CLIENT_HUB_DB_PATH=/tmp/kilas-demo-local.sqlite3
+# DEMO_FIXTURE_PASSWORD=<PASSWORD_UJI_MINIMAL_12_KARAKTER>
