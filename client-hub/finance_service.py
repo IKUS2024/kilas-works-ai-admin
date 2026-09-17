@@ -58,6 +58,8 @@ def _write(business_id, actor_user_id):
     # No new transaction framework, no payment/project operation is called.
     with db.app_purchase_transaction(business_id, None):
         _scope(business_id, actor_user_id)
+        import finance_entitlements
+        finance_entitlements.require_write(business_id, actor_user_id)
         yield
 
 
@@ -210,6 +212,10 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
     raw = {key: value for key, value in locals().items() if key in FIELDS}
     with _write(business_id, actor_user_id):
         data = _transaction_data(business_id, raw)
+        if data['source_type'] == 'FINANCE_BANK_IMPORT':
+            raise FinanceError('bank_origin_managed')
+        if data['source_type'] == 'FINANCE_RECEIPT':
+            raise FinanceError('receipt_origin_managed')
         if data['source_type'] == 'FINANCE_OPERATOR':
             # One signed draft = one persistent ledger row, across workers/restarts.
             # The existing business lock is held until ledger + audit commit together.
@@ -293,8 +299,25 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
             raise FinanceError('transaction_void')
         original = {key: current[key] for key in FIELDS}
         data = _transaction_data(business_id, dict(original, **changes))
+        # Check canonical source names after _text strips whitespace. Raw-input
+        # guards above alone allow padded managed origins on unrelated records.
+        if data['source_type'] == 'FINANCE_INVOICE_PAYMENT':
+            raise FinanceError('invoice_ledger_managed')
+        if data['source_type'] == 'FINANCE_OPERATOR' and current['source_type'] != 'FINANCE_OPERATOR':
+            raise FinanceError('operator_origin_immutable')
         if data['source_type'] == 'FINANCE_RECURRING_EXPENSE':
             raise FinanceError('recurring_ledger_managed')
+        if current['source_type'] == 'FINANCE_BANK_IMPORT':
+            if any(data[key] != current[key] for key in ('source_type', 'source_ref')):
+                raise FinanceError('bank_origin_immutable')
+        elif data['source_type'] == 'FINANCE_BANK_IMPORT':
+            raise FinanceError('bank_origin_immutable')
+        if current['source_type'] == 'FINANCE_RECEIPT':
+            if (any(data[key] != current[key] for key in ('source_type', 'source_ref'))
+                    or data['direction'] != 'EXPENSE' or data['currency'] != 'IDR'):
+                raise FinanceError('receipt_origin_immutable')
+        elif data['source_type'] == 'FINANCE_RECEIPT':
+            raise FinanceError('receipt_origin_immutable')
         if data != original:
             db.execute('UPDATE finance_transactions SET ' + ','.join(key+'=?' for key in FIELDS) +
                        ',updated_at=? WHERE business_id=? AND id=? AND status=\'POSTED\'',
@@ -641,7 +664,24 @@ def _next_recurring_date(rule):
         raise FinanceError('invalid_date') from None
 
 
-def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_occurrences=MAX_RECURRING_OCCURRENCES):
+def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
+    """Read-only next occurrence per rule; no future schedule is skipped."""
+    _scope(business_id,actor_user_id);as_of=_date(as_of)
+    rows=db.query_all('SELECT r.*,a.name AS account_name,c.name AS category_name FROM finance_recurring_expenses r '
+        'JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id '
+        'JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id '
+        'WHERE r.business_id=? AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id LIMIT 100',(business_id,as_of))
+    result=[]
+    for row in rows:
+        if row['end_on'] and row['next_due_on']>row['end_on']:continue
+        try:_recurring_data(business_id,row)
+        except FinanceError:continue
+        if not db.query_one('SELECT id FROM finance_recurring_postings WHERE business_id=? AND recurring_expense_id=? AND scheduled_on=?',(business_id,row['id'],row['next_due_on'])):
+            result.append(dict(row,selection=f"{row['id']}:{row['next_due_on']}"))
+    return result
+
+
+def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_occurrences=MAX_RECURRING_OCCURRENCES, selected=None):
     """At most 100 occurrences per call, including already-posted recovery checks.
 
     One business transaction: any SQL/audit failure rolls back all writes in this call. Invalid
@@ -652,11 +692,16 @@ def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_o
     as_of = _date(as_of)
     if type(max_occurrences) is not int or not 1 <= max_occurrences <= MAX_RECURRING_OCCURRENCES:
         raise FinanceError('invalid_recurring_limit')
+    if selected is not None:
+        if not isinstance(selected,list) or not 1<=len(selected)<=100 or any(not isinstance(x,str) or not re.fullmatch(r'[1-9][0-9]{0,18}:[0-9]{4}-[0-9]{2}-[0-9]{2}',x) for x in selected):
+            raise FinanceError('invalid_recurring_selection')
+        selected=set(selected)
     posted, handled, attention = 0, 0, 0
     with _write(business_id,actor_user_id):
         rules = db.query_all('SELECT * FROM finance_recurring_expenses WHERE business_id=? AND is_active=TRUE AND next_due_on<=? ORDER BY next_due_on,id', (business_id,as_of))
         for rule in rules:
             while rule['is_active'] and rule['next_due_on']<=as_of and handled<max_occurrences:
+                if selected is not None and f"{rule['id']}:{rule['next_due_on']}" not in selected: break
                 if rule['end_on'] and rule['next_due_on']>rule['end_on']:
                     deactivate_sql = 'UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? WHERE business_id=? AND id=?'
                     db.execute(deactivate_sql,(repo._now(),business_id,rule['id']))
@@ -848,7 +893,7 @@ def get_receivables_aging(business_id, as_of, actor_user_id=None):
 
 def receivables_aging_rows(rows):
     """Shared deterministic aging for Phase 3 reports and the collection workspace."""
-    labels=('Belum jatuh tempo','1–30 hari terlambat','31–60 hari terlambat','61–90 hari terlambat','>90 hari terlambat')
+    labels=('Belum jatuh tempo','Telat Dibayar 1–30 Hari','Telat Dibayar 31–60 Hari','Telat Dibayar 61–90 Hari','>90 hari terlambat')
     buckets=[dict(label=label,amount_minor=0,invoice_count=0) for label in labels]
     for r in rows:
         # Current invoice state is authoritative; no historical issue/void status reconstruction.
@@ -911,3 +956,35 @@ def operator_invoice_choices(business_id, actor_user_id=None):
     return db.query_all("SELECT id,invoice_number FROM finance_invoices WHERE business_id=? "
         "AND currency='IDR' AND status IN ('ISSUED','PARTIALLY_PAID') "
         "ORDER BY issue_date DESC,id DESC LIMIT 100",(business_id,))
+
+
+def find_receipt_transaction(business_id, receipt_hash, *, actor_user_id):
+    """Read-only exact-file lookup. VOID origins remain reserved, within this tenant."""
+    _scope(business_id, actor_user_id)
+    if not isinstance(receipt_hash, str) or not re.fullmatch('[a-f0-9]{64}', receipt_hash):
+        raise FinanceError('invalid_receipt_hash')
+    return db.query_one('SELECT * FROM finance_transactions WHERE business_id=? '
+                        'AND source_type=? AND source_ref=? ORDER BY id LIMIT 1',
+                        (business_id, 'FINANCE_RECEIPT', receipt_hash))
+
+
+def create_receipt_expense(business_id, receipt_hash, amount_minor, account_id, category_id,
+                           occurred_on, *, description=None, counterparty_name=None, actor_user_id):
+    """Explicit reviewed confirmation only. One existing business lock, one ledger + audit.
+
+    Exact replay requires POSTED state, all accounting fields and original actor.
+    A voided or edited receipt cannot silently create a replacement.
+    """
+    _id(actor_user_id)
+    with _write(business_id, actor_user_id):
+        data = _transaction_data(business_id, dict(direction='EXPENSE', currency='IDR',
+            amount_minor=amount_minor, account_id=account_id, category_id=category_id,
+            occurred_on=occurred_on, description=description, counterparty_name=counterparty_name,
+            project_id=None, customer_id=None, source_type='FINANCE_RECEIPT', source_ref=receipt_hash))
+        existing = find_receipt_transaction(business_id, receipt_hash, actor_user_id=actor_user_id)
+        if existing:
+            if (existing['status'] != 'POSTED' or existing['created_by_user_id'] != actor_user_id
+                    or any(existing[key] != data[key] for key in FIELDS)):
+                raise FinanceError('receipt_duplicate_conflict')
+            return existing['id']
+        return _insert_transaction(business_id, data, actor_user_id)

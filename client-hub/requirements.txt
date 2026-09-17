@@ -1,6 +1,6 @@
 # Kilas Works Client Hub — dependencies.
 # Kept intentionally minimal and separate from ../requirements.txt (the production bot's deps).
-flask
+flask>=3.1
 requests
 pypdf
 Pillow

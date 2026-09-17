@@ -25,7 +25,7 @@ Tidak ada field lain. Tidak ada rekomendasi pajak/hukum atau kepastian penyebab 
 
 
 def enabled(business_id):
-    return safety.allowlisted('KILAS_FINANCE_ANALYST_BUSINESS_IDS', business_id)
+    return __import__('finance_entitlements').capability(business_id, 'ANALYST')
 
 
 def allow_click(user_id, business_id=None):
@@ -81,7 +81,11 @@ def build_context(business_id, user_id, start, scope):
     return result
 
 
-def generate(question, context):
+def generate(question, context, *, business_id=None, user_id=None):
+    import finance_entitlements as entitlement
+    if entitlement.self_service():
+        if business_id is None or user_id is None: return None,'access_unavailable'
+        entitlement.require_ai(business_id,user_id,'ANALYST')
     try: key,model = safety.configuration()
     except ValueError: return None, 'not_configured'
     try:

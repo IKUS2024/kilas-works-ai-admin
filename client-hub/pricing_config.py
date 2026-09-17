@@ -66,6 +66,8 @@ def transport_fee(distance_km, out_of_town=False):
             return fee
 
 
+FINANCE_PLAN = {"key": "finance", "name": "Kilas Finance", "amount_minor": 149000, "currency": "IDR", "period_days": 30, "trial_days": 7}
+
 BRAIN_PLAN = {
     "nama": "Kilas Brain", "harga": 499000, "satuan": "bulan",
     "positioning": "AI WhatsApp Admin + Owner Assistant untuk 1 bisnis / 1 nomor WhatsApp.",

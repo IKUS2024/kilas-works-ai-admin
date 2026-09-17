@@ -101,6 +101,15 @@ def _human_missing_labels(missing):
 def dashboard():
     user = security.current_user()
     businesses = repo.list_businesses_for_user(user["id"])
+    if __import__('finance_entitlements').self_service():
+        selected=session.get('dashboard_business_id')
+        if selected and any(b['id']==selected for b in businesses):
+            all_businesses=businesses
+            businesses=[b for b in businesses if b['id']==selected]
+        else:
+            all_businesses=businesses
+            businesses=businesses[:1]
+    else: all_businesses=businesses
     enriched = []
     my_projects = []
     for b in businesses:
@@ -112,6 +121,7 @@ def dashboard():
             # this business's OWN AI Admin subscription only. None when there's no subscription
             # row yet (e.g. this business was never activated with an AI Admin package).
             "subscription_banner": subscription_service.get_subscription_banner(b["id"]),
+            "finance_entitlement": __import__("finance_entitlements").state(b["id"]) if __import__("finance_entitlements").self_service() else None,
             "ai_usage": ai_usage.client_summary(b["id"]) if b["package"] != "NONE" else None,
         })
         # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
@@ -143,8 +153,8 @@ def dashboard():
         project['can_edit_brief'] = projects_repo.is_editable_app_brief(project)
         project['can_cancel'] = projects_repo.customer_can_cancel(project, project.get('payment'))
     return render_template(
-        "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects,
-        finance_beta_enabled=__import__("routes_finance").beta_enabled()
+        "product_dashboard.html" if __import__("finance_entitlements").self_service() else "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects,
+        all_businesses=all_businesses, finance_beta_enabled=__import__("routes_finance").beta_enabled()
     )
 
 
@@ -718,9 +728,17 @@ def submit_for_review(business_id):
     return redirect(url_for("client.ai_admin_checkout", business_id=business_id))
 
 
-@client_bp.route("/business/<int:business_id>/ai-admin/checkout")
+@client_bp.route("/business/<int:business_id>/ai-admin/checkout", methods=["GET", "POST"])
 @security.login_required
 def ai_admin_checkout(business_id):
+    _business_or_404(business_id)
+    if request.method=='POST':
+        with db.app_purchase_transaction(business_id,None):
+            return _brain_checkout(business_id)
+    return _brain_checkout(business_id)
+
+
+def _brain_checkout(business_id):
     """Business flow cleanup (single AI Admin purchase path) — the ONLY route that starts payment
     for an AI Admin business. Reached from the wizard/review flow (submit_for_review()'s own
     redirect, and a "Lanjut ke Pembayaran" link on review.html for anyone revisiting later) —
@@ -778,6 +796,8 @@ def ai_admin_checkout(business_id):
         if item is None:
             flash("Paket Kilas Brain ini sedang tidak tersedia — hubungi Kilas Works.", "error")
             return redirect(url_for("client.review_page", business_id=business_id))
+        if request.method=='GET':
+            return render_template('brain_checkout_start.html',business=business,item=item)
         project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
 
     return redirect(url_for("payments.checkout_page", project_id=project_id))

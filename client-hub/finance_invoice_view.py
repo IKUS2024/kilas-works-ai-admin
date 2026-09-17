@@ -28,6 +28,7 @@ def base_url():
 
 
 def create_token(business_id,invoice_id,user_id):
+    __import__("finance_entitlements").require_write(business_id,user_id)
     invoice=finance.get_finance_invoice(business_id,invoice_id,actor_user_id=user_id)
     if not invoice or invoice['status'] not in VISIBLE: raise ValueError('unavailable')
     return signer().dumps({'purpose':'finance_invoice_view','business_id':business_id,'invoice_id':invoice_id})

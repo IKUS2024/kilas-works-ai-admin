@@ -35,7 +35,7 @@ class OperatorError(ValueError):
 
 
 def enabled(business_id):
-    return safety.allowlisted('KILAS_FINANCE_OPERATOR_BUSINESS_IDS', business_id)
+    return __import__('finance_entitlements').capability(business_id, 'OPERATOR')
 
 
 def text(value, maximum, required=True):
@@ -135,11 +135,13 @@ def signer():
 
 
 def prepare(business_id,user_id,payload):
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
     if not enabled(business_id): raise OperatorError('not_allowed')
     draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
     action,question,fields=validate_request(payload)
     # Validate scope/references BEFORE sending any user text to the model.
     resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
     fields.update(interpret(action,question))
     preview=resolve(business_id,user_id,action,fields,draft=True)
     token=draft_signer.dumps(dict(version=1,user_id=user_id,business_id=business_id,action=action,

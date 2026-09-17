@@ -157,3 +157,56 @@ def _extract_pdf_text(content_bytes):
         return "\n".join(text_parts)[:20000]
     except Exception:
         return None  # extraction failing is not fatal — file is still stored, just without text
+
+
+def validate_receipt_upload(filename, content_bytes):
+    """Receipt-only restrictions layered over existing attachment byte validation.
+
+    PDFs are parsed in a bounded child process: no archive, temporary draft or OCR
+    vendor. Return safe name, real MIME and bounded PDF text (None for scans/images).
+    """
+    safe_name, mime = validate_project_attachment_upload(filename, content_bytes)
+    if mime != 'application/pdf':
+        try:
+            with Image.open(io.BytesIO(content_bytes)) as img:
+                actual = {'JPEG': 'image/jpeg', 'PNG': 'image/png', 'WEBP': 'image/webp'}.get(img.format)
+                if actual != mime or img.width * img.height > 20_000_000 or getattr(img, 'n_frames', 1) != 1:
+                    raise ValueError('unsupported_image')
+                img.load()
+        except Exception:
+            raise UploadRejected('Gambar tidak valid, terlalu besar, atau format tidak sesuai.') from None
+        return safe_name, mime, None
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+    try:
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('finance_receipt_pdf.py'))],
+                                input=content_bytes, capture_output=True, timeout=8, check=True)
+        data = json.loads(result.stdout)
+        if set(data) != {'text'} or not isinstance(data['text'], str) or len(data['text']) > 20000:
+            raise ValueError('invalid_pdf')
+        return safe_name, mime, data['text'] or None
+    except Exception:
+        raise UploadRejected('PDF tidak valid, terenkripsi, terlalu kompleks, atau melebihi 10 halaman.') from None
+
+
+def validate_bank_pdf(filename, content_bytes):
+    """Bank-only 10 MiB/20-page wrapper sharing existing PDF sniff and isolated worker."""
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+    safe_name = sanitize_filename(filename)
+    if (_extension_of(safe_name) != 'pdf' or not content_bytes or len(content_bytes) > 10 * 1024 * 1024
+            or not _looks_like_valid_pdf(content_bytes)):
+        raise UploadRejected('PDF bank tidak valid atau melebihi 10 MiB.')
+    try:
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('finance_receipt_pdf.py')),
+                                 '--bank-statement'], input=content_bytes, capture_output=True, timeout=8, check=True)
+        data = json.loads(result.stdout)
+        if set(data) != {'text'} or not isinstance(data['text'], str) or len(data['text']) > 100000:
+            raise ValueError()
+        return safe_name, data['text']
+    except Exception:
+        raise UploadRejected('PDF bank tidak valid, terlalu kompleks, terenkripsi, atau melebihi 20 halaman.') from None

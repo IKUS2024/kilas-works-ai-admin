@@ -52,6 +52,7 @@ def statement(business_id,customer_id,user_id=None):
 
 
 def create_token(business_id,customer_id,user_id):
+    __import__("finance_entitlements").require_write(business_id,user_id)
     if not finance.get_customer(business_id,customer_id,actor_user_id=user_id):raise ValueError('unavailable')
     return sharing.signer().dumps(dict(purpose='finance_customer_statement',business_id=business_id,customer_id=customer_id))
 

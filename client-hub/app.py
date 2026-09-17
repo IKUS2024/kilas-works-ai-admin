@@ -18,8 +18,9 @@ Run locally against Postgres instead of SQLite:
     python3 app.py
 """
 import os
+import io
 
-from flask import Flask, render_template, redirect, url_for, session, request, abort, current_app, send_file
+from flask import Flask, Request, render_template, redirect, url_for, session, request, abort, current_app, send_file
 
 import db
 import security
@@ -41,8 +42,18 @@ from routes_whatsapp import whatsapp_bp
 _CSRF_EXEMPT_JSON_PATHS_PREFIXES = ("/business/",)  # simulate/message + simulate/flag are under here
 
 
+class ClientHubRequest(Request):
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
+        # Bank sources stay in bounded request memory, including multipart parsing before CSRF.
+        # Werkzeug's default spools files larger than 500 KB to a temporary disk file.
+        if self.endpoint in ('finance.bank_analyze', 'finance.receipt_analyze'):
+            return io.BytesIO()
+        return super()._get_file_stream(total_content_length, content_type, filename, content_length)
+
+
 def create_app():
     app = Flask(__name__)
+    app.request_class = ClientHubRequest
 
     secret_key = os.environ.get("SECRET_KEY")
     if not secret_key:
@@ -118,6 +129,8 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
+    from routes_products import products_bp
+    app.register_blueprint(products_bp)
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     app.jinja_env.globals["brain_plan"] = __import__("pricing_config").BRAIN_PLAN
@@ -141,10 +154,21 @@ def create_app():
     @app.after_request
     def _set_security_headers(response):
         # Cheap, standard hardening headers (Phase 6) — no new dependency needed for this subset.
+        if request.endpoint in ('client.dashboard','client.ai_admin_checkout'):
+            response.headers['Cache-Control']='private, no-store'
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         return response
+
+    @app.before_request
+    def _finance_bank_upload_limit():
+        # Request-local cap before CSRF parses multipart; all other endpoints keep 12 MiB.
+        if request.endpoint == 'finance.bank_analyze':
+            request.max_content_length = 26 * 1024 * 1024
+        elif request.endpoint == 'finance.assistant_route':
+            # Only text and filename metadata. Raw attachments go to existing engines.
+            request.max_content_length = 16 * 1024
 
     @app.before_request
     def _csrf_protect():
@@ -171,7 +195,7 @@ def create_app():
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
             return redirect(url_for("client.dashboard"))
-        return redirect(url_for("auth.login_page"))
+        return redirect(url_for("products.index"))
 
     @app.route("/healthz")
     def healthz():

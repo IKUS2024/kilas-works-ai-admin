@@ -5,14 +5,18 @@ import os
 import re
 import uuid
 from functools import wraps
+from werkzeug.exceptions import HTTPException
 
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 import finance_service as finance
 import finance_reports
 import finance_invoice_view
 import finance_collections
+import finance_receipts
+import file_utils
 import finance_analyst
 import finance_operator
+import finance_assistant
 import finance_ai_safety as ai_safety
 from flask import jsonify, current_app
 import security
@@ -29,9 +33,16 @@ def finance_access(view):
     @security.login_required
     def wrapped(business_id, **kwargs):
         user = security.current_user()
-        if not beta_enabled() and user['role'] != 'KILAS_ADMIN':
+        import finance_entitlements as entitlement
+        if not (beta_enabled() or entitlement.self_service()) and user['role'] != 'KILAS_ADMIN':
             abort(404)
         business = security.require_business_access(business_id, user=user)
+        if request.method != 'GET':
+            try: entitlement.require_write(business_id,user['id'])
+            except finance.FinanceError:
+                if request.is_json: return jsonify(error='Finance hanya-baca. Aktifkan trial atau perpanjang langganan.'),403
+                flash('Finance hanya-baca. Data tetap tersedia; aktifkan atau perpanjang untuk melanjutkan.','error')
+                return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
         return view(business_id, user, business, **kwargs)
     return wrapped
 
@@ -119,6 +130,7 @@ def dashboard(business_id, user, business):
                                             direction=direction, limit=100, **actor)
     return render_template('finance_dashboard.html', user=user, business=business,
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
+        collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
@@ -293,6 +305,7 @@ def operations(business_id,user,business):
     rules = finance.list_recurring_expenses(business_id,include_inactive=True,**actor)
     projects = finance.list_finance_projects(business_id,**actor)
     return render_template('finance_operations.html',user=user,business=business,rules=rules,projects=projects,
+        preview=finance.preview_due_recurring_expenses(business_id,date.today(),**actor),
         project_map={p['id']:p for p in projects},
         attention={r['id']:finance.recurring_needs_attention(business_id,r['id'],**actor) for r in rules if r['is_active']},
         accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'EXPENSE',**actor),
@@ -321,7 +334,10 @@ def deactivate_recurring(business_id,user,business,recurring_id):
 @finance_bp.route('/business/<int:business_id>/finance/recurring/process',methods=['POST'])
 @finance_access
 def process_recurring(business_id,user,business):
-    result = finance.process_due_recurring_expenses(business_id,date.today(),actor_user_id=user['id'])
+    if not request.form.getlist('occurrence'):
+        flash('Pilih pengeluaran yang sudah dibayar terlebih dahulu.','error')
+        return redirect(url_for('finance.operations',business_id=business_id),code=303)
+    result = finance.process_due_recurring_expenses(business_id,date.today(),actor_user_id=user['id'],selected=request.form.getlist('occurrence'))
     flash(f"{result['posted_count']} biaya rutin dicatat.",'success')
     if result['needs_attention_count']:
         flash('Ada biaya rutin yang belum dapat dicatat. Periksa akun, kategori, dan proyek. Jadwalnya tetap tersimpan.','error')
@@ -401,7 +417,7 @@ def analyst(business_id, user, business):
         return jsonify(error='Isi pertanyaan dan pilih periode serta fokus yang valid.'), 400
     try:
         context = finance_analyst.build_context(business_id, user['id'], start, scope)
-        result, reason = finance_analyst.generate(question, context)
+        result, reason = finance_analyst.generate(question, context, **(dict(business_id=business_id,user_id=user['id']) if __import__('finance_entitlements').self_service() else {}))
         if result is not None:
             ai_safety.event('analyst_success')
             response = jsonify(context=context, analysis=result)
@@ -486,13 +502,12 @@ def finance_ai_payload(user_id, business_id, kind):
 
 @finance_bp.after_request
 def invoice_privacy(response):
-    if request.endpoint in ('finance.invoice_detail','finance.invoice_print','finance.invoice_share','finance.customer_invoice',
-                            'finance.collections','finance.customer_statement','finance.statement_print',
-                            'finance.statement_share','finance.public_statement','finance.collection_reminder'):
-        response.headers['Cache-Control']='private, no-store'
-        response.headers['Referrer-Policy']='no-referrer'
-        response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
-        response.headers['X-Frame-Options']='DENY'
+    # Every Finance workspace contains sensitive records, including dashboard and
+    # operations pages that previously relied on browser cache defaults.
+    response.headers['Cache-Control']='private, no-store'
+    response.headers['Referrer-Policy']='no-referrer'
+    response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
+    response.headers['X-Frame-Options']='DENY'
     return response
 
 
@@ -599,3 +614,269 @@ def collection_reminder(business_id,user,business,invoice_id):
     try:text=finance_collections.reminder(business_id,invoice_id,user['id'],request.args.get('tone','friendly'))
     except ValueError:abort(404)
     return render_template('finance_reminder.html',user=user,business=business,invoice_id=invoice_id,reminder=text)
+
+
+# Receipt analysis and confirmation share the Finance access + AI safety architecture.
+
+
+def receipt_page(user, business, review=None, error=None, values=None, status=200):
+    accounts, categories = finance_receipts.options(business['id'], user['id'])
+    return render_template('finance_receipt.html', user=user, business=business, review=review,
+                           accounts=accounts, categories=categories, error=error, values=values), status
+
+
+@finance_bp.route('/business/<int:business_id>/finance/receipts/new')
+@ai_safety.endpoint
+@finance_access
+def receipt_new(business_id, user, business):
+    return receipt_page(user, business)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/receipts/analyze', methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def receipt_analyze(business_id, user, business):
+    uploaded = None
+    try:
+        if set(request.files) != {'receipt'} or len(request.files.getlist('receipt')) != 1:
+            raise file_utils.UploadRejected('Pilih tepat satu struk.')
+        uploaded = request.files['receipt']
+        raw = uploaded.stream.read(finance_receipts.MAX_BYTES + 1)
+        review = finance_receipts.analyze(business_id, user['id'], uploaded.filename, raw)
+        # Bytes remain request-local; neither review nor tokens contain the file.
+        del raw
+        return receipt_page(user, business, review=review)
+    except HTTPException:
+        raise
+    except file_utils.UploadRejected as error:
+        return receipt_page(user, business, error=str(error), status=400)
+    except Exception:
+        ai_safety.event('request_failed')
+        return receipt_page(user, business, error='Struk belum dapat dianalisis. Gunakan form pengeluaran manual di Finance.', status=503)
+    finally:
+        if uploaded is not None:
+            uploaded.close()
+
+
+@finance_bp.route('/business/<int:business_id>/finance/receipts/confirm', methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def receipt_confirm(business_id, user, business):
+    if not ai_safety.allow_attempt(user['id'], business_id, 'confirm'):
+        return receipt_page(user, business, error='Terlalu banyak percobaan. Coba lagi sebentar.', status=429)
+    token = request.form.get('analysis_token', '')
+    try:
+        data = finance_receipts.resolve_token(token, business_id, user['id'])
+    except (ValueError, TypeError):
+        return receipt_page(user, business, error='Review tidak valid atau kedaluwarsa. Upload ulang struk.', status=400)
+    fields = {key: request.form.get(key, '') for key in ('confirmed', 'currency', 'amount', 'occurred_on',
+              'account_id', 'category_id', 'merchant_name', 'description')}
+    review = dict(token=token, extraction=data['extraction'], filename=data['filename'], fallback=False, duplicate=False)
+    try:
+        if any(len(request.form.getlist(key)) != 1 for key in (*fields, 'analysis_token')):
+            raise ValueError('invalid_fields')
+        finance_receipts.confirm(business_id, user['id'], token, fields)
+    except ValueError as error:
+        duplicate = str(error) == 'receipt_duplicate_conflict'
+        message = ('Struk sudah tercatat atau dibatalkan. Tidak ada pengeluaran baru dibuat.' if duplicate else
+                   'Periksa konfirmasi, nominal rupiah, tanggal, akun dan kategori aktif. Belum ada pengeluaran baru dibuat.')
+        return receipt_page(user, business, review=review, values=fields, error=message, status=409 if duplicate else 400)
+    except Exception:
+        ai_safety.event('request_failed')
+        return receipt_page(user, business, review=review, values=fields,
+                            error='Konfirmasi belum dapat diproses. Periksa catatan sebelum mencoba lagi.', status=503)
+    ai_safety.event('confirmation_accepted')
+    flash('Pengeluaran struk sudah tercatat. Konfirmasi ulang yang sama tidak menambah catatan.', 'success')
+    return redirect(url_for('finance.dashboard', business_id=business_id, month=fields['occurred_on'][:7]))
+
+
+# Bank imports have staging writes, but only explicit row POST can write ledger money.
+import finance_bank_service as bank
+import finance_bank_extract as bank_extract
+
+
+def bank_safe(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except HTTPException:
+            raise
+        except (ValueError, file_utils.UploadRejected) as error:
+            unavailable=str(error) in ('bank_unavailable','bank_row_unavailable','business_unavailable')
+            return 'Impor tidak tersedia.' if unavailable else 'Permintaan belum valid atau status telah berubah. Muat ulang dan periksa isian.', 404 if unavailable else 400
+        except Exception:
+            ai_safety.event('request_failed')
+            return 'Impor belum dapat diproses. Muat ulang dan periksa status sebelum mencoba lagi.',503
+    return wrapped
+
+
+def bank_page_number():
+    page=int(request.args.get('page','1'))
+    if page<1 or page>100000:raise ValueError('page')
+    return page
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports')
+@bank_safe
+@finance_access
+def bank_index(business_id,user,business):
+    page=bank_page_number();imports=bank.list_imports(business_id,user['id'],page)
+    return render_template('finance_bank_index.html',user=user,business=business,imports=imports[:50],page=page,more=len(imports)>50)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/new')
+@bank_safe
+@finance_access
+def bank_new(business_id,user,business):
+    accounts=[a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['currency']=='IDR']
+    return render_template('finance_bank_new.html',user=user,business=business,accounts=accounts)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/analyze',methods=['POST'])
+@bank_safe
+@finance_access
+def bank_analyze(business_id,user,business):
+    uploads=request.files.getlist('sources')
+    try:
+        if set(request.files)!={'sources'} or not 1<=len(uploads)<=10:raise ValueError('files')
+        account_id=record_id(request.form.get('account_id'))
+        bank.account(business_id,account_id,user['id'])
+        files=[];total=0
+        for upload in uploads:
+            raw=upload.stream.read(10*1024*1024+1)
+            total+=len(raw)
+            if total>25*1024*1024:raise ValueError('aggregate')
+            files.append((upload.filename,raw))
+        import_id,fallback=bank.analyze(business_id,account_id,files,user['id'])
+        if fallback:flash('Ekstraksi belum dapat diandalkan. Tambahkan baris secara manual; belum ada transaksi Finance dibuat.','warning')
+        return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+    finally:
+        for upload in uploads:upload.close()
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>')
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/review')
+@bank_safe
+@finance_access
+def bank_detail(business_id,user,business,import_id):
+    imp=bank.get_import(business_id,import_id,user['id']);all_rows=bank.get_rows(business_id,import_id,user['id'])
+    page=min(bank_page_number(),max(1,(len(all_rows)+49)//50))
+    candidates={};candidate_error=False
+    if imp['status']=='OPEN':
+        try:candidates=bank.candidates(business_id,import_id,user['id'])
+        except finance.FinanceError:candidate_error=True
+    categories=finance.list_categories(business_id,actor_user_id=user['id'])
+    counts={state:sum(r['reconciliation_status']==state for r in all_rows) for state in ('UNMATCHED','MATCHED','POSTED','IGNORED')}
+    account=next((a for a in finance.list_accounts(business_id,True,actor_user_id=user['id']) if a['id']==imp['account_id']),None)
+    return render_template('finance_bank_detail.html',user=user,business=business,imp=imp,account=account,
+        rows=all_rows[(page-1)*50:page*50],candidates=candidates,candidate_error=candidate_error,categories=categories,
+        counts=counts,page=page,pages=max(1,(len(all_rows)+49)//50))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/review',methods=['POST'])
+@bank_safe
+@finance_access
+def bank_review(business_id,user,business,import_id):
+    allowed={'csrf_token','row_id','revision','transaction_date','description','direction','amount','reference'}
+    if set(request.form)-allowed or any(len(request.form.getlist(k))!=1 for k in request.form):raise ValueError('fields')
+    row_id=record_id(request.form['row_id']) if request.form.get('row_id') else None
+    bank.edit_row(business_id,import_id,row_id,int(request.form.get('revision','-1')),dict(
+        transaction_date=request.form.get('transaction_date'),description=request.form.get('description'),
+        direction=request.form.get('direction'),amount_minor=whole_idr(request.form.get('amount')),
+        reference=request.form.get('reference') or None),user['id'])
+    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/open',methods=['POST'])
+@bank_safe
+@finance_access
+def bank_open(business_id,user,business,import_id):
+    if request.form.get('confirmed')!='yes':raise ValueError('confirmation')
+    bank.open_import(business_id,import_id,int(request.form.get('revision','-1')),user['id'])
+    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/cancel',methods=['POST'])
+@bank_safe
+@finance_access
+def bank_cancel(business_id,user,business,import_id):
+    if request.form.get('confirmed')!='yes':raise ValueError('confirmation')
+    bank.cancel(business_id,import_id,user['id'])
+    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/rows/<int:row_id>/<action>',methods=['POST'])
+@bank_safe
+@finance_access
+def bank_decide(business_id,user,business,import_id,row_id,action):
+    if request.form.get('confirmed')!='yes':raise ValueError('confirmation')
+    expected={'confirmed','csrf_token'}
+    if action=='post':expected|={'category_id','occurred_on','description','counterparty_name'}
+    elif action=='match':expected.add('transaction_id')
+    if set(request.form)-expected or any(len(request.form.getlist(k))!=1 for k in request.form):raise ValueError('fields')
+    fields=None
+    if action=='post':fields=dict(category_id=record_id(request.form.get('category_id')),occurred_on=request.form.get('occurred_on'),
+        description=request.form.get('description',''),counterparty_name=request.form.get('counterparty_name') or None)
+    transaction_id=record_id(request.form.get('transaction_id')) if action=='match' else None
+    bank.decide(business_id,import_id,row_id,action,user['id'],transaction_id=transaction_id,fields=fields)
+    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant')
+@bank_safe
+@finance_access
+def assistant(business_id, user, business):
+    # Do not accept prompts, tokens or workflow state in URL parameters.
+    if request.args:
+        return redirect(url_for('finance.assistant', business_id=business_id))
+    actor = {'actor_user_id': user['id']}
+    operator_enabled = finance_operator.enabled(business_id)
+    return render_template('finance_assistant.html', user=user, business=business,
+        assistant_embedded=True, analyst_enabled=finance_analyst.enabled(business_id),
+        operator_enabled=operator_enabled, actions=finance_operator.ACTIONS,
+        today=date.today().isoformat(), month=date.today().strftime('%Y-%m'),
+        accounts=[a for a in finance.list_accounts(business_id, **actor) if a['currency']=='IDR'],
+        categories=finance.list_categories(business_id, **actor) if operator_enabled else [],
+        invoices=finance.operator_invoice_choices(business_id, **actor) if operator_enabled else [])
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/route', methods=['POST'])
+@finance_access
+def assistant_route(business_id, user, business):
+    # No model calls, staging, financial execution, tokens or prompt storage here.
+    if request.args:
+        return jsonify(error='Gunakan formulir Assistant tanpa parameter URL.'), 400
+    if request.content_length is None or request.content_length > 16 * 1024:
+        return jsonify(error='Permintaan terlalu besar.'), 413
+    if not request.is_json:
+        return jsonify(error='Gunakan teks dan pilihan file dari Assistant.'), 415
+    try:
+        payload = ai_safety.json_object(request.get_data().decode('utf-8'))
+        text, _, _ = finance_assistant.validate(payload)
+        result = finance_assistant.propose(payload)
+        result['suggested_action'] = (finance_assistant.operator_action(text)
+                                      if result['workflow']=='TEXT_OPERATOR' else '')
+        return jsonify(result)
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        ai_safety.event('invalid_request')
+        return jsonify(error='Teks maksimal 2.000 karakter dan maksimal 10 nama file.'), 400
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(workflow='NEEDS_CLARIFICATION', suggested_action='')
+
+
+@finance_bp.context_processor
+def finance_access_notice():
+    import finance_entitlements as entitlement
+    business_id=(request.view_args or {}).get('business_id')
+    if business_id and entitlement.self_service() and security.current_user():
+        return {'finance_read_only':entitlement.flag('KILAS_FINANCE_EMERGENCY_DISABLE') or not entitlement.state(business_id)['active'], 'finance_access_business_id':business_id}
+    return {}
+
+
+@finance_bp.errorhandler(finance.FinanceError)
+def entitlement_or_service_error(error):
+    if str(error)=='finance_configuration':
+        return 'Konfigurasi Finance belum siap. Pengelola perlu memeriksa migrasi dan pengaturan akses.',503
+    return 'Tindakan Finance belum tersedia. Periksa masa aktif, akses bisnis, dan data pilihan.',400
