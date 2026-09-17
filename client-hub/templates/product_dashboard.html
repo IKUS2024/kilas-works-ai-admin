@@ -9,12 +9,23 @@
   <p>Belum berlangganan Brain.</p>
   <form method="post" action="{{ url_for('products.select') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="brain"><button class="btn secondary">Kenali &amp; Siapkan Brain</button></form>
 {% else %}
+  {% set brain_payment = namespace(verified=false) %}
+  {% for p in my_projects %}
+    {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment and p.payment.status == 'VERIFIED' %}
+      {% set brain_payment.verified = true %}
+    {% endif %}
+  {% endfor %}
   <p>Status layanan: {{ b.status|humanize_status('business') }}{% if b.subscription_banner %} · Langganan: {{ b.subscription_banner.status }}{% endif %}</p>
   <p>Setup {{ b.completion_percent }}%. Simulasi tidak mengaktifkan WhatsApp. Koneksi tersedia setelah langkah review dan pembayaran selesai.</p>
   {% if b.status=='READY_FOR_REVIEW' %}<p>Data setup lengkap, sedang ditinjau. Ini belum berarti WhatsApp aktif.</p>{% endif %}
+  {% if b.status=='APPROVED' and brain_payment.verified %}<p>Setup dan pembayaran Kilas Brain sudah disetujui. Hubungkan WhatsApp untuk mulai menggunakan Kilas Brain.</p>{% endif %}
   <div class="business-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
     {% if b.status=='ACTIVE' %}
       <a class="btn" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox Brain</a>
+    {% elif b.status=='APPROVED' and brain_payment.verified %}
+      <a class="btn" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">Hubungkan WhatsApp</a>
+    {% elif b.status=='APPROVED' %}
+      <a class="btn" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Invoice &amp; Pembayaran</a>
     {% elif b.status!='READY_FOR_REVIEW' %}
       <a class="btn secondary" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>
     {% endif %}
