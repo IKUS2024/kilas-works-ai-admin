@@ -10,7 +10,7 @@
 <label for="op-action">Tindakan yang ingin disiapkan</label><select id="op-action" required>{% if assistant_embedded %}<option value="">Pilih tindakan</option>{% endif %}{% for key,label in actions.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
 <label for="op-request">Permintaan dan nominal rupiah</label><textarea id="op-request" maxlength="1000" rows="3" required placeholder="Catat pengeluaran Rp500.000 untuk Grab meeting client"></textarea>
 <p class="muted">Sebutkan satu nominal pasti dan keterangannya. Tidak menghitung perkiraan atau menjumlahkan beberapa nominal dari chat.</p>
-<label for="op-date">Tanggal pencatatan</label><input id="op-date" type="date" value="{{ today }}" required>
+<label for="op-date">Tanggal pencatatan</label><input id="op-date" type="date" value="{{ today }}" max="{{ today }}" required>
 <label for="op-account">Akun kas/bank (rupiah)</label><select id="op-account" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
 <label for="op-category">Kategori</label><select id="op-category" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>{% endfor %}</select>
 <div id="op-invoice-wrap" hidden><label for="op-invoice">Invoice Finance yang telah menerima pembayaran</label><select id="op-invoice"><option value="">Pilih invoice</option>{% for i in invoices %}<option value="{{ i.id }}">{{ i.invoice_number }}</option>{% endfor %}</select><p class="muted">Maksimal 100 invoice belum lunas terbaru. Hanya catat uang yang benar-benar sudah diterima. Bukan invoice langganan/platform Kilas Works.</p></div>
