@@ -1,50 +1,56 @@
 {% extends "base.html" %}
 {% block title %}{{ invoice.invoice_number }} — Kilas Works{% endblock %}
 {% block content %}
-<h1>Invoice {{ invoice.invoice_number }}</h1>
-<span class="pill APPROVED">{{ review_status|humanize_status('payment') if payment else invoice.status|humanize_status('invoice') }}</span>
-<p class="muted" style="margin-top:4px;">{{ review_status|humanize_payment_message if payment else '' }}</p>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head">
+    <div><h1>{{ invoice.invoice_number }}</h1><p>{{ review_status|humanize_payment_message if payment else 'Tagihan Kilas Works' }}</p></div>
+    <span class="client-status {{ 'ok' if payment and payment.status=='VERIFIED' else ('warn' if payment and payment.status in ('UNDER_REVIEW','PROOF_UPLOADED','PAYMENT_PENDING') else ('danger' if payment and payment.status=='REJECTED' else '')) }}">{{ review_status|humanize_status('payment') if payment else invoice.status|humanize_status('invoice') }}</span>
+  </header>
 
-<div class="card">
-  <h2>Total: Rp{{ '{:,}'.format(invoice.amount).replace(',', '.') }}</h2>
-  {% if payment and payment.status == 'VERIFIED' %}
-  <p class="muted">Pembayaran sudah terverifikasi. Tidak perlu transfer ulang.</p>
-  {% elif payment and payment.status in ('UNDER_REVIEW', 'PROOF_UPLOADED') %}
-  <p class="muted">Bukti sedang diperiksa tim. Tidak perlu transfer atau mengunggah ulang selama pemeriksaan.</p>
-  {% else %}
-  <p class="muted">Transfer sesuai total tagihan, lalu unggah bukti pembayaran di bawah.</p>
+  <section class="card">
+    <div class="client-stats">
+      <div class="client-stat" style="grid-column:span 2;"><strong>Rp{{ '{:,}'.format(invoice.amount).replace(',', '.') }}</strong><span>Total Tagihan</span></div>
+      <div class="client-stat"><strong>{{ bank.bank_name }}</strong><span>Bank</span></div>
+    </div>
+
+    {% if payment and payment.status == 'VERIFIED' %}
+      <p class="client-note" style="color:var(--green);">✓ Pembayaran sudah terverifikasi. Tidak perlu transfer ulang.</p>
+    {% elif payment and payment.status in ('UNDER_REVIEW','PROOF_UPLOADED') %}
+      <p class="client-note">Bukti sedang diperiksa tim. Tidak perlu upload ulang selama pemeriksaan.</p>
+    {% else %}
+      <p class="client-note">Transfer sesuai total tagihan, lalu unggah bukti pembayaran.</p>
+    {% endif %}
+
+    <details class="client-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;">
+      <summary>Detail Rekening</summary>
+      <div class="client-collapsible-body">
+        <div class="client-list">
+          <div class="client-item"><div class="client-item-title">Bank</div><div class="client-item-meta">{{ bank.bank_name }}</div></div>
+          <div class="client-item"><div class="client-item-title">No. Rekening</div><div class="client-item-meta">{{ bank.account_number }}</div></div>
+          <div class="client-item"><div class="client-item-title">Atas Nama</div><div class="client-item-meta">{{ bank.account_holder }}</div></div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  {% if payment and payment.status in ('PAYMENT_PENDING','REJECTED') %}
+    <section class="card">
+      <h2>Upload Bukti</h2>
+      {% if payment.status == 'REJECTED' %}<p class="client-note" style="color:var(--red);">{{ review_status|humanize_payment_message }}{% if payment.admin_notes %} · {{ payment.admin_notes }}{% endif %}</p>{% endif %}
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="file" id="payment-proof" name="proof_file" accept=".pdf,.png,.jpg,.jpeg,.webp,image/*" required>
+        <p class="client-note">Foto/screenshot/PDF bukti transfer · maks 10MB.</p>
+        <div class="client-actions"><button class="btn" type="submit">Kirim Bukti</button></div>
+      </form>
+    </section>
+  {% elif payment and payment.status in ('UNDER_REVIEW','PROOF_UPLOADED') %}
+    <section class="card">
+      <div class="client-item-head"><div><div class="client-item-title">Bukti sudah dikirim</div><div class="client-item-meta">{{ review_status|humanize_payment_message }}</div></div>{% if payment.proof_file_id %}<a class="btn small secondary" href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank" rel="noopener">Lihat</a>{% endif %}</div>
+    </section>
+  {% elif payment and payment.status == 'VERIFIED' %}
+    <section class="card"><div class="client-item-head"><div><div class="client-item-title">Pembayaran selesai</div><div class="client-item-meta">Project akan segera / sedang diproses.</div></div>{% if payment.proof_file_id %}<a class="btn small secondary" href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank" rel="noopener">Bukti</a>{% endif %}</div></section>
   {% endif %}
-  <table>
-    <tr><th>Bank</th><td>{{ bank.bank_name }}</td></tr>
-    <tr><th>No. Rekening</th><td>{{ bank.account_number }}</td></tr>
-    <tr><th>Atas Nama</th><td>{{ bank.account_holder }}</td></tr>
-  </table>
 </div>
-
-{% if payment and payment.status in ('PAYMENT_PENDING', 'REJECTED') %}
-<div class="card">
-  <h2>Upload Bukti Pembayaran</h2>
-  {% if payment.status == 'REJECTED' %}<p style="color:var(--red);">{{ review_status|humanize_payment_message }}{% if payment.admin_notes %} Catatan tim: {{ payment.admin_notes }}.{% endif %}</p>{% endif %}
-  {# Mobile-friendly upload: NO "capture" attribute — on many mobile browsers "capture" forces
-     the camera app open directly and skips the native file picker entirely, which would prevent
-     choosing an existing screenshot from Gallery/Photos or a file from Files. Omitting it lets
-     the browser's own file picker offer Camera, Gallery/Photos, AND Files as equal choices. #}
-  <form method="post" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="file" id="payment-proof" aria-label="Pilih bukti pembayaran" aria-describedby="proof-file-help" name="proof_file" accept=".pdf,.png,.jpg,.jpeg,.webp,image/*" required>
-    <p id="proof-file-help" class="muted" style="margin-top:6px;">Foto/screenshot bukti transfer, atau file PDF. Maks 10MB.</p>
-    <div style="margin-top:12px;"><button class="btn" type="submit">Upload Bukti</button></div>
-  </form>
-</div>
-{% elif payment and payment.status in ('UNDER_REVIEW', 'PROOF_UPLOADED') %}
-<div class="card">
-  <p class="muted">{{ review_status|humanize_payment_message }}</p>
-  {% if payment.proof_file_id %}<a href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank" rel="noopener">Lihat bukti yang sudah diupload</a>{% endif %}
-</div>
-{% elif payment and payment.status == 'VERIFIED' %}
-<div class="card">
-  <p style="color:var(--green);">{{ review_status|humanize_payment_message }} Project akan segera dimulai.</p>
-  {% if payment.proof_file_id %}<a href="{{ url_for('payments.invoice_proof_view', invoice_id=invoice.id) }}" target="_blank" rel="noopener">Lihat bukti pembayaran</a>{% endif %}
-</div>
-{% endif %}
 {% endblock %}
