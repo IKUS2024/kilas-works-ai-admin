@@ -1,317 +1,331 @@
 {% extends "base.html" %}
 {% block title %}Review — {{ business.business_name }}{% endblock %}
 {% block content %}
-{% if business.package != "NONE" %}{% include "_brain_plan_notice.html" %}{% endif %}
-<h1>{{ business.business_name }}</h1>
-<span class="pill {{ business.display_status or business.status }}">{{ (business.display_status or business.status)|humanize_status('business') }}</span>
-<span class="muted">· {{ business.package }}</span>
+<style>
+.review-page{max-width:980px;margin:0 auto}
+.review-back{display:inline-flex;align-items:center;gap:6px;color:var(--text-dim);font-size:13px;margin-bottom:12px}
+.review-hero{padding:16px 18px}.review-hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.review-title{min-width:0}.review-title h1{font-size:26px;margin:0 0 7px}.review-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.review-package{font-size:12px;color:var(--text-dim)}
+.review-plan{margin-top:10px;border-top:1px solid var(--border);padding-top:9px}.review-plan summary{cursor:pointer;color:var(--text-dim);font-size:12px}.review-plan .muted{font-size:12px;line-height:1.45;margin:8px 0}
+.activation-compact{padding:14px 16px}.activation-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.activation-head h2{margin:0;font-size:17px}.activation-score{font-size:12px;color:var(--text-dim)}
+.activation-track{height:6px;background:var(--bg-soft);border-radius:999px;overflow:hidden;margin-bottom:11px}.activation-fill{height:100%;background:var(--green);border-radius:inherit}
+.activation-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}.activation-chips::-webkit-scrollbar{display:none}.activation-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--text-dim);white-space:nowrap}.activation-chip.done{border-color:rgba(62,207,142,.25);background:rgba(62,207,142,.08);color:var(--green)}
+.activation-pending{margin-top:10px}.activation-pending summary{cursor:pointer;font-size:12px;color:var(--text-dim)}.activation-pending ul{margin:8px 0 0;padding-left:18px;color:var(--text-dim);font-size:12px;line-height:1.45}
+.review-alert{padding:12px 14px;border:1px solid rgba(241,101,101,.5);border-radius:14px;background:rgba(241,101,101,.035);margin-bottom:12px}.review-alert strong{color:var(--red);font-size:14px}.review-alert p{font-size:12px;color:var(--text-dim);margin:5px 0 0}.review-alert details{margin-top:7px}.review-alert summary{font-size:12px;cursor:pointer;color:var(--red)}
+.review-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin:12px 0 14px}.review-tab{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:13px;padding:10px 6px;min-height:66px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;text-align:center}.review-tab:hover{background:rgba(255,255,255,.025)}.review-tab.active{border-color:rgba(255,122,26,.65);background:rgba(255,122,26,.07);color:var(--orange)}.review-tab-icon{font-size:20px;line-height:1}.review-tab-label{font-size:11px;font-weight:750;line-height:1.1}
+.review-panel[hidden]{display:none!important}.review-panel>.card:last-child{margin-bottom:0}
+.review-panel-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.review-panel-title h2{margin:0}
+.review-subsection{border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--card);overflow:hidden}.review-subsection>summary{cursor:pointer;list-style:none;padding:13px 14px;font-weight:750}.review-subsection>summary::-webkit-details-marker{display:none}.review-subsection>summary::after{content:"⌄";float:right;color:var(--text-dim)}.review-subsection[open]>summary{border-bottom:1px solid var(--border)}.review-subsection[open]>summary::after{content:"⌃"}.review-subsection-body{padding:12px 14px}
+.review-actions{display:flex;gap:8px;flex-wrap:wrap}.review-actions form{margin:0}
+.review-info-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.review-info-row .pill{margin:0}
+@media(max-width:760px){.review-title h1{font-size:22px}.review-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.review-tab{min-height:62px}.review-hero,.activation-compact{padding:14px}.review-panel .card{padding:14px}}
+@media(max-width:430px){.review-tabs{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.review-tab{padding:8px 3px;min-height:58px}.review-tab-icon{font-size:18px}.review-tab-label{font-size:10px}}
+</style>
 
-{% if activation_checklist %}
-<div class="card">
-  <h2>Progres Aktivasi</h2>
-  <div style="display:flex;flex-wrap:wrap;gap:10px;">
-    {% for item in activation_checklist %}
-      <span class="pill {{ 'ACTIVE' if item.done else '' }}" style="display:flex;align-items:center;gap:4px;" title="{{ item.next_action or '' }}">
-        {{ '✓' if item.done else '○' }} {{ item.label }}
-      </span>
-    {% endfor %}
-  </div>
-  {% set pending_items = activation_checklist|selectattr('done', 'equalto', False)|list %}
-  {% if pending_items %}
-    <ul style="margin-top:10px;font-size:13px;color:var(--text-dim);">
-      {% for item in pending_items %}
-        <li><strong>{{ item.label }}:</strong> {{ item.next_action }}</li>
-      {% endfor %}
-    </ul>
-  {% endif %}
-</div>
-{% endif %}
+<div class="review-page">
+  <a class="review-back" href="{{ url_for('admin.dashboard') if is_admin_view else url_for('client.dashboard') }}">← {{ 'Owner Dashboard' if is_admin_view else 'Dashboard' }}</a>
 
-{% if missing_required %}
-  <div class="card" style="border-color:var(--red);">
-    <h2 style="color:var(--red);">Data bisnis belum lengkap</h2>
-    <p class="muted">{{ missing_required_sentence or (missing_required_labels or missing_required)|join(', ') }}</p>
-    {% if not is_admin_view and missing_fix_step %}
-      <a class="btn" href="{{ url_for('client.wizard_step', business_id=business.id, step=missing_fix_step) }}">Lengkapi Sekarang</a>
-    {% endif %}
-  </div>
-{% endif %}
-
-<div class="card">
-  <h2>Data Bisnis</h2>
-  <table>
-    <tr><th>Kategori</th><td>{{ profile.category|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Deskripsi</th><td>{{ profile.short_description|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Owner</th><td>{{ profile.owner_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Telepon bisnis</th><td>{{ profile.business_phone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Alamat</th><td>{{ profile.address|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Jam operasional</th><td>{{ profile.operating_hours|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Hari libur</th><td>{{ profile.closed_days|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Bahasa utama</th><td>{{ profile.primary_language|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Gaya bahasa AI</th><td>{{ profile.tone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Sapaan untuk pelanggan</th><td>{{ profile.customer_salutation|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-  </table>
-</div>
-
-{% if is_admin_view %}
-<div class="card">
-  <h2>Appointment & Pembayaran (read-only)</h2>
-  <table>
-    <tr><th>Appointment aktif</th><td>{{ 'Ya' if (profile and (profile.appointment_enabled or profile.appointment_enabled is none)) else 'Tidak' }}</td></tr>
-    <tr><th>Aturan booking</th><td>{{ profile.appointment_rules_raw|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Bank</th><td>{{ profile.payment_bank_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>No. rekening</th><td>{{ profile.payment_account_number|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Nama pemilik rekening</th><td>{{ profile.payment_account_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Instruksi pembayaran</th><td>{{ profile.payment_instructions|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-    <tr><th>Nomor WhatsApp Pemilik/Pengelola</th><td>{{ business.trusted_owner_phone|display_or_missing }}</td></tr>
-  </table>
-  <p class="muted" style="margin-top:8px;">Hanya bisa diubah oleh owner bisnis ini sendiri lewat halaman "Appointment & Pembayaran" di dashboard-nya.</p>
-</div>
-{% endif %}
-
-<div class="card">
-  <h2>Produk / Layanan</h2>
-  <table>
-    <tr><th>Raw input</th><th>Nama (AI)</th><th>Harga (AI)</th><th></th></tr>
-    {% for s in services %}
-      <tr>
-        <td>{{ s.raw_input }}</td>
-        {% if not s.service_name and ai_settings and ai_settings.ai_status == 'FAILED' %}
-          <td colspan="2" class="muted">Belum diproses — AI Setup gagal</td>
-        {% else %}
-          <td>{{ s.service_name|display_or_missing }}</td>
-          <td>{% if s.price_from %}{{ s.currency }} {{ '{:,}'.format(s.price_from) }}{% if s.price_to %}–{{ '{:,}'.format(s.price_to) }}{% endif %}{% else %}Belum diisi{% endif %}</td>
-        {% endif %}
-        <td>{% if s.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td>
-      </tr>
-    {% endfor %}
-  </table>
-</div>
-
-<div class="card">
-  <h2>FAQ</h2>
-  <table>
-    <tr><th>Raw input</th><th>Q (AI)</th><th>A (AI)</th><th></th></tr>
-    {% for f in faqs %}
-      <tr>
-        <td>{{ f.raw_input }}</td>
-        {% if not f.question and ai_settings and ai_settings.ai_status == 'FAILED' %}
-          <td colspan="2" class="muted">Belum diproses — AI Setup gagal</td>
-        {% else %}
-          <td>{{ f.question|display_or_missing }}</td>
-          <td>{{ f.answer|display_or_missing }}</td>
-        {% endif %}
-        <td>{% if f.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td>
-      </tr>
-    {% endfor %}
-  </table>
-</div>
-
-<div class="card">
-  <h2>Files</h2>
-  {% if files %}
-    <table>
-      <tr><th>File</th><th>Diupload</th><th></th></tr>
-      {% for f in files %}
-        <tr>
-          <td>{{ f.original_filename }}</td>
-          <td class="muted">{{ f.created_at|humanize_timestamp }}</td>
-          <td>
-            {% if is_admin_view %}
-              <a href="{{ url_for('admin.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a>
-            {% else %}
-              <a href="{{ url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </table>
-  {% else %}
-    <p class="muted">Belum ada file diupload.</p>
-  {% endif %}
-</div>
-
-<div class="card">
-  <h2>AI Generated Knowledge</h2>
-  {% if ai_settings %}
-    <p class="muted">Status: <strong>{{ ai_settings.ai_status|humanize_status('ai_setup') }}</strong></p>
-    {% if ai_settings.ai_status == 'FAILED' %}
-      {% if is_admin_view %}
-        <p style="color:var(--red);">AI belum berhasil memproses knowledge bisnis. Data dan file customer tetap aman. Jalankan ulang AI Setup setelah siap.</p>
-        <details style="margin-top:6px;"><summary class="muted">Detail teknis (admin only)</summary>
-          <p class="muted" style="font-family:monospace;font-size:12px;">{{ ai_settings.last_error }}</p>
-        </details>
-      {% else %}
-        <p style="color:var(--red);">AI belum berhasil menyiapkan knowledge bisnis kamu. Data yang sudah diisi tetap aman. Kamu bisa coba lagi tanpa mengisi ulang.</p>
-      {% endif %}
-    {% elif ai_settings.ai_status == 'STALE' %}
-      <p style="color:var(--orange, #b8860b);">Data bisnis sudah berubah. Pengetahuan Kilas Brain perlu diperbarui. Jalankan ulang AI Setup di bawah supaya Kilas Brain pakai data terbaru.</p>
-      <p>{{ ai_settings.normalized_summary }}</p>
-    {% elif ai_settings.ai_status == 'DONE' %}
-      <p>{{ ai_settings.normalized_summary }}</p>
-      {% if ai_settings.missing_fields %}
-        <p class="needs-review">{{ ai_settings.missing_fields|missing_fields_sentence }}</p>
-      {% endif %}
-    {% endif %}
-  {% else %}
-    <p class="muted">Belum dijalankan.</p>
-  {% endif %}
-
-  {% if is_admin_view and tenant_config_row %}
-    <p class="muted">Tenant config version: {{ tenant_config_row.config_version }} (di-provision {{ tenant_config_row.provisioned_at }})</p>
-  {% endif %}
-  {% if is_admin_view and whatsapp_config %}
-    <p class="muted">WhatsApp: {{ whatsapp_config.connection_status }}{% if whatsapp_config.phone_number_id %} — phone_number_id {{ whatsapp_config.phone_number_id }}{% endif %}</p>
-  {% endif %}
-
-  {% if not is_admin_view %}
-    <p class="muted" style="margin-top:8px;">Kilas Brain akan mempelajari data bisnis saat kamu mengirimnya untuk ditinjau. Jika baru mengubah data, kamu juga bisa memperbarui pengetahuan AI lebih dulu di sini.</p>
-    <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}" style="margin-top:12px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn secondary" type="submit">Jalankan Ulang AI Setup (opsional)</button>
-    </form>
-  {% else %}
-    <form method="post" action="{{ url_for('admin.retry_ai_setup', business_id=business.id) }}" style="margin-top:12px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
-    </form>
-  {% endif %}
-</div>
-
-{% if not is_admin_view %}
-  <div class="card">
-    <h2>Langkah Selanjutnya</h2>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
-      {% if not missing_required %}
-        <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Kirim untuk Ditinjau</button>
-        </form>
-        {% if not has_ai_admin_payment %}
-          <a class="btn" href="{{ url_for('client.ai_admin_checkout', business_id=business.id) }}">Lanjut ke Pembayaran</a>
-        {% else %}
-          <span class="pill ACTIVE">Pembayaran Kilas Brain sudah terverifikasi</span>
-        {% endif %}
-      {% else %}
-        <span class="muted">Lengkapi data wajib untuk mengirim bisnis ke tim Kilas Works.</span>
-      {% endif %}
+  <section class="card review-hero">
+    <div class="review-hero-row">
+      <div class="review-title">
+        <h1>{{ business.business_name }}</h1>
+        <div class="review-meta">
+          <span class="pill {{ business.display_status or business.status }}">{{ (business.display_status or business.status)|humanize_status('business') }}</span>
+          <span class="review-package">{{ business.package }}</span>
+        </div>
+      </div>
     </div>
-  </div>
-{% endif %}
-
-{% if is_admin_view %}
-  <div class="card">
-    <h2>Status & Aktivasi</h2>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-      {% if business.status not in ('APPROVED','ACTIVE') %}
-        <form method="post" action="{{ url_for('admin.approve', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Approve</button>
-        </form>
-      {% endif %}
-      {% if business.status == 'APPROVED' and not business.whatsapp_connected %}
-        <span class="muted">Hubungkan WhatsApp di bawah sebelum Activate.</span>
-      {% endif %}
-      {% if business.status == 'APPROVED' and business.whatsapp_connected %}
-        <form method="post" action="{{ url_for('admin.activate', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Activate</button>
-        </form>
-      {% endif %}
-      {% if business.status == 'ACTIVE' %}
-        <form method="post" action="{{ url_for('admin.deactivate', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn danger" type="submit">Deactivate</button>
-        </form>
-      {% endif %}
-    </div>
-    {% if subscription %}
-      <p class="muted">Kilas Brain Subscription: <strong>{{ subscription.status|humanize_status('subscription') }}</strong> ({{ subscription.plan_key }}) — periode s/d {{ subscription.period_end|humanize_timestamp }}{% if subscription.grace_started_at %}, grace mulai {{ subscription.grace_started_at|humanize_timestamp }}{% endif %}</p>
-      {% if subscription.status in ('GRACE', 'SUSPENDED') %}
-        <form method="post" action="{{ url_for('admin.renew_subscription', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Catat Perpanjangan (Renew)</button>
-        </form>
-      {% endif %}
+    {% if business.package != "NONE" %}
+      <details class="review-plan">
+        <summary>Detail paket Kilas Brain</summary>
+        {% include "_brain_plan_notice.html" %}
+      </details>
     {% endif %}
-  </div>
+  </section>
 
-  <div class="card">
-    <h2>Koneksi WhatsApp — Bantuan Manual</h2>
-    <p class="muted">Biasanya customer menghubungkan WhatsApp sendiri melalui Client Hub. Gunakan form ini hanya jika proses otomatis membutuhkan bantuan.</p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-      <a class="btn secondary" href="{{ url_for('admin.simulate_page', business_id=business.id) }}">Test AI</a>
-      <span class="pill {{ 'ACTIVE' if business.whatsapp_connected else '' }}">{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</span>
-    </div>
-    {% if business.status == 'APPROVED' and not business.whatsapp_connected %}
-      <form method="post" action="{{ url_for('admin.connect_whatsapp', business_id=business.id) }}" style="margin-bottom:8px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label>WhatsApp Phone Number ID</label>
-        <input type="text" name="whatsapp_phone_number_id" required>
-        <label>WABA ID (opsional)</label>
-        <input type="text" name="waba_id">
-        <label>Nomor WhatsApp Pemilik / Pengelola Bisnis</label>
-        <input type="text" name="trusted_owner_phone" required>
-        <details style="margin-top:12px;">
-          <summary style="cursor:pointer;color:var(--orange);">Pengaturan Lanjutan</summary>
-          <label style="margin-top:8px;">Credentials reference (kosongkan kalau bisnis ini satu WABA/Portfolio Meta dengan Kilas Works — pakai token default bersama. Isi HANYA kalau bisnis ini punya App/token Meta terpisah sendiri.)</label>
-          <input type="text" name="credentials_reference" placeholder="kosongkan untuk pakai token default bersama">
-        </details>
-        <div style="margin-top:10px;"><button class="btn secondary" type="submit">Hubungkan WhatsApp</button></div>
-      </form>
-    {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>Review Customer</h2>
-    <form method="post" action="{{ url_for('admin.request_revision', business_id=business.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Catatan revisi untuk client</label>
-      <textarea name="note" required></textarea>
-      <div style="margin-top:10px;"><button class="btn secondary" type="submit">Minta Revisi</button></div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h2>Paket</h2>
-    <p class="muted">Paket saat ini: <strong>{{ business.package }}</strong></p>
-    <form method="post" action="{{ url_for('admin.change_package', business_id=business.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Ubah paket</label>
-      <select name="package">
-        {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') %}<option value="{{ business.package }}" selected>{{ business.package }} (historis)</option>{% endif %}
-        <option value="AI_ADMIN" {{ 'selected' if business.package == 'AI_ADMIN' else '' }}>Kilas Brain — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
-      </select>
-      <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
-    </form>
-  </div>
-
-  {% if audit_log %}
-    <div class="card">
-      <h2>Riwayat Aktivitas</h2>
-      <div class="audit-log-list">
-        {% for a in audit_log %}
-          <div class="audit-log-entry">
-            <div class="audit-log-time">{{ a.created_at|humanize_timestamp }}</div>
-            <div class="audit-log-action">{{ a.action|humanize_audit_action }}</div>
-            {% set humanized_detail = a.detail|humanize_audit_detail %}
-            {% if humanized_detail and humanized_detail != '-' %}
-              <div class="audit-log-detail">{{ humanized_detail }}</div>
-            {% endif %}
-            {% if a.detail|looks_technical %}
-              <details class="audit-log-raw">
-                <summary>Lihat detail</summary>
-                <code>{{ a.detail }}</code>
-              </details>
-            {% endif %}
-          </div>
+  {% if activation_checklist %}
+    {% set done_items = activation_checklist|selectattr('done', 'equalto', True)|list %}
+    {% set pending_items = activation_checklist|selectattr('done', 'equalto', False)|list %}
+    <section class="card activation-compact">
+      <div class="activation-head">
+        <h2>Progres Aktivasi</h2>
+        <span class="activation-score">{{ done_items|length }}/{{ activation_checklist|length }} selesai</span>
+      </div>
+      <div class="activation-track"><div class="activation-fill" style="width:{{ ((done_items|length * 100) / (activation_checklist|length))|round(0, 'floor') }}%"></div></div>
+      <div class="activation-chips">
+        {% for item in activation_checklist %}
+          <span class="activation-chip {{ 'done' if item.done else '' }}">{{ '✓' if item.done else '○' }} {{ item.label }}</span>
         {% endfor %}
       </div>
-      {% if audit_log_has_more %}
-        <a class="btn secondary small" href="{{ url_for('admin.review_business', business_id=business.id, audit_page=audit_page+1) }}#riwayat">Lihat lainnya</a>
+      {% if pending_items %}
+        <details class="activation-pending">
+          <summary>Lihat {{ pending_items|length }} langkah yang belum selesai</summary>
+          <ul>{% for item in pending_items %}<li><strong>{{ item.label }}:</strong> {{ item.next_action }}</li>{% endfor %}</ul>
+        </details>
       {% endif %}
+    </section>
+  {% endif %}
+
+  {% if missing_required %}
+    <div class="review-alert">
+      <strong>Data bisnis belum lengkap</strong>
+      <p>{{ (missing_required_labels or missing_required)|length }} data wajib masih perlu dilengkapi.</p>
+      <details>
+        <summary>Lihat yang kurang</summary>
+        <p>{{ missing_required_sentence or (missing_required_labels or missing_required)|join(', ') }}</p>
+        {% if not is_admin_view and missing_fix_step %}<a class="btn small" href="{{ url_for('client.wizard_step', business_id=business.id, step=missing_fix_step) }}">Lengkapi Sekarang</a>{% endif %}
+      </details>
     </div>
   {% endif %}
-{% endif %}
+
+  <nav class="review-tabs" aria-label="Bagian review">
+    <button type="button" class="review-tab active" data-review-tab="business"><span class="review-tab-icon">🏢</span><span class="review-tab-label">Data Bisnis</span></button>
+    <button type="button" class="review-tab" data-review-tab="knowledge"><span class="review-tab-icon">🧠</span><span class="review-tab-label">Knowledge</span></button>
+    {% if is_admin_view %}
+      <button type="button" class="review-tab" data-review-tab="activation"><span class="review-tab-icon">✅</span><span class="review-tab-label">Aktivasi</span></button>
+      <button type="button" class="review-tab" data-review-tab="whatsapp"><span class="review-tab-icon">💬</span><span class="review-tab-label">WhatsApp</span></button>
+      <button type="button" class="review-tab" data-review-tab="revision"><span class="review-tab-icon">✏️</span><span class="review-tab-label">Revisi</span></button>
+      <button type="button" class="review-tab" data-review-tab="history"><span class="review-tab-icon">🕘</span><span class="review-tab-label">Riwayat</span></button>
+    {% else %}
+      <button type="button" class="review-tab" data-review-tab="next"><span class="review-tab-icon">➡️</span><span class="review-tab-label">Lanjut</span></button>
+    {% endif %}
+  </nav>
+
+  <section class="review-panel" data-review-panel="business">
+    <div class="card">
+      <div class="review-panel-title"><h2>Data Bisnis</h2></div>
+      <table>
+        <tr><th>Kategori</th><td>{{ profile.category|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Deskripsi</th><td>{{ profile.short_description|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Owner</th><td>{{ profile.owner_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Telepon bisnis</th><td>{{ profile.business_phone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Alamat</th><td>{{ profile.address|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Jam operasional</th><td>{{ profile.operating_hours|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Hari libur</th><td>{{ profile.closed_days|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Bahasa utama</th><td>{{ profile.primary_language|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Gaya bahasa AI</th><td>{{ profile.tone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Sapaan pelanggan</th><td>{{ profile.customer_salutation|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+      </table>
+    </div>
+
+    {% if is_admin_view %}
+      <details class="review-subsection">
+        <summary>Appointment &amp; Pembayaran</summary>
+        <div class="review-subsection-body">
+          <table>
+            <tr><th>Appointment aktif</th><td>{{ 'Ya' if (profile and (profile.appointment_enabled or profile.appointment_enabled is none)) else 'Tidak' }}</td></tr>
+            <tr><th>Aturan booking</th><td>{{ profile.appointment_rules_raw|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+            <tr><th>Bank</th><td>{{ profile.payment_bank_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+            <tr><th>No. rekening</th><td>{{ profile.payment_account_number|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+            <tr><th>Nama pemilik rekening</th><td>{{ profile.payment_account_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+            <tr><th>Instruksi pembayaran</th><td>{{ profile.payment_instructions|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+            <tr><th>WhatsApp owner</th><td>{{ business.trusted_owner_phone|display_or_missing }}</td></tr>
+          </table>
+          <p class="muted">Data ini diubah owner bisnis lewat halaman Appointment &amp; Pembayaran.</p>
+        </div>
+      </details>
+    {% endif %}
+  </section>
+
+  <section class="review-panel" data-review-panel="knowledge" hidden>
+    <div class="card">
+      <div class="review-panel-title"><h2>AI Knowledge</h2></div>
+      {% if ai_settings %}
+        <p class="muted">Status: <strong>{{ ai_settings.ai_status|humanize_status('ai_setup') }}</strong></p>
+        {% if ai_settings.ai_status == 'FAILED' %}
+          {% if is_admin_view %}
+            <p style="color:var(--red);">AI belum berhasil memproses knowledge. Data customer tetap aman.</p>
+            <details><summary class="muted">Detail teknis</summary><p class="muted" style="font-family:monospace;font-size:12px;">{{ ai_settings.last_error }}</p></details>
+          {% else %}
+            <p style="color:var(--red);">AI belum berhasil menyiapkan knowledge. Data tetap aman dan bisa dicoba lagi.</p>
+          {% endif %}
+        {% elif ai_settings.ai_status == 'STALE' %}
+          <p style="color:var(--orange);">Data bisnis berubah. Jalankan ulang AI Setup supaya Brain memakai data terbaru.</p>
+          <p>{{ ai_settings.normalized_summary }}</p>
+        {% elif ai_settings.ai_status == 'DONE' %}
+          <p>{{ ai_settings.normalized_summary }}</p>
+          {% if ai_settings.missing_fields %}<p class="needs-review">{{ ai_settings.missing_fields|missing_fields_sentence }}</p>{% endif %}
+        {% endif %}
+      {% else %}
+        <p class="muted">Belum dijalankan.</p>
+      {% endif %}
+
+      {% if is_admin_view and tenant_config_row %}<p class="muted">Tenant config v{{ tenant_config_row.config_version }} · {{ tenant_config_row.provisioned_at }}</p>{% endif %}
+      {% if is_admin_view and whatsapp_config %}<p class="muted">WhatsApp: {{ whatsapp_config.connection_status }}{% if whatsapp_config.phone_number_id %} · {{ whatsapp_config.phone_number_id }}{% endif %}</p>{% endif %}
+
+      {% if not is_admin_view %}
+        <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
+        </form>
+      {% else %}
+        <form method="post" action="{{ url_for('admin.retry_ai_setup', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
+        </form>
+      {% endif %}
+    </div>
+
+    <details class="review-subsection">
+      <summary>Produk / Layanan · {{ services|length }}</summary>
+      <div class="review-subsection-body">
+        <table>
+          <tr><th>Raw input</th><th>Nama (AI)</th><th>Harga (AI)</th><th></th></tr>
+          {% for s in services %}
+            <tr><td>{{ s.raw_input }}</td>{% if not s.service_name and ai_settings and ai_settings.ai_status == 'FAILED' %}<td colspan="2" class="muted">Belum diproses — AI Setup gagal</td>{% else %}<td>{{ s.service_name|display_or_missing }}</td><td>{% if s.price_from %}{{ s.currency }} {{ '{:,}'.format(s.price_from) }}{% if s.price_to %}–{{ '{:,}'.format(s.price_to) }}{% endif %}{% else %}Belum diisi{% endif %}</td>{% endif %}<td>{% if s.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td></tr>
+          {% else %}<tr><td colspan="4" class="muted">Belum ada produk / layanan.</td></tr>{% endfor %}
+        </table>
+      </div>
+    </details>
+
+    <details class="review-subsection">
+      <summary>FAQ · {{ faqs|length }}</summary>
+      <div class="review-subsection-body">
+        <table>
+          <tr><th>Raw input</th><th>Q (AI)</th><th>A (AI)</th><th></th></tr>
+          {% for f in faqs %}
+            <tr><td>{{ f.raw_input }}</td>{% if not f.question and ai_settings and ai_settings.ai_status == 'FAILED' %}<td colspan="2" class="muted">Belum diproses — AI Setup gagal</td>{% else %}<td>{{ f.question|display_or_missing }}</td><td>{{ f.answer|display_or_missing }}</td>{% endif %}<td>{% if f.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td></tr>
+          {% else %}<tr><td colspan="4" class="muted">Belum ada FAQ.</td></tr>{% endfor %}
+        </table>
+      </div>
+    </details>
+
+    <details class="review-subsection">
+      <summary>Files · {{ files|length }}</summary>
+      <div class="review-subsection-body">
+        {% if files %}
+          <table><tr><th>File</th><th>Diupload</th><th></th></tr>
+          {% for f in files %}<tr><td>{{ f.original_filename }}</td><td class="muted">{{ f.created_at|humanize_timestamp }}</td><td><a href="{{ url_for('admin.download_file', business_id=business.id, file_id=f.id) if is_admin_view else url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a></td></tr>{% endfor %}</table>
+        {% else %}<p class="muted">Belum ada file diupload.</p>{% endif %}
+      </div>
+    </details>
+  </section>
+
+  {% if not is_admin_view %}
+    <section class="review-panel" data-review-panel="next" hidden>
+      <div class="card">
+        <h2>Langkah Selanjutnya</h2>
+        <div class="review-actions">
+          <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
+          {% if not missing_required %}
+            <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Kirim untuk Ditinjau</button></form>
+            {% if not has_ai_admin_payment %}<a class="btn" href="{{ url_for('client.ai_admin_checkout', business_id=business.id) }}">Lanjut ke Pembayaran</a>{% else %}<span class="pill ACTIVE">Pembayaran terverifikasi</span>{% endif %}
+          {% else %}
+            <span class="muted">Lengkapi data wajib sebelum dikirim untuk review.</span>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if is_admin_view %}
+    <section class="review-panel" data-review-panel="activation" hidden>
+      <div class="card">
+        <h2>Status &amp; Aktivasi</h2>
+        <div class="review-actions">
+          {% if business.status not in ('APPROVED','ACTIVE') %}
+            <form method="post" action="{{ url_for('admin.approve', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Approve</button></form>
+          {% endif %}
+          {% if business.status == 'APPROVED' and not business.whatsapp_connected %}<span class="muted">Hubungkan WhatsApp sebelum Activate.</span>{% endif %}
+          {% if business.status == 'APPROVED' and business.whatsapp_connected %}
+            <form method="post" action="{{ url_for('admin.activate', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Activate</button></form>
+          {% endif %}
+          {% if business.status == 'ACTIVE' %}
+            <form method="post" action="{{ url_for('admin.deactivate', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Deactivate</button></form>
+          {% endif %}
+        </div>
+        {% if subscription %}
+          <p class="muted">Subscription: <strong>{{ subscription.status|humanize_status('subscription') }}</strong> · {{ subscription.plan_key }} · s/d {{ subscription.period_end|humanize_timestamp }}</p>
+          {% if subscription.status in ('GRACE','SUSPENDED') %}
+            <form method="post" action="{{ url_for('admin.renew_subscription', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Catat Perpanjangan</button></form>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      <details class="review-subsection">
+        <summary>Paket</summary>
+        <div class="review-subsection-body">
+          <p class="muted">Paket saat ini: <strong>{{ business.package }}</strong></p>
+          <form method="post" action="{{ url_for('admin.change_package', business_id=business.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label>Ubah paket</label>
+            <select name="package">
+              {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') %}<option value="{{ business.package }}" selected>{{ business.package }} (historis)</option>{% endif %}
+              <option value="AI_ADMIN" {{ 'selected' if business.package == 'AI_ADMIN' else '' }}>Kilas Brain — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
+            </select>
+            <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
+          </form>
+        </div>
+      </details>
+    </section>
+
+    <section class="review-panel" data-review-panel="whatsapp" hidden>
+      <div class="card">
+        <h2>Koneksi WhatsApp</h2>
+        <div class="review-info-row">
+          <span class="pill {{ 'ACTIVE' if business.whatsapp_connected else '' }}">{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</span>
+          <a class="btn secondary" href="{{ url_for('admin.simulate_page', business_id=business.id) }}">Test AI</a>
+        </div>
+        <p class="muted">Biasanya customer menghubungkan WhatsApp sendiri. Form manual hanya untuk bantuan admin.</p>
+        {% if business.status == 'APPROVED' and not business.whatsapp_connected %}
+          <form method="post" action="{{ url_for('admin.connect_whatsapp', business_id=business.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label>WhatsApp Phone Number ID</label><input type="text" name="whatsapp_phone_number_id" required>
+            <label>WABA ID (opsional)</label><input type="text" name="waba_id">
+            <label>Nomor WhatsApp Pemilik / Pengelola</label><input type="text" name="trusted_owner_phone" required>
+            <details class="review-plan"><summary>Pengaturan lanjutan</summary><label>Credentials reference</label><input type="text" name="credentials_reference" placeholder="kosongkan untuk token default bersama"></details>
+            <div style="margin-top:10px;"><button class="btn secondary" type="submit">Hubungkan WhatsApp</button></div>
+          </form>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="review-panel" data-review-panel="revision" hidden>
+      <div class="card">
+        <h2>Review Customer</h2>
+        <p class="muted">Kirim catatan hanya kalau customer memang perlu memperbaiki data.</p>
+        <form method="post" action="{{ url_for('admin.request_revision', business_id=business.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Catatan revisi</label><textarea name="note" required></textarea>
+          <div style="margin-top:10px;"><button class="btn secondary" type="submit">Minta Revisi</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="review-panel" data-review-panel="history" hidden>
+      <div class="card" id="riwayat">
+        <h2>Riwayat Aktivitas</h2>
+        {% if audit_log %}
+          <div class="audit-log-list">
+            {% for a in audit_log %}
+              <div class="audit-log-entry">
+                <div class="audit-log-time">{{ a.created_at|humanize_timestamp }}</div>
+                <div class="audit-log-action">{{ a.action|humanize_audit_action }}</div>
+                {% set humanized_detail = a.detail|humanize_audit_detail %}
+                {% if humanized_detail and humanized_detail != '-' %}<div class="audit-log-detail">{{ humanized_detail }}</div>{% endif %}
+                {% if a.detail|looks_technical %}<details class="audit-log-raw"><summary>Lihat detail</summary><code>{{ a.detail }}</code></details>{% endif %}
+              </div>
+            {% endfor %}
+          </div>
+          {% if audit_log_has_more %}<a class="btn secondary small" href="{{ url_for('admin.review_business', business_id=business.id, audit_page=audit_page+1) }}#history">Lihat lainnya</a>{% endif %}
+        {% else %}<p class="muted">Belum ada riwayat aktivitas.</p>{% endif %}
+      </div>
+    </section>
+  {% endif %}
+</div>
+
+<script>
+(function(){
+  const tabs=[...document.querySelectorAll('[data-review-tab]')];
+  const panels=[...document.querySelectorAll('[data-review-panel]')];
+  if(!tabs.length||!panels.length)return;
+  const valid=new Set(tabs.map(t=>t.dataset.reviewTab));
+  function show(name,updateHash){
+    if(!valid.has(name))name='business';
+    tabs.forEach(t=>t.classList.toggle('active',t.dataset.reviewTab===name));
+    panels.forEach(p=>p.hidden=p.dataset.reviewPanel!==name);
+    if(updateHash)history.replaceState(null,'','#'+name);
+  }
+  tabs.forEach(t=>t.addEventListener('click',()=>show(t.dataset.reviewTab,true)));
+  const initial=location.hash.replace('#','');
+  show(valid.has(initial)?initial:'business',false);
+})();
+</script>
 {% endblock %}
