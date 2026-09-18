@@ -1,117 +1,117 @@
 {% extends "base.html" %}
 {% block title %}Talent — Admin{% endblock %}
 {% block content %}
-<h1>Talent Management</h1>
+{% include "_admin_compact_style.html" %}
+<div class="admin-page">
+  <header class="admin-head">
+    <div><h1>Talent Management</h1><p>Tambah dan kelola talent tanpa semua form terbuka sekaligus.</p></div>
+    <span class="admin-count">{{ talents|length }} talent</span>
+  </header>
 
-<div class="card">
-  <h2>Tambah Talent Baru</h2>
-  <form method="post" action="{{ url_for('admin.talent_create') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>Nama</label><input type="text" name="name" required>
-    <label>Handle</label><input type="text" name="social_handle" placeholder="@handle">
-    <label>Niche</label><input type="text" name="niche">
-    <label>Followers</label><input type="number" name="follower_count">
-    <label>Availability</label>
-    <select name="availability_status">
-      {% for a in availability_statuses %}<option value="{{ a }}">{{ a.title() }}</option>{% endfor %}
-    </select>
-    <label>Foto Profil (URL, opsional — bisa upload foto langsung setelah talent dibuat)</label>
-    <input type="url" name="profile_photo_url" placeholder="https://...">
-    <div style="margin-top:10px;"><button class="btn small" type="submit">Tambah Talent</button></div>
-  </form>
-</div>
-
-<div class="card">
-  {% for t in talents %}
-  <div style="border-bottom:1px solid var(--border);padding:14px 0;{{ 'opacity:.55;' if not t.is_active }}">
-    <div style="display:flex;align-items:center;gap:12px;">
-      {% if t.profile_image_asset_id %}
-        <img src="{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}" alt="{{ t.name }}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;">
-      {% elif t.profile_photo_url %}
-        <img src="{{ t.profile_photo_url }}" alt="{{ t.name }}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;">
-      {% endif %}
-      <h2 style="margin:0;">{{ t.name }} <span class="muted">({{ t.social_handle }})</span> {% if not t.is_active %}<span class="pill SUSPENDED">ARSIP</span>{% endif %}</h2>
-    </div>
-
-    <form method="post" action="{{ url_for('admin.talent_photo_upload', talent_id=t.id) }}" enctype="multipart/form-data" style="margin-top:10px;" class="talent-photo-form" data-talent-id="{{ t.id }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Upload Foto Baru (JPG/PNG/WEBP, maks 5MB)</label>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
-        <img class="talent-photo-preview" id="talent-photo-preview-{{ t.id }}"
-             src="{% if t.profile_image_asset_id %}{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}{% elif t.profile_photo_url %}{{ t.profile_photo_url }}{% endif %}"
-             alt="Preview foto {{ t.name }}"
-             style="width:72px;height:72px;object-fit:cover;border-radius:8px;background:var(--border);{% if not t.profile_image_asset_id and not t.profile_photo_url %}display:none;{% endif %}">
-        <div>
-          <!-- Gap-fix Area G: photo-only Gallery/Photos picker — accept="image/*", NO capture
-               attribute (a forced capture= would force the camera app open on mobile instead of
-               letting the person pick from their existing Gallery/Photos, which is the whole
-               point of this fix). Hidden; triggered by the labeled buttons below so we can show a
-               live Preview and offer Replace/Remove before the form is actually submitted. -->
-          <input type="file" name="photo" accept="image/*" id="talent-photo-input-{{ t.id }}" style="display:none;">
-          <button type="button" class="btn small secondary talent-photo-pick-btn" data-talent-id="{{ t.id }}">Pilih dari Galeri/Foto</button>
-          <button type="button" class="btn small danger talent-photo-remove-btn" data-talent-id="{{ t.id }}" style="display:none;">Batal / Hapus Pilihan</button>
-          <div class="muted talent-photo-filename" id="talent-photo-filename-{{ t.id }}" style="margin-top:4px;"></div>
+  <details class="card admin-collapsible">
+    <summary>＋ Tambah Talent Baru</summary>
+    <div class="admin-collapsible-body">
+      <form method="post" action="{{ url_for('admin.talent_create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="admin-form-grid">
+          <label>Nama<input type="text" name="name" required></label>
+          <label>Handle<input type="text" name="social_handle" placeholder="@handle"></label>
+          <label>Niche<input type="text" name="niche"></label>
+          <label>Followers<input type="number" name="follower_count"></label>
+          <label>Availability<select name="availability_status">{% for a in availability_statuses %}<option value="{{ a }}">{{ a.title() }}</option>{% endfor %}</select></label>
+          <label>Foto Profil URL<input type="url" name="profile_photo_url" placeholder="https://..."></label>
         </div>
-      </div>
-      <div style="margin-top:6px;"><button class="btn small secondary" type="submit">Upload Foto</button></div>
-    </form>
-
-    <form method="post" action="{{ url_for('admin.talent_update', talent_id=t.id) }}" style="margin-top:10px;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Handle</label><input type="text" name="social_handle" value="{{ t.social_handle or '' }}">
-      <label>Niche</label><input type="text" name="niche" value="{{ t.niche or '' }}">
-      <label>Foto Profil (URL fallback — dipakai kalau tidak ada foto upload)</label>
-      <input type="url" name="profile_photo_url" placeholder="https://..." value="{{ t.profile_photo_url or '' }}">
-      <label>Followers</label><input type="number" name="follower_count" value="{{ t.follower_count }}">
-      <label>Availability</label>
-      <select name="availability_status">
-        {% for a in availability_statuses %}<option value="{{ a }}" {{ 'selected' if t.availability_status == a }}>{{ a.title() }}</option>{% endfor %}
-      </select>
-      <label>Catatan Availability (opsional, tampil ke customer)</label>
-      <input type="text" name="availability_note" value="{{ t.availability_note or '' }}" placeholder="mis. 'Available after 15 September'">
-      <label>Urutan Tampil (angka lebih kecil tampil lebih dulu)</label>
-      <input type="number" name="display_order" value="{{ t.display_order or 0 }}" style="width:110px;">
-      <label>Catatan Publik</label><input type="text" name="public_notes" value="{{ t.public_notes or '' }}">
-      <label>Catatan Internal (admin only)</label><input type="text" name="internal_notes" value="{{ t.internal_notes or '' }}">
-      <label>Internal Rate (admin only, tidak publik)</label><input type="number" name="internal_rate" value="{{ t.internal_rate or '' }}">
-      <label><input type="checkbox" name="is_active" {{ 'checked' if t.is_active }} style="width:auto;display:inline-block;"> Aktif</label>
-      <div style="margin-top:10px;display:flex;gap:8px;">
-        <button class="btn small" type="submit">Simpan</button>
-      </div>
-    </form>
-    <div style="margin-top:8px;">
-      {% if t.is_active %}
-      <form method="post" action="{{ url_for('admin.talent_archive', talent_id=t.id) }}" class="inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn small danger" type="submit">Arsipkan</button>
+        <div class="admin-actions"><button class="btn small" type="submit">Tambah Talent</button></div>
       </form>
-      {% else %}
-      <form method="post" action="{{ url_for('admin.talent_reactivate', talent_id=t.id) }}" class="inline">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="btn small secondary" type="submit">Aktifkan Kembali</button>
-      </form>
-      {% endif %}
     </div>
-  </div>
-  {% endfor %}
-</div>
+  </details>
 
-<div class="card">
-  <h2>Talent Requests</h2>
-  <table>
-    <tr><th>Talent</th><th>Business</th><th>Status</th><th>Budget</th></tr>
-    {% for r in requests %}
-    <tr><td>{{ r.talent_id }}</td><td>{{ r.business_id }}</td><td>{{ r.status|humanize_status('talent_request') }}</td><td>{{ r.budget|display_or_missing }}</td></tr>
-    {% endfor %}
-  </table>
-  {% if not requests %}<p class="muted">Belum ada talent request.</p>{% endif %}
+  <section class="card">
+    <div class="admin-list">
+      {% for t in talents %}
+      <article class="admin-item" style="{{ 'opacity:.6' if not t.is_active }}">
+        <div class="admin-item-head">
+          <div style="display:flex;gap:10px;align-items:center;min-width:0;">
+            {% if t.profile_image_asset_id %}
+              <img src="{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}" alt="{{ t.name }}" style="width:48px;height:48px;object-fit:cover;border-radius:50%;flex:0 0 auto;">
+            {% elif t.profile_photo_url %}
+              <img src="{{ t.profile_photo_url }}" alt="{{ t.name }}" style="width:48px;height:48px;object-fit:cover;border-radius:50%;flex:0 0 auto;">
+            {% endif %}
+            <div class="admin-item-main">
+              <div class="admin-item-title">{{ t.name }}{% if t.social_handle %} <span class="muted">· {{ t.social_handle }}</span>{% endif %}</div>
+              <div class="admin-item-meta">{{ t.niche or 'Tanpa niche' }} · {{ t.follower_count or 0 }} followers · {{ t.availability_status|title }}</div>
+            </div>
+          </div>
+          <div class="admin-item-side"><span class="admin-status {{ 'ok' if t.is_active else '' }}">{{ 'Aktif' if t.is_active else 'Arsip' }}</span></div>
+        </div>
+
+        <details class="admin-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;">
+          <summary>Kelola Talent</summary>
+          <div class="admin-collapsible-body">
+            <details class="admin-collapsible" style="border:1px solid var(--border);border-radius:12px;margin-bottom:10px;">
+              <summary>Foto Profil</summary>
+              <div class="admin-collapsible-body">
+                <form method="post" action="{{ url_for('admin.talent_photo_upload', talent_id=t.id) }}" enctype="multipart/form-data" class="talent-photo-form" data-talent-id="{{ t.id }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <img class="talent-photo-preview" id="talent-photo-preview-{{ t.id }}" src="{% if t.profile_image_asset_id %}{{ url_for('admin.platform_asset_view', asset_id=t.profile_image_asset_id) }}{% elif t.profile_photo_url %}{{ t.profile_photo_url }}{% endif %}" alt="Preview foto {{ t.name }}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;background:var(--border);{% if not t.profile_image_asset_id and not t.profile_photo_url %}display:none;{% endif %}">
+                    <div>
+                      <input type="file" name="photo" accept="image/*" id="talent-photo-input-{{ t.id }}" style="display:none;">
+                      <button type="button" class="btn small secondary talent-photo-pick-btn" data-talent-id="{{ t.id }}">Pilih Foto</button>
+                      <button type="button" class="btn small danger talent-photo-remove-btn" data-talent-id="{{ t.id }}" style="display:none;">Batal</button>
+                      <div class="muted talent-photo-filename" id="talent-photo-filename-{{ t.id }}" style="margin-top:4px;"></div>
+                    </div>
+                  </div>
+                  <div class="admin-actions"><button class="btn small secondary" type="submit">Upload Foto</button></div>
+                </form>
+              </div>
+            </details>
+
+            <form method="post" action="{{ url_for('admin.talent_update', talent_id=t.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="admin-form-grid">
+                <label>Handle<input type="text" name="social_handle" value="{{ t.social_handle or '' }}"></label>
+                <label>Niche<input type="text" name="niche" value="{{ t.niche or '' }}"></label>
+                <label>Followers<input type="number" name="follower_count" value="{{ t.follower_count }}"></label>
+                <label>Availability<select name="availability_status">{% for a in availability_statuses %}<option value="{{ a }}" {{ 'selected' if t.availability_status == a }}>{{ a.title() }}</option>{% endfor %}</select></label>
+                <label>Catatan Availability<input type="text" name="availability_note" value="{{ t.availability_note or '' }}"></label>
+                <label>Urutan Tampil<input type="number" name="display_order" value="{{ t.display_order or 0 }}"></label>
+                <label class="full">Foto URL fallback<input type="url" name="profile_photo_url" value="{{ t.profile_photo_url or '' }}"></label>
+                <label>Catatan Publik<input type="text" name="public_notes" value="{{ t.public_notes or '' }}"></label>
+                <label>Catatan Internal<input type="text" name="internal_notes" value="{{ t.internal_notes or '' }}"></label>
+                <label>Internal Rate<input type="number" name="internal_rate" value="{{ t.internal_rate or '' }}"></label>
+                <label><input type="checkbox" name="is_active" {{ 'checked' if t.is_active }} style="width:auto;display:inline-block;"> Aktif</label>
+              </div>
+              <div class="admin-actions"><button class="btn small" type="submit">Simpan</button></div>
+            </form>
+
+            <div class="admin-actions">
+              {% if t.is_active %}
+                <form method="post" action="{{ url_for('admin.talent_archive', talent_id=t.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small danger" type="submit">Arsipkan</button></form>
+              {% else %}
+                <form method="post" action="{{ url_for('admin.talent_reactivate', talent_id=t.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary" type="submit">Aktifkan Kembali</button></form>
+              {% endif %}
+            </div>
+          </div>
+        </details>
+      </article>
+      {% else %}<div class="admin-empty">Belum ada talent.</div>{% endfor %}
+    </div>
+  </section>
+
+  <details class="card admin-collapsible">
+    <summary>Talent Requests · {{ requests|length }}</summary>
+    <div class="admin-collapsible-body">
+      <div class="admin-list">
+        {% for r in requests %}
+          <article class="admin-item"><div class="admin-item-title">Talent #{{ r.talent_id }}</div><div class="admin-item-meta">Business #{{ r.business_id }} · {{ r.status|humanize_status('talent_request') }} · Budget {{ r.budget|display_or_missing }}</div></article>
+        {% else %}<div class="admin-empty">Belum ada talent request.</div>{% endfor %}
+      </div>
+    </div>
+  </details>
 </div>
 
 <script>
-// Gap-fix Area G — Preview / Replace / Remove for talent photo uploads, before Save (Upload).
-// Vanilla JS, no build step (matches this app's existing plain-template convention). Scoped per
-// talent row via data-talent-id so multiple talent cards on the same page never interfere with
-// each other's picked file/preview state.
 (function () {
   document.querySelectorAll('.talent-photo-pick-btn').forEach(function (pickBtn) {
     var talentId = pickBtn.getAttribute('data-talent-id');
@@ -121,32 +121,18 @@
     var removeBtn = document.querySelector('.talent-photo-remove-btn[data-talent-id="' + talentId + '"]');
     var originalSrc = preview ? preview.getAttribute('src') : '';
     var originalDisplay = preview ? preview.style.display : 'none';
-
-    pickBtn.addEventListener('click', function () {
-      input.click();
-    });
-
+    pickBtn.addEventListener('click', function () { input.click(); });
     input.addEventListener('change', function () {
-      var file = input.files && input.files[0];
-      if (!file) return;
+      var file = input.files && input.files[0]; if (!file) return;
       var reader = new FileReader();
-      reader.onload = function (e) {
-        preview.src = e.target.result;
-        preview.style.display = '';
-      };
+      reader.onload = function (e) { preview.src = e.target.result; preview.style.display = ''; };
       reader.readAsDataURL(file);
-      filenameEl.textContent = file.name;
-      pickBtn.textContent = 'Ganti Foto';
-      removeBtn.style.display = '';
+      filenameEl.textContent = file.name; pickBtn.textContent = 'Ganti Foto'; removeBtn.style.display = '';
     });
-
     removeBtn.addEventListener('click', function () {
-      input.value = '';
-      filenameEl.textContent = '';
-      preview.src = originalSrc || '';
+      input.value = ''; filenameEl.textContent = ''; preview.src = originalSrc || '';
       preview.style.display = originalSrc ? originalDisplay : 'none';
-      pickBtn.textContent = 'Pilih dari Galeri/Foto';
-      removeBtn.style.display = 'none';
+      pickBtn.textContent = 'Pilih Foto'; removeBtn.style.display = 'none';
     });
   });
 })();
