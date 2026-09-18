@@ -26,6 +26,8 @@ def parse_filters(args, today=None):
     first,last=finance.report_period(args.get('start',start.isoformat()),args.get('end',today.isoformat()))
     finance.report_months(first[:7],last[:7])
     as_of=finance._date(args.get('as_of',last))
+    if last > today.isoformat() or as_of > today.isoformat():
+        raise finance.FinanceError('report_range')
     try:
         future_start=args.get('commitment_start',today.isoformat())
         future_end=args.get('commitment_end',(today+timedelta(days=29)).isoformat())
