@@ -352,6 +352,59 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(branches.list_branches(empty)[0]['name'],'Utama')
 
 
+    def test_reset_finance_zeroes_selected_branch_only_and_keeps_setup(self):
+        db.execute('UPDATE finance_accounts SET opening_balance_minor=500 WHERE id=?', (self.a,))
+        db.execute('UPDATE finance_accounts SET opening_balance_minor=700 WHERE id=?', (self.ab,))
+        self.tx(self.ba, 300)
+        self.tx(self.bb, 200)
+        invoice = self.invoice(self.ba)
+        with self.scope(self.ba):
+            f.record_invoice_payment(
+                self.b, invoice, 100, '2026-09-17', self.a, self.cat,
+                actor_user_id=self.uid, idempotency_key='reset-payment-key-0001')
+            recurring = f.create_recurring_expense(
+                self.b, 'Rent reset', 50, self.a, self.expense['id'], 'MONTHLY',
+                '2026-10-01', actor_user_id=self.uid)
+            self.assertEqual(f.get_finance_summary(
+                self.b, '2026-09-01', '2026-09-30')['total_income_minor'], 400)
+
+        denied = self.client.post(
+            self.url + f'/reset?branch_id={self.ba}', data={'confirmation': 'NO'})
+        self.assertEqual(denied.status_code, 303)
+        with self.scope(self.ba):
+            self.assertEqual(f.get_finance_summary(
+                self.b, '2026-09-01', '2026-09-30')['total_income_minor'], 400)
+
+        response = self.client.post(
+            self.url + f'/reset?branch_id={self.ba}', data={'confirmation': 'RESET'})
+        self.assertEqual(response.status_code, 303)
+        with self.scope(self.ba):
+            summary = f.get_finance_summary(self.b, '2026-09-01', '2026-09-30')
+            self.assertEqual((summary['total_income_minor'], summary['total_expense_minor']), (0, 0))
+            self.assertEqual(sum(
+                row['balance_minor'] for row in f.get_account_balance_report(
+                    self.b, '2026-09-30')), 0)
+            self.assertTrue(all(
+                row['status'] == 'VOID' for row in f.list_transactions(self.b)))
+            self.assertEqual(f.get_finance_invoice(self.b, invoice)['status'], 'VOID')
+            self.assertFalse(f.get_recurring_expense(self.b, recurring)['is_active'])
+            self.assertEqual(
+                collections.position(self.b, self.uid)['aging']['total_outstanding_minor'], 0)
+            self.assertTrue(branches.get(self.b, self.ba)['is_active'])
+            self.assertTrue(any(a['id'] == self.a for a in f.list_accounts(
+                self.b, include_inactive=True)))
+            self.assertTrue(any(c['id'] == self.cat for c in f.list_categories(
+                self.b, include_inactive=True)))
+
+        with self.scope(self.bb):
+            summary = f.get_finance_summary(self.b, '2026-09-01', '2026-09-30')
+            self.assertEqual(summary['total_income_minor'], 200)
+            self.assertEqual(sum(
+                row['balance_minor'] for row in f.get_account_balance_report(
+                    self.b, '2026-09-30')), 900)
+
+
+
 class BranchMigrationTests(unittest.TestCase):
     def test_legacy_history_default_and_repeat_migration(self):
         saved_path=db.SQLITE_PATH
