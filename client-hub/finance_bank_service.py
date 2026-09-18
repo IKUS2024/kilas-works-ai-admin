@@ -114,6 +114,7 @@ def _row(business_id,import_id,row_id):
 
 def edit_row(business_id,import_id,row_id,revision,values,user_id):
     row=extraction.normalize(values)
+    if row['transaction_date'] > date.today().isoformat(): raise f.FinanceError('future_date')
     with f._write(business_id,user_id):
         imp=get_import(business_id,import_id,user_id);_revision(imp,revision)
         if imp['status']!='REVIEW':raise f.FinanceError('bank_not_review')
@@ -140,7 +141,8 @@ def open_import(business_id,import_id,revision,user_id):
         rows=get_rows(business_id,import_id,user_id)
         if not rows:raise f.FinanceError('bank_empty')
         for row in rows:
-            extraction.normalize(dict(transaction_date=row['occurred_on'],direction=row['direction'],amount_minor=row['amount_minor'],description=row['description'],reference=row['reference']))
+            normalized=extraction.normalize(dict(transaction_date=row['occurred_on'],direction=row['direction'],amount_minor=row['amount_minor'],description=row['description'],reference=row['reference']))
+            if normalized['transaction_date'] > date.today().isoformat(): raise f.FinanceError('future_date')
         db.execute("UPDATE finance_bank_imports SET status='OPEN',updated_at=? WHERE business_id=? AND id=?",(repo._now(),business_id,import_id))
         f._audit(business_id,user_id,'FINANCE_BANK_IMPORT_OPENED',import_id)
 
