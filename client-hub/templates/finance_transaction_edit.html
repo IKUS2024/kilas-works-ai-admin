@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Edit Transaksi{% endblock %}
 {% block content %}
+<style>.finance-edit-actions{display:flex;gap:10px;flex-wrap:wrap}.finance-edit-actions form{margin:0}.finance-delete{color:var(--red)}</style>
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
 <h1>Edit Transaksi</h1>
 <form method="post" class="card">
@@ -13,7 +14,8 @@
 <label>Kategori<select name="category_id" data-other-category required>{% for c in categories %}<option value="{{ c.id }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}" {{ 'selected' if c.id == transaction.category_id }}>{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select></label>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" value="{{ initial_other_description }}" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
 <label>Catatan<textarea name="description" maxlength="4000">{{ initial_description }}</textarea></label>
-<button class="btn">Simpan Transaksi</button>
+<button class="btn">💾 Simpan Perubahan</button>
 </form>
+<div class="card"><h2>Tindakan</h2><p class="muted">Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=transaction.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">🗑️ Hapus Transaksi</button></form></div>
 <script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>
 {% endblock %}
