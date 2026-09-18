@@ -26,6 +26,7 @@
 </fieldset>
 {% endmacro %}
 {% block content %}
+{% include "_client_compact_style.html" %}
 <style>
 .knowledge-page {max-width:900px;margin:auto;min-width:0;}
 .knowledge-page *, .knowledge-page *::before {box-sizing:border-box;}
@@ -38,26 +39,27 @@
 .knowledge-assist-panel pre {white-space:pre-wrap;font:inherit;}
 .knowledge-old {white-space:pre-wrap;overflow-wrap:anywhere;}
 .knowledge-actions {display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
-@media(max-width:640px){.knowledge-grid{grid-template-columns:1fr;}.knowledge-card{padding:12px;}}
+.knowledge-collapse{padding:0;overflow:hidden}.knowledge-collapse>summary{list-style:none;cursor:pointer;padding:14px 16px;font-weight:800}.knowledge-collapse>summary::-webkit-details-marker{display:none}.knowledge-collapse>summary::after{content:"⌄";float:right;color:var(--text-dim)}.knowledge-collapse[open]>summary{border-bottom:1px solid var(--border)}.knowledge-collapse[open]>summary::after{content:"⌃"}.knowledge-collapse-body{padding:14px 16px}
+.knowledge-head{margin-bottom:14px}.knowledge-head h1{font-size:24px;margin:0 0 5px}.knowledge-head p{margin:0;color:var(--text-dim);font-size:13px}
+@media(max-width:640px){.knowledge-grid{grid-template-columns:1fr;}.knowledge-card{padding:12px;}.knowledge-head h1{font-size:21px}}
 </style>
 <div class="knowledge-page" data-assist-url="{{ url_for('client.knowledge_assist_draft', business_id=business.id) }}">
-<h1>Ajari Kilas Brain tentang bisnismu</h1>
-<p>{{ business.business_name }} — Ceritakan informasi yang benar agar Kilas Brain bisa membantu customer dengan lebih tepat. Tidak perlu mengulang pendaftaran.</p>
+<header class="knowledge-head"><h1>Ajari Kilas Brain</h1><p>{{ business.business_name }} · Lengkapi hanya bagian yang perlu diperbarui.</p></header>
 <div class="card" aria-label="Kelengkapan pengetahuan bisnis">
   <h2>Kilas Brain Knowledge: {{ readiness.score }}% lengkap</h2>
   <progress value="{{ readiness.score }}" max="100" style="width:100%;" aria-label="Kelengkapan pengetahuan">{{ readiness.score }}%</progress>
   <p class="muted">Dihitung dari kelengkapan isian, bukan penilaian AI atau jaminan jawaban benar. Isian opsional tidak mengurangi nilai jika tidak relevan.</p>
-  {% if readiness.missing %}<ul>{% for item in readiness.missing %}<li>{{ item }}</li>{% endfor %}</ul>
-  {% else %}<p>Informasi dasar sudah lengkap. Pastikan tetap sesuai dengan kondisi bisnismu.</p>{% endif %}
-  <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan operasional</a>
+  {% if readiness.missing %}<details><summary class="muted">Lihat yang belum lengkap · {{ readiness.missing|length }}</summary><ul>{% for item in readiness.missing %}<li>{{ item }}</li>{% endfor %}</ul></details>
+  {% else %}<p class="muted">Informasi dasar sudah lengkap.</p>{% endif %}
+  <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Booking &amp; Pembayaran →</a>
 </div>
 <p class="muted">Bantuan AI bersifat opsional dan hanya berjalan saat tombol ditekan. Periksa draft; hasil baru tersimpan setelah kamu menekan “Simpan pengetahuan bisnis”.</p>
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="knowledge_form" value="v2">
   <input type="hidden" name="knowledge_revision" value="{{ setup.revision }}">
-  <section class="card knowledge-section" data-knowledge-section="business" id="tentang-bisnis">
-    <h2>1. Tentang bisnis</h2>
+  <details class="card knowledge-section knowledge-collapse" data-knowledge-section="business" id="tentang-bisnis" open>
+    <summary>1. Tentang bisnis</summary><div class="knowledge-collapse-body">
     <button type="button" class="btn secondary" data-assist-scope="business">✨ Bantu Isi dengan AI</button>
     <label>Deskripsi bisnis dan aturan penting<textarea name="short_description" maxlength="4000" rows="5" placeholder="Apa yang kamu tawarkan, siapa customermu, dan aturan yang perlu diketahui?">{{ profile.short_description or '' }}</textarea></label>
     <p class="muted">Boleh sertakan tipe customer, batasan layanan, dan hal yang perlu dikonfirmasi kepada tim. Jangan memasukkan password atau kunci akses.</p>
@@ -67,23 +69,23 @@
     {% endfor %}
     </div>
     <label>Alamat / lokasi <span class="muted">(jika customer datang ke tempatmu)</span><textarea name="address" maxlength="4000" rows="2">{{ profile.address or '' }}</textarea></label>
-  </section>
-  <section class="card knowledge-section" data-knowledge-section="services">
-    <h2>2. Produk / layanan</h2>
+  </div></details>
+  <details class="card knowledge-section knowledge-collapse" data-knowledge-section="services">
+    <summary>2. Produk / layanan · {{ setup.services|length }}</summary><div class="knowledge-collapse-body">
     <p>Satu kartu untuk satu produk atau layanan. Tulis harga hanya jika sudah pasti; boleh memakai “sesuai penawaran”. Catatan lama tidak diubah jika kartunya tidak kamu edit.</p>
     <div id="knowledge-services">{% for row in setup.services %}{{ service_card(row) }}{% endfor %}{% if setup.services|length < 50 %}{{ service_card({}) }}{% endif %}</div>
     <button type="button" class="btn secondary" data-add-knowledge="services">Tambah produk / layanan</button>
     <p class="muted">Kartu baru yang kosong tidak disimpan. Maksimal 50 layanan.</p>
-  </section>
-  <section class="card knowledge-section" data-knowledge-section="faqs">
-    <h2>3. Pertanyaan yang sering ditanyakan</h2>
+  </div></details>
+  <details class="card knowledge-section knowledge-collapse" data-knowledge-section="faqs">
+    <summary>3. FAQ · {{ setup.faqs|length }}</summary><div class="knowledge-collapse-body">
     <p>Pisahkan pertanyaan dan jawabannya. Tidak perlu format khusus.</p>
     <div id="knowledge-faqs">{% for row in setup.faqs %}{{ faq_card(row) }}{% endfor %}{% if setup.faqs|length < 50 %}{{ faq_card({}) }}{% endif %}</div>
     <button type="button" class="btn secondary" data-add-knowledge="faqs">Tambah pertanyaan</button>
     <p class="muted">FAQ boleh dilengkapi nanti. Kartu baru yang kosong tidak disimpan. Maksimal 50 FAQ.</p>
-  </section>
-  <section class="card knowledge-section" data-knowledge-section="communication">
-    <h2>4. Cara Kilas Brain berkomunikasi</h2>
+  </div></details>
+  <details class="card knowledge-section knowledge-collapse" data-knowledge-section="communication">
+    <summary>4. Gaya komunikasi</summary><div class="knowledge-collapse-body">
     <button type="button" class="btn secondary" data-assist-scope="communication">✨ Bantu Atur Gaya Chat</button>
     <label>Gaya bicara<textarea name="tone" maxlength="4000" rows="2" placeholder="Contoh: ramah, singkat, sopan, tidak terlalu formal">{{ profile.tone or '' }}</textarea></label>
     <div class="knowledge-grid">
@@ -91,12 +93,16 @@
       <label>Sapaan customer<input name="customer_salutation" maxlength="4000" value="{{ profile.customer_salutation or 'Kak' }}" required placeholder="Contoh: Kak, Bapak/Ibu"></label>
     </div>
     <p class="muted">Ada janji yang tidak boleh dibuat atau situasi yang harus ditangani manusia? Tuliskan dalam <a href="#tentang-bisnis">deskripsi dan aturan penting</a>. Contoh: diskon harus dikonfirmasi kepada tim. Pengaturan ini tidak mengubah izin paket atau mengaktifkan fitur baru.</p>
-  </section>
+  </div></details>
   <div class="knowledge-actions"><button class="btn" type="submit">Simpan pengetahuan bisnis</button><a href="{{ url_for('client.dashboard') }}">Kembali ke dashboard</a></div>
 </form>
 <template id="knowledge-template-services">{{ service_card({}) }}</template>
 <template id="knowledge-template-faqs">{{ faq_card({}) }}</template>
 <script>
+document.addEventListener('invalid', event => {
+  const section = event.target.closest('details.knowledge-section');
+  if (section) section.open = true;
+}, true);
 document.querySelectorAll('[data-add-knowledge]').forEach(button => {
   button.addEventListener('click', () => {
     const kind = button.dataset.addKnowledge;
