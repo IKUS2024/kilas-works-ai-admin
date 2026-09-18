@@ -6,6 +6,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 from flask import template_rendered
@@ -402,6 +403,24 @@ class BranchTests(unittest.TestCase):
             self.assertEqual(sum(
                 row['balance_minor'] for row in f.get_account_balance_report(
                     self.b, '2026-09-30')), 900)
+
+
+
+    def test_future_actual_dates_and_months_are_rejected(self):
+        tomorrow=(date.today()+timedelta(days=1)).isoformat()
+        with self.scope(self.ba):
+            with self.assertRaisesRegex(f.FinanceError,'future_date'):
+                f.create_transaction(self.b,'INCOME',100,self.a,self.cat,tomorrow,actor_user_id=self.uid)
+            with self.assertRaisesRegex(f.FinanceError,'future_date'):
+                f.create_finance_invoice(self.b,self.c,tomorrow,tomorrow,
+                    [dict(description='Future',quantity=1,unit_price_minor=100)],actor_user_id=self.uid)
+        future_month=(date.today().replace(day=28)+timedelta(days=4)).replace(day=1).strftime('%Y-%m')
+        response=self.client.get(self.url,query_string={'branch_id':self.ba,'month':future_month})
+        self.assertEqual(response.status_code,302)
+        self.assertNotIn('month='+future_month,response.location)
+        future=(date.today()+timedelta(days=1)).isoformat()
+        with self.assertRaises(f.FinanceError):
+            reports.parse_filters({'start':date.today().isoformat(),'end':future,'as_of':future})
 
 
 
