@@ -214,7 +214,7 @@ def dashboard(business_id, user, business):
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
     summary = finance.get_finance_summary(business_id, start, end, **actor)
     transactions = finance.list_transactions(business_id, start_date=start, end_date=end,
-                                            direction=direction, limit=100, **actor)
+                                            direction=direction, status='POSTED', limit=100, **actor)
     balances = finance.get_account_balance_report(business_id, date.today().isoformat(), user['id'])
     breakdown = []
     if g.finance_branch_id is None:
@@ -277,7 +277,7 @@ def create_transaction(business_id, user, business):
 @finance_access
 def void_transaction(business_id, user, business, transaction_id):
     return mutate(business_id, lambda: finance.void_transaction(business_id, transaction_id, actor_user_id=user['id']),
-                  'Transaksi dibatalkan. Riwayat tetap tersimpan.')
+                  'Transaksi dihapus dari perhitungan. Riwayat audit tetap tersimpan.')
 
 
 @finance_bp.route('/business/<int:business_id>/finance/accounts', methods=['POST'])
