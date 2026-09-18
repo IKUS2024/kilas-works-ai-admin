@@ -280,6 +280,20 @@ def void_transaction(business_id, user, business, transaction_id):
                   'Transaksi dihapus dari perhitungan. Riwayat audit tetap tersimpan.')
 
 
+@finance_bp.route('/business/<int:business_id>/finance/reset', methods=['POST'])
+@finance_access
+def reset_finance(business_id, user, business):
+    if request.form.get('confirmation') != 'RESET':
+        flash('Ketik RESET untuk mengonfirmasi reset Finance cabang ini.', 'error')
+        return redirect(url_for('finance.dashboard', business_id=business_id), code=303)
+    branch_name = g.finance_branch['name']
+    return mutate(
+        business_id,
+        lambda: finance.reset_branch_finance(business_id, actor_user_id=user['id']),
+        f'Finance cabang {branch_name} direset ke Rp0. Struktur tetap tersedia dan riwayat audit tetap tersimpan.',
+        url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id))
+
+
 @finance_bp.route('/business/<int:business_id>/finance/accounts', methods=['POST'])
 @finance_access
 def create_account(business_id, user, business):
