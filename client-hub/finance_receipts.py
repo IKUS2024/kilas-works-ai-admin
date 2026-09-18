@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+from datetime import date
 import uuid
 
 from flask import current_app
@@ -58,6 +59,8 @@ def validate_result(result, category_names=None):
             raise ReceiptError('invalid_result')
     if result['transaction_date'] is not None:
         finance._date(result['transaction_date'])
+        if result['transaction_date'] > date.today().isoformat():
+            result['transaction_date'] = None
     if result['total_minor'] is not None:
         finance._money(result['total_minor'], positive=True)
     currency = result['currency']
