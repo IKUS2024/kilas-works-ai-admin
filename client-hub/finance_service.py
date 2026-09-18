@@ -564,6 +564,8 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
     if not isinstance(idempotency_key, str) or not re.fullmatch('[a-zA-Z0-9_-]{16,80}', idempotency_key):
         raise FinanceError('invalid_payment_key')
     amount_minor, paid_on = _money(amount_minor, positive=True), _date(paid_on)
+    if paid_on > date.today().isoformat():
+        raise FinanceError('future_date')
     note = _text(note, 1000)
     _id(invoice_id); _id(account_id); _id(income_category_id)
     with _write(business_id, actor_user_id):
