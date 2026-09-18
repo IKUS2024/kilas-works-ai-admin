@@ -1,48 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Appointment & Pembayaran — {{ business.business_name }}{% endblock %}
 {% block content %}
-<h1>{{ business.business_name }}</h1>
-<p><a href="{{ url_for('client.business_memory', business_id=business.id) }}">Ajari Kilas Brain tentang bisnismu</a></p>
-<p class="muted">Pengaturan appointment & pembayaran untuk Kilas Brain bisnismu.</p>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head">
+    <div><h1>Booking &amp; Pembayaran</h1><p>{{ business.business_name }} · pengaturan yang dipakai Kilas Brain.</p></div>
+  </header>
 
-{% if business.package in ('AI_ADMIN_BASIC', 'AI_ADMIN_PRO') and business.status == 'ACTIVE' %}
-<p><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN') }}">Pilih paket Kilas Brain saat ini</a></p>
-<p class="muted">Fitur paket saat ini aktif setelah pembayaran paket tujuan diverifikasi. Paket saat ini tetap berlaku sampai proses selesai.</p>
-{% endif %}
-<div class="card">
+  {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') and business.status == 'ACTIVE' %}
+    <div class="client-empty"><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN') }}">Pilih paket Kilas Brain saat ini →</a></div>
+  {% endif %}
+
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <h2>Appointment / Booking</h2>
-    {% if tenant_features and tenant_features.appointment %}
-    <label style="display:flex;align-items:center;gap:8px;">
-      <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
-      Aktifkan booking appointment lewat chat (sesuai akses paket)
-    </label>
-    {% else %}<p class="muted">Booking otomatis tersedia pada paket Kilas Brain saat ini; paket lama mengikuti akses sebelumnya.</p>{% endif %}
-    <label>Jam operasional</label>
-    <input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Senin-Sabtu 09.00-18.00">
-    <label>Hari libur / tutup</label>
-    <input type="text" name="closed_days" value="{{ profile.closed_days or '' }}" placeholder="Minggu, hari raya">
-    {% if tenant_features and tenant_features.appointment %}
-    <label>Catatan/aturan booking (opsional)</label>
-    <textarea name="appointment_rules_raw">{{ profile.appointment_rules_raw or '' }}</textarea>
+    <details class="card client-collapsible" open>
+      <summary>📅 Appointment / Booking</summary>
+      <div class="client-collapsible-body">
+        {% if tenant_features and tenant_features.appointment %}
+          <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }} style="width:auto;"> Aktifkan booking lewat chat</label>
+        {% else %}<p class="client-note">Booking otomatis mengikuti akses paket Kilas Brain.</p>{% endif %}
+        <div class="client-form-grid">
+          <label>Jam operasional<input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Senin-Sabtu 09.00-18.00"></label>
+          <label>Hari libur / tutup<input type="text" name="closed_days" value="{{ profile.closed_days or '' }}" placeholder="Minggu, hari raya"></label>
+          {% if tenant_features and tenant_features.appointment %}<label class="full">Aturan booking<textarea name="appointment_rules_raw" rows="3">{{ profile.appointment_rules_raw or '' }}</textarea></label>{% endif %}
+        </div>
+      </div>
+    </details>
 
-    {% endif %}
-    {% if tenant_features and tenant_features.payment_conversation %}
-    <h2 style="margin-top:24px;">Info Pembayaran (untuk customer bisnis ini)</h2>
-    <p class="muted">Rekening ini yang akan disampaikan Kilas Brain ke customer kamu sendiri kalau mereka tanya cara bayar — tidak ada hubungannya dengan tagihan/pembayaranmu ke Kilas Works.</p>
-    <label>Nama bank</label>
-    <input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="mis. BCA">
-    <label>Nomor rekening</label>
-    <input type="text" name="payment_account_number" value="{{ profile.payment_account_number or '' }}">
-    <label>Nama pemilik rekening</label>
-    <input type="text" name="payment_account_name" value="{{ profile.payment_account_name or '' }}">
-    <label>Instruksi tambahan untuk customer (opsional)</label>
-    <textarea name="payment_instructions" placeholder="mis. kirim bukti transfer ke chat ini setelah bayar">{{ profile.payment_instructions or '' }}</textarea>
+    <details class="card client-collapsible">
+      <summary>💳 Info Pembayaran Customer</summary>
+      <div class="client-collapsible-body">
+        {% if tenant_features and tenant_features.payment_conversation %}
+          <p class="client-note">Rekening ini yang disampaikan Brain ke customer bisnis kamu. Bukan tagihan ke Kilas Works.</p>
+          <div class="client-form-grid">
+            <label>Nama bank<input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="mis. BCA"></label>
+            <label>Nomor rekening<input type="text" name="payment_account_number" value="{{ profile.payment_account_number or '' }}"></label>
+            <label>Nama pemilik rekening<input type="text" name="payment_account_name" value="{{ profile.payment_account_name or '' }}"></label>
+            <label class="full">Instruksi tambahan<textarea name="payment_instructions" rows="3" placeholder="mis. kirim bukti transfer ke chat ini">{{ profile.payment_instructions or '' }}</textarea></label>
+          </div>
+        {% else %}<p class="client-note">Instruksi pembayaran otomatis mengikuti akses paket Kilas Brain.</p>{% endif %}
+      </div>
+    </details>
 
-    {% else %}<p class="muted">Instruksi pembayaran otomatis tersedia pada paket Kilas Brain saat ini; paket lama mengikuti akses sebelumnya.</p>{% endif %}
-    <div style="margin-top:20px;"><button class="btn" type="submit">Simpan Pengaturan</button></div>
+    <div class="client-actions"><button class="btn" type="submit">Simpan Pengaturan</button><a class="btn secondary" href="{{ url_for('client.business_memory', business_id=business.id) }}">Ajari Brain</a></div>
   </form>
 </div>
 {% endblock %}
