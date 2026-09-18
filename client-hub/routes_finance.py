@@ -549,7 +549,7 @@ def analyst(business_id, user, business):
         ai_safety.event('allowlist_denied'); abort(404)
     if request.method == 'GET':
         return render_template('finance_analyst.html', user=user, business=business,
-                               month=date.today().strftime('%Y-%m'),
+                               month=date.today().strftime('%Y-%m'), current_month=date.today().strftime('%Y-%m'),
                                operator_enabled=finance_operator.enabled(business_id))
     payload, error = finance_ai_payload(user['id'],business_id,'ai')
     if error is not None: return error
@@ -987,6 +987,7 @@ def assistant(business_id, user, business):
         assistant_embedded=True, analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=operator_enabled, actions=finance_operator.ACTIONS,
         today=date.today().isoformat(), month=date.today().strftime('%Y-%m'),
+        current_month=date.today().strftime('%Y-%m'),
         accounts=[a for a in finance.list_accounts(business_id, **actor) if a['currency']=='IDR'],
         categories=finance.list_categories(business_id, **actor) if operator_enabled else [],
         invoices=finance.operator_invoice_choices(business_id, **actor) if operator_enabled else [])
