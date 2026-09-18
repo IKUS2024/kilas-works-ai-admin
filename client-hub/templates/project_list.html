@@ -1,26 +1,34 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Proyek — ' ~ business.business_name if business else 'Proyek Saya' }}{% endblock %}
 {% block content %}
-<h1>{{ 'Proyek — ' ~ business.business_name if business else ('Riwayat Proyek' if view == 'history' else 'Proyek Saya') }}</h1>
-<p><a href="{{ url_for('client.dashboard') }}">Kembali ke Dashboard</a></p>
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') if business else url_for('projects.my_project_list',view='active') }}">Aktif</a>
-  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') if business else url_for('projects.my_project_list',view='history') }}">Riwayat</a>
-  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') if business else url_for('projects.my_project_list',view='all') }}">Semua</a>
-</div>
-<div class="card" style="overflow-x:auto;">
-  <table>
-    <tr><th>Nama Proyek</th><th>Tipe</th><th>Status</th><th>Harga</th><th></th></tr>
-    {% for p in projects %}
-    <tr>
-      <td>{{ p.title }}</td>
-      <td>{{ p.project_type }}</td>
-      <td><span class="pill APPROVED">{{ p.status|humanize_status('project') }}</span></td>
-      <td>{{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Belum ada harga' }}</td>
-      <td><a href="{{ url_for('projects.project_view', project_id=p.id) }}">Lihat</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% if not projects %}<p class="muted">Belum ada project.</p>{% endif %}
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head">
+    <div><h1>{{ 'Proyek — ' ~ business.business_name if business else ('Riwayat Proyek' if view == 'history' else 'Pesanan Saya') }}</h1><p>Pantau status tanpa tabel panjang.</p></div>
+    <span class="client-count">{{ projects|length }} proyek</span>
+  </header>
+
+  <nav class="client-toolbar">
+    <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') if business else url_for('projects.my_project_list',view='active') }}">Aktif</a>
+    <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') if business else url_for('projects.my_project_list',view='history') }}">Riwayat</a>
+    <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') if business else url_for('projects.my_project_list',view='all') }}">Semua</a>
+  </nav>
+
+  <section class="card">
+    <div class="client-list">
+      {% for p in projects %}
+      <article class="client-item">
+        <div class="client-item-head">
+          <div class="client-item-main">
+            <div class="client-item-title">{{ p.title }}</div>
+            <div class="client-item-meta">{{ p.project_type }} · {{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Harga belum ditetapkan' }}</div>
+          </div>
+          <div class="client-item-side"><span class="client-status {{ 'ok' if p.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAYMENT_PENDING') else '') }}">{{ p.status|humanize_status('project') }}</span></div>
+        </div>
+        <div class="client-actions"><a class="btn small secondary" href="{{ url_for('projects.project_view', project_id=p.id) }}">Lihat Detail →</a></div>
+      </article>
+      {% else %}<div class="client-empty">Belum ada pesanan di bagian ini.</div>{% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}
