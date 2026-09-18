@@ -83,8 +83,8 @@ test('dashboard keeps monthly overview compact',()=>{
   assert.match(html,/Ringkasan Bulan/);
   assert.match(html,/data-finance-open="period-dialog"/);
   assert.match(html,/data-finance-open="balance-dialog"/);
-  assert.match(html,/Transaksi Terbaru/);
-  assert.match(html,/Lihat Semua/);
+  assert.match(html,/view='transactions'/);
+  assert.match(html,/if show_transactions/);
   assert.doesNotMatch(html,/<h2>Bulan \{\{ month \}\}<\/h2>/);
   assert.doesNotMatch(html,/<h2>Uang Tersedia<\/h2>/);
 });
@@ -106,4 +106,15 @@ test('finance actual dates are capped at today and empty latest card is conditio
   assert.match(bank,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
   assert.match(bankReview,/name="transaction_date"[^>]*max="\{\{ today \}\}"/);
   assert.match(dashboard,/\{% if transactions %\}<div class="card" id="transactions">/);
+});
+
+
+test('finance date inputs cap actual transaction dates while schedules may be future',()=>{
+  const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  const edit=fs.readFileSync(path.join(__dirname,'../templates/finance_transaction_edit.html'),'utf8');
+  const invoice=fs.readFileSync(path.join(__dirname,'../templates/finance_invoice_form.html'),'utf8');
+  assert.match(dashboard,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(edit,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(invoice,/name="issue_date"[^>]*max="\{\{ today \}\}"/);
+  assert.doesNotMatch(invoice,/name="due_date"[^>]*max=/);
 });
