@@ -1,97 +1,103 @@
 {% extends "base.html" %}
 {% block title %}{{ project.title }} — Admin{% endblock %}
 {% block content %}
-<h1>{{ project.title }}</h1>
-<p class="muted">{{ business.business_name|display_or_missing if business else 'Belum diisi' }} · {{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</p>
-<span class="pill APPROVED">{{ project.status|humanize_status('project') }}</span>
+{% include "_admin_compact_style.html" %}
+<div class="admin-page">
+  <a href="{{ url_for('admin.projects_admin') }}" class="muted">← Proyek</a>
+  <header class="admin-head" style="margin-top:10px;">
+    <div>
+      <h1>{{ project.title }}</h1>
+      <p>{{ business.business_name|display_or_missing if business else 'Belum diisi' }} · {{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</p>
+    </div>
+    <span class="admin-status {{ 'warn' if project.status in ('REQUESTED','WAITING_FOR_QUOTE','PAID') else ('ok' if project.status in ('COMPLETED','DELIVERED') else '') }}">{{ project.status|humanize_status('project') }}</span>
+  </header>
 
-<div class="card">
-  <h2>Brief customer</h2>
-  {% if wa_order %}<p>Sumber: WhatsApp · Customer: {{ wa_order.customer_name or 'Belum diisi' }} · {{ wa_order.customer_phone }}</p>
-  {% if wa_link %}<p><a href="{{ wa_link }}" rel="noreferrer">Tautan order pribadi — salin untuk customer</a></p>{% else %}<p>Akses order kedaluwarsa.</p><form method="post" action="{{ url_for('admin.renew_wa_order_link',project_id=project.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button>Perbarui tautan order</button></form>{% endif %}
-  <dl>{% for key,value in (project.requirements or {}).items() %}<dt>{{ wa_labels.get(key,(key,))[0] }}</dt><dd style="overflow-wrap:anywhere">{{ value }}</dd>{% endfor %}</dl>
-  {% if project.status=='REQUESTED' %}<p>Brief belum dikirim customer. Tunggu konfirmasi sebelum membuat penawaran. Belum diisi: {% for key in wa_missing %}{{ wa_labels[key][0] }}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
-  {% elif app_brief %}<p>Sumber: App</p><dl>{% for key,value in (project.requirements or {}).items() if key in wa_labels %}<dt>{{ wa_labels[key][0] }}</dt><dd style="overflow-wrap:anywhere">{{ value }}</dd>{% endfor %}</dl>{% if project.status == 'REQUESTED' %}<p>Brief belum dikonfirmasi customer.</p>{% endif %}
-  {% else %}<p>Sumber: App</p><pre style="white-space:pre-wrap;font-size:13px;">{{ project.requirements|display_or_missing }}</pre>{% endif %}
-  <p class="muted">Budget: {% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }} – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}{% else %}-{% endif %}</p>
-</div>
+  <section class="card">
+    <div class="admin-stats">
+      <div class="admin-stat"><strong>{{ project.project_type }}</strong><span>Tipe</span></div>
+      <div class="admin-stat"><strong>{{ project.status|humanize_status('project') }}</strong><span>Status</span></div>
+      <div class="admin-stat"><strong>{% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }}{% else %}-{% endif %}</strong><span>Budget awal</span></div>
+    </div>
+  </section>
 
-{% if attachments %}
-<div class="card">
-  <h2>Lampiran Brief / Referensi</h2>
-  <table>
-    <tr><th>File</th><th>Ukuran</th><th>Diupload</th><th></th></tr>
-    {% for a in attachments %}
-    <tr>
-      <td>{{ a.original_filename }}</td>
-      <td>{{ (a.size_bytes / 1024) | round(1) }} KB</td>
-      <td>{{ a.created_at|humanize_timestamp }}</td>
-      <td><a href="{{ url_for('admin.guest_project_reference', project_id=project.id, file_id=a.id) if wa_order or app_brief else url_for('projects.project_attachment_download', business_id=project.business_id, project_id=project.id, file_id=a.id) }}" target="_blank">Lihat/Download</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
-{% endif %}
+  {% if project.pricing_mode == 'CUSTOM_QUOTE' and project.status in ('REQUESTED','WAITING_FOR_QUOTE') and (not (wa_order or app_brief) or project.status == 'WAITING_FOR_QUOTE') %}
+  <details class="card admin-collapsible">
+    <summary>⚡ Buat Quotation</summary>
+    <div class="admin-collapsible-body">
+      <form method="post" action="{{ url_for('admin.project_create_quotation', project_id=project.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="admin-form-grid">
+          <label class="full">Scope<textarea name="scope"></textarea></label>
+          <label class="full">Deliverables<textarea name="deliverables"></textarea></label>
+          <label>Quantity<input type="number" name="quantity"></label>
+          <label>Harga Final (Rp)<input type="number" name="final_price" required></label>
+          <label class="full">Catatan<textarea name="notes"></textarea></label>
+        </div>
+        <div class="admin-actions"><button class="btn" type="submit">Kirim Quotation</button></div>
+      </form>
+    </div>
+  </details>
+  {% endif %}
 
-{% if project.pricing_mode == 'CUSTOM_QUOTE' and project.status in ('REQUESTED', 'WAITING_FOR_QUOTE') and (not (wa_order or app_brief) or project.status == 'WAITING_FOR_QUOTE') %}
-<div class="card">
-  <h2>Buat Quotation</h2>
-  <form method="post" action="{{ url_for('admin.project_create_quotation', project_id=project.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>Scope</label><textarea name="scope"></textarea>
-    <label>Deliverables</label><textarea name="deliverables"></textarea>
-    <label>Quantity</label><input type="number" name="quantity">
-    <label>Harga Final (Rp)</label><input type="number" name="final_price" required>
-    <label>Catatan</label><textarea name="notes"></textarea>
-    <div style="margin-top:12px;"><button class="btn" type="submit">Kirim Quotation</button></div>
-  </form>
-</div>
-{% endif %}
+  <details class="card admin-collapsible" open>
+    <summary>Brief Customer</summary>
+    <div class="admin-collapsible-body">
+      {% if wa_order %}
+        <p class="admin-note">Sumber: WhatsApp · {{ wa_order.customer_name or 'Belum diisi' }} · {{ wa_order.customer_phone }}</p>
+        {% if wa_link %}<p><a href="{{ wa_link }}" rel="noreferrer">Tautan order pribadi</a></p>{% else %}<p class="admin-note">Akses order kedaluwarsa.</p><form method="post" action="{{ url_for('admin.renew_wa_order_link',project_id=project.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary">Perbarui tautan</button></form>{% endif %}
+        <dl>{% for key,value in (project.requirements or {}).items() %}<dt>{{ wa_labels.get(key,(key,))[0] }}</dt><dd style="overflow-wrap:anywhere">{{ value }}</dd>{% endfor %}</dl>
+        {% if project.status=='REQUESTED' %}<p class="admin-note">Brief belum dikirim customer. Belum diisi: {% for key in wa_missing %}{{ wa_labels[key][0] }}{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+      {% elif app_brief %}
+        <p class="admin-note">Sumber: App</p>
+        <dl>{% for key,value in (project.requirements or {}).items() if key in wa_labels %}<dt>{{ wa_labels[key][0] }}</dt><dd style="overflow-wrap:anywhere">{{ value }}</dd>{% endfor %}</dl>
+        {% if project.status == 'REQUESTED' %}<p class="admin-note">Brief belum dikonfirmasi customer.</p>{% endif %}
+      {% else %}
+        <p class="admin-note">Sumber: App</p><pre style="white-space:pre-wrap;font-size:12px;">{{ project.requirements|display_or_missing }}</pre>
+      {% endif %}
+      <p class="admin-note">Budget: {% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }} – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}{% else %}-{% endif %}</p>
+    </div>
+  </details>
 
-{% if quotations %}
-<div class="card">
-  <h2>Quotation History</h2>
-  <table>
-    <tr><th>Nomor</th><th>Harga</th><th>Status</th></tr>
-    {% for q in quotations %}
-    <tr><td>{{ q.quotation_number }}</td><td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td><td>{{ q.status|humanize_status('quotation') }}</td></tr>
-    {% endfor %}
-  </table>
-</div>
-{% endif %}
+  {% if attachments %}
+  <details class="card admin-collapsible">
+    <summary>Lampiran · {{ attachments|length }}</summary>
+    <div class="admin-collapsible-body"><div class="admin-list">
+      {% for a in attachments %}
+        <article class="admin-item"><div class="admin-item-head"><div><div class="admin-item-title">{{ a.original_filename }}</div><div class="admin-item-meta">{{ (a.size_bytes / 1024)|round(1) }} KB · {{ a.created_at|humanize_timestamp }}</div></div><a class="btn small secondary" href="{{ url_for('admin.guest_project_reference', project_id=project.id, file_id=a.id) if wa_order or app_brief else url_for('projects.project_attachment_download', business_id=project.business_id, project_id=project.id, file_id=a.id) }}" target="_blank">Buka</a></div></article>
+      {% endfor %}
+    </div></div>
+  </details>
+  {% endif %}
 
-<div class="card">
-  <h2>Ubah Status Manual</h2>
-  <form method="post" action="{{ url_for('admin.project_update_status', project_id=project.id) }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <select name="status">
-      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == project.status }}>{{ s|humanize_status('project') }}</option>{% endfor %}
-    </select>
-    <button class="btn secondary" type="submit">Simpan</button>
-  </form>
-</div>
+  {% if quotations %}
+  <details class="card admin-collapsible">
+    <summary>Quotation History · {{ quotations|length }}</summary>
+    <div class="admin-collapsible-body"><div class="admin-list">
+      {% for q in quotations %}<article class="admin-item"><div class="admin-item-title">{{ q.quotation_number }}</div><div class="admin-item-meta">Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status|humanize_status('quotation') }}</div></article>{% endfor %}
+    </div></div>
+  </details>
+  {% endif %}
 
-{% if audit_trail %}
-<div class="card">
-  <h2>Riwayat Aktivitas</h2>
-  <div class="audit-log-list">
-    {% for a in audit_trail %}
-      <div class="audit-log-entry">
-        <div class="audit-log-time">{{ a.created_at|humanize_timestamp }}</div>
-        <div class="audit-log-action">{{ a.action|humanize_audit_action }}</div>
-        {% set humanized_detail = a.detail|humanize_audit_detail %}
-        {% if humanized_detail and humanized_detail != '-' %}
-          <div class="audit-log-detail">{{ humanized_detail }}</div>
-        {% endif %}
-        {% if a.detail|looks_technical %}
-          <details class="audit-log-raw">
-            <summary>Lihat detail</summary>
-            <code>{{ a.detail }}</code>
-          </details>
-        {% endif %}
-      </div>
-    {% endfor %}
-  </div>
+  <details class="card admin-collapsible">
+    <summary>Ubah Status Manual</summary>
+    <div class="admin-collapsible-body">
+      <form method="post" action="{{ url_for('admin.project_update_status', project_id=project.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <select name="status">{% for s in statuses %}<option value="{{ s }}" {{ 'selected' if s == project.status }}>{{ s|humanize_status('project') }}</option>{% endfor %}</select>
+        <div class="admin-actions"><button class="btn small secondary" type="submit">Simpan Status</button></div>
+      </form>
+    </div>
+  </details>
+
+  {% if audit_trail %}
+  <details class="card admin-collapsible">
+    <summary>Riwayat Aktivitas · {{ audit_trail|length }}</summary>
+    <div class="admin-collapsible-body"><div class="audit-log-list">
+      {% for a in audit_trail %}
+        <div class="audit-log-entry"><div class="audit-log-time">{{ a.created_at|humanize_timestamp }}</div><div class="audit-log-action">{{ a.action|humanize_audit_action }}</div>{% set humanized_detail = a.detail|humanize_audit_detail %}{% if humanized_detail and humanized_detail != '-' %}<div class="audit-log-detail">{{ humanized_detail }}</div>{% endif %}{% if a.detail|looks_technical %}<details class="audit-log-raw"><summary>Lihat detail</summary><code>{{ a.detail }}</code></details>{% endif %}</div>
+      {% endfor %}
+    </div></div>
+  </details>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}
