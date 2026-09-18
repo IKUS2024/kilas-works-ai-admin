@@ -2,6 +2,7 @@
 from datetime import date
 from itsdangerous import BadData
 import db
+import finance_branches as branches
 import finance_service as finance
 import finance_invoice_view as sharing
 
@@ -54,17 +55,21 @@ def statement(business_id,customer_id,user_id=None):
 def create_token(business_id,customer_id,user_id):
     __import__("finance_entitlements").require_write(business_id,user_id)
     if not finance.get_customer(business_id,customer_id,actor_user_id=user_id):raise ValueError('unavailable')
-    return sharing.signer().dumps(dict(purpose='finance_customer_statement',business_id=business_id,customer_id=customer_id))
+    return sharing.signer().dumps(dict(purpose='finance_customer_statement',business_id=business_id,customer_id=customer_id,branch_id=branches.token_branch(business_id)))
 
 
-def resolve_token(token):
+def resolve_token(token, include_branch=False):
     if not isinstance(token,str) or len(token)>1024:raise ValueError('unavailable')
     try:data=sharing.signer().loads(token,max_age=sharing.SHARE_TTL)
     except BadData:raise ValueError('unavailable') from None
-    if not isinstance(data,dict) or set(data)!={'purpose','business_id','customer_id'} or data['purpose']!='finance_customer_statement':
+    if not isinstance(data,dict) or set(data) not in ({'purpose','business_id','customer_id'}, {'purpose','business_id','customer_id','branch_id'}) or data['purpose']!='finance_customer_statement':
         raise ValueError('unavailable')
     for key in ('business_id','customer_id'):finance._id(data[key])
-    return data['business_id'],data['customer_id']
+    branch_id = data.get('branch_id')
+    if branch_id is not None:
+        branches.get(data['business_id'], branch_id)
+    result = (data['business_id'],data['customer_id'])
+    return result + (branch_id,) if include_branch else result
 
 
 def reminder(business_id,invoice_id,user_id,tone='friendly'):

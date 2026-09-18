@@ -1,7 +1,7 @@
 <style>.analyst{max-width:850px;overflow-wrap:anywhere}.analyst input,.analyst select,.analyst textarea{width:100%;box-sizing:border-box;min-width:0}.analyst button{max-width:100%;white-space:normal}.analyst p{white-space:pre-wrap}</style>
 <div class="analyst">
 {% if not assistant_embedded %}<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>{% endif %}
-{% if operator_enabled and not assistant_embedded %}<p><a class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">Siapkan tindakan · AI Operator</a></p>{% endif %}
+{% if operator_enabled and not assistant_embedded %}<p><a data-finance-write class="btn secondary" href="{{ url_for('finance.operator',business_id=business.id) }}">Siapkan tindakan · AI Operator</a></p>{% endif %}
 {% if not assistant_embedded %}<h1>Analisis Laporan</h1>{% endif %}
 <p>{{ business.business_name }} · Membaca laporan, tanpa mengubah data atau melakukan pembayaran.</p>
 <p class="muted">Angka dihitung aplikasi. Interpretasi AI perlu ditinjau dan bukan keputusan akuntansi. Pertanyaan dikirim ke penyedia AI bersama ringkasan terbatas. Jangan masukkan kredensial atau data pribadi. Chat tidak disimpan.</p>

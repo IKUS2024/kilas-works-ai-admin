@@ -12,6 +12,7 @@ from itsdangerous import URLSafeTimedSerializer, BadData, SignatureExpired
 import finance_service as finance
 import finance_ai_safety as safety
 import db
+import finance_branches as branches
 
 ACTIONS = {'create_expense':'Catat pengeluaran', 'create_income':'Catat pemasukan',
            'record_invoice_payment':'Catat pembayaran invoice Finance'}
@@ -81,7 +82,7 @@ def resolve(business_id, user_id, action, fields, *, draft):
     text(fields['description'],500)
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
     direction='EXPENSE' if action=='create_expense' else 'INCOME'
-    account=db.query_one('SELECT name FROM finance_accounts WHERE business_id=? AND id=? AND currency=? AND is_active=TRUE',
+    account=db.query_one(('SELECT name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=? AND currency=? AND is_active=TRUE'),
                          (business_id,account_id,'IDR'))
     category=db.query_one('SELECT name FROM finance_categories WHERE business_id=? AND id=? AND direction=? AND is_active=TRUE',
                           (business_id,category_id,direction))
@@ -137,6 +138,7 @@ def signer():
 def prepare(business_id,user_id,payload):
     __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
     if not enabled(business_id): raise OperatorError('not_allowed')
+    branches.token_branch(business_id)
     draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
     action,question,fields=validate_request(payload)
     # Validate scope/references BEFORE sending any user text to the model.
@@ -144,7 +146,7 @@ def prepare(business_id,user_id,payload):
     __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
     fields.update(interpret(action,question))
     preview=resolve(business_id,user_id,action,fields,draft=True)
-    token=draft_signer.dumps(dict(version=1,user_id=user_id,business_id=business_id,action=action,
+    token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
                              fields=fields,nonce=uuid.uuid4().hex))
     return dict(token=token,preview=preview,expires_in=TTL,
                 interpretation='Usulan: '+ACTIONS[action]+'. Belum disimpan; periksa semua detail sebelum konfirmasi.')
@@ -156,12 +158,13 @@ def confirm(business_id,user_id,token):
     try: data=signer().loads(token,max_age=TTL)
     except SignatureExpired: raise OperatorError('expired_draft') from None
     except BadData: raise OperatorError('tampered_draft') from None
-    if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','action','fields','nonce'}
-            or type(data['version']) is not int or data['version']!=1
+    if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','branch_id','action','fields','nonce'}
+            or type(data['version']) is not int or data['version']!=2
             or type(data['user_id']) is not int or data['user_id']!=user_id
             or type(data['business_id']) is not int or data['business_id']!=business_id
             or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
         raise OperatorError('invalid_draft')
+    branches.check_token(business_id, data['branch_id'])
     action,fields=data['action'],data['fields']
     resolve(business_id,user_id,action,fields,draft=False)
     if action=='record_invoice_payment':

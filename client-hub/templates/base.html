@@ -164,9 +164,10 @@
     {% endfor %}
   {% endwith %}
   {% if finance_read_only %}<section class="card" role="status"><h2>Finance hanya-baca</h2><p>Data dan laporan tetap tersedia. Aktifkan trial atau perpanjang langganan untuk mencatat dan memakai AI.</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">Trial &amp; Langganan Finance</a></section>{% endif %}
+  {% if finance_branch_business_id and request.endpoint != 'finance.dashboard' %}{% include "_finance_branch_selector.html" %}{% endif %}
   {% block content %}{% endblock %}
   {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
-  {% if finance_read_only %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
+  {% if finance_read_only or (branch_read_only and finance_branches) %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>
 <footer>Kilas Works Client Hub — V1</footer>
 <script>

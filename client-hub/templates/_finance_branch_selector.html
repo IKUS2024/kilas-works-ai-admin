@@ -1,0 +1,15 @@
+<section class="card" aria-label="Cabang Finance">
+{% if request.endpoint != 'finance.dashboard' %}<p>Bisnis · {{ business.business_name }}</p>{% endif %}
+{% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index') else 'finance.dashboard' %}
+<form method="get" action="{{ url_for(branch_destination,business_id=finance_branch_business_id) }}" class="finance-filter">
+{% for key in ('month','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
+<label for="finance-branch">Cabang</label>
+<select id="finance-branch" name="branch_id">
+<option value="all" {{ 'selected' if all_branches }}>Semua Cabang</option>
+{% for branch in finance_branches %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}{{ ' (Nonaktif)' if not branch.is_active }}</option>{% endfor %}
+</select><button class="btn secondary">Pilih Cabang</button>
+</form>
+<p class="muted">Cabang adalah lokasi/outlet usahamu. Pilih satu cabang untuk mencatat transaksi, atau Semua Cabang untuk melihat total seluruh outlet.</p>
+{% if all_branches %}<p role="status">Semua Cabang menampilkan gabungan seluruh outlet. Pilih satu cabang untuk mencatat atau mengubah transaksi.</p>{% elif branch_read_only %}<p role="status">Cabang nonaktif. Riwayat dan laporan tetap tersedia.</p>{% endif %}
+</section>
+{% if branch_read_only and finance_branches %}<style>form[method="post"]{display:none!important}a[data-finance-write]{display:none!important}</style>{% endif %}

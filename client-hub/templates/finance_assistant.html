@@ -48,7 +48,7 @@
 <section id="assistant-operator" class="assistant-workflow" hidden tabindex="-1"><h2>Siapkan catatan transaksi</h2>
 {% if operator_enabled %}{% include '_finance_operator_workspace.html' %}{% else %}<p>Draft AI belum diaktifkan untuk bisnis ini. Gunakan form transaksi manual melalui menu Finance.</p>{% endif %}</section>
 <nav class="assistant-actions" aria-label="Alat Finance langsung">
-<a href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Scan Struk</a>
+<a data-finance-write href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Scan Struk</a>
 <a href="{{ url_for('finance.bank_index',business_id=business.id) }}">Cocokkan Mutasi Bank</a>
 <a href="{{ url_for('finance.reports',business_id=business.id) }}">Reports</a>
 <a href="{{ url_for('finance.receivables',business_id=business.id) }}">Receivables</a></nav>

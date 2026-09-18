@@ -10,12 +10,14 @@ minor units of the stated currency (IDR defaults); there is no conversion or flo
 from contextlib import contextmanager
 from datetime import date, timedelta
 import calendar
+import json
 import re
 import uuid
 
 import db
 import repo
 import finance_ai_safety
+import finance_branches as branches
 
 ACCOUNT_TYPES = ('CASH', 'BANK', 'EWALLET', 'OTHER')
 DIRECTIONS = ('INCOME', 'EXPENSE')
@@ -40,6 +42,7 @@ def _id(value):
 
 def _scope(business_id, actor_user_id=None):
     _id(business_id)
+    branches.validate(business_id)
     if not db.query_one('SELECT id FROM businesses WHERE id=?', (business_id,)):
         raise FinanceError('business_unavailable')
     if actor_user_id is not None:
@@ -60,6 +63,7 @@ def _write(business_id, actor_user_id):
         _scope(business_id, actor_user_id)
         import finance_entitlements
         finance_entitlements.require_write(business_id, actor_user_id)
+        branches.validate(business_id, write=True)
         yield
 
 
@@ -109,11 +113,13 @@ def _audit(business_id, actor_user_id, event, record_id):
     repo.write_audit(actor_user_id, business_id, event, f'finance_record_id={record_id}')
 
 
-def _create_account(business_id, name, account_type, currency, opening_balance_minor, actor_user_id):
+def _create_account(business_id, name, account_type, currency, opening_balance_minor, actor_user_id, branch_id=None):
+    branch_id = branch_id or branches.write_branch(business_id, actor_user_id)
+    branches.get(business_id, branch_id, active=True)
     now = repo._now()
     record_id = db.insert_returning_id(
-        'INSERT INTO finance_accounts (business_id,name,account_type,currency,opening_balance_minor,created_at,updated_at) '
-        'VALUES (?,?,?,?,?,?,?)', (business_id, name, account_type, currency, opening_balance_minor, now, now))
+        'INSERT INTO finance_accounts (business_id,branch_id,name,account_type,currency,opening_balance_minor,created_at,updated_at) '
+        'VALUES (?,?,?,?,?,?,?,?)', (business_id, branch_id, name, account_type, currency, opening_balance_minor, now, now))
     _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_CREATED', record_id)
     return record_id
 
@@ -123,15 +129,16 @@ def create_account(business_id, name, account_type='CASH', currency='IDR', openi
     account_type, currency = _enum(account_type, ACCOUNT_TYPES), _currency(currency)
     opening_balance_minor = _money(opening_balance_minor)
     with _write(business_id, actor_user_id):
-        if db.query_one('SELECT id FROM finance_accounts WHERE business_id=? AND name=? AND account_type=? AND currency=?',
-                        (business_id, name, account_type, currency)):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        if db.query_one(('SELECT id FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND branch_id=? AND name=? AND account_type=? AND currency=?'),
+                        (business_id, branch_id, name, account_type, currency)):
             raise FinanceError('account_exists')
         return _create_account(business_id, name, account_type, currency, opening_balance_minor, actor_user_id)
 
 
 def list_accounts(business_id, include_inactive=False, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    return db.query_all('SELECT * FROM finance_accounts WHERE business_id=?' +
+    return db.query_all(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate()) +
                         ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY id', (business_id,))
 
 
@@ -166,8 +173,9 @@ def list_categories(business_id, direction=None, include_inactive=False, *, acto
 def ensure_finance_defaults(business_id, *, actor_user_id=None):
     """Explicit only, never called on boot. Existing names/balances/active flags are untouched."""
     with _write(business_id, actor_user_id):
-        if not db.query_one("SELECT id FROM finance_accounts WHERE business_id=? AND name=? AND account_type='CASH' AND currency='IDR'",
-                            (business_id, 'Kas')):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        if not db.query_one(('SELECT id FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND branch_id=? AND name=? AND account_type='CASH' AND currency='IDR'"),
+                            (business_id, branch_id, 'Kas')):
             _create_account(business_id, 'Kas', 'CASH', 'IDR', 0, actor_user_id)
         for direction, names in DEFAULT_CATEGORIES.items():
             for name in names:
@@ -182,7 +190,11 @@ def _transaction_data(business_id, data):
     data['amount_minor'] = _money(data['amount_minor'], positive=True)
     data['currency'] = _currency(data['currency'])
     data['occurred_on'] = _date(data['occurred_on'])
-    account = db.query_one('SELECT currency,is_active FROM finance_accounts WHERE business_id=? AND id=?',
+    branch_id = branches.account_branch(business_id, data['account_id'])
+    if data.get('branch_id') is not None and data['branch_id'] != branch_id:
+        raise FinanceError('branch_mismatch')
+    data['branch_id'] = branch_id
+    account = db.query_one(('SELECT currency,is_active FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
                            (business_id, _id(data['account_id'])))
     if not account or not account['is_active']:
         raise FinanceError('account_unavailable')
@@ -221,8 +233,7 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
             # The existing business lock is held until ledger + audit commit together.
             if not data['source_ref'] or not re.fullmatch('[a-f0-9]{32}', data['source_ref']):
                 raise FinanceError('invalid_operator_key')
-            existing = db.query_one('SELECT * FROM finance_transactions WHERE business_id=? '
-                'AND source_type=? AND source_ref=?', (business_id, 'FINANCE_OPERATOR', data['source_ref']))
+            existing = db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND source_type=? AND source_ref=?'), (business_id, 'FINANCE_OPERATOR', data['source_ref']))
             if existing:
                 if existing['created_by_user_id'] != actor_user_id or any(existing[key] != data[key] for key in FIELDS):
                     raise FinanceError('operator_key_conflict')
@@ -239,16 +250,16 @@ def _insert_transaction(business_id, data, actor_user_id):
     """Caller already holds the business lock; used by atomic Finance payment posting."""
     now = repo._now()
     record_id = db.insert_returning_id(
-        'INSERT INTO finance_transactions (business_id,' + ','.join(FIELDS) +
-        ',created_by_user_id,created_at,updated_at) VALUES (' + ','.join(['?'] * (len(FIELDS)+4)) + ')',
-        [business_id] + [data[key] for key in FIELDS] + [actor_user_id, now, now])
+        'INSERT INTO finance_transactions (business_id,branch_id,' + ','.join(FIELDS) +
+        ',created_by_user_id,created_at,updated_at) VALUES (' + ','.join(['?'] * (len(FIELDS)+5)) + ')',
+        [business_id, data['branch_id']] + [data[key] for key in FIELDS] + [actor_user_id, now, now])
     _audit(business_id, actor_user_id, 'FINANCE_TRANSACTION_CREATED', record_id)
     return record_id
 
 
 def get_transaction(business_id, transaction_id, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    return db.query_one('SELECT * FROM finance_transactions WHERE business_id=? AND id=?',
+    return db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
                         (business_id, _id(transaction_id)))
 
 
@@ -264,7 +275,7 @@ def list_transactions(business_id, *, start_date=None, end_date=None, direction=
     _scope(business_id, actor_user_id)
     if type(limit) is not int or not 1 <= limit <= 1000 or type(offset) is not int or offset < 0:
         raise FinanceError('invalid_pagination')
-    sql, params = 'SELECT * FROM finance_transactions WHERE business_id=?', [business_id]
+    sql, params = ('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=?' + branches.predicate()), [business_id]
     if start_date is not None and end_date is not None:
         _period(start_date, end_date)
     for value, clause in ((start_date, ' AND occurred_on>=?'), (end_date, ' AND occurred_on<=?')):
@@ -298,7 +309,7 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
         if current['status'] == 'VOID':
             raise FinanceError('transaction_void')
         original = {key: current[key] for key in FIELDS}
-        data = _transaction_data(business_id, dict(original, **changes))
+        data = _transaction_data(business_id, dict(original, branch_id=current['branch_id'], **changes))
         # Check canonical source names after _text strips whitespace. Raw-input
         # guards above alone allow padded managed origins on unrelated records.
         if data['source_type'] == 'FINANCE_INVOICE_PAYMENT':
@@ -318,7 +329,11 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
                 raise FinanceError('receipt_origin_immutable')
         elif data['source_type'] == 'FINANCE_RECEIPT':
             raise FinanceError('receipt_origin_immutable')
-        if data != original:
+        if any(data[key] != original[key] for key in FIELDS):
+            db.execute('INSERT INTO finance_transaction_revisions '
+                '(business_id,transaction_id,before_json,after_json,actor_user_id,created_at) VALUES (?,?,?,?,?,?)',
+                (business_id, transaction_id, json.dumps(dict(original, branch_id=current['branch_id']), sort_keys=True),
+                 json.dumps(data, sort_keys=True), actor_user_id, repo._now()))
             db.execute('UPDATE finance_transactions SET ' + ','.join(key+'=?' for key in FIELDS) +
                        ',updated_at=? WHERE business_id=? AND id=? AND status=\'POSTED\'',
                        [data[key] for key in FIELDS] + [repo._now(), business_id, transaction_id])
@@ -350,8 +365,7 @@ def get_finance_summary(business_id, start_date, end_date, *, currency='IDR', ac
     _scope(business_id, actor_user_id)
     start, end = _period(start_date, end_date)
     currency = _currency(currency)
-    rows = db.query_all("SELECT direction,amount_minor FROM finance_transactions WHERE business_id=? "
-                        "AND status='POSTED' AND currency=? AND occurred_on>=? AND occurred_on<=?",
+    rows = db.query_all(('SELECT direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND currency=? AND occurred_on>=? AND occurred_on<=?"),
                         (business_id, currency, start, end))
     income = sum(row['amount_minor'] for row in rows if row['direction'] == 'INCOME')
     expense = sum(row['amount_minor'] for row in rows if row['direction'] == 'EXPENSE')
@@ -404,8 +418,8 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
             raise FinanceError('customer_unavailable')
         now = repo._now()
         invoice_id = db.insert_returning_id('INSERT INTO finance_invoices '
-            '(business_id,customer_id,invoice_number,issue_date,due_date,notes,created_by_user_id,created_at,updated_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?)', (business_id, customer_id, 'KFIN-PENDING-'+uuid.uuid4().hex,
+            '(business_id,branch_id,customer_id,invoice_number,issue_date,due_date,notes,created_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?)', (business_id, branches.write_branch(business_id, actor_user_id), customer_id, 'KFIN-PENDING-'+uuid.uuid4().hex,
             issue_date, due_date, notes, actor_user_id, now, now))
         number = f'KFIN-{issue_date[:4]}-{invoice_id:06d}'
         db.execute('UPDATE finance_invoices SET invoice_number=? WHERE business_id=? AND id=?', (number, business_id, invoice_id))
@@ -419,7 +433,7 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
 
 def get_finance_invoice(business_id, invoice_id, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    return db.query_one('SELECT * FROM finance_invoices WHERE business_id=? AND id=?',
+    return db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.business_id=finance_invoices.business_id AND b.id=finance_invoices.branch_id) AS branch_name FROM finance_invoices WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
                         (business_id, _id(invoice_id)))
 
 
@@ -445,12 +459,12 @@ def list_invoice_payments(business_id, invoice_id, actor_user_id=None):
 def get_invoice_totals(business_id, invoice_id, actor_user_id=None, today=None):
     # One statement gives a consistent read snapshot while another request posts a payment.
     _scope(business_id, actor_user_id)
-    row = db.query_one('''SELECT i.status,i.due_date,
+    row = db.query_one(('''SELECT i.status,i.due_date,
         COALESCE((SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
                   WHERE x.business_id=i.business_id AND x.invoice_id=i.id),0) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
                   WHERE p.business_id=i.business_id AND p.invoice_id=i.id),0) AS paid_minor
-        FROM finance_invoices i WHERE i.business_id=? AND i.id=?''', (business_id, _id(invoice_id)))
+        FROM finance_invoices i WHERE i.business_id=?''' + branches.predicate('i') + ' AND i.id=?'), (business_id, _id(invoice_id)))
     if not row:
         raise FinanceError('invoice_unavailable')
     total, paid = int(row['total_minor']), int(row['paid_minor'])
@@ -462,7 +476,7 @@ def get_invoice_totals(business_id, invoice_id, actor_user_id=None, today=None):
 
 def list_finance_invoices(business_id, status=None, customer_id=None, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    sql, params = 'SELECT * FROM finance_invoices WHERE business_id=?', [business_id]
+    sql, params = ('SELECT *, (SELECT name FROM finance_branches b WHERE b.business_id=finance_invoices.business_id AND b.id=finance_invoices.branch_id) AS branch_name FROM finance_invoices WHERE business_id=?' + branches.predicate()), [business_id]
     if status is not None:
         sql += ' AND status=?'; params.append(_enum(status, ('DRAFT','ISSUED','PARTIALLY_PAID','PAID','VOID')))
     if customer_id is not None:
@@ -510,6 +524,8 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
     _id(invoice_id); _id(account_id); _id(income_category_id)
     with _write(business_id, actor_user_id):
         invoice = _invoice(business_id, invoice_id, actor_user_id)
+        if branches.account_branch(business_id, account_id) != invoice['branch_id']:
+            raise FinanceError('branch_mismatch')
         existing = db.query_one('SELECT * FROM finance_invoice_payments WHERE business_id=? AND idempotency_key=?',
                                  (business_id, idempotency_key))
         if existing:
@@ -547,12 +563,12 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
 def get_receivables_summary(business_id, actor_user_id=None, today=None):
     _scope(business_id, actor_user_id)
     # All monetary rows read in one statement; aggregate with Python integers, never floats.
-    rows = db.query_all('''SELECT i.due_date,
+    rows = db.query_all(('''SELECT i.due_date,
         (SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
          WHERE x.business_id=i.business_id AND x.invoice_id=i.id) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
          WHERE p.business_id=i.business_id AND p.invoice_id=i.id),0) AS paid_minor
-        FROM finance_invoices i WHERE i.business_id=? AND i.status IN ('ISSUED','PARTIALLY_PAID')''', (business_id,))
+        FROM finance_invoices i WHERE i.business_id=?''' + branches.predicate('i') + " AND i.status IN ('ISSUED','PARTIALLY_PAID')"), (business_id,))
     result = dict(total_outstanding_minor=0, overdue_outstanding_minor=0, open_invoice_count=0, overdue_invoice_count=0)
     today = _date(today or date.today())
     for row in rows:
@@ -567,8 +583,7 @@ def get_receivables_summary(business_id, actor_user_id=None, today=None):
 def get_customer_cash_contribution(business_id, start_date, end_date, actor_user_id=None):
     _scope(business_id, actor_user_id)
     start, end = _period(start_date, end_date)
-    rows = db.query_all("SELECT customer_id,direction,amount_minor FROM finance_transactions WHERE business_id=? "
-        "AND customer_id IS NOT NULL AND status='POSTED' AND currency='IDR' AND occurred_on>=? AND occurred_on<=?", (business_id,start,end))
+    rows = db.query_all(('SELECT customer_id,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND customer_id IS NOT NULL AND status='POSTED' AND currency='IDR' AND occurred_on>=? AND occurred_on<=?"), (business_id,start,end))
     result = {}
     for row in rows:
         item = result.setdefault(row['customer_id'], dict(customer_id=row['customer_id'],income_minor=0,expense_minor=0,net_cash_contribution_minor=0))
@@ -583,7 +598,7 @@ MAX_RECURRING_OCCURRENCES = 100
 
 
 def _recurring_data(business_id, rule):
-    return _transaction_data(business_id, dict(direction='EXPENSE', amount_minor=rule['amount_minor'],
+    return _transaction_data(business_id, dict(branch_id=rule.get('branch_id'), direction='EXPENSE', amount_minor=rule['amount_minor'],
         currency=rule['currency'], account_id=rule['account_id'], category_id=rule['category_id'],
         occurred_on=rule['next_due_on'], project_id=rule['project_id'], customer_id=None,
         counterparty_name=rule['counterparty_name'], description=rule['description'] or rule['name'],
@@ -603,8 +618,8 @@ def create_recurring_expense(business_id, name, amount_minor, account_id, catego
         data = _recurring_data(business_id,rule)
         now = repo._now()
         recurring_id = db.insert_returning_id('INSERT INTO finance_recurring_expenses '
-            '(business_id,name,amount_minor,account_id,category_id,project_id,counterparty_name,description,cadence,anchor_day,next_due_on,end_on,created_by_user_id,created_at,updated_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (business_id,name,data['amount_minor'],account_id,category_id,
+            '(business_id,branch_id,name,amount_minor,account_id,category_id,project_id,counterparty_name,description,cadence,anchor_day,next_due_on,end_on,created_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (business_id,data['branch_id'],name,data['amount_minor'],account_id,category_id,
             data['project_id'],data['counterparty_name'],_text(description,4000),cadence,anchor,next_due_on,end_on,actor_user_id,now,now))
         _audit(business_id,actor_user_id,'FINANCE_RECURRING_CREATED',recurring_id)
         return recurring_id
@@ -612,13 +627,13 @@ def create_recurring_expense(business_id, name, amount_minor, account_id, catego
 
 def get_recurring_expense(business_id, recurring_id, actor_user_id=None):
     _scope(business_id,actor_user_id)
-    return db.query_one('SELECT * FROM finance_recurring_expenses WHERE business_id=? AND id=?',
+    return db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.business_id=finance_recurring_expenses.business_id AND b.id=finance_recurring_expenses.branch_id) AS branch_name FROM finance_recurring_expenses WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
                         (business_id,_id(recurring_id)))
 
 
 def list_recurring_expenses(business_id, include_inactive=False, actor_user_id=None):
     _scope(business_id,actor_user_id)
-    return db.query_all('SELECT * FROM finance_recurring_expenses WHERE business_id=?' +
+    return db.query_all(('SELECT *, (SELECT name FROM finance_branches b WHERE b.business_id=finance_recurring_expenses.business_id AND b.id=finance_recurring_expenses.branch_id) AS branch_name FROM finance_recurring_expenses WHERE business_id=?' + branches.predicate()) +
         ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY next_due_on,id',(business_id,))
 
 
@@ -667,10 +682,7 @@ def _next_recurring_date(rule):
 def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
     """Read-only next occurrence per rule; no future schedule is skipped."""
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    rows=db.query_all('SELECT r.*,a.name AS account_name,c.name AS category_name FROM finance_recurring_expenses r '
-        'JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id '
-        'JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id '
-        'WHERE r.business_id=? AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id LIMIT 100',(business_id,as_of))
+    rows=db.query_all(('SELECT r.*,a.name AS account_name,c.name AS category_name FROM finance_recurring_expenses r JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id WHERE r.business_id=?' + branches.predicate('r') + ' AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id LIMIT 100'),(business_id,as_of))
     result=[]
     for row in rows:
         if row['end_on'] and row['next_due_on']>row['end_on']:continue
@@ -698,7 +710,7 @@ def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_o
         selected=set(selected)
     posted, handled, attention = 0, 0, 0
     with _write(business_id,actor_user_id):
-        rules = db.query_all('SELECT * FROM finance_recurring_expenses WHERE business_id=? AND is_active=TRUE AND next_due_on<=? ORDER BY next_due_on,id', (business_id,as_of))
+        rules = db.query_all(('SELECT *, (SELECT name FROM finance_branches b WHERE b.business_id=finance_recurring_expenses.business_id AND b.id=finance_recurring_expenses.branch_id) AS branch_name FROM finance_recurring_expenses WHERE business_id=?' + branches.predicate('') + ' AND is_active=TRUE AND next_due_on<=? ORDER BY next_due_on,id'), (business_id,as_of))
         for rule in rules:
             while rule['is_active'] and rule['next_due_on']<=as_of and handled<max_occurrences:
                 if selected is not None and f"{rule['id']}:{rule['next_due_on']}" not in selected: break
@@ -735,7 +747,7 @@ def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_o
                 if not active:
                     _audit(business_id,actor_user_id,'FINANCE_RECURRING_DEACTIVATED',rule['id'])
                 rule.update(next_due_on=next_due,is_active=active)
-        remaining = db.query_one('SELECT id FROM finance_recurring_expenses WHERE business_id=? AND is_active=TRUE AND next_due_on<=? LIMIT 1',(business_id,as_of))
+        remaining = db.query_one(('SELECT id FROM finance_recurring_expenses WHERE business_id=?' + branches.predicate('') + ' AND is_active=TRUE AND next_due_on<=? LIMIT 1'),(business_id,as_of))
     return dict(posted_count=posted,needs_attention_count=attention,has_more=bool(remaining),limit_reached=handled>=max_occurrences and bool(remaining))
 
 
@@ -748,10 +760,7 @@ def list_finance_projects(business_id, actor_user_id=None):
 def get_project_cash_contribution(business_id, start_date, end_date, actor_user_id=None):
     _scope(business_id,actor_user_id)
     start,end = _period(start_date,end_date)
-    rows = db.query_all("SELECT t.project_id,p.title,p.status,t.direction,t.amount_minor FROM finance_transactions t "
-        "JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id "
-        "WHERE t.business_id=? AND t.status='POSTED' AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=? "
-        "ORDER BY p.title,p.id,t.id",(business_id,start,end))
+    rows = db.query_all(('SELECT t.project_id,p.title,p.status,t.direction,t.amount_minor FROM finance_transactions t JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id WHERE t.business_id=?' + branches.predicate('t') + " AND t.status='POSTED' AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=? ORDER BY p.title,p.id,t.id"),(business_id,start,end))
     result = {}
     for row in rows:
         item = result.setdefault(row['project_id'],dict(project_id=row['project_id'],title=row['title'],status=row['status'],
@@ -795,7 +804,7 @@ def _report_query(sql, params):
 def get_report_transactions(business_id, start_date, end_date, actor_user_id=None, include_void=False):
     _scope(business_id,actor_user_id)
     start,end = report_period(start_date,end_date)
-    return _report_query('''SELECT t.occurred_on,t.direction,t.amount_minor,t.status,t.source_type,
+    return _report_query(('''SELECT t.branch_id,(SELECT name FROM finance_branches b WHERE b.id=t.branch_id AND b.business_id=t.business_id) AS branch_name,t.occurred_on,t.direction,t.amount_minor,t.status,t.source_type,
         t.counterparty_name,t.description,t.category_id,t.customer_id,t.project_id,
         a.name AS account_name,c.name AS category_name,u.name AS customer_name,p.title AS project_name
         FROM finance_transactions t
@@ -803,7 +812,7 @@ def get_report_transactions(business_id, start_date, end_date, actor_user_id=Non
         LEFT JOIN finance_categories c ON c.business_id=t.business_id AND c.id=t.category_id
         LEFT JOIN finance_customers u ON u.business_id=t.business_id AND u.id=t.customer_id
         LEFT JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id
-        WHERE t.business_id=? AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=?'''+
+        WHERE t.business_id=?''' + branches.predicate('t') + " AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=?")+
         ('' if include_void else " AND t.status='POSTED'")+' ORDER BY t.occurred_on,t.id',(business_id,start,end))
 
 
@@ -832,8 +841,8 @@ def get_category_breakdown(business_id, start_date, end_date, actor_user_id=None
 
 def get_account_balance_report(business_id, as_of, actor_user_id=None):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    accounts=_report_query("SELECT id,name,account_type,opening_balance_minor,is_active FROM finance_accounts WHERE business_id=? AND currency='IDR' ORDER BY name,id",(business_id,))
-    rows=_report_query("SELECT account_id,direction,amount_minor FROM finance_transactions WHERE business_id=? AND status='POSTED' AND currency='IDR' AND occurred_on<=? ORDER BY id",(business_id,as_of))
+    accounts=_report_query(('SELECT branch_id,id,name,account_type,opening_balance_minor,is_active,(SELECT name FROM finance_branches b WHERE b.business_id=finance_accounts.business_id AND b.id=finance_accounts.branch_id) AS branch_name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND currency='IDR' ORDER BY name,id"),(business_id,))
+    rows=_report_query(('SELECT account_id,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND currency='IDR' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
     groups={a['id']:dict(a,income_minor=0,expense_minor=0,balance_minor=a['opening_balance_minor']) for a in accounts}
     for r in rows:
         if r['account_id'] in groups:
@@ -861,13 +870,13 @@ def get_project_contribution_report(business_id, start_date, end_date, actor_use
 def get_report_invoices(business_id, as_of, start_date=None, end_date=None, actor_user_id=None,
                         customer_id=None, open_only=False):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    sql='''SELECT i.id,i.customer_id,i.invoice_number,i.issue_date,i.due_date,i.status,c.name AS customer_name,
+    sql=('''SELECT i.branch_id,(SELECT name FROM finance_branches b WHERE b.id=i.branch_id AND b.business_id=i.business_id) AS branch_name,i.id,i.customer_id,i.invoice_number,i.issue_date,i.due_date,i.status,c.name AS customer_name,
         COALESCE((SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
             WHERE x.business_id=i.business_id AND x.invoice_id=i.id),0) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
             WHERE p.business_id=i.business_id AND p.invoice_id=i.id AND p.paid_on<=?),0) AS paid_minor
         FROM finance_invoices i LEFT JOIN finance_customers c ON c.business_id=i.business_id AND c.id=i.customer_id
-        WHERE i.business_id=? AND i.currency='IDR' AND i.issue_date<=?'''
+        WHERE i.business_id=?''' + branches.predicate('i') + " AND i.currency='IDR' AND i.issue_date<=?")
     params=[as_of,business_id,as_of]
     if customer_id is not None:
         if not get_customer(business_id, customer_id, actor_user_id):
@@ -906,13 +915,12 @@ def receivables_aging_rows(rows):
 
 def get_upcoming_recurring_commitments(business_id, start_date, end_date, actor_user_id=None):
     _scope(business_id,actor_user_id);start,end=report_period(start_date,end_date)
-    rules=_report_query('''SELECT r.*,p.title AS project_name,a.name AS account_name,c.name AS category_name
+    rules=_report_query(('''SELECT r.*,(SELECT name FROM finance_branches b WHERE b.business_id=r.business_id AND b.id=r.branch_id) AS branch_name,p.title AS project_name,a.name AS account_name,c.name AS category_name
         FROM finance_recurring_expenses r
         LEFT JOIN projects p ON p.business_id=r.business_id AND p.id=r.project_id
         LEFT JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id
         LEFT JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id
-        WHERE r.business_id=? AND r.is_active=TRUE AND r.currency='IDR' AND r.next_due_on<=?
-        ORDER BY r.next_due_on,r.id''',(business_id,end))
+        WHERE r.business_id=?''' + branches.predicate('r') + " AND r.is_active=TRUE AND r.currency='IDR' AND r.next_due_on<=?\n        ORDER BY r.next_due_on,r.id"),(business_id,end))
     result=[];start_day=date.fromisoformat(start)
     for rule in rules:
         current=date.fromisoformat(rule['next_due_on'])
@@ -926,7 +934,7 @@ def get_upcoming_recurring_commitments(business_id, start_date, end_date, actor_
         last=min(end,rule['end_on']) if rule['end_on'] else end
         while rule['next_due_on']<=last:
             if len(result)>=MAX_COMMITMENT_OCCURRENCES:raise FinanceError('forecast_limit')
-            result.append(dict(name=rule['name'],scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],
+            result.append(dict(branch_name=rule['branch_name'],name=rule['name'],scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],
                 project_name=rule['project_name'],account_name=rule['account_name'],category_name=rule['category_name']))
             if rule['next_due_on']==last:break
             try:rule['next_due_on']=_next_recurring_date(rule)
@@ -953,9 +961,7 @@ def get_monthly_cashflow_trend(business_id, start_month, end_month, actor_user_i
 def operator_invoice_choices(business_id, actor_user_id=None):
     """Bounded picker only; does not load invoice notes or the whole history."""
     _scope(business_id,actor_user_id)
-    return db.query_all("SELECT id,invoice_number FROM finance_invoices WHERE business_id=? "
-        "AND currency='IDR' AND status IN ('ISSUED','PARTIALLY_PAID') "
-        "ORDER BY issue_date DESC,id DESC LIMIT 100",(business_id,))
+    return db.query_all(('SELECT id,invoice_number FROM finance_invoices WHERE business_id=?' + branches.predicate('') + " AND currency='IDR' AND status IN ('ISSUED','PARTIALLY_PAID') ORDER BY issue_date DESC,id DESC LIMIT 100"),(business_id,))
 
 
 def find_receipt_transaction(business_id, receipt_hash, *, actor_user_id):
@@ -963,8 +969,7 @@ def find_receipt_transaction(business_id, receipt_hash, *, actor_user_id):
     _scope(business_id, actor_user_id)
     if not isinstance(receipt_hash, str) or not re.fullmatch('[a-f0-9]{64}', receipt_hash):
         raise FinanceError('invalid_receipt_hash')
-    return db.query_one('SELECT * FROM finance_transactions WHERE business_id=? '
-                        'AND source_type=? AND source_ref=? ORDER BY id LIMIT 1',
+    return db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND source_type=? AND source_ref=? ORDER BY id LIMIT 1'),
                         (business_id, 'FINANCE_RECEIPT', receipt_hash))
 
 

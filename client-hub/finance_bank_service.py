@@ -5,6 +5,7 @@ import hashlib
 import json
 
 import db
+import finance_branches as branches
 import repo
 import finance_service as f
 import finance_bank_extract as extraction
@@ -16,7 +17,7 @@ PAGE_SIZE = 50
 def account(business_id,account_id,user_id):
     f._id(user_id)
     f._scope(business_id,user_id)
-    row=db.query_one("SELECT * FROM finance_accounts WHERE business_id=? AND id=? AND currency='IDR' AND is_active=TRUE",
+    row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND id=? AND currency='IDR' AND is_active=TRUE"),
                      (business_id,f._id(account_id)))
     if not row:raise f.FinanceError('account_unavailable')
     return row
@@ -25,7 +26,7 @@ def account(business_id,account_id,user_id):
 def get_import(business_id,import_id,user_id):
     f._id(user_id)
     f._scope(business_id,user_id)
-    row=db.query_one('SELECT * FROM finance_bank_imports WHERE business_id=? AND id=?',(business_id,f._id(import_id)))
+    row=db.query_one(('SELECT * FROM finance_bank_imports WHERE business_id=?' + branches.predicate('') + ' AND id=?'),(business_id,f._id(import_id)))
     if not row:raise f.FinanceError('bank_unavailable')
     return row
 
@@ -51,14 +52,13 @@ def list_imports(business_id,user_id,page=1):
     f._id(user_id)
     f._scope(business_id,user_id)
     if type(page) is not int or not 1<=page<=100000:raise f.FinanceError('invalid_page')
-    return db.query_all('SELECT i.*,a.name AS account_name FROM finance_bank_imports i JOIN finance_accounts a '
-        'ON a.business_id=i.business_id AND a.id=i.account_id WHERE i.business_id=? ORDER BY i.id DESC LIMIT 51 OFFSET ?',
+    return db.query_all(('SELECT i.*,a.name AS account_name FROM finance_bank_imports i JOIN finance_accounts a ON a.business_id=i.business_id AND a.id=i.account_id WHERE i.business_id=?' + branches.predicate('i') + ' ORDER BY i.id DESC LIMIT 51 OFFSET ?'),
         (business_id,(page-1)*50))
 
 
 def find_import(business_id,account_id,identity,user_id):
     account(business_id,account_id,user_id)
-    return db.query_one('SELECT id FROM finance_bank_imports WHERE business_id=? AND account_id=? AND file_hash=?',
+    return db.query_one(('SELECT id FROM finance_bank_imports WHERE business_id=?' + branches.predicate('') + ' AND account_id=? AND file_hash=?'),
                         (business_id,account_id,identity))
 
 
@@ -84,8 +84,8 @@ def stage(business_id,account_id,source,rows,user_id):
         if existing:return existing['id']
         now=repo._now()
         import_id=db.insert_returning_id('INSERT INTO finance_bank_imports '
-            '(business_id,account_id,source_kind,display_label,file_hash,source_count,imported_by_user_id,created_at,updated_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?)',(business_id,account_id,source['kind'],source['label'],source['identity'],source['count'],user_id,now,now))
+            '(business_id,branch_id,account_id,source_kind,display_label,file_hash,source_count,imported_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?)',(business_id,branches.account_branch(business_id,account_id),account_id,source['kind'],source['label'],source['identity'],source['count'],user_id,now,now))
         imp=get_import(business_id,import_id,user_id)
         for index,row in enumerate(rows,1):insert_row(imp,index,row)
         f._audit(business_id,user_id,'FINANCE_BANK_IMPORT_CREATED',import_id)
@@ -173,9 +173,7 @@ def candidates(business_id,import_id,user_id):
     days=[date.fromisoformat(row['occurred_on']).toordinal() for row in rows]
     start=date.fromordinal(max(date.min.toordinal(),min(days)-3)).isoformat()
     end=date.fromordinal(min(date.max.toordinal(),max(days)+3)).isoformat()
-    ledger=db.query_all("SELECT t.* FROM finance_transactions t WHERE t.business_id=? AND t.account_id=? AND t.status='POSTED' AND t.currency='IDR' "
-        'AND t.occurred_on>=? AND t.occurred_on<=? AND NOT EXISTS (SELECT 1 FROM finance_bank_rows r WHERE r.business_id=t.business_id '
-        'AND (r.matched_transaction_id=t.id OR r.created_transaction_id=t.id)) ORDER BY t.occurred_on,t.id LIMIT ?',
+    ledger=db.query_all(('SELECT t.* FROM finance_transactions t WHERE t.business_id=?' + branches.predicate('t') + " AND t.account_id=? AND t.status='POSTED' AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=? AND NOT EXISTS (SELECT 1 FROM finance_bank_rows r WHERE r.business_id=t.business_id AND (r.matched_transaction_id=t.id OR r.created_transaction_id=t.id)) ORDER BY t.occurred_on,t.id LIMIT ?"),
         (business_id,imp['account_id'],start,end,MAX_LEDGER+1))
     if len(ledger)>MAX_LEDGER:raise f.FinanceError('bank_candidate_limit')
     groups=defaultdict(list)
@@ -212,7 +210,7 @@ def decide(business_id,import_id,row_id,action,user_id,*,transaction_id=None,fie
                 description=extraction.privacy_text(fields['description'],500) or None,
                 counterparty_name=extraction.privacy_text(fields['counterparty_name'],160,True),
                 project_id=None,customer_id=None,source_type='FINANCE_BANK_IMPORT',source_ref=row['row_hash'])
-            tx=db.query_one('SELECT * FROM finance_transactions WHERE business_id=? AND source_type=? AND source_ref=?',
+            tx=db.query_one(('SELECT * FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND source_type=? AND source_ref=?'),
                             (business_id,'FINANCE_BANK_IMPORT',row['row_hash']))
             if state=='POSTED' and tx and row['created_transaction_id']==tx['id'] and tx['status']=='POSTED' and tx['created_by_user_id']==user_id and all(tx[k]==data[k] for k in f.FIELDS):
                 return tx['id']

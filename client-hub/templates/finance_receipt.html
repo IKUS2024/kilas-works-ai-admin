@@ -13,7 +13,7 @@
 {% elif review %}
 {% set e = review.extraction %}
 <div class="card"><h2>Review Hasil — belum disimpan</h2><p>File: {{ review.filename }}</p>
-{% if review.fallback %}<div role="alert"><p><strong>{{ review.message or 'AI belum berhasil membaca struk ini. Coba foto ulang lebih dekat dan terang, atau isi manual.' }}</strong></p><a href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Foto / pilih struk lagi</a><p>Belum ada transaksi dibuat. Isi semua nilai akhir secara manual jika ingin melanjutkan tanpa AI.</p></div>{% endif %}
+{% if review.fallback %}<div role="alert"><p><strong>{{ review.message or 'AI belum berhasil membaca struk ini. Coba foto ulang lebih dekat dan terang, atau isi manual.' }}</strong></p><a data-finance-write href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Foto / pilih struk lagi</a><p>Belum ada transaksi dibuat. Isi semua nilai akhir secara manual jika ingin melanjutkan tanpa AI.</p></div>{% endif %}
 <div class="fin-grid"><p>Merchant: {{ e.merchant_name or 'Belum diketahui' }}</p><p>Tanggal: {{ e.transaction_date or 'Belum diketahui' }}</p><p>Total: {{ e.total_minor if e.total_minor is not none else 'Belum diketahui' }} · {{ e.currency or 'Mata uang belum diketahui' }}</p><p>Nomor struk: {{ e.receipt_number or 'Tidak terbaca' }}</p></div>
 <p>Deskripsi: {{ e.description or 'Belum diketahui' }}</p><p><strong>Saran AI:</strong> {{ e.suggested_category_name or 'Tidak ada' }}. Pilih kategori akhir sendiri.</p>
 {% if e.currency != 'IDR' %}<p>Konfirmasi hanya mendukung struk rupiah (IDR). Pastikan mata uang asli IDR; jangan konversi struk mata uang lain di form ini.</p>{% endif %}
@@ -29,7 +29,7 @@
 <label for="description">Deskripsi</label><textarea id="description" name="description" maxlength="500">{{ values.description if values else e.description or '' }}</textarea>
 <label><input type="checkbox" name="confirmed" value="yes" required> Saya telah memeriksa nilai akhir dan memastikan struk asli dalam IDR.</label>
 <button class="btn" {% if not accounts or not categories %}disabled{% endif %}>Catat Pengeluaran</button>
-<a class="btn secondary" href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Batal — Tidak Menyimpan</a>
+<a data-finance-write class="btn secondary" href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Batal — Tidak Menyimpan</a>
 {% if not accounts or not categories %}<p>Tambahkan akun rupiah dan kategori pengeluaran aktif melalui Finance terlebih dahulu.</p>{% endif %}
 </form>
 {% endif %}

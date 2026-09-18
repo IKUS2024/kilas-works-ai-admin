@@ -11,6 +11,7 @@ from itsdangerous import BadData, URLSafeTimedSerializer
 import requests
 
 import file_utils
+import finance_branches as branches
 import finance_service as finance
 import finance_ai_safety as safety
 
@@ -123,6 +124,7 @@ def analyze(business_id, user_id, filename, raw):
     """No Finance writes, usage logging or persistent upload storage in this path."""
     finance._scope(business_id, user_id)
     __import__("finance_entitlements").require_ai(business_id,user_id)
+    branches.token_branch(business_id)
     analysis_signer = signer()  # Fail before upload parsing / paid calls without safe signing.
     receipt_hash = hashlib.sha256(raw).hexdigest()
     safe_name, mime, pdf_text = file_utils.validate_receipt_upload(filename, raw)
@@ -145,7 +147,7 @@ def analyze(business_id, user_id, filename, raw):
         except ReceiptError as error:
             reason = str(error)
     safety.receipt_event(reason)
-    token = analysis_signer.dumps(dict(purpose=PURPOSE, version=1, user_id=user_id,
+    token = analysis_signer.dumps(dict(purpose=PURPOSE, version=2, user_id=user_id, branch_id=branches.token_branch(business_id),
         business_id=business_id, receipt_hash=receipt_hash, filename=safe_name,
         extraction=result, nonce=uuid.uuid4().hex))
     return dict(duplicate=False, token=token, extraction=result, filename=safe_name, fallback=fallback, message=READ_ERROR if fallback else None)
@@ -159,11 +161,12 @@ def resolve_token(token, business_id, user_id):
     except BadData:
         raise ReceiptError('invalid_review') from None
     if (not isinstance(data, dict) or set(data) != {'purpose', 'version', 'user_id', 'business_id',
-            'receipt_hash', 'filename', 'extraction', 'nonce'} or data['purpose'] != PURPOSE
-            or type(data['version']) is not int or data['version'] != 1
+            'branch_id', 'receipt_hash', 'filename', 'extraction', 'nonce'} or data['purpose'] != PURPOSE
+            or type(data['version']) is not int or data['version'] != 2
             or type(data['user_id']) is not int or data['user_id'] != user_id
             or type(data['business_id']) is not int or data['business_id'] != business_id):
         raise ReceiptError('invalid_review')
+    branches.check_token(business_id, data['branch_id'])
     for key, length in (('receipt_hash', 64), ('nonce', 32)):
         if not isinstance(data[key], str) or not re.fullmatch('[a-f0-9]{' + str(length) + '}', data[key]):
             raise ReceiptError('invalid_review')

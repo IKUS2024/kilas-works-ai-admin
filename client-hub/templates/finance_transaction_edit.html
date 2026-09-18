@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Edit Transaksi{% endblock %}
+{% block content %}
+<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
+<h1>Edit Transaksi</h1>
+<form method="post" class="card">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<p>{{ 'Pemasukan' if transaction.direction == 'INCOME' else 'Pengeluaran' }}</p>
+<label>Nominal<input name="amount" value="{{ transaction.amount_minor }}" inputmode="numeric" pattern="[0-9]+" required></label>
+<label>Tanggal<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" required></label>
+<label>Akun<select name="account_id" required>{% for a in accounts if a.currency == transaction.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id == transaction.account_id }}>{{ a.name }}</option>{% endfor %}</select></label>
+<p class="muted">Akun = tempat uang masuk atau keluar.</p>
+<label>Kategori<select name="category_id" data-other-category required>{% for c in categories %}<option value="{{ c.id }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}" {{ 'selected' if c.id == transaction.category_id }}>{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select></label>
+<label data-other-field hidden>Keterangan lainnya<input name="other_description" value="{{ initial_other_description }}" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
+<label>Catatan<textarea name="description" maxlength="4000">{{ initial_description }}</textarea></label>
+<button class="btn">Simpan Transaksi</button>
+</form>
+<script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>
+{% endblock %}

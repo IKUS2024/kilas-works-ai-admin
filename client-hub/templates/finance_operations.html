@@ -11,7 +11,7 @@
 {% if preview %}<details><summary>Tinjau Biaya Rutin</summary><p>Pilih hanya pengeluaran yang sudah dibayar. Ditampilkan kejadian berikutnya per aturan; jadwal yang tidak dipilih tetap menunggu.</p>
 <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {% for r in preview %}<label><input type="checkbox" name="occurrence" value="{{ r.selection }}"> {{ r.name }} · {{ r.next_due_on }} · {{ r.amount_minor|finance_idr }} · {{ r.account_name }} · {{ r.category_name }}</label>{% endfor %}<button class="btn">Catat Pengeluaran Terpilih</button></form></details>{% else %}<p>Belum ada kejadian siap dicatat. Tambahkan biaya rutin atau periksa jadwal dan konfigurasinya.</p>{% endif %}
-{% for r in rules %}<article class="fin-entry"><strong>{{ r.name }}</strong> · {{ 'Aktif' if r.is_active else 'Nonaktif' }}
+{% for r in rules %}<article class="fin-entry"><strong>{{ r.name }}</strong> · {{ r.branch_name }} · {{ 'Aktif' if r.is_active else 'Nonaktif' }}
 <p>{{ r.amount_minor|finance_idr }} · {{ 'Mingguan' if r.cadence=='WEEKLY' else 'Bulanan' }}</p><p class="muted">Jadwal berikutnya {{ r.next_due_on }}{% if r.end_on %} · Berakhir {{ r.end_on }}{% endif %}</p>
 {% if r.project_id %}<p>Proyek: {{ project_map.get(r.project_id,{}).get('title','Tidak tersedia') }}</p>{% endif %}
 {% if attention.get(r.id) %}<p class="fin-overdue">Perlu perhatian: akun, kategori, atau proyek tidak tersedia atau tidak sesuai. Jadwal tidak akan dilewati.</p>{% endif %}
@@ -30,7 +30,7 @@
 <label for="description">Deskripsi (opsional)</label><textarea id="description" name="description" maxlength="4000"></textarea><button class="btn">Simpan Biaya Rutin</button>
 </form></details>
 <div class="card"><h2>Uang Masuk &amp; Keluar per Proyek</h2><p class="muted">Berdasarkan transaksi rupiah yang tercatat dan terhubung ke proyek. Perhitungan berbasis arus kas, bukan laba akuntansi. Transaksi dibatalkan tidak dihitung.</p>
-<form method="get"><label for="month">Bulan</label><input id="month" name="month" type="month" value="{{ month }}" required><button class="btn secondary">Tampilkan</button></form>
+<form method="get">{% if finance_branch_business_id %}<input type="hidden" name="branch_id" value="{{ selected_branch_id or 'all' }}">{% endif %}<label for="month">Bulan</label><input id="month" name="month" type="month" value="{{ month }}" required><button class="btn secondary">Tampilkan</button></form>
 {% for p in contributions %}<article class="fin-entry"><h3>{{ p.title }}</h3><div class="fin-grid"><p>Pemasukan<br><strong>{{ p.income_minor|finance_idr }}</strong></p><p>Pengeluaran<br><strong>{{ p.expense_minor|finance_idr }}</strong></p><p>Selisih Masuk–Keluar<br><strong>{{ p.net_cash_contribution_minor|finance_idr }}</strong></p></div><p class="muted">{{ p.transaction_count }} transaksi</p></article>{% else %}<p class="muted">Belum ada transaksi terhubung ke proyek untuk periode ini.</p>{% endfor %}
 </div></div>
 {% endblock %}

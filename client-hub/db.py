@@ -260,6 +260,7 @@ MIGRATIONS = [
     ("0030_finance_recurring_sqlite.sql", "0030_finance_recurring_postgres.sql"),
     ("0031_finance_bank_imports_sqlite.sql", "0031_finance_bank_imports_postgres.sql"),
     ("0032_finance_subscription_sqlite.sql", "0032_finance_subscription_postgres.sql"),
+    ("0033_finance_branches_sqlite.sql", "0033_finance_branches_postgres.sql"),
 ]
 
 
@@ -301,6 +302,10 @@ def init_schema():
         with open(path, "r", encoding="utf-8") as f:
             script = f.read()
         if BACKEND == "sqlite":
+            if sqlite_name == "0033_finance_branches_sqlite.sql":
+                from finance_branch_migration import migrate_sqlite
+                migrate_sqlite(conn, script)
+                continue
             if sqlite_name == "0029_finance_receivables_sqlite.sql":
                 # Continue past the existing nullable column on repeat runs so the following
                 # index is also repaired after an interrupted migration. Fixed SQL only.

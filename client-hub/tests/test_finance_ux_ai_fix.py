@@ -3,6 +3,9 @@ import io
 import json
 import os
 import unittest
+from urllib.parse import urlsplit, parse_qs
+from html import unescape
+import re
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -58,12 +61,14 @@ class FinanceUXTests(unittest.TestCase):
     def test_dashboard_one_ai_entry_and_secondary_tools(self):
         self.trial()
         html = self.client.get(self.url).text
-        self.assertEqual(html.count('href="' + self.url + '/assistant"'), 1)
+        links = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', html)]
+        self.assertEqual(sum(link.path == self.url + '/assistant' for link in links), 1)
         for text in ('AI Analyst', 'AI Operator', 'Upload File', 'Beta'):
             self.assertNotIn(text, html)
         self.assertIn('<summary>Alat Finance Lainnya</summary>', html)
         for suffix in ('reports', 'operations', 'receivables', 'bank-imports'):
-            self.assertIn('href="' + self.url + '/' + suffix + '"', html)
+            link = next(link for link in links if link.path == self.url + '/' + suffix)
+            self.assertEqual(parse_qs(link.query)['branch_id'], [str(__import__('finance_branches').list_branches(self.b)[0]['id'])])
 
     def test_assistant_keeps_existing_engines_and_routes(self):
         self.trial()
@@ -96,7 +101,9 @@ class FinanceUXTests(unittest.TestCase):
         before = self.snapshot()
         for query in ({'period_year': '2026'}, {'period_year': '2026', 'period_month': '13'},
                       {'period_year': '0000', 'period_month': '01'}, {'period_year': 'evil', 'period_month': '01'}):
-            self.assertEqual(self.client.get(self.url, query_string=query).location, self.url)
+            location = urlsplit(self.client.get(self.url, query_string=query).location)
+            self.assertEqual(location.path, self.url)
+            self.assertEqual(parse_qs(location.query)['branch_id'], [str(__import__('finance_branches').list_branches(self.b)[0]['id'])])
         self.assertEqual(before, self.snapshot())
 
     def test_period_mobile_shrink_and_stack_rules(self):

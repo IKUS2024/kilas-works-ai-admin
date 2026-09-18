@@ -8,6 +8,7 @@ from functools import wraps
 from werkzeug.exceptions import HTTPException
 
 from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
+import finance_branches as branches
 import finance_service as finance
 import finance_reports
 import finance_invoice_view
@@ -18,7 +19,7 @@ import finance_analyst
 import finance_operator
 import finance_assistant
 import finance_ai_safety as ai_safety
-from flask import jsonify, current_app
+from flask import jsonify, current_app, g
 import security
 import repo
 
@@ -44,7 +45,36 @@ def finance_access(view):
                 if request.is_json: return jsonify(error='Finance hanya-baca. Aktifkan trial atau perpanjang langganan.'),403
                 flash('Finance hanya-baca. Data tetap tersedia; aktifkan atau perpanjang untuk melanjutkan.','error')
                 return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
-        return view(business_id, user, business, **kwargs)
+        branch_list = branches.list_branches(business_id, user['id'])
+        choices = request.args.getlist('branch_id') + request.form.getlist('branch_id')
+        if len(set(choices)) > 1 or len(request.args.getlist('branch_id')) > 1 or len(request.form.getlist('branch_id')) > 1:
+            abort(400)
+        selected = choices[0] if choices else None
+        if selected is None:
+            # Legacy URLs are unambiguous only while there is exactly one branch.
+            selected = str(branch_list[0]['id']) if len(branch_list) == 1 else 'all'
+        try:
+            branch_id = None if selected == 'all' else record_id(selected)
+            selected_branch = branches.get(business_id, branch_id) if branch_id is not None else None
+        except finance.FinanceError:
+            abort(404)
+        g.finance_business_id = business_id
+        g.finance_branch_id = branch_id
+        g.finance_branches = branch_list
+        g.finance_branch = selected_branch
+        g.finance_branch_read_only = branch_id is None or not selected_branch['is_active']
+        if g.finance_branch_read_only and request.method not in ('GET', 'HEAD'):
+            # Setup has no historical branch yet; existing entitlement checks still apply.
+            if not branch_list and view.__name__ == 'start' and not choices:
+                return view(business_id, user, business, **kwargs)
+            if request.is_json:
+                return jsonify(error='Pilih satu cabang aktif untuk mencatat atau mengubah transaksi.'), 403
+            abort(403)
+        if g.finance_branch_read_only and view.__name__ in ('assistant', 'operator', 'receipt_new', 'bank_new', 'new_invoice', 'edit_transaction'):
+            flash('Pilih satu cabang aktif untuk mencatat atau mengubah transaksi.', 'error')
+            return redirect(url_for('finance.dashboard', business_id=business_id))
+        with branches.scope(business_id, branch_id, user['id']):
+            return view(business_id, user, business, **kwargs)
     return wrapped
 
 
@@ -74,6 +104,10 @@ ERRORS = {
     'missing_name': 'Nama wajib diisi.',
     'invalid_enum': 'Pilihan belum valid.',
     'invalid_id': 'Pilihan tidak tersedia.',
+    'branch_last_active': 'Sisakan minimal satu cabang aktif. Tambahkan cabang baru sebelum menonaktifkan cabang terakhir.',
+    'branch_exists': 'Nama cabang sudah digunakan.',
+    'branch_unavailable': 'Cabang tidak tersedia.',
+    'branch_mismatch': 'Akun harus berada dalam cabang yang sama.',
 }
 
 
@@ -181,7 +215,18 @@ def dashboard(business_id, user, business):
     summary = finance.get_finance_summary(business_id, start, end, **actor)
     transactions = finance.list_transactions(business_id, start_date=start, end_date=end,
                                             direction=direction, limit=100, **actor)
+    balances = finance.get_account_balance_report(business_id, date.today().isoformat(), user['id'])
+    breakdown = []
+    if g.finance_branch_id is None:
+        for item in g.finance_branches:
+            with branches.scope(business_id, item['id'], user['id']):
+                breakdown.append(dict(branch=item, summary=finance.get_finance_summary(business_id, start, end, **actor)))
+        # Derive displayed combined values from the same branch values, even if another
+        # request posts between reads. Never show conflicting aggregate/breakdown totals.
+        for key in ('total_income_minor', 'total_expense_minor', 'net_cashflow_minor'):
+            summary[key] = sum(item['summary'][key] for item in breakdown)
     return render_template('finance_dashboard.html', user=user, business=business,
+        period_start=start, period_end=end, balances=balances, balance_total=sum(a['balance_minor'] for a in balances), branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
@@ -220,7 +265,7 @@ def create_transaction(business_id, user, business):
     def action():
         finance.create_transaction(business_id, request.form.get('direction'), whole_idr(request.form.get('amount')),
             record_id(request.form.get('account_id')), record_id(request.form.get('category_id')),
-            request.form.get('occurred_on'), currency='IDR', description=request.form.get('description'),
+            request.form.get('occurred_on'), currency='IDR', description=transaction_note(business_id, request.form),
             counterparty_name=request.form.get('counterparty_name'),
             customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
@@ -654,8 +699,9 @@ def statement_share(business_id,user,business,customer_id):
 @finance_bp.route('/finance/statement-share/<token>')
 def public_statement(token):
     try:
-        business_id,customer_id=finance_collections.resolve_token(token)
-        doc=finance_collections.statement(business_id,customer_id)
+        business_id,customer_id,branch_id=finance_collections.resolve_token(token, include_branch=True)
+        with branches.scope(business_id, branch_id):
+            doc=finance_collections.statement(business_id,customer_id)
     except (ValueError,TypeError):return 'Tautan statement tidak tersedia atau sudah kedaluwarsa.',404
     except Exception:
         current_app.logger.warning('FINANCE_STATEMENT_SHARE: unavailable')
@@ -886,7 +932,7 @@ def bank_decide(business_id,user,business,import_id,row_id,action):
 @finance_access
 def assistant(business_id, user, business):
     # Do not accept prompts, tokens or workflow state in URL parameters.
-    if request.args:
+    if set(request.args) - {'branch_id'}:
         return redirect(url_for('finance.assistant', business_id=business_id))
     actor = {'actor_user_id': user['id']}
     operator_enabled = finance_operator.enabled(business_id)
@@ -903,7 +949,7 @@ def assistant(business_id, user, business):
 @finance_access
 def assistant_route(business_id, user, business):
     # No model calls, staging, financial execution, tokens or prompt storage here.
-    if request.args:
+    if set(request.args) - {'branch_id'}:
         return jsonify(error='Gunakan formulir Assistant tanpa parameter URL.'), 400
     if request.content_length is None or request.content_length > 16 * 1024:
         return jsonify(error='Permintaan terlalu besar.'), 413
@@ -938,3 +984,79 @@ def entitlement_or_service_error(error):
     if str(error)=='finance_configuration':
         return 'Konfigurasi Finance belum siap. Pengelola perlu memeriksa migrasi dan pengaturan akses.',503
     return 'Tindakan Finance belum tersedia. Periksa masa aktif, akses bisnis, dan data pilihan.',400
+
+
+@finance_bp.app_url_defaults
+def finance_branch_urls(endpoint, values):
+    if endpoint == 'finance.start' and not getattr(g, 'finance_branches', None):
+        return
+    if endpoint.startswith('finance.') and values.get('business_id') == getattr(g, 'finance_business_id', None) and values.get('business_id'):
+        values.setdefault('branch_id', g.finance_branch_id or 'all')
+
+
+@finance_bp.context_processor
+def finance_branch_context():
+    if not getattr(g, 'finance_business_id', None):
+        return {}
+    return dict(finance_branch_business_id=g.finance_business_id, finance_branches=g.finance_branches,
+        selected_branch=g.finance_branch, selected_branch_id=g.finance_branch_id,
+        all_branches=g.finance_branch_id is None, branch_read_only=g.finance_branch_read_only)
+
+
+def transaction_note(business_id, form):
+    category = next((c for c in finance.list_categories(business_id, include_inactive=True)
+                     if str(c['id']) == form.get('category_id')), None)
+    note = finance._text(form.get('description'), 4000)
+    if category and category['name'] in ('Lainnya', 'Pendapatan Lain', 'Pengeluaran Lain'):
+        other = finance._text(form.get('other_description'), 1000, True)
+        note = other + ('\n' + note if note else '')
+    return finance._text(note, 4000)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/branches', methods=['POST'])
+@finance_access
+def create_branch(business_id, user, business):
+    try:
+        branch_id = branches.create_branch(business_id, request.form.get('name'), user['id'])
+    except finance.FinanceError as error:
+        flash(ERRORS.get(str(error), 'Nama cabang belum valid.'), 'error')
+        return redirect(url_for('finance.dashboard', business_id=business_id), code=303)
+    return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_id), code=303)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/settings/<kind>/<int:record_id>', methods=['POST'])
+@finance_access
+def update_setting(business_id, user, business, kind, record_id):
+    if kind not in ('branch', 'account', 'category'):
+        abort(404)
+    deactivate = request.form.get('action') == 'deactivate'
+    destination = url_for('finance.dashboard', business_id=business_id, branch_id='all') if kind == 'branch' and deactivate else None
+    return mutate(business_id, lambda: branches.update_record(business_id, kind, record_id,
+        name=request.form.get('name'), deactivate=deactivate, actor_user_id=user['id']),
+        'Perubahan disimpan. Riwayat tetap tersedia.', destination)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/edit', methods=['GET', 'POST'])
+@finance_access
+def edit_transaction(business_id, user, business, transaction_id):
+    transaction = finance.get_transaction(business_id, transaction_id, actor_user_id=user['id'])
+    if not transaction:
+        abort(404)
+    if transaction['status'] != 'POSTED' or transaction['source_type'] not in (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT'):
+        abort(403)
+    if request.method == 'POST':
+        return mutate(business_id, lambda: finance.update_transaction(business_id, transaction_id,
+            amount_minor=whole_idr(request.form.get('amount')), occurred_on=request.form.get('occurred_on'),
+            account_id=record_id(request.form.get('account_id')), category_id=record_id(request.form.get('category_id')),
+            description=transaction_note(business_id, request.form), actor_user_id=user['id']),
+            'Transaksi diperbarui. Riwayat perubahan tersimpan.')
+    categories = finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id'])
+    is_other = any(c['id'] == transaction['category_id'] and c['name'] in ('Lainnya', 'Pendapatan Lain', 'Pengeluaran Lain') for c in categories)
+    description = transaction['description'] or ''
+    other_description = ''
+    if is_other:
+        other_description, _, description = description.partition('\n')
+    return render_template('finance_transaction_edit.html', business=business, user=user, transaction=transaction,
+        initial_description=description, initial_other_description=other_description,
+        accounts=finance.list_accounts(business_id, actor_user_id=user['id']),
+        categories=finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id']))
