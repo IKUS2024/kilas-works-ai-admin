@@ -100,6 +100,7 @@ ERRORS = {
     'account_exists': 'Kas / rekening dengan nama dan jenis tersebut sudah ada.',
     'category_exists': 'Kategori tersebut sudah ada.',
     'invalid_date': 'Tanggal belum valid.',
+    'future_date': 'Tanggal tidak boleh melebihi hari ini.',
     'invalid_text': 'Isian terlalu panjang atau tidak valid.',
     'missing_name': 'Nama wajib diisi.',
     'invalid_enum': 'Pilihan belum valid.',
@@ -165,8 +166,10 @@ def overview():
         month = request.args.get('period_year', '') + '-' + request.args.get('period_month', '')
     try:
         start, end = period(month)
+        if month > date.today().strftime('%Y-%m'):
+            raise ValueError('future_month')
     except ValueError:
-        flash('Periode atau filter belum valid. Pilih kembali.', 'error')
+        flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.', 'error')
         return redirect(url_for('finance.overview', business_id=selected))
     if business is not None:
         return redirect(url_for('finance.dashboard', business_id=business['id'], month=month))
@@ -184,9 +187,11 @@ def overview():
         for key in keys:
             totals[key] += values[key]
     selected_year = int(month[:4])
-    period_years = sorted(set(range(max(1, date.today().year - 10), min(9999, date.today().year + 5) + 1)) | {selected_year})
+    current_year, current_month = date.today().year, date.today().month
+    period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | {selected_year})
     return Response(render_template('finance_overview.html', user=user, businesses=businesses,
         business=None, month=month, period_years=period_years, selected_year=selected_year,
+        current_year=current_year, current_month=current_month,
         summary=totals, breakdown=breakdown, as_of=end), headers={'Cache-Control': 'private, no-store'})
 
 
@@ -200,15 +205,18 @@ def dashboard(business_id, user, business):
     direction = request.args.get('direction') or None
     try:
         start, end = period(month)
+        if month > date.today().strftime('%Y-%m'):
+            raise ValueError('future_month')
         if direction not in (None, 'INCOME', 'EXPENSE'):
             raise ValueError('direction')
     except ValueError:
-        flash('Periode atau filter belum valid. Pilih kembali.', 'error')
+        flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.', 'error')
         return redirect(url_for('finance.dashboard', business_id=business_id))
     if split_period:
         return redirect(url_for('finance.dashboard', business_id=business_id, month=month, direction=direction))
     selected_year = int(month[:4])
-    period_years = sorted(set(range(max(1, date.today().year - 10), min(9999, date.today().year + 5) + 1)) | {selected_year})
+    current_year, current_month = date.today().year, date.today().month
+    period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | {selected_year})
     actor = {'actor_user_id': user['id']}
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
@@ -243,6 +251,7 @@ def dashboard(business_id, user, business):
         direction=direction, show_all_transactions=show_all_transactions,
         has_more_transactions=has_more_transactions,
         period_years=period_years, selected_year=selected_year,
+        current_year=current_year, current_month=current_month,
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
         today=date.today().isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
@@ -426,8 +435,10 @@ def operations(business_id,user,business):
     month = request.args.get('month',date.today().strftime('%Y-%m'))
     try:
         start,end = period(month)
+        if month > date.today().strftime('%Y-%m'):
+            raise ValueError('future_month')
     except ValueError:
-        flash('Periode belum valid. Pilih kembali.','error')
+        flash('Periode belum valid. Bulan masa depan belum dapat dipilih.','error')
         return redirect(url_for('finance.operations',business_id=business_id))
     actor = {'actor_user_id':user['id']}
     rules = finance.list_recurring_expenses(business_id,include_inactive=True,**actor)
@@ -438,7 +449,8 @@ def operations(business_id,user,business):
         attention={r['id']:finance.recurring_needs_attention(business_id,r['id'],**actor) for r in rules if r['is_active']},
         accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'EXPENSE',**actor),
         contributions=finance.get_project_cash_contribution(business_id,start,end,**actor),
-        month=month,today=date.today().isoformat(),max_occurrences=finance.MAX_RECURRING_OCCURRENCES)
+        month=month,current_month=date.today().strftime('%Y-%m'),today=date.today().isoformat(),
+        max_occurrences=finance.MAX_RECURRING_OCCURRENCES)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/recurring',methods=['POST'])
@@ -494,9 +506,9 @@ def reports(business_id,user,business):
         trend=finance.get_monthly_cashflow_trend(business_id,filters['start'][:7],filters['end'][:7],
             start_date=filters['start'],end_date=filters['end'],**actor)
     except finance.FinanceError as error:
-        return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section),400
+        return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section,today=date.today().isoformat()),400
     response=Response(render_template('finance_reports.html',user=user,business=business,filters=filters,section=section,
-        data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
+        today=date.today().isoformat(),data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
         account_types=finance_reports.ACCOUNT_TYPES,export_names=finance_reports.REPORT_NAMES))
     response.headers['Cache-Control']='private, no-store'
     return response
@@ -757,7 +769,8 @@ def collection_reminder(business_id,user,business,invoice_id):
 def receipt_page(user, business, review=None, error=None, values=None, status=200):
     accounts, categories = finance_receipts.options(business['id'], user['id'])
     return render_template('finance_receipt.html', user=user, business=business, review=review,
-                           accounts=accounts, categories=categories, error=error, values=values), status
+                           accounts=accounts, categories=categories, error=error, values=values,
+                           today=date.today().isoformat()), status
 
 
 @finance_bp.route('/business/<int:business_id>/finance/receipts/new')
@@ -909,7 +922,7 @@ def bank_detail(business_id,user,business,import_id):
     account=next((a for a in finance.list_accounts(business_id,True,actor_user_id=user['id']) if a['id']==imp['account_id']),None)
     return render_template('finance_bank_detail.html',user=user,business=business,imp=imp,account=account,
         rows=all_rows[(page-1)*50:page*50],candidates=candidates,candidate_error=candidate_error,categories=categories,
-        counts=counts,page=page,pages=max(1,(len(all_rows)+49)//50))
+        counts=counts,page=page,pages=max(1,(len(all_rows)+49)//50),today=date.today().isoformat())
 
 
 @finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/review',methods=['POST'])
@@ -1093,4 +1106,5 @@ def edit_transaction(business_id, user, business, transaction_id):
     return render_template('finance_transaction_edit.html', business=business, user=user, transaction=transaction,
         initial_description=description, initial_other_description=other_description,
         accounts=finance.list_accounts(business_id, actor_user_id=user['id']),
-        categories=finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id']))
+        categories=finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id']),
+        today=date.today().isoformat())
