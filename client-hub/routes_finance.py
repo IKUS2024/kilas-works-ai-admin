@@ -169,7 +169,6 @@ def overview():
         if month > date.today().strftime('%Y-%m'):
             raise ValueError('future_month')
         end = min(end, date.today().isoformat())
-        end = min(end, date.today().isoformat())
     except ValueError:
         flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.', 'error')
         return redirect(url_for('finance.overview', business_id=selected))
@@ -209,6 +208,7 @@ def dashboard(business_id, user, business):
         start, end = period(month)
         if month > date.today().strftime('%Y-%m'):
             raise ValueError('future_month')
+        end = min(end, date.today().isoformat())
         if direction not in (None, 'INCOME', 'EXPENSE'):
             raise ValueError('direction')
     except ValueError:
