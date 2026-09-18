@@ -1,60 +1,55 @@
 {% extends "base.html" %}
 {% block title %}Layanan — Kilas Works{% endblock %}
 {% block content %}
+{% include "_client_compact_style.html" %}
 <style>
-.service-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:16px}
-.service-item{min-width:0;border:1px solid var(--border,#ddd);border-radius:12px;padding:18px;display:flex;flex-direction:column;overflow-wrap:anywhere}
-.service-item h3{margin:0 0 10px}.service-price{font-weight:700;margin:12px 0}.service-action{margin-top:auto;padding-top:14px}
-.service-item .btn{max-width:100%;white-space:normal;box-sizing:border-box}.service-item form{max-width:100%}
+.catalog-groups{display:grid;gap:10px}.catalog-group{padding:0;overflow:hidden}.catalog-group>summary{list-style:none;cursor:pointer;padding:14px 15px;font-weight:800}.catalog-group>summary::-webkit-details-marker{display:none}.catalog-group>summary::after{content:"⌄";float:right;color:var(--text-dim)}.catalog-group[open]>summary{border-bottom:1px solid var(--border)}.catalog-group[open]>summary::after{content:"⌃"}.catalog-body{padding:12px}.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.catalog-item{border:1px solid var(--border);border-radius:13px;padding:11px;min-width:0}.catalog-item h3{font-size:14px;margin:0 0 4px}.catalog-price{font-weight:800;font-size:13px;margin:7px 0}.catalog-desc{font-size:11px;color:var(--text-dim);line-height:1.4}.catalog-item .btn{width:100%;text-align:center}
+@media(max-width:620px){.catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.catalog-item{padding:9px}.catalog-item h3{font-size:13px}.catalog-desc{display:none}}@media(max-width:360px){.catalog-grid{grid-template-columns:1fr}.catalog-desc{display:block}}
 </style>
-<h1>Layanan Kilas Works</h1>
-<p class="muted">Pilih layanan yang kamu butuhkan — bisa langsung dipilih atau minta penawaran, tanpa perlu
-  bikin data bisnis dulu. Khusus Kilas Brain, data bisnis diisi dulu sebagai bagian dari proses setup.</p>
+<div class="client-page">
+  <header class="client-head"><div><h1>Layanan Kilas Works</h1><p>Pilih kategori dulu, baru lihat layanan di dalamnya.</p></div></header>
 
-{% if businesses|length > 1 %}
-<div class="card">
-  <label>Bisnis</label>
-  <select id="business_select">
-    {% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}
-  </select>
-</div>
-{% endif %}
+  {% if businesses|length > 1 %}
+    <details class="card client-collapsible">
+      <summary>Bisnis untuk pesanan</summary>
+      <div class="client-collapsible-body"><select id="business_select">{% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}</select></div>
+    </details>
+  {% endif %}
 
-<details class="card"><summary>Biaya transport produksi</summary><p class="muted">{{ transport_policy }}</p></details>
+  <details class="card client-collapsible">
+    <summary>Ketentuan Transport</summary>
+    <div class="client-collapsible-body"><p class="client-note">{{ transport_policy }}</p></div>
+  </details>
 
-{% for category, items in by_category.items() %}
-<div class="card">
-  <h2>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Content / Creative','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Business Systems','TALENT':'Talent Management','ADS':'Meta Ads'}.get(category, category.replace('_', ' ').title()) }}</h2>
-  <div class="service-grid">
-    {% for item in items %}
-    <article class="service-item">
-      <h3>{{ public_name(item) }}</h3>
-      {% if item.catalog_key == 'content_growth' %}<span class="pill">Rekomendasi · Pilihan Tengah</span>{% endif %}
-      <p class="muted">{{ service_description(item) }}</p>
-      <p class="service-price">{{ display_price(item) }}</p>
-      <div class="service-action">
-        {% set unfinished = unfinished_by_catalog_key.get(item.catalog_key) if single_business else None %}
-        {% if item.category == 'AI_ADMIN' %}
-          <a class="btn small" href="{{ url_for('client.dashboard') }}">Mulai di Dashboard</a>
-        {% else %}
-        <form method="post" action="{{ url_for('projects.request_generic_quote' if item.pricing_mode == 'CUSTOM_QUOTE' else 'projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" class="inline" onsubmit="setBusinessId(this);">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}">
-          <button class="btn small" type="submit">{{ 'Lanjutkan' if unfinished else 'Isi Brief' }}</button>
-        </form>
-        {% endif %}
-      </div>
-    </article>
+  <div class="catalog-groups">
+    {% for category, items in by_category.items() %}
+      <details class="card catalog-group" {% if loop.first %}open{% endif %}>
+        <summary>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Content / Creative','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Business Systems','TALENT':'Talent Management','ADS':'Meta Ads'}.get(category, category.replace('_',' ').title()) }} · {{ items|length }}</summary>
+        <div class="catalog-body"><div class="catalog-grid">
+          {% for item in items %}
+            <article class="catalog-item">
+              <h3>{{ public_name(item) }}</h3>
+              {% if item.catalog_key == 'content_growth' %}<span class="client-status info">Rekomendasi</span>{% endif %}
+              <div class="catalog-price">{{ display_price(item) }}</div>
+              <div class="catalog-desc">{{ service_description(item) }}</div>
+              <div class="client-actions">
+                {% set unfinished = unfinished_by_catalog_key.get(item.catalog_key) if single_business else None %}
+                {% if item.category == 'AI_ADMIN' %}
+                  <a class="btn small" href="{{ url_for('client.dashboard') }}">Dashboard</a>
+                {% else %}
+                  <form method="post" action="{{ url_for('projects.request_generic_quote' if item.pricing_mode == 'CUSTOM_QUOTE' else 'projects.start_fixed_checkout', catalog_key=item.catalog_key) }}" onsubmit="setBusinessId(this);">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="business_id" value="{{ single_business.id if single_business else '' }}"><button class="btn small" type="submit">{{ 'Lanjutkan' if unfinished else 'Pilih' }}</button>
+                  </form>
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div></div>
+      </details>
     {% endfor %}
   </div>
 </div>
-{% endfor %}
 <script>
-function setBusinessId(form) {
-  var businessSelect = document.getElementById('business_select');
-  if (businessSelect) { form.business_id.value = businessSelect.value; }
-  // A blank business_id is fine — the service works without one (only Kilas Brain requires a
-  // business, and Kilas Brain never renders this form at all — see the template above).
-}
+function setBusinessId(form){var s=document.getElementById('business_select');if(s)form.business_id.value=s.value;}
 </script>
 {% endblock %}
