@@ -88,3 +88,22 @@ test('dashboard keeps monthly overview compact',()=>{
   assert.doesNotMatch(html,/<h2>Bulan \{\{ month \}\}<\/h2>/);
   assert.doesNotMatch(html,/<h2>Uang Tersedia<\/h2>/);
 });
+
+
+test('finance actual dates are capped at today and empty latest card is conditional',()=>{
+  const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  const edit=fs.readFileSync(path.join(__dirname,'../templates/finance_transaction_edit.html'),'utf8');
+  const receipt=fs.readFileSync(path.join(__dirname,'../templates/finance_receipt.html'),'utf8');
+  const invoice=fs.readFileSync(path.join(__dirname,'../templates/finance_invoice_form.html'),'utf8');
+  const payment=fs.readFileSync(path.join(__dirname,'../templates/finance_invoice_detail.html'),'utf8');
+  const bank=fs.readFileSync(path.join(__dirname,'../templates/finance_bank_detail.html'),'utf8');
+  const bankReview=fs.readFileSync(path.join(__dirname,'../templates/_finance_bank_review_fields.html'),'utf8');
+  assert.match(dashboard,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(edit,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(receipt,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(invoice,/name="issue_date"[^>]*max="\{\{ today \}\}"/);
+  assert.match(payment,/name="paid_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(bank,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
+  assert.match(bankReview,/name="transaction_date"[^>]*max="\{\{ today \}\}"/);
+  assert.match(dashboard,/\{% if transactions %\}<div class="card" id="transactions">/);
+});
