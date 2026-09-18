@@ -150,7 +150,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(json.loads(history[0]['after_json'])['amount_minor'],80)
         self.client.post(self.url+f'/transactions/{tx["id"]}/void?branch_id={self.ba}')
         self.assertEqual(f.get_transaction(self.b,tx['id'])['status'],'VOID')
-        self.assertIn('Servis ulang',self.page(self.ba)[0].text)
+        self.assertNotIn('Servis ulang',self.page(self.ba)[0].text)
 
     def test_branch_account_category_rename_deactivate_preserves_history(self):
         tx=self.tx(self.ba)
