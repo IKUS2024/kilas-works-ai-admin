@@ -237,7 +237,7 @@ def dashboard(business_id, user, business):
         period_years=period_years, selected_year=selected_year,
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
-        today=date.today().isoformat(), account_types={'CASH':'Kas','BANK':'Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
+        today=date.today().isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
 
 
 def mutate(business_id, action, success, destination=None):
