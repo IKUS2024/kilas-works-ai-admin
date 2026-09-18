@@ -1,38 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Search — Admin{% endblock %}
 {% block content %}
-<h1>Global Search</h1>
-<form method="get" style="margin-bottom:16px;display:flex;gap:8px;">
-  <input type="text" name="q" value="{{ query }}" placeholder="Cari customer, business, project, quote, invoice, talent..." style="max-width:420px;">
-  <button class="btn" type="submit">Cari</button>
-</form>
+{% include "_admin_compact_style.html" %}
+<div class="admin-page">
+  <header class="admin-head"><div><h1>Global Search</h1><p>Cari semua data owner dari satu tempat.</p></div></header>
+  <form method="get" class="card" style="display:flex;gap:8px;padding:12px;">
+    <input type="text" name="q" value="{{ query }}" placeholder="Cari customer, business, project, quote, invoice, talent...">
+    <button class="btn" type="submit">Cari</button>
+  </form>
 
-{% if results %}
-  <div class="card">
-    <h2>Users ({{ results.users|length }})</h2>
-    {% for u in results.users %}<p>{{ u.full_name or '-' }} — {{ u.email }} ({{ u.role }})</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
-  </div>
-  <div class="card">
-    <h2>Businesses ({{ results.businesses|length }})</h2>
-    {% for b in results.businesses %}<p><a href="{{ url_for('admin.review_business', business_id=b.id) }}">{{ b.business_name }}</a> — {{ b.status|humanize_status('business') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
-  </div>
-  <div class="card">
-    <h2>Projects ({{ results.projects|length }})</h2>
-    {% for p in results.projects %}<p><a href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">{{ p.title }}</a> — {{ p.project_type }} · {{ p.status|humanize_status('project') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
-  </div>
-  <div class="card">
-    <h2>Quotations ({{ results.quotations|length }})</h2>
-    {% for q in results.quotations %}<p>{{ q.quotation_number }} — Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status|humanize_status('quotation') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
-  </div>
-  <div class="card">
-    <h2>Invoices ({{ results.invoices|length }})</h2>
-    {% for i in results.invoices %}<p><a href="{{ url_for('payments.invoice_page', invoice_id=i.id) }}">{{ i.invoice_number }}</a> — Rp{{ '{:,}'.format(i.amount).replace(',', '.') }} · {{ i.status|humanize_status('invoice') }}</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
-  </div>
-  <div class="card">
-    <h2>Talent ({{ results.talents|length }})</h2>
-    {% for t in results.talents %}<p>{{ t.name }} ({{ t.social_handle }})</p>{% else %}<p class="muted">Tidak ada hasil.</p>{% endfor %}
-  </div>
-{% elif query %}
-  <p class="muted">Masukkan kata kunci pencarian.</p>
-{% endif %}
+  {% if results %}
+    <div class="admin-stats">
+      <div class="admin-stat"><strong>{{ results.businesses|length }}</strong><span>Business</span></div>
+      <div class="admin-stat"><strong>{{ results.projects|length }}</strong><span>Project</span></div>
+      <div class="admin-stat"><strong>{{ results.invoices|length }}</strong><span>Invoice</span></div>
+    </div>
+
+    <details class="card admin-collapsible" {% if results.businesses %}open{% endif %}>
+      <summary>Businesses · {{ results.businesses|length }}</summary>
+      <div class="admin-collapsible-body"><div class="admin-list">{% for b in results.businesses %}<article class="admin-item"><div class="admin-item-head"><div><div class="admin-item-title">{{ b.business_name }}</div><div class="admin-item-meta">{{ b.status|humanize_status('business') }}</div></div><a class="btn small secondary" href="{{ url_for('admin.review_business', business_id=b.id) }}">Buka</a></div></article>{% else %}<div class="admin-empty">Tidak ada hasil.</div>{% endfor %}</div></div>
+    </details>
+
+    <details class="card admin-collapsible">
+      <summary>Projects · {{ results.projects|length }}</summary>
+      <div class="admin-collapsible-body"><div class="admin-list">{% for p in results.projects %}<article class="admin-item"><div class="admin-item-head"><div><div class="admin-item-title">{{ p.title }}</div><div class="admin-item-meta">{{ p.project_type }} · {{ p.status|humanize_status('project') }}</div></div><a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Buka</a></div></article>{% else %}<div class="admin-empty">Tidak ada hasil.</div>{% endfor %}</div></div>
+    </details>
+
+    <details class="card admin-collapsible">
+      <summary>Invoices · {{ results.invoices|length }}</summary>
+      <div class="admin-collapsible-body"><div class="admin-list">{% for i in results.invoices %}<article class="admin-item"><div class="admin-item-head"><div><div class="admin-item-title">{{ i.invoice_number }}</div><div class="admin-item-meta">Rp{{ '{:,}'.format(i.amount).replace(',', '.') }} · {{ i.status|humanize_status('invoice') }}</div></div><a class="btn small secondary" href="{{ url_for('payments.invoice_page', invoice_id=i.id) }}">Buka</a></div></article>{% else %}<div class="admin-empty">Tidak ada hasil.</div>{% endfor %}</div></div>
+    </details>
+
+    <details class="card admin-collapsible">
+      <summary>Users · {{ results.users|length }}</summary>
+      <div class="admin-collapsible-body"><div class="admin-list">{% for u in results.users %}<article class="admin-item"><div class="admin-item-title">{{ u.full_name or '-' }}</div><div class="admin-item-meta">{{ u.email }} · {{ u.role }}</div></article>{% else %}<div class="admin-empty">Tidak ada hasil.</div>{% endfor %}</div></div>
+    </details>
+
+    <details class="card admin-collapsible">
+      <summary>Quotations · {{ results.quotations|length }}</summary>
+      <div class="admin-collapsible-body"><div class="admin-list">{% for q in results.quotations %}<article class="admin-item"><div class="admin-item-title">{{ q.quotation_number }}</div><div class="admin-item-meta">Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status|humanize_status('quotation') }}</div></article>{% else %}<div class="admin-empty">Tidak ada hasil.</div>{% endfor %}</div></div>
+    </details>
+
+    <details class="card admin-collapsible">
+      <summary>Talent · {{ results.talents|length }}</summary>
+      <div class="admin-collapsible-body"><div class="admin-list">{% for t in results.talents %}<article class="admin-item"><div class="admin-item-title">{{ t.name }}</div><div class="admin-item-meta">{{ t.social_handle or '-' }}</div></article>{% else %}<div class="admin-empty">Tidak ada hasil.</div>{% endfor %}</div></div>
+    </details>
+  {% elif query %}
+    <div class="admin-empty">Tidak ada hasil untuk pencarian ini.</div>
+  {% endif %}
+</div>
 {% endblock %}
