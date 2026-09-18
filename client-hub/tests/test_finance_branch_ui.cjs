@@ -66,3 +66,13 @@ test('receivables operations and reports expose compact section hubs',()=>{
   assert.match(reports,/Filter &amp; Export/);
   assert.match(reports,/Kas &amp; Rekening/);
 });
+
+
+test('dashboard exposes main finance icon navigation',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  for(const label of ['Menu Finance','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','Bank','AI Assistant']){
+    assert.match(html,new RegExp(label));
+  }
+  assert.doesNotMatch(html,/Alat Finance Lainnya/);
+  assert.match(html,/finance-home-grid/);
+});
