@@ -92,12 +92,12 @@ ERRORS = {
     'invalid_payment_key': 'Form pembayaran tidak valid. Muat ulang halaman.',
     'invoice_ledger_managed': 'Transaksi ini berasal dari pembayaran invoice dan tidak dapat diubah atau dibatalkan langsung.',
     'invalid_money_minor': 'Nominal belum valid. Masukkan angka rupiah yang benar.',
-    'account_unavailable': 'Akun keuangan tidak tersedia.',
-    'account_currency_mismatch': 'Pilih akun dalam rupiah untuk transaksi ini.',
+    'account_unavailable': 'Kas / rekening tidak tersedia.',
+    'account_currency_mismatch': 'Pilih kas / rekening dalam rupiah untuk transaksi ini.',
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
-    'account_exists': 'Akun dengan nama dan jenis tersebut sudah ada.',
+    'account_exists': 'Kas / rekening dengan nama dan jenis tersebut sudah ada.',
     'category_exists': 'Kategori tersebut sudah ada.',
     'invalid_date': 'Tanggal belum valid.',
     'invalid_text': 'Isian terlalu panjang atau tidak valid.',
@@ -107,7 +107,7 @@ ERRORS = {
     'branch_last_active': 'Sisakan minimal satu cabang aktif. Tambahkan cabang baru sebelum menonaktifkan cabang terakhir.',
     'branch_exists': 'Nama cabang sudah digunakan.',
     'branch_unavailable': 'Cabang tidak tersedia.',
-    'branch_mismatch': 'Akun harus berada dalam cabang yang sama.',
+    'branch_mismatch': 'Kas / rekening harus berada dalam cabang yang sama.',
 }
 
 
@@ -286,7 +286,7 @@ def create_account(business_id, user, business):
     return mutate(business_id, lambda: finance.create_account(business_id, request.form.get('name'),
         request.form.get('account_type'), currency='IDR',
         opening_balance_minor=whole_idr(request.form.get('opening_balance', '0'), signed=True),
-        actor_user_id=user['id']), 'Akun keuangan ditambahkan.')
+        actor_user_id=user['id']), 'Kas / rekening ditambahkan.')
 
 
 @finance_bp.route('/business/<int:business_id>/finance/categories', methods=['POST'])
