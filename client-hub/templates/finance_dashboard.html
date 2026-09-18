@@ -19,7 +19,7 @@
 <h2>Kelola Finance</h2><p class="muted">Pilih bagian yang mau diatur. Form tidak lagi memenuhi halaman.</p>
 <div class="finance-settings-grid">
 <button type="button" class="finance-settings-tile" data-finance-open="branch-dialog"><span class="finance-settings-icon">🏪</span><strong>Cabang</strong><span class="finance-settings-count">{{ finance_branches|length }} cabang</span></button>
-<button type="button" class="finance-settings-tile" data-finance-open="account-dialog"><span class="finance-settings-icon">💳</span><strong>Akun</strong><span class="finance-settings-count">{{ accounts|length }} akun</span></button>
+<button type="button" class="finance-settings-tile" data-finance-open="account-dialog"><span class="finance-settings-icon">💳</span><strong>Kas &amp; Rekening</strong><span class="finance-settings-count">{{ accounts|length }} tempat uang</span></button>
 <button type="button" class="finance-settings-tile" data-finance-open="category-dialog"><span class="finance-settings-icon">🏷️</span><strong>Kategori</strong><span class="finance-settings-count">{{ categories|length }} kategori</span></button>
 </div>
 </div>
@@ -31,7 +31,7 @@
 <a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
 <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a>
 </details>
-{% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan cabang Utama, akun Kas dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
+{% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan cabang Utama, Kas, dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
 <form method="get" class="card finance-filter">
 <input type="hidden" name="branch_id" value="{{ selected_branch_id or 'all' }}">
 {% include '_finance_period_selector.html' %}
@@ -49,7 +49,7 @@
 {% for t in transactions %}
 <article class="finance-entry">
 <div class="finance-entry-head"><div><strong>{{ t.occurred_on }}</strong><div class="finance-entry-meta">{{ t.branch_name }} · {{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }}</div></div><span class="finance-entry-amount">{{ '+' if t.direction == 'INCOME' else '−' }}{% if t.currency == 'IDR' %}{{ t.amount_minor|finance_idr }}{% else %}{{ t.currency }} {{ t.amount_minor }}{% endif %}</span></div>
-<p style="white-space:pre-wrap">{{ t.description or 'Tanpa catatan' }}</p><p class="muted">{{ account_map.get(t.account_id, {}).get('name','Akun') }} · {{ category_map.get(t.category_id, {}).get('name','Kategori') }}</p>
+<p style="white-space:pre-wrap">{{ t.description or 'Tanpa catatan' }}</p><p class="muted">{{ account_map.get(t.account_id, {}).get('name','Kas / Rekening') }} · {{ category_map.get(t.category_id, {}).get('name','Kategori') }}</p>
 {% if not branch_read_only and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<div class="finance-entry-actions">{% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">✏️ Edit</a>{% endif %}<form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button></form></div>{% endif %}
 </article>
 {% else %}<p class="finance-empty">Belum ada transaksi pada periode ini.</p>{% endfor %}</div>
@@ -62,8 +62,8 @@
 <label for="transaction-kind">Jenis</label><select id="transaction-kind" name="direction"><option value="INCOME">Pemasukan</option><option value="EXPENSE">Pengeluaran</option></select>
 <label for="transaction-amount">Nominal (rupiah)</label><input id="transaction-amount" name="amount" inputmode="numeric" pattern="[0-9]+" maxlength="19" required>
 <label for="transaction-date">Tanggal</label><input id="transaction-date" name="occurred_on" type="date" value="{{ today }}" required>
-<label for="transaction-account">Akun</label><select id="transaction-account" name="account_id" required>{% for a in accounts if a.is_active and a.currency == 'IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
-<p class="muted">Akun = tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · GoPay → GoPay.</p>
+<label for="transaction-account">Kas / Rekening</label><select id="transaction-account" name="account_id" required>{% for a in accounts if a.is_active and a.currency == 'IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<p class="muted">Pilih tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · pembayaran digital → GoPay.</p>
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
 <label for="transaction-note">Catatan</label><textarea id="transaction-note" name="description" maxlength="4000"></textarea>
@@ -79,9 +79,9 @@
 </div></dialog>
 
 <dialog id="account-dialog" class="finance-sheet">
-<div class="finance-sheet-head"><h2>💳 Akun Keuangan</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
-<div class="finance-sheet-body"><p class="muted">Akun di cabang {{ selected_branch.name }} menunjukkan tempat uang disimpan: Kas, bank, atau e-wallet.</p>
-<details class="finance-add-panel"><summary>＋ Tambah Akun</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama akun<input name="name" maxlength="160" required></label><label>Jenis akun<select name="account_type">{% for key,label in account_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label><label>Saldo awal (rupiah)<input name="opening_balance" value="0" pattern="-?[0-9]+" maxlength="20" required></label><button class="btn secondary">Tambah Akun</button></form></details>
+<div class="finance-sheet-head"><h2>💳 Kas &amp; Rekening</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
+<div class="finance-sheet-body"><p class="muted">Tempat uang cabang {{ selected_branch.name }}: Kas, rekening bank, atau e-wallet.</p>
+<details class="finance-add-panel"><summary>＋ Tambah Kas / Rekening</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama kas / rekening<input name="name" placeholder="Contoh: Kas, BCA, GoPay" maxlength="160" required></label><label>Jenis<select name="account_type">{% for key,label in account_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label><label>Saldo awal (rupiah)<input name="opening_balance" value="0" pattern="-?[0-9]+" maxlength="20" required></label><button class="btn secondary">Tambah Kas / Rekening</button></form></details>
 <div class="finance-record-list">{% for a in accounts %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
