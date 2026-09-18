@@ -1,96 +1,46 @@
 {% extends "base.html" %}
 {% block title %}{{ project.title }} — Kilas Works{% endblock %}
 {% block content %}
-<h1>{{ project.title }}</h1>
-<span class="pill APPROVED">{{ project.status|humanize_status('project') }}</span>
-<span class="muted">· {{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</span>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <a class="muted" href="{{ url_for('projects.my_project_list') }}">← Pesanan</a>
+  <header class="client-head" style="margin-top:10px;">
+    <div><h1>{{ project.title }}</h1><p>{{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</p></div>
+    <span class="client-status {{ 'ok' if project.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if project.status in ('WAITING_FOR_QUOTE','PAYMENT_PENDING','APPROVED') else '') }}">{{ project.status|humanize_status('project') }}</span>
+  </header>
 
-<div class="card">
-  <h2>Detail</h2>
-  <table>
-    <tr><th>Budget</th><td>
-      {% if project.budget_min or project.budget_max %}
-        Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }}
-        – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}
-      {% else %}-{% endif %}
-    </td></tr>
-    <tr><th>Harga Final</th><td>{{ 'Rp{:,}'.format(project.final_price).replace(',', '.') if project.final_price else 'Belum ada penawaran' }}</td></tr>
-  </table>
-</div>
+  <section class="card">
+    <div class="client-stats">
+      <div class="client-stat"><strong>{% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }}{% else %}-{% endif %}</strong><span>Budget awal</span></div>
+      <div class="client-stat" style="grid-column:span 2;"><strong>{{ 'Rp{:,}'.format(project.final_price).replace(',', '.') if project.final_price else 'Belum ada' }}</strong><span>Harga final</span></div>
+    </div>
 
-{% if attachments %}
-<div class="card">
-  <h2>Lampiran Brief / Referensi</h2>
-  <table>
-    <tr><th>File</th><th></th></tr>
-    {% for a in attachments %}
-    <tr>
-      <td>{{ a.original_filename }}</td>
-      <td><a href="{{ url_for('projects.project_attachment_download', business_id=business.id, project_id=project.id, file_id=a.id) }}" target="_blank">Lihat/Download</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
-{% endif %}
-
-{% if quotations %}
-<div class="card">
-  <h2>Quotation</h2>
-  <table>
-    <tr><th>Nomor</th><th>Harga</th><th>Status</th><th></th></tr>
-    {% for q in quotations %}
-    <tr>
-      <td>{{ q.quotation_number }}</td>
-      <td>Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }}</td>
-      <td>{{ q.status|humanize_status('quotation') }}</td>
-      <td><a href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=q.id) }}">Lihat</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-</div>
-{% endif %}
-
-{% if project.status == 'APPROVED' %}
-<div class="card">
-  <a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut ke Checkout</a>
-  {% if can_cancel %}
-  <form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" class="inline" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn danger" type="submit">Batalkan</button>
-  </form>
-  {% endif %}
-</div>
-{% elif project.status == 'WAITING_FOR_QUOTE' %}
-<div class="card">
-  <p class="muted">Menunggu Penawaran dari tim Kilas Works.</p>
-  {% if can_cancel %}
-  <form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn danger" type="submit">Batalkan</button>
-  </form>
-  {% endif %}
-</div>
-{% elif project.status == 'PAYMENT_PENDING' %}
-<div class="card">
-  {% if payment and payment.status == 'UNDER_REVIEW' %}
-    <p class="muted">Bukti pembayaran sedang direview oleh tim — pesanan tidak bisa dibatalkan sendiri saat ini.</p>
-  {% else %}
-    <a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Bayar</a>
-    {% if can_cancel %}
-    <form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" class="inline" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn danger" type="submit">Batalkan Pesanan</button>
-    </form>
+    {% if project.status == 'APPROVED' %}
+      <div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Checkout</a>{% if can_cancel %}<form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form>{% endif %}</div>
+    {% elif project.status == 'WAITING_FOR_QUOTE' %}
+      <p class="client-note">Menunggu penawaran dari tim Kilas Works.</p>
+      {% if can_cancel %}<div class="client-actions"><form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form></div>{% endif %}
+    {% elif project.status == 'PAYMENT_PENDING' %}
+      {% if payment and payment.status == 'UNDER_REVIEW' %}<p class="client-note">Bukti pembayaran sedang direview.</p>{% else %}<div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Bayar</a>{% if can_cancel %}<form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form>{% endif %}</div>{% endif %}
+    {% elif project.status in ('PAID','IN_PROGRESS','COMPLETED') %}
+      <p class="client-note">Pesanan sedang / sudah diproses.</p>
+    {% elif project.status == 'CANCELLED' %}
+      <p class="client-note">Pesanan sudah dibatalkan. Riwayat tetap tersimpan.</p>
     {% endif %}
+  </section>
+
+  {% if attachments %}
+    <details class="card client-collapsible">
+      <summary>Lampiran · {{ attachments|length }}</summary>
+      <div class="client-collapsible-body"><div class="client-list">{% for a in attachments %}<article class="client-item"><div class="client-item-head"><div class="client-item-title">{{ a.original_filename }}</div><a class="btn small secondary" href="{{ url_for('projects.project_attachment_download', business_id=business.id, project_id=project.id, file_id=a.id) }}" target="_blank">Buka</a></div></article>{% endfor %}</div></div>
+    </details>
+  {% endif %}
+
+  {% if quotations %}
+    <details class="card client-collapsible">
+      <summary>Quotation · {{ quotations|length }}</summary>
+      <div class="client-collapsible-body"><div class="client-list">{% for q in quotations %}<article class="client-item"><div class="client-item-head"><div><div class="client-item-title">{{ q.quotation_number }}</div><div class="client-item-meta">Rp{{ '{:,}'.format(q.final_price).replace(',', '.') }} · {{ q.status|humanize_status('quotation') }}</div></div><a class="btn small secondary" href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=q.id) }}">Lihat</a></div></article>{% endfor %}</div></div>
+    </details>
   {% endif %}
 </div>
-{% elif project.status in ('PAID', 'IN_PROGRESS', 'COMPLETED') %}
-<div class="card">
-  <p class="muted">Pesanan ini sedang/sudah diproses — hubungi Kilas Works kalau ada perubahan yang diperlukan.</p>
-</div>
-{% elif project.status == 'CANCELLED' %}
-<div class="card">
-  <p class="muted">Pesanan ini sudah dibatalkan. Riwayat tetap tersimpan untuk referensi.</p>
-</div>
-{% endif %}
 {% endblock %}
