@@ -41,7 +41,7 @@ def validate(payload):
     month = payload.get('month')
     if not isinstance(month, str) or not re.fullmatch(r'[0-9]{4}-[0-9]{2}', month): raise ValueError('month')
     start = date.fromisoformat(month+'-01')
-    if start.year < 2: raise ValueError('month')
+    if start.year < 2 or month > date.today().strftime('%Y-%m'): raise ValueError('month')
     scope = payload.get('scope', 'summary')
     if not isinstance(scope, str) or scope not in SCOPES: raise ValueError('scope')
     return question.strip(), start, scope
