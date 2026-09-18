@@ -190,6 +190,8 @@ def _transaction_data(business_id, data):
     data['amount_minor'] = _money(data['amount_minor'], positive=True)
     data['currency'] = _currency(data['currency'])
     data['occurred_on'] = _date(data['occurred_on'])
+    if data['occurred_on'] > date.today().isoformat():
+        raise FinanceError('future_date')
     branch_id = branches.account_branch(business_id, data['account_id'])
     if data.get('branch_id') is not None and data['branch_id'] != branch_id:
         raise FinanceError('branch_mismatch')
@@ -439,6 +441,8 @@ def list_customers(business_id, include_inactive=False, actor_user_id=None):
 
 def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, actor_user_id=None):
     issue_date, due_date = _period(issue_date, due_date)
+    if issue_date > date.today().isoformat():
+        raise FinanceError('future_date')
     notes = _text(notes, 4000)
     if not isinstance(items, list) or not 1 <= len(items) <= 100:
         raise FinanceError('invalid_items')
