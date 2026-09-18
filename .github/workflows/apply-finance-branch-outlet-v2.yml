@@ -1,0 +1,40 @@
+name: Apply Finance Branch Outlet Package V2
+
+on:
+  push:
+    branches:
+      - deploy/finance-branch-outlet
+    paths:
+      - '.tmp/kilas-branch-payload/trigger2.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: deploy/finance-branch-outlet
+          fetch-depth: 0
+      - name: Reconstruct package
+        run: |
+          set -euo pipefail
+          cat .tmp/kilas-branch-payload/part*.b64 | base64 -d > /tmp/payload.tar.bz2
+          echo '1bf1589f82d7ba71ece830b492fb282c1c4ea5316c880a86b085ef66a54ebdb9  /tmp/payload.tar.bz2' | sha256sum -c -
+          tar -xjf /tmp/payload.tar.bz2 -C .
+      - name: Syntax checks
+        run: |
+          set -euo pipefail
+          python3 -m py_compile client-hub/db.py client-hub/finance_bank_service.py client-hub/finance_branch_migration.py client-hub/finance_branches.py client-hub/finance_collections.py client-hub/finance_operator.py client-hub/finance_receipts.py client-hub/finance_reports.py client-hub/finance_service.py client-hub/routes_finance.py client-hub/tests/test_finance_branches.py client-hub/tests/test_finance_ux_ai_fix.py
+          node --check client-hub/static/finance_branches.js
+          node --check client-hub/tests/test_finance_branch_ui.cjs
+      - name: Commit package files
+        run: |
+          set -euo pipefail
+          git config user.name 'ChatGPT Codex Connector'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add client-hub
+          git commit -m 'feat(finance): add branch and outlet support'
+          git push origin HEAD:deploy/finance-branch-outlet
