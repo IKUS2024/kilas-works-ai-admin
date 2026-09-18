@@ -1,11 +1,76 @@
 {% extends 'base.html' %}
+{% block title %}Finance · {{ business.business_name }}{% endblock %}
 {% block content %}
-<h1>Finance · {{ business.business_name }}</h1><p>Finance berdiri sendiri dari Brain. Data kas, bank, dan e-wallet hanya dicatat; tidak ada koneksi bank langsung.</p>
-<section class="card"><h2>{{ {'NOT_ACTIVATED':'Belum diaktifkan','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis — hanya-baca'}[entitlement.status] }}</h2>{% if entitlement.until_local %}<p>Batas masa aktif: {{ entitlement.until_local }}</p>{% endif %}
-<a class="btn" href="{{ url_for('finance.dashboard',business_id=business.id) }}">{{ 'Buka Finance' if entitlement.active else 'Lihat Data Finance' }}</a></section>
-{% if not self_service_enabled %}<p>Finance mandiri belum dibuka. Pengelola perlu mengaktifkan konfigurasi akses setelah migrasi dan pemeriksaan staging.</p>{% endif %}
-{% if not accounts and self_service_enabled %}<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="setup"><h2>Siapkan Kas, Bank &amp; E-Wallet</h2><label for="name">Nama pencatatan</label><input id="name" name="name" value="Kas" maxlength="160" required><label for="account-type">Jenis</label><select id="account-type" name="account_type"><option value="CASH">Kas</option><option value="BANK">Bank</option><option value="EWALLET">E-Wallet</option></select><label for="opening">Saldo awal opsional (rupiah bulat)</label><input id="opening" name="opening_balance" value="0" pattern="-?[0-9]+" maxlength="20"><p>Saldo awal bukan transaksi uang masuk atau keluar.</p><button class="btn">Simpan Setup Finance</button></form>{% else %}<p>Siap digunakan: {% for a in accounts %}{{ a.name }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
-{% if self_service_enabled and accounts and not entitlement.trial_used and entitlement.status=='NOT_ACTIVATED' %}<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="trial"><label><input type="checkbox" name="terms" value="yes" required> Saya memahami trial berlangsung 7 × 24 jam, satu kali per bisnis. Sesudahnya data hanya-baca. Tidak ada penagihan otomatis.</label><button class="btn">Mulai Trial 7 Hari</button></form>{% endif %}
-<section class="card"><h2>Langganan Finance</h2><p>{{ finance_plan.amount_minor|finance_idr }} / {{ finance_plan.period_days }} hari. Perpanjangan dimulai dari akhir periode berbayar yang masih aktif, atau saat pembayaran diverifikasi jika sudah habis. Tidak ada penagihan otomatis.</p>{% if bank and self_service_enabled %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="subscribe"><input type="hidden" name="request_key" value="{{ bill_request_key }}"><button class="btn">Buat Tagihan Finance</button></form>{% else %}<p>Pembayaran belum tersedia. Tim Kilas Works perlu mengisi konfigurasi rekening pembayaran Finance.</p>{% endif %}
-{% for bill in bills %}<p><a href="{{ url_for('products.bill_page',business_id=business.id,bill_id=bill.id) }}">Tagihan #{{ bill.id }} · {{ bill.status }} · {{ bill.amount_minor|finance_idr }}</a></p>{% endfor %}</section>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head"><div><h1>Kilas Finance</h1><p>{{ business.business_name }}</p></div></header>
+
+  {% set finance_label = {'NOT_ACTIVATED':'Belum diaktifkan','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis'}[entitlement.status] %}
+  <section class="card">
+    <div class="client-item-head">
+      <div><div class="client-item-title">{{ finance_label }}</div><div class="client-item-meta">{% if entitlement.until_local %}Aktif s/d {{ entitlement.until_local }}{% else %}Finance berdiri sendiri dari Brain.{% endif %}</div></div>
+      <span class="client-status {{ 'ok' if entitlement.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else ('danger' if entitlement.status=='EXPIRED' else '') }}">{{ finance_label }}</span>
+    </div>
+    <div class="client-actions"><a class="btn" href="{{ url_for('finance.dashboard',business_id=business.id) }}">{{ 'Buka Finance' if entitlement.active else 'Lihat Data Finance' }}</a></div>
+    <p class="client-note">Kas, bank, dan e-wallet hanya dicatat di aplikasi; tidak ada koneksi bank langsung.</p>
+  </section>
+
+  {% if not self_service_enabled %}
+    <div class="client-empty">Finance mandiri belum dibuka untuk akun ini.</div>
+  {% endif %}
+
+  {% if not accounts and self_service_enabled %}
+    <details class="card client-collapsible" open>
+      <summary>1. Siapkan Kas / Rekening</summary>
+      <div class="client-collapsible-body">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="setup">
+          <div class="client-form-grid">
+            <label>Nama pencatatan<input name="name" value="Kas" maxlength="160" required></label>
+            <label>Jenis<select name="account_type"><option value="CASH">Kas</option><option value="BANK">Bank</option><option value="EWALLET">E-Wallet</option></select></label>
+            <label class="full">Saldo awal (opsional)<input name="opening_balance" value="0" pattern="-?[0-9]+" maxlength="20"></label>
+          </div>
+          <p class="client-note">Saldo awal bukan transaksi uang masuk atau keluar.</p>
+          <div class="client-actions"><button class="btn" type="submit">Simpan Setup</button></div>
+        </form>
+      </div>
+    </details>
+  {% elif accounts %}
+    <details class="card client-collapsible">
+      <summary>Kas &amp; Rekening · {{ accounts|length }}</summary>
+      <div class="client-collapsible-body"><div class="client-list">{% for a in accounts %}<div class="client-item"><div class="client-item-title">{{ a.name }}</div><div class="client-item-meta">{{ a.account_type if a.account_type else 'Akun Finance' }}</div></div>{% endfor %}</div></div>
+    </details>
+  {% endif %}
+
+  {% if self_service_enabled and accounts and not entitlement.trial_used and entitlement.status=='NOT_ACTIVATED' %}
+    <section class="card">
+      <div class="client-item-head"><div><div class="client-item-title">Coba Gratis 7 Hari</div><div class="client-item-meta">Satu kali per bisnis · tidak ada penagihan otomatis.</div></div><span class="client-status info">Trial</span></div>
+      <form method="post" style="margin-top:10px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="trial">
+        <label><input type="checkbox" name="terms" value="yes" required style="width:auto;display:inline-block;"> Saya memahami trial 7 × 24 jam dan sesudahnya data hanya-baca.</label>
+        <div class="client-actions"><button class="btn" type="submit">Mulai Trial</button></div>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="card">
+    <div class="client-item-head">
+      <div><div class="client-item-title">Langganan Finance</div><div class="client-item-meta">{{ finance_plan.amount_minor|finance_idr }} / {{ finance_plan.period_days }} hari · tanpa auto-renew.</div></div>
+    </div>
+    {% if bank and self_service_enabled %}
+      <form method="post" style="margin-top:10px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="subscribe"><input type="hidden" name="request_key" value="{{ bill_request_key }}"><button class="btn" type="submit">Buat Tagihan Finance</button></form>
+    {% else %}<p class="client-note">Pembayaran belum tersedia. Hubungi Kilas Works.</p>{% endif %}
+  </section>
+
+  <details class="card client-collapsible">
+    <summary>Riwayat Tagihan · {{ bills|length }}</summary>
+    <div class="client-collapsible-body">
+      <div class="client-list">
+        {% for bill in bills %}
+          <article class="client-item"><div class="client-item-head"><div><div class="client-item-title">Tagihan #{{ bill.id }}</div><div class="client-item-meta">{{ bill.amount_minor|finance_idr }} · {{ bill.created_at|humanize_timestamp }}</div></div><a class="btn small secondary" href="{{ url_for('products.bill_page',business_id=business.id,bill_id=bill.id) }}">{{ bill.status }} →</a></div></article>
+        {% else %}<div class="client-empty">Belum ada tagihan Finance.</div>{% endfor %}
+      </div>
+    </div>
+  </details>
+</div>
 {% endblock %}
