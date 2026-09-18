@@ -4,6 +4,7 @@ import json
 import os
 import re
 import uuid
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import requests
@@ -67,6 +68,7 @@ def validate_request(payload):
     question=text(payload['request'],1000)
     fields=dict(account_id=finance._id(payload['account_id']), category_id=finance._id(payload['category_id']),
                 date=finance._date(payload['date']), invoice_id=payload['invoice_id'],currency='IDR')
+    if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
     if action=='record_invoice_payment': finance._id(fields['invoice_id'])
     elif fields['invoice_id'] is not None: raise OperatorError('unexpected_invoice')
     return action,question,fields
@@ -79,6 +81,7 @@ def resolve(business_id, user_id, action, fields, *, draft):
         raise OperatorError('invalid_fields')
     if fields['currency']!='IDR': raise OperatorError('currency')
     finance._money(fields['amount_minor'],positive=True);finance._date(fields['date'])
+    if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
     text(fields['description'],500)
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
     direction='EXPENSE' if action=='create_expense' else 'INCOME'
