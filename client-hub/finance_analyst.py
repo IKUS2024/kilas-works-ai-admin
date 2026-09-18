@@ -51,6 +51,8 @@ def build_context(business_id, user_id, start, scope):
     """Existing Phase 3 calculations; only whitelisted aggregate fields reach AI."""
     actor = {'actor_user_id': user_id}
     end = start.replace(day=calendar.monthrange(start.year, start.month)[1])
+    if end > date.today():
+        end = date.today()
     facts = []
     def add(label, value, unit='IDR'):
         facts.append(dict(id='f'+str(len(facts)+1), label=label[:100], value=value, unit=unit,
