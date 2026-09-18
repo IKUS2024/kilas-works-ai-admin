@@ -21,3 +21,32 @@ test('direction changes and Lainnya visibility preserve notes',()=>{
   category.value='4';category.change();
   assert.equal(input.value,'Servis mesin kopi');assert.equal(input.required,true);
 });
+
+
+test('compact finance actions open and close bottom-sheet dialogs',()=>{
+  const dialog={open:false,showModal(){this.open=true;},close(){this.open=false;},addEventListener(_,callback){this.backdrop=callback;},querySelector(){return null;}};
+  const opener={dataset:{financeOpen:'branch-dialog'},addEventListener(_,callback){this.click=callback;}};
+  const closer={dataset:{financeClose:'branch-dialog'},addEventListener(_,callback){this.click=callback;}};
+  const document={
+    querySelectorAll(selector){
+      if(selector==='[data-other-category]')return [];
+      if(selector==='[data-finance-open]')return [opener];
+      if(selector==='[data-finance-close]')return [closer];
+      if(selector==='dialog.finance-sheet')return [dialog];
+      return [];
+    },
+    getElementById(id){return id==='branch-dialog'?dialog:null;}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/finance_branches.js'),'utf8'),{document});
+  opener.click(); assert.equal(dialog.open,true);
+  closer.click(); assert.equal(dialog.open,false);
+});
+
+test('dashboard uses compact management tiles and explicit transaction delete',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  assert.match(html,/data-finance-open="branch-dialog"/);
+  assert.match(html,/data-finance-open="account-dialog"/);
+  assert.match(html,/data-finance-open="category-dialog"/);
+  assert.match(html,/Hapus transaksi ini/);
+  assert.doesNotMatch(html,/Pengaturan cabang, akun &amp; kategori/);
+});
