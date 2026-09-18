@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Setup Awal — {{ business.business_name }}{% endblock %}
 {% block content %}
-<h1>Setup Awal — {{ business.business_name }}</h1>
-{% include "_brain_plan_notice.html" %}
-<p class="muted">Kenalkan bisnismu untuk pertama kali. Setelah setup selesai, perbarui informasi melalui Ajari Kilas Brain.</p>
-<p class="muted">Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p>
+{% include "_client_compact_style.html" %}
+<style>.wizard-head{margin-bottom:10px}.wizard-head h1{font-size:23px;margin:0 0 4px}.wizard-head p{margin:0;color:var(--text-dim);font-size:12px}.wizard-steps{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:3px}.wizard-steps::-webkit-scrollbar{display:none}.wizard-steps span{flex:0 0 auto}.wizard-plan{margin-bottom:10px}</style>
+<div class="wizard-head"><h1>Setup Awal</h1><p>{{ business.business_name }} · Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p></div>
+<details class="card client-collapsible wizard-plan"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
 
-<div class="steps">
+<div class="steps wizard-steps">
   {% for s in steps %}
     <span class="{{ 'active' if s == step else '' }}">{{ loop.index }}. {{ {'basics':'Data Bisnis','services':'Layanan','faq':'Pertanyaan Umum','style':'Gaya Bahasa','operations':'Operasional','upload':'Dokumen'}.get(s, s|capitalize) }}</span>
   {% endfor %}
@@ -17,12 +17,13 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if step == 'basics' %}
     <h2>Data Dasar Bisnis</h2>
-    <label>Nama bisnis <span class="muted" style="font-size:12px;">(Wajib)</span></label>
-    <input type="text" name="business_name" value="{{ profile.business_name or business.business_name or '' }}" required>
-    <label>Kategori (mis. Kedai kopi, Klinik gigi, Fotografi) <span class="muted" style="font-size:12px;">(Wajib)</span></label>
-    <input type="text" name="category" value="{{ profile.category or '' }}">
-    <label>Deskripsi singkat <span class="muted" style="font-size:12px;">(Opsional)</span></label>
-    <textarea name="short_description" id="field_short_description">{{ profile.short_description or '' }}</textarea>
+    <div class="client-form-grid">
+      <label>Nama bisnis <span class="muted">(Wajib)</span><input type="text" name="business_name" value="{{ profile.business_name or business.business_name or '' }}" required></label>
+      <label>Kategori <span class="muted">(Wajib)</span><input type="text" name="category" value="{{ profile.category or '' }}" placeholder="Kedai kopi, Klinik, Fotografi"></label>
+      <label class="full">Nama owner <span class="muted">(Wajib)</span><input type="text" name="owner_name" value="{{ profile.owner_name or '' }}"></label>
+    </div>
+    <label>Deskripsi singkat <span class="muted">(Opsional)</span></label>
+    <textarea name="short_description" id="field_short_description" rows="3">{{ profile.short_description or '' }}</textarea>
     <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="short_description" data-target="field_short_description">
       <button type="button" class="btn secondary ai-help-btn">Bantu dengan AI</button>
       <div class="ai-help-menu">
@@ -34,24 +35,17 @@
         <button type="button" data-action="draft">Buatkan draft</button>
       </div>
       <div class="ai-help-status"></div>
-      <div class="ai-help-preview">
-        <p class="ai-help-preview-text"></p>
-        <div class="ai-help-preview-actions">
-          <button type="button" class="btn small ai-help-accept">Gunakan hasil</button>
-          <button type="button" class="btn small secondary ai-help-cancel">Batal</button>
-        </div>
-      </div>
+      <div class="ai-help-preview"><p class="ai-help-preview-text"></p><div class="ai-help-preview-actions"><button type="button" class="btn small ai-help-accept">Gunakan hasil</button><button type="button" class="btn small secondary ai-help-cancel">Batal</button></div></div>
     </div>
-    <label>Negara <span class="muted" style="font-size:12px;">(Opsional)</span></label>
-    <input type="text" name="country" value="{{ profile.country or 'Indonesia' }}">
-    <label>Timezone</label>
-    <input type="text" name="timezone" value="{{ profile.timezone or 'Asia/Jakarta' }}">
-    <label>Alamat (jika relevan)</label>
-    <input type="text" name="address" value="{{ profile.address or '' }}">
-    <label>Nomor telepon bisnis</label>
-    <input type="text" name="business_phone" value="{{ profile.business_phone or '' }}">
-    <label>Nama owner <span class="muted" style="font-size:12px;">(Wajib)</span></label>
-    <input type="text" name="owner_name" value="{{ profile.owner_name or '' }}">
+    <details class="client-collapsible" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;">
+      <summary>Detail Tambahan</summary>
+      <div class="client-collapsible-body client-form-grid">
+        <label>Negara<input type="text" name="country" value="{{ profile.country or 'Indonesia' }}"></label>
+        <label>Timezone<input type="text" name="timezone" value="{{ profile.timezone or 'Asia/Jakarta' }}"></label>
+        <label>Alamat<input type="text" name="address" value="{{ profile.address or '' }}"></label>
+        <label>Nomor telepon bisnis<input type="text" name="business_phone" value="{{ profile.business_phone or '' }}"></label>
+      </div>
+    </details>
 
   {% elif step == 'services' %}
     <h2>Produk / Layanan</h2>
