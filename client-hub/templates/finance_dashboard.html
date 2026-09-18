@@ -63,14 +63,14 @@
 </div>
 {% if all_branches %}<div class="card"><h2>Ringkasan per Cabang</h2>{% for item in branch_breakdown %}<article class="finance-entry"><h3>{{ item.branch.name }}</h3><p>Masuk {{ item.summary.total_income_minor|finance_idr }} · Keluar {{ item.summary.total_expense_minor|finance_idr }} · Selisih {{ item.summary.net_cashflow_minor|finance_idr }}</p><a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=item.branch.id,month=month) }}">Lihat Cabang</a></article>{% endfor %}</div>{% endif %}
 
-<div class="card" id="transactions"><div class="finance-entry-head"><div><h2 style="margin:0">Transaksi Terbaru</h2><p class="muted">{{ month_label }} · {{ 'Semua' if not direction else ('Pemasukan' if direction == 'INCOME' else 'Pengeluaran') }}</p></div>{% if show_all_transactions %}<a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,month=month,direction=direction) }}#transactions">Ringkas</a>{% elif has_more_transactions %}<a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,month=month,direction=direction,transactions='all') }}#transactions">Lihat Semua</a>{% endif %}</div>
+{% if transactions %}<div class="card" id="transactions"><div class="finance-entry-head"><div><h2 style="margin:0">Transaksi Terbaru</h2><p class="muted">{{ month_label }} · {{ 'Semua' if not direction else ('Pemasukan' if direction == 'INCOME' else 'Pengeluaran') }}</p></div>{% if show_all_transactions %}<a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,month=month,direction=direction) }}#transactions">Ringkas</a>{% elif has_more_transactions %}<a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,month=month,direction=direction,transactions='all') }}#transactions">Lihat Semua</a>{% endif %}</div>
 {% for t in transactions %}
 <article class="finance-entry">
 <div class="finance-entry-head"><div><strong>{{ t.occurred_on }}</strong><div class="finance-entry-meta">{{ t.branch_name }} · {{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }}</div></div><span class="finance-entry-amount">{{ '+' if t.direction == 'INCOME' else '−' }}{% if t.currency == 'IDR' %}{{ t.amount_minor|finance_idr }}{% else %}{{ t.currency }} {{ t.amount_minor }}{% endif %}</span></div>
 <p style="white-space:pre-wrap">{{ t.description or 'Tanpa catatan' }}</p><p class="muted">{{ account_map.get(t.account_id, {}).get('name','Kas / Rekening') }} · {{ category_map.get(t.category_id, {}).get('name','Kategori') }}</p>
 {% if not branch_read_only and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<div class="finance-entry-actions">{% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">✏️ Edit</a>{% endif %}<form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button></form></div>{% endif %}
 </article>
-{% else %}<p class="finance-empty">Belum ada transaksi pada periode ini.</p>{% endfor %}</div>
+{% endfor %}</div>{% endif %}
 
 {% if not branch_read_only %}
 <dialog id="period-dialog" class="finance-sheet">
@@ -104,7 +104,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="transaction-kind">Jenis</label><select id="transaction-kind" name="direction"><option value="INCOME">Pemasukan</option><option value="EXPENSE">Pengeluaran</option></select>
 <label for="transaction-amount">Nominal (rupiah)</label><input id="transaction-amount" name="amount" inputmode="numeric" pattern="[0-9]+" maxlength="19" required>
-<label for="transaction-date">Tanggal</label><input id="transaction-date" name="occurred_on" type="date" value="{{ today }}" required>
+<label for="transaction-date">Tanggal</label><input id="transaction-date" name="occurred_on" type="date" value="{{ today }}" max="{{ today }}" required>
 <label for="transaction-account">Kas / Rekening</label><select id="transaction-account" name="account_id" required>{% for a in accounts if a.is_active and a.currency == 'IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
 <p class="muted">Pilih tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · pembayaran digital → GoPay.</p>
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
