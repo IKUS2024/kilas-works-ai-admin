@@ -53,3 +53,16 @@ test('dashboard uses compact management tiles and explicit transaction delete',(
   assert.match(html,/Hapus transaksi ini/);
   assert.doesNotMatch(html,/Pengaturan cabang, akun &amp; kategori/);
 });
+
+
+test('receivables operations and reports expose compact section hubs',()=>{
+  const receivables=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
+  const operations=fs.readFileSync(path.join(__dirname,'../templates/finance_operations.html'),'utf8');
+  const reports=fs.readFileSync(path.join(__dirname,'../templates/finance_reports.html'),'utf8');
+  assert.match(receivables,/Menu Pelanggan/);
+  assert.match(receivables,/Tambah Customer/);
+  assert.match(operations,/Biaya Rutin/);
+  assert.match(operations,/Tambah Biaya/);
+  assert.match(reports,/Filter &amp; Export/);
+  assert.match(reports,/Kas &amp; Rekening/);
+});
