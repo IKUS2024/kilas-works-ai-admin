@@ -1,15 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Checkout — {{ project.title }}{% endblock %}
 {% block content %}
-<h1>Checkout</h1>
-<div class="card">
-  <h2>{{ project.title }}</h2>
-  <p class="muted">Harga: Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</p>
-  <p class="muted">Tagihan dibuat setelah kamu melanjutkan. Pembayaran belum dilakukan pada langkah ini.</p>
-  {% if project.catalog_key in ("ai_admin", "ai_admin_basic", "ai_admin_pro") %}{% include "_brain_plan_notice.html" %}{% endif %}
-  <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn" type="submit">Lanjut ke Pembayaran</button>
-  </form>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head"><div><h1>Checkout</h1><p>{{ project.title }}</p></div></header>
+  <section class="card">
+    <div class="client-stats">
+      <div class="client-stat" style="grid-column:span 3;"><strong>Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</strong><span>Total layanan</span></div>
+    </div>
+    <p class="client-note">Tagihan dibuat setelah kamu melanjutkan. Belum ada pembayaran pada langkah ini.</p>
+    {% if project.catalog_key in ("ai_admin","ai_admin_basic","ai_admin_pro") %}
+      <details class="client-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
+    {% endif %}
+    <form method="post" style="margin-top:12px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Lanjut ke Pembayaran</button></form>
+  </section>
 </div>
 {% endblock %}
