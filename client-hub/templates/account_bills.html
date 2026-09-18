@@ -1,4 +1,29 @@
 {% extends 'base.html' %}
+{% block title %}Tagihan & Akun · Kilas Works{% endblock %}
 {% block content %}
-<h1>Tagihan &amp; Akun</h1><p>Pembayaran layanan Kilas Works terpisah dari Invoice Pelanggan di Finance.</p>{% for b in businesses %}<section class="card"><h2>{{ b.business_name }}</h2><a class="btn" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Tagihan Finance</a>{% if b.package!='NONE' %}<a class="btn secondary" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">Tagihan Brain</a>{% endif %}</section>{% endfor %}<a class="btn secondary" href="{{ url_for('projects.my_project_list') }}">Pesanan &amp; Tagihan Layanan</a>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head"><div><h1>Tagihan &amp; Akun</h1><p>Semua pembayaran Kilas Works dalam satu tempat.</p></div></header>
+
+  <div class="client-grid">
+    {% for b in businesses %}
+    <section class="client-card">
+      <div class="client-item-title">{{ b.business_name }}</div>
+      <div class="client-item-meta">Kelola langganan Finance{% if b.package!='NONE' %} dan Kilas Brain{% endif %}.</div>
+      <div class="client-actions">
+        <a class="btn small" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Finance</a>
+        {% if b.package!='NONE' %}<a class="btn small secondary" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">Brain</a>{% endif %}
+      </div>
+    </section>
+    {% else %}<div class="client-empty">Belum ada bisnis.</div>{% endfor %}
+  </div>
+
+  <section class="card" style="margin-top:12px;">
+    <div class="client-item-head">
+      <div><div class="client-item-title">Pesanan Layanan</div><div class="client-item-meta">Foto, video, website, ads, talent, dan layanan lainnya.</div></div>
+      <a class="btn small secondary" href="{{ url_for('projects.my_project_list') }}">Buka →</a>
+    </div>
+    <p class="client-note">Invoice pelanggan di Kilas Finance terpisah dari tagihan Kilas Works di halaman ini.</p>
+  </section>
+</div>
 {% endblock %}
