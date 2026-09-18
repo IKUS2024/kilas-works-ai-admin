@@ -1,25 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Invoice — {{ business.business_name }}{% endblock %}
 {% block content %}
-<h1>Invoice — {{ business.business_name }}</h1>
-<div style="display:flex;gap:8px;margin-bottom:16px;">
-  <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='active') }}">Aktif</a>
-  <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='history') }}">Riwayat</a>
-  <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='all') }}">Semua</a>
-</div>
-<div class="card">
-  <table>
-    <tr><th>Invoice</th><th>Jumlah</th><th>Status</th><th></th></tr>
-    {% for p in payments %}
-    <tr>
-      <td>{{ p.invoice.invoice_number }}</td>
-      <td>Rp{{ '{:,}'.format(p.invoice.amount).replace(',', '.') }}</td>
-      <td><span class="pill APPROVED">{{ p.status|humanize_status('payment') }}</span></td>
-      <td><a href="{{ url_for('payments.invoice_page', invoice_id=p.invoice.id) }}">Lihat</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4" class="muted">Belum ada invoice.</td></tr>
-    {% endfor %}
-  </table>
+{% include "_client_compact_style.html" %}
+<div class="client-page">
+  <header class="client-head"><div><h1>Invoice</h1><p>{{ business.business_name }}</p></div><span class="client-count">{{ payments|length }} invoice</span></header>
+
+  <nav class="client-toolbar">
+    <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='active') }}">Aktif</a>
+    <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='history') }}">Riwayat</a>
+    <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('payments.invoice_list', business_id=business.id, view='all') }}">Semua</a>
+  </nav>
+
+  <section class="card">
+    <div class="client-list">
+      {% for p in payments %}
+      <article class="client-item">
+        <div class="client-item-head">
+          <div class="client-item-main">
+            <div class="client-item-title">{{ p.invoice.invoice_number }}</div>
+            <div class="client-item-meta">Rp{{ '{:,}'.format(p.invoice.amount).replace(',', '.') }}</div>
+          </div>
+          <div class="client-item-side"><span class="client-status {{ 'ok' if p.status=='VERIFIED' else ('warn' if p.status in ('PAYMENT_PENDING','UNDER_REVIEW','PROOF_UPLOADED') else ('danger' if p.status=='REJECTED' else '')) }}">{{ p.status|humanize_status('payment') }}</span></div>
+        </div>
+        <div class="client-actions"><a class="btn small secondary" href="{{ url_for('payments.invoice_page', invoice_id=p.invoice.id) }}">Lihat Invoice →</a></div>
+      </article>
+      {% else %}<div class="client-empty">Belum ada invoice.</div>{% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}
