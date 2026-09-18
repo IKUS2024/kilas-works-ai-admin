@@ -1,0 +1,4 @@
+<details><summary aria-label="Tindakan {{ item.name }}">⋯</summary>
+<form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind=kind,record_id=item.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama<input name="name" value="{{ item.name }}" maxlength="160" required></label><button class="btn secondary" name="action" value="edit">Simpan Nama</button><button class="btn secondary" name="action" value="deactivate" onclick="return confirm('Nonaktifkan? Riwayat tetap tersimpan.');">Nonaktifkan</button>
+</form></details>
