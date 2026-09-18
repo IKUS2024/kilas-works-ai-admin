@@ -47,6 +47,9 @@ test('dashboard uses compact management tiles and explicit transaction delete',(
   assert.match(html,/data-finance-open="branch-dialog"/);
   assert.match(html,/data-finance-open="account-dialog"/);
   assert.match(html,/data-finance-open="category-dialog"/);
+  assert.match(html,/data-finance-open="reset-dialog"/);
+  assert.match(html,/name="confirmation"[^>]*pattern="RESET"/);
+  assert.match(html,/Reset Cabang ke Rp0/);
   assert.match(html,/Hapus transaksi ini/);
   assert.doesNotMatch(html,/Pengaturan cabang, akun &amp; kategori/);
 });
