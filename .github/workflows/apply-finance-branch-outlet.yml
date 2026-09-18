@@ -1,0 +1,102 @@
+name: Apply Finance Branch Outlet Package
+
+on:
+  push:
+    branches:
+      - deploy/finance-branch-outlet
+    paths:
+      - '.tmp/kilas-branch-payload/trigger.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deployment branch
+        uses: actions/checkout@v4
+        with:
+          ref: deploy/finance-branch-outlet
+          fetch-depth: 0
+
+      - name: Reconstruct verified package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .tmp/kilas-branch-payload/part*.b64 | base64 -d > /tmp/payload.tar.bz2
+          echo "1bf1589f82d7ba71ece830b492fb282c1c4ea5316c880a86b085ef66a54ebdb9  /tmp/payload.tar.bz2" | sha256sum -c -
+          tar -xjf /tmp/payload.tar.bz2 -C .
+
+      - name: Remove transfer-only files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .tmp/kilas-branch-payload
+          rm -f .github/workflows/apply-finance-branch-outlet.yml
+          rmdir .github/workflows 2>/dev/null || true
+          rmdir .github 2>/dev/null || true
+
+      - name: Verify exact change scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="82f8e6d50a1f1bf03ce7e076e658dfba5dc490a4"
+          cat > /tmp/expected.txt <<'EOF'
+client-hub/db.py
+client-hub/finance_bank_service.py
+client-hub/finance_branch_migration.py
+client-hub/finance_branches.py
+client-hub/finance_collections.py
+client-hub/finance_operator.py
+client-hub/finance_receipts.py
+client-hub/finance_reports.py
+client-hub/finance_service.py
+client-hub/migrations/0033_finance_branches_postgres.sql
+client-hub/migrations/0033_finance_branches_sqlite.sql
+client-hub/routes_finance.py
+client-hub/static/finance_branches.js
+client-hub/templates/_finance_analyst_workspace.html
+client-hub/templates/_finance_branch_selector.html
+client-hub/templates/_finance_record_actions.html
+client-hub/templates/base.html
+client-hub/templates/finance_assistant.html
+client-hub/templates/finance_bank_index.html
+client-hub/templates/finance_collections.html
+client-hub/templates/finance_dashboard.html
+client-hub/templates/finance_operations.html
+client-hub/templates/finance_receipt.html
+client-hub/templates/finance_receivables.html
+client-hub/templates/finance_reminder.html
+client-hub/templates/finance_reports.html
+client-hub/templates/finance_transaction_edit.html
+client-hub/tests/test_finance_branch_ui.cjs
+client-hub/tests/test_finance_branches.py
+client-hub/tests/test_finance_ux_ai_fix.py
+EOF
+          sort -u /tmp/expected.txt -o /tmp/expected.txt
+          git diff --name-only "$BASE_SHA" | sort -u > /tmp/actual.txt
+          echo "Expected:"
+          cat /tmp/expected.txt
+          echo "Actual:"
+          cat /tmp/actual.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt
+          git diff --check "$BASE_SHA"
+
+      - name: Focused syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             client-hub/db.py             client-hub/finance_bank_service.py             client-hub/finance_branch_migration.py             client-hub/finance_branches.py             client-hub/finance_collections.py             client-hub/finance_operator.py             client-hub/finance_receipts.py             client-hub/finance_reports.py             client-hub/finance_service.py             client-hub/routes_finance.py             client-hub/tests/test_finance_branches.py             client-hub/tests/test_finance_ux_ai_fix.py
+          node --check client-hub/static/finance_branches.js
+          node --check client-hub/tests/test_finance_branch_ui.cjs
+
+      - name: Commit package to deployment branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "ChatGPT Codex Connector"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(finance): add branch and outlet support"
+          git push origin HEAD:deploy/finance-branch-outlet
