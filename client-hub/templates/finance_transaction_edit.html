@@ -8,7 +8,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <p>{{ 'Pemasukan' if transaction.direction == 'INCOME' else 'Pengeluaran' }}</p>
 <label>Nominal<input name="amount" value="{{ transaction.amount_minor }}" inputmode="numeric" pattern="[0-9]+" required></label>
-<label>Tanggal<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" required></label>
+<label>Tanggal<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" max="{{ today }}" required></label>
 <label>Kas / Rekening<select name="account_id" required>{% for a in accounts if a.currency == transaction.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id == transaction.account_id }}>{{ a.name }}</option>{% endfor %}</select></label>
 <p class="muted">Pilih tempat uang yang dipakai: tunai, rekening bank, atau e-wallet.</p>
 <label>Kategori<select name="category_id" data-other-category required>{% for c in categories %}<option value="{{ c.id }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}" {{ 'selected' if c.id == transaction.category_id }}>{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select></label>
