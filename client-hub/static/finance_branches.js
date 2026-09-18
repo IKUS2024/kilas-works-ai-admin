@@ -23,3 +23,35 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
   if (kind) kind.addEventListener('change', refresh);
   refresh();
 }
+
+
+// Compact Finance mobile UI: open forms/settings as bottom-sheet dialogs instead of
+// keeping every form expanded in the page flow. No financial state is stored client-side.
+for (const trigger of document.querySelectorAll('[data-finance-open]')) {
+  const id = trigger.dataset && trigger.dataset.financeOpen;
+  if (!id) continue;
+  trigger.addEventListener('click', () => {
+    const dialog = document.getElementById && document.getElementById(id);
+    if (!dialog) return;
+    if (typeof dialog.showModal === 'function') dialog.showModal();
+    else dialog.setAttribute('open', '');
+    const focusable = dialog.querySelector && dialog.querySelector('input:not([type="hidden"]),select,textarea,button');
+    if (focusable && typeof focusable.focus === 'function') focusable.focus({preventScroll:true});
+  });
+}
+for (const trigger of document.querySelectorAll('[data-finance-close]')) {
+  const id = trigger.dataset && trigger.dataset.financeClose;
+  if (!id) continue;
+  trigger.addEventListener('click', () => {
+    const dialog = document.getElementById && document.getElementById(id);
+    if (!dialog) return;
+    if (typeof dialog.close === 'function') dialog.close();
+    else dialog.removeAttribute('open');
+  });
+}
+for (const dialog of document.querySelectorAll('dialog.finance-sheet')) {
+  if (typeof dialog.showModal !== 'function') continue;
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) dialog.close();
+  });
+}
