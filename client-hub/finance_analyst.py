@@ -59,7 +59,7 @@ def build_context(business_id, user_id, start, scope):
     for key, label in [('total_income_minor','Pemasukan'),('total_expense_minor','Pengeluaran'),('net_cashflow_minor','Arus kas bersih')]: add(label, summary[key])
     add('Transaksi tercatat', summary['transaction_count'], 'transaksi')
     limitations = ['Transaksi IDR POSTED saja; arus kas bukan laba. Tidak mencakup data di luar Kilas Finance.',
-                   'Periode bulan kalender penuh, termasuk transaksi bertanggal mendatang bila tercatat.']
+                   'Periode bulan kalender; bulan masa depan tidak dapat dipilih.']
     if scope == 'comparison':
         previous_end = start-timedelta(days=1)
         previous = finance.get_cashflow_report(business_id, previous_end.replace(day=1).isoformat(), previous_end.isoformat(), **actor)
