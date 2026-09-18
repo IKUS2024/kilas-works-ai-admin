@@ -1,21 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Pemakaian & biaya AI{% endblock %}
 {% block content %}
-<h1>Pemakaian & biaya AI — bulan ini (UTC)</h1>
-<p class="muted">Estimasi tarif {{ pricing_date }}. Bukan tagihan provider. Estimasi Anthropic saja; biaya transkripsi voice note/provider lain belum dihitung. Pendapatan referensi paket Rp499.000; kontribusi sebelum infrastruktur, pajak dan biaya Meta, bukan laba aktual. Biaya USD yang tidak diketahui ditampilkan sebagai “unknown”. IDR adalah konversi tampilan dari total USD menggunakan kurs acuan terbaru, bukan kurs transaksi historis; tanpa kurs, IDR ditampilkan “Tidak tersedia”. Data mulai tersedia setelah migrasi; panggilan tanpa usage provider tidak dapat dihitung.</p>
-{% if unavailable %}<p role="alert">Pemakaian belum tersedia. Periksa migrasi ledger dan koneksi database kedua layanan.</p>{% endif %}
-{% if not unavailable %}
-<p class="muted">Kurs acuan USD/IDR: {% if fx %}1 USD = Rp{{ '%.2f'|format(fx.rate) }} · Tanggal kurs: {{ fx.date }} · Sumber: {{ fx.source }}{% else %}Tidak tersedia · Sumber: Frankfurter v2{% endif %}</p>
-{% endif %}
-{% for row in usage %}
-<div class="card" style="overflow-wrap:anywhere">
-<h2>{{ row.name }} — {{ row.status }}</h2>
-<p>Respons AI: {{ row.replies }} / {{ row.fair_use }} (acuan lunak) · Panggilan model: {{ row.calls }}</p>
-<p>Input: {{ row.input_tokens }} · Output: {{ row.output_tokens }} · Cache read: {{ row.cache_read_input_tokens }} · Cache write: {{ row.cache_creation_input_tokens }} · Cache hit: {{ '%.1f'|format(row.cache_hit_ratio*100) }}% panggilan</p>
-<p>Haiku: {{ row.haiku_calls }} · Sonnet: {{ row.sonnet_calls }}</p>
-<p>Estimasi USD: {{ '%.6f'|format(row.cost_usd) if row.cost_usd is not none else 'unknown' }} · USD/respons: {{ '%.6f'|format(row.cost_per_reply) if row.cost_per_reply is not none else 'unknown' }}</p>
-<p>Estimasi IDR: {{ '%.0f'|format(row.display_cost_idr) if row.display_cost_idr is not none else 'Tidak tersedia' }} · Pendapatan referensi IDR: {{ row.reference_revenue_idr if row.reference_revenue_idr is not none else 'N/A (platform)' }} · Kontribusi referensi IDR: {{ '%.0f'|format(row.display_contribution_idr) if row.display_contribution_idr is not none else 'Tidak tersedia' }}</p>
-{% for warning in row.warnings %}<p role="status">{{ warning }}</p>{% endfor %}
+{% include "_admin_compact_style.html" %}
+<div class="admin-page">
+  <header class="admin-head"><div><h1>Biaya AI</h1><p>Ringkasan pemakaian bulan ini.</p></div><span class="admin-count">{{ usage|length }} tenant</span></header>
+
+  <details class="card admin-collapsible">
+    <summary>Metodologi &amp; Kurs</summary>
+    <div class="admin-collapsible-body">
+      <p class="admin-note">Estimasi tarif {{ pricing_date }}. Bukan tagihan provider. Estimasi Anthropic saja; biaya transkripsi voice note/provider lain belum dihitung. Pendapatan referensi Rp499.000; kontribusi sebelum infrastruktur, pajak, dan biaya Meta.</p>
+      {% if unavailable %}<p role="alert">Pemakaian belum tersedia. Periksa migrasi ledger dan koneksi database kedua layanan.</p>{% else %}<p class="admin-note">Kurs acuan USD/IDR: {% if fx %}1 USD = Rp{{ '%.2f'|format(fx.rate) }} · {{ fx.date }} · {{ fx.source }}{% else %}Tidak tersedia · Frankfurter v2{% endif %}</p>{% endif %}
+    </div>
+  </details>
+
+  {% if not unavailable %}
+    <section class="card">
+      <div class="admin-list">
+        {% for row in usage %}
+          <article class="admin-item">
+            <div class="admin-item-head">
+              <div class="admin-item-main"><div class="admin-item-title">{{ row.name }}</div><div class="admin-item-meta">{{ row.status }} · {{ row.replies }} respons · {{ row.calls }} panggilan</div></div>
+              <div class="admin-item-side"><span class="admin-status {{ 'warn' if row.warnings else 'ok' }}">{{ 'Perlu cek' if row.warnings else 'Normal' }}</span></div>
+            </div>
+            <div class="admin-stats" style="margin-top:10px;margin-bottom:0;">
+              <div class="admin-stat"><strong>{{ row.replies }}</strong><span>Respons</span></div>
+              <div class="admin-stat"><strong>{{ row.calls }}</strong><span>Calls</span></div>
+              <div class="admin-stat"><strong>{{ 'Rp%.0f'|format(row.display_cost_idr) if row.display_cost_idr is not none else '-' }}</strong><span>Est. biaya</span></div>
+            </div>
+            <details class="admin-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;">
+              <summary>Detail usage</summary>
+              <div class="admin-collapsible-body">
+                <p class="admin-note">Input {{ row.input_tokens }} · Output {{ row.output_tokens }} · Cache read {{ row.cache_read_input_tokens }} · Cache write {{ row.cache_creation_input_tokens }} · Cache hit {{ '%.1f'|format(row.cache_hit_ratio*100) }}%</p>
+                <p class="admin-note">Haiku {{ row.haiku_calls }} · Sonnet {{ row.sonnet_calls }}</p>
+                <p class="admin-note">USD {{ '%.6f'|format(row.cost_usd) if row.cost_usd is not none else 'unknown' }} · USD/respons {{ '%.6f'|format(row.cost_per_reply) if row.cost_per_reply is not none else 'unknown' }}</p>
+                <p class="admin-note">Pendapatan referensi IDR {{ row.reference_revenue_idr if row.reference_revenue_idr is not none else 'N/A' }} · Kontribusi referensi {{ '%.0f'|format(row.display_contribution_idr) if row.display_contribution_idr is not none else 'Tidak tersedia' }}</p>
+                {% for warning in row.warnings %}<p role="status">{{ warning }}</p>{% endfor %}
+              </div>
+            </details>
+          </article>
+        {% else %}<div class="admin-empty">Belum ada penggunaan tercatat.</div>{% endfor %}
+      </div>
+    </section>
+  {% endif %}
 </div>
-{% else %}{% if not unavailable %}<p>Belum ada penggunaan tercatat.</p>{% endif %}{% endfor %}
 {% endblock %}
