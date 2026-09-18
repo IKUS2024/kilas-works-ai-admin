@@ -317,11 +317,14 @@ INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dib
 @finance_access
 def receivables(business_id, user, business):
     actor = {'actor_user_id': user['id']}
+    section = request.args.get('section', 'summary')
+    if section not in ('summary', 'customers', 'add_customer', 'invoices'):
+        section = 'summary'
     customers = finance.list_customers(business_id, include_inactive=True, **actor)
     invoices = finance.list_finance_invoices(business_id, **actor)
     totals = {i['id']: finance.get_invoice_totals(business_id, i['id'], **actor) for i in invoices}
     return render_template('finance_receivables.html', user=user, business=business, customers=customers,
-        customer_map={c['id']:c for c in customers}, invoices=invoices, totals=totals,
+        customer_map={c['id']:c for c in customers}, invoices=invoices, totals=totals, section=section,
         summary=finance.get_receivables_summary(business_id, **actor), labels=INVOICE_LABELS)
 
 
@@ -409,6 +412,9 @@ def record_payment(business_id,user,business,invoice_id):
 @finance_bp.route('/business/<int:business_id>/finance/operations')
 @finance_access
 def operations(business_id,user,business):
+    section = request.args.get('section', 'recurring')
+    if section not in ('recurring', 'add', 'projects'):
+        section = 'recurring'
     month = request.args.get('month',date.today().strftime('%Y-%m'))
     try:
         start,end = period(month)
@@ -418,7 +424,7 @@ def operations(business_id,user,business):
     actor = {'actor_user_id':user['id']}
     rules = finance.list_recurring_expenses(business_id,include_inactive=True,**actor)
     projects = finance.list_finance_projects(business_id,**actor)
-    return render_template('finance_operations.html',user=user,business=business,rules=rules,projects=projects,
+    return render_template('finance_operations.html',user=user,business=business,rules=rules,projects=projects,section=section,
         preview=finance.preview_due_recurring_expenses(business_id,date.today(),**actor),
         project_map={p['id']:p for p in projects},
         attention={r['id']:finance.recurring_needs_attention(business_id,r['id'],**actor) for r in rules if r['is_active']},
@@ -469,6 +475,9 @@ def report_error(error):
 @finance_bp.route('/business/<int:business_id>/finance/reports')
 @finance_access
 def reports(business_id,user,business):
+    section = request.args.get('section', 'filter')
+    if section not in ('filter', 'summary', 'trend', 'categories', 'accounts', 'customers', 'projects', 'receivables', 'commitments'):
+        section = 'filter'
     try:
         filters=finance_reports.parse_filters(request.args)
         actor={'actor_user_id':user['id']}
@@ -477,8 +486,8 @@ def reports(business_id,user,business):
         trend=finance.get_monthly_cashflow_trend(business_id,filters['start'][:7],filters['end'][:7],
             start_date=filters['start'],end_date=filters['end'],**actor)
     except finance.FinanceError as error:
-        return render_template('finance_reports.html',user=user,business=business,error=report_error(error)),400
-    response=Response(render_template('finance_reports.html',user=user,business=business,filters=filters,
+        return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section),400
+    response=Response(render_template('finance_reports.html',user=user,business=business,filters=filters,section=section,
         data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
         account_types=finance_reports.ACCOUNT_TYPES,export_names=finance_reports.REPORT_NAMES))
     response.headers['Cache-Control']='private, no-store'
@@ -663,6 +672,9 @@ def customer_invoice(token):
 @finance_bp.route('/business/<int:business_id>/finance/collections')
 @finance_access
 def collections(business_id,user,business):
+    section = request.args.get('section', 'summary')
+    if section not in ('summary', 'queue'):
+        section = 'summary'
     sort=request.args.get('sort','overdue');view=request.args.get('view','all')
     try:
         page=int(request.args.get('page','1'))
@@ -672,7 +684,7 @@ def collections(business_id,user,business):
     except finance.FinanceError:
         return 'Daftar piutang belum dapat ditampilkan. Hubungi pengelola aplikasi.',503
     except ValueError:abort(400)
-    return render_template('finance_collections.html',user=user,business=business,data=data,queue=queue,
+    return render_template('finance_collections.html',user=user,business=business,data=data,queue=queue,section=section,
                            sort=sort,view=view,labels=INVOICE_LABELS)
 
 
