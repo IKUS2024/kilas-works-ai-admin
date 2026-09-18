@@ -23,7 +23,7 @@
 {% if not accounts or not categories %}<p class="muted">Siapkan akun rupiah dan kategori pemasukan di dashboard Kilas Finance terlebih dahulu.</p>{% endif %}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="payment_key" value="{{ payment_key }}">
 <label for="amount">Nominal diterima (rupiah)</label><input id="amount" name="amount" inputmode="numeric" pattern="[0-9]+" maxlength="19" required>
-<label for="paid-on">Tanggal pembayaran</label><input id="paid-on" name="paid_on" type="date" value="{{ today }}" required>
+<label for="paid-on">Tanggal pembayaran</label><input id="paid-on" name="paid_on" type="date" value="{{ today }}" max="{{ today }}" required>
 <label for="account">Akun penerima</label><select id="account" name="account_id" required><option value="">Pilih akun rupiah</option>{% for a in accounts if a.currency=='IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
 <label for="category">Kategori pemasukan</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="note">Catatan (opsional)</label><textarea id="note" name="note" maxlength="1000"></textarea><button class="btn">Simpan Pembayaran</button>
