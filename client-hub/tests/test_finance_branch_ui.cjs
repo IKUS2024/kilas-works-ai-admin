@@ -76,3 +76,15 @@ test('dashboard exposes main finance icon navigation',()=>{
   assert.doesNotMatch(html,/Alat Finance Lainnya/);
   assert.match(html,/finance-home-grid/);
 });
+
+
+test('dashboard keeps monthly overview compact',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  assert.match(html,/Ringkasan Bulan/);
+  assert.match(html,/data-finance-open="period-dialog"/);
+  assert.match(html,/data-finance-open="balance-dialog"/);
+  assert.match(html,/Transaksi Terbaru/);
+  assert.match(html,/Lihat Semua/);
+  assert.doesNotMatch(html,/<h2>Bulan \{\{ month \}\}<\/h2>/);
+  assert.doesNotMatch(html,/<h2>Uang Tersedia<\/h2>/);
+});
