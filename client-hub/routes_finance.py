@@ -213,8 +213,13 @@ def dashboard(business_id, user, business):
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
     summary = finance.get_finance_summary(business_id, start, end, **actor)
+    show_all_transactions = request.args.get('transactions') == 'all'
+    transaction_limit = 100 if show_all_transactions else 6
     transactions = finance.list_transactions(business_id, start_date=start, end_date=end,
-                                            direction=direction, status='POSTED', limit=100, **actor)
+                                            direction=direction, status='POSTED', limit=transaction_limit, **actor)
+    has_more_transactions = not show_all_transactions and len(transactions) > 5
+    if not show_all_transactions:
+        transactions = transactions[:5]
     balances = finance.get_account_balance_report(business_id, date.today().isoformat(), user['id'])
     breakdown = []
     if g.finance_branch_id is None:
@@ -233,7 +238,10 @@ def dashboard(business_id, user, business):
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
-        initialized=bool(accounts and categories), month=month, direction=direction,
+        initialized=bool(accounts and categories), month=month,
+        month_label=('Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember')[int(month[5:7])-1] + ' ' + month[:4],
+        direction=direction, show_all_transactions=show_all_transactions,
+        has_more_transactions=has_more_transactions,
         period_years=period_years, selected_year=selected_year,
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
