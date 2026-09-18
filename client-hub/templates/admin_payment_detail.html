@@ -1,73 +1,69 @@
 {% extends "base.html" %}
 {% block title %}Payment #{{ payment.id }} — Admin{% endblock %}
 {% block content %}
-<h1>Pembayaran Menunggu Verifikasi</h1>
-<span class="pill APPROVED">{{ review_status|humanize_status('payment') }}</span>
+{% include "_admin_compact_style.html" %}
+<div class="admin-page">
+  <a href="{{ url_for('admin.payments_admin') }}" class="muted">← Review Pembayaran</a>
+  <header class="admin-head" style="margin-top:10px;">
+    <div><h1>Payment #{{ payment.id }}</h1><p>{{ business.business_name|display_or_missing if business else 'Tanpa business' }}{% if invoice %} · {{ invoice.invoice_number }}{% endif %}</p></div>
+    <span class="admin-status warn">{{ review_status|humanize_status('payment') }}</span>
+  </header>
 
-<div class="card">
-  <h2>Business</h2>
-  <p><strong>{{ business.business_name|display_or_missing if business else 'Belum diisi (customer belum melampirkan bisnis)' }}</strong>{% if payment.business_id %} (ID: {{ payment.business_id }}){% endif %}</p>
-</div>
+  <section class="card">
+    <div class="admin-stats">
+      <div class="admin-stat"><strong>{% if invoice %}Rp{{ "{:,}".format(invoice.amount).replace(",", ".") }}{% else %}-{% endif %}</strong><span>Tagihan</span></div>
+      <div class="admin-stat"><strong>{{ 'Rp' + '{:,}'.format(payment.ai_extracted_amount).replace(',', '.') if payment.ai_extracted_amount is not none else '-' }}</strong><span>Terbaca</span></div>
+      <div class="admin-stat"><strong>{{ 'Rp' + '{:,}'.format(difference).replace(',', '.') if difference is not none else '-' }}</strong><span>Selisih</span></div>
+    </div>
+    {% if project %}<p class="admin-note">Project: {{ project.title }} · {{ project.project_type }}</p>{% endif %}
+  </section>
 
-<div class="card">
-  <h2>Invoice</h2>
-  {% if invoice %}
-  <table>
-    <tr><th>Invoice</th><td>{{ invoice.invoice_number }}</td></tr>
-    <tr><th>Tagihan</th><td>Rp{{ "{:,}".format(invoice.amount).replace(",", ".") }}</td></tr>
-    <tr><th>Nominal terbaca</th><td>{{ 'Rp' + '{:,}'.format(payment.ai_extracted_amount).replace(',', '.') if payment.ai_extracted_amount is not none else 'Belum diisi' }}</td></tr>
-    <tr><th>Selisih</th><td>{{ 'Rp' + '{:,}'.format(difference).replace(',', '.') if difference is not none else 'Belum diisi' }}</td></tr>
-    <tr><th>Status invoice</th><td>{{ invoice.status|humanize_status('invoice') }}</td></tr>
-    {% if project %}<tr><th>Project</th><td>{{ project.title }} ({{ project.project_type }})</td></tr>{% endif %}
-  </table>
-  {% else %}
-  <p class="muted">Invoice tidak ditemukan.</p>
+  {% if payment.status in ('UNDER_REVIEW','PROOF_UPLOADED') %}
+  <section class="card">
+    <h2>Aksi Review</h2>
+    <div class="admin-actions">
+      <form method="post" action="{{ url_for('admin.payment_verify', payment_id=payment.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Approve</button>
+      </form>
+      {% if payment.proof_file_id %}<a class="btn secondary" href="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" target="_blank">Lihat Bukti</a>{% endif %}
+    </div>
+
+    <details class="admin-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;">
+      <summary>Reject / Minta Upload Ulang</summary>
+      <div class="admin-collapsible-body">
+        <form method="post" action="{{ url_for('admin.payment_reject', payment_id=payment.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Alasan reject<input type="text" name="admin_notes" placeholder="Alasan"></label><button class="btn small danger" type="submit">Reject</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.payment_request_reupload', payment_id=payment.id) }}" style="margin-top:10px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Catatan upload ulang<input type="text" name="admin_notes" placeholder="Catatan (opsional)"></label><button class="btn small secondary" type="submit">Minta Upload Ulang</button>
+        </form>
+      </div>
+    </details>
+  </section>
   {% endif %}
-</div>
 
-<div class="card">
-  <h2>Cek Pembayaran</h2>
-  <table>
-    <tr><th>Status</th><td><strong>{{ review_status|humanize_status('payment') }}</strong></td></tr>
-    <tr><th>Bank terbaca</th><td>{{ payment.ai_extracted_bank|display_or_missing }}</td></tr>
-    <tr><th>Tanggal terbaca</th><td>{{ payment.ai_extracted_date|display_or_missing }}</td></tr>
-    <tr><th>Reference</th><td>{{ payment.ai_reference|display_or_missing }}</td></tr>
-    <tr><th>Duplicate risk</th><td>{{ 'Perlu dicek' if payment.duplicate_candidate else 'Aman' }}</td></tr>
-    <tr><th>AI check</th><td>{{ 'Data terlihat sesuai dengan invoice' if review_status == 'AUTO_CHECK_PASSED' else 'Perlu review' }}</td></tr>
-  </table>
-  <p class="muted" style="margin-top:8px;">AI hanya membantu ekstraksi/deteksi risiko — keputusan akhir SELALU dari Kilas Admin. AI tidak pernah menyatakan bukti ini asli/valid.</p>
-  {% if payment.admin_notes %}<p>Catatan Admin: {{ payment.admin_notes }}</p>{% endif %}
-</div>
+  <details class="card admin-collapsible">
+    <summary>Cek Pembayaran &amp; AI</summary>
+    <div class="admin-collapsible-body">
+      <div class="admin-list">
+        <div class="admin-item"><div class="admin-item-title">Status</div><div class="admin-item-meta">{{ review_status|humanize_status('payment') }}</div></div>
+        <div class="admin-item"><div class="admin-item-title">Bank / Tanggal</div><div class="admin-item-meta">{{ payment.ai_extracted_bank|display_or_missing }} · {{ payment.ai_extracted_date|display_or_missing }}</div></div>
+        <div class="admin-item"><div class="admin-item-title">Reference</div><div class="admin-item-meta">{{ payment.ai_reference|display_or_missing }}</div></div>
+        <div class="admin-item"><div class="admin-item-title">Duplicate Risk</div><div class="admin-item-meta">{{ 'Perlu dicek' if payment.duplicate_candidate else 'Aman' }}</div></div>
+      </div>
+      {% if payment.admin_notes %}<p class="admin-note">Catatan Admin: {{ payment.admin_notes }}</p>{% endif %}
+      <p class="admin-note">AI hanya membantu ekstraksi/deteksi risiko dan tidak menyatakan bukti asli/valid.</p>
+    </div>
+  </details>
 
-<div class="card">
-  <h2>Bukti Transfer</h2>
-  {% if payment.proof_file_id %}
-    <p><a href="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" target="_blank">Buka bukti transfer (gambar penuh)</a></p>
-    <img src="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" alt="Bukti transfer" style="max-width: 100%; height: auto; border-radius: 8px;">
-  {% else %}
-    <p class="muted">Belum ada bukti transfer diupload.</p>
-  {% endif %}
+  <details class="card admin-collapsible">
+    <summary>Bukti Transfer{% if not payment.proof_file_id %} · Belum ada{% endif %}</summary>
+    <div class="admin-collapsible-body">
+      {% if payment.proof_file_id %}
+        <p><a class="btn small secondary" href="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" target="_blank">Buka Gambar Penuh</a></p>
+        <img src="{{ url_for('admin.payment_proof_view', payment_id=payment.id) }}" alt="Bukti transfer" style="max-width:100%;height:auto;border-radius:10px;">
+      {% else %}<div class="admin-empty">Belum ada bukti transfer diupload.</div>{% endif %}
+    </div>
+  </details>
 </div>
-
-{% if payment.status in ('UNDER_REVIEW', 'PROOF_UPLOADED') %}
-<div class="card">
-  <h2>Aksi</h2>
-  <form method="post" action="{{ url_for('admin.payment_verify', payment_id=payment.id) }}" class="inline">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <button class="btn small" type="submit">Approve</button>
-  </form>
-  <form method="post" action="{{ url_for('admin.payment_reject', payment_id=payment.id) }}" class="inline">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="text" name="admin_notes" placeholder="Alasan">
-    <button class="btn small danger" type="submit">Reject</button>
-  </form>
-  <form method="post" action="{{ url_for('admin.payment_request_reupload', payment_id=payment.id) }}" class="inline">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="text" name="admin_notes" placeholder="Catatan (opsional)">
-    <button class="btn small secondary" type="submit">Minta Upload Ulang</button>
-  </form>
-</div>
-{% endif %}
-
-<p><a href="{{ url_for('admin.payments_admin') }}">&larr; Kembali ke daftar pembayaran</a></p>
 {% endblock %}
