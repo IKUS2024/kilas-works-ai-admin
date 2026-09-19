@@ -42,6 +42,10 @@ _REQUIRED_FIELD_LABELS = {
     "business_name": "Nama bisnis",
     "owner_name": "Nama owner",
     "category": "Kategori bisnis",
+    "short_description": "Tentang bisnis",
+    "operating_hours": "Jam operasional",
+    "online_or_offline": "Model layanan",
+    "trusted_owner_phone": "WhatsApp pengelola",
     "primary_language": "Bahasa utama",
     "customer_salutation": "Sapaan customer",
     "core_product_or_service": "Produk / layanan utama",
@@ -50,10 +54,12 @@ _REQUIRED_FIELD_LABELS = {
 
 def _step_for_missing_fields(missing):
     missing = set(missing or [])
-    if missing & {"business_name", "owner_name", "category"}:
+    if missing & {"business_name", "owner_name", "category", "short_description"}:
         return "basics"
     if "core_product_or_service" in missing:
         return "services"
+    if missing & {"operating_hours", "online_or_offline", "trusted_owner_phone"}:
+        return "operations"
     if missing & {"primary_language", "customer_salutation"}:
         return "style"
     return "basics"
@@ -248,28 +254,32 @@ def wizard_step(business_id, step):
             "business_phone": request.form.get("business_phone", ""),
             "owner_name": request.form.get("owner_name", ""),
         }
-        repo.save_onboarding_session(business_id, "basics", raw, user["id"])
-        if raw["business_name"].strip():
-            import db
-            db.execute("UPDATE businesses SET business_name = ? WHERE id = ?", (raw["business_name"].strip(), business_id))
-        repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
         missing_here = [
-            label for key, label in (("business_name", "Nama bisnis"), ("category", "Kategori bisnis"), ("owner_name", "Nama owner"))
+            label for key, label in (
+                ("business_name", "Nama bisnis"),
+                ("category", "Kategori bisnis"),
+                ("owner_name", "Nama penanggung jawab"),
+                ("short_description", "Tentang bisnis"),
+            )
             if not (raw.get(key) or "").strip()
         ]
         if missing_here:
-            flash("Lengkapi dulu: " + ", ".join(missing_here) + ".", "error")
+            flash("Lengkapi kolom penting dulu: " + ", ".join(missing_here) + ".", "error")
             return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
+        repo.save_onboarding_session(business_id, "basics", raw, user["id"])
+        import db
+        db.execute("UPDATE businesses SET business_name = ? WHERE id = ?", (raw["business_name"].strip(), business_id))
+        repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
         repo.mark_onboarding_step_done(business_id, "basics_done")
 
     elif step == "services":
         raw_text = request.form.get("services_raw", "")
         raw_lines = [l.strip() for l in raw_text.splitlines() if l.strip()]
+        if not raw_lines:
+            flash("Kolom penting: isi minimal 1 produk atau layanan utama sebelum lanjut.", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="services"))
         repo.save_onboarding_session(business_id, "services", {"raw_lines": raw_lines}, user["id"])
         repo.replace_business_services(business_id, raw_lines)
-        if not raw_lines:
-            flash("Isi minimal 1 produk atau layanan utama sebelum lanjut.", "error")
-            return redirect(url_for("client.wizard_step", business_id=business_id, step="services"))
         repo.mark_onboarding_step_done(business_id, "services_done")
 
     elif step == "operations":
@@ -302,6 +312,21 @@ def wizard_step(business_id, step):
                 "payment_account_name": request.form.get("payment_account_name", ""),
                 "payment_instructions": request.form.get("payment_instructions", ""),
             })
+        owner_phone_raw = (request.form.get("trusted_owner_phone") or "").strip()
+        missing_here = []
+        if not service_mode:
+            missing_here.append("Model layanan")
+        if not (raw.get("operating_hours") or "").strip():
+            missing_here.append("Jam operasional")
+        if features.get("owner_commands"):
+            if not owner_phone_raw:
+                missing_here.append("WhatsApp pengelola")
+            elif not repo.normalize_owner_phone(owner_phone_raw):
+                flash("Nomor WhatsApp pengelola tidak valid. Gunakan nomor aktif dengan kode negara, mis. 6285... atau 1404....", "error")
+                return redirect(url_for("client.wizard_step", business_id=business_id, step="operations"))
+        if missing_here:
+            flash("Lengkapi kolom penting dulu: " + ", ".join(missing_here) + ".", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="operations"))
         # White-screen bug investigation — defensive error handling. A save failure here (e.g. a
         # production database that's missing a migration-added column, or any other unexpected
         # DB/driver error) must NEVER surface to the client as an unhandled 500/blank response.
@@ -324,8 +349,8 @@ def wizard_step(business_id, step):
             # absent from the template otherwise, so request.form.get() returning None/"" here for
             # a Basic tenant is expected and correctly results in set_trusted_owner_phone() being
             # a no-op (patch semantics — never overwrites with blank).
-            if features.get("owner_commands") and request.form.get("trusted_owner_phone"):
-                repo.set_trusted_owner_phone(business_id, request.form.get("trusted_owner_phone"))
+            if features.get("owner_commands") and owner_phone_raw:
+                repo.set_trusted_owner_phone(business_id, owner_phone_raw)
             # db.execute() commits internally on success (see db.py's execute()) — reaching this
             # line without an exception means the write already committed, so SAVE_OK and
             # COMMIT_OK are logged together rather than as two separately-timed checkpoints.
@@ -346,23 +371,25 @@ def wizard_step(business_id, step):
         repo.mark_onboarding_step_done(business_id, "faq_done")
 
     elif step == "style":
-        additional = request.form.getlist("additional_languages")
+        additional = [v for v in request.form.getlist("additional_languages") if v in ("id", "en")]
         raw = {
             "tone": request.form.get("tone", "friendly"),
             "primary_language": request.form.get("primary_language", "id"),
             "additional_languages": additional,
             "customer_salutation": request.form.get("customer_salutation", "Kak"),
         }
-        repo.save_onboarding_session(business_id, "style", raw, user["id"])
-        repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
         missing_here = []
+        if raw["tone"] not in ("friendly", "formal", "casual-professional"):
+            missing_here.append("Gaya bahasa")
         if raw["primary_language"] not in ("id", "en"):
             missing_here.append("Bahasa utama")
         if not (raw["customer_salutation"] or "").strip():
             missing_here.append("Sapaan customer")
         if missing_here:
-            flash("Lengkapi dulu: " + ", ".join(missing_here) + ".", "error")
+            flash("Lengkapi kolom penting dulu: " + ", ".join(missing_here) + ".", "error")
             return redirect(url_for("client.wizard_step", business_id=business_id, step="style"))
+        repo.save_onboarding_session(business_id, "style", raw, user["id"])
+        repo.upsert_business_profile(business_id, _merge_profile_patch(profile, raw))
         repo.mark_onboarding_step_done(business_id, "style_done")
 
     elif step == "upload":
