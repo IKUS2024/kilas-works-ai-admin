@@ -44,16 +44,19 @@ def _request_talent_impl(talent_id, business_id):
         abort(404)
 
     if request.method == "GET":
-        return render_template("talent_request_form.html", business=business, talent=talent)
+        return render_template("talent_request_form.html", business=business, talent=talent, values={})
 
     form = request.form
     fields = {
-        "campaign_type": form.get("campaign_type"), "platform": form.get("platform"),
-        "deliverables": form.get("deliverables"), "num_content_pieces": form.get("num_content_pieces", type=int),
-        "posting_requirements": form.get("posting_requirements"), "target_date": form.get("target_date"),
-        "location": form.get("location"), "usage_purpose": form.get("usage_purpose"),
-        "budget": form.get("budget", type=int), "brief": form.get("brief"),
+        "campaign_type": (form.get("campaign_type") or "").strip(), "platform": (form.get("platform") or "").strip(),
+        "deliverables": (form.get("deliverables") or "").strip(), "num_content_pieces": form.get("num_content_pieces", type=int),
+        "posting_requirements": (form.get("posting_requirements") or "").strip(), "target_date": (form.get("target_date") or "").strip(),
+        "location": (form.get("location") or "").strip(), "usage_purpose": (form.get("usage_purpose") or "").strip(),
+        "budget": form.get("budget", type=int), "brief": (form.get("brief") or "").strip(),
     }
+    if any(not fields[key] for key in ("campaign_type", "platform", "deliverables", "brief")):
+        flash("Lengkapi jenis campaign, platform, kebutuhan dari talent, dan brief campaign.", "error")
+        return render_template("talent_request_form.html", business=business, talent=talent, values=fields), 400
     request_id, project_id = talent_service.create_talent_request(
         talent_id, business["id"] if business else None, fields, user["id"],
     )
