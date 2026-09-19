@@ -169,6 +169,64 @@ def get_customer_name(customer_phone):
     return row.get("name") if row else None
 
 
+def update_customer_name(customer_phone, customer_name):
+    """Set the admin-facing contact name without changing the WhatsApp number or chat history."""
+    phone = normalize_customer_phone(customer_phone)
+    if not phone or not _is_platform_number_key(phone):
+        raise ValueError("invalid_customer_phone")
+    if not isinstance(customer_name, str):
+        raise ValueError("invalid_customer_name")
+    name = customer_name.strip()
+    if not 1 <= len(name) <= 120 or any(ord(ch) < 32 or ord(ch) == 127 for ch in name):
+        raise ValueError("invalid_customer_name")
+    db.execute(
+        "INSERT INTO customer_profiles (number, name, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) "
+        "ON CONFLICT(number) DO UPDATE SET name=excluded.name, updated_at=CURRENT_TIMESTAMP",
+        (phone, name),
+    )
+    return name
+
+
+def delete_conversation(customer_phone):
+    """Delete the platform inbox's LOCAL chat history for one customer.
+
+    This intentionally does not claim to unsend/delete messages from WhatsApp. The contact profile
+    is preserved so a future inbound message can reappear with the same display name. Takeover and
+    follow-up state are cleared so a future inbound starts from the normal AI-active state.
+    """
+    phone = normalize_customer_phone(customer_phone)
+    if not phone or not _is_platform_number_key(phone):
+        raise ValueError("invalid_customer_phone")
+    if not customer_exists(phone):
+        return False
+
+    conn = db.get_connection()
+    cur = conn.cursor()
+    try:
+        # Delete media metadata tied to the exact message rows before deleting the history rows.
+        cur.execute(db._adapt_placeholders(
+            "DELETE FROM inbox_media WHERE scope_key = 'platform' AND message_row_id IN "
+            "(SELECT id FROM messages WHERE number = ? AND mode = 'customer')"
+        ), (phone,))
+        cur.execute(db._adapt_placeholders(
+            "DELETE FROM messages WHERE number = ? AND mode = 'customer'"
+        ), (phone,))
+        cur.execute(db._adapt_placeholders(
+            "DELETE FROM platform_wa_conversation_state WHERE customer_phone = ?"
+        ), (phone,))
+        # Old follow-up state must not resurrect a deleted local conversation.
+        cur.execute(db._adapt_placeholders(
+            "DELETE FROM followup_state WHERE number = ?"
+        ), (phone,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+    return True
+
+
 def get_last_customer_inbound_at(customer_phone):
     phone = normalize_customer_phone(customer_phone)
     if not phone:
