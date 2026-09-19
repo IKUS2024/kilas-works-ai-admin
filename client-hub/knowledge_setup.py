@@ -37,14 +37,15 @@ CONFIG_KNOWLEDGE = {
     'business_name': None, 'business_type': None,
     'ai': {'language': {'primary': None, 'additional': None}, 'tone': None,
            'system_instructions': None, 'business_description': None, 'customer_salutation': None},
-    'business_info': {'address': None, 'business_hours': {'raw': None, 'closed_days': None},
+    'business_info': {'address': None, 'service_mode': None, 'country': None, 'timezone': None,
+                      'business_hours': {'raw': None, 'closed_days': None},
                       'contact_info': {'business_phone': None, 'owner_name': None}},
     'knowledge': {'services': {k: None for k in SERVICE_KNOWLEDGE},
                   'products': {k: None for k in (*SERVICE_KNOWLEDGE, 'name', 'price')},
-                  'faq': {k: None for k in FAQ_KNOWLEDGE}, 'pricing_notes': None},
+                  'faq': {k: None for k in FAQ_KNOWLEDGE}, 'policies': None, 'pricing_notes': None},
     'appointment_behavior': {'appointment_rules': None, 'business_hours_raw': None, 'closed_days': None},
     'payment_config': {'bank_name': None, 'account_number': None, 'account_name': None, 'instructions': None},
-    'lead_behavior': {'qualification_questions': None, 'handoff_rules': None},
+    'lead_behavior': {'qualification_questions': None, 'missing_business_fields': None, 'handoff_rules': None},
 }
 
 
