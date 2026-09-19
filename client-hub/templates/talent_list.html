@@ -7,7 +7,15 @@
 @media(max-width:700px){.talent-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:360px){.talent-grid{grid-template-columns:1fr}}
 </style>
 <div class="client-page">
-  <header class="client-head"><div><h1>Talent &amp; Creator</h1><p>Pilih talent dari profil di bawah. Setelah request dikirim, tim Kilas Works review lalu mengirim harga ke akun kamu.</p></div><span class="client-count">{{ talents|length }} talent</span></header>
+  <header class="client-head"><div><h1>Talent &amp; Creator</h1><p>Pilih talent dari profil di bawah. Setelah request dikirim, tim Kilas Works review lalu mengirim harga ke akun kamu.</p></div><span class="client-count">{{ talents_total }} talent</span></header>
+
+  <form method="get" class="card client-search-card" action="{{ url_for('talent.talent_list') }}">
+    <div class="client-search-row">
+      <input type="search" name="q" value="{{ search }}" placeholder="Cari talent, niche, platform..." aria-label="Cari talent">
+      <button class="btn small" type="submit">Cari</button>
+      {% if search %}<a class="btn small secondary" href="{{ url_for('talent.talent_list') }}">Reset</a>{% endif %}
+    </div>
+  </form>
 
   {% if businesses|length > 1 %}
   <details class="card client-collapsible">
@@ -35,8 +43,19 @@
       <details><summary>Ketersediaan</summary><div class="talent-meta" style="margin-top:5px;">{{ t.availability_status }}{% if t.availability_note %} · {{ t.availability_note }}{% endif %}</div></details>
       <a class="btn small" id="request-talent-{{ t.id }}" href="{{ url_for('talent.request_talent', business_id=businesses[0].id, talent_id=t.id) if businesses|length == 1 else url_for('talent.request_talent_no_business', talent_id=t.id) }}" onclick="return goRequestTalent(this);">Pilih Talent</a>
     </article>
-    {% else %}<div class="client-empty">Belum ada talent tersedia.</div>{% endfor %}
+    {% else %}<div class="client-empty">{{ 'Tidak ada talent yang cocok dengan pencarian.' if search else 'Belum ada talent tersedia.' }}</div>{% endfor %}
   </div>
+
+  {% if total_pages > 1 %}
+    <div class="client-list-meta">Maksimal 10 talent per halaman · Halaman {{ page }} dari {{ total_pages }}</div>
+    <nav class="client-pagination" aria-label="Halaman talent">
+      {% if page > 1 %}<a class="client-page-btn" href="{{ url_for('talent.talent_list', q=search, page=page-1) }}">←</a>{% else %}<span class="client-page-btn disabled">←</span>{% endif %}
+      {% for page_number in range(1,total_pages+1) %}
+        <a class="client-page-btn {{ 'active' if page_number==page else '' }}" href="{{ url_for('talent.talent_list', q=search, page=page_number) }}" {% if page_number==page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+      {% endfor %}
+      {% if page < total_pages %}<a class="client-page-btn" href="{{ url_for('talent.talent_list', q=search, page=page+1) }}">→</a>{% else %}<span class="client-page-btn disabled">→</span>{% endif %}
+    </nav>
+  {% endif %}
 </div>
 <script>
 function goRequestTalent(el) {
