@@ -99,19 +99,26 @@ def finance_setup(business_id):
             if request.form.get('terms')!='yes':abort(400)
             entitlement.start_trial(business_id,user['id'])
         elif action=='subscribe':
+            if entitlement.state(business_id)['status']=='TRIAL_ACTIVE':
+                flash('Trial Finance masih aktif. Tagihan langganan baru tersedia setelah trial berakhir.','info')
+                return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
             bill_id=subscription.create_bill(business_id,user['id'],request.form.get('request_key'))
             return redirect(url_for('products.bill_page',business_id=business_id,bill_id=bill_id),code=303)
         else:abort(400)
         return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
-    return render_template('finance_subscription.html',business=business,entitlement=entitlement.state(business_id),finance_plan=FINANCE_PLAN,bill_request_key=uuid.uuid4().hex,self_service_enabled=entitlement.self_service(),
-        accounts=[a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['currency']=='IDR'],bank=subscription.payment_details(),
-        bills=db.query_all('SELECT id,status,amount_minor,created_at FROM finance_subscription_bills WHERE business_id=? ORDER BY id DESC LIMIT 50',(business_id,)))
+    finance_state=entitlement.state(business_id)
+    bills=[] if finance_state['status']=='TRIAL_ACTIVE' else db.query_all('SELECT id,status,amount_minor,created_at FROM finance_subscription_bills WHERE business_id=? ORDER BY id DESC LIMIT 50',(business_id,))
+    return render_template('finance_subscription.html',business=business,entitlement=finance_state,finance_plan=FINANCE_PLAN,bill_request_key=uuid.uuid4().hex,self_service_enabled=entitlement.self_service(),
+        accounts=[a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['currency']=='IDR'],bank=subscription.payment_details(),bills=bills)
 
 
 @products_bp.route('/business/<int:business_id>/finance-bills/<int:bill_id>',methods=['GET','POST'])
 @security.login_required
 def bill_page(business_id,bill_id):
     user=security.current_user();business=security.require_business_access(business_id,user)
+    if user['role']!='KILAS_ADMIN' and entitlement.state(business_id)['status']=='TRIAL_ACTIVE':
+        flash('Trial Finance masih aktif. Tagihan langganan baru tersedia setelah trial berakhir.','info')
+        return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
     bill=subscription.bill(business_id,bill_id,user['id'])
     if request.method=='POST':
         import file_utils

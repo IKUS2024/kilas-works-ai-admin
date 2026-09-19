@@ -29,6 +29,7 @@ def create_bill(business_id,actor_user_id,request_key):
     if not payment_details(): raise finance.FinanceError('payment_not_configured')
     with db.app_purchase_transaction(business_id,None):
         finance._scope(business_id,actor_user_id)
+        if entitlement.state(business_id)['status']=='TRIAL_ACTIVE':raise finance.FinanceError('trial_active')
         replay=db.query_one('SELECT bill_id FROM finance_bill_requests WHERE business_id=? AND request_key=?',(business_id,request_key))
         if replay:return replay['bill_id']
         old=db.query_one("SELECT id FROM finance_subscription_bills WHERE business_id=? AND status<>'VERIFIED'",(business_id,))
@@ -48,6 +49,7 @@ def upload_proof(business_id,bill_id,actor_user_id,filename,content):
     digest=hashlib.sha256(content).hexdigest()
     with db.app_purchase_transaction(business_id,None):
         current=bill(business_id,bill_id,actor_user_id)
+        if entitlement.state(business_id)['status']=='TRIAL_ACTIVE':raise finance.FinanceError('trial_active')
         prior=db.query_one('SELECT id FROM finance_subscription_bills WHERE proof_hash=?',(digest,))
         if prior:
             if prior['id']==bill_id:return current

@@ -147,8 +147,13 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(e.parse(e.state(self.b)['until']),first+timedelta(days=30))
     def test_rejected_proof_no_access(self):
         ident=self.bill();self.proof(ident);billing.review(self.b,ident,self.admin,False);self.assertFalse(e.state(self.b)['active'])
-    def test_pending_proof_keeps_trial(self):
-        self.trial();first=e.state(self.b);self.proof(self.bill());self.assertEqual(first,e.state(self.b))
+    def test_trial_blocks_new_bill_and_hides_existing_bill(self):
+        ident=self.bill();self.trial();first=e.state(self.b)
+        with self.assertRaises(f.FinanceError):self.bill()
+        with self.assertRaises(f.FinanceError):self.proof(ident)
+        page=self.client.get(self.setup_url);self.assertNotIn('Langganan Finance',page.text);self.assertNotIn(f'Tagihan #{ident}',page.text)
+        self.assertEqual(self.client.get(f'/business/{self.b}/finance-bills/{ident}').status_code,303);self.assertEqual(first,e.state(self.b))
+        self.time.return_value+=timedelta(days=7);page=self.client.get(self.setup_url);self.assertIn('Langganan Finance',page.text);self.assertIn(f'Tagihan #{ident}',page.text);self.assertIn('99.000',page.text)
     def test_approve_rollback(self):
         ident=self.bill();self.proof(ident)
         with patch.object(repo,'write_audit',side_effect=RuntimeError('synthetic')):
@@ -269,8 +274,9 @@ class FinalFlowTests(unittest.TestCase):
         self.verified();self.time.return_value+=timedelta(days=35);ident=self.bill()
         billing.upload_proof(self.b,ident,self.uid,'renew.jpg',prior.image_bytes('JPEG'));billing.review(self.b,ident,self.admin,True)
         self.assertEqual(e.parse(e.state(self.b)['until'])-self.time.return_value,timedelta(days=30))
-    def test_declined_payment_preserves_active_period(self):
-        self.trial();first=e.state(self.b);ident=self.bill();self.proof(ident);billing.review(self.b,ident,self.admin,False)
+    def test_trial_blocks_payment_upload_for_preexisting_bill(self):
+        ident=self.bill();self.trial();first=e.state(self.b)
+        with self.assertRaises(f.FinanceError):self.proof(ident)
         self.assertEqual(e.state(self.b),first)
     def test_trial_requires_account(self):
         biz=repo.create_business(self.uid,'No account',package='NONE')
