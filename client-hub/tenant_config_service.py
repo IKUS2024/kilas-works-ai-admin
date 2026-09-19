@@ -188,43 +188,35 @@ def get_tenant_whatsapp_channel(tenant_id):
 
 
 def get_tenant_appointment_settings(tenant_id):
-    """Pro tenant parity cycle (Task 3) — THIS tenant's OWN appointment settings (business hours,
-    the appointment-enabled toggle, and booking notes/rules), for the bot to use instead of Kilas
-    Works' own hardcoded office hours/rules. Returns None unless the tenant is ACTIVE (same rule
-    as every other function here); callers must treat None as 'appointments not available'.
+    """Return only the ADMIN-APPROVED appointment snapshot used by the live Brain.
 
-    Deliberately reads business_profiles LIVE (not the versioned tenant_config snapshot that
-    provisioning.provision_tenant() builds, which only a KILAS_ADMIN action re-materializes) so a
-    business owner's own edit via Client Hub's business-settings page (routes_client.py,
-    reachable at any business status, not just pre-activation) takes effect on the very next
-    customer message — no engineering/admin action required, matching Task 5's explicit goal."""
-    business = repo.get_business(tenant_id)
-    if not business or business["status"] != "ACTIVE":
+    Client edits live in business_profiles as a draft until admin re-approval. Reading the
+    materialized tenant config here prevents an unreviewed edit from changing a live WhatsApp
+    assistant before the owner/admin approves it.
+    """
+    config = get_tenant_config(tenant_id)
+    if not config:
         return None
-    profile = repo.get_business_profile(tenant_id) or {}
-    features = get_tenant_features(tenant_id)
+    settings = config.get("appointment_behavior") or {}
     return {
-        "meeting_enabled": bool(features.get("appointment")) and bool(profile.get("appointment_enabled", True)),
-        "business_hours_raw": profile.get("operating_hours"),
-        "closed_days": profile.get("closed_days"),
-        "appointment_rules": profile.get("appointment_rules_raw"),
+        "meeting_enabled": bool(settings.get("meeting_enabled")),
+        "business_hours_raw": settings.get("business_hours_raw"),
+        "closed_days": settings.get("closed_days"),
+        "appointment_rules": settings.get("appointment_rules"),
     }
 
 
 def get_tenant_payment_config(tenant_id):
-    """Pro tenant parity cycle (Task 4) — THIS tenant's OWN bank/payment details (never Kilas
-    Works' own PAYMENT_CONFIG/BCA account, which belongs solely to ../app.py's platform-billing
-    concern and is not read anywhere in this module). Returns None unless the tenant is ACTIVE.
-    Reads business_profiles LIVE — see get_tenant_appointment_settings' docstring for why."""
-    business = repo.get_business(tenant_id)
-    if not business or business["status"] != "ACTIVE":
+    """Return only the ADMIN-APPROVED payment snapshot used by the live Brain."""
+    config = get_tenant_config(tenant_id)
+    if not config:
         return None
-    profile = repo.get_business_profile(tenant_id) or {}
+    payment = config.get("payment_config") or {}
     return {
-        "bank_name": profile.get("payment_bank_name"),
-        "account_number": profile.get("payment_account_number"),
-        "account_name": profile.get("payment_account_name"),
-        "instructions": profile.get("payment_instructions"),
+        "bank_name": payment.get("bank_name"),
+        "account_number": payment.get("account_number"),
+        "account_name": payment.get("account_name"),
+        "instructions": payment.get("instructions"),
     }
 
 
