@@ -60,11 +60,15 @@ BUSINESS_STATUS_LABELS = {
 }
 
 PROJECT_STATUS_LABELS = {
+    "REQUESTED": "Permintaan dibuat",
     "WAITING_FOR_QUOTE": "Menunggu penawaran",
+    "QUOTED": "Penawaran tersedia",
     "APPROVED": "Disetujui",
     "PAYMENT_PENDING": "Menunggu pembayaran",
     "PAID": "Sudah dibayar",
     "IN_PROGRESS": "Sedang dikerjakan",
+    "WAITING_FOR_CLIENT": "Menunggu customer",
+    "REVISION": "Revisi",
     "COMPLETED": "Selesai",
     "CANCELLED": "Dibatalkan",
     "REJECTED": "Ditolak",
@@ -126,6 +130,17 @@ SUBSCRIPTION_STATUS_LABELS = {
 }
 
 TALENT_REQUEST_STATUS_LABELS = {
+    "WAITING_FOR_REVIEW": "Menunggu review",
+    "WAITING_FOR_QUOTE": "Menunggu penawaran",
+    "QUOTED": "Penawaran tersedia",
+    "APPROVED": "Disetujui",
+    "PAYMENT_PENDING": "Menunggu pembayaran",
+    "PAID": "Sudah dibayar",
+    "IN_PROGRESS": "Sedang dikerjakan",
+    "WAITING_FOR_CLIENT": "Menunggu customer",
+    "REVISION": "Revisi",
+    "COMPLETED": "Selesai",
+    "CANCELLED": "Dibatalkan",
     "PENDING": "Menunggu respons",
     "CONFIRMED": "Dikonfirmasi",
     "DECLINED": "Ditolak",
