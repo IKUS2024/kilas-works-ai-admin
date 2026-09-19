@@ -5,7 +5,7 @@
 <main class="finance-assistant" id="finance-assistant">
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
 <h1>AI Assistant</h1>
-<p>{{ business.business_name }} · Tanya laporan, siapkan catatan, atau review dokumen.</p>
+<p>{{ business.business_name }} · Tanya Finance atau kirim dokumen. Assistant akan memilih alur yang sesuai dan tetap meminta review sebelum pencatatan.</p>
 <p class="muted">Kamu tetap memeriksa dan mengonfirmasi setiap pencatatan. Percakapan tidak disimpan; muat ulang akan menghapus tampilan sementara. Jangan masukkan kredensial atau nomor rekening.</p>
 <form id="assistant-composer" class="card" method="post" enctype="multipart/form-data" autocomplete="off"
       action="{{ url_for('finance.assistant_route',business_id=business.id) }}"
@@ -13,16 +13,26 @@
       data-receipt="{{ url_for('finance.receipt_analyze',business_id=business.id) }}"
       data-bank="{{ url_for('finance.bank_analyze',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label for="assistant-mode">Bantu saya dengan</label>
-<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Tanya / analisis laporan</option><option value="record">Catat transaksi</option><option value="receipt">Scan / foto struk</option><option value="bank">Mutasi / rekening bank</option></select>
-<label for="assistant-text">Pesan</label>
-<textarea id="assistant-text" maxlength="2000" rows="3" placeholder="Bulan ini pengeluaran terbesar apa? Atau: catat bensin 300 ribu hari ini." aria-describedby="assistant-text-help"></textarea>
-<p id="assistant-text-help" class="muted">Maksimal 2.000 karakter. Form analisis dan draft berikutnya menerima maksimal 1.000 karakter; kamu dapat meringkas sebelum melanjutkan.</p>
-<label class="attachment-label" for="assistant-camera">Foto Struk (kamera)</label>
-<input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" aria-describedby="assistant-file-help">
-<label class="attachment-label" for="assistant-files">Upload File — galeri, screenshot, PDF atau CSV</label>
-<input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" aria-describedby="assistant-file-help">
-<p id="assistant-file-help" class="muted">Isi struk baru dikirim ke penyedia AI setelah kamu menekan Baca Struk. Pilih kamera/galeri dari pemilih file bila tersedia. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p>
+<label for="assistant-text">Pesan atau instruksi</label>
+<textarea id="assistant-text" maxlength="2000" rows="3" placeholder="Contoh: bulan ini pengeluaran terbesar apa? · catat software 25.50 USD hari ini · ini mutasi BOFA saya." aria-describedby="assistant-text-help"></textarea>
+<p id="assistant-text-help" class="muted">Tulis singkat apa yang kamu mau. Assistant akan mencoba menentukan alurnya otomatis.</p>
+
+<div class="assistant-upload-card" aria-describedby="assistant-file-help">
+<div class="assistant-upload-head"><strong>Kamera / Upload Dokumen</strong><span>Struk, screenshot, mutasi bank, PDF atau CSV</span></div>
+<div class="assistant-upload-actions">
+<label class="attachment-label" for="assistant-camera">📷 Ambil Foto</label>
+<label class="attachment-label" for="assistant-files">📎 Pilih File</label>
+</div>
+<input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
+<input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" hidden>
+<p id="assistant-file-help" class="muted">File tidak langsung mengubah data Finance. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p>
+</div>
+
+<details class="assistant-mode-details">
+<summary>AI salah pilih? Atur alur manual</summary>
+<label for="assistant-mode">Jenis bantuan</label>
+<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Tanya / analisis laporan</option><option value="record">Catat transaksi</option><option value="receipt">Struk / pengeluaran</option><option value="bank">Mutasi / rekening bank</option></select>
+</details>
 <ul id="assistant-file-list" aria-live="polite"></ul>
 <div class="assistant-actions"><button id="assistant-send" class="btn" type="submit" disabled>Lanjut</button><button id="assistant-clear" class="btn secondary" type="button">Hapus pesan dan lampiran</button></div>
 </form>
@@ -41,7 +51,8 @@
 <button type="button" class="btn" id="assistant-receipt-continue">Baca Struk</button></section>
 <section id="assistant-bank" class="card assistant-workflow" hidden tabindex="-1"><h2>Import mutasi bank</h2>
 <p>Pilih akun untuk seluruh mutasi. Setelah ekstraksi, review baris terlebih dahulu. Rekonsiliasi dan pencatatan membutuhkan keputusan terpisah. PDF/gambar dikirim ke penyedia AI; CSV diproses tanpa AI.</p>
-<label for="assistant-bank-account">Akun Finance (IDR)</label><select id="assistant-bank-account"><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<label for="assistant-bank-account">Kas / Rekening untuk mutasi</label><select id="assistant-bank-account"><option value="">Pilih akun sesuai mata uang mutasi</option>{% for a in accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
+<p class="muted">Contoh: mutasi BOFA USD pilih rekening BOFA · USD. Kilas tidak mengubah USD menjadi IDR saat import.</p>
 <button type="button" class="btn" id="assistant-bank-continue">Lanjut Import Mutasi</button></section>
 <section id="assistant-analysis" class="assistant-workflow" hidden tabindex="-1"><h2>Tanya Finance</h2>
 {% if analyst_enabled %}{% include '_finance_analyst_workspace.html' %}{% else %}<p>Analisis AI belum diaktifkan untuk bisnis ini. Laporan Finance tetap tersedia melalui menu Finance.</p>{% endif %}</section>
