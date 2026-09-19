@@ -372,8 +372,11 @@ def dashboard(business_id, user, business):
                 if not branch_map:
                     branch_map['IDR'] = dict(currency='IDR', total_income_minor=0,
                         total_expense_minor=0, net_cashflow_minor=0, transaction_count=0)
-                breakdown.append(dict(branch=branch, summaries=[
-                    branch_map[code] for code in finance.SUPPORTED_CURRENCIES if code in branch_map]))
+                branch_summaries = [
+                    branch_map[code] for code in finance.SUPPORTED_CURRENCIES if code in branch_map]
+                breakdown.append(dict(branch=branch, summaries=branch_summaries,
+                    summary=branch_map.get('IDR', dict(currency='IDR', total_income_minor=0,
+                        total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))))
 
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     return render_template('finance_dashboard.html', user=user, business=business,
