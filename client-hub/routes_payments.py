@@ -171,22 +171,44 @@ def invoice_proof_view(invoice_id):
 @payments_bp.route("/business/<int:business_id>/invoices")
 @security.login_required
 def invoice_list(business_id):
-    """Final Operations Polish, Section 10: customer-facing invoice/payment history with
-    ACTIVE / HISTORY / ALL views, same convention as the project list below."""
+    """Customer invoice/payment history with view filter, search, and pagination."""
     user = security.current_user()
     business = security.require_business_access(business_id, user)
     view = request.args.get("view", "active")
     if view not in ("active", "history", "all"):
         view = "active"
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
+
     payments = payment_service.list_payments_for_business(business["id"])
     enriched = []
     for p in payments:
         invoice = payment_service.get_invoice(p["invoice_id"])
         if invoice is None:
             continue
-        enriched.append({**p, "invoice": invoice})
+        row = {**p, "invoice": invoice}
+        if needle and not (
+            needle in str(invoice.get("invoice_number") or "").casefold()
+            or needle in str(invoice.get("amount") or "").casefold()
+            or needle in str(p.get("status") or "").casefold()
+            or needle in str(p.get("id") or "").casefold()
+        ):
+            continue
+        enriched.append(row)
     if view == "active":
         enriched = [e for e in enriched if e["status"] not in ("VERIFIED", "REJECTED")]
     elif view == "history":
         enriched = [e for e in enriched if e["status"] in ("VERIFIED", "REJECTED")]
-    return render_template("invoice_list.html", business=business, payments=enriched, view=view)
+
+    payments_total = len(enriched)
+    per_page = 10
+    total_pages = max(1, (payments_total + per_page - 1) // per_page)
+    page = request.args.get("page", 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    enriched = enriched[start:start + per_page]
+
+    return render_template(
+        "invoice_list.html", business=business, payments=enriched, view=view, search=search,
+        payments_total=payments_total, page=page, total_pages=total_pages,
+    )
