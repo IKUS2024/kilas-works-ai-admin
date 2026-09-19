@@ -124,7 +124,7 @@
           <strong>{{ p.title }}</strong>
           <span>{{ p.business_name }} · {{ p.project_type }} · {{ p.status|humanize_status('project') }}</span>
         </div>
-        <a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Buka</a>
+        <a class="btn small secondary" href="{{ url_for('admin.talent_request_detail', request_id=p.talent_request_id) if p.talent_request_id else url_for('admin.project_admin_detail', project_id=p.id) }}">Buka</a>
       </div>
     {% endfor %}
   </section>
