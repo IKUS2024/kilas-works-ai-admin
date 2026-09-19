@@ -101,6 +101,20 @@ def build_tenant_config(business_id):
     whatsapp = repo.get_whatsapp_config(business_id) or {}
     normalized = ai_settings.get("normalized_config") or {}
 
+    # Preserve a bounded slice of owner-uploaded PDF/TXT knowledge in the APPROVED snapshot.
+    # This makes catalog/SOP uploads useful to the live tenant Brain without reading mutable draft
+    # files directly at runtime. Image uploads have no extracted_text in V1 and are intentionally
+    # skipped rather than guessed/OCR'd here.
+    documents = []
+    remaining_chars = 6000
+    for file_row in repo.list_business_files(business_id):
+        text = (file_row.get("extracted_text") or "").strip()
+        if not text or remaining_chars <= 0:
+            continue
+        snippet = text[:min(2500, remaining_chars)]
+        documents.append({"name": file_row.get("original_filename") or "dokumen", "text": snippet})
+        remaining_chars -= len(snippet)
+
     return {
         "tenant_id": business_id,
         "business_name": business["business_name"],
@@ -144,6 +158,7 @@ def build_tenant_config(business_id):
                 for f in faqs
             ],
             "policies": normalized.get("policies") or [],
+            "documents": documents,
             "products": [],  # V1 has no separate "products" vs "services" distinction — see services
             "services": [
                 {
