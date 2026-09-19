@@ -7,7 +7,7 @@
 @media(max-width:700px){.talent-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:360px){.talent-grid{grid-template-columns:1fr}}
 </style>
 <div class="client-page">
-  <header class="client-head"><div><h1>Talent</h1><p>Pilih talent, lalu isi kebutuhan campaign.</p></div><span class="client-count">{{ talents|length }} talent</span></header>
+  <header class="client-head"><div><h1>Talent &amp; Creator</h1><p>Pilih talent dari profil di bawah. Setelah request dikirim, tim Kilas Works review lalu mengirim harga ke akun kamu.</p></div><span class="client-count">{{ talents|length }} talent</span></header>
 
   {% if businesses|length > 1 %}
   <details class="card client-collapsible">
@@ -21,6 +21,10 @@
     <div class="client-collapsible-body"><p class="client-note">{{ disclaimer }}</p></div>
   </details>
 
+  <section class="card" style="padding:13px 15px;">
+    <p class="client-note" style="margin:0;"><strong>Alur:</strong> Pilih talent → isi kebutuhan campaign → admin review &amp; kirim harga → kamu setujui penawaran → pembayaran.</p>
+  </section>
+
   <div class="talent-grid">
     {% for t in talents %}
     <article class="talent-card">
@@ -29,7 +33,7 @@
       <div class="talent-meta">{{ t.social_handle }}{% if t.platform %} · {{ t.platform }}{% endif %}</div>
       <div class="talent-meta">{{ '{:,}'.format(t.follower_count).replace(',', '.') }} followers{% if t.niche %} · {{ t.niche }}{% endif %}</div>
       <details><summary>Ketersediaan</summary><div class="talent-meta" style="margin-top:5px;">{{ t.availability_status }}{% if t.availability_note %} · {{ t.availability_note }}{% endif %}</div></details>
-      <a class="btn small" id="request-talent-{{ t.id }}" href="{{ url_for('talent.request_talent', business_id=businesses[0].id, talent_id=t.id) if businesses|length == 1 else url_for('talent.request_talent_no_business', talent_id=t.id) }}" onclick="return goRequestTalent(this);">Request</a>
+      <a class="btn small" id="request-talent-{{ t.id }}" href="{{ url_for('talent.request_talent', business_id=businesses[0].id, talent_id=t.id) if businesses|length == 1 else url_for('talent.request_talent_no_business', talent_id=t.id) }}" onclick="return goRequestTalent(this);">Pilih Talent</a>
     </article>
     {% else %}<div class="client-empty">Belum ada talent tersedia.</div>{% endfor %}
   </div>
