@@ -168,6 +168,17 @@ test('multi currency dashboard keeps original currency and reference FX copy',()
   assert.match(html,/data-currency-account/);
   assert.match(html,/USD/);
   assert.match(html,/Estimasi total dalam IDR/);
+  assert.match(html,/data-balance-display-currency/);
+  assert.match(html,/data-balance-display-value/);
+  assert.match(html,/Saldo asli per rekening/);
   assert.match(html,/bukan kurs jual\/beli bank/);
   assert.match(html,/Mata uang rekening tidak dapat diubah/);
+});
+
+
+test('balance display currency selector converts the combined total',()=>{
+  const js=fs.readFileSync(path.join(ROOT,'static','finance_branches.js'),'utf8');
+  assert.match(js,/data-balance-card/);
+  assert.match(js,/totalIdr\/rate/);
+  assert.match(js,/Estimasi total dalam/);
 });

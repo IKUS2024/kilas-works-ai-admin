@@ -104,3 +104,25 @@ for (const form of document.querySelectorAll('form[action*="/finance/exchanges"]
   };
   from.addEventListener('change',refresh);to.addEventListener('change',refresh);fromAmount.addEventListener('input',refresh);toAmount.addEventListener('input',refresh);refresh();
 }
+
+
+for (const card of document.querySelectorAll('[data-balance-card]')) {
+  const select=card.querySelector('[data-balance-display-currency]');
+  const value=card.querySelector('[data-balance-display-value]');
+  const label=card.querySelector('[data-balance-display-label]');
+  if(!select||!value||!label)continue;
+  const totalIdr=Number(card.dataset.totalIdr);
+  const symbols={IDR:'Rp',USD:'US$',SGD:'S$',MYR:'RM',EUR:'€',GBP:'£',AUD:'A$',JPY:'¥',CNY:'CN¥',HKD:'HK$',THB:'฿'};
+  const format=(amount,code,decimals)=>{
+    const number=new Intl.NumberFormat('id-ID',{minimumFractionDigits:decimals,maximumFractionDigits:decimals}).format(amount);
+    return (symbols[code]||code+' ')+number;
+  };
+  const refresh=()=>{
+    const option=select.selectedOptions[0],code=option?.value||'IDR';
+    const rate=Number(option?.dataset.idrRate||1),decimals=Number(option?.dataset.decimals||0);
+    const converted=code==='IDR'?totalIdr:(rate>0?totalIdr/rate:null);
+    value.textContent=converted===null?'Kurs tidak tersedia':format(converted,code,decimals);
+    label.textContent='Estimasi total dalam '+code;
+  };
+  select.addEventListener('change',refresh);refresh();
+}
