@@ -44,20 +44,26 @@
 
   {% if talent_request.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') and project.status in ('REQUESTED','WAITING_FOR_QUOTE') %}
   <section class="card">
-    <h2>Setujui &amp; Kirim Harga</h2>
+    <h2>{{ 'Revisi & Kirim Ulang Harga' if quotation and quotation.status == 'REJECTED' else 'Setujui & Kirim Harga' }}</h2>
+    {% if quotation and quotation.status == 'REJECTED' %}
+      <div class="admin-note" style="border:1px solid var(--yellow);border-radius:12px;padding:10px;margin-bottom:12px;">
+        <strong>Customer minta revisi penawaran.</strong><br>
+        {{ quotation.notes|display_or_missing }}
+      </div>
+    {% endif %}
     <p class="admin-note">Kalau request bisa dikerjakan, isi penawaran final di bawah. Setelah dikirim, customer langsung melihat penawaran di akun mereka dan bisa setuju atau minta revisi.</p>
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="quote">
       <div class="admin-form-grid">
         <label class="full">Pekerjaan yang disetujui
-          <textarea name="scope" required placeholder="Contoh: Talent untuk campaign Instagram brand fashion sesuai brief customer."></textarea>
+          <textarea name="scope" required placeholder="Contoh: Talent untuk campaign Instagram brand fashion sesuai brief customer.">{{ quotation.scope if quotation and quotation.status == 'REJECTED' else '' }}</textarea>
         </label>
         <label class="full">Yang diterima customer
-          <textarea name="deliverables" required placeholder="Contoh: 1 Reels + 3 Story.">{{ talent_request.deliverables or '' }}</textarea>
+          <textarea name="deliverables" required placeholder="Contoh: 1 Reels + 3 Story.">{{ quotation.deliverables if quotation and quotation.status == 'REJECTED' else (talent_request.deliverables or '') }}</textarea>
         </label>
         <label>Jumlah output
-          <input type="number" name="quantity" min="1" value="{{ talent_request.num_content_pieces or 1 }}">
+          <input type="number" name="quantity" min="1" value="{{ quotation.quantity if quotation and quotation.status == 'REJECTED' and quotation.quantity else (talent_request.num_content_pieces or 1) }}">
         </label>
         <label>Harga penawaran (Rp)
           <input type="number" name="final_price" min="1" placeholder="Contoh: 2500000" required>
@@ -66,19 +72,19 @@
           <textarea name="notes" placeholder="Contoh: Transport luar area belum termasuk. Revisi maksimal 1 kali."></textarea>
         </label>
       </div>
-      <div class="admin-actions"><button class="btn" type="submit">Setujui Request &amp; Kirim Penawaran</button></div>
+      <div class="admin-actions"><button class="btn" type="submit">{{ 'Kirim Ulang Penawaran' if quotation and quotation.status == 'REJECTED' else 'Setujui Request &amp; Kirim Penawaran' }}</button></div>
     </form>
   </section>
   {% endif %}
 
   {% if quotation %}
   <section class="card">
-    <h2>Penawaran Terkirim</h2>
+    <h2>{{ 'Penawaran Terakhir' if quotation.status == 'REJECTED' else 'Penawaran Terkirim' }}</h2>
     <div class="quote-total">Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</div>
-    <p class="admin-note">{{ quotation.scope|display_or_missing }}</p>
-    <p class="admin-note">{{ quotation.deliverables|display_or_missing }}</p>
+    <p class="admin-note"><strong>Pekerjaan:</strong> {{ quotation.scope|display_or_missing }}</p>
+    <p class="admin-note"><strong>Output:</strong> {{ quotation.deliverables|display_or_missing }}</p>
+    {% if quotation.notes %}<p class="admin-note"><strong>Catatan:</strong> {{ quotation.notes }}</p>{% endif %}
     <p class="admin-note">Status customer: {{ quotation.status|humanize_status('quotation') }}</p>
-    <div class="admin-actions"><a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=project.id) }}">Lihat Project</a></div>
   </section>
   {% endif %}
 </div>
