@@ -119,15 +119,15 @@ class BranchTests(unittest.TestCase):
         with patch.object(fx, 'snapshot', return_value=rates):
             response, context = self.page(self.ba, period_mode='all')
         self.assertEqual(response.status_code, 200)
-        usd_flow = next(row for row in context['summaries'] if row['currency']=='USD')
+        self.assertEqual([row['currency'] for row in context['summaries']], ['IDR'])
         usd_balance = next(row for row in context['balance_totals'] if row['currency']=='USD')
-        self.assertEqual(usd_flow['total_income_minor'], 0)
-        self.assertEqual(usd_flow['total_expense_minor'], 0)
         self.assertEqual(usd_balance['opening_balance_minor'], 10000)
         self.assertEqual(usd_balance['balance_minor'], 10000)
         self.assertEqual(context['balance_total'], 1000000)
-        for text in ('Arus Kas Periode', 'US$100.00', 'Termasuk saldo awal',
-                     'Bukan pendapatan baru.', 'Lihat asal saldo'):
+        self.assertNotIn('Arus kas USD', response.text)
+        for text in ('Arus Kas Periode', 'US$100.00', 'Saldo asli yang dimiliki sekarang',
+                     'Termasuk saldo awal', 'Bukan pemasukan.', 'Nilai gabungan (estimasi)',
+                     'Lihat perhitungan saldo'):
             self.assertIn(text, response.text)
 
     def test_missing_fx_rate_never_returns_partial_combined_balance(self):
