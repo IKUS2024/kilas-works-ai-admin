@@ -7,10 +7,14 @@
   <header class="client-head" style="margin-top:10px;"><div><h1>{{ project.title }}</h1><p>Pesanan pribadi</p></div><span class="client-status {{ 'ok' if project.status in ('PAID','IN_PROGRESS','COMPLETED') else ('warn' if project.status in ('WAITING_FOR_QUOTE','PAYMENT_PENDING','APPROVED') else '') }}">{{ project.status|humanize_status('project') }}</span></header>
 
   <section class="card">
-    {% if project.status == 'WAITING_FOR_QUOTE' %}
-      <p class="client-note">Permintaan penawaran sudah diterima. Belum ada tagihan yang perlu dibayar.</p>
+    {% if project.status == 'REQUESTED' %}
+      <p class="client-note">Request sudah dikirim. Tim Kilas Works sedang mereview kebutuhan kamu.</p>
+    {% elif project.status == 'WAITING_FOR_QUOTE' %}
+      <p class="client-note">Request sudah direview. Tim Kilas Works sedang menyiapkan penawaran harga.</p>
+    {% elif project.status == 'QUOTED' and quotation %}
+      <p class="client-note">Penawaran harga sudah tersedia.</p><div class="client-actions"><a class="btn" href="{{ url_for('quotations.personal_quotation_detail', quotation_id=quotation.id) }}">Lihat Penawaran · Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</a></div>
     {% elif project.status == 'APPROVED' %}
-      <p class="client-note">Layanan siap dilanjutkan ke pembayaran.</p><div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Checkout</a></div>
+      <p class="client-note">Penawaran sudah disetujui. Lanjutkan ke pembayaran.</p><div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Checkout</a></div>
     {% elif project.status in ('PAYMENT_PENDING','PAID','IN_PROGRESS') %}
       <p class="client-note">Pesanan sedang diproses.</p>{% if project.status == 'PAYMENT_PENDING' %}<div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Bayar</a></div>{% endif %}
     {% elif project.status == 'CANCELLED' %}
