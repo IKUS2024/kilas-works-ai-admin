@@ -123,6 +123,10 @@ def dashboard():
             "subscription_banner": subscription_service.get_subscription_banner(b["id"]),
             "finance_entitlement": __import__("finance_entitlements").state(b["id"]) if __import__("finance_entitlements").self_service() else None,
             "ai_usage": ai_usage.client_summary(b["id"]) if b["package"] != "NONE" else None,
+            "brain_review_pending": bool(
+                b["package"] != "NONE"
+                and (repo.get_ai_settings(b["id"]) or {}).get("ai_status") == "STALE"
+            ),
         })
         # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
         # across every business they own, so "what's happening with my order" doesn't require
@@ -215,9 +219,8 @@ def wizard_step(business_id, step):
     business = _business_or_404(business_id)
     if step not in WIZARD_STEPS:
         abort(404)
-    if business["status"] in ("READY_FOR_REVIEW", "NEEDS_REVISION", "APPROVED", "ACTIVE", "SUSPENDED"):
-        return redirect(url_for("client.business_memory", business_id=business_id))
-
+    # Brain setup remains editable after review/approval/go-live. Saved edits become a pending
+    # draft (ai_status=STALE) and do not replace the approved runtime snapshot until admin approval.
     profile = repo.get_business_profile(business_id) or {}
     services = repo.get_business_services(business_id)
     faqs = repo.get_business_faqs(business_id)
@@ -417,7 +420,7 @@ def business_memory(business_id):
             print('KNOWLEDGE_SETUP: save_failed; exception_type=' + type(exc).__name__)
             flash('Informasi belum tersimpan. Coba lagi sebentar.', 'error')
         else:
-            flash('Informasi bisnis tersimpan untuk Kilas Brain.', 'success')
+            flash('Perubahan tersimpan sebagai draft dan menunggu persetujuan Kilas Works. Versi yang sudah disetujui tetap dipakai sampai review selesai.', 'success')
         return redirect(url_for('client.business_memory', business_id=business_id))
     if request.method == "POST":
         data = {k: request.form.get(k, profile.get(k) or '').strip() for k in fields}
@@ -433,7 +436,8 @@ def business_memory(business_id):
             print('BUSINESS_MEMORY: save failed; exception_type=' + type(exc).__name__)
             flash('Memori bisnis belum tersimpan. Coba lagi sebentar.', 'error')
         else:
-            flash('Memori bisnis tersimpan dan digunakan Kilas Brain untuk chat berikutnya.', 'success')
+            repo.set_business_stale_if_done(business_id)
+            flash('Perubahan memori tersimpan sebagai draft dan menunggu persetujuan Kilas Works.', 'success')
         return redirect(url_for('client.business_memory', business_id=business_id))
     return render_template('business_memory.html', business=business, profile=profile,
                            services=services_existing, faqs=faqs_existing, setup=setup,
@@ -505,9 +509,10 @@ def business_settings(business_id):
     if (repo.get_tenant_features(business_id) or {}).get("appointment"):
         raw["appointment_enabled"] = bool(request.form.get("appointment_enabled"))
     repo.save_business_settings(business_id, raw)
+    repo.set_business_stale_if_done(business_id)
     repo.write_audit(user["id"], business_id, "settings_updated", "appointment/payment settings diubah oleh owner")
 
-    flash("Pengaturan appointment & pembayaran berhasil disimpan.", "success")
+    flash("Perubahan pengaturan tersimpan dan menunggu persetujuan Kilas Works. Pengaturan live lama tetap dipakai sampai disetujui.", "success")
     return redirect(url_for("client.business_settings", business_id=business_id))
 
 
@@ -540,7 +545,8 @@ def upload_file(business_id):
         saved_names.append(safe_name)
 
     if saved_names:
-        flash(f"{len(saved_names)} file berhasil diupload: {', '.join(saved_names)}.", "success")
+        repo.set_business_stale_if_done(business_id)
+        flash(f"{len(saved_names)} file berhasil diupload dan perubahan menunggu persetujuan Kilas Works: {', '.join(saved_names)}.", "success")
     if failed:
         flash("Sebagian file gagal diupload — " + "; ".join(failed), "error")
     return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
