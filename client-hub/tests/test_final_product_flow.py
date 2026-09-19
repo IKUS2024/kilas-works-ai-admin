@@ -45,7 +45,7 @@ class FinalFlowTests(unittest.TestCase):
         bill=self.bill();self.proof(bill);billing.review(self.b,bill,self.admin,True);return bill
     def test_public_three_products(self):
         response=app.test_client().get('/products');self.assertEqual(response.status_code,200)
-        for text in ('499.000','149.000','7 × 24','Layanan Kreatif','Tanpa trial'):self.assertIn(text,response.text)
+        for text in ('499.000','149.000','99.000','Harga promo pengguna awal','7 × 24','Layanan Kreatif','Tanpa trial'):self.assertIn(text,response.text)
     def test_public_catalog_has_real_keys(self):
         response=app.test_client().get('/products');self.assertIn('value="content_basic"',response.text)
     def test_get_and_login_do_not_activate(self):
@@ -116,7 +116,10 @@ class FinalFlowTests(unittest.TestCase):
         with app.app_context():token=sharing.signer().dumps({'purpose':'finance_invoice_view','business_id':self.b,'invoice_id':1})
         with app.app_context():self.assertEqual(sharing.resolve_token(token),(self.b,1))
     def test_server_price_and_pending_no_access(self):
-        ident=self.bill();row=billing.bill(self.b,ident,self.uid);self.assertEqual(row['amount_minor'],149000);self.assertFalse(e.state(self.b)['active'])
+        ident=self.bill();row=billing.bill(self.b,ident,self.uid);self.assertEqual(row['amount_minor'],99000);self.assertFalse(e.state(self.b)['active'])
+    def test_legacy_regular_price_bill_still_verifies_during_promo(self):
+        ident=self.bill();db.execute('UPDATE finance_subscription_bills SET amount_minor=? WHERE business_id=? AND id=?',(149000,self.b,ident))
+        self.proof(ident);billing.review(self.b,ident,self.admin,True);self.assertEqual(e.state(self.b)['status'],'PAID_ACTIVE')
     def test_bill_repeat_same_pending(self):self.assertEqual(self.bill(),self.bill())
     def test_bill_concurrent(self):
         result=self.race([self.bill,self.bill]);self.assertEqual(result[0],result[1])

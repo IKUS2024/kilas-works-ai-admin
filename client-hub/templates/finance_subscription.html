@@ -55,7 +55,7 @@
 
   <section class="card">
     <div class="client-item-head">
-      <div><div class="client-item-title">Langganan Finance</div><div class="client-item-meta">{{ finance_plan.amount_minor|finance_idr }} / {{ finance_plan.period_days }} hari · tanpa auto-renew.</div></div>
+      <div><div class="client-item-title">Langganan Finance</div><div class="client-item-meta">{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %}<s>{{ finance_plan.regular_amount_minor|finance_idr }}</s> → {% endif %}<strong>{{ finance_plan.amount_minor|finance_idr }}</strong> / {{ finance_plan.period_days }} hari{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %} · {{ finance_plan.promo_label }}{% endif %} · tanpa auto-renew.</div></div>
     </div>
     {% if bank and self_service_enabled %}
       <form method="post" style="margin-top:10px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="subscribe"><input type="hidden" name="request_key" value="{{ bill_request_key }}"><button class="btn" type="submit">Buat Tagihan Finance</button></form>

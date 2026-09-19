@@ -66,7 +66,7 @@ def transport_fee(distance_km, out_of_town=False):
             return fee
 
 
-FINANCE_PLAN = {"key": "finance", "name": "Kilas Finance", "amount_minor": 149000, "currency": "IDR", "period_days": 30, "trial_days": 7}
+FINANCE_PLAN = {"key": "finance", "name": "Kilas Finance", "amount_minor": 99000, "regular_amount_minor": 149000, "accepted_amounts_minor": (99000, 149000), "currency": "IDR", "period_days": 30, "trial_days": 7, "promo_label": "Harga promo pengguna awal"}
 
 BRAIN_PLAN = {
     "nama": "Kilas Brain", "harga": 499000, "satuan": "bulan",

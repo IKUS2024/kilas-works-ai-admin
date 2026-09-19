@@ -12,7 +12,7 @@
 .product-mark svg{width:22px;height:22px}
 .product-name{min-width:0}.product-name h2{margin:0;font-size:19px}.product-name span{font-size:11px;color:var(--text-dim)}
 .product-pitch{font-size:14px;line-height:1.4;margin:0 0 12px;min-height:40px}
-.product-price{font-size:21px;font-weight:800;line-height:1.15;margin:0}.product-price small{font-size:12px;font-weight:600;color:var(--text-dim)}
+.product-price{font-size:21px;font-weight:800;line-height:1.15;margin:0}.product-price small{font-size:12px;font-weight:600;color:var(--text-dim)}.product-price-old{font-size:13px;font-weight:700;color:var(--text-dim);text-decoration:line-through;margin-right:5px}
 .product-chips{display:flex;gap:5px;flex-wrap:wrap;margin:11px 0 14px}
 .product-chip{font-size:10px;padding:4px 7px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);white-space:nowrap}
 .product-cta{margin-top:auto}.product-cta .btn{width:100%;text-align:center;display:flex;align-items:center;justify-content:center;min-height:44px}
@@ -64,8 +64,8 @@
         <div class="product-name"><h2>Kilas Finance</h2><span>Keuangan + AI</span></div>
       </div>
       <p class="product-pitch">Catat transaksi, struk, invoice, laporan, dan rekonsiliasi mutasi bank.</p>
-      <p class="product-price">{{ finance_plan.amount_minor|finance_idr }} <small>/ {{ finance_plan.period_days }} hari</small></p>
-      <div class="product-chips"><span class="product-chip">{{ finance_plan.trial_days }} hari trial</span><span class="product-chip">AI Finance</span><span class="product-chip">Tanpa Brain</span></div>
+      <p class="product-price">{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %}<span class="product-price-old">{{ finance_plan.regular_amount_minor|finance_idr }}</span>{% endif %}{{ finance_plan.amount_minor|finance_idr }} <small>/ {{ finance_plan.period_days }} hari</small></p>
+      <div class="product-chips">{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %}<span class="product-chip">{{ finance_plan.promo_label }}</span>{% endif %}<span class="product-chip">{{ finance_plan.trial_days }} hari trial</span><span class="product-chip">AI Finance</span><span class="product-chip">Tanpa Brain</span></div>
       <form class="product-cta" method="post" action="{{ url_for('products.select') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance">
         <button class="btn" type="submit">Coba {{ finance_plan.trial_days }} Hari</button>

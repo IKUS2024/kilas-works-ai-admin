@@ -67,7 +67,8 @@ def review(business_id,bill_id,actor_user_id,approve):
         if current['status']=='VERIFIED' and approve:return current
         if current['status']=='REJECTED' and not approve:return current
         if current['status']!='REVIEW':raise finance.FinanceError('bill_state')
-        if current['product_key']!=FINANCE_PLAN['key'] or current['amount_minor']!=FINANCE_PLAN['amount_minor'] or current['currency']!='IDR':raise finance.FinanceError('bill_invalid')
+        accepted_amounts=tuple(FINANCE_PLAN.get('accepted_amounts_minor') or (FINANCE_PLAN['amount_minor'],))
+        if current['product_key']!=FINANCE_PLAN['key'] or current['amount_minor'] not in accepted_amounts or current['currency']!='IDR':raise finance.FinanceError('bill_invalid')
         proof=db.query_one('SELECT proof_hash FROM finance_subscription_bills WHERE business_id=? AND id=?',(business_id,bill_id))
         if not proof['proof_hash']:raise finance.FinanceError('proof_unavailable')
         now=entitlement.now();end=None
