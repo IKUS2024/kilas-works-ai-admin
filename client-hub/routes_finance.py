@@ -900,7 +900,7 @@ def receipt_page(user, business, review=None, error=None, values=None, status=20
     accounts, categories = finance_receipts.options(business['id'], user['id'])
     return render_template('finance_receipt.html', user=user, business=business, review=review,
                            accounts=accounts, categories=categories, error=error, values=values,
-                           today=date.today().isoformat()), status
+                           supported_currencies=finance.SUPPORTED_CURRENCIES,today=date.today().isoformat()), status
 
 
 @finance_bp.route('/business/<int:business_id>/finance/receipts/new')

@@ -8,12 +8,12 @@
 <form id="operator-form" class="card" data-draft="{{ url_for('finance.operator_action',business_id=business.id,stage='draft') }}" data-confirm="{{ url_for('finance.operator_action',business_id=business.id,stage='confirm') }}" data-csrf="{{ csrf_token() }}">
 <fieldset id="operator-fields" style="border:0;padding:0;min-width:0">
 <label for="op-action">Tindakan yang ingin disiapkan</label><select id="op-action" required>{% if assistant_embedded %}<option value="">Pilih tindakan</option>{% endif %}{% for key,label in actions.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select>
-<label for="op-request">Permintaan dan nominal rupiah</label><textarea id="op-request" maxlength="1000" rows="3" required placeholder="Catat pengeluaran Rp500.000 untuk Grab meeting client"></textarea>
+<label for="op-request">Permintaan dan nominal sesuai mata uang akun</label><textarea id="op-request" maxlength="1000" rows="3" required placeholder="Contoh: catat pengeluaran 25.50 USD untuk software"></textarea>
 <p class="muted">Sebutkan satu nominal pasti dan keterangannya. Tidak menghitung perkiraan atau menjumlahkan beberapa nominal dari chat.</p>
 <label for="op-date">Tanggal pencatatan</label><input id="op-date" type="date" value="{{ today }}" max="{{ today }}" required>
-<label for="op-account">Akun kas/bank (rupiah)</label><select id="op-account" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<label for="op-account">Kas / Rekening</label><select id="op-account" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
 <label for="op-category">Kategori</label><select id="op-category" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>{% endfor %}</select>
-<div id="op-invoice-wrap" hidden><label for="op-invoice">Invoice Finance yang telah menerima pembayaran</label><select id="op-invoice"><option value="">Pilih invoice</option>{% for i in invoices %}<option value="{{ i.id }}">{{ i.invoice_number }}</option>{% endfor %}</select><p class="muted">Maksimal 100 invoice belum lunas terbaru. Hanya catat uang yang benar-benar sudah diterima. Bukan invoice langganan/platform Kilas Works.</p></div>
+<div id="op-invoice-wrap" hidden><label for="op-invoice">Invoice Finance yang telah menerima pembayaran</label><select id="op-invoice"><option value="">Pilih invoice</option>{% for i in invoices %}<option value="{{ i.id }}" data-currency="{{ i.currency }}">{{ i.invoice_number }} · {{ i.currency }}</option>{% endfor %}</select><p class="muted">Maksimal 100 invoice belum lunas terbaru. Hanya catat uang yang benar-benar sudah diterima. Bukan invoice langganan/platform Kilas Works.</p></div>
 <button class="btn" type="submit">Siapkan draft — belum menyimpan</button>
 </fieldset></form>
 <p id="op-status" role="status" aria-live="polite">Pilih tindakan dan referensi, lalu jelaskan apa yang ingin dicatat.</p>

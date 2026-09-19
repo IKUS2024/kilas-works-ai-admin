@@ -15,14 +15,17 @@
   const choices = () => {
     const payment = el('op-action').value === 'record_invoice_payment';
     const direction = el('op-action').value === 'create_expense' ? 'EXPENSE' : 'INCOME';
+    const currency=el('op-account').selectedOptions[0]?.dataset.currency || '';
     for (const option of el('op-category').options) {
       option.hidden = !!option.dataset.direction && option.dataset.direction !== direction;
       option.disabled = option.hidden;
     }
-    el('op-category').value = ''; el('op-invoice').value = '';
+    el('op-category').value = '';
+    for(const option of el('op-invoice').options){if(!option.value)continue;option.hidden=!!currency&&option.dataset.currency!==currency;option.disabled=option.hidden;}
+    if(el('op-invoice').selectedOptions[0]?.disabled)el('op-invoice').value='';
     el('op-invoice-wrap').hidden = !payment; el('op-invoice').required = payment;
   };
-  el('op-action').addEventListener('change', choices); choices();
+  el('op-action').addEventListener('change', choices);el('op-account').addEventListener('change',choices); choices();
   form.addEventListener('submit', async event => {
     event.preventDefault(); if (busy || token) return;
     state(true); el('op-status').textContent = 'Menyiapkan usulan, belum menyimpan data…';

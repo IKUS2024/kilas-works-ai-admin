@@ -14,23 +14,24 @@
 {% set e = review.extraction %}
 <div class="card"><h2>Review Hasil — belum disimpan</h2><p>File: {{ review.filename }}</p>
 {% if review.fallback %}<div role="alert"><p><strong>{{ review.message or 'AI belum berhasil membaca struk ini. Coba foto ulang lebih dekat dan terang, atau isi manual.' }}</strong></p><a data-finance-write href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Foto / pilih struk lagi</a><p>Belum ada transaksi dibuat. Isi semua nilai akhir secara manual jika ingin melanjutkan tanpa AI.</p></div>{% endif %}
-<div class="fin-grid"><p>Merchant: {{ e.merchant_name or 'Belum diketahui' }}</p><p>Tanggal: {{ e.transaction_date or 'Belum diketahui' }}</p><p>Total: {{ e.total_minor if e.total_minor is not none else 'Belum diketahui' }} · {{ e.currency or 'Mata uang belum diketahui' }}</p><p>Nomor struk: {{ e.receipt_number or 'Tidak terbaca' }}</p></div>
+<div class="fin-grid"><p>Merchant: {{ e.merchant_name or 'Belum diketahui' }}</p><p>Tanggal: {{ e.transaction_date or 'Belum diketahui' }}</p><p>Total: {% if e.total_minor is not none and e.currency in supported_currencies %}{{ e.total_minor|finance_money(e.currency) }}{% else %}Belum diketahui{% endif %} · {{ e.currency or 'Mata uang belum diketahui' }}</p><p>Nomor struk: {{ e.receipt_number or 'Tidak terbaca' }}</p></div>
 <p>Deskripsi: {{ e.description or 'Belum diketahui' }}</p><p><strong>Saran AI:</strong> {{ e.suggested_category_name or 'Tidak ada' }}. Pilih kategori akhir sendiri.</p>
-{% if e.currency != 'IDR' %}<p>Konfirmasi hanya mendukung struk rupiah (IDR). Pastikan mata uang asli IDR; jangan konversi struk mata uang lain di form ini.</p>{% endif %}
+{% if e.currency and e.currency not in supported_currencies %}<p>Mata uang pada struk belum didukung. Jangan melakukan konversi manual di form ini.</p>{% endif %}
 </div>
 <form class="card" method="post" action="{{ url_for('finance.receipt_confirm',business_id=business.id) }}" autocomplete="off">
 <h2>Nilai akhir yang akan dicatat</h2><p>Periksa struk asli. Review berlaku 10 menit. Akun dan kategori harus dipilih; AI tidak memilih akun.</p>
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="analysis_token" value="{{ review.token }}"><input type="hidden" name="currency" value="IDR">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="analysis_token" value="{{ review.token }}">
+<label for="receipt-currency">Mata uang</label><select id="receipt-currency" name="currency" data-receipt-currency required>{% for code in supported_currencies %}<option value="{{ code }}" {% if (values.currency if values else e.currency or 'IDR')==code %}selected{% endif %}>{{ code }}</option>{% endfor %}</select>
 <div class="fin-grid"><div><label for="merchant">Merchant / pihak terkait</label><input id="merchant" name="merchant_name" maxlength="160" value="{{ values.merchant_name if values else e.merchant_name or '' }}"></div>
 <div><label for="date">Tanggal transaksi</label><input id="date" name="occurred_on" type="date" max="{{ today }}" required value="{{ values.occurred_on if values else e.transaction_date or '' }}"></div>
-<div><label for="amount">Nominal IDR (rupiah bulat)</label><input id="amount" name="amount" required inputmode="numeric" pattern="[0-9]+" maxlength="19" value="{{ values.amount if values else e.total_minor if e.currency == 'IDR' and e.total_minor is not none else '' }}"></div>
-<div><label for="account">Akun rupiah</label><select id="account" name="account_id" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}" {% if values and values.account_id == a.id|string %}selected{% endif %}>{{ a.name }}</option>{% endfor %}</select></div>
+<div><label for="amount">Nominal <span data-receipt-currency-label></span></label><input id="amount" name="amount" required inputmode="decimal" maxlength="25" value="{{ values.amount if values else (e.total_minor if e.currency in ('IDR','JPY') else ('%.2f'|format(e.total_minor/100) if e.total_minor is not none and e.currency in supported_currencies else '')) }}"></div>
+<div><label for="account">Kas / Rekening</label><select id="account" name="account_id" required><option value="">Pilih akun dengan mata uang yang sama</option>{% for a in accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" {% if values and values.account_id == a.id|string %}selected{% endif %}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></div>
 <div><label for="category">Kategori pengeluaran</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}" {% if values and values.category_id == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></div></div>
 <label for="description">Deskripsi</label><textarea id="description" name="description" maxlength="500">{{ values.description if values else e.description or '' }}</textarea>
-<label><input type="checkbox" name="confirmed" value="yes" required> Saya telah memeriksa nilai akhir dan memastikan struk asli dalam IDR.</label>
+<label><input type="checkbox" name="confirmed" value="yes" required> Saya telah memeriksa nominal, mata uang, tanggal, akun, dan kategori sesuai struk asli.</label>
 <button class="btn" {% if not accounts or not categories %}disabled{% endif %}>Catat Pengeluaran</button>
 <a data-finance-write class="btn secondary" href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Batal — Tidak Menyimpan</a>
-{% if not accounts or not categories %}<p>Tambahkan akun rupiah dan kategori pengeluaran aktif melalui Finance terlebih dahulu.</p>{% endif %}
+{% if not accounts or not categories %}<p>Tambahkan Kas / Rekening dan kategori pengeluaran aktif melalui Finance terlebih dahulu.</p>{% endif %}
 </form>
 {% endif %}
 {% if not review or review.duplicate %}
