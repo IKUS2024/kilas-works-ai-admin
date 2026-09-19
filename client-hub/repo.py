@@ -24,26 +24,32 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def normalize_owner_phone(raw):
-    """Normalize an owner/pengelola WhatsApp number to digits-only E.164-style storage.
+def normalize_whatsapp_phone(raw):
+    """Normalize a customer-facing or owner WhatsApp number to digits-only E.164-style storage.
 
-    Indonesian local numbers may be entered as 08... or 8... and are normalized to 62...
-    automatically. Numbers for other countries must include their country code (for example
-    1404... for US/Canada) and are preserved instead of being incorrectly forced to Indonesia.
-    Returns None for clearly invalid lengths or input with no digits.
+    Indonesia may be entered as 08..., 8..., 62..., or +62.... International numbers must carry
+    their country code (for example +1 404... or 1404... for US/Canada). A bare 10-digit number
+    such as 4048836437 is intentionally rejected because its country is ambiguous; this prevents
+    the system from silently connecting/notifying the wrong WhatsApp account.
     """
-    digits = re.sub(r"\D", "", raw or "")
+    raw_text = (raw or "").strip()
+    digits = re.sub(r"\D", "", raw_text)
     if not digits:
         return None
     if digits.startswith("0"):
         digits = "62" + digits[1:]
     elif digits.startswith("8"):
-        # Common Indonesian local format without the leading zero.
         digits = "62" + digits
-    # Any other prefix is treated as an explicitly supplied country code (e.g. 1..., 65..., 44...).
+    elif len(digits) == 10 and not digits.startswith(("1", "62")) and not raw_text.startswith("+"):
+        return None
     if len(digits) < 8 or len(digits) > 15:
         return None
     return digits
+
+
+def normalize_owner_phone(raw):
+    """Backward-compatible owner-phone alias; both business and owner numbers share one normalizer."""
+    return normalize_whatsapp_phone(raw)
 
 
 def set_trusted_owner_phone(business_id, raw_phone):
@@ -806,7 +812,7 @@ def required_fields_missing(business_id):
     if not profile:
         missing.extend([
             "owner_name", "category", "short_description", "operating_hours",
-            "online_or_offline", "primary_language", "customer_salutation",
+            "online_or_offline", "business_phone", "primary_language", "customer_salutation",
         ])
     else:
         for key in ("owner_name", "category", "short_description", "operating_hours",
@@ -814,6 +820,8 @@ def required_fields_missing(business_id):
             value = profile.get(key)
             if not value or (isinstance(value, str) and not value.strip()):
                 missing.append(key)
+        if not normalize_whatsapp_phone(profile.get("business_phone")):
+            missing.append("business_phone")
     if not services:
         missing.append("core_product_or_service")
 
