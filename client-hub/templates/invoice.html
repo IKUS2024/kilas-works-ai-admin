@@ -4,7 +4,7 @@
 {% include "_client_compact_style.html" %}
 <div class="client-page">
   <header class="client-head">
-    <div><h1>{{ invoice.invoice_number }}</h1><p>{{ review_status|humanize_payment_message if payment else 'Tagihan Kilas Works' }}</p></div>
+    <div><h1>{{ invoice.invoice_number }}</h1><p>{{ project.title }} · {{ review_status|humanize_payment_message if payment else 'Tagihan Kilas Works' }}</p></div>
     <span class="client-status {{ 'ok' if payment and payment.status=='VERIFIED' else ('warn' if payment and payment.status in ('UNDER_REVIEW','PROOF_UPLOADED','PAYMENT_PENDING') else ('danger' if payment and payment.status=='REJECTED' else '')) }}">{{ review_status|humanize_status('payment') if payment else invoice.status|humanize_status('invoice') }}</span>
   </header>
 
@@ -33,6 +33,26 @@
       </div>
     </details>
   </section>
+
+  <details class="card client-collapsible" open>
+    <summary>Detail Pesanan</summary>
+    <div class="client-collapsible-body">
+      <div class="client-list">
+        <div class="client-item"><div class="client-item-title">Layanan</div><div class="client-item-meta">{{ project.title }}</div></div>
+        {% if quotation %}
+          <div class="client-item"><div class="client-item-title">Pekerjaan yang disetujui</div><div class="client-item-meta">{{ quotation.scope|display_or_missing }}</div></div>
+          <div class="client-item"><div class="client-item-title">Yang diterima customer</div><div class="client-item-meta">{{ quotation.deliverables|display_or_missing }}</div></div>
+          <div class="client-item"><div class="client-item-title">Jumlah output</div><div class="client-item-meta">{{ quotation.quantity|display_or_missing }}</div></div>
+          {% if quotation.notes %}<div class="client-item"><div class="client-item-title">Catatan</div><div class="client-item-meta">{{ quotation.notes }}</div></div>{% endif %}
+          <div class="client-item"><div class="client-item-title">Penawaran</div><div class="client-item-meta">{{ quotation.quotation_number }}</div></div>
+        {% elif project.requirements %}
+          {% for key,value in project.requirements.items() if key in brief_labels and value %}
+            <div class="client-item"><div class="client-item-title">{{ brief_labels[key][0] }}</div><div class="client-item-meta">{{ value }}</div></div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </details>
 
   {% if payment and payment.status in ('PAYMENT_PENDING','REJECTED') %}
     <section class="card">
