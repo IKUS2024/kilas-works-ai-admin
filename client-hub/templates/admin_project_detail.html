@@ -3,6 +3,7 @@
 {% block content %}
 {% include "_admin_compact_style.html" %}
 <div class="admin-page">
+  {% set latest_admin_quote = quotations[0] if quotations else none %}
   <a href="{{ url_for('admin.projects_admin') }}" class="muted">← Proyek</a>
   <header class="admin-head" style="margin-top:10px;">
     <div>
@@ -43,18 +44,24 @@
   <details class="card admin-collapsible" open>
     <summary>⚡ Buat Penawaran Harga</summary>
     <div class="admin-collapsible-body">
+      {% if latest_admin_quote and latest_admin_quote.status == 'REJECTED' %}
+        <div class="admin-note" style="border:1px solid var(--yellow);border-radius:12px;padding:10px;margin-bottom:12px;">
+          <strong>Customer minta revisi.</strong><br>
+          {{ latest_admin_quote.notes|display_or_missing }}
+        </div>
+      {% endif %}
       <p class="admin-note">Isi berdasarkan brief customer di atas. Jangan menebak kebutuhan yang belum dijelaskan; konfirmasi dulu ke customer bila scope belum jelas.</p>
       <form method="post" action="{{ url_for('admin.project_create_quotation', project_id=project.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="admin-form-grid">
           <label class="full">Pekerjaan yang akan dilakukan
-            <textarea name="scope" placeholder="Contoh: Talent untuk campaign Instagram brand, termasuk persiapan dan produksi sesuai brief."></textarea>
+            <textarea name="scope" placeholder="Contoh: Talent untuk campaign Instagram brand, termasuk persiapan dan produksi sesuai brief.">{{ latest_admin_quote.scope if latest_admin_quote and latest_admin_quote.status == 'REJECTED' else '' }}</textarea>
           </label>
           <label class="full">Yang akan diterima customer
-            <textarea name="deliverables" placeholder="Contoh: 1 Reels + 3 Story / 10 foto final / landing page 5 halaman."></textarea>
+            <textarea name="deliverables" placeholder="Contoh: 1 Reels + 3 Story / 10 foto final / landing page 5 halaman.">{{ latest_admin_quote.deliverables if latest_admin_quote and latest_admin_quote.status == 'REJECTED' else '' }}</textarea>
           </label>
           <label>Jumlah output
-            <input type="number" name="quantity" min="1" value="1" placeholder="Contoh: 1">
+            <input type="number" name="quantity" min="1" value="{{ latest_admin_quote.quantity if latest_admin_quote and latest_admin_quote.status == 'REJECTED' and latest_admin_quote.quantity else 1 }}" placeholder="Contoh: 1">
           </label>
           <label>Harga penawaran (Rp)
             <input type="number" name="final_price" min="1" placeholder="Contoh: 2500000" required>
