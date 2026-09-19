@@ -2,13 +2,35 @@
 {% block title %}CS Inbox — {{ business.business_name }}{% endblock %}
 {% block content %}
 {% include '_inbox_layout.html' %}
+{% include '_client_compact_style.html' %}
+<style>
+.tenant-inbox-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.tenant-inbox-head h1{margin:0 0 3px;font-size:22px}.tenant-inbox-head p{margin:0}
+.customer-ui .kw-inbox-shell{height:calc(100vh - 155px);height:calc(100dvh - 155px);gap:10px}
+.customer-ui .kw-inbox-toolbar{padding:10px}.customer-ui .kw-conversation{padding:9px 11px}
+.customer-ui .kw-chat-head{padding:10px 12px}.customer-ui .kw-thread{padding:12px;gap:7px}.customer-ui .kw-compose{padding:10px 12px}
+.customer-ui .kw-bubble{padding:8px 10px}.customer-ui .kw-filters{gap:6px}
+.kw-live-state{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:10px;font-weight:800;white-space:nowrap}
+.kw-live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(62,207,142,.1)}
+.kw-live-state.syncing .kw-live-dot{background:var(--yellow);box-shadow:0 0 0 3px rgba(224,185,59,.1)}
+.kw-live-state.offline .kw-live-dot{background:var(--red);box-shadow:0 0 0 3px rgba(241,101,101,.1)}
+.kw-msg-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
+.kw-delivery{font-size:10px;font-weight:750}.kw-delivery.sent{color:var(--green)}
+.kw-send-status{font-size:11px;font-weight:750;color:var(--text-dim);margin-left:auto}
+.kw-send-status.sending{color:var(--yellow)}.kw-send-status.sent{color:var(--green)}.kw-send-status.failed{color:var(--red)}
+@media(max-width:900px){.customer-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
+@media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
+</style>
 
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+<div class="tenant-inbox-head">
   <div>
-    <h1 style="margin-bottom:4px;">CS Inbox — {{ business.business_name }}</h1>
-    <p class="muted" style="margin:0;">Kelola percakapan WhatsApp, ambil alih chat, dan balas customer dari satu tempat.</p>
+    <h1>CS Inbox — {{ business.business_name }}</h1>
+    <p class="muted">WhatsApp customer, takeover, dan balasan dalam satu tempat.</p>
   </div>
-  <a class="btn secondary" href="{{ url_for('client.dashboard') }}">Kembali ke Dashboard</a>
+  <div style="display:flex;gap:6px;align-items:center;">
+    <span class="kw-live-state" id="kw-live-state"><span class="kw-live-dot"></span><span data-live-label>Live</span></span>
+    <a class="btn small secondary" href="{{ url_for('client.dashboard') }}">Dashboard</a>
+  </div>
 </div>
 
 <div class="kw-inbox-shell {{ 'has-selection' if selected else 'no-selection' }}">
@@ -40,7 +62,7 @@
           </div>
           {% if c.customer_name %}<div class="muted" style="font-size:12px;">{{ c.customer_phone }}</div>{% endif %}
           <div class="muted kw-preview" style="font-size:13px;">{{ c.last_message }}</div>
-          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at }}</div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at|humanize_timestamp }}</div>
         </a>
       {% else %}
         <div style="padding:18px;"><p class="muted">Belum ada percakapan yang cocok.</p></div>
@@ -88,7 +110,10 @@
           <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Bisnis / AI' }}</div>
             {% include '_inbox_media.html' %}
-            <div class="muted" style="font-size:11px;margin-top:4px;">{{ m.created_at|humanize_timestamp }}</div>
+            <div class="kw-msg-meta muted" style="font-size:11px;">
+              <span>{{ m.created_at|humanize_timestamp }}</span>
+              {% if not customer %}<span class="kw-delivery sent">✓ Terkirim</span>{% endif %}
+            </div>
           </div>
         {% else %}
           <p class="muted">Belum ada history.</p>
@@ -97,12 +122,13 @@
 
       <div class="kw-compose">
         {% if selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
-          <form method="post" action="{{ url_for('client.inbox_reply', business_id=business.id) }}">
+          <form id="tenant-reply-form" method="post" action="{{ url_for('client.inbox_reply', business_id=business.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
-            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai CS..." style="min-height:82px;"></textarea>
+            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai CS..." style="min-height:68px;"></textarea>
             <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
               <span class="pill ACTIVE" style="font-size:12px;">Masa chat 24 jam masih aktif</span>
+              <span id="kw-send-status" class="kw-send-status" role="status" aria-live="polite"></span>
               <button class="btn" type="submit">Kirim</button>
             </div>
           </form>
@@ -148,6 +174,113 @@
     {% endif %}
   </section>
 </div>
+
+<script>
+(function(){
+  const shell=document.querySelector('.kw-inbox-shell');
+  const live=document.getElementById('kw-live-state');
+  const liveLabel=live?.querySelector('[data-live-label]');
+  if(!shell||!live||!liveLabel)return;
+
+  let refreshing=false;
+  let stopped=false;
+
+  function setLive(state,label){
+    live.classList.toggle('syncing',state==='syncing');
+    live.classList.toggle('offline',state==='offline');
+    liveLabel.textContent=label;
+  }
+  function nearBottom(node){
+    return !node || (node.scrollHeight-node.scrollTop-node.clientHeight)<90;
+  }
+  async function refreshLive(){
+    if(refreshing||stopped||document.hidden)return;
+    refreshing=true;
+    setLive('syncing','Update…');
+    try{
+      const response=await fetch(window.location.href,{
+        method:'GET',
+        credentials:'same-origin',
+        cache:'no-store',
+        headers:{'X-Requested-With':'KilasTenantInboxLive'}
+      });
+      if(!response.ok)throw new Error('refresh_failed');
+      const html=await response.text();
+      const fresh=new DOMParser().parseFromString(html,'text/html');
+
+      const currentList=document.querySelector('.kw-conversations');
+      const freshList=fresh.querySelector('.kw-conversations');
+      if(currentList&&freshList&&currentList.innerHTML!==freshList.innerHTML){
+        currentList.innerHTML=freshList.innerHTML;
+      }
+
+      const currentThread=document.getElementById('kw-thread');
+      const freshThread=fresh.getElementById('kw-thread');
+      if(currentThread&&freshThread&&currentThread.innerHTML!==freshThread.innerHTML){
+        const stick=nearBottom(currentThread);
+        currentThread.innerHTML=freshThread.innerHTML;
+        if(stick)currentThread.scrollTop=currentThread.scrollHeight;
+      }
+      setLive('live','Live');
+    }catch(_){
+      setLive('offline','Koneksi ulang');
+    }finally{
+      refreshing=false;
+    }
+  }
+
+  const replyForm=document.getElementById('tenant-reply-form');
+  if(replyForm){
+    replyForm.addEventListener('submit',async function(event){
+      event.preventDefault();
+      if(replyForm.dataset.sending==='1')return;
+      const textarea=replyForm.querySelector('textarea[name="message"]');
+      const button=replyForm.querySelector('button[type="submit"]');
+      const status=document.getElementById('kw-send-status');
+      if(!textarea||!button||!status)return;
+
+      replyForm.dataset.sending='1';
+      button.disabled=true;
+      status.className='kw-send-status sending';
+      status.textContent='Mengirim…';
+      try{
+        const response=await fetch(replyForm.action,{
+          method:'POST',
+          body:new FormData(replyForm),
+          credentials:'same-origin',
+          redirect:'follow',
+          cache:'no-store'
+        });
+        const html=await response.text();
+        const page=new DOMParser().parseFromString(html,'text/html');
+        const error=page.querySelector('.flash.error');
+        if(!response.ok||error){
+          status.className='kw-send-status failed';
+          status.textContent='✕ Gagal'+(error?.textContent?.trim()?' · '+error.textContent.trim():'');
+        }else{
+          textarea.value='';
+          status.className='kw-send-status sent';
+          status.textContent='✓ Terkirim';
+          await refreshLive();
+        }
+      }catch(_){
+        status.className='kw-send-status failed';
+        status.textContent='✕ Gagal · koneksi bermasalah';
+      }finally{
+        button.disabled=false;
+        replyForm.dataset.sending='0';
+      }
+    });
+  }
+
+  window.addEventListener('focus',refreshLive);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshLive();});
+  window.addEventListener('beforeunload',()=>{stopped=true;});
+  refreshLive();
+  setInterval(refreshLive,1200);
+})();
+</script>
+
 
 
 {% endblock %}
