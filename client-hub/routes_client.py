@@ -273,22 +273,35 @@ def wizard_step(business_id, step):
         repo.mark_onboarding_step_done(business_id, "services_done")
 
     elif step == "operations":
-        _check_settings_entitlement(business_id)
+        features = _check_settings_entitlement(business_id)
         print(f"PAYMENT_POST_START business_id={business_id}")
         print(f"PAYMENT_BUSINESS_OK business_id={business_id} status={business['status']}")
+        service_mode = (request.form.get("online_or_offline") or "").strip().lower()
+        if service_mode not in ("", "online", "offline", "both"):
+            service_mode = ""
+        # Keep the always-useful business facts small and structured. Feature-specific settings are
+        # only included when the tenant is actually entitled to them, so a hidden/absent checkbox
+        # can never accidentally disable a previously-approved feature setting.
         raw = {
             "operating_hours": request.form.get("operating_hours", ""),
             "closed_days": request.form.get("closed_days", ""),
-            "online_or_offline": request.form.get("online_or_offline", ""),
-            "appointment_rules_raw": request.form.get("appointment_rules_raw", ""),
-            # Pro tenant parity cycle (Tasks 3/4/5) — this tenant's OWN appointment toggle and OWN
-            # payment/bank details for ITS OWN customers, never Kilas Works' own BCA account.
-            "appointment_enabled": bool(request.form.get("appointment_enabled")),
-            "payment_bank_name": request.form.get("payment_bank_name", ""),
-            "payment_account_number": request.form.get("payment_account_number", ""),
-            "payment_account_name": request.form.get("payment_account_name", ""),
-            "payment_instructions": request.form.get("payment_instructions", ""),
+            "online_or_offline": service_mode,
+            "address": request.form.get("address", ""),
+            "business_phone": request.form.get("business_phone", ""),
         }
+        if features.get("appointment"):
+            raw.update({
+                "appointment_rules_raw": request.form.get("appointment_rules_raw", ""),
+                "appointment_enabled": bool(request.form.get("appointment_enabled")),
+            })
+        if features.get("payment_conversation"):
+            raw.update({
+                # This tenant's OWN payment details for its customers, never Kilas Works billing.
+                "payment_bank_name": request.form.get("payment_bank_name", ""),
+                "payment_account_number": request.form.get("payment_account_number", ""),
+                "payment_account_name": request.form.get("payment_account_name", ""),
+                "payment_instructions": request.form.get("payment_instructions", ""),
+            })
         # White-screen bug investigation — defensive error handling. A save failure here (e.g. a
         # production database that's missing a migration-added column, or any other unexpected
         # DB/driver error) must NEVER surface to the client as an unhandled 500/blank response.
@@ -311,7 +324,7 @@ def wizard_step(business_id, step):
             # absent from the template otherwise, so request.form.get() returning None/"" here for
             # a Basic tenant is expected and correctly results in set_trusted_owner_phone() being
             # a no-op (patch semantics — never overwrites with blank).
-            if request.form.get("trusted_owner_phone"):
+            if features.get("owner_commands") and request.form.get("trusted_owner_phone"):
                 repo.set_trusted_owner_phone(business_id, request.form.get("trusted_owner_phone"))
             # db.execute() commits internally on success (see db.py's execute()) — reaching this
             # line without an exception means the write already committed, so SAVE_OK and
