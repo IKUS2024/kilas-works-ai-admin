@@ -25,6 +25,7 @@
 .owner-status.READY_FOR_REVIEW{background:rgba(224,185,59,.14);color:var(--yellow)}.owner-status.NEEDS_REVISION{background:rgba(241,101,101,.13);color:var(--red)}.owner-status.ACTIVE{background:rgba(62,207,142,.12);color:var(--green)}.owner-status.APPROVED,.owner-status.APPROVED_WAITING_WHATSAPP_CONNECTION{background:rgba(127,211,240,.12);color:#7fd3f0}
 .business-action{text-align:right}.business-action a{font-size:12px;font-weight:700}
 .finance-trial-meta{font-size:11px;color:var(--text-dim);margin-top:4px}
+.service-order-card{padding:0;overflow:hidden}.service-order-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border)}.service-order-row:last-child{border-bottom:0}.service-order-main{min-width:0}.service-order-main strong{display:block;font-size:14px;overflow-wrap:anywhere}.service-order-main span{display:block;font-size:12px;color:var(--text-dim);margin-top:3px}.service-order-row .btn{flex:0 0 auto;margin:0}
 .empty-business{padding:18px;color:var(--text-dim)}
 @media(max-width:760px){.owner-head{display:block}.owner-head h1{font-size:24px}.owner-search{margin-top:12px;min-width:0;width:100%}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.owner-info-row{grid-template-columns:1fr 1fr}.business-list-head{display:none}.business-row{grid-template-columns:1fr auto;gap:7px 10px;padding:14px}.business-package{grid-column:1}.business-status-wrap{grid-column:1}.business-action{grid-column:2;grid-row:1 / span 3;align-self:center}.business-action a{display:inline-flex;padding:8px 10px;border:1px solid var(--border);border-radius:10px}.business-card{overflow:visible}}
 @media(max-width:430px){.owner-search{display:grid;grid-template-columns:1fr auto}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.action-item{padding:10px 8px;min-height:68px}.action-icon{width:32px;height:32px}.action-count{font-size:18px}.action-label{font-size:11px}.owner-info-row{grid-template-columns:1fr}.business-row{padding:12px}.filter-strip .btn{font-size:12px}}
@@ -110,6 +111,24 @@
       <a class="owner-info" href="{{ url_for('admin.projects_admin') }}"><strong>Project perlu tindakan</strong><span>{{ action_center.projects_waiting_admin_action }}</span></a>
     </div>
   </section>
+
+  {% if not finance_trials_only and recent_service_orders %}
+  <div class="owner-section-title">
+    <h2>Pesanan layanan terbaru</h2>
+    <a href="{{ url_for('admin.projects_admin') }}">Lihat semua →</a>
+  </div>
+  <section class="card service-order-card">
+    {% for p in recent_service_orders %}
+      <div class="service-order-row">
+        <div class="service-order-main">
+          <strong>{{ p.title }}</strong>
+          <span>{{ p.business_name }} · {{ p.project_type }} · {{ p.status|humanize_status('project') }}</span>
+        </div>
+        <a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Buka</a>
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   <div class="owner-section-title">
     <h2>{{ 'Finance trial aktif' if finance_trials_only else 'Bisnis' }}</h2>
