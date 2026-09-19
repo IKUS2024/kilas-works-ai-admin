@@ -1,0 +1,39 @@
+
+/* Finance cash clarity: native balances, period flow, and display FX stay visually distinct. */
+.finance-page .cash-money{font-variant-numeric:tabular-nums;white-space:nowrap;overflow-wrap:normal;word-break:normal}
+.cash-muted{font-size:12px;color:var(--muted);line-height:1.5}
+.cash-summary-head,.cash-balance-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cash-summary-head h2,.cash-balance-head h3{margin:0}
+.cash-currency-block{border:1px solid var(--border);border-radius:14px;padding:13px;margin-top:12px}
+.cash-currency-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.cash-currency-title strong{font-size:15px}.cash-currency-title span{font-size:11px;color:var(--muted)}
+.cash-flow-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cash-flow-stat{border:1px solid var(--border);border-radius:12px;padding:9px 7px;text-align:center;min-width:0}
+.cash-flow-stat span{display:block;font-size:11px;color:var(--muted);margin-bottom:5px}
+.cash-flow-stat strong{font-size:clamp(15px,4vw,21px);display:block;overflow-x:auto}
+.cash-balance-card{min-width:0}
+.cash-display-select{width:auto!important;min-width:76px!important;padding:7px 26px 7px 9px!important;font-size:13px;font-weight:800}
+.cash-total{font-size:clamp(27px,7vw,36px);font-weight:800;line-height:1.15;margin:14px 0 4px;overflow-x:auto}
+.cash-native-list{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 0;margin:12px 0}
+.cash-native-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0}
+.cash-native-row span{font-size:12px;color:var(--muted)}.cash-native-row strong{font-size:16px}
+.cash-opening-note{font-size:12px;line-height:1.5;margin:10px 0}.cash-opening-note strong{font-weight:800}
+.cash-fx-note{font-size:11px;color:var(--muted);line-height:1.45;margin:8px 0 12px}
+.cash-warning{font-size:12px;border:1px solid var(--border);border-radius:10px;padding:9px;margin:8px 0}
+.cash-warning[hidden]{display:none!important}
+.cash-detail-group{border:1px solid var(--border);border-radius:14px;padding:12px;margin:12px 0}
+.cash-detail-group h3{margin:0 0 8px;font-size:15px}
+.cash-equation{margin:0}.cash-equation div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:6px 0;align-items:baseline}
+.cash-equation dt{font-size:12px;color:var(--muted)}.cash-equation dd{margin:0;text-align:right;font-size:14px}
+.cash-equation .cash-equation-total{border-top:1px solid var(--border);margin-top:5px;padding-top:9px;font-weight:800}
+.cash-account-detail{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:9px 0}
+.cash-account-detail summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.cash-account-detail small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.cash-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media(max-width:640px){
+  .finance-page .finance-quick-grid{grid-template-columns:1fr!important}
+  .cash-flow-row{grid-template-columns:1fr}
+  .cash-flow-stat{display:grid;grid-template-columns:minmax(0,1fr) auto;text-align:left;align-items:center}
+  .cash-flow-stat span{margin:0}.cash-flow-stat strong{text-align:right;font-size:17px}
+  .cash-balance-card{padding:16px}
+}
