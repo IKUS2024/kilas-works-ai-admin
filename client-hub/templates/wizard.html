@@ -1,9 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Setup Awal — {{ business.business_name }}{% endblock %}
+{% block title %}{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Awal' }} — {{ business.business_name }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>.wizard-head{margin-bottom:8px}.wizard-head h1{font-size:21px;margin:0 0 3px}.wizard-head p{margin:0;color:var(--text-dim);font-size:11px}.wizard-steps{display:flex;flex-wrap:nowrap;gap:5px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-bottom:10px}.wizard-steps::-webkit-scrollbar{display:none}.wizard-steps span{flex:0 0 auto;padding:4px 8px}.wizard-plan{margin-bottom:7px}.wizard-plan>summary{padding-top:10px!important;padding-bottom:10px!important}@media(max-width:600px){.wizard-steps{margin-right:-10px;padding-right:10px}.wizard-steps span{font-size:11px}.wizard-head+details{margin-bottom:7px}}</style>
-<div class="wizard-head"><h1>Setup Awal</h1><p>{{ business.business_name }} · Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p></div>
+<div class="wizard-head"><h1>{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Awal' }}</h1><p>{{ business.business_name }} · Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p></div>
+{% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
+  <div class="card" style="padding:10px 12px;border-left:3px solid var(--yellow);">
+    <strong style="font-size:12px;">Mode Edit Draft</strong>
+    <p class="client-note" style="margin:3px 0 0;">Kamu boleh mengubah semua data. Versi Brain yang sudah disetujui tetap dipakai sampai Kilas Works menyetujui perubahan terbaru.</p>
+  </div>
+{% endif %}
 <details class="card client-collapsible wizard-plan"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
 
 <div class="steps wizard-steps">
