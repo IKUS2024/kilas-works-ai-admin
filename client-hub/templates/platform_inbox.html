@@ -2,13 +2,24 @@
 {% block title %}Inbox Kilas Works{% endblock %}
 {% block content %}
 {% include '_inbox_layout.html' %}
+{% include '_admin_compact_style.html' %}
+<style>
+.admin-inbox-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.admin-inbox-head h1{margin:0 0 3px;font-size:22px}.admin-inbox-head p{margin:0}
+.admin-ui .kw-inbox-shell{height:calc(100vh - 155px);height:calc(100dvh - 155px);gap:10px}
+.admin-ui .kw-inbox-toolbar{padding:10px}.admin-ui .kw-conversation{padding:9px 11px}
+.admin-ui .kw-chat-head{padding:10px 12px}.admin-ui .kw-thread{padding:12px;gap:7px}.admin-ui .kw-compose{padding:10px 12px}
+.admin-ui .kw-bubble{padding:8px 10px}.admin-ui .kw-filters{gap:6px}
+@media(max-width:900px){.admin-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
+@media(max-width:600px){.admin-inbox-head{margin-bottom:7px}.admin-inbox-head h1{font-size:20px}.admin-inbox-head .btn{display:none}.admin-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
+</style>
 
-<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+<div class="admin-inbox-head">
   <div>
-    <h1 style="margin-bottom:4px;">Inbox Kilas Works</h1>
-    <p class="muted" style="margin:0;">Kelola percakapan WhatsApp, ambil alih chat, dan balas customer dari satu tempat.</p>
+    <h1>Inbox Kilas Works</h1>
+    <p class="muted">Kelola WhatsApp, takeover, dan balasan customer.</p>
   </div>
-  <a class="btn secondary" href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a>
+  <a class="btn small secondary" href="{{ url_for('admin.dashboard') }}">Dashboard</a>
 </div>
 
 <div class="kw-inbox-shell {{ 'has-selection' if selected else 'no-selection' }}">
@@ -23,7 +34,7 @@
             <option value="HUMAN_TAKEOVER" {{ 'selected' if mode_filter == 'HUMAN_TAKEOVER' else '' }}>Human</option>
           </select>
         </div>
-        <button class="btn secondary small" type="submit" style="margin-top:8px;">Cari</button>
+        <button class="btn secondary small" type="submit" style="margin-top:6px;">Cari</button>
       </form>
     </div>
     <div class="kw-conversations">
@@ -100,7 +111,7 @@
           <form method="post" action="{{ url_for('admin.platform_inbox_reply') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
-            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai Kilas Works..." style="min-height:82px;"></textarea>
+            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai Kilas Works..." style="min-height:68px;"></textarea>
             <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
               <span class="pill ACTIVE" style="font-size:12px;">Masa chat 24 jam masih aktif</span>
               <button class="btn" type="submit">Kirim</button>
