@@ -1,37 +1,62 @@
 {% extends "base.html" %}
 {% block title %}{{ quotation.quotation_number }} — Kilas Works{% endblock %}
 {% block content %}
-<h1>Penawaran {{ quotation.quotation_number }}</h1>
-<span class="pill APPROVED">{{ quotation.status|humanize_status('quotation') }}</span>
+{% include "_client_compact_style.html" %}
+<style>
+.quote-total{font-size:30px;font-weight:850;line-height:1.1;margin:5px 0 3px}
+.quote-number{font-size:12px;color:var(--text-dim)}
+.quote-detail-grid{display:grid;gap:9px}.quote-detail{border:1px solid var(--border);border-radius:12px;padding:11px 12px}.quote-detail span{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px}.quote-detail strong{display:block;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.quote-actions{display:grid;gap:9px}.quote-actions form{margin:0}.quote-actions .btn{width:100%;text-align:center;justify-content:center}
+</style>
+<div class="client-page">
+  <a class="muted" href="{{ url_for('projects.project_detail', business_id=business.id, project_id=quotation.project_id) if business else url_for('projects.project_view', project_id=quotation.project_id) }}">← Pesanan</a>
 
-<div class="card">
-  <table>
-    <tr><th>Ruang Lingkup</th><td>{{ quotation.scope|display_or_missing }}</td></tr>
-    <tr><th>Hasil yang Diberikan</th><td>{{ quotation.deliverables|display_or_missing }}</td></tr>
-    <tr><th>Jumlah</th><td>{{ quotation.quantity|display_or_missing }}</td></tr>
-    <tr><th>Harga Final</th><td>Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</td></tr>
-    <tr><th>Catatan</th><td>{{ quotation.notes|display_or_missing }}</td></tr>
-  </table>
-</div>
+  <header class="client-head" style="margin-top:10px;">
+    <div>
+      <h1>Penawaran Kilas Works</h1>
+      <p>{{ project.title if project else quotation.quotation_number }}</p>
+    </div>
+    <span class="client-status {{ 'ok' if quotation.status=='APPROVED' else ('warn' if quotation.status in ('SENT','VIEWED') else '') }}">{{ quotation.status|humanize_status('quotation') }}</span>
+  </header>
 
-{% if session.get('role') != 'KILAS_ADMIN' and quotation.status in ('SENT', 'VIEWED') %}
-<div class="card">
-  <div style="display:flex;gap:8px;">
-    <form method="post" action="{{ url_for('quotations.approve_quotation', business_id=business.id, quotation_id=quotation.id) if business else url_for('quotations.approve_personal_quotation', quotation_id=quotation.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn" type="submit">Setuju</button>
-    </form>
-    <form method="post" action="{{ url_for('quotations.reject_quotation', business_id=business.id, quotation_id=quotation.id) if business else url_for('quotations.reject_personal_quotation', quotation_id=quotation.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="text" name="note" placeholder="Catatan (opsional)">
-      <button class="btn secondary" type="submit">Tolak / Minta Revisi</button>
-    </form>
-  </div>
+  <section class="card">
+    <div class="quote-number">{{ quotation.quotation_number }}</div>
+    <div class="quote-total">Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</div>
+    <p class="client-note">Harga ini berdasarkan scope dan hasil pekerjaan yang ditulis tim Kilas Works di bawah.</p>
+  </section>
+
+  <section class="card">
+    <h2>Detail Penawaran</h2>
+    <div class="quote-detail-grid">
+      <div class="quote-detail"><span>Pekerjaan yang akan dilakukan</span><strong>{{ quotation.scope|display_or_missing }}</strong></div>
+      <div class="quote-detail"><span>Yang akan diterima customer</span><strong>{{ quotation.deliverables|display_or_missing }}</strong></div>
+      <div class="quote-detail"><span>Jumlah output</span><strong>{{ quotation.quantity|display_or_missing }}</strong></div>
+      {% if quotation.notes %}<div class="quote-detail"><span>Catatan dari Kilas Works</span><strong>{{ quotation.notes }}</strong></div>{% endif %}
+    </div>
+  </section>
+
+  {% if session.get('role') != 'KILAS_ADMIN' and quotation.status in ('SENT', 'VIEWED') %}
+  <section class="card">
+    <h2>Keputusan Kamu</h2>
+    <p class="client-note">Periksa scope, output, dan harga. Kalau sudah sesuai, setujui untuk lanjut ke checkout. Kalau ada yang perlu diubah, kirim catatan revisi.</p>
+    <div class="quote-actions">
+      <form method="post" action="{{ url_for('quotations.approve_quotation', business_id=business.id, quotation_id=quotation.id) if business else url_for('quotations.approve_personal_quotation', quotation_id=quotation.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Setujui Penawaran · Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</button>
+      </form>
+      <form method="post" action="{{ url_for('quotations.reject_quotation', business_id=business.id, quotation_id=quotation.id) if business else url_for('quotations.reject_personal_quotation', quotation_id=quotation.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>Catatan revisi (opsional)<input type="text" name="note" placeholder="Contoh: jumlah Story jadi 2, atau ubah timeline"></label>
+        <button class="btn secondary" type="submit">Minta Revisi</button>
+      </form>
+    </div>
+  </section>
+  {% elif session.get('role') != 'KILAS_ADMIN' and quotation.status == 'APPROVED' %}
+  <section class="card">
+    <h2>Penawaran Disetujui</h2>
+    <p class="client-note">Detail penawaran tetap ikut tampil di checkout supaya kamu bisa memeriksa lagi sebelum tagihan dibuat.</p>
+    <a class="btn" href="{{ url_for('payments.checkout_page', project_id=quotation.project_id) }}">Lanjut ke Checkout</a>
+  </section>
+  {% endif %}
 </div>
-{% elif session.get('role') != 'KILAS_ADMIN' and quotation.status == 'APPROVED' %}
-<div class="card">
-  <p>Penawaran sudah kamu setujui. Lanjutkan ke pembayaran untuk memproses pesanan.</p>
-  <a class="btn" href="{{ url_for('payments.checkout_page', project_id=quotation.project_id) }}">Lanjut Pembayaran</a>
-</div>
-{% endif %}
 {% endblock %}

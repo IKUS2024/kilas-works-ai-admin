@@ -12,7 +12,13 @@
     {% elif project.status == 'WAITING_FOR_QUOTE' %}
       <p class="client-note">Request sudah direview. Tim Kilas Works sedang menyiapkan penawaran harga.</p>
     {% elif project.status == 'QUOTED' and quotation %}
-      <p class="client-note">Penawaran harga sudah tersedia.</p><div class="client-actions"><a class="btn" href="{{ url_for('quotations.personal_quotation_detail', quotation_id=quotation.id) }}">Lihat Penawaran · Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</a></div>
+      <p class="client-note"><strong>Penawaran harga sudah tersedia.</strong> Periksa scope, hasil, dan harga sebelum menyetujui.</p>
+      <div class="client-list" style="margin-top:10px;">
+        <div class="client-item"><div class="client-item-title">Pekerjaan</div><div class="client-item-meta">{{ quotation.scope|display_or_missing }}</div></div>
+        <div class="client-item"><div class="client-item-title">Hasil / output</div><div class="client-item-meta">{{ quotation.deliverables|display_or_missing }}</div></div>
+        {% if quotation.notes %}<div class="client-item"><div class="client-item-title">Catatan</div><div class="client-item-meta">{{ quotation.notes }}</div></div>{% endif %}
+      </div>
+      <div class="client-actions"><a class="btn" href="{{ url_for('quotations.personal_quotation_detail', quotation_id=quotation.id) }}">Tinjau Penawaran · Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</a></div>
     {% elif project.status == 'APPROVED' %}
       <p class="client-note">Penawaran sudah disetujui. Lanjutkan ke pembayaran.</p><div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Checkout</a></div>
     {% elif project.status in ('PAYMENT_PENDING','PAID','IN_PROGRESS') %}

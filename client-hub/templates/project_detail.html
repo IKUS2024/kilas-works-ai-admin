@@ -3,6 +3,7 @@
 {% block content %}
 {% include "_client_compact_style.html" %}
 <div class="client-page">
+  {% set latest_quote = quotations[0] if quotations else none %}
   <a class="muted" href="{{ url_for('projects.my_project_list') }}">← Pesanan</a>
   <header class="client-head" style="margin-top:10px;">
     <div><h1>{{ project.title }}</h1><p>{{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</p></div>
@@ -12,16 +13,20 @@
   <section class="card">
     <div class="client-stats">
       <div class="client-stat"><strong>{% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }}{% else %}-{% endif %}</strong><span>Budget awal</span></div>
-      <div class="client-stat" style="grid-column:span 2;"><strong>{{ 'Rp{:,}'.format(project.final_price).replace(',', '.') if project.final_price else 'Belum ada' }}</strong><span>Harga final</span></div>
+      <div class="client-stat" style="grid-column:span 2;"><strong>{% if project.status == 'QUOTED' and latest_quote %}Rp{{ '{:,}'.format(latest_quote.final_price).replace(',', '.') }}{% elif project.final_price %}Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}{% else %}Belum ada{% endif %}</strong><span>{{ 'Harga penawaran' if project.status == 'QUOTED' and latest_quote else 'Harga final' }}</span></div>
     </div>
 
     {% if project.status == 'REQUESTED' %}
       <p class="client-note">Request sudah dikirim. Tim Kilas Works sedang mereview kebutuhan kamu sebelum menyiapkan harga.</p>
       {% if can_cancel %}<div class="client-actions"><form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form></div>{% endif %}
-    {% elif project.status == 'QUOTED' and quotations %}
-      {% set latest_quote = quotations[0] %}
-      <p class="client-note">Penawaran harga dari Kilas Works sudah tersedia.</p>
-      <div class="client-actions"><a class="btn" href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=latest_quote.id) }}">Lihat Penawaran · Rp{{ '{:,}'.format(latest_quote.final_price).replace(',', '.') }}</a></div>
+    {% elif project.status == 'QUOTED' and latest_quote %}
+      <p class="client-note"><strong>Penawaran dari Kilas Works sudah tersedia.</strong> Periksa pekerjaan, hasil yang diterima, dan harga sebelum menyetujui.</p>
+      <div class="client-list" style="margin-top:10px;">
+        <div class="client-item"><div class="client-item-title">Pekerjaan</div><div class="client-item-meta">{{ latest_quote.scope|display_or_missing }}</div></div>
+        <div class="client-item"><div class="client-item-title">Hasil / output</div><div class="client-item-meta">{{ latest_quote.deliverables|display_or_missing }}</div></div>
+        {% if latest_quote.notes %}<div class="client-item"><div class="client-item-title">Catatan</div><div class="client-item-meta">{{ latest_quote.notes }}</div></div>{% endif %}
+      </div>
+      <div class="client-actions"><a class="btn" href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=latest_quote.id) }}">Tinjau Penawaran · Rp{{ '{:,}'.format(latest_quote.final_price).replace(',', '.') }}</a></div>
     {% elif project.status == 'APPROVED' %}
       <div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Checkout</a>{% if can_cancel %}<form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form>{% endif %}</div>
     {% elif project.status == 'WAITING_FOR_QUOTE' %}

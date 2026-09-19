@@ -2,17 +2,60 @@
 {% block title %}Checkout — {{ project.title }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
+<style>
+.checkout-summary{display:grid;gap:10px}
+.checkout-line{border:1px solid var(--border);border-radius:12px;padding:11px 12px}
+.checkout-line span{display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px}
+.checkout-line strong{display:block;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.checkout-total{font-size:28px!important;color:var(--text)}
+</style>
 <div class="client-page">
-  <header class="client-head"><div><h1>Checkout</h1><p>{{ project.title }}</p></div></header>
+  <header class="client-head">
+    <div><h1>Checkout</h1><p>Periksa detail pesanan sebelum membuat tagihan.</p></div>
+  </header>
+
   <section class="card">
-    <div class="client-stats">
-      <div class="client-stat" style="grid-column:span 3;"><strong>Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</strong><span>Total layanan</span></div>
+    <h2>Ringkasan Pesanan</h2>
+    <div class="checkout-summary">
+      <div class="checkout-line"><span>Layanan</span><strong>{{ project.title }}</strong></div>
+      {% if business %}<div class="checkout-line"><span>Bisnis</span><strong>{{ business.business_name }}</strong></div>{% endif %}
+      <div class="checkout-line"><span>Total</span><strong class="checkout-total">Rp{{ '{:,}'.format(project.final_price).replace(',', '.') }}</strong></div>
     </div>
-    <p class="client-note">Tagihan dibuat setelah kamu melanjutkan. Belum ada pembayaran pada langkah ini.</p>
+  </section>
+
+  {% if quotation %}
+  <section class="card">
+    <h2>Penawaran yang Disetujui</h2>
+    <p class="client-note">Detail ini berasal dari penawaran yang dibuat tim Kilas Works dan disetujui sebelum checkout.</p>
+    <div class="client-list">
+      <div class="client-item"><div class="client-item-title">Pekerjaan yang dilakukan</div><div class="client-item-meta">{{ quotation.scope|display_or_missing }}</div></div>
+      <div class="client-item"><div class="client-item-title">Yang diterima customer</div><div class="client-item-meta">{{ quotation.deliverables|display_or_missing }}</div></div>
+      <div class="client-item"><div class="client-item-title">Jumlah output</div><div class="client-item-meta">{{ quotation.quantity|display_or_missing }}</div></div>
+      {% if quotation.notes %}<div class="client-item"><div class="client-item-title">Catatan</div><div class="client-item-meta">{{ quotation.notes }}</div></div>{% endif %}
+      <div class="client-item"><div class="client-item-title">No. Penawaran</div><div class="client-item-meta">{{ quotation.quotation_number }}</div></div>
+    </div>
+  </section>
+  {% elif project.requirements %}
+  <details class="card client-collapsible" open>
+    <summary>Informasi Pesanan</summary>
+    <div class="client-collapsible-body">
+      <div class="client-list">
+        {% for key,value in project.requirements.items() if key in brief_labels and value %}
+          <div class="client-item"><div class="client-item-title">{{ brief_labels[key][0] }}</div><div class="client-item-meta">{{ value }}</div></div>
+        {% else %}
+          <div class="client-empty">Tidak ada detail tambahan.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+  {% endif %}
+
+  <section class="card">
+    <p class="client-note">Setelah dilanjutkan, Kilas Works membuat tagihan sesuai total di atas. Belum ada pembayaran pada langkah ini.</p>
     {% if project.catalog_key in ("ai_admin","ai_admin_basic","ai_admin_pro") %}
       <details class="client-collapsible" style="margin-top:10px;border:1px solid var(--border);border-radius:12px;"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
     {% endif %}
-    <form method="post" style="margin-top:12px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Lanjut ke Pembayaran</button></form>
+    <form method="post" style="margin-top:12px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Buat Tagihan &amp; Lanjut Pembayaran</button></form>
   </section>
 </div>
 {% endblock %}
