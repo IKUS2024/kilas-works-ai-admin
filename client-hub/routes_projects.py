@@ -20,35 +20,55 @@ projects_bp = Blueprint("projects", __name__)
 @security.login_required
 def service_catalog_page():
     user = security.current_user()
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
+
     # Talent has a dedicated visual marketplace where the customer picks a real talent first.
     # Keep the generic service catalog from creating a second, ambiguous Talent Management flow.
     items = [item for item in catalog_service.list_active_catalog() if item["category"] != "TALENT"]
-    by_category = {}
     category_order = catalog_service.CUSTOMER_CATEGORY_ORDER
     items.sort(key=lambda item: category_order.index(item['category']) if item['category'] in category_order else len(category_order) - 1.5)
-    for item in items:
+
+    if needle:
+        items = [
+            item for item in items
+            if needle in str(catalog_service.public_name(item) or "").casefold()
+            or needle in str(item.get("name") or "").casefold()
+            or needle in str(item.get("category") or "").casefold()
+            or needle in str(catalog_service.service_description(item) or "").casefold()
+            or needle in str(catalog_service.display_price(item) or "").casefold()
+        ]
+
+    services_total = len(items)
+    per_page = 10
+    total_pages = max(1, (services_total + per_page - 1) // per_page)
+    page = request.args.get("page", 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    page_items = items[start:start + per_page]
+
+    by_category = {}
+    for item in page_items:
         by_category.setdefault(item["category"], []).append(item)
+
     businesses = repo.list_businesses_for_user(user["id"]) if user["role"] != "KILAS_ADMIN" else []
-    # New-customer purchase-flow fix, Section 6/8: when the customer has exactly ONE business (the
-    # overwhelmingly common new-customer case), pre-compute which catalog items already have an
-    # unfinished project for THAT business, so the template can show "Lanjutkan" instead of
-    # "Pilih Layanan"/"Minta Penawaran" without needing JavaScript to react to a business-picker
-    # dropdown. With 2+ businesses the picker stays dynamic (JS-driven, as before) — the
-    # server-side reuse-on-click safety in start_fixed_checkout()/request_generic_quote() still
-    # protects against duplicates either way, this only affects which LABEL is shown up front.
     single_business = businesses[0] if len(businesses) == 1 else None
     unfinished_by_catalog_key = {}
     if single_business:
-        for item in items:
+        for item in page_items:
             existing = projects_repo.get_unfinished_project_for_catalog_key(single_business["id"], item["catalog_key"])
             if existing:
                 unfinished_by_catalog_key[item["catalog_key"]] = existing
+
+    show_talent_entry = not needle or any(term in needle for term in ("talent", "creator", "influencer"))
     return render_template(
         "service_catalog.html", by_category=by_category, format_price=catalog_service.format_price,
         service_description=catalog_service.service_description, display_price=catalog_service.display_price,
         public_name=catalog_service.public_name, transport_policy=catalog_service.pricing_config.TRANSPORT_POLICY,
         businesses=businesses, single_business=single_business,
         unfinished_by_catalog_key=unfinished_by_catalog_key,
+        search=search, services_total=services_total, page=page, total_pages=total_pages,
+        show_talent_entry=show_talent_entry,
     )
 
 
@@ -227,11 +247,14 @@ def purchase_brief(project_id):
 @projects_bp.route('/projects')
 @security.login_required
 def my_project_list():
-    """Reuse the project list/history view for this customer's business and personal orders."""
+    """Customer project list with view filter, search, and bounded pagination."""
     user = security.current_user()
     view = request.args.get('view', 'active')
     if view not in ('active', 'history', 'all'):
         view = 'active'
+    search = (request.args.get('q') or '').strip()
+    needle = search.casefold()
+
     projects = projects_repo.list_businessless_projects_for_user(user['id'], include_history=True)
     for business in repo.list_businesses_for_user(user['id']):
         projects.extend(projects_repo.list_projects_for_business(business['id']))
@@ -240,28 +263,69 @@ def my_project_list():
     elif view == 'active':
         projects = [p for p in projects if p['status'] not in _HISTORY_STATUSES]
     projects = [p for p in projects if not _legacy_talent_project(p)]
+    if needle:
+        projects = [
+            p for p in projects
+            if needle in str(p.get('title') or '').casefold()
+            or needle in str(p.get('project_type') or '').casefold()
+            or needle in str(p.get('status') or '').casefold()
+            or needle in str(p.get('id') or '').casefold()
+            or needle in str(p.get('final_price') or '').casefold()
+        ]
     projects.sort(key=lambda p: p['id'], reverse=True)
-    return render_template('project_list.html', business=None, projects=projects, view=view)
+
+    projects_total = len(projects)
+    per_page = 10
+    total_pages = max(1, (projects_total + per_page - 1) // per_page)
+    page = request.args.get('page', 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    projects = projects[start:start + per_page]
+    return render_template(
+        'project_list.html', business=None, projects=projects, view=view, search=search,
+        projects_total=projects_total, page=page, total_pages=total_pages,
+    )
 
 
 @projects_bp.route("/business/<int:business_id>/projects")
 @security.login_required
 def project_list(business_id):
-    """Final Operations Polish, Section 10/13: ACTIVE / HISTORY / ALL views — completed/cancelled
-    projects are never permanently hidden, just filtered by default so day-to-day use isn't
-    cluttered with old records. Tenant isolation is unchanged (require_business_access above)."""
+    """Business-scoped project list with search + 10 rows per page."""
     user = security.current_user()
     business = security.require_business_access(business_id, user)
     view = request.args.get("view", "active")
     if view not in ("active", "history", "all"):
         view = "active"
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
+
     projects = projects_repo.list_projects_for_business(business["id"])
     if view == "active":
         projects = [p for p in projects if p["status"] not in _HISTORY_STATUSES]
     elif view == "history":
         projects = [p for p in projects if p["status"] in _HISTORY_STATUSES]
     projects = [p for p in projects if not _legacy_talent_project(p)]
-    return render_template("project_list.html", business=business, projects=projects, view=view)
+    if needle:
+        projects = [
+            p for p in projects
+            if needle in str(p.get("title") or "").casefold()
+            or needle in str(p.get("project_type") or "").casefold()
+            or needle in str(p.get("status") or "").casefold()
+            or needle in str(p.get("id") or "").casefold()
+            or needle in str(p.get("final_price") or "").casefold()
+        ]
+
+    projects_total = len(projects)
+    per_page = 10
+    total_pages = max(1, (projects_total + per_page - 1) // per_page)
+    page = request.args.get("page", 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    projects = projects[start:start + per_page]
+    return render_template(
+        "project_list.html", business=business, projects=projects, view=view, search=search,
+        projects_total=projects_total, page=page, total_pages=total_pages,
+    )
 
 
 @projects_bp.route("/projects/<int:project_id>")
