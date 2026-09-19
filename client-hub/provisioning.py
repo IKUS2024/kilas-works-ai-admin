@@ -329,6 +329,13 @@ def _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, 
     if not phone_number_id:
         raise ProvisioningError("missing_whatsapp_config: phone_number_id is required")
 
+    profile = repo.get_business_profile(business_id) or {}
+    expected_business_phone = repo.normalize_whatsapp_phone(profile.get("business_phone"))
+    if not expected_business_phone:
+        raise ProvisioningError(
+            "missing_whatsapp_business_phone: client must fill the WhatsApp business / robot number first"
+        )
+
     duplicate_owner = repo.find_business_id_by_phone_number_id(phone_number_id, exclude_business_id=business_id)
     if duplicate_owner is not None:
         repo.upsert_whatsapp_config(business_id, phone_number_id, waba_id, credentials_reference,
@@ -348,7 +355,9 @@ def _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, 
     repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_CONNECTED,
                       f"phone_number_id={phone_number_id}")
 
-    reachable, reason = _check_whatsapp_phone_number_reachable(phone_number_id, credentials_reference)
+    reachable, reason = _check_whatsapp_phone_number_reachable(
+        phone_number_id, credentials_reference, expected_business_phone=expected_business_phone
+    )
     if not reachable:
         repo.mark_whatsapp_validation_failed(business_id)
         repo.write_audit(actor["id"], business_id, EVENT_WHATSAPP_VALIDATION_FAILED,
@@ -361,7 +370,7 @@ def _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, 
     return {"status": "CONNECTED", "reason": "validated"}
 
 
-def _check_whatsapp_phone_number_reachable(phone_number_id, credentials_reference):
+def _check_whatsapp_phone_number_reachable(phone_number_id, credentials_reference, expected_business_phone=None):
     """Best-effort live check against Meta's Graph API that this Phone Number ID is real and
     reachable using the server-side credential `credentials_reference` points at. Deliberately
     fails safe on every error path — a network error, a missing/invalid credential, a timeout, or
@@ -392,10 +401,23 @@ def _check_whatsapp_phone_number_reachable(phone_number_id, credentials_referenc
         resp = requests.get(
             url,
             headers={"Authorization": f"Bearer {access_token}"},
-            params={"fields": "id"},
+            params={"fields": "id,display_phone_number"},
             timeout=8,
         )
         if resp.status_code == 200:
+            if expected_business_phone:
+                try:
+                    display_phone = (resp.json() or {}).get("display_phone_number")
+                except Exception:
+                    display_phone = None
+                actual_business_phone = repo.normalize_whatsapp_phone(display_phone)
+                if not actual_business_phone:
+                    return False, "meta_display_phone_number_missing: nomor WhatsApp Meta belum bisa diverifikasi"
+                if actual_business_phone != expected_business_phone:
+                    return False, (
+                        "business_phone_mismatch: nomor WhatsApp di Meta tidak sama dengan "
+                        "Nomor WhatsApp bisnis / nomor robot yang diisi client"
+                    )
             return True, "ok"
         return False, _describe_graph_api_failure_safe(resp.status_code, phone_number_id)
     except requests.exceptions.Timeout:
