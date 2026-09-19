@@ -442,12 +442,12 @@ def get_onboarding_status(business_id):
 
 
 def onboarding_completion_percent(business_id):
-    status = get_onboarding_status(business_id)
-    if not status:
-        return 0
-    fields = ["basics_done", "services_done", "operations_done", "faq_done", "style_done", "reviewed_done"]
-    done = sum(1 for f in fields if status.get(f))
-    return round(done / len(fields) * 100)
+    """Actual required-data completeness, not merely whether old wizard step flags were clicked.
+
+    This prevents legacy businesses that previously completed the wizard from showing 100% after
+    new safety-critical required fields are introduced (for example the robot WhatsApp number).
+    """
+    return required_fields_progress(business_id)["percent"]
 
 
 # ---------------------------------------------------------------------------
@@ -794,6 +794,27 @@ def invalidate_all_reset_tokens_for_user(user_id, now_iso):
         "UPDATE password_reset_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL",
         (now_iso, user_id),
     )
+
+
+def required_fields_progress(business_id):
+    """Return actual completion for the same required facts used by the review gate."""
+    business = get_business(business_id)
+    expected = [
+        "business_name", "owner_name", "category", "short_description", "operating_hours",
+        "online_or_offline", "business_phone", "primary_language", "customer_salutation",
+        "core_product_or_service",
+    ]
+    if business and feature_flags.features_for_package(business.get("package")).get("owner_commands"):
+        expected.append("trusted_owner_phone")
+    missing = set(required_fields_missing(business_id))
+    complete = sum(1 for key in expected if key not in missing)
+    total = len(expected)
+    return {
+        "complete": complete,
+        "total": total,
+        "percent": round(100 * complete / total) if total else 100,
+        "missing": [key for key in expected if key in missing],
+    }
 
 
 def required_fields_missing(business_id):
