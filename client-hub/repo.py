@@ -791,31 +791,37 @@ def invalidate_all_reset_tokens_for_user(user_id, now_iso):
 
 
 def required_fields_missing(business_id):
-    """Minimum validation gate before READY_FOR_REVIEW (section 10). Returns a list of missing
-    field names, empty list means the business may proceed."""
+    """Minimum validation gate before READY_FOR_REVIEW.
+
+    Keep this aligned with the wizard's fields marked "Penting" so browser validation cannot be
+    bypassed by direct requests or an old cached form. Optional business facts stay optional.
+    """
     missing = []
     business = get_business(business_id)
     profile = get_business_profile(business_id)
     services = get_business_services(business_id)
 
-    if not business or not business["business_name"].strip():
+    if not business or not (business.get("business_name") or "").strip():
         missing.append("business_name")
     if not profile:
-        missing.append("owner_name")
-        missing.append("category")
-        missing.append("primary_language")
-        missing.append("customer_salutation")
+        missing.extend([
+            "owner_name", "category", "short_description", "operating_hours",
+            "online_or_offline", "primary_language", "customer_salutation",
+        ])
     else:
-        if not profile.get("owner_name"):
-            missing.append("owner_name")
-        if not profile.get("category"):
-            missing.append("category")
-        if not profile.get("primary_language"):
-            missing.append("primary_language")
-        if not profile.get("customer_salutation"):
-            missing.append("customer_salutation")
+        for key in ("owner_name", "category", "short_description", "operating_hours",
+                    "online_or_offline", "primary_language", "customer_salutation"):
+            value = profile.get(key)
+            if not value or (isinstance(value, str) and not value.strip()):
+                missing.append(key)
     if not services:
         missing.append("core_product_or_service")
+
+    # Owner-command tenants need a real notification/command target; otherwise important customer
+    # escalations would be silently skipped even though the feature is enabled.
+    if business and feature_flags.features_for_package(business.get("package")).get("owner_commands"):
+        if not normalize_owner_phone(business.get("trusted_owner_phone")):
+            missing.append("trusted_owner_phone")
     return missing
 
 
