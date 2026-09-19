@@ -1313,12 +1313,52 @@ def ai_usage_dashboard():
             row['name'] = names.get(row['tenant_id'], 'Kilas Works platform' if row['tenant_id'] is None else 'Bisnis historis')
         fx = ai_usage_fx.get_usd_idr()
         usage = ai_usage_fx.display_rows(usage, fx)
+
+        # Admin list UX: search first, then paginate so the page stays short on mobile.
+        search = (request.args.get('q') or '').strip()
+        needle = search.casefold()
+        if needle:
+            usage = [
+                row for row in usage
+                if needle in str(row.get('name') or '').casefold()
+                or needle in str(row.get('status') or '').casefold()
+                or needle in str(row.get('tenant_id') if row.get('tenant_id') is not None else 'platform').casefold()
+            ]
+
+        usage_total = len(usage)
+        usage_per_page = 10
+        usage_total_pages = max(1, (usage_total + usage_per_page - 1) // usage_per_page)
+        usage_page = request.args.get('page', 1, type=int) or 1
+        usage_page = min(max(1, usage_page), usage_total_pages)
+        usage_start = (usage_page - 1) * usage_per_page
+        usage = usage[usage_start:usage_start + usage_per_page]
+
         phase = 'render'
-        return render_template('admin_ai_usage.html', usage=usage, pricing_date=ai_usage.PRICING_DATE, unavailable=False, fx=fx)
+        return render_template(
+            'admin_ai_usage.html',
+            usage=usage,
+            usage_total=usage_total,
+            usage_page=usage_page,
+            usage_total_pages=usage_total_pages,
+            search=search,
+            pricing_date=ai_usage.PRICING_DATE,
+            unavailable=False,
+            fx=fx,
+        )
     except Exception as exc:
         ai_usage.log_dashboard_failure(exc, phase)
         try:
-            return render_template('admin_ai_usage.html', usage=[], pricing_date=ai_usage.PRICING_DATE, unavailable=True), 503
+            return render_template(
+                'admin_ai_usage.html',
+                usage=[],
+                usage_total=0,
+                usage_page=1,
+                usage_total_pages=1,
+                search=(request.args.get('q') or '').strip(),
+                pricing_date=ai_usage.PRICING_DATE,
+                unavailable=True,
+                fx=None,
+            ), 503
         except Exception as render_exc:
             ai_usage.log_dashboard_failure(render_exc, 'fallback_render')
             return 'Pemakaian AI belum tersedia. Coba lagi sebentar.', 503
