@@ -199,52 +199,51 @@ def period(value):
 @finance_bp.route('/finance')
 @security.login_required
 def overview():
-    """Membership-only, read-only overview; ledgers and write routes remain tenant-scoped."""
-    user = security.current_user()
+    """Membership-only, read-only multi-business overview; money stays grouped by currency."""
+    user=security.current_user()
     import finance_entitlements as entitlement
-    if not (beta_enabled() or entitlement.self_service()) and user['role'] != 'KILAS_ADMIN':
-        abort(404)
-    businesses = repo.list_businesses_for_user(user['id'])
-    selected = request.args.get('business_id', 'all')
-    # Even admins use their memberships here, never the global admin business list.
-    business = next((b for b in businesses if str(b['id']) == selected), None)
-    if selected != 'all' and business is None:
-        abort(404)
-    month = request.args.get('month', date.today().strftime('%Y-%m'))
-    split_period = 'period_month' in request.args or 'period_year' in request.args
-    if split_period:
-        month = request.args.get('period_year', '') + '-' + request.args.get('period_month', '')
+    if not (beta_enabled() or entitlement.self_service()) and user['role']!='KILAS_ADMIN':abort(404)
+    businesses=repo.list_businesses_for_user(user['id']);selected=request.args.get('business_id','all')
+    business=next((b for b in businesses if str(b['id'])==selected),None)
+    if selected!='all' and business is None:abort(404)
+    month=request.args.get('month',date.today().strftime('%Y-%m'))
+    split_period='period_month' in request.args or 'period_year' in request.args
+    if split_period:month=request.args.get('period_year','')+'-'+request.args.get('period_month','')
     try:
-        start, end = period(month)
-        if month > date.today().strftime('%Y-%m'):
-            raise ValueError('future_month')
-        end = min(end, date.today().isoformat())
+        start,end=period(month)
+        if month>date.today().strftime('%Y-%m'):raise ValueError('future_month')
+        end=min(end,date.today().isoformat())
     except ValueError:
-        flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.', 'error')
-        return redirect(url_for('finance.overview', business_id=selected))
-    if business is not None:
-        return redirect(url_for('finance.dashboard', business_id=business['id'], month=month))
-    if split_period:
-        return redirect(url_for('finance.overview', month=month))
-    keys = ('total_income_minor', 'total_expense_minor', 'net_cashflow_minor',
-            'total_outstanding_minor', 'total_overdue_minor', 'open_invoice_count', 'overdue_invoice_count')
-    totals = dict.fromkeys(keys, 0)
-    breakdown = []
+        flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.','error')
+        return redirect(url_for('finance.overview',business_id=selected))
+    if business is not None:return redirect(url_for('finance.dashboard',business_id=business['id'],month=month))
+    if split_period:return redirect(url_for('finance.overview',month=month))
+    totals={}
+    breakdown=[]
+    open_count=overdue_count=0
     for business in businesses:
-        security.require_business_access(business['id'], user=user)
-        values = finance.get_finance_summary(business['id'], start, end, actor_user_id=user['id'])
-        values.update(finance_collections.position(business['id'], user['id'], today=end)['aging'])
-        breakdown.append(dict(business=business, summary=values))
-        for key in keys:
-            totals[key] += values[key]
-    selected_year = int(month[:4])
-    current_year, current_month = date.today().year, date.today().month
-    period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | {selected_year})
-    return Response(render_template('finance_overview.html', user=user, businesses=businesses,
-        business=None, month=month, period_years=period_years, selected_year=selected_year,
-        current_year=current_year, current_month=current_month,
-        summary=totals, breakdown=breakdown, as_of=end), headers={'Cache-Control': 'private, no-store'})
-
+        security.require_business_access(business['id'],user=user)
+        cash=finance.get_finance_summaries(business['id'],start,end,actor_user_id=user['id'])
+        aging=finance_collections.position(business['id'],user['id'],today=end)['aging']
+        breakdown.append(dict(business=business,cash_summaries=cash,receivables=aging))
+        for row in cash:
+            item=totals.setdefault(row['currency'],dict(currency=row['currency'],total_income_minor=0,total_expense_minor=0,
+                net_cashflow_minor=0,total_outstanding_minor=0,total_overdue_minor=0))
+            item['total_income_minor']+=row['total_income_minor'];item['total_expense_minor']+=row['total_expense_minor']
+            item['net_cashflow_minor']=item['total_income_minor']-item['total_expense_minor']
+        for row in aging['by_currency']:
+            item=totals.setdefault(row['currency'],dict(currency=row['currency'],total_income_minor=0,total_expense_minor=0,
+                net_cashflow_minor=0,total_outstanding_minor=0,total_overdue_minor=0))
+            item['total_outstanding_minor']+=row['total_outstanding_minor'];item['total_overdue_minor']+=row['total_overdue_minor']
+        open_count+=aging['open_invoice_count'];overdue_count+=aging['overdue_invoice_count']
+    totals_by_currency=[totals[c] for c in finance.SUPPORTED_CURRENCIES if c in totals]
+    if not totals_by_currency:totals_by_currency=[dict(currency='IDR',total_income_minor=0,total_expense_minor=0,net_cashflow_minor=0,total_outstanding_minor=0,total_overdue_minor=0)]
+    selected_year=int(month[:4]);current_year,current_month=date.today().year,date.today().month
+    period_years=sorted(set(range(max(1,current_year-10),current_year+1))|{selected_year})
+    return Response(render_template('finance_overview.html',user=user,businesses=businesses,business=None,month=month,
+        period_years=period_years,selected_year=selected_year,current_year=current_year,current_month=current_month,
+        totals_by_currency=totals_by_currency,open_invoice_count=open_count,overdue_invoice_count=overdue_count,
+        breakdown=breakdown,as_of=end),headers={'Cache-Control':'private, no-store'})
 
 @finance_bp.route('/business/<int:business_id>/finance')
 @finance_access
