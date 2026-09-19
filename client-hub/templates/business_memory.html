@@ -45,6 +45,12 @@
 </style>
 <div class="knowledge-page" data-assist-url="{{ url_for('client.knowledge_assist_draft', business_id=business.id) }}">
 <header class="knowledge-head"><h1>Ajari Kilas Brain</h1><p>{{ business.business_name }} · Lengkapi hanya bagian yang perlu diperbarui.</p></header>
+{% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
+  <div class="card" style="padding:10px 12px;border-left:3px solid {{ 'var(--yellow)' if ai_settings.ai_status == 'STALE' else 'var(--green)' }};">
+    <strong style="font-size:12px;">{{ 'Perubahan menunggu review' if ai_settings.ai_status == 'STALE' else 'Versi Brain sudah disetujui' }}</strong>
+    <p class="client-note" style="margin:3px 0 0;">{{ 'Draft terbaru belum live. Versi terakhir yang disetujui tetap berjalan sampai Kilas Works menyetujui perubahan.' if ai_settings.ai_status == 'STALE' else 'Kamu tetap boleh mengedit kapan saja. Perubahan berikutnya akan masuk review sebelum mengganti versi live.' }}</p>
+  </div>
+{% endif %}
 <div class="card knowledge-readiness" aria-label="Kelengkapan pengetahuan bisnis">
   <h2>Kilas Brain Knowledge: {{ readiness.score }}% lengkap</h2>
   <progress value="{{ readiness.score }}" max="100" style="width:100%;" aria-label="Kelengkapan pengetahuan">{{ readiness.score }}%</progress>
@@ -53,7 +59,7 @@
   {% else %}<p class="muted">Informasi dasar sudah lengkap.</p>{% endif %}
   <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Booking &amp; Pembayaran →</a>
 </div>
-<p class="muted knowledge-tip">AI hanya membantu membuat draft. Periksa dulu; perubahan baru tersimpan saat kamu menekan “Simpan pengetahuan bisnis”.</p>
+<p class="muted knowledge-tip">AI hanya membantu membuat draft. Setelah disimpan, perubahan pada Brain yang sudah disetujui akan direview lagi sebelum menjadi versi live.</p>
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="knowledge_form" value="v2">
