@@ -96,7 +96,7 @@
 {% for item in balance_totals %}<p class="finance-currency-line"><strong>{{ item.balance_minor|finance_money(item.currency) }}</strong>{% if item.currency != 'IDR' and item.idr_estimate_minor is not none %} <span class="muted">≈ {{ item.idr_estimate_minor|finance_idr }}</span>{% endif %}</p>{% endfor %}
 <h3 style="margin-top:16px">Per Kas / Rekening</h3>
 {% for a in balances %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{% if all_branches %}{{ a.branch_name }} · {% endif %}{{ a.currency }} · {{ 'Nonaktif' if not a.is_active else 'Aktif' }}</div></div><strong>{{ a.balance_minor|finance_money(a.currency) }}</strong></div>{% else %}<p class="finance-empty">Belum ada Kas / Rekening.</p>{% endfor %}
-{% if not all_branches and accounts|selectattr('is_active')|list|length>1 %}<button type="button" class="btn secondary" data-finance-open="fx-dialog">⇄ Tukar Mata Uang</button>{% endif %}</div></dialog>>
+{% if not all_branches and accounts|selectattr('is_active')|list|length>1 %}<button type="button" class="btn secondary" data-finance-open="fx-dialog">⇄ Tukar Mata Uang</button>{% endif %}</div></dialog>
 
 <dialog id="fx-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>⇄ Tukar Mata Uang</h2><button type="button" class="finance-sheet-close" data-finance-close="fx-dialog" aria-label="Tutup">×</button></div>
