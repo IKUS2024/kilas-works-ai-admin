@@ -132,11 +132,15 @@
   {% endif %}
   <nav class="review-tabs" aria-label="Bagian review">
     <button type="button" class="review-tab active" data-review-tab="business"><span class="review-tab-icon">🏢</span><span class="review-tab-label">Data Bisnis</span></button>
-    <button type="button" class="review-tab" data-review-tab="knowledge"><span class="review-tab-icon">🧠</span><span class="review-tab-label">Knowledge</span></button>
+    {% if not is_admin_view or business.package != 'NONE' %}
+      <button type="button" class="review-tab" data-review-tab="knowledge"><span class="review-tab-icon">🧠</span><span class="review-tab-label">Knowledge</span></button>
+    {% endif %}
     {% if is_admin_view %}
-      <button type="button" class="review-tab" data-review-tab="activation"><span class="review-tab-icon">✅</span><span class="review-tab-label">Aktivasi</span></button>
-      <button type="button" class="review-tab" data-review-tab="whatsapp"><span class="review-tab-icon">💬</span><span class="review-tab-label">WhatsApp</span></button>
-      <button type="button" class="review-tab" data-review-tab="revision"><span class="review-tab-icon">✏️</span><span class="review-tab-label">Revisi</span></button>
+      {% if business.package != 'NONE' %}
+        <button type="button" class="review-tab" data-review-tab="activation"><span class="review-tab-icon">✅</span><span class="review-tab-label">Aktivasi</span></button>
+        <button type="button" class="review-tab" data-review-tab="whatsapp"><span class="review-tab-icon">💬</span><span class="review-tab-label">WhatsApp</span></button>
+        <button type="button" class="review-tab" data-review-tab="revision"><span class="review-tab-icon">✏️</span><span class="review-tab-label">Revisi</span></button>
+      {% endif %}
       <button type="button" class="review-tab" data-review-tab="history"><span class="review-tab-icon">🕘</span><span class="review-tab-label">Riwayat</span></button>
     {% else %}
       <button type="button" class="review-tab" data-review-tab="next"><span class="review-tab-icon">➡️</span><span class="review-tab-label">Lanjut</span></button>
