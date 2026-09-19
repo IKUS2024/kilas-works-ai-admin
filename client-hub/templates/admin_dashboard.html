@@ -38,6 +38,7 @@
 .product-badge{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;font-size:10px;font-weight:800;border:1px solid var(--border);background:rgba(255,255,255,.015);color:var(--text-dim)}
 .product-badge.brain{color:#c8b6ff;border-color:rgba(200,182,255,.25);background:rgba(200,182,255,.07)}
 .product-badge.finance{color:#7fd3f0;border-color:rgba(127,211,240,.25);background:rgba(127,211,240,.07)}
+.product-badge.review{color:var(--yellow);border-color:rgba(224,185,59,.28);background:rgba(224,185,59,.08)}
 .product-badge.none{font-weight:650}
 .service-order-card{border-left:3px solid var(--orange)}
 .service-order-main{min-width:0}.service-order-main strong{display:block}.service-order-main span{display:block}
@@ -69,7 +70,7 @@
       <span>Operasional saat ini</span>
     </div>
 
-    {% set needs_action = action_center.new_client_requests or action_center.ai_onboarding_waiting_review or action_center.custom_projects_waiting_quote or action_center.payments_waiting_verification or action_center.talent_requests_waiting or action_center.projects_waiting_admin_action or action_center.whatsapp_tenants_waiting_connection or action_center.finance_bills_waiting_review %}
+    {% set needs_action = action_center.new_client_requests or action_center.ai_onboarding_waiting_review or action_center.brain_changes_waiting_review or action_center.custom_projects_waiting_quote or action_center.payments_waiting_verification or action_center.talent_requests_waiting or action_center.projects_waiting_admin_action or action_center.whatsapp_tenants_waiting_connection or action_center.finance_bills_waiting_review %}
 
     {% if needs_action %}
       <div class="action-grid">
@@ -83,6 +84,12 @@
           <a class="action-item priority" href="{{ url_for('admin.dashboard', status='READY_FOR_REVIEW') }}">
             <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/><path d="M5 6h6M5 18h14"/></svg></span>
             <span class="action-copy"><strong class="action-count">{{ action_center.ai_onboarding_waiting_review }}</strong><span class="action-label">Review bisnis</span></span>
+          </a>
+        {% endif %}
+        {% if action_center.brain_changes_waiting_review %}
+          <a class="action-item priority" href="{{ url_for('admin.dashboard', brain_review='changes') }}">
+            <span class="action-icon" aria-hidden="true">🧠</span>
+            <span class="action-copy"><strong class="action-count">{{ action_center.brain_changes_waiting_review }}</strong><span class="action-label">Review perubahan Brain</span></span>
           </a>
         {% endif %}
         {% if action_center.projects_waiting_admin_action %}
@@ -141,17 +148,18 @@
 
   <div class="owner-section-title">
     <div class="owner-section-copy">
-      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else 'Client / Akun Bisnis' }}</h2>
-      <p>{% if finance_trials_only %}Client yang sedang mencoba Kilas Finance.{% else %}Lihat siapa client-nya, produk Kilas yang dipakai, dan status akunnya.{% endif %}</p>
+      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else ('Review Perubahan Brain' if brain_review_only else 'Client / Akun Bisnis') }}</h2>
+      <p>{% if finance_trials_only %}Client yang sedang mencoba Kilas Finance.{% elif brain_review_only %}Client yang mengubah data Brain setelah versi sebelumnya disetujui. Versi live lama tetap aman sampai perubahan direview.{% else %}Lihat siapa client-nya, produk Kilas yang dipakai, dan status akunnya.{% endif %}</p>
     </div>
     <span class="owner-section-tag">{{ businesses_total }} client</span>
   </div>
 
   <nav class="filter-strip" aria-label="Filter bisnis">
-    <a class="btn small {{ 'secondary' if status_filter or finance_trials_only else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
+    <a class="btn small {{ 'secondary' if status_filter or finance_trials_only or brain_review_only else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
     {% for f in status_filters %}
       <a class="btn small {{ 'secondary' if status_filter != f else '' }}" href="{{ url_for('admin.dashboard', status=f) }}">{{ f|humanize_status('business') }}</a>
     {% endfor %}
+    <a class="btn small {{ '' if brain_review_only else 'secondary' }}" href="{{ url_for('admin.dashboard', brain_review='changes') }}">Review Brain</a>
     <a class="btn small {{ '' if finance_trials_only else 'secondary' }}" href="{{ url_for('admin.dashboard', finance='trial') }}">Finance Trial</a>
   </nav>
 
@@ -167,6 +175,7 @@
         </div>
         <div class="business-products">
           {% if b.package != 'NONE' %}<span class="product-badge brain">Kilas Brain</span>{% endif %}
+          {% if b.brain_review_pending %}<span class="product-badge review">Review perubahan</span>{% endif %}
           {% if b.finance_entitlement and b.finance_entitlement.status != 'NOT_ACTIVATED' %}<span class="product-badge finance">Kilas Finance</span>{% endif %}
           {% if b.package == 'NONE' and (not b.finance_entitlement or b.finance_entitlement.status == 'NOT_ACTIVATED') %}<span class="product-badge none">Belum ada produk aktif</span>{% endif %}
         </div>
@@ -183,7 +192,7 @@
         </div>
       </div>
     {% else %}
-      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else 'Belum ada client.' }}</div>
+      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else ('Tidak ada perubahan Brain yang menunggu review.' if brain_review_only else 'Belum ada client.') }}</div>
     {% endfor %}
   </section>
 
@@ -191,17 +200,17 @@
   <div class="owner-pagination-meta">Menampilkan maksimal 5 client per halaman · Halaman {{ client_page }} dari {{ client_total_pages }}</div>
   <nav class="owner-pagination" aria-label="Halaman client">
     {% if client_page > 1 %}
-      <a class="owner-page-btn" href="{{ url_for('admin.dashboard', finance='trial', client_page=client_page-1) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=client_page-1) if status_filter else url_for('admin.dashboard', client_page=client_page-1)) }}">←</a>
+      <a class="owner-page-btn" href="{{ url_for('admin.dashboard', brain_review='changes', client_page=client_page-1) if brain_review_only else (url_for('admin.dashboard', finance='trial', client_page=client_page-1) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=client_page-1) if status_filter else url_for('admin.dashboard', client_page=client_page-1))) }}">←</a>
     {% else %}<span class="owner-page-btn disabled">←</span>{% endif %}
 
     {% for page_number in range(1, client_total_pages + 1) %}
       <a class="owner-page-btn {{ 'active' if page_number == client_page else '' }}"
-         href="{{ url_for('admin.dashboard', finance='trial', client_page=page_number) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=page_number) if status_filter else url_for('admin.dashboard', client_page=page_number)) }}"
+         href="{{ url_for('admin.dashboard', brain_review='changes', client_page=page_number) if brain_review_only else (url_for('admin.dashboard', finance='trial', client_page=page_number) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=page_number) if status_filter else url_for('admin.dashboard', client_page=page_number))) }}"
          {% if page_number == client_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
     {% endfor %}
 
     {% if client_page < client_total_pages %}
-      <a class="owner-page-btn" href="{{ url_for('admin.dashboard', finance='trial', client_page=client_page+1) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=client_page+1) if status_filter else url_for('admin.dashboard', client_page=client_page+1)) }}">→</a>
+      <a class="owner-page-btn" href="{{ url_for('admin.dashboard', brain_review='changes', client_page=client_page+1) if brain_review_only else (url_for('admin.dashboard', finance='trial', client_page=client_page+1) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=client_page+1) if status_filter else url_for('admin.dashboard', client_page=client_page+1))) }}">→</a>
     {% else %}<span class="owner-page-btn disabled">→</span>{% endif %}
   </nav>
   {% endif %}
