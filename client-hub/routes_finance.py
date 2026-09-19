@@ -321,11 +321,10 @@ def dashboard(business_id, user, business):
     balances = finance.get_account_balance_report(business_id, today_value.isoformat(), user['id'])
     balance_totals = finance.aggregate_account_balances_by_currency(balances)
 
+    # Period cash flow only shows currencies that actually have transactions in the period.
+    # A foreign opening balance belongs to current cash, not to period income/expense.
     summary_map = {row['currency']:dict(row) for row in finance.get_finance_summaries(
         business_id, start, end, **actor)}
-    for row in balance_totals:
-        summary_map.setdefault(row['currency'], dict(currency=row['currency'], total_income_minor=0,
-            total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))
     if not summary_map:
         summary_map['IDR'] = dict(currency='IDR', total_income_minor=0, total_expense_minor=0,
                                   net_cashflow_minor=0, transaction_count=0)
@@ -359,10 +358,6 @@ def dashboard(business_id, user, business):
                 branch_totals = finance.aggregate_account_balances_by_currency(branch_balances)
                 branch_map = {row['currency']:dict(row) for row in finance.get_finance_summaries(
                     business_id, start, end, **actor)}
-                for row in branch_totals:
-                    branch_map.setdefault(row['currency'], dict(currency=row['currency'],
-                        total_income_minor=0, total_expense_minor=0, net_cashflow_minor=0,
-                        transaction_count=0))
                 if not branch_map:
                     branch_map['IDR'] = dict(currency='IDR', total_income_minor=0,
                         total_expense_minor=0, net_cashflow_minor=0, transaction_count=0)
