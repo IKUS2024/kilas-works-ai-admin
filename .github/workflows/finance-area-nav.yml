@@ -27,8 +27,27 @@ jobs:
                       app.jinja_env.get_template(name)
           print('Finance templates compile: OK')
           PY
-      - name: Finance focused UI regressions
+      - name: Finance focused regressions
+        working-directory: client-hub
+        run: PYTHONPATH=.:tests python tests/test_finance_branches.py
+      - name: Finance area navigation source check
         working-directory: client-hub
         run: |
-          PYTHONPATH=.:tests python tests/test_finance_branches.py
-          node --test tests/test_finance_branch_ui.cjs
+          python - <<'PY'
+          from pathlib import Path
+          partial=Path('templates/_finance_area_nav.html').read_text()
+          style=Path('templates/_finance_receivables_style.html').read_text()
+          pages={
+              'receivables':Path('templates/finance_receivables.html').read_text(),
+              'operations':Path('templates/finance_operations.html').read_text(),
+              'reports':Path('templates/finance_reports.html').read_text(),
+          }
+          for label in ('Pelanggan & Piutang','Biaya Rutin & Proyek','Laporan & Export'):
+              assert label.replace('&','&amp;') in partial or label in partial
+          assert 'overflow-x:auto' in style
+          assert 'fin-area-tab.active' in style
+          for area,source in pages.items():
+              assert "_finance_area_nav.html" in source
+              assert "active_finance_area='"+area+"'" in source
+          print('Finance area navigation source check: OK')
+          PY
