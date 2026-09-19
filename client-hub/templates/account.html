@@ -4,9 +4,21 @@
 {% include "_client_compact_style.html" %}
 <style>
 .account-page{max-width:900px;margin:0 auto}
-.account-head{margin-bottom:12px}
+.account-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}
+.account-head-copy{min-width:0}
 .account-head h1{font-size:26px;margin:0 0 4px;letter-spacing:-.03em}
 .account-head p{margin:0}
+.account-quick-logout{
+  flex:0 0 auto;min-height:37px;padding:8px 11px;border-radius:11px;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid rgba(241,101,101,.36);background:rgba(241,101,101,.055);
+  color:#ff9d9d;font-size:11px;font-weight:850;line-height:1;text-decoration:none;
+  transition:border-color .15s ease,background .15s ease,color .15s ease;
+}
+.account-quick-logout:hover,.account-quick-logout:focus{
+  text-decoration:none;border-color:rgba(241,101,101,.68);background:rgba(241,101,101,.1);color:#ffc0c0;
+}
+.account-quick-logout svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
 .account-hero{
   position:relative;overflow:hidden;padding:18px!important;
@@ -158,7 +170,9 @@
 
 @media(max-width:700px){
   .account-page{max-width:none}
+  .account-head{gap:10px}
   .account-head h1{font-size:23px}
+  .account-quick-logout{min-height:35px;padding:7px 10px}
   .account-hero{padding:14px!important}
   .account-avatar{width:50px;height:50px;border-radius:15px;font-size:20px}
   .account-hero-copy h2{font-size:17px}
@@ -174,6 +188,8 @@
   .session-card .btn{width:100%}
 }
 @media(max-width:430px){
+  .account-head p{max-width:245px}
+  .account-quick-logout{font-size:10px}
   .account-hero-main{align-items:flex-start}
   .account-hero-meta{gap:5px}
   .account-badge{font-size:9px;padding:5px 7px}
@@ -199,8 +215,18 @@
 
 <div class="account-page">
   <header class="account-head">
-    <h1>Akun</h1>
-    <p class="muted">Kelola profil, bisnis, keamanan, dan sesi akun Kilas Works.</p>
+    <div class="account-head-copy">
+      <h1>Akun</h1>
+      <p class="muted">Kelola profil, bisnis, keamanan, dan sesi akun Kilas Works.</p>
+    </div>
+    <a class="account-quick-logout" href="{{ url_for('auth.logout_page') }}" aria-label="Keluar dari akun">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M10 17l5-5-5-5"></path>
+        <path d="M15 12H3"></path>
+        <path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+      </svg>
+      <span>Keluar</span>
+    </a>
   </header>
 
   <section class="card account-hero">
