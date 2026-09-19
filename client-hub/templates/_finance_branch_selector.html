@@ -1,15 +1,39 @@
-<section class="card" aria-label="Cabang Finance">
-{% if request.endpoint != 'finance.dashboard' %}<p>Bisnis · {{ business.business_name }}</p>{% endif %}
-{% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index') else 'finance.dashboard' %}
-<form method="get" action="{{ url_for(branch_destination,business_id=finance_branch_business_id) }}" class="finance-filter">
-{% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
-<label for="finance-branch">Cabang</label>
-<select id="finance-branch" name="branch_id">
-<option value="all" {{ 'selected' if all_branches }}>Semua Cabang</option>
-{% for branch in finance_branches %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}{{ ' (Nonaktif)' if not branch.is_active }}</option>{% endfor %}
-</select><button class="btn secondary">Pilih Cabang</button>
-</form>
-<p class="muted">Cabang adalah lokasi/outlet usahamu. Pilih satu cabang untuk mencatat transaksi, atau Semua Cabang untuk melihat total seluruh outlet.</p>
-{% if all_branches %}<p role="status">Semua Cabang menampilkan gabungan seluruh outlet. Pilih satu cabang untuk mencatat atau mengubah transaksi.</p>{% elif branch_read_only %}<p role="status">Cabang nonaktif. Riwayat dan laporan tetap tersedia.</p>{% endif %}
+<style>
+.finance-scope-card{padding:16px 18px;border-radius:18px;background:linear-gradient(145deg,color-mix(in srgb,var(--card) 95%,var(--orange) 5%),var(--card));}
+.finance-scope-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.finance-scope-kicker{display:block;color:var(--orange);font-size:10px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px}
+.finance-scope-business{display:block;font-size:17px;line-height:1.2}
+.finance-scope-chip{flex:0 0 auto;max-width:46%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid color-mix(in srgb,var(--orange) 42%,var(--border));background:color-mix(in srgb,var(--orange) 9%,transparent);color:#ffc18f;border-radius:999px;padding:6px 9px;font-size:11px;font-weight:800}
+.finance-scope-form{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.finance-scope-form label{margin:0;color:var(--text);font-size:12px;font-weight:800;display:flex;justify-content:space-between;gap:8px}
+.finance-scope-form label small{color:var(--text-dim);font-size:10px;font-weight:600}
+.finance-scope-form select{height:48px;border-radius:13px;padding:0 38px 0 13px;background:#181a1e;border:1px solid #3b3e45;font-size:15px;font-weight:700}
+.finance-scope-help{margin:10px 0 0;color:var(--text-dim);font-size:11px;line-height:1.45}
+.finance-scope-status{margin:8px 0 0;padding:8px 10px;border-radius:10px;background:rgba(127,127,127,.08);color:var(--text-dim);font-size:11px;line-height:1.4}
+.finance-scope-noscript{width:100%;margin-top:4px}
+@media(max-width:600px){.finance-scope-card{padding:14px}.finance-scope-business{font-size:16px}.finance-scope-form select{height:46px;font-size:16px}.finance-scope-help{margin-top:8px}}
+</style>
+<section class="card finance-scope-card" aria-label="Cabang Finance">
+  <div class="finance-scope-head">
+    <div>
+      <span class="finance-scope-kicker">Ruang kerja Finance</span>
+      <strong class="finance-scope-business">{{ business.business_name }}</strong>
+    </div>
+    <span class="finance-scope-chip">{{ 'Semua Cabang' if all_branches else (selected_branch.name if selected_branch else 'Pilih Cabang') }}</span>
+  </div>
+
+  {% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index') else 'finance.dashboard' %}
+  <form method="get" action="{{ url_for(branch_destination,business_id=finance_branch_business_id) }}" class="finance-scope-form">
+    {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
+    <label for="finance-branch"><span>Cabang</span><small>Lokasi / outlet</small></label>
+    <select id="finance-branch" name="branch_id" onchange="this.form.submit()">
+      <option value="all" {{ 'selected' if all_branches }}>Semua Cabang</option>
+      {% for branch in finance_branches %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}{{ ' (Nonaktif)' if not branch.is_active }}</option>{% endfor %}
+    </select>
+    <noscript><button class="btn secondary finance-scope-noscript">Gunakan Cabang</button></noscript>
+  </form>
+
+  <p class="finance-scope-help">Pilih satu cabang untuk mencatat. <strong>Semua Cabang</strong> untuk melihat gabungan seluruh outlet.</p>
+  {% if all_branches %}<p class="finance-scope-status" role="status">Mode gabungan aktif · pilih satu cabang untuk menambah atau mengubah data.</p>{% elif branch_read_only %}<p class="finance-scope-status" role="status">Cabang nonaktif · riwayat dan laporan tetap tersedia.</p>{% endif %}
 </section>
 {% if branch_read_only and finance_branches %}<style>form[method="post"]{display:none!important}a[data-finance-write]{display:none!important}</style>{% endif %}
