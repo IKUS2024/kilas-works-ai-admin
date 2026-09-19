@@ -165,10 +165,10 @@
   <section class="card orders-card">
     <div class="orders-head"><h2>Pesanan Layanan</h2><a class="btn small secondary" href="{{ url_for('products.index') }}">＋ Tambah Layanan</a></div>
     {% for p in my_projects %}
-      {% set order_url = url_for('projects.purchase_brief',project_id=p.id,edit=1) if p.can_edit_brief else url_for('projects.project_view',project_id=p.id) %}
+      {% set order_url = url_for('talent.talent_list') if p.legacy_talent_flow else (url_for('projects.purchase_brief',project_id=p.id,edit=1) if p.can_edit_brief else url_for('projects.project_view',project_id=p.id)) %}
       <div class="order-row">
-        <div class="order-main"><a href="{{ order_url }}">{{ p.title }}</a><div class="order-meta">{% if p.can_edit_brief %}Lengkapi brief sebelum dikirim ke Kilas Works{% elif p.project_type == 'TALENT' and p.status == 'REQUESTED' %}Menunggu review{% else %}{{ p.status|humanize_status('project') }}{% endif %}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status|humanize_status('payment') }}{% endif %}</div></div>
-        <div class="order-action"><a class="btn small secondary" href="{{ order_url }}">{{ 'Lanjutkan' if p.can_edit_brief else 'Buka' }}</a></div>
+        <div class="order-main"><a href="{{ order_url }}">{{ p.title }}</a><div class="order-meta">{% if p.legacy_talent_flow %}Flow lama · pilih profil talent untuk membuat request baru{% elif p.can_edit_brief %}Lengkapi brief sebelum dikirim ke Kilas Works{% elif p.project_type == 'TALENT' and p.status == 'REQUESTED' %}Menunggu review{% else %}{{ p.status|humanize_status('project') }}{% endif %}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status|humanize_status('payment') }}{% endif %}</div></div>
+        <div class="order-action"><a class="btn small secondary" href="{{ order_url }}">{{ 'Pilih Talent' if p.legacy_talent_flow else ('Lanjutkan' if p.can_edit_brief else 'Buka') }}</a></div>
       </div>
     {% else %}
       <p class="muted">Belum ada pesanan berjalan.</p>

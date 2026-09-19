@@ -87,6 +87,13 @@ def _custom_project_request_impl(project_type, business_id):
 _HISTORY_STATUSES = ("COMPLETED", "CANCELLED")
 
 
+def _legacy_talent_project(project):
+    return (
+        project.get("catalog_key") == "talent_management"
+        and db.query_one("SELECT id FROM talent_requests WHERE project_id=?", (project["id"],)) is None
+    )
+
+
 @projects_bp.route("/services/<catalog_key>/request-quote", methods=["POST"])
 @security.login_required
 def request_generic_quote(catalog_key):
@@ -232,6 +239,8 @@ def my_project_list():
         projects = [p for p in projects if p['status'] in _HISTORY_STATUSES]
     elif view == 'active':
         projects = [p for p in projects if p['status'] not in _HISTORY_STATUSES]
+    for project in projects:
+        project['legacy_talent_flow'] = _legacy_talent_project(project)
     projects.sort(key=lambda p: p['id'], reverse=True)
     return render_template('project_list.html', business=None, projects=projects, view=view)
 
@@ -252,6 +261,8 @@ def project_list(business_id):
         projects = [p for p in projects if p["status"] not in _HISTORY_STATUSES]
     elif view == "history":
         projects = [p for p in projects if p["status"] in _HISTORY_STATUSES]
+    for project in projects:
+        project["legacy_talent_flow"] = _legacy_talent_project(project)
     return render_template("project_list.html", business=business, projects=projects, view=view)
 
 
@@ -268,6 +279,9 @@ def project_view(project_id):
     user = security.current_user()
     project = security.require_project_access(project_id, user)
     loaded = projects_repo.get_project(project_id)
+    if _legacy_talent_project(loaded) and loaded["status"] not in _HISTORY_STATUSES:
+        flash("Flow Talent sudah diperbarui. Pilih profil talent dari marketplace untuk membuat request baru.", "info")
+        return redirect(url_for("talent.talent_list"))
     if (loaded.get('requirements') or {}).get('_app_brief') == 1 and (project['business_id'] is None or project['status'] == 'REQUESTED'):
         return redirect(url_for('projects.purchase_brief', project_id=project_id))
     if project["business_id"] is not None:
@@ -285,6 +299,9 @@ def project_detail(business_id, project_id):
     project = projects_repo.get_project(project_id)
     if project is None or project["business_id"] != business["id"]:
         abort(404)
+    if _legacy_talent_project(project) and project["status"] not in _HISTORY_STATUSES:
+        flash("Flow Talent sudah diperbarui. Pilih profil talent dari marketplace untuk membuat request baru.", "info")
+        return redirect(url_for("talent.talent_list"))
     if (project.get('requirements') or {}).get('_app_brief') == 1 and project['status'] == 'REQUESTED':
         return redirect(url_for('projects.purchase_brief', project_id=project_id))
     import quotation_service

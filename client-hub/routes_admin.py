@@ -87,6 +87,7 @@ def dashboard():
     projects_needing_action = [
         p for p in projects_repo.list_projects_needing_action()
         if p["id"] not in talent_review_project_ids
+        and not (p.get("catalog_key") == "talent_management" and p["id"] not in talent_request_by_project)
     ]
     quotations_needing_action = [
         p for p in all_projects
@@ -98,6 +99,8 @@ def dashboard():
     recent_service_orders = []
     for project in all_projects:
         if project.get("catalog_key") in ("ai_admin", "ai_admin_basic", "ai_admin_pro"):
+            continue
+        if project.get("catalog_key") == "talent_management" and project["id"] not in talent_request_by_project:
             continue
         if project.get("status") == "CANCELLED" or projects_repo.is_unsubmitted_app_draft(project):
             continue
@@ -208,6 +211,10 @@ def review_business(business_id):
         r["project_id"]: r for r in talent_service.list_talent_requests_for_business(business_id)
         if r.get("project_id")
     }
+    service_projects = [
+        p for p in service_projects
+        if not (p.get("catalog_key") == "talent_management" and p["id"] not in business_talent_requests)
+    ]
     for project in service_projects:
         project["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(project)
         talent_request = business_talent_requests.get(project["id"])
@@ -636,10 +643,14 @@ def projects_admin():
         status_filter=status_filter, project_type_filter=type_filter, business_id_filter=business_filter,
     )
     businesses_by_id = {b["id"]: b for b in repo.list_all_businesses()}
+    linked_talent_projects = {
+        r["project_id"] for r in talent_service.list_all_talent_requests() if r.get("project_id")
+    }
     for p in projects:
         b = businesses_by_id.get(p["business_id"])
         p["business_name"] = b["business_name"] if b else "Pesanan pribadi"
         p["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(p)
+        p["legacy_talent_flow"] = p.get("catalog_key") == "talent_management" and p["id"] not in linked_talent_projects
     return render_template(
         "admin_projects.html", projects=projects, status_filter=status_filter,
         type_filter=type_filter, business_filter=business_filter,
