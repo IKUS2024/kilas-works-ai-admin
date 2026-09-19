@@ -3,18 +3,18 @@
 {% block content %}
 {% include "_client_compact_style.html" %}
 <div class="client-page">
-  <header class="client-head"><div><h1>Request {{ talent.name }}</h1><p>Isi inti campaign dulu. Detail lain opsional.</p></div></header>
+  <header class="client-head"><div><h1>{{ talent.name }}</h1><p>Isi kebutuhan campaign. Tim Kilas Works akan review dulu sebelum mengirim harga.</p></div></header>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <section class="card">
       <h2>Kebutuhan Utama</h2>
       <div class="client-form-grid">
-        <label>Jenis Campaign<input type="text" name="campaign_type"></label>
-        <label>Platform<input type="text" name="platform"></label>
-        <label>Jumlah Konten<input type="number" name="num_content_pieces"></label>
+        <label>Jenis Campaign<input type="text" name="campaign_type" placeholder="Contoh: Launch produk" required></label>
+        <label>Platform<select name="platform" required><option value="">Pilih platform</option><option>Instagram</option><option>TikTok</option><option>Instagram & TikTok</option><option>Lainnya</option></select></label>
+        <label>Jumlah Konten<input type="number" name="num_content_pieces" min="1" placeholder="Contoh: 1"></label>
         <label>Target Tanggal<input type="date" name="target_date"></label>
-        <label class="full">Deliverables<textarea name="deliverables" rows="2"></textarea></label>
-        <label class="full">Brief<textarea name="brief" rows="3"></textarea></label>
+        <label class="full">Yang Dibutuhkan dari Talent<textarea name="deliverables" rows="2" placeholder="Contoh: 1 Reels + 3 Story" required></textarea></label>
+        <label class="full">Brief Campaign<textarea name="brief" rows="3" placeholder="Jelaskan produk, konsep, target audiens, dan kebutuhan utama." required></textarea></label>
       </div>
     </section>
 
@@ -29,8 +29,8 @@
         </div>
       </div>
     </details>
-    <p class="client-note">Harga dan ketersediaan tergantung kebutuhan campaign. Tim Kilas Works akan menyiapkan penawaran.</p>
-    <div class="client-actions"><button class="btn" type="submit">Kirim Request</button></div>
+    <p class="client-note">Belum ada pembayaran di tahap ini. Setelah admin review, penawaran harga akan muncul di Pesanan kamu untuk disetujui atau diminta revisi.</p>
+    <div class="client-actions"><button class="btn" type="submit">Kirim untuk Direview</button></div>
   </form>
 </div>
 {% endblock %}
