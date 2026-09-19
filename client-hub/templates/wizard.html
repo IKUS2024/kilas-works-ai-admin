@@ -23,7 +23,7 @@
 .wizard-section{border:1px solid var(--border);border-radius:13px;padding:12px 13px;margin-top:11px;background:rgba(255,255,255,.01)}.wizard-section h3{font-size:13px;margin:0 0 8px}.wizard-section>label:first-of-type{margin-top:0}
 .wizard-check{display:flex!important;align-items:flex-start;gap:9px;color:var(--text)!important;font-weight:650!important;line-height:1.35}.wizard-check input{width:auto!important;min-width:18px;min-height:18px!important;height:18px;margin:1px 0 0;accent-color:var(--orange)}
 .wizard-choice-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:6px}.wizard-choice-row .wizard-check{margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.012)}
-.wizard-subdetails .client-collapsible-body>p:first-child{margin-top:0}
+.wizard-subdetails .client-collapsible-body>p:first-child{margin-top:0}.wizard-important{color:var(--orange);font-size:11px;font-weight:800}.wizard-required-note{display:inline-flex;align-items:center;gap:5px;margin-bottom:10px;padding:6px 8px;border-radius:9px;background:rgba(255,122,26,.08);color:#ffc08f;font-size:11px;font-weight:700}
 @media(max-width:760px){
   .wizard-head{align-items:center;margin-bottom:9px}.wizard-head h1{font-size:21px}.wizard-head p{font-size:11px}.wizard-count{min-width:44px;padding:5px 8px}
   .wizard-draft-note{padding:9px 11px!important}.wizard-plan{margin-bottom:8px!important}.wizard-plan>summary{padding:10px 11px!important}
@@ -68,22 +68,23 @@
   {% if step == 'basics' %}
     <h2>Kenali Bisnismu</h2>
     <p class="wizard-intro">Isi yang benar-benar penting. Data ini jadi dasar Kilas Brain saat menjawab customer, jadi tulis sesuai kondisi bisnis sebenarnya.</p>
+    <div class="wizard-required-note">Kolom bertanda “Penting” wajib diisi sebelum lanjut.</div>
     <input type="hidden" name="country" value="{{ profile.country or 'Indonesia' }}">
     <input type="hidden" name="timezone" value="{{ profile.timezone or 'Asia/Jakarta' }}">
     <div class="client-form-grid">
-      <label>Nama bisnis <span class="muted">(Wajib)</span>
+      <label>Nama bisnis <span class="wizard-important">(Penting)</span>
         <input type="text" name="business_name" value="{{ profile.business_name or business.business_name or '' }}" placeholder="Contoh: Kopi Mantan" required>
       </label>
-      <label>Kategori bisnis <span class="muted">(Wajib)</span>
+      <label>Kategori bisnis <span class="wizard-important">(Penting)</span>
         <input type="text" name="category" value="{{ profile.category or '' }}" placeholder="Contoh: Coffee shop, Klinik, Influencer" required>
       </label>
-      <label class="full">Nama penanggung jawab <span class="muted">(Wajib)</span>
+      <label class="full">Nama penanggung jawab <span class="wizard-important">(Penting)</span>
         <input type="text" name="owner_name" value="{{ profile.owner_name or '' }}" placeholder="Nama owner / pengelola" required>
         <span class="wizard-help">Untuk identitas internal bisnis. Kilas Brain tidak akan menyebut nama ini ke customer tanpa alasan yang relevan.</span>
       </label>
     </div>
-    <label>Tentang bisnis <span class="muted">(Disarankan)</span></label>
-    <textarea name="short_description" id="field_short_description" rows="4" maxlength="1200" placeholder="Contoh: Kami DJ & content creator untuk event, wedding, brand activation, dan kolaborasi konten. Melayani area Jabodetabek dan luar kota sesuai kebutuhan.">{{ profile.short_description or '' }}</textarea>
+    <label>Tentang bisnis <span class="wizard-important">(Penting)</span></label>
+    <textarea name="short_description" id="field_short_description" rows="4" maxlength="1200" placeholder="Contoh: Kami DJ & content creator untuk event, wedding, brand activation, dan kolaborasi konten. Melayani area Jabodetabek dan luar kota sesuai kebutuhan." required>{{ profile.short_description or '' }}</textarea>
     <p class="wizard-help">Cukup 1–3 kalimat: bisnis ini jual/jasa apa, biasanya melayani siapa, dan hal penting yang membedakan bisnis kamu.</p>
     <div class="ai-help-wrap" data-business-id="{{ business.id }}" data-field-type="short_description" data-target="field_short_description">
       <button type="button" class="btn secondary ai-help-btn">Bantu rapikan dengan AI</button>
@@ -102,7 +103,8 @@
   {% elif step == 'services' %}
     <h2>Produk / Layanan</h2>
     <p class="wizard-intro">Satu baris untuk satu produk atau layanan. Tulis <strong>nama + harga/ketentuan harga + detail penting</strong>. Tidak perlu bahasa formal—Kilas Brain akan merapikannya.</p>
-    <textarea name="services_raw" rows="9" placeholder="Contoh:
+    <label>Daftar layanan <span class="wizard-important">(Penting)</span></label>
+    <textarea name="services_raw" rows="9" required placeholder="Contoh:
 DJ Wedding — mulai Rp5 jt — durasi 4 jam, belum termasuk transport luar kota
 Endorsement Reels — Rp2,5 jt/video — termasuk 1x revisi
 Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw_input }}
@@ -112,18 +114,20 @@ Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw
   {% elif step == 'operations' %}
     <h2>Operasional & Kontak</h2>
     <p class="wizard-intro">Isi info yang biasanya ditanya customer: bisnis melayani lewat mana, jam aktif, lokasi, dan kontak. Bagian booking/pembayaran hanya dibuka kalau memang dipakai.</p>
+    <div class="wizard-required-note">Kolom bertanda “Penting” wajib diisi supaya robot tidak menebak info operasional.</div>
 
     <div class="client-form-grid">
-      <label>Model layanan
-        <select name="online_or_offline">
+      <label>Model layanan <span class="wizard-important">(Penting)</span>
+        <select name="online_or_offline" required>
           <option value="" {{ 'selected' if not profile.online_or_offline else '' }}>Pilih yang paling sesuai</option>
           <option value="online" {{ 'selected' if profile.online_or_offline == 'online' else '' }}>Online</option>
           <option value="offline" {{ 'selected' if profile.online_or_offline == 'offline' else '' }}>Offline / datang ke lokasi</option>
           <option value="both" {{ 'selected' if profile.online_or_offline in ('both','hybrid') else '' }}>Online & offline</option>
         </select>
       </label>
-      <label>Jam operasional
-        <input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Contoh: Senin–Sabtu 09.00–18.00">
+      <label>Jam operasional <span class="wizard-important">(Penting)</span>
+        <input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Contoh: Senin–Sabtu 09.00–18.00 / 24 jam / by appointment" required>
+        <span class="wizard-help">Kalau tidak punya jam tetap, isi “by appointment” atau aturan jam yang sebenarnya.</span>
       </label>
       <label>Hari libur / tutup <span class="muted">(Opsional)</span>
         <input type="text" name="closed_days" value="{{ profile.closed_days or '' }}" placeholder="Contoh: Minggu & hari raya">
@@ -194,12 +198,12 @@ Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw
 
     {% if tenant_features and tenant_features.owner_commands %}
     <details class="client-collapsible wizard-subdetails" {% if business.trusted_owner_phone %}open{% endif %}>
-      <summary>WhatsApp pengelola <span class="muted">(Disarankan)</span></summary>
+      <summary>WhatsApp pengelola <span class="wizard-important">(Penting)</span></summary>
       <div class="client-collapsible-body">
         <p class="wizard-help">Nomor ini dipakai sistem untuk mengenali pengelola bisnis dan menerima instruksi internal. Nomor ini tidak otomatis dibagikan ke customer.</p>
-        <label>Nomor WhatsApp owner / pengelola</label>
-        <input type="text" name="trusted_owner_phone" value="{{ business.trusted_owner_phone or '' }}" placeholder="Contoh: 6285128018184" inputmode="tel">
-        <p class="wizard-help">Gunakan format 62 tanpa tanda + atau spasi. Contoh 0851 2801 8184 → 6285128018184.</p>
+        <label>Nomor WhatsApp owner / pengelola <span class="wizard-important">(Penting)</span></label>
+        <input type="text" name="trusted_owner_phone" value="{{ business.trusted_owner_phone or '' }}" placeholder="Indonesia: 6285128018184 · US: 14048836437" inputmode="tel" required>
+        <p class="wizard-help">Isi nomor WhatsApp aktif dengan kode negara. Nomor ini menerima notifikasi customer baru, pertanyaan yang perlu dicek, booking, dan pembayaran.</p>
       </div>
     </details>
     {% endif %}
@@ -239,21 +243,21 @@ Bisa refund? | Tidak ada refund setelah jadwal dikonfirmasi.">{% for f in faqs %
     <h2>Gaya Balasan</h2>
     <p class="wizard-intro">Atur cara Kilas Brain berbicara. Fakta bisnis tetap mengikuti data yang kamu isi, bukan gaya bahasa.</p>
     <div class="client-form-grid">
-      <label>Gaya bahasa
-        <select name="tone">
+      <label>Gaya bahasa <span class="wizard-important">(Penting)</span>
+        <select name="tone" required>
           <option value="friendly" {{ 'selected' if (profile.tone or 'friendly') == 'friendly' else '' }}>Ramah & profesional</option>
           <option value="casual-professional" {{ 'selected' if profile.tone == 'casual-professional' else '' }}>Santai profesional</option>
           <option value="formal" {{ 'selected' if profile.tone == 'formal' else '' }}>Formal</option>
         </select>
       </label>
-      <label>Bahasa utama <span class="muted">(Wajib)</span>
-        <select name="primary_language">
+      <label>Bahasa utama <span class="wizard-important">(Penting)</span>
+        <select name="primary_language" required>
           <option value="id" {{ 'selected' if (profile.primary_language or 'id') == 'id' else '' }}>Bahasa Indonesia</option>
           <option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>English</option>
         </select>
       </label>
-      <label class="full">Sapaan customer <span class="muted">(Wajib)</span>
-        <input type="text" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}" placeholder="Contoh: Kak">
+      <label class="full">Sapaan customer <span class="wizard-important">(Penting)</span>
+        <input type="text" name="customer_salutation" value="{{ profile.customer_salutation or 'Kak' }}" placeholder="Contoh: Kak" required>
         <span class="wizard-help">Contoh: Kak, Bapak/Ibu, Bro/Sis. Pilih yang sesuai brand kamu.</span>
       </label>
     </div>
