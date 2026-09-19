@@ -1146,7 +1146,10 @@ def get_monthly_cashflow_trends(business_id,start_month,end_month,actor_user_id=
 
 def get_monthly_cashflow_trend(business_id,start_month,end_month,actor_user_id=None,start_date=None,end_date=None):
     rows=get_monthly_cashflow_trends(business_id,start_month,end_month,actor_user_id,start_date,end_date)
-    return [r for r in rows if r['currency']=='IDR']
+    idr=[r for r in rows if r['currency']=='IDR']
+    if idr:return idr
+    return [dict(month=m,currency='IDR',income_minor=0,expense_minor=0,net_cashflow_minor=0)
+            for m in report_months(start_month,end_month)]
 
 def operator_invoice_choices(business_id, actor_user_id=None):
     """Bounded picker only; does not load invoice notes or the whole history."""

@@ -118,7 +118,7 @@ def generate(question, context, *, business_id=None, user_id=None):
             for item in items:
                 if not isinstance(item,dict) or set(item)!={'text','refs'}: raise ValueError('item')
                 text = item['text']
-                if not isinstance(text,str) or not 1<=len(text)<=500 or re.search(r'\d|\b(?:rp|idr|usd)\b|[$€]',text,re.I): raise ValueError('text')
+                if not isinstance(text,str) or not 1<=len(text)<=500 or re.search(r'\d|\b(?:rp|idr|usd|sgd|myr|eur|gbp|aud|jpy|cny|hkd|thb)\b|[$€£¥]',text,re.I): raise ValueError('text')
                 refs = item['refs']
                 if not isinstance(refs,list) or len(refs)>5 or any(not isinstance(r,str) or r not in ids for r in refs): raise ValueError('refs')
         if not result['observations'] and not result['suggestions']: raise ValueError('empty_result')
