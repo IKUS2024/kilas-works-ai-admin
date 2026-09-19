@@ -551,25 +551,45 @@ def official_links_admin():
     return render_template("admin_official_links.html", links=repo.get_official_links())
 
 
+
 @admin_bp.route("/catalog")
 @security.admin_required
 def catalog_admin():
-    """Business rule REVERSAL (UX pass, Section F/G/H — explicitly reverses the earlier "catalog
-    editing removed, manual-file-only" decision, at the user's own explicit later request):
-    routine service/package management is restored, but strictly scoped to what the SAME single
-    source of truth (service_catalog, the exact table /services, project creation, and the bot's
-    own live "DAFTAR KATEGORI LAYANAN AKTIF" knowledge block already all read from) can safely
-    represent — never a second, parallel catalog. AI_ADMIN/TALENT categories remain excluded from
-    dashboard creation (see catalog_service.SAFE_NEW_ITEM_CATEGORIES's own docstring for why) —
-    those keep their existing special-workflow-only creation paths untouched."""
+    """Admin service catalog with search + bounded pages for mobile usability."""
     archived = request.args.get("view") == "archive"
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
     items = [item for item in catalog_service.list_all_catalog() if bool(item["is_active"]) != archived]
+    if needle:
+        items = [
+            item for item in items
+            if needle in str(item.get("name") or "").casefold()
+            or needle in str(item.get("category") or "").casefold()
+            or needle in str(item.get("pricing_mode") or "").casefold()
+            or needle in str(item.get("description") or "").casefold()
+            or needle in str(item.get("price_unit") or "").casefold()
+        ]
+
+    items_total = len(items)
+    per_page = 10
+    total_pages = max(1, (items_total + per_page - 1) // per_page)
+    page = request.args.get("page", 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    items = items[start:start + per_page]
+
     return render_template(
-        "admin_catalog.html", items=items, archived=archived, format_price=catalog_service.format_price,
+        "admin_catalog.html",
+        items=items,
+        items_total=items_total,
+        page=page,
+        total_pages=total_pages,
+        search=search,
+        archived=archived,
+        format_price=catalog_service.format_price,
         safe_categories=catalog_service.SAFE_NEW_ITEM_CATEGORIES,
         pricing_modes=pricing_config.VALID_PRICING_MODES,
     )
-
 
 @admin_bp.route("/catalog/create", methods=["POST"])
 @security.admin_required
@@ -658,19 +678,22 @@ def catalog_regenerate():
     return redirect(url_for("admin.catalog_admin"))
 
 
+
 @admin_bp.route("/projects")
 @security.admin_required
 def projects_admin():
-    """Final Operations Polish, Section 13: status (already existed), plus project_type and
-    business_id filters so the admin project list is actually useful once there are many
-    projects across many businesses."""
+    """Admin projects: existing filters plus search and 10-row pagination."""
     status_filter = request.args.get("status") or None
     type_filter = request.args.get("type") or None
     business_filter = request.args.get("business_id", type=int)
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
+
     projects = projects_repo.list_all_projects(
         status_filter=status_filter, project_type_filter=type_filter, business_id_filter=business_filter,
     )
-    businesses_by_id = {b["id"]: b for b in repo.list_all_businesses()}
+    all_businesses = repo.list_all_businesses()
+    businesses_by_id = {b["id"]: b for b in all_businesses}
     linked_talent_projects = {
         r["project_id"] for r in talent_service.list_all_talent_requests() if r.get("project_id")
     }
@@ -679,13 +702,39 @@ def projects_admin():
         p["business_name"] = b["business_name"] if b else "Pesanan pribadi"
         p["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(p)
         p["legacy_talent_flow"] = p.get("catalog_key") == "talent_management" and p["id"] not in linked_talent_projects
-    return render_template(
-        "admin_projects.html", projects=projects, status_filter=status_filter,
-        type_filter=type_filter, business_filter=business_filter,
-        statuses=projects_repo.PROJECT_STATUSES, project_types=projects_repo.PROJECT_TYPES,
-        all_businesses=repo.list_all_businesses(),
-    )
 
+    if needle:
+        projects = [
+            p for p in projects
+            if needle in str(p.get("title") or "").casefold()
+            or needle in str(p.get("business_name") or "").casefold()
+            or needle in str(p.get("project_type") or "").casefold()
+            or needle in str(p.get("status") or "").casefold()
+            or needle in str(p.get("id") or "").casefold()
+        ]
+
+    projects_total = len(projects)
+    per_page = 10
+    total_pages = max(1, (projects_total + per_page - 1) // per_page)
+    page = request.args.get("page", 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    projects = projects[start:start + per_page]
+
+    return render_template(
+        "admin_projects.html",
+        projects=projects,
+        projects_total=projects_total,
+        page=page,
+        total_pages=total_pages,
+        search=search,
+        status_filter=status_filter,
+        type_filter=type_filter,
+        business_filter=business_filter,
+        statuses=projects_repo.PROJECT_STATUSES,
+        project_types=projects_repo.PROJECT_TYPES,
+        all_businesses=all_businesses,
+    )
 
 @admin_bp.route("/projects/<int:project_id>")
 @security.admin_required
@@ -757,14 +806,53 @@ def project_update_status(project_id):
     return redirect(url_for("admin.project_admin_detail", project_id=project_id))
 
 
+
 @admin_bp.route("/payments")
 @security.admin_required
 def payments_admin():
     pending = payment_service.list_payments_pending_review()
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
+
+    businesses_by_id = {b["id"]: b for b in repo.list_all_businesses()}
     for p in pending:
         p["review_status"] = payment_service.derive_review_status(p)
-    return render_template("admin_payments.html", payments=pending)
+        business = businesses_by_id.get(p.get("business_id"))
+        p["business_name"] = business["business_name"] if business else "Pesanan pribadi"
+        invoice = payment_service.get_invoice(p.get("invoice_id")) if p.get("invoice_id") else None
+        p["invoice_number"] = invoice.get("invoice_number") if invoice else None
+        project = projects_repo.get_project(invoice.get("project_id")) if invoice and invoice.get("project_id") else None
+        p["project_title"] = project.get("title") if project else None
 
+    if needle:
+        pending = [
+            p for p in pending
+            if needle in str(p.get("id") or "").casefold()
+            or needle in str(p.get("business_name") or "").casefold()
+            or needle in str(p.get("invoice_number") or "").casefold()
+            or needle in str(p.get("project_title") or "").casefold()
+            or needle in str(p.get("review_status") or "").casefold()
+            or needle in str(p.get("ai_extracted_bank") or "").casefold()
+            or needle in str(p.get("ai_reference") or "").casefold()
+            or needle in str(p.get("ai_extracted_amount") or "").casefold()
+        ]
+
+    payments_total = len(pending)
+    per_page = 10
+    total_pages = max(1, (payments_total + per_page - 1) // per_page)
+    page = request.args.get("page", 1, type=int) or 1
+    page = min(max(1, page), total_pages)
+    start = (page - 1) * per_page
+    pending = pending[start:start + per_page]
+
+    return render_template(
+        "admin_payments.html",
+        payments=pending,
+        payments_total=payments_total,
+        page=page,
+        total_pages=total_pages,
+        search=search,
+    )
 
 @admin_bp.route("/payments/<int:payment_id>")
 @security.admin_required
@@ -860,17 +948,67 @@ def payment_request_reupload(payment_id):
     return redirect(url_for("admin.payments_admin"))
 
 
+
 @admin_bp.route("/talent")
 @security.admin_required
 def talent_admin():
-    talents = talent_service.list_all_talents()
-    requests = talent_service.list_all_talent_requests()
+    all_talents = talent_service.list_all_talents()
+    all_requests = talent_service.list_all_talent_requests()
     businesses = {b["id"]: b for b in repo.list_all_businesses()}
-    talents_by_id = {t["id"]: t for t in talents}
-    return render_template("admin_talent.html", talents=talents, requests=requests,
-                            businesses_by_id=businesses, talents_by_id=talents_by_id,
-                            availability_statuses=talent_service.AVAILABILITY_STATUSES)
+    talents_by_id = {t["id"]: t for t in all_talents}
 
+    search = (request.args.get("q") or "").strip()
+    needle = search.casefold()
+    talents = all_talents
+    requests = all_requests
+    if needle:
+        talents = [
+            t for t in talents
+            if needle in str(t.get("name") or "").casefold()
+            or needle in str(t.get("social_handle") or "").casefold()
+            or needle in str(t.get("niche") or "").casefold()
+            or needle in str(t.get("availability_status") or "").casefold()
+            or needle in str(t.get("id") or "").casefold()
+        ]
+        requests = [
+            r for r in requests
+            if needle in str(r.get("id") or "").casefold()
+            or needle in str(r.get("status") or "").casefold()
+            or needle in str(r.get("brief") or "").casefold()
+            or needle in str((talents_by_id.get(r.get("talent_id")) or {}).get("name") or "").casefold()
+            or needle in str((businesses.get(r.get("business_id")) or {}).get("business_name") or "Pesanan pribadi").casefold()
+        ]
+
+    per_page = 10
+    talents_total = len(talents)
+    talent_total_pages = max(1, (talents_total + per_page - 1) // per_page)
+    talent_page = request.args.get("talent_page", 1, type=int) or 1
+    talent_page = min(max(1, talent_page), talent_total_pages)
+    talent_start = (talent_page - 1) * per_page
+    talents = talents[talent_start:talent_start + per_page]
+
+    requests_total = len(requests)
+    request_total_pages = max(1, (requests_total + per_page - 1) // per_page)
+    request_page = request.args.get("request_page", 1, type=int) or 1
+    request_page = min(max(1, request_page), request_total_pages)
+    request_start = (request_page - 1) * per_page
+    requests = requests[request_start:request_start + per_page]
+
+    return render_template(
+        "admin_talent.html",
+        talents=talents,
+        talents_total=talents_total,
+        talent_page=talent_page,
+        talent_total_pages=talent_total_pages,
+        requests=requests,
+        requests_total=requests_total,
+        request_page=request_page,
+        request_total_pages=request_total_pages,
+        search=search,
+        businesses_by_id=businesses,
+        talents_by_id=talents_by_id,
+        availability_statuses=talent_service.AVAILABILITY_STATUSES,
+    )
 
 @admin_bp.route("/talent/requests/<int:request_id>", methods=["GET", "POST"])
 @security.admin_required
