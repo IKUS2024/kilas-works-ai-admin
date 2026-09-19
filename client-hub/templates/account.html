@@ -3,101 +3,443 @@
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
-.account-page{max-width:720px;margin:0 auto}
-.account-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
-.account-head h1{font-size:24px;margin:0 0 4px}.account-head p{margin:0}
-.account-card{padding:16px}.account-card h2{font-size:17px;margin:0 0 4px}.account-card>p{margin:0 0 10px}
-.account-label{display:block;font-size:11px;font-weight:750;color:var(--text-dim);margin:0 0 5px;text-transform:uppercase;letter-spacing:.04em}
-.account-identity{display:grid;grid-template-columns:1.15fr .85fr;gap:10px;margin-bottom:12px}
-.account-readonly{padding:11px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg-soft);color:var(--text-dim);overflow-wrap:anywhere;min-height:43px}
-.account-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.account-actions .btn{margin:0}
-.account-security{padding:0!important;overflow:hidden}.account-security>summary{list-style:none;cursor:pointer;padding:15px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.account-security>summary::-webkit-details-marker{display:none}.account-security>summary::after{content:"⌄";font-size:20px;line-height:1;color:var(--text-dim)}
-.account-security[open]>summary{border-bottom:1px solid var(--border)}.account-security[open]>summary::after{content:"⌃"}
-.account-security-title{display:flex;align-items:center;gap:11px;min-width:0}.account-security-icon{width:38px;height:38px;border-radius:11px;background:var(--bg-soft);display:grid;place-items:center;flex:0 0 auto;font-size:17px}
-.account-security-title strong{display:block;font-size:16px;color:var(--text)}.account-security-title span{display:block;color:var(--text-dim);font-size:12px;margin-top:2px}
-.account-security-body{padding:14px 16px 16px}.account-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.account-password-note{padding:9px 10px;border-radius:10px;background:var(--bg-soft);color:var(--text-dim);font-size:11px;line-height:1.45;margin:0 0 10px}
-.account-danger{padding:14px 16px!important;border-color:rgba(241,101,101,.28)!important;display:flex;align-items:center;justify-content:space-between;gap:14px}
-.account-danger-copy h2{color:#ffb3b3;margin:0 0 3px}.account-danger-copy p{margin:0}.account-danger .btn{margin:0;min-width:110px;text-align:center}
-@media(max-width:600px){
-  .account-head h1{font-size:21px}.account-card{padding:13px}.account-identity,.account-row{grid-template-columns:1fr}
-  .account-security>summary{padding:13px}.account-security-body{padding:12px 13px 13px}
-  .account-actions .btn{width:100%;text-align:center}.account-danger{align-items:flex-start;flex-direction:column}.account-danger .btn{width:100%}
+.account-page{max-width:900px;margin:0 auto}
+.account-head{margin-bottom:12px}
+.account-head h1{font-size:26px;margin:0 0 4px;letter-spacing:-.03em}
+.account-head p{margin:0}
+
+.account-hero{
+  position:relative;overflow:hidden;padding:18px!important;
+  background:
+    radial-gradient(circle at 92% 10%,rgba(255,122,26,.18),transparent 34%),
+    linear-gradient(135deg,#25272c 0%,#202226 62%,#24201d 100%);
+}
+.account-hero::after{
+  content:"";position:absolute;right:-46px;top:-56px;width:150px;height:150px;border-radius:50%;
+  border:1px solid rgba(255,122,26,.16);pointer-events:none;
+}
+.account-hero-main{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
+.account-avatar{
+  width:58px;height:58px;border-radius:18px;display:grid;place-items:center;flex:0 0 auto;
+  background:linear-gradient(145deg,#ff8d37,#e9640a);color:#1b140f;font-size:23px;font-weight:900;
+  box-shadow:0 10px 24px rgba(255,122,26,.18);
+}
+.account-hero-copy{min-width:0;flex:1}
+.account-hero-copy h2{font-size:20px;margin:0 0 4px}
+.account-hero-email{color:var(--text-dim);font-size:13px;overflow-wrap:anywhere}
+.account-hero-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.account-badge{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;
+  border:1px solid var(--border);background:rgba(255,255,255,.025);color:#d8dbe0;
+  font-size:10px;font-weight:800;line-height:1;
+}
+.account-badge.orange{border-color:rgba(255,122,26,.35);background:rgba(255,122,26,.08);color:#ff9c55}
+
+.account-tabs{
+  display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 10px;margin-bottom:2px;
+  position:sticky;top:0;z-index:3;background:linear-gradient(var(--bg) 75%,rgba(22,23,26,0));
+}
+.account-tabs::-webkit-scrollbar{display:none}
+.account-tab{
+  appearance:none;border:1px solid var(--border);background:#202226;color:var(--text-dim);
+  min-height:38px;padding:8px 12px;border-radius:11px;font:inherit;font-size:12px;font-weight:800;
+  cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:7px;
+}
+.account-tab:hover{border-color:#4a4e56;color:var(--text)}
+.account-tab.active{background:rgba(255,122,26,.11);border-color:rgba(255,122,26,.58);color:#ff9c55}
+.account-tab-count{
+  min-width:19px;height:19px;padding:0 5px;border-radius:999px;display:inline-grid;place-items:center;
+  background:rgba(255,255,255,.07);font-size:9px;color:inherit;
+}
+
+.account-panel[hidden]{display:none!important}
+.account-section{padding:16px!important}
+.account-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:13px}
+.account-section-head h2{margin:0 0 3px;font-size:17px}
+.account-section-head p{margin:0}
+.account-edit-btn{margin:0!important;flex:0 0 auto}
+
+.account-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:10px}
+.account-field{min-width:0}
+.account-field.full{grid-column:1/-1}
+.account-label{
+  display:block;margin:0 0 5px;color:var(--text-dim);font-size:10px;font-weight:850;
+  text-transform:uppercase;letter-spacing:.06em;
+}
+.account-readonly{
+  min-height:44px;padding:11px 12px;border:1px solid var(--border);border-radius:11px;
+  display:flex;align-items:center;gap:8px;background:#1c1e21;color:#b9bdc4;font-size:14px;overflow-wrap:anywhere;
+}
+.account-readonly .lock{margin-left:auto;color:#777d86;font-size:11px}
+.account-input-wrap{position:relative}
+.account-input-wrap input{padding-right:38px}
+.account-input-wrap input[readonly]{
+  background:#1c1e21;color:#eef0f2;border-color:var(--border);cursor:default;
+}
+.account-input-wrap input:not([readonly]){
+  border-color:rgba(255,122,26,.65);box-shadow:0 0 0 2px rgba(255,122,26,.08);
+}
+.account-edit-mark{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:13px;color:#7f858e;pointer-events:none;
+}
+.account-profile-actions{
+  display:none;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);
+}
+.account-profile-actions.open{display:flex}
+.account-profile-actions .btn{margin:0}
+
+.account-help{
+  margin-top:11px;padding:10px 11px;border-radius:11px;border:1px solid rgba(255,122,26,.18);
+  background:rgba(255,122,26,.045);color:var(--text-dim);font-size:11px;line-height:1.5;
+}
+
+.business-list{display:grid;gap:8px}
+.business-item{
+  border:1px solid var(--border);border-radius:14px;padding:12px;background:rgba(255,255,255,.012);
+}
+.business-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.business-main{display:flex;gap:10px;min-width:0}
+.business-icon{
+  width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;
+  background:#1b1d20;border:1px solid var(--border);font-weight:900;color:#ff9449;
+}
+.business-name{font-weight:850;line-height:1.25;overflow-wrap:anywhere}
+.business-sub{font-size:11px;color:var(--text-dim);margin-top:3px}
+.business-status{
+  flex:0 0 auto;padding:5px 8px;border-radius:999px;border:1px solid var(--border);
+  background:#1d1f22;color:#c9cdd3;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.03em;
+}
+.business-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.business-actions .btn{margin:0}
+.account-empty{
+  border:1px dashed var(--border);border-radius:14px;padding:20px;text-align:center;color:var(--text-dim);font-size:13px;
+}
+
+.security-grid{display:grid;gap:10px}
+.security-card{
+  border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.012);overflow:hidden;
+}
+.security-card>summary{
+  list-style:none;cursor:pointer;padding:13px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.security-card>summary::-webkit-details-marker{display:none}
+.security-summary-main{display:flex;align-items:center;gap:11px;min-width:0}
+.security-icon{
+  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;
+  background:#1b1d20;border:1px solid var(--border);font-size:16px;
+}
+.security-copy strong{display:block;font-size:14px;color:var(--text)}
+.security-copy span{display:block;color:var(--text-dim);font-size:11px;margin-top:2px}
+.security-arrow{color:var(--text-dim);font-size:18px}
+.security-card[open] .security-arrow{transform:rotate(180deg)}
+.security-body{border-top:1px solid var(--border);padding:13px 14px 14px}
+.security-note{
+  padding:9px 10px;border-radius:10px;background:#1c1e21;color:var(--text-dim);
+  font-size:11px;line-height:1.5;margin:0 0 10px;
+}
+.password-field{position:relative}
+.password-field input{padding-right:62px}
+.password-toggle{
+  position:absolute;right:7px;bottom:6px;min-height:31px!important;padding:4px 8px;
+  border:0;background:transparent;color:#ff9b53;font-size:10px;font-weight:800;cursor:pointer;
+}
+.account-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.account-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.account-actions .btn{margin:0}
+
+.session-card{
+  padding:13px 14px;border:1px solid rgba(241,101,101,.28);border-radius:14px;
+  background:linear-gradient(90deg,rgba(241,101,101,.045),rgba(241,101,101,.015));
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+}
+.session-copy strong{display:block;color:#ffb3b3;font-size:14px}
+.session-copy span{display:block;color:var(--text-dim);font-size:11px;margin-top:3px}
+.session-card .btn{margin:0;min-width:108px;text-align:center}
+
+@media(max-width:700px){
+  .account-page{max-width:none}
+  .account-head h1{font-size:23px}
+  .account-hero{padding:14px!important}
+  .account-avatar{width:50px;height:50px;border-radius:15px;font-size:20px}
+  .account-hero-copy h2{font-size:17px}
+  .account-tabs{margin:0 -1px 1px;padding-bottom:8px}
+  .account-tab{min-height:36px;padding:7px 10px;font-size:11px}
+  .account-section{padding:13px!important}
+  .account-section-head{margin-bottom:11px}
+  .account-grid,.account-row{grid-template-columns:1fr}
+  .account-field.full{grid-column:auto}
+  .business-top{align-items:flex-start}
+  .business-actions .btn{flex:1;text-align:center;min-width:120px}
+  .session-card{align-items:flex-start;flex-direction:column}
+  .session-card .btn{width:100%}
+}
+@media(max-width:430px){
+  .account-hero-main{align-items:flex-start}
+  .account-hero-meta{gap:5px}
+  .account-badge{font-size:9px;padding:5px 7px}
+  .account-section-head{align-items:center}
+  .account-edit-btn{padding:7px 10px!important;font-size:11px!important}
+  .business-status{font-size:8px}
+  .account-profile-actions .btn,.account-actions .btn{width:100%;text-align:center}
 }
 </style>
 
+{% set display_name = user.full_name or user.email.split('@')[0] %}
+{% set initial = display_name[:1]|upper %}
+{% set status_labels = {
+  'DRAFT':'Draft',
+  'ONBOARDING':'Onboarding',
+  'READY_FOR_AI_SETUP':'Siap setup AI',
+  'READY_FOR_REVIEW':'Menunggu review',
+  'APPROVED':'Disetujui',
+  'ACTIVE':'Aktif',
+  'NEEDS_REVISION':'Perlu revisi',
+  'SUSPENDED':'Ditangguhkan'
+} %}
+
 <div class="account-page">
   <header class="account-head">
-    <div>
-      <h1>Akun</h1>
-      <p class="muted">Profil dan keamanan login Kilas Works.</p>
-    </div>
+    <h1>Akun</h1>
+    <p class="muted">Kelola profil, bisnis, keamanan, dan sesi akun Kilas Works.</p>
   </header>
 
-  <section class="card account-card">
-    <h2>Profil</h2>
-    <p class="muted">Informasi akun yang dipakai untuk masuk ke Client Hub.</p>
-
-    <div class="account-identity">
-      <div>
-        <span class="account-label">Email login</span>
-        <div class="account-readonly">{{ user.email }}</div>
-      </div>
-      <div>
-        <span class="account-label">Tipe akun</span>
-        <div class="account-readonly">Pemilik bisnis</div>
+  <section class="card account-hero">
+    <div class="account-hero-main">
+      <div class="account-avatar" aria-hidden="true">{{ initial }}</div>
+      <div class="account-hero-copy">
+        <h2>{{ display_name }}</h2>
+        <div class="account-hero-email">{{ user.email }}</div>
+        <div class="account-hero-meta">
+          <span class="account-badge orange">Pemilik bisnis</span>
+          <span class="account-badge">{{ businesses|length }} bisnis</span>
+          <span class="account-badge">Akun aktif</span>
+        </div>
       </div>
     </div>
-
-    <form method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="profile">
-      <label for="account-full-name">Nama</label>
-      <input id="account-full-name" type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu">
-      <div class="account-actions"><button class="btn" type="submit">Simpan Perubahan</button></div>
-    </form>
   </section>
 
-  <details class="card account-security" {% if password_open %}open{% endif %}>
-    <summary>
-      <span class="account-security-title">
-        <span class="account-security-icon" aria-hidden="true">🔒</span>
-        <span><strong>Keamanan &amp; Password</strong><span>Ganti password hanya jika diperlukan</span></span>
-      </span>
-    </summary>
-    <div class="account-security-body">
-      <p class="account-password-note">Untuk keamanan, kamu harus memasukkan password saat ini. Password baru minimal 8 karakter dan perubahan baru dianggap berhasil setelah tersimpan serta terverifikasi di sistem.</p>
-      <form method="post">
+  <div class="account-tabs" role="tablist" aria-label="Menu akun">
+    <button class="account-tab active" type="button" role="tab" aria-selected="true" aria-controls="account-panel-profile" data-account-tab="profile">Profil</button>
+    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-business" data-account-tab="business">
+      Bisnis <span class="account-tab-count">{{ businesses|length }}</span>
+    </button>
+    <button class="account-tab" type="button" role="tab" aria-selected="false" aria-controls="account-panel-security" data-account-tab="security">Keamanan</button>
+  </div>
+
+  <section id="account-panel-profile" class="account-panel" data-account-panel="profile" role="tabpanel">
+    <div class="card account-section">
+      <div class="account-section-head">
+        <div>
+          <h2>Informasi akun</h2>
+          <p class="muted">Data utama untuk mengenali akun kamu.</p>
+        </div>
+        <button class="btn secondary small account-edit-btn" type="button" id="account-profile-edit">Edit Profil</button>
+      </div>
+
+      <form method="post" id="account-profile-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="password">
+        <input type="hidden" name="action" value="profile">
 
-        <label for="current-password">Password saat ini</label>
-        <input id="current-password" type="password" name="current_password" autocomplete="current-password" required>
+        <div class="account-grid">
+          <div class="account-field">
+            <span class="account-label">Email login</span>
+            <div class="account-readonly">
+              <span>{{ user.email }}</span>
+              <span class="lock">Terkunci</span>
+            </div>
+          </div>
 
-        <div class="account-row">
-          <label>Password baru
-            <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
-          </label>
-          <label>Ulangi password baru
-            <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
-          </label>
+          <div class="account-field">
+            <span class="account-label">Tipe akun</span>
+            <div class="account-readonly">Pemilik bisnis</div>
+          </div>
+
+          <div class="account-field full">
+            <label class="account-label" for="account-full-name">Nama lengkap</label>
+            <div class="account-input-wrap">
+              <input id="account-full-name" type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu" readonly>
+              <span class="account-edit-mark" aria-hidden="true">✎</span>
+            </div>
+          </div>
         </div>
 
-        <div class="account-actions">
-          <button class="btn" type="submit">Simpan Password Baru</button>
-          <a class="btn secondary" href="{{ url_for('auth.forgot_password_page') }}">Lupa Password Lama?</a>
+        <div class="account-profile-actions" id="account-profile-actions">
+          <button class="btn secondary" type="button" id="account-profile-cancel">Batal</button>
+          <button class="btn" type="submit">Simpan Perubahan</button>
         </div>
       </form>
-    </div>
-  </details>
 
-  <section class="card account-danger">
-    <div class="account-danger-copy">
-      <h2>Keluar dari akun</h2>
-      <p class="muted">Akhiri sesi Kilas Works di perangkat ini.</p>
+      <div class="account-help">
+        Email login dan tipe akun tidak bisa diubah dari halaman ini untuk menjaga keamanan akun. Nama lengkap bisa kamu edit kapan saja.
+      </div>
     </div>
-    <a class="btn danger" href="{{ url_for('auth.logout_page') }}">Logout</a>
+  </section>
+
+  <section id="account-panel-business" class="account-panel" data-account-panel="business" role="tabpanel" hidden>
+    <div class="card account-section">
+      <div class="account-section-head">
+        <div>
+          <h2>Bisnis yang kamu kelola</h2>
+          <p class="muted">Pilih bisnis untuk membuka pengaturan atau data Kilas Brain.</p>
+        </div>
+      </div>
+
+      {% if businesses %}
+        <div class="business-list">
+          {% for business in businesses %}
+            {% set package_label = 'AI Admin Pro' if business.package == 'AI_ADMIN_PRO' else ('AI Admin' if business.package == 'AI_ADMIN' else 'Tanpa AI Admin') %}
+            <article class="business-item">
+              <div class="business-top">
+                <div class="business-main">
+                  <div class="business-icon" aria-hidden="true">{{ business.business_name[:1]|upper }}</div>
+                  <div>
+                    <div class="business-name">{{ business.business_name }}</div>
+                    <div class="business-sub">{{ package_label }} · Kamu sebagai pemilik</div>
+                  </div>
+                </div>
+                <span class="business-status">{{ status_labels.get(business.status, business.status|replace('_',' ')|title) }}</span>
+              </div>
+              <div class="business-actions">
+                <a class="btn secondary small" href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan</a>
+                {% if business.package != 'NONE' %}
+                  <a class="btn secondary small" href="{{ url_for('client.business_memory', business_id=business.id) }}">Kilas Brain</a>
+                {% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="account-empty">
+          Belum ada bisnis yang terhubung ke akun ini.
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section id="account-panel-security" class="account-panel" data-account-panel="security" role="tabpanel" hidden>
+    <div class="card account-section">
+      <div class="account-section-head">
+        <div>
+          <h2>Keamanan akun</h2>
+          <p class="muted">Kelola password dan sesi login dari satu tempat.</p>
+        </div>
+      </div>
+
+      <div class="security-grid">
+        <details class="security-card" {% if password_open %}open{% endif %}>
+          <summary>
+            <span class="security-summary-main">
+              <span class="security-icon" aria-hidden="true">🔒</span>
+              <span class="security-copy">
+                <strong>Ubah password</strong>
+                <span>Gunakan password baru minimal 8 karakter.</span>
+              </span>
+            </span>
+            <span class="security-arrow" aria-hidden="true">⌄</span>
+          </summary>
+
+          <div class="security-body">
+            <p class="security-note">Untuk keamanan, masukkan password saat ini terlebih dahulu. Perubahan baru dianggap berhasil setelah tersimpan dan terverifikasi di sistem.</p>
+            <form method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="password">
+
+              <div class="password-field">
+                <label for="current-password">Password saat ini</label>
+                <input id="current-password" type="password" name="current_password" autocomplete="current-password" required>
+                <button class="password-toggle" type="button" data-password-toggle="current-password">Lihat</button>
+              </div>
+
+              <div class="account-row">
+                <div class="password-field">
+                  <label for="new-password">Password baru</label>
+                  <input id="new-password" type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+                  <button class="password-toggle" type="button" data-password-toggle="new-password">Lihat</button>
+                </div>
+                <div class="password-field">
+                  <label for="confirm-password">Ulangi password baru</label>
+                  <input id="confirm-password" type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+                  <button class="password-toggle" type="button" data-password-toggle="confirm-password">Lihat</button>
+                </div>
+              </div>
+
+              <div class="account-actions">
+                <button class="btn" type="submit">Simpan Password Baru</button>
+                <a class="btn secondary" href="{{ url_for('auth.forgot_password_page') }}">Lupa Password?</a>
+              </div>
+            </form>
+          </div>
+        </details>
+
+        <div class="session-card">
+          <div class="session-copy">
+            <strong>Keluar dari akun</strong>
+            <span>Akhiri sesi Kilas Works di perangkat ini.</span>
+          </div>
+          <a class="btn danger" href="{{ url_for('auth.logout_page') }}">Logout</a>
+        </div>
+      </div>
+    </div>
   </section>
 </div>
+
+<script>
+(function(){
+  const tabs = Array.from(document.querySelectorAll('[data-account-tab]'));
+  const panels = Array.from(document.querySelectorAll('[data-account-panel]'));
+
+  function showTab(name, updateHash){
+    if (!panels.some(function(panel){ return panel.dataset.accountPanel === name; })) name = 'profile';
+    tabs.forEach(function(tab){
+      const active = tab.dataset.accountTab === name;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    panels.forEach(function(panel){
+      panel.hidden = panel.dataset.accountPanel !== name;
+    });
+    if (updateHash) history.replaceState(null, '', '#' + name);
+  }
+
+  tabs.forEach(function(tab){
+    tab.addEventListener('click', function(){ showTab(tab.dataset.accountTab, true); });
+  });
+
+  const serverSecurityOpen = {{ 'true' if password_open else 'false' }};
+  const initialTab = serverSecurityOpen ? 'security' : (location.hash || '').replace('#','');
+  showTab(initialTab || 'profile', false);
+
+  const form = document.getElementById('account-profile-form');
+  const nameInput = document.getElementById('account-full-name');
+  const editButton = document.getElementById('account-profile-edit');
+  const cancelButton = document.getElementById('account-profile-cancel');
+  const actionRow = document.getElementById('account-profile-actions');
+
+  function setEditing(editing){
+    nameInput.readOnly = !editing;
+    editButton.style.display = editing ? 'none' : '';
+    actionRow.classList.toggle('open', editing);
+    if (editing) {
+      nameInput.focus();
+      nameInput.setSelectionRange(nameInput.value.length, nameInput.value.length);
+    }
+  }
+
+  editButton.addEventListener('click', function(){ setEditing(true); });
+  cancelButton.addEventListener('click', function(){
+    form.reset();
+    setEditing(false);
+  });
+
+  document.querySelectorAll('[data-password-toggle]').forEach(function(button){
+    button.addEventListener('click', function(){
+      const input = document.getElementById(button.dataset.passwordToggle);
+      if (!input) return;
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      button.textContent = show ? 'Sembunyi' : 'Lihat';
+    });
+  });
+})();
+</script>
 {% endblock %}
