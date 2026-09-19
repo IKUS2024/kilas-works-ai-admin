@@ -193,6 +193,8 @@ def account_bills():
             needle in str(b.get('business_name') or '').casefold()
             or needle in str(b.get('package') or '').casefold()
             or needle in str(b.get('status') or '').casefold()
+            or (b.get('package')!='NONE' and needle in 'kilas brain ai customer service')
+            or needle in 'kilas finance keuangan bisnis'
         )]
     businesses_total=len(businesses)
     per_page=10
