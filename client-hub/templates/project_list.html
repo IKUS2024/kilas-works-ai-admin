@@ -5,14 +5,23 @@
 <div class="client-page">
   <header class="client-head">
     <div><h1>{{ 'Proyek — ' ~ business.business_name if business else ('Riwayat Proyek' if view == 'history' else 'Pesanan Saya') }}</h1><p>Pantau status tanpa tabel panjang.</p></div>
-    <span class="client-count">{{ projects|length }} proyek</span>
+    <span class="client-count">{{ projects_total }} proyek</span>
   </header>
 
   <nav class="client-toolbar">
-    <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active') if business else url_for('projects.my_project_list',view='active') }}">Aktif</a>
-    <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history') if business else url_for('projects.my_project_list',view='history') }}">Riwayat</a>
-    <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all') if business else url_for('projects.my_project_list',view='all') }}">Semua</a>
+    <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active', q=search) if business else url_for('projects.my_project_list',view='active',q=search) }}">Aktif</a>
+    <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history', q=search) if business else url_for('projects.my_project_list',view='history',q=search) }}">Riwayat</a>
+    <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all', q=search) if business else url_for('projects.my_project_list',view='all',q=search) }}">Semua</a>
   </nav>
+
+  <form method="get" class="card client-search-card" action="{{ url_for('projects.project_list', business_id=business.id) if business else url_for('projects.my_project_list') }}">
+    <input type="hidden" name="view" value="{{ view }}">
+    <div class="client-search-row">
+      <input type="search" name="q" value="{{ search }}" placeholder="Cari pesanan, tipe, status..." aria-label="Cari pesanan">
+      <button class="btn small" type="submit">Cari</button>
+      {% if search %}<a class="btn small secondary" href="{{ url_for('projects.project_list', business_id=business.id, view=view) if business else url_for('projects.my_project_list', view=view) }}">Reset</a>{% endif %}
+    </div>
+  </form>
 
   <section class="card">
     <div class="client-list">
@@ -27,8 +36,23 @@
         </div>
         <div class="client-actions"><a class="btn small secondary" href="{{ url_for('talent.talent_list') if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else url_for('projects.project_view', project_id=p.id) }}">{{ 'Pilih Talent →' if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else 'Lihat Detail →' }}</a></div>
       </article>
-      {% else %}<div class="client-empty">Belum ada pesanan di bagian ini.</div>{% endfor %}
+      {% else %}<div class="client-empty">{{ 'Tidak ada pesanan yang cocok dengan pencarian.' if search else 'Belum ada pesanan di bagian ini.' }}</div>{% endfor %}
     </div>
   </section>
+
+  {% if total_pages > 1 %}
+    <div class="client-list-meta">Maksimal 10 pesanan per halaman · Halaman {{ page }} dari {{ total_pages }}</div>
+    <nav class="client-pagination" aria-label="Halaman pesanan">
+      {% if page > 1 %}
+        <a class="client-page-btn" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page-1) if business else url_for('projects.my_project_list', view=view, q=search, page=page-1) }}">←</a>
+      {% else %}<span class="client-page-btn disabled">←</span>{% endif %}
+      {% for page_number in range(1,total_pages+1) %}
+        <a class="client-page-btn {{ 'active' if page_number==page else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page_number) if business else url_for('projects.my_project_list', view=view, q=search, page=page_number) }}" {% if page_number==page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+      {% endfor %}
+      {% if page < total_pages %}
+        <a class="client-page-btn" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page+1) if business else url_for('projects.my_project_list', view=view, q=search, page=page+1) }}">→</a>
+      {% else %}<span class="client-page-btn disabled">→</span>{% endif %}
+    </nav>
+  {% endif %}
 </div>
 {% endblock %}
