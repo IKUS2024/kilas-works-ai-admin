@@ -1,0 +1,33 @@
+name: Finance reconciliation verification
+on:
+  push:
+    branches: [fix/finance-reconciliation-20260919]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test dependencies
+        run: pip install -r client-hub/requirements.txt pytest
+      - name: Compile Finance modules
+        run: python -m compileall -q client-hub/finance_fx.py client-hub/routes_finance.py client-hub/finance_service.py
+      - name: Package scoped source for isolated verification
+        if: always()
+        run: |
+          mkdir -p verification/wheels
+          git archive HEAD client-hub | gzip > verification/client-hub-source.tar.gz
+          pip download --only-binary=:all: --no-deps flask werkzeug blinker click itsdangerous -d verification/wheels
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finance-verification-source
+          path: verification/
+          retention-days: 1
