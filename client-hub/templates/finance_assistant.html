@@ -9,6 +9,7 @@
 <details class="assistant-safety-details"><summary>Privasi & konfirmasi</summary><p class="muted">Kamu tetap memeriksa dan mengonfirmasi setiap pencatatan. Percakapan tidak disimpan; muat ulang akan menghapus tampilan sementara. Jangan masukkan kredensial atau nomor rekening.</p></details>
 <form id="assistant-composer" class="card" method="post" enctype="multipart/form-data" autocomplete="off"
       action="{{ url_for('finance.assistant_route',business_id=business.id) }}"
+      data-recognize="{{ url_for('finance.assistant_recognize',business_id=business.id) }}"
       data-route="{{ url_for('finance.assistant_route',business_id=business.id) }}"
       data-receipt="{{ url_for('finance.receipt_analyze',business_id=business.id) }}"
       data-bank="{{ url_for('finance.bank_analyze',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">
@@ -18,20 +19,20 @@
 <p id="assistant-text-help" class="muted">Tulis singkat apa yang kamu mau. Assistant akan mencoba menentukan alurnya otomatis.</p>
 
 <div class="assistant-upload-card" aria-describedby="assistant-file-help">
-<div class="assistant-upload-head"><strong>Kamera / Upload Dokumen</strong><span>Struk, screenshot, mutasi bank, PDF atau CSV</span></div>
+<div class="assistant-upload-head"><strong>Kamera / Upload Dokumen</strong><span>Struk, mutasi, catatan kertas, PDF atau CSV</span></div>
 <div class="assistant-upload-actions">
 <label class="attachment-label" for="assistant-camera">📷 Ambil Foto</label>
 <label class="attachment-label" for="assistant-files">📎 Pilih File</label>
 </div>
 <input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
 <input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" hidden>
-<details class="assistant-file-details"><summary>Format & batas file</summary><p id="assistant-file-help" class="muted">File tidak langsung mengubah data Finance. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p></details>
+<details class="assistant-file-details"><summary>Format & batas file</summary><p id="assistant-file-help" class="muted">Saat menekan Lanjut, dokumen yang belum jelas jenisnya dikirim ke AI untuk dikenali. File tidak langsung mengubah data Finance. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p></details>
 </div>
 
 <details class="assistant-mode-details">
 <summary>AI salah pilih? Atur alur manual</summary>
 <label for="assistant-mode">Jenis bantuan</label>
-<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Tanya / analisis laporan</option><option value="record">Catat transaksi</option><option value="receipt">Struk / pengeluaran</option><option value="bank">Mutasi / rekening bank</option></select>
+<select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Tanya / analisis laporan</option><option value="record">Catat transaksi</option><option value="receipt">Struk / pengeluaran</option><option value="bank">Mutasi / rekening bank</option><option value="notes">Catatan tulisan tangan / kertas</option><option value="recurring">Biaya rutin</option></select>
 </details>
 <ul id="assistant-file-list" aria-live="polite"></ul>
 <div class="assistant-actions"><button id="assistant-send" class="btn" type="submit" disabled>Lanjut</button><button id="assistant-clear" class="btn secondary" type="button">Hapus pesan dan lampiran</button></div>
@@ -43,21 +44,25 @@
 <p>Belum ada ekstraksi atau pencatatan. Pilih alur untuk melanjutkan.</p><div class="assistant-actions">
 <button type="button" class="btn secondary" data-assistant-choice="receipt">Struk / Pengeluaran</button>
 <button type="button" class="btn secondary" data-assistant-choice="bank">Mutasi Bank</button>
+<button type="button" class="btn secondary" data-assistant-choice="notes">Catatan Keuangan</button>
+<button type="button" class="btn secondary" data-assistant-choice="recurring">Biaya Rutin</button>
 <button type="button" class="btn secondary" data-assistant-choice="ask">Tanya Finance</button>
 <button type="button" class="btn secondary" data-assistant-choice="record">Catat Transaksi</button>
 <button type="button" class="btn secondary" id="assistant-cancel">Batal</button></div></section>
 <section id="assistant-receipt" class="card assistant-workflow" hidden tabindex="-1"><h2>Review struk pengeluaran</h2>
 <p>File akan dibaca sebagai struk. Hasilnya dapat diedit; pilih akun dan kategori sebelum menekan Catat Pengeluaran. Isi struk dikirim ke penyedia AI.</p>
 <button type="button" class="btn" id="assistant-receipt-continue">Baca Struk</button></section>
-<section id="assistant-bank" class="card assistant-workflow" hidden tabindex="-1"><h2>Import mutasi bank</h2>
-<p>Pilih akun untuk seluruh mutasi. Setelah ekstraksi, review baris terlebih dahulu. Rekonsiliasi dan pencatatan membutuhkan keputusan terpisah. PDF/gambar dikirim ke penyedia AI; CSV diproses tanpa AI.</p>
+<section id="assistant-bank" class="card assistant-workflow" hidden tabindex="-1"><h2 id="assistant-bank-title">Import mutasi bank</h2>
+<p>Pilih kas/rekening untuk seluruh baris dokumen. Setelah ekstraksi, review baris terlebih dahulu. Rekonsiliasi dan pencatatan membutuhkan keputusan terpisah. PDF/gambar dikirim ke penyedia AI; CSV dibaca terstruktur; format yang tidak dikenali dapat dikirim ke AI untuk review.</p>
 <label for="assistant-bank-account">Kas / Rekening untuk mutasi</label><select id="assistant-bank-account"><option value="">Pilih akun sesuai mata uang mutasi</option>{% for a in accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
 <p class="muted">Contoh: mutasi BOFA USD pilih rekening BOFA · USD. Kilas tidak mengubah USD menjadi IDR saat import.</p>
-<button type="button" class="btn" id="assistant-bank-continue">Lanjut Import Mutasi</button></section>
+<button type="button" class="btn" id="assistant-bank-continue">Lanjut Review</button></section>
 <section id="assistant-analysis" class="assistant-workflow" hidden tabindex="-1"><h2>Tanya Finance</h2>
 {% if analyst_enabled %}{% include '_finance_analyst_workspace.html' %}{% else %}<p>Analisis AI belum diaktifkan untuk bisnis ini. Laporan Finance tetap tersedia melalui menu Finance.</p>{% endif %}</section>
 <section id="assistant-operator" class="assistant-workflow" hidden tabindex="-1"><h2>Siapkan catatan transaksi</h2>
 {% if operator_enabled %}{% include '_finance_operator_workspace.html' %}{% else %}<p>Draft AI belum diaktifkan untuk bisnis ini. Gunakan form transaksi manual melalui menu Finance.</p>{% endif %}</section>
+<section id="assistant-recurring" class="assistant-workflow" hidden tabindex="-1"><h2>Siapkan jadwal biaya rutin</h2>
+{% if operator_enabled %}{% include '_finance_recurring_workspace.html' %}{% else %}<p>Draft biaya rutin belum diaktifkan untuk bisnis ini.</p>{% endif %}</section>
 <nav class="assistant-actions" aria-label="Alat Finance langsung">
 <a data-finance-write href="{{ url_for('finance.receipt_new',business_id=business.id) }}">Scan Struk</a>
 <a href="{{ url_for('finance.bank_index',business_id=business.id) }}">Cocokkan Mutasi Bank</a>
@@ -66,5 +71,6 @@
 </main>
 <script src="{{ url_for('static',filename='finance_analyst.js') }}" defer></script>
 <script src="{{ url_for('static',filename='finance_operator.js') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_assistant_recurring.js') }}" defer></script>
 <script src="{{ url_for('static',filename='finance_assistant.js') }}" defer></script>
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}{% block title %}Cocokkan Mutasi Bank{% endblock %}{% block content %}
 {% include '_finance_receivables_style.html' %}<div class="fin-page"><a href="{{ url_for('finance.bank_index',business_id=business.id) }}">← Impor bank</a><h1>Cocokkan Mutasi Bank</h1>
-<p>Upload → Ekstrak → Review → Mulai Rekonsiliasi. Upload tidak mengubah saldo Finance. PDF/gambar dikirim ke penyedia AI untuk ekstraksi; CSV diproses tanpa AI. File asli tidak diarsipkan.</p>
+<p>Upload → Ekstrak → Review → Mulai Rekonsiliasi. Upload tidak mengubah saldo Finance. PDF/gambar dikirim ke penyedia AI untuk ekstraksi; CSV dibaca terstruktur; format yang tidak dikenali dapat dikirim ke AI untuk review. File asli tidak diarsipkan.</p>
 <form class="card" method="post" enctype="multipart/form-data" action="{{ url_for('finance.bank_analyze',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="bank-account">Kas / Rekening untuk seluruh impor</label><select id="bank-account" name="account_id" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
 <label for="bank-sources">PDF, CSV, atau gambar mutasi</label><input id="bank-sources" type="file" name="sources" multiple accept=".csv,.pdf,.jpg,.jpeg,.png,.webp" required>

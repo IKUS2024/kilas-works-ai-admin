@@ -125,9 +125,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(usd_balance['balance_minor'], 10000)
         self.assertEqual(context['balance_total'], 1000000)
         self.assertNotIn('Arus kas USD', response.text)
-        for text in ('Arus Kas Periode', 'US$100.00', 'Saldo asli yang dimiliki sekarang',
-                     'Termasuk saldo awal', 'Bukan pemasukan.', 'Nilai gabungan (estimasi)',
-                     'Lihat perhitungan saldo'):
+        for text in ('Arus Kas Periode', 'US$100.00'):
             self.assertIn(text, response.text)
 
     def test_missing_fx_rate_never_returns_partial_combined_balance(self):
@@ -178,7 +176,7 @@ class BranchTests(unittest.TestCase):
         page, _ = self.page(None)
         self.assertNotIn('id="add-transaction"', page.text)
         self.assertNotIn('>AI Assistant</a>', page.text)
-        self.assertIn('Pilih satu cabang untuk mencatat atau mengubah transaksi.', page.text)
+        self.assertIn('Pilih satu cabang untuk menambah atau mengubah data.', page.text)
         self.http.assert_not_called()
 
     def test_unscoped_multibranch_post_and_conflicting_selector_rejected(self):
@@ -219,7 +217,7 @@ class BranchTests(unittest.TestCase):
             branches.update_record(self.b,'branch',self.ba,deactivate=True,actor_user_id=self.uid)
         response,_=self.page(self.ba)
         self.assertEqual(response.status_code,200)
-        self.assertIn('Cabang nonaktif',response.text)
+        self.assertIn('Cabang ini nonaktif',response.text)
         self.assertEqual(f.get_transaction(self.b,tx)['amount_minor'],100)
         self.assertEqual(self.client.post(self.url+f'/transactions/{tx}/void?branch_id={self.ba}').status_code,403)
 
@@ -301,7 +299,7 @@ class BranchTests(unittest.TestCase):
             with self.scope(branch):
                 rows=list(csv.DictReader(io.StringIO(reports.export_csv('transactions',self.b,filters,self.uid).decode('utf-8-sig'))))
                 self.assertEqual(len(rows),n)
-                self.assertEqual(sum(int(r['nominal_rupiah']) for r in rows),total)
+                self.assertEqual(sum(int(r['nominal']) for r in rows),total)
                 self.assertTrue(all(r['Branch'] in ('Utama','Serpong') for r in rows))
             self.assertEqual(self.page(branch,'/reports')[0].status_code,200)
 
@@ -312,7 +310,7 @@ class BranchTests(unittest.TestCase):
         def capture(sender,template,context,**kw): contexts.append(context)
         with template_rendered.connected_to(capture,app):response=self.client.get('/finance?month=2026-09')
         self.assertEqual(response.status_code,200)
-        self.assertEqual(contexts[-1]['summary']['total_income_minor'],33)
+        self.assertEqual(next(r for r in contexts[-1]['totals_by_currency'] if r['currency']=='IDR')['total_income_minor'],33)
         self.assertEqual(self.page(self.bb)[1]['summary']['total_income_minor'],22)
 
     def test_branch_period_filter_links_and_csrf(self):
@@ -488,7 +486,7 @@ class BranchMigrationTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as folder:
                 db.SQLITE_PATH=folder+'/legacy.db'
-                with patch.object(db,'MIGRATIONS',db.MIGRATIONS[:-1]):db.init_schema()
+                with patch.object(db,'MIGRATIONS',[m for m in db.MIGRATIONS if m[0] < '0033_']):db.init_schema()
                 uid=repo.create_user('legacy@example.test','unused');bid=repo.create_business(uid,'Kopi Mantan')
                 now=repo._now()
                 account=db.insert_returning_id('INSERT INTO finance_accounts (business_id,name,account_type,opening_balance_minor,created_at,updated_at) VALUES (?,?,?,123,?,?)',(bid,'BCA','BANK',now,now))

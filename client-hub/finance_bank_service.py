@@ -92,11 +92,31 @@ def stage(business_id,account_id,source,rows,user_id):
         return import_id
 
 
-def analyze(business_id,account_id,files,user_id):
+def analyze(business_id,account_id,files,user_id,document_kind='bank'):
     account(business_id,account_id,user_id)
+    if document_kind not in ('bank','notes'):raise ValueError('document_kind')
     source=extraction.validate_sources(files)
+    if document_kind=='notes':
+        if source['kind']=='CSV':raise ValueError('notes_format')
+        source['document_kind']='notes'
+        source['label']='Catatan keuangan · '+str(source['count'])+' sumber'
     existing=find_import(business_id,account_id,source['identity'],user_id)
-    if existing:return existing['id'],False
+    if existing:
+        imp=get_import(business_id,existing['id'],user_id)
+        if imp['status']!='REVIEW' or get_rows(business_id,imp['id'],user_id):
+            return imp['id'],False
+        # An empty failed extraction can be retried. Never replace a user's review edits.
+        rows,fallback=extraction.extract(source,user_id,business_id,account(business_id,account_id,user_id)['currency'])
+        with f._write(business_id,user_id):
+            account(business_id,account_id,user_id)
+            current=get_import(business_id,imp['id'],user_id)
+            if (not fallback and current['status']=='REVIEW' and current['revision']==imp['revision']
+                    and not get_rows(business_id,imp['id'],user_id)):
+                for index,row in enumerate(rows,1):insert_row(current,index,extraction.normalize(row))
+                db.execute('UPDATE finance_bank_imports SET revision=revision+1,display_label=?,updated_at=? WHERE business_id=? AND id=?',
+                           (source['label'],repo._now(),business_id,imp['id']))
+                f._audit(business_id,user_id,'FINANCE_BANK_IMPORT_REEXTRACTED',imp['id'])
+        return imp['id'],fallback
     rows,fallback=extraction.extract(source,user_id,business_id,account(business_id,account_id,user_id)['currency'])
     return stage(business_id,account_id,source,rows,user_id),fallback
 
@@ -208,7 +228,7 @@ def decide(business_id,import_id,row_id,action,user_id,*,transaction_id=None,fie
         if action=='post':
             if not isinstance(fields,dict) or set(fields)!={'category_id','occurred_on','description','counterparty_name'}:
                 raise f.FinanceError('bank_invalid_fields')
-            data=dict(direction=row['direction'],amount_minor=row['amount_minor'],currency=account(business_id,imp['account_id'],user_id)['currency'],
+            data=dict(direction=row['direction'],amount_minor=row['amount_minor'],currency=f.get_account(business_id,imp['account_id'],actor_user_id=user_id)['currency'],
                 account_id=imp['account_id'],category_id=f._id(fields['category_id']),occurred_on=f._date(fields['occurred_on']),
                 description=extraction.privacy_text(fields['description'],500) or None,
                 counterparty_name=extraction.privacy_text(fields['counterparty_name'],160,True),

@@ -21,20 +21,25 @@ def main():
     raw = sys.stdin.buffer.read(maximum + 1)
     if not raw or len(raw) > maximum:
         raise ValueError()
-    reader = pypdf.PdfReader(io.BytesIO(raw), strict=True)
+    # Bank exports often contain recoverable xref/font metadata defects. Validate structure
+    # and limits here; an unusable text layer must not block the original PDF vision path.
+    reader = pypdf.PdfReader(io.BytesIO(raw), strict=False)
     if reader.is_encrypted or not 1 <= len(reader.pages) <= pages:
         raise ValueError()
     parts = []
     complete_text = True
     for page in reader.pages:
-        text = page.extract_text() or ''
+        try:
+            text = page.extract_text() or ''
+        except Exception:
+            text = ''
         if len(text.strip()) < 40 or len(text) > 20000:
             complete_text = False
         parts.append(text[:20000])
     text = '\n'.join(parts)
     # Mixed scanned/text documents and truncated extraction require the PDF document path.
     # Preserve the receipt worker's original text behavior and limits.
-    if bank and (not complete_text or len(text) > text_limit):
+    if not complete_text or len(text) > text_limit:
         text = ''
     print(json.dumps({'text': text[:text_limit]}))
 

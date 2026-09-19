@@ -133,7 +133,7 @@ class RecurringTests(unittest.TestCase):
 
     def test_cross_refs_currency_and_income_category_rejected(self):
         for kw in (dict(account_id=f.list_accounts(self.other)[0]['id']),dict(category_id=f.list_categories(self.other,'EXPENSE')[0]['id']),
-                   dict(project_id=self.op),dict(category_id=self.cat),dict(account_id=f.create_account(self.b,'USD',currency='USD'))):
+                   dict(project_id=self.op),dict(category_id=self.cat)):
             with self.assertRaises(f.FinanceError):self.rule(**kw)
         self.assertEqual(f.list_recurring_expenses(self.b),[])
 
@@ -176,7 +176,7 @@ class RecurringTests(unittest.TestCase):
         f.create_transaction(self.b,'INCOME',8,self.a,self.cat,'2026-02-01',project_id=self.project)
         usd=f.create_account(self.b,'USD',currency='USD')
         f.create_transaction(self.b,'INCOME',9,usd,self.cat,'2026-01-01',project_id=self.project,currency='USD')
-        self.assertEqual(f.get_project_cash_contribution(self.b,'2026-01-01','2026-01-31'),[])
+        rows=f.get_project_cash_contribution(self.b,'2026-01-01','2026-01-31');self.assertEqual([(r['currency'],r['income_minor']) for r in rows],[('USD',9)])
         self.assertEqual(f.get_project_cash_contribution(self.other,'2026-01-01','2026-01-31')[0]['income_minor'],999)
 
     def test_cron_isolated_business_failures_sanitized_and_repeatable(self):
@@ -197,7 +197,7 @@ class RecurringTests(unittest.TestCase):
 
     def test_ui_get_read_only_projects_scoped_and_beta(self):
         self.rule();before=f.list_transactions(self.b)
-        html=self.client.get(self.url+'/operations').get_data(as_text=True)
+        html=self.client.get(self.url+'/operations?section=projects').get_data(as_text=True)
         self.assertIn('Biaya Rutin &amp; Proyek',html);self.assertNotIn('PRIVATE project',html)
         self.assertIn('Uang Masuk &amp; Keluar per Proyek',html);self.assertEqual(before,f.list_transactions(self.b))
         html=self.client.get(self.url).get_data(as_text=True)

@@ -401,10 +401,10 @@ class ReceiptTests(unittest.TestCase):
         row=self.rows()[0]
         self.assertEqual(row['account_id'],account);self.assertEqual(row['category_id'],category)
 
-    def test_foreign_currency_account_not_selectable_or_confirmable(self):
+    def test_foreign_currency_account_selectable_but_currency_must_match(self):
         account=f.create_account(self.b,'USD account',currency='USD')
         response=self.upload();token=self.token(response)
-        self.assertNotIn(b'USD account',response.data)
+        self.assertIn(b'USD account',response.data)
         self.assertEqual(self.confirm(token,account_id=str(account)).status_code,400)
         self.assertEqual(self.rows(),[])
 

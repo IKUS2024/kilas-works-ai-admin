@@ -2,9 +2,10 @@
 import re
 
 WORKFLOWS = frozenset(('READ_ONLY_ANALYSIS', 'TEXT_OPERATOR', 'RECEIPT',
-                       'BANK_STATEMENT', 'NEEDS_CLARIFICATION', 'UNSUPPORTED'))
+                       'BANK_STATEMENT', 'HANDWRITTEN_NOTE', 'RECURRING_DRAFT', 'NEEDS_CLARIFICATION', 'UNSUPPORTED'))
 MODES = {'auto': None, 'ask': 'READ_ONLY_ANALYSIS', 'record': 'TEXT_OPERATOR',
-         'receipt': 'RECEIPT', 'bank': 'BANK_STATEMENT'}
+         'receipt': 'RECEIPT', 'bank': 'BANK_STATEMENT',
+         'notes': 'HANDWRITTEN_NOTE', 'recurring': 'RECURRING_DRAFT'}
 EXTENSIONS = frozenset(('csv', 'pdf', 'jpg', 'jpeg', 'png', 'webp'))
 
 
@@ -36,6 +37,8 @@ def classify(text, mode, files):
     if files:
         if extensions == ['csv']:
             return 'BANK_STATEMENT'
+        if has(r'\b(tulisan tangan|catatan|handwritten|notes?)\b'):
+            return 'HANDWRITTEN_NOTE'
         bank = has(r'\b(mutasi|rekening|bank|statement|rekonsiliasi)\b')
         receipt = has(r'\b(struk|receipt|pengeluaran|expense)\b')
         if bank and not receipt:
@@ -45,8 +48,11 @@ def classify(text, mode, files):
         return 'NEEDS_CLARIFICATION'
     if has(r'\b(hapus|delete|transfer|kirim uang|bayarkan|ubah transaksi)\b'):
         return 'UNSUPPORTED'
-    recording = has(r'\b(catat|catatkan|rekam|record)\b|\b(siapkan|buat) draft\b')
+    recording = has(r'\b(catat|catatkan|rekam|record|beli|bayar|terima|pemasukan|penjualan)\b|\b(siapkan|buat) draft\b')
     question = has(r'\b(apa|berapa|bagaimana|kenapa|mengapa|laporan|analisis|ringkas|bandingkan|summary|report)\b|\?')
+    recurring = has(r'\b(rutin|berulang|mingguan|bulanan|recurring|tiap minggu|tiap bulan|setiap minggu|setiap bulan)\b')
+    if recurring and not question:
+        return 'RECURRING_DRAFT'
     if recording and question:
         return 'NEEDS_CLARIFICATION'
     if recording:
@@ -71,10 +77,10 @@ def propose(payload):
 def operator_action(text):
     """Optional action suggestion; account/category/invoice choices remain blank."""
     words = text.casefold()
-    if re.search(r'\b(invoice|tagihan)\b', words):
+    if re.search(r'\binvoice\b', words):
         return 'record_invoice_payment'
-    expense = bool(re.search(r'\b(pengeluaran|expense|bensin|beli|biaya|ongkos)\b', words))
-    income = bool(re.search(r'\b(pemasukan|income|pendapatan|penjualan)\b', words))
+    expense = bool(re.search(r'\b(pengeluaran|expense|bensin|beli|biaya|ongkos|bayar|sewa|makan|belanja|listrik)\b', words))
+    income = bool(re.search(r'\b(pemasukan|income|pendapatan|penjualan|terima)\b', words))
     if expense == income:
         return ''
     return 'create_expense' if expense else 'create_income'

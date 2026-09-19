@@ -126,7 +126,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_no_query_string_workflow(self):
         response=self.client.get(self.assistant_url+'?text=PRIVATE&mode=bank')
-        self.assertEqual(response.status_code,302);self.assertNotIn('?',response.location)
+        self.assertEqual(response.status_code,302);self.assertNotIn('text=',response.location);self.assertNotIn('mode=',response.location);self.assertIn('branch_id=',response.location)
         self.assertNotIn(b'PRIVATE',response.data)
         self.assertEqual(self.client.post(self.assistant_url+'/route?text=PRIVATE',json={}).status_code,400)
 
@@ -168,7 +168,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_analysis_handoff_reuses_original_endpoint(self):
         page=self.client.get(self.assistant_url).data
-        self.assertIn(('data-endpoint="'+self.analysis_url+'"').encode(),page)
+        self.assertIn(('data-endpoint="'+self.analysis_url+'?branch_id=').encode(),page)
         before=self.snapshot()
         self.assertEqual(self.route('pengeluaran terbesar apa?').json['workflow'],'READ_ONLY_ANALYSIS')
         response=self.analysis();self.assertEqual(response.status_code,200)
@@ -192,8 +192,8 @@ class AssistantTests(unittest.TestCase):
         response=self.analysis()
         self.assertEqual(response.status_code,200)
         facts={fact['label']:fact['value'] for fact in response.json['context']['facts']}
-        self.assertEqual(facts['Pengeluaran'],42)
-        self.assertEqual(facts['Transaksi tercatat'],1)
+        self.assertEqual(facts['Pengeluaran IDR'],42)
+        self.assertEqual(facts['Transaksi IDR'],1)
 
     def test_analyst_invalid_model_numbers_safe(self):
         self.set_model(dict(observations=[{'text':'Sudah dibayar 999','refs':[]}],suggestions=[]))
@@ -565,8 +565,8 @@ class AssistantTests(unittest.TestCase):
 
     def test_browser_handoffs_only_existing_engines(self):
         page=self.client.get(self.assistant_url).data
-        self.assertIn(('data-receipt="'+self.url+'/receipts/analyze"').encode(),page)
-        self.assertIn(('data-bank="'+self.base+'/analyze"').encode(),page)
+        self.assertIn(('data-receipt="'+self.url+'/receipts/analyze?branch_id=').encode(),page)
+        self.assertIn(('data-bank="'+self.base+'/analyze?branch_id=').encode(),page)
         js=(ROOT/'static/finance_assistant.js').read_text()
         self.assertIn('HTMLFormElement.prototype.submit.call(composer)',js)
         self.assertNotIn('readAsDataURL',js)

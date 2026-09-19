@@ -18,6 +18,8 @@ import file_utils
 import finance_analyst
 import finance_operator
 import finance_assistant
+import finance_documents
+import finance_assistant_recurring as assistant_recurring
 import finance_ai_safety as ai_safety
 import finance_fx
 from flask import jsonify, current_app, g
@@ -1062,7 +1064,9 @@ def bank_analyze(business_id,user,business):
             total+=len(raw)
             if total>25*1024*1024:raise ValueError('aggregate')
             files.append((upload.filename,raw))
-        import_id,fallback=bank.analyze(business_id,account_id,files,user['id'])
+        if len(request.form.getlist('document_kind'))>1:raise ValueError('document_kind')
+        import_id,fallback=bank.analyze(business_id,account_id,files,user['id'],
+                                      document_kind=request.form.get('document_kind','bank'))
         if fallback:flash('Ekstraksi belum dapat diandalkan. Tambahkan baris secara manual; belum ada transaksi Finance dibuat.','warning')
         return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
     finally:
@@ -1173,6 +1177,8 @@ def assistant_route(business_id, user, business):
         result = finance_assistant.propose(payload)
         result['suggested_action'] = (finance_assistant.operator_action(text)
                                       if result['workflow']=='TEXT_OPERATOR' else '')
+        if result['workflow']=='RECURRING_DRAFT':
+            result['suggestions']=assistant_recurring.suggest(text)
         return jsonify(result)
     except (ValueError, TypeError, UnicodeError, RecursionError):
         ai_safety.event('invalid_request')
@@ -1180,6 +1186,56 @@ def assistant_route(business_id, user, business):
     except Exception:
         ai_safety.event('request_failed')
         return jsonify(workflow='NEEDS_CLARIFICATION', suggested_action='')
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/recognize', methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def assistant_recognize(business_id,user,business):
+    uploads=request.files.getlist('sources')
+    try:
+        if (set(request.files)!={'sources'} or not 1<=len(uploads)<=10
+                or set(request.form)-{'csrf_token','text'}
+                or any(len(request.form.getlist(k))!=1 for k in request.form)):
+            raise ValueError('invalid_fields')
+        files=[];total=0
+        for upload in uploads:
+            raw=upload.stream.read(10*1024*1024+1);total+=len(raw)
+            if total>25*1024*1024:raise ValueError('aggregate')
+            files.append((upload.filename,raw))
+        workflow=finance_documents.recognize(business_id,user['id'],files,request.form.get('text',''))
+        return jsonify(workflow=workflow)
+    except HTTPException:raise
+    except (ValueError,file_utils.UploadRejected):
+        return jsonify(error='File tidak valid. Gunakan satu PDF/CSV atau maksimal 10 foto sesuai batas ukuran.'),400
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(workflow='NEEDS_CLARIFICATION')
+    finally:
+        for upload in uploads:upload.close()
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/recurring/<stage>',methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def assistant_recurring_action(business_id,user,business,stage):
+    if not finance_operator.enabled(business_id):abort(404)
+    if stage not in ('draft','confirm'):abort(404)
+    payload,error=finance_ai_payload(user['id'],business_id,'ai' if stage=='draft' else 'confirm')
+    if error is not None:return error
+    try:
+        if stage=='draft':
+            result=assistant_recurring.prepare(business_id,user['id'],payload)
+        else:
+            if set(payload)!={'token','confirm'} or payload['confirm'] is not True:raise ValueError('confirmation')
+            result=assistant_recurring.confirm(business_id,user['id'],payload['token'])
+        ai_safety.event('draft_generated' if stage=='draft' else 'confirmation_accepted')
+        return jsonify(result)
+    except ValueError:
+        return jsonify(error='Periksa nominal, jadwal, kas/rekening, dan kategori. Draft harus valid dan belum kedaluwarsa.'),400
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(error='Konfirmasi belum dapat dipastikan. Ulangi draft yang sama atau periksa Biaya Rutin sebelum membuat draft baru.'),503
 
 
 @finance_bp.context_processor

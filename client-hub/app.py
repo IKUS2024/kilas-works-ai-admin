@@ -46,7 +46,7 @@ class ClientHubRequest(Request):
     def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
         # Bank sources stay in bounded request memory, including multipart parsing before CSRF.
         # Werkzeug's default spools files larger than 500 KB to a temporary disk file.
-        if self.endpoint in ('finance.bank_analyze', 'finance.receipt_analyze'):
+        if self.endpoint in ('finance.bank_analyze', 'finance.receipt_analyze', 'finance.assistant_recognize'):
             return io.BytesIO()
         return super()._get_file_stream(total_content_length, content_type, filename, content_length)
 
@@ -164,7 +164,7 @@ def create_app():
     @app.before_request
     def _finance_bank_upload_limit():
         # Request-local cap before CSRF parses multipart; all other endpoints keep 12 MiB.
-        if request.endpoint == 'finance.bank_analyze':
+        if request.endpoint in ('finance.bank_analyze', 'finance.assistant_recognize'):
             request.max_content_length = 26 * 1024 * 1024
         elif request.endpoint == 'finance.assistant_route':
             # Only text and filename metadata. Raw attachments go to existing engines.

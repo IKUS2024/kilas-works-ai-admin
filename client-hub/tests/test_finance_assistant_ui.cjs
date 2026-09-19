@@ -17,29 +17,29 @@ function setup() {
     setAttribute(name,value) { this.attrs[name]=value; }
     focus() { this.focused=true; }
     remove() { if(this.parent) this.parent.children=this.parent.children.filter(n=>n!==this); }
-    querySelector() { return this.children.find(n=>n.name==='account_id') || null; }
+    querySelector(selector = '[name="account_id"]') { const name=selector.match(/name="([^"]+)"/)[1]; return this.children.find(n=>n.name===name) || null; }
   }
   const ids=['assistant-camera','finance-assistant','assistant-composer','assistant-files','assistant-mode','assistant-text','assistant-status',
     'assistant-send','assistant-clear','assistant-receipt-continue','assistant-bank-continue','assistant-message','assistant-message-text',
     'assistant-file-list','assistant-clarification','assistant-clarification-title','assistant-receipt','assistant-bank',
     'assistant-analysis','assistant-operator','assistant-cancel','assistant-bank-account','operator-fields','op-preview',
-    'op-action','op-request','op-account','op-details','op-interpretation','question','scope','answer'];
+    'assistant-recurring','assistant-bank-title','recurring-fields','rec-preview','rec-name','rec-amount','rec-cadence','rec-start','rec-end','rec-account','rec-category','rec-details','recurring-form','rec-status','rec-confirm','rec-cancel','op-action','op-request','op-account','op-details','op-interpretation','question','scope','answer'];
   const elements=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
-  const choices=['receipt','bank','ask','record'].map(value=>{const node=new Element(value);node.dataset.assistantChoice=value;return node;});
+  const choices=['receipt','bank','ask','record','notes','recurring'].map(value=>{const node=new Element(value);node.dataset.assistantChoice=value;return node;});
   const calls=[],uploads=[];
   let resolveResponse=async()=>({ok:true,json:async()=>({workflow:'NEEDS_CLARIFICATION',suggested_action:''})});
   const composer=elements['assistant-composer'];
   composer.dataset={route:'/business/1/finance/assistant/route',receipt:'/business/1/finance/receipts/analyze',bank:'/business/1/finance/bank-imports/analyze',csrf:'test-csrf'};
   elements['assistant-mode'].value='auto';
-  const sandbox={document:{getElementById:id=>elements[id] || null,querySelectorAll:()=>choices,createElement:tag=>new Element(tag)},
+  const sandbox={FormData:class {constructor(){this.entries=[];}append(...value){this.entries.push(value);}},document:{getElementById:id=>elements[id] || null,querySelectorAll:()=>choices,createElement:tag=>new Element(tag)},
     window:{addEventListener(){},location:{reload(){}}},Event:class {constructor(type){this.type=type;}},
     HTMLFormElement:{prototype:{submit(){uploads.push({action:this.action,name:elements['assistant-files'].name,
-        fileDisabled:elements['assistant-files'].disabled,account:this.querySelector()?.value});}}},
-    fetch:async(url,opts)=>{calls.push({url,opts,body:JSON.parse(opts.body)});return resolveResponse();}};
+        fileDisabled:elements['assistant-files'].disabled,account:this.querySelector()?.value,kind:this.querySelector('[name="document_kind"]')?.value});}}},
+    fetch:async(url,opts)=>{calls.push({url,opts,body:typeof opts.body==='string'?JSON.parse(opts.body):opts.body});return resolveResponse();}};
   vm.runInNewContext(script,sandbox);
   const tick=()=>new Promise(resolve=>setImmediate(resolve));
-  return {elements,choices,calls,uploads,tick,
-    result(workflow,action=''){resolveResponse=async()=>({ok:true,json:async()=>({workflow,suggested_action:action})});},
+  return {elements,choices,calls,uploads,tick,runRecurring(){vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/finance_assistant_recurring.js'),'utf8'),sandbox);},
+    result(workflow,action='',suggestions={}){resolveResponse=async()=>({ok:true,json:async()=>({workflow,suggested_action:action,suggestions})});},
     respond(fn){resolveResponse=fn;},
     async route(){await composer.fire('submit');await tick();}};
 }
@@ -128,11 +128,11 @@ test('text and attachment counts are bounded before route request',async()=>{
   await h.route();assert.equal(h.calls.length,0);
 });
 
-test('camera chooses receipt but performs no extraction or posting',async()=>{
+test('camera preserves auto mode and performs no extraction before submit',async()=>{
   const h=setup(),e=h.elements;
   e['assistant-camera'].files=[{name:'camera.jpg'}];
   await e['assistant-camera'].fire('change');
-  assert.equal(e['assistant-mode'].value,'receipt');
+  assert.equal(e['assistant-mode'].value,'auto');
   assert.equal(e['assistant-files'].files[0].name,'camera.jpg');
   assert.equal(h.calls.length,0);assert.equal(h.uploads.length,0);
   assert.match(e['assistant-status'].textContent,/Belum ada pencatatan/);
@@ -145,7 +145,7 @@ test('pending review cannot be replaced by a camera selection',async()=>{
 });
 
 test('camera selection exposes Baca Struk; one explicit click uploads once with loading',async()=>{
-  const h=setup(),e=h.elements;e['assistant-camera'].files=[{name:'camera.jpg'}];
+  const h=setup(),e=h.elements;e['assistant-mode'].value='receipt';e['assistant-camera'].files=[{name:'camera.jpg'}];
   await e['assistant-camera'].fire('change');
   assert.equal(e['assistant-send'].textContent,'Baca Struk');
   assert.equal(e['assistant-send'].focused,true);
@@ -191,4 +191,49 @@ test('analyst browser shows safe errors, never provider body or exception text',
     assert.match(e.status.textContent,/Laporan & Export/);
     assert.equal(e.status.textContent.includes('PRIVATE'),false);assert.equal(e.send.disabled,false);
   }
+});
+
+test('auto recognition sends bounded multipart then proposes notes without writing',async()=>{
+  const h=setup(),e=h.elements;e['assistant-composer'].dataset.recognize='/recognize';
+  e['assistant-files'].files=[{name:'notes.png'}];
+  h.respond(async()=>({ok:true,json:async()=>({workflow:h.calls.length===1?'NEEDS_CLARIFICATION':'HANDWRITTEN_NOTE'})}));
+  await h.route();assert.equal(h.calls.length,2);assert.equal(h.calls[1].url,'/recognize');
+  assert.equal(h.calls[1].body.entries.find(([name])=>name==='csrf_token')[1],'test-csrf');
+  assert.equal(e['assistant-bank-title'].textContent,'Review catatan keuangan');assert.equal(h.uploads.length,0);
+  e['assistant-bank-account'].value='12';await e['assistant-bank-continue'].fire('click');
+  assert.equal(h.uploads.length,1);assert.equal(h.uploads[0].kind,'notes');assert.equal(h.uploads[0].name,'sources');
+});
+
+test('recognition failure preserves file for manual choice',async()=>{
+  const h=setup(),e=h.elements;e['assistant-composer'].dataset.recognize='/recognize';e['assistant-files'].files=[{name:'notes.png'}];
+  h.respond(async()=>({ok:h.calls.length===1,json:async()=>({workflow:'NEEDS_CLARIFICATION'})}));
+  await h.route();assert.equal(e['assistant-clarification'].hidden,false);assert.equal(e['assistant-files'].files.length,1);
+  assert.equal(h.uploads.length,0);assert.equal(e['assistant-send'].disabled,false);
+});
+
+test('recurring routing fills suggestions but leaves references and dates for review',async()=>{
+  const h=setup(),e=h.elements;e['assistant-text'].value='sewa 2 juta tiap bulan';
+  h.result('RECURRING_DRAFT','',{name:'sewa',amount_text:'2 juta',cadence:'MONTHLY'});
+  await h.route();assert.equal(e['assistant-recurring'].hidden,false);assert.equal(e['rec-amount'].value,'2 juta');
+  assert.equal(e['rec-start'].value,'');assert.equal(e['rec-account'].value,'');assert.equal(h.calls.length,1);
+});
+
+test('recurring draft blocks new routing and waits for explicit confirmation',async()=>{
+  const h=setup(),e=h.elements;h.runRecurring();
+  h.respond(async()=>({ok:true,json:async()=>({token:'signed-draft',preview:[['Nominal','Rp2.000.000']]})}));
+  await e['recurring-form'].fire('submit');assert.equal(h.calls.length,1);assert.equal(e['rec-preview'].hidden,false);
+  assert.equal(e['recurring-fields'].disabled,true);await h.route();assert.equal(h.calls.length,1);
+  h.respond(async()=>({ok:true,json:async()=>({message:'Jadwal tersimpan'})}));
+  await e['rec-confirm'].fire('click');await e['rec-confirm'].fire('click');
+  assert.equal(h.calls.length,2);assert.equal(h.calls[1].body.token,'signed-draft');assert.equal(h.calls[1].body.confirm,true);
+  assert.equal(e['rec-preview'].hidden,true);
+});
+
+test('uncertain recurring confirmation retains the same token for safe retry',async()=>{
+  const h=setup(),e=h.elements;h.runRecurring();
+  h.respond(async()=>({ok:true,json:async()=>({token:'same-token',preview:[]})}));await e['recurring-form'].fire('submit');
+  h.respond(async()=>{throw new Error('PRIVATE');});await e['rec-confirm'].fire('click');
+  assert.equal(e['rec-preview'].hidden,false);assert.equal(e['recurring-fields'].disabled,true);
+  await e['rec-confirm'].fire('click');assert.equal(h.calls[1].body.token,h.calls[2].body.token);
+  assert.equal(e['rec-status'].textContent.includes('PRIVATE'),false);
 });

@@ -145,7 +145,16 @@ def analyze(business_id, user_id, filename, raw):
     if safety.allow_attempt(user_id, business_id, 'ai'):
         try:
             __import__("finance_entitlements").require_ai(business_id,user_id)
-            result = extract(raw, mime, pdf_text, names)
+            try:
+                result = extract(raw, mime, pdf_text, names)
+            except ReceiptError:
+                if not (mime == 'application/pdf' and pdf_text and safety.allow_attempt(user_id,business_id,'ai')):
+                    raise
+                result = extract(raw, mime, None, names)
+            else:
+                if (not result['readable'] and mime == 'application/pdf' and pdf_text
+                        and safety.allow_attempt(user_id,business_id,'ai')):
+                    result = extract(raw, mime, None, names)
             fallback = not result['readable'] or all(result[key] is None for key in
                 ('merchant_name', 'transaction_date', 'total_minor', 'description', 'suggested_category_name'))
             reason = 'unreadable' if fallback else 'success'
@@ -203,4 +212,3 @@ def confirm(business_id,user_id,token,fields):
     return finance.create_receipt_expense(business_id,data['receipt_hash'],amount_minor,account['id'],
         finance._id(int(fields['category_id'])),finance._date(fields['occurred_on']),currency=currency,
         description=description,counterparty_name=merchant,actor_user_id=user_id)
-

@@ -196,13 +196,13 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
                     _create_category(business_id, direction, name, actor_user_id)
 
 
-def _transaction_data(business_id, data):
+def _transaction_data(business_id, data, *, scheduled=False):
     data = dict(data)
     data['direction'] = _enum(data['direction'], DIRECTIONS)
     data['amount_minor'] = _money(data['amount_minor'], positive=True)
     data['currency'] = _currency(data['currency'])
     data['occurred_on'] = _date(data['occurred_on'])
-    if data['occurred_on'] > date.today().isoformat():
+    if not scheduled and data['occurred_on'] > date.today().isoformat():
         raise FinanceError('future_date')
     branch_id = branches.account_branch(business_id, data['account_id'])
     if data.get('branch_id') is not None and data['branch_id'] != branch_id:
@@ -695,32 +695,46 @@ def get_customer_cash_contribution(business_id, start_date, end_date, actor_user
 MAX_RECURRING_OCCURRENCES = 100
 
 
-def _recurring_data(business_id, rule):
+def _recurring_data(business_id, rule, *, scheduled=False):
     return _transaction_data(business_id, dict(branch_id=rule.get('branch_id'), direction='EXPENSE', amount_minor=rule['amount_minor'],
         currency=rule['currency'], account_id=rule['account_id'], category_id=rule['category_id'],
         occurred_on=rule['next_due_on'], project_id=rule['project_id'], customer_id=None,
         counterparty_name=rule['counterparty_name'], description=rule['description'] or rule['name'],
-        source_type='FINANCE_RECURRING_EXPENSE', source_ref=None))
+        source_type='FINANCE_RECURRING_EXPENSE', source_ref=None), scheduled=scheduled)
 
 
 def create_recurring_expense(business_id, name, amount_minor, account_id, category_id, cadence,
                              next_due_on, end_on=None, project_id=None, counterparty_name=None,
-                             description=None, actor_user_id=None):
+                             description=None, actor_user_id=None, *, idempotency_key=None, expected_currency=None):
+    if idempotency_key is not None and (not isinstance(idempotency_key,str) or not re.fullmatch('[a-f0-9]{64}',idempotency_key)):
+        raise FinanceError('invalid_recurring_key')
     name, cadence = _text(name,160,True), _enum(cadence,('WEEKLY','MONTHLY'))
     next_due_on = _date(next_due_on)
     end_on = _period(next_due_on,end_on)[1] if end_on is not None else None
     anchor = date.fromisoformat(next_due_on).day if cadence=='MONTHLY' else None
     with _write(business_id,actor_user_id):
         account=get_account(business_id,_id(account_id),actor_user_id=actor_user_id,active=True)
+        if expected_currency is not None and account['currency']!=_currency(expected_currency):
+            raise FinanceError('account_currency_mismatch')
         rule = dict(name=name,amount_minor=amount_minor,currency=account['currency'],account_id=account_id,category_id=category_id,
                     next_due_on=next_due_on,project_id=project_id,counterparty_name=counterparty_name,description=description)
-        data = _recurring_data(business_id,rule)
+        data = _recurring_data(business_id,rule,scheduled=True)
+        if idempotency_key:
+            marker='draft_digest='+idempotency_key+';id='
+            previous=db.query_one('SELECT detail FROM audit_log WHERE business_id=? AND actor_user_id=? AND action=? AND detail LIKE ?',
+                (business_id,actor_user_id,'FINANCE_ASSISTANT_RECURRING_CONFIRMED',marker+'%'))
+            if previous:
+                existing=get_recurring_expense(business_id,int(previous['detail'].removeprefix(marker)),actor_user_id)
+                if not existing:raise FinanceError('recurring_unavailable')
+                return existing['id']
         now = repo._now()
         recurring_id = db.insert_returning_id('INSERT INTO finance_recurring_expenses '
             '(business_id,branch_id,name,amount_minor,currency,account_id,category_id,project_id,counterparty_name,description,cadence,anchor_day,next_due_on,end_on,created_by_user_id,created_at,updated_at) '
             'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (business_id,data['branch_id'],name,data['amount_minor'],data['currency'],account_id,category_id,
             data['project_id'],data['counterparty_name'],_text(description,4000),cadence,anchor,next_due_on,end_on,actor_user_id,now,now))
         _audit(business_id,actor_user_id,'FINANCE_RECURRING_CREATED',recurring_id)
+        if idempotency_key:
+            repo.write_audit(actor_user_id,business_id,'FINANCE_ASSISTANT_RECURRING_CONFIRMED',marker+str(recurring_id))
         return recurring_id
 
 
@@ -742,7 +756,7 @@ def recurring_needs_attention(business_id, recurring_id, actor_user_id=None):
     if not rule:
         raise FinanceError('recurring_unavailable')
     try:
-        _recurring_data(business_id,rule)
+        _recurring_data(business_id,rule,scheduled=True)
     except FinanceError:
         return True
     return False
