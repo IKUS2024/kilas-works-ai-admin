@@ -120,10 +120,15 @@ def dashboard():
     enriched = []
     my_projects = []
     for b in businesses:
+        brain_missing = repo.required_fields_missing(b["id"]) if b["package"] != "NONE" else []
+        brain_progress = repo.required_fields_progress(b["id"]) if b["package"] != "NONE" else {"percent": 0}
         enriched.append({
             **b,
-            "completion_percent": repo.onboarding_completion_percent(b["id"]),
+            "completion_percent": brain_progress["percent"],
             "onboarding_status": repo.get_onboarding_status(b["id"]),
+            "brain_required_missing": brain_missing,
+            "brain_required_missing_labels": _human_missing_labels(brain_missing),
+            "brain_fix_step": _step_for_missing_fields(brain_missing) if brain_missing else None,
             # Gap-fix Area E — owner-facing subscription banner (renewal-due/GRACE/SUSPENDED),
             # this business's OWN AI Admin subscription only. None when there's no subscription
             # row yet (e.g. this business was never activated with an AI Admin package).
