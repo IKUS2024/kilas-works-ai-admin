@@ -438,10 +438,12 @@ def get_finance_summaries(business_id, start_date, end_date, *, actor_user_id=No
                         (business_id, start, end))
     grouped = {}
     for row in rows:
-        item = grouped.setdefault(row['currency'], {'currency': row['currency'], 'total_income_minor': 0,
-            'total_expense_minor': 0, 'net_cashflow_minor': 0})
+        currency = _currency(row['currency'])
+        item = grouped.setdefault(currency, {'currency': currency, 'total_income_minor': 0,
+            'total_expense_minor': 0, 'net_cashflow_minor': 0, 'transaction_count': 0})
         item['total_income_minor' if row['direction'] == 'INCOME' else 'total_expense_minor'] += row['amount_minor']
         item['net_cashflow_minor'] = item['total_income_minor'] - item['total_expense_minor']
+        item['transaction_count'] += 1
     return [grouped[c] for c in SUPPORTED_CURRENCIES if c in grouped]
 
 
@@ -973,11 +975,22 @@ def get_account_balance_report(business_id, as_of, actor_user_id=None):
     return list(groups.values())
 
 
+def aggregate_account_balances_by_currency(accounts):
+    """Aggregate one already-read account snapshot without re-reading the ledger."""
+    fields = ('opening_balance_minor','income_minor','expense_minor','exchange_in_minor',
+              'exchange_out_minor','balance_minor')
+    totals = {}
+    for account in accounts:
+        currency = _currency(account['currency'])
+        item = totals.setdefault(currency, dict(currency=currency, **{field:0 for field in fields}))
+        for field in fields:
+            item[field] += int(account.get(field, 0))
+    return [totals[code] for code in SUPPORTED_CURRENCIES if code in totals]
+
+
 def get_balance_totals_by_currency(business_id, as_of, actor_user_id=None):
-    totals={}
-    for account in get_account_balance_report(business_id,as_of,actor_user_id):
-        totals[account['currency']]=totals.get(account['currency'],0)+account['balance_minor']
-    return [{'currency':code,'balance_minor':totals[code]} for code in SUPPORTED_CURRENCIES if code in totals]
+    return aggregate_account_balances_by_currency(
+        get_account_balance_report(business_id, as_of, actor_user_id))
 
 
 def list_currency_exchanges(business_id,actor_user_id=None,limit=100):
