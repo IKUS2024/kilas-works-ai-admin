@@ -45,6 +45,7 @@ _REQUIRED_FIELD_LABELS = {
     "short_description": "Tentang bisnis",
     "operating_hours": "Jam operasional",
     "online_or_offline": "Model layanan",
+    "business_phone": "WhatsApp bisnis / nomor robot",
     "trusted_owner_phone": "WhatsApp pengelola",
     "primary_language": "Bahasa utama",
     "customer_salutation": "Sapaan customer",
@@ -58,7 +59,7 @@ def _step_for_missing_fields(missing):
         return "basics"
     if "core_product_or_service" in missing:
         return "services"
-    if missing & {"operating_hours", "online_or_offline", "trusted_owner_phone"}:
+    if missing & {"operating_hours", "online_or_offline", "business_phone", "trusted_owner_phone"}:
         return "operations"
     if missing & {"primary_language", "customer_salutation"}:
         return "style"
@@ -292,12 +293,14 @@ def wizard_step(business_id, step):
         # Keep the always-useful business facts small and structured. Feature-specific settings are
         # only included when the tenant is actually entitled to them, so a hidden/absent checkbox
         # can never accidentally disable a previously-approved feature setting.
+        business_phone_raw = (request.form.get("business_phone") or "").strip()
+        business_phone = repo.normalize_whatsapp_phone(business_phone_raw)
         raw = {
             "operating_hours": request.form.get("operating_hours", ""),
             "closed_days": request.form.get("closed_days", ""),
             "online_or_offline": service_mode,
             "address": request.form.get("address", ""),
-            "business_phone": request.form.get("business_phone", ""),
+            "business_phone": business_phone or business_phone_raw,
         }
         if features.get("appointment"):
             raw.update({
@@ -318,6 +321,11 @@ def wizard_step(business_id, step):
             missing_here.append("Model layanan")
         if not (raw.get("operating_hours") or "").strip():
             missing_here.append("Jam operasional")
+        if not business_phone_raw:
+            missing_here.append("WhatsApp bisnis / nomor robot")
+        elif not business_phone:
+            flash("Nomor WhatsApp bisnis tidak valid. Isi nomor yang benar dengan kode negara, mis. 6285... atau 1404....", "error")
+            return redirect(url_for("client.wizard_step", business_id=business_id, step="operations"))
         if features.get("owner_commands"):
             if not owner_phone_raw:
                 missing_here.append("WhatsApp pengelola")
