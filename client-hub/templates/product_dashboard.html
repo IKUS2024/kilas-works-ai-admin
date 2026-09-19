@@ -117,26 +117,35 @@
             {% endfor %}
 
             <div class="status-line">
-              <span class="status-badge {{ 'active' if b.status=='ACTIVE' else ('warning' if b.status in ('READY_FOR_REVIEW','READY_FOR_AI_SETUP','ONBOARDING') else ('danger' if b.status in ('NEEDS_REVISION','SUSPENDED') else 'info')) }}"><span class="status-dot"></span>{{ b.status|humanize_status('business') }}</span>
-              {% if b.subscription_banner %}<span class="status-meta">{{ b.subscription_banner.status }}</span>{% endif %}
+              {% if b.brain_review_pending %}
+                <span class="status-badge warning"><span class="status-dot"></span>Perubahan menunggu review</span>
+                <span class="status-meta">Versi live lama tetap aktif</span>
+              {% else %}
+                <span class="status-badge {{ 'active' if b.status=='ACTIVE' else ('warning' if b.status in ('READY_FOR_REVIEW','READY_FOR_AI_SETUP','ONBOARDING') else ('danger' if b.status in ('NEEDS_REVISION','SUSPENDED') else 'info')) }}"><span class="status-dot"></span>{{ b.status|humanize_status('business') }}</span>
+                {% if b.subscription_banner %}<span class="status-meta">{{ b.subscription_banner.status }}</span>{% endif %}
+              {% endif %}
             </div>
 
             <div class="progress-row"><span>Setup Brain</span><strong>{{ b.completion_percent }}%</strong></div>
             <div class="progress-track" aria-label="Setup {{ b.completion_percent }}%"><div class="progress-fill" style="width:{{ b.completion_percent }}%"></div></div>
 
-            {% if b.status=='READY_FOR_REVIEW' %}
+            {% if b.brain_review_pending %}
+              <div class="brain-note">Perubahan terbaru sudah tersimpan sebagai draft. Kilas Works akan review lagi; sampai disetujui, Brain tetap memakai versi terakhir yang sudah disetujui.</div>
+            {% elif b.status=='READY_FOR_REVIEW' %}
               <div class="brain-note">Setup lengkap dan sedang ditinjau. WhatsApp belum aktif sampai proses review dan pembayaran selesai.</div>
             {% elif b.status=='APPROVED' and brain_payment.verified %}
               <div class="brain-note">Setup dan pembayaran sudah disetujui. Tinggal hubungkan WhatsApp untuk mulai.</div>
             {% else %}
-              <div class="brain-note">Simulasi tidak mengaktifkan WhatsApp. Koneksi tersedia setelah setup, review, dan pembayaran selesai.</div>
+              <div class="brain-note">Kamu tetap bisa mengubah data Brain kapan saja. Setelah Brain sudah disetujui, perubahan berikutnya akan masuk review lagi sebelum menjadi versi live.</div>
             {% endif %}
 
             <div class="product-primary">
               {% if b.status=='ACTIVE' %}
                 <a class="btn btn-wide" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox Brain</a>
+                {% if b.brain_review_pending %}<a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Perubahan</a>{% endif %}
               {% elif b.status=='APPROVED' and brain_payment.verified %}
                 <a class="btn btn-wide" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">Hubungkan WhatsApp</a>
+                {% if b.brain_review_pending %}<a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Perubahan</a>{% endif %}
               {% elif b.status=='APPROVED' %}
                 <a class="btn btn-wide" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Invoice &amp; Pembayaran</a>
               {% elif b.status=='READY_FOR_REVIEW' %}
@@ -147,6 +156,7 @@
             </div>
 
             <div class="action-grid" aria-label="Menu Kilas Brain">
+              <a class="action-tile" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}"><span class="action-icon" aria-hidden="true">✏️</span><span>Edit Semua Data</span></a>
               {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
                 <a class="action-tile" href="{{ url_for('client.business_memory',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 8h14M7 16h10"/></svg></span><span>Ajari Brain</span></a>
               {% endif %}
