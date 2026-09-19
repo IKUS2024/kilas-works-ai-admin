@@ -1230,6 +1230,14 @@ def platform_inbox():
         search=search,
         mode_filter=mode_filter or None,
     )
+    conversations_total = len(conversations)
+    inbox_per_page = 10
+    inbox_total_pages = max(1, (conversations_total + inbox_per_page - 1) // inbox_per_page)
+    inbox_page = request.args.get("page", 1, type=int) or 1
+    inbox_page = min(max(1, inbox_page), inbox_total_pages)
+    inbox_start = (inbox_page - 1) * inbox_per_page
+    conversations = conversations[inbox_start:inbox_start + inbox_per_page]
+
     selected_phone = platform_inbox_service.normalize_customer_phone(request.args.get("customer"))
 
     selected = None
@@ -1259,6 +1267,9 @@ def platform_inbox():
         window=window,
         search=search,
         mode_filter=mode_filter,
+        conversations_total=conversations_total,
+        inbox_page=inbox_page,
+        inbox_total_pages=inbox_total_pages,
     )
 
 
