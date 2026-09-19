@@ -1,3 +1,19 @@
+<style>
+.cash-balance-head-compact .cash-muted{margin:3px 0 0}
+.cash-native-list-compact{padding:4px 0!important;margin:8px 0!important}
+.cash-native-list-compact .cash-native-row{padding:3px 0}
+.cash-opening-note-compact{margin:6px 0 2px!important;color:var(--muted);font-size:11px}
+.cash-estimate-block-compact{padding-top:10px!important;margin-top:8px!important}
+.cash-estimate-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.cash-estimate-title{display:block;font-size:12px;color:var(--muted);font-weight:750}
+.cash-estimate-block-compact .cash-total{font-size:28px;margin:2px 0 1px}
+.cash-fx-details{border-top:1px solid var(--border);margin-top:10px;padding-top:8px}
+.cash-fx-details summary{cursor:pointer;color:var(--text-dim);font-size:12px;font-weight:750;list-style:none}
+.cash-fx-details summary::-webkit-details-marker{display:none}
+.cash-fx-details summary::after{content:" ▾"}.cash-fx-details[open] summary::after{content:" ▴"}
+.cash-fx-details .cash-fx-note{margin:8px 0}.cash-fx-details .cash-card-actions{margin-top:6px}
+@media(max-width:640px){.cash-balance-card{padding:14px!important}.cash-native-list-compact .cash-native-row strong{font-size:15px}}
+</style>
 <section class="card finance-quick-card cash-balance-card" data-cash-position-card aria-label="Uang tersedia">
   <div class="cash-balance-head cash-balance-head-compact">
     <div>
