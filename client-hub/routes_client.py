@@ -439,10 +439,15 @@ def business_memory(business_id):
             repo.set_business_stale_if_done(business_id)
             flash('Perubahan memori tersimpan sebagai draft dan menunggu persetujuan Kilas Works.', 'success')
         return redirect(url_for('client.business_memory', business_id=business_id))
-    return render_template('business_memory.html', business=business, profile=profile,
-                           services=services_existing, faqs=faqs_existing, setup=setup,
-                           readiness=knowledge_setup.readiness(profile, services_existing, faqs_existing,
-                               repo.get_tenant_features(business_id) or {}, setup))
+    return render_template(
+        'business_memory.html', business=business, profile=profile,
+        services=services_existing, faqs=faqs_existing, setup=setup,
+        ai_settings=repo.get_ai_settings(business_id) or {},
+        readiness=knowledge_setup.readiness(
+            profile, services_existing, faqs_existing,
+            repo.get_tenant_features(business_id) or {}, setup
+        )
+    )
 
 
 @client_bp.route('/business/<int:business_id>/knowledge-assist', methods=['POST'])
@@ -479,19 +484,21 @@ def knowledge_assist_draft(business_id):
 @client_bp.route("/business/<int:business_id>/settings", methods=["GET", "POST"])
 @security.login_required
 def business_settings(business_id):
-    """Pro tenant parity cycle (Task 5) — appointment & payment settings, editable by the business
-    owner themselves at ANY status (unlike the onboarding wizard, which locks once APPROVED/ACTIVE/
-    SUSPENDED — see wizard_step's own comment) since these are ongoing operational settings a
-    business needs to be able to change on its own, without engineering help, even after go-live.
-    tenant_config_service.get_tenant_appointment_settings()/get_tenant_payment_config() read
-    business_profiles LIVE (not the versioned, KILAS_ADMIN-only tenant_config snapshot), so this
-    save takes effect on the bot's very next customer message with no re-provisioning step and no
-    admin action needed."""
+    """Customer-owned appointment/payment editor.
+
+    Customers may edit at any lifecycle status, including after go-live. For approved/live Brain
+    tenants these writes are draft source data: runtime keeps using the last admin-approved
+    tenant_config snapshot until the owner/admin approves the change set.
+    """
     business = _business_or_404(business_id)
     profile = repo.get_business_profile(business_id) or {}
 
     if request.method == "GET":
-        return render_template("business_settings.html", business=business, profile=profile, tenant_features=repo.get_tenant_features(business_id))
+        return render_template(
+            "business_settings.html", business=business, profile=profile,
+            tenant_features=repo.get_tenant_features(business_id),
+            ai_settings=repo.get_ai_settings(business_id) or {},
+        )
 
     _check_settings_entitlement(business_id)
     user = security.current_user()
