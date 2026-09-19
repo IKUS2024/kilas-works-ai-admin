@@ -150,6 +150,11 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(f.get_finance_summary(self.b, '2026-09-01', '2026-09-30'), dict(currency='IDR', total_income_minor=100, total_expense_minor=40, net_cashflow_minor=60))
         self.assertEqual(f.get_finance_summary(self.biz[1], '2026-09-01', '2026-09-30')['net_cashflow_minor'], 0)
         with self.assertRaises(f.FinanceError): self.create(currency='USD')
+        self.assertEqual(f.get_finance_summaries(self.b,'2026-09-01','2026-09-30')[1]['currency'],'USD')
+        self.assertEqual(f.get_finance_summaries(self.b,'2026-09-01','2026-09-30')[1]['total_income_minor'],555)
+        balances=f.get_account_balance_report(self.b,'2026-09-30')
+        self.assertEqual(next(a for a in balances if a['currency']=='USD')['balance_minor'],555)
+        with self.assertRaisesRegex(f.FinanceError,'unsupported_currency'):f.create_account(self.b,'Crypto',currency='BTC')
 
     def test_list_filters_dates_and_validation(self):
         self.create(occurred_on='2026-09-03')

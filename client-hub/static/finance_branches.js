@@ -74,3 +74,16 @@ for (const dialog of document.querySelectorAll('dialog.finance-sheet')) {
     if (event.target === dialog) dialog.close();
   });
 }
+
+
+for (const account of document.querySelectorAll('[data-currency-account]')) {
+  const form=account.closest('form');const amount=form && form.querySelector('[data-currency-amount]');
+  const label=form && form.querySelector('[data-currency-label]');const help=form && form.querySelector('[data-currency-help]');
+  const sync=()=>{const code=account.selectedOptions[0]?.dataset.currency||'IDR';if(label)label.textContent=code;
+    if(help)help.textContent=code==='IDR'?'Contoh: 1000000 atau 1.000.000.':(code==='JPY'?'Masukkan yen bulat, contoh 12500.':'Boleh desimal maksimal 2 angka, contoh 1250.50.');};
+  account.addEventListener('change',sync);sync();
+}
+for (const currency of document.querySelectorAll('[data-account-currency]')) {
+  const form=currency.closest('form');const label=form && form.querySelector('[data-opening-currency]');
+  const sync=()=>{if(label)label.textContent=currency.value;};currency.addEventListener('change',sync);sync();
+}

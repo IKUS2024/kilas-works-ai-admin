@@ -160,3 +160,14 @@ test('dashboard period picker supports single range and all modes',()=>{
   assert.match(selector,/Semua transaksi/);
   assert.match(selector,/data-period-range/);
 });
+
+
+test('multi currency dashboard keeps original currency and reference FX copy',()=>{
+  const html=fs.readFileSync(path.join(ROOT,'templates','finance_dashboard.html'),'utf8');
+  assert.match(html,/data-account-currency/);
+  assert.match(html,/data-currency-account/);
+  assert.match(html,/USD/);
+  assert.match(html,/Estimasi total dalam IDR/);
+  assert.match(html,/bukan kurs jual\/beli bank/);
+  assert.match(html,/Mata uang rekening tidak dapat diubah/);
+});
