@@ -266,17 +266,19 @@ Bisa refund? | Tidak ada refund setelah jadwal dikonfirmasi.">{% for f in faqs %
 
   {% elif step == 'upload' %}
     <h2>Dokumen Pengetahuan <span class="muted">(Opsional)</span></h2>
-    <p class="wizard-intro">Kalau punya katalog, menu, price list, FAQ, atau panduan layanan, upload di sini supaya Kilas Brain punya referensi tambahan. Jangan upload password, token, atau dokumen rahasia yang tidak perlu diketahui customer.</p>
-    <p class="wizard-help">PDF, PNG, JPG, atau TXT — maks 10MB per file, total maksimal 11MB per unggahan.</p>
+    <p class="wizard-intro">Kalau punya katalog, menu, price list, FAQ, atau panduan layanan, upload di sini sebagai referensi tambahan. Jangan upload password, token, atau dokumen rahasia yang tidak perlu diketahui customer.</p>
+    <p class="wizard-help">Untuk hasil terbaik gunakan PDF/TXT yang teksnya bisa dipilih. Kalau katalog hanya berupa gambar, tulis poin pentingnya juga di bagian Layanan atau FAQ. Maks 10MB per file, total 11MB per unggahan.</p>
   {% endif %}
 
-    <div class="wizard-actions"><button class="btn" type="submit">{{ 'Selesai & Tinjau' if step == 'upload' else 'Simpan & Lanjut' }}</button></div>
+    {% if step != 'upload' %}
+      <div class="wizard-actions"><button class="btn" type="submit">Simpan &amp; Lanjut</button></div>
+    {% endif %}
   </form>
 
   {% if step == 'upload' %}
     <form method="post" action="{{ url_for('client.upload_file', business_id=business.id) }}" enctype="multipart/form-data" style="margin-top:16px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="file" id="business-files" aria-label="Pilih katalog atau menu bisnis" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" multiple required>
+      <input type="file" id="business-files" aria-label="Pilih dokumen pengetahuan bisnis" name="file" accept=".pdf,.png,.jpg,.jpeg,.txt" multiple required>
       <div style="margin-top:10px;"><button class="btn secondary" type="submit">Upload File</button></div>
     </form>
     {% if files %}
@@ -299,6 +301,10 @@ Bisa refund? | Tidak ada refund setelah jadwal dikonfirmasi.">{% for f in faqs %
         {% endfor %}
       </table>
     {% endif %}
+    <form method="post" class="wizard-finish-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="wizard-actions"><button class="btn" type="submit">Selesai &amp; Tinjau</button></div>
+    </form>
   {% endif %}
 </div>
 <script>
