@@ -10,6 +10,7 @@ import repo
 import db
 import catalog_service
 import projects_repo
+import quotation_service
 import file_utils
 
 projects_bp = Blueprint("projects", __name__)
