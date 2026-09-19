@@ -234,10 +234,10 @@
         <a href="{{ url_for('client.dashboard') }}">Beranda</a>
         <a href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
         <a href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
-        <a href="{{ url_for('products.account_bills') }}">Tagihan &amp; Akun</a>
+        <a href="{{ url_for('products.account_bills') }}">Tagihan</a>
+        <a href="{{ url_for('auth.account_page') }}">Akun</a>
       {% endif %}
-      {% if session.get('role')=='KILAS_ADMIN' %}<a href="{{ url_for('products.admin_bills') }}">Verifikasi Finance</a>{% endif %}
-      <a href="{{ url_for('auth.logout_page') }}">Logout</a>
+      {% if session.get('role')=='KILAS_ADMIN' %}<a href="{{ url_for('products.admin_bills') }}">Verifikasi Finance</a><a href="{{ url_for('auth.logout_page') }}">Logout</a>{% endif %}
     {% else %}
       <a href="{{ url_for('auth.login_page') }}">Login</a>
       <a href="{{ url_for('auth.register_page') }}">Daftar</a>
