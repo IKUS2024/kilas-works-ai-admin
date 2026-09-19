@@ -142,6 +142,9 @@
     for (const file of files.files) {
       const item = document.createElement('li'); item.textContent = file.name; el('assistant-file-list').append(item);
     }
+    if (!busy && files.files.length && mode.value === 'auto') {
+      status.textContent = 'Dokumen siap. Tambahkan instruksi bila perlu, lalu tekan Lanjut. Belum ada pencatatan.';
+    }
   });
   for (const node of [mode,text]) node.addEventListener('input', () => {
     if (!activeDraft()) {
@@ -162,9 +165,20 @@
   if (camera) camera.addEventListener('change', () => {
     if (busy || activeDraft()) { camera.value = ''; return; }
     if (!camera.files.length) return;
-    files.files = camera.files; mode.value = 'receipt';
+    try {
+      if (typeof DataTransfer === 'function') {
+        const transfer = new DataTransfer();
+        for (const file of camera.files) transfer.items.add(file);
+        files.files = transfer.files;
+      } else {
+        files.files = camera.files;
+      }
+    } catch (_) {
+      status.textContent = 'Foto belum dapat dipindahkan ke lampiran. Gunakan Pilih File untuk foto ini.';
+      return;
+    }
+    // Kamera sekarang mengikuti mode yang dipilih; Auto tidak lagi memaksa semua foto menjadi struk.
     files.dispatchEvent(new Event('change'));
-    status.textContent = 'Foto siap. Tekan Baca Struk, lalu Review Hasil. Belum ada pencatatan.';
   });
   state(false);
 })();
