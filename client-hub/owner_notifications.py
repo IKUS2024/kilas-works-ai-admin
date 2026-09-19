@@ -176,8 +176,8 @@ def notify_custom_project_submitted(project_id, business_id, project_type, title
 
 def notify_talent_request_submitted(request_id, project_id, business_id, talent_name):
     message = (
-        f"\U0001F3AC Ada permintaan Talent Management baru untuk {talent_name}.\n"
-        f"Lihat & buat penawaran: {_ADMIN_BASE}/projects/{project_id}"
+        f"\U0001F3AC Ada permintaan talent baru untuk {talent_name}.\n"
+        f"Tinjau & kirim harga: {_ADMIN_BASE}/talent/requests/{request_id}"
     )
     return notify_owner_once(
         f"talent_request_submitted:{request_id}", "TALENT_REQUEST_SUBMITTED",
