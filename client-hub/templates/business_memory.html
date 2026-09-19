@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Ajari Kilas Brain — {{ business.business_name }}{% endblock %}
+{% block title %}Pengetahuan Kilas Brain — {{ business.business_name }}{% endblock %}
 {% macro service_card(row) %}
 <fieldset class="knowledge-card">
   <legend>Produk / layanan</legend>
@@ -44,37 +44,52 @@
 @media(max-width:640px){.knowledge-grid{grid-template-columns:1fr;gap:6px}.knowledge-card{padding:10px;margin:7px 0}.knowledge-head h1{font-size:20px}.knowledge-collapse>summary{padding:10px 11px}.knowledge-collapse-body{padding:9px 11px}.knowledge-page textarea{min-height:54px}.knowledge-actions{position:sticky;bottom:8px;z-index:4;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);padding:8px;border:1px solid var(--border);border-radius:12px}.knowledge-actions .btn{flex:1 1 auto;text-align:center}}
 </style>
 <div class="knowledge-page" data-assist-url="{{ url_for('client.knowledge_assist_draft', business_id=business.id) }}">
-<header class="knowledge-head"><h1>Ajari Kilas Brain</h1><p>{{ business.business_name }} · Lengkapi hanya bagian yang perlu diperbarui.</p></header>
+<header class="knowledge-head"><h1>Pengetahuan Kilas Brain</h1><p>{{ business.business_name }} · Data dari setup awal sudah otomatis ada di sini.</p></header>
+<div class="card" style="padding:11px 13px;border-left:3px solid var(--orange);margin-bottom:10px;">
+  <strong style="font-size:12px;">Tidak perlu isi ulang dari awal</strong>
+  <p class="client-note" style="margin:4px 0 0;">Halaman ini untuk memperbarui pengetahuan Brain kalau ada layanan, harga, FAQ, jam, atau informasi bisnis yang berubah. Ubah hanya bagian yang memang perlu diperbarui.</p>
+</div>
 {% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
   <div class="card" style="padding:10px 12px;border-left:3px solid {{ 'var(--yellow)' if ai_settings.ai_status == 'STALE' else 'var(--green)' }};">
     <strong style="font-size:12px;">{{ 'Perubahan menunggu review' if ai_settings.ai_status == 'STALE' else 'Versi Brain sudah disetujui' }}</strong>
     <p class="client-note" style="margin:3px 0 0;">{{ 'Draft terbaru belum live. Versi terakhir yang disetujui tetap berjalan sampai Kilas Works menyetujui perubahan.' if ai_settings.ai_status == 'STALE' else 'Kamu tetap boleh mengedit kapan saja. Perubahan berikutnya akan masuk review sebelum mengganti versi live.' }}</p>
   </div>
 {% endif %}
-<div class="card knowledge-readiness" aria-label="Kelengkapan pengetahuan bisnis">
-  <h2>Kilas Brain Knowledge: {{ readiness.score }}% lengkap</h2>
-  <progress value="{{ readiness.score }}" max="100" style="width:100%;" aria-label="Kelengkapan pengetahuan">{{ readiness.score }}%</progress>
-  <p class="muted">Dihitung dari kelengkapan isian, bukan penilaian AI atau jaminan jawaban benar. Isian opsional tidak mengurangi nilai jika tidak relevan.</p>
-  {% if readiness.missing %}<details><summary class="muted">Lihat yang belum lengkap · {{ readiness.missing|length }}</summary><ul>{% for item in readiness.missing %}<li>{{ item }}</li>{% endfor %}</ul></details>
-  {% else %}<p class="muted">Informasi dasar sudah lengkap.</p>{% endif %}
-  <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Booking &amp; Pembayaran →</a>
+<div class="card knowledge-readiness" aria-label="Kelengkapan informasi Kilas Brain">
+  {% if readiness.missing %}
+    <h2>Masih ada {{ readiness.missing|length }} informasi inti yang bisa dilengkapi</h2>
+  {% else %}
+    <h2>Informasi inti Brain sudah lengkap</h2>
+  {% endif %}
+  <progress value="{{ readiness.score }}" max="100" style="width:100%;" aria-label="Kelengkapan informasi">{{ readiness.score }}%</progress>
+  <p class="muted" style="font-size:11px;">Kelengkapan data: {{ readiness.score }}%. Ini bukan nilai kepintaran AI dan bukan skor kualitas jawaban.</p>
+  {% if readiness.missing %}
+    <details><summary class="muted">Lihat yang belum lengkap · {{ readiness.missing|length }}</summary><ul>{% for item in readiness.missing %}<li>{{ item }}</li>{% endfor %}</ul></details>
+  {% endif %}
+  <a href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan Booking &amp; Pembayaran →</a>
 </div>
-<p class="muted knowledge-tip">AI hanya membantu membuat draft. Setelah disimpan, perubahan pada Brain yang sudah disetujui akan direview lagi sebelum menjadi versi live.</p>
+<p class="muted knowledge-tip">Semua isian menggunakan data yang sudah tersimpan. AI hanya membantu merapikan draft; perubahan pada Brain yang sudah disetujui akan direview lagi sebelum menjadi versi live.</p>
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="knowledge_form" value="v2">
   <input type="hidden" name="knowledge_revision" value="{{ setup.revision }}">
   <details class="card knowledge-section knowledge-collapse" data-knowledge-section="business" id="tentang-bisnis" open>
     <summary>1. Tentang bisnis</summary><div class="knowledge-collapse-body">
-    <button type="button" class="btn secondary" data-assist-scope="business">✨ Bantu Isi dengan AI</button>
+    <button type="button" class="btn secondary" data-assist-scope="business">Bantu Rapikan dengan AI</button>
     <label>Deskripsi bisnis dan aturan penting<textarea name="short_description" maxlength="4000" rows="5" placeholder="Apa yang kamu tawarkan, siapa customermu, dan aturan yang perlu diketahui?">{{ profile.short_description or '' }}</textarea></label>
     <p class="muted">Boleh sertakan tipe customer, batasan layanan, dan hal yang perlu dikonfirmasi kepada tim. Jangan memasukkan password atau kunci akses.</p>
     <div class="knowledge-grid">
-    {% for key,label,hint in [('category','Jenis bisnis','Contoh: laundry, toko, atau jasa foto'),('business_phone','Nomor kontak bisnis (opsional)','Nomor yang boleh dihubungi customer'),('operating_hours','Jam operasional','Contoh: Senin–Sabtu 09.00–18.00'),('closed_days','Hari tutup (opsional)','Contoh: Minggu dan hari raya')] %}
-    <label>{{ label }}<input name="{{ key }}" value="{{ profile[key] or '' }}" maxlength="4000" placeholder="{{ hint }}"></label>
-    {% endfor %}
+      <label>Kategori bisnis<input name="category" value="{{ profile.category or '' }}" maxlength="4000" placeholder="Contoh: laundry, coffee shop, jasa foto"></label>
+      <label>Jam operasional<input name="operating_hours" value="{{ profile.operating_hours or '' }}" maxlength="4000" placeholder="Contoh: Senin–Sabtu 09.00–18.00"></label>
+      <label>Hari tutup <span class="muted">(opsional)</span><input name="closed_days" value="{{ profile.closed_days or '' }}" maxlength="4000" placeholder="Contoh: Minggu dan hari raya"></label>
+      <div>
+        <label>WhatsApp bisnis / nomor robot</label>
+        <input value="{{ profile.business_phone or '' }}" readonly aria-readonly="true">
+        <p class="muted" style="font-size:11px;margin:4px 0 0;">Nomor robot diubah dari Setup/Operasional agar tetap sama dengan nomor WhatsApp yang terhubung ke Meta.</p>
+      </div>
     </div>
-    <label>Alamat / lokasi <span class="muted">(jika customer datang ke tempatmu)</span><textarea name="address" maxlength="4000" rows="2">{{ profile.address or '' }}</textarea></label>
+    <label>Alamat / area layanan <span class="muted">(jika relevan)</span><textarea name="address" maxlength="4000" rows="2">{{ profile.address or '' }}</textarea></label>
+    <p class="muted" style="font-size:11px;"><a href="{{ url_for('client.wizard_step', business_id=business.id, step='operations') }}">Ubah nomor robot, model layanan, atau info operasional penting →</a></p>
   </div></details>
   <details class="card knowledge-section knowledge-collapse" data-knowledge-section="services">
     <summary>2. Produk / layanan · {{ setup.services|length }}</summary><div class="knowledge-collapse-body">
@@ -100,7 +115,7 @@
     </div>
     <p class="muted">Ada janji yang tidak boleh dibuat atau situasi yang harus ditangani manusia? Tuliskan dalam <a href="#tentang-bisnis">deskripsi dan aturan penting</a>. Contoh: diskon harus dikonfirmasi kepada tim. Pengaturan ini tidak mengubah izin paket atau mengaktifkan fitur baru.</p>
   </div></details>
-  <div class="knowledge-actions"><button class="btn" type="submit">Simpan pengetahuan bisnis</button><a href="{{ url_for('client.dashboard') }}">Kembali ke dashboard</a></div>
+  <div class="knowledge-actions"><button class="btn" type="submit">Simpan perubahan pengetahuan</button><a href="{{ url_for('client.dashboard') }}">Kembali ke dashboard</a></div>
 </form>
 <template id="knowledge-template-services">{{ service_card({}) }}</template>
 <template id="knowledge-template-faqs">{{ faq_card({}) }}</template>
