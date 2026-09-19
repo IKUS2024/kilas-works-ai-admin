@@ -80,14 +80,14 @@ def account_page():
     """Simple self-service account page: profile name, password, and logout entrypoint."""
     user = security.current_user()
     if request.method == "GET":
-        return render_template("account.html", user=user)
+        return render_template("account.html", user=user, password_open=False)
 
     action = (request.form.get("action") or "").strip()
     if action == "profile":
         full_name = (request.form.get("full_name") or "").strip()
         if len(full_name) > 100:
             flash("Nama terlalu panjang.", "error")
-            return render_template("account.html", user=user), 400
+            return render_template("account.html", user=user, password_open=False), 400
         repo.update_user_profile(user["id"], full_name)
         repo.write_audit_no_business(user["id"], "ACCOUNT_PROFILE_UPDATED", "self-service profile name updated")
         flash("Nama akun berhasil diperbarui.", "success")
@@ -99,17 +99,32 @@ def account_page():
         confirm_password = request.form.get("confirm_password") or ""
         if not security.verify_password(user["password_hash"], current_password):
             flash("Password saat ini tidak cocok.", "error")
-            return render_template("account.html", user=user), 400
+            return render_template("account.html", user=user, password_open=True), 400
         if len(new_password) < 8:
             flash("Password baru minimal 8 karakter.", "error")
-            return render_template("account.html", user=user), 400
+            return render_template("account.html", user=user, password_open=True), 400
+        if new_password == current_password:
+            flash("Password baru harus berbeda dari password saat ini.", "error")
+            return render_template("account.html", user=user, password_open=True), 400
         if new_password != confirm_password:
             flash("Konfirmasi password baru tidak cocok.", "error")
-            return render_template("account.html", user=user), 400
-        repo.update_user_password(user["id"], security.hash_password(new_password))
+            return render_template("account.html", user=user, password_open=True), 400
+
+        new_hash = security.hash_password(new_password)
+        repo.update_user_password(user["id"], new_hash)
+
+        # Read-after-write verification: success is shown only after the persisted DB hash really
+        # authenticates the new password. This catches a storage/transaction regression instead of
+        # telling the customer the password changed when it did not.
+        saved_user = repo.get_user_by_id(user["id"])
+        if not saved_user or not security.verify_password(saved_user["password_hash"], new_password):
+            flash("Password belum berhasil disimpan. Coba lagi.", "error")
+            return render_template("account.html", user=user, password_open=True), 500
+
         repo.invalidate_all_reset_tokens_for_user(user["id"], _now_iso())
-        repo.write_audit_no_business(user["id"], "PASSWORD_CHANGED", "password changed from account page")
-        flash("Password berhasil diubah.", "success")
+        security.clear_login_attempts(user["email"])
+        repo.write_audit_no_business(user["id"], "PASSWORD_CHANGED", "password changed and persistence verified")
+        flash("Password berhasil diubah dan sudah aktif untuk login berikutnya.", "success")
         return redirect(url_for("auth.account_page"))
 
     flash("Aksi akun tidak dikenali.", "error")
