@@ -123,7 +123,10 @@
             {% endfor %}
 
             <div class="status-line">
-              {% if b.brain_review_pending %}
+              {% if b.brain_required_missing and b.status != 'ACTIVE' %}
+                <span class="status-badge warning"><span class="status-dot"></span>Data belum lengkap</span>
+                <span class="status-meta">{{ b.brain_required_missing|length }} informasi penting perlu diisi</span>
+              {% elif b.brain_review_pending %}
                 <span class="status-badge warning"><span class="status-dot"></span>Perubahan menunggu review</span>
                 <span class="status-meta">Versi live lama tetap aktif</span>
               {% else %}
@@ -132,9 +135,9 @@
               {% endif %}
             </div>
 
-            {% if b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP','NEEDS_REVISION') %}
-              <div class="progress-row"><span>Setup Brain</span><strong>{{ b.completion_percent }}%</strong></div>
-              <div class="progress-track" aria-label="Setup {{ b.completion_percent }}%"><div class="progress-fill" style="width:{{ b.completion_percent }}%"></div></div>
+            {% if (b.brain_required_missing and b.status != 'ACTIVE') or b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP','NEEDS_REVISION') %}
+              <div class="progress-row"><span>Kelengkapan data penting</span><strong>{{ b.completion_percent }}%</strong></div>
+              <div class="progress-track" aria-label="Kelengkapan data {{ b.completion_percent }}%"><div class="progress-fill" style="width:{{ b.completion_percent }}%"></div></div>
             {% else %}
               <div class="brain-flow" aria-label="Tahapan aktivasi Kilas Brain">
                 <div class="brain-flow-step done"><strong>Setup</strong><span>✓ selesai</span></div>
@@ -144,7 +147,9 @@
               </div>
             {% endif %}
 
-            {% if b.brain_review_pending %}
+            {% if b.brain_required_missing and b.status != 'ACTIVE' %}
+              <div class="brain-note"><strong>Lengkapi dulu:</strong> {{ b.brain_required_missing_labels|join(', ') }}. Setelah data penting lengkap, proses review dan pembayaran bisa dilanjutkan tanpa mengulang setup dari awal.</div>
+            {% elif b.brain_review_pending %}
               <div class="brain-note">Perubahan terbaru sudah tersimpan sebagai draft. Versi live lama tetap berjalan sampai perubahan disetujui.</div>
             {% elif b.status=='READY_FOR_REVIEW' and brain_payment.verified %}
               <div class="brain-note">Setup dan pembayaran sudah selesai. Sekarang tinggal menunggu review Kilas Works.</div>
@@ -163,7 +168,10 @@
             {% endif %}
 
             <div class="product-primary">
-              {% if b.status=='ACTIVE' %}
+              {% if b.brain_required_missing and b.status != 'ACTIVE' %}
+                <a class="btn btn-wide" href="{{ url_for('client.wizard_step',business_id=b.id,step=b.brain_fix_step or 'basics') }}">Lengkapi Data</a>
+                <a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat yang Kurang</a>
+              {% elif b.status=='ACTIVE' %}
                 <a class="btn btn-wide" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox Brain</a>
                 {% if b.brain_review_pending %}<a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Perubahan</a>{% endif %}
               {% elif b.status=='APPROVED' and brain_payment.verified %}
