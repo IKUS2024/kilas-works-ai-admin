@@ -613,7 +613,8 @@ def projects_admin():
     businesses_by_id = {b["id"]: b for b in repo.list_all_businesses()}
     for p in projects:
         b = businesses_by_id.get(p["business_id"])
-        p["business_name"] = b["business_name"] if b else "?"
+        p["business_name"] = b["business_name"] if b else "Pesanan pribadi"
+        p["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(p)
     return render_template(
         "admin_projects.html", projects=projects, status_filter=status_filter,
         type_filter=type_filter, business_filter=business_filter,
@@ -797,7 +798,10 @@ def payment_request_reupload(payment_id):
 def talent_admin():
     talents = talent_service.list_all_talents()
     requests = talent_service.list_all_talent_requests()
+    businesses = {b["id"]: b for b in repo.list_all_businesses()}
+    talents_by_id = {t["id"]: t for t in talents}
     return render_template("admin_talent.html", talents=talents, requests=requests,
+                            businesses_by_id=businesses, talents_by_id=talents_by_id,
                             availability_statuses=talent_service.AVAILABILITY_STATUSES)
 
 
