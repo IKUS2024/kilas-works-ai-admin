@@ -1,4 +1,27 @@
 {% extends 'base.html' %}
+{% block title %}Verifikasi Finance — Admin{% endblock %}
 {% block content %}
-<h1>Pemeriksaan Tagihan Finance</h1>{% for bill in bills %}<p><a href="{{ url_for('products.bill_page',business_id=bill.business_id,bill_id=bill.id) }}">#{{ bill.id }} · {{ bill.business_name }} · Menunggu pemeriksaan</a></p>{% else %}<p>Tidak ada bukti menunggu pemeriksaan.</p>{% endfor %}
+{% include "_admin_compact_style.html" %}
+<div class="admin-page">
+  <header class="admin-head">
+    <div><h1>Verifikasi Finance</h1><p>Bukti pembayaran langganan yang menunggu pemeriksaan.</p></div>
+    <span class="admin-count">{{ bills|length }} menunggu</span>
+  </header>
+
+  <section class="card">
+    <div class="admin-list">
+      {% for bill in bills %}
+      <article class="admin-item">
+        <div class="admin-item-head">
+          <div class="admin-item-main">
+            <div class="admin-item-title">Tagihan #{{ bill.id }} · {{ bill.business_name }}</div>
+            <div class="admin-item-meta">Menunggu pemeriksaan pembayaran Finance</div>
+          </div>
+          <a class="btn small secondary" href="{{ url_for('products.bill_page',business_id=bill.business_id,bill_id=bill.id) }}">Buka</a>
+        </div>
+      </article>
+      {% else %}<div class="admin-empty">✓ Tidak ada bukti pembayaran Finance yang menunggu pemeriksaan.</div>{% endfor %}
+    </div>
+  </section>
+</div>
 {% endblock %}
