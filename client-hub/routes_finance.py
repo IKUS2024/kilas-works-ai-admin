@@ -209,59 +209,107 @@ def overview():
 @finance_bp.route('/business/<int:business_id>/finance')
 @finance_access
 def dashboard(business_id, user, business):
-    month = request.args.get('month', date.today().strftime('%Y-%m'))
-    split_period = 'period_month' in request.args or 'period_year' in request.args
-    if split_period:
-        month = request.args.get('period_year', '') + '-' + request.args.get('period_month', '')
+    today_value = date.today()
+    current_value = today_value.strftime('%Y-%m')
+    period_mode = request.args.get('period_mode', 'month')
     direction = request.args.get('direction') or None
+    view = request.args.get('view')
+    split_period = 'period_month' in request.args or 'period_year' in request.args
+    split_range = any(key in request.args for key in (
+        'range_start_month', 'range_start_year', 'range_end_month', 'range_end_year'))
+    month = request.args.get('month', current_value)
+    range_start = request.args.get('range_start')
+    range_end = request.args.get('range_end')
+    if period_mode == 'month' and split_period:
+        month = request.args.get('period_year', '') + '-' + request.args.get('period_month', '')
+    if period_mode == 'range' and split_range:
+        range_start = request.args.get('range_start_year', '') + '-' + request.args.get('range_start_month', '')
+        range_end = request.args.get('range_end_year', '') + '-' + request.args.get('range_end_month', '')
+    month_names = ('Januari','Februari','Maret','April','Mei','Juni',
+                   'Juli','Agustus','September','Oktober','November','Desember')
+    label_for = lambda value: month_names[int(value[5:7])-1] + ' ' + value[:4]
+    actor = {'actor_user_id': user['id']}
     try:
-        start, end = period(month)
-        if month > date.today().strftime('%Y-%m'):
-            raise ValueError('future_month')
-        end = min(end, date.today().isoformat())
         if direction not in (None, 'INCOME', 'EXPENSE'):
             raise ValueError('direction')
-    except ValueError:
+        if period_mode == 'month':
+            start, end = period(month)
+            if month > current_value:
+                raise ValueError('future_month')
+            end = min(end, today_value.isoformat())
+            period_label = label_for(month)
+            period_query = {'period_mode': 'month', 'month': month}
+        elif period_mode == 'range':
+            range_start = range_start or f'{today_value.year:04d}-01'
+            range_end = range_end or current_value
+            start, _ = period(range_start)
+            _, end = period(range_end)
+            if range_start > range_end or range_end > current_value:
+                raise ValueError('future_or_reverse_range')
+            end = min(end, today_value.isoformat())
+            month = range_end
+            period_label = label_for(range_start) + ' – ' + label_for(range_end)
+            period_query = {'period_mode': 'range', 'range_start': range_start, 'range_end': range_end}
+        elif period_mode == 'all':
+            bounds = finance.get_transaction_date_bounds(business_id, **actor)
+            start = bounds['first_on'] or today_value.isoformat()
+            end = today_value.isoformat()
+            month = current_value
+            period_label = 'Semua transaksi'
+            period_query = {'period_mode': 'all'}
+        else:
+            raise ValueError('period_mode')
+    except (ValueError, finance.FinanceError):
         flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.', 'error')
-        return redirect(url_for('finance.dashboard', business_id=business_id))
-    if split_period:
-        return redirect(url_for('finance.dashboard', business_id=business_id, month=month, direction=direction))
+        return redirect(url_for('finance.dashboard', business_id=business_id,
+                                branch_id=g.finance_branch_id or 'all'))
+    branch_value = g.finance_branch_id or 'all'
+    if period_mode == 'month' and split_period:
+        return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_value,
+                                direction=direction, view=view, **period_query))
+    if period_mode == 'range' and split_range:
+        return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_value,
+                                direction=direction, view=view, **period_query))
     selected_year = int(month[:4])
-    current_year, current_month = date.today().year, date.today().month
-    period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | {selected_year})
-    actor = {'actor_user_id': user['id']}
+    current_year, current_month = today_value.year, today_value.month
+    range_start_value = range_start if period_mode == 'range' else f'{selected_year:04d}-01'
+    range_end_value = range_end if period_mode == 'range' else month
+    relevant_years = {selected_year, int(range_start_value[:4]), int(range_end_value[:4])}
+    period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | relevant_years)
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
     summary = finance.get_finance_summary(business_id, start, end, **actor)
-    show_transactions = request.args.get('view') == 'transactions'
-    transactions = finance.list_transactions(business_id, start_date=start, end_date=end,
-                                            direction=direction, status='POSTED', limit=100, **actor) if show_transactions else []
-    balances = finance.get_account_balance_report(business_id, date.today().isoformat(), user['id'])
+    show_transactions = view == 'transactions'
+    transaction_limit = 1000 if period_mode in ('range', 'all') else 100
+    transactions = finance.list_transactions(
+        business_id, start_date=start, end_date=end, direction=direction,
+        status='POSTED', limit=transaction_limit, **actor) if show_transactions else []
+    balances = finance.get_account_balance_report(business_id, today_value.isoformat(), user['id'])
     breakdown = []
     if g.finance_branch_id is None:
         for item in g.finance_branches:
             with branches.scope(business_id, item['id'], user['id']):
                 breakdown.append(dict(branch=item, summary=finance.get_finance_summary(business_id, start, end, **actor)))
-        # Derive displayed combined values from the same branch values, even if another
-        # request posts between reads. Never show conflicting aggregate/breakdown totals.
         for key in ('total_income_minor', 'total_expense_minor', 'net_cashflow_minor'):
             summary[key] = sum(item['summary'][key] for item in breakdown)
     return render_template('finance_dashboard.html', user=user, business=business,
-        period_start=start, period_end=end, balances=balances, balance_total=sum(a['balance_minor'] for a in balances), branch_breakdown=breakdown,
+        period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
+        period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
+        transaction_limit=transaction_limit,
+        balances=balances, balance_total=sum(a['balance_minor'] for a in balances), branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
-        initialized=bool(accounts and categories), month=month,
-        month_label=('Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember')[int(month[5:7])-1] + ' ' + month[:4],
+        initialized=bool(accounts and categories), month=month, month_label=period_label,
         direction=direction, show_transactions=show_transactions,
         period_years=period_years, selected_year=selected_year,
         current_year=current_year, current_month=current_month,
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
-        today=date.today().isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
+        today=today_value.isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
 
 
 def mutate(business_id, action, success, destination=None):

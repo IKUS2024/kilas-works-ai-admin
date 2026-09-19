@@ -415,6 +415,15 @@ def get_finance_summary(business_id, start_date, end_date, *, currency='IDR', ac
             'net_cashflow_minor': income-expense}
 
 
+def get_transaction_date_bounds(business_id, *, actor_user_id=None):
+    """First/last active ledger dates in the current business/branch scope."""
+    _scope(business_id, actor_user_id)
+    row = db.query_one(('SELECT MIN(occurred_on) AS first_on,MAX(occurred_on) AS last_on '
+                        'FROM finance_transactions WHERE business_id=?' + branches.predicate('') +
+                        " AND status='POSTED'"), (business_id,))
+    return {'first_on': row['first_on'] if row else None, 'last_on': row['last_on'] if row else None}
+
+
 # Finance receivables: deliberately never reads platform invoices/payments/payment_service.
 def create_customer(business_id, name, phone=None, email=None, notes=None, actor_user_id=None):
     values = (_text(name, 160, True), _text(phone, 64), _text(email, 254), _text(notes, 4000))

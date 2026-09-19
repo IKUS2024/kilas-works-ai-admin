@@ -107,6 +107,25 @@ class BranchTests(unittest.TestCase):
         self.assertIn('Utama', response.text); self.assertIn('Serpong', response.text)
         self.assertIn('Uang Tersedia', response.text)
 
+    def test_dashboard_range_and_all_period_modes(self):
+        self.tx(self.ba, 100, day='2026-01-10')
+        self.tx(self.ba, 200, day='2026-03-10')
+        self.tx(self.ba, 300, day='2025-12-10')
+        response, context = self.page(self.ba, period_mode='range', range_start='2026-01', range_end='2026-03')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(context['summary']['total_income_minor'], 300)
+        self.assertEqual(context['period_start'], '2026-01-01')
+        self.assertEqual(context['period_end'], '2026-03-31')
+        self.assertEqual(context['period_label'], 'Januari 2026 – Maret 2026')
+        self.assertIn('Rentang bulan', response.text)
+        response, context = self.page(self.ba, period_mode='all')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(context['summary']['total_income_minor'], 600)
+        self.assertEqual(context['period_start'], '2025-12-10')
+        self.assertEqual(context['period_label'], 'Semua transaksi')
+        with self.scope(self.ba):
+            self.assertEqual(f.get_transaction_date_bounds(self.b)['first_on'], '2025-12-10')
+
     def test_all_branches_read_only_services_and_routes(self):
         with self.scope(None):
             for operation in (lambda: f.create_account(self.b, 'Forbidden'),

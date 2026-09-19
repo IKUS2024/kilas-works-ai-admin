@@ -1,0 +1,67 @@
+{% set month_names = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'] %}
+<div><label for="period-mode">Periode</label><select id="period-mode" name="period_mode">
+<option value="month" {{ 'selected' if period_mode == 'month' }}>Satu bulan</option>
+<option value="range" {{ 'selected' if period_mode == 'range' }}>Rentang bulan</option>
+<option value="all" {{ 'selected' if period_mode == 'all' }}>Semua transaksi</option>
+</select></div>
+<div class="finance-period-fields" data-period-single>
+<div><label for="period-month">Bulan</label><select id="period-month" name="period_month" data-current-year="{{ current_year }}" data-current-month="{{ current_month }}">{% for label in month_names %}<option value="{{ '%02d'|format(loop.index) }}" {% if loop.index == month[5:]|int %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div><label for="period-year">Tahun</label><select id="period-year" name="period_year">{% for year in period_years %}<option value="{{ '%04d'|format(year) }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></div>
+</div>
+<div class="finance-period-fields" data-period-range>
+<div><label for="range-start-month">Dari bulan</label><select id="range-start-month" name="range_start_month" data-current-year="{{ current_year }}" data-current-month="{{ current_month }}">{% for label in month_names %}<option value="{{ '%02d'|format(loop.index) }}" {% if loop.index == range_start_value[5:]|int %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div><label for="range-start-year">Dari tahun</label><select id="range-start-year" name="range_start_year">{% for year in period_years %}<option value="{{ '%04d'|format(year) }}" {% if year == range_start_value[:4]|int %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></div>
+<div><label for="range-end-month">Sampai bulan</label><select id="range-end-month" name="range_end_month" data-current-year="{{ current_year }}" data-current-month="{{ current_month }}">{% for label in month_names %}<option value="{{ '%02d'|format(loop.index) }}" {% if loop.index == range_end_value[5:]|int %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div><label for="range-end-year">Sampai tahun</label><select id="range-end-year" name="range_end_year">{% for year in period_years %}<option value="{{ '%04d'|format(year) }}" {% if year == range_end_value[:4]|int %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></div>
+</div>
+<script>
+(() => {
+  const mode = document.getElementById('period-mode');
+  const single = document.querySelector('[data-period-single]');
+  const range = document.querySelector('[data-period-range]');
+  if (!mode || !single || !range || mode.dataset.ready === '1') return;
+  mode.dataset.ready = '1';
+  const monthPairs = [
+    [document.getElementById('period-month'), document.getElementById('period-year')],
+    [document.getElementById('range-start-month'), document.getElementById('range-start-year')],
+    [document.getElementById('range-end-month'), document.getElementById('range-end-year')]
+  ];
+  const syncFuture = (monthSelect, yearSelect) => {
+    const currentYear = Number(monthSelect.dataset.currentYear);
+    const currentMonth = Number(monthSelect.dataset.currentMonth);
+    const selectedYear = Number(yearSelect.value);
+    for (const option of monthSelect.options) {
+      option.disabled = selectedYear > currentYear ||
+        (selectedYear === currentYear && Number(option.value) > currentMonth);
+    }
+    if (monthSelect.selectedOptions[0]?.disabled) {
+      monthSelect.value = String(currentMonth).padStart(2, '0');
+    }
+  };
+  const valueOf = (monthSelect, yearSelect) => yearSelect.value + '-' + monthSelect.value;
+  const normalizeRange = () => {
+    const sm = monthPairs[1][0], sy = monthPairs[1][1], em = monthPairs[2][0], ey = monthPairs[2][1];
+    if (valueOf(sm, sy) > valueOf(em, ey)) {
+      ey.value = sy.value;
+      syncFuture(em, ey);
+      em.value = sm.value;
+    }
+  };
+  const toggle = () => {
+    const isMonth = mode.value === 'month';
+    const isRange = mode.value === 'range';
+    single.hidden = !isMonth;
+    range.hidden = !isRange;
+    single.querySelectorAll('select').forEach(node => node.disabled = !isMonth);
+    range.querySelectorAll('select').forEach(node => node.disabled = !isRange);
+    monthPairs.forEach(pair => syncFuture(...pair));
+    if (isRange) normalizeRange();
+  };
+  for (const [monthSelect, yearSelect] of monthPairs) {
+    yearSelect.addEventListener('change', () => { syncFuture(monthSelect, yearSelect); normalizeRange(); });
+    monthSelect.addEventListener('change', normalizeRange);
+  }
+  mode.addEventListener('change', toggle);
+  toggle();
+})();
+</script>

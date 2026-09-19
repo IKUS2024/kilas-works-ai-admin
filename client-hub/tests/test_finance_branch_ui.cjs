@@ -148,3 +148,15 @@ test('period month availability follows the selected year',()=>{
   assert.match(html,/yearSelect\.addEventListener\('change', syncMonths\)/);
   assert.match(html,/monthSelect\.selectedOptions\[0\]\?\.disabled/);
 });
+
+
+test('dashboard period picker supports single range and all modes',()=>{
+  const dashboard=fs.readFileSync(path.join(ROOT,'templates','finance_dashboard.html'),'utf8');
+  const selector=fs.readFileSync(path.join(ROOT,'templates','_finance_dashboard_period_selector.html'),'utf8');
+  assert.match(dashboard,/Ringkasan Periode/);
+  assert.match(dashboard,/\*\*period_query/);
+  assert.match(selector,/Satu bulan/);
+  assert.match(selector,/Rentang bulan/);
+  assert.match(selector,/Semua transaksi/);
+  assert.match(selector,/data-period-range/);
+});
