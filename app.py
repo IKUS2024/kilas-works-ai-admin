@@ -246,12 +246,23 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
         knowledge = config.get("knowledge") or {}
 
         lines = [f"NAMA BISNIS INI: {business_name}"]
+        business_type = config.get("business_type")
+        if business_type:
+            lines.append(f"KATEGORI BISNIS: {business_type}")
         description = ai_cfg.get("business_description") or ai_cfg.get("system_instructions")
         if description:
             lines.append(f"DESKRIPSI BISNIS: {description}")
+        service_mode = business_info.get("service_mode")
+        if service_mode:
+            service_mode_label = {"online": "online", "offline": "offline / datang ke lokasi",
+                                  "both": "online & offline"}.get(str(service_mode).lower(), service_mode)
+            lines.append(f"MODEL LAYANAN: {service_mode_label}")
         address = business_info.get("address")
         if address:
-            lines.append(f"ALAMAT: {address}")
+            lines.append(f"ALAMAT / AREA LAYANAN: {address}")
+        contact_phone = (business_info.get("contact_info") or {}).get("business_phone")
+        if contact_phone:
+            lines.append(f"KONTAK BISNIS: {contact_phone}")
         hours_raw = (business_info.get("business_hours") or {}).get("raw")
         if hours_raw:
             lines.append(f"JAM OPERASIONAL: {hours_raw}")
@@ -262,7 +273,8 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
         services = knowledge.get("services") or []
         service_lines = []
         for s in services:
-            name = (s.get("service_name") or s.get("raw_input") or "").strip()
+            raw_input = (s.get("raw_input") or "").strip()
+            name = (s.get("service_name") or raw_input or "").strip()
             if not name:
                 continue
             price_from, price_to = s.get("price_from"), s.get("price_to")
@@ -272,10 +284,21 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
                 price_text = f"Rp{(price_from or price_to):,}".replace(",", ".")
             else:
                 price_text = "harga belum ditentukan (JANGAN karang angka, tanya/eskalasi dulu)"
-            service_lines.append(f"- {name}: {price_text}")
+            detail = (s.get("description") or "").strip()
+            if not detail and raw_input and raw_input.lower() != name.lower():
+                # Preserve owner-written inclusions/duration/conditions when normalization did not
+                # produce a dedicated description. This is approved tenant data, not model memory.
+                detail = raw_input
+            suffix = f" | Detail: {detail}" if detail else ""
+            service_lines.append(f"- {name}: {price_text}{suffix}")
         if service_lines:
             lines.append("LAYANAN/PRODUK BISNIS INI:")
             lines.extend(service_lines)
+
+        policies = [str(p).strip() for p in (knowledge.get("policies") or []) if str(p).strip()]
+        if policies:
+            lines.append("ATURAN / KEBIJAKAN BISNIS INI:")
+            lines.extend(f"- {p}" for p in policies)
 
         faqs = knowledge.get("faq") or []
         if query:
@@ -290,7 +313,7 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
             lines.append("FAQ BISNIS INI:")
             lines.extend(faq_lines)
 
-        if not service_lines and not faq_lines and not description and not address and not hours_raw:
+        if not service_lines and not faq_lines and not policies and not description and not address and not hours_raw and not contact_phone and not service_mode:
             # Tenant resolved, but onboarding data is essentially empty — never fall back to Kilas
             # Works' own catalog, fall back to the neutral incomplete-profile notice instead.
             return _TENANT_INCOMPLETE_PROFILE_BLOCK
@@ -341,7 +364,7 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
             payment_block = (
                 "\n\nPEMBAYARAN KE BISNIS INI: belum ada rekening resmi yang bisa kamu sampaikan lewat "
                 "chat — kalau customer nanya cara bayar, jawab jujur & natural kamu perlu cek dulu ke "
-                "tim/owner, JANGAN PERNAH mengarang nomor rekening apapun."
+                "tim, JANGAN PERNAH mengarang nomor rekening apapun."
             )
 
         return (
