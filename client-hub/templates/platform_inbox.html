@@ -10,6 +10,20 @@
 .admin-ui .kw-inbox-toolbar{padding:10px}.admin-ui .kw-conversation{padding:9px 11px}
 .admin-ui .kw-chat-head{padding:10px 12px}.admin-ui .kw-thread{padding:12px;gap:7px}.admin-ui .kw-compose{padding:10px 12px}
 .admin-ui .kw-bubble{padding:8px 10px}.admin-ui .kw-filters{gap:6px}
+.kw-chat-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.kw-manage{position:relative}
+.kw-manage>summary{list-style:none;cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:7px 10px;min-height:36px;display:inline-flex;align-items:center;font-size:12px;font-weight:750;color:var(--text);background:transparent}
+.kw-manage>summary::-webkit-details-marker{display:none}
+.kw-manage[open]>summary{border-color:var(--orange);color:var(--orange)}
+.kw-manage-panel{position:absolute;right:0;top:43px;width:min(88vw,330px);padding:11px;background:var(--card);border:1px solid var(--border);border-radius:13px;box-shadow:0 14px 36px rgba(0,0,0,.38);z-index:20}
+.kw-manage-panel h3{margin:0 0 8px;font-size:14px}
+.kw-manage-panel form+form{margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.kw-manage-panel label{margin:0 0 5px}
+.kw-manage-panel .btn{margin-top:6px}
+.kw-danger-note{margin:5px 0 0;font-size:10px;color:var(--text-dim);line-height:1.35}
+.kw-danger-btn{border-color:var(--red)!important;color:var(--red)!important;background:transparent!important}
+.kw-danger-btn:hover{background:rgba(241,101,101,.08)!important}
+@media(max-width:900px){.kw-manage-panel{position:fixed;left:10px;right:10px;bottom:10px;top:auto;width:auto;max-height:70dvh;overflow:auto}}
 @media(max-width:900px){.admin-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
 @media(max-width:600px){.admin-inbox-head{margin-bottom:7px}.admin-inbox-head h1{font-size:20px}.admin-inbox-head .btn{display:none}.admin-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
 </style>
@@ -51,7 +65,7 @@
           </div>
           {% if c.customer_name %}<div class="muted" style="font-size:12px;">{{ c.customer_phone }}</div>{% endif %}
           <div class="muted kw-preview" style="font-size:13px;">{{ c.last_message }}</div>
-          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at }}</div>
+          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at|humanize_timestamp }}</div>
         </a>
       {% else %}
         <div style="padding:18px;"><p class="muted">Belum ada percakapan yang cocok.</p></div>
@@ -76,7 +90,7 @@
             {% endif %}
           </div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div class="kw-chat-actions">
           {% if selected.mode == 'AI_ACTIVE' %}
             <form method="post" action="{{ url_for('admin.platform_inbox_takeover') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -90,6 +104,28 @@
               <button class="btn secondary" type="submit">Kembalikan ke AI</button>
             </form>
           {% endif %}
+
+          <details class="kw-manage">
+            <summary>⚙ Kelola</summary>
+            <div class="kw-manage-panel">
+              <h3>Kelola Percakapan</h3>
+              <form method="post" action="{{ url_for('admin.platform_inbox_contact_name') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+                <label for="inbox-contact-name">Nama kontak</label>
+                <input id="inbox-contact-name" name="customer_name" maxlength="120" value="{{ selected.customer_name or '' }}" placeholder="Contoh: Leonard" required>
+                <button class="btn small secondary" type="submit">Simpan Nama</button>
+              </form>
+
+              <form method="post" action="{{ url_for('admin.platform_inbox_delete_conversation') }}" onsubmit="return confirm('Hapus seluruh riwayat chat customer ini dari Inbox Kilas? Pesan di aplikasi WhatsApp tidak ikut terhapus. Jika customer chat lagi, percakapan akan muncul kembali.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
+                <input type="hidden" name="confirmed" value="yes">
+                <button class="btn small kw-danger-btn" type="submit">🗑 Hapus dari Inbox</button>
+                <p class="kw-danger-note">Menghapus riwayat lokal di Inbox Kilas, media terkait, dan status takeover. Nama kontak tetap disimpan. Ini tidak menghapus pesan dari WhatsApp customer.</p>
+              </form>
+            </div>
+          </details>
         </div>
       </div>
 
