@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}Edit Transaksi{% endblock %}
 {% block content %}
-<style>.finance-edit-actions{display:flex;gap:10px;flex-wrap:wrap}.finance-edit-actions form{margin:0}.finance-delete{color:var(--red)}</style>
+<style>.finance-edit-actions{display:flex;gap:10px;flex-wrap:wrap}.finance-edit-actions form{margin:0}.finance-delete{color:var(--red)}[data-other-field][hidden]{display:none!important}</style>
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
 <h1>Edit Transaksi</h1>
 <form method="post" class="card">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <p>{{ 'Pemasukan' if transaction.direction == 'INCOME' else 'Pengeluaran' }}</p>
-<label>Nominal<input name="amount" value="{{ transaction.amount_minor }}" inputmode="numeric" pattern="[0-9]+" required></label>
+<label>Nominal<input name="amount" value="{{ transaction.amount_minor }}" inputmode="numeric" data-idr-input maxlength="25" autocomplete="off" required></label>
 <label>Tanggal<input name="occurred_on" type="date" value="{{ transaction.occurred_on }}" max="{{ today }}" required></label>
 <label>Kas / Rekening<select name="account_id" required>{% for a in accounts if a.currency == transaction.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id == transaction.account_id }}>{{ a.name }}</option>{% endfor %}</select></label>
 <p class="muted">Pilih tempat uang yang dipakai: tunai, rekening bank, atau e-wallet.</p>
