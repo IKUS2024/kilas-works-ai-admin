@@ -2,7 +2,7 @@
 {% if request.endpoint != 'finance.dashboard' %}<p>Bisnis · {{ business.business_name }}</p>{% endif %}
 {% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index') else 'finance.dashboard' %}
 <form method="get" action="{{ url_for(branch_destination,business_id=finance_branch_business_id) }}" class="finance-filter">
-{% for key in ('month','period_mode','range_start','range_end','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
+{% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
 <label for="finance-branch">Cabang</label>
 <select id="finance-branch" name="branch_id">
 <option value="all" {{ 'selected' if all_branches }}>Semua Cabang</option>

@@ -21,6 +21,7 @@ import finance_bank_service as bank
 import finance_bank_extract as extraction
 import finance_reports as reports
 import finance_collections as collections
+import finance_fx as fx
 
 app = prior.app
 
@@ -106,6 +107,42 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(sum(x['summary']['total_income_minor'] for x in context['branch_breakdown']), 500)
         self.assertIn('Utama', response.text); self.assertIn('Serpong', response.text)
         self.assertIn('Uang Tersedia', response.text)
+
+    def test_opening_foreign_balance_is_not_period_income_and_is_explained(self):
+        with self.scope(self.ba):
+            usd = f.create_account(self.b, 'BOFA', 'BANK', currency='USD',
+                                   opening_balance_minor=10000, actor_user_id=self.uid)
+            f.create_transaction(self.b, 'INCOME', 1000000, self.a, self.cat, '2026-09-17',
+                                 currency='IDR', actor_user_id=self.uid)
+        rates = {'rates': {'IDR':'1','USD':'17857.14'}, 'date':'2026-09-18',
+                 'source':'Frankfurter', 'stale':False}
+        with patch.object(fx, 'snapshot', return_value=rates):
+            response, context = self.page(self.ba, period_mode='all')
+        self.assertEqual(response.status_code, 200)
+        usd_flow = next(row for row in context['summaries'] if row['currency']=='USD')
+        usd_balance = next(row for row in context['balance_totals'] if row['currency']=='USD')
+        self.assertEqual(usd_flow['total_income_minor'], 0)
+        self.assertEqual(usd_flow['total_expense_minor'], 0)
+        self.assertEqual(usd_balance['opening_balance_minor'], 10000)
+        self.assertEqual(usd_balance['balance_minor'], 10000)
+        self.assertEqual(context['balance_total'], 1000000)
+        for text in ('Arus Kas Periode', 'US$100.00', 'Termasuk saldo awal',
+                     'Bukan pendapatan baru.', 'Lihat asal saldo'):
+            self.assertIn(text, response.text)
+
+    def test_missing_fx_rate_never_returns_partial_combined_balance(self):
+        with self.scope(self.ba):
+            f.create_account(self.b, 'BOFA', 'BANK', currency='USD',
+                             opening_balance_minor=10000, actor_user_id=self.uid)
+            f.create_transaction(self.b, 'INCOME', 1000000, self.a, self.cat, '2026-09-17',
+                                 currency='IDR', actor_user_id=self.uid)
+        missing = {'rates': {'IDR':'1'}, 'date':'', 'source':'unavailable', 'stale':True}
+        with patch.object(fx, 'snapshot', return_value=missing):
+            response, context = self.page(self.ba, period_mode='all')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(context['estimated_balance_idr'])
+        self.assertIn('Kurs belum lengkap', response.text)
+        self.assertIn('US$100.00', response.text)
 
     def test_dashboard_range_and_all_period_modes(self):
         self.tx(self.ba, 100, day='2026-01-10')

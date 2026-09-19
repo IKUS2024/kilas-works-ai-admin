@@ -1,0 +1,26 @@
+
+<section class="card finance-quick-card cash-balance-card" data-cash-position-card aria-label="Uang tersedia">
+  <div class="cash-balance-head">
+    <div><h3>💰 Uang Tersedia</h3><p class="cash-muted">Saldo saat ini · seluruh riwayat sampai {{ today }}</p></div>
+    <select class="cash-display-select" data-cash-display-currency aria-label="Tampilkan total dalam mata uang">
+      {% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code == display_currency }}>{{ code }}</option>{% endfor %}
+    </select>
+  </div>
+  {% set chosen = balance_displays[display_currency] %}
+  <div class="cash-total cash-money" data-cash-display-value>{{ '≈ ' if chosen.estimated and chosen.complete }}{{ chosen.value }}</div>
+  <div class="cash-muted" data-cash-display-label>{{ chosen.label }}</div>
+  <p class="cash-warning" data-cash-display-warning {% if chosen.complete %}hidden{% endif %}>Kurs belum lengkap. Kilas tidak menampilkan total sebagian sebagai total lengkap.</p>
+
+  <div class="cash-native-list" aria-label="Saldo asli per mata uang">
+    {% for row in balance_totals %}<div class="cash-native-row"><span>{{ row.currency }}</span><strong class="cash-money">{{ row.balance_minor|finance_money(row.currency) }}</strong></div>{% endfor %}
+  </div>
+
+  {% set opening = balance_totals|rejectattr('opening_balance_minor','equalto',0)|list %}
+  {% if opening %}<p class="cash-opening-note">Termasuk saldo awal: {% for row in opening %}<strong class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</strong>{{ ' · ' if not loop.last }}{% endfor %}. <strong>Bukan pendapatan baru.</strong></p>{% endif %}
+
+  {% if chosen.estimated %}<p class="cash-fx-note">{% if fx.source == 'Frankfurter' %}Kurs referensi harian {{ fx.date }}{% if fx.stale %} · data tersimpan/belum diperbarui{% endif %}{% else %}Kurs referensi belum tersedia{% endif %}. Bukan kurs jual/beli bank atau harga transaksi.</p>{% endif %}
+  <p class="cash-fx-note" data-cash-display-rates>{{ chosen.rates }}</p>
+
+  <div class="cash-card-actions"><button type="button" class="finance-period-button" data-finance-open="balance-dialog">Lihat asal saldo</button></div>
+  <script type="application/json" data-cash-display-data>{{ balance_displays|tojson }}</script>
+</section>

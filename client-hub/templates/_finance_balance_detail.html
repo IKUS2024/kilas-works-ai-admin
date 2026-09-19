@@ -1,0 +1,37 @@
+
+<dialog id="balance-dialog" class="finance-sheet">
+  <div class="finance-sheet-head"><h2>💰 Asal Uang Tersedia</h2><button type="button" class="finance-sheet-close" data-finance-close="balance-dialog" aria-label="Tutup">×</button></div>
+  <div class="finance-sheet-body">
+    <p class="cash-muted">Saldo saat ini dihitung dari seluruh riwayat. Angka di bawah tetap dalam mata uang asli dan tidak bergantung pada kurs.</p>
+    {% for row in balance_totals %}
+    <section class="cash-detail-group">
+      <h3>{{ row.currency }}</h3>
+      <dl class="cash-equation">
+        <div><dt>Saldo awal rekening</dt><dd class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>+ Seluruh pemasukan</dt><dd class="cash-money">{{ row.income_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>− Seluruh pengeluaran</dt><dd class="cash-money">{{ row.expense_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>+ Penukaran masuk</dt><dd class="cash-money">{{ row.exchange_in_minor|finance_money(row.currency) }}</dd></div>
+        <div><dt>− Penukaran keluar</dt><dd class="cash-money">{{ row.exchange_out_minor|finance_money(row.currency) }}</dd></div>
+        <div class="cash-equation-total"><dt>= Saldo saat ini</dt><dd class="cash-money">{{ row.balance_minor|finance_money(row.currency) }}</dd></div>
+      </dl>
+    </section>
+    {% endfor %}
+    <p class="cash-muted">Saldo awal adalah uang yang sudah dimiliki saat rekening ditambahkan. Penukaran hanya memindahkan nilai antarmata uang. Keduanya bukan pendapatan baru.</p>
+
+    <h3 style="margin-top:18px">Per Kas / Rekening</h3>
+    {% for a in balances %}
+    <details class="cash-account-detail">
+      <summary><span>{{ a.name }}<small>{% if all_branches %}{{ a.branch_name }} · {% endif %}{{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</small></span><strong class="cash-money">{{ a.balance_minor|finance_money(a.currency) }}</strong></summary>
+      <dl class="cash-equation" style="margin-top:8px">
+        <div><dt>Saldo awal</dt><dd class="cash-money">{{ a.opening_balance_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>+ Pemasukan</dt><dd class="cash-money">{{ a.income_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>− Pengeluaran</dt><dd class="cash-money">{{ a.expense_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>+ Penukaran masuk</dt><dd class="cash-money">{{ a.exchange_in_minor|finance_money(a.currency) }}</dd></div>
+        <div><dt>− Penukaran keluar</dt><dd class="cash-money">{{ a.exchange_out_minor|finance_money(a.currency) }}</dd></div>
+      </dl>
+    </details>
+    {% else %}<p class="finance-empty">Belum ada Kas / Rekening.</p>{% endfor %}
+
+    {% if not all_branches and accounts|selectattr('is_active')|list|length>1 %}<button type="button" class="btn secondary" data-finance-open="fx-dialog">⇄ Tukar Mata Uang</button>{% endif %}
+  </div>
+</dialog>
