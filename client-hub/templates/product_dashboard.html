@@ -30,7 +30,7 @@
 .action-tile:hover{border-color:#4a4e56;background:rgba(255,255,255,.025);text-decoration:none}
 .action-icon{width:30px;height:30px;border-radius:9px;background:var(--bg-soft);display:grid;place-items:center;color:var(--text-dim);flex:0 0 auto}.action-icon svg{width:17px;height:17px}
 .orders-card{padding:18px}.orders-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.orders-head h2{margin:0}
-.order-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--border)}.order-row:first-of-type{border-top:0}.order-main{min-width:0}.order-main a{font-weight:700}.order-meta{font-size:12px;color:var(--text-dim);margin-top:2px}
+.order-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-top:1px solid var(--border)}.order-row:first-of-type{border-top:0}.order-main{min-width:0;flex:1}.order-main a{font-weight:700}.order-meta{font-size:12px;color:var(--text-dim);margin-top:2px}.order-action{flex:0 0 auto}.order-action .btn{margin:0}
 @media(max-width:720px){.home-intro h1{font-size:24px}.business-picker{display:block}.business-picker .btn{width:100%;margin-top:10px}.product-grid{grid-template-columns:1fr}.business-shell{padding:14px}.product-panel{padding:14px}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.product-primary{display:grid;grid-template-columns:1fr 1fr}.product-primary .btn{width:100%}}
 @media(max-width:430px){.action-grid{grid-template-columns:1fr 1fr}.action-tile{padding:9px 8px;font-size:12px}.product-primary{grid-template-columns:1fr}.business-avatar{width:42px;height:42px}.business-title h2{font-size:19px}}
 </style>
@@ -163,10 +163,12 @@
   {% endfor %}
 
   <section class="card orders-card">
-    <div class="orders-head"><h2>Pesanan Layanan</h2><a class="btn small secondary" href="{{ url_for('products.index') }}">Lihat Layanan</a></div>
+    <div class="orders-head"><h2>Pesanan Layanan</h2><a class="btn small secondary" href="{{ url_for('products.index') }}">＋ Tambah Layanan</a></div>
     {% for p in my_projects %}
+      {% set order_url = url_for('projects.purchase_brief',project_id=p.id,edit=1) if p.can_edit_brief else url_for('projects.project_view',project_id=p.id) %}
       <div class="order-row">
-        <div class="order-main"><a href="{{ url_for('projects.project_view',project_id=p.id) }}">{{ p.title }}</a><div class="order-meta">{{ p.status|humanize_status('project') }}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status }}{% endif %}</div></div>
+        <div class="order-main"><a href="{{ order_url }}">{{ p.title }}</a><div class="order-meta">{% if p.can_edit_brief %}Lengkapi brief sebelum dikirim ke Kilas Works{% else %}{{ p.status|humanize_status('project') }}{% endif %}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status|humanize_status('payment') }}{% endif %}</div></div>
+        <div class="order-action"><a class="btn small secondary" href="{{ order_url }}">{{ 'Lanjutkan' if p.can_edit_brief else 'Buka' }}</a></div>
       </div>
     {% else %}
       <p class="muted">Belum ada pesanan berjalan.</p>
