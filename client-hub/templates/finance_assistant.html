@@ -5,8 +5,8 @@
 <main class="finance-assistant" id="finance-assistant">
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
 <h1>AI Assistant</h1>
-<p>{{ business.business_name }} · Tanya Finance atau kirim dokumen. Assistant akan memilih alur yang sesuai dan tetap meminta review sebelum pencatatan.</p>
-<p class="muted">Kamu tetap memeriksa dan mengonfirmasi setiap pencatatan. Percakapan tidak disimpan; muat ulang akan menghapus tampilan sementara. Jangan masukkan kredensial atau nomor rekening.</p>
+<p class="assistant-intro">{{ business.business_name }} · Tanya Finance atau kirim dokumen. Assistant memilih alur yang sesuai dan tetap meminta review sebelum pencatatan.</p>
+<details class="assistant-safety-details"><summary>Privasi & konfirmasi</summary><p class="muted">Kamu tetap memeriksa dan mengonfirmasi setiap pencatatan. Percakapan tidak disimpan; muat ulang akan menghapus tampilan sementara. Jangan masukkan kredensial atau nomor rekening.</p></details>
 <form id="assistant-composer" class="card" method="post" enctype="multipart/form-data" autocomplete="off"
       action="{{ url_for('finance.assistant_route',business_id=business.id) }}"
       data-route="{{ url_for('finance.assistant_route',business_id=business.id) }}"
@@ -25,7 +25,7 @@
 </div>
 <input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
 <input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" hidden>
-<p id="assistant-file-help" class="muted">File tidak langsung mengubah data Finance. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p>
+<details class="assistant-file-details"><summary>Format & batas file</summary><p id="assistant-file-help" class="muted">File tidak langsung mengubah data Finance. Struk: 1 file, 5 MiB, PDF 10 halaman. Mutasi: CSV 2 MiB; PDF 10 MiB / 20 halaman; maksimal 10 gambar, 5 MiB per gambar dan 25 MiB total.</p></details>
 </div>
 
 <details class="assistant-mode-details">
