@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Tagihan & Akun · Kilas Works{% endblock %}
+{% block title %}Tagihan · Kilas Works{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <div class="client-page">
-  <header class="client-head"><div><h1>Tagihan &amp; Akun</h1><p>Semua pembayaran Kilas Works dalam satu tempat.</p></div><span class="client-count">{{ businesses_total }} bisnis</span></header>
+  <header class="client-head"><div><h1>Tagihan</h1><p>Semua pembayaran dan langganan Kilas Works dalam satu tempat.</p></div><span class="client-count">{{ businesses_total }} bisnis</span></header>
 
   <form method="get" class="card client-search-card" action="{{ url_for('products.account_bills') }}">
     <div class="client-search-row">
