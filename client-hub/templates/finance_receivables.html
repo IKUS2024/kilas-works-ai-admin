@@ -3,13 +3,9 @@
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page">
-<div class="fin-top-actions">
-<a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
-<a class="btn secondary" href="{{ url_for('finance.operations',business_id=business.id) }}">Biaya Rutin &amp; Proyek</a>
-<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a>
-</div>
-<h1 style="margin-top:16px;">Pelanggan &amp; Piutang</h1>
-<p class="muted">{{ business.business_name }} · Pilih bagian yang mau dibuka. Halaman tidak lagi menampilkan semuanya sekaligus.</p>
+{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
+<h1 class="fin-page-title">Pelanggan &amp; Piutang</h1>
+<p class="muted fin-page-subtitle">{{ business.business_name }} · Kelola customer, invoice, pembayaran &amp; piutang.</p>
 
 <div class="card">
 <div class="fin-section-head"><div><h2>Menu Pelanggan</h2><p class="muted">Tap satu menu untuk membuka bagiannya.</p></div>
