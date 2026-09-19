@@ -126,6 +126,7 @@ def dashboard():
     brain_changes_waiting = [
         b for b in all_businesses
         if b.get("package") != "NONE"
+        and b.get("status") in ("APPROVED", "ACTIVE")
         and (repo.get_ai_settings(b["id"]) or {}).get("ai_status") == "STALE"
     ]
     brain_changes_waiting_ids = {b["id"] for b in brain_changes_waiting}
@@ -363,7 +364,10 @@ def _normalize_brain_draft_for_review(business_id, actor_user_id):
         tenant_features=repo.get_tenant_features(business_id),
     )
     if error:
-        repo.set_ai_status(business_id, "FAILED", error=error)
+        if business["status"] in ("APPROVED", "ACTIVE"):
+            repo.set_ai_status(business_id, "STALE", error=error)
+        else:
+            repo.set_ai_status(business_id, "FAILED", error=error)
         repo.write_audit(actor_user_id, business_id, "ai_normalization_failed",
                          "Brain draft re-approval normalization failed")
         return False, error
