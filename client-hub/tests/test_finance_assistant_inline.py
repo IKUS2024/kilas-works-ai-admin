@@ -61,6 +61,15 @@ class InlineTests(unittest.TestCase):
         r=self.message('pengeluaran makan 120 ribu');self.assertFalse(r.json['ready']);self.assertIn('rekening mana',r.json['message'])
         self.assertEqual(f.list_transactions(self.b),[])
         self.assertTrue(self.revise(r.json,account_id=str(self.a)).json['ready'])
+    def test_plain_integer_amount_is_preserved_while_account_is_missing(self):
+        f.create_account(self.b,'Kas lain',actor_user_id=self.uid)
+        r=self.message('tambahin pendapatan dari jasa foto 2200000')
+        self.assertEqual(r.status_code,200,r.text);self.assertFalse(r.json['ready'])
+        values={v['key']:v['value'] for v in r.json['fields']}
+        self.assertEqual(values['amount'],'2200000')
+        self.assertIn('Nominal sudah terbaca',r.json['message'])
+        self.assertEqual(f.list_transactions(self.b),[])
+
     def test_exact_account_currency_and_foreign_amount(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',actor_user_id=self.uid)
         r=self.message('pengeluaran software 25.50 USD hari ini');self.assertEqual(r.status_code,200,r.text)

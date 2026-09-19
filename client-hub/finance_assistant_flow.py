@@ -18,6 +18,7 @@ import finance_fx as fx
 
 TTL = 600
 AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)\b|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
+BARE_AMOUNT = re.compile(r'(?<![\\w.,+−-])\\d{4,}(?![\\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
           'customer':'Customer baru','recurring':'Biaya rutin','receipt':'Struk pengeluaran'}
 
@@ -155,12 +156,15 @@ def text_message(b,u,text):
     if re.search(r'\b(buat|bikin)\s+invoice\b',text,re.I):
         return dict(kind='clarification',message='Pembuatan invoice tetap memakai editor invoice yang tersedia. Lengkapi customer, deskripsi item, jumlah, harga, mata uang, tanggal terbit dan jatuh tempo; invoice disimpan sebagai draft.',
                     review_url=url_for('finance.new_invoice',business_id=b))
+    schedule=bool(re.search(r'\\b(rutin|berulang|mingguan|bulanan|tiap|setiap)\\b',text,re.I))
+    action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\\binvoice\\b',text,re.I) else 'create_income' if re.search(r'\\b(pemasukan|pendapatan|penjualan|terima)\\b',text,re.I) else 'create_expense' if re.search(r'\\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa)\\b',text,re.I) else ''
+    if not action:return dict(kind='clarification',message='Mau mencatat pemasukan, pengeluaran, customer, atau bertanya laporan? Tulis satu permintaan beserta nominal bila ada.')
     matches=list(AMOUNT.finditer(text))
+    # Natural Indonesian chat often uses a plain rupiah-sized integer ("2200000")
+    # without writing Rp/ribu/juta. Preserve that exact token instead of asking again.
+    if not matches:matches=list(BARE_AMOUNT.finditer(text))
     if len(matches)>1:return dict(kind='clarification',message='Ada beberapa nominal. Kirim satu transaksi per pesan agar nominal, akun, dan kategori dapat direview dengan jelas.')
     amount=matches[0][0] if matches else ''
-    schedule=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap)\b',text,re.I))
-    action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa)\b',text,re.I) else ''
-    if not action:return dict(kind='clarification',message='Mau mencatat pemasukan, pengeluaran, customer, atau bertanya laporan? Tulis satu permintaan beserta nominal bila ada.')
     description=text
     if matches:description=text[:matches[0].start()]+text[matches[0].end():]
     description=re.sub(r'\b(pengeluaran|pemasukan|catat(?:kan)?|tadi|beli|hari ini|kemarin)\b','',description,flags=re.I).strip(' ,.')[:500]
@@ -216,7 +220,7 @@ def review(b,u,context,edits=None):
                      field('category_id','Kategori',values['category_id'],pick_options(categories)),field('description','Keterangan',values['description'])])
         if action=='recurring':form.extend([field('name','Nama jadwal',values['name']),field('cadence','Frekuensi',values['cadence'],[dict(value='MONTHLY',label='Bulanan'),dict(value='WEEKLY',label='Mingguan')]),field('end_on','Berakhir',values['end_on'],kind='date',required=False)])
         if action=='receipt':form.append(field('merchant_name','Merchant',values['merchant_name'],required=False))
-        if not account:result['message']='Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
+        if not account:result['message']='Nominal sudah terbaca. Tinggal pilih kas / rekening yang dipakai.' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif not category:result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
         elif not values['date']:result['message']='Tanggal belum jelas. Lengkapi tanggal pada review.'
         elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
