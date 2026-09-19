@@ -231,6 +231,7 @@ def get_tenant_knowledge(tenant_id):
     return {
         "faq": knowledge.get("faq", []),
         "policies": knowledge.get("policies", []),
+        "documents": knowledge.get("documents", []),
         "services": knowledge.get("services", []),
         "products": knowledge.get("products", []),
         "pricing_notes": knowledge.get("pricing_notes"),
