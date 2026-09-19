@@ -75,6 +75,9 @@ def dashboard():
     talent_requests_waiting = [
         r for r in all_talent_requests if r["status"] == "WAITING_FOR_REVIEW"
     ]
+    talent_request_by_project = {
+        r["project_id"]: r for r in all_talent_requests if r.get("project_id")
+    }
     talent_review_project_ids = {
         r["project_id"] for r in talent_requests_waiting if r.get("project_id")
     }
@@ -101,6 +104,8 @@ def dashboard():
         item = dict(project)
         business = businesses_by_id.get(item.get("business_id"))
         item["business_name"] = business["business_name"] if business else "Pesanan pribadi"
+        talent_request = talent_request_by_project.get(item["id"])
+        item["talent_request_id"] = talent_request["id"] if talent_request else None
         recent_service_orders.append(item)
         if len(recent_service_orders) >= 8:
             break
@@ -199,8 +204,14 @@ def review_business(business_id):
         p for p in projects_repo.list_projects_for_business(business_id)
         if p.get("catalog_key") not in ("ai_admin", "ai_admin_basic", "ai_admin_pro")
     ]
+    business_talent_requests = {
+        r["project_id"]: r for r in talent_service.list_talent_requests_for_business(business_id)
+        if r.get("project_id")
+    }
     for project in service_projects:
         project["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(project)
+        talent_request = business_talent_requests.get(project["id"])
+        project["talent_request_id"] = talent_request["id"] if talent_request else None
     return render_template(
         "review.html",
         business=business,
