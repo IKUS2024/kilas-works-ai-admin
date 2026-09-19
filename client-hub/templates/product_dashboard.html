@@ -163,8 +163,8 @@
   {% endfor %}
 
   <section class="card orders-card">
-    <div class="orders-head"><h2>Pesanan Layanan</h2><a class="btn small secondary" href="{{ url_for('products.index') }}">＋ Tambah Layanan</a></div>
-    {% for p in my_projects %}
+    <div class="orders-head"><div><h2>Pesanan Layanan</h2><div class="order-meta">{{ my_projects|length }} pesanan aktif · 3 terbaru ditampilkan</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><a class="btn small secondary" href="{{ url_for('projects.my_project_list', view='active') }}">Semua Pesanan</a><a class="btn small secondary" href="{{ url_for('products.index') }}">＋ Tambah</a></div></div>
+    {% for p in recent_projects %}
       {% set order_url = url_for('talent.talent_list') if p.legacy_talent_flow else (url_for('projects.purchase_brief',project_id=p.id,edit=1) if p.can_edit_brief else url_for('projects.project_view',project_id=p.id)) %}
       <div class="order-row">
         <div class="order-main"><a href="{{ order_url }}">{{ p.title }}</a><div class="order-meta">{% if p.legacy_talent_flow %}Flow lama · pilih profil talent untuk membuat request baru{% elif p.can_edit_brief %}Lengkapi brief sebelum dikirim ke Kilas Works{% elif p.project_type == 'TALENT' and p.status == 'REQUESTED' %}Menunggu review{% else %}{{ p.status|humanize_status('project') }}{% endif %}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status|humanize_status('payment') }}{% endif %}</div></div>
