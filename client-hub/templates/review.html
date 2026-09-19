@@ -167,7 +167,8 @@
         <tr><th>Deskripsi</th><td>{{ profile.short_description|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Owner</th><td>{{ profile.owner_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Telepon bisnis</th><td>{{ profile.business_phone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-        <tr><th>Alamat</th><td>{{ profile.address|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Alamat / area layanan</th><td>{{ profile.address|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>Model layanan</th><td>{{ ({'online':'Online','offline':'Offline / datang ke lokasi','both':'Online & offline','hybrid':'Online & offline'}.get(profile.online_or_offline, profile.online_or_offline))|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Jam operasional</th><td>{{ profile.operating_hours|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Hari libur</th><td>{{ profile.closed_days|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Bahasa utama</th><td>{{ profile.primary_language|display_or_missing if profile else 'Belum diisi' }}</td></tr>
@@ -268,7 +269,7 @@
       <summary>Produk / Layanan · {{ services|length }}</summary>
       <div class="review-subsection-body">
         <table>
-          <tr><th>Raw input</th><th>Nama (AI)</th><th>Harga (AI)</th><th></th></tr>
+          <tr><th>Yang kamu isi</th><th>Nama layanan</th><th>Harga terbaca</th><th>Status</th></tr>
           {% for s in services %}
             <tr><td>{{ s.raw_input }}</td>{% if not s.service_name and ai_settings and ai_settings.ai_status == 'FAILED' %}<td colspan="2" class="muted">Belum diproses — AI Setup gagal</td>{% else %}<td>{{ s.service_name|display_or_missing }}</td><td>{% if s.price_from %}{{ s.currency }} {{ '{:,}'.format(s.price_from) }}{% if s.price_to %}–{{ '{:,}'.format(s.price_to) }}{% endif %}{% else %}Belum diisi{% endif %}</td>{% endif %}<td>{% if s.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td></tr>
           {% else %}<tr><td colspan="4" class="muted">Belum ada produk / layanan.</td></tr>{% endfor %}
@@ -280,7 +281,7 @@
       <summary>FAQ · {{ faqs|length }}</summary>
       <div class="review-subsection-body">
         <table>
-          <tr><th>Raw input</th><th>Q (AI)</th><th>A (AI)</th><th></th></tr>
+          <tr><th>Yang kamu isi</th><th>Pertanyaan</th><th>Jawaban</th><th>Status</th></tr>
           {% for f in faqs %}
             <tr><td>{{ f.raw_input }}</td>{% if not f.question and ai_settings and ai_settings.ai_status == 'FAILED' %}<td colspan="2" class="muted">Belum diproses — AI Setup gagal</td>{% else %}<td>{{ f.question|display_or_missing }}</td><td>{{ f.answer|display_or_missing }}</td>{% endif %}<td>{% if f.needs_review %}<span class="needs-review">perlu review</span>{% endif %}</td></tr>
           {% else %}<tr><td colspan="4" class="muted">Belum ada FAQ.</td></tr>{% endfor %}
@@ -289,12 +290,12 @@
     </details>
 
     <details class="review-subsection">
-      <summary>Files · {{ files|length }}</summary>
+      <summary>Dokumen · {{ files|length }}</summary>
       <div class="review-subsection-body">
         {% if files %}
           <table><tr><th>File</th><th>Diupload</th><th></th></tr>
           {% for f in files %}<tr><td>{{ f.original_filename }}</td><td class="muted">{{ f.created_at|humanize_timestamp }}</td><td><a href="{{ url_for('admin.download_file', business_id=business.id, file_id=f.id) if is_admin_view else url_for('client.download_file', business_id=business.id, file_id=f.id) }}">Unduh</a></td></tr>{% endfor %}</table>
-        {% else %}<p class="muted">Belum ada file diupload.</p>{% endif %}
+        {% else %}<p class="muted">Belum ada dokumen diupload.</p>{% endif %}
       </div>
     </details>
   </section>
