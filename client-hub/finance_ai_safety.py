@@ -39,6 +39,12 @@ def upload_event(reason):
     _LOG.info('FINANCE_AI upload_reason=%s',reason if reason in allowed else 'validation_rejected')
 
 
+def pdf_event(reason):
+    allowed = {'encrypted/password_required', 'page_limit', 'parser_timeout',
+               'resource_limit', 'malformed_pdf', 'size_limit', 'text_extraction_failed'}
+    _LOG.info('FINANCE_AI pdf_reason=%s', reason if reason in allowed else 'malformed_pdf')
+
+
 def endpoint(view):
     """Observe existing auth decisions; never replace authentication or CSRF."""
     @wraps(view)

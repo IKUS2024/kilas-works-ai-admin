@@ -208,6 +208,9 @@ def validate_receipt_upload(filename, content_bytes):
     PDFs are parsed in a bounded child process: no archive, temporary draft or OCR
     vendor. Return safe name, real MIME and bounded PDF text (None for scans/images).
     """
+    if _extension_of(sanitize_filename(filename)) == 'pdf':
+        safe_name = _validate_finance_pdf_bytes(filename, content_bytes, receipt=True)
+        return safe_name, 'application/pdf', _finance_pdf_text(content_bytes, receipt=True) or None
     safe_name, mime = validate_project_attachment_upload(filename, content_bytes)
     if mime != 'application/pdf':
         try:
@@ -219,59 +222,93 @@ def validate_receipt_upload(filename, content_bytes):
         except Exception:
             raise UploadRejected('Gambar tidak valid, terlalu besar, atau format tidak sesuai.') from None
         return safe_name, mime, None
-    import json
-    import subprocess
-    import sys
-    from pathlib import Path
-    try:
-        result = subprocess.run([sys.executable, str(Path(__file__).with_name('finance_receipt_pdf.py'))],
-                                input=content_bytes, capture_output=True, timeout=8, check=True)
-        data = json.loads(result.stdout)
-        if set(data) != {'text'} or not isinstance(data['text'], str) or len(data['text']) > 20000:
-            raise ValueError('invalid_pdf')
-        return safe_name, mime, data['text'] or None
-    except Exception:
-        if _finance_pdf_structure_valid(content_bytes):
-            return safe_name, mime, None
-        raise UploadRejected('PDF tidak valid, terenkripsi, terlalu kompleks, atau melebihi 10 halaman.') from None
 
 
 def validate_bank_pdf(filename, content_bytes):
     """Bank-only 10 MiB/20-page wrapper sharing existing PDF sniff and isolated worker."""
-    import json
-    import subprocess
-    import sys
-    from pathlib import Path
-    safe_name = sanitize_filename(filename)
-    if (_extension_of(safe_name) != 'pdf' or not content_bytes or len(content_bytes) > 10 * 1024 * 1024
-            or not _looks_like_valid_pdf(content_bytes)):
-        raise UploadRejected('PDF bank tidak valid atau melebihi 10 MiB.')
-    try:
-        result = subprocess.run([sys.executable, str(Path(__file__).with_name('finance_receipt_pdf.py')),
-                                 '--bank-statement'], input=content_bytes, capture_output=True, timeout=8, check=True)
-        data = json.loads(result.stdout)
-        if set(data) != {'text'} or not isinstance(data['text'], str) or len(data['text']) > 100000:
-            raise ValueError()
-        return safe_name, data['text']
-    except Exception:
-        if _finance_pdf_structure_valid(content_bytes, bank=True):
-            return safe_name, ''
-        raise UploadRejected('PDF bank tidak valid, terlalu kompleks, terenkripsi, atau melebihi 20 halaman.') from None
+    safe_name = _validate_finance_pdf_bytes(filename, content_bytes)
+    return safe_name, _finance_pdf_text(content_bytes)
 
 
-def _finance_pdf_structure_valid(raw, bank=False):
-    """Retry structural validation only after bounded text decoding failed.
+def validate_finance_pdf(filename, content_bytes):
+    """Generic pre-classification structure check; no bank or receipt interpretation.
 
-    Password, structure, page, memory and CPU checks still gate provider fallback.
+    Up to 10 MiB/20 pages. Specialized workflows retain their own limits afterward.
+    The original bytes are kept request-local for document classification/vision.
     """
+    safe_name = _validate_finance_pdf_bytes(filename, content_bytes)
+    _run_finance_pdf(content_bytes, structure_only=True)
+    return safe_name
+
+
+def _pdf_rejected(reason, receipt=False):
+    import finance_ai_safety as safety
+    messages = {
+        'encrypted/password_required': 'PDF ini terenkripsi dan memerlukan password. Upload PDF tanpa password atau foto/screenshot.',
+        'page_limit': f'PDF melebihi batas {10 if receipt else 20} halaman. Pisahkan dokumen lalu upload kembali.',
+        'size_limit': f'PDF melebihi batas {5 if receipt else 10} MiB. Upload dokumen yang lebih kecil.',
+        'parser_timeout': 'PDF terlalu kompleks untuk diperiksa dengan aman. Upload PDF sederhana atau foto/screenshot.',
+        'resource_limit': 'PDF melewati batas sumber daya pemeriksaan aman. Upload PDF sederhana atau foto/screenshot.',
+        'malformed_pdf': 'File PDF tidak dapat dibaca atau strukturnya rusak. Upload ulang PDF atau foto/screenshot.',
+    }
+    reason = reason if reason in messages else 'malformed_pdf'
+    safety.pdf_event(reason)
+    return UploadRejected(messages[reason], reason)
+
+
+def _validate_finance_pdf_bytes(filename, raw, receipt=False):
+    if len(raw) > (5 if receipt else 10) * 1024 * 1024:
+        raise _pdf_rejected('size_limit', receipt)
+    safe_name = sanitize_filename(filename)
+    if _extension_of(safe_name) != 'pdf' or not raw or not _looks_like_valid_pdf(raw):
+        raise _pdf_rejected('malformed_pdf', receipt)
+    return safe_name
+
+
+def _run_finance_pdf(raw, receipt=False, structure_only=False):
     import json
     import subprocess
     import sys
     from pathlib import Path
-    args=[sys.executable,str(Path(__file__).with_name('finance_receipt_pdf.py')),'--validate-only']
-    if bank:args.append('--bank-statement')
+    import finance_ai_safety as safety
+    args = [sys.executable, str(Path(__file__).with_name('finance_receipt_pdf.py'))]
+    if not receipt:
+        args.append('--document')
+    if structure_only:
+        args.append('--validate-only')
     try:
-        result=subprocess.run(args,input=raw,capture_output=True,timeout=8,check=True)
-        return json.loads(result.stdout)=={'text':''}
-    except Exception:
-        return False
+        result = subprocess.run(args, input=raw, capture_output=True, timeout=8, check=True)
+        data = json.loads(result.stdout)
+        if set(data) == {'error'} and isinstance(data['error'], str):
+            raise _pdf_rejected(data['error'], receipt)
+        if (set(data) != {'text'} or not isinstance(data['text'], str)
+                or len(data['text']) > (20000 if receipt else 100000)
+                or (structure_only and data['text'])):
+            raise ValueError()
+        if b'text_extraction_failed\n' in result.stderr:
+            safety.pdf_event('text_extraction_failed')
+        return data['text']
+    except UploadRejected:
+        raise
+    except subprocess.TimeoutExpired:
+        raise _pdf_rejected('parser_timeout', receipt) from None
+    except subprocess.CalledProcessError as error:
+        # SIGKILL/SIGXCPU are the worker's OS resource ceilings; no child diagnostics logged.
+        reason = 'resource_limit' if error.returncode in (-9, -24) else 'malformed_pdf'
+        raise _pdf_rejected(reason, receipt) from None
+    except (MemoryError, OSError):
+        raise _pdf_rejected('resource_limit', receipt) from None
+    except (ValueError, TypeError, KeyError):
+        raise _pdf_rejected('malformed_pdf', receipt) from None
+
+
+def _finance_pdf_text(raw, receipt=False):
+    try:
+        return _run_finance_pdf(raw, receipt=receipt)
+    except UploadRejected as error:
+        if error.code in ('encrypted/password_required', 'page_limit', 'size_limit'):
+            raise
+        # A failed text decoder is not proof of a bad document. A separate bounded
+        # structure-only pass must succeed before passing original bytes to vision.
+        _run_finance_pdf(raw, receipt=receipt, structure_only=True)
+        return ''
