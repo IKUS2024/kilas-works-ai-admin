@@ -23,9 +23,9 @@
             <div class="client-item-title">{{ p.title }}</div>
             <div class="client-item-meta">{{ p.project_type }} · {{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Harga belum ditetapkan' }}</div>
           </div>
-          <div class="client-item-side"><span class="client-status {{ 'ok' if p.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAYMENT_PENDING') else '') }}">{{ p.status|humanize_status('project') }}</span></div>
+          <div class="client-item-side"><span class="client-status {{ 'ok' if p.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAYMENT_PENDING') else '') }}">{% if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') %}Pilih talent{% else %}{{ p.status|humanize_status('project') }}{% endif %}</span></div>
         </div>
-        <div class="client-actions"><a class="btn small secondary" href="{{ url_for('projects.project_view', project_id=p.id) }}">Lihat Detail →</a></div>
+        <div class="client-actions"><a class="btn small secondary" href="{{ url_for('talent.talent_list') if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else url_for('projects.project_view', project_id=p.id) }}">{{ 'Pilih Talent →' if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else 'Lihat Detail →' }}</a></div>
       </article>
       {% else %}<div class="client-empty">Belum ada pesanan di bagian ini.</div>{% endfor %}
     </div>
