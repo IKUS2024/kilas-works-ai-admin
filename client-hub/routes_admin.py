@@ -654,6 +654,9 @@ def project_admin_detail(project_id):
     project = projects_repo.get_project(project_id)
     if project is None:
         abort(404)
+    talent_request = db.query_one("SELECT id FROM talent_requests WHERE project_id=?", (project_id,))
+    if talent_request:
+        return redirect(url_for("admin.talent_request_detail", request_id=talent_request["id"]))
     business = repo.get_business(project["business_id"])
     quotations = db.query_all("SELECT * FROM quotations WHERE project_id=? ORDER BY id DESC",(project_id,))
     audit_trail = repo.get_project_audit_log(project_id)
