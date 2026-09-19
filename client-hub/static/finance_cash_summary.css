@@ -13,6 +13,9 @@
 .cash-flow-stat strong{font-size:clamp(15px,4vw,21px);display:block;overflow-x:auto}
 .cash-balance-card{min-width:0}
 .cash-display-select{width:auto!important;min-width:76px!important;padding:7px 26px 7px 9px!important;font-size:13px;font-weight:800}
+.cash-estimate-block{border-top:1px solid var(--border);padding-top:14px;margin-top:12px}
+.cash-estimate-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.cash-estimate-head>div{min-width:0}.cash-estimate-head strong{font-size:14px}
 .cash-total{font-size:clamp(27px,7vw,36px);font-weight:800;line-height:1.15;margin:14px 0 4px;overflow-x:auto}
 .cash-native-list{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:8px 0;margin:12px 0}
 .cash-native-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0}
