@@ -7,6 +7,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 import security
 import quotation_service
+import projects_repo
 
 quotations_bp = Blueprint("quotations", __name__)
 
@@ -72,7 +73,8 @@ def quotation_detail(business_id, quotation_id):
     if user["role"] != "KILAS_ADMIN":
         quotation_service.mark_viewed(quotation_id)
         quotation = quotation_service.get_quotation(quotation_id)  # re-fetch post-view-mark
-    return render_template("quotation_detail.html", business=business, quotation=quotation)
+    project = projects_repo.get_project(quotation["project_id"])
+    return render_template("quotation_detail.html", business=business, quotation=quotation, project=project)
 
 
 @quotations_bp.route("/business/<int:business_id>/quotations/<int:quotation_id>/approve", methods=["POST"])
