@@ -160,8 +160,10 @@ def dashboard():
         project['can_cancel'] = projects_repo.customer_can_cancel(project, project.get('payment'))
         visible_projects.append(project)
     my_projects = visible_projects
+    recent_projects = my_projects[:3]
     return render_template(
-        "product_dashboard.html" if __import__("finance_entitlements").self_service() else "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects,
+        "product_dashboard.html" if __import__("finance_entitlements").self_service() else "client_dashboard.html",
+        user=user, businesses=enriched, my_projects=my_projects, recent_projects=recent_projects,
         all_businesses=all_businesses, finance_beta_enabled=__import__("routes_finance").beta_enabled()
     )
 
@@ -944,6 +946,13 @@ def inbox_page(business_id):
     if mode_filter not in ('', 'AI_ACTIVE', 'HUMAN_TAKEOVER'):
         mode_filter = ''
     conversations = inbox_service.list_conversations(business_id, search=search, mode_filter=mode_filter or None)
+    conversations_total = len(conversations)
+    inbox_per_page = 10
+    inbox_total_pages = max(1, (conversations_total + inbox_per_page - 1) // inbox_per_page)
+    inbox_page = request.args.get("page", 1, type=int) or 1
+    inbox_page = min(max(1, inbox_page), inbox_total_pages)
+    inbox_start = (inbox_page - 1) * inbox_per_page
+    conversations = conversations[inbox_start:inbox_start + inbox_per_page]
     selected_phone = inbox_service.normalize_customer_phone(request.args.get("customer"))
     selected = None
     thread = []
@@ -970,6 +979,9 @@ def inbox_page(business_id):
         template_readiness=inbox_service.template_readiness(business_id) if selected and selected["mode"] == "HUMAN_TAKEOVER" and not (window and window.get("allowed")) else None,
         business=business,
         conversations=conversations,
+        conversations_total=conversations_total,
+        inbox_page=inbox_page,
+        inbox_total_pages=inbox_total_pages,
         selected=selected,
         thread=thread,
         window=window,
