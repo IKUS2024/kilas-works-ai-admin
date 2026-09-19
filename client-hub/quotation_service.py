@@ -141,7 +141,7 @@ def reject_quotation(quotation_id, business_id, actor_user_id, note=None):
             reason += f": {revision_note}"
         reason += f". Buka: https://app.kilasworks.id/admin/projects/{quotation['project_id']}"
         owner_notifications.notify_human_attention_required(
-            business_id, reason, ref_id=f"quote-revision-{quotation_id}"
+            business_id, reason, ref_id=quotation_id
         )
     except Exception:
         pass
