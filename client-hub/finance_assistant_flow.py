@@ -18,7 +18,7 @@ import finance_fx as fx
 
 TTL = 600
 AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)\b|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
-BARE_AMOUNT = re.compile(r'(?<![\\w.,+−-])\\d{4,}(?![\\w.,])')
+BARE_AMOUNT = re.compile(r'(?<![\w.,+−-])\d{4,}(?![\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
           'customer':'Customer baru','recurring':'Biaya rutin','receipt':'Struk pengeluaran'}
 
@@ -156,8 +156,8 @@ def text_message(b,u,text):
     if re.search(r'\b(buat|bikin)\s+invoice\b',text,re.I):
         return dict(kind='clarification',message='Pembuatan invoice tetap memakai editor invoice yang tersedia. Lengkapi customer, deskripsi item, jumlah, harga, mata uang, tanggal terbit dan jatuh tempo; invoice disimpan sebagai draft.',
                     review_url=url_for('finance.new_invoice',business_id=b))
-    schedule=bool(re.search(r'\\b(rutin|berulang|mingguan|bulanan|tiap|setiap)\\b',text,re.I))
-    action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\\binvoice\\b',text,re.I) else 'create_income' if re.search(r'\\b(pemasukan|pendapatan|penjualan|terima)\\b',text,re.I) else 'create_expense' if re.search(r'\\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa)\\b',text,re.I) else ''
+    schedule=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap)\b',text,re.I))
+    action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa)\b',text,re.I) else ''
     if not action:return dict(kind='clarification',message='Mau mencatat pemasukan, pengeluaran, customer, atau bertanya laporan? Tulis satu permintaan beserta nominal bila ada.')
     matches=list(AMOUNT.finditer(text))
     # Natural Indonesian chat often uses a plain rupiah-sized integer ("2200000")
