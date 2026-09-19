@@ -118,15 +118,30 @@ def reject_quotation(quotation_id, business_id, actor_user_id, note=None):
     if quotation["status"] not in ("SENT", "VIEWED"):
         raise ValueError(f"invalid_state: quotation is {quotation['status']}, cannot reject")
 
+    revision_note = (note or "").strip()
+    stored_notes = quotation["notes"] or ""
+    if revision_note:
+        stored_notes = (stored_notes + "\n\n" if stored_notes else "") + f"Permintaan revisi customer: {revision_note}"
     db.execute(
         "UPDATE quotations SET status = 'REJECTED', responded_at = datetime('now'), "
         "notes = ?, updated_by_user_id = ? WHERE id = ?"
         if db.BACKEND == "sqlite" else
         "UPDATE quotations SET status = 'REJECTED', responded_at = now(), "
         "notes = ?, updated_by_user_id = ? WHERE id = ?",
-        (note or quotation["notes"], actor_user_id, quotation_id),
+        (stored_notes or None, actor_user_id, quotation_id),
     )
     projects_repo.set_project_status(quotation["project_id"], "WAITING_FOR_QUOTE", actor_user_id, business_id,
-                                      f"{quotation['quotation_number']} rejected by customer: {note or ''}")
-    repo.write_audit(actor_user_id, business_id, "QUOTE_REJECTED", f"{quotation['quotation_number']}: {note or ''}",
+                                      f"{quotation['quotation_number']} rejected by customer: {revision_note}")
+    repo.write_audit(actor_user_id, business_id, "QUOTE_REJECTED", f"{quotation['quotation_number']}: {revision_note}",
                       project_id=quotation["project_id"])
+    try:
+        import owner_notifications
+        reason = f"Customer minta revisi {quotation['quotation_number']}"
+        if revision_note:
+            reason += f": {revision_note}"
+        reason += f". Buka: https://app.kilasworks.id/admin/projects/{quotation['project_id']}"
+        owner_notifications.notify_human_attention_required(
+            business_id, reason, ref_id=quotation_id
+        )
+    except Exception:
+        pass
