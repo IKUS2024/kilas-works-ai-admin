@@ -61,11 +61,25 @@
             <span class="review-product-icon" aria-hidden="true">🧠</span>
             <div><div class="review-product-name">Kilas Brain</div><div class="review-product-meta">{{ business.package|humanize_package if business.package != 'NONE' else 'Belum terdaftar' }}</div></div>
           </div>
-          <span class="review-product-status {{ 'ok' if business.status == 'ACTIVE' else ('warn' if business.package != 'NONE' else '') }}">{{ (business.display_status or business.status)|humanize_status('business') if business.package != 'NONE' else 'Belum aktif' }}</span>
+          {% if ai_settings and ai_settings.ai_status == 'STALE' %}
+            <span class="review-product-status warn">Perubahan menunggu review</span>
+          {% else %}
+            <span class="review-product-status {{ 'ok' if business.status == 'ACTIVE' else ('warn' if business.package != 'NONE' else '') }}">{{ (business.display_status or business.status)|humanize_status('business') if business.package != 'NONE' else 'Belum aktif' }}</span>
+          {% endif %}
         </div>
         <div class="review-product-actions">
           {% if business.package != 'NONE' %}
-            <span class="muted">WhatsApp: <strong>{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</strong>{% if subscription %} · Langganan: <strong>{{ subscription.status|humanize_status('subscription') }}</strong>{% endif %}</span>
+            {% if ai_settings and ai_settings.ai_status == 'STALE' %}
+              <span class="muted">Client mengubah data Brain. <strong>Versi live terakhir tetap berjalan</strong> sampai perubahan ini disetujui.</span>
+              {% if business.status in ('APPROVED','ACTIVE') %}
+                <form method="post" action="{{ url_for('admin.approve_brain_changes', business_id=business.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn small" type="submit">Setujui Perubahan Brain</button>
+                </form>
+              {% endif %}
+            {% else %}
+              <span class="muted">WhatsApp: <strong>{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</strong>{% if subscription %} · Langganan: <strong>{{ subscription.status|humanize_status('subscription') }}</strong>{% endif %}</span>
+            {% endif %}
           {% else %}
             <span class="muted">Client ini belum memakai Kilas Brain.</span>
           {% endif %}
@@ -194,8 +208,12 @@
             <p style="color:var(--red);">AI belum berhasil menyiapkan knowledge. Data tetap aman dan bisa dicoba lagi.</p>
           {% endif %}
         {% elif ai_settings.ai_status == 'STALE' %}
-          <p style="color:var(--orange);">Data bisnis berubah. Jalankan ulang AI Setup supaya Brain memakai data terbaru.</p>
-          <p>{{ ai_settings.normalized_summary }}</p>
+          {% if is_admin_view %}
+            <p style="color:var(--orange);">Client mengubah data Brain. Draft ini belum live; versi terakhir yang sudah disetujui tetap dipakai sampai kamu menyetujui perubahan.</p>
+          {% else %}
+            <p style="color:var(--orange);">Perubahanmu sudah tersimpan dan menunggu persetujuan Kilas Works. Versi Brain yang terakhir disetujui tetap berjalan sampai review selesai.</p>
+          {% endif %}
+          {% if ai_settings.normalized_summary %}<p class="muted">Ringkasan versi sebelumnya: {{ ai_settings.normalized_summary }}</p>{% endif %}
         {% elif ai_settings.ai_status == 'DONE' %}
           <p>{{ ai_settings.normalized_summary }}</p>
           {% if ai_settings.missing_fields %}<p class="needs-review">{{ ai_settings.missing_fields|missing_fields_sentence }}</p>{% endif %}
@@ -208,11 +226,15 @@
       {% if is_admin_view and whatsapp_config %}<p class="muted">WhatsApp: {{ whatsapp_config.connection_status }}{% if whatsapp_config.phone_number_id %} · {{ whatsapp_config.phone_number_id }}{% endif %}</p>{% endif %}
 
       {% if not is_admin_view %}
-        <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
-        </form>
+        {% if business.status in ('APPROVED','ACTIVE') %}
+          <a class="btn secondary" href="{{ url_for('client.wizard_step', business_id=business.id, step='basics') }}">Edit Semua Data Brain</a>
+        {% else %}
+          <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
+          </form>
+        {% endif %}
       {% else %}
-        <p class="muted">Owner view hanya memantau hasil setup. Perubahan knowledge dilakukan dari akun client.</p>
+        <p class="muted">Owner view hanya memantau dan menyetujui perubahan. Pengeditan tetap dilakukan dari akun client.</p>
       {% endif %}
     </div>
 
@@ -281,15 +303,28 @@
     <section class="review-panel" data-review-panel="next" hidden>
       <div class="card">
         <h2>Langkah Selanjutnya</h2>
-        <div class="review-actions">
-          <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
-          {% if not missing_required %}
-            <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Kirim untuk Ditinjau</button></form>
-            {% if not has_ai_admin_payment %}<a class="btn" href="{{ url_for('client.ai_admin_checkout', business_id=business.id) }}">Lanjut ke Pembayaran</a>{% else %}<span class="pill ACTIVE">Pembayaran terverifikasi</span>{% endif %}
-          {% else %}
-            <span class="muted">Lengkapi data wajib sebelum dikirim untuk review.</span>
-          {% endif %}
-        </div>
+        {% if business.status in ('APPROVED','ACTIVE') %}
+          <p class="muted">Kamu tetap boleh mengubah semua data Brain. Perubahan tidak langsung mengganti versi live.</p>
+          <div class="review-actions">
+            <a class="btn" href="{{ url_for('client.wizard_step', business_id=business.id, step='basics') }}">Edit Semua Data Brain</a>
+            <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
+            {% if ai_settings and ai_settings.ai_status == 'STALE' %}
+              <span class="pill READY_FOR_REVIEW">Menunggu persetujuan perubahan</span>
+            {% else %}
+              <span class="pill ACTIVE">Tidak ada perubahan menunggu review</span>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="review-actions">
+            <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
+            {% if not missing_required %}
+              <form method="post" action="{{ url_for('client.submit_for_review', business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Kirim untuk Ditinjau</button></form>
+              {% if not has_ai_admin_payment %}<a class="btn" href="{{ url_for('client.ai_admin_checkout', business_id=business.id) }}">Lanjut ke Pembayaran</a>{% else %}<span class="pill ACTIVE">Pembayaran terverifikasi</span>{% endif %}
+            {% else %}
+              <span class="muted">Lengkapi data wajib sebelum dikirim untuk review.</span>
+            {% endif %}
+          </div>
+        {% endif %}
       </div>
     </section>
   {% endif %}
