@@ -107,9 +107,32 @@ def finance_setup(business_id):
         else:abort(400)
         return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
     finance_state=entitlement.state(business_id)
-    bills=[] if finance_state['status']=='TRIAL_ACTIVE' else db.query_all('SELECT id,status,amount_minor,created_at FROM finance_subscription_bills WHERE business_id=? ORDER BY id DESC LIMIT 50',(business_id,))
-    return render_template('finance_subscription.html',business=business,entitlement=finance_state,finance_plan=FINANCE_PLAN,bill_request_key=uuid.uuid4().hex,self_service_enabled=entitlement.self_service(),
-        accounts=[a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['currency']=='IDR'],bank=subscription.payment_details(),bills=bills)
+    bill_search=(request.args.get('q') or '').strip()
+    bill_needle=bill_search.casefold()
+    bills=[] if finance_state['status']=='TRIAL_ACTIVE' else db.query_all(
+        'SELECT id,status,amount_minor,created_at FROM finance_subscription_bills WHERE business_id=? ORDER BY id DESC',
+        (business_id,)
+    )
+    if bill_needle:
+        bills=[bill for bill in bills if (
+            bill_needle in str(bill.get('id') or '').casefold()
+            or bill_needle in str(bill.get('status') or '').casefold()
+            or bill_needle in str(bill.get('amount_minor') or '').casefold()
+        )]
+    bills_total=len(bills)
+    bill_per_page=10
+    bill_total_pages=max(1,(bills_total+bill_per_page-1)//bill_per_page)
+    bill_page=request.args.get('page',1,type=int) or 1
+    bill_page=min(max(1,bill_page),bill_total_pages)
+    bill_start=(bill_page-1)*bill_per_page
+    bills=bills[bill_start:bill_start+bill_per_page]
+    return render_template(
+        'finance_subscription.html',business=business,entitlement=finance_state,finance_plan=FINANCE_PLAN,
+        bill_request_key=uuid.uuid4().hex,self_service_enabled=entitlement.self_service(),
+        accounts=[a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['currency']=='IDR'],
+        bank=subscription.payment_details(),bills=bills,bills_total=bills_total,bill_search=bill_search,
+        bill_page=bill_page,bill_total_pages=bill_total_pages
+    )
 
 
 @products_bp.route('/business/<int:business_id>/finance-bills/<int:bill_id>',methods=['GET','POST'])
@@ -162,7 +185,26 @@ def review(business_id,bill_id):
 @security.login_required
 def account_bills():
     user=security.current_user()
-    return render_template('account_bills.html',businesses=repo.list_businesses_for_user(user['id']))
+    search=(request.args.get('q') or '').strip()
+    needle=search.casefold()
+    businesses=repo.list_businesses_for_user(user['id'])
+    if needle:
+        businesses=[b for b in businesses if (
+            needle in str(b.get('business_name') or '').casefold()
+            or needle in str(b.get('package') or '').casefold()
+            or needle in str(b.get('status') or '').casefold()
+        )]
+    businesses_total=len(businesses)
+    per_page=10
+    total_pages=max(1,(businesses_total+per_page-1)//per_page)
+    page=request.args.get('page',1,type=int) or 1
+    page=min(max(1,page),total_pages)
+    start=(page-1)*per_page
+    businesses=businesses[start:start+per_page]
+    return render_template(
+        'account_bills.html',businesses=businesses,businesses_total=businesses_total,
+        search=search,page=page,total_pages=total_pages
+    )
 
 
 @products_bp.route('/products/dashboard-business',methods=['POST'])
