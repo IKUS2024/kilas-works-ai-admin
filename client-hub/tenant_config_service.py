@@ -230,6 +230,7 @@ def get_tenant_knowledge(tenant_id):
     knowledge = config.get("knowledge", {})
     return {
         "faq": knowledge.get("faq", []),
+        "policies": knowledge.get("policies", []),
         "services": knowledge.get("services", []),
         "products": knowledge.get("products", []),
         "pricing_notes": knowledge.get("pricing_notes"),
