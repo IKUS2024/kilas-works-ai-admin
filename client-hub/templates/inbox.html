@@ -25,7 +25,7 @@
 <div class="tenant-inbox-head">
   <div>
     <h1>CS Inbox — {{ business.business_name }}</h1>
-    <p class="muted">WhatsApp customer, takeover, dan balasan dalam satu tempat.</p>
+    <p class="muted">WhatsApp customer, takeover, dan balasan dalam satu tempat · {{ conversations_total }} percakapan.</p>
   </div>
   <div style="display:flex;gap:6px;align-items:center;">
     <span class="kw-live-state" id="kw-live-state"><span class="kw-live-dot"></span><span data-live-label>Live</span></span>
@@ -51,7 +51,7 @@
     <div class="kw-conversations">
       {% for c in conversations %}
         <a class="kw-conversation {{ 'active' if selected and selected.customer_phone == c.customer_phone else '' }}"
-           href="{{ url_for('client.inbox_page', business_id=business.id, customer=c.customer_phone, q=search, mode=mode_filter) }}">
+           href="{{ url_for('client.inbox_page', business_id=business.id, customer=c.customer_phone, q=search, mode=mode_filter, page=inbox_page) }}">
           <div class="kw-row">
             <strong>{{ c.customer_name or c.customer_phone }}</strong>
             {% if c.mode == 'HUMAN_TAKEOVER' %}
@@ -68,12 +68,23 @@
         <div style="padding:18px;"><p class="muted">Belum ada percakapan yang cocok.</p></div>
       {% endfor %}
     </div>
+
+    {% if inbox_total_pages > 1 %}
+      <div class="client-list-meta" style="margin:6px 8px 4px;">Maksimal 10 chat · Halaman {{ inbox_page }} dari {{ inbox_total_pages }}</div>
+      <nav class="client-pagination" aria-label="Halaman inbox" style="padding-bottom:7px;">
+        {% if inbox_page > 1 %}<a class="client-page-btn" href="{{ url_for('client.inbox_page', business_id=business.id, q=search, mode=mode_filter, page=inbox_page-1) }}">←</a>{% else %}<span class="client-page-btn disabled">←</span>{% endif %}
+        {% for page_number in range(1,inbox_total_pages+1) %}
+          <a class="client-page-btn {{ 'active' if page_number==inbox_page else '' }}" href="{{ url_for('client.inbox_page', business_id=business.id, q=search, mode=mode_filter, page=page_number) }}" {% if page_number==inbox_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+        {% endfor %}
+        {% if inbox_page < inbox_total_pages %}<a class="client-page-btn" href="{{ url_for('client.inbox_page', business_id=business.id, q=search, mode=mode_filter, page=inbox_page+1) }}">→</a>{% else %}<span class="client-page-btn disabled">→</span>{% endif %}
+      </nav>
+    {% endif %}
   </section>
 
   <section class="kw-chat">
     {% if selected %}
       <div class="kw-chat-head">
-        <a class="kw-back btn secondary small" href="{{ url_for('client.inbox_page', business_id=business.id, q=search, mode=mode_filter) }}">← Percakapan</a>
+        <a class="kw-back btn secondary small" href="{{ url_for('client.inbox_page', business_id=business.id, q=search, mode=mode_filter, page=inbox_page) }}">← Percakapan</a>
         <div>
           <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
           {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
