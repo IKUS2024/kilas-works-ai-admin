@@ -126,11 +126,18 @@ def dashboard():
     # Use the same current entitlement calculation as Finance (paid takes precedence;
     # expired trials are never counted). Viewing this list does not activate trials.
     finance_trials = []
+    finance_entitlements_by_id = {}
     for business in all_businesses:
         entitlement = finance_entitlements.state(business["id"])
+        finance_entitlements_by_id[business["id"]] = entitlement
         if entitlement["status"] == "TRIAL_ACTIVE":
             finance_trials.append({**business, "finance_entitlement": entitlement,
                                    "display_status": get_display_status(business)})
+    if not finance_trials_only:
+        for business in businesses:
+            business["finance_entitlement"] = finance_entitlements_by_id.get(
+                business["id"], {"status": "NOT_ACTIVATED", "active": False}
+            )
     finance_bills_review = db.query_one(
         "SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"
     )["n"]
