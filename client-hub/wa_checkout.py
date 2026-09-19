@@ -149,6 +149,8 @@ def intake(phone,text,history=(),tenant=False,customer_name=None):
     if item and item['category']=='AI_ADMIN':
         import repo
         return 'Kilas Brain memakai Setup Awal bisnis. Pilih/daftarkan bisnis di '+repo.get_official_links()['app']
+    if item and item['category']=='TALENT':
+        return 'Untuk Talent, pilih dulu profil talent yang kamu mau di '+base_url()+'/talent lalu isi kebutuhan campaign. Tim Kilas Works akan review dan kirim harga dari request itu.'
     # Configuration checked only for an actual purchase or an existing intake.
     try: ph=sender_hash(phone)
     except ValueError:
