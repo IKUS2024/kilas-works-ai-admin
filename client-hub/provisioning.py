@@ -114,13 +114,19 @@ def build_tenant_config(business_id):
                 "additional": profile.get("additional_languages") or [],
             },
             "tone": profile.get("tone") or "friendly",
-            "system_instructions": profile.get("short_description") or normalized.get("description"),
-            "business_description": profile.get("short_description"),
+            # Prefer the reviewed normalization summary: it is a cleaner factual description of
+            # the same owner-provided data. Fall back to the raw owner text if normalization has
+            # not produced one.
+            "system_instructions": normalized.get("description") or profile.get("short_description"),
+            "business_description": normalized.get("description") or profile.get("short_description"),
             "customer_salutation": profile.get("customer_salutation") or "Kak",
         },
 
         "business_info": {
             "address": profile.get("address"),
+            "service_mode": profile.get("online_or_offline"),
+            "country": profile.get("country"),
+            "timezone": profile.get("timezone"),
             "business_hours": {
                 "raw": profile.get("operating_hours"),
                 "closed_days": profile.get("closed_days"),
@@ -137,10 +143,15 @@ def build_tenant_config(business_id):
                  "needs_review": bool(f["needs_review"])}
                 for f in faqs
             ],
+            "policies": normalized.get("policies") or [],
             "products": [],  # V1 has no separate "products" vs "services" distinction — see services
             "services": [
                 {
                     "raw_input": s["raw_input"], "service_name": s["service_name"],
+                    # Keep the normalized service description in the approved runtime snapshot.
+                    # The live WhatsApp context can then answer inclusions/duration/details instead
+                    # of collapsing every service down to only a name + price.
+                    "description": s.get("description"),
                     "price_from": s["price_from"], "price_to": s["price_to"],
                     "currency": s["currency"], "needs_review": bool(s["needs_review"]),
                 }
@@ -151,7 +162,10 @@ def build_tenant_config(business_id):
         },
 
         "lead_behavior": {
-            "qualification_questions": normalized.get("missing_fields") or [],
+            # Missing onboarding/business facts are an internal data-quality signal, NOT questions
+            # the customer should be interrogated with. Keep them separate from lead qualification.
+            "qualification_questions": [],
+            "missing_business_fields": normalized.get("missing_fields") or [],
             "lead_fields": ["name", "phone", "interest"],
             "handoff_rules": "Escalate to trusted owner phone on explicit purchase intent or when asked for the owner.",
         },
