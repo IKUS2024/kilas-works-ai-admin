@@ -71,14 +71,39 @@ def dashboard():
     # talent requests, WhatsApp connection) never requires digging through separate pages to find
     # what's pending. Every count below is a real operational query, never a fabricated metric.
     all_projects = projects_repo.list_all_projects()
-    projects_needing_action = [p for p in all_projects if p["status"] in ("REQUESTED", "WAITING_FOR_QUOTE", "PAID")]
-    quotations_needing_action = [p for p in all_projects if p["status"] == "WAITING_FOR_QUOTE"]
-    payments_needing_review = payment_service.list_payments_pending_review()
+    all_talent_requests = talent_service.list_all_talent_requests()
     talent_requests_waiting = [
-        r for r in talent_service.list_all_talent_requests()
-        if r["status"] == "WAITING_FOR_REVIEW"
+        r for r in all_talent_requests if r["status"] == "WAITING_FOR_REVIEW"
     ]
+    talent_review_project_ids = {
+        r["project_id"] for r in talent_requests_waiting if r.get("project_id")
+    }
+    # App-created REQUESTED rows are customer drafts until the brief is confirmed. They must
+    # not look like admin work. Specific-talent requests use the Talent queue first so the same
+    # request is not counted twice in both Talent and Projects.
+    projects_needing_action = [
+        p for p in projects_repo.list_projects_needing_action()
+        if p["id"] not in talent_review_project_ids
+    ]
+    quotations_needing_action = [
+        p for p in all_projects
+        if p["status"] == "WAITING_FOR_QUOTE" and p["id"] not in talent_review_project_ids
+    ]
+    payments_needing_review = payment_service.list_payments_pending_review()
     all_businesses = repo.list_all_businesses(status_filter=None)
+    businesses_by_id = {b["id"]: b for b in all_businesses}
+    recent_service_orders = []
+    for project in all_projects:
+        if project.get("catalog_key") in ("ai_admin", "ai_admin_basic", "ai_admin_pro"):
+            continue
+        if project.get("status") == "CANCELLED" or projects_repo.is_unsubmitted_app_draft(project):
+            continue
+        item = dict(project)
+        business = businesses_by_id.get(item.get("business_id"))
+        item["business_name"] = business["business_name"] if business else "Pesanan pribadi"
+        recent_service_orders.append(item)
+        if len(recent_service_orders) >= 8:
+            break
     businesses_needing_review = [
         b for b in all_businesses if get_display_status(b) == "READY_FOR_REVIEW"
     ]
@@ -127,6 +152,7 @@ def dashboard():
         talent_requests_waiting=talent_requests_waiting,
         businesses_needing_review_count=len(businesses_needing_review),
         action_center=action_center,
+        recent_service_orders=recent_service_orders,
         finance_trials_only=finance_trials_only,
     )
 
@@ -169,6 +195,12 @@ def review_business(business_id):
     business["display_status"] = get_display_status(business)
     takeover_conversations = wa_takeover_service.list_takeover_conversations_for_business(business_id)
     subscription = subscription_service.get_subscription(business_id)
+    service_projects = [
+        p for p in projects_repo.list_projects_for_business(business_id)
+        if p.get("catalog_key") not in ("ai_admin", "ai_admin_basic", "ai_admin_pro")
+    ]
+    for project in service_projects:
+        project["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(project)
     return render_template(
         "review.html",
         business=business,
@@ -189,6 +221,7 @@ def review_business(business_id):
         tenant_config_row=tenant_config_row,
         takeover_conversations=takeover_conversations,
         subscription=subscription,
+        service_projects=service_projects,
         activation_checklist=payment_service.build_activation_checklist(business_id),
         is_admin_view=True,
     )
@@ -594,7 +627,8 @@ def projects_admin():
     businesses_by_id = {b["id"]: b for b in repo.list_all_businesses()}
     for p in projects:
         b = businesses_by_id.get(p["business_id"])
-        p["business_name"] = b["business_name"] if b else "?"
+        p["business_name"] = b["business_name"] if b else "Pesanan pribadi"
+        p["is_customer_draft"] = projects_repo.is_unsubmitted_app_draft(p)
     return render_template(
         "admin_projects.html", projects=projects, status_filter=status_filter,
         type_filter=type_filter, business_filter=business_filter,
@@ -778,7 +812,10 @@ def payment_request_reupload(payment_id):
 def talent_admin():
     talents = talent_service.list_all_talents()
     requests = talent_service.list_all_talent_requests()
+    businesses = {b["id"]: b for b in repo.list_all_businesses()}
+    talents_by_id = {t["id"]: t for t in talents}
     return render_template("admin_talent.html", talents=talents, requests=requests,
+                            businesses_by_id=businesses, talents_by_id=talents_by_id,
                             availability_statuses=talent_service.AVAILABILITY_STATUSES)
 
 

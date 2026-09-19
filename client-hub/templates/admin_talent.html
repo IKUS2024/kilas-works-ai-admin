@@ -104,7 +104,19 @@
     <div class="admin-collapsible-body">
       <div class="admin-list">
         {% for r in requests %}
-          <article class="admin-item"><div class="admin-item-title">Talent #{{ r.talent_id }}</div><div class="admin-item-meta">Business #{{ r.business_id }} · {{ r.status|humanize_status('talent_request') }} · Budget {{ r.budget|display_or_missing }}</div></article>
+          {% set talent = talents_by_id.get(r.talent_id) %}
+          {% set business = businesses_by_id.get(r.business_id) if r.business_id else None %}
+          <article class="admin-item">
+            <div class="admin-item-head">
+              <div class="admin-item-main">
+                <div class="admin-item-title">{{ talent.name if talent else ('Talent #' ~ r.talent_id) }}</div>
+                <div class="admin-item-meta">{{ business.business_name if business else 'Pesanan pribadi' }} · {{ r.status|humanize_status('talent_request') }}{% if r.budget %} · Budget Rp{{ '{:,}'.format(r.budget).replace(',', '.') }}{% endif %}</div>
+              </div>
+              <div class="admin-item-side"><span class="admin-status {{ 'warn' if r.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else ('ok' if r.status in ('PAID','IN_PROGRESS','COMPLETED') else '') }}">{{ r.status|humanize_status('talent_request') }}</span></div>
+            </div>
+            {% if r.brief %}<div class="admin-note" style="margin-top:8px;">{{ r.brief }}</div>{% endif %}
+            {% if r.project_id %}<div class="admin-actions"><a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=r.project_id) }}">Kelola Pesanan →</a></div>{% endif %}
+          </article>
         {% else %}<div class="admin-empty">Belum ada talent request.</div>{% endfor %}
       </div>
     </div>

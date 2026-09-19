@@ -94,16 +94,37 @@ def list_businessless_projects_for_user(user_id, *, include_history=False):
         + "ORDER BY created_at DESC, id DESC", (user_id,))
 
 
-def is_editable_app_brief(project):
-    if project['status'] != 'REQUESTED':
-        return False
-    data = project.get('requirements_json') or {}
+def _project_requirements(project):
+    data = project.get('requirements') if isinstance(project.get('requirements'), dict) else project.get('requirements_json')
+    if not data:
+        return {}
     if isinstance(data, (str, bytes)):
         try:
             data = json.loads(data)
         except (TypeError, ValueError):
-            return False
-    return isinstance(data, dict) and data.get('_app_brief') == 1
+            return {}
+    return data if isinstance(data, dict) else {}
+
+
+def is_editable_app_brief(project):
+    if project['status'] != 'REQUESTED':
+        return False
+    return _project_requirements(project).get('_app_brief') == 1
+
+
+def is_unsubmitted_app_draft(project):
+    """True only while an app-created service brief is still the customer's draft."""
+    if project.get('status') != 'REQUESTED':
+        return False
+    data = _project_requirements(project)
+    return data.get('_app_brief') == 1 and not data.get('_brief_confirmed')
+
+
+def admin_action_required(project):
+    """Admin work excludes customer-owned app drafts that have not been confirmed yet."""
+    if is_unsubmitted_app_draft(project):
+        return False
+    return project.get('status') in ('REQUESTED', 'WAITING_FOR_QUOTE', 'PAID')
 
 
 def customer_can_cancel(project, payment=None):
@@ -173,12 +194,12 @@ def list_all_projects(status_filter=None, project_type_filter=None, business_id_
 
 
 def list_projects_needing_action():
-    """Admin dashboard 'projects needing action' (Section 20): anything waiting on Kilas Works,
-    not on the customer."""
-    return db.query_all(
+    """Admin work only: submitted/legacy requests, quote work, and paid projects."""
+    rows = db.query_all(
         "SELECT * FROM projects WHERE status IN ('REQUESTED', 'WAITING_FOR_QUOTE', 'PAID') "
         "ORDER BY created_at ASC"
     )
+    return [row for row in rows if admin_action_required(row)]
 
 
 def set_project_status(project_id, new_status, actor_user_id=None, business_id=None, detail=None):
@@ -189,6 +210,20 @@ def set_project_status(project_id, new_status, actor_user_id=None, business_id=N
         "UPDATE projects SET status = ?, updated_at = now() WHERE id = ?",
         (new_status, project_id),
     )
+    # A specific-talent request owns a linked TALENT project. Once the project moves beyond
+    # WAITING_FOR_REVIEW, keep the request status in lock-step so the Talent admin queue clears
+    # after quotation/payment/progress instead of staying "waiting" forever. Generic Talent
+    # Management projects have no talent_requests row, so this update is a no-op for them.
+    if new_status in (
+        'WAITING_FOR_QUOTE', 'QUOTED', 'APPROVED', 'PAYMENT_PENDING', 'PAID',
+        'IN_PROGRESS', 'WAITING_FOR_CLIENT', 'REVISION', 'COMPLETED', 'CANCELLED'
+    ):
+        db.execute(
+            "UPDATE talent_requests SET status = ?, updated_at = datetime('now') WHERE project_id = ?"
+            if db.BACKEND == "sqlite" else
+            "UPDATE talent_requests SET status = ?, updated_at = now() WHERE project_id = ?",
+            (new_status, project_id),
+        )
     if business_id is not None:
         repo.write_audit(actor_user_id, business_id, "PROJECT_STATUS_CHANGED",
                           detail or f"project_id={project_id} new_status={new_status}",

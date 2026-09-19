@@ -31,7 +31,7 @@
             <div class="admin-item-title">{{ p.title }}</div>
             <div class="admin-item-meta">{{ p.business_name }} · {{ p.project_type }}{% if p.budget_min or p.budget_max %} · Rp{{ '{:,}'.format(p.budget_min).replace(',', '.') if p.budget_min else '?' }} – Rp{{ '{:,}'.format(p.budget_max).replace(',', '.') if p.budget_max else '?' }}{% endif %}</div>
           </div>
-          <div class="admin-item-side"><span class="admin-status {{ 'warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAID') else ('ok' if p.status in ('COMPLETED','DELIVERED') else '') }}">{{ p.status|humanize_status('project') }}</span></div>
+          <div class="admin-item-side"><span class="admin-status {{ 'warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAID') else ('ok' if p.status in ('COMPLETED','DELIVERED') else '') }}">{% if p.is_customer_draft %}Menunggu customer brief{% else %}{{ p.status|humanize_status('project') }}{% endif %}</span></div>
         </div>
         <div class="admin-actions"><a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola →</a></div>
       </article>
