@@ -140,3 +140,11 @@ test('transaction forms expose formatted rupiah input and hide conditional detai
   assert.match(edit,/\[data-other-field\]\[hidden\]\{display:none!important\}/);
   assert.match(dashboard,/1000000, 1\.000\.000, atau 1,000,000/);
 });
+
+
+test('period month availability follows the selected year',()=>{
+  const html=fs.readFileSync(path.join(ROOT,'templates','_finance_period_selector.html'),'utf8');
+  assert.match(html,/selectedYear === currentYear && optionMonth > currentMonth/);
+  assert.match(html,/yearSelect\.addEventListener\('change', syncMonths\)/);
+  assert.match(html,/monthSelect\.selectedOptions\[0\]\?\.disabled/);
+});
