@@ -210,6 +210,13 @@ def review_business(business_id):
     business["display_status"] = get_display_status(business)
     takeover_conversations = wa_takeover_service.list_takeover_conversations_for_business(business_id)
     subscription = subscription_service.get_subscription(business_id)
+    try:
+        finance_state = finance_entitlements.state(business_id)
+    except Exception:
+        finance_state = {
+            "status": "UNAVAILABLE", "active": False, "trial_used": False,
+            "until": None, "until_local": None,
+        }
     service_projects = [
         p for p in projects_repo.list_projects_for_business(business_id)
         if p.get("catalog_key") not in ("ai_admin", "ai_admin_basic", "ai_admin_pro")
@@ -246,6 +253,7 @@ def review_business(business_id):
         tenant_config_row=tenant_config_row,
         takeover_conversations=takeover_conversations,
         subscription=subscription,
+        finance_state=finance_state,
         service_projects=service_projects,
         activation_checklist=payment_service.build_activation_checklist(business_id),
         is_admin_view=True,
