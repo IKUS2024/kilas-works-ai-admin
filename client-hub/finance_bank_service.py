@@ -15,7 +15,7 @@ PAGE_SIZE = 50
 
 
 def account(business_id,account_id,user_id):
-    f._id(user_id)
+    if user_id is not None:f._id(user_id)
     f._scope(business_id,user_id)
     row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND id=? AND is_active=TRUE"),
                      (business_id,f._id(account_id)))

@@ -65,8 +65,8 @@ def validate_result(result, category_names=None):
             result['transaction_date'] = None
     if result['total_minor'] is not None:
         finance._money(result['total_minor'], positive=True)
-    currency = result['currency']
-    if currency is not None and (not isinstance(currency, str) or not re.fullmatch('[A-Z]{3}', currency)):
+    currency=result['currency']
+    if currency is not None and (not isinstance(currency,str) or currency not in finance.SUPPORTED_CURRENCIES):
         raise ReceiptError('invalid_result')
     suggestion = result['suggested_category_name']
     if category_names is not None and suggestion is not None and suggestion not in category_names:
@@ -183,20 +183,24 @@ def resolve_token(token, business_id, user_id):
     return data
 
 
-def confirm(business_id, user_id, token, fields):
-    data = resolve_token(token, business_id, user_id)
-    if set(fields) != {'confirmed', 'currency', 'amount', 'occurred_on', 'account_id', 'category_id',
-                       'merchant_name', 'description'} or fields['confirmed'] != 'yes' or fields['currency'] != 'IDR':
+def confirm(business_id,user_id,token,fields):
+    data=resolve_token(token,business_id,user_id)
+    if set(fields)!={'confirmed','currency','amount','occurred_on','account_id','category_id','merchant_name','description'} or fields['confirmed']!='yes':
         raise ReceiptError('invalid_fields')
-    for key in ('amount', 'account_id', 'category_id'):
-        if not isinstance(fields[key], str) or not re.fullmatch('[0-9]{1,19}', fields[key]):
+    try:currency=finance._currency(fields['currency'])
+    except finance.FinanceError:raise ReceiptError('invalid_fields') from None
+    for key in ('account_id','category_id'):
+        if not isinstance(fields[key],str) or not re.fullmatch('[0-9]{1,19}',fields[key]):
             raise ReceiptError('invalid_fields')
-    merchant = finance._text(fields['merchant_name'], 160)
-    description = finance._text(fields['description'], 500)
+    if not isinstance(fields['amount'],str) or not 1<=len(fields['amount'])<=25:
+        raise ReceiptError('invalid_fields')
+    merchant=finance._text(fields['merchant_name'],160);description=finance._text(fields['description'],500)
     from routes_finance import currency_amount
     account=finance.get_account(business_id,finance._id(int(fields['account_id'])),actor_user_id=user_id,active=True)
-    if account['currency']!=currency:raise ValueError('account_currency_mismatch')
-    return finance.create_receipt_expense(business_id, data['receipt_hash'],
-        currency_amount(fields['amount'],currency), account['id'],
-        finance._id(int(fields['category_id'])), finance._date(fields['occurred_on']),
-        description=description, counterparty_name=merchant, actor_user_id=user_id)
+    if account['currency']!=currency:raise ReceiptError('invalid_fields')
+    try:amount_minor=currency_amount(fields['amount'],currency)
+    except finance.FinanceError:raise ReceiptError('invalid_fields') from None
+    return finance.create_receipt_expense(business_id,data['receipt_hash'],amount_minor,account['id'],
+        finance._id(int(fields['category_id'])),finance._date(fields['occurred_on']),currency=currency,
+        description=description,counterparty_name=merchant,actor_user_id=user_id)
+
