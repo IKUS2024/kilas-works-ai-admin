@@ -110,7 +110,7 @@ def dashboard():
         talent_request = talent_request_by_project.get(item["id"])
         item["talent_request_id"] = talent_request["id"] if talent_request else None
         recent_service_orders.append(item)
-        if len(recent_service_orders) >= 8:
+        if len(recent_service_orders) >= 3:
             break
     businesses_needing_review = [
         b for b in all_businesses if get_display_status(b) == "READY_FOR_REVIEW"
@@ -144,6 +144,16 @@ def dashboard():
     if finance_trials_only:
         businesses = finance_trials
 
+    # Keep the owner dashboard short on mobile. Pagination is UI-only; filters and counts still
+    # operate on the complete matching client set.
+    businesses_total = len(businesses)
+    client_per_page = 5
+    client_total_pages = max(1, (businesses_total + client_per_page - 1) // client_per_page)
+    client_page = request.args.get("client_page", 1, type=int) or 1
+    client_page = min(max(1, client_page), client_total_pages)
+    client_start = (client_page - 1) * client_per_page
+    businesses = businesses[client_start:client_start + client_per_page]
+
     action_center = {
         "finance_trials_active": len(finance_trials),
         "finance_bills_waiting_review": finance_bills_review,
@@ -169,6 +179,9 @@ def dashboard():
         action_center=action_center,
         recent_service_orders=recent_service_orders,
         finance_trials_only=finance_trials_only,
+        businesses_total=businesses_total,
+        client_page=client_page,
+        client_total_pages=client_total_pages,
     )
 
 
