@@ -27,18 +27,22 @@
 .finance-trial-meta{font-size:11px;color:var(--text-dim);margin-top:4px}
 .service-order-card{padding:0;overflow:hidden}.service-order-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)}.service-order-row:last-child{border-bottom:0}.service-order-main{min-width:0}.service-order-main strong{display:block;font-size:14px;overflow-wrap:anywhere}.service-order-main span{display:block;font-size:12px;color:var(--text-dim);margin-top:3px}.service-order-row .btn{flex:0 0 auto;margin:0}
 .empty-business{padding:12px;color:var(--text-dim)}
-.owner-flow{display:flex;align-items:stretch;gap:6px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}.owner-flow::-webkit-scrollbar{display:none}
-.owner-flow-step{flex:1 0 180px;border:1px solid var(--border);border-radius:12px;padding:8px 10px;background:rgba(255,255,255,.012);min-width:0}.owner-flow-step strong{display:block;font-size:12px}.owner-flow-step span{display:block;font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.3}
-.owner-flow-arrow{display:flex;align-items:center;color:var(--text-dim);font-size:15px;flex:0 0 auto}
+.owner-type-note{display:flex;gap:7px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}.owner-type-note::-webkit-scrollbar{display:none}
+.owner-type-pill{flex:1 0 250px;border:1px solid var(--border);border-radius:11px;padding:8px 10px;background:rgba(255,255,255,.012);font-size:11px;line-height:1.35;color:var(--text-dim)}
+.owner-type-pill strong{color:var(--text);font-size:12px}
+.owner-type-pill.client{border-left:3px solid #7fd3f0}.owner-type-pill.order{border-left:3px solid var(--orange)}
 .owner-section-copy{min-width:0}.owner-section-copy p{margin:2px 0 0;color:var(--text-dim);font-size:11px;line-height:1.35}
 .owner-section-tag{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;border:1px solid var(--border);font-size:9px;font-weight:800;letter-spacing:.04em;color:var(--text-dim);text-transform:uppercase;white-space:nowrap}
+.business-card{border-left:3px solid #7fd3f0}.business-date::before{content:"Client sejak "}
+.business-products{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.product-badge{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;font-size:10px;font-weight:800;border:1px solid var(--border);background:rgba(255,255,255,.015);color:var(--text-dim)}
+.product-badge.brain{color:#c8b6ff;border-color:rgba(200,182,255,.25);background:rgba(200,182,255,.07)}
+.product-badge.finance{color:#7fd3f0;border-color:rgba(127,211,240,.25);background:rgba(127,211,240,.07)}
+.product-badge.none{font-weight:650}
 .service-order-card{border-left:3px solid var(--orange)}
-.service-order-main{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:7px;align-items:center}
-.service-order-kind{grid-row:1 / span 2;align-self:start;margin-top:1px;display:inline-flex;padding:4px 6px;border-radius:8px;background:rgba(255,122,26,.09);color:var(--orange);font-size:9px;font-weight:850;letter-spacing:.04em}
-.service-order-main strong,.service-order-main span{grid-column:2}
-.business-card{border-left:3px solid #7fd3f0}
-.business-date::before{content:"Akun bisnis · "}
-@media(max-width:760px){.owner-flow{margin-right:-10px;padding-right:10px}.owner-flow-step{flex-basis:150px}.owner-section-title{align-items:flex-start}.owner-section-copy p{font-size:10px}.service-order-main{column-gap:6px}.service-order-kind{font-size:8px;padding:3px 5px}}
+.service-order-main{min-width:0}.service-order-main strong{display:block}.service-order-main span{display:block}
+.service-order-label{display:inline-flex;margin-bottom:3px;padding:3px 6px;border-radius:999px;background:rgba(255,122,26,.09);color:var(--orange);font-size:9px;font-weight:850;letter-spacing:.04em}
+@media(max-width:760px){.owner-type-note{margin-right:-10px;padding-right:10px}.owner-type-pill{flex-basis:215px}.owner-section-title{align-items:flex-start}.owner-section-copy p{font-size:10px}}
 @media(max-width:760px){.owner-head{display:block}.owner-head h1{font-size:21px}.owner-search{margin-top:8px;min-width:0;width:100%}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.owner-info-row{grid-template-columns:1fr 1fr}.business-list-head{display:none}.business-row{grid-template-columns:1fr auto;gap:5px 8px;padding:9px 10px}.business-package{grid-column:1}.business-status-wrap{grid-column:1}.business-action{grid-column:2;grid-row:1 / span 3;align-self:center}.business-action a{display:inline-flex;padding:6px 8px;border:1px solid var(--border);border-radius:9px;font-size:11px}.business-card{overflow:visible}.service-order-row{padding:8px 10px}}
 @media(max-width:430px){.owner-search{display:grid;grid-template-columns:1fr auto}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.action-item{padding:8px 7px;min-height:54px}.action-icon{width:28px;height:28px}.action-count{font-size:16px}.action-label{font-size:10px}.owner-info-row{grid-template-columns:1fr}.business-row{padding:8px 9px}.filter-strip{margin-right:-10px;padding-right:10px}.filter-strip .btn{font-size:10px}}
 </style>
@@ -125,43 +129,18 @@
   </section>
 
   {% if not finance_trials_only %}
-  <div class="owner-flow" aria-label="Alur admin Kilas Works">
-    <div class="owner-flow-step"><strong>1 · Akun Bisnis</strong><span>Client / tenant yang punya Kilas Brain atau Finance.</span></div>
-    <span class="owner-flow-arrow" aria-hidden="true">→</span>
-    <div class="owner-flow-step"><strong>2 · Pesanan Layanan</strong><span>Pekerjaan yang dibeli customer: event, ads, foto, video, dll.</span></div>
-    <span class="owner-flow-arrow" aria-hidden="true">→</span>
-    <div class="owner-flow-step"><strong>3 · Project & Pembayaran</strong><span>Pesanan dikerjakan, diberi quote/status, lalu pembayaran dipantau.</span></div>
+  <div class="owner-type-note" aria-label="Jenis data di dashboard">
+    <div class="owner-type-pill client"><strong>Client / Akun Bisnis</strong> = akun customer yang memakai produk Kilas seperti <strong>Brain</strong> dan <strong>Finance</strong>.</div>
+    <div class="owner-type-pill order"><strong>Pesanan Jasa</strong> = pekerjaan/project yang customer beli, misalnya <strong>Content, Ads, Event, Foto/Video</strong>.</div>
   </div>
-  {% endif %}
-
-  {% if not finance_trials_only and recent_service_orders %}
-  <div class="owner-section-title">
-    <div class="owner-section-copy">
-      <h2>Pesanan Layanan / Project Terbaru</h2>
-      <p>Ini <strong>pekerjaan yang dipesan customer</strong>, bukan akun bisnis. Kelola pengerjaan lengkap di menu Proyek.</p>
-    </div>
-    <a href="{{ url_for('admin.projects_admin') }}">Semua Proyek →</a>
-  </div>
-  <section class="card service-order-card">
-    {% for p in recent_service_orders %}
-      <div class="service-order-row">
-        <div class="service-order-main">
-          <span class="service-order-kind">PESANAN</span>
-          <strong>{{ p.title }}</strong>
-          <span>Pemilik: {{ p.business_name }} · {{ p.project_type }} · {{ p.status|humanize_status('project') }}</span>
-        </div>
-        <a class="btn small secondary" href="{{ url_for('admin.talent_request_detail', request_id=p.talent_request_id) if p.talent_request_id else url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola →</a>
-      </div>
-    {% endfor %}
-  </section>
   {% endif %}
 
   <div class="owner-section-title">
     <div class="owner-section-copy">
-      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else 'Akun Bisnis / Client' }}</h2>
-      <p>{% if finance_trials_only %}Bisnis yang sedang memakai trial Kilas Finance.{% else %}Ini <strong>akun/tenant customer</strong> untuk Kilas Brain &amp; Finance. Bukan daftar pesanan layanan.{% endif %}</p>
+      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else 'Client / Akun Bisnis' }}</h2>
+      <p>{% if finance_trials_only %}Client yang sedang mencoba Kilas Finance.{% else %}Lihat siapa client-nya, produk Kilas yang dipakai, dan status akunnya.{% endif %}</p>
     </div>
-    <span class="owner-section-tag">{{ businesses|length }} akun</span>
+    <span class="owner-section-tag">{{ businesses|length }} client</span>
   </div>
 
   <nav class="filter-strip" aria-label="Filter bisnis">
@@ -174,7 +153,7 @@
 
   <section class="card business-card">
     <div class="business-list-head">
-      <span>Akun Bisnis</span><span>Produk</span><span>Status</span><span></span>
+      <span>Client</span><span>Produk Kilas</span><span>Status Akun</span><span></span>
     </div>
     {% for b in businesses %}
       <div class="business-row">
@@ -182,7 +161,11 @@
           <div class="business-name">{{ b.business_name }}</div>
           <div class="business-date">{{ b.created_at|humanize_timestamp }}</div>
         </div>
-        <div class="business-package">{{ b.package|humanize_package }}</div>
+        <div class="business-products">
+          {% if b.package != 'NONE' %}<span class="product-badge brain">Kilas Brain</span>{% endif %}
+          {% if b.finance_entitlement and b.finance_entitlement.status != 'NOT_ACTIVATED' %}<span class="product-badge finance">Kilas Finance</span>{% endif %}
+          {% if b.package == 'NONE' and (not b.finance_entitlement or b.finance_entitlement.status == 'NOT_ACTIVATED') %}<span class="product-badge none">Belum ada produk aktif</span>{% endif %}
+        </div>
         <div class="business-status-wrap">
           <span class="owner-status {{ b.display_status }}">{{ 'Menunggu WhatsApp' if b.display_status=='APPROVED_WAITING_WHATSAPP_CONNECTION' else b.display_status|humanize_status('business') }}</span>
           {% if finance_trials_only %}<div class="finance-trial-meta">Trial s/d {{ b.finance_entitlement.until_local }}</div>{% endif %}
@@ -196,8 +179,31 @@
         </div>
       </div>
     {% else %}
-      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else 'Belum ada business.' }}</div>
+      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else 'Belum ada client.' }}</div>
     {% endfor %}
+  </section>
+
+  {% if not finance_trials_only and recent_service_orders %}
+  <div class="owner-section-title">
+    <div class="owner-section-copy">
+      <h2>Pesanan Jasa Terbaru</h2>
+      <p>Project kerja seperti Content, Ads, Event, Foto/Video, Website, atau Talent.</p>
+    </div>
+    <a href="{{ url_for('admin.projects_admin') }}">Semua Proyek →</a>
+  </div>
+  <section class="card service-order-card">
+    {% for p in recent_service_orders %}
+      <div class="service-order-row">
+        <div class="service-order-main">
+          <span class="service-order-label">JASA / PROJECT</span>
+          <strong>{{ p.title }}</strong>
+          <span>{% if p.business_name == 'Pesanan pribadi' %}Pesanan langsung · {% else %}Client: {{ p.business_name }} · {% endif %}{{ p.project_type }} · {{ p.status|humanize_status('project') }}</span>
+        </div>
+        <a class="btn small secondary" href="{{ url_for('admin.talent_request_detail', request_id=p.talent_request_id) if p.talent_request_id else url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola →</a>
+      </div>
+    {% endfor %}
+  </section>
+  {% endif %}
   </section>
 </div>
 {% endblock %}
