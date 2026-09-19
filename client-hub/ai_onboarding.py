@@ -80,10 +80,12 @@ REQUIRED_CONFIG_KEYS = (
 NORMALIZATION_SYSTEM_PROMPT = """Kamu adalah asisten internal Kilas Works yang membantu merapikan data onboarding client menjadi konfigurasi AI Admin yang terstruktur.
 
 ATURAN MUTLAK:
-1. JANGAN PERNAH mengarang data yang tidak ada di input. Kalau sebuah informasi (harga, alamat, jam operasional, kebijakan, aturan pembayaran, ketersediaan appointment) tidak disebutkan jelas di data client, kosongkan field itu (null) dan sebutkan nama fieldnya di "missing_fields".
-2. Kalau ada input harga yang AMBIGU (misalnya rentang tanpa satuan jelas, atau tidak yakin), tetap isi field-nya dengan tebakan terbaik TAPI set needs_review=true untuk item itu, JANGAN diam-diam menganggapnya pasti benar.
-3. Balas HANYA dengan satu objek JSON valid, tanpa teks lain, tanpa markdown code fence, tanpa penjelasan sebelum/sesudah JSON.
-4. Struktur JSON WAJIB persis seperti ini (isi null/array kosong kalau tidak ada datanya):
+1. JANGAN PERNAH mengarang data yang tidak ada di input. Kalau sebuah informasi (harga, alamat/area layanan, jam operasional, kebijakan, aturan pembayaran, ketersediaan appointment) tidak disebutkan jelas di data client, kosongkan field itu (null) dan sebutkan nama fieldnya di "missing_fields".
+2. "description" harus menjadi ringkasan faktual 1-3 kalimat tentang bisnis: apa yang dijual/dikerjakan, siapa/area yang dilayani, dan pembeda utama HANYA jika memang disebutkan client. Jangan menambah klaim marketing, pengalaman, kualitas, lokasi, atau target customer yang tidak ada di input.
+3. Tarik aturan penting dari FAQ/kebijakan ke "policies". "appointment_rules" hanya dari aturan booking/appointment yang benar-benar diberikan. "payment_rules" hanya dari instruksi pembayaran/kebijakan pembayaran yang benar-benar diberikan — nomor rekening tidak perlu ditulis di sana.
+4. Kalau ada input harga yang AMBIGU (misalnya rentang tanpa satuan jelas, atau tidak yakin), tetap isi field-nya dengan tebakan terbaik TAPI set needs_review=true untuk item itu, JANGAN diam-diam menganggapnya pasti benar.
+5. Balas HANYA dengan satu objek JSON valid, tanpa teks lain, tanpa markdown code fence, tanpa penjelasan sebelum/sesudah JSON.
+6. Struktur JSON WAJIB persis seperti ini (isi null/array kosong kalau tidak ada datanya):
 
 {
   "business_name": string,
@@ -243,8 +245,10 @@ def build_normalization_input_text(business, profile, raw_services, raw_faqs, ex
         f"Sapaan ke customer: {(profile or {}).get('customer_salutation') or 'Kak'}",
         f"Jam operasional (mentah dari client): {(profile or {}).get('operating_hours') or '(tidak diisi)'}",
         f"Hari libur/tutup: {(profile or {}).get('closed_days') or '(tidak diisi)'}",
-        f"Online/offline: {(profile or {}).get('online_or_offline') or '(tidak diisi)'}",
+        f"Model layanan online/offline: {(profile or {}).get('online_or_offline') or '(tidak diisi)'}",
+        f"Booking lewat chat diaktifkan: {'ya' if (profile or {}).get('appointment_enabled') else 'tidak'}",
         f"Aturan appointment (mentah): {(profile or {}).get('appointment_rules_raw') or '(tidak diisi)'}",
+        f"Instruksi pembayaran ke customer (tanpa nomor rekening): {(profile or {}).get('payment_instructions') or '(tidak diisi)'}",
         "",
         "Produk/Jasa (mentah, satu per baris, PERSIS seperti diketik client):",
     ]
