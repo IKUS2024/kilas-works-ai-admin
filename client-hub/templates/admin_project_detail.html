@@ -20,25 +20,6 @@
     </div>
   </section>
 
-  {% if project.pricing_mode == 'CUSTOM_QUOTE' and project.status in ('REQUESTED','WAITING_FOR_QUOTE') and (not (wa_order or app_brief) or project.status == 'WAITING_FOR_QUOTE') %}
-  <details class="card admin-collapsible">
-    <summary>⚡ Buat Quotation</summary>
-    <div class="admin-collapsible-body">
-      <form method="post" action="{{ url_for('admin.project_create_quotation', project_id=project.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="admin-form-grid">
-          <label class="full">Scope<textarea name="scope"></textarea></label>
-          <label class="full">Deliverables<textarea name="deliverables"></textarea></label>
-          <label>Quantity<input type="number" name="quantity"></label>
-          <label>Harga Final (Rp)<input type="number" name="final_price" required></label>
-          <label class="full">Catatan<textarea name="notes"></textarea></label>
-        </div>
-        <div class="admin-actions"><button class="btn" type="submit">Kirim Quotation</button></div>
-      </form>
-    </div>
-  </details>
-  {% endif %}
-
   <details class="card admin-collapsible" open>
     <summary>Brief Customer</summary>
     <div class="admin-collapsible-body">
@@ -57,6 +38,36 @@
       <p class="admin-note">Budget: {% if project.budget_min or project.budget_max %}Rp{{ '{:,}'.format(project.budget_min).replace(',', '.') if project.budget_min else '?' }} – Rp{{ '{:,}'.format(project.budget_max).replace(',', '.') if project.budget_max else '?' }}{% else %}-{% endif %}</p>
     </div>
   </details>
+
+  {% if project.pricing_mode == 'CUSTOM_QUOTE' and project.status in ('REQUESTED','WAITING_FOR_QUOTE') and (not (wa_order or app_brief) or project.status == 'WAITING_FOR_QUOTE') %}
+  <details class="card admin-collapsible" open>
+    <summary>⚡ Buat Penawaran Harga</summary>
+    <div class="admin-collapsible-body">
+      <p class="admin-note">Isi berdasarkan brief customer di atas. Jangan menebak kebutuhan yang belum dijelaskan; konfirmasi dulu ke customer bila scope belum jelas.</p>
+      <form method="post" action="{{ url_for('admin.project_create_quotation', project_id=project.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="admin-form-grid">
+          <label class="full">Pekerjaan yang akan dilakukan
+            <textarea name="scope" placeholder="Contoh: Talent untuk campaign Instagram brand, termasuk persiapan dan produksi sesuai brief."></textarea>
+          </label>
+          <label class="full">Yang akan diterima customer
+            <textarea name="deliverables" placeholder="Contoh: 1 Reels + 3 Story / 10 foto final / landing page 5 halaman."></textarea>
+          </label>
+          <label>Jumlah output
+            <input type="number" name="quantity" min="1" value="1" placeholder="Contoh: 1">
+          </label>
+          <label>Harga penawaran (Rp)
+            <input type="number" name="final_price" min="1" placeholder="Contoh: 2500000" required>
+          </label>
+          <label class="full">Catatan untuk customer (opsional)
+            <textarea name="notes" placeholder="Contoh: Transport di luar area belum termasuk. Revisi maksimal 1 kali."></textarea>
+          </label>
+        </div>
+        <div class="admin-actions"><button class="btn" type="submit">Kirim Penawaran ke Customer</button></div>
+      </form>
+    </div>
+  </details>
+  {% endif %}
 
   {% if attachments %}
   <details class="card admin-collapsible">
