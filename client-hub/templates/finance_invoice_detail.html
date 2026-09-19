@@ -20,15 +20,15 @@
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID') and totals.outstanding_minor>0 %}
 <form class="card no-print" method="post" action="{{ url_for('finance.record_payment',business_id=business.id,invoice_id=invoice.id) }}">
 <h2>Catat Pembayaran</h2><p class="muted">Catat hanya uang yang benar-benar sudah diterima. Pembayaran otomatis masuk sebagai pemasukan dan tidak dapat dibatalkan langsung pada fase ini.</p>
-{% if not accounts or not categories %}<p class="muted">Siapkan akun rupiah dan kategori pemasukan di dashboard Kilas Finance terlebih dahulu.</p>{% endif %}
+{% if not accounts or not categories %}<p class="muted">Siapkan Kas / Rekening {{ invoice.currency }} dan kategori pemasukan di dashboard Kilas Finance terlebih dahulu.</p>{% endif %}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="payment_key" value="{{ payment_key }}">
-<label for="amount">Nominal diterima (rupiah)</label><input id="amount" name="amount" inputmode="numeric" pattern="[0-9]+" maxlength="19" required>
+<label for="amount">Nominal diterima ({{ invoice.currency }})</label><input id="amount" name="amount" inputmode="decimal" maxlength="25" required>
 <label for="paid-on">Tanggal pembayaran</label><input id="paid-on" name="paid_on" type="date" value="{{ today }}" max="{{ today }}" required>
-<label for="account">Akun penerima</label><select id="account" name="account_id" required><option value="">Pilih akun rupiah</option>{% for a in accounts if a.currency=='IDR' %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+<label for="account">Akun penerima</label><select id="account" name="account_id" required><option value="">Pilih akun {{ invoice.currency }}</option>{% for a in accounts if a.currency==invoice.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
 <label for="category">Kategori pemasukan</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="note">Catatan (opsional)</label><textarea id="note" name="note" maxlength="1000"></textarea><button class="btn">Simpan Pembayaran</button>
 </form>{% endif %}
-<div class="card no-print invoice-controls"><h2>Riwayat pembayaran</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_idr }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">Belum ada pembayaran.</p>{% endfor %}</div>
+<div class="card no-print invoice-controls"><h2>Riwayat pembayaran</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_money(invoice.currency) }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">Belum ada pembayaran.</p>{% endfor %}</div>
 </div>
 <script src="{{ url_for('static',filename='finance_invoice.js') }}" defer></script>
 {% endblock %}

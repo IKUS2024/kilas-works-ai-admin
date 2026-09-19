@@ -87,3 +87,20 @@ for (const currency of document.querySelectorAll('[data-account-currency]')) {
   const form=currency.closest('form');const label=form && form.querySelector('[data-opening-currency]');
   const sync=()=>{if(label)label.textContent=currency.value;};currency.addEventListener('change',sync);sync();
 }
+
+for (const form of document.querySelectorAll('form[action*="/finance/exchanges"]')) {
+  const from=form.querySelector('[data-fx-from]'),to=form.querySelector('[data-fx-to]');
+  const fromAmount=form.querySelector('[data-fx-from-amount]'),toAmount=form.querySelector('[data-fx-to-amount]');
+  const reference=form.querySelector('[data-fx-reference]'),actual=form.querySelector('[data-fx-actual]');
+  if(!from||!to)continue;
+  const refresh=()=>{
+    const f=from.selectedOptions[0],t=to.selectedOptions[0],fc=f?.dataset.currency,tc=t?.dataset.currency;
+    for(const option of to.options)option.disabled=!!option.value&&(option.value===from.value||option.dataset.currency===fc);
+    if(to.selectedOptions[0]?.disabled)to.value='';
+    const chosen=to.selectedOptions[0],fr=Number(f?.dataset.idrRate),tr=Number(chosen?.dataset.idrRate);
+    reference.textContent=(fc&&chosen?.dataset.currency&&fr>0&&tr>0)?('Kurs referensi: 1 '+fc+' ≈ '+(fr/tr).toLocaleString(undefined,{maximumFractionDigits:6})+' '+chosen.dataset.currency+' · estimasi, bukan kurs jual/beli bank.'):'Kurs referensi akan tampil setelah dua mata uang dipilih.';
+    const fa=Number(String(fromAmount.value).replace(',','.')),ta=Number(String(toAmount.value).replace(',','.'));
+    actual.textContent=(fc&&chosen?.dataset.currency&&fa>0&&ta>0)?('Kurs aktual penukaran: 1 '+fc+' = '+(ta/fa).toLocaleString(undefined,{maximumFractionDigits:6})+' '+chosen.dataset.currency):'';
+  };
+  from.addEventListener('change',refresh);to.addEventListener('change',refresh);fromAmount.addEventListener('input',refresh);toAmount.addEventListener('input',refresh);refresh();
+}
