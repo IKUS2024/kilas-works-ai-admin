@@ -819,6 +819,51 @@ def talent_admin():
                             availability_statuses=talent_service.AVAILABILITY_STATUSES)
 
 
+@admin_bp.route("/talent/requests/<int:request_id>", methods=["GET", "POST"])
+@security.admin_required
+def talent_request_detail(request_id):
+    admin = security.current_user()
+    talent_request = talent_service.get_talent_request(request_id)
+    if talent_request is None:
+        abort(404)
+    talent = talent_service.get_talent(talent_request["talent_id"])
+    project = projects_repo.get_project(talent_request["project_id"]) if talent_request.get("project_id") else None
+    if talent is None or project is None:
+        abort(404)
+    business = repo.get_business(talent_request["business_id"]) if talent_request.get("business_id") else None
+    quotation = quotation_service.get_latest_quotation_for_project(project["id"])
+
+    if request.method == "POST":
+        if request.form.get("action") != "quote":
+            abort(400)
+        if talent_request["status"] not in ("WAITING_FOR_REVIEW", "WAITING_FOR_QUOTE") or project["status"] not in ("REQUESTED", "WAITING_FOR_QUOTE"):
+            flash("Request ini sudah diproses atau statusnya sudah berubah. Muat ulang halaman.", "error")
+            return redirect(url_for("admin.talent_request_detail", request_id=request_id))
+        final_price = request.form.get("final_price", type=int)
+        quantity = request.form.get("quantity", type=int)
+        scope = (request.form.get("scope") or "").strip()
+        deliverables = (request.form.get("deliverables") or "").strip()
+        notes = (request.form.get("notes") or "").strip() or None
+        if not final_price or final_price <= 0 or not scope or not deliverables:
+            flash("Isi pekerjaan, hasil yang diterima customer, dan harga penawaran.", "error")
+            return redirect(url_for("admin.talent_request_detail", request_id=request_id))
+        try:
+            quotation_service.create_quotation(
+                project["id"], project["business_id"], scope, deliverables,
+                quantity if quantity and quantity > 0 else 1, final_price, notes, admin["id"],
+            )
+        except ValueError:
+            flash("Penawaran belum bisa dikirim karena status request sudah berubah.", "error")
+            return redirect(url_for("admin.talent_request_detail", request_id=request_id))
+        flash("Request disetujui dan penawaran harga sudah dikirim ke customer.", "success")
+        return redirect(url_for("admin.talent_request_detail", request_id=request_id))
+
+    return render_template(
+        "admin_talent_request_detail.html", talent_request=talent_request, talent=talent,
+        business=business, project=project, quotation=quotation,
+    )
+
+
 @admin_bp.route("/talent/create", methods=["POST"])
 @security.admin_required
 def talent_create():
