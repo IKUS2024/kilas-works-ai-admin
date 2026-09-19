@@ -310,6 +310,59 @@ def subscriptions_sweep():
     return {"status": "ok", **result}, 200
 
 
+def _normalize_brain_draft_for_review(business_id, actor_user_id):
+    """Normalize the current customer draft without changing business lifecycle status.
+
+    This is used for re-approval of an already APPROVED/ACTIVE Brain. The old tenant_configs
+    snapshot remains live until provisioning succeeds, so a bad AI run cannot replace the last
+    approved WhatsApp knowledge.
+    """
+    business = repo.get_business(business_id)
+    if not business:
+        return False, "business_not_found"
+    profile = repo.get_business_profile(business_id) or {}
+    services = repo.get_business_services(business_id)
+    faqs = repo.get_business_faqs(business_id)
+    files = repo.list_business_files(business_id)
+    extracted_texts = [
+        (row["original_filename"], row["extracted_text"])
+        for row in files if row.get("extracted_text")
+    ]
+
+    repo.set_ai_status(business_id, "RUNNING")
+    config, error = ai_onboarding.normalize_business_data(
+        business,
+        profile,
+        [row["raw_input"] for row in services],
+        [row["raw_input"] for row in faqs],
+        extracted_texts,
+        tenant_features=repo.get_tenant_features(business_id),
+    )
+    if error:
+        repo.set_ai_status(business_id, "FAILED", error=error)
+        repo.write_audit(actor_user_id, business_id, "ai_normalization_failed",
+                         "Brain draft re-approval normalization failed")
+        return False, error
+
+    for row, normalized in zip(services, config.get("services", [])):
+        repo.update_normalized_service(
+            row["id"], normalized.get("service_name"), normalized.get("description"),
+            normalized.get("price_from"), normalized.get("price_to"),
+            normalized.get("currency") or "IDR", normalized.get("needs_review", True),
+        )
+    for row, normalized in zip(faqs, config.get("faqs", [])):
+        repo.update_normalized_faq(
+            row["id"], normalized.get("question"), normalized.get("answer"),
+            normalized.get("category") or "general", normalized.get("needs_review", True),
+        )
+    repo.save_ai_normalized_config(
+        business_id, config.get("description", ""), config, config.get("missing_fields", [])
+    )
+    repo.write_audit(actor_user_id, business_id, "ai_normalization_run",
+                     "Brain draft normalized for admin re-approval")
+    return True, None
+
+
 @admin_bp.route("/business/<int:business_id>/ai-setup/retry", methods=["POST"])
 @security.admin_required
 def retry_ai_setup(business_id):
@@ -368,6 +421,12 @@ def approve(business_id):
     if missing:
         flash(f"Belum bisa approve — field wajib belum lengkap: {', '.join(missing)}.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
+    if ai_settings and ai_settings.get("ai_status") == "STALE":
+        ok, _ = _normalize_brain_draft_for_review(business_id, admin["id"])
+        if not ok:
+            flash("Belum bisa approve — draft Brain gagal diproses. Versi sebelumnya tetap aman.", "error")
+            return redirect(url_for("admin.review_business", business_id=business_id))
+        ai_settings = repo.get_ai_settings(business_id)
     if not ai_settings or ai_settings.get("ai_status") != "DONE":
         flash("Belum bisa approve — AI setup belum selesai/berhasil.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
@@ -377,6 +436,54 @@ def approve(business_id):
         flash(f"Approve gagal: {e}", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
     flash("Business di-approve dan tenant config sudah dibuat. Selanjutnya hubungkan WhatsApp lalu Activate.", "success")
+    return redirect(url_for("admin.review_business", business_id=business_id))
+
+
+@admin_bp.route("/business/<int:business_id>/approve-brain-changes", methods=["POST"])
+@security.admin_required
+def approve_brain_changes(business_id):
+    """Approve a customer-edited Brain draft without taking an approved/live tenant offline."""
+    business = repo.get_business(business_id)
+    if not business:
+        abort(404)
+    if business.get("package") == "NONE":
+        abort(404)
+    if business["status"] not in ("APPROVED", "ACTIVE"):
+        flash("Perubahan Brain memakai alur approve awal untuk status bisnis ini.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+
+    admin = security.current_user()
+    ai_settings = repo.get_ai_settings(business_id) or {}
+    if ai_settings.get("ai_status") != "STALE":
+        flash("Tidak ada perubahan Brain yang menunggu persetujuan.", "info")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+
+    missing = repo.required_fields_missing(business_id)
+    if missing:
+        flash("Belum bisa menyetujui perubahan — data wajib masih belum lengkap.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+
+    ok, _ = _normalize_brain_draft_for_review(business_id, admin["id"])
+    if not ok:
+        flash("Perubahan belum bisa disetujui karena pemrosesan Brain gagal. Versi live lama tetap berjalan.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+
+    try:
+        result = provisioning.provision_tenant(business_id, admin)
+    except provisioning.ProvisioningError:
+        # Keep the last approved tenant config untouched if validation/provisioning fails.
+        repo.set_ai_status(business_id, "STALE")
+        flash("Perubahan belum bisa dipromosikan ke versi live. Versi live lama tetap berjalan.", "error")
+        return redirect(url_for("admin.review_business", business_id=business_id))
+
+    repo.write_audit(
+        admin["id"], business_id, "BRAIN_CHANGES_APPROVED",
+        f"config_version={result['config_version']}"
+    )
+    if business["status"] == "ACTIVE":
+        flash("Perubahan Brain disetujui. Versi baru sekarang live; WhatsApp tetap aktif selama proses.", "success")
+    else:
+        flash("Perubahan Brain disetujui dan konfigurasi client sudah diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
