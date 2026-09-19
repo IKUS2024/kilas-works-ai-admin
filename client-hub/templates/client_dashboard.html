@@ -128,7 +128,7 @@
       <div class="business-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         {% if not review_primary %}<a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Lihat Data</a>{% endif %}
         {% if b.package != 'NONE' %}
-          {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}<a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Ajari Kilas Brain</a>{% endif %}
+          {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}<a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Pengetahuan Kilas Brain</a>{% endif %}
           <a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Pengaturan Operasional</a>
           <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Coba Kilas Brain</a>
         {% endif %}
