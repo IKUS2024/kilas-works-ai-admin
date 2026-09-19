@@ -9,12 +9,12 @@
     <section class="card">
       <h2>Kebutuhan Utama</h2>
       <div class="client-form-grid">
-        <label>Jenis Campaign<input type="text" name="campaign_type" placeholder="Contoh: Launch produk" required></label>
-        <label>Platform<select name="platform" required><option value="">Pilih platform</option><option>Instagram</option><option>TikTok</option><option>Instagram & TikTok</option><option>Lainnya</option></select></label>
-        <label>Jumlah Konten<input type="number" name="num_content_pieces" min="1" placeholder="Contoh: 1"></label>
-        <label>Target Tanggal<input type="date" name="target_date"></label>
-        <label class="full">Yang Dibutuhkan dari Talent<textarea name="deliverables" rows="2" placeholder="Contoh: 1 Reels + 3 Story" required></textarea></label>
-        <label class="full">Brief Campaign<textarea name="brief" rows="3" placeholder="Jelaskan produk, konsep, target audiens, dan kebutuhan utama." required></textarea></label>
+        <label>Jenis Campaign<input type="text" name="campaign_type" value="{{ values.get('campaign_type','') }}" placeholder="Contoh: Launch produk" required></label>
+        <label>Platform<select name="platform" required><option value="">Pilih platform</option>{% for option in ('Instagram','TikTok','Instagram & TikTok','Lainnya') %}<option {{ 'selected' if values.get('platform') == option }}>{{ option }}</option>{% endfor %}</select></label>
+        <label>Jumlah Konten<input type="number" name="num_content_pieces" min="1" value="{{ values.get('num_content_pieces') or '' }}" placeholder="Contoh: 1"></label>
+        <label>Target Tanggal<input type="date" name="target_date" value="{{ values.get('target_date','') }}"></label>
+        <label class="full">Yang Dibutuhkan dari Talent<textarea name="deliverables" rows="2" placeholder="Contoh: 1 Reels + 3 Story" required>{{ values.get('deliverables','') }}</textarea></label>
+        <label class="full">Brief Campaign<textarea name="brief" rows="3" placeholder="Jelaskan produk, konsep, target audiens, dan kebutuhan utama." required>{{ values.get('brief','') }}</textarea></label>
       </div>
     </section>
 
@@ -22,10 +22,10 @@
       <summary>Detail Tambahan</summary>
       <div class="client-collapsible-body">
         <div class="client-form-grid">
-          <label>Ketentuan Posting<input type="text" name="posting_requirements"></label>
-          <label>Lokasi<input type="text" name="location"></label>
-          <label>Tujuan Penggunaan<input type="text" name="usage_purpose"></label>
-          <label>Budget (Rp)<input type="number" name="budget"></label>
+          <label>Ketentuan Posting<input type="text" name="posting_requirements" value="{{ values.get('posting_requirements','') }}"></label>
+          <label>Lokasi<input type="text" name="location" value="{{ values.get('location','') }}"></label>
+          <label>Tujuan Penggunaan<input type="text" name="usage_purpose" value="{{ values.get('usage_purpose','') }}"></label>
+          <label>Budget (Rp)<input type="number" name="budget" min="1" value="{{ values.get('budget') or '' }}"></label>
         </div>
       </div>
     </details>
