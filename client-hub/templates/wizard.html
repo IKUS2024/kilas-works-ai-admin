@@ -2,24 +2,62 @@
 {% block title %}{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Awal' }} — {{ business.business_name }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
-<style>.wizard-head{margin-bottom:8px}.wizard-head h1{font-size:21px;margin:0 0 3px}.wizard-head p{margin:0;color:var(--text-dim);font-size:11px}.wizard-steps{display:flex;flex-wrap:nowrap;gap:5px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-bottom:10px}.wizard-steps::-webkit-scrollbar{display:none}.wizard-steps span{flex:0 0 auto;padding:4px 8px}.wizard-plan{margin-bottom:7px}.wizard-plan>summary{padding-top:10px!important;padding-bottom:10px!important}@media(max-width:600px){.wizard-steps{margin-right:-10px;padding-right:10px}.wizard-steps span{font-size:11px}.wizard-head+details{margin-bottom:7px}}</style>
-<div class="wizard-head"><h1>{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Awal' }}</h1><p>{{ business.business_name }} · Langkah {{ steps.index(step) + 1 }} dari {{ steps|length }}</p></div>
+<style>
+.wizard-page{max-width:860px;margin:0 auto}
+.wizard-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
+.wizard-head-main{min-width:0}.wizard-head h1{font-size:24px;line-height:1.15;margin:0 0 4px;letter-spacing:-.02em}.wizard-head p{margin:0;color:var(--text-dim);font-size:12px}
+.wizard-count{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.025);color:var(--text-dim);font-size:11px;font-weight:800}
+.wizard-draft-note{padding:11px 13px!important;border-left:3px solid var(--yellow)!important;margin-bottom:10px!important}.wizard-draft-note strong{font-size:12px}.wizard-draft-note .client-note{margin:3px 0 0}
+.wizard-plan{margin-bottom:10px!important;border-radius:14px!important}.wizard-plan>summary{display:flex;align-items:center;gap:9px;padding:11px 13px!important;font-size:13px}.wizard-plan>summary::before{content:"";width:8px;height:8px;border-radius:999px;background:var(--orange);box-shadow:0 0 0 4px rgba(255,122,26,.10);flex:0 0 auto}.wizard-plan>summary::after{margin-left:auto;float:none!important}
+.wizard-steps{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin:0 0 12px}
+.wizard-step{min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 7px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.018);color:var(--text-dim);text-decoration:none;transition:border-color .16s ease,background .16s ease,color .16s ease}
+.wizard-step:hover,.wizard-step:focus{border-color:#535861;color:var(--text);background:rgba(255,255,255,.035);text-decoration:none}
+.wizard-step.active{border-color:var(--orange);background:rgba(255,122,26,.10);color:var(--text);box-shadow:inset 0 0 0 1px rgba(255,122,26,.08)}
+.wizard-step-number{width:22px;height:22px;flex:0 0 22px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:#2d3035;color:#c9ccd1;font-size:10px;font-weight:850}
+.wizard-step.active .wizard-step-number{background:var(--orange);color:#171717}.wizard-step-label{min-width:0;font-size:10.5px;font-weight:800;line-height:1.12;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wizard-card{padding:20px!important;border-radius:16px!important}.wizard-card h2{font-size:20px;letter-spacing:-.01em;margin-bottom:12px}.wizard-card label{font-weight:650}.wizard-card label .muted{font-size:11px;font-weight:550;color:#c49a7a}
+.wizard-card input,.wizard-card select,.wizard-card textarea{border-radius:11px;border-color:#3a3e45;background:#191a1e;transition:border-color .16s ease,box-shadow .16s ease}.wizard-card input:focus,.wizard-card select:focus,.wizard-card textarea:focus{outline:none;border-color:rgba(255,122,26,.85);box-shadow:0 0 0 3px rgba(255,122,26,.10)}
+.wizard-card textarea{line-height:1.5}.wizard-subdetails{margin-top:12px!important;border:1px solid var(--border)!important;border-radius:12px!important;background:rgba(255,255,255,.012)}.wizard-subdetails>summary{font-size:13px}
+.wizard-actions{display:flex;justify-content:flex-end;margin-top:20px}.wizard-actions .btn{min-width:170px;border-radius:11px;padding:10px 18px}
+@media(max-width:760px){
+  .wizard-head{align-items:center;margin-bottom:9px}.wizard-head h1{font-size:21px}.wizard-head p{font-size:11px}.wizard-count{min-width:44px;padding:5px 8px}
+  .wizard-draft-note{padding:9px 11px!important}.wizard-plan{margin-bottom:8px!important}.wizard-plan>summary{padding:10px 11px!important}
+  .wizard-steps{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:9px}
+  .wizard-step{justify-content:flex-start;min-height:43px;padding:7px 8px;border-radius:10px}.wizard-step-number{width:21px;height:21px;flex-basis:21px;border-radius:6px}.wizard-step-label{font-size:10.5px;white-space:normal;overflow:visible;text-overflow:clip}
+  .wizard-card{padding:14px!important;border-radius:14px!important}.wizard-card h2{font-size:18px;margin-bottom:10px}.wizard-card label{font-size:12px}.wizard-card input,.wizard-card select,.wizard-card textarea{border-radius:10px}
+  .wizard-actions{margin-top:16px}.wizard-actions .btn{width:100%;min-width:0;min-height:46px;font-size:15px}
+}
+@media(max-width:380px){.wizard-step{padding:7px 6px;gap:5px}.wizard-step-label{font-size:10px}.wizard-card{padding:12px!important}}
+</style>
+<div class="wizard-page">
+<div class="wizard-head">
+  <div class="wizard-head-main">
+    <h1>{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Kilas Brain' }}</h1>
+    <p>{{ business.business_name }} · Pilih bagian yang ingin kamu isi atau edit.</p>
+  </div>
+  <span class="wizard-count">{{ steps.index(step) + 1 }}/{{ steps|length }}</span>
+</div>
 {% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
-  <div class="card" style="padding:10px 12px;border-left:3px solid var(--yellow);">
+  <div class="card wizard-draft-note">
     <strong style="font-size:12px;">Mode Edit Draft</strong>
     <p class="client-note" style="margin:3px 0 0;">Kamu boleh mengubah semua data. Versi Brain yang sudah disetujui tetap dipakai sampai Kilas Works menyetujui perubahan terbaru.</p>
   </div>
 {% endif %}
 <details class="card client-collapsible wizard-plan"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
 
-<div class="steps wizard-steps">
+<nav class="wizard-steps" aria-label="Langkah setup Kilas Brain">
   {% for s in steps %}
-    <span class="{{ 'active' if s == step else '' }}">{{ loop.index }}. {{ {'basics':'Data Bisnis','services':'Layanan','faq':'Pertanyaan Umum','style':'Gaya Bahasa','operations':'Operasional','upload':'Dokumen'}.get(s, s|capitalize) }}</span>
+    <a class="wizard-step {{ 'active' if s == step else '' }}"
+       href="{{ url_for('client.wizard_step', business_id=business.id, step=s) }}"
+       {% if s == step %}aria-current="step"{% endif %}>
+      <span class="wizard-step-number">{{ loop.index }}</span>
+      <span class="wizard-step-label">{{ {'basics':'Data Bisnis','services':'Layanan','faq':'Pertanyaan Umum','style':'Gaya Bahasa','operations':'Operasional','upload':'Dokumen'}.get(s, s|capitalize) }}</span>
+    </a>
   {% endfor %}
-</div>
+</nav>
 
-<div class="card">
-  <form method="post">
+<div class="card wizard-card">
+  <form method="post" class="wizard-main-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if step == 'basics' %}
     <h2>Data Dasar Bisnis</h2>
@@ -43,7 +81,7 @@
       <div class="ai-help-status"></div>
       <div class="ai-help-preview"><p class="ai-help-preview-text"></p><div class="ai-help-preview-actions"><button type="button" class="btn small ai-help-accept">Gunakan hasil</button><button type="button" class="btn small secondary ai-help-cancel">Batal</button></div></div>
     </div>
-    <details class="client-collapsible" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;">
+    <details class="client-collapsible wizard-subdetails">
       <summary>Detail Tambahan</summary>
       <div class="client-collapsible-body client-form-grid">
         <label>Negara<input type="text" name="country" value="{{ profile.country or 'Indonesia' }}"></label>
@@ -192,7 +230,7 @@
     <p class="muted">PDF, PNG, JPG, atau TXT — maks 10MB per file. Bisa pilih beberapa file sekaligus, total maksimal 11MB per unggahan.</p>
   {% endif %}
 
-    <div style="margin-top:20px;"><button class="btn" type="submit">Simpan & Lanjut</button></div>
+    <div class="wizard-actions"><button class="btn" type="submit">Simpan &amp; Lanjut</button></div>
   </form>
 
   {% if step == 'upload' %}
@@ -222,5 +260,27 @@
       </table>
     {% endif %}
   {% endif %}
+<script>
+(function () {
+  var form = document.querySelector('.wizard-main-form');
+  if (!form) return;
+  var dirty = false;
+  function markDirty() { dirty = true; }
+  form.addEventListener('input', markDirty);
+  form.addEventListener('change', markDirty);
+  form.addEventListener('submit', function () { dirty = false; });
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('.ai-help-accept') || event.target.closest('.faq-suggest-add')) dirty = true;
+  });
+  document.querySelectorAll('.wizard-step').forEach(function (link) {
+    link.addEventListener('click', function (event) {
+      if (!dirty || link.classList.contains('active')) return;
+      if (!window.confirm('Ada perubahan yang belum disimpan. Pindah bagian tanpa menyimpan?')) {
+        event.preventDefault();
+      }
+    });
+  });
+}());
+</script>
 </div>
 {% endblock %}
