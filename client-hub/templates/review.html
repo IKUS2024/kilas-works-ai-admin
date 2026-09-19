@@ -51,7 +51,8 @@
   {% set finance_label = {'NOT_ACTIVATED':'Belum aktif','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis','UNAVAILABLE':'Tidak tersedia'}.get(finance_state.status, finance_state.status) %}
   <section class="card review-products">
     <div class="review-products-head">
-      <div><h2>Produk Kilas Client</h2><p>Satu client bisa memakai Brain, Finance, atau keduanya. Pengaturan tiap produk dipisah supaya nggak ketuker.</p></div>
+      <div><h2>Status Produk Client</h2><p>Owner hanya memantau status produk. Pengaturan tetap dilakukan dari akun client.</p></div>
+      <span class="review-product-status info">OWNER VIEW · READ ONLY</span>
     </div>
     <div class="review-product-grid">
       <article class="review-product">
@@ -64,9 +65,7 @@
         </div>
         <div class="review-product-actions">
           {% if business.package != 'NONE' %}
-            <button type="button" class="btn small secondary" data-open-review-tab="knowledge">Pengaturan Brain</button>
-            <button type="button" class="btn small secondary" data-open-review-tab="whatsapp">WhatsApp</button>
-            <button type="button" class="btn small secondary" data-open-review-tab="activation">Aktivasi</button>
+            <span class="muted">WhatsApp: <strong>{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</strong>{% if subscription %} · Langganan: <strong>{{ subscription.status|humanize_status('subscription') }}</strong>{% endif %}</span>
           {% else %}
             <span class="muted">Client ini belum memakai Kilas Brain.</span>
           {% endif %}
@@ -82,10 +81,9 @@
           <span class="review-product-status {{ 'ok' if finance_state.status == 'PAID_ACTIVE' else ('info' if finance_state.status == 'TRIAL_ACTIVE' else ('warn' if finance_state.status == 'EXPIRED' else '')) }}">{{ finance_label }}</span>
         </div>
         <div class="review-product-actions">
-          {% if finance_state.status != 'NOT_ACTIVATED' and finance_state.status != 'UNAVAILABLE' %}
-            <a class="btn small" href="{{ url_for('finance.dashboard', business_id=business.id) }}">Buka Finance</a>
-          {% endif %}
-          <a class="btn small secondary" href="{{ url_for('products.finance_setup', business_id=business.id) }}">{{ 'Setup Finance' if finance_state.status == 'NOT_ACTIVATED' else 'Langganan & Setup' }}</a>
+          <span class="muted">
+            {% if finance_state.status == 'TRIAL_ACTIVE' %}Client sedang dalam masa trial.{% elif finance_state.status == 'PAID_ACTIVE' %}Langganan Finance client aktif.{% elif finance_state.status == 'EXPIRED' %}Masa aktif Finance client sudah berakhir.{% elif finance_state.status == 'NOT_ACTIVATED' %}Client belum mengaktifkan Kilas Finance.{% else %}Status Finance belum tersedia.{% endif %}
+          </span>
         </div>
       </article>
     </div>
@@ -97,7 +95,7 @@
     {% set pending_items = activation_checklist|selectattr('done', 'equalto', False)|list %}
     <section class="card activation-compact">
       <div class="activation-head">
-        <h2>{{ 'Progres Aktivasi Brain' if is_admin_view else 'Progres Aktivasi' }}</h2>
+        <h2>{{ 'Status Aktivasi Brain' if is_admin_view else 'Progres Aktivasi' }}</h2>
         <span class="activation-score">{{ done_items|length }}/{{ activation_checklist|length }} selesai</span>
       </div>
       <div class="activation-track"><div class="activation-fill" style="width:{{ ((done_items|length * 100) / (activation_checklist|length))|round(0, 'floor') }}%"></div></div>
@@ -128,7 +126,7 @@
   {% endif %}
 
   {% if is_admin_view and business.package != 'NONE' %}
-  <div class="review-settings-label" id="brain-settings"><h2>Pengaturan Kilas Brain</h2><span>Data bisnis · knowledge · aktivasi · WhatsApp</span></div>
+  <div class="review-settings-label" id="brain-settings"><h2>Detail Client</h2><span>Informasi untuk review admin · bukan pengaturan akun client</span></div>
   {% endif %}
   <nav class="review-tabs" aria-label="Bagian review">
     <button type="button" class="review-tab active" data-review-tab="business"><span class="review-tab-icon">🏢</span><span class="review-tab-label">Data Bisnis</span></button>
@@ -407,10 +405,6 @@
     if(updateHash)history.replaceState(null,'','#'+name);
   }
   tabs.forEach(t=>t.addEventListener('click',()=>show(t.dataset.reviewTab,true)));
-  document.querySelectorAll('[data-open-review-tab]').forEach(button=>button.addEventListener('click',()=>{
-    show(button.dataset.openReviewTab,true);
-    document.querySelector('.review-tabs')?.scrollIntoView({behavior:'smooth',block:'start'});
-  }));
   const initial=location.hash.replace('#','');
   show(valid.has(initial)?initial:'business',false);
 })();
