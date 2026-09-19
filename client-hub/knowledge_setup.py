@@ -183,33 +183,30 @@ def parse_rows(form, kind, current):
 
 
 def readiness(profile, services, faqs, features, cards):
+    """Core-information completeness for the maintenance editor.
+
+    Optional FAQ/booking/payment sections are intentionally not scored here. This page is an
+    update surface after onboarding, so the percentage must never imply "AI intelligence" or
+    punish a business for not using an optional feature.
+    """
     checks = []
     def check(key, complete, missing):
         checks.append({'key': key, 'complete': bool(complete), 'missing': missing})
     check('description', (profile.get('short_description') or '').strip(), 'Ceritakan singkat apa yang ditawarkan bisnismu.')
+    check('category', (profile.get('category') or '').strip(), 'Kategori bisnis belum diisi.')
     check('services', services, 'Tambahkan minimal satu produk atau layanan.')
-    prices = 0
-    for row, card in zip(services, cards['services']):
-        raw = (row.get('raw_input') or '').lower()
-        rule = card.get('pricing', '').strip().lower()
-        known = row.get('price_from') is not None or bool(rule and not re.search(r'belum|tidak tahu|tbd|nanti', rule))
-        known = known or bool(re.search(r'(?:rp\.?\s*\d|idr\s*\d|usd\s*\d|gratis|sesuai penawaran|harga berdasarkan)', raw))
-        if not known: prices += 1
-    check('prices', services and not prices, f'{prices} layanan belum memiliki informasi harga atau ketentuan penawaran.' if services else 'Isi harga atau ketentuan penawaran setelah menambah layanan.')
     check('hours', (profile.get('operating_hours') or '').strip(), 'Jam operasional belum diisi.')
-    complete_faq = any((c.get('question') or '').strip() and (c.get('answer') or '').strip() for c in cards['faqs'])
-    check('faqs', complete_faq, 'Belum ada FAQ dengan pertanyaan dan jawaban lengkap.')
-    check('communication', all((profile.get(k) or '').strip() for k in ('tone','primary_language','customer_salutation')), 'Lengkapi gaya bicara, bahasa, dan sapaan customer.')
+    check('service_mode', (profile.get('online_or_offline') or '').strip(), 'Pilih apakah bisnis melayani online, offline, atau keduanya.')
+    check('business_phone', repo.normalize_whatsapp_phone(profile.get('business_phone')), 'WhatsApp bisnis / nomor robot belum diisi dengan benar.')
+    check('communication', all((profile.get(k) or '').strip() for k in ('tone','primary_language','customer_salutation')),
+          'Lengkapi gaya bicara, bahasa, dan sapaan customer.')
     if (profile.get('online_or_offline') or '').lower() in ('offline','both','hybrid'):
-        check('address', (profile.get('address') or '').strip(), 'Isi alamat agar customer tahu lokasi kunjungan.')
-    enabled = profile.get('appointment_enabled')
-    if features.get('appointment') and enabled not in (False, 0, '0', 'false', 'off'):
-        check('booking', (profile.get('appointment_rules_raw') or '').strip(), 'Lengkapi aturan booking di Pengaturan operasional.')
-    if features.get('payment_conversation'):
-        complete = (profile.get('payment_instructions') or '').strip() or all((profile.get(k) or '').strip() for k in ('payment_bank_name','payment_account_name','payment_account_number'))
-        check('payment', complete, 'Lengkapi petunjuk pembayaran customer di Pengaturan operasional.')
-    return {'score': round(100 * sum(c['complete'] for c in checks) / len(checks)), 'checks': checks,
-            'missing': [c['missing'] for c in checks if not c['complete']]}
+        check('address', (profile.get('address') or '').strip(), 'Isi alamat atau area layanan agar customer tahu lokasi.')
+    if faqs:
+        complete_faq = any((c.get('question') or '').strip() and (c.get('answer') or '').strip() for c in cards['faqs'])
+        check('faqs', complete_faq, 'Ada FAQ yang belum punya pertanyaan dan jawaban lengkap.')
+    score = round(100 * sum(c['complete'] for c in checks) / len(checks)) if checks else 100
+    return {'score': score, 'checks': checks, 'missing': [c['missing'] for c in checks if not c['complete']]}
 
 
 @db.knowledge_writer
