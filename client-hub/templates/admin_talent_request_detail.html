@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Request {{ talent.name }} — Admin{% endblock %}
+{% block content %}
+{% include "_admin_compact_style.html" %}
+<style>
+.talent-review-head{display:flex;gap:12px;align-items:center}.talent-review-photo{width:64px;height:64px;border-radius:14px;object-fit:cover;background:var(--bg-soft);flex:0 0 auto}
+.talent-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.talent-fact{border:1px solid var(--border);border-radius:12px;padding:10px}.talent-fact span{display:block;font-size:11px;color:var(--text-dim);margin-bottom:3px}.talent-fact strong{display:block;font-size:13px;overflow-wrap:anywhere}
+.quote-total{font-size:24px;font-weight:800;margin:8px 0}
+@media(max-width:560px){.talent-facts{grid-template-columns:1fr}.talent-review-head{align-items:flex-start}}
+</style>
+<div class="admin-page">
+  <a href="{{ url_for('admin.talent_admin') }}" class="muted">← Talent</a>
+
+  <header class="admin-head" style="margin-top:10px;">
+    <div class="talent-review-head">
+      {% if talent.profile_image_asset_id %}
+        <img class="talent-review-photo" src="{{ url_for('admin.platform_asset_view', asset_id=talent.profile_image_asset_id) }}" alt="{{ talent.name }}">
+      {% elif talent.profile_photo_url %}
+        <img class="talent-review-photo" src="{{ talent.profile_photo_url }}" alt="{{ talent.name }}">
+      {% endif %}
+      <div>
+        <h1>{{ talent.name }}</h1>
+        <p>{{ business.business_name if business else 'Pesanan pribadi' }} · Request Talent</p>
+      </div>
+    </div>
+    <span class="admin-status {{ 'warn' if talent_request.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else ('ok' if talent_request.status in ('QUOTED','APPROVED','PAID','IN_PROGRESS','COMPLETED') else '') }}">{{ talent_request.status|humanize_status('talent_request') }}</span>
+  </header>
+
+  <section class="card">
+    <h2>Permintaan Customer</h2>
+    <div class="talent-facts">
+      <div class="talent-fact"><span>Jenis campaign</span><strong>{{ talent_request.campaign_type|display_or_missing }}</strong></div>
+      <div class="talent-fact"><span>Platform</span><strong>{{ talent_request.platform|display_or_missing }}</strong></div>
+      <div class="talent-fact"><span>Jumlah konten</span><strong>{{ talent_request.num_content_pieces|display_or_missing }}</strong></div>
+      <div class="talent-fact"><span>Target tanggal</span><strong>{{ talent_request.target_date|display_or_missing }}</strong></div>
+      <div class="talent-fact"><span>Lokasi</span><strong>{{ talent_request.location|display_or_missing }}</strong></div>
+      <div class="talent-fact"><span>Budget customer</span><strong>{% if talent_request.budget %}Rp{{ '{:,}'.format(talent_request.budget).replace(',', '.') }}{% else %}Belum diisi{% endif %}</strong></div>
+    </div>
+    <p class="admin-note" style="margin-top:12px;"><strong>Deliverables:</strong> {{ talent_request.deliverables|display_or_missing }}</p>
+    {% if talent_request.posting_requirements %}<p class="admin-note"><strong>Ketentuan posting:</strong> {{ talent_request.posting_requirements }}</p>{% endif %}
+    {% if talent_request.usage_purpose %}<p class="admin-note"><strong>Tujuan penggunaan:</strong> {{ talent_request.usage_purpose }}</p>{% endif %}
+    <p class="admin-note"><strong>Brief:</strong> {{ talent_request.brief|display_or_missing }}</p>
+  </section>
+
+  {% if talent_request.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') and project.status in ('REQUESTED','WAITING_FOR_QUOTE') %}
+  <section class="card">
+    <h2>Setujui &amp; Kirim Harga</h2>
+    <p class="admin-note">Kalau request bisa dikerjakan, isi penawaran final di bawah. Setelah dikirim, customer langsung melihat penawaran di akun mereka dan bisa setuju atau minta revisi.</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="quote">
+      <div class="admin-form-grid">
+        <label class="full">Pekerjaan yang disetujui
+          <textarea name="scope" required placeholder="Contoh: Talent untuk campaign Instagram brand fashion sesuai brief customer."></textarea>
+        </label>
+        <label class="full">Yang diterima customer
+          <textarea name="deliverables" required placeholder="Contoh: 1 Reels + 3 Story.">{{ talent_request.deliverables or '' }}</textarea>
+        </label>
+        <label>Jumlah output
+          <input type="number" name="quantity" min="1" value="{{ talent_request.num_content_pieces or 1 }}">
+        </label>
+        <label>Harga penawaran (Rp)
+          <input type="number" name="final_price" min="1" placeholder="Contoh: 2500000" required>
+        </label>
+        <label class="full">Catatan untuk customer (opsional)
+          <textarea name="notes" placeholder="Contoh: Transport luar area belum termasuk. Revisi maksimal 1 kali."></textarea>
+        </label>
+      </div>
+      <div class="admin-actions"><button class="btn" type="submit">Setujui Request &amp; Kirim Penawaran</button></div>
+    </form>
+  </section>
+  {% endif %}
+
+  {% if quotation %}
+  <section class="card">
+    <h2>Penawaran Terkirim</h2>
+    <div class="quote-total">Rp{{ '{:,}'.format(quotation.final_price).replace(',', '.') }}</div>
+    <p class="admin-note">{{ quotation.scope|display_or_missing }}</p>
+    <p class="admin-note">{{ quotation.deliverables|display_or_missing }}</p>
+    <p class="admin-note">Status customer: {{ quotation.status|humanize_status('quotation') }}</p>
+    <div class="admin-actions"><a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=project.id) }}">Lihat Project</a></div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
