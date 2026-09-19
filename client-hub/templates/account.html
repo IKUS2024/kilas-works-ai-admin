@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Akun · Kilas Works{% endblock %}
+{% block content %}
+{% include "_client_compact_style.html" %}
+<style>
+.account-page{max-width:720px;margin:0 auto}.account-head{margin-bottom:12px}.account-head h1{font-size:24px;margin:0 0 4px}.account-head p{margin:0}
+.account-card{padding:16px}.account-card h2{font-size:17px;margin:0 0 4px}.account-card>p{margin:0 0 10px}.account-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.account-email{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-soft);color:var(--text-dim);overflow-wrap:anywhere}
+.account-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.account-actions .btn{margin:0}
+.account-danger{border-color:rgba(241,101,101,.35)!important}.account-danger h2{color:#ffb3b3}
+@media(max-width:600px){.account-row{grid-template-columns:1fr}.account-card{padding:13px}.account-actions .btn{width:100%;text-align:center}.account-head h1{font-size:21px}}
+</style>
+<div class="account-page">
+  <header class="account-head">
+    <h1>Akun</h1>
+    <p class="muted">Kelola profil dan keamanan login.</p>
+  </header>
+
+  <section class="card account-card">
+    <h2>Profil</h2>
+    <p class="muted">Email dipakai untuk login dan reset password.</p>
+    <label>Email</label>
+    <div class="account-email">{{ user.email }}</div>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="profile">
+      <label for="account-full-name">Nama</label>
+      <input id="account-full-name" type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu">
+      <div class="account-actions"><button class="btn" type="submit">Simpan Nama</button></div>
+    </form>
+  </section>
+
+  <section class="card account-card">
+    <h2>Ganti Password</h2>
+    <p class="muted">Masukkan password saat ini untuk konfirmasi.</p>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="password">
+      <label for="current-password">Password saat ini</label>
+      <input id="current-password" type="password" name="current_password" autocomplete="current-password" required>
+      <div class="account-row">
+        <label>Password baru
+          <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <label>Ulangi password baru
+          <input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required>
+        </label>
+      </div>
+      <div class="account-actions"><button class="btn" type="submit">Ganti Password</button></div>
+    </form>
+  </section>
+
+  <section class="card account-card account-danger">
+    <h2>Keluar dari akun</h2>
+    <p class="muted">Keluar dari Kilas Works di perangkat ini.</p>
+    <div class="account-actions"><a class="btn danger" href="{{ url_for('auth.logout_page') }}">Logout</a></div>
+  </section>
+</div>
+{% endblock %}
