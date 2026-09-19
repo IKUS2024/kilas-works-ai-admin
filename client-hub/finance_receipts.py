@@ -31,9 +31,11 @@ Return exactly one JSON object with these exact keys:
 "currency":string|null,"receipt_number":string|null,"description":string|null,
 "suggested_category_name":string|null,"readable":boolean}.
 Use null when absent, unclear or ambiguous. Date must be exact YYYY-MM-DD; never guess a year.
-For IDR total_minor means whole rupiah, a positive integer transcribed from the final paid total.
-Never perform arithmetic; do not mistake subtotal, tax, change or account numbers for the total.
-Currency must be visible or clearly Rupiah; otherwise null. Do not convert foreign currencies.
+For IDR and JPY total_minor is the positive whole-unit final paid total. For USD, SGD, MYR, EUR,
+GBP, AUD, CNY, HKD and THB total_minor is the final paid total in minor units (for example USD
+12.34 => 1234). Never perform FX conversion. Do not mistake subtotal, tax, change or account
+numbers for the total. Currency must be one of the supported ISO codes and visible or clearly
+identified on the receipt; otherwise null.
 Merchant max 160 chars, receipt number max 120, factual description max 500.
 Category suggestion must be null or an exact supplied active EXPENSE category name, max 160 chars.
 If reliable extraction is impossible return readable=false and all other fields null.
@@ -86,7 +88,7 @@ def signer():
 def options(business_id, user_id):
     accounts = finance.list_accounts(business_id, actor_user_id=user_id)
     categories = finance.list_categories(business_id, 'EXPENSE', actor_user_id=user_id)
-    return [a for a in accounts if a['currency'] == 'IDR'], categories
+    return accounts, categories
 
 
 def extract(raw, mime, pdf_text, category_names):
@@ -191,7 +193,10 @@ def confirm(business_id, user_id, token, fields):
             raise ReceiptError('invalid_fields')
     merchant = finance._text(fields['merchant_name'], 160)
     description = finance._text(fields['description'], 500)
+    from routes_finance import currency_amount
+    account=finance.get_account(business_id,finance._id(int(fields['account_id'])),actor_user_id=user_id,active=True)
+    if account['currency']!=currency:raise ValueError('account_currency_mismatch')
     return finance.create_receipt_expense(business_id, data['receipt_hash'],
-        finance._money(int(fields['amount']), positive=True), finance._id(int(fields['account_id'])),
+        currency_amount(fields['amount'],currency), account['id'],
         finance._id(int(fields['category_id'])), finance._date(fields['occurred_on']),
         description=description, counterparty_name=merchant, actor_user_id=user_id)

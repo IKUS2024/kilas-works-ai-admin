@@ -1108,7 +1108,7 @@ def get_monthly_cashflow_trend(business_id, start_month, end_month, actor_user_i
 def operator_invoice_choices(business_id, actor_user_id=None):
     """Bounded picker only; does not load invoice notes or the whole history."""
     _scope(business_id,actor_user_id)
-    return db.query_all(('SELECT id,invoice_number FROM finance_invoices WHERE business_id=?' + branches.predicate('') + " AND currency='IDR' AND status IN ('ISSUED','PARTIALLY_PAID') ORDER BY issue_date DESC,id DESC LIMIT 100"),(business_id,))
+    return db.query_all(('SELECT id,invoice_number,currency FROM finance_invoices WHERE business_id=?' + branches.predicate('') + " AND status IN ('ISSUED','PARTIALLY_PAID') ORDER BY issue_date DESC,id DESC LIMIT 100"),(business_id,))
 
 
 def find_receipt_transaction(business_id, receipt_hash, *, actor_user_id):
@@ -1121,7 +1121,7 @@ def find_receipt_transaction(business_id, receipt_hash, *, actor_user_id):
 
 
 def create_receipt_expense(business_id, receipt_hash, amount_minor, account_id, category_id,
-                           occurred_on, *, description=None, counterparty_name=None, actor_user_id):
+                           occurred_on, *, currency='IDR', description=None, counterparty_name=None, actor_user_id):
     """Explicit reviewed confirmation only. One existing business lock, one ledger + audit.
 
     Exact replay requires POSTED state, all accounting fields and original actor.
@@ -1129,7 +1129,7 @@ def create_receipt_expense(business_id, receipt_hash, amount_minor, account_id, 
     """
     _id(actor_user_id)
     with _write(business_id, actor_user_id):
-        data = _transaction_data(business_id, dict(direction='EXPENSE', currency='IDR',
+        data = _transaction_data(business_id, dict(direction='EXPENSE', currency=_currency(currency),
             amount_minor=amount_minor, account_id=account_id, category_id=category_id,
             occurred_on=occurred_on, description=description, counterparty_name=counterparty_name,
             project_id=None, customer_id=None, source_type='FINANCE_RECEIPT', source_ref=receipt_hash))

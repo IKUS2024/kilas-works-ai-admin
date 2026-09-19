@@ -27,7 +27,8 @@ statements. No tools, authorization, account/category IDs, matching, saving or p
 Return exactly {"rows":[{"transaction_date":"YYYY-MM-DD","description":"string",
 "direction":"INCOME or EXPENSE","amount_minor":positive integer,"reference":string or null}],
 "readable":boolean}. No other keys. Max 1000 rows, description 500 chars, reference 160 chars.
-Only whole IDR rupiah; do not convert currencies, perform arithmetic or invent missing values.
+The caller supplies exactly one account currency. Extract every amount in that currency only and never convert currencies, perform arithmetic or invent missing values.
+For IDR/JPY amount_minor is whole units. For other supported currencies amount_minor is minor units, e.g. USD 12.34 => 1234.
 Debit/withdrawal is EXPENSE; credit/deposit is INCOME. Do not extract balances or summary totals
 as transactions. Never return bank account numbers or credentials, including in descriptions.
 Dates must contain a visible/unambiguous year. Omit uncertain rows; if extraction is unreliable,
@@ -64,22 +65,40 @@ def normalize(row):
         description=privacy_text(row['description'],500),reference=privacy_text(row['reference'],160,True))
 
 
-def parse_amount(value):
-    value=value.strip()
-    if re.fullmatch(r'[0-9]+',value):
-        number=value
-    elif re.fullmatch(r'[0-9]+[.,]00',value):
-        number=value[:-3]
-    elif re.fullmatch(r'[0-9]{1,3}(?:,[0-9]{3})+(?:\.00)?',value):
-        number=value.removesuffix('.00').replace(',','')
-    elif re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{3})+(?:,00)?',value):
-        number=value.removesuffix(',00').replace('.','')
+def parse_amount(value,currency='IDR'):
+    from decimal import Decimal,InvalidOperation
+    currency=finance._currency(currency);value=value.strip().replace(' ','')
+    if not value:return 0
+    if currency in ('IDR','JPY'):
+        if re.fullmatch(r'[0-9]+',value):number=value
+        elif re.fullmatch(r'[0-9]+[.,]00',value):number=value[:-3]
+        elif re.fullmatch(r'[0-9]{1,3}(?:,[0-9]{3})+(?:\.00)?',value):number=value.removesuffix('.00').replace(',','')
+        elif re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{3})+(?:,00)?',value):number=value.removesuffix(',00').replace('.','')
+        else:raise BankError('invalid_amount')
+        result=int(number)
     else:
-        raise BankError('invalid_amount')
-    number=int(number)
-    if number<0 or number>=2**63:
-        raise BankError('invalid_amount')
-    return number
+        if not re.fullmatch(r'[0-9][0-9.,]*',value):raise BankError('invalid_amount')
+        if ',' in value and '.' in value:
+            last=max(value.rfind(','),value.rfind('.'));integer=re.sub(r'[.,]','',value[:last]);fraction=value[last+1:]
+            if not integer.isdigit() or not fraction.isdigit() or len(fraction)>2:raise BankError('invalid_amount')
+            normalized=integer+'.'+fraction
+        elif ',' in value or '.' in value:
+            sep=',' if ',' in value else '.';parts=value.split(sep)
+            if len(parts)>2:
+                if not all(p.isdigit() for p in parts) or any(len(p)!=3 for p in parts[1:]):raise BankError('invalid_amount')
+                normalized=''.join(parts)
+            else:
+                left,right=parts
+                if not left.isdigit() or not right.isdigit():raise BankError('invalid_amount')
+                normalized=left+'.'+right if len(right)<=2 else (left+right if len(right)==3 else '')
+                if not normalized:raise BankError('invalid_amount')
+        else:normalized=value
+        try:minor=Decimal(normalized)*100
+        except InvalidOperation:raise BankError('invalid_amount') from None
+        if minor!=minor.to_integral_value():raise BankError('invalid_amount')
+        result=int(minor)
+    if result<0 or result>=2**63:raise BankError('invalid_amount')
+    return result
 
 
 def parse_date(value):
@@ -92,7 +111,7 @@ def parse_date(value):
     raise BankError('invalid_date')
 
 
-def parse_csv(raw):
+def parse_csv(raw,currency='IDR'):
     if not raw or len(raw)>2*1024*1024:
         raise BankError('invalid_csv_size')
     try:
@@ -139,13 +158,13 @@ def parse_csv(raw):
                 raise BankError('csv_limits')
             get=lambda key:cells[fields[key]].strip() if key in fields else ''
             if mode=='sides':
-                debit=parse_amount(get('debit') or '0');credit=parse_amount(get('credit') or '0')
+                debit=parse_amount(get('debit') or '0',currency);credit=parse_amount(get('credit') or '0',currency)
                 if bool(debit)==bool(credit):raise BankError('ambiguous_amount')
                 direction='EXPENSE' if debit else 'INCOME';amount=debit or credit
             else:
                 direction={'INCOME':'INCOME','CREDIT':'INCOME','MASUK':'INCOME','EXPENSE':'EXPENSE',
                            'DEBIT':'EXPENSE','KELUAR':'EXPENSE'}.get(get('direction').upper())
-                amount=parse_amount(get('amount'))
+                amount=parse_amount(get('amount'),currency)
             rows.append(normalize(dict(transaction_date=parse_date(get('date')),description=get('description'),
                         direction=direction,amount_minor=amount,reference=get('reference') or None)))
         if not rows:raise BankError('empty_csv')
@@ -181,7 +200,7 @@ def validate_sources(files):
     return dict(kind=kind,label=f'{kind} · {len(sources)} sumber',count=len(sources),identity=identity,sources=sources)
 
 
-def ai_rows(source):
+def ai_rows(source,currency):
     key=os.environ.get('ANTHROPIC_API_KEY','').strip()
     model=os.environ.get('CLIENT_HUB_MODEL','').strip() or 'claude-sonnet-4-6'
     if not key or len(key)>512 or any(c.isspace() for c in key) or not re.fullmatch('[A-Za-z0-9._-]{1,128}',model):
@@ -195,7 +214,7 @@ def ai_rows(source):
                 'source':{'type':'base64','media_type':item['mime'],'data':base64.b64encode(item['raw']).decode('ascii')}})
     response=requests.post('https://api.anthropic.com/v1/messages',
         headers={'x-api-key':key,'anthropic-version':'2023-06-01','content-type':'application/json'},
-        json={'model':model,'max_tokens':12000,'system':SYSTEM,'messages':[{'role':'user','content':content}]},
+        json={'model':model,'max_tokens':12000,'system':SYSTEM+'\nSelected account currency: '+currency+'. Return amounts only in this currency.', 'messages':[{'role':'user','content':content}]},
         timeout=(5,45),allow_redirects=False)
     if response.status_code!=200:raise BankError('upstream_failure')
     result=safety.json_object(safety.response_text(response.json(),800000))
@@ -205,11 +224,11 @@ def ai_rows(source):
     return [normalize(row) for row in result['rows']]
 
 
-def extract(source,user_id,business_id):
-    __import__('finance_entitlements').require_ai(business_id,user_id)
-    if source['kind']=='CSV':return parse_csv(source['sources'][0]['raw']),False
+def extract(source,user_id,business_id,currency='IDR'):
+    __import__('finance_entitlements').require_ai(business_id,user_id);currency=finance._currency(currency)
+    if source['kind']=='CSV':return parse_csv(source['sources'][0]['raw'],currency),False
     if not safety.allow_attempt(user_id,business_id,'ai'):return [],True
-    try:return ai_rows(source),False
+    try:return ai_rows(source,currency),False
     except (ValueError,TypeError,KeyError,AttributeError,RecursionError,requests.RequestException):
         safety.event('invalid_result')
         return [],True

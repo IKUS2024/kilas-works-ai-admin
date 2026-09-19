@@ -17,7 +17,7 @@ PAGE_SIZE = 50
 def account(business_id,account_id,user_id):
     f._id(user_id)
     f._scope(business_id,user_id)
-    row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND id=? AND currency='IDR' AND is_active=TRUE"),
+    row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND id=? AND is_active=TRUE"),
                      (business_id,f._id(account_id)))
     if not row:raise f.FinanceError('account_unavailable')
     return row
@@ -97,7 +97,7 @@ def analyze(business_id,account_id,files,user_id):
     source=extraction.validate_sources(files)
     existing=find_import(business_id,account_id,source['identity'],user_id)
     if existing:return existing['id'],False
-    rows,fallback=extraction.extract(source,user_id,business_id)
+    rows,fallback=extraction.extract(source,user_id,business_id,account(business_id,account_id,user_id)['currency'])
     return stage(business_id,account_id,source,rows,user_id),fallback
 
 
@@ -163,7 +163,8 @@ def date_gap(row,tx):
 
 
 def match_valid(imp,row,tx):
-    return bool(tx and tx['business_id']==imp['business_id'] and tx['account_id']==imp['account_id'] and tx['currency']=='IDR'
+    acct=account(imp['business_id'],imp['account_id'],None)
+    return bool(tx and tx['business_id']==imp['business_id'] and tx['account_id']==imp['account_id'] and tx['currency']==acct['currency']
         and tx['status']=='POSTED' and tx['direction']==row['direction'] and tx['amount_minor']==row['amount_minor'] and date_gap(row,tx)<=3)
 
 
@@ -175,8 +176,8 @@ def candidates(business_id,import_id,user_id):
     days=[date.fromisoformat(row['occurred_on']).toordinal() for row in rows]
     start=date.fromordinal(max(date.min.toordinal(),min(days)-3)).isoformat()
     end=date.fromordinal(min(date.max.toordinal(),max(days)+3)).isoformat()
-    ledger=db.query_all(('SELECT t.* FROM finance_transactions t WHERE t.business_id=?' + branches.predicate('t') + " AND t.account_id=? AND t.status='POSTED' AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=? AND NOT EXISTS (SELECT 1 FROM finance_bank_rows r WHERE r.business_id=t.business_id AND (r.matched_transaction_id=t.id OR r.created_transaction_id=t.id)) ORDER BY t.occurred_on,t.id LIMIT ?"),
-        (business_id,imp['account_id'],start,end,MAX_LEDGER+1))
+    ledger=db.query_all(('SELECT t.* FROM finance_transactions t WHERE t.business_id=?' + branches.predicate('t') + " AND t.account_id=? AND t.status='POSTED' AND t.currency=? AND t.occurred_on>=? AND t.occurred_on<=? AND NOT EXISTS (SELECT 1 FROM finance_bank_rows r WHERE r.business_id=t.business_id AND (r.matched_transaction_id=t.id OR r.created_transaction_id=t.id)) ORDER BY t.occurred_on,t.id LIMIT ?"),
+        (business_id,imp['account_id'],account(business_id,imp['account_id'],user_id)['currency'],start,end,MAX_LEDGER+1))
     if len(ledger)>MAX_LEDGER:raise f.FinanceError('bank_candidate_limit')
     groups=defaultdict(list)
     for tx in ledger:groups[(tx['direction'],tx['amount_minor'])].append(tx)
@@ -207,7 +208,7 @@ def decide(business_id,import_id,row_id,action,user_id,*,transaction_id=None,fie
         if action=='post':
             if not isinstance(fields,dict) or set(fields)!={'category_id','occurred_on','description','counterparty_name'}:
                 raise f.FinanceError('bank_invalid_fields')
-            data=dict(direction=row['direction'],amount_minor=row['amount_minor'],currency='IDR',
+            data=dict(direction=row['direction'],amount_minor=row['amount_minor'],currency=account(business_id,imp['account_id'],user_id)['currency'],
                 account_id=imp['account_id'],category_id=f._id(fields['category_id']),occurred_on=f._date(fields['occurred_on']),
                 description=extraction.privacy_text(fields['description'],500) or None,
                 counterparty_name=extraction.privacy_text(fields['counterparty_name'],160,True),

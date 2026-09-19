@@ -49,3 +49,11 @@ def reference_pair(from_currency,to_currency,fx):
     a=rates.get(from_currency);b=rates.get(to_currency)
     if not a or not b:return None
     return Decimal(str(a))/Decimal(str(b))
+
+def format_money(amount_minor,currency):
+    symbols={'IDR':'Rp','USD':'US$','SGD':'S$','MYR':'RM','EUR':'€','GBP':'£','AUD':'A$','JPY':'¥','CNY':'CN¥','HKD':'HK$','THB':'฿'}
+    if currency not in SUPPORTED:raise ValueError('unsupported_currency')
+    value=major(amount_minor,currency);sign='-' if value<0 else '';value=abs(value)
+    if currency in ('IDR','JPY'):text=f"{int(value):,}";text=text.replace(',','.') if currency=='IDR' else text
+    else:text=f"{value:,.2f}"
+    return sign+symbols[currency]+text

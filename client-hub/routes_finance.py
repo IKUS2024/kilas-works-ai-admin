@@ -714,7 +714,7 @@ def operator(business_id, user, business):
     invoices = finance.operator_invoice_choices(business_id, **actor)
     return render_template('finance_operator.html', user=user, business=business,
         actions=finance_operator.ACTIONS, today=date.today().isoformat(),
-        accounts=[a for a in finance.list_accounts(business_id, **actor) if a['currency']=='IDR'],
+        accounts=finance.list_accounts(business_id, **actor),
         categories=finance.list_categories(business_id, **actor),
         invoices=invoices)
 
@@ -960,7 +960,7 @@ def receipt_confirm(business_id, user, business):
     except ValueError as error:
         duplicate = str(error) == 'receipt_duplicate_conflict'
         message = ('Struk sudah tercatat atau dibatalkan. Tidak ada pengeluaran baru dibuat.' if duplicate else
-                   'Periksa konfirmasi, nominal rupiah, tanggal, akun dan kategori aktif. Belum ada pengeluaran baru dibuat.')
+                   'Periksa konfirmasi, mata uang, nominal, tanggal, akun dan kategori aktif. Belum ada pengeluaran baru dibuat.')
         return receipt_page(user, business, review=review, values=fields, error=message, status=409 if duplicate else 400)
     except Exception:
         ai_safety.event('request_failed')
@@ -1010,7 +1010,7 @@ def bank_index(business_id,user,business):
 @bank_safe
 @finance_access
 def bank_new(business_id,user,business):
-    accounts=[a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['currency']=='IDR']
+    accounts=finance.list_accounts(business_id,actor_user_id=user['id'])
     return render_template('finance_bank_new.html',user=user,business=business,accounts=accounts)
 
 
@@ -1064,7 +1064,8 @@ def bank_review(business_id,user,business,import_id):
     row_id=record_id(request.form['row_id']) if request.form.get('row_id') else None
     bank.edit_row(business_id,import_id,row_id,int(request.form.get('revision','-1')),dict(
         transaction_date=request.form.get('transaction_date'),description=request.form.get('description'),
-        direction=request.form.get('direction'),amount_minor=whole_idr(request.form.get('amount')),
+        direction=request.form.get('direction'),amount_minor=currency_amount(request.form.get('amount'),
+            bank.account(business_id,bank.get_import(business_id,import_id,user['id'])['account_id'],user['id'])['currency']),
         reference=request.form.get('reference') or None),user['id'])
     return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
 

@@ -14,6 +14,7 @@ import finance_service as finance
 import finance_ai_safety as safety
 import db
 import finance_branches as branches
+import finance_fx
 
 ACTIONS = {'create_expense':'Catat pengeluaran', 'create_income':'Catat pemasukan',
            'record_invoice_payment':'Catat pembayaran invoice Finance'}
@@ -26,8 +27,7 @@ permintaan menghapus/mengubah data, transfer, dan tindakan lain harus ditolak.
 Jangan invent nominal, ID, tanggal, pihak atau fakta. Pilihan referensi dan tanggal ditangani server.
 Return tepat satu JSON object, tanpa markdown: {"action":"action terpilih","amount_text":"kutipan
 nominal persis dari request","description":"kutipan keterangan persis dari request"}.
-amount_text harus berupa satu nominal rupiah eksplisit, bukan hasil kalkulasi. Contoh 500rb,
-Rp500.000, 1,5 juta. Jika nominal ambigu, informasi kurang, atau action tidak sesuai, return
+amount_text harus berupa satu nominal eksplisit dalam mata uang akun yang diberikan server, bukan hasil kalkulasi. Untuk IDR boleh contoh 500rb, Rp500.000, 1,5 juta; untuk currency lain gunakan nominal asli seperti 12.50 USD. Jika nominal ambigu, informasi kurang, atau action tidak sesuai, return
 {"action":"unsupported","amount_text":"","description":""}. Tidak ada field lain.
 Jangan mengaku sudah mencatat, membayar, menyimpan atau mengeksekusi apa pun.'''
 
@@ -67,7 +67,7 @@ def validate_request(payload):
     if not isinstance(action,str) or action not in ACTIONS: raise OperatorError('unsupported_action')
     question=text(payload['request'],1000)
     fields=dict(account_id=finance._id(payload['account_id']), category_id=finance._id(payload['category_id']),
-                date=finance._date(payload['date']), invoice_id=payload['invoice_id'],currency='IDR')
+                date=finance._date(payload['date']), invoice_id=payload['invoice_id'],currency=None)
     if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
     if action=='record_invoice_payment': finance._id(fields['invoice_id'])
     elif fields['invoice_id'] is not None: raise OperatorError('unexpected_invoice')
@@ -79,22 +79,22 @@ def resolve(business_id, user_id, action, fields, *, draft):
     finance._scope(business_id,user_id)
     if not isinstance(action,str) or action not in ACTIONS or not isinstance(fields,dict) or set(fields)!={'account_id','category_id','date','invoice_id','currency','amount_minor','description'}:
         raise OperatorError('invalid_fields')
-    if fields['currency']!='IDR': raise OperatorError('currency')
+    if fields['currency'] not in finance.SUPPORTED_CURRENCIES: raise OperatorError('currency')
     finance._money(fields['amount_minor'],positive=True);finance._date(fields['date'])
     if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
     text(fields['description'],500)
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
     direction='EXPENSE' if action=='create_expense' else 'INCOME'
-    account=db.query_one(('SELECT name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=? AND currency=? AND is_active=TRUE'),
-                         (business_id,account_id,'IDR'))
+    account=db.query_one(('SELECT name,currency FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=? AND currency=? AND is_active=TRUE'),
+                         (business_id,account_id,fields['currency']))
     category=db.query_one('SELECT name FROM finance_categories WHERE business_id=? AND id=? AND direction=? AND is_active=TRUE',
                           (business_id,category_id,direction))
     if not account or not category: raise OperatorError('reference_unavailable')
-    preview=[['Aksi',ACTIONS[action]],['Nominal','Rp'+format(fields['amount_minor'],',').replace(',','.')],
+    preview=[['Aksi',ACTIONS[action]],['Nominal',finance_fx.format_money(fields['amount_minor'],fields['currency'])],
              ['Tanggal',fields['date']],['Akun',account['name']],['Kategori',category['name']],['Keterangan',fields['description']]]
     if action=='record_invoice_payment':
         invoice=finance.get_finance_invoice(business_id,finance._id(fields['invoice_id']),user_id)
-        if not invoice or invoice['currency']!='IDR': raise OperatorError('invoice_unavailable')
+        if not invoice or invoice['currency']!=fields['currency']: raise OperatorError('invoice_unavailable')
         if draft:
             totals=finance.get_invoice_totals(business_id,invoice['id'],user_id)
             if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or fields['amount_minor']>totals['outstanding_minor']:
@@ -104,13 +104,13 @@ def resolve(business_id, user_id, action, fields, *, draft):
     return preview
 
 
-def interpret(action, question):
+def interpret(action, question, currency):
     try: key,model=safety.configuration()
     except ValueError: raise OperatorError('not_configured') from None
     try:
         response=requests.post('https://api.anthropic.com/v1/messages',
             headers={'x-api-key':key,'anthropic-version':'2023-06-01','content-type':'application/json'},
-            json={'model':model,'max_tokens':400,'system':SYSTEM,
+            json={'model':model,'max_tokens':400,'system':SYSTEM+'\nMata uang akun yang dipilih: '+currency+'. Jangan konversi FX.',
                   'messages':[{'role':'user','content':json.dumps({'selected_action':action,'request':question},ensure_ascii=False)}]},
             timeout=(5,25),allow_redirects=False)
         if response.status_code!=200: raise OperatorError('upstream_failure')
@@ -120,7 +120,253 @@ def interpret(action, question):
         amount=text(result['amount_text'],60);description=text(result['description'],500)
         if description not in question or not re.search(r'(?<![\w.,+−-])'+re.escape(amount)+r'(?![\w.,])', question):
             raise OperatorError('ungrounded_result')
-        return dict(amount_minor=rupiah(amount),description=description)
+        if currency=='IDR':minor=rupiah(amount)
+        else:
+            cleaned=re.sub(r'(?i)\b'+re.escape(currency)+r'\b','',amount).strip()
+            symbols={'USD':'
+    except requests.Timeout:
+        raise OperatorError('timeout') from None
+    except requests.RequestException:
+        raise OperatorError('network_failure') from None
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as error:
+        if isinstance(error,OperatorError): raise
+        raise OperatorError('invalid_result') from None
+
+
+def signer():
+    if not current_app.secret_key or (not current_app.testing and
+            (len(current_app.secret_key)<32 or current_app.secret_key=='dev-only-insecure-secret-key-do-not-use-in-production')):
+        raise OperatorError('not_configured')
+    return URLSafeTimedSerializer(current_app.secret_key,salt='kilas-finance-operator-v1',
+                                  signer_kwargs={'digest_method':hashlib.sha256})
+
+
+def prepare(business_id,user_id,payload):
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    branches.token_branch(business_id)
+    draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
+    action,question,fields=validate_request(payload)
+    account=finance.get_account(business_id,fields['account_id'],actor_user_id=user_id,active=True);fields['currency']=account['currency']
+    # Validate scope/references BEFORE sending any user text to the model.
+    resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    fields.update(interpret(action,question,fields['currency']))
+    preview=resolve(business_id,user_id,action,fields,draft=True)
+    token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
+                             fields=fields,nonce=uuid.uuid4().hex))
+    return dict(token=token,preview=preview,expires_in=TTL,
+                interpretation='Usulan: '+ACTIONS[action]+'. Belum disimpan; periksa semua detail sebelum konfirmasi.')
+
+
+def confirm(business_id,user_id,token):
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    token=text(token,6000)
+    try: data=signer().loads(token,max_age=TTL)
+    except SignatureExpired: raise OperatorError('expired_draft') from None
+    except BadData: raise OperatorError('tampered_draft') from None
+    if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','branch_id','action','fields','nonce'}
+            or type(data['version']) is not int or data['version']!=2
+            or type(data['user_id']) is not int or data['user_id']!=user_id
+            or type(data['business_id']) is not int or data['business_id']!=business_id
+            or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
+        raise OperatorError('invalid_draft')
+    branches.check_token(business_id, data['branch_id'])
+    action,fields=data['action'],data['fields']
+    resolve(business_id,user_id,action,fields,draft=False)
+    if action=='record_invoice_payment':
+        record_id=finance.record_invoice_payment(business_id,fields['invoice_id'],fields['amount_minor'],fields['date'],
+            fields['account_id'],fields['category_id'],note=fields['description'],actor_user_id=user_id,
+            idempotency_key='operator_'+data['nonce'])
+    else:
+        record_id=finance.create_transaction(business_id,'EXPENSE' if action=='create_expense' else 'INCOME',
+            fields['amount_minor'],fields['account_id'],fields['category_id'],fields['date'],currency=fields['currency'],
+            description=fields['description'],source_type='FINANCE_OPERATOR',source_ref=data['nonce'],actor_user_id=user_id)
+    return dict(record_id=record_id,action=action,message='Konfirmasi sudah diproses. Catatan tersimpan; pengiriman ulang konfirmasi yang sama tidak membuat catatan baru.')
+,'SGD':'S
+    except requests.Timeout:
+        raise OperatorError('timeout') from None
+    except requests.RequestException:
+        raise OperatorError('network_failure') from None
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as error:
+        if isinstance(error,OperatorError): raise
+        raise OperatorError('invalid_result') from None
+
+
+def signer():
+    if not current_app.secret_key or (not current_app.testing and
+            (len(current_app.secret_key)<32 or current_app.secret_key=='dev-only-insecure-secret-key-do-not-use-in-production')):
+        raise OperatorError('not_configured')
+    return URLSafeTimedSerializer(current_app.secret_key,salt='kilas-finance-operator-v1',
+                                  signer_kwargs={'digest_method':hashlib.sha256})
+
+
+def prepare(business_id,user_id,payload):
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    branches.token_branch(business_id)
+    draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
+    action,question,fields=validate_request(payload)
+    # Validate scope/references BEFORE sending any user text to the model.
+    resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    fields.update(interpret(action,question))
+    preview=resolve(business_id,user_id,action,fields,draft=True)
+    token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
+                             fields=fields,nonce=uuid.uuid4().hex))
+    return dict(token=token,preview=preview,expires_in=TTL,
+                interpretation='Usulan: '+ACTIONS[action]+'. Belum disimpan; periksa semua detail sebelum konfirmasi.')
+
+
+def confirm(business_id,user_id,token):
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    token=text(token,6000)
+    try: data=signer().loads(token,max_age=TTL)
+    except SignatureExpired: raise OperatorError('expired_draft') from None
+    except BadData: raise OperatorError('tampered_draft') from None
+    if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','branch_id','action','fields','nonce'}
+            or type(data['version']) is not int or data['version']!=2
+            or type(data['user_id']) is not int or data['user_id']!=user_id
+            or type(data['business_id']) is not int or data['business_id']!=business_id
+            or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
+        raise OperatorError('invalid_draft')
+    branches.check_token(business_id, data['branch_id'])
+    action,fields=data['action'],data['fields']
+    resolve(business_id,user_id,action,fields,draft=False)
+    if action=='record_invoice_payment':
+        record_id=finance.record_invoice_payment(business_id,fields['invoice_id'],fields['amount_minor'],fields['date'],
+            fields['account_id'],fields['category_id'],note=fields['description'],actor_user_id=user_id,
+            idempotency_key='operator_'+data['nonce'])
+    else:
+        record_id=finance.create_transaction(business_id,'EXPENSE' if action=='create_expense' else 'INCOME',
+            fields['amount_minor'],fields['account_id'],fields['category_id'],fields['date'],currency='IDR',
+            description=fields['description'],source_type='FINANCE_OPERATOR',source_ref=data['nonce'],actor_user_id=user_id)
+    return dict(record_id=record_id,action=action,message='Konfirmasi sudah diproses. Catatan tersimpan; pengiriman ulang konfirmasi yang sama tidak membuat catatan baru.')
+,'MYR':'RM','EUR':'€','GBP':'£','AUD':'A
+    except requests.Timeout:
+        raise OperatorError('timeout') from None
+    except requests.RequestException:
+        raise OperatorError('network_failure') from None
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as error:
+        if isinstance(error,OperatorError): raise
+        raise OperatorError('invalid_result') from None
+
+
+def signer():
+    if not current_app.secret_key or (not current_app.testing and
+            (len(current_app.secret_key)<32 or current_app.secret_key=='dev-only-insecure-secret-key-do-not-use-in-production')):
+        raise OperatorError('not_configured')
+    return URLSafeTimedSerializer(current_app.secret_key,salt='kilas-finance-operator-v1',
+                                  signer_kwargs={'digest_method':hashlib.sha256})
+
+
+def prepare(business_id,user_id,payload):
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    branches.token_branch(business_id)
+    draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
+    action,question,fields=validate_request(payload)
+    # Validate scope/references BEFORE sending any user text to the model.
+    resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    fields.update(interpret(action,question))
+    preview=resolve(business_id,user_id,action,fields,draft=True)
+    token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
+                             fields=fields,nonce=uuid.uuid4().hex))
+    return dict(token=token,preview=preview,expires_in=TTL,
+                interpretation='Usulan: '+ACTIONS[action]+'. Belum disimpan; periksa semua detail sebelum konfirmasi.')
+
+
+def confirm(business_id,user_id,token):
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    token=text(token,6000)
+    try: data=signer().loads(token,max_age=TTL)
+    except SignatureExpired: raise OperatorError('expired_draft') from None
+    except BadData: raise OperatorError('tampered_draft') from None
+    if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','branch_id','action','fields','nonce'}
+            or type(data['version']) is not int or data['version']!=2
+            or type(data['user_id']) is not int or data['user_id']!=user_id
+            or type(data['business_id']) is not int or data['business_id']!=business_id
+            or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
+        raise OperatorError('invalid_draft')
+    branches.check_token(business_id, data['branch_id'])
+    action,fields=data['action'],data['fields']
+    resolve(business_id,user_id,action,fields,draft=False)
+    if action=='record_invoice_payment':
+        record_id=finance.record_invoice_payment(business_id,fields['invoice_id'],fields['amount_minor'],fields['date'],
+            fields['account_id'],fields['category_id'],note=fields['description'],actor_user_id=user_id,
+            idempotency_key='operator_'+data['nonce'])
+    else:
+        record_id=finance.create_transaction(business_id,'EXPENSE' if action=='create_expense' else 'INCOME',
+            fields['amount_minor'],fields['account_id'],fields['category_id'],fields['date'],currency='IDR',
+            description=fields['description'],source_type='FINANCE_OPERATOR',source_ref=data['nonce'],actor_user_id=user_id)
+    return dict(record_id=record_id,action=action,message='Konfirmasi sudah diproses. Catatan tersimpan; pengiriman ulang konfirmasi yang sama tidak membuat catatan baru.')
+,'JPY':'¥','CNY':'CN¥','HKD':'HK
+    except requests.Timeout:
+        raise OperatorError('timeout') from None
+    except requests.RequestException:
+        raise OperatorError('network_failure') from None
+    except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as error:
+        if isinstance(error,OperatorError): raise
+        raise OperatorError('invalid_result') from None
+
+
+def signer():
+    if not current_app.secret_key or (not current_app.testing and
+            (len(current_app.secret_key)<32 or current_app.secret_key=='dev-only-insecure-secret-key-do-not-use-in-production')):
+        raise OperatorError('not_configured')
+    return URLSafeTimedSerializer(current_app.secret_key,salt='kilas-finance-operator-v1',
+                                  signer_kwargs={'digest_method':hashlib.sha256})
+
+
+def prepare(business_id,user_id,payload):
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    branches.token_branch(business_id)
+    draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
+    action,question,fields=validate_request(payload)
+    # Validate scope/references BEFORE sending any user text to the model.
+    resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
+    __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
+    fields.update(interpret(action,question))
+    preview=resolve(business_id,user_id,action,fields,draft=True)
+    token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
+                             fields=fields,nonce=uuid.uuid4().hex))
+    return dict(token=token,preview=preview,expires_in=TTL,
+                interpretation='Usulan: '+ACTIONS[action]+'. Belum disimpan; periksa semua detail sebelum konfirmasi.')
+
+
+def confirm(business_id,user_id,token):
+    if not enabled(business_id): raise OperatorError('not_allowed')
+    token=text(token,6000)
+    try: data=signer().loads(token,max_age=TTL)
+    except SignatureExpired: raise OperatorError('expired_draft') from None
+    except BadData: raise OperatorError('tampered_draft') from None
+    if (not isinstance(data,dict) or set(data)!={'version','user_id','business_id','branch_id','action','fields','nonce'}
+            or type(data['version']) is not int or data['version']!=2
+            or type(data['user_id']) is not int or data['user_id']!=user_id
+            or type(data['business_id']) is not int or data['business_id']!=business_id
+            or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
+        raise OperatorError('invalid_draft')
+    branches.check_token(business_id, data['branch_id'])
+    action,fields=data['action'],data['fields']
+    resolve(business_id,user_id,action,fields,draft=False)
+    if action=='record_invoice_payment':
+        record_id=finance.record_invoice_payment(business_id,fields['invoice_id'],fields['amount_minor'],fields['date'],
+            fields['account_id'],fields['category_id'],note=fields['description'],actor_user_id=user_id,
+            idempotency_key='operator_'+data['nonce'])
+    else:
+        record_id=finance.create_transaction(business_id,'EXPENSE' if action=='create_expense' else 'INCOME',
+            fields['amount_minor'],fields['account_id'],fields['category_id'],fields['date'],currency='IDR',
+            description=fields['description'],source_type='FINANCE_OPERATOR',source_ref=data['nonce'],actor_user_id=user_id)
+    return dict(record_id=record_id,action=action,message='Konfirmasi sudah diproses. Catatan tersimpan; pengiriman ulang konfirmasi yang sama tidak membuat catatan baru.')
+,'THB':'฿'}
+            cleaned=cleaned.replace(symbols.get(currency,''),'').strip()
+            try:
+                from routes_finance import currency_amount
+                minor=currency_amount(cleaned,currency)
+            except Exception:raise OperatorError('invalid_amount') from None
+        return dict(amount_minor=minor,description=description)
     except requests.Timeout:
         raise OperatorError('timeout') from None
     except requests.RequestException:
