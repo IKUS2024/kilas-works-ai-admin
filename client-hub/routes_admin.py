@@ -91,6 +91,19 @@ def dashboard():
     ]
     payments_needing_review = payment_service.list_payments_pending_review()
     all_businesses = repo.list_all_businesses(status_filter=None)
+    businesses_by_id = {b["id"]: b for b in all_businesses}
+    recent_service_orders = []
+    for project in all_projects:
+        if project.get("catalog_key") in ("ai_admin", "ai_admin_basic", "ai_admin_pro"):
+            continue
+        if project.get("status") == "CANCELLED" or projects_repo.is_unsubmitted_app_draft(project):
+            continue
+        item = dict(project)
+        business = businesses_by_id.get(item.get("business_id"))
+        item["business_name"] = business["business_name"] if business else "Pesanan pribadi"
+        recent_service_orders.append(item)
+        if len(recent_service_orders) >= 8:
+            break
     businesses_needing_review = [
         b for b in all_businesses if get_display_status(b) == "READY_FOR_REVIEW"
     ]
@@ -139,6 +152,7 @@ def dashboard():
         talent_requests_waiting=talent_requests_waiting,
         businesses_needing_review_count=len(businesses_needing_review),
         action_center=action_center,
+        recent_service_orders=recent_service_orders,
         finance_trials_only=finance_trials_only,
     )
 
