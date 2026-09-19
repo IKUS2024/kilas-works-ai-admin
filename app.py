@@ -316,6 +316,16 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
             lines.append("ATURAN / KEBIJAKAN BISNIS INI:")
             lines.extend(f"- {p}" for p in policies)
 
+        document_lines = []
+        for document in (knowledge.get("documents") or []):
+            name = str(document.get("name") or "dokumen").strip()
+            text = str(document.get("text") or "").strip()
+            if text:
+                document_lines.append(f"--- {name} ---\n{text}")
+        if document_lines:
+            lines.append("CATATAN DARI DOKUMEN RESMI BISNIS INI:")
+            lines.extend(document_lines)
+
         faqs = knowledge.get("faq") or []
         if query:
             selected = _ctx.relevant_records(faqs, query, recent=0)
@@ -329,7 +339,7 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
             lines.append("FAQ BISNIS INI:")
             lines.extend(faq_lines)
 
-        if not service_lines and not faq_lines and not policies and not description and not address and not hours_raw and not contact_phone and not service_mode:
+        if not service_lines and not faq_lines and not policies and not document_lines and not description and not address and not hours_raw and not contact_phone and not service_mode:
             # Tenant resolved, but onboarding data is essentially empty — never fall back to Kilas
             # Works' own catalog, fall back to the neutral incomplete-profile notice instead.
             return _TENANT_INCOMPLETE_PROFILE_BLOCK
