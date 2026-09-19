@@ -149,12 +149,17 @@ def dashboard():
         my_projects.append({**p, "business_name": "Pesanan pribadi", "invoice": invoice,
             "payment": payment, "payment_review_status": payment_service.derive_review_status(payment) if payment else None,
             "latest_quotation": quotation_service.get_latest_quotation_for_project(p["id"])})
+    visible_projects = []
     for project in my_projects:
         linked_talent = (db.query_one("SELECT id FROM talent_requests WHERE project_id=?", (project['id'],))
                          if project.get('catalog_key') == 'talent_management' else None)
         project['legacy_talent_flow'] = project.get('catalog_key') == 'talent_management' and linked_talent is None
-        project['can_edit_brief'] = (not project['legacy_talent_flow']) and projects_repo.is_editable_app_brief(project)
+        if project['legacy_talent_flow']:
+            continue
+        project['can_edit_brief'] = projects_repo.is_editable_app_brief(project)
         project['can_cancel'] = projects_repo.customer_can_cancel(project, project.get('payment'))
+        visible_projects.append(project)
+    my_projects = visible_projects
     return render_template(
         "product_dashboard.html" if __import__("finance_entitlements").self_service() else "client_dashboard.html", user=user, businesses=enriched, my_projects=my_projects,
         all_businesses=all_businesses, finance_beta_enabled=__import__("routes_finance").beta_enabled()
