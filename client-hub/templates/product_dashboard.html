@@ -45,13 +45,13 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="business-picker-field">
       <label for="dashboard-business">Bisnis aktif</label>
-      <select id="dashboard-business" name="business_id" onchange="this.form.submit()">
+      <select id="dashboard-business" name="business_id">
         {% for choice in all_businesses %}
           <option value="{{ choice.id }}" {% if businesses and choice.id==businesses[0].id %}selected{% endif %}>{{ choice.business_name }}</option>
         {% endfor %}
       </select>
     </div>
-    <noscript><button class="btn secondary" type="submit">Ganti Bisnis</button></noscript>
+    <button class="btn secondary" type="submit">Ganti</button>
   </form>
 
   {% for b in businesses %}
