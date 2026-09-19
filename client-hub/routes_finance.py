@@ -253,6 +253,9 @@ def dashboard(business_id, user, business):
     period_mode = request.args.get('period_mode', 'month')
     direction = request.args.get('direction') or None
     view = request.args.get('view')
+    display_currency = request.args.get('display_currency', 'IDR')
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
     split_period = 'period_month' in request.args or 'period_year' in request.args
     split_range = any(key in request.args for key in (
         'range_start_month', 'range_start_year', 'range_end_month', 'range_end_year'))
@@ -277,7 +280,7 @@ def dashboard(business_id, user, business):
                 raise ValueError('future_month')
             end = min(end, today_value.isoformat())
             period_label = label_for(month)
-            period_query = {'period_mode': 'month', 'month': month}
+            period_query = {'period_mode':'month','month':month,'display_currency':display_currency}
         elif period_mode == 'range':
             range_start = range_start or f'{today_value.year:04d}-01'
             range_end = range_end or current_value
@@ -288,14 +291,15 @@ def dashboard(business_id, user, business):
             end = min(end, today_value.isoformat())
             month = range_end
             period_label = label_for(range_start) + ' – ' + label_for(range_end)
-            period_query = {'period_mode': 'range', 'range_start': range_start, 'range_end': range_end}
+            period_query = {'period_mode':'range','range_start':range_start,'range_end':range_end,
+                            'display_currency':display_currency}
         elif period_mode == 'all':
             bounds = finance.get_transaction_date_bounds(business_id, **actor)
             start = bounds['first_on'] or today_value.isoformat()
             end = today_value.isoformat()
             month = current_value
             period_label = 'Semua transaksi'
-            period_query = {'period_mode': 'all'}
+            period_query = {'period_mode':'all','display_currency':display_currency}
         else:
             raise ValueError('period_mode')
     except (ValueError, finance.FinanceError):
@@ -309,6 +313,7 @@ def dashboard(business_id, user, business):
     if period_mode == 'range' and split_range:
         return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_value,
                                 direction=direction, view=view, **period_query))
+
     selected_year = int(month[:4])
     current_year, current_month = today_value.year, today_value.month
     range_start_value = range_start if period_mode == 'range' else f'{selected_year:04d}-01'
@@ -317,35 +322,72 @@ def dashboard(business_id, user, business):
     period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | relevant_years)
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
-    summaries=finance.get_finance_summaries(business_id,start,end,**actor)
-    summary=next((item for item in summaries if item['currency']=='IDR'),
-                 {'currency':'IDR','total_income_minor':0,'total_expense_minor':0,'net_cashflow_minor':0})
+
+    # One balance read feeds both the card and its detail so those two surfaces cannot disagree.
+    balances = finance.get_account_balance_report(business_id, today_value.isoformat(), user['id'])
+    balance_totals = finance.aggregate_account_balances_by_currency(balances)
+
+    summary_map = {row['currency']:dict(row) for row in finance.get_finance_summaries(
+        business_id, start, end, **actor)}
+    for row in balance_totals:
+        summary_map.setdefault(row['currency'], dict(currency=row['currency'], total_income_minor=0,
+            total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))
+    if not summary_map:
+        summary_map['IDR'] = dict(currency='IDR', total_income_minor=0, total_expense_minor=0,
+                                  net_cashflow_minor=0, transaction_count=0)
+    summaries = [summary_map[code] for code in finance.SUPPORTED_CURRENCIES if code in summary_map]
+    summary = summary_map.get('IDR', dict(currency='IDR', total_income_minor=0,
+        total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))
+
+    display_options = ['IDR'] + [row['currency'] for row in balance_totals if row['currency'] != 'IDR']
+    display_options = list(dict.fromkeys(display_options))
+    if display_currency not in display_options:
+        display_currency = 'IDR'
+        period_query['display_currency'] = display_currency
+    fx = finance_fx.snapshot(display_options)
+    balance_displays = finance_fx.balance_displays(balance_totals, fx, display_options)
+    estimated_balance_idr = finance_fx.convert_total(balance_totals, 'IDR', fx)
+    for item in balance_totals:
+        item['idr_estimate_minor'] = finance_fx.to_idr(item['balance_minor'], item['currency'], fx)
+
     show_transactions = view == 'transactions'
     transaction_limit = 1000 if period_mode in ('range', 'all') else 100
     transactions = finance.list_transactions(
         business_id, start_date=start, end_date=end, direction=direction,
         status='POSTED', limit=transaction_limit, **actor) if show_transactions else []
-    balances=finance.get_account_balance_report(business_id,today_value.isoformat(),user['id'])
-    balance_totals=finance.get_balance_totals_by_currency(business_id,today_value.isoformat(),user['id'])
-    fx=finance_fx.snapshot([item['currency'] for item in balance_totals])
-    for item in balance_totals:item['idr_estimate_minor']=finance_fx.to_idr(item['balance_minor'],item['currency'],fx)
-    estimated_balance_idr=sum(item['idr_estimate_minor'] for item in balance_totals if item['idr_estimate_minor'] is not None)
+
     breakdown = []
     if g.finance_branch_id is None:
-        for item in g.finance_branches:
-            with branches.scope(business_id, item['id'], user['id']):
-                breakdown.append(dict(branch=item, summary=finance.get_finance_summary(business_id, start, end, **actor)))
-        for key in ('total_income_minor', 'total_expense_minor', 'net_cashflow_minor'):
-            summary[key] = sum(item['summary'][key] for item in breakdown)
+        for branch in g.finance_branches:
+            with branches.scope(business_id, branch['id'], user['id']):
+                branch_balances = finance.get_account_balance_report(
+                    business_id, today_value.isoformat(), user['id'])
+                branch_totals = finance.aggregate_account_balances_by_currency(branch_balances)
+                branch_map = {row['currency']:dict(row) for row in finance.get_finance_summaries(
+                    business_id, start, end, **actor)}
+                for row in branch_totals:
+                    branch_map.setdefault(row['currency'], dict(currency=row['currency'],
+                        total_income_minor=0, total_expense_minor=0, net_cashflow_minor=0,
+                        transaction_count=0))
+                if not branch_map:
+                    branch_map['IDR'] = dict(currency='IDR', total_income_minor=0,
+                        total_expense_minor=0, net_cashflow_minor=0, transaction_count=0)
+                breakdown.append(dict(branch=branch, summaries=[
+                    branch_map[code] for code in finance.SUPPORTED_CURRENCIES if code in branch_map]))
+
+    balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     return render_template('finance_dashboard.html', user=user, business=business,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
         transaction_limit=transaction_limit,
-        balances=balances,balance_totals=balance_totals,estimated_balance_idr=estimated_balance_idr,fx=fx,
+        balances=balances, balance_totals=balance_totals, balance_total=balance_total,
+        estimated_balance_idr=estimated_balance_idr, fx=fx, balance_displays=balance_displays,
+        display_currency=display_currency, display_options=display_options,
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
-        supported_currencies=finance.SUPPORTED_CURRENCIES,branch_breakdown=breakdown,
+        supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
-        accounts=accounts, categories=categories, summary=summary, transactions=transactions,
+        accounts=accounts, categories=categories, summary=summary, summaries=summaries,
+        transactions=transactions,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
