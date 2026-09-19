@@ -158,13 +158,7 @@ def currency_amount(value, currency, signed=False):
 
 
 def money_label(value,currency):
-    currency=finance._currency(currency);negative=value<0;amount=abs(int(value))
-    if currency=='IDR':label='Rp'+format(amount,',').replace(',','.')
-    elif currency=='JPY':label='¥'+format(amount,',')
-    else:
-        symbols={'USD':'US$','SGD':'S$','MYR':'RM','EUR':'€','GBP':'£','AUD':'A$','CNY':'CN¥','HKD':'HK$','THB':'฿'}
-        label=symbols.get(currency,currency+' ')+format(amount/100,',.2f')
-    return ('−' if negative else '')+label
+    return finance_fx.format_money(int(value), finance._currency(currency))
 
 
 @finance_bp.app_template_filter('finance_money')
