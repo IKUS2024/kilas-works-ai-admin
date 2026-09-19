@@ -25,21 +25,24 @@ def _now():
 
 
 def normalize_owner_phone(raw):
-    """Owner/pengelola phone UX (Section I/J of the request) — a customer or admin may type this
-    as "0851 2801 8184", "+62 851 2801 8184", or "62851...", and the bot's own owner-recognition
-    logic needs a single consistent digits-only 62-prefixed form (matching how every other
-    WhatsApp number is stored/compared throughout this codebase). Returns None for input with no
-    digits at all (never silently stores an empty/garbage value)."""
+    """Normalize an owner/pengelola WhatsApp number to digits-only E.164-style storage.
+
+    Indonesian local numbers may be entered as 08... or 8... and are normalized to 62...
+    automatically. Numbers for other countries must include their country code (for example
+    1404... for US/Canada) and are preserved instead of being incorrectly forced to Indonesia.
+    Returns None for clearly invalid lengths or input with no digits.
+    """
     digits = re.sub(r"\D", "", raw or "")
     if not digits:
         return None
     if digits.startswith("0"):
         digits = "62" + digits[1:]
-    elif not digits.startswith("62"):
-        # A number with no recognizable Indonesian prefix at all (e.g. someone typed only the
-        # local part without a leading 0) — prepend 62 rather than guessing further; this matches
-        # how a bare "851..." most plausibly maps to a real WhatsApp-format number.
+    elif digits.startswith("8"):
+        # Common Indonesian local format without the leading zero.
         digits = "62" + digits
+    # Any other prefix is treated as an explicitly supplied country code (e.g. 1..., 65..., 44...).
+    if len(digits) < 8 or len(digits) > 15:
+        return None
     return digits
 
 
