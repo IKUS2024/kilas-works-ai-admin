@@ -1,5 +1,5 @@
 import unittest
-from decimal import Decimal
+from decimal import Decimal, localcontext
 import finance_fx as fx
 
 
@@ -22,8 +22,10 @@ class FxPrecisionTests(unittest.TestCase):
 
     def test_reference_pair_uses_decimal(self):
         rates={'rates':{'IDR':'1','USD':'17857.14','SGD':'13000'}}
-        self.assertEqual(fx.reference_pair('USD','SGD',rates),
-                         Decimal('17857.14')/Decimal('13000'))
+        with localcontext() as context:
+            context.prec = 60
+            expected = Decimal('17857.14') / Decimal('13000')
+        self.assertEqual(fx.reference_pair('USD','SGD',rates), expected)
 
 
 if __name__=='__main__':
