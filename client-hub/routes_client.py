@@ -851,6 +851,10 @@ def _brain_checkout(business_id):
     if business['package'] == 'NONE':
         flash('Bisnis ini belum memilih paket Kilas Brain.', 'error')
         return redirect(url_for('client.dashboard'))
+    missing = repo.required_fields_missing(business_id)
+    if missing:
+        flash("Lengkapi data penting Kilas Brain dulu sebelum pembayaran: " + ", ".join(_human_missing_labels(missing)) + ".", "error")
+        return redirect(url_for("client.wizard_step", business_id=business_id, step=_step_for_missing_fields(missing)))
     target_package = request.args.get('package', 'AI_ADMIN')
     if target_package not in ('AI_ADMIN', business['package']):
         abort(403)
