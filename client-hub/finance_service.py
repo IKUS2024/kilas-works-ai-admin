@@ -457,14 +457,27 @@ def get_transaction_date_bounds(business_id, *, actor_user_id=None):
 
 
 # Finance receivables: deliberately never reads platform invoices/payments/payment_service.
-def create_customer(business_id, name, phone=None, email=None, notes=None, actor_user_id=None):
+def create_customer(business_id, name, phone=None, email=None, notes=None, actor_user_id=None, *, idempotency_key=None):
     values = (_text(name, 160, True), _text(phone, 64), _text(email, 254), _text(notes, 4000))
     with _write(business_id, actor_user_id):
+        if idempotency_key is not None:
+            if not isinstance(idempotency_key,str) or not re.fullmatch('[a-f0-9]{32}',idempotency_key):
+                raise FinanceError('invalid_customer_key')
+            marker='draft='+idempotency_key+';id='
+            previous=db.query_one('SELECT detail FROM audit_log WHERE business_id=? AND actor_user_id=? AND action=? AND detail LIKE ?',
+                (business_id,actor_user_id,'FINANCE_ASSISTANT_CUSTOMER_CONFIRMED',marker+'%'))
+            if previous:
+                existing=get_customer(business_id,int(previous['detail'].removeprefix(marker)),actor_user_id)
+                if not existing or tuple(existing[k] for k in ('name','phone','email','notes'))!=values:
+                    raise FinanceError('customer_key_conflict')
+                return existing['id']
         now = repo._now()
         customer_id = db.insert_returning_id('INSERT INTO finance_customers '
             '(business_id,name,phone,email,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?)',
             (business_id, *values, now, now))
         _audit(business_id, actor_user_id, 'FINANCE_CUSTOMER_CREATED', customer_id)
+        if idempotency_key is not None:
+            repo.write_audit(actor_user_id,business_id,'FINANCE_ASSISTANT_CUSTOMER_CONFIRMED',marker+str(customer_id))
         return customer_id
 
 

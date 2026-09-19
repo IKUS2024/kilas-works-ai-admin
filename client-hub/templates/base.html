@@ -436,8 +436,10 @@
 (function () {
   function validateFiles(input) {
     var files = Array.from(input.files || []), total = 0, error = '';
-    files.forEach(function (file) { total += file.size; if (file.size > 10 * 1024 * 1024) error = 'Setiap file maksimal 10MB.'; });
-    if (total > 11 * 1024 * 1024) error = 'Total file maksimal 11MB per unggahan. Unggah file lainnya secara terpisah.';
+    var financeDocument = !!input.closest('[data-finance-document-upload]');
+    var perFile = financeDocument ? 20 : 10, aggregate = financeDocument ? 25 : 11;
+    files.forEach(function (file) { total += file.size; if (file.size > perFile * 1024 * 1024) error = 'Setiap file maksimal ' + perFile + ' MiB.'; });
+    if (total > aggregate * 1024 * 1024) error = 'Total file maksimal ' + aggregate + ' MiB per unggahan.';
     input.setCustomValidity(error);
     return !error;
   }

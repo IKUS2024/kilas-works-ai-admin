@@ -17,7 +17,7 @@ import finance_service as finance
 import finance_ai_safety as safety
 
 TTL = 600
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = file_utils.FINANCE_IMAGE_INPUT_BYTES
 PURPOSE = 'finance_receipt_review'
 READ_ERROR = 'AI belum berhasil membaca struk ini. Coba foto ulang lebih dekat dan terang, atau isi manual.'
 FIELDS = {'merchant_name', 'transaction_date', 'total_minor', 'currency', 'receipt_number',
@@ -132,7 +132,7 @@ def analyze(business_id, user_id, filename, raw):
     branches.token_branch(business_id)
     analysis_signer = signer()  # Fail before upload parsing / paid calls without safe signing.
     receipt_hash = hashlib.sha256(raw).hexdigest()
-    safe_name, mime, pdf_text = file_utils.validate_receipt_upload(filename, raw)
+    safe_name, mime, pdf_text, raw = file_utils.prepare_finance_document(filename, raw)
     existing = finance.find_receipt_transaction(business_id, receipt_hash, actor_user_id=user_id)
     if existing:
         return {'duplicate': True}

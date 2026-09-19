@@ -32,6 +32,13 @@ def receipt_event(reason):
     _LOG.info('FINANCE_AI receipt_reason=%s', reason if reason in allowed else 'invalid_result')
 
 
+def upload_event(reason):
+    allowed={'validation_rejected','image_input_size','image_structure','image_normalization','invalid_fields','invalid_csv','invalid_csv_size','invalid_amount',
+             'source_count','aggregate','unsupported_file','account_unavailable','category_unavailable',
+             'invoice_unavailable','invalid_draft','invalid_email','future_date','invalid_invoice_payment'}
+    _LOG.info('FINANCE_AI upload_reason=%s',reason if reason in allowed else 'validation_rejected')
+
+
 def endpoint(view):
     """Observe existing auth decisions; never replace authentication or CSRF."""
     @wraps(view)

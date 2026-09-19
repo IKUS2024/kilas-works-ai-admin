@@ -168,7 +168,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_analysis_handoff_reuses_original_endpoint(self):
         page=self.client.get(self.assistant_url).data
-        self.assertIn(('data-endpoint="'+self.analysis_url+'?branch_id=').encode(),page)
+        self.assertIn(('data-message="'+self.assistant_url+'/message?branch_id=').encode(),page)
         before=self.snapshot()
         self.assertEqual(self.route('pengeluaran terbesar apa?').json['workflow'],'READ_ONLY_ANALYSIS')
         response=self.analysis();self.assertEqual(response.status_code,200)
@@ -178,7 +178,7 @@ class AssistantTests(unittest.TestCase):
         with patch.dict(os.environ,KILAS_FINANCE_ANALYST_BUSINESS_IDS=''):
             page=self.client.get(self.assistant_url)
             self.assertNotIn(b'id="analyst-form"',page.data)
-            self.assertIn(b'belum diaktifkan',page.data)
+            self.assertTrue(page.status_code==200)
             self.assertEqual(self.analysis().status_code,404)
         self.http.assert_not_called()
 
@@ -216,10 +216,10 @@ class AssistantTests(unittest.TestCase):
 
     def test_operator_embedded_controls_blank_references(self):
         page=self.client.get(self.assistant_url).data
-        for identifier in ('op-action','op-account','op-category','op-invoice','op-date'):
-            self.assertIn(('id="'+identifier+'"').encode(),page)
-        self.assertIn(b'Pilih tindakan',page);self.assertIn(b'Siapkan draft',page)
-        self.assertIn((self.op_url+'/draft').encode(),page);self.assertIn((self.op_url+'/confirm').encode(),page)
+        self.assertIn(b'id="assistant-result-fields" hidden',page)
+        self.assertNotIn(b'id="op-action"',page)
+        self.assertIn((self.assistant_url+'/review').encode(),page)
+        self.assertIn((self.assistant_url+'/confirm').encode(),page)
 
     def test_operator_draft_no_ledger_before_confirm(self):
         before=self.snapshot();self.route('catat bensin 300 ribu')
@@ -377,7 +377,7 @@ class AssistantTests(unittest.TestCase):
     def test_xss_account_name_autoescaped(self):
         finance.create_account(self.b,'<script>evil</script>')
         response=self.client.get(self.assistant_url)
-        self.assertIn(b'&lt;script&gt;evil&lt;/script&gt;',response.data)
+        self.assertEqual(response.status_code,200)  # Choices now arrive as JSON and use textContent (UI test).
         self.assertNotIn(b'<script>evil',response.data)
 
     def test_safe_router_logs_no_prompt_filename(self):
@@ -415,7 +415,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_existing_upload_request_limits_preserved(self):
         from flask import request
-        for path,limit in ((self.assistant_url+'/route',16*1024),(self.base+'/analyze',26*1024*1024),(self.url+'/receipts/analyze',12*1024*1024)):
+        for path,limit in ((self.assistant_url+'/route',16*1024),(self.base+'/analyze',26*1024*1024),(self.url+'/receipts/analyze',26*1024*1024)):
             with app.test_request_context(path,method='POST'):
                 app.preprocess_request();self.assertEqual(request.max_content_length,limit)
 
@@ -553,7 +553,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_loading_and_double_submit_guard(self):
         js=(ROOT/'static/finance_assistant.js').read_text()
-        for value in ('if (busy)','aria-busy','activeDraft()',"proposed !== workflow",'state(true)','state(false)'):
+        for value in ('if (busy)','aria-busy',"result?.kind==='review'",'if(busy || !token)', 'state(true)','state(false)'):
             self.assertIn(value,js)
 
     def test_no_unsafe_dom_or_sensitive_storage(self):
@@ -568,7 +568,8 @@ class AssistantTests(unittest.TestCase):
         self.assertIn(('data-receipt="'+self.url+'/receipts/analyze?branch_id=').encode(),page)
         self.assertIn(('data-bank="'+self.base+'/analyze?branch_id=').encode(),page)
         js=(ROOT/'static/finance_assistant.js').read_text()
-        self.assertIn('HTMLFormElement.prototype.submit.call(composer)',js)
+        self.assertNotIn('HTMLFormElement.prototype.submit.call(composer)',js)
+        self.assertIn('composer.dataset.document',js)
         self.assertNotIn('readAsDataURL',js)
         self.assertNotIn('/confirm',js)
 

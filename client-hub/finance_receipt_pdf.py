@@ -14,7 +14,7 @@ def main():
     logging.disable(logging.CRITICAL)
     warnings.simplefilter('ignore')
     import pypdf
-    bank = sys.argv[1:] == ['--bank-statement']
+    bank = '--bank-statement' in sys.argv[1:]
     maximum = (10 if bank else 5) * 1024 * 1024
     pages = 20 if bank else 10
     text_limit = 100000 if bank else 20000
@@ -26,6 +26,9 @@ def main():
     reader = pypdf.PdfReader(io.BytesIO(raw), strict=False)
     if reader.is_encrypted or not 1 <= len(reader.pages) <= pages:
         raise ValueError()
+    if '--validate-only' in sys.argv[1:]:
+        print(json.dumps({'text': ''}))
+        return
     parts = []
     complete_text = True
     for page in reader.pages:

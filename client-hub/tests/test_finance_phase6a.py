@@ -136,7 +136,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(self.upload(b'x'*(r.MAX_BYTES+1)).status_code,400); self.http.assert_not_called()
 
     def test_oversized_multipart_request_preserves_413(self):
-        self.assertEqual(self.upload(b'x'*(13*1024*1024)).status_code,413)
+        self.assertEqual(self.upload(b'x'*(27*1024*1024)).status_code,413)
         self.http.assert_not_called()
 
     def test_pdf_page_cap_and_encryption(self):

@@ -159,6 +159,14 @@ def prepare(business_id,user_id,payload):
     resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
     __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
     fields.update(interpret(action,question,fields['currency']))
+    return prepare_fields(business_id, user_id, action, fields)
+
+
+def prepare_fields(business_id, user_id, action, fields):
+    """Server-resolved Assistant proposals use the same signed confirmation protocol."""
+    __import__('finance_entitlements').require_ai(business_id,user_id,'OPERATOR')
+    branches.token_branch(business_id)
+    draft_signer=signer()
     preview=resolve(business_id,user_id,action,fields,draft=True)
     token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
                              fields=fields,nonce=uuid.uuid4().hex))

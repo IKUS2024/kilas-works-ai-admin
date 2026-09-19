@@ -1,239 +1,45 @@
-// Actual Assistant JS in an offline DOM harness; no browser or provider connection.
-const {test} = require('node:test');
-const assert = require('node:assert/strict');
-const vm = require('node:vm');
-const fs = require('node:fs');
-const path = require('node:path');
-const script = fs.readFileSync(path.join(__dirname,'../static/finance_assistant.js'),'utf8');
-
-function setup() {
+// Real Assistant script, offline DOM; native form submission is deliberately unavailable.
+const {test}=require('node:test'), assert=require('node:assert/strict'), vm=require('node:vm'), fs=require('node:fs'), path=require('node:path');
+const source=fs.readFileSync(path.join(__dirname,'../static/finance_assistant.js'),'utf8');
+function setup(){
   class Element {
-    constructor(id) { this.id=id; this.value=''; this.files=[]; this.children=[]; this.listeners={}; this.dataset={}; this.hidden=true; this.disabled=false; this.textContent=''; this.attrs={}; }
-    addEventListener(type,fn) { (this.listeners[type] ||= []).push(fn); }
-    async fire(type) { for (const fn of this.listeners[type] || []) await fn({preventDefault(){},type}); }
-    dispatchEvent(event) { return this.fire(event.type); }
-    append(...nodes) { for (const node of nodes) { node.parent=this; this.children.push(node); } }
-    replaceChildren(...nodes) { this.children=[]; this.append(...nodes); }
-    setAttribute(name,value) { this.attrs[name]=value; }
-    focus() { this.focused=true; }
-    remove() { if(this.parent) this.parent.children=this.parent.children.filter(n=>n!==this); }
-    querySelector(selector = '[name="account_id"]') { const name=selector.match(/name="([^"]+)"/)[1]; return this.children.find(n=>n.name===name) || null; }
+    constructor(id){this.id=id;this.value='';this.files=[];this.hidden=true;this.disabled=false;this.dataset={};this.children=[];this.listeners={};this.textContent='';}
+    addEventListener(type,fn){(this.listeners[type] ||= []).push(fn);}
+    async fire(type){for(const fn of this.listeners[type]||[])await fn({preventDefault(){},type});}
+    dispatchEvent(e){return this.fire(e.type);}
+    append(...nodes){this.children.push(...nodes);} replaceChildren(...nodes){this.children=[...nodes];}
+    setAttribute(k,v){this[k]=v;} focus(){this.focused=true;}
   }
-  const ids=['assistant-camera','finance-assistant','assistant-composer','assistant-files','assistant-mode','assistant-text','assistant-status',
-    'assistant-send','assistant-clear','assistant-receipt-continue','assistant-bank-continue','assistant-message','assistant-message-text',
-    'assistant-file-list','assistant-clarification','assistant-clarification-title','assistant-receipt','assistant-bank',
-    'assistant-analysis','assistant-operator','assistant-cancel','assistant-bank-account','operator-fields','op-preview',
-    'assistant-recurring','assistant-bank-title','recurring-fields','rec-preview','rec-name','rec-amount','rec-cadence','rec-start','rec-end','rec-account','rec-category','rec-details','recurring-form','rec-status','rec-confirm','rec-cancel','op-action','op-request','op-account','op-details','op-interpretation','question','scope','answer'];
-  const elements=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
-  const choices=['receipt','bank','ask','record','notes','recurring'].map(value=>{const node=new Element(value);node.dataset.assistantChoice=value;return node;});
-  const calls=[],uploads=[];
-  let resolveResponse=async()=>({ok:true,json:async()=>({workflow:'NEEDS_CLARIFICATION',suggested_action:''})});
-  const composer=elements['assistant-composer'];
-  composer.dataset={route:'/business/1/finance/assistant/route',receipt:'/business/1/finance/receipts/analyze',bank:'/business/1/finance/bank-imports/analyze',csrf:'test-csrf'};
-  elements['assistant-mode'].value='auto';
-  const sandbox={FormData:class {constructor(){this.entries=[];}append(...value){this.entries.push(value);}},document:{getElementById:id=>elements[id] || null,querySelectorAll:()=>choices,createElement:tag=>new Element(tag)},
-    window:{addEventListener(){},location:{reload(){}}},Event:class {constructor(type){this.type=type;}},
-    HTMLFormElement:{prototype:{submit(){uploads.push({action:this.action,name:elements['assistant-files'].name,
-        fileDisabled:elements['assistant-files'].disabled,account:this.querySelector()?.value,kind:this.querySelector('[name="document_kind"]')?.value});}}},
-    fetch:async(url,opts)=>{calls.push({url,opts,body:typeof opts.body==='string'?JSON.parse(opts.body):opts.body});return resolveResponse();}};
-  vm.runInNewContext(script,sandbox);
-  const tick=()=>new Promise(resolve=>setImmediate(resolve));
-  return {elements,choices,calls,uploads,tick,runRecurring(){vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/finance_assistant_recurring.js'),'utf8'),sandbox);},
-    result(workflow,action='',suggestions={}){resolveResponse=async()=>({ok:true,json:async()=>({workflow,suggested_action:action,suggestions})});},
-    respond(fn){resolveResponse=fn;},
-    async route(){await composer.fire('submit');await tick();}};
+  const ids=['assistant-composer','assistant-camera','assistant-files','assistant-text','assistant-mode','assistant-status','assistant-send','assistant-clear',
+    'assistant-review-send','assistant-confirm','assistant-edit','assistant-result-cancel','assistant-cancel','assistant-result-fields','assistant-result',
+    'assistant-result-title','assistant-result-message','assistant-result-preview','assistant-review-link','assistant-clarification','assistant-clarification-title',
+    'assistant-message-text','assistant-message','assistant-file-list','assistant-review-form'];
+  const e=Object.fromEntries(ids.map(id=>[id,new Element(id)]));e['assistant-mode'].value='auto';
+  const choices=['receipt','bank','notes','ask','record','recurring'].map(x=>{const n=new Element(x);n.dataset.assistantChoice=x;return n;});
+  e['assistant-composer'].dataset=Object.fromEntries(['message','recognize','document','review','confirm'].map(x=>[x,`/business/4/finance/assistant/${x}?branch_id=4`]));
+  e['assistant-composer'].dataset.csrf='csrf';
+  const calls=[];let respond=async()=>({kind:'answer',message:'OK'});
+  class FormData{constructor(){this.entries=[];}append(...v){this.entries.push(v);}}
+  vm.runInNewContext(source,{FormData,Event:class{constructor(type){this.type=type;}},document:{getElementById:id=>e[id],querySelectorAll:()=>choices,createElement:tag=>new Element(tag)},
+    fetch:async(url,opts)=>{const body=typeof opts.body==='string'?JSON.parse(opts.body):opts.body;calls.push({url,opts,body});const data=await respond(url,body);return data?.response || {ok:true,json:async()=>data};}});
+  return {e,calls,choices,respond(fn){respond=fn;},send(){return e['assistant-composer'].fire('submit');},tick:()=>new Promise(r=>setImmediate(r))};
 }
-
-test('composer routes only bounded metadata; filename displayed as text',async()=>{
-  const h=setup(), e=h.elements;
-  e['assistant-text'].value='tolong cek ini';e['assistant-files'].files=[{name:'<img onerror=evil>.pdf',bytes:'PRIVATE_BYTES'}];
-  await e['assistant-files'].fire('change');await h.route();
-  assert.equal(h.calls.length,1);assert.equal(h.calls[0].body.files[0].name,'<img onerror=evil>.pdf');
-  assert.equal('bytes' in h.calls[0].body.files[0],false);
-  assert.equal(e['assistant-file-list'].children[0].textContent,'<img onerror=evil>.pdf');assert.equal(h.uploads.length,0);
-});
-
-test('ambiguous files ask receipt/bank before upload',async()=>{
-  const h=setup();h.elements['assistant-files'].files=[{name:'a.pdf'}];await h.route();
-  assert.equal(h.elements['assistant-clarification'].hidden,false);
-  assert.equal(h.choices.find(n=>n.dataset.assistantChoice==='ask').hidden,true);
-  assert.equal(h.uploads.length,0);
-});
-
-test('clarification receipt choice preserves files and uses existing review endpoint once',async()=>{
-  const h=setup(),e=h.elements;e['assistant-files'].files=[{name:'a.png'}];await h.route();h.result('RECEIPT');
-  await h.choices[0].fire('click');await h.tick();
-  assert.equal(h.calls[1].body.mode,'receipt');assert.equal(e['assistant-receipt'].hidden,false);
-  await e['assistant-receipt-continue'].fire('click');await e['assistant-receipt-continue'].fire('click');
-  assert.equal(h.uploads.length,1);assert.equal(h.uploads[0].action,'/business/1/finance/receipts/analyze');
-  assert.equal(h.uploads[0].name,'receipt');assert.equal(h.uploads[0].fileDisabled,false);
-});
-
-test('bank proposal requires selected account before native staging upload',async()=>{
-  const h=setup(),e=h.elements;h.result('BANK_STATEMENT');e['assistant-files'].files=[{name:'a.csv'}];await h.route();
-  await e['assistant-bank-continue'].fire('click');assert.equal(h.uploads.length,0);
-  e['assistant-bank-account'].value='12';await e['assistant-bank-continue'].fire('click');
-  assert.equal(h.uploads[0].account,'12');assert.equal(h.uploads[0].name,'sources');
-  assert.equal(h.uploads[0].action,'/business/1/finance/bank-imports/analyze');
-});
-
-test('double route submit has only one pending request',async()=>{
-  const h=setup();let resolve;h.respond(()=>new Promise(r=>{resolve=r;}));
-  await h.elements['assistant-composer'].fire('submit');await h.elements['assistant-composer'].fire('submit');
-  assert.equal(h.calls.length,1);assert.equal(h.elements['assistant-send'].disabled,true);
-  resolve({ok:true,json:async()=>({workflow:'NEEDS_CLARIFICATION'})});await h.tick();
-  assert.equal(h.elements['assistant-send'].disabled,false);
-});
-
-test('operator proposal fills text/action but requires manual account and draft submit',async()=>{
-  const h=setup(),e=h.elements;h.result('TEXT_OPERATOR','create_expense');e['assistant-text'].value='catat bensin 300 ribu';
-  e['op-account'].value='99';await h.route();
-  assert.equal(e['op-action'].value,'create_expense');assert.equal(e['op-request'].value,'catat bensin 300 ribu');
-  assert.equal(e['op-account'].value,'');assert.equal(h.calls.length,1);assert.equal(h.uploads.length,0);
-});
-
-test('pending operator draft blocks new routing',async()=>{
-  const h=setup();h.elements['op-preview'].hidden=false;await h.route();assert.equal(h.calls.length,0);
-  assert.match(h.elements['assistant-status'].textContent,/Selesaikan atau batalkan/);
-});
-
-test('analyst handoff clears old answer and proposes categories without executing',async()=>{
-  const h=setup(),e=h.elements;h.result('READ_ONLY_ANALYSIS');e['assistant-text'].value='pengeluaran terbesar apa?';
-  e['answer'].append({textContent:'OLD'});e['answer'].hidden=false;await h.route();
-  assert.equal(e['scope'].value,'categories');assert.equal(e['question'].value,e['assistant-text'].value);
-  assert.equal(e['answer'].hidden,true);assert.equal(e['answer'].children.length,0);assert.equal(h.calls.length,1);
-});
-
-test('network routing failure gives clarification and does not upload',async()=>{
-  const h=setup();h.respond(async()=>{throw new Error('PRIVATE ERROR');});await h.route();
-  assert.equal(h.elements['assistant-clarification'].hidden,false);assert.equal(h.uploads.length,0);
-  assert.equal(h.elements['assistant-status'].textContent.includes('PRIVATE ERROR'),false);
-});
-
-test('clearing transient input removes prompt, file and previous result values',async()=>{
-  const h=setup(),e=h.elements;e['assistant-text'].value='PRIVATE';e['question'].value='PRIVATE';e['op-request'].value='PRIVATE';
-  e['answer'].append({textContent:'PRIVATE'});await e['assistant-clear'].fire('click');
-  for (const id of ['assistant-text','question','op-request']) assert.equal(e[id].value,'');
-  assert.equal(e['answer'].children.length,0);assert.equal(h.calls.length,0);
-});
-
-test('editing message invalidates an earlier file proposal',async()=>{
-  const h=setup(),e=h.elements;h.result('RECEIPT');e['assistant-files'].files=[{name:'a.png'}];await h.route();
-  await e['assistant-text'].fire('input');await e['assistant-receipt-continue'].fire('click');assert.equal(h.uploads.length,0);
-});
-
-test('text and attachment counts are bounded before route request',async()=>{
-  const h=setup();h.elements['assistant-text'].value='x'.repeat(2001);await h.route();assert.equal(h.calls.length,0);
-  h.elements['assistant-text'].value='';h.elements['assistant-files'].files=Array.from({length:11},()=>({name:'a.png'}));
-  await h.route();assert.equal(h.calls.length,0);
-});
-
-test('camera preserves auto mode and performs no extraction before submit',async()=>{
-  const h=setup(),e=h.elements;
-  e['assistant-camera'].files=[{name:'camera.jpg'}];
-  await e['assistant-camera'].fire('change');
-  assert.equal(e['assistant-mode'].value,'auto');
-  assert.equal(e['assistant-files'].files[0].name,'camera.jpg');
-  assert.equal(h.calls.length,0);assert.equal(h.uploads.length,0);
-  assert.match(e['assistant-status'].textContent,/Belum ada pencatatan/);
-});
-test('pending review cannot be replaced by a camera selection',async()=>{
-  const h=setup(),e=h.elements;e['op-preview'].hidden=false;
-  e['assistant-files'].files=[{name:'original.pdf'}];
-  e['assistant-camera'].files=[{name:'new.jpg'}];await e['assistant-camera'].fire('change');
-  assert.equal(e['assistant-files'].files[0].name,'original.pdf');assert.equal(h.calls.length,0);
-});
-
-test('camera selection exposes Baca Struk; one explicit click uploads once with loading',async()=>{
-  const h=setup(),e=h.elements;e['assistant-mode'].value='receipt';e['assistant-camera'].files=[{name:'camera.jpg'}];
-  await e['assistant-camera'].fire('change');
-  assert.equal(e['assistant-send'].textContent,'Baca Struk');
-  assert.equal(e['assistant-send'].focused,true);
-  assert.equal(h.uploads.length,0);assert.equal(h.calls.length,0);
-  await h.route();await h.route();
-  assert.equal(h.uploads.length,1);assert.equal(h.calls.length,0);
-  assert.equal(h.uploads[0].action,'/business/1/finance/receipts/analyze');
-  assert.equal(e['assistant-send'].disabled,true);
-  assert.match(e['assistant-status'].textContent,/Membaca struk.*Review Hasil/);
-});
-
-test('explicit receipt file selection and mode changes update primary action without sending',async()=>{
-  const h=setup(),e=h.elements;e['assistant-mode'].value='receipt';
-  e['assistant-files'].files=[{name:'receipt.pdf'}];await e['assistant-files'].fire('change');
-  assert.equal(e['assistant-send'].textContent,'Baca Struk');assert.equal(h.uploads.length,0);
-  e['assistant-mode'].value='bank';await e['assistant-mode'].fire('input');
-  assert.equal(e['assistant-send'].textContent,'Lanjut');assert.equal(h.uploads.length,0);
-  e['assistant-mode'].value='receipt';await e['assistant-mode'].fire('input');
-  await h.route();assert.equal(h.uploads.length,1);assert.equal(h.uploads[0].name,'receipt');
-});
-
-test('ambiguous gallery image still needs workflow choice and never auto uploads',async()=>{
-  const h=setup(),e=h.elements;e['assistant-files'].files=[{name:'unknown.jpg'}];
-  await e['assistant-files'].fire('change');assert.equal(e['assistant-send'].textContent,'Lanjut');
-  assert.equal(h.calls.length,0);assert.equal(h.uploads.length,0);
-  await h.route();assert.equal(e['assistant-clarification'].hidden,false);assert.equal(h.uploads.length,0);
-});
-
-test('analyst browser shows safe errors, never provider body or exception text',async()=>{
-  for (const kind of ['http','network','json']) {
-    const h=setup(),e=h.elements, Element=e['assistant-text'].constructor;
-    for (const id of ['analyst-form','send','status','month']) e[id]=new Element(id);
-    e.month.value='2026-09';e.question.value='Ringkas laporan';e.scope.value='summary';
-    const analystScript=fs.readFileSync(path.join(__dirname,'../static/finance_analyst.js'),'utf8');
-    vm.runInNewContext(analystScript,{
-      document:{getElementById:id=>e[id],createElement:tag=>new Element(tag)},location:{pathname:'/analyst'},
-      fetch:async()=>{
-        if(kind==='network') throw new Error('PRIVATE_EXCEPTION');
-        return {ok:false,json:async()=>{if(kind==='json')throw new Error('PRIVATE_JSON');return {error:'PRIVATE_PROVIDER_BODY'};}};
-      }
-    });
-    await e['analyst-form'].fire('submit');
-    assert.match(e.status.textContent,/Laporan & Export/);
-    assert.equal(e.status.textContent.includes('PRIVATE'),false);assert.equal(e.send.disabled,false);
-  }
-});
-
-test('auto recognition sends bounded multipart then proposes notes without writing',async()=>{
-  const h=setup(),e=h.elements;e['assistant-composer'].dataset.recognize='/recognize';
-  e['assistant-files'].files=[{name:'notes.png'}];
-  h.respond(async()=>({ok:true,json:async()=>({workflow:h.calls.length===1?'NEEDS_CLARIFICATION':'HANDWRITTEN_NOTE'})}));
-  await h.route();assert.equal(h.calls.length,2);assert.equal(h.calls[1].url,'/recognize');
-  assert.equal(h.calls[1].body.entries.find(([name])=>name==='csrf_token')[1],'test-csrf');
-  assert.equal(e['assistant-bank-title'].textContent,'Review catatan keuangan');assert.equal(h.uploads.length,0);
-  e['assistant-bank-account'].value='12';await e['assistant-bank-continue'].fire('click');
-  assert.equal(h.uploads.length,1);assert.equal(h.uploads[0].kind,'notes');assert.equal(h.uploads[0].name,'sources');
-});
-
-test('recognition failure preserves file for manual choice',async()=>{
-  const h=setup(),e=h.elements;e['assistant-composer'].dataset.recognize='/recognize';e['assistant-files'].files=[{name:'notes.png'}];
-  h.respond(async()=>({ok:h.calls.length===1,json:async()=>({workflow:'NEEDS_CLARIFICATION'})}));
-  await h.route();assert.equal(e['assistant-clarification'].hidden,false);assert.equal(e['assistant-files'].files.length,1);
-  assert.equal(h.uploads.length,0);assert.equal(e['assistant-send'].disabled,false);
-});
-
-test('recurring routing fills suggestions but leaves references and dates for review',async()=>{
-  const h=setup(),e=h.elements;e['assistant-text'].value='sewa 2 juta tiap bulan';
-  h.result('RECURRING_DRAFT','',{name:'sewa',amount_text:'2 juta',cadence:'MONTHLY'});
-  await h.route();assert.equal(e['assistant-recurring'].hidden,false);assert.equal(e['rec-amount'].value,'2 juta');
-  assert.equal(e['rec-start'].value,'');assert.equal(e['rec-account'].value,'');assert.equal(h.calls.length,1);
-});
-
-test('recurring draft blocks new routing and waits for explicit confirmation',async()=>{
-  const h=setup(),e=h.elements;h.runRecurring();
-  h.respond(async()=>({ok:true,json:async()=>({token:'signed-draft',preview:[['Nominal','Rp2.000.000']]})}));
-  await e['recurring-form'].fire('submit');assert.equal(h.calls.length,1);assert.equal(e['rec-preview'].hidden,false);
-  assert.equal(e['recurring-fields'].disabled,true);await h.route();assert.equal(h.calls.length,1);
-  h.respond(async()=>({ok:true,json:async()=>({message:'Jadwal tersimpan'})}));
-  await e['rec-confirm'].fire('click');await e['rec-confirm'].fire('click');
-  assert.equal(h.calls.length,2);assert.equal(h.calls[1].body.token,'signed-draft');assert.equal(h.calls[1].body.confirm,true);
-  assert.equal(e['rec-preview'].hidden,true);
-});
-
-test('uncertain recurring confirmation retains the same token for safe retry',async()=>{
-  const h=setup(),e=h.elements;h.runRecurring();
-  h.respond(async()=>({ok:true,json:async()=>({token:'same-token',preview:[]})}));await e['recurring-form'].fire('submit');
-  h.respond(async()=>{throw new Error('PRIVATE');});await e['rec-confirm'].fire('click');
-  assert.equal(e['rec-preview'].hidden,false);assert.equal(e['recurring-fields'].disabled,true);
-  await e['rec-confirm'].fire('click');assert.equal(h.calls[1].body.token,h.calls[2].body.token);
-  assert.equal(e['rec-status'].textContent.includes('PRIVATE'),false);
-});
+const draft=()=>({kind:'review',title:'Pengeluaran',message:'Review',ready:true,token:'signed',context:'context',preview:[['Nominal','Rp120.000']],fields:[{key:'amount',label:'Nominal',value:'120000',required:true}]});
+test('text only automatically obtains a review without choosing a module',async()=>{const h=setup();h.respond(async()=>draft());h.e['assistant-text'].value='pengeluaran makan 120 ribu';await h.send();assert.match(h.calls[0].url,/message\?branch_id=4/);assert.equal(h.calls[0].body.text,'pengeluaran makan 120 ribu');assert.equal(h.calls.length,1);assert.equal(h.e['assistant-confirm'].hidden,false);assert.equal(h.e['assistant-result-fields'].hidden,true);});
+test('upload only recognizes and extracts with csrf and original file, no navigation',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'receipt.jpg',size:6*1024*1024}];h.respond(async url=>url.includes('recognize')?{workflow:'RECEIPT'}:draft());await h.send();assert.equal(h.calls.length,2);assert.match(h.calls[1].url,/document/);assert.ok(h.calls[0].body.entries.some(([k,v])=>k==='csrf_token'&&v==='csrf'));assert.ok(h.calls[1].body.entries.some(([k,v])=>k==='workflow'&&v==='RECEIPT'));assert.equal(h.e['assistant-clarification'].hidden,true);});
+test('file plus text preserves optional instructions in both calls',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'bank.pdf'}];h.e['assistant-text'].value='ini mutasi BOFA USD saya';h.respond(async url=>url.includes('recognize')?{workflow:'BANK_STATEMENT'}:{kind:'document_result',count:1,message:'Review',review_url:'/business/4/finance/bank-imports/1?branch_id=4'});await h.send();for(const call of h.calls)assert.ok(call.body.entries.some(([k,v])=>k==='text'&&v==='ini mutasi BOFA USD saya'));assert.equal(h.e['assistant-review-link'].hidden,false);});
+test('unknown document shows only minimal fallback choices',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'a.png'}];h.respond(async()=>({workflow:'NEEDS_CLARIFICATION'}));await h.send();assert.equal(h.calls.length,1);assert.equal(h.e['assistant-clarification'].hidden,false);assert.equal(h.choices.find(n=>n.id==='ask').hidden,true);});
+test('manual fallback still processes inside assistant',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'a.png'}];await h.choices[0].fire('click');assert.equal(h.calls.length,1);assert.match(h.calls[0].url,/document/);});
+test('recognize 400 stays inline with friendly cause',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'a.png'}];h.respond(async()=>({response:{ok:false,json:async()=>({error:'File gambar tidak dapat dibaca.'})}}));await h.send();assert.equal(h.e['assistant-status'].textContent,'File gambar tidak dapat dibaca.');assert.equal(h.calls.length,1);assert.equal(h.e['assistant-send'].disabled,false);});
+test('downstream document 400 stays inline',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'a.pdf'}];h.respond(async url=>url.includes('recognize')?{workflow:'BANK_STATEMENT'}:{response:{ok:false,json:async()=>({error:'PDF terenkripsi.'})}});await h.send();assert.equal(h.e['assistant-status'].textContent,'PDF terenkripsi.');assert.equal(h.calls.length,2);});
+test('bank ambiguity asks only for account then reuses document workflow',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'a.csv'}];h.respond(async url=>url.includes('recognize')?{workflow:'BANK_STATEMENT'}:{kind:'document_account',fields:[{key:'account_id',label:'Akun',value:'',type:'select',options:[{value:'8',label:'BOFA USD'}]}]});await h.send();h.e['assistant-result-fields'].children[1].value='8';h.respond(async()=>({kind:'document_result',count:12}));await h.e['assistant-review-form'].fire('submit');assert.equal(h.calls.length,3);assert.match(h.calls[2].url,/document/);assert.ok(h.calls[2].body.entries.some(([k,v])=>k==='account_id'&&v==='8'));});
+test('read only answer displayed immediately without confirm',async()=>{const h=setup();h.e['assistant-text'].value='saldo berapa?';await h.send();assert.equal(h.e['assistant-result'].hidden,false);assert.equal(h.e['assistant-confirm'].hidden,true);});
+test('confirmation requires click and double click cannot duplicate in flight',async()=>{const h=setup();h.e['assistant-text'].value='catat makan 120rb';h.respond(async()=>draft());await h.send();let resolve;h.respond(()=>new Promise(r=>{resolve=r;}));const pending=h.e['assistant-confirm'].fire('click');await h.e['assistant-confirm'].fire('click');assert.equal(h.calls.length,2);assert.equal(h.calls[1].body.token,'signed');assert.equal(h.calls[1].body.confirm,true);resolve({message:'Tercatat'});await pending;assert.equal(h.e['assistant-confirm'].hidden,true);});
+test('uncertain confirmation keeps same token and blocks edits',async()=>{const h=setup();h.e['assistant-text'].value='tambah customer Budi';h.respond(async()=>draft());await h.send();h.respond(async()=>{throw Error('Network');});await h.e['assistant-confirm'].fire('click');assert.equal(h.e['assistant-edit'].disabled,true);await h.e['assistant-confirm'].fire('click');assert.equal(h.calls[1].body.token,h.calls[2].body.token);});
+test('edit invalidates token until server reviews changes',async()=>{const h=setup();h.e['assistant-text'].value='catat makan 120rb';h.respond(async()=>draft());await h.send();await h.e['assistant-edit'].fire('click');assert.equal(h.e['assistant-confirm'].hidden,true);const input=h.e['assistant-result-fields'].children[1];input.value='130000';await input.fire('input');await h.e['assistant-review-form'].fire('submit');assert.match(h.calls[1].url,/review/);assert.equal(h.calls[1].body.context,'context');assert.equal(h.calls[1].body.values.amount,'130000');});
+test('pending review blocks replacement message',async()=>{const h=setup();h.e['assistant-text'].value='catat makan 120rb';h.respond(async()=>draft());await h.send();await h.send();assert.equal(h.calls.length,1);});
+test('malicious strings rendered literally and external review URL refused',async()=>{const h=setup();h.e['assistant-text'].value='test';h.respond(async()=>({kind:'answer',title:'<img onerror=evil>',preview:[['<script>','<script>']],review_url:'https://evil.example/'}));await h.send();assert.equal(h.e['assistant-result-title'].textContent,'<img onerror=evil>');assert.equal(h.e['assistant-review-link'].hidden,true);});
+test('clear removes transient inputs and drafts without writes',async()=>{const h=setup();h.e['assistant-text'].value='PRIVATE';await h.send();await h.e['assistant-clear'].fire('click');assert.equal(h.e['assistant-text'].value,'');assert.equal(h.e['assistant-result'].hidden,true);assert.equal(h.calls.length,1);});
+test('camera transfers photo without selecting receipt mode',async()=>{const h=setup();h.e['assistant-camera'].files=[{name:'phone.jpg'}];await h.e['assistant-camera'].fire('change');assert.equal(h.e['assistant-files'].files[0].name,'phone.jpg');assert.equal(h.e['assistant-mode'].value,'auto');assert.equal(h.calls.length,0);});
+test('oversized selection rejected before provider request',async()=>{const h=setup();h.e['assistant-files'].files=[{name:'phone.jpg',size:21*1024*1024}];await h.send();assert.equal(h.calls.length,0);assert.match(h.e['assistant-status'].textContent,/20 MiB/);});
+test('shared upload guard honors Finance bounds and preserves other forms',()=>{const template=fs.readFileSync(path.join(__dirname,'../templates/base.html'),'utf8');const start=template.indexOf('  function validateFiles(input) {'),end=template.indexOf("  document.addEventListener('change'",start);const sandbox={};vm.runInNewContext(template.slice(start,end),sandbox);for(const [finance,size,valid] of [[true,15,true],[true,21,false],[false,15,false]]){const input={files:[{size:size*1024*1024}],closest:()=>finance?{}:null,setCustomValidity(x){this.error=x;}};assert.equal(sandbox.validateFiles(input),valid);}});

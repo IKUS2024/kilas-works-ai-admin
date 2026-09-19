@@ -60,10 +60,10 @@ class UnifiedTests(unittest.TestCase):
     def test_one_visible_text_input_and_all_workflows(self):
         html=self.client.get(self.assistant).text
         self.assertEqual(len(re.findall(r'<textarea\b',html)),1)
-        for value in ('assistant/recognize','assistant/recurring/draft','value="notes"','value="recurring"'):
+        for value in ('assistant/recognize','assistant/message','value="notes"','value="recurring"'):
             self.assertIn(value,html)
-        self.assertIn('type="hidden" id="op-request"',html)
-        self.assertIn('type="hidden" id="question"',html)
+        self.assertIn('id="assistant-result"',html)
+        self.assertNotIn('id="operator-fields"',html)
     def test_visual_routing_returns_only_kind_and_no_writes(self):
         before=self.snapshot()
         for workflow in ('RECEIPT','BANK_STATEMENT','HANDWRITTEN_NOTE','NEEDS_CLARIFICATION'):
@@ -89,7 +89,7 @@ class UnifiedTests(unittest.TestCase):
     def test_visual_tenant_access_and_expiry(self):
         self.assertEqual(self.recognize(url=f'/business/{self.other}/finance/assistant').status_code,404)
         self.time.return_value+=timedelta(days=7)
-        self.assertIn(self.recognize().status_code,(302,303,403));self.http.assert_not_called()
+        self.assertIn(self.recognize().status_code,(302,303,401,403));self.http.assert_not_called()
     def test_new_endpoints_require_csrf(self):
         with patch.dict(app.config,CLIENT_HUB_FORCE_CSRF_IN_TESTS=True):
             self.assertEqual(self.recognize().status_code,400)

@@ -18,6 +18,7 @@ import file_utils
 import finance_analyst
 import finance_operator
 import finance_assistant
+import finance_assistant_flow as assistant_flow
 import finance_documents
 import finance_assistant_recurring as assistant_recurring
 import finance_ai_safety as ai_safety
@@ -962,6 +963,7 @@ def receipt_analyze(business_id, user, business):
     except HTTPException:
         raise
     except file_utils.UploadRejected as error:
+        ai_safety.upload_event(error.code)
         return receipt_page(user, business, error=str(error), status=400)
     except finance_receipts.ReceiptError as error:
         ai_safety.receipt_event(str(error))
@@ -1019,6 +1021,7 @@ def bank_safe(view):
         except HTTPException:
             raise
         except (ValueError, file_utils.UploadRejected) as error:
+            ai_safety.upload_event(error.code if isinstance(error,file_utils.UploadRejected) else str(error))
             unavailable=str(error) in ('bank_unavailable','bank_row_unavailable','business_unavailable')
             return 'Impor tidak tersedia.' if unavailable else 'Permintaan belum valid atau status telah berubah. Muat ulang dan periksa isian.', 404 if unavailable else 400
         except Exception:
@@ -1060,7 +1063,7 @@ def bank_analyze(business_id,user,business):
         bank.account(business_id,account_id,user['id'])
         files=[];total=0
         for upload in uploads:
-            raw=upload.stream.read(10*1024*1024+1)
+            raw=upload.stream.read(file_utils.FINANCE_IMAGE_INPUT_BYTES+1)
             total+=len(raw)
             if total>25*1024*1024:raise ValueError('aggregate')
             files.append((upload.filename,raw))
@@ -1195,19 +1198,19 @@ def assistant_recognize(business_id,user,business):
     uploads=request.files.getlist('sources')
     try:
         if (set(request.files)!={'sources'} or not 1<=len(uploads)<=10
-                or set(request.form)-{'csrf_token','text'}
+                or set(request.form)-{'csrf_token','text','branch_id'}
                 or any(len(request.form.getlist(k))!=1 for k in request.form)):
             raise ValueError('invalid_fields')
         files=[];total=0
         for upload in uploads:
-            raw=upload.stream.read(10*1024*1024+1);total+=len(raw)
+            raw=upload.stream.read(file_utils.FINANCE_IMAGE_INPUT_BYTES+1);total+=len(raw)
             if total>25*1024*1024:raise ValueError('aggregate')
             files.append((upload.filename,raw))
         workflow=finance_documents.recognize(business_id,user['id'],files,request.form.get('text',''))
         return jsonify(workflow=workflow)
     except HTTPException:raise
-    except (ValueError,file_utils.UploadRejected):
-        return jsonify(error='File tidak valid. Gunakan satu PDF/CSV atau maksimal 10 foto sesuai batas ukuran.'),400
+    except (ValueError,file_utils.UploadRejected) as error:
+        return assistant_error(error)
     except Exception:
         ai_safety.event('request_failed')
         return jsonify(workflow='NEEDS_CLARIFICATION')
@@ -1329,3 +1332,116 @@ def edit_transaction(business_id, user, business, transaction_id):
         accounts=finance.list_accounts(business_id, actor_user_id=user['id']),
         categories=finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id']),
         today=date.today().isoformat())
+
+
+# Structured Assistant boundary; legacy module pages remain independently usable.
+_ASSISTANT_JSON_ENDPOINTS = {'finance.assistant_message','finance.assistant_review','finance.assistant_confirm',
+                             'finance.assistant_document','finance.assistant_recognize'}
+
+
+@finance_bp.after_request
+def assistant_json_errors(response):
+    if request.endpoint not in _ASSISTANT_JSON_ENDPOINTS or response.is_json:
+        return response
+    if response.status_code >= 400 or 300 <= response.status_code < 400:
+        code=response.status_code
+        message={400:'Permintaan belum valid. Periksa isian atau muat ulang halaman.',
+                 401:'Silakan masuk lagi untuk melanjutkan.',403:'Akses Finance atau cabang ini belum tersedia.',
+                 404:'Data atau akses bisnis tidak tersedia.',413:'Lampiran terlalu besar. Maksimal 20 MiB per foto dan 25 MiB total.',
+                 429:'Terlalu banyak percobaan. Tunggu sebentar.'}.get(code,'Permintaan belum dapat diproses. Coba lagi sebentar.')
+        if 300 <= code < 400:code=401;message='Silakan masuk dan periksa masa aktif Finance untuk melanjutkan.'
+        result=jsonify(error=message);result.status_code=code;result.headers['Cache-Control']='private, no-store'
+        return result
+    return response
+
+
+def assistant_error(error):
+    if isinstance(error,file_utils.UploadRejected):
+        ai_safety.upload_event(error.code)
+        return jsonify(error=str(error)),400
+    messages={'invalid_draft':'Review sudah kedaluwarsa atau tidak valid. Siapkan ulang review.',
+              'account_unavailable':'Pilih rekening aktif yang sesuai dengan cabang dan mata uang.',
+              'category_unavailable':'Pilih kategori aktif yang sesuai.',
+              'invoice_unavailable':'Invoice tidak tersedia pada bisnis/cabang ini. Pilih invoice yang benar.',
+              'invalid_invoice_payment':'Nominal pembayaran melebihi sisa tagihan atau invoice sudah ditutup.',
+              'invalid_amount':'Nominal belum jelas. Gunakan satu nominal dan mata uang yang sesuai.',
+              'invalid_email':'Periksa alamat email customer.', 'future_date':'Tanggal transaksi tidak boleh di masa depan.',
+              'unsupported_file':'Tipe file belum didukung. Gunakan JPG, PNG, WEBP, PDF atau CSV.',
+              'invalid_csv':'CSV rusak atau susunan kolom tidak valid.',
+              'source_count':'Gunakan satu PDF/CSV atau maksimal 10 foto.',
+              'aggregate':'Total lampiran maksimal 25 MiB.'}
+    reason=str(error)
+    ai_safety.upload_event(reason if reason in messages else 'invalid_fields')
+    return jsonify(error=messages.get(reason,'Data belum jelas atau pilihan sudah tidak tersedia. Periksa nominal, tanggal, mata uang, dan pilihan pada review.')),400
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/message',methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def assistant_message(business_id,user,business):
+    payload,error=finance_ai_payload(user['id'],business_id,'ai')
+    if error is not None:return error
+    try:
+        if set(payload)!={'text'}:raise ValueError('invalid_fields')
+        return jsonify(assistant_flow.text_message(business_id,user['id'],payload['text']))
+    except ValueError as error:return assistant_error(error)
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(error='Assistant belum dapat membaca data saat ini. Coba lagi sebentar; belum ada pencatatan.'),503
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/review',methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def assistant_review(business_id,user,business):
+    payload,error=finance_ai_payload(user['id'],business_id,'ai')
+    if error is not None:return error
+    try:
+        if set(payload)!={'context','values'}:raise ValueError('invalid_fields')
+        return jsonify(assistant_flow.revise(business_id,user['id'],payload['context'],payload['values']))
+    except ValueError as error:return assistant_error(error)
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(error='Review belum tersedia. Coba lagi sebentar; belum ada pencatatan.'),503
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/confirm',methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def assistant_confirm(business_id,user,business):
+    payload,error=finance_ai_payload(user['id'],business_id,'confirm')
+    if error is not None:return error
+    try:
+        if set(payload)!={'token','confirm'} or payload['confirm'] is not True:raise ValueError('invalid_fields')
+        return jsonify(assistant_flow.confirm(business_id,user['id'],payload['token']))
+    except ValueError as error:return assistant_error(error)
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(error='Konfirmasi belum dapat dipastikan. Ulangi konfirmasi yang sama; jangan buat draft pengganti sebelum memeriksa catatan.'),503
+
+
+@finance_bp.route('/business/<int:business_id>/finance/assistant/document',methods=['POST'])
+@ai_safety.endpoint
+@finance_access
+def assistant_document(business_id,user,business):
+    uploads=request.files.getlist('sources')
+    try:
+        if (set(request.files)!={'sources'} or not 1<=len(uploads)<=10
+                or set(request.form)-{'csrf_token','branch_id','text','workflow','account_id'}
+                or any(len(request.form.getlist(k))!=1 for k in request.form)):
+            raise ValueError('invalid_fields')
+        assistant_flow.authorize(business_id,user['id'])
+        files=[];total=0
+        for upload in uploads:
+            raw=upload.stream.read(file_utils.FINANCE_IMAGE_INPUT_BYTES+1);total+=len(raw)
+            if total>25*1024*1024:raise ValueError('aggregate')
+            files.append((upload.filename,raw))
+        return jsonify(assistant_flow.document(business_id,user['id'],files,request.form.get('text',''),
+            request.form.get('workflow',''),request.form.get('account_id','')))
+    except HTTPException:raise
+    except (ValueError,file_utils.UploadRejected) as error:return assistant_error(error)
+    except Exception:
+        ai_safety.event('request_failed')
+        return jsonify(error='Dokumen belum berhasil diproses. Coba lagi atau gunakan foto/PDF yang lebih jelas. Belum ada pencatatan.'),503
+    finally:
+        for upload in uploads:upload.close()

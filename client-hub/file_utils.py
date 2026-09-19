@@ -29,7 +29,50 @@ MAX_IMAGE_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB — generous for a phone photo,
 
 
 class UploadRejected(Exception):
-    pass
+    def __init__(self, message, code='validation_rejected'):
+        super().__init__(message)
+        self.code = code
+
+
+FINANCE_IMAGE_INPUT_BYTES = 20 * 1024 * 1024
+
+
+def prepare_finance_document(filename, raw):
+    """Preserve original identity at the caller; normalize only provider-bound pixels.
+
+    Finance-only: other upload limits and storage flows remain unchanged.
+    """
+    ext = _extension_of(filename or '')
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        name, mime, text = validate_receipt_upload(filename, raw)
+        return name, mime, text, raw
+    if not raw or len(raw) > FINANCE_IMAGE_INPUT_BYTES:
+        raise UploadRejected('Foto maksimal 20 MiB sebelum normalisasi aman.', 'image_input_size')
+    try:
+        with Image.open(io.BytesIO(raw)) as image:
+            expected={'jpg':'JPEG','jpeg':'JPEG','png':'PNG','webp':'WEBP'}[ext]
+            if image.format != expected or image.width * image.height > 80_000_000 or getattr(image,'n_frames',1)!=1:
+                raise ValueError()
+            unchanged=(len(raw)<=MAX_ATTACHMENT_UPLOAD_BYTES and image.width*image.height<=20_000_000
+                       and max(image.size)<=8000 and image.getexif().get(274,1)==1
+                       and image.mode in ('RGB','L'))
+        if unchanged:
+            name,mime,text=validate_receipt_upload(filename,raw)
+            return name,mime,text,raw
+    except Exception:
+        raise UploadRejected('File gambar tidak dapat dibaca atau format tidak sesuai.', 'image_structure') from None
+    import subprocess
+    import sys
+    from pathlib import Path
+    try:
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name('finance_image.py'))],
+                                input=raw, capture_output=True, timeout=10, check=True)
+        if not result.stdout or len(result.stdout) > 4 * 1024 * 1024:
+            raise ValueError()
+        name = sanitize_filename(filename)
+        return name, 'image/jpeg', None, result.stdout
+    except Exception:
+        raise UploadRejected('File gambar tidak dapat dibaca atau terlalu besar setelah normalisasi aman. Gunakan foto lebih dekat atau resolusi lebih rendah.', 'image_normalization') from None
 
 
 def sanitize_filename(filename):
@@ -188,6 +231,8 @@ def validate_receipt_upload(filename, content_bytes):
             raise ValueError('invalid_pdf')
         return safe_name, mime, data['text'] or None
     except Exception:
+        if _finance_pdf_structure_valid(content_bytes):
+            return safe_name, mime, None
         raise UploadRejected('PDF tidak valid, terenkripsi, terlalu kompleks, atau melebihi 10 halaman.') from None
 
 
@@ -209,4 +254,24 @@ def validate_bank_pdf(filename, content_bytes):
             raise ValueError()
         return safe_name, data['text']
     except Exception:
+        if _finance_pdf_structure_valid(content_bytes, bank=True):
+            return safe_name, ''
         raise UploadRejected('PDF bank tidak valid, terlalu kompleks, terenkripsi, atau melebihi 20 halaman.') from None
+
+
+def _finance_pdf_structure_valid(raw, bank=False):
+    """Retry structural validation only after bounded text decoding failed.
+
+    Password, structure, page, memory and CPU checks still gate provider fallback.
+    """
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+    args=[sys.executable,str(Path(__file__).with_name('finance_receipt_pdf.py')),'--validate-only']
+    if bank:args.append('--bank-statement')
+    try:
+        result=subprocess.run(args,input=raw,capture_output=True,timeout=8,check=True)
+        return json.loads(result.stdout)=={'text':''}
+    except Exception:
+        return False

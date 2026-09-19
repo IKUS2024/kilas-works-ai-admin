@@ -35,7 +35,7 @@
 </form>
 {% endif %}
 {% if not review or review.duplicate %}
-<form class="card" method="post" enctype="multipart/form-data" action="{{ url_for('finance.receipt_analyze',business_id=business.id) }}">
+<form class="card" method="post" enctype="multipart/form-data" data-finance-document-upload action="{{ url_for('finance.receipt_analyze',business_id=business.id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="receipt">Struk JPG, JPEG, PNG, WEBP atau PDF</label><input id="receipt" name="receipt" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
 <p>Maksimum 5 MB; PDF maksimum 10 halaman. Upload satu struk per percobaan.</p>

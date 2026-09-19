@@ -48,13 +48,13 @@ def classify(text, mode, files):
         return 'NEEDS_CLARIFICATION'
     if has(r'\b(hapus|delete|transfer|kirim uang|bayarkan|ubah transaksi)\b'):
         return 'UNSUPPORTED'
-    recording = has(r'\b(catat|catatkan|rekam|record|beli|bayar|terima|pemasukan|penjualan)\b|\b(siapkan|buat) draft\b')
+    recording = has(r'\b(catat|catatkan|rekam|record|beli|bayar|terima|pemasukan|pengeluaran|penjualan)\b|\b(siapkan|buat) draft\b')
     question = has(r'\b(apa|berapa|bagaimana|kenapa|mengapa|laporan|analisis|ringkas|bandingkan|summary|report)\b|\?')
-    recurring = has(r'\b(rutin|berulang|mingguan|bulanan|recurring|tiap minggu|tiap bulan|setiap minggu|setiap bulan)\b')
+    recurring = has(r'\b(rutin|berulang|mingguan|bulanan|recurring|tiap minggu|tiap bulan|setiap minggu|setiap bulan|tiap tanggal|setiap tanggal)\b')
     if recurring and not question:
         return 'RECURRING_DRAFT'
     if recording and question:
-        return 'NEEDS_CLARIFICATION'
+        return 'NEEDS_CLARIFICATION' if has(r'\b(catat|catatkan|rekam|record|siapkan)\b') else 'READ_ONLY_ANALYSIS'
     if recording:
         return 'TEXT_OPERATOR'
     if question:

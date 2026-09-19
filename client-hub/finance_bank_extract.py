@@ -211,9 +211,10 @@ def validate_sources(files):
         if sum(len(raw) for _,raw in files)>25*1024*1024:raise BankError('aggregate_limit')
         sources=[];kind='IMAGES'
         for name,raw in files:
-            _,mime,_=file_utils.validate_receipt_upload(name,raw)
+            _,mime,_,raw=file_utils.prepare_finance_document(name,raw)
             sources.append(dict(mime=mime,raw=raw,text=None))
-    hashes=[hashlib.sha256(s['raw']).hexdigest() for s in sources]
+    # Original bytes retain duplicate identity even when provider pixels are normalized.
+    hashes=[hashlib.sha256(raw).hexdigest() for _,raw in files]
     if len(set(hashes))!=len(hashes):raise BankError('duplicate_file')
     identity=hashes[0] if len(hashes)==1 else hashlib.sha256(json.dumps(
         {'version':1,'ordered_sha256':hashes},sort_keys=True,separators=(',',':')).encode()).hexdigest()
