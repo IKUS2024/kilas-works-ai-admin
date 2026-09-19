@@ -25,13 +25,18 @@
 .progress-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 7px;font-size:12px;color:var(--text-dim)}
 .progress-track{height:5px;border-radius:999px;background:var(--bg-soft);overflow:hidden;margin-bottom:10px}.progress-fill{height:100%;background:var(--orange);border-radius:inherit}
 .brain-note{padding:8px 10px;border-radius:11px;background:var(--bg-soft);color:var(--text-dim);font-size:11px;line-height:1.4;margin:8px 0}
+.brain-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:8px 0 10px}
+.brain-flow-step{min-width:0;padding:7px 5px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.012);text-align:center;color:var(--text-dim)}
+.brain-flow-step strong{display:block;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brain-flow-step span{display:block;font-size:9px;margin-top:2px}
+.brain-flow-step.done{border-color:rgba(62,207,142,.25);background:rgba(62,207,142,.06);color:var(--green)}
+.brain-flow-step.current{border-color:rgba(255,122,26,.45);background:rgba(255,122,26,.08);color:var(--orange)}
 .action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
 .action-tile{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:12px;padding:9px;display:flex;align-items:center;gap:8px;min-height:50px;text-decoration:none;font-size:13px;font-weight:650;min-width:0}
 .action-tile:hover{border-color:#4a4e56;background:rgba(255,255,255,.025);text-decoration:none}
 .action-icon{width:30px;height:30px;border-radius:9px;background:var(--bg-soft);display:grid;place-items:center;color:var(--text-dim);flex:0 0 auto}.action-icon svg{width:17px;height:17px}
 .orders-card{padding:14px}.orders-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.orders-head h2{margin:0}
 .order-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border)}.order-row:first-of-type{border-top:0}.order-main{min-width:0;flex:1}.order-main a{font-weight:700}.order-meta{font-size:12px;color:var(--text-dim);margin-top:2px}.order-action{flex:0 0 auto}.order-action .btn{margin:0}
-@media(max-width:720px){.home-intro{margin-bottom:9px}.home-intro h1{font-size:22px}.business-picker{padding:10px 12px}.product-grid{grid-template-columns:1fr}.business-shell{padding:12px}.product-panel{padding:11px}.product-primary{display:flex;gap:7px}.product-primary .btn{flex:1 1 140px}.action-grid{display:flex;overflow-x:auto;scrollbar-width:none;margin-right:-12px;padding-right:12px}.action-grid::-webkit-scrollbar{display:none}.action-tile{flex:0 0 125px;min-height:46px;padding:8px;font-size:12px}.orders-card{padding:12px}}
+@media(max-width:720px){.home-intro{margin-bottom:9px}.home-intro h1{font-size:22px}.business-picker{padding:10px 12px}.product-grid{grid-template-columns:1fr}.business-shell{padding:12px}.product-panel{padding:11px}.product-primary{display:flex;gap:7px}.product-primary .btn{flex:1 1 140px}.action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-right:0;padding-right:0}.action-tile{min-height:52px;padding:8px;font-size:12px;white-space:normal;overflow-wrap:anywhere}.brain-flow{gap:4px}.brain-flow-step{padding:6px 3px}.brain-flow-step strong{font-size:9.5px}.brain-flow-step span{font-size:8.5px}.orders-card{padding:12px}}
 @media(max-width:430px){.product-primary{gap:6px}.product-primary .btn{padding:8px 9px;font-size:12px}.business-avatar{width:38px;height:38px}.business-title h2{font-size:18px}.product-icon{width:35px;height:35px}.status-badge{font-size:11px;padding:4px 7px}.order-meta{font-size:11px}}
 </style>
 
@@ -109,10 +114,11 @@
               <button class="btn btn-wide" type="submit">Kenali &amp; Siapkan Brain</button>
             </form>
           {% else %}
-            {% set brain_payment = namespace(verified=false) %}
+            {% set brain_payment = namespace(verified=false, status='NONE') %}
             {% for p in my_projects %}
-              {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment and p.payment.status == 'VERIFIED' %}
-                {% set brain_payment.verified = true %}
+              {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment %}
+                {% set brain_payment.status = p.payment.status %}
+                {% if p.payment.status == 'VERIFIED' %}{% set brain_payment.verified = true %}{% endif %}
               {% endif %}
             {% endfor %}
 
@@ -121,22 +127,39 @@
                 <span class="status-badge warning"><span class="status-dot"></span>Perubahan menunggu review</span>
                 <span class="status-meta">Versi live lama tetap aktif</span>
               {% else %}
-                <span class="status-badge {{ 'active' if b.status=='ACTIVE' else ('warning' if b.status in ('READY_FOR_REVIEW','READY_FOR_AI_SETUP','ONBOARDING') else ('danger' if b.status in ('NEEDS_REVISION','SUSPENDED') else 'info')) }}"><span class="status-dot"></span>{{ b.status|humanize_status('business') }}</span>
-                {% if b.subscription_banner %}<span class="status-meta">{{ b.subscription_banner.status }}</span>{% endif %}
+                <span class="status-badge {{ 'active' if b.status=='ACTIVE' else ('warning' if b.status in ('READY_FOR_REVIEW','READY_FOR_AI_SETUP','ONBOARDING') else ('danger' if b.status in ('NEEDS_REVISION','SUSPENDED') else 'info')) }}"><span class="status-dot"></span>{{ 'Sedang ditinjau' if b.status=='READY_FOR_REVIEW' else ('Review disetujui' if b.status=='APPROVED' else (b.status|humanize_status('business'))) }}</span>
+                {% if b.status=='READY_FOR_REVIEW' and brain_payment.verified %}<span class="status-meta">Pembayaran sudah diverifikasi</span>{% elif b.subscription_banner %}<span class="status-meta">{{ b.subscription_banner.status }}</span>{% endif %}
               {% endif %}
             </div>
 
-            <div class="progress-row"><span>Setup Brain</span><strong>{{ b.completion_percent }}%</strong></div>
-            <div class="progress-track" aria-label="Setup {{ b.completion_percent }}%"><div class="progress-fill" style="width:{{ b.completion_percent }}%"></div></div>
+            {% if b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP','NEEDS_REVISION') %}
+              <div class="progress-row"><span>Setup Brain</span><strong>{{ b.completion_percent }}%</strong></div>
+              <div class="progress-track" aria-label="Setup {{ b.completion_percent }}%"><div class="progress-fill" style="width:{{ b.completion_percent }}%"></div></div>
+            {% else %}
+              <div class="brain-flow" aria-label="Tahapan aktivasi Kilas Brain">
+                <div class="brain-flow-step done"><strong>Setup</strong><span>✓ selesai</span></div>
+                <div class="brain-flow-step {{ 'done' if b.status in ('APPROVED','ACTIVE','SUSPENDED') else 'current' }}"><strong>Review</strong><span>{{ '✓ selesai' if b.status in ('APPROVED','ACTIVE','SUSPENDED') else 'diproses' }}</span></div>
+                <div class="brain-flow-step {{ 'done' if brain_payment.verified or b.status in ('ACTIVE','SUSPENDED') else ('current' if b.status=='APPROVED' else '') }}"><strong>Bayar</strong><span>{{ '✓ selesai' if brain_payment.verified or b.status in ('ACTIVE','SUSPENDED') else ('berikutnya' if b.status=='APPROVED' else 'menunggu') }}</span></div>
+                <div class="brain-flow-step {{ 'done' if b.status=='ACTIVE' else ('current' if b.status=='APPROVED' and brain_payment.verified else '') }}"><strong>WhatsApp</strong><span>{{ '✓ aktif' if b.status=='ACTIVE' else ('hubungkan' if b.status=='APPROVED' and brain_payment.verified else 'menunggu') }}</span></div>
+              </div>
+            {% endif %}
 
             {% if b.brain_review_pending %}
-              <div class="brain-note">Perubahan terbaru sudah tersimpan sebagai draft. Kilas Works akan review lagi; sampai disetujui, Brain tetap memakai versi terakhir yang sudah disetujui.</div>
+              <div class="brain-note">Perubahan terbaru sudah tersimpan sebagai draft. Versi live lama tetap berjalan sampai perubahan disetujui.</div>
+            {% elif b.status=='READY_FOR_REVIEW' and brain_payment.verified %}
+              <div class="brain-note">Setup dan pembayaran sudah selesai. Sekarang tinggal menunggu review Kilas Works.</div>
+            {% elif b.status=='READY_FOR_REVIEW' and brain_payment.status in ('PROOF_UPLOADED','UNDER_REVIEW') %}
+              <div class="brain-note">Setup sedang direview dan bukti pembayaran juga sedang diverifikasi. Kamu tidak perlu mengisi setup lagi.</div>
             {% elif b.status=='READY_FOR_REVIEW' %}
-              <div class="brain-note">Setup lengkap dan sedang ditinjau. WhatsApp belum aktif sampai proses review dan pembayaran selesai.</div>
+              <div class="brain-note">Setup sudah selesai dan sedang direview. Sambil menunggu, lanjutkan pembayaran supaya setelah disetujui kamu bisa langsung hubungkan WhatsApp.</div>
             {% elif b.status=='APPROVED' and brain_payment.verified %}
-              <div class="brain-note">Setup dan pembayaran sudah disetujui. Tinggal hubungkan WhatsApp untuk mulai.</div>
+              <div class="brain-note">Review dan pembayaran sudah selesai. Tinggal hubungkan WhatsApp untuk mulai menerima chat customer.</div>
+            {% elif b.status=='APPROVED' %}
+              <div class="brain-note">Review sudah disetujui. Selesaikan pembayaran untuk lanjut ke aktivasi WhatsApp.</div>
+            {% elif b.status=='ACTIVE' %}
+              <div class="brain-note">Kilas Brain aktif dan siap membantu customer melalui WhatsApp.</div>
             {% else %}
-              <div class="brain-note">Kamu tetap bisa mengubah data Brain kapan saja. Setelah Brain sudah disetujui, perubahan berikutnya akan masuk review lagi sebelum menjadi versi live.</div>
+              <div class="brain-note">Kamu tetap bisa mengubah data Brain kapan saja. Perubahan pada Brain yang sudah disetujui akan direview sebelum menjadi versi live.</div>
             {% endif %}
 
             <div class="product-primary">
@@ -149,7 +172,15 @@
               {% elif b.status=='APPROVED' %}
                 <a class="btn btn-wide" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Invoice &amp; Pembayaran</a>
               {% elif b.status=='READY_FOR_REVIEW' %}
-                <a class="btn btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Status Review</a>
+                {% if brain_payment.verified %}
+                  <a class="btn btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Status Review</a>
+                {% elif brain_payment.status in ('PROOF_UPLOADED','UNDER_REVIEW') %}
+                  <a class="btn btn-wide" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Cek Pembayaran</a>
+                  <a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Review</a>
+                {% else %}
+                  <a class="btn btn-wide" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">{{ 'Perbaiki Pembayaran' if brain_payment.status=='REJECTED' else 'Lanjut Pembayaran' }}</a>
+                  <a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Review</a>
+                {% endif %}
               {% else %}
                 <a class="btn btn-wide" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>
               {% endif %}
