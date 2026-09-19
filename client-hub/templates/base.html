@@ -126,6 +126,20 @@
     input, select, textarea { font-size:16px; }
     .btn, .btn.small, button, .topbar nav a { min-height:44px; }
     .topbar nav a { display:inline-flex; align-items:center; }
+
+    /* Make the customer header feel like app navigation instead of a long text row. */
+    .topbar { gap:10px; padding:10px 12px 8px; background:#1b1d21; }
+    .brand { font-size:14px; line-height:1; }
+    .topbar nav {
+      width:calc(100% + 24px); margin:0 -12px; padding:0 12px 4px;
+      gap:6px; scroll-padding-inline:12px;
+    }
+    .topbar nav a {
+      margin:0; min-height:38px; padding:7px 10px; border:1px solid var(--border);
+      border-radius:10px; background:rgba(255,255,255,.02); font-size:13px; font-weight:650;
+    }
+    .topbar nav a:hover,.topbar nav a:focus { text-decoration:none; color:var(--text); border-color:#4b4f57; }
+    .wrap { padding-top:18px; }
   }
 </style>
 </head>
