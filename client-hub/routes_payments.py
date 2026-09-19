@@ -9,8 +9,10 @@ import db
 import security
 import payment_service
 import projects_repo
+import quotation_service
 import file_utils
 import ai_payment_review
+import wa_checkout
 
 payments_bp = Blueprint("payments", __name__)
 
@@ -48,7 +50,11 @@ def checkout_page(project_id):
                 return redirect(url_for("projects.project_view", project_id=project_id))
         except Exception:
             abort(404)
-        return render_template("checkout.html", business=business, project=project, bank=payment_service.BANK_DETAILS)
+        quotation = quotation_service.get_latest_quotation_for_project(project_id) if project["pricing_mode"] == "CUSTOM_QUOTE" else None
+        return render_template(
+            "checkout.html", business=business, project=project, quotation=quotation,
+            brief_labels=wa_checkout.FIELDS, bank=payment_service.BANK_DETAILS,
+        )
 
     try:
         invoice_id = payment_service.checkout(project_id, business["id"] if business else None, user["id"])
@@ -67,16 +73,22 @@ def invoice_page(invoice_id):
     invoice = payment_service.get_invoice(invoice_id)
     if invoice is None:
         abort(404)
+    project = projects_repo.get_project(invoice["project_id"])
+    if project is None:
+        abort(404)
     business = security.require_business_access(invoice["business_id"], user) if invoice["business_id"] else None
     if business is None:
-        project = projects_repo.get_project(invoice["project_id"])
-        security.require_project_access(project["id"], user) if project else abort(404)
+        security.require_project_access(project["id"], user)
     payment = payment_service.get_payment_for_invoice(invoice_id)
     review_status = payment_service.derive_review_status(payment) if payment else None
+    quotation = quotation_service.get_latest_quotation_for_project(project["id"]) if project["pricing_mode"] == "CUSTOM_QUOTE" else None
 
     if request.method == "GET":
-        return render_template("invoice.html", business=business, invoice=invoice, payment=payment,
-                                review_status=review_status, bank=payment_service.BANK_DETAILS)
+        return render_template(
+            "invoice.html", business=business, invoice=invoice, payment=payment, project=project,
+            quotation=quotation, brief_labels=wa_checkout.FIELDS,
+            review_status=review_status, bank=payment_service.BANK_DETAILS,
+        )
 
     if not payment:
         flash("Data pembayaran belum tersedia. Coba buka tagihan ini lagi sebentar.", "error")
