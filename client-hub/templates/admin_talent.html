@@ -5,8 +5,16 @@
 <div class="admin-page">
   <header class="admin-head">
     <div><h1>Talent Management</h1><p>Tambah dan kelola talent tanpa semua form terbuka sekaligus.</p></div>
-    <span class="admin-count">{{ talents|length }} talent</span>
+    <span class="admin-count">{{ talents_total }} talent</span>
   </header>
+
+  <form method="get" class="card admin-search-card" action="{{ url_for('admin.talent_admin') }}">
+    <div class="admin-search-row">
+      <input type="search" name="q" value="{{ search }}" placeholder="Cari talent, handle, niche, client, request..." aria-label="Cari talent atau request">
+      <button class="btn small" type="submit">Cari</button>
+      {% if search %}<a class="btn small secondary" href="{{ url_for('admin.talent_admin') }}">Reset</a>{% endif %}
+    </div>
+  </form>
 
   <details class="card admin-collapsible">
     <summary>＋ Tambah Talent Baru</summary>
@@ -95,12 +103,23 @@
           </div>
         </details>
       </article>
-      {% else %}<div class="admin-empty">Belum ada talent.</div>{% endfor %}
+      {% else %}<div class="admin-empty">{{ 'Tidak ada talent yang cocok dengan pencarian.' if search else 'Belum ada talent.' }}</div>{% endfor %}
     </div>
   </section>
 
+  {% if talent_total_pages > 1 %}
+    <div class="admin-list-meta">Maksimal 10 talent per halaman · Halaman {{ talent_page }} dari {{ talent_total_pages }}</div>
+    <nav class="admin-pagination" aria-label="Halaman talent">
+      {% if talent_page > 1 %}<a class="admin-page-btn" href="{{ url_for('admin.talent_admin', q=search, talent_page=talent_page-1, request_page=request_page) }}">←</a>{% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
+      {% for page_number in range(1,talent_total_pages+1) %}
+        <a class="admin-page-btn {{ 'active' if page_number==talent_page else '' }}" href="{{ url_for('admin.talent_admin', q=search, talent_page=page_number, request_page=request_page) }}" {% if page_number==talent_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+      {% endfor %}
+      {% if talent_page < talent_total_pages %}<a class="admin-page-btn" href="{{ url_for('admin.talent_admin', q=search, talent_page=talent_page+1, request_page=request_page) }}">→</a>{% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
+    </nav>
+  {% endif %}
+
   <details class="card admin-collapsible">
-    <summary>Talent Requests · {{ requests|length }}</summary>
+    <summary>Talent Requests · {{ requests_total }}</summary>
     <div class="admin-collapsible-body">
       <div class="admin-list">
         {% for r in requests %}
@@ -117,8 +136,19 @@
             {% if r.brief %}<div class="admin-note" style="margin-top:8px;">{{ r.brief }}</div>{% endif %}
             <div class="admin-actions"><a class="btn small {{ '' if r.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else 'secondary' }}" href="{{ url_for('admin.talent_request_detail', request_id=r.id) }}">{{ 'Tinjau & Beri Harga' if r.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else 'Lihat Request' }} →</a></div>
           </article>
-        {% else %}<div class="admin-empty">Belum ada talent request.</div>{% endfor %}
+        {% else %}<div class="admin-empty">{{ 'Tidak ada request yang cocok dengan pencarian.' if search else 'Belum ada talent request.' }}</div>{% endfor %}
       </div>
+
+      {% if request_total_pages > 1 %}
+        <div class="admin-list-meta" style="margin-top:9px;">Maksimal 10 request per halaman · Halaman {{ request_page }} dari {{ request_total_pages }}</div>
+        <nav class="admin-pagination" aria-label="Halaman talent request">
+          {% if request_page > 1 %}<a class="admin-page-btn" href="{{ url_for('admin.talent_admin', q=search, talent_page=talent_page, request_page=request_page-1) }}">←</a>{% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
+          {% for page_number in range(1,request_total_pages+1) %}
+            <a class="admin-page-btn {{ 'active' if page_number==request_page else '' }}" href="{{ url_for('admin.talent_admin', q=search, talent_page=talent_page, request_page=page_number) }}" {% if page_number==request_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+          {% endfor %}
+          {% if request_page < request_total_pages %}<a class="admin-page-btn" href="{{ url_for('admin.talent_admin', q=search, talent_page=talent_page, request_page=request_page+1) }}">→</a>{% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
+        </nav>
+      {% endif %}
     </div>
   </details>
 </div>
