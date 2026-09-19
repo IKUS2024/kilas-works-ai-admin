@@ -295,15 +295,16 @@ def save(business_id, fields, cards, old_profile, old_services, old_faqs, revisi
         snapshot = {'profile':old_profile, 'services':old_services, 'faqs':old_faqs, 'config':original_config}
         execute('INSERT INTO business_knowledge_revisions (business_id, snapshot_json, editor_json, created_at) VALUES (?, ?, ?, ?)',
                 (business_id,json.dumps(snapshot,ensure_ascii=False,default=str),json.dumps(cards,ensure_ascii=False),now))
-        payload = json.dumps(config,ensure_ascii=False,sort_keys=True)
-        if config_row:
-            execute('UPDATE tenant_configs SET config_json = ?, config_version = config_version + 1, updated_at = ? WHERE business_id = ?', (payload,now,business_id))
-        else:
-            execute('INSERT INTO tenant_configs (business_id, config_version, config_json, provisioned_at, updated_at) VALUES (?, 1, ?, ?, ?)', (business_id,payload,now,now))
+
+        # Customer edits are DRAFT source data. Do NOT overwrite tenant_configs here:
+        # tenant_configs is the last admin-approved runtime snapshot used by the live WhatsApp Brain.
+        # Approval/re-provisioning is the only path that promotes these edits to production.
+        execute("UPDATE ai_settings SET ai_status = 'STALE', updated_at = ? WHERE business_id = ? AND ai_status = 'DONE'",
+                (now, business_id))
         db._knowledge_commit(conn)
     except Exception:
         conn.rollback()
         raise
     finally:
         cur.close()
-    repo.write_audit(actor,business_id,'BUSINESS_MEMORY_UPDATED','Owner updated business knowledge')
+    repo.write_audit(actor,business_id,'BUSINESS_MEMORY_UPDATED','Client edited Brain draft; admin re-approval required')
