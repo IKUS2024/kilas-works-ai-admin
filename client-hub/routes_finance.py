@@ -19,6 +19,7 @@ import finance_analyst
 import finance_operator
 import finance_assistant
 import finance_ai_safety as ai_safety
+import finance_fx
 from flask import jsonify, current_app, g
 import security
 import repo
@@ -93,7 +94,8 @@ ERRORS = {
     'invoice_ledger_managed': 'Transaksi ini berasal dari pembayaran invoice dan tidak dapat diubah atau dibatalkan langsung.',
     'invalid_money_minor': 'Nominal belum valid. Masukkan angka rupiah yang benar.',
     'account_unavailable': 'Kas / rekening tidak tersedia.',
-    'account_currency_mismatch': 'Pilih kas / rekening dalam rupiah untuk transaksi ini.',
+    'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang kas / rekening yang dipilih.',
+    'unsupported_currency': 'Mata uang belum didukung Kilas Finance.',
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
@@ -130,6 +132,42 @@ def whole_idr(value, signed=False):
     if not -(2**63) <= amount <= 2**63-1 or (not signed and amount <= 0):
         raise finance.FinanceError('invalid_money_minor')
     return amount
+
+
+def currency_amount(value, currency, signed=False):
+    """Whole units for IDR/JPY; cents for supported decimal currencies."""
+    currency=finance._currency(currency)
+    if currency in ('IDR','JPY'):
+        return whole_idr(value,signed=signed)
+    if not isinstance(value,str):
+        raise finance.FinanceError('invalid_money_minor')
+    text=value.strip();negative=text.startswith('-')
+    if negative:
+        if not signed:raise finance.FinanceError('invalid_money_minor')
+        text=text[1:]
+    if not re.fullmatch(r'[0-9]{1,16}(?:[.,][0-9]{1,2})?',text):
+        raise finance.FinanceError('invalid_money_minor')
+    parts=re.split(r'[.,]',text,maxsplit=1)
+    amount=int(parts[0])*100+int((parts[1]+'00')[:2] if len(parts)==2 else '00')
+    amount=-amount if negative else amount
+    if not -(2**63)<=amount<=2**63-1 or (not signed and amount<=0):
+        raise finance.FinanceError('invalid_money_minor')
+    return amount
+
+
+def money_label(value,currency):
+    currency=finance._currency(currency);negative=value<0;amount=abs(int(value))
+    if currency=='IDR':label='Rp'+format(amount,',').replace(',','.')
+    elif currency=='JPY':label='¥'+format(amount,',')
+    else:
+        symbols={'USD':'US$','SGD':'S$','MYR':'RM','EUR':'€','GBP':'£','AUD':'A$','CNY':'CN¥','HKD':'HK$','THB':'฿'}
+        label=symbols.get(currency,currency+' ')+format(amount/100,',.2f')
+    return ('−' if negative else '')+label
+
+
+@finance_bp.app_template_filter('finance_money')
+def format_money(value,currency):
+    return money_label(value,currency)
 
 
 def record_id(value):
@@ -278,13 +316,19 @@ def dashboard(business_id, user, business):
     period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | relevant_years)
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
-    summary = finance.get_finance_summary(business_id, start, end, **actor)
+    summaries=finance.get_finance_summaries(business_id,start,end,**actor)
+    summary=next((item for item in summaries if item['currency']=='IDR'),
+                 {'currency':'IDR','total_income_minor':0,'total_expense_minor':0,'net_cashflow_minor':0})
     show_transactions = view == 'transactions'
     transaction_limit = 1000 if period_mode in ('range', 'all') else 100
     transactions = finance.list_transactions(
         business_id, start_date=start, end_date=end, direction=direction,
         status='POSTED', limit=transaction_limit, **actor) if show_transactions else []
-    balances = finance.get_account_balance_report(business_id, today_value.isoformat(), user['id'])
+    balances=finance.get_account_balance_report(business_id,today_value.isoformat(),user['id'])
+    balance_totals=finance.get_balance_totals_by_currency(business_id,today_value.isoformat(),user['id'])
+    fx=finance_fx.snapshot([item['currency'] for item in balance_totals])
+    for item in balance_totals:item['idr_estimate_minor']=finance_fx.to_idr(item['balance_minor'],item['currency'],fx)
+    estimated_balance_idr=sum(item['idr_estimate_minor'] for item in balance_totals if item['idr_estimate_minor'] is not None)
     breakdown = []
     if g.finance_branch_id is None:
         for item in g.finance_branches:
@@ -296,7 +340,8 @@ def dashboard(business_id, user, business):
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
         transaction_limit=transaction_limit,
-        balances=balances, balance_total=sum(a['balance_minor'] for a in balances), branch_breakdown=breakdown,
+        balances=balances,balance_totals=balance_totals,estimated_balance_idr=estimated_balance_idr,fx=fx,
+        supported_currencies=finance.SUPPORTED_CURRENCIES,branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
@@ -335,14 +380,16 @@ def start(business_id, user, business):
 @finance_access
 def create_transaction(business_id, user, business):
     def action():
-        finance.create_transaction(business_id, request.form.get('direction'), whole_idr(request.form.get('amount')),
-            record_id(request.form.get('account_id')), record_id(request.form.get('category_id')),
-            request.form.get('occurred_on'), currency='IDR', description=transaction_note(business_id, request.form),
-            counterparty_name=request.form.get('counterparty_name'),
+        account_id=record_id(request.form.get('account_id'))
+        account=next((a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['id']==account_id),None)
+        if not account:raise finance.FinanceError('account_unavailable')
+        currency=account['currency']
+        finance.create_transaction(business_id,request.form.get('direction'),currency_amount(request.form.get('amount'),currency),
+            account_id,record_id(request.form.get('category_id')),request.form.get('occurred_on'),currency=currency,
+            description=transaction_note(business_id,request.form),counterparty_name=request.form.get('counterparty_name'),
             customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
-            project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
-            actor_user_id=user['id'])
-    return mutate(business_id, action, 'Transaksi dicatat.')
+            project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,actor_user_id=user['id'])
+    return mutate(business_id,action,'Transaksi dicatat.')
 
 
 @finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/void', methods=['POST'])
@@ -368,11 +415,12 @@ def reset_finance(business_id, user, business):
 
 @finance_bp.route('/business/<int:business_id>/finance/accounts', methods=['POST'])
 @finance_access
-def create_account(business_id, user, business):
-    return mutate(business_id, lambda: finance.create_account(business_id, request.form.get('name'),
-        request.form.get('account_type'), currency='IDR',
-        opening_balance_minor=whole_idr(request.form.get('opening_balance', '0'), signed=True),
-        actor_user_id=user['id']), 'Kas / rekening ditambahkan.')
+def create_account(business_id,user,business):
+    currency=request.form.get('currency','IDR')
+    return mutate(business_id,lambda:finance.create_account(business_id,request.form.get('name'),
+        request.form.get('account_type'),currency=currency,
+        opening_balance_minor=currency_amount(request.form.get('opening_balance','0'),currency,signed=True),
+        actor_user_id=user['id']),'Kas / rekening ditambahkan.')
 
 
 @finance_bp.route('/business/<int:business_id>/finance/categories', methods=['POST'])
@@ -1150,7 +1198,7 @@ def edit_transaction(business_id, user, business, transaction_id):
         abort(403)
     if request.method == 'POST':
         return mutate(business_id, lambda: finance.update_transaction(business_id, transaction_id,
-            amount_minor=whole_idr(request.form.get('amount')), occurred_on=request.form.get('occurred_on'),
+            amount_minor=currency_amount(request.form.get('amount'),transaction['currency']), occurred_on=request.form.get('occurred_on'),
             account_id=record_id(request.form.get('account_id')), category_id=record_id(request.form.get('category_id')),
             description=transaction_note(business_id, request.form), actor_user_id=user['id']),
             'Transaksi diperbarui. Riwayat perubahan tersimpan.')

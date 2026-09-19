@@ -21,6 +21,7 @@ import finance_branches as branches
 
 ACCOUNT_TYPES = ('CASH', 'BANK', 'EWALLET', 'OTHER')
 DIRECTIONS = ('INCOME', 'EXPENSE')
+SUPPORTED_CURRENCIES = ('IDR', 'USD', 'SGD', 'MYR', 'EUR', 'GBP', 'AUD', 'JPY', 'CNY', 'HKD', 'THB')
 FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 'occurred_on',
           'description', 'counterparty_name', 'project_id', 'source_type', 'source_ref', 'customer_id')
 DEFAULT_CATEGORIES = {
@@ -93,7 +94,10 @@ def _money(value, positive=False):
 def _currency(value):
     if not isinstance(value, str) or not re.fullmatch('[A-Za-z]{3}', value.strip()):
         raise FinanceError('invalid_currency')
-    return value.strip().upper()
+    value = value.strip().upper()
+    if value not in SUPPORTED_CURRENCIES:
+        raise FinanceError('unsupported_currency')
+    return value
 
 
 def _date(value):
@@ -413,6 +417,22 @@ def get_finance_summary(business_id, start_date, end_date, *, currency='IDR', ac
     expense = sum(row['amount_minor'] for row in rows if row['direction'] == 'EXPENSE')
     return {'currency': currency, 'total_income_minor': income, 'total_expense_minor': expense,
             'net_cashflow_minor': income-expense}
+
+
+def get_finance_summaries(business_id, start_date, end_date, *, actor_user_id=None):
+    """Cash movement grouped by original currency; currencies are never silently mixed."""
+    _scope(business_id, actor_user_id)
+    start, end = _period(start_date, end_date)
+    rows = db.query_all(('SELECT currency,direction,amount_minor FROM finance_transactions WHERE business_id=?' +
+                         branches.predicate('') + " AND status='POSTED' AND occurred_on>=? AND occurred_on<=?"),
+                        (business_id, start, end))
+    grouped = {}
+    for row in rows:
+        item = grouped.setdefault(row['currency'], {'currency': row['currency'], 'total_income_minor': 0,
+            'total_expense_minor': 0, 'net_cashflow_minor': 0})
+        item['total_income_minor' if row['direction'] == 'INCOME' else 'total_expense_minor'] += row['amount_minor']
+        item['net_cashflow_minor'] = item['total_income_minor'] - item['total_expense_minor']
+    return [grouped[c] for c in SUPPORTED_CURRENCIES if c in grouped]
 
 
 def get_transaction_date_bounds(business_id, *, actor_user_id=None):
@@ -896,14 +916,22 @@ def get_category_breakdown(business_id, start_date, end_date, actor_user_id=None
 
 def get_account_balance_report(business_id, as_of, actor_user_id=None):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    accounts=_report_query(('SELECT branch_id,id,name,account_type,opening_balance_minor,is_active,(SELECT name FROM finance_branches b WHERE b.business_id=finance_accounts.business_id AND b.id=finance_accounts.branch_id) AS branch_name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND currency='IDR' ORDER BY name,id"),(business_id,))
-    rows=_report_query(('SELECT account_id,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND currency='IDR' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
+    accounts=_report_query(('SELECT branch_id,id,name,account_type,currency,opening_balance_minor,is_active,(SELECT name FROM finance_branches b WHERE b.business_id=finance_accounts.business_id AND b.id=finance_accounts.branch_id) AS branch_name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' ORDER BY currency,name,id'),(business_id,))
+    rows=_report_query(('SELECT account_id,currency,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
     groups={a['id']:dict(a,income_minor=0,expense_minor=0,balance_minor=a['opening_balance_minor']) for a in accounts}
-    for r in rows:
-        if r['account_id'] in groups:
-            item=groups[r['account_id']];item['income_minor' if r['direction']=='INCOME' else 'expense_minor']+=r['amount_minor']
+    for row in rows:
+        if row['account_id'] in groups and groups[row['account_id']]['currency']==row['currency']:
+            item=groups[row['account_id']]
+            item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=row['amount_minor']
             item['balance_minor']=item['opening_balance_minor']+item['income_minor']-item['expense_minor']
     return list(groups.values())
+
+
+def get_balance_totals_by_currency(business_id, as_of, actor_user_id=None):
+    totals={}
+    for account in get_account_balance_report(business_id,as_of,actor_user_id):
+        totals[account['currency']]=totals.get(account['currency'],0)+account['balance_minor']
+    return [{'currency':code,'balance_minor':totals[code]} for code in SUPPORTED_CURRENCIES if code in totals]
 
 
 def get_customer_contribution_report(business_id, start_date, end_date, actor_user_id=None):
