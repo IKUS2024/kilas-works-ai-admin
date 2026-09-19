@@ -4,8 +4,15 @@
 {% include "_client_compact_style.html" %}
 <div class="client-page">
   <header class="client-head">
-    <div><h1>Booking &amp; Pembayaran</h1><p>{{ business.business_name }} · pengaturan yang dipakai Kilas Brain.</p></div>
+    <div><h1>Booking &amp; Pembayaran</h1><p>{{ business.business_name }} · pengaturan Kilas Brain.</p></div>
   </header>
+
+  {% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
+    <div class="card" style="padding:10px 12px;border-left:3px solid {{ 'var(--yellow)' if ai_settings.ai_status == 'STALE' else 'var(--green)' }};">
+      <strong style="font-size:12px;">{{ 'Perubahan menunggu review' if ai_settings.ai_status == 'STALE' else 'Pengaturan live sudah disetujui' }}</strong>
+      <p class="client-note" style="margin:3px 0 0;">Perubahan yang kamu simpan tidak langsung mengganti pengaturan live. Kilas Works akan review dulu; versi terakhir yang disetujui tetap dipakai sampai proses selesai.</p>
+    </div>
+  {% endif %}
 
   {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') and business.status == 'ACTIVE' %}
     <div class="client-empty"><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN') }}">Pilih paket Kilas Brain saat ini →</a></div>
