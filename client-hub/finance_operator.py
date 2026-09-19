@@ -120,10 +120,17 @@ def interpret(action, question, currency):
         amount=text(result['amount_text'],60);description=text(result['description'],500)
         if description not in question or not re.search(r'(?<![\w.,+−-])'+re.escape(amount)+r'(?![\w.,])', question):
             raise OperatorError('ungrounded_result')
-        if currency=='IDR':minor=rupiah(amount)
+        if currency=='IDR':
+            minor=rupiah(amount)
         else:
-            cleaned=re.sub(r'(?i)\b'+re.escape(currency)+r'\b','',amount).strip()
-            symbols={'USD':'
+            cleaned=re.sub(r'[^0-9.,]','',amount)
+            if not cleaned:raise OperatorError('invalid_amount')
+            try:
+                from routes_finance import currency_amount
+                minor=currency_amount(cleaned,currency)
+            except Exception:
+                raise OperatorError('invalid_amount') from None
+        return dict(amount_minor=minor,description=description)
     except requests.Timeout:
         raise OperatorError('timeout') from None
     except requests.RequestException:
