@@ -1122,6 +1122,39 @@ def platform_inbox_return_ai():
     return redirect(url_for("admin.platform_inbox", customer=phone))
 
 
+@admin_bp.route("/inbox/contact-name", methods=["POST"])
+@security.admin_required
+def platform_inbox_contact_name():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    name = request.form.get("customer_name") or ""
+    admin = security.current_user()
+    try:
+        saved = platform_inbox_service.update_customer_name(phone, name)
+    except ValueError:
+        flash("Nama kontak belum valid. Isi 1–120 karakter.", "error")
+        return redirect(url_for("admin.platform_inbox", customer=phone))
+    repo.write_audit_no_business(admin["id"], "PLATFORM_INBOX_CONTACT_RENAMED", f"customer={phone}")
+    flash(f"Nama kontak disimpan: {saved}.", "success")
+    return redirect(url_for("admin.platform_inbox", customer=phone))
+
+
+@admin_bp.route("/inbox/delete-conversation", methods=["POST"])
+@security.admin_required
+def platform_inbox_delete_conversation():
+    phone = platform_inbox_service.normalize_customer_phone(request.form.get("customer_phone"))
+    if not phone or not platform_inbox_service.customer_exists(phone):
+        abort(404)
+    if request.form.get("confirmed") != "yes":
+        abort(400)
+    admin = security.current_user()
+    platform_inbox_service.delete_conversation(phone)
+    repo.write_audit_no_business(admin["id"], "PLATFORM_INBOX_CONVERSATION_DELETED", f"customer={phone}")
+    flash("Riwayat chat di Inbox Kilas sudah dihapus. Pesan di aplikasi WhatsApp tidak ikut terhapus.", "success")
+    return redirect(url_for("admin.platform_inbox"))
+
+
 @admin_bp.route("/inbox/reply", methods=["POST"])
 @security.admin_required
 def platform_inbox_reply():
