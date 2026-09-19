@@ -132,8 +132,9 @@ Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw
       <label>Hari libur / tutup <span class="muted">(Opsional)</span>
         <input type="text" name="closed_days" value="{{ profile.closed_days or '' }}" placeholder="Contoh: Minggu & hari raya">
       </label>
-      <label>Nomor kontak bisnis <span class="muted">(Opsional)</span>
-        <input type="text" name="business_phone" value="{{ profile.business_phone or '' }}" placeholder="Contoh: 0812xxxx atau +62...">
+      <label>Nomor WhatsApp bisnis / nomor robot <span class="wizard-important">(Penting)</span>
+        <input type="text" name="business_phone" value="{{ profile.business_phone or '' }}" placeholder="Indonesia: 6285128018184 · US: 14048836437" inputmode="tel" required>
+        <span class="wizard-help">Ini nomor yang akan dihubungi customer dan dipakai Kilas Brain untuk membalas chat setelah WhatsApp Meta terhubung. Simpan nomor di sini belum langsung mengaktifkan robot; saat aktivasi Kilas Works akan menghubungkan nomor yang sama ke Meta.</span>
       </label>
       <label class="full">Alamat / area layanan <span class="muted">(Opsional)</span>
         <input type="text" name="address" value="{{ profile.address or '' }}" placeholder="Contoh: Gading Serpong, Tangerang — melayani Jabodetabek">
