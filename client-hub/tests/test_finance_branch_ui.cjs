@@ -6,20 +6,32 @@ const vm=require('node:vm');
 const path=require('node:path');
 test('direction changes and Lainnya visibility preserve notes',()=>{
   const input={value:'Servis mesin kopi',required:false,disabled:false};
-  const other={hidden:true,querySelector:()=>input};
+  const other={hidden:true,style:{display:'none'},querySelector:()=>input};
   const kind={value:'INCOME',addEventListener(_,callback){this.change=callback;}};
   const options=[['1','INCOME','false'],['2','INCOME','true'],['3','EXPENSE','false'],['4','EXPENSE','true']].map(([value,direction,other])=>({value,dataset:{direction,other},disabled:false,hidden:false}));
   const category={value:'1',options,get selectedOptions(){return options.filter(o=>o.value===this.value);},addEventListener(_,callback){this.change=callback;},closest(){return form;}};
   const form={querySelector:selector=>selector==='[name="direction"]'?kind:other};
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/finance_branches.js'),'utf8'),{document:{querySelectorAll:()=>[category]}});
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/finance_branches.js'),'utf8'),{document:{querySelectorAll:selector=>selector==='[data-other-category]'?[category]:[]}});
   assert.equal(options[2].disabled,true);
-  assert.equal(input.disabled,true);
+  assert.equal(input.disabled,true);assert.equal(other.hidden,true);assert.equal(other.style.display,'none');
   category.value='2';category.change();
-  assert.equal(other.hidden,false);assert.equal(input.required,true);assert.equal(input.disabled,false);
+  assert.equal(other.hidden,false);assert.equal(other.style.display,'');assert.equal(input.required,true);assert.equal(input.disabled,false);
   kind.value='EXPENSE';kind.change();
-  assert.equal(category.value,'3');assert.equal(options[0].disabled,true);assert.equal(other.hidden,true);
+  assert.equal(category.value,'3');assert.equal(options[0].disabled,true);assert.equal(other.hidden,true);assert.equal(other.style.display,'none');
   category.value='4';category.change();
   assert.equal(input.value,'Servis mesin kopi');assert.equal(input.required,true);
+});
+
+test('rupiah input accepts plain, dot, and comma grouping and normalizes to dots',()=>{
+  const amount={value:'1000000',dataset:{},addEventListener(name,callback){this[name]=callback;}};
+  const document={
+    querySelectorAll(selector){return selector==='[data-idr-input]'?[amount]:[];},
+    getElementById(){return null;}
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../static/finance_branches.js'),'utf8'),{document});
+  assert.equal(amount.value,'1.000.000');
+  amount.value='1,250,000';amount.input();assert.equal(amount.value,'1.250.000');
+  amount.value='1250000';amount.input();assert.equal(amount.value,'1.250.000');
 });
 
 
@@ -117,4 +129,14 @@ test('finance date inputs cap actual transaction dates while schedules may be fu
   assert.match(edit,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
   assert.match(invoice,/name="issue_date"[^>]*max="\{\{ today \}\}"/);
   assert.doesNotMatch(invoice,/name="due_date"[^>]*max=/);
+});
+
+test('transaction forms expose formatted rupiah input and hide conditional details cleanly',()=>{
+  const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  const edit=fs.readFileSync(path.join(__dirname,'../templates/finance_transaction_edit.html'),'utf8');
+  assert.match(dashboard,/name="amount"[^>]*data-idr-input/);
+  assert.match(edit,/name="amount"[^>]*data-idr-input/);
+  assert.match(dashboard,/\[data-other-field\]\[hidden\]\{display:none!important\}/);
+  assert.match(edit,/\[data-other-field\]\[hidden\]\{display:none!important\}/);
+  assert.match(dashboard,/1000000, 1\.000\.000, atau 1,000,000/);
 });

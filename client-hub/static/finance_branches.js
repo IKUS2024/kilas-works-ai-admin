@@ -16,12 +16,31 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
     }
     const visible = category.selectedOptions[0]?.dataset.other === 'true';
     other.hidden = !visible;
-    other.querySelector('input').required = visible;
-    other.querySelector('input').disabled = !visible;
+    if (other.style) other.style.display = visible ? '' : 'none';
+    const otherInput = other.querySelector('input');
+    otherInput.required = visible;
+    otherInput.disabled = !visible;
   }
   category.addEventListener('change', refresh);
   if (kind) kind.addEventListener('change', refresh);
   refresh();
+}
+
+for (const amount of document.querySelectorAll('[data-idr-input]')) {
+  function formatAmount() {
+    const signed = amount.dataset?.idrSigned === 'true';
+    const negative = signed && /^\s*-/.test(String(amount.value || ''));
+    let digits = String(amount.value || '').replace(/\D/g, '').slice(0, 19);
+    digits = digits.replace(/^0+(?=\d)/, '');
+    if (!digits) {
+      amount.value = negative ? '-' : '';
+      return;
+    }
+    amount.value = (negative ? '-' : '') + digits.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  }
+  amount.addEventListener('input', formatAmount);
+  amount.addEventListener('blur', formatAmount);
+  formatAmount();
 }
 
 
