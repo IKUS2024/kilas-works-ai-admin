@@ -252,6 +252,17 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
         description = ai_cfg.get("business_description") or ai_cfg.get("system_instructions")
         if description:
             lines.append(f"DESKRIPSI BISNIS: {description}")
+        tone = ai_cfg.get("tone")
+        if tone:
+            tone_label = {"friendly": "ramah & profesional", "casual-professional": "santai profesional",
+                          "formal": "formal"}.get(str(tone).lower(), tone)
+            lines.append(f"GAYA BALASAN BISNIS: {tone_label}")
+        salutation = ai_cfg.get("customer_salutation")
+        if salutation:
+            lines.append(f"SAPAAN DEFAULT KE CUSTOMER: {salutation}")
+        primary_language = (ai_cfg.get("language") or {}).get("primary")
+        if primary_language:
+            lines.append(f"BAHASA DEFAULT BISNIS: {primary_language} (tetap ikuti bahasa customer sesuai aturan auto-detect)")
         service_mode = business_info.get("service_mode")
         if service_mode:
             service_mode_label = {"online": "online", "offline": "offline / datang ke lokasi",
@@ -284,12 +295,17 @@ def _build_tenant_context_block_safe(tenant_id, query=None):
                 price_text = f"Rp{(price_from or price_to):,}".replace(",", ".")
             else:
                 price_text = "harga belum ditentukan (JANGAN karang angka, tanya/eskalasi dulu)"
-            detail = (s.get("description") or "").strip()
-            if not detail and raw_input and raw_input.lower() != name.lower():
-                # Preserve owner-written inclusions/duration/conditions when normalization did not
-                # produce a dedicated description. This is approved tenant data, not model memory.
-                detail = raw_input
-            suffix = f" | Detail: {detail}" if detail else ""
+            detail_parts = []
+            description_detail = (s.get("description") or "").strip()
+            if description_detail:
+                detail_parts.append(description_detail)
+            if raw_input and raw_input.lower() != name.lower():
+                # Keep the owner's exact approved wording too when it carries inclusions, duration,
+                # area, limits, or other conditions the normalization summary may have compressed.
+                joined = " ".join(detail_parts).lower()
+                if raw_input.lower() not in joined:
+                    detail_parts.append(raw_input)
+            suffix = f" | Detail: {' | '.join(detail_parts)}" if detail_parts else ""
             service_lines.append(f"- {name}: {price_text}{suffix}")
         if service_lines:
             lines.append("LAYANAN/PRODUK BISNIS INI:")
