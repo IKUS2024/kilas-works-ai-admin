@@ -4,7 +4,7 @@
 {% include "_client_compact_style.html" %}
 <div class="client-page">
   <a class="muted" href="{{ url_for('projects.my_project_list') }}">← Pesanan</a>
-  <header class="client-head" style="margin-top:10px;"><div><h1>{{ project.title }}</h1><p>Pesanan pribadi</p></div><span class="client-status {{ 'ok' if project.status in ('PAID','IN_PROGRESS','COMPLETED') else ('warn' if project.status in ('WAITING_FOR_QUOTE','PAYMENT_PENDING','APPROVED') else '') }}">{{ project.status|humanize_status('project') }}</span></header>
+  <header class="client-head" style="margin-top:10px;"><div><h1>{{ project.title }}</h1><p>Pesanan pribadi</p></div><span class="client-status {{ 'ok' if project.status in ('PAID','IN_PROGRESS','COMPLETED') else ('warn' if project.status in ('REQUESTED','WAITING_FOR_QUOTE','QUOTED','PAYMENT_PENDING','APPROVED') else '') }}">{{ project.status|humanize_status('project') }}</span></header>
 
   <section class="card">
     {% if project.status == 'REQUESTED' %}
