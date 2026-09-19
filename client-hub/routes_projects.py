@@ -272,6 +272,7 @@ def project_view(project_id):
     if project["business_id"] is not None:
         return redirect(url_for("projects.project_detail", business_id=project["business_id"], project_id=project_id))
     return render_template("project_view_no_business.html", project=project,
+                           quotation=quotation_service.get_latest_quotation_for_project(project_id),
                            can_cancel=projects_repo.customer_can_cancel(project))
 
 
