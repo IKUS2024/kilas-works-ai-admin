@@ -645,11 +645,16 @@ def _run_ai_normalization(business_id, business, user):
 @client_bp.route("/business/<int:business_id>/ai-setup/run", methods=["POST"])
 @security.login_required
 def run_ai_setup(business_id):
-    """Manual trigger — UNCHANGED from before Gap-fix Area D, still available for a client who
-    wants to re-run normalization by hand (e.g. after editing services/FAQs) without going through
-    Submit again."""
+    """Manual normalization is only for pre-approval onboarding.
+
+    Once a tenant is approved/live, customer edits are staged and the admin approval flow performs
+    normalization + re-provisioning so the currently approved Brain never drops offline.
+    """
     business = _business_or_404(business_id)
     user = security.current_user()
+    if business["status"] in ("APPROVED", "ACTIVE"):
+        flash("Perubahan Brain sudah tersimpan sebagai draft. Kilas Works akan review dan menyetujui perubahan tanpa mematikan versi yang sedang aktif.", "info")
+        return redirect(url_for("client.review_page", business_id=business_id))
     status = repo.get_onboarding_status(business_id)
     missing_steps = [s for s in REQUIRED_STEPS_FOR_AI_SETUP if not status.get(f"{s}_done")]
     if missing_steps:
@@ -701,6 +706,14 @@ def submit_for_review(business_id):
     docstring) and the client gets a safe retry state — nothing is lost, nothing is invented."""
     business = _business_or_404(business_id)
     user = security.current_user()
+
+    if business["status"] in ("APPROVED", "ACTIVE"):
+        ai_settings = repo.get_ai_settings(business_id) or {}
+        if ai_settings.get("ai_status") == "STALE":
+            flash("Perubahan Brain sudah masuk antrean review Kilas Works. Versi live lama tetap berjalan sampai perubahan disetujui.", "success")
+        else:
+            flash("Tidak ada perubahan Brain yang menunggu review.", "info")
+        return redirect(url_for("client.review_page", business_id=business_id))
 
     status = repo.get_onboarding_status(business_id)
     missing_steps = [s for s in REQUIRED_STEPS_FOR_AI_SETUP if not status.get(f"{s}_done")]
