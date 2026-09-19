@@ -239,8 +239,7 @@ def my_project_list():
         projects = [p for p in projects if p['status'] in _HISTORY_STATUSES]
     elif view == 'active':
         projects = [p for p in projects if p['status'] not in _HISTORY_STATUSES]
-    for project in projects:
-        project['legacy_talent_flow'] = _legacy_talent_project(project)
+    projects = [p for p in projects if not _legacy_talent_project(p)]
     projects.sort(key=lambda p: p['id'], reverse=True)
     return render_template('project_list.html', business=None, projects=projects, view=view)
 
@@ -261,8 +260,7 @@ def project_list(business_id):
         projects = [p for p in projects if p["status"] not in _HISTORY_STATUSES]
     elif view == "history":
         projects = [p for p in projects if p["status"] in _HISTORY_STATUSES]
-    for project in projects:
-        project["legacy_talent_flow"] = _legacy_talent_project(project)
+    projects = [p for p in projects if not _legacy_talent_project(p)]
     return render_template("project_list.html", business=business, projects=projects, view=view)
 
 
