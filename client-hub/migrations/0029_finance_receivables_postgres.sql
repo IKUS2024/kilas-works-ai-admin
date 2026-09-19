@@ -9,7 +9,7 @@ CREATE INDEX IF NOT EXISTS idx_finance_customers_business_name ON finance_custom
 CREATE TABLE IF NOT EXISTS finance_invoices (
  id BIGSERIAL PRIMARY KEY, business_id BIGINT NOT NULL REFERENCES businesses(id), customer_id BIGINT NOT NULL,
  invoice_number TEXT NOT NULL UNIQUE, issue_date TEXT NOT NULL, due_date TEXT NOT NULL CHECK(due_date>=issue_date),
- currency TEXT NOT NULL DEFAULT 'IDR' CHECK(currency='IDR'),
+ currency TEXT NOT NULL DEFAULT 'IDR' CHECK(currency IN ('IDR','USD','SGD','MYR','EUR','GBP','AUD','JPY','CNY','HKD','THB')),
  status TEXT NOT NULL DEFAULT 'DRAFT' CHECK(status IN ('DRAFT','ISSUED','PARTIALLY_PAID','PAID','VOID')),
  notes TEXT, created_by_user_id BIGINT REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
  voided_at TEXT, voided_by_user_id BIGINT REFERENCES users(id), UNIQUE(business_id,id),

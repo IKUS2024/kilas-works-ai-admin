@@ -146,6 +146,14 @@ def list_accounts(business_id, include_inactive=False, *, actor_user_id=None):
                         ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY id', (business_id,))
 
 
+def get_account(business_id, account_id, *, actor_user_id=None, active=False):
+    _scope(business_id,actor_user_id)
+    row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
+                     (business_id,_id(account_id)))
+    if not row or (active and not row['is_active']):raise FinanceError('account_unavailable')
+    _currency(row['currency']);return row
+
+
 def _create_category(business_id, direction, name, actor_user_id):
     now = repo._now()
     record_id = db.insert_returning_id(
@@ -393,6 +401,8 @@ def reset_branch_finance(business_id, actor_user_id=None):
             "UPDATE finance_recurring_expenses SET is_active=FALSE,updated_at=? "
             "WHERE business_id=? AND branch_id=? AND is_active=TRUE",
             (now, business_id, branch_id))
+        db.execute("UPDATE finance_fx_exchanges SET status='VOID',voided_at=COALESCE(voided_at,?),voided_by_user_id=COALESCE(voided_by_user_id,?),updated_at=? WHERE business_id=? AND branch_id=? AND status='POSTED'",
+                   (now,actor_user_id,now,business_id,branch_id))
         # In-progress bank work is closed; completed imports stay as historical reconciliation.
         db.execute(
             "UPDATE finance_bank_imports SET status='CANCELLED',updated_at=? "
@@ -468,8 +478,9 @@ def list_customers(business_id, include_inactive=False, actor_user_id=None):
         ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY name,id', (business_id,))
 
 
-def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, actor_user_id=None):
+def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None):
     issue_date, due_date = _period(issue_date, due_date)
+    currency=_currency(currency)
     if issue_date > date.today().isoformat():
         raise FinanceError('future_date')
     notes = _text(notes, 4000)
@@ -491,9 +502,9 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
             raise FinanceError('customer_unavailable')
         now = repo._now()
         invoice_id = db.insert_returning_id('INSERT INTO finance_invoices '
-            '(business_id,branch_id,customer_id,invoice_number,issue_date,due_date,notes,created_by_user_id,created_at,updated_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?)', (business_id, branches.write_branch(business_id, actor_user_id), customer_id, 'KFIN-PENDING-'+uuid.uuid4().hex,
-            issue_date, due_date, notes, actor_user_id, now, now))
+            '(business_id,branch_id,customer_id,invoice_number,issue_date,due_date,currency,notes,created_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?)', (business_id, branches.write_branch(business_id, actor_user_id), customer_id, 'KFIN-PENDING-'+uuid.uuid4().hex,
+            issue_date, due_date, currency, notes, actor_user_id, now, now))
         number = f'KFIN-{issue_date[:4]}-{invoice_id:06d}'
         db.execute('UPDATE finance_invoices SET invoice_number=? WHERE business_id=? AND id=?', (number, business_id, invoice_id))
         for description, quantity, price in clean:
@@ -601,6 +612,8 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
         invoice = _invoice(business_id, invoice_id, actor_user_id)
         if branches.account_branch(business_id, account_id) != invoice['branch_id']:
             raise FinanceError('branch_mismatch')
+        account=get_account(business_id,account_id,actor_user_id=actor_user_id,active=True)
+        if account['currency']!=invoice['currency']:raise FinanceError('account_currency_mismatch')
         existing = db.query_one('SELECT * FROM finance_invoice_payments WHERE business_id=? AND idempotency_key=?',
                                  (business_id, idempotency_key))
         if existing:
@@ -616,7 +629,7 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
         totals = get_invoice_totals(business_id, invoice_id)
         if amount_minor > totals['outstanding_minor']:
             raise FinanceError('overpayment')
-        data = _transaction_data(business_id, dict(direction='INCOME', amount_minor=amount_minor, currency='IDR',
+        data = _transaction_data(business_id, dict(direction='INCOME', amount_minor=amount_minor, currency=invoice['currency'],
             account_id=account_id, category_id=income_category_id, occurred_on=paid_on, description=None,
             counterparty_name=None, project_id=None, customer_id=invoice['customer_id'],
             source_type='FINANCE_INVOICE_PAYMENT', source_ref=None))
@@ -687,14 +700,15 @@ def create_recurring_expense(business_id, name, amount_minor, account_id, catego
     next_due_on = _date(next_due_on)
     end_on = _period(next_due_on,end_on)[1] if end_on is not None else None
     anchor = date.fromisoformat(next_due_on).day if cadence=='MONTHLY' else None
-    rule = dict(name=name,amount_minor=amount_minor,currency='IDR',account_id=account_id,category_id=category_id,
-                next_due_on=next_due_on,project_id=project_id,counterparty_name=counterparty_name,description=description)
     with _write(business_id,actor_user_id):
+        account=get_account(business_id,_id(account_id),actor_user_id=actor_user_id,active=True)
+        rule = dict(name=name,amount_minor=amount_minor,currency=account['currency'],account_id=account_id,category_id=category_id,
+                    next_due_on=next_due_on,project_id=project_id,counterparty_name=counterparty_name,description=description)
         data = _recurring_data(business_id,rule)
         now = repo._now()
         recurring_id = db.insert_returning_id('INSERT INTO finance_recurring_expenses '
-            '(business_id,branch_id,name,amount_minor,account_id,category_id,project_id,counterparty_name,description,cadence,anchor_day,next_due_on,end_on,created_by_user_id,created_at,updated_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (business_id,data['branch_id'],name,data['amount_minor'],account_id,category_id,
+            '(business_id,branch_id,name,amount_minor,currency,account_id,category_id,project_id,counterparty_name,description,cadence,anchor_day,next_due_on,end_on,created_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', (business_id,data['branch_id'],name,data['amount_minor'],data['currency'],account_id,category_id,
             data['project_id'],data['counterparty_name'],_text(description,4000),cadence,anchor,next_due_on,end_on,actor_user_id,now,now))
         _audit(business_id,actor_user_id,'FINANCE_RECURRING_CREATED',recurring_id)
         return recurring_id
@@ -918,12 +932,17 @@ def get_account_balance_report(business_id, as_of, actor_user_id=None):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
     accounts=_report_query(('SELECT branch_id,id,name,account_type,currency,opening_balance_minor,is_active,(SELECT name FROM finance_branches b WHERE b.business_id=finance_accounts.business_id AND b.id=finance_accounts.branch_id) AS branch_name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' ORDER BY currency,name,id'),(business_id,))
     rows=_report_query(('SELECT account_id,currency,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
-    groups={a['id']:dict(a,income_minor=0,expense_minor=0,balance_minor=a['opening_balance_minor']) for a in accounts}
+    groups={a['id']:dict(a,income_minor=0,expense_minor=0,exchange_in_minor=0,exchange_out_minor=0,balance_minor=a['opening_balance_minor']) for a in accounts}
     for row in rows:
         if row['account_id'] in groups and groups[row['account_id']]['currency']==row['currency']:
-            item=groups[row['account_id']]
-            item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=row['amount_minor']
-            item['balance_minor']=item['opening_balance_minor']+item['income_minor']-item['expense_minor']
+            item=groups[row['account_id']];item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=row['amount_minor']
+    exchanges=db.query_all(('SELECT from_account_id,to_account_id,from_amount_minor,to_amount_minor FROM finance_fx_exchanges WHERE business_id=?' +
+        branches.predicate('') + " AND status='POSTED' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
+    for row in exchanges:
+        if row['from_account_id'] in groups:groups[row['from_account_id']]['exchange_out_minor']+=row['from_amount_minor']
+        if row['to_account_id'] in groups:groups[row['to_account_id']]['exchange_in_minor']+=row['to_amount_minor']
+    for item in groups.values():
+        item['balance_minor']=item['opening_balance_minor']+item['income_minor']-item['expense_minor']+item['exchange_in_minor']-item['exchange_out_minor']
     return list(groups.values())
 
 
@@ -932,6 +951,51 @@ def get_balance_totals_by_currency(business_id, as_of, actor_user_id=None):
     for account in get_account_balance_report(business_id,as_of,actor_user_id):
         totals[account['currency']]=totals.get(account['currency'],0)+account['balance_minor']
     return [{'currency':code,'balance_minor':totals[code]} for code in SUPPORTED_CURRENCIES if code in totals]
+
+
+def list_currency_exchanges(business_id,actor_user_id=None,limit=100):
+    _scope(business_id,actor_user_id)
+    if type(limit) is not int or not 1<=limit<=500:raise FinanceError('invalid_pagination')
+    return db.query_all(('''SELECT finance_fx_exchanges.*,
+        (SELECT name FROM finance_accounts a WHERE a.business_id=finance_fx_exchanges.business_id AND a.id=finance_fx_exchanges.from_account_id) AS from_account_name,
+        (SELECT name FROM finance_accounts a WHERE a.business_id=finance_fx_exchanges.business_id AND a.id=finance_fx_exchanges.to_account_id) AS to_account_name
+        FROM finance_fx_exchanges WHERE business_id=?''' + branches.predicate('') +
+        ' ORDER BY occurred_on DESC,id DESC LIMIT ?'),(business_id,limit))
+
+
+def record_currency_exchange(business_id,from_account_id,to_account_id,from_amount_minor,to_amount_minor,occurred_on,
+                             *,note=None,reference_rate=None,rate_source=None,rate_as_of=None,actor_user_id=None):
+    occurred_on=_date(occurred_on)
+    if occurred_on>date.today().isoformat():raise FinanceError('future_date')
+    note=_text(note,500)
+    with _write(business_id,actor_user_id):
+        source=get_account(business_id,_id(from_account_id),actor_user_id=actor_user_id,active=True)
+        target=get_account(business_id,_id(to_account_id),actor_user_id=actor_user_id,active=True)
+        if source['id']==target['id'] or source['currency']==target['currency']:raise FinanceError('fx_same_currency')
+        if source['branch_id']!=target['branch_id']:raise FinanceError('branch_mismatch')
+        from_amount_minor=_money(from_amount_minor,positive=True);to_amount_minor=_money(to_amount_minor,positive=True)
+        import finance_fx
+        actual=finance_fx.major(to_amount_minor,target['currency'])/finance_fx.major(from_amount_minor,source['currency'])
+        now=repo._now()
+        record_id=db.insert_returning_id('''INSERT INTO finance_fx_exchanges
+            (business_id,branch_id,from_account_id,to_account_id,from_currency,to_currency,from_amount_minor,to_amount_minor,
+             occurred_on,actual_rate,reference_rate,rate_source,rate_as_of,note,status,created_by_user_id,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'POSTED',?,?,?)''',
+            (business_id,source['branch_id'],source['id'],target['id'],source['currency'],target['currency'],
+             from_amount_minor,to_amount_minor,occurred_on,str(actual),str(reference_rate) if reference_rate is not None else None,
+             _text(rate_source,120),_text(rate_as_of,40),note,actor_user_id,now,now))
+        _audit(business_id,actor_user_id,'FINANCE_FX_EXCHANGE_CREATED',record_id);return record_id
+
+
+def void_currency_exchange(business_id,exchange_id,actor_user_id=None):
+    with _write(business_id,actor_user_id):
+        row=db.query_one(('SELECT id,status FROM finance_fx_exchanges WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
+                         (business_id,_id(exchange_id)))
+        if not row:raise FinanceError('fx_exchange_unavailable')
+        if row['status']=='POSTED':
+            now=repo._now();db.execute("UPDATE finance_fx_exchanges SET status='VOID',voided_at=?,voided_by_user_id=?,updated_at=? WHERE business_id=? AND id=?",
+                       (now,actor_user_id,now,business_id,exchange_id));_audit(business_id,actor_user_id,'FINANCE_FX_EXCHANGE_VOIDED',exchange_id)
+        return exchange_id
 
 
 def get_customer_contribution_report(business_id, start_date, end_date, actor_user_id=None):

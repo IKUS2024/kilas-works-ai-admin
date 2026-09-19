@@ -1,7 +1,7 @@
 -- Finance recurring expense rules and immutable occurrence history only.
 CREATE TABLE IF NOT EXISTS finance_recurring_expenses (
  id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER NOT NULL REFERENCES businesses(id), name TEXT NOT NULL,
- amount_minor INTEGER NOT NULL CHECK(typeof(amount_minor)='integer' AND amount_minor>0), currency TEXT NOT NULL DEFAULT 'IDR' CHECK(currency='IDR'),
+ amount_minor INTEGER NOT NULL CHECK(typeof(amount_minor)='integer' AND amount_minor>0), currency TEXT NOT NULL DEFAULT 'IDR' CHECK(currency IN ('IDR','USD','SGD','MYR','EUR','GBP','AUD','JPY','CNY','HKD','THB')),
  account_id INTEGER NOT NULL, category_id INTEGER NOT NULL REFERENCES finance_categories(id),
  project_id INTEGER REFERENCES projects(id), counterparty_name TEXT, description TEXT,
  cadence TEXT NOT NULL CHECK(cadence IN ('WEEKLY','MONTHLY')), anchor_day INTEGER CHECK(anchor_day BETWEEN 1 AND 31),

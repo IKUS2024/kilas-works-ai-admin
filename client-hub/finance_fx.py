@@ -34,3 +34,18 @@ def to_idr(amount_minor,currency,fx):
     if not rate:return None
     major=Decimal(amount_minor)/(Decimal(1) if currency=='JPY' else Decimal(100))
     return int((major*Decimal(str(rate))).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
+
+
+def minor_scale(currency):
+    if currency not in SUPPORTED: raise ValueError('unsupported_currency')
+    return Decimal(1) if currency in ('IDR','JPY') else Decimal(100)
+
+def major(amount_minor,currency):
+    return Decimal(int(amount_minor))/minor_scale(currency)
+
+def reference_pair(from_currency,to_currency,fx):
+    if from_currency not in SUPPORTED or to_currency not in SUPPORTED or from_currency==to_currency:return None
+    rates=(fx or {}).get('rates',{})
+    a=rates.get(from_currency);b=rates.get(to_currency)
+    if not a or not b:return None
+    return Decimal(str(a))/Decimal(str(b))

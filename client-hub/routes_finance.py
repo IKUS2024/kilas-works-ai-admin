@@ -96,6 +96,8 @@ ERRORS = {
     'account_unavailable': 'Kas / rekening tidak tersedia.',
     'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang kas / rekening yang dipilih.',
     'unsupported_currency': 'Mata uang belum didukung Kilas Finance.',
+    'fx_same_currency': 'Pilih dua Kas / Rekening dengan mata uang berbeda.',
+    'fx_exchange_unavailable': 'Penukaran mata uang tidak tersedia.',
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
@@ -341,6 +343,7 @@ def dashboard(business_id, user, business):
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
         transaction_limit=transaction_limit,
         balances=balances,balance_totals=balance_totals,estimated_balance_idr=estimated_balance_idr,fx=fx,
+        exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
         supported_currencies=finance.SUPPORTED_CURRENCIES,branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, transactions=transactions,
@@ -423,6 +426,23 @@ def create_account(business_id,user,business):
         actor_user_id=user['id']),'Kas / rekening ditambahkan.')
 
 
+@finance_bp.route('/business/<int:business_id>/finance/exchanges',methods=['POST'])
+@finance_access
+def create_exchange(business_id,user,business):
+    from_id=record_id(request.form.get('from_account_id'));to_id=record_id(request.form.get('to_account_id'))
+    source=finance.get_account(business_id,from_id,actor_user_id=user['id'],active=True);target=finance.get_account(business_id,to_id,actor_user_id=user['id'],active=True)
+    snap=finance_fx.snapshot((source['currency'],target['currency']));reference=finance_fx.reference_pair(source['currency'],target['currency'],snap)
+    return mutate(business_id,lambda:finance.record_currency_exchange(business_id,from_id,to_id,
+        currency_amount(request.form.get('from_amount'),source['currency']),currency_amount(request.form.get('to_amount'),target['currency']),
+        request.form.get('occurred_on'),note=request.form.get('note'),reference_rate=reference,rate_source=snap.get('source'),rate_as_of=snap.get('date'),actor_user_id=user['id']),
+        'Penukaran mata uang dicatat.')
+
+@finance_bp.route('/business/<int:business_id>/finance/exchanges/<int:exchange_id>/void',methods=['POST'])
+@finance_access
+def void_exchange(business_id,user,business,exchange_id):
+    return mutate(business_id,lambda:finance.void_currency_exchange(business_id,exchange_id,user['id']),'Penukaran dikeluarkan dari saldo. Riwayat audit tetap tersimpan.')
+
+
 @finance_bp.route('/business/<int:business_id>/finance/categories', methods=['POST'])
 @finance_access
 def create_category(business_id, user, business):
@@ -473,17 +493,19 @@ def new_invoice(business_id, user, business):
             prices = request.form.getlist('unit_price')
             if not 1 <= len(descriptions) <= 100 or len(descriptions) != len(quantities) or len(prices) != len(descriptions):
                 raise finance.FinanceError('invalid_items')
-            items = [dict(description=d,quantity=whole_idr(q),unit_price_minor=nonnegative_idr(p))
+            currency=finance._currency(request.form.get('currency','IDR'))
+            items = [dict(description=d,quantity=whole_idr(q),unit_price_minor=currency_amount(p,currency))
                      for d,q,p in zip(descriptions,quantities,prices)]
             invoice_id = finance.create_finance_invoice(business_id, record_id(request.form.get('customer_id')),
                 request.form.get('issue_date'),request.form.get('due_date'),items,
-                notes=request.form.get('notes'),actor_user_id=user['id'])
+                notes=request.form.get('notes'),currency=currency,actor_user_id=user['id'])
         except finance.FinanceError as error:
             flash(ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.'),'error')
             return redirect(url_for('finance.new_invoice',business_id=business_id),code=303)
         return redirect(url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id),code=303)
     return render_template('finance_invoice_form.html',user=user,business=business,
-        customers=finance.list_customers(business_id,actor_user_id=user['id']),today=date.today().isoformat())
+        customers=finance.list_customers(business_id,actor_user_id=user['id']),today=date.today().isoformat(),
+        supported_currencies=finance.SUPPORTED_CURRENCIES)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>')
@@ -522,8 +544,10 @@ def void_invoice(business_id,user,business,invoice_id):
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/payments',methods=['POST'])
 @finance_access
 def record_payment(business_id,user,business,invoice_id):
+    invoice=finance.get_finance_invoice(business_id,invoice_id,user['id'])
+    if not invoice:abort(404)
     return mutate(business_id,lambda: finance.record_invoice_payment(business_id,invoice_id,
-        whole_idr(request.form.get('amount')),request.form.get('paid_on'),record_id(request.form.get('account_id')),
+        currency_amount(request.form.get('amount'),invoice['currency']),request.form.get('paid_on'),record_id(request.form.get('account_id')),
         record_id(request.form.get('category_id')),note=request.form.get('note'),actor_user_id=user['id'],
         idempotency_key=request.form.get('payment_key')), 'Pembayaran dicatat.',
         url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
@@ -560,8 +584,10 @@ def operations(business_id,user,business):
 @finance_bp.route('/business/<int:business_id>/finance/recurring',methods=['POST'])
 @finance_access
 def create_recurring(business_id,user,business):
+    account_id=record_id(request.form.get('account_id'))
+    account=finance.get_account(business_id,account_id,actor_user_id=user['id'],active=True)
     return mutate(business_id,lambda:finance.create_recurring_expense(business_id,request.form.get('name'),
-        whole_idr(request.form.get('amount')),record_id(request.form.get('account_id')),record_id(request.form.get('category_id')),
+        currency_amount(request.form.get('amount'),account['currency']),account_id,record_id(request.form.get('category_id')),
         request.form.get('cadence'),request.form.get('next_due_on'),end_on=request.form.get('end_on') or None,
         project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
         counterparty_name=request.form.get('counterparty_name'),description=request.form.get('description'),actor_user_id=user['id']),
