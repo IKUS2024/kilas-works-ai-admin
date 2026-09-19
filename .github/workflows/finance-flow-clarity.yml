@@ -1,0 +1,36 @@
+name: Finance flow clarity verification
+on:
+  push:
+    branches: [fix/finance-flow-clarity-20260919]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Compile Finance
+        run: python -m compileall -q client-hub/routes_finance.py client-hub/finance_service.py client-hub/finance_fx.py
+      - name: Finance branch integration
+        working-directory: client-hub
+        run: PYTHONPATH=.:tests python tests/test_finance_branches.py
+      - name: Finance templates compile
+        working-directory: client-hub
+        run: |
+          PYTHONPATH=.:tests python - <<'PY'
+          import os
+          os.environ.pop('DATABASE_URL', None)
+          from app import app
+          with app.app_context():
+              for name in app.jinja_env.list_templates():
+                  if 'finance' in name:
+                      app.jinja_env.get_template(name)
+          print('Finance templates compile: OK')
+          PY
+      - name: Balance display JS
+        run: node --test client-hub/tests/test_finance_balance_display.cjs
