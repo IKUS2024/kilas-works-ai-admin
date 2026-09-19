@@ -17,7 +17,12 @@
 .review-subsection{border:1px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--card);overflow:hidden}.review-subsection>summary{cursor:pointer;list-style:none;padding:13px 14px;font-weight:750}.review-subsection>summary::-webkit-details-marker{display:none}.review-subsection>summary::after{content:"⌄";float:right;color:var(--text-dim)}.review-subsection[open]>summary{border-bottom:1px solid var(--border)}.review-subsection[open]>summary::after{content:"⌃"}.review-subsection-body{padding:12px 14px}
 .review-actions{display:flex;gap:8px;flex-wrap:wrap}.review-actions form{margin:0}
 .review-info-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.review-info-row .pill{margin:0}
-@media(max-width:760px){.review-title h1{font-size:22px}.review-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.review-tab{min-height:62px}.review-hero,.activation-compact{padding:14px}.review-panel .card{padding:14px}}
+.review-products{padding:14px 16px}.review-products-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.review-products-head h2{margin:0 0 2px;font-size:17px}.review-products-head p{margin:0;color:var(--text-dim);font-size:11px}
+.review-product-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.review-product{border:1px solid var(--border);border-radius:14px;padding:12px;min-width:0;background:rgba(255,255,255,.012)}
+.review-product-head{display:flex;align-items:flex-start;justify-content:space-between;gap:9px}.review-product-title{display:flex;gap:9px;align-items:center;min-width:0}.review-product-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--bg-soft);font-size:18px;flex:0 0 auto}.review-product-name{font-weight:850;font-size:15px}.review-product-meta{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.35}
+.review-product-status{flex:0 0 auto;display:inline-flex;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850;border:1px solid var(--border);color:var(--text-dim)}.review-product-status.ok{color:var(--green);border-color:rgba(62,207,142,.25);background:rgba(62,207,142,.08)}.review-product-status.warn{color:var(--yellow);border-color:rgba(224,185,59,.25);background:rgba(224,185,59,.08)}.review-product-status.info{color:#7fd3f0;border-color:rgba(127,211,240,.25);background:rgba(127,211,240,.08)}
+.review-product-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.review-product-actions .btn{margin:0}.review-settings-label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:11px 0 7px}.review-settings-label h2{margin:0;font-size:15px}.review-settings-label span{font-size:10px;color:var(--text-dim)}
+@media(max-width:760px){.review-title h1{font-size:22px}.review-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.review-tab{min-height:62px}.review-hero,.activation-compact,.review-products{padding:13px}.review-panel .card{padding:14px}.review-product-grid{grid-template-columns:1fr}.review-product{padding:11px}}
 @media(max-width:430px){.review-tabs{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.review-tab{padding:8px 3px;min-height:58px}.review-tab-icon{font-size:18px}.review-tab-label{font-size:10px}}
 </style>
 
@@ -30,7 +35,7 @@
         <h1>{{ business.business_name }}</h1>
         <div class="review-meta">
           <span class="pill {{ business.display_status or business.status }}">{{ (business.display_status or business.status)|humanize_status('business') }}</span>
-          <span class="review-package">{{ business.package }}</span>
+          {% if business.package != 'NONE' %}<span class="review-package">{{ business.package|humanize_package }}</span>{% endif %}
         </div>
       </div>
     </div>
@@ -42,12 +47,57 @@
     {% endif %}
   </section>
 
-  {% if activation_checklist %}
+  {% if is_admin_view %}
+  {% set finance_label = {'NOT_ACTIVATED':'Belum aktif','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis','UNAVAILABLE':'Tidak tersedia'}.get(finance_state.status, finance_state.status) %}
+  <section class="card review-products">
+    <div class="review-products-head">
+      <div><h2>Produk Kilas Client</h2><p>Satu client bisa memakai Brain, Finance, atau keduanya. Pengaturan tiap produk dipisah supaya nggak ketuker.</p></div>
+    </div>
+    <div class="review-product-grid">
+      <article class="review-product">
+        <div class="review-product-head">
+          <div class="review-product-title">
+            <span class="review-product-icon" aria-hidden="true">🧠</span>
+            <div><div class="review-product-name">Kilas Brain</div><div class="review-product-meta">{{ business.package|humanize_package if business.package != 'NONE' else 'Belum terdaftar' }}</div></div>
+          </div>
+          <span class="review-product-status {{ 'ok' if business.status == 'ACTIVE' else ('warn' if business.package != 'NONE' else '') }}">{{ (business.display_status or business.status)|humanize_status('business') if business.package != 'NONE' else 'Belum aktif' }}</span>
+        </div>
+        <div class="review-product-actions">
+          {% if business.package != 'NONE' %}
+            <button type="button" class="btn small secondary" data-open-review-tab="knowledge">Pengaturan Brain</button>
+            <button type="button" class="btn small secondary" data-open-review-tab="whatsapp">WhatsApp</button>
+            <button type="button" class="btn small secondary" data-open-review-tab="activation">Aktivasi</button>
+          {% else %}
+            <span class="muted">Client ini belum memakai Kilas Brain.</span>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="review-product">
+        <div class="review-product-head">
+          <div class="review-product-title">
+            <span class="review-product-icon" aria-hidden="true">💰</span>
+            <div><div class="review-product-name">Kilas Finance</div><div class="review-product-meta">{% if finance_state.until_local %}{{ finance_label }} · s/d {{ finance_state.until_local }}{% else %}{{ finance_label }}{% endif %}</div></div>
+          </div>
+          <span class="review-product-status {{ 'ok' if finance_state.status == 'PAID_ACTIVE' else ('info' if finance_state.status == 'TRIAL_ACTIVE' else ('warn' if finance_state.status == 'EXPIRED' else '')) }}">{{ finance_label }}</span>
+        </div>
+        <div class="review-product-actions">
+          {% if finance_state.status != 'NOT_ACTIVATED' and finance_state.status != 'UNAVAILABLE' %}
+            <a class="btn small" href="{{ url_for('finance.dashboard', business_id=business.id) }}">Buka Finance</a>
+          {% endif %}
+          <a class="btn small secondary" href="{{ url_for('products.finance_setup', business_id=business.id) }}">{{ 'Setup Finance' if finance_state.status == 'NOT_ACTIVATED' else 'Langganan & Setup' }}</a>
+        </div>
+      </article>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if activation_checklist and (not is_admin_view or business.package != 'NONE') %}
     {% set done_items = activation_checklist|selectattr('done', 'equalto', True)|list %}
     {% set pending_items = activation_checklist|selectattr('done', 'equalto', False)|list %}
     <section class="card activation-compact">
       <div class="activation-head">
-        <h2>Progres Aktivasi</h2>
+        <h2>{{ 'Progres Aktivasi Brain' if is_admin_view else 'Progres Aktivasi' }}</h2>
         <span class="activation-score">{{ done_items|length }}/{{ activation_checklist|length }} selesai</span>
       </div>
       <div class="activation-track"><div class="activation-fill" style="width:{{ ((done_items|length * 100) / (activation_checklist|length))|round(0, 'floor') }}%"></div></div>
@@ -77,6 +127,9 @@
     </div>
   {% endif %}
 
+  {% if is_admin_view and business.package != 'NONE' %}
+  <div class="review-settings-label" id="brain-settings"><h2>Pengaturan Kilas Brain</h2><span>Data bisnis · knowledge · aktivasi · WhatsApp</span></div>
+  {% endif %}
   <nav class="review-tabs" aria-label="Bagian review">
     <button type="button" class="review-tab active" data-review-tab="business"><span class="review-tab-icon">🏢</span><span class="review-tab-label">Data Bisnis</span></button>
     <button type="button" class="review-tab" data-review-tab="knowledge"><span class="review-tab-icon">🧠</span><span class="review-tab-label">Knowledge</span></button>
@@ -350,6 +403,10 @@
     if(updateHash)history.replaceState(null,'','#'+name);
   }
   tabs.forEach(t=>t.addEventListener('click',()=>show(t.dataset.reviewTab,true)));
+  document.querySelectorAll('[data-open-review-tab]').forEach(button=>button.addEventListener('click',()=>{
+    show(button.dataset.openReviewTab,true);
+    document.querySelector('.review-tabs')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }));
   const initial=location.hash.replace('#','');
   show(valid.has(initial)?initial:'business',false);
 })();
