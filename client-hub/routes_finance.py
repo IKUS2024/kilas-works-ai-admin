@@ -1152,7 +1152,7 @@ def assistant(business_id, user, business):
         operator_enabled=operator_enabled, actions=finance_operator.ACTIONS,
         today=date.today().isoformat(), month=date.today().strftime('%Y-%m'),
         current_month=date.today().strftime('%Y-%m'),
-        accounts=[a for a in finance.list_accounts(business_id, **actor) if a['currency']=='IDR'],
+        accounts=[a for a in finance.list_accounts(business_id, **actor) if a['is_active']],
         categories=finance.list_categories(business_id, **actor) if operator_enabled else [],
         invoices=finance.operator_invoice_choices(business_id, **actor) if operator_enabled else [])
 
