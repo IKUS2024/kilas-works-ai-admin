@@ -158,7 +158,7 @@
             <div class="action-grid" aria-label="Menu Kilas Brain">
               <a class="action-tile" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}"><span class="action-icon" aria-hidden="true">✏️</span><span>Edit Semua Data</span></a>
               {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
-                <a class="action-tile" href="{{ url_for('client.business_memory',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 8h14M7 16h10"/></svg></span><span>Ajari Brain</span></a>
+                <a class="action-tile" href="{{ url_for('client.business_memory',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 8h14M7 16h10"/></svg></span><span>Pengetahuan Brain</span></a>
               {% endif %}
               <a class="action-tile" href="{{ url_for('client.business_settings',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></span><span>Booking</span></a>
               <a class="action-tile" href="{{ url_for('client.review_page',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/><path d="M5 6h6M5 18h14"/></svg></span><span>Review</span></a>
