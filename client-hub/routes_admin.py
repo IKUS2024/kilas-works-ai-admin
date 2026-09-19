@@ -59,7 +59,8 @@ def get_display_status(business):
 @security.admin_required
 def dashboard():
     finance_trials_only = request.args.get("finance") == "trial"
-    status_filter = None if finance_trials_only else request.args.get("status") or None
+    brain_review_only = request.args.get("brain_review") == "changes"
+    status_filter = None if (finance_trials_only or brain_review_only) else request.args.get("status") or None
     if status_filter not in (None, *STATUS_FILTERS):
         status_filter = None
     businesses = repo.list_all_businesses(status_filter=status_filter)
@@ -122,6 +123,12 @@ def dashboard():
     whatsapp_waiting_connection = [
         b for b in all_businesses if get_display_status(b) == "APPROVED_WAITING_WHATSAPP_CONNECTION"
     ]
+    brain_changes_waiting = [
+        b for b in all_businesses
+        if b.get("package") != "NONE"
+        and (repo.get_ai_settings(b["id"]) or {}).get("ai_status") == "STALE"
+    ]
+    brain_changes_waiting_ids = {b["id"] for b in brain_changes_waiting}
 
     # Use the same current entitlement calculation as Finance (paid takes precedence;
     # expired trials are never counted). Viewing this list does not activate trials.
@@ -133,16 +140,31 @@ def dashboard():
         if entitlement["status"] == "TRIAL_ACTIVE":
             finance_trials.append({**business, "finance_entitlement": entitlement,
                                    "display_status": get_display_status(business)})
-    if not finance_trials_only:
+    if brain_review_only:
+        businesses = [
+            {
+                **business,
+                "display_status": get_display_status(business),
+                "finance_entitlement": finance_entitlements_by_id.get(
+                    business["id"], {"status": "NOT_ACTIVATED", "active": False}
+                ),
+                "brain_review_pending": True,
+            }
+            for business in brain_changes_waiting
+        ]
+    elif not finance_trials_only:
         for business in businesses:
             business["finance_entitlement"] = finance_entitlements_by_id.get(
                 business["id"], {"status": "NOT_ACTIVATED", "active": False}
             )
+            business["brain_review_pending"] = business["id"] in brain_changes_waiting_ids
     finance_bills_review = db.query_one(
         "SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"
     )["n"]
     if finance_trials_only:
         businesses = finance_trials
+        for business in businesses:
+            business["brain_review_pending"] = business["id"] in brain_changes_waiting_ids
 
     # Keep the owner dashboard short on mobile. Pagination is UI-only; filters and counts still
     # operate on the complete matching client set.
@@ -159,6 +181,7 @@ def dashboard():
         "finance_bills_waiting_review": finance_bills_review,
         "new_client_requests": len(new_client_requests),
         "ai_onboarding_waiting_review": len(businesses_needing_review),
+        "brain_changes_waiting_review": len(brain_changes_waiting),
         "custom_projects_waiting_quote": len(quotations_needing_action),
         "quotations_needing_action": len(quotations_needing_action),
         "payments_waiting_verification": len(payments_needing_review),
@@ -179,6 +202,7 @@ def dashboard():
         action_center=action_center,
         recent_service_orders=recent_service_orders,
         finance_trials_only=finance_trials_only,
+        brain_review_only=brain_review_only,
         businesses_total=businesses_total,
         client_page=client_page,
         client_total_pages=client_total_pages,
