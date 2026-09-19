@@ -3,8 +3,8 @@
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page">
-<div class="fin-top-actions"><a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a><a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id) }}">Pelanggan &amp; Piutang</a><a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id) }}">Laporan &amp; Export</a></div>
-<h1 style="margin-top:16px;">Biaya Rutin &amp; Proyek</h1><p class="muted">{{ business.business_name }} · Pilih satu menu saja supaya halaman tetap pendek.</p>
+{% set active_finance_area='operations' %}{% include '_finance_area_nav.html' %}
+<h1 class="fin-page-title">Biaya Rutin &amp; Proyek</h1><p class="muted fin-page-subtitle">{{ business.business_name }} · Kelola biaya berulang dan lihat arus kas per proyek.</p>
 <div class="card"><div class="fin-tool-grid">
 <a class="fin-tool {{ 'active' if section=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,section='recurring',month=month) }}"><span class="fin-icon">🔁</span><span class="fin-label">Biaya Rutin</span><span class="fin-meta">{{ rules|length }} jadwal</span></a>
 <a class="fin-tool {{ 'active' if section=='add' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,section='add',month=month) }}"><span class="fin-icon">➕</span><span class="fin-label">Tambah Biaya</span><span class="fin-meta">Form biaya rutin</span></a>
