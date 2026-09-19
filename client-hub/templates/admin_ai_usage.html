@@ -2,8 +2,28 @@
 {% block title %}Pemakaian & biaya AI{% endblock %}
 {% block content %}
 {% include "_admin_compact_style.html" %}
+<style>
+.ai-usage-search{padding:11px 12px;margin-bottom:10px}
+.ai-usage-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;align-items:center}
+.ai-usage-search-row input,.ai-usage-search-row .btn{margin:0}
+.ai-usage-search .admin-note{margin:6px 0 0}
+.admin-page-meta{text-align:center;color:var(--text-dim);font-size:10px;margin:-2px 0 7px}
+.admin-pagination{display:flex;justify-content:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:3px 0 8px}.admin-pagination::-webkit-scrollbar{display:none}
+.admin-page-btn{flex:0 0 auto;min-width:34px;height:34px;padding:0 9px;border:1px solid var(--border);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:11px;font-weight:800;text-decoration:none;background:rgba(255,255,255,.01)}
+.admin-page-btn:hover{border-color:#4a4e56;color:var(--text);text-decoration:none}.admin-page-btn.active{background:var(--orange);border-color:var(--orange);color:#171717}.admin-page-btn.disabled{opacity:.38;pointer-events:none}
+@media(max-width:520px){.ai-usage-search-row{grid-template-columns:1fr auto}.ai-usage-search-row .secondary{grid-column:1/-1;width:max-content}.admin-page-btn{min-width:32px;height:32px;padding:0 8px}}
+</style>
 <div class="admin-page">
-  <header class="admin-head"><div><h1>Biaya AI</h1><p>Ringkasan pemakaian bulan ini.</p></div><span class="admin-count">{{ usage|length }} tenant</span></header>
+  <header class="admin-head"><div><h1>Biaya AI</h1><p>Ringkasan pemakaian bulan ini.</p></div><span class="admin-count">{{ usage_total }} tenant</span></header>
+
+  <form method="get" class="card ai-usage-search" action="{{ url_for('admin.ai_usage_dashboard') }}">
+    <div class="ai-usage-search-row">
+      <input type="search" name="q" value="{{ search }}" placeholder="Cari tenant / status..." aria-label="Cari tenant atau status">
+      <button class="btn small" type="submit">Cari</button>
+      {% if search %}<a class="btn small secondary" href="{{ url_for('admin.ai_usage_dashboard') }}">Reset</a>{% endif %}
+    </div>
+    <p class="admin-note">Maksimal 10 tenant per halaman{% if search %} · hasil untuk “{{ search }}”{% endif %}.</p>
+  </form>
 
   <details class="card admin-collapsible">
     <summary>Metodologi &amp; Kurs</summary>
@@ -38,9 +58,28 @@
               </div>
             </details>
           </article>
-        {% else %}<div class="admin-empty">Belum ada penggunaan tercatat.</div>{% endfor %}
+        {% else %}<div class="admin-empty">{{ 'Tidak ada tenant yang cocok dengan pencarian.' if search else 'Belum ada penggunaan tercatat.' }}</div>{% endfor %}
       </div>
     </section>
+
+    {% if usage_total_pages > 1 %}
+      <div class="admin-page-meta">Halaman {{ usage_page }} dari {{ usage_total_pages }} · {{ usage_total }} tenant</div>
+      <nav class="admin-pagination" aria-label="Halaman pemakaian AI">
+        {% if usage_page > 1 %}
+          <a class="admin-page-btn" href="{{ url_for('admin.ai_usage_dashboard', q=search, page=usage_page-1) if search else url_for('admin.ai_usage_dashboard', page=usage_page-1) }}">←</a>
+        {% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
+
+        {% for page_number in range(1, usage_total_pages + 1) %}
+          <a class="admin-page-btn {{ 'active' if page_number == usage_page else '' }}"
+             href="{{ url_for('admin.ai_usage_dashboard', q=search, page=page_number) if search else url_for('admin.ai_usage_dashboard', page=page_number) }}"
+             {% if page_number == usage_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+        {% endfor %}
+
+        {% if usage_page < usage_total_pages %}
+          <a class="admin-page-btn" href="{{ url_for('admin.ai_usage_dashboard', q=search, page=usage_page+1) if search else url_for('admin.ai_usage_dashboard', page=usage_page+1) }}">→</a>
+        {% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
+      </nav>
+    {% endif %}
   {% endif %}
 </div>
 {% endblock %}
