@@ -24,13 +24,10 @@
 </div>
 
 {% if section=='summary' %}
-<div class="fin-grid">
-{% for key,label in [('total_outstanding_minor','Total piutang'),('overdue_outstanding_minor','Piutang jatuh tempo'),('open_invoice_count','Invoice terbuka'),('overdue_invoice_count','Invoice terlambat')] %}
-<div class="card"><h2>{{ label }}</h2><div class="fin-total">{{ summary[key]|finance_idr if key.endswith('_minor') else summary[key] }}</div></div>{% endfor %}
-</div>
+<div class="fin-grid"><div class="card"><h2>Invoice terbuka</h2><div class="fin-total">{{ summary.open_invoice_count }}</div></div><div class="card"><h2>Invoice terlambat</h2><div class="fin-total">{{ summary.overdue_invoice_count }}</div></div>{% for g in summary.by_currency %}<div class="card"><h2>Total piutang · {{ g.currency }}</h2><div class="fin-total">{{ g.total_outstanding_minor|finance_money(g.currency) }}</div><p class="muted">Jatuh tempo {{ g.overdue_outstanding_minor|finance_money(g.currency) }}</p></div>{% endfor %}</div>
 <div class="card"><div class="fin-section-head"><h2>Invoice terbaru</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}">Lihat semua</a></div>
-{% for i in invoices[:5] %}{% set t=totals[i.id] %}<article class="fin-entry"><strong>{{ i.invoice_number }}</strong> · {{ i.branch_name }} · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
-<p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p><p>Total {{ t.total_minor|finance_idr }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_idr }}{% endif %}</p>
+{% for i in invoices[:5] %}{% set t=totals[i.id] %}<article class="fin-entry"><strong>{{ i.invoice_number }}</strong> · {{ i.currency }} · {{ i.branch_name }} · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
+<p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p><p>Total {{ t.total_minor|finance_money(i.currency) }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_money(i.currency) }}{% endif %}</p>
 <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat</a></article>{% else %}<div class="fin-empty">Belum ada invoice.</div>{% endfor %}</div>
 {% elif section=='add_customer' %}
 <div class="card"><div class="fin-section-head"><h2>Tambah Customer</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,section='customers') }}">Daftar customer</a></div>
@@ -42,8 +39,8 @@
 {% for c in customers %}<article class="fin-entry"><strong>{{ c.name }}</strong><p class="muted">{{ c.phone or '' }} {{ c.email or '' }}{{ ' · Nonaktif' if not c.is_active }}</p>{% if c.notes %}<p>{{ c.notes }}</p>{% endif %}<a class="btn small secondary" href="{{ url_for('finance.customer_statement',business_id=business.id,customer_id=c.id) }}">Statement Customer</a></article>{% else %}<div class="fin-empty">Belum ada customer.</div>{% endfor %}</div>
 {% elif section=='invoices' %}
 <div class="card"><div class="fin-section-head"><h2>Invoice Pelanggan</h2><a class="btn small" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">＋ Buat Invoice</a></div>
-{% for i in invoices %}{% set t=totals[i.id] %}<article class="fin-entry"><strong>{{ i.invoice_number }}</strong> · {{ i.branch_name }} · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
-<p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p><p>Total {{ t.total_minor|finance_idr }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_idr }}{% endif %}</p><p class="muted">Jatuh tempo {{ i.due_date }}</p>
+{% for i in invoices %}{% set t=totals[i.id] %}<article class="fin-entry"><strong>{{ i.invoice_number }}</strong> · {{ i.currency }} · {{ i.branch_name }} · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
+<p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p><p>Total {{ t.total_minor|finance_money(i.currency) }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_money(i.currency) }}{% endif %}</p><p class="muted">Jatuh tempo {{ i.due_date }}</p>
 <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat</a></article>{% else %}<div class="fin-empty">Belum ada invoice.</div>{% endfor %}</div>
 {% endif %}
 </div>

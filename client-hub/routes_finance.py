@@ -632,8 +632,8 @@ def reports(business_id,user,business):
         filters=finance_reports.parse_filters(request.args)
         actor={'actor_user_id':user['id']}
         data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
-        summary=finance.get_cashflow_report(business_id,filters['start'],filters['end'],**actor)
-        trend=finance.get_monthly_cashflow_trend(business_id,filters['start'][:7],filters['end'][:7],
+        summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
+        trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
             start_date=filters['start'],end_date=filters['end'],**actor)
     except finance.FinanceError as error:
         return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section,today=date.today().isoformat()),400
