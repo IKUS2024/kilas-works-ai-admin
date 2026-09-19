@@ -28,5 +28,10 @@
     </form>
   </div>
 </div>
+{% elif session.get('role') != 'KILAS_ADMIN' and quotation.status == 'APPROVED' %}
+<div class="card">
+  <p>Penawaran sudah kamu setujui. Lanjutkan ke pembayaran untuk memproses pesanan.</p>
+  <a class="btn" href="{{ url_for('payments.checkout_page', project_id=quotation.project_id) }}">Lanjut Pembayaran</a>
+</div>
 {% endif %}
 {% endblock %}
