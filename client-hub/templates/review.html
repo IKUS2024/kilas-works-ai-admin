@@ -163,6 +163,32 @@
       {% endif %}
     </div>
 
+    {% if is_admin_view %}
+    <details class="review-subsection" {% if service_projects %}open{% endif %}>
+      <summary>Pesanan Layanan · {{ service_projects|length }}</summary>
+      <div class="review-subsection-body">
+        {% if service_projects %}
+          <div style="display:grid;gap:10px;">
+            {% for p in service_projects %}
+              <div style="border:1px solid var(--border);border-radius:12px;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                <div style="min-width:0;">
+                  <strong style="display:block;overflow-wrap:anywhere;">{{ p.title }}</strong>
+                  <span class="muted" style="font-size:12px;">
+                    {{ p.project_type }} ·
+                    {% if p.is_customer_draft %}Menunggu customer lengkapi brief{% else %}{{ p.status|humanize_status('project') }}{% endif %}
+                  </span>
+                </div>
+                <a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola</a>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="muted">Belum ada pesanan layanan untuk business ini.</p>
+        {% endif %}
+      </div>
+    </details>
+    {% endif %}
+
     <details class="review-subsection">
       <summary>Produk / Layanan · {{ services|length }}</summary>
       <div class="review-subsection-body">
