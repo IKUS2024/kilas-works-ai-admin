@@ -166,7 +166,7 @@
         <tr><th>Kategori</th><td>{{ profile.category|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Deskripsi</th><td>{{ profile.short_description|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Owner</th><td>{{ profile.owner_name|display_or_missing if profile else 'Belum diisi' }}</td></tr>
-        <tr><th>Telepon bisnis</th><td>{{ profile.business_phone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
+        <tr><th>WhatsApp bisnis / nomor robot</th><td>{{ profile.business_phone|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Alamat / area layanan</th><td>{{ profile.address|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Model layanan</th><td>{{ ({'online':'Online','offline':'Offline / datang ke lokasi','both':'Online & offline','hybrid':'Online & offline'}.get(profile.online_or_offline, profile.online_or_offline))|display_or_missing if profile else 'Belum diisi' }}</td></tr>
         <tr><th>Jam operasional</th><td>{{ profile.operating_hours|display_or_missing if profile else 'Belum diisi' }}</td></tr>
