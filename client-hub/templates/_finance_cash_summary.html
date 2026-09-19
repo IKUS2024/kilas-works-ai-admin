@@ -1,0 +1,15 @@
+
+<section class="card cash-flow-card" aria-label="Arus kas periode">
+  <div class="cash-summary-head"><div><h2>Arus Kas Periode</h2><p class="cash-muted">{{ period_label }} · hanya transaksi pemasukan &amp; pengeluaran</p></div></div>
+  {% for row in summaries %}
+  <section class="cash-currency-block" aria-label="Arus kas {{ row.currency }}">
+    <div class="cash-currency-title"><strong>{{ row.currency }}</strong><span>{{ row.transaction_count }} transaksi</span></div>
+    <div class="cash-flow-row">
+      <div class="cash-flow-stat"><span>↑ Pemasukan</span><strong class="cash-money">{{ row.total_income_minor|finance_money(row.currency) }}</strong></div>
+      <div class="cash-flow-stat"><span>↓ Pengeluaran</span><strong class="cash-money">{{ row.total_expense_minor|finance_money(row.currency) }}</strong></div>
+      <div class="cash-flow-stat"><span>= Selisih arus kas</span><strong class="cash-money">{{ row.net_cashflow_minor|finance_money(row.currency) }}</strong></div>
+    </div>
+  </section>
+  {% endfor %}
+  <p class="cash-muted" style="margin-top:12px">Saldo awal rekening dan penukaran mata uang bukan pemasukan/pengeluaran, jadi tidak masuk Arus Kas Periode.</p>
+</section>
