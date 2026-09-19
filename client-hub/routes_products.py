@@ -48,6 +48,11 @@ def index():
 def select():
     key=product_flow.intent(request.form.get('product'))
     if not key:abort(400)
+    # Talent uses the visual marketplace as the only customer entry point. Do not create a
+    # generic "Talent Management" project from the product catalog; the customer must pick the
+    # actual talent first so admin receives a concrete request.
+    if key == 'talent_management':
+        return redirect(url_for('talent.talent_list'), code=303)
     session['product_intent']=key
     return redirect(url_for('products.continue_product') if security.current_user() else url_for('auth.login_page'),code=303)
 
@@ -57,6 +62,9 @@ def select():
 def continue_product():
     user=security.current_user();key=product_flow.intent(session.get('product_intent'))
     if not key:return redirect(url_for('products.index'))
+    if key == 'talent_management':
+        session.pop('product_intent', None)
+        return redirect(url_for('talent.talent_list'))
     if request.method=='POST':
         if request.form.get('create')=='yes':
             try: business_id=product_flow.create_business(user['id'],request.form.get('business_name'),request.form.get('setup_identity'))
