@@ -5,8 +5,16 @@
 <div class="admin-page">
   <header class="admin-head">
     <div><h1>Review Pembayaran</h1><p>Hanya pembayaran yang menunggu keputusan admin.</p></div>
-    <span class="admin-count">{{ payments|length }} menunggu</span>
+    <span class="admin-count">{{ payments_total }} menunggu</span>
   </header>
+
+  <form method="get" class="card admin-search-card" action="{{ url_for('admin.payments_admin') }}">
+    <div class="admin-search-row">
+      <input type="search" name="q" value="{{ search }}" placeholder="Cari payment, client, invoice, bank..." aria-label="Cari pembayaran">
+      <button class="btn small" type="submit">Cari</button>
+      {% if search %}<a class="btn small secondary" href="{{ url_for('admin.payments_admin') }}">Reset</a>{% endif %}
+    </div>
+  </form>
 
   {% if payments %}
   <section class="card">
@@ -15,8 +23,8 @@
       <article class="admin-item">
         <div class="admin-item-head">
           <div class="admin-item-main">
-            <div class="admin-item-title">Payment #{{ p.id }}</div>
-            <div class="admin-item-meta">Nominal terbaca: {{ p.ai_extracted_amount|display_or_missing }}{% if p.ai_risk_flags_json %} · Ada catatan risiko AI{% endif %}</div>
+            <div class="admin-item-title">Payment #{{ p.id }}{% if p.invoice_number %} · {{ p.invoice_number }}{% endif %}</div>
+            <div class="admin-item-meta">{{ p.business_name }}{% if p.project_title %} · {{ p.project_title }}{% endif %} · Nominal terbaca: {{ p.ai_extracted_amount|display_or_missing }}{% if p.ai_risk_flags_json %} · Ada catatan risiko AI{% endif %}</div>
           </div>
           <div class="admin-item-side"><span class="admin-status warn">{{ p.review_status|humanize_status('payment') }}</span></div>
         </div>
@@ -50,8 +58,20 @@
     </div>
   </section>
   {% else %}
-    <div class="admin-empty">✓ Tidak ada pembayaran menunggu review.</div>
+    <div class="admin-empty">{{ 'Tidak ada pembayaran yang cocok dengan pencarian.' if search else '✓ Tidak ada pembayaran menunggu review.' }}</div>
   {% endif %}
+
+  {% if total_pages > 1 %}
+    <div class="admin-list-meta">Maksimal 10 pembayaran per halaman · Halaman {{ page }} dari {{ total_pages }}</div>
+    <nav class="admin-pagination" aria-label="Halaman pembayaran">
+      {% if page > 1 %}<a class="admin-page-btn" href="{{ url_for('admin.payments_admin', q=search, page=page-1) }}">←</a>{% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
+      {% for page_number in range(1,total_pages+1) %}
+        <a class="admin-page-btn {{ 'active' if page_number==page else '' }}" href="{{ url_for('admin.payments_admin', q=search, page=page_number) }}" {% if page_number==page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+      {% endfor %}
+      {% if page < total_pages %}<a class="admin-page-btn" href="{{ url_for('admin.payments_admin', q=search, page=page+1) }}">→</a>{% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
+    </nav>
+  {% endif %}
+
   <p class="admin-note">AI hanya membantu ekstraksi dan deteksi risiko. Keputusan akhir tetap admin.</p>
 </div>
 {% endblock %}
