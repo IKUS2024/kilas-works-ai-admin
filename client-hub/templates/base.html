@@ -174,6 +174,46 @@
     .customer-ui footer { display:none; }
   }
 
+
+  /* Admin-only density pass: compact operational views without touching customer UI. */
+  .admin-ui .topbar { padding:10px 16px; gap:12px; }
+  .admin-ui .brand { font-size:14px; }
+  .admin-ui .topbar nav { display:flex; align-items:center; gap:6px; overflow-x:auto; scrollbar-width:none; }
+  .admin-ui .topbar nav::-webkit-scrollbar { display:none; }
+  .admin-ui .topbar nav a {
+    margin:0; flex:0 0 auto; padding:6px 9px; min-height:34px; display:inline-flex; align-items:center;
+    border:1px solid var(--border); border-radius:9px; background:rgba(255,255,255,.018);
+    font-size:12px; font-weight:700; white-space:nowrap;
+  }
+  .admin-ui .topbar nav a:hover,.admin-ui .topbar nav a:focus { text-decoration:none; color:var(--text); border-color:#4b4f57; }
+  .admin-ui .wrap { max-width:1180px; padding:18px 16px 42px; }
+  .admin-ui .card { padding:16px; margin-bottom:12px; border-radius:14px; }
+  .admin-ui h1 { font-size:24px; line-height:1.15; margin-bottom:4px; letter-spacing:-.02em; }
+  .admin-ui h2 { font-size:16px; margin-bottom:8px; }
+  .admin-ui .muted { font-size:12px; line-height:1.4; }
+  .admin-ui label { margin:8px 0 4px; }
+  .admin-ui input,.admin-ui select,.admin-ui textarea { padding:8px 10px; min-height:40px; }
+  .admin-ui textarea { min-height:74px; }
+  .admin-ui .btn { padding:8px 12px; min-height:38px; font-size:13px; }
+  .admin-ui .btn.small { padding:6px 9px; min-height:32px; font-size:11px; }
+  .admin-ui th,.admin-ui td { padding:7px 8px; }
+  .admin-ui .flash { padding:9px 11px; margin-bottom:9px; font-size:12px; }
+  .admin-ui footer { padding:12px; }
+
+  @media(max-width:760px){
+    .admin-ui .topbar { flex-direction:column; align-items:flex-start; padding:8px 10px 6px; gap:6px; }
+    .admin-ui .brand { font-size:13px; }
+    .admin-ui .topbar nav { width:calc(100% + 20px); margin:0 -10px; padding:0 10px 2px; }
+    .admin-ui .topbar nav a { padding:5px 8px; min-height:32px; font-size:11px; }
+    .admin-ui .wrap { padding:12px 10px 26px; }
+    .admin-ui .card { padding:12px; margin-bottom:10px; border-radius:13px; }
+    .admin-ui h1 { font-size:21px; }
+    .admin-ui h2 { font-size:15px; }
+    .admin-ui input,.admin-ui select,.admin-ui textarea { min-height:40px; font-size:15px; }
+    .admin-ui .btn,.admin-ui button { min-height:36px; }
+    .admin-ui footer { display:none; }
+  }
+
 </style>
 </head>
 <body class="{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
