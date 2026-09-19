@@ -113,10 +113,20 @@ ERRORS = {
 
 
 def whole_idr(value, signed=False):
-    pattern = r'-?[0-9]{1,19}' if signed else r'[0-9]{1,19}'
-    if not isinstance(value, str) or not re.fullmatch(pattern, value):
+    if not isinstance(value, str):
         raise finance.FinanceError('invalid_money_minor')
-    amount = int(value)
+    text = value.strip()
+    negative = text.startswith('-')
+    if negative:
+        if not signed:
+            raise finance.FinanceError('invalid_money_minor')
+        text = text[1:]
+    plain = re.fullmatch(r'[0-9]{1,19}', text)
+    grouped = re.fullmatch(r'[0-9]{1,3}(?:[., ][0-9]{3})+', text)
+    if not (plain or grouped):
+        raise finance.FinanceError('invalid_money_minor')
+    digits = re.sub(r'[., ]', '', text)
+    amount = int(('-' if negative else '') + digits)
     if not -(2**63) <= amount <= 2**63-1 or (not signed and amount <= 0):
         raise finance.FinanceError('invalid_money_minor')
     return amount
