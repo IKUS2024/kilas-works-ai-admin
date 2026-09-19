@@ -1019,36 +1019,20 @@ def save_tenant_config(business_id, config_dict):
 
 @db.knowledge_writer
 def save_live_business_memory(business_id, fields, service_lines, faq_lines, actor_user_id):
-    """Atomically update existing tenant memory rows and their live config snapshot; no AI call."""
-    import copy
-    import provisioning
+    """Save customer-edited Brain source data as a draft pending admin re-approval.
+
+    The live bot keeps reading tenant_configs, the last approved snapshot. Customer edits change
+    the source profile/knowledge only and mark normalized AI knowledge STALE; admin approval is
+    the only path that promotes the draft to the live tenant config.
+    """
     allowed = {'short_description', 'tone', 'primary_language', 'customer_salutation',
                'operating_hours', 'closed_days', 'address', 'business_phone'}
     if set(fields) - allowed:
         raise ValueError('unsupported_memory_field')
-    row = get_tenant_config_row(business_id)
-    config = copy.deepcopy(row['config'] if row else provisioning.build_tenant_config(business_id))
-    ai = config.setdefault('ai', {})
-    for field in ('tone', 'customer_salutation'):
-        ai[field] = fields[field]
-    ai.setdefault('language', {})['primary'] = fields['primary_language']
-    ai['business_description'] = fields['short_description']
-    ai['system_instructions'] = fields['short_description']
-    info = config.setdefault('business_info', {})
-    info['address'] = fields['address']
-    info.setdefault('business_hours', {}).update(raw=fields['operating_hours'], closed_days=fields['closed_days'])
-    info.setdefault('contact_info', {})['business_phone'] = fields['business_phone']
-    knowledge = config.setdefault('knowledge', {})
     old_services = get_business_services(business_id)
     old_faqs = get_business_faqs(business_id)
     change_services = service_lines != [s['raw_input'] for s in old_services]
     change_faqs = faq_lines != [f['raw_input'] for f in old_faqs]
-    if change_services:
-        knowledge['services'] = [{'raw_input': raw, 'service_name': None, 'price_from': None,
-                                 'price_to': None, 'currency': None, 'needs_review': True} for raw in service_lines]
-    if change_faqs:
-        knowledge['faq'] = [{'question': raw.partition('|')[0].strip(),
-                             'answer': raw.partition('|')[2].strip() or None, 'needs_review': False} for raw in faq_lines]
     conn = db.get_connection()
     cur = conn.cursor()
     def execute(sql, params): cur.execute(db._adapt_placeholders(sql), params)
@@ -1067,15 +1051,13 @@ def save_live_business_memory(business_id, fields, service_lines, faq_lines, act
                 q, _, answer = raw.partition('|')
                 execute('INSERT INTO business_faqs (business_id, raw_input, question, answer, needs_review) VALUES (?, ?, ?, ?, ?)',
                         (business_id, raw, q.strip(), answer.strip() or None, False))
-        payload = json.dumps(config, ensure_ascii=False, sort_keys=True)
-        if row:
-            execute('UPDATE tenant_configs SET config_json = ?, config_version = config_version + 1, updated_at = ? WHERE business_id = ?', (payload, _now(), business_id))
-        else:
-            execute('INSERT INTO tenant_configs (business_id, config_version, config_json, provisioned_at, updated_at) VALUES (?, 1, ?, ?, ?)', (business_id, payload, _now(), _now()))
+        execute("UPDATE ai_settings SET ai_status = 'STALE', updated_at = ? WHERE business_id = ? AND ai_status = 'DONE'",
+                (_now(), business_id))
         db._knowledge_commit(conn)
     except Exception:
         conn.rollback()
         raise
     finally:
         cur.close()
-    write_audit(actor_user_id, business_id, 'BUSINESS_MEMORY_UPDATED', 'Tenant updated live business memory')
+    write_audit(actor_user_id, business_id, 'BUSINESS_MEMORY_UPDATED',
+                'Client edited Brain draft; admin re-approval required')
