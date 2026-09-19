@@ -65,13 +65,31 @@
   </section>
 
   <details class="card client-collapsible">
-    <summary>Riwayat Tagihan · {{ bills|length }}</summary>
+    <summary>Riwayat Tagihan · {{ bills_total }}</summary>
     <div class="client-collapsible-body">
+      <form method="get" class="client-search-card" action="{{ url_for('products.finance_setup', business_id=business.id) }}">
+        <div class="client-search-row">
+          <input type="search" name="q" value="{{ bill_search }}" placeholder="Cari tagihan, status, nominal..." aria-label="Cari tagihan Finance">
+          <button class="btn small" type="submit">Cari</button>
+          {% if bill_search %}<a class="btn small secondary" href="{{ url_for('products.finance_setup', business_id=business.id) }}">Reset</a>{% endif %}
+        </div>
+      </form>
       <div class="client-list">
         {% for bill in bills %}
           <article class="client-item"><div class="client-item-head"><div><div class="client-item-title">Tagihan #{{ bill.id }}</div><div class="client-item-meta">{{ bill.amount_minor|finance_idr }} · {{ bill.created_at|humanize_timestamp }}</div></div><a class="btn small secondary" href="{{ url_for('products.bill_page',business_id=business.id,bill_id=bill.id) }}">{{ bill.status }} →</a></div></article>
-        {% else %}<div class="client-empty">Belum ada tagihan Finance.</div>{% endfor %}
+        {% else %}<div class="client-empty">{{ 'Tidak ada tagihan yang cocok dengan pencarian.' if bill_search else 'Belum ada tagihan Finance.' }}</div>{% endfor %}
       </div>
+
+      {% if bill_total_pages > 1 %}
+        <div class="client-list-meta" style="margin-top:8px;">Maksimal 10 tagihan per halaman · Halaman {{ bill_page }} dari {{ bill_total_pages }}</div>
+        <nav class="client-pagination" aria-label="Halaman tagihan Finance">
+          {% if bill_page > 1 %}<a class="client-page-btn" href="{{ url_for('products.finance_setup', business_id=business.id, q=bill_search, page=bill_page-1) }}">←</a>{% else %}<span class="client-page-btn disabled">←</span>{% endif %}
+          {% for page_number in range(1,bill_total_pages+1) %}
+            <a class="client-page-btn {{ 'active' if page_number==bill_page else '' }}" href="{{ url_for('products.finance_setup', business_id=business.id, q=bill_search, page=page_number) }}" {% if page_number==bill_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+          {% endfor %}
+          {% if bill_page < bill_total_pages %}<a class="client-page-btn" href="{{ url_for('products.finance_setup', business_id=business.id, q=bill_search, page=bill_page+1) }}">→</a>{% else %}<span class="client-page-btn disabled">→</span>{% endif %}
+        </nav>
+      {% endif %}
     </div>
   </details>
   {% endif %}
