@@ -212,9 +212,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
         </form>
       {% else %}
-        <form method="post" action="{{ url_for('admin.retry_ai_setup', business_id=business.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
-        </form>
+        <p class="muted">Owner view hanya memantau hasil setup. Perubahan knowledge dilakukan dari akun client.</p>
       {% endif %}
     </div>
 
@@ -321,18 +319,9 @@
       </div>
 
       <details class="review-subsection">
-        <summary>Paket</summary>
+        <summary>Info Paket Brain</summary>
         <div class="review-subsection-body">
-          <p class="muted">Paket saat ini: <strong>{{ business.package }}</strong></p>
-          <form method="post" action="{{ url_for('admin.change_package', business_id=business.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label>Ubah paket</label>
-            <select name="package">
-              {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') %}<option value="{{ business.package }}" selected>{{ business.package }} (historis)</option>{% endif %}
-              <option value="AI_ADMIN" {{ 'selected' if business.package == 'AI_ADMIN' else '' }}>Kilas Brain — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
-            </select>
-            <div style="margin-top:10px;"><button class="btn secondary" type="submit">Simpan Paket</button></div>
-          </form>
+          <p class="muted">Paket client: <strong>{{ business.package|humanize_package }}</strong>. Owner view tidak mengubah paket client dari halaman ini.</p>
         </div>
       </details>
     </section>
@@ -344,17 +333,7 @@
           <span class="pill {{ 'ACTIVE' if business.whatsapp_connected else '' }}">{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</span>
           <a class="btn secondary" href="{{ url_for('admin.simulate_page', business_id=business.id) }}">Test AI</a>
         </div>
-        <p class="muted">Biasanya customer menghubungkan WhatsApp sendiri. Form manual hanya untuk bantuan admin.</p>
-        {% if business.status == 'APPROVED' and not business.whatsapp_connected %}
-          <form method="post" action="{{ url_for('admin.connect_whatsapp', business_id=business.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label>WhatsApp Phone Number ID</label><input type="text" name="whatsapp_phone_number_id" required>
-            <label>WABA ID (opsional)</label><input type="text" name="waba_id">
-            <label>Nomor WhatsApp Pemilik / Pengelola</label><input type="text" name="trusted_owner_phone" required>
-            <details class="review-plan"><summary>Pengaturan lanjutan</summary><label>Credentials reference</label><input type="text" name="credentials_reference" placeholder="kosongkan untuk token default bersama"></details>
-            <div style="margin-top:10px;"><button class="btn secondary" type="submit">Hubungkan WhatsApp</button></div>
-          </form>
-        {% endif %}
+        <p class="muted">Status koneksi hanya ditampilkan untuk monitoring. Client menghubungkan dan mengelola WhatsApp dari akun mereka sendiri.</p>
       </div>
     </section>
 
