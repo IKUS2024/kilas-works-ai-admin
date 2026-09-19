@@ -67,7 +67,9 @@ def report_data(name,business_id,filters,actor_user_id):
     if name=='accounts':return finance.get_account_balance_report(business_id,filters['as_of'],**actor)
     if name=='customers':return finance.get_customer_contribution_report(business_id,start,end,**actor)
     if name=='projects':return finance.get_project_contribution_report(business_id,start,end,**actor)
-    if name=='receivables_aging':return finance.get_receivables_aging(business_id,filters['as_of'],**actor)['buckets']
+    if name=='receivables_aging':
+        aging=finance.get_receivables_aging(business_id,filters['as_of'],**actor)
+        return [dict(bucket,currency=group['currency']) for group in aging['by_currency'] for bucket in group['buckets']]
     if name=='recurring_commitments':return finance.get_upcoming_recurring_commitments(business_id,filters['commitment_start'],filters['commitment_end'],**actor)
     raise finance.FinanceError('report_unavailable')
 
@@ -75,25 +77,31 @@ def report_data(name,business_id,filters,actor_user_id):
 def export_csv(name,business_id,filters,actor_user_id):
     data=report_data(name,business_id,filters,actor_user_id)
     if name=='transactions':
-        headers=('Branch','tanggal','jenis','nominal_rupiah','akun','kategori','customer','proyek','pihak_lawan','deskripsi','status','sumber')
-        rows=((r['branch_name'],r['occurred_on'],DIRECTIONS[r['direction']],r['amount_minor'],r['account_name'],r['category_name'],r['customer_name'],r['project_name'],r['counterparty_name'],r['description'],STATUSES[r['status']],SOURCES.get(r['source_type'],'Manual')) for r in data)
+        headers=('Branch','tanggal','jenis','mata_uang','nominal','akun','kategori','customer','proyek','pihak_lawan','deskripsi','status','sumber')
+        rows=((r['branch_name'],r['occurred_on'],DIRECTIONS[r['direction']],r['currency'],r['amount_minor'],r['account_name'],
+               r['category_name'],r['customer_name'],r['project_name'],r['counterparty_name'],r['description'],
+               STATUSES[r['status']],SOURCES.get(r['source_type'],'Manual')) for r in data)
     elif name=='invoices':
-        headers=('Branch','nomor_invoice','customer','tanggal_terbit','jatuh_tempo','status','total_rupiah','sudah_dibayar_rupiah','sisa_rupiah','hari_terlambat','overdue')
-        rows=((r['branch_name'],r['invoice_number'],r['customer_name'],r['issue_date'],r['due_date'],STATUSES[r['status']],r['total_minor'],r['paid_minor'],r['outstanding_minor'],r['days_late'],'Ya' if r['overdue'] else 'Tidak') for r in data)
+        headers=('Branch','nomor_invoice','customer','tanggal_terbit','jatuh_tempo','status','mata_uang','total','sudah_dibayar','sisa','hari_terlambat','overdue')
+        rows=((r['branch_name'],r['invoice_number'],r['customer_name'],r['issue_date'],r['due_date'],STATUSES[r['status']],
+               r['currency'],r['total_minor'],r['paid_minor'],r['outstanding_minor'],r['days_late'],'Ya' if r['overdue'] else 'Tidak') for r in data)
     elif name=='category_breakdown':
-        headers=('jenis','kategori','nominal_rupiah','jumlah_transaksi','persentase')
-        rows=((DIRECTIONS[r['direction']],r['name'],r['amount_minor'],r['transaction_count'],r['percentage']) for r in data)
+        headers=('mata_uang','jenis','kategori','nominal','jumlah_transaksi','persentase')
+        rows=((r['currency'],DIRECTIONS[r['direction']],r['name'],r['amount_minor'],r['transaction_count'],r['percentage']) for r in data)
     elif name=='accounts':
-        headers=('Branch','akun','jenis','status','saldo_awal_rupiah','pemasukan_rupiah','pengeluaran_rupiah','saldo_rupiah')
-        rows=((r['branch_name'],r['name'],ACCOUNT_TYPES[r['account_type']],'Aktif' if r['is_active'] else 'Nonaktif',r['opening_balance_minor'],r['income_minor'],r['expense_minor'],r['balance_minor']) for r in data)
+        headers=('Branch','akun','jenis','mata_uang','status','saldo_awal','pemasukan','pengeluaran','penukaran_masuk','penukaran_keluar','saldo')
+        rows=((r['branch_name'],r['name'],ACCOUNT_TYPES[r['account_type']],r['currency'],'Aktif' if r['is_active'] else 'Nonaktif',
+               r['opening_balance_minor'],r['income_minor'],r['expense_minor'],r.get('exchange_in_minor',0),r.get('exchange_out_minor',0),r['balance_minor']) for r in data)
     elif name in ('customers','projects'):
-        headers=('customer' if name=='customers' else 'proyek','pemasukan_rupiah','pengeluaran_rupiah','kontribusi_kas_rupiah','jumlah_transaksi')
-        rows=((r['name'] if name=='customers' else r['title'],r['income_minor'],r['expense_minor'],r['net_cash_contribution_minor'],r['transaction_count']) for r in data)
+        headers=(('customer' if name=='customers' else 'proyek'),'mata_uang','pemasukan','pengeluaran','kontribusi_kas','jumlah_transaksi')
+        rows=((r['name'] if name=='customers' else r['title'],r['currency'],r['income_minor'],r['expense_minor'],
+               r['net_cash_contribution_minor'],r['transaction_count']) for r in data)
     elif name=='receivables_aging':
-        headers=('kelompok','nominal_rupiah','jumlah_invoice');rows=((r['label'],r['amount_minor'],r['invoice_count']) for r in data)
+        headers=('mata_uang','kelompok','nominal','jumlah_invoice')
+        rows=((r['currency'],r['label'],r['amount_minor'],r['invoice_count']) for r in data)
     else:
-        headers=('Branch','biaya_rutin','tanggal_jatuh_tempo','nominal_rupiah','proyek','akun','kategori')
-        rows=((r['branch_name'],r['name'],r['scheduled_on'],r['amount_minor'],r['project_name'],r['account_name'],r['category_name']) for r in data)
+        headers=('Branch','biaya_rutin','tanggal_jatuh_tempo','mata_uang','nominal','proyek','akun','kategori')
+        rows=((r['branch_name'],r['name'],r['scheduled_on'],r['currency'],r['amount_minor'],r['project_name'],r['account_name'],r['category_name']) for r in data)
     return csv_bytes(headers,rows)
 
 

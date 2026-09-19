@@ -650,36 +650,44 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
 
 def get_receivables_summary(business_id, actor_user_id=None, today=None):
     _scope(business_id, actor_user_id)
-    # All monetary rows read in one statement; aggregate with Python integers, never floats.
-    rows = db.query_all(('''SELECT i.due_date,
+    rows = db.query_all(('''SELECT i.currency,i.due_date,
         (SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
          WHERE x.business_id=i.business_id AND x.invoice_id=i.id) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
          WHERE p.business_id=i.business_id AND p.invoice_id=i.id),0) AS paid_minor
-        FROM finance_invoices i WHERE i.business_id=?''' + branches.predicate('i') + " AND i.status IN ('ISSUED','PARTIALLY_PAID')"), (business_id,))
-    result = dict(total_outstanding_minor=0, overdue_outstanding_minor=0, open_invoice_count=0, overdue_invoice_count=0)
+        FROM finance_invoices i WHERE i.business_id=?''' + branches.predicate('i') +
+        " AND i.status IN ('ISSUED','PARTIALLY_PAID')"), (business_id,))
     today = _date(today or date.today())
+    groups={}
+    open_count=overdue_count=0
     for row in rows:
-        remaining = int(row['total_minor'] or 0)-int(row['paid_minor'])
-        if remaining > 0:
-            result['total_outstanding_minor'] += remaining; result['open_invoice_count'] += 1
-            if row['due_date'] < today:
-                result['overdue_outstanding_minor'] += remaining; result['overdue_invoice_count'] += 1
-    return result
-
+        currency=_currency(row['currency'])
+        remaining=int(row['total_minor'] or 0)-int(row['paid_minor'] or 0)
+        if remaining<=0: continue
+        item=groups.setdefault(currency,dict(currency=currency,total_outstanding_minor=0,
+            overdue_outstanding_minor=0,open_invoice_count=0,overdue_invoice_count=0))
+        item['total_outstanding_minor']+=remaining;item['open_invoice_count']+=1;open_count+=1
+        if row['due_date']<today:
+            item['overdue_outstanding_minor']+=remaining;item['overdue_invoice_count']+=1;overdue_count+=1
+    by_currency=[groups[c] for c in SUPPORTED_CURRENCIES if c in groups]
+    idr=groups.get('IDR',dict(currency='IDR',total_outstanding_minor=0,overdue_outstanding_minor=0,
+        open_invoice_count=0,overdue_invoice_count=0))
+    return dict(idr,by_currency=by_currency,open_invoice_count=open_count,overdue_invoice_count=overdue_count)
 
 def get_customer_cash_contribution(business_id, start_date, end_date, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    start, end = _period(start_date, end_date)
-    rows = db.query_all(('SELECT customer_id,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND customer_id IS NOT NULL AND status='POSTED' AND currency='IDR' AND occurred_on>=? AND occurred_on<=?"), (business_id,start,end))
-    result = {}
+    start,end=_period(start_date,end_date)
+    rows=db.query_all(('SELECT customer_id,currency,direction,amount_minor FROM finance_transactions WHERE business_id=?' +
+        branches.predicate('') + " AND customer_id IS NOT NULL AND status='POSTED' AND occurred_on>=? AND occurred_on<=?"),
+        (business_id,start,end))
+    result={}
     for row in rows:
-        item = result.setdefault(row['customer_id'], dict(customer_id=row['customer_id'],income_minor=0,expense_minor=0,net_cash_contribution_minor=0))
-        key = 'income_minor' if row['direction'] == 'INCOME' else 'expense_minor'
-        item[key] += row['amount_minor']
-        item['net_cash_contribution_minor'] = item['income_minor']-item['expense_minor']
-    return [result[k] for k in sorted(result)]
-
+        currency=_currency(row['currency']);key=(row['customer_id'],currency)
+        item=result.setdefault(key,dict(customer_id=row['customer_id'],currency=currency,income_minor=0,
+            expense_minor=0,net_cash_contribution_minor=0))
+        item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=row['amount_minor']
+        item['net_cash_contribution_minor']=item['income_minor']-item['expense_minor']
+    return [result[k] for k in sorted(result,key=lambda x:(x[0],SUPPORTED_CURRENCIES.index(x[1])))]
 
 # Phase 2B: no GET/boot scheduler, no platform commerce amounts, no automatic external actions.
 MAX_RECURRING_OCCURRENCES = 100
@@ -848,17 +856,22 @@ def list_finance_projects(business_id, actor_user_id=None):
 
 def get_project_cash_contribution(business_id, start_date, end_date, actor_user_id=None):
     _scope(business_id,actor_user_id)
-    start,end = _period(start_date,end_date)
-    rows = db.query_all(('SELECT t.project_id,p.title,p.status,t.direction,t.amount_minor FROM finance_transactions t JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id WHERE t.business_id=?' + branches.predicate('t') + " AND t.status='POSTED' AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=? ORDER BY p.title,p.id,t.id"),(business_id,start,end))
-    result = {}
+    start,end=_period(start_date,end_date)
+    rows=db.query_all(('SELECT t.project_id,p.title,p.status,t.currency,t.direction,t.amount_minor FROM finance_transactions t '
+        'JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id WHERE t.business_id=?' +
+        branches.predicate('t') + " AND t.status='POSTED' AND t.occurred_on>=? AND t.occurred_on<=? ORDER BY p.title,p.id,t.id"),
+        (business_id,start,end))
+    result={}
     for row in rows:
-        item = result.setdefault(row['project_id'],dict(project_id=row['project_id'],title=row['title'],status=row['status'],
+        currency=_currency(row['currency']);key=(row['project_id'],currency)
+        item=result.setdefault(key,dict(project_id=row['project_id'],title=row['title'],status=row['status'],currency=currency,
             income_minor=0,expense_minor=0,net_cash_contribution_minor=0,transaction_count=0))
-        item['income_minor' if row['direction']=='INCOME' else 'expense_minor'] += row['amount_minor']
-        item['net_cash_contribution_minor'] = item['income_minor']-item['expense_minor']
-        item['transaction_count'] += 1
+        item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=row['amount_minor']
+        item['net_cash_contribution_minor']=item['income_minor']-item['expense_minor'];item['transaction_count']+=1
     return list(result.values())
 
+
+# Phase 3 reporting: read-only multi-currency. Monetary totals are never combined across currencies.
 
 # Phase 3 reporting: read-only, IDR only. Limits apply before materializing large exports.
 MAX_REPORT_ROWS = 50_000
@@ -892,41 +905,55 @@ def _report_query(sql, params):
 
 def get_report_transactions(business_id, start_date, end_date, actor_user_id=None, include_void=False):
     _scope(business_id,actor_user_id)
-    start,end = report_period(start_date,end_date)
-    return _report_query(('''SELECT t.branch_id,(SELECT name FROM finance_branches b WHERE b.id=t.branch_id AND b.business_id=t.business_id) AS branch_name,t.occurred_on,t.direction,t.amount_minor,t.status,t.source_type,
-        t.counterparty_name,t.description,t.category_id,t.customer_id,t.project_id,
-        a.name AS account_name,c.name AS category_name,u.name AS customer_name,p.title AS project_name
+    start,end=report_period(start_date,end_date)
+    return _report_query(('''SELECT t.branch_id,(SELECT name FROM finance_branches b WHERE b.id=t.branch_id AND b.business_id=t.business_id) AS branch_name,
+        t.occurred_on,t.direction,t.amount_minor,t.currency,t.status,t.source_type,t.counterparty_name,t.description,
+        t.category_id,t.customer_id,t.project_id,a.name AS account_name,c.name AS category_name,
+        u.name AS customer_name,p.title AS project_name
         FROM finance_transactions t
         LEFT JOIN finance_accounts a ON a.business_id=t.business_id AND a.id=t.account_id
         LEFT JOIN finance_categories c ON c.business_id=t.business_id AND c.id=t.category_id
         LEFT JOIN finance_customers u ON u.business_id=t.business_id AND u.id=t.customer_id
         LEFT JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id
-        WHERE t.business_id=?''' + branches.predicate('t') + " AND t.currency='IDR' AND t.occurred_on>=? AND t.occurred_on<=?")+
+        WHERE t.business_id=?''' + branches.predicate('t') + " AND t.occurred_on>=? AND t.occurred_on<=?")+
         ('' if include_void else " AND t.status='POSTED'")+' ORDER BY t.occurred_on,t.id',(business_id,start,end))
 
 
-def get_cashflow_report(business_id, start_date, end_date, actor_user_id=None):
-    rows = get_report_transactions(business_id,start_date,end_date,actor_user_id)
-    # Same integer-only cash calculation as the original Finance summary; adds count.
-    income=sum(r['amount_minor'] for r in rows if r['direction']=='INCOME')
-    expense=sum(r['amount_minor'] for r in rows if r['direction']=='EXPENSE')
-    return dict(total_income_minor=income,total_expense_minor=expense,net_cashflow_minor=income-expense,transaction_count=len(rows))
-
-
-def get_category_breakdown(business_id, start_date, end_date, actor_user_id=None):
+def get_cashflow_reports(business_id,start_date,end_date,actor_user_id=None):
     rows=get_report_transactions(business_id,start_date,end_date,actor_user_id)
-    totals={'INCOME':0,'EXPENSE':0};groups={}
+    groups={}
+    for row in rows:
+        code=_currency(row['currency'])
+        item=groups.setdefault(code,dict(currency=code,total_income_minor=0,total_expense_minor=0,
+            net_cashflow_minor=0,transaction_count=0))
+        item['total_income_minor' if row['direction']=='INCOME' else 'total_expense_minor']+=row['amount_minor']
+        item['net_cashflow_minor']=item['total_income_minor']-item['total_expense_minor'];item['transaction_count']+=1
+    if not groups:groups['IDR']=dict(currency='IDR',total_income_minor=0,total_expense_minor=0,net_cashflow_minor=0,transaction_count=0)
+    return [groups[c] for c in SUPPORTED_CURRENCIES if c in groups]
+
+
+def get_cashflow_report(business_id,start_date,end_date,actor_user_id=None):
+    rows=get_cashflow_reports(business_id,start_date,end_date,actor_user_id)
+    return next((r for r in rows if r['currency']=='IDR'),
+        dict(currency='IDR',total_income_minor=0,total_expense_minor=0,net_cashflow_minor=0,transaction_count=0))
+
+
+def get_category_breakdown(business_id,start_date,end_date,actor_user_id=None):
+    rows=get_report_transactions(business_id,start_date,end_date,actor_user_id)
+    totals={};groups={}
     for r in rows:
-        item=groups.setdefault((r['direction'],r['category_id']),dict(direction=r['direction'],category_id=r['category_id'],
+        code=_currency(r['currency']);total_key=(code,r['direction'])
+        totals[total_key]=totals.get(total_key,0)+r['amount_minor']
+        key=(code,r['direction'],r['category_id'])
+        item=groups.setdefault(key,dict(currency=code,direction=r['direction'],category_id=r['category_id'],
             name=r['category_name'] or 'Kategori tidak tersedia',amount_minor=0,transaction_count=0))
-        item['amount_minor']+=r['amount_minor'];item['transaction_count']+=1;totals[r['direction']]+=r['amount_minor']
+        item['amount_minor']+=r['amount_minor'];item['transaction_count']+=1
     for item in groups.values():
-        denominator=totals[item['direction']]
-        # Rounded basis points with arbitrary-precision integers. No float money or ratios.
+        denominator=totals.get((item['currency'],item['direction']),0)
         points=(item['amount_minor']*10000+denominator//2)//denominator if denominator else 0
         item['percentage']=f'{points//100}.{points%100:02d}'
-    return sorted(groups.values(),key=lambda r:(r['direction'],-r['amount_minor'],r['name'],r['category_id']))
-
+    return sorted(groups.values(),key=lambda r:(SUPPORTED_CURRENCIES.index(r['currency']),r['direction'],
+        -r['amount_minor'],r['name'],r['category_id']))
 
 def get_account_balance_report(business_id, as_of, actor_user_id=None):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
@@ -998,112 +1025,128 @@ def void_currency_exchange(business_id,exchange_id,actor_user_id=None):
         return exchange_id
 
 
-def get_customer_contribution_report(business_id, start_date, end_date, actor_user_id=None):
+def get_customer_contribution_report(business_id,start_date,end_date,actor_user_id=None):
     rows=get_report_transactions(business_id,start_date,end_date,actor_user_id)
-    names={r['customer_id']:r['customer_name'] for r in rows if r['customer_id'] and r['customer_name'] is not None}
-    counts={}
+    groups={}
     for r in rows:
-        if r['customer_id'] in names:counts[r['customer_id']]=counts.get(r['customer_id'],0)+1
-    # Reuse Phase 2A cash contribution, decorating only with business-scoped display data.
-    return [dict(r,name=names[r['customer_id']],transaction_count=counts[r['customer_id']])
-        for r in get_customer_cash_contribution(business_id,start_date,end_date,actor_user_id) if r['customer_id'] in names]
+        if not r['customer_id'] or r['customer_name'] is None:continue
+        code=_currency(r['currency']);key=(r['customer_id'],code)
+        item=groups.setdefault(key,dict(customer_id=r['customer_id'],name=r['customer_name'],currency=code,
+            income_minor=0,expense_minor=0,net_cash_contribution_minor=0,transaction_count=0))
+        item['income_minor' if r['direction']=='INCOME' else 'expense_minor']+=r['amount_minor']
+        item['net_cash_contribution_minor']=item['income_minor']-item['expense_minor'];item['transaction_count']+=1
+    return list(groups.values())
 
 
-def get_project_contribution_report(business_id, start_date, end_date, actor_user_id=None):
-    get_report_transactions(business_id,start_date,end_date,actor_user_id)  # validates range/volume
+def get_project_contribution_report(business_id,start_date,end_date,actor_user_id=None):
+    get_report_transactions(business_id,start_date,end_date,actor_user_id)
     return get_project_cash_contribution(business_id,start_date,end_date,actor_user_id)
-
 
 def get_report_invoices(business_id, as_of, start_date=None, end_date=None, actor_user_id=None,
                         customer_id=None, open_only=False):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    sql=('''SELECT i.branch_id,(SELECT name FROM finance_branches b WHERE b.id=i.branch_id AND b.business_id=i.business_id) AS branch_name,i.id,i.customer_id,i.invoice_number,i.issue_date,i.due_date,i.status,c.name AS customer_name,
+    sql=('''SELECT i.branch_id,(SELECT name FROM finance_branches b WHERE b.id=i.branch_id AND b.business_id=i.business_id) AS branch_name,
+        i.id,i.customer_id,i.invoice_number,i.issue_date,i.due_date,i.currency,i.status,c.name AS customer_name,
         COALESCE((SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
             WHERE x.business_id=i.business_id AND x.invoice_id=i.id),0) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
             WHERE p.business_id=i.business_id AND p.invoice_id=i.id AND p.paid_on<=?),0) AS paid_minor
         FROM finance_invoices i LEFT JOIN finance_customers c ON c.business_id=i.business_id AND c.id=i.customer_id
-        WHERE i.business_id=?''' + branches.predicate('i') + " AND i.currency='IDR' AND i.issue_date<=?")
+        WHERE i.business_id=?''' + branches.predicate('i') + " AND i.issue_date<=?")
     params=[as_of,business_id,as_of]
     if customer_id is not None:
-        if not get_customer(business_id, customer_id, actor_user_id):
-            raise FinanceError('customer_unavailable')
+        if not get_customer(business_id,customer_id,actor_user_id):raise FinanceError('customer_unavailable')
         sql+=' AND i.customer_id=?';params.append(customer_id)
-    if open_only:
-        sql+=" AND i.status IN ('ISSUED','PARTIALLY_PAID')"
+    if open_only:sql+=" AND i.status IN ('ISSUED','PARTIALLY_PAID')"
     if start_date is not None or end_date is not None:
-        start,end=report_period(start_date,end_date)
-        sql+=' AND i.issue_date>=? AND i.issue_date<=?';params.extend([start,end])
+        start,end=report_period(start_date,end_date);sql+=' AND i.issue_date>=? AND i.issue_date<=?';params.extend([start,end])
     rows=_report_query(sql+' ORDER BY i.issue_date,i.id',params)
     for r in rows:
-        r['total_minor'],r['paid_minor']=int(r['total_minor']),int(r['paid_minor'])
+        r['currency']=_currency(r['currency']);r['total_minor'],r['paid_minor']=int(r['total_minor']),int(r['paid_minor'])
         r['outstanding_minor']=r['total_minor']-r['paid_minor']
         r['days_late']=max(0,(date.fromisoformat(as_of)-date.fromisoformat(r['due_date'])).days)
         r['overdue']=r['status'] in ('ISSUED','PARTIALLY_PAID') and r['outstanding_minor']>0 and r['days_late']>0
     return rows
-
 
 def get_receivables_aging(business_id, as_of, actor_user_id=None):
     return receivables_aging_rows(get_report_invoices(business_id,as_of,actor_user_id=actor_user_id))
 
 
 def receivables_aging_rows(rows):
-    """Shared deterministic aging for Phase 3 reports and the collection workspace."""
-    labels=('Belum jatuh tempo','Telat Dibayar 1–30 Hari','Telat Dibayar 31–60 Hari','Telat Dibayar 61–90 Hari','>90 hari terlambat')
-    buckets=[dict(label=label,amount_minor=0,invoice_count=0) for label in labels]
+    """Deterministic aging grouped by native currency; never mixes monetary amounts."""
+    labels=('Belum jatuh tempo','Telat Dibayar 1–30 Hari','Telat Dibayar 31–60 Hari',
+            'Telat Dibayar 61–90 Hari','>90 hari terlambat')
+    groups={}
     for r in rows:
-        # Current invoice state is authoritative; no historical issue/void status reconstruction.
         if r['status'] not in ('ISSUED','PARTIALLY_PAID') or r['outstanding_minor']<=0:continue
+        code=_currency(r.get('currency','IDR'))
+        item=groups.setdefault(code,dict(currency=code,buckets=[dict(label=x,amount_minor=0,invoice_count=0) for x in labels]))
         days=r['days_late'];index=0 if days==0 else 1 if days<=30 else 2 if days<=60 else 3 if days<=90 else 4
-        buckets[index]['amount_minor']+=r['outstanding_minor'];buckets[index]['invoice_count']+=1
-    return dict(buckets=buckets,total_outstanding_minor=sum(b['amount_minor'] for b in buckets),
-                total_overdue_minor=sum(b['amount_minor'] for b in buckets[1:]))
+        item['buckets'][index]['amount_minor']+=r['outstanding_minor'];item['buckets'][index]['invoice_count']+=1
+    by_currency=[]
+    for code in SUPPORTED_CURRENCIES:
+        if code not in groups:continue
+        item=groups[code];item['total_outstanding_minor']=sum(b['amount_minor'] for b in item['buckets'])
+        item['total_overdue_minor']=sum(b['amount_minor'] for b in item['buckets'][1:])
+        item['open_invoice_count']=sum(b['invoice_count'] for b in item['buckets'])
+        item['overdue_invoice_count']=sum(b['invoice_count'] for b in item['buckets'][1:]);by_currency.append(item)
+    idr=next((x for x in by_currency if x['currency']=='IDR'),None)
+    if idr is None:
+        idr=dict(currency='IDR',buckets=[dict(label=x,amount_minor=0,invoice_count=0) for x in labels],
+            total_outstanding_minor=0,total_overdue_minor=0,open_invoice_count=0,overdue_invoice_count=0)
+    return dict(buckets=idr['buckets'],total_outstanding_minor=idr['total_outstanding_minor'],
+        total_overdue_minor=idr['total_overdue_minor'],by_currency=by_currency,
+        open_invoice_count=sum(x['open_invoice_count'] for x in by_currency),
+        overdue_invoice_count=sum(x['overdue_invoice_count'] for x in by_currency))
 
-
-def get_upcoming_recurring_commitments(business_id, start_date, end_date, actor_user_id=None):
+def get_upcoming_recurring_commitments(business_id,start_date,end_date,actor_user_id=None):
     _scope(business_id,actor_user_id);start,end=report_period(start_date,end_date)
-    rules=_report_query(('''SELECT r.*,(SELECT name FROM finance_branches b WHERE b.business_id=r.business_id AND b.id=r.branch_id) AS branch_name,p.title AS project_name,a.name AS account_name,c.name AS category_name
+    rules=_report_query(('''SELECT r.*,(SELECT name FROM finance_branches b WHERE b.business_id=r.business_id AND b.id=r.branch_id) AS branch_name,
+        p.title AS project_name,a.name AS account_name,c.name AS category_name
         FROM finance_recurring_expenses r
         LEFT JOIN projects p ON p.business_id=r.business_id AND p.id=r.project_id
         LEFT JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id
         LEFT JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id
-        WHERE r.business_id=?''' + branches.predicate('r') + " AND r.is_active=TRUE AND r.currency='IDR' AND r.next_due_on<=?\n        ORDER BY r.next_due_on,r.id"),(business_id,end))
+        WHERE r.business_id=?''' + branches.predicate('r') + " AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id"),
+        (business_id,end))
     result=[];start_day=date.fromisoformat(start)
     for rule in rules:
-        current=date.fromisoformat(rule['next_due_on'])
+        rule['currency']=_currency(rule['currency']);current=date.fromisoformat(rule['next_due_on'])
         if current<start_day:
-            if rule['cadence']=='WEEKLY':
-                current+=timedelta(days=((start_day-current).days//7)*7)
-            else:
-                current=date(start_day.year,start_day.month,min(rule['anchor_day'],calendar.monthrange(start_day.year,start_day.month)[1]))
+            if rule['cadence']=='WEEKLY':current+=timedelta(days=((start_day-current).days//7)*7)
+            else:current=date(start_day.year,start_day.month,min(rule['anchor_day'],calendar.monthrange(start_day.year,start_day.month)[1]))
             rule['next_due_on']=current.isoformat()
             if current<start_day:rule['next_due_on']=_next_recurring_date(rule)
         last=min(end,rule['end_on']) if rule['end_on'] else end
         while rule['next_due_on']<=last:
             if len(result)>=MAX_COMMITMENT_OCCURRENCES:raise FinanceError('forecast_limit')
-            result.append(dict(branch_name=rule['branch_name'],name=rule['name'],scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],
-                project_name=rule['project_name'],account_name=rule['account_name'],category_name=rule['category_name']))
+            result.append(dict(branch_name=rule['branch_name'],name=rule['name'],currency=rule['currency'],
+                scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],project_name=rule['project_name'],
+                account_name=rule['account_name'],category_name=rule['category_name']))
             if rule['next_due_on']==last:break
             try:rule['next_due_on']=_next_recurring_date(rule)
             except FinanceError:
                 if last.startswith('9999-12'):break
                 raise
-    return sorted(result,key=lambda r:(r['scheduled_on'],r['name']))
+    return sorted(result,key=lambda r:(r['scheduled_on'],SUPPORTED_CURRENCIES.index(r['currency']),r['name']))
 
-
-def get_monthly_cashflow_trend(business_id, start_month, end_month, actor_user_id=None, start_date=None, end_date=None):
-    months=report_months(start_month,end_month)
-    year,month=map(int,end_month.split('-'))
-    first=start_date or start_month+'-01'
-    last=end_date or date(year,month,calendar.monthrange(year,month)[1]).isoformat()
+def get_monthly_cashflow_trends(business_id,start_month,end_month,actor_user_id=None,start_date=None,end_date=None):
+    months=report_months(start_month,end_month);year,month=map(int,end_month.split('-'))
+    first=start_date or start_month+'-01';last=end_date or date(year,month,calendar.monthrange(year,month)[1]).isoformat()
     if first[:7]!=start_month or last[:7]!=end_month:raise FinanceError('report_range')
     rows=get_report_transactions(business_id,first,last,actor_user_id)
-    trend={m:dict(month=m,income_minor=0,expense_minor=0,net_cashflow_minor=0) for m in months}
+    currencies=[c for c in SUPPORTED_CURRENCIES if any(r['currency']==c for r in rows)] or ['IDR']
+    trend={(m,c):dict(month=m,currency=c,income_minor=0,expense_minor=0,net_cashflow_minor=0) for c in currencies for m in months}
     for r in rows:
-        item=trend[r['occurred_on'][:7]];item['income_minor' if r['direction']=='INCOME' else 'expense_minor']+=r['amount_minor']
+        item=trend[(r['occurred_on'][:7],r['currency'])]
+        item['income_minor' if r['direction']=='INCOME' else 'expense_minor']+=r['amount_minor']
         item['net_cashflow_minor']=item['income_minor']-item['expense_minor']
-    return list(trend.values())
+    return [trend[(m,c)] for c in currencies for m in months]
 
+
+def get_monthly_cashflow_trend(business_id,start_month,end_month,actor_user_id=None,start_date=None,end_date=None):
+    rows=get_monthly_cashflow_trends(business_id,start_month,end_month,actor_user_id,start_date,end_date)
+    return [r for r in rows if r['currency']=='IDR']
 
 def operator_invoice_choices(business_id, actor_user_id=None):
     """Bounded picker only; does not load invoice notes or the whole history."""
