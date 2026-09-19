@@ -94,8 +94,7 @@
         (('PHOTO','VIDEO'), 'Foto & Video', 'Produksi foto dan video sesuai kebutuhan'),
         (('WEBSITE','APPLICATION'), 'Website & Sistem', 'Website, aplikasi, dan sistem bisnis'),
         (('EVENT',), 'Event', 'Dokumentasi dan kebutuhan produksi event'),
-        (('ADS',), 'Meta Ads', 'Setup dan pengelolaan iklan Meta'),
-        (('TALENT',), 'Talent', 'Talent dan kebutuhan creator')
+        (('ADS',), 'Meta Ads', 'Setup dan pengelolaan iklan Meta')
       ] %}
       {% set known_categories = ('CONTENT','PHOTO','VIDEO','WEBSITE','APPLICATION','EVENT','ADS','TALENT') %}
       <div class="service-category-list">
@@ -125,6 +124,16 @@
           </details>
           {% endif %}
         {% endfor %}
+        <details class="service-category" id="talent">
+          <summary>
+            <span class="service-category-title"><strong>Talent &amp; Creator</strong><span>Pilih talent dari profil, foto, niche, dan ketersediaannya</span></span>
+            <span class="service-category-arrow">⌄</span>
+          </summary>
+          <div class="service-category-body">
+            <p class="transport-note">Talent memakai satu alur khusus: pilih talent → isi kebutuhan campaign → tim Kilas Works review &amp; kirim harga → customer setujui → pembayaran.</p>
+            <a class="btn" href="{{ url_for('talent.talent_list') }}" style="width:100%;text-align:center;">Lihat Talent</a>
+          </div>
+        </details>
         {% set other_items = items | rejectattr('category','in',known_categories) | rejectattr('category','in',('AI_ADMIN','BUNDLE')) | list %}
         {% if other_items %}
         <details class="service-category">

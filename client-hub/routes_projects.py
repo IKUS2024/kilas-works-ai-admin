@@ -10,6 +10,7 @@ import repo
 import db
 import catalog_service
 import projects_repo
+import quotation_service
 import file_utils
 
 projects_bp = Blueprint("projects", __name__)
@@ -19,7 +20,9 @@ projects_bp = Blueprint("projects", __name__)
 @security.login_required
 def service_catalog_page():
     user = security.current_user()
-    items = catalog_service.list_active_catalog()
+    # Talent has a dedicated visual marketplace where the customer picks a real talent first.
+    # Keep the generic service catalog from creating a second, ambiguous Talent Management flow.
+    items = [item for item in catalog_service.list_active_catalog() if item["category"] != "TALENT"]
     by_category = {}
     category_order = catalog_service.CUSTOMER_CATEGORY_ORDER
     items.sort(key=lambda item: category_order.index(item['category']) if item['category'] in category_order else len(category_order) - 1.5)
@@ -97,6 +100,8 @@ def _start_catalog_brief(catalog_key, fixed_only=False, custom_only=False):
         abort(404)
     if item['category'] == 'AI_ADMIN':
         return redirect(url_for('client.dashboard'))
+    if item['category'] == 'TALENT' or item['catalog_key'] == 'talent_management':
+        return redirect(url_for('talent.talent_list'))
     if fixed_only and item['pricing_mode'] not in ('FIXED_PRICE', 'STARTING_FROM'):
         abort(404)
     if custom_only and item['pricing_mode'] != 'CUSTOM_QUOTE':
@@ -268,6 +273,7 @@ def project_view(project_id):
     if project["business_id"] is not None:
         return redirect(url_for("projects.project_detail", business_id=project["business_id"], project_id=project_id))
     return render_template("project_view_no_business.html", project=project,
+                           quotation=quotation_service.get_latest_quotation_for_project(project_id),
                            can_cancel=projects_repo.customer_can_cancel(project))
 
 

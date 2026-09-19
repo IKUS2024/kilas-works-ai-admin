@@ -115,7 +115,7 @@
               <div class="admin-item-side"><span class="admin-status {{ 'warn' if r.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else ('ok' if r.status in ('PAID','IN_PROGRESS','COMPLETED') else '') }}">{{ r.status|humanize_status('talent_request') }}</span></div>
             </div>
             {% if r.brief %}<div class="admin-note" style="margin-top:8px;">{{ r.brief }}</div>{% endif %}
-            {% if r.project_id %}<div class="admin-actions"><a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=r.project_id) }}">Kelola Pesanan →</a></div>{% endif %}
+            <div class="admin-actions"><a class="btn small {{ '' if r.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else 'secondary' }}" href="{{ url_for('admin.talent_request_detail', request_id=r.id) }}">{{ 'Tinjau & Beri Harga' if r.status in ('WAITING_FOR_REVIEW','WAITING_FOR_QUOTE') else 'Lihat Request' }} →</a></div>
           </article>
         {% else %}<div class="admin-empty">Belum ada talent request.</div>{% endfor %}
       </div>

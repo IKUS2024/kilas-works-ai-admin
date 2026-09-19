@@ -6,7 +6,7 @@
   <a class="muted" href="{{ url_for('projects.my_project_list') }}">← Pesanan</a>
   <header class="client-head" style="margin-top:10px;">
     <div><h1>{{ project.title }}</h1><p>{{ project.project_type }} · {{ project.pricing_mode|humanize_status('pricing_mode') }}</p></div>
-    <span class="client-status {{ 'ok' if project.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if project.status in ('WAITING_FOR_QUOTE','PAYMENT_PENDING','APPROVED') else '') }}">{{ project.status|humanize_status('project') }}</span>
+    <span class="client-status {{ 'ok' if project.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if project.status in ('REQUESTED','WAITING_FOR_QUOTE','QUOTED','PAYMENT_PENDING','APPROVED') else '') }}">{{ project.status|humanize_status('project') }}</span>
   </header>
 
   <section class="card">
@@ -15,10 +15,17 @@
       <div class="client-stat" style="grid-column:span 2;"><strong>{{ 'Rp{:,}'.format(project.final_price).replace(',', '.') if project.final_price else 'Belum ada' }}</strong><span>Harga final</span></div>
     </div>
 
-    {% if project.status == 'APPROVED' %}
+    {% if project.status == 'REQUESTED' %}
+      <p class="client-note">Request sudah dikirim. Tim Kilas Works sedang mereview kebutuhan kamu sebelum menyiapkan harga.</p>
+      {% if can_cancel %}<div class="client-actions"><form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form></div>{% endif %}
+    {% elif project.status == 'QUOTED' and quotations %}
+      {% set latest_quote = quotations[0] %}
+      <p class="client-note">Penawaran harga dari Kilas Works sudah tersedia.</p>
+      <div class="client-actions"><a class="btn" href="{{ url_for('quotations.quotation_detail', business_id=business.id, quotation_id=latest_quote.id) }}">Lihat Penawaran · Rp{{ '{:,}'.format(latest_quote.final_price).replace(',', '.') }}</a></div>
+    {% elif project.status == 'APPROVED' %}
       <div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Checkout</a>{% if can_cancel %}<form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form>{% endif %}</div>
     {% elif project.status == 'WAITING_FOR_QUOTE' %}
-      <p class="client-note">Menunggu penawaran dari tim Kilas Works.</p>
+      <p class="client-note">Request sudah direview. Tim Kilas Works sedang menyiapkan penawaran harga.</p>
       {% if can_cancel %}<div class="client-actions"><form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form></div>{% endif %}
     {% elif project.status == 'PAYMENT_PENDING' %}
       {% if payment and payment.status == 'UNDER_REVIEW' %}<p class="client-note">Bukti pembayaran sedang direview.</p>{% else %}<div class="client-actions"><a class="btn" href="{{ url_for('payments.checkout_page', project_id=project.id) }}">Lanjut Bayar</a>{% if can_cancel %}<form method="post" action="{{ url_for('projects.cancel_project', business_id=business.id, project_id=project.id) }}" onsubmit="return confirm('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger" type="submit">Batalkan</button></form>{% endif %}</div>{% endif %}

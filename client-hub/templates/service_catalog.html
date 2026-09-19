@@ -22,6 +22,13 @@
   </details>
 
   <div class="catalog-groups">
+    <details class="card catalog-group">
+      <summary>Talent &amp; Creator</summary>
+      <div class="catalog-body">
+        <p class="client-note">Pilih talent dari profil bergambar, lihat niche dan ketersediaannya, lalu kirim kebutuhan campaign untuk direview tim Kilas Works.</p>
+        <a class="btn" href="{{ url_for('talent.talent_list') }}" style="width:100%;text-align:center;">Lihat Talent</a>
+      </div>
+    </details>
     {% for category, items in by_category.items() %}
       <details class="card catalog-group" {% if loop.first %}open{% endif %}>
         <summary>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Content / Creative','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Business Systems','TALENT':'Talent Management','ADS':'Meta Ads'}.get(category, category.replace('_',' ').title()) }} · {{ items|length }}</summary>

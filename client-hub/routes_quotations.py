@@ -11,6 +11,56 @@ import quotation_service
 quotations_bp = Blueprint("quotations", __name__)
 
 
+def _personal_quotation(quotation_id, user):
+    quotation = quotation_service.get_quotation(quotation_id)
+    if quotation is None or quotation["business_id"] is not None:
+        abort(404)
+    project = security.require_project_access(quotation["project_id"], user)
+    if project["business_id"] is not None:
+        abort(404)
+    return quotation, project
+
+
+@quotations_bp.route("/quotations/<int:quotation_id>")
+@security.login_required
+def personal_quotation_detail(quotation_id):
+    user = security.current_user()
+    quotation, project = _personal_quotation(quotation_id, user)
+    if user["role"] != "KILAS_ADMIN":
+        quotation_service.mark_viewed(quotation_id)
+        quotation = quotation_service.get_quotation(quotation_id)
+    return render_template("quotation_detail.html", business=None, quotation=quotation, project=project)
+
+
+@quotations_bp.route("/quotations/<int:quotation_id>/approve", methods=["POST"])
+@security.login_required
+def approve_personal_quotation(quotation_id):
+    user = security.current_user()
+    quotation, project = _personal_quotation(quotation_id, user)
+    try:
+        quotation_service.approve_quotation(quotation_id, None, user["id"])
+    except ValueError as e:
+        flash(f"Tidak bisa approve: {e}", "error")
+    else:
+        flash("Penawaran disetujui. Lanjutkan ke pembayaran.", "success")
+    return redirect(url_for("quotations.personal_quotation_detail", quotation_id=quotation_id))
+
+
+@quotations_bp.route("/quotations/<int:quotation_id>/reject", methods=["POST"])
+@security.login_required
+def reject_personal_quotation(quotation_id):
+    user = security.current_user()
+    quotation, project = _personal_quotation(quotation_id, user)
+    note = (request.form.get("note") or "").strip() or None
+    try:
+        quotation_service.reject_quotation(quotation_id, None, user["id"], note)
+    except ValueError as e:
+        flash(f"Tidak bisa menolak: {e}", "error")
+    else:
+        flash("Penawaran ditolak / diminta revisi. Tim Kilas Works akan menghubungi.", "success")
+    return redirect(url_for("quotations.personal_quotation_detail", quotation_id=quotation_id))
+
+
 @quotations_bp.route("/business/<int:business_id>/quotations/<int:quotation_id>")
 @security.login_required
 def quotation_detail(business_id, quotation_id):

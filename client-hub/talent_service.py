@@ -153,7 +153,7 @@ def create_talent_request(talent_id, business_id, fields, created_by_user_id):
         business_id, "TALENT", title,
         requirements={**fields, "talent_id": talent_id, "talent_name": talent["name"]},
         budget_min=fields.get("budget"), budget_max=fields.get("budget"),
-        created_by_user_id=created_by_user_id, catalog_key="talent_management",
+        created_by_user_id=created_by_user_id, catalog_key="talent_management", draft=True,
     )
     request_id = db.insert_returning_id(
         "INSERT INTO talent_requests (talent_id, business_id, project_id, campaign_type, platform, "

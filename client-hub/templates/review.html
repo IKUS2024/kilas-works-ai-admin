@@ -178,7 +178,7 @@
                     {% if p.is_customer_draft %}Menunggu customer lengkapi brief{% else %}{{ p.status|humanize_status('project') }}{% endif %}
                   </span>
                 </div>
-                <a class="btn small secondary" href="{{ url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola</a>
+                <a class="btn small secondary" href="{{ url_for('admin.talent_request_detail', request_id=p.talent_request_id) if p.talent_request_id else url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola</a>
               </div>
             {% endfor %}
           </div>

@@ -17,16 +17,21 @@
 {% if session.get('role') != 'KILAS_ADMIN' and quotation.status in ('SENT', 'VIEWED') %}
 <div class="card">
   <div style="display:flex;gap:8px;">
-    <form method="post" action="{{ url_for('quotations.approve_quotation', business_id=business.id, quotation_id=quotation.id) }}">
+    <form method="post" action="{{ url_for('quotations.approve_quotation', business_id=business.id, quotation_id=quotation.id) if business else url_for('quotations.approve_personal_quotation', quotation_id=quotation.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn" type="submit">Setuju</button>
     </form>
-    <form method="post" action="{{ url_for('quotations.reject_quotation', business_id=business.id, quotation_id=quotation.id) }}">
+    <form method="post" action="{{ url_for('quotations.reject_quotation', business_id=business.id, quotation_id=quotation.id) if business else url_for('quotations.reject_personal_quotation', quotation_id=quotation.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="text" name="note" placeholder="Catatan (opsional)">
       <button class="btn secondary" type="submit">Tolak / Minta Revisi</button>
     </form>
   </div>
+</div>
+{% elif session.get('role') != 'KILAS_ADMIN' and quotation.status == 'APPROVED' %}
+<div class="card">
+  <p>Penawaran sudah kamu setujui. Lanjutkan ke pembayaran untuk memproses pesanan.</p>
+  <a class="btn" href="{{ url_for('payments.checkout_page', project_id=quotation.project_id) }}">Lanjut Pembayaran</a>
 </div>
 {% endif %}
 {% endblock %}
