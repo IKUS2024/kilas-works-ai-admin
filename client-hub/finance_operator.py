@@ -36,6 +36,21 @@ class OperatorError(ValueError):
     pass
 
 
+BASE_FIELDS = {'account_id','category_id','date','invoice_id','currency','amount_minor','description'}
+OPTIONAL_FIELDS = {'project_id','customer_id','counterparty_name'}
+
+
+def normalize_fields(fields):
+    if (not isinstance(fields,dict) or not BASE_FIELDS.issubset(fields)
+            or any(key not in BASE_FIELDS|OPTIONAL_FIELDS for key in fields)):
+        raise OperatorError('invalid_fields')
+    result=dict(fields)
+    result.setdefault('project_id',None)
+    result.setdefault('customer_id',None)
+    result.setdefault('counterparty_name',None)
+    return result
+
+
 def enabled(business_id):
     return __import__('finance_entitlements').capability(business_id, 'OPERATOR')
 
@@ -77,12 +92,13 @@ def validate_request(payload):
 def resolve(business_id, user_id, action, fields, *, draft):
     """Read-only reference validation, repeated immediately before service execution."""
     finance._scope(business_id,user_id)
-    if not isinstance(action,str) or action not in ACTIONS or not isinstance(fields,dict) or set(fields)!={'account_id','category_id','date','invoice_id','currency','amount_minor','description'}:
-        raise OperatorError('invalid_fields')
+    if not isinstance(action,str) or action not in ACTIONS:raise OperatorError('invalid_fields')
+    fields=normalize_fields(fields)
     if fields['currency'] not in finance.SUPPORTED_CURRENCIES: raise OperatorError('currency')
     finance._money(fields['amount_minor'],positive=True);finance._date(fields['date'])
     if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
-    text(fields['description'],500)
+    description=finance._text(fields['description'],4000)
+    counterparty=finance._text(fields['counterparty_name'],160)
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
     direction='EXPENSE' if action=='create_expense' else 'INCOME'
     account=db.query_one(('SELECT name,currency FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=? AND currency=? AND is_active=TRUE'),
@@ -90,9 +106,21 @@ def resolve(business_id, user_id, action, fields, *, draft):
     category=db.query_one('SELECT name FROM finance_categories WHERE business_id=? AND id=? AND direction=? AND is_active=TRUE',
                           (business_id,category_id,direction))
     if not account or not category: raise OperatorError('reference_unavailable')
+
+    project=None
+    if fields['project_id'] is not None:
+        project=next((p for p in finance.list_finance_projects(business_id,actor_user_id=user_id)
+                      if p['id']==finance._id(fields['project_id'])),None)
+        if not project:raise OperatorError('reference_unavailable')
+    customer=None
+    if fields['customer_id'] is not None:
+        customer=finance.get_customer(business_id,finance._id(fields['customer_id']),user_id)
+        if not customer or not customer['is_active']:raise OperatorError('reference_unavailable')
+
     preview=[['Aksi',ACTIONS[action]],['Nominal',finance_fx.format_money(fields['amount_minor'],fields['currency'])],
-             ['Tanggal',fields['date']],['Akun',account['name']],['Kategori',category['name']],['Keterangan',fields['description']]]
+             ['Tanggal',fields['date']],['Akun',account['name']],['Kategori',category['name']],['Catatan',description or '—']]
     if action=='record_invoice_payment':
+        if project or customer or counterparty:raise OperatorError('unexpected_reference')
         invoice=finance.get_finance_invoice(business_id,finance._id(fields['invoice_id']),user_id)
         if not invoice or invoice['currency']!=fields['currency']: raise OperatorError('invoice_unavailable')
         if draft:
@@ -100,7 +128,12 @@ def resolve(business_id, user_id, action, fields, *, draft):
             if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or fields['amount_minor']>totals['outstanding_minor']:
                 raise OperatorError('invalid_invoice_payment')
         preview.append(['Invoice Finance',invoice['invoice_number']])
-    elif fields['invoice_id'] is not None: raise OperatorError('unexpected_invoice')
+    elif fields['invoice_id'] is not None:
+        raise OperatorError('unexpected_invoice')
+    else:
+        preview.extend([['Proyek',project['title'] if project else '—'],
+                        ['Pelanggan',customer['name'] if customer else '—'],
+                        ['Pihak terkait',counterparty or '—']])
     return preview
 
 
@@ -167,6 +200,7 @@ def prepare_fields(business_id, user_id, action, fields):
     __import__('finance_entitlements').require_ai(business_id,user_id,'OPERATOR')
     branches.token_branch(business_id)
     draft_signer=signer()
+    fields=normalize_fields(fields)
     preview=resolve(business_id,user_id,action,fields,draft=True)
     token=draft_signer.dumps(dict(version=2,user_id=user_id,business_id=business_id,branch_id=branches.token_branch(business_id),action=action,
                              fields=fields,nonce=uuid.uuid4().hex))
@@ -187,7 +221,7 @@ def confirm(business_id,user_id,token):
             or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
         raise OperatorError('invalid_draft')
     branches.check_token(business_id, data['branch_id'])
-    action,fields=data['action'],data['fields']
+    action,fields=data['action'],normalize_fields(data['fields'])
     resolve(business_id,user_id,action,fields,draft=False)
     if action=='record_invoice_payment':
         record_id=finance.record_invoice_payment(business_id,fields['invoice_id'],fields['amount_minor'],fields['date'],
@@ -196,5 +230,7 @@ def confirm(business_id,user_id,token):
     else:
         record_id=finance.create_transaction(business_id,'EXPENSE' if action=='create_expense' else 'INCOME',
             fields['amount_minor'],fields['account_id'],fields['category_id'],fields['date'],currency=fields['currency'],
-            description=fields['description'],source_type='FINANCE_OPERATOR',source_ref=data['nonce'],actor_user_id=user_id)
+            description=fields['description'],counterparty_name=fields['counterparty_name'],
+            project_id=fields['project_id'],customer_id=fields['customer_id'],
+            source_type='FINANCE_OPERATOR',source_ref=data['nonce'],actor_user_id=user_id)
     return dict(record_id=record_id,action=action,message='Konfirmasi sudah diproses. Catatan tersimpan; pengiriman ulang konfirmasi yang sama tidak membuat catatan baru.')

@@ -12,7 +12,9 @@ import finance_entitlements as entitlements
 import finance_fx
 
 TTL = 600
-FIELDS = {'name', 'amount_text', 'cadence', 'next_due_on', 'end_on', 'account_id', 'category_id'}
+REQUIRED_FIELDS = {'name', 'amount_text', 'cadence', 'next_due_on', 'end_on', 'account_id', 'category_id'}
+OPTIONAL_FIELDS = {'project_id', 'counterparty_name', 'description'}
+FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 EVENT = 'FINANCE_ASSISTANT_RECURRING_CONFIRMED'
 
 
@@ -32,16 +34,27 @@ def signer():
                                   signer_kwargs={'digest_method': hashlib.sha256})
 
 
+def normalize_fields(fields):
+    if (not isinstance(fields, dict) or not REQUIRED_FIELDS.issubset(fields)
+            or any(key not in FIELDS for key in fields)):
+        raise ValueError('invalid_fields')
+    result=dict(fields)
+    result.setdefault('project_id',None)
+    result.setdefault('counterparty_name',None)
+    result.setdefault('description',None)
+    return result
+
+
 def validate(business_id, user_id, fields):
     entitlements.require_ai(business_id, user_id, 'OPERATOR')
     finance._scope(business_id, user_id)
     branches.token_branch(business_id)
-    if not isinstance(fields, dict) or set(fields) != FIELDS:
-        raise ValueError('invalid_fields')
+    fields=normalize_fields(fields)
     name=finance._text(fields['name'],160,True)
     cadence=finance._enum(fields['cadence'],('WEEKLY','MONTHLY'))
     start=finance._date(fields['next_due_on'])
     end=fields['end_on']
+    if end in ('',None):end=None
     if end is not None:end=finance._period(start,end)[1]
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
     accounts=finance.list_accounts(business_id,actor_user_id=user_id)
@@ -49,6 +62,16 @@ def validate(business_id, user_id, fields):
     account=next((a for a in accounts if a['id']==account_id),None)
     category=next((c for c in categories if c['id']==category_id),None)
     if not account or not category:raise ValueError('reference_unavailable')
+
+    project_id=None
+    project=None
+    if fields['project_id'] not in (None,''):
+        project_id=finance._id(int(fields['project_id']) if isinstance(fields['project_id'],str) else fields['project_id'])
+        project=next((p for p in finance.list_finance_projects(business_id,actor_user_id=user_id) if p['id']==project_id),None)
+        if not project:raise ValueError('reference_unavailable')
+    counterparty_name=finance._text(fields['counterparty_name'],160)
+    description=finance._text(fields['description'],4000)
+
     currency=account['currency']
     if currency=='IDR':amount=operator.rupiah(fields['amount_text'])
     else:
@@ -57,16 +80,25 @@ def validate(business_id, user_id, fields):
         match=re.fullmatch(r'(?:'+currency+r'\s+)?([0-9]+(?:[.,][0-9]{1,2})?)(?:\s+'+currency+r')?',raw,re.I)
         if not match:raise ValueError('invalid_amount')
         amount=currency_amount(match[1],currency)
-    return dict(name=name,amount_minor=amount,account_id=account_id,category_id=category_id,
-                cadence=cadence,next_due_on=start,end_on=end,expected_currency=currency), [
+
+    values=dict(name=name,amount_minor=amount,account_id=account_id,category_id=category_id,
+                cadence=cadence,next_due_on=start,end_on=end,project_id=project_id,
+                counterparty_name=counterparty_name,description=description,expected_currency=currency)
+    preview=[
         ['Nama',name],['Nominal',finance_fx.format_money(amount,currency)],
         ['Kas / Rekening',account['name']],['Kategori',category['name']],
         ['Frekuensi','Bulanan' if cadence=='MONTHLY' else 'Mingguan'],
-        ['Jatuh tempo pertama',start],['Berakhir',end or 'Sampai dinonaktifkan']]
+        ['Jatuh tempo pertama',start],['Berakhir',end or 'Sampai dinonaktifkan'],
+        ['Proyek',project['title'] if project else '—'],
+        ['Vendor / penerima',counterparty_name or '—'],
+        ['Deskripsi',description or '—']
+    ]
+    return values,preview
 
 
 def prepare(business_id,user_id,fields):
     draft_signer=signer()
+    fields=normalize_fields(fields)
     values,preview=validate(business_id,user_id,fields)
     token=draft_signer.dumps(dict(version=1,business_id=business_id,user_id=user_id,
         branch_id=branches.token_branch(business_id),fields=fields,currency=values['expected_currency'],nonce=uuid.uuid4().hex))
@@ -84,8 +116,6 @@ def confirm(business_id,user_id,token):
             or not isinstance(data['nonce'],str) or not re.fullmatch('[a-f0-9]{32}',data['nonce'])):
         raise ValueError('invalid_draft')
     branches.check_token(business_id,data['branch_id'])
-    # The durable audit marker and rule are committed together under the existing business lock.
-    # Only a digest and record ID are retained: no prompt, file, token or financial values.
     values,_=validate(business_id,user_id,data['fields'])
     if values['expected_currency']!=data['currency']:raise ValueError('currency_changed')
     record_id=finance.create_recurring_expense(business_id,**values,actor_user_id=user_id,

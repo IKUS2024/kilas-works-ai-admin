@@ -237,12 +237,15 @@ def text_message(b,u,text):
         return answer(b,u,text)
     customer=re.search(r'\b(?:tambah(?:kan)?|masukin|buat)\s+(?:customer|pelanggan)\s+(.+)',text,re.I)
     if customer:
-        raw=customer[1]
-        parts=re.split(r'\s*,\s*|\s+(?=nomor\b|wa\b|whatsapp\b|telepon\b|email\b|catatan\b)',raw,flags=re.I)
-        phone=re.search(r'(?:nomor|wa|whatsapp|telepon)\s*[:=]?\s*(\+?[0-9][0-9 -]{4,62})',raw,re.I)
+        raw=customer[1].strip()
+        parts=re.split(r'\s*,\s*|\s+(?=(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon)(?:nya)?\b|email(?:nya)?\b|catatan(?:nya)?\b)',raw,flags=re.I)
+        name=re.sub(r'^(?:atas\s+nama|bernama|nama(?:nya)?(?:\s+adalah)?)\s+','',parts[0].strip(),flags=re.I)
+        name=re.sub(r'\s+(?:ya|dong|weh)$','',name,flags=re.I).strip()
+        phone=re.search(r'(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon)(?:nya)?\s*[:=]?\s*(\+?[0-9][0-9 -]{4,62})',raw,re.I)
         email=re.search(r'\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b',raw)
-        notes=re.search(r'\bcatatan\s*[:=]?\s*(.+)',raw,re.I)
-        return review(b,u,dict(action='customer',nonce=uuid.uuid4().hex,values=dict(name=parts[0].strip(),phone=phone[1].strip() if phone else '',email=email[0] if email else '',notes=notes[1] if notes else '')))
+        notes=re.search(r'\bcatatan(?:nya)?\s*[:=]?\s*(.+)',raw,re.I)
+        return review(b,u,dict(action='customer',nonce=uuid.uuid4().hex,values=dict(
+            name=name,phone=phone[1].strip() if phone else '',email=email[0] if email else '',notes=notes[1] if notes else '')))
     if re.search(r'\b(buat|bikin|tambah)\s+invoice\b',text,re.I):
         return dict(kind='answer',title='Invoice',message='Aku bisa bantu alur invoice dan pembayaran, tapi pembuatan invoice item-per-item belum saya eksekusi otomatis dari chat ini. Sebut customer, item, nominal, tanggal terbit, dan jatuh tempo; data sensitif tidak perlu dikirim.')
     schedule=schedule_hint
@@ -256,9 +259,13 @@ def text_message(b,u,text):
     description=text
     if matches:description=text[:matches[0].start()]+text[matches[0].end():]
     description=re.sub(r'\b(pengeluaran|pemasukan|pendapatan|catat(?:kan)?|tambah(?:in|kan)?|tadi|beli|hari ini|kemarin|setiap bulan|tiap bulan|bulanan)\b','',description,flags=re.I).strip(' ,.')[:500]
-    values=dict(amount=amount,currency=currency_hint(text),date=proposed_date(text,scheduled=schedule),description=description or text[:500],account_id='',category_id='')
+    values=dict(amount=amount,currency=currency_hint(text),date=proposed_date(text,scheduled=schedule),
+                description=description or text[:500],account_id='',category_id='')
+    if action in ('create_income','create_expense'):
+        values.update(project_id='',customer_id='',counterparty_name='')
     if schedule:
-        values.update(name=description[:160],cadence='WEEKLY' if re.search(r'minggu',text,re.I) else 'MONTHLY',end_on='')
+        values.update(name=description[:160],cadence='WEEKLY' if re.search(r'minggu',text,re.I) else 'MONTHLY',
+                      end_on='',project_id='',counterparty_name='')
     if action=='record_invoice_payment':values['invoice_id']=''
     return review(b,u,dict(action=action,text=text,nonce=uuid.uuid4().hex,values=values))
 
@@ -272,7 +279,7 @@ def review(b,u,context,edits=None):
     form=[];preview=[];result=dict(kind='review',title=LABELS[action],message='Periksa usulan ini. Belum ada pencatatan.',ready=False)
     if action=='customer':
         limits={'name':160,'phone':64,'email':254,'notes':4000}
-        labels={'name':'Nama','phone':'WhatsApp','email':'Email','notes':'Catatan'}
+        labels={'name':'Nama customer','phone':'Nomor telepon','email':'Email','notes':'Catatan'}
         for k in values:
             f._text(values[k],limits[k],k=='name')
             form.append(field(k,labels[k],values[k],required=k=='name'));preview.append([labels[k],values[k] or '—'])
@@ -295,18 +302,60 @@ def review(b,u,context,edits=None):
         invoice=None
         if action=='record_invoice_payment':
             invoices=f.operator_invoice_choices(b,actor_user_id=u)
-            # A sole invoice is not enough: its number must explicitly identify the request.
             named=exact_matches(invoices,text,'invoice_number')
             if not values['invoice_id'] and len(named)==1:values['invoice_id']=str(named[0]['id'])
             invoice=next((i for i in invoices if str(i['id'])==values['invoice_id']),None)
             if values['invoice_id'] and not invoice:raise ValueError('invoice_unavailable')
             form.append(field('invoice_id','Invoice',values['invoice_id'],pick_options(invoices,'invoice_number')))
-        form.extend([field('amount','Nominal',values['amount']),field('currency','Mata uang',currency,[dict(value=c,label=c) for c in f.SUPPORTED_CURRENCIES]),
-                     field('date','Jatuh tempo pertama' if action=='recurring' else 'Tanggal',values['date'],kind='date'),
-                     field('account_id','Kas / Rekening',values['account_id'],[dict(value=str(a['id']),label=a['name']+' · '+a['currency']) for a in accounts]),
-                     field('category_id','Kategori',values['category_id'],pick_options(categories)),field('description','Keterangan',values['description'])])
-        if action=='recurring':form.extend([field('name','Nama jadwal',values['name']),field('cadence','Frekuensi',values['cadence'],[dict(value='MONTHLY',label='Bulanan'),dict(value='WEEKLY',label='Mingguan')]),field('end_on','Berakhir',values['end_on'],kind='date',required=False)])
-        if action=='receipt':form.append(field('merchant_name','Merchant',values['merchant_name'],required=False))
+
+        projects=f.list_finance_projects(b,actor_user_id=u) if action in ('create_income','create_expense','recurring') else []
+        customers=f.list_customers(b,actor_user_id=u) if action in ('create_income','create_expense') else []
+        project=None;customer=None
+        if action in ('create_income','create_expense','recurring'):
+            if not values.get('project_id') and edits is None:
+                named_projects=exact_matches(projects,text,'title')
+                if len(named_projects)==1:values['project_id']=str(named_projects[0]['id'])
+            project=next((p for p in projects if str(p['id'])==values.get('project_id','')),None)
+            if values.get('project_id') and not project:raise ValueError('project_unavailable')
+        if action in ('create_income','create_expense'):
+            if not values.get('customer_id') and edits is None:
+                named_customers=exact_matches(customers,text)
+                if len(named_customers)==1:values['customer_id']=str(named_customers[0]['id'])
+            customer=next((item for item in customers if str(item['id'])==values.get('customer_id','')),None)
+            if values.get('customer_id') and not customer:raise ValueError('customer_unavailable')
+
+        if action=='recurring':
+            form.extend([
+                field('name','Nama',values['name']),
+                field('account_id','Kas / Rekening',values['account_id'],[dict(value=str(a['id']),label=a['name']+' · '+a['currency']) for a in accounts]),
+                field('amount','Nominal',values['amount']),
+                field('currency','Mata uang',currency,[dict(value=code,label=code) for code in f.SUPPORTED_CURRENCIES],required=False),
+                field('category_id','Kategori pengeluaran',values['category_id'],pick_options(categories)),
+                field('cadence','Frekuensi',values['cadence'],[dict(value='MONTHLY',label='Bulanan'),dict(value='WEEKLY',label='Mingguan')]),
+                field('date','Jatuh tempo pertama',values['date'],kind='date'),
+                field('end_on','Berakhir',values['end_on'],kind='date',required=False),
+                field('project_id','Proyek',values.get('project_id',''),[dict(value=str(p['id']),label=p['title']) for p in projects],required=False),
+                field('counterparty_name','Vendor / penerima',values.get('counterparty_name',''),required=False),
+                field('description','Deskripsi',values['description'],required=False)
+            ])
+        else:
+            form.extend([
+                field('amount','Nominal',values['amount']),
+                field('currency','Mata uang',currency,[dict(value=code,label=code) for code in f.SUPPORTED_CURRENCIES],required=False),
+                field('date','Tanggal',values['date'],kind='date'),
+                field('account_id','Kas / Rekening',values['account_id'],[dict(value=str(a['id']),label=a['name']+' · '+a['currency']) for a in accounts]),
+                field('category_id','Kategori',values['category_id'],pick_options(categories)),
+                field('description','Catatan',values['description'],required=False)
+            ])
+            if action in ('create_income','create_expense'):
+                form.extend([
+                    field('project_id','Proyek',values.get('project_id',''),[dict(value=str(p['id']),label=p['title']) for p in projects],required=False),
+                    field('customer_id','Pelanggan',values.get('customer_id',''),[dict(value=str(item['id']),label=item['name']) for item in customers],required=False),
+                    field('counterparty_name','Pihak terkait',values.get('counterparty_name',''),required=False)
+                ])
+            if action=='receipt':
+                form.append(field('merchant_name','Merchant',values['merchant_name'],required=False))
+
         if not account:result['message']='Nominal sudah terbaca. Tinggal pilih kas / rekening yang dipakai.' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif not category:result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
         elif not values['date']:result['message']='Tanggal belum jelas. Lengkapi tanggal pada review.'
@@ -316,19 +365,30 @@ def review(b,u,context,edits=None):
             amount=minor(values['amount'],currency)
             f._date(values['date'])
             if action=='recurring':
-                prepared=recurring.prepare(b,u,dict(name=values['name'],amount_text=values['amount'],cadence=values['cadence'],next_due_on=values['date'],end_on=values['end_on'] or None,account_id=account['id'],category_id=category['id']))
+                prepared=recurring.prepare(b,u,dict(name=values['name'],amount_text=values['amount'],cadence=values['cadence'],
+                    next_due_on=values['date'],end_on=values['end_on'] or None,account_id=account['id'],category_id=category['id'],
+                    project_id=values.get('project_id') or None,counterparty_name=values.get('counterparty_name') or None,
+                    description=values.get('description') or None))
             elif action=='receipt':
-                # Original receipt identity is retained in the existing signed extraction token.
                 receipts.resolve_token(context['receipt_token'],b,u)
-                f._transaction_data(b,dict(direction='EXPENSE',amount_minor=amount,currency=currency,occurred_on=values['date'],account_id=account['id'],category_id=category['id'],description=values['description'],counterparty_name=values['merchant_name'],project_id=None,customer_id=None,source_type='FINANCE_RECEIPT',source_ref=None))
-                prepared=dict(preview=[['Merchant',values['merchant_name'] or '—'],['Nominal',fx.format_money(amount,currency)],['Tanggal',values['date']],['Akun',account['name']],['Kategori',category['name']],['Keterangan',values['description']]])
+                f._transaction_data(b,dict(direction='EXPENSE',amount_minor=amount,currency=currency,occurred_on=values['date'],
+                    account_id=account['id'],category_id=category['id'],description=values['description'],
+                    counterparty_name=values['merchant_name'],project_id=None,customer_id=None,
+                    source_type='FINANCE_RECEIPT',source_ref=None))
+                prepared=dict(preview=[['Merchant',values['merchant_name'] or '—'],['Nominal',fx.format_money(amount,currency)],
+                    ['Tanggal',values['date']],['Akun',account['name']],['Kategori',category['name']],
+                    ['Catatan',values['description'] or '—']])
             else:
-                prepared=operator.prepare_fields(b,u,action,dict(account_id=account['id'],category_id=category['id'],date=values['date'],invoice_id=invoice['id'] if invoice else None,currency=currency,amount_minor=amount,description=operator.text(values['description'],500)))
+                prepared=operator.prepare_fields(b,u,action,dict(account_id=account['id'],category_id=category['id'],
+                    date=values['date'],invoice_id=invoice['id'] if invoice else None,currency=currency,amount_minor=amount,
+                    description=values['description'],project_id=int(values['project_id']) if values.get('project_id') else None,
+                    customer_id=int(values['customer_id']) if values.get('customer_id') else None,
+                    counterparty_name=values.get('counterparty_name') or None))
             preview=prepared['preview'];result['ready']=True
             result['token']=seal(b,u,'confirm',dict(context,service_token=prepared.get('token')))
     if result.get('ready'):
         result['message']='Oke, saya sudah rangkum '+LABELS[action].lower()+' ini. Kalau sudah benar, balas “oke”.'
-        result['hint']='Kalau ada yang perlu diubah, tulis perbaikannya di chat. Ketik “batal” untuk membatalkan.'
+        result['hint']='Kalau ada yang perlu diubah, cukup tulis di chat, misalnya “WhatsApp 0822…”, “pakai BCA”, “vendor Telkom”, atau “ubah jadi 300 ribu”. Ketik “batal” untuk membatalkan.'
     result.update(fields=form,preview=preview,context=seal(b,u,'review',context))
     return result
 

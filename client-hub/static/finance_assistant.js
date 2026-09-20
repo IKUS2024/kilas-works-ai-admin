@@ -38,7 +38,7 @@
     turn.append(bubble);log.append(turn);scroll();
   };
   const currentValues=data=>Object.fromEntries((data?.fields||[]).map(field=>[field.key,field.value==null?'':String(field.value)]));
-  const missingSelect=data=>(data?.fields||[]).find(field=>field.type==='select'&&!field.value&&Array.isArray(field.options)&&field.options.length);
+  const missingSelect=data=>(data?.fields||[]).find(field=>field.required!==false&&field.type==='select'&&!field.value&&Array.isArray(field.options)&&field.options.length);
   const quickButton=(label,handler,primary=false)=>{
     const button=node('button',primary?'primary':'',label);button.type='button';button.addEventListener('click',handler);return button;
   };
@@ -61,7 +61,8 @@
         actions.append(quickButton(option.label,()=>chooseField(select.key,String(option.value),option.label)));
       }
     }else if(data.ready&&data.token){
-      actions.append(quickButton('Oke, catat',()=>submitQuick('oke'),true),quickButton('Batal',()=>submitQuick('batal')));
+      const confirmLabel=['Customer baru','Biaya rutin'].includes(data.title)?'Oke, simpan':'Oke, catat';
+      actions.append(quickButton(confirmLabel,()=>submitQuick('oke'),true),quickButton('Batal',()=>submitQuick('batal')));
     }
     if(data.kind==='needs_document_choice'){
       actions.append(
@@ -92,33 +93,102 @@
   };
   const applyNaturalEdits=(message,data)=>{
     const values=currentValues(data),lower=normalize(message);let changed=false;
-    for(const field of data.fields||[]){
-      if(field.type!=='select'||!Array.isArray(field.options))continue;
+    const has=key=>Object.prototype.hasOwnProperty.call(values,key);
+    const setValue=(key,value)=>{
+      if(!has(key)||value===undefined||value===null)return;
+      const clean=String(value).trim();
+      if(values[key]!==clean){values[key]=clean;changed=true;}
+    };
+    const optionMatch=(key,phrase)=>{
+      const field=(data.fields||[]).find(item=>item.key===key&&item.type==='select'&&Array.isArray(item.options));
+      if(!field||!phrase)return;
+      const wanted=normalize(phrase).replace(/^(?:ke|pakai|gunakan)\s+/,'').trim();
       const hits=field.options.filter(option=>{
         const label=normalize(option.label),head=label.split('·')[0].trim();
-        return lower===label||lower===head||lower.includes(label)||lower.includes(head)||(lower.length>=3&&label.includes(lower));
+        return wanted===label||wanted===head||label.includes(wanted)||head.includes(wanted)||(wanted.length>=3&&wanted.includes(head));
       });
-      if(hits.length===1&&values[field.key]!==String(hits[0].value)){values[field.key]=String(hits[0].value);changed=true;}
+      if(hits.length===1)setValue(key,String(hits[0].value));
+    };
+
+    // Explicit reference phrases are preferred over broad fuzzy matching.
+    const referencePatterns=[
+      ['account_id',/(?:rekening|akun|kas)(?:nya)?\s*(?:jadi|pakai|gunakan|ke|:|=)?\s+(.+)/i],
+      ['category_id',/kategori(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i],
+      ['project_id',/proyek(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i],
+      ['customer_id',/(?:customer|pelanggan)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i]
+    ];
+    for(const [key,pattern] of referencePatterns){
+      const match=message.match(pattern);if(match)optionMatch(key,match[1]);
     }
-    if(Object.prototype.hasOwnProperty.call(values,'amount')){
+
+    // Also allow typing an exact visible option such as "BCA" or "Transport".
+    for(const field of data.fields||[]){
+      if(field.type!=='select'||!Array.isArray(field.options)||field.required===false)continue;
+      const hits=field.options.filter(option=>{
+        const label=normalize(option.label),head=label.split('·')[0].trim();
+        return lower===label||lower===head||(lower.length>=3&&(label.includes(lower)||head.includes(lower)));
+      });
+      if(hits.length===1)setValue(field.key,String(hits[0].value));
+    }
+
+    if(has('amount')){
       const match=message.match(/(?:rp\.?\s*)?\d[\d.,]*(?:\s*(?:ribu|rb|juta|jt))?|(?:usd|idr|sgd|myr|eur|gbp|aud|jpy|cny|hkd|thb)\s+\d[\d.,]*/i);
-      if(match&&!/^\d{4}-\d{2}-\d{2}$/.test(match[0])&&values.amount!==match[0].trim()){values.amount=match[0].trim();changed=true;}
+      if(match&&!/^\d{4}-\d{2}-\d{2}$/.test(match[0]))setValue('amount',match[0]);
     }
-    if(Object.prototype.hasOwnProperty.call(values,'currency')){
+    if(has('currency')){
       const code=(message.match(/\b(USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b/i)||[])[1];
-      if(code&&values.currency!==code.toUpperCase()){values.currency=code.toUpperCase();changed=true;}
+      if(code)setValue('currency',code.toUpperCase());
     }
-    if(Object.prototype.hasOwnProperty.call(values,'date')){
+    if(has('date')){
       let date=(message.match(/\b\d{4}-\d{2}-\d{2}\b/)||[])[0];
-      if(/hari ini|sekarang/i.test(message))date=localDate(0);else if(/kemarin/i.test(message))date=localDate(-1);
-      if(date&&values.date!==date){values.date=date;changed=true;}
+      if(/hari ini|sekarang/i.test(message))date=localDate(0);
+      else if(/kemarin/i.test(message))date=localDate(-1);
+      else if(has('cadence')){
+        const dayMatch=message.match(/\btanggal\s+([0-9]{1,2})\b/i);
+        if(dayMatch){
+          const day=Number(dayMatch[1]),d=new Date();
+          if(day>=1&&day<=31){
+            if(day<d.getDate())d.setMonth(d.getMonth()+1);
+            const target=new Date(d.getFullYear(),d.getMonth(),day);
+            if(target.getMonth()===d.getMonth()){
+              const p=n=>String(n).padStart(2,'0');date=target.getFullYear()+'-'+p(target.getMonth()+1)+'-'+p(target.getDate());
+            }
+          }
+        }
+      }
+      if(date)setValue('date',date);
     }
-    if(Object.prototype.hasOwnProperty.call(values,'cadence')){
+    if(has('end_on')){
+      const endMatch=message.match(/(?:sampai|berakhir(?:\s+tanggal)?|end)\s+(\d{4}-\d{2}-\d{2})/i);
+      if(endMatch)setValue('end_on',endMatch[1]);
+    }
+    if(has('cadence')){
       const cadence=/minggu/i.test(message)?'WEEKLY':/bulan/i.test(message)?'MONTHLY':'';
-      if(cadence&&values.cadence!==cadence){values.cadence=cadence;changed=true;}
+      if(cadence)setValue('cadence',cadence);
     }
+
+    const phoneMatch=message.match(/(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon|phone)(?:nya)?\s*(?:jadi|:|=)?\s*(\+?[0-9][0-9\s-]{5,})/i);
+    if(phoneMatch&&has('phone'))setValue('phone',phoneMatch[1].replace(/[\s-]+/g,''));
+
     const email=(message.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)||[])[0];
-    if(email&&Object.prototype.hasOwnProperty.call(values,'email')&&values.email!==email){values.email=email;changed=true;}
+    if(email&&has('email'))setValue('email',email);
+
+    const nameMatch=message.match(/(?:^|\b)(?:nama(?:nya)?|atas\s+nama)(?:\s+(?:jadi|adalah))?\s*[:=]?\s+(.+)/i);
+    if(nameMatch&&has('name')){
+      const name=nameMatch[1].replace(/\s+(?:ya|dong|weh)[.! ]*$/i,'').trim();
+      if(name)setValue('name',name);
+    }
+
+    const counterparty=message.match(/(?:vendor|penerima|pihak\s+terkait)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i);
+    if(counterparty&&has('counterparty_name'))setValue('counterparty_name',counterparty[1].trim());
+
+    const note=message.match(/(?:catatan|note)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i);
+    if(note&&has('notes'))setValue('notes',note[1].trim());
+    else if(note&&has('description'))setValue('description',note[1].trim());
+
+    const description=message.match(/(?:deskripsi|keterangan)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i);
+    if(description&&has('description'))setValue('description',description[1].trim());
+
     return {values,changed};
   };
   const chooseField=async(key,value,label)=>{
@@ -152,7 +222,7 @@
     if(pending?.context){
       const edit=applyNaturalEdits(message,pending);
       if(!edit.changed){
-        appendAssistant({message:pending.ready?'Draftnya masih sama. Balas “oke” untuk menyimpan, tulis perubahan seperti “ubah jadi 300 ribu”, atau “batal”.':(pending.message||'Masih ada data yang perlu dilengkapi. Pilih opsi yang saya tampilkan atau ketik nilainya.')},{keepPending:true});
+        appendAssistant({message:pending.ready?'Saya belum menangkap bagian yang ingin diubah. Coba tulis spesifik, misalnya “WhatsApp 0822…”, “nama jadi Irvan”, “pakai BCA”, “vendor Telkom”, “ubah jadi 300 ribu”, atau “batal”.':(pending.message||'Masih ada data yang perlu dilengkapi. Pilih opsi yang saya tampilkan atau ketik nilainya.')},{keepPending:true});
         return;
       }
       const data=await send(composer.dataset.review,{context:pending.context,values:edit.values});appendAssistant(data);return;

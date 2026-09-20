@@ -5,6 +5,10 @@ const fs=require('node:fs');
 const path=require('node:path');
 const script=fs.readFileSync(path.join(__dirname,'../static/finance_assistant.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'../templates/finance_assistant.html'),'utf8');
+const flow=fs.readFileSync(path.join(__dirname,'../finance_assistant_flow.py'),'utf8');
+const customerManual=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
+const recurringManual=fs.readFileSync(path.join(__dirname,'../templates/finance_operations.html'),'utf8');
+const transactionManual=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
 
 test('assistant is a single chat composer, not a review-page handoff',()=>{
   assert.equal((html.match(/<textarea\b/g)||[]).length,1);
@@ -22,6 +26,27 @@ test('chat understands typed confirmation, cancellation and revisions',()=>{
   assert.match(script,/applyNaturalEdits/);
   assert.match(script,/ubah jadi 300 ribu/);
   assert.match(script,/token:same\.token,confirm:true/);
+});
+
+test('follow-up chat edits understand customer and operational fields',()=>{
+  assert.match(script,/whatsapp\|whatsap\|telepon\|phone/);
+  assert.match(script,/counterparty_name/);
+  assert.match(script,/project_id/);
+  assert.match(script,/customer_id/);
+  assert.match(script,/field\.required!==false/);
+  assert.match(script,/Saya belum menangkap bagian yang ingin diubah/);
+});
+
+test('AI and manual Finance writes share the same business fields',()=>{
+  for(const name of ['name','phone','email','notes'])assert.match(customerManual,new RegExp('name="'+name+'"'));
+  for(const name of ['name','account_id','amount','category_id','cadence','next_due_on','end_on','project_id','counterparty_name','description'])
+    assert.match(recurringManual,new RegExp('name="'+name+'"'));
+  for(const name of ['account_id','amount','occurred_on','category_id','description','project_id','customer_id','counterparty_name'])
+    assert.match(transactionManual,new RegExp('name="'+name+'"'));
+  for(const key of ['project_id','customer_id','counterparty_name'])assert.match(flow,new RegExp("field\\('"+key+"'"));
+  assert.match(flow,/Nomor telepon/);
+  assert.match(flow,/Vendor \/ penerima/);
+  assert.match(flow,/Pihak terkait/);
 });
 
 test('messages append as chat turns and successful writes answer in chat',()=>{

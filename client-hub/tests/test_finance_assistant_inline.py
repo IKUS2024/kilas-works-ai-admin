@@ -104,6 +104,40 @@ class InlineTests(unittest.TestCase):
         for question in ('bulan ini pengeluaran saya berapa?','pengeluaran terbesar apa?','saldo BOFA berapa?','customer yang belum bayar siapa?'):
             r=self.message(question);self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'answer');self.assertNotIn('token',r.json)
         self.assertEqual(before,self.snapshot());self.http.assert_not_called()
+    def test_customer_conversational_name_cleanup_and_manual_field_contract(self):
+        r=self.message('tambah customer atas nama irvan ya')
+        self.assertEqual(r.status_code,200,r.text)
+        values={x['key']:x['value'] for x in r.json['fields']}
+        self.assertEqual(values['name'],'irvan')
+        self.assertEqual(set(values),{'name','phone','email','notes'})
+
+    def test_transaction_and_recurring_drafts_expose_manual_optional_fields(self):
+        tx=self.message('pengeluaran makan 120 ribu hari ini')
+        tx_keys={x['key'] for x in tx.json['fields']}
+        for key in ('project_id','customer_id','counterparty_name','description','account_id','category_id','amount','date'):
+            self.assertIn(key,tx_keys)
+        recurring=self.message('setiap bulan bayar internet 500 ribu hari ini')
+        recurring_keys={x['key'] for x in recurring.json['fields']}
+        for key in ('name','project_id','counterparty_name','description','account_id','category_id','amount','cadence','date','end_on'):
+            self.assertIn(key,recurring_keys)
+
+    def test_transaction_optional_manual_fields_persist_through_assistant(self):
+        r=self.message('pengeluaran makan 120 ribu hari ini')
+        r=self.revise(r,counterparty_name='Warung Test')
+        self.assertTrue(r.json['ready'],r.json)
+        self.assertEqual(self.confirm(r.json['token']).status_code,200)
+        row=f.list_transactions(self.b)[0]
+        self.assertEqual(row['counterparty_name'],'Warung Test')
+
+    def test_recurring_manual_optional_fields_persist_through_assistant(self):
+        r=self.message('setiap bulan bayar internet 500 ribu hari ini')
+        r=self.revise(r,category_id=str(self.expense['id']),counterparty_name='Telkom',description='Internet kantor')
+        self.assertTrue(r.json['ready'],r.json)
+        self.assertEqual(self.confirm(r.json['token']).status_code,200)
+        rule=f.list_recurring_expenses(self.b)[0]
+        self.assertEqual(rule['counterparty_name'],'Telkom')
+        self.assertEqual(rule['description'],'Internet kantor')
+
     def test_customer_exact_fields_and_idempotency(self):
         before=len(f.list_customers(self.b))
         r=self.message('tambah customer PT ABC, nomor 08123456789');self.assertEqual(r.status_code,200,r.text);self.assertTrue(r.json['ready'])
