@@ -9,7 +9,8 @@ minor units of the stated currency (IDR defaults); there is no conversion or flo
 """
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import calendar
 import hashlib
 import json
@@ -36,6 +37,19 @@ DEFAULT_CATEGORIES = {
 class FinanceError(ValueError):
     """Safe categories only: never includes supplied text or other tenant data."""
 
+
+def business_today(business_id=None):
+    """Business-local calendar date; falls back to the legacy server date safely."""
+    if business_id is None:
+        current=branches._current.get()
+        business_id=current[0] if current else None
+    if business_id is None:return date.today()
+    profile=repo.get_business_profile(business_id) or {}
+    name=(profile.get('timezone') or '').strip()
+    if not name and str(profile.get('country') or '').strip().casefold()=='indonesia':name='Asia/Jakarta'
+    if not name:return date.today()
+    try:return datetime.now(ZoneInfo(name)).date()
+    except (ZoneInfoNotFoundError,ValueError,TypeError):return date.today()
 
 _finance_write = ContextVar('finance_write_owner', default=None)
 
@@ -230,7 +244,7 @@ def _transaction_data(business_id, data, *, scheduled=False):
     data['amount_minor'] = _money(data['amount_minor'], positive=True)
     data['currency'] = _currency(data['currency'])
     data['occurred_on'] = _date(data['occurred_on'])
-    if not scheduled and data['occurred_on'] > date.today().isoformat():
+    if not scheduled and data['occurred_on'] > business_today(business_id).isoformat():
         raise FinanceError('future_date')
     branch_id = branches.account_branch(business_id, data['account_id'])
     if data.get('branch_id') is not None and data['branch_id'] != branch_id:
@@ -624,7 +638,7 @@ def delete_customer(business_id, customer_id, *, actor_user_id=None):
 def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None, *, idempotency_key=None):
     issue_date, due_date = _period(issue_date, due_date)
     currency=_currency(currency)
-    if issue_date > date.today().isoformat():
+    if issue_date > business_today(business_id).isoformat():
         raise FinanceError('future_date')
     notes = _text(notes, 4000)
     if not isinstance(items, list) or not 1 <= len(items) <= 100:
@@ -715,7 +729,7 @@ def get_invoice_totals(business_id, invoice_id, actor_user_id=None, today=None):
     outstanding = total-paid
     return dict(total_minor=total, paid_minor=paid, outstanding_minor=outstanding,
         overdue=row['status'] in ('ISSUED','PARTIALLY_PAID') and outstanding > 0 and
-                row['due_date'] < _date(today or date.today()))
+                row['due_date'] < _date(today or business_today(business_id)))
 
 
 def list_finance_invoices(business_id, status=None, customer_id=None, actor_user_id=None):
@@ -780,7 +794,7 @@ def record_invoice_payment(business_id, invoice_id, amount_minor, paid_on, accou
     if not isinstance(idempotency_key, str) or not re.fullmatch('[a-zA-Z0-9_-]{16,80}', idempotency_key):
         raise FinanceError('invalid_payment_key')
     amount_minor, paid_on = _money(amount_minor, positive=True), _date(paid_on)
-    if paid_on > date.today().isoformat():
+    if paid_on > business_today(business_id).isoformat():
         raise FinanceError('future_date')
     note = _text(note, 1000)
     _id(invoice_id); _id(account_id); _id(income_category_id)
@@ -833,7 +847,7 @@ def get_receivables_summary(business_id, actor_user_id=None, today=None):
          WHERE p.business_id=i.business_id AND p.invoice_id=i.id),0) AS paid_minor
         FROM finance_invoices i WHERE i.business_id=?''' + branches.predicate('i') +
         " AND i.status IN ('ISSUED','PARTIALLY_PAID')"), (business_id,))
-    today = _date(today or date.today())
+    today = _date(today or business_today(business_id))
     groups={}
     open_count=overdue_count=0
     for row in rows:
@@ -1194,7 +1208,7 @@ def list_currency_exchanges(business_id,actor_user_id=None,limit=100):
 def record_currency_exchange(business_id,from_account_id,to_account_id,from_amount_minor,to_amount_minor,occurred_on,
                              *,note=None,reference_rate=None,rate_source=None,rate_as_of=None,actor_user_id=None):
     occurred_on=_date(occurred_on)
-    if occurred_on>date.today().isoformat():raise FinanceError('future_date')
+    if occurred_on>business_today(business_id).isoformat():raise FinanceError('future_date')
     note=_text(note,500)
     with _write(business_id,actor_user_id):
         source=get_account(business_id,_id(from_account_id),actor_user_id=actor_user_id,active=True)
