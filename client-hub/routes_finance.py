@@ -569,7 +569,9 @@ def receivables(business_id, user, business):
         section = 'summary'
     customers = finance.list_customers(business_id, **actor)
     all_customers = finance.list_customers(business_id, include_inactive=True, **actor)
-    invoices = finance.list_finance_invoices(business_id, **actor)
+    # VOID means removed/cancelled from the active invoice workspace. Keep it in the
+    # database for audit/history, but do not clutter the customer's working list.
+    invoices = [i for i in finance.list_finance_invoices(business_id, **actor) if i['status'] != 'VOID']
     totals = {i['id']: finance.get_invoice_totals(business_id, i['id'], **actor) for i in invoices}
     return render_template('finance_receivables.html', user=user, business=business, customers=customers,
         customer_map={c['id']:c for c in all_customers}, invoices=invoices, totals=totals, section=section,
