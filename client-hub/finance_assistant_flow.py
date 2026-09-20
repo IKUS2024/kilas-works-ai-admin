@@ -190,8 +190,14 @@ def _bank_confirm(b,u,context):
     suffix=''
     if held:suffix=f' {held} transaksi saya tahan karena kemungkinan duplikat atau kategorinya belum cukup jelas; tidak saya catat otomatis.'
     if already:suffix+=f' {already} baris sudah pernah diproses sebelumnya.'
+    dates=[row['occurred_on'] for row in rows if row.get('occurred_on')]
+    date_note=''
+    if dates:
+        first_on,last_on=min(dates),max(dates)
+        period_label=first_on if first_on==last_on else first_on+' s.d. '+last_on
+        date_note=' Tanggal transaksi mengikuti mutasi ('+period_label+'), bukan tanggal file di-upload.'
     return dict(record_id=imp['id'],action='bank_import',
-                message=f'Selesai. {posted} transaksi dari mutasi bank sudah masuk ke Kilas Finance.'+suffix,
+                message=f'Selesai. {posted} transaksi dari mutasi bank sudah masuk ke Kilas Finance.'+suffix+date_note,
                 posted_count=posted,held_count=held,already_count=already)
 
 def answer(b,u,text):
@@ -224,7 +230,10 @@ def text_message(b,u,text):
         return dict(kind='answer',title='Kilas Finance',message='Untuk keamanan, aku tidak melakukan transfer uang atau menghapus transaksi lewat chat. Aku bisa membantu menyiapkan dan mencatat transaksi baru, lalu kamu konfirmasi sebelum disimpan.')
     if re.search(r'\b(apa itu|jelaskan|bedanya|beda apa|gimana cara)\b',text,re.I) and FINANCE_DOMAIN.search(text):
         return accounting_help(text)
-    if re.search(r'\b(berapa|laporan|analisis|ringkas|saldo|pengeluaran|pemasukan|pendapatan|piutang|customer|pelanggan|kategori|rekening|kas)\b|\?',text,re.I) and FINANCE_DOMAIN.search(text):
+    question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total)\b|\?',text,re.I))
+    explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|terima|dibayar|bayaran|buat)\b',text,re.I))
+    schedule_hint=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap|per bulan|per minggu)\b',text,re.I))
+    if question_intent and not explicit_write and not schedule_hint and FINANCE_DOMAIN.search(text):
         return answer(b,u,text)
     customer=re.search(r'\b(?:tambah(?:kan)?|masukin|buat)\s+(?:customer|pelanggan)\s+(.+)',text,re.I)
     if customer:
@@ -236,7 +245,7 @@ def text_message(b,u,text):
         return review(b,u,dict(action='customer',nonce=uuid.uuid4().hex,values=dict(name=parts[0].strip(),phone=phone[1].strip() if phone else '',email=email[0] if email else '',notes=notes[1] if notes else '')))
     if re.search(r'\b(buat|bikin|tambah)\s+invoice\b',text,re.I):
         return dict(kind='answer',title='Invoice',message='Aku bisa bantu alur invoice dan pembayaran, tapi pembuatan invoice item-per-item belum saya eksekusi otomatis dari chat ini. Sebut customer, item, nominal, tanggal terbit, dan jatuh tempo; data sensitif tidak perlu dikirim.')
-    schedule=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap|per bulan|per minggu)\b',text,re.I))
+    schedule=schedule_hint
     action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima|dibayar|bayaran)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa|belanja)\b',text,re.I) else ''
     if not action:
         return accounting_help(text) if FINANCE_DOMAIN.search(text) else dict(kind='answer',title='Kilas Finance',message='Aku khusus membantu keuangan dan akuntansi di Kilas Finance. Aku tidak menjawab topik di luar itu. Kamu bisa minta catat transaksi, cek laporan, tambah customer, biaya rutin, scan struk, atau baca mutasi bank.')

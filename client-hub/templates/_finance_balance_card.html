@@ -18,7 +18,7 @@
   <div class="cash-balance-head cash-balance-head-compact">
     <div>
       <h3>💰 Uang Tersedia</h3>
-      <p class="cash-muted">Saldo sekarang · {{ today }}</p>
+      <p class="cash-muted">Saldo kumulatif sampai {{ today }} · termasuk transaksi periode sebelumnya</p>
     </div>
   </div>
 
@@ -28,6 +28,7 @@
 
   {% set opening = balance_totals|rejectattr('opening_balance_minor','equalto',0)|list %}
   {% if opening %}<p class="cash-opening-note cash-opening-note-compact">Saldo awal: {% for row in opening %}<strong class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</strong>{{ ' · ' if not loop.last }}{% endfor %} <span>· bukan pemasukan</span></p>{% endif %}
+  <p class="cash-opening-note cash-opening-note-compact">Uang Tersedia adalah saldo kumulatif. Kalau kamu baru mengimpor mutasi lama, saldo bisa berubah tanpa mengubah Arus Kas periode yang sedang dipilih.</p>
 
   {% set chosen = balance_displays[display_currency] %}
   <div class="cash-estimate-block cash-estimate-block-compact">

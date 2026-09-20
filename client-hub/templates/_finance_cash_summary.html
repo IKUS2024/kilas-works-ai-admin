@@ -2,7 +2,7 @@
 {% set cash_selected_currency = display_currency if display_currency in cash_currencies else cash_currencies[0] %}
 <section class="card cash-flow-card" aria-label="Arus kas periode" data-cashflow-card>
   <div class="cash-summary-head">
-    <div><h2>Arus Kas Periode</h2><p class="cash-muted">{{ period_label }} · hanya transaksi pemasukan &amp; pengeluaran</p></div>
+    <div><h2>Arus Kas Periode</h2><p class="cash-muted">{{ period_label }} · berdasarkan tanggal transaksi, bukan tanggal input/import</p></div>
     {% if summaries|length > 1 %}
     <label class="cash-currency-picker"><span>Mata uang</span>
       <select data-cashflow-currency aria-label="Pilih mata uang arus kas">
@@ -23,5 +23,5 @@
     </div>
   </section>
   {% endfor %}
-  <p class="cash-muted cash-flow-note">Saldo awal rekening dan penukaran mata uang bukan pemasukan/pengeluaran, jadi tidak masuk Arus Kas Periode.</p>
+  <p class="cash-muted cash-flow-note">Hanya transaksi yang tanggal transaksinya masuk periode ini yang dihitung. Mutasi bulan sebelumnya yang baru diimpor akan mengubah saldo sekarang, tetapi tidak dipindahkan ke periode ini. Saldo awal dan penukaran mata uang juga bukan pemasukan/pengeluaran.</p>
 </section>
