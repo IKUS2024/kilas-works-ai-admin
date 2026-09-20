@@ -6,14 +6,18 @@ Document recognition and extraction are unchanged by this release.
 ## Understanding and context
 
 `finance_semantics` supplies shared vocabulary, calendar periods, scoped name matching,
-and a constrained semantic interpreter. Clear instructions use deterministic parsing.
-Unfamiliar Finance instructions use an allowlisted intent and literal user-supplied
+and a constrained semantic interpreter. Natural-language turns use the semantic brain;
+only exact confirmation/cancellation, quick replies, and safe scalar values bypass it.
+Finance instructions use an allowlisted intent and literal user-supplied
 slots; IDs, synthesized values, arbitrary actions, and arithmetic are rejected.
 
 `finance_query_plan` stores resource, period, currency, entity filters, metric, grouping,
 pagination, and any pending entity question as structured signed context. Follow-ups
 replace slots. Complete new questions reset the prior filters. Queries never concatenate
-historical user instructions. Entity names are resolved again within the current scope.
+historical user instructions. Resolved entity IDs (never data snapshots) retain identity across renames. Every relevant
+turn resolves these IDs in the live tenant/branch scope. Deleted or inactive references
+are rejected rather than rebound to a similarly named replacement. No report totals,
+customer notes, or previous balances are authoritative conversation memory.
 
 `finance_draft_interpreter` edits the active signed draft. It knows the editable field
 contract and the server's next question. Required slots are requested one at a time;
@@ -47,10 +51,27 @@ service, and records the result in the same transaction. Conflicting revisions o
 confirmed nonce fail; concurrent identical confirmations return the same record.
 FX confirmation also binds the reviewed native account currencies.
 
-Invoice creation remains separate from issue. Additional invoice items share the manual
-item contract and totals. “Lunasi” resolves the actual remaining invoice balance on the
-server and still requires review. Scheduled recurring costs affect cashflow only when
-one reviewed due occurrence is posted through the existing occurrence service.
+Invoice creation defaults to a draft. Explicit create-and-issue or create-and-already-paid
+requests show one review of the ordered canonical operations: create draft, issue, then
+record full payment. All run under the existing Finance business lock and roll back
+together on failure. Invoice status is never assigned by a chat adapter. Stable service
+keys make repeated confirmations idempotent.
+
+`finance_assistant_payment` resolves a named customer's current open invoices. One is
+selected; multiple require a useful invoice choice; none produces a clear no-active-debt
+answer. Full settlement derives the outstanding amount from invoice items/payments,
+never customer notes. Partial payments retain their specified amount. An unspecified
+paid date is requested, along with the receiving account and required income category.
+Invoice content and outstanding are re-read under the write lock before confirmation;
+a change produces a fresh review requiring another “oke”. Replays use the same payment
+key, including after a completed payment. Old signed operator confirmations preserve
+their original idempotency protocol during the release transition.
+
+A newly confirmed customer supplies implicit context for the next invoice, and read
+queries remember their resolved customer for “dia / sisanya”. Description and price in
+one answer update the same invoice line. Only an explicit additional-item intent appends
+a line. Scheduled recurring costs affect cashflow only when one reviewed due occurrence
+is posted through the existing occurrence service.
 
 Bulk branch reset, real money transfers, and sending external messages are not chat
 actions. Collection reminders are generated text, never claimed as sent messages.
@@ -78,3 +99,9 @@ concurrent confirmation, stale snapshots, historical AR, FX, recurring cashflow,
 integer precision. Browser tests verify opaque contexts, server-selected questions,
 and clearing completed drafts. Run the isolated Finance regression runner and Node
 Finance tests; no production finance records are needed for verification.
+
+`test_finance_live_conversation.py` covers real multi-turn create/issue/settle journeys,
+combined invoice fields, live void/deactivation/deletion/rename changes, current balances,
+partial/full settlement, changed-outstanding re-review, compound ordering/rollback,
+concurrent idempotency, and scoped reference/confirmation boundaries. Language-provider
+responses are mocked; all accounting and database operations use the actual services.

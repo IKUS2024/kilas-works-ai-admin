@@ -306,6 +306,9 @@ def text_message(b,u,text,query_context=''):
 
 
 def review(b,u,context,edits=None):
+    if context['action']=='record_invoice_payment':
+        from finance_assistant_payment import review as payment_review
+        return payment_review(b,u,context,edits)
     if context['action']=='command':
         from finance_conversation_actions import review as command_review
         return command_review(b,u,context,edits)
@@ -317,7 +320,10 @@ def review(b,u,context,edits=None):
     if edits is not None:
         if not isinstance(edits,dict) or set(edits)!=set(values) or any(not isinstance(v,str) or len(v)>4000 for v in edits.values()):raise ValueError('invalid_fields')
         values=edits.copy()
+    from finance_conversation_live import refresh_values
+    stale=refresh_values(b,u,values) if action!='customer' else []
     context=dict(context,values=values)
+    if stale:context['awaiting']=stale[0]
     form=[];preview=[];result=dict(kind='review',title=LABELS[action],message='Periksa usulan ini. Belum ada pencatatan.',ready=False)
     if action=='customer':
         from finance_draft_fields import CUSTOMER_LIMITS as limits, customer_values
@@ -344,13 +350,13 @@ def review(b,u,context,edits=None):
                 values['invoice_id']=str(matched[0]['id'])
                 if not currency:currency=values['currency']=matched[0]['currency']
         accounts,chosen=account_options(b,u,text,currency)
-        if not values['account_id'] and chosen:values['account_id']=str(chosen['id'])
+        if not values['account_id'] and chosen and 'account_id' not in stale and context.get('awaiting')!='account_id':values['account_id']=str(chosen['id'])
         account=next((a for a in accounts if str(a['id'])==values['account_id']),None)
         if values['account_id'] and not account:raise ValueError('account_unavailable')
         if not currency and account:currency=values['currency']=account['currency']
         direction='INCOME' if action in ('create_income','record_invoice_payment') else 'EXPENSE'
         categories=f.list_categories(b,direction,actor_user_id=u)
-        if not values['category_id'] and edits is None:values['category_id']=str(category_choice(categories,text or values.get('description','')) or '')
+        if not values['category_id'] and edits is None and 'category_id' not in stale and context.get('awaiting')!='category_id':values['category_id']=str(category_choice(categories,text or values.get('description','')) or '')
         category=next((c for c in categories if str(c['id'])==values['category_id']),None)
         if values['category_id'] and not category:raise ValueError('category_unavailable')
         invoice=None
@@ -490,11 +496,14 @@ def revise(b,u,token,values):
 def confirm(b,u,token):
     context=unseal(b,u,token,'confirm')
     result=_confirm(b,u,token)
+    if result.get('kind') in ('review','answer','clarification'):return result
     action=context['action']
     kind={'create_income':'transaction','create_expense':'transaction','invoice':'invoice','issue_invoice':'invoice',
           'recurring':'recurring','customer':'customer'}.get(action)
     if action=='command':kind=context['operation'].split('_',1)[-1] if context['operation']!='exchange' else 'fx'
-    if kind and type(result.get('record_id')) is int:
+    if action=='record_invoice_payment':
+        result['query_context']=seal_query(b,u,{'last_record':{'kind':'invoice','id':int(context['values']['invoice_id'])}})
+    elif kind and type(result.get('record_id')) is int:
         result['query_context']=seal_query(b,u,{'last_record':{'kind':kind,'id':result['record_id']}})
     elif context.get('conversation',{}).get('last_record'):
         result['query_context']=seal_query(b,u,{'last_record':context['conversation']['last_record']})
@@ -504,6 +513,9 @@ def confirm(b,u,token):
 def _confirm(b,u,token):
     context=unseal(b,u,token,'confirm');action=context['action']
     authorize(b,u,None if action in ('receipt','bank_import') else 'OPERATOR')
+    if action=='record_invoice_payment' and not (context.get('service_token') and not context.get('invoice_state')):
+        from finance_assistant_payment import confirm as payment_confirm
+        return payment_confirm(b,u,context)
     if action=='command':
         from finance_conversation_actions import confirm as command_confirm
         return command_confirm(b,u,context)
@@ -610,15 +622,18 @@ def follow_up(b,u,token,message,confirmation=None,query_context=''):
         if not confirmation:return review(b,u,context)
         confirmed=unseal(b,u,confirmation,'confirm')
         # The confirmation must be for exactly the active reviewed values, not an older revision.
-        if any(confirmed.get(k)!=context.get(k) for k in ('action','values','nonce')):raise ValueError('invalid_draft')
+        if any(confirmed.get(k)!=context.get(k) for k in ('action','values','nonce','issue_after','pay_after','settle_full')):raise ValueError('invalid_draft')
         result=confirm(b,u,confirmation)
+        if result.get('kind') in ('review','answer','clarification'):return result
         return dict(kind='success',state='CONFIRMED',**result)
     current=review(b,u,context)
+    if current.get('kind')!='review':return current
+    context=unseal(b,u,current['context'],'review')
     # Route before permissive slot filling, for every signed draft adapter.
     from finance_intent_interpreter import pending_turn
     interruption,updates,continuation=pending_turn(b,u,message,context,current,query_context)
     if interruption is not None:
-        interruption['keep_pending']=True
+        interruption['keep_pending']=interruption.get('kind')!='review'
         interruption.setdefault('hint','Draft sebelumnya tetap tersedia. Lanjutkan isinya atau balas “batal”.')
         return interruption
     if context['action']=='issue_invoice':
@@ -638,5 +653,5 @@ def follow_up(b,u,token,message,confirmation=None,query_context=''):
     except ValueError:
         current['message']='Pilihan atau tanggal belum jelas. Pilih nama yang tersedia atau tulis tanggal lengkap; draft sebelumnya tetap aman.'
         return current
-    context.pop('awaiting',None)
+    if values.get(context.get('awaiting')):context.pop('awaiting',None)
     return review(b,u,context,values)

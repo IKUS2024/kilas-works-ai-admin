@@ -135,23 +135,36 @@ def execute(b,u,p,scoped=False):
     if not scoped and p.get('branch'):
         if p['branch']=='*':branch=None
         else:
-            found=entity_options(branches.list_branches(b,u),p['branch'])
+            rows=[r for r in branches.list_branches(b,u) if r['is_active']]
+            ref=p.get('entity_refs',{}).get('branch')
+            found=[r for r in rows if r['id']==ref] if ref else entity_options(rows,p['branch'])
+            if ref and not found:
+                from finance_conversation_live import unavailable
+                return unavailable('Cabang')
             if len(found)!=1:return ask(p,'branch',found)
             branch=found[0]['id']
+            p.setdefault('entity_refs',{})['branch']=branch
+            p['branch']=found[0]['name']
         with branches.scope(b,branch,u):return execute(b,u,p,True)
     pools={'customer':(f.list_customers(b,actor_user_id=u),'name'),
            'project':(f.list_finance_projects(b,actor_user_id=u),'title'),
-           'account':(f.list_accounts(b,include_inactive=True,actor_user_id=u),'name'),
-           'category':(f.list_categories(b,include_inactive=True,actor_user_id=u),'name')}
+           'account':(f.list_accounts(b,actor_user_id=u),'name'),
+           'category':(f.list_categories(b,actor_user_id=u),'name')}
     for key,(rows,label) in pools.items():
         if p.get(key):
-            found=entity_options(rows,p[key],label)
+            ref=p.get('entity_refs',{}).get(key)
+            found=[r for r in rows if r['id']==ref] if ref else entity_options(rows,p[key],label)
+            if ref and not found:
+                from finance_conversation_live import unavailable
+                return unavailable({'customer':'Customer','account':'Rekening','category':'Kategori','project':'Proyek'}[key])
             if len(found)!=1:return ask(p,key,found,label)
             ids[key+'_id']=found[0]['id']
+            p.setdefault('entity_refs',{})[key]=found[0]['id']
+            p[key]=found[0][label]
     currency=p.get('currency')
     if resource in ('customers','projects','accounts','categories','branches'):
         key={'customers':'customer','projects':'project','accounts':'account','categories':'category','branches':'branch'}[resource]
-        rows,label=pools[key] if key in pools else (branches.list_branches(b,u),'name')
+        rows,label=pools[key] if key in pools else ([r for r in branches.list_branches(b,u) if r['is_active']],'name')
         if ids.get(key+'_id'):rows=[r for r in rows if r['id']==ids[key+'_id']]
         if currency and resource=='accounts':rows=[r for r in rows if r['currency']==currency]
         preview=[]
@@ -189,6 +202,9 @@ def execute(b,u,p,scoped=False):
             end=(date.today()+timedelta(days=6-date.today().weekday())).isoformat()
             rows=[r for r in rows if today<=r['due_date']<=end]
         rows.sort(key=lambda r:(-r['days_late'],r['id']))
+        if not rows and resource=='receivables':
+            from finance_conversation_live import no_receivable
+            return no_receivable(b,u,ids.get('customer_id'))
         if resource=='reminder':
             if not rows:return result('Draft reminder',[],'Tidak ada invoice overdue yang cocok untuk template pengingat ini.')
             if len(rows)>1:return result('Pilih invoice',[[r['invoice_number'],r['customer_name']] for r in rows[:50]],'Sebut nomor invoice untuk reminder.')|{'choices':[r['invoice_number'] for r in rows[:8]]}

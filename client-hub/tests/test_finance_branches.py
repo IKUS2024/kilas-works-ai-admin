@@ -234,14 +234,15 @@ class BranchTests(unittest.TestCase):
     def test_branch_account_category_rename_deactivate_preserves_history(self):
         tx=self.tx(self.ba)
         with self.scope(self.ba):
+            f.create_account(self.b,'Kas cadangan',actor_user_id=self.uid)
             for kind, ident, name in (('account',self.a,'Tunai'),('category',self.cat,'Penjualan kopi'),('branch',self.ba,'Karawaci')):
                 branches.update_record(self.b,kind,ident,name=name,actor_user_id=self.uid)
             branches.update_record(self.b,'category',self.cat,deactivate=True,actor_user_id=self.uid)
             branches.update_record(self.b,'account',self.a,deactivate=True,actor_user_id=self.uid)
             branches.update_record(self.b,'branch',self.ba,deactivate=True,actor_user_id=self.uid)
         response,_=self.page(self.ba)
-        self.assertEqual(response.status_code,200)
-        self.assertIn('Cabang ini nonaktif',response.text)
+        self.assertEqual(response.status_code,303)
+        self.assertIn('branch_id=',response.headers['Location'])
         self.assertEqual(f.get_transaction(self.b,tx)['amount_minor'],100)
         self.assertEqual(self.client.post(self.url+f'/transactions/{tx}/void?branch_id={self.ba}').status_code,403)
 
@@ -438,6 +439,7 @@ class BranchTests(unittest.TestCase):
             self.assertIn(value,page.text)
 
     def test_readding_hidden_branch_reactivates_same_record(self):
+        self.tx(self.bb)  # A branch with history is archived; an empty branch is deleted.
         with self.scope(self.bb):
             branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
         with self.scope(self.ba):

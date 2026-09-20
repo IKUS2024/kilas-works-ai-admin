@@ -214,7 +214,7 @@ class ConversationTests(unittest.TestCase):
         number=f.get_finance_invoice(self.b,ident)['invoice_number']
         for _ in range(2):
             draft=self.message('Wilson bayar invoice '+number+' 1 juta')
-            if not draft.json['ready']:draft=self.revise(draft.json,category_id=str(self.cat))
+            if not draft.json['ready']:draft=self.revise(draft.json,category_id=str(self.cat),date=date.today().isoformat())
             self.assertTrue(draft.json['ready'],draft.json)
             for retry in range(2):
                 saved=self.follow(draft.json,'oke');self.assertEqual(saved.status_code,200,saved.text)

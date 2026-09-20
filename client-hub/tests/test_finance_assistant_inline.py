@@ -267,7 +267,7 @@ class InlineTests(unittest.TestCase):
         number=f.get_finance_invoice(self.b,ident,self.uid)['invoice_number']
         r=self.message('Budi bayar invoice '+number+' sebesar 1 juta')
         self.assertEqual(r.status_code,200,r.text)
-        if not r.json['ready']:r=self.revise(r.json,category_id=str(self.cat))
+        if not r.json['ready']:r=self.revise(r.json,category_id=str(self.cat),date=date.today().isoformat())
         self.assertTrue(r.json['ready'],r.json)
         for _ in range(2):self.assertEqual(self.confirm(r.json['token']).status_code,200)
         self.assertEqual(len(f.list_invoice_payments(self.b,ident)),1)

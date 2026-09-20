@@ -225,7 +225,7 @@ class SemanticAgentTests(unittest.TestCase):
     def test_lunas_uses_exact_outstanding_and_one_payment(self):
         row=self.invoice()
         draft=self.ask('lunasi invoice '+row['invoice_number'])
-        if not draft['ready']:draft=self.revise(draft,category_id=str(self.cat)).json
+        if not draft['ready']:draft=self.revise(draft,category_id=str(self.cat),date=date.today().isoformat()).json
         self.save(draft);self.save(draft)
         self.assertEqual(len(f.list_invoice_payments(self.b,row['id'])),1)
         self.assertEqual(f.get_invoice_totals(self.b,row['id'])['outstanding_minor'],0)
