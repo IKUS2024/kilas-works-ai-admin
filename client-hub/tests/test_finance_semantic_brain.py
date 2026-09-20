@@ -300,6 +300,44 @@ class SemanticBrainTests(unittest.TestCase):
         self.assertEqual(next(r['value'] for r in result['fields'] if r['key']=='customer_id'),str(saved['record_id']))
         self.assertEqual(f.list_transactions(self.b),[])
 
+    def test_bare_issue_uses_last_confirmed_live_invoice_without_model_guessing(self):
+        invoice=self.invoice(issued=False)
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            previous={'query_context':flow.seal_query(self.b,self.uid,{'last_record':{'kind':'invoice','id':invoice['id']}})}
+        self.http.reset_mock()
+        draft=self.ask('terbitkan',previous)
+        self.assertEqual(draft['title'],'Terbitkan invoice')
+        self.assertEqual(self.http.call_count,0)
+        self.save(draft)
+        self.assertEqual(f.get_finance_invoice(self.b,invoice['id'])['status'],'ISSUED')
+
+    def test_paid_followup_on_last_draft_invoice_chains_issue_then_payment_review(self):
+        invoice=self.invoice(issued=False)
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            previous={'query_context':flow.seal_query(self.b,self.uid,{'last_record':{'kind':'invoice','id':invoice['id']}})}
+        self.http.reset_mock()
+        issue=self.ask('yaudh terbitkan dia sudah bayar',previous)
+        self.assertEqual(issue['title'],'Terbitkan + pelunasan')
+        self.assertEqual(self.http.call_count,0)
+        payment=self.save(issue)
+        self.assertEqual(payment['title'],'Pembayaran invoice')
+        self.assertEqual(f.get_finance_invoice(self.b,invoice['id'])['status'],'ISSUED')
+        self.assertEqual(f.list_transactions(self.b),[])
+
+    def test_customer_edit_and_delete_are_reviewed_assistant_actions(self):
+        ident=f.create_customer(self.b,'Wilson',phone='08110000',actor_user_id=self.uid)
+        edit=self.propose('ubah customer Wilson nomor jadi 08220000','edit_customer',
+                          {'target':'Wilson','phone':'08220000'})
+        self.assertEqual(edit['title'],'Ubah customer')
+        self.assertEqual(f.get_customer(self.b,ident)['phone'],'08110000')
+        self.save(edit)
+        self.assertEqual(f.get_customer(self.b,ident)['phone'],'08220000')
+        remove=self.propose('hapus customer Wilson','deactivate_customer',{'target':'Wilson'})
+        self.assertEqual(remove['title'],'Hapus customer')
+        self.save(remove)
+        self.assertFalse(f.get_customer(self.b,ident)['is_active'])
+        self.assertFalse(any(r['id']==ident for r in f.list_customers(self.b)))
+
     def test_quota_failure_preserves_confirmation_and_cancel(self):
         draft=self.propose('customer Putri','customer',{'name':'Putri'})
         for _ in range(6):safety.allow_attempt(self.uid,self.b,'ai')
