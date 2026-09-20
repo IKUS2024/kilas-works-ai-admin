@@ -19,3 +19,22 @@
 .fin-page-title{margin:10px 0 3px}.fin-page-subtitle{margin:0 0 12px}
 @media(max-width:560px){.fin-area-nav{margin-bottom:10px}.fin-back-link{font-size:12px;margin-bottom:6px}.fin-area-tabs{margin-right:-10px;padding-right:10px}.fin-area-tab{font-size:12px;padding:7px 9px}.fin-page-title{font-size:23px;line-height:1.15;margin-top:8px}.fin-page-subtitle{font-size:12px;margin-bottom:10px}}
 </style>
+
+<style>
+.fin-invoice-row{display:flex;flex-direction:column;gap:8px}
+.fin-invoice-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px}
+.fin-invoice-number{font-weight:850;font-size:16px}
+.fin-invoice-meta{display:flex;flex-wrap:wrap;gap:6px 10px;color:var(--muted);font-size:12px}
+.fin-invoice-amounts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fin-invoice-amounts span{display:flex;flex-direction:column;gap:2px;padding:9px 10px;border:1px solid var(--border);border-radius:12px}
+.fin-invoice-amounts small{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.fin-status{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 8px;font-size:10px;font-weight:850;border:1px solid var(--border)}
+.fin-status-draft{background:rgba(127,127,127,.08)}
+.fin-status-issued{background:rgba(255,122,26,.10);color:#ffb37a;border-color:rgba(255,122,26,.35)}
+.fin-status-partial{background:rgba(255,193,7,.10);color:#f7cc5e;border-color:rgba(255,193,7,.30)}
+.fin-status-paid{background:rgba(51,186,113,.12);color:#78dca5;border-color:rgba(51,186,113,.32)}
+.fin-invoice-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fin-invoice-actions form{margin:0}
+.finance-danger{border-color:rgba(235,87,87,.45)!important;color:#ff8f8f!important}
+@media(max-width:560px){.fin-invoice-amounts{grid-template-columns:1fr 1fr}.fin-invoice-amounts span:last-child{grid-column:1/-1}}
+</style>
