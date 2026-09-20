@@ -75,6 +75,20 @@ class FinanceTests(unittest.TestCase):
                    lambda: f.create_category(self.b, 'INVALID', 'Bad')):
             with self.assertRaises(f.FinanceError): fn()
 
+    def test_readding_hidden_account_and_category_reactivates_without_duplicate(self):
+        account = f.create_account(self.b, 'BCA', 'BANK', 'IDR', 123)
+        category = f.create_category(self.b, 'EXPENSE', 'Office')
+        db.execute('UPDATE finance_accounts SET is_active=FALSE WHERE business_id=? AND id=?', (self.b, account))
+        db.execute('UPDATE finance_categories SET is_active=FALSE WHERE business_id=? AND id=?', (self.b, category))
+        self.assertEqual(f.create_account(self.b, 'BCA', 'BANK', 'IDR', 999), account)
+        self.assertEqual(f.create_category(self.b, 'EXPENSE', 'Office'), category)
+        restored = next(a for a in f.list_accounts(self.b) if a['id'] == account)
+        self.assertEqual(restored['opening_balance_minor'], 123)
+        self.assertTrue(restored['is_active'])
+        self.assertTrue(next(c for c in f.list_categories(self.b, 'EXPENSE') if c['id'] == category)['is_active'])
+        self.assertEqual(len([a for a in f.list_accounts(self.b, True) if a['name']=='BCA']), 1)
+        self.assertEqual(len([c for c in f.list_categories(self.b, 'EXPENSE', True) if c['name']=='Office']), 1)
+
     def test_create_update_and_audit(self):
         tx = self.create(actor_user_id=self.users[0], source_type='MANUAL', source_ref='external-ref')
         row = f.update_transaction(self.b, tx, amount_minor=300, description=' Updated ', actor_user_id=self.users[0])

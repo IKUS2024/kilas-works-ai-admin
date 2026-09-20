@@ -502,7 +502,7 @@ def create_account(business_id,user,business):
     return mutate(business_id,lambda:finance.create_account(business_id,request.form.get('name'),
         request.form.get('account_type'),currency=currency,
         opening_balance_minor=currency_amount(request.form.get('opening_balance','0'),currency,signed=True),
-        actor_user_id=user['id']),'Kas / rekening ditambahkan.')
+        actor_user_id=user['id']),'Kas / rekening siap digunakan.')
 
 
 @finance_bp.route('/business/<int:business_id>/finance/exchanges',methods=['POST'])
@@ -526,7 +526,7 @@ def void_exchange(business_id,user,business,exchange_id):
 @finance_access
 def create_category(business_id, user, business):
     return mutate(business_id, lambda: finance.create_category(business_id, request.form.get('direction'),
-        request.form.get('name'), actor_user_id=user['id']), 'Kategori ditambahkan.')
+        request.form.get('name'), actor_user_id=user['id']), 'Kategori siap digunakan.')
 
 
 INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dibayar sebagian','PAID':'Lunas','VOID':'Dibatalkan'}

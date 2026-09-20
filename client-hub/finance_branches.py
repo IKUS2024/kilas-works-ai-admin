@@ -132,8 +132,13 @@ def create_branch(business_id, name, actor_user_id=None):
     from finance_service import _write, _text, _audit, _create_account
     name = _text(name, 160, True)
     with _write(business_id, actor_user_id):
-        if db.query_one('SELECT id FROM finance_branches WHERE business_id=? AND name=?', (business_id, name)):
-            error('branch_exists')
+        existing = db.query_one('SELECT id,is_active FROM finance_branches WHERE business_id=? AND name=?', (business_id, name))
+        if existing:
+            if not existing['is_active']:
+                db.execute('UPDATE finance_branches SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                           (repo._now(), business_id, existing['id']))
+                _audit(business_id, actor_user_id, 'FINANCE_BRANCH_REACTIVATED', existing['id'])
+            return existing['id']
         now = repo._now()
         branch_id = db.insert_returning_id('INSERT INTO finance_branches (business_id,name,created_at,updated_at) VALUES (?,?,?,?)',
                                           (business_id, name, now, now))

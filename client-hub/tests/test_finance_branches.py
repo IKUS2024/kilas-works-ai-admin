@@ -377,6 +377,15 @@ class BranchTests(unittest.TestCase):
                 self.assertEqual(f.list_finance_projects(self.b)[0]['id'],project)
                 self.assertEqual(f.list_customers(self.b)[0]['id'],self.c)
 
+    def test_readding_hidden_branch_reactivates_same_record(self):
+        with self.scope(self.bb):
+            branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
+        with self.scope(self.ba):
+            restored=branches.create_branch(self.b,'Serpong',self.uid)
+        self.assertEqual(restored,self.bb)
+        self.assertTrue(branches.get(self.b,self.bb)['is_active'])
+        self.assertEqual(len([b for b in branches.list_branches(self.b) if b['name']=='Serpong']),1)
+
     def test_branch_routes_and_last_active_guard(self):
         response=self.client.post(self.url+f'/branches?branch_id={self.ba}',data={'name':'BSD'})
         self.assertEqual(response.status_code,303)

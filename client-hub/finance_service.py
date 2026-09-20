@@ -152,9 +152,14 @@ def create_account(business_id, name, account_type='CASH', currency='IDR', openi
     opening_balance_minor = _money(opening_balance_minor)
     with _write(business_id, actor_user_id):
         branch_id = branches.write_branch(business_id, actor_user_id)
-        if db.query_one(('SELECT id FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND branch_id=? AND name=? AND account_type=? AND currency=?'),
-                        (business_id, branch_id, name, account_type, currency)):
-            raise FinanceError('account_exists')
+        existing = db.query_one(('SELECT id,is_active FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND branch_id=? AND name=? AND account_type=? AND currency=?'),
+                                (business_id, branch_id, name, account_type, currency))
+        if existing:
+            if not existing['is_active']:
+                db.execute('UPDATE finance_accounts SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                           (repo._now(), business_id, existing['id']))
+                _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_REACTIVATED', existing['id'])
+            return existing['id']
         return _create_account(business_id, name, account_type, currency, opening_balance_minor, actor_user_id)
 
 
@@ -184,9 +189,14 @@ def _create_category(business_id, direction, name, actor_user_id):
 def create_category(business_id, direction, name, *, actor_user_id=None):
     direction, name = _enum(direction, DIRECTIONS), _text(name, 160, True)
     with _write(business_id, actor_user_id):
-        if db.query_one('SELECT id FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
-                        (business_id, direction, name)):
-            raise FinanceError('category_exists')
+        existing = db.query_one('SELECT id,is_active FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
+                                (business_id, direction, name))
+        if existing:
+            if not existing['is_active']:
+                db.execute('UPDATE finance_categories SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                           (repo._now(), business_id, existing['id']))
+                _audit(business_id, actor_user_id, 'FINANCE_CATEGORY_REACTIVATED', existing['id'])
+            return existing['id']
         return _create_category(business_id, direction, name, actor_user_id)
 
 
