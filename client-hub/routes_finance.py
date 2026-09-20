@@ -1277,12 +1277,13 @@ def assistant(business_id, user, business):
         return redirect(url_for('finance.assistant', business_id=business_id))
     actor = {'actor_user_id': user['id']}
     operator_enabled = finance_operator.enabled(business_id)
+    local_today=finance.business_today(business_id)
     return render_template('finance_assistant.html', user=user, business=business,
         assistant_asset_version=hashlib.sha256((Path(current_app.static_folder)/'finance_assistant.js').read_bytes()).hexdigest()[:16],
         assistant_embedded=True, analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=operator_enabled, actions=finance_operator.ACTIONS,
-        today=date.today().isoformat(), month=date.today().strftime('%Y-%m'),
-        current_month=date.today().strftime('%Y-%m'),
+        today=local_today.isoformat(), month=local_today.strftime('%Y-%m'),
+        current_month=local_today.strftime('%Y-%m'),
         accounts=[a for a in finance.list_accounts(business_id, **actor) if a['is_active']],
         categories=finance.list_categories(business_id, **actor) if operator_enabled else [],
         invoices=finance.operator_invoice_choices(business_id, **actor) if operator_enabled else [])
