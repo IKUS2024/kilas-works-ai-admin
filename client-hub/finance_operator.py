@@ -64,12 +64,16 @@ def text(value, maximum, required=True):
 def rupiah(value):
     """Exact integer IDR; ambiguous/negative/fractional rupiah or arithmetic rejected."""
     value = text(value, 60).lower()
-    match = re.fullmatch(r'(?:rp\.?\s*)?([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,3})?)\s*(rb|ribu|k|jt|juta|miliar|milyar)?',value)
+    match = re.fullmatch(r'(?:rp\.?\s*)?([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,3})?|[0-9]+[.,][0-9]{1,2})\s*(rb|ribu|k|jt|juta|miliar|milyar)?',value)
     if not match: raise OperatorError('invalid_amount')
     try:
-        number = Decimal(match[1].replace('.','').replace(',','.'))
+        raw,suffix=match[1],match[2]
+        if suffix and re.fullmatch(r'[0-9]+[.,][0-9]{1,2}',raw):
+            number=Decimal(raw.replace(',','.'))
+        else:
+            number=Decimal(raw.replace('.','').replace(',','.'))
         number *= {'rb':1000,'ribu':1000,'k':1000,'jt':1000000,'juta':1000000,
-                   'miliar':1000000000,'milyar':1000000000,None:1}[match[2]]
+                   'miliar':1000000000,'milyar':1000000000,None:1}[suffix]
         if number != number.to_integral_value(): raise OperatorError('fractional_amount')
         return finance._money(int(number),positive=True)
     except (InvalidOperation, finance.FinanceError):
