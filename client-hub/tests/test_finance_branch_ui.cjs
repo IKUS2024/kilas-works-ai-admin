@@ -87,9 +87,14 @@ test('receivables operations and reports expose professional compact navigation'
   assert.match(operations,/Tambah Biaya/);
   assert.match(reports,/report-tabs/);
   assert.match(reports,/data-report-filter-open/);
-  assert.match(reports,/Export ▾/);
-  assert.match(reports,/Download Semua CSV/);
-  assert.match(reports,/Cetak \/ Simpan PDF/);
+  assert.match(reports,/Unduh PDF/);
+  assert.match(reports,/Arus Kas/);
+  assert.match(reports,/Kas &amp; Rekening/);
+  assert.match(reports,/Piutang/);
+  assert.match(reports,/Analisis/);
+  assert.doesNotMatch(reports,/Export ▾/);
+  assert.doesNotMatch(reports,/Download Semua CSV/);
+  assert.doesNotMatch(reports,/Cetak \/ Simpan PDF/);
   assert.doesNotMatch(reports,/fin-tool-grid compact/);
 });
 
