@@ -117,6 +117,18 @@ test('customer list exposes edit and delete and never shows inactive rows',()=>{
   assert.doesNotMatch(html,/Nonaktif/);
 });
 
+test('invoice workspace is professional and protects paid history',()=>{
+  const list=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
+  const detail=fs.readFileSync(path.join(__dirname,'../templates/finance_invoice_detail.html'),'utf8');
+  assert.match(list,/Semua Invoice Aktif/);
+  assert.match(list,/Dibayar/);
+  assert.match(list,/🗑️ Hapus/);
+  assert.match(list,/Riwayat pembayaran dilindungi/);
+  assert.match(detail,/Status Pembayaran/);
+  assert.match(detail,/Invoice ini sudah lunas/);
+  assert.match(detail,/🗑️ Hapus Invoice/);
+});
+
 test('dashboard transaction tile opens manual entry while history stays separate',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   assert.match(html,/finance-home-tile primary" data-finance-open="add-transaction-dialog"/);
