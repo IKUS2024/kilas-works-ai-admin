@@ -19,7 +19,7 @@
       <span class="finance-scope-kicker">Ruang kerja Finance</span>
       <strong class="finance-scope-business">{{ business.business_name }}</strong>
     </div>
-    <span class="finance-scope-chip">{{ 'Semua Cabang' if all_branches else (selected_branch.name if selected_branch else 'Pilih Cabang') }}</span>
+    <span class="finance-scope-chip">{{ 'Semua Cabang · Gabungan' if all_branches else (selected_branch.name if selected_branch else 'Pilih Cabang') }}</span>
   </div>
 
   {% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index') else 'finance.dashboard' %}
@@ -27,13 +27,13 @@
     {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
     <label for="finance-branch"><span>Cabang</span><small>Lokasi / outlet</small></label>
     <select id="finance-branch" name="branch_id" onchange="this.form.submit()">
-      <option value="all" {{ 'selected' if all_branches }}>Semua Cabang</option>
+      <option value="all" {{ 'selected' if all_branches }}>Semua Cabang · Gabungan</option>
       {% for branch in finance_branches %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}{{ ' (Nonaktif)' if not branch.is_active }}</option>{% endfor %}
     </select>
     <noscript><button class="btn secondary finance-scope-noscript">Gunakan Cabang</button></noscript>
   </form>
 
-  <p class="finance-scope-help">Pilih satu cabang untuk mencatat. <strong>Semua Cabang</strong> untuk melihat gabungan seluruh outlet.</p>
-  {% if all_branches %}<p class="finance-scope-status" role="status">Mode gabungan aktif · pilih satu cabang untuk menambah atau mengubah data.</p>{% elif branch_read_only %}<p class="finance-scope-status" role="status">Cabang nonaktif · riwayat dan laporan tetap tersedia.</p>{% endif %}
+  <p class="finance-scope-help">Setiap cabang punya transaksi sendiri. <strong>Semua Cabang · Gabungan</strong> hanya menggabungkan tampilan laporan dan riwayat.</p>
+  {% if all_branches %}<p class="finance-scope-status" role="status">Mode gabungan aktif · transaksi tetap punya cabang asal. Pilih satu cabang untuk menambah atau mengubah data.</p>{% elif branch_read_only %}<p class="finance-scope-status" role="status">Cabang nonaktif · riwayat dan laporan tetap tersedia.</p>{% else %}<p class="finance-scope-status" role="status">Cabang aktif: <strong>{{ selected_branch.name }}</strong> · data cabang lain tidak ikut ke pencatatan ini.</p>{% endif %}
 </section>
 {% if branch_read_only and finance_branches %}<style>form[method="post"]{display:none!important}a[data-finance-write]{display:none!important}</style>{% endif %}

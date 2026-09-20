@@ -135,14 +135,14 @@
 <h1>Kilas Finance</h1>
 <p>Kelola uang usaha, tagihan, bank, dan laporan dari satu tempat.</p>
 </div>
-<span class="finance-hero-status">{{ 'Semua Cabang' if all_branches else (selected_branch.name if selected_branch else 'Pilih Cabang') }}</span>
+<span class="finance-hero-status">{{ 'Semua Cabang · Gabungan' if all_branches else (selected_branch.name if selected_branch else 'Pilih Cabang') }}</span>
 </div>
 </header>
 
 <section class="card finance-context-card" aria-label="Pilihan bisnis dan cabang">
 <div class="finance-context-heading">
 <div><span class="finance-context-kicker">Ruang kerja aktif</span><h2>{{ business.business_name }}</h2></div>
-<span class="finance-context-pill">{{ 'Semua Cabang' if all_branches else (selected_branch.name if selected_branch else 'Belum pilih cabang') }}</span>
+<span class="finance-context-pill">{{ 'Semua Cabang · Gabungan' if all_branches else (selected_branch.name if selected_branch else 'Belum pilih cabang') }}</span>
 </div>
 <div class="finance-context-grid">
 <form method="get" action="{{ url_for('finance.overview') }}" class="finance-context-field">
@@ -159,14 +159,14 @@
 {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
 <label for="finance-branch"><span>Cabang</span><small>Lokasi / outlet</small></label>
 <select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">
-<option value="all" {{ 'selected' if all_branches }}>Semua Cabang</option>
+<option value="all" {{ 'selected' if all_branches }}>Semua Cabang · Gabungan</option>
 {% for branch in finance_branches %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}{{ ' (Nonaktif)' if not branch.is_active }}</option>{% endfor %}
 </select>
 <noscript><button class="btn secondary finance-context-apply">Gunakan</button></noscript>
 </form>
 </div>
-<p class="finance-context-help"><strong>Bisnis</strong> adalah brand/usaha. <strong>Cabang</strong> adalah lokasi atau outlet. Pilih satu cabang untuk mencatat transaksi; pilih <strong>Semua Cabang</strong> saat ingin melihat total gabungan.</p>
-{% if all_branches %}<div class="finance-context-notice" role="status">ℹ️ Mode Semua Cabang hanya untuk melihat ringkasan. Pilih satu cabang untuk menambah atau mengubah data.</div>{% elif branch_read_only %}<div class="finance-context-notice" role="status">ℹ️ Cabang ini nonaktif. Riwayat dan laporan tetap bisa dilihat.</div>{% endif %}
+<p class="finance-context-help"><strong>Bisnis</strong> adalah brand/usaha. <strong>Cabang</strong> menyimpan data masing-masing. Pilih satu cabang untuk mencatat; pilih <strong>Semua Cabang · Gabungan</strong> untuk melihat total dan riwayat seluruh cabang.</p>
+{% if all_branches %}<div class="finance-context-notice" role="status">ℹ️ Tampilan gabungan aktif. Transaksi tetap tersimpan di cabang asalnya dan tidak dicampur identitasnya. Pilih satu cabang untuk menambah atau mengubah data.</div>{% elif branch_read_only %}<div class="finance-context-notice" role="status">ℹ️ Cabang ini nonaktif. Riwayat dan laporan tetap bisa dilihat.</div>{% else %}<div class="finance-context-notice" role="status">📍 Data yang tampil dan transaksi baru hanya untuk cabang <strong>{{ selected_branch.name }}</strong>. Cabang lain tetap terpisah.</div>{% endif %}
 </section>
 
 <div class="card finance-home-card">
@@ -227,7 +227,7 @@
 <div class="card finance-history-page" id="transactions">
 <div class="finance-history-page-head">
   <a class="finance-history-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all') }}">← Finance</a>
-  <div><h1>Riwayat Transaksi</h1><p>{{ transaction_total }} transaksi · {{ transaction_page_size }} per halaman</p></div>
+  <div><h1>Riwayat Transaksi</h1><p><strong>{{ 'Semua Cabang · Gabungan' if all_branches else selected_branch.name }}</strong> · {{ transaction_total }} transaksi · {{ transaction_page_size }} per halaman</p></div>
 </div>
 <nav class="finance-history-tabs finance-history-page-tabs" aria-label="Filter riwayat transaksi">
   <a class="{{ 'active' if not direction }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,view='transactions',page=1) }}">Semua</a>

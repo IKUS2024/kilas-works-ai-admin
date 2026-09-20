@@ -91,6 +91,29 @@ class BranchTests(unittest.TestCase):
         with self.assertRaises(f.FinanceError): f.update_transaction(self.b, tx, account_id=self.ab)
         self.assertEqual(f.get_transaction(self.b, tx)['amount_minor'], 100)
 
+    def test_history_branch_isolation_and_all_branches_aggregate(self):
+        self.tx(self.ba, 111, description='UTAMA-ONLY')
+        self.tx(self.bb, 222, description='SERPONG-ONLY')
+
+        utama, utama_context = self.page(self.ba, period_mode='all', view='transactions', page=1)
+        self.assertEqual(utama.status_code, 200)
+        self.assertEqual(utama_context['transaction_total'], 1)
+        self.assertIn('UTAMA-ONLY', utama.text)
+        self.assertNotIn('SERPONG-ONLY', utama.text)
+        self.assertIn('Utama', utama.text)
+
+        serpong, serpong_context = self.page(self.bb, period_mode='all', view='transactions', page=1)
+        self.assertEqual(serpong.status_code, 200)
+        self.assertEqual(serpong_context['transaction_total'], 1)
+        self.assertIn('SERPONG-ONLY', serpong.text)
+        self.assertNotIn('UTAMA-ONLY', serpong.text)
+
+        combined, combined_context = self.page(None, period_mode='all', view='transactions', page=1)
+        self.assertEqual(combined.status_code, 200)
+        self.assertEqual(combined_context['transaction_total'], 2)
+        for value in ('UTAMA-ONLY', 'SERPONG-ONLY', 'Semua Cabang · Gabungan', 'Utama', 'Serpong'):
+            self.assertIn(value, combined.text)
+
     def test_monthly_totals_all_sum_and_current_balances_void_excluded(self):
         db.execute('UPDATE finance_accounts SET opening_balance_minor=50 WHERE id=?', (self.a,))
         self.tx(self.ba, 300); self.tx(self.ba, 70, 'EXPENSE'); self.tx(self.bb, 200)
