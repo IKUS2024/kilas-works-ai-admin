@@ -135,6 +135,20 @@ def proposed_date(text, scheduled=False, default_today=True):
     if calendar_date:
         try:return date(int(calendar_date[3] or today.year),months[calendar_date[2].lower()],int(calendar_date[1])).isoformat()
         except ValueError:return ''
+    # A short date reply often contains harmless month typos (for example
+    # "20 sepetember 2026"). Resolve only a clearly date-shaped token and only
+    # when one calendar month is a high-confidence fuzzy match.
+    typo_date=re.search(r'\b(\d{1,2})\s+([A-Za-z]{3,12})(?:\s+(20\d{2}))?\b',text,re.I)
+    if typo_date and typo_date[2].lower() not in months:
+        from difflib import SequenceMatcher
+        token=typo_date[2].lower()
+        scores={}
+        for alias,number in months.items():
+            scores[number]=max(scores.get(number,0),SequenceMatcher(None,token,alias).ratio())
+        ranked=sorted(((score,number) for number,score in scores.items()),reverse=True)
+        if ranked and ranked[0][0]>=0.82 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.05):
+            try:return date(int(typo_date[3] or today.year),ranked[0][1],int(typo_date[1])).isoformat()
+            except ValueError:return ''
     iso=re.findall(r'\b\d{4}-\d{2}-\d{2}\b',text)
     if len(iso)==1:return f._date(iso[0])
     match=re.search(r'\btanggal\s+([0-9]{1,2})\b',text,re.I)
