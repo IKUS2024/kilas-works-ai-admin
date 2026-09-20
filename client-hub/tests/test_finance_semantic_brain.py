@@ -290,6 +290,15 @@ class SemanticBrainTests(unittest.TestCase):
         self.assertEqual(values['date'],'2026-09-20')
         self.assertEqual(self.http.call_count,calls)
 
+    def test_today_uses_business_timezone_not_server_calendar(self):
+        with patch.object(f.repo,'get_business_profile',return_value={'timezone':'Asia/Jakarta','country':'Indonesia'}), \
+             patch.object(f,'datetime') as clock, \
+             app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            clock.now.return_value.date.return_value=date(2026,9,21)
+            self.assertEqual(f.business_today(self.b),date(2026,9,21))
+            self.assertEqual(flow.proposed_date('hari ini'), '2026-09-21')
+            ident=f.create_transaction(self.b,'INCOME',100000,self.a,self.cat,'2026-09-21',actor_user_id=self.uid)
+            self.assertIsInstance(ident,int)
     def test_exact_options_and_dates_do_not_call_provider(self):
         draft=self.propose('biaya rutin makan','recurring',{'name':'makan','category':'makan'})
         calls=self.http.call_count
