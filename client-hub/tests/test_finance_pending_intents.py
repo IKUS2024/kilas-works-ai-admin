@@ -137,21 +137,18 @@ class PendingIntentTests(unittest.TestCase):
         self.assertEqual(self.http.call_count,2)
         self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
 
-    def test_new_commands_never_replace_or_fill_existing_draft(self):
+    def test_new_write_replaces_uncommitted_draft_without_cancel_gate(self):
         draft=self.ask('pengeluaran makan')
-        for command in ('catat pemasukan 3 juta','buat invoice Wilson 2 juta','tambah rekening BCA',
-                        'buat cabang BSD','tukar 100 USD','koreksi transaksi 1'):
-            safety._RATE.clear()
-            with self.subTest(command=command):
-                self.model({'intent':'new_command','slots':{}})
-                before=self.snapshot()
-                response=self.interrupt(draft,command)
-                self.assertIn('batal',response['message'])
-                self.assertEqual(before,self.snapshot())
-        self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
-        self.assertEqual(self.follow(draft,'batal').json['state'],'CANCELLED')
+        before=self.snapshot()
         self.model({'intent':'create_income','slots':{'amount':'3 juta'}})
-        self.assertEqual(self.ask('catat pemasukan 3 juta')['title'],'Pemasukan')
+        response=self.client.post(self.path+'/message',json=dict(
+            text='catat pemasukan 3 juta',context=draft['context'],confirmation=draft.get('token')))
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json['kind'],'review',response.json)
+        self.assertEqual(response.json['title'],'Pemasukan')
+        self.assertIn('Draft sebelumnya tidak disimpan',response.json['message'])
+        self.assertEqual(self.values(response)['amount'],'3 juta')
+        self.assertEqual(before,self.snapshot())
 
     def test_semantic_continuation_can_fill_a_literal_free_text_slot(self):
         draft=self.ask('buat cabang')
