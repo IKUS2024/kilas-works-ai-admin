@@ -98,15 +98,11 @@ test('dashboard transaction tile opens manual entry while history stays separate
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   assert.match(html,/finance-home-tile primary" data-finance-open="add-transaction-dialog"/);
   assert.match(html,/Catat transaksi manual/);
-  assert.match(html,/data-finance-open="manual-branch-dialog"/);
-  assert.match(html,/id="manual-branch-dialog"/);
-  assert.match(html,/open_manual='1'/);
   assert.match(html,/id="add-transaction-dialog"/);
   assert.match(html,/finance-history-launch/);
   assert.match(html,/Riwayat Transaksi/);
-  const js=fs.readFileSync(path.join(__dirname,'../static/finance_branches.js'),'utf8');
-  assert.match(js,/params\.get\('open_manual'\) === '1'/);
-  assert.match(js,/getElementById\('add-transaction-dialog'\)/);
+  assert.doesNotMatch(html,/Semua Cabang · Gabungan/);
+  assert.doesNotMatch(html,/manual-branch-dialog/);
 });
 
 test('dashboard exposes focused finance navigation with bank handled by AI Assistant',()=>{
