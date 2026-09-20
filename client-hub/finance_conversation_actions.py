@@ -72,7 +72,7 @@ def start(b,u,operation,values=None,row=None):
     elif operation=='edit_customer':
         if not row:raise ValueError('invalid_draft')
         v={'name':row['name'],'phone':row['phone'] or '','email':row['email'] or '','notes':row['notes'] or '',**v}
-    elif operation=='exchange':v={'from_account_id':'','to_account_id':'','from_amount':'','to_amount':'','date':date.today().isoformat(),'note':'',**v}
+    elif operation=='exchange':v={'from_account_id':'','to_account_id':'','from_amount':'','to_amount':'','date':f.business_today(b).isoformat(),'note':'',**v}
     elif operation=='edit_transaction':
         v={'direction':row['direction'],'amount':str(fx.major(row['amount_minor'],row['currency'])),'currency':row['currency'],
            'account_id':str(row['account_id']),'category_id':str(row['category_id']),'date':row['occurred_on'],
@@ -109,7 +109,7 @@ def prepared(b,u,c):
         if a['currency']==z['currency'] or a['branch_id']!=z['branch_id']:raise ValueError('fx_same_currency')
         if c.get('account_currencies') and c['account_currencies']!={str(a['id']):a['currency'],str(z['id']):z['currency']}:raise ValueError('account_currency_mismatch')
         when=f._date(v['date'])
-        if when>date.today().isoformat():raise ValueError('future_date')
+        if when>f.business_today(b).isoformat():raise ValueError('future_date')
         data=dict(from_account_id=a['id'],to_account_id=z['id'],from_amount_minor=minor(v['from_amount'],a['currency']),
                   to_amount_minor=minor(v['to_amount'],z['currency']),occurred_on=when,note=f._text(v['note'],500))
     elif op=='edit_transaction':
@@ -123,7 +123,7 @@ def prepared(b,u,c):
         name,phone,email,notes=customer_values(dict(name=v['name'],phone=v['phone'],email=v['email'],notes=v['notes']))
         data=dict(name=name,phone=phone,email=email,notes=notes)
     elif op=='post_recurring':
-        due=f.preview_due_recurring_expenses(b,date.today().isoformat(),u)
+        due=f.preview_due_recurring_expenses(b,f.business_today(b).isoformat(),u)
         found=next((r for r in due if r['id']==row['id'] and r['next_due_on']==row['next_due_on']),None)
         if not found:raise ValueError('recurring_unavailable')
         data={'selection':found['selection']}
@@ -202,7 +202,7 @@ def confirm(b,u,c):
             elif op=='edit_transaction':f.update_transaction(b,ident,actor_user_id=u,**data)
             elif op=='exchange':ident=f.record_currency_exchange(b,**data,actor_user_id=u)
             elif op=='post_recurring':
-                posted=f.process_due_recurring_expenses(b,date.today().isoformat(),u,selected=[data['selection']])
+                posted=f.process_due_recurring_expenses(b,f.business_today(b).isoformat(),u,selected=[data['selection']])
                 if posted['posted_count']!=1:raise ValueError('recurring_unavailable')
             else:raise ValueError('invalid_draft')
             repo.write_audit(u,b,'FINANCE_ASSISTANT_COMMAND_CONFIRMED',prefix+json.dumps({'digest':digest,'id':ident},sort_keys=True))
