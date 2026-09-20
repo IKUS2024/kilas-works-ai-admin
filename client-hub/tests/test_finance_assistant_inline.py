@@ -81,6 +81,14 @@ class InlineTests(unittest.TestCase):
         before=len(f.list_categories(self.b))
         r=self.message('catat peralatan 100rb');self.assertFalse(r.json['ready']);self.assertIn('Kategori',r.json['message'])
         self.assertEqual(len(f.list_categories(self.b)),before)
+    def test_chat_is_finance_only_and_monthly_language_becomes_recurring(self):
+        outside=self.message('siapa presiden sekarang?')
+        self.assertEqual(outside.status_code,200);self.assertEqual(outside.json['kind'],'answer')
+        self.assertIn('khusus',outside.json['message'].lower())
+        recurring=self.message('setiap bulan bayar internet 500 ribu')
+        self.assertEqual(recurring.status_code,200,recurring.text)
+        self.assertEqual(recurring.json['title'],'Biaya rutin')
+
     def test_read_only_questions_immediate(self):
         before=self.snapshot()
         for question in ('bulan ini pengeluaran saya berapa?','pengeluaran terbesar apa?','saldo BOFA berapa?','customer yang belum bayar siapa?'):
@@ -177,7 +185,7 @@ class InlineTests(unittest.TestCase):
     def test_bank_pdf_image_and_scanned_fallback(self):
         self.model(self.result)
         for name,raw in [('a.pdf',pdf_bytes(text=True)),('scan.pdf',pdf_bytes()),('a.png',self.raw)]:
-            r=self.document('BANK_STATEMENT',raw,name);self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'document_result');self.assertIn('/bank-imports/',r.json['review_url'])
+            r=self.document('BANK_STATEMENT',raw,name);self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'bank_review');self.assertTrue(r.json['ready']);self.assertIn('token',r.json);self.assertNotIn('review_url',r.json)
         self.assertEqual(f.list_transactions(self.b),[])
     def test_notes_and_uncertain_notes_never_post(self):
         self.model(self.result);r=self.document('HANDWRITTEN_NOTE');self.assertEqual(r.status_code,200);self.assertEqual(r.json['count'],1);self.assertIn('FINANCIAL NOTE',self.http.call_args.kwargs['json']['system'])
@@ -189,7 +197,19 @@ class InlineTests(unittest.TestCase):
     def test_bank_duplicate_file_preserves_import(self):
         first=self.document('BANK_STATEMENT',self.csv,'bank.csv').json
         second=self.document('BANK_STATEMENT',self.csv,'bank.csv').json
-        self.assertEqual(first['review_url'],second['review_url']);self.assertEqual(len(bank.list_imports(self.b,self.uid)),1)
+        self.assertEqual(first['count'],second['count']);self.assertIn('token',first);self.assertIn('token',second);self.assertEqual(len(bank.list_imports(self.b,self.uid)),1)
+    def test_bank_chat_confirmation_posts_safe_rows_without_redirect(self):
+        r=self.document('BANK_STATEMENT',self.csv,'bank.csv')
+        self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'bank_review')
+        self.assertEqual(f.list_transactions(self.b),[])
+        done=self.confirm(r.json['token'])
+        self.assertEqual(done.status_code,200,done.text)
+        self.assertIn('Kilas Finance',done.json['message'])
+        self.assertEqual(len(f.list_transactions(self.b)),1)
+        again=self.confirm(r.json['token'])
+        self.assertEqual(again.status_code,200,again.text)
+        self.assertEqual(len(f.list_transactions(self.b)),1)
+
     def test_upload_recognition_image_pdf_and_csv(self):
         for workflow,raw,name in [('RECEIPT',self.raw,'a.png'),('BANK_STATEMENT',pdf_bytes(),'bank.pdf'),('HANDWRITTEN_NOTE',self.raw,'a.png')]:
             self.model({'workflow':workflow});r=self.client.post(self.path+'/recognize',data={'sources':(io.BytesIO(raw),name),'text':''});self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['workflow'],workflow)
