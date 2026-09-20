@@ -56,11 +56,20 @@ def finance_access(view):
         if len(set(choices)) > 1 or len(request.args.getlist('branch_id')) > 1 or len(request.form.getlist('branch_id')) > 1:
             abort(400)
         selected = choices[0] if choices else None
-        if selected is None:
-            # Legacy URLs are unambiguous only while there is exactly one branch.
-            selected = str(branch_list[0]['id']) if len(branch_list) == 1 else 'all'
+        active_branches = [branch for branch in branch_list if branch['is_active']]
+        default_branch = next((branch for branch in active_branches if branch['is_default']), None)
+        fallback_branch = default_branch or (active_branches[0] if active_branches else None)
+        # Finance workspaces are always branch-scoped. "all" remains accepted only as
+        # a legacy GET URL and resolves to a real active branch; combined branch data
+        # is never rendered. Writes must still name one concrete branch.
+        if selected is None or (selected == 'all' and request.method in ('GET', 'HEAD')):
+            selected = str(fallback_branch['id']) if fallback_branch else None
+        if selected == 'all':
+            if request.is_json:
+                return jsonify(error='Pilih satu cabang aktif. Data antar cabang tidak digabung.'), 403
+            abort(403)
         try:
-            branch_id = None if selected == 'all' else record_id(selected)
+            branch_id = record_id(selected) if selected is not None else None
             selected_branch = branches.get(business_id, branch_id) if branch_id is not None else None
         except finance.FinanceError:
             abort(404)
@@ -1322,7 +1331,8 @@ def finance_branch_urls(endpoint, values):
     if endpoint == 'finance.start' and not getattr(g, 'finance_branches', None):
         return
     if endpoint.startswith('finance.') and values.get('business_id') == getattr(g, 'finance_business_id', None) and values.get('business_id'):
-        values.setdefault('branch_id', g.finance_branch_id or 'all')
+        if getattr(g, 'finance_branch_id', None):
+            values.setdefault('branch_id', g.finance_branch_id)
 
 
 @finance_bp.context_processor
