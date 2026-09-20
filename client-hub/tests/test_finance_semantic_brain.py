@@ -282,7 +282,7 @@ class SemanticBrainTests(unittest.TestCase):
         today_reply=self.follow(draft,'hari ini')
         self.assertEqual(today_reply.status_code,200,today_reply.text)
         values={x['key']:x['value'] for x in today_reply.json['fields']}
-        self.assertEqual(values['date'],date.today().isoformat())
+        self.assertEqual(values['date'],f.business_today(self.b).isoformat())
         self.assertEqual(self.http.call_count,calls)
         typo_reply=self.follow(draft,'20 sepetember 2026')
         self.assertEqual(typo_reply.status_code,200,typo_reply.text)
