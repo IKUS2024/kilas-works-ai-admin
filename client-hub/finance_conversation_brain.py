@@ -286,6 +286,10 @@ def start(b,u,intent,slots,previous):
                 last_kind,row=last_record(b,u,previous)
                 if last_kind!=kind:return uncertain()
                 slots.pop('target_reference')
+            elif kind=='customer' and 'customer_reference' in slots:
+                row=live.customer(b,u,previous)
+                slots.pop('customer_reference')
+                if not row:return live.unavailable('Customer')
             else:
                 raw=slots.pop('target','')
                 if not raw and kind in slots:raw=slots.pop(kind)
