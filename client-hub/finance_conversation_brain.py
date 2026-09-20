@@ -322,7 +322,8 @@ def start(b,u,intent,slots,previous):
             values.update(invoice_id='',customer_id='',date='')
             if not any(k in slots for k in ('invoice','customer','target','target_reference')):
                 last_kind,last=last_record(b,u,previous)
-                if last_kind=='invoice' and last:values['invoice_id']=str(last['id'])
+                if last_kind=='invoice' and last and last.get('status') in ('ISSUED','PARTIALLY_PAID'):
+                    values['invoice_id']=str(last['id'])
         else:values.update(project_id='',customer_id='',counterparty_name='')
         initial=flow.review(b,u,dict(action=intent,nonce=uuid.uuid4().hex,values=values))
     else:return uncertain()
