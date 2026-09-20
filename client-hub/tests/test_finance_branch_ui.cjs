@@ -98,13 +98,16 @@ test('dashboard exposes focused finance navigation with bank handled by AI Assis
 
 test('dashboard keeps monthly overview compact',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  const balance=fs.readFileSync(path.join(__dirname,'../templates/_finance_balance_card.html'),'utf8');
   assert.match(html,/Ringkasan Bulan/);
   assert.match(html,/data-finance-open="period-dialog"/);
   assert.match(html,/data-finance-open="balance-dialog"/);
   assert.match(html,/view='transactions'/);
   assert.match(html,/if show_transactions/);
   assert.doesNotMatch(html,/<h2>Bulan \{\{ month \}\}<\/h2>/);
-  assert.doesNotMatch(html,/<h2>Uang Tersedia<\/h2>/);
+  assert.match(balance,/Total Saldo/);
+  assert.match(balance,/tidak berubah saat filter periode laporan diganti/);
+  assert.match(balance,/Filter bulan hanya mengubah Arus Kas Periode/);
 });
 
 
