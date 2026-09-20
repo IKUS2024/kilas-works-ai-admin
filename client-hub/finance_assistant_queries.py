@@ -1,6 +1,7 @@
 """Scoped read-only answers. All arithmetic uses server Finance projections."""
 import calendar
 import re
+from difflib import SequenceMatcher
 from datetime import date,timedelta
 import finance_service as f
 import finance_collections as collections
@@ -8,6 +9,79 @@ import finance_branches as branches
 import finance_fx as fx
 
 MONTHS='januari februari maret april mei juni juli agustus september oktober november desember'.split()
+FINANCE_TERMS=('finance','keuangan','akuntansi','transaksi','pemasukan','pendapatan','penjualan','pengeluaran','biaya',
+               'kas','cash','rekening','bank','saldo','invoice','tagihan','piutang','utang','customer','pelanggan',
+               'kategori','proyek','struk','receipt','mutasi','rekonsiliasi','overdue','outstanding','aging',
+               'reminder','laporan','arus','rutin','bulanan','mingguan')
+TYPO_TERMS=('pemasukan','pendapatan','pengeluaran','customer','pelanggan','laporan','saldo','invoice','piutang',
+            'rekening','proyek','rutin','reminder','overdue','transaksi','kategori','mutasi','rekonsiliasi')
+FOLLOW_PREFIX=re.compile(r'^\s*(kalau|kalo|yang|terus|trus|lalu|dan|nah|terus kalau|kalau yang)\b',re.I)
+
+def _norm(value):
+    value=re.sub(r'[^0-9a-zA-Z]+',' ',str(value or '').casefold()).strip()
+    return re.sub(r'\s+',' ',value)
+
+def canonicalize(text):
+    """Correct only high-confidence Finance vocabulary typos; leave names/numbers untouched."""
+    def replace(match):
+        word=match.group(0);lower=word.casefold()
+        if lower in TYPO_TERMS:return lower
+        ranked=sorted(((SequenceMatcher(None,lower,term).ratio(),term) for term in TYPO_TERMS),reverse=True)
+        return ranked[0][1] if ranked and ranked[0][0]>=0.84 else word
+    return re.sub(r'[A-Za-z]{4,}',replace,text)
+
+def fuzzy_matches(rows,text,key='name'):
+    """Resolve a visible scoped name with typo tolerance; never invent an ID."""
+    direct=[r for r in rows if r.get(key) and re.search(r'(?<!\w)'+re.escape(str(r[key]))+r'(?!\w)',text,re.I)]
+    if direct:return direct
+    tokens=_norm(text).split()
+    ranked=[]
+    for row in rows:
+        name=_norm(row.get(key,''))
+        parts=name.split()
+        if not parts or not tokens:continue
+        width=len(parts)
+        windows=[' '.join(tokens[i:i+width]) for i in range(max(1,len(tokens)-width+1))]
+        if width==1:windows=tokens
+        score=max((SequenceMatcher(None,name,w).ratio() for w in windows if w),default=0)
+        if score>=0.80:ranked.append((score,row))
+    if not ranked:return []
+    best=max(score for score,_ in ranked)
+    return [row for score,row in ranked if score>=best-0.025]
+
+def looks_finance(text,b=None,u=None):
+    if not isinstance(text,str):return False
+    words=_norm(canonicalize(text)).split()
+    if any(word in FINANCE_TERMS for word in words):return True
+    for word in words:
+        if len(word)>=4 and max((SequenceMatcher(None,word,term).ratio() for term in FINANCE_TERMS),default=0)>=0.82:
+            return True
+    if b is not None and u is not None:
+        pools=((f.list_customers(b,actor_user_id=u),'name'),
+               (f.list_accounts(b,actor_user_id=u),'name'),
+               (f.list_finance_projects(b,actor_user_id=u),'title'))
+        if any(fuzzy_matches(rows,text,key) for rows,key in pools):
+            return True
+    return False
+
+def is_contextual_followup(current):
+    current=(current or '').strip()
+    if not current:return False
+    if FOLLOW_PREFIX.search(current):return True
+    if re.search(r'\b(semua(?:nya)?|keseluruhan|dari awal|dri awal|bulan lalu|bulan sebelumnya|yang tadi|tadi|itu|ini|aja|saja)\b',current,re.I):
+        return True
+    return len(current.split())<=7 and bool(re.search(r'\b(berapa|gimana|bagaimana|lagi|usd|idr|sgd|eur|gbp|aud|jpy|cny|hkd|thb|myr)\b',current,re.I))
+
+def contextualize(previous,current):
+    previous=(previous or '').strip();current=(current or '').strip()
+    current=canonicalize(current)
+    if not previous or not is_contextual_followup(current):return current
+    base=previous
+    if re.search(r'\bpengeluaran',current,re.I):
+        base=re.sub(r'\b(pemasukan|pendapatan|penjualan)\b',' ',base,flags=re.I)
+    elif re.search(r'\b(pemasukan|pendapatan|penjualan)',current,re.I):
+        base=re.sub(r'\bpengeluaran\b',' ',base,flags=re.I)
+    return re.sub(r'\s+',' ',base+' '+current).strip()[-2000:]
 
 
 def periods(text):
@@ -35,9 +109,11 @@ def money_groups(rows,key):
 
 def query(b,u,text,branch_checked=False):
     from finance_assistant_flow import exact_matches,currency_hint
+    text=canonicalize(text)
     lower=text.lower();today=date.today()
+    all_time=bool(re.search(r'\b(keseluruhan|semua(?:nya)?|dari\s+(?:bulan\s+)?awal|dri\s+(?:bulan\s+)?awal|sejak awal|selama ini|all[ -]?time)\b',lower))
     if not branch_checked:
-        named=exact_matches(branches.list_branches(b,u),text)
+        named=fuzzy_matches(branches.list_branches(b,u),text)
         if re.search(r'\bcabang\b',text,re.I) and len(named)==1:
             with branches.scope(b,named[0]['id'],u):return query(b,u,text,True)
         if re.search(r'\bcabang\b',text,re.I) and not re.search(r'semua cabang|gabungan',text,re.I) and len(named)!=1:
@@ -46,17 +122,20 @@ def query(b,u,text,branch_checked=False):
         return result('Saldo awal',[], 'Saldo awal adalah uang yang sudah ada saat mulai mencatat, bukan pemasukan. Saldo rekening mencakup saldo awal, transaksi aktual, dan perpindahan saldo FX; periode laporan tidak mengubah saldo tersedia saat ini.')
     if 'saldo' in lower:
         rows=f.get_account_balance_report(b,today.isoformat(),u)
-        named=exact_matches(rows,text)
+        named=fuzzy_matches(rows,text)
         code=currency_hint(text)
         if named:rows=named
         if code:rows=[r for r in rows if r['currency']==code]
         target=re.search(r'\bsaldo\s+(.+?)(?:\s+berapa|[?]|$)',text,re.I)
-        if target and not named and not code and target[1].strip().lower() not in ('saya','kas','tersedia','rekening','akun','sekarang','total'):
+        target_text=target[1] if target else ''
+        target_text=re.sub(r'\b(gw|gue|gua|aku|saya|sy|milik|punya|ku|sekarang|saat ini|nih|ini)\b',' ',target_text,flags=re.I)
+        target_text=re.sub(r'\s+',' ',target_text).strip(' ?.,')
+        if target_text and not named and not code and target_text.lower() not in ('kas','tersedia','rekening','akun','total'):
             return result('Saldo akun',[],'Rekening belum dikenali. Sebut nama rekening yang tersedia.')
         return result('Saldo akun',[[r['name']+' · '+r['branch_name'],fx.format_money(r['balance_minor'],r['currency'])] for r in rows],
                       'Saldo saat ini mencakup saldo awal. Saldo awal dan penukaran mata uang bukan pendapatan operasional.')
     customers=f.list_customers(b,actor_user_id=u)
-    named=exact_matches(customers,text)
+    named=fuzzy_matches(customers,text)
     if len(named)>1:return result('Customer',[], 'Ada beberapa customer cocok. Sebut nama lengkap.')
     customer=named[0] if len(named)==1 else None
     receivable=bool(re.search(r'piutang|belum bayar|belum lunas|overdue|jatuh tempo|invoice telat|aging|outstanding|sisa',lower))
@@ -86,18 +165,21 @@ def query(b,u,text,branch_checked=False):
             for group in f.receivables_aging_rows(rows)['by_currency']:
                 preview.extend([[bucket['label']+' · '+group['currency'],fx.format_money(bucket['amount_minor'],group['currency'])] for bucket in group['buckets']])
         return result('Piutang / invoice',preview,'Posisi invoice saat ini. Draft dan void tidak dihitung sebagai piutang; maksimal 50 rincian ditampilkan.')
-    if re.search(r'customer|pelanggan|nomor|telepon|email',lower) and not re.search(r'paling banyak|transaksi|pemasukan|pengeluaran',lower):
-        rows=[customer] if customer else customers if re.search(r'tampilkan customer|cari customer|data customer|lihat customer',lower) else []
+    customer_words=bool(re.search(r'customer|custumer|costumer|pelanggan|nomor|telepon|email',lower))
+    if (customer_words or (customer and re.search(r'\b(nama|cek|lihat|cari|ada)\b',lower))) and not re.search(r'paling banyak|transaksi|pemasukan|pengeluaran',lower):
+        rows=[customer] if customer else customers if re.search(r'tampilkan|cari|data|lihat|daftar|cek|apa aja|siapa aja',lower) else []
         return result('Data customer',[[r['name'],'Telepon: '+(r['phone'] or '—')+' · Email: '+(r['email'] or '—')] for r in rows[:50]])
     preview=[]
-    for start,end in periods(text):
+    ranges=[('1900-01-01',today.isoformat())] if all_time else periods(text)
+    for start,end in ranges:
+        period_label='Semua waktu' if all_time else start[:7]
         if re.search(r'biaya rutin|rutin bulan',lower):
             rows=f.get_upcoming_recurring_commitments(b,start,end,u)
             preview.extend([[r['name']+' · '+r['scheduled_on'],fx.format_money(r['amount_minor'],r['currency'])] for r in rows[:100]])
             continue
         rows=f.get_report_transactions(b,start,end,u)
         projects=f.list_finance_projects(b,actor_user_id=u)
-        selected=exact_matches(projects,text,'title')
+        selected=fuzzy_matches(projects,text,'title')
         if 'proyek' in lower and len(selected)>1:return result('Proyek',[], 'Ada beberapa proyek cocok. Sebut nama proyek lengkap.')
         if 'proyek' in lower and selected:rows=[r for r in rows if r['project_id']==selected[0]['id']]
         elif 'proyek' in lower and 'paling' not in lower:return result('Proyek',[], 'Sebut nama proyek yang tersedia.')
@@ -112,10 +194,10 @@ def query(b,u,text,branch_checked=False):
             for r in rows:
                 label=r.get(key) or 'Tanpa '+key.split('_')[0];group=(label,r['currency'])
                 groups[group]=groups.get(group,0)+r['amount_minor']
-            preview += [[start[:7]+' · '+name,fx.format_money(amount,code)] for (name,code),amount in sorted(groups.items(),key=lambda x:-x[1])[:20]]
+            preview += [[period_label+' · '+name,fx.format_money(amount,code)] for (name,code),amount in sorted(groups.items(),key=lambda x:-x[1])[:20]]
         else:
             codes=sorted({r['currency'] for r in rows})
-            if not codes:preview.append([start[:7],'Belum ada transaksi.'])
+            if not codes:preview.append([period_label,'Belum ada transaksi.'])
             for code in codes:
                 ins=sum(r['amount_minor'] for r in rows if r['currency']==code and r['direction']=='INCOME')
                 outs=sum(r['amount_minor'] for r in rows if r['currency']==code and r['direction']=='EXPENSE')

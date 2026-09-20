@@ -51,8 +51,42 @@ def unseal(b, u, token, purpose):
     return data['data']
 
 
+def seal_query(b,u,data):
+    """Short-lived signed read context; supports a selected branch or Semua Cabang."""
+    branches.validate(b,write=False)
+    current=branches._current.get()
+    branch=current[1] if current and current[0]==b else None
+    return signer().dumps(dict(b=b,u=u,branch=branch,purpose='query',data=data))
+
+
+def unseal_query(b,u,token):
+    if not isinstance(token,str) or len(token)>12000:raise ValueError('invalid_draft')
+    try:data=signer().loads(token,max_age=TTL)
+    except BadData:raise ValueError('invalid_draft') from None
+    current=branches._current.get();branch=current[1] if current and current[0]==b else None
+    if (not isinstance(data,dict) or set(data)!={'b','u','branch','purpose','data'}
+            or data['b']!=b or data['u']!=u or data['purpose']!='query' or data['branch']!=branch
+            or not isinstance(data['data'],dict)):
+        raise ValueError('invalid_draft')
+    return data['data']
+
+
 def currency_hint(text):
     codes={c for c in f.SUPPORTED_CURRENCIES if re.search(r'\b'+c+r'\b',text,re.I)}
+    aliases={
+        'IDR':r'\b(rupiah|rp)\b|Rp\.?\s*\d',
+        'USD':r'\b(?:dolar|dollar)\s+(?:amerika|as|us)\b|\b(?:us\$|usd)\b',
+        'SGD':r'\b(?:dolar|dollar)\s+singapura\b|\b(?:s\$|sgd)\b',
+        'MYR':r'\b(?:ringgit|myr|rm)\b',
+        'EUR':r'\b(?:euro|eur)\b|€',
+        'GBP':r'\b(?:pound|sterling|gbp)\b|£',
+        'AUD':r'\b(?:dolar|dollar)\s+australia\b|\b(?:aud|a\$)\b',
+        'JPY':r'\b(?:yen|jpy)\b|¥',
+        'CNY':r'\b(?:yuan|renminbi|rmb|cny)\b',
+        'HKD':r'\b(?:dolar|dollar)\s+hong\s*kong\b|\b(?:hkd|hk\$)\b',
+        'THB':r'\b(?:baht|thb)\b|฿'}
+    for code,pattern in aliases.items():
+        if re.search(pattern,text,re.I):codes.add(code)
     if re.search(r'\bRp\.?\s*\d|\d\s*(rb|ribu|jt|juta)\b',text,re.I):codes.add('IDR')
     return next(iter(codes)) if len(codes)==1 else ''
 
@@ -212,14 +246,23 @@ def _bank_confirm(b,u,context):
                 message=f'Selesai. {posted} transaksi dari mutasi bank sudah masuk ke Kilas Finance.'+suffix+date_note,
                 posted_count=posted,held_count=held,already_count=already)
 
-def answer(b,u,text):
+def answer(b,u,text,query_context=''):
     authorize(b,u,'ANALYST',write=False)
-    from finance_assistant_queries import query
-    return query(b,u,text)
+    from finance_assistant_queries import query,contextualize
+    previous=''
+    if query_context:
+        previous=unseal_query(b,u,query_context).get('text','')
+        if not isinstance(previous,str) or len(previous)>2000:raise ValueError('invalid_draft')
+    effective=contextualize(previous,text)
+    result=query(b,u,effective)
+    result['query_context']=seal_query(b,u,{'text':effective[-2000:]})
+    return result
 
 
-def text_message(b,u,text):
+def text_message(b,u,text,query_context=''):
     text=operator.text(text,2000)
+    from finance_assistant_queries import canonicalize,is_contextual_followup
+    text=canonicalize(text)
     authorize(b,u,write=False)
     if re.fullmatch(r'\s*(hai|halo|hi|pagi|siang|sore|malam)[!. ]*',text,re.I):
         return dict(kind='answer',title='Kilas Finance AI',message='Hai. Aku siap bantu urusan Finance: catat pemasukan/pengeluaran, customer, invoice & piutang, biaya rutin, laporan, struk, dan mutasi bank.')
@@ -227,20 +270,23 @@ def text_message(b,u,text):
         return dict(kind='answer',title='Kilas Finance',message='Untuk keamanan, aku tidak melakukan transfer uang atau menghapus transaksi lewat chat. Aku bisa membantu menyiapkan dan mencatat transaksi baru, lalu kamu konfirmasi sebelum disimpan.')
     if re.search(r'\b(apa itu|jelaskan|bedanya|beda apa|gimana cara)\b',text,re.I) and FINANCE_DOMAIN.search(text):
         return accounting_help(text)
-    question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total)\b|\?',text,re.I))
+    question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total|nama)\b|\?',text,re.I))
     explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|terima|dibayar|bayaran|buat|terbitkan)\b',text,re.I))
     schedule_hint=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap|per bulan|per minggu)\b',text,re.I))
     if re.search(r'belum bayar|belum lunas',text,re.I) and question_intent:explicit_write=False
-    if re.search(r'\b(reminder|cari customer|ada customer|nomor .* apa)\b',text,re.I):return answer(b,u,text)
-    if question_intent and not explicit_write and FINANCE_DOMAIN.search(text):
-        return answer(b,u,text)
+    from finance_assistant_queries import looks_finance
+    if re.search(r'\b(reminder|cari (?:customer|custumer|costumer)|ada (?:customer|custumer|costumer)|nomor .* apa)\b',text,re.I):
+        return answer(b,u,text,query_context)
+    if question_intent and not explicit_write and (FINANCE_DOMAIN.search(text) or looks_finance(text,b,u) or
+                                                     (query_context and is_contextual_followup(text))):
+        return answer(b,u,text,query_context)
     if explicit_write or schedule_hint or re.search(r'\b(pemasukan|pengeluaran)\b',text,re.I):
         try:branches.token_branch(b)
         except f.FinanceError as error:
             if str(error) not in ('all_branches_read_only','branch_required'):raise
             return dict(kind='branch_choice',message='Transaksi ini untuk cabang mana?',text=text,
                         branches=[dict(id=r['id'],name=r['name']) for r in branches.list_branches(b,u) if r['is_active']])
-    customer=re.search(r'\b(?:tambah(?:kan)?|masukin|buat)\s+(?:customer|pelanggan)\s+(.+)',text,re.I)
+    customer=re.search(r'\b(?:tambah(?:kan)?|masukin|buat)\s+(?:customer|custumer|costumer|pelanggan)\s+(.+)',text,re.I)
     if customer:
         raw=customer[1].strip()
         parts=re.split(r'\s*,\s*|\s+(?=(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon)(?:nya)?\b|email(?:nya)?\b|catatan(?:nya)?\b)',raw,flags=re.I)
@@ -260,6 +306,7 @@ def text_message(b,u,text):
     schedule=schedule_hint
     action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima|dibayar|bayaran)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa|belanja)\b',text,re.I) else ''
     if not action:
+        if query_context and is_contextual_followup(text):return answer(b,u,text,query_context)
         return accounting_help(text) if FINANCE_DOMAIN.search(text) else dict(kind='answer',title='Kilas Finance',message='Aku khusus membantu keuangan dan akuntansi di Kilas Finance. Aku tidak menjawab topik di luar itu. Kamu bisa minta catat transaksi, cek laporan, tambah customer, biaya rutin, scan struk, atau baca mutasi bank.')
     matches=list(AMOUNT.finditer(text))
     if not matches:matches=list(BARE_AMOUNT.finditer(text))

@@ -4,7 +4,7 @@
   if(!composer)return;
   const log=el('assistant-result'),files=el('assistant-files'),camera=el('assistant-camera'),text=el('assistant-text'),
         mode=el('assistant-mode'),status=el('assistant-status'),sendButton=el('assistant-send');
-  let busy=false,pending=null,docWorkflow=null,uploadInstruction='',documentContext='';
+  let busy=false,pending=null,docWorkflow=null,uploadInstruction='',documentContext='',queryContext='';
   const confirmWords=/^\s*(oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(\s+(ya|aja|saja))?[.! ]*$/i;
   const cancelWords=/^\s*(batal|cancel|jangan|ga jadi|gak jadi|nggak jadi|tidak jadi)[.! ]*$/i;
   const setStatus=(message,error=false)=>{status.textContent=message||'';status.classList.toggle('is-error',!!error);};
@@ -88,7 +88,9 @@
     }
     if(actions.children.length)bubble.append(actions);
     turn.append(avatar,bubble);log.append(turn);scroll();
-    if(['review','bank_review','document_account'].includes(data.kind))pending=data;
+    if(data.query_context)queryContext=data.query_context;
+    if(['review','bank_review','document_account'].includes(data.kind)){pending=data;queryContext='';}
+    else if(data.kind==='success')queryContext='';
     else if(!options.keepPending)pending=null;
   };
   const appendError=message=>appendAssistant({title:'Belum berhasil',message:message||'Coba lagi sebentar. Belum ada data yang diubah.'},{error:true,keepPending:true});
@@ -154,7 +156,11 @@
     if(pending&&hasFiles){appendAssistant({message:'Masih ada draft yang belum selesai. Balas “oke” atau “batal” dulu sebelum mengirim dokumen baru.'},{keepPending:true});return;}
     appendUser(message,selected.map(file=>file.name));documentContext='';uploadInstruction=message;text.value='';setBusy(true);
     try{
-      if(!hasFiles){setStatus('Kilas AI sedang memahami pesanmu…');appendAssistant(await send(composer.dataset.message,{text:message}));return;}
+      if(!hasFiles){
+        setStatus('Kilas AI sedang memahami pesanmu…');
+        const payload={text:message};if(queryContext)payload.query_context=queryContext;
+        appendAssistant(await send(composer.dataset.message,payload));return;
+      }
       let workflow={receipt:'RECEIPT',bank:'BANK_STATEMENT',notes:'HANDWRITTEN_NOTE'}[manual||mode.value];
       if(!workflow){
         setStatus('Kilas AI sedang mengenali dokumen…');
@@ -184,7 +190,7 @@
   });
   document.querySelectorAll('[data-assistant-prompt]').forEach(button=>button.addEventListener('click',()=>{if(busy||pending)return;text.value=button.dataset.assistantPrompt||'';setBusy(false);text.focus();}));
   el('assistant-clear').addEventListener('click',()=>{
-    if(busy)return;pending=null;docWorkflow=null;uploadInstruction='';text.value='';clearFiles();log.replaceChildren();setStatus('');mode.value='auto';setBusy(false);text.focus();
+    if(busy)return;pending=null;docWorkflow=null;documentContext='';uploadInstruction='';queryContext='';text.value='';clearFiles();log.replaceChildren();setStatus('');mode.value='auto';setBusy(false);text.focus();
   });
   setBusy(false);
 })();

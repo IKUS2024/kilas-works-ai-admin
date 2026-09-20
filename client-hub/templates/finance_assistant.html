@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Kilas Finance AI{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260920-server-agent-3') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260920-context-agent-4') }}">
 <main class="finance-assistant" id="finance-assistant">
 <header class="assistant-page-head">
   <a class="assistant-back" href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
@@ -78,5 +78,5 @@
 
 <noscript><p>Aktifkan JavaScript untuk menggunakan Finance Assistant.</p></noscript>
 </main>
-<script src="{{ url_for('static',filename='finance_assistant.js',v='20260920-server-agent-3') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_assistant.js',v='20260920-context-agent-4') }}" defer></script>
 {% endblock %}

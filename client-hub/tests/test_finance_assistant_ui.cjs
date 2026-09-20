@@ -69,3 +69,10 @@ test('composer clears sent text and supports enter-to-send',()=>{
   assert.match(script,/event\.key==='Enter'/);
   assert.match(script,/!event\.shiftKey/);
 });
+
+test('read-only chat carries signed conversation context between turns',()=>{
+  assert.match(script,/queryContext/);
+  assert.match(script,/payload\.query_context=queryContext/);
+  assert.match(script,/data\.query_context/);
+  assert.match(script,/queryContext=''/);
+});

@@ -249,4 +249,49 @@ class ConversationTests(unittest.TestCase):
             actual.add('direction');actual.update({'occurred_on','next_due_on'} if 'date' in actual else set())
             self.assertTrue(set(keys)<=actual)
 
+
+    def test_colloquial_balance_and_customer_typo_queries(self):
+        f.create_customer(self.b,'Wilson',phone='082200001111',actor_user_id=self.uid)
+        balance=self.message('saldo gw berapa sekarang')
+        self.assertEqual(balance.status_code,200,balance.text)
+        self.assertEqual(balance.json['title'],'Saldo akun')
+        self.assertNotIn('belum dikenali',balance.json['message'].lower())
+        customer=self.message('cek nama costumer Wilsom')
+        self.assertEqual(customer.status_code,200,customer.text)
+        self.assertIn('Wilson',customer.text)
+        self.assertIn('082200001111',customer.text)
+
+    def test_all_time_report_and_readonly_followup_context(self):
+        f.create_transaction(self.b,'INCOME',600000,self.a,self.cat,'2026-06-01',actor_user_id=self.uid)
+        f.create_transaction(self.b,'INCOME',400000,self.a,self.cat,date.today().isoformat(),actor_user_id=self.uid)
+        first=self.message('laproan pemasukan keseluruhan')
+        self.assertEqual(first.status_code,200,first.text)
+        self.assertIn('1.000.000',first.text)
+        self.assertIn('Semua waktu',first.text)
+        self.assertIn('query_context',first.json)
+        follow=self.client.post(self.path+'/message',json={'text':'semuanya berapa dri bulan awal','query_context':first.json['query_context']})
+        self.assertEqual(follow.status_code,200,follow.text)
+        self.assertIn('1.000.000',follow.text)
+        unrelated=self.client.post(self.path+'/message',json={'text':'cuaca gimana?','query_context':follow.json['query_context']})
+        self.assertEqual(unrelated.status_code,200,unrelated.text)
+        self.assertIn('khusus',unrelated.text)
+
+    def test_readonly_followup_can_change_metric_without_losing_period(self):
+        f.create_transaction(self.b,'INCOME',900000,self.a,self.cat,'2026-06-01',actor_user_id=self.uid)
+        f.create_transaction(self.b,'EXPENSE',200000,self.a,self.meal,'2026-06-02',actor_user_id=self.uid)
+        first=self.message('laporan pemasukan keseluruhan')
+        follow=self.client.post(self.path+'/message',json={'text':'kalau pengeluarannya?','query_context':first.json['query_context']})
+        self.assertEqual(follow.status_code,200,follow.text)
+        self.assertIn('200.000',follow.text)
+        self.assertNotIn('900.000',follow.text)
+
+    def test_currency_names_are_understood_for_read_filters(self):
+        self.assertEqual(flow.currency_hint('saldo dolar Singapura'),'SGD')
+        self.assertEqual(flow.currency_hint('saldo 50 euro'),'EUR')
+        self.assertEqual(flow.currency_hint('saldo 200 ringgit'),'MYR')
+        self.assertEqual(flow.currency_hint('saldo 100 pound'),'GBP')
+        self.assertEqual(flow.currency_hint('saldo 1000 yen'),'JPY')
+        self.assertEqual(flow.currency_hint('saldo 500 yuan'),'CNY')
+        self.assertEqual(flow.currency_hint('saldo 100 baht'),'THB')
+
 if __name__=='__main__':unittest.main()
