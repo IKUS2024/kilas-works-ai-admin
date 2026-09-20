@@ -11,6 +11,7 @@ import finance_bank_service as bank
 import finance_assistant_flow as flow
 import finance_service as f
 import finance_ai_safety as safety
+import finance_branches as branches
 import db
 
 IDR='''REKENING CONTOH
@@ -153,6 +154,28 @@ class SectionTests(unittest.TestCase):
             self.assertEqual(second['posted_count'],0)
         self.assertEqual(len(f.list_transactions(self.b)),7)
         self.assertTrue(all(r['currency']=='IDR' for r in f.list_transactions(self.b)))
+
+    def test_reset_cancelled_import_can_be_confirmed_again_without_stale_review(self):
+        files=[('synthetic.pdf',statement_pdf())]
+        ident,_=bank.analyze(self.b,self.a,files,self.uid)
+        with prior.app.test_request_context('/'):
+            first=flow._bank_confirm(self.b,self.uid,dict(import_id=ident,revision=0))
+        self.assertEqual(first['posted_count'],7)
+        branch_id=branches.list_branches(self.b,self.uid)[0]['id']
+        with branches.scope(self.b,branch_id,self.uid):
+            f.reset_branch_finance(self.b,self.uid)
+        self.assertEqual(bank.get_import(self.b,ident,self.uid)['status'],'CANCELLED')
+        # This mirrors a signed preview that was generated from the cancelled import before
+        # the user presses "oke". Confirmation reopens a fresh reconciliation generation.
+        with prior.app.test_request_context('/'):
+            second=flow._bank_confirm(self.b,self.uid,dict(import_id=ident,revision=0))
+        self.assertEqual(second['posted_count'],7)
+        self.assertEqual(bank.get_import(self.b,ident,self.uid)['revision'],1)
+        counts=db.query_one("""SELECT
+            SUM(CASE WHEN status='POSTED' THEN 1 ELSE 0 END) AS posted,
+            SUM(CASE WHEN status='VOID' THEN 1 ELSE 0 END) AS voided
+            FROM finance_transactions WHERE business_id=? AND source_type='FINANCE_BANK_IMPORT'""",(self.b,))
+        self.assertEqual((counts['posted'],counts['voided']),(7,7))
 
     def test_text_fallback_sends_only_selected_section_and_visual_keeps_currency(self):
         source=self.source()
