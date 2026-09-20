@@ -459,8 +459,14 @@ def exact_updates(message,context,current):
                           max((SequenceMatcher(None,value,part).ratio() for part in name.split()),default=0))
                 ranked.append((score,option))
         ranked.sort(key=lambda x:x[0],reverse=True)
-        if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.08):
-            return {reverse.get(key,key):candidate}
+        if ranked:
+            best_score,best_option=ranked[0]
+            best_name=norm(best_option['label'].split('·')[0].strip())
+            short=min(len(value),len(best_name))<=4
+            threshold=0.66 if short else 0.84
+            gap=0.20 if short else 0.08
+            if best_score>=threshold and (len(ranked)==1 or best_score-ranked[1][0]>=gap):
+                return {reverse.get(key,key):best_option['label'].split('·')[0].strip()}
     switch_words=r'\b(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan|saldo|pemasukan|pendapatan|pengeluaran|invoice|customer|rekening|akun|kategori|piutang|utang|transaksi|cabang)\b'
     if key=='name' and 1<=len(raw)<=160 and '?' not in raw and not re.search(switch_words,raw,re.I):
         return {'name':raw}
