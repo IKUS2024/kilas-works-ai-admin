@@ -18,7 +18,10 @@ import finance_analyst as analyst
 import finance_fx as fx
 
 TTL = 600
-AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)\b|(?:US\$|S\$|A\$|HK\$|€|£|¥|฿)\s*\d+(?:[.,]\d+)*|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
+# Read-only conversational memory may live longer than a write review. Every
+# reference is still re-read from the scoped live DB before it can affect a write.
+QUERY_TTL = 7200
+AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)\b|(?:US\$|S\$|A\$|HK\$|€|£|¥|฿)\s*\d+(?:[.,]\d+)*|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
 BARE_AMOUNT = re.compile(r'(?<![\w.,+−-])\d{4,}(?![\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
           'customer':'Customer baru','recurring':'Biaya rutin','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
@@ -61,7 +64,7 @@ def seal_query(b,u,data):
 
 def unseal_query(b,u,token):
     if not isinstance(token,str) or len(token)>12000:raise ValueError('invalid_draft')
-    try:data=signer().loads(token,max_age=TTL)
+    try:data=signer().loads(token,max_age=QUERY_TTL)
     except BadData:raise ValueError('invalid_draft') from None
     current=branches._current.get();branch=current[1] if current and current[0]==b else None
     if (not isinstance(data,dict) or set(data)!={'b','u','branch','purpose','data'}
@@ -87,7 +90,7 @@ def currency_hint(text):
         'THB':r'\b(?:baht|thb)\b|฿'}
     for code,pattern in aliases.items():
         if re.search(pattern,text,re.I):codes.add(code)
-    if re.search(r'\bRp\.?\s*\d|\d\s*(rb|ribu|jt|juta)\b',text,re.I):codes.add('IDR')
+    if re.search(r'\bRp\.?\s*\d|\d\s*(rb|ribu|k|jt|juta|miliar|milyar)\b',text,re.I):codes.add('IDR')
     return next(iter(codes)) if len(codes)==1 else ''
 
 
@@ -126,6 +129,9 @@ def category_choice(categories,text,auto_single=True):
 
 def proposed_date(text, scheduled=False, default_today=True):
     today=date.today()
+    text=re.sub(r'\b(kemaren|kmrn)\b','kemarin',text,flags=re.I)
+    text=re.sub(r'\b(skrg|skrng)\b','sekarang',text,flags=re.I)
+    text=re.sub(r'\btgl\b','tanggal',text,flags=re.I)
     for source,target in [('yesterday','kemarin'),('today','hari ini'),('tomorrow','besok'),('last month','bulan lalu'),('next month','bulan depan')]:
         text=re.sub(r'\b'+source+r'\b',target,text,flags=re.I)
     if re.search(r'\bkemarin\b',text,re.I):return (today-timedelta(days=1)).isoformat()
@@ -151,6 +157,10 @@ def proposed_date(text, scheduled=False, default_today=True):
             except ValueError:return ''
     iso=re.findall(r'\b\d{4}-\d{2}-\d{2}\b',text)
     if len(iso)==1:return f._date(iso[0])
+    numeric=re.search(r'(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](20\d{2})(?!\d)',text)
+    if numeric:
+        try:return date(int(numeric[3]),int(numeric[2]),int(numeric[1])).isoformat()
+        except ValueError:return ''
     match=re.search(r'\btanggal\s+([0-9]{1,2})\b',text,re.I)
     if match:
         day=int(match[1]);year,month=today.year,today.month
