@@ -251,6 +251,29 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(f.get_transaction(self.b,tx)['amount_minor'],100)
         self.assertEqual(self.client.post(self.url+f'/transactions/{tx}/void?branch_id={self.ba}').status_code,403)
 
+    def test_customer_edit_delete_is_global_and_preserves_finance_history(self):
+        with self.scope(self.ba):
+            customer=f.create_customer(self.b,'Customer Lama',phone='0811',email='old@example.com',notes='lama',actor_user_id=self.uid)
+            invoice=f.create_finance_invoice(self.b,customer,'2026-09-01','2026-09-30',
+                [dict(description='Jasa',quantity=1,unit_price_minor=250000)],actor_user_id=self.uid)
+            f.issue_finance_invoice(self.b,invoice,self.uid)
+            f.update_customer(self.b,customer,'Customer Baru',phone='0822',email='new@example.com',notes='baru',actor_user_id=self.uid)
+            updated=f.get_customer(self.b,customer,self.uid)
+            self.assertEqual((updated['name'],updated['phone'],updated['email'],updated['notes']),
+                             ('Customer Baru','0822','new@example.com','baru'))
+            f.delete_customer(self.b,customer,actor_user_id=self.uid)
+            self.assertNotIn(customer,[row['id'] for row in f.list_customers(self.b,actor_user_id=self.uid)])
+            archived=next(row for row in f.list_customers(self.b,include_inactive=True,actor_user_id=self.uid) if row['id']==customer)
+            self.assertFalse(archived['is_active'])
+            self.assertEqual(f.get_finance_invoice(self.b,invoice,self.uid)['customer_id'],customer)
+            self.assertEqual(f.get_invoice_totals(self.b,invoice,self.uid)['total_minor'],250000)
+        customers=self.client.get(self.url+f'/receivables?branch_id={self.ba}&section=customers')
+        self.assertEqual(customers.status_code,200)
+        self.assertNotIn('Customer Baru',customers.text)
+        invoices=self.client.get(self.url+f'/receivables?branch_id={self.ba}&section=invoices')
+        self.assertEqual(invoices.status_code,200)
+        self.assertIn('Customer Baru',invoices.text)
+
     def test_invoice_payment_collections_and_cross_branch_lock(self):
         ia=self.invoice(self.ba);ib=self.invoice(self.bb)
         with self.scope(self.ba):
