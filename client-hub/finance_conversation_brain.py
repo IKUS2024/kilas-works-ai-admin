@@ -461,11 +461,10 @@ def exact_updates(message,context,current):
         ranked.sort(key=lambda x:x[0],reverse=True)
         if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.08):
             return {reverse.get(key,key):candidate}
-    if key=='name' and 1<=len(raw)<=160 and '?' not in raw and not re.search(
-            r'^\s*(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan|invoice|pemasukan|pengeluaran)\b',raw,re.I):
+    switch_words=r'\b(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan|saldo|pemasukan|pendapatan|pengeluaran|invoice|customer|rekening|akun|kategori|piutang|utang|transaksi|cabang)\b'
+    if key=='name' and 1<=len(raw)<=160 and '?' not in raw and not re.search(switch_words,raw,re.I):
         return {'name':raw}
-    if key=='item_description' and 1<=len(raw)<=500 and '?' not in raw and not re.search(
-            r'^\s*(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan)\b',raw,re.I):
+    if key=='item_description' and 1<=len(raw)<=500 and '?' not in raw and not re.search(switch_words,raw,re.I):
         return {'item_description':raw}
     return {}
 
