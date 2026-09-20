@@ -126,3 +126,26 @@ for (const card of document.querySelectorAll('[data-balance-card]')) {
   };
   select.addEventListener('change',refresh);refresh();
 }
+
+
+// Open the existing manual transaction form after the user chooses a concrete
+// branch from the combined view. This does not store or modify Finance AI state.
+if (typeof window !== 'undefined' && typeof URLSearchParams !== 'undefined') {
+  try {
+    const params = new URLSearchParams(window.location.search || '');
+    if (params.get('open_manual') === '1') {
+      const dialog = document.getElementById && document.getElementById('add-transaction-dialog');
+      if (dialog) {
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        else dialog.setAttribute('open', '');
+        const focusable = dialog.querySelector && dialog.querySelector('input:not([type="hidden"]),select,textarea,button');
+        if (focusable && typeof focusable.focus === 'function') focusable.focus({preventScroll:true});
+      }
+      params.delete('open_manual');
+      if (window.history && typeof window.history.replaceState === 'function') {
+        const next = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + (window.location.hash || '');
+        window.history.replaceState(null, '', next);
+      }
+    }
+  } catch (_) {}
+}
