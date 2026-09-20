@@ -82,6 +82,23 @@ class InlineTests(unittest.TestCase):
         self.assertIn('Nominal sudah terbaca',r.json['message'])
         self.assertEqual(f.list_transactions(self.b),[])
 
+    def test_common_idr_shorthand_is_understood_without_amount_rewrite(self):
+        first=self.message('pengeluaran makan 250k hari ini')
+        self.assertEqual(first.status_code,200,first.text);self.assertTrue(first.json['ready'],first.json)
+        self.assertEqual({x['key']:x['value'] for x in first.json['fields']}['amount'],'250k')
+        self.assertEqual(self.confirm(first.json['token']).status_code,200)
+        second=self.message('pengeluaran makan 2.5jt hari ini')
+        self.assertEqual(second.status_code,200,second.text);self.assertTrue(second.json['ready'],second.json)
+        self.assertEqual(self.confirm(second.json['token']).status_code,200)
+        amounts=sorted(r['amount_minor'] for r in f.list_transactions(self.b))
+        self.assertEqual(amounts,[250000,2500000])
+
+    def test_natural_cancel_filler_cancels_without_provider_guessing(self):
+        draft=self.message('pengeluaran makan 250k hari ini').json
+        response=self.client.post(self.path+'/message',json=dict(text='gak jadi deh',context=draft['context'],confirmation=draft.get('token')))
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json['state'],'CANCELLED')
+        self.assertEqual(f.list_transactions(self.b),[])
     def test_exact_account_currency_and_foreign_amount(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',actor_user_id=self.uid)
         r=self.message('pengeluaran software 25.50 USD hari ini');self.assertEqual(r.status_code,200,r.text)
