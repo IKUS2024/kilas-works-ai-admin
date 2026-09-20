@@ -14,12 +14,12 @@ from finance_assistant_queries import result,fuzzy_matches,money_groups
 RESOURCES=('cashflow','transactions','balances','customers','projects','accounts','categories','branches','invoices','receivables','reminder','recurring','exchanges')
 
 
-def implicit_account(b,u,message,candidate):
-    """A balance query's conversational tail is not necessarily an account name.
+def ambiguous_entity_scope(b,u,message,candidate,key='account'):
+    """A query's conversational tail is not necessarily an entity name.
 
-    Exact scoped names and explicit rekening/akun filters use the existing resolver.
-    Only uncertain implicit references need semantic interpretation; on failure keep
-    the unresolved filter so we never silently answer for all accounts instead.
+    Exact scoped names use the existing resolver. Only uncertain phrases need
+    semantic interpretation; on failure keep the unresolved filter so we never
+    silently widen the requested scope.
     """
     import requests
     import finance_ai_safety as safety
@@ -28,13 +28,15 @@ def implicit_account(b,u,message,candidate):
     if len(candidate.split())==1:return candidate
     try:
         if not safety.allow_attempt(u,b,'ai'):return candidate
-        data=interpret(message,('unknown','all_accounts','named_account'),('account',),context={
-            'task':'Resolve the account scope of this balance query. all_accounts means no particular account is requested (possessives and conversational fillers are not account names). named_account means a particular account is requested; copy its literal name into account. unknown means uncertain. Never invent or discard an explicitly named account.',
+        all_intent='all_accounts' if key=='account' else 'all_entities'
+        named_intent='named_account' if key=='account' else 'named_entity'
+        data=interpret(message,('unknown',all_intent,named_intent),(key,),context={
+            'task':f'Resolve the {key} scope of this Finance query. {all_intent} means a list/total with no particular {key} requested; possessives, plural questions and conversational fillers are not names. {named_intent} means a particular entity is requested; copy its literal name into {key}. unknown means uncertain. Never invent or discard an explicitly named entity.',
             'candidate':candidate,
         })
     except (ValueError,requests.RequestException,TypeError,KeyError):return candidate
-    if data['intent']=='all_accounts' and not data['slots']:return None
-    if data['intent']=='named_account':return data['slots'].get('account') or candidate
+    if data['intent']==all_intent and not data['slots']:return None
+    if data['intent']==named_intent:return data['slots'].get(key) or candidate
     return candidate
 
 
@@ -113,7 +115,9 @@ def plan(b,u,message,previous=None):
                 generic=all(w.lower() in set('gw gue gua aku saya kita apa siapa aja saja semua daftar total tersedia sekarang ini itu awal terbesar paling banyak bayar per minggu lalu depan telat overdue aging outstanding'.split())|{c.lower() for c in f.SUPPORTED_CURRENCIES} for w in value.split())
                 if value and not generic and not period_patch(value):
                     if key=='account' and p['resource']=='balances' and not re.search(r'\b(?:rekening|akun)\b',low):
-                        value=implicit_account(b,u,message,value)
+                        value=ambiguous_entity_scope(b,u,message,value)
+                    elif p['resource'] in ('customers','projects','accounts','categories','branches'):
+                        value=ambiguous_entity_scope(b,u,message,value,key)
                     if value:p[key]=value
                     else:p.pop(key,None)
     return p

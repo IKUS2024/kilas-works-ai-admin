@@ -175,7 +175,7 @@ def pick_options(rows,label='name'):
 
 FINANCE_DOMAIN = re.compile(
     r'\b(finance|keuangan|akuntansi|transaksi|pemasukan|pendapatan|penjualan|pengeluaran|biaya|kas|cash|rekening|bank|'
-    r'saldo|invoice|tagihan|piutang|utang|customer|pelanggan|kategori|proyek|struk|receipt|mutasi|rekonsiliasi|'
+    r'saldo|invoice|tagihan|piutang|utang|customer|pelanggan|kategori|proyek|cabang|struk|receipt|mutasi|rekonsiliasi|'
     r'belum bayar|belum lunas|overdue|outstanding|aging|reminder|laporan|arus kas|cash ?flow|laba|rugi|aset|liabilitas|modal|pajak|budget|anggaran|rutin|bulanan|mingguan)\b', re.I)
 BANK_CHAT_LIMIT = 200
 
@@ -265,10 +265,14 @@ def answer(b,u,text,query_context=''):
     return result
 
 
+QUESTION_INTENT=re.compile(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total|nama)\b|\?',re.I)
+
+
 def message_intents(text):
     """Shared existing intent signals for new messages and interrupted drafts."""
-    from finance_semantics import period_patch
-    question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total|nama)\b|\?',text,re.I))
+    from finance_semantics import period_patch,command_words
+    text=command_words(text)
+    question_intent=bool(QUESTION_INTENT.search(text))
     explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|lunas|lunasi|pelunasan|terima|dibayar|bayaran|buat|terbitkan)\b',text,re.I))
     amounts=[m for m in BARE_AMOUNT.finditer(text) if not (re.fullmatch(r'20\d{2}',m[0]) and period_patch(text))]
     if not explicit_write and not (AMOUNT.search(text) or amounts) and (period_patch(text) or re.search(r'\b(daftar|ada|status)\b',text,re.I)):
@@ -286,6 +290,14 @@ def is_read_query(b,u,text,query_context=''):
     return question_intent and not explicit_write and (FINANCE_DOMAIN.search(text) or looks_finance(text,b,u) or
         (period_patch(text) and re.search(r'\b(bandingkan|bandingin|compare)\b',text,re.I)) or
         (query_context and is_contextual_followup(text)))
+
+
+def capabilities():
+    return dict(kind='answer',title='Kilas Finance',message=(
+        'Aku khusus membantu Kilas Finance: catat pemasukan/pengeluaran; kelola customer, rekening, kategori, '
+        'cabang, dan biaya rutin; buat/terbitkan invoice dan catat pembayarannya; cek piutang, saldo, dan laporan. '
+        'Aku juga bisa melihat/mengaitkan proyek, mencatat FX, koreksi atau void transaksi, serta membaca struk '
+        'dan dokumen mutasi bank yang didukung (foto/PDF). Perubahan data selalu dirangkum untuk kamu konfirmasi.'))
 
 
 def text_message(b,u,text,query_context=''):
@@ -306,9 +318,18 @@ def text_message(b,u,text,query_context=''):
     question_intent,explicit_write,schedule_hint=message_intents(text)
     if query_context:
         remembered=unseal_query(b,u,query_context)
-        if remembered.get('plan',{}).get('awaiting'):return answer(b,u,text,query_context)
+        if remembered.get('plan',{}).get('awaiting') and not explicit_write:return answer(b,u,text,query_context)
     from finance_assistant_queries import looks_finance
-    if is_read_query(b,u,text,query_context):return answer(b,u,text,query_context)
+    if is_read_query(b,u,text,query_context):
+        # A date supplies a report period, not evidence that an unfamiliar verb
+        # is read-only. Let the shared interpreter resolve that boundary first.
+        if (period_patch(text) and not QUESTION_INTENT.search(text) and not is_contextual_followup(text)
+                and not FINANCE_DOMAIN.match(text.strip())):
+            from finance_intent_interpreter import understand
+            understood=understand(b,u,text)
+            if understood is not None:return understood
+            return dict(kind='clarification',message='Mau mencatat transaksi baru atau melihat laporan? Belum ada perubahan data.')
+        return answer(b,u,text,query_context)
     if explicit_write or schedule_hint or re.search(r'\b(pemasukan|pengeluaran)\b',text,re.I):
         try:branches.token_branch(b)
         except f.FinanceError as error:
@@ -336,11 +357,11 @@ def text_message(b,u,text,query_context=''):
     action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima|dibayar|bayaran)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa|belanja)\b',text,re.I) else ''
     if not action:
         if query_context and is_contextual_followup(text):return answer(b,u,text,query_context)
-        if looks_finance(text,b,u) or AMOUNT.search(text):
+        if explicit_write or looks_finance(text,b,u) or AMOUNT.search(text):
             from finance_intent_interpreter import understand
             understood=understand(b,u,text)
             if understood is not None:return understood
-        return accounting_help(text) if FINANCE_DOMAIN.search(text) else dict(kind='answer',title='Kilas Finance',message='Aku khusus membantu keuangan dan akuntansi di Kilas Finance. Aku tidak menjawab topik di luar itu. Kamu bisa minta catat transaksi, cek laporan, tambah customer, biaya rutin, scan struk, atau baca mutasi bank.')
+        return accounting_help(text) if FINANCE_DOMAIN.search(text) else capabilities()
     matches=list(AMOUNT.finditer(text))
     if not matches:matches=list(BARE_AMOUNT.finditer(text))
     if len(matches)>1:return dict(kind='clarification',message='Saya menemukan lebih dari satu nominal. Kirim satu transaksi per pesan supaya tidak salah pencatatan.')
@@ -520,7 +541,9 @@ def review(b,u,context,edits=None):
         result['message']='Oke, saya sudah rangkum '+LABELS[action].lower()+' ini. Kalau sudah benar, balas “oke”.'
         result['hint']='Kalau ada yang perlu diubah, cukup tulis di chat, misalnya “WhatsApp 0822…”, “pakai BCA”, “vendor Telkom”, atau “ubah jadi 300 ribu”. Ketik “batal” untuk membatalkan.'
     else:
-        order=['cadence','date','account_id','category_id','amount','name'] if action=='recurring' else ['invoice_id','account_id','category_id','amount','date']
+        order=(['amount','account_id','category_id','date'] if action in ('create_income','create_expense') else
+               ['cadence','date','account_id','category_id','amount','name'] if action=='recurring' else
+               ['invoice_id','account_id','category_id','amount','date'])
         missing=next((r for key in order for r in form if r['key']==key and r['required'] and not r['value']),None)
         if missing:
             result['next_field']=missing['key']
