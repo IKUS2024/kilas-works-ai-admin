@@ -150,6 +150,16 @@ class PendingIntentTests(unittest.TestCase):
         self.assertEqual(self.values(response)['amount'],'3 juta')
         self.assertEqual(before,self.snapshot())
 
+    def test_expected_short_account_typo_resolves_only_when_unambiguous(self):
+        bca=f.create_account(self.b,'BCA',actor_user_id=self.uid)
+        f.create_account(self.b,'BRI',actor_user_id=self.uid)
+        draft=self.ask('pengeluaran makan 100 ribu')
+        self.assertEqual(draft['next_field'],'account_id',draft)
+        calls=self.http.call_count
+        response=self.follow(draft,'BKA')
+        self.assertEqual(self.values(response)['account_id'],str(bca))
+        self.assertEqual(self.http.call_count,calls)
+        self.assertEqual(f.list_transactions(self.b),[])
     def test_semantic_continuation_can_fill_a_literal_free_text_slot(self):
         draft=self.ask('buat cabang')
         self.model({'intent':'continue_draft','slots':{'name':'BSD'}})
