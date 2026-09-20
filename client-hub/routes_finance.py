@@ -612,7 +612,7 @@ def receivables(business_id, user, business):
             or needle in (customer_map.get(row['customer_id'],{}).get('name') or '').casefold()]
     invoice_total=len(invoice_source);invoice_pages=max(1,(invoice_total+page_size-1)//page_size)
     invoice_page=min(page,invoice_pages) if section=='invoices' else 1
-    invoices=invoice_source[(invoice_page-1)*page_size:invoice_page*page_size] if section=='invoices' else working_invoices
+    invoices=invoice_source[(invoice_page-1)*page_size:invoice_page*page_size] if section=='invoices' else []
 
     visible={row['id']:row for row in recent_invoices}
     visible.update({row['id']:row for row in invoices})
