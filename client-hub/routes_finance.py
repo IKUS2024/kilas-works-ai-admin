@@ -278,7 +278,7 @@ def dashboard(business_id, user, business):
         active = next((branch for branch in g.finance_branches if branch['is_active']), None)
         return redirect(url_for('finance.dashboard', business_id=business_id,
                                 branch_id=active['id'] if active else 'all'), code=303)
-    today_value = date.today()
+    today_value = finance.business_today(business_id)
     current_value = today_value.strftime('%Y-%m')
     period_mode = request.args.get('period_mode', 'month')
     view = request.args.get('view')
@@ -766,12 +766,13 @@ def operations(business_id,user,business):
     section = request.args.get('section', 'recurring')
     if section not in ('recurring', 'add', 'projects'):
         section = 'recurring'
-    month = request.args.get('month',date.today().strftime('%Y-%m'))
+    local_today=finance.business_today(business_id)
+    month = request.args.get('month',local_today.strftime('%Y-%m'))
     try:
         start,end = period(month)
-        if month > date.today().strftime('%Y-%m'):
+        if month > local_today.strftime('%Y-%m'):
             raise ValueError('future_month')
-        end = min(end, date.today().isoformat())
+        end = min(end, local_today.isoformat())
     except ValueError:
         flash('Periode belum valid. Bulan masa depan belum dapat dipilih.','error')
         return redirect(url_for('finance.operations',business_id=business_id))
@@ -779,12 +780,12 @@ def operations(business_id,user,business):
     rules = finance.list_recurring_expenses(business_id,include_inactive=True,**actor)
     projects = finance.list_finance_projects(business_id,**actor)
     return render_template('finance_operations.html',user=user,business=business,rules=rules,projects=projects,section=section,
-        preview=finance.preview_due_recurring_expenses(business_id,date.today(),**actor),
+        preview=finance.preview_due_recurring_expenses(business_id,local_today,**actor),
         project_map={p['id']:p for p in projects},
         attention={r['id']:finance.recurring_needs_attention(business_id,r['id'],**actor) for r in rules if r['is_active']},
         accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'EXPENSE',**actor),
         contributions=finance.get_project_cash_contribution(business_id,start,end,**actor),
-        month=month,current_month=date.today().strftime('%Y-%m'),today=date.today().isoformat(),
+        month=month,current_month=local_today.strftime('%Y-%m'),today=local_today.isoformat(),
         max_occurrences=finance.MAX_RECURRING_OCCURRENCES)
 
 
@@ -814,7 +815,7 @@ def process_recurring(business_id,user,business):
     if not request.form.getlist('occurrence'):
         flash('Pilih pengeluaran yang sudah dibayar terlebih dahulu.','error')
         return redirect(url_for('finance.operations',business_id=business_id),code=303)
-    result = finance.process_due_recurring_expenses(business_id,date.today(),actor_user_id=user['id'],selected=request.form.getlist('occurrence'))
+    result = finance.process_due_recurring_expenses(business_id,finance.business_today(business_id),actor_user_id=user['id'],selected=request.form.getlist('occurrence'))
     flash(f"{result['posted_count']} biaya rutin dicatat.",'success')
     if result['needs_attention_count']:
         flash('Ada biaya rutin yang belum dapat dicatat. Periksa akun, kategori, dan proyek. Jadwalnya tetap tersimpan.','error')
@@ -843,9 +844,9 @@ def reports(business_id,user,business):
         trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
             start_date=filters['start'],end_date=filters['end'],**actor)
     except finance.FinanceError as error:
-        return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section,today=date.today().isoformat()),400
+        return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section,today=finance.business_today(business_id).isoformat()),400
     response=Response(render_template('finance_reports.html',user=user,business=business,filters=filters,section=section,
-        today=date.today().isoformat(),data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
+        today=finance.business_today(business_id).isoformat(),data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
         account_types=finance_reports.ACCOUNT_TYPES,export_names=finance_reports.REPORT_NAMES))
     response.headers['Cache-Control']='private, no-store'
     return response
@@ -908,7 +909,7 @@ def analyst(business_id, user, business):
         ai_safety.event('allowlist_denied'); abort(404)
     if request.method == 'GET':
         return render_template('finance_analyst.html', user=user, business=business,
-                               month=date.today().strftime('%Y-%m'), current_month=date.today().strftime('%Y-%m'),
+                               month=finance.business_today(business_id).strftime('%Y-%m'), current_month=finance.business_today(business_id).strftime('%Y-%m'),
                                operator_enabled=finance_operator.enabled(business_id))
     payload, error = finance_ai_payload(user['id'],business_id,'ai')
     if error is not None: return error
@@ -942,7 +943,7 @@ def operator(business_id, user, business):
     actor = {'actor_user_id': user['id']}
     invoices = finance.operator_invoice_choices(business_id, **actor)
     return render_template('finance_operator.html', user=user, business=business,
-        actions=finance_operator.ACTIONS, today=date.today().isoformat(),
+        actions=finance_operator.ACTIONS, today=finance.business_today(business_id).isoformat(),
         accounts=finance.list_accounts(business_id, **actor),
         categories=finance.list_categories(business_id, **actor),
         invoices=invoices)
@@ -1129,7 +1130,7 @@ def receipt_page(user, business, review=None, error=None, values=None, status=20
     accounts, categories = finance_receipts.options(business['id'], user['id'])
     return render_template('finance_receipt.html', user=user, business=business, review=review,
                            accounts=accounts, categories=categories, error=error, values=values,
-                           supported_currencies=finance.SUPPORTED_CURRENCIES,today=date.today().isoformat()), status
+                           supported_currencies=finance.SUPPORTED_CURRENCIES,today=finance.business_today(business['id']).isoformat()), status
 
 
 @finance_bp.route('/business/<int:business_id>/finance/receipts/new')
@@ -1289,7 +1290,7 @@ def bank_detail(business_id,user,business,import_id):
     account=next((a for a in finance.list_accounts(business_id,True,actor_user_id=user['id']) if a['id']==imp['account_id']),None)
     return render_template('finance_bank_detail.html',user=user,business=business,imp=imp,account=account,
         rows=all_rows[(page-1)*50:page*50],candidates=candidates,candidate_error=candidate_error,categories=categories,
-        counts=counts,page=page,pages=max(1,(len(all_rows)+49)//50),today=date.today().isoformat())
+        counts=counts,page=page,pages=max(1,(len(all_rows)+49)//50),today=finance.business_today(business_id).isoformat())
 
 
 @finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/review',methods=['POST'])
@@ -1535,7 +1536,7 @@ def edit_transaction(business_id, user, business, transaction_id):
         initial_description=description, initial_other_description=other_description,
         accounts=finance.list_accounts(business_id, actor_user_id=user['id']),
         categories=finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id']),
-        today=date.today().isoformat())
+        today=finance.business_today(business_id).isoformat())
 
 
 # Structured Assistant boundary; legacy module pages remain independently usable.
