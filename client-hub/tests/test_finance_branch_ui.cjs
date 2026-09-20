@@ -123,6 +123,19 @@ test('balance detail hides zero-value exchange rows but preserves real FX accoun
   assert.match(detail,/Tukar Mata Uang/);
 });
 
+test('FX UI is professional: only multi-currency branches expose exchange and exchange is not revenue',()=>{
+  const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  const detail=fs.readFileSync(path.join(__dirname,'../templates/_finance_balance_detail.html'),'utf8');
+  const cash=fs.readFileSync(path.join(__dirname,'../templates/_finance_cash_summary.html'),'utf8');
+  assert.match(dashboard,/active_fx_currencies\|length > 1/);
+  assert.match(dashboard,/Penukaran bukan pemasukan atau pengeluaran/);
+  assert.match(dashboard,/fee terpisah.*Pengeluaran terpisah/);
+  assert.match(dashboard,/tidak masuk omzet\/pemasukan atau biaya operasional/);
+  assert.match(detail,/active_currencies\|length>1/);
+  assert.match(detail,/Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan\/pengeluaran/);
+  assert.match(cash,/Perubahan estimasi total karena kurs tidak masuk Pemasukan\/Pengeluaran/);
+});
+
 test('finance actual dates are capped at today and empty latest card is conditional',()=>{
   const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   const edit=fs.readFileSync(path.join(__dirname,'../templates/finance_transaction_edit.html'),'utf8');

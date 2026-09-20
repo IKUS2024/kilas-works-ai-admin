@@ -262,20 +262,44 @@
 
 {% include '_finance_balance_detail.html' %}
 
+{% set active_fx_accounts = accounts|selectattr('is_active')|list %}
+{% set active_fx_currencies = active_fx_accounts|map(attribute='currency')|unique|list %}
+{% if active_fx_currencies|length > 1 %}
 <dialog id="fx-dialog" class="finance-sheet">
-<div class="finance-sheet-head"><h2>⇄ Tukar Mata Uang</h2><button type="button" class="finance-sheet-close" data-finance-close="fx-dialog" aria-label="Tutup">×</button></div>
-<div class="finance-sheet-body"><p class="muted">Catat jumlah yang benar-benar dilepas dan diterima. Penukaran mengubah saldo dua rekening, tetapi tidak dihitung sebagai pemasukan atau pengeluaran.</p>
+<div class="finance-sheet-head"><h2>⇄ Penukaran Mata Uang</h2><button type="button" class="finance-sheet-close" data-finance-close="fx-dialog" aria-label="Tutup">×</button></div>
+<div class="finance-sheet-body">
+<div class="finance-add-panel">
+  <strong>Penukaran bukan pemasukan atau pengeluaran.</strong>
+  <p class="muted" style="margin:5px 0 0">Ini hanya memindahkan saldo dari satu mata uang ke mata uang lain. Nilai gabungan dalam IDR dapat berubah mengikuti kurs referensi tanpa membuat pendapatan baru.</p>
+</div>
 <form method="post" action="{{ url_for('finance.create_exchange',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label>Dari Kas / Rekening<select name="from_account_id" data-fx-from required><option value="">Pilih rekening</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" data-idr-rate="{{ fx.rates.get(a.currency,'') }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-<label>Jumlah dilepas<input name="from_amount" data-fx-from-amount inputmode="decimal" maxlength="25" required></label>
-<label>Ke Kas / Rekening<select name="to_account_id" data-fx-to required><option value="">Pilih rekening berbeda</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" data-idr-rate="{{ fx.rates.get(a.currency,'') }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-<label>Jumlah benar-benar diterima<input name="to_amount" data-fx-to-amount inputmode="decimal" maxlength="25" required></label>
-<p class="muted" data-fx-reference>Kurs referensi akan tampil setelah dua mata uang dipilih.</p><p class="muted" data-fx-actual></p>
-<label>Tanggal<input name="occurred_on" type="date" value="{{ today }}" max="{{ today }}" required></label>
-<label>Catatan (opsional)<input name="note" maxlength="500" placeholder="Contoh: Tukar USD ke IDR via bank"></label>
-<button class="btn">Catat Penukaran</button></form>
-{% if exchanges %}<h3 style="margin-top:18px">Riwayat Penukaran</h3>{% for x in exchanges %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ x.from_amount_minor|finance_money(x.from_currency) }} → {{ x.to_amount_minor|finance_money(x.to_currency) }}</strong><div class="finance-record-sub">{{ x.occurred_on }} · {{ x.from_account_name }} → {{ x.to_account_name }} · {{ 'Aktif' if x.status=='POSTED' else 'Dihapus dari saldo' }}</div></div>{% if x.status=='POSTED' %}<form method="post" action="{{ url_for('finance.void_exchange',business_id=business.id,exchange_id=x.id) }}" onsubmit="return confirm('Hapus penukaran ini dari saldo?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger">Hapus</button></form>{% endif %}</div>{% endfor %}{% endif %}
-</div></dialog>
+<label>Rekening sumber<select name="from_account_id" data-fx-from required><option value="">Pilih rekening</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" data-idr-rate="{{ fx.rates.get(a.currency,'') }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+<label>Jumlah yang dilepas<input name="from_amount" data-fx-from-amount inputmode="decimal" maxlength="25" required></label>
+<label>Rekening tujuan<select name="to_account_id" data-fx-to required><option value="">Pilih rekening dengan mata uang berbeda</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" data-idr-rate="{{ fx.rates.get(a.currency,'') }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+<label>Jumlah yang benar-benar diterima<input name="to_amount" data-fx-to-amount inputmode="decimal" maxlength="25" required></label>
+<p class="muted" data-fx-reference>Kurs referensi akan tampil setelah dua mata uang dipilih.</p>
+<p class="muted" data-fx-actual></p>
+<p class="muted">Spread kurs tercermin dari jumlah dilepas vs diterima. Kalau bank mengenakan fee terpisah di luar nilai konversi, catat fee itu sebagai Pengeluaran terpisah.</p>
+<label>Tanggal penukaran<input name="occurred_on" type="date" value="{{ today }}" max="{{ today }}" required></label>
+<label>Catatan (opsional)<input name="note" maxlength="500" placeholder="Contoh: Tukar USD ke IDR via BCA"></label>
+<button class="btn">Catat Penukaran</button>
+</form>
+{% if exchanges %}
+<h3 style="margin-top:18px">Riwayat Penukaran</h3>
+<p class="muted">Riwayat ini memengaruhi saldo rekening, tetapi tidak masuk omzet/pemasukan atau biaya operasional.</p>
+{% for x in exchanges %}
+<div class="finance-record-row">
+  <div class="finance-record-main">
+    <strong>{{ x.from_amount_minor|finance_money(x.from_currency) }} → {{ x.to_amount_minor|finance_money(x.to_currency) }}</strong>
+    <div class="finance-record-sub">{{ x.occurred_on }} · {{ x.from_account_name }} → {{ x.to_account_name }} · {{ 'Aktif' if x.status=='POSTED' else 'Dihapus dari saldo' }}</div>
+  </div>
+  {% if x.status=='POSTED' %}<form method="post" action="{{ url_for('finance.void_exchange',business_id=business.id,exchange_id=x.id) }}" onsubmit="return confirm('Hapus penukaran ini dari saldo?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger">Hapus</button></form>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+</div>
+</dialog>
+{% endif %}
 
 <dialog id="reset-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>↺ Reset Finance</h2><button type="button" class="finance-sheet-close" data-finance-close="reset-dialog" aria-label="Tutup">×</button></div>

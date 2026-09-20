@@ -19,7 +19,7 @@
     </section>
     {% endfor %}
 
-    <p class="cash-muted">Saldo awal adalah uang yang sudah dimiliki saat rekening ditambahkan, jadi bukan pemasukan. Penukaran mata uang juga bukan pendapatan atau biaya baru—hanya memindahkan nilai antar-rekening/mata uang.</p>
+    <p class="cash-muted">Saldo awal adalah uang yang sudah dimiliki saat rekening ditambahkan, jadi bukan pemasukan. Penukaran mata uang juga bukan pendapatan atau biaya baru—hanya memindahkan nilai antar-rekening/mata uang. Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan/pengeluaran.</p>
 
     <h3 style="margin-top:18px">Per Kas / Rekening</h3>
     {% for a in balances %}
@@ -37,8 +37,10 @@
     </details>
     {% else %}<p class="finance-empty">Belum ada Kas / Rekening.</p>{% endfor %}
 
-    {% if not all_branches and accounts|selectattr('is_active')|list|length>1 %}
-    <button type="button" class="btn secondary" data-finance-open="fx-dialog">⇄ Tukar Mata Uang</button>
+    {% set active_accounts = accounts|selectattr('is_active')|list %}
+    {% set active_currencies = active_accounts|map(attribute='currency')|unique|list %}
+    {% if not all_branches and active_currencies|length>1 %}
+    <button type="button" class="btn secondary" data-finance-open="fx-dialog">⇄ Penukaran Mata Uang</button>
     {% endif %}
   </div>
 </dialog>

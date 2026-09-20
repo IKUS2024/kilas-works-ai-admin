@@ -76,7 +76,7 @@
       {% set opening = balance_totals|rejectattr('opening_balance_minor','equalto',0)|list %}
       {% if opening %}<p>Saldo awal: {% for row in opening %}<strong class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</strong>{{ ' · ' if not loop.last }}{% endfor %} · saldo awal bukan pemasukan.</p>{% endif %}
       <p>Arus Kas hanya menghitung transaksi yang tanggal transaksinya masuk {{ period_label }}. Total Saldo adalah posisi kas/rekening kumulatif sampai {{ today }}, jadi filter periode tidak mengubah total saldo.</p>
-      {% if balance_chosen.estimated %}<p>{% if fx.source == 'Frankfurter' %}Kurs referensi {{ fx.date }}{% if fx.stale %} · data tersimpan{% endif %}{% else %}Kurs referensi belum tersedia{% endif %}. Bukan kurs jual/beli bank.</p>{% endif %}
+      {% if balance_chosen.estimated %}<p>{% if fx.source == 'Frankfurter' %}Kurs referensi {{ fx.date }}{% if fx.stale %} · data tersimpan{% endif %}{% else %}Kurs referensi belum tersedia{% endif %}. Bukan kurs jual/beli bank. Perubahan estimasi total karena kurs tidak masuk Pemasukan/Pengeluaran.</p>{% endif %}
       <p data-cash-display-rates>{{ balance_chosen.rates }}</p>
       <div class="cash-card-actions"><button type="button" class="finance-mini-action" data-finance-open="balance-dialog">Lihat perhitungan rekening</button></div>
     </div>
