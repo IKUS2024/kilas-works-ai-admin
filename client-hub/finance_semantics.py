@@ -89,7 +89,15 @@ def period_patch(text):
         elif 'tahun' in low:
             year=today.year-(1 if 'lalu' in low else 0);start=date(year,1,1);end=date(year,12,31)
         return {'mode':'range','ranges':[[start.isoformat(),end.isoformat()]]}
-    months=[MONTH_ALIAS_TO_NUMBER[w] for w in re.findall(r'[a-z]+',low) if w in MONTH_ALIAS_TO_NUMBER]
+    words=re.findall(r'[a-z]+',low)
+    months=[MONTH_ALIAS_TO_NUMBER[w] for w in words if w in MONTH_ALIAS_TO_NUMBER]
+    if not months:
+        month_aliases=list(MONTH_ALIAS_TO_NUMBER.items())
+        for word in words:
+            if len(word)<3 or word in ('bulan','tahun','laporan','pemasukan','pengeluaran','pendapatan','invoice','saldo','yang','kalau','kalo'):continue
+            ranked=sorted(((SequenceMatcher(None,word,alias).ratio(),number) for alias,number in month_aliases),reverse=True)
+            if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.05):
+                months=[ranked[0][1]];break
     year=re.search(r'\b(20\d{2})\b',low)
     if not months and not re.search(r'bulan (ini|lalu|sebelumnya|depan)',low) and not year:return None
     if year and not months and 'bulan' not in low:
