@@ -120,7 +120,7 @@ def interpret(case,message,state):
                 for row in commands.targets(case.b,case.uid,kind):
                     if literal(row['name']):slots['target']=literal(row['name']);break
                 if not slots.get('target'):
-                    m=re.search(r'(?:transaksi|invoice|rutin|rekening|akun|kategori|cabang|fx)\s+(.+)',text,re.I)
+                    m=re.search(r'(?:transaksi|invoice|rutin|rekening|akun|kategori|cabang|customer|pelanggan|fx)\s+(.+)',text,re.I)
                     if m:slots['target']=literal(m[1])
             rename=re.search(r'\s+jadi\s+(.+)',text,re.I)
             if rename:slots['name']=literal(rename[1])
