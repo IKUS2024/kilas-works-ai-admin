@@ -268,8 +268,8 @@ def dashboard(business_id, user, business):
     today_value = date.today()
     current_value = today_value.strftime('%Y-%m')
     period_mode = request.args.get('period_mode', 'month')
-    direction = request.args.get('direction') or None
     view = request.args.get('view')
+    direction = (request.args.get('direction') or None) if view == 'transactions' else None
     display_currency = request.args.get('display_currency', 'IDR')
     if display_currency not in finance.SUPPORTED_CURRENCIES:
         display_currency = 'IDR'
