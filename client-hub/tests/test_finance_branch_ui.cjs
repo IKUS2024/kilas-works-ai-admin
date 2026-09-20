@@ -84,6 +84,16 @@ test('receivables operations and reports expose professional compact navigation'
   assert.doesNotMatch(reports,/fin-tool-grid compact/);
 });
 
+
+test('dashboard transaction tile opens manual entry while history stays separate',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
+  assert.match(html,/finance-home-tile primary" data-finance-open="add-transaction-dialog"/);
+  assert.match(html,/Catat transaksi manual/);
+  assert.match(html,/id="add-transaction-dialog"/);
+  assert.match(html,/finance-history-launch/);
+  assert.match(html,/Riwayat Transaksi/);
+});
+
 test('dashboard exposes focused finance navigation with bank handled by AI Assistant',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   for(const label of ['Pilih yang mau dikerjakan','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant']){

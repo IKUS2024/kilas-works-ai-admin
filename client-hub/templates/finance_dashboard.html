@@ -177,7 +177,7 @@
 <p class="muted finance-section-copy">Fitur utama dibuat singkat supaya kamu langsung tahu harus masuk ke mana.</p>
 <div class="finance-home-grid">
 {% if not branch_read_only %}
-<a class="finance-home-tile primary" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat &amp; lihat transaksi</span></a>
+<button type="button" class="finance-home-tile primary" data-finance-open="add-transaction-dialog"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat transaksi manual</span></button>
 {% else %}
 <a class="finance-home-tile" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Lihat transaksi</span></a>
 {% endif %}
