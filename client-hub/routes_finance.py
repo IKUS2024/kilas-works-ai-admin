@@ -838,7 +838,7 @@ def reports(business_id,user,business):
     if section not in ('filter', 'summary', 'trend', 'accounts', 'receivables', 'analysis', 'categories', 'customers', 'projects', 'commitments'):
         section = 'filter'
     try:
-        filters=finance_reports.parse_filters(request.args)
+        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         actor={'actor_user_id':user['id']}
         data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
         summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
@@ -857,7 +857,7 @@ def reports(business_id,user,business):
 @finance_access
 def report_pdf(business_id,user,business):
     try:
-        filters=finance_reports.parse_filters(request.args)
+        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         actor={'actor_user_id':user['id']}
         data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
         summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
@@ -880,7 +880,7 @@ def report_pdf(business_id,user,business):
 def report_csv(business_id,user,business,report_name):
     if report_name not in finance_reports.REPORT_NAMES:abort(404)
     try:
-        filters=finance_reports.parse_filters(request.args)
+        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         data=finance_reports.export_csv(report_name,business_id,filters,user['id'])
     except finance.FinanceError as error:
         return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
@@ -893,7 +893,7 @@ def report_csv(business_id,user,business,report_name):
 @finance_access
 def report_zip(business_id,user,business):
     try:
-        filters=finance_reports.parse_filters(request.args)
+        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         data=finance_reports.export_zip(business_id,filters,user['id'])
     except finance.FinanceError as error:
         return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
