@@ -104,6 +104,14 @@ class SemanticBrainTests(unittest.TestCase):
         check(context)
         self.assertEqual(request['message'],'nomernya 082213039137')
 
+    def test_first_turn_short_account_typo_is_resolved_only_when_clear(self):
+        bca=f.create_account(self.b,'BCA',actor_user_id=self.uid)
+        f.create_account(self.b,'BRI',actor_user_id=self.uid)
+        draft=self.propose('pengeluaran makan 250k pakai BKA','create_expense',
+                           {'amount':'250k','category':'makan','account':'BKA'})
+        values={x['key']:x['value'] for x in draft['fields']}
+        self.assertEqual(values['account_id'],str(bca))
+        self.assertEqual(f.list_transactions(self.b),[])
     def test_account_change_is_semantic_and_server_resolved(self):
         bca=f.create_account(self.b,'BCA',actor_user_id=self.uid)
         draft=self.propose('catat makan 100 ribu','create_expense',{'amount':'100 ribu','category':'makan'})
