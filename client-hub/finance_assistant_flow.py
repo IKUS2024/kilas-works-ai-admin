@@ -194,7 +194,7 @@ def accounting_help(text):
     ]
     for keys,message in topics:
         if any(key in lower for key in keys):return dict(kind='answer',title='Kilas Finance',message=message)
-    return dict(kind='answer',title='Kilas Finance',message='Aku fokus khusus pada keuangan dan akuntansi di Kilas Finance: transaksi, kas/rekening, customer, invoice, piutang, biaya rutin, struk, mutasi bank, rekonsiliasi, dan laporan. Tanyakan salah satu hal itu ya.')
+    return dict(kind='answer',title='Kilas Finance',message='Saya fokus pada keuangan dan akuntansi di Kilas Finance. Kamu bisa menanyakan transaksi, kas/rekening, customer, invoice, piutang, biaya rutin, struk, mutasi bank, rekonsiliasi, atau laporan.')
 
 
 def _other_category(categories):
@@ -299,10 +299,10 @@ def is_read_query(b,u,text,query_context=''):
 
 def capabilities():
     return dict(kind='answer',title='Kilas Finance',message=(
-        'Aku khusus membantu Kilas Finance: catat pemasukan/pengeluaran; kelola customer, rekening, kategori, '
-        'cabang, dan biaya rutin; buat/terbitkan invoice dan catat pembayarannya; cek piutang, saldo, dan laporan. '
-        'Aku juga bisa melihat/mengaitkan proyek, mencatat FX, koreksi atau void transaksi, serta membaca struk '
-        'dan dokumen mutasi bank yang didukung (foto/PDF). Perubahan data selalu dirangkum untuk kamu konfirmasi.'))
+        'Saya bisa membantu pencatatan pemasukan dan pengeluaran, customer, kas/rekening, kategori, cabang, '
+        'biaya rutin, invoice, pembayaran, piutang, saldo, laporan, proyek, serta penukaran mata uang. '
+        'Saya juga dapat membaca struk dan mutasi bank dari foto atau PDF yang didukung. '
+        'Untuk perubahan data, saya selalu menampilkan ringkasan terlebih dahulu agar kamu bisa memeriksanya sebelum konfirmasi.'))
 
 
 def text_message(b,u,text,query_context=''):
