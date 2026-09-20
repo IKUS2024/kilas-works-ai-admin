@@ -622,7 +622,7 @@ def receivables(business_id, user, business):
         customers=customers, customer_count=len(active_customers), customer_total=customer_total,
         customer_pages=customer_pages, customer_map=customer_map,
         invoices=invoices, recent_invoices=recent_invoices, totals=totals, section=section,
-        invoice_count=len(working_invoices), paid_invoice_count=sum(row['status']=='PAID' for row in working_invoices),
+        invoice_count=len(working_invoices), paid_invoice_count=sum(row['status']=='PAID' for row in all_invoices),
         archived_invoice_count=len(archived_ids), invoice_total=invoice_total, invoice_page=invoice_page,
         invoice_pages=invoice_pages, page=page, q=q, status_filter=status_filter,
         archived_view=archived_view,
