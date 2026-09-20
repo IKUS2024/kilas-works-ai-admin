@@ -6,6 +6,18 @@
 <a class="no-print" href="{{ url_for('finance.receivables',business_id=business.id) }}">← Pelanggan &amp; Piutang</a>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice.css') }}">
 {% include '_finance_invoice_document.html' %}
+<div class="card no-print">
+  <div class="fin-invoice-head">
+    <div><strong>Status Pembayaran</strong><p class="muted" style="margin:4px 0 0">{{ invoice.invoice_number }}</p></div>
+    <span class="fin-status {{ 'fin-status-paid' if invoice.status=='PAID' else 'fin-status-partial' if invoice.status=='PARTIALLY_PAID' else 'fin-status-issued' if invoice.status=='ISSUED' else 'fin-status-draft' }}">{{ labels[invoice.status] }}</span>
+  </div>
+  <div class="fin-invoice-amounts" style="margin-top:10px">
+    <span><small>Total</small><strong>{{ totals.total_minor|finance_money(invoice.currency) }}</strong></span>
+    <span><small>Dibayar</small><strong>{{ totals.paid_minor|finance_money(invoice.currency) }}</strong></span>
+    <span><small>Sisa</small><strong>{{ totals.outstanding_minor|finance_money(invoice.currency) }}</strong></span>
+  </div>
+  {% if invoice.status=='PAID' %}<p class="muted" style="margin:10px 0 0">✅ Invoice ini sudah lunas. Pembayaran dan transaksi pemasukan terkait tetap tersimpan sebagai riwayat Finance.</p>{% endif %}
+</div>
 <div class="card no-print invoice-controls invoice-share">
 <button class="btn secondary" type="button" onclick="window.print()">Cetak halaman ini</button>
 <a class="btn secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=invoice.id) }}" target="_blank" rel="noopener noreferrer">Print / Download PDF</a>
@@ -15,7 +27,7 @@
 {% if share_url %}<label for="invoice-link">Tautan customer</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Open Customer View</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
 {% endif %}
 {% if invoice.status=='DRAFT' %}<form class="no-print" method="post" action="{{ url_for('finance.issue_invoice',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Terbitkan Invoice</button></form>{% endif %}
-{% if invoice.status in ('DRAFT','ISSUED') and not payments %}<form class="no-print" method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=invoice.id) }}" onsubmit="return confirm('Batalkan invoice ini? Riwayat tetap tersimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">Batalkan Invoice</button></form>{% endif %}
+{% if invoice.status in ('DRAFT','ISSUED') and not payments %}<form class="no-print" method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=invoice.id) }}" onsubmit="return confirm('Hapus invoice ini dari daftar aktif? Invoice akan dibatalkan, tetapi jejak audit tetap disimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">🗑️ Hapus Invoice</button></form>{% endif %}
 </div>
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID') and totals.outstanding_minor>0 %}
 <form class="card no-print" method="post" action="{{ url_for('finance.record_payment',business_id=business.id,invoice_id=invoice.id) }}">
