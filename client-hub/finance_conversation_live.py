@@ -17,6 +17,9 @@ def customer(b,u,previous):
         elif last.get('kind')=='invoice':
             row=f.get_finance_invoice(b,last['id'],u)
             if row:ref=row['customer_id']
+        elif last.get('kind')=='transaction':
+            row=f.get_transaction(b,last['id'],actor_user_id=u)
+            if row and row.get('customer_id'):ref=row['customer_id']
     if not ref:return None
     row=f.get_customer(b,ref,u)
     return row if row and row['is_active'] else None
