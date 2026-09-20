@@ -24,11 +24,15 @@ function harness() {
   let h = harness(); assert.equal(h.calls.length,0); console.log('PASS page load zero HTTP');
   h.click();h.code();assert.equal(h.calls.length,0);h.finish();await new Promise(setImmediate);
   assert.equal(h.calls.length,1);assert.equal(h.elements['wa-status'].textContent,'Kilas Brain aktif.');
-  assert.equal(JSON.stringify(h.options.extras),'{}');console.log('PASS v4 code-first completion');
+  assert.equal(h.options.extras.featureType,'whatsapp_business_app_onboarding');
+  assert.equal(JSON.stringify(h.options.extras.setup),'{}');console.log('PASS v4 code-first completion');
   h.finish();h.click();assert.equal(h.calls.length,1);console.log('PASS duplicate events no second request');
   h=harness();h.click();h.finish();assert.equal(h.calls.length,0);h.code();await new Promise(setImmediate);assert.equal(h.calls.length,1);console.log('PASS assets-first completion');
   h=harness();h.click();h.code();h.finish('https://evilfacebook.com');h.finish('https://facebook.com.evil.test');assert.equal(h.calls.length,0);console.log('PASS strict Meta origins');
   h=harness();h.click();h.finish('https://www.facebook.com','CANCEL');h.code();assert.equal(h.calls.length,0);console.log('PASS cancellation');
-  h=harness();h.click();h.code();h.finish('https://www.facebook.com','FINISH',{waba_id:'5',phone_number_id:'6',is_wa_login_user:true});assert.equal(h.calls.length,0);console.log('PASS unsupported coexistence fail closed');
+  h=harness();h.click();h.code();h.finish('https://www.facebook.com','FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING',{waba_id:'5'});await new Promise(setImmediate);
+  assert.equal(h.calls.length,1);let body=JSON.parse(h.calls[0][1].body);assert.equal(body.coexistence,true);assert.equal(body.phone_number_id,null);console.log('PASS coexistence completion without phone id');
+  h=harness();h.click();h.code();h.finish('https://www.facebook.com','FINISH',{waba_id:'5',is_wa_login_user:true});await new Promise(setImmediate);
+  assert.equal(h.calls.length,1);body=JSON.parse(h.calls[0][1].body);assert.equal(body.coexistence,true);console.log('PASS coexistence FINISH compatibility');
   h=harness();h.fail();h.click();h.code();h.finish();await new Promise(setImmediate);assert.equal(h.calls.length,1);h.click();assert.equal(h.calls.length,1);console.log('PASS no automatic retry on failure');
 })().catch(e=>{console.error(e);process.exit(1);});

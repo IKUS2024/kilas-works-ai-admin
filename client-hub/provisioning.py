@@ -580,19 +580,20 @@ def approve_and_provision(business_id, actor):
     return provision_tenant(business_id, actor)
 
 
-def complete_self_service_whatsapp(business_id, actor, waba_id, phone_number_id):
+def complete_self_service_whatsapp(business_id, actor, waba_id, phone_number_id, connection_mode=None):
     """Called only after server-side Meta verification; never impersonates an admin."""
     from whatsapp_signup import binding_lock
     with binding_lock():
         db.execute('UPDATE businesses SET id=id WHERE id=?', (business_id,))
         db._local.knowledge_business = business_id
         try:
-            return _complete_self_service_locked(business_id, actor, waba_id, phone_number_id)
+            return _complete_self_service_locked(
+                business_id, actor, waba_id, phone_number_id, connection_mode=connection_mode)
         finally:
             db._local.knowledge_business = None
 
 
-def _complete_self_service_locked(business_id, actor, waba_id, phone_number_id):
+def _complete_self_service_locked(business_id, actor, waba_id, phone_number_id, connection_mode=None):
     from whatsapp_signup import eligible, SignupError
     eligible(business_id, actor)
     if repo.find_business_id_by_phone_number_id(phone_number_id, exclude_business_id=business_id) is not None:
@@ -603,8 +604,13 @@ def _complete_self_service_locked(business_id, actor, waba_id, phone_number_id):
     db.execute('UPDATE businesses SET whatsapp_phone_number_id=?,whatsapp_connected=?,updated_at=? WHERE id=?',
                (phone_number_id, True, repo._now(), business_id))
     config = repo.get_tenant_config_row(business_id)['config']
+    previous_whatsapp = config.get('whatsapp') or {}
+    mode = connection_mode or previous_whatsapp.get('connection_mode') or 'CLOUD_API'
+    if mode not in ('CLOUD_API', 'COEXISTENCE'):
+        raise SignupError('invalid_payload')
     config['whatsapp'] = {'phone_number_id': phone_number_id, 'waba_id': waba_id,
-                          'credentials_reference': None, 'connection_status': 'CONNECTED'}
+                          'credentials_reference': None, 'connection_status': 'CONNECTED',
+                          'connection_mode': mode}
     repo.save_tenant_config(business_id, config)
     repo.write_audit(actor['id'], business_id, 'WHATSAPP_SELF_SERVICE_CONNECTED', 'provider_shared')
     try:

@@ -127,6 +127,23 @@ class Graph:
         except (requests.RequestException, ValueError, TypeError):
             raise SignupError('meta_unavailable') from None
 
+    def list_rows(self, path, token, fields='id'):
+        """Bounded cursor-only listing; never follows Meta-supplied paging URLs."""
+        params = {'fields': fields, 'limit': 100}
+        rows = []
+        for _ in range(20):
+            page = self.call('GET', path, token, params=params)
+            data = page.get('data', [])
+            if not isinstance(data, list):
+                raise SignupError('meta_response_invalid')
+            rows.extend(row for row in data if isinstance(row, dict))
+            paging = page.get('paging') or {}
+            after = (paging.get('cursors') or {}).get('after')
+            if not paging.get('next') or not isinstance(after, str) or len(after) > 4096:
+                return rows
+            params = dict(params, after=after)
+        raise SignupError('meta_listing_limit')
+
     def contains(self, path, token, target):
         # Cursor-only paging: never follow a Meta-supplied URL containing tokens.
         params = {'fields': 'id', 'limit': 100}
@@ -146,14 +163,21 @@ class Graph:
             raise SignupError('meta_step_incomplete')
 
 
-def verify_and_prepare(code, waba, phone):
-    """Untrusted browser IDs are selectors, never authorization evidence."""
+def verify_and_prepare(code, waba, phone=None, *, coexistence=False):
+    """Verify Embedded Signup entirely server-side.
+
+    Coexistence completion can omit phone_number_id. In that case the phone is discovered only
+    inside the customer-granted WABA, then re-verified with the provider runtime credential.
+    """
     config = settings()
     if not isinstance(code, str) or not 1 <= len(code) <= 4096:
         raise SignupError('invalid_payload')
-    if any(not isinstance(x, str) or not re.fullmatch(r'[0-9]{1,32}', x) for x in (waba, phone)):
+    if (type(coexistence) is not bool or not isinstance(waba, str)
+            or not re.fullmatch(r'[0-9]{1,32}', waba)
+            or (phone is not None and (not isinstance(phone, str)
+                or not re.fullmatch(r'[0-9]{1,32}', phone)))):
         raise SignupError('invalid_payload')
-    if phone == os.environ.get('WHATSAPP_PHONE_NUMBER_ID', ''):
+    if phone and phone == os.environ.get('WHATSAPP_PHONE_NUMBER_ID', ''):
         raise SignupError('platform_phone_reserved')
     graph = Graph(config)
     exchanged = graph.call('GET', 'oauth/access_token', params={
@@ -170,8 +194,32 @@ def verify_and_prepare(code, waba, phone):
                for target in scope.get('target_ids', [])}
     if debug.get('is_valid') is not True or str(debug.get('app_id')) != config['META_APP_ID'] or waba not in targets:
         raise SignupError('customer_grant_mismatch')
-    if not graph.contains(waba + '/phone_numbers', customer_token, phone):
-        raise SignupError('phone_waba_mismatch')
+    customer_phones = graph.list_rows(waba + '/phone_numbers', customer_token, 'id')
+    customer_phone_ids = {
+        str(row.get('id')) for row in customer_phones
+        if isinstance(row.get('id'), (str, int)) and re.fullmatch(r'[0-9]{1,32}', str(row.get('id')))
+    }
+    if phone:
+        if phone not in customer_phone_ids:
+            raise SignupError('phone_waba_mismatch')
+    elif coexistence:
+        # FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING may return only waba_id. Resolve the unique
+        # Business-App-backed phone from the customer's own granted WABA; never guess across WABAs.
+        if not customer_phone_ids or len(customer_phone_ids) > 25:
+            raise SignupError('coexistence_phone_missing')
+        candidates = []
+        for candidate in sorted(customer_phone_ids):
+            detail = graph.call('GET', candidate, customer_token,
+                                params={'fields': 'id,is_on_biz_app'})
+            if str(detail.get('id')) == candidate and detail.get('is_on_biz_app') is True:
+                candidates.append(candidate)
+        if len(candidates) != 1:
+            raise SignupError('coexistence_phone_ambiguous' if candidates else 'coexistence_phone_missing')
+        phone = candidates[0]
+        if phone == os.environ.get('WHATSAPP_PHONE_NUMBER_ID', ''):
+            raise SignupError('platform_phone_reserved')
+    else:
+        raise SignupError('invalid_payload')
     admin = config['META_PROVIDER_ADMIN_ACCESS_TOKEN']
     runtime = config['WHATSAPP_ACCESS_TOKEN']
     if not graph.contains(config['META_PROVIDER_BUSINESS_ID'] + '/client_whatsapp_business_accounts', admin, waba):
@@ -188,9 +236,19 @@ def verify_and_prepare(code, waba, phone):
     if not graph.contains(waba + '/phone_numbers', runtime, phone):
         raise SignupError('provider_access_missing')
     graph.success(waba + '/subscribed_apps', runtime, {})
-    status = graph.call('GET', phone, runtime, params={'fields': 'id,status,is_on_biz_app'})
+    status = graph.call('GET', phone, runtime,
+                        params={'fields': 'id,status,is_on_biz_app,platform_type'})
     if str(status.get('id')) != phone:
         raise SignupError('phone_waba_mismatch')
+    if coexistence:
+        # A Business App number is already registered. Never call /register here: doing so would
+        # treat it as a normal API-only number and risks breaking the supported coexistence flow.
+        if status.get('is_on_biz_app') is not True:
+            raise SignupError('coexistence_not_ready')
+        platform_type = status.get('platform_type')
+        if platform_type not in (None, 'CLOUD_API') or status.get('status') != 'CONNECTED':
+            raise SignupError('coexistence_not_ready')
+        return waba, phone, 'COEXISTENCE'
     if status.get('is_on_biz_app') is not False:
         raise SignupError('business_app_support_required')
     if status.get('status') != 'CONNECTED':
@@ -201,4 +259,4 @@ def verify_and_prepare(code, waba, phone):
         status = graph.call('GET', phone, runtime, params={'fields': 'id,status,is_on_biz_app'})
         if str(status.get('id')) != phone or status.get('status') != 'CONNECTED':
             raise SignupError('registration_pending')
-    return waba, phone
+    return waba, phone, 'CLOUD_API'

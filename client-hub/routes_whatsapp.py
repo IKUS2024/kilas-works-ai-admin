@@ -17,6 +17,9 @@ MESSAGES = {
     'provisioning_required': 'Persiapan bisnis belum selesai. Hubungi Kilas Works.',
     'package_ineligible': 'Bisnis ini belum menggunakan Kilas Brain.',
     'invalid_state': 'Sesi koneksi sudah digunakan atau berakhir. Muat ulang halaman untuk mencoba lagi.',
+    'coexistence_phone_missing': 'Nomor WhatsApp Business di HP belum terdeteksi. Pastikan proses di Meta dan konfirmasi di HP selesai.',
+    'coexistence_phone_ambiguous': 'Ada lebih dari satu nomor WhatsApp Business yang cocok. Hubungi Kilas Works untuk memilih nomor yang benar.',
+    'coexistence_not_ready': 'WhatsApp Business di HP belum selesai terhubung ke Cloud API. Selesaikan langkah Meta/QR di HP lalu coba lagi.',
 }
 
 
@@ -55,19 +58,35 @@ def embedded_signup_complete(business_id):
         return jsonify(error=signup.PUBLIC_ERROR), 400
     try:
         data = request.get_json(silent=True)
-        if not isinstance(data, dict) or set(data) != {'state', 'code', 'waba_id', 'phone_number_id'}:
+        required = {'state', 'code', 'waba_id', 'phone_number_id'}
+        allowed = required | {'coexistence'}
+        if (not isinstance(data, dict) or not required.issubset(data) or set(data) - allowed
+                or type(data.get('coexistence', False)) is not bool):
             raise signup.SignupError('invalid_payload')
+        coexistence = data.get('coexistence', False)
         signup.consume_state(business_id, user['id'], data['state'])
         signup.eligible(business_id, user)
-        # Local duplicate guard before any Meta mutation, followed by an atomic recheck at binding.
-        if repo.find_business_id_by_phone_number_id(data['phone_number_id'], exclude_business_id=business_id) is not None:
+        # Local duplicate guard when Meta supplied the phone ID. Coexistence can omit it, so the
+        # authoritative duplicate check is repeated after server-side discovery and again atomically
+        # during provisioning.
+        if (data['phone_number_id'] and
+                repo.find_business_id_by_phone_number_id(data['phone_number_id'], exclude_business_id=business_id) is not None):
             raise signup.SignupError('duplicate_phone')
-        waba, phone = signup.verify_and_prepare(data['code'], data['waba_id'], data['phone_number_id'])
-        result = provisioning.complete_self_service_whatsapp(business_id, user, waba, phone)
+        waba, phone, connection_mode = signup.verify_and_prepare(
+            data['code'], data['waba_id'], data['phone_number_id'], coexistence=coexistence)
+        if repo.find_business_id_by_phone_number_id(phone, exclude_business_id=business_id) is not None:
+            raise signup.SignupError('duplicate_phone')
+        result = provisioning.complete_self_service_whatsapp(
+            business_id, user, waba, phone, connection_mode=connection_mode)
         active = result['status'] == 'ACTIVE'
-        return jsonify(status='active' if active else 'connected', message=(
-            'Kilas Brain aktif.' if active else
-            'WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan Kilas Works.'))
+        if connection_mode == 'COEXISTENCE':
+            message = ('Kilas Brain aktif. WhatsApp Business tetap bisa digunakan di HP.' if active else
+                       'WhatsApp Business di HP sudah terhubung. Aktivasi Kilas Brain masih menunggu pemeriksaan.')
+        else:
+            message = ('Kilas Brain aktif.' if active else
+                       'WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan Kilas Works.')
+        return jsonify(status='active' if active else 'connected',
+                       connection_mode=connection_mode.lower(), message=message)
     except signup.SignupError as exc:
         # Only locally constructed categories, never Graph messages/payloads or identifiers.
         log.warning('WHATSAPP_SIGNUP reason=%s', str(exc))

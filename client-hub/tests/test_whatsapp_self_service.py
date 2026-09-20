@@ -61,7 +61,8 @@ class SignupTests(unittest.TestCase):
         return Mock(status_code=200, json=Mock(return_value=data))
 
     def payload(self):
-        return {'state': signup.new_state(self.bid, self.uid), 'code': 'PRIVATE_CODE', 'waba_id': '500', 'phone_number_id': '600'}
+        return {'state': signup.new_state(self.bid, self.uid), 'code': 'PRIVATE_CODE',
+                'waba_id': '500', 'phone_number_id': '600', 'coexistence': False}
 
     def post(self, data=None, bid=None):
         return self.client.post(f'/business/{bid or self.bid}/whatsapp/complete', json=data or self.payload())
@@ -93,6 +94,18 @@ class SignupTests(unittest.TestCase):
         self.biz_app = True; self.phone_status = 'PENDING'
         self.assertEqual(self.post().status_code, 400); self.assert_closed()
         self.assertNotIn('600/register', [c[1] for c in self.calls])
+
+    def test_business_app_coexistence_discovers_phone_and_skips_registration(self):
+        self.biz_app = True; self.phone_status = 'CONNECTED'
+        data = self.payload(); data['coexistence'] = True; data['phone_number_id'] = None
+        response = self.post(data)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.json['connection_mode'], 'coexistence')
+        self.assertNotIn('600/register', [c[1] for c in self.calls])
+        config = f.repo.get_whatsapp_config(self.bid)
+        self.assertEqual(config['phone_number_id'], '600')
+        stored = f.repo.get_tenant_config_row(self.bid)['config']
+        self.assertEqual(stored['whatsapp']['connection_mode'], 'COEXISTENCE')
 
     def test_register_when_required(self):
         self.phone_status = 'PENDING'
