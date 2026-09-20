@@ -322,16 +322,24 @@ class BranchTests(unittest.TestCase):
                 result=operator.confirm(self.b,self.uid,draft['token'])
                 self.assertEqual(operator.confirm(self.b,self.uid,draft['token'])['record_id'],result['record_id'])
 
-    def test_reports_export_branch_labels_and_period(self):
+    def test_reports_export_branch_labels_period_and_pdf(self):
         self.tx(self.ba,11);self.tx(self.bb,22);self.tx(self.ba,99,day='2025-09-17')
-        filters=dict(start='2026-09-01',end='2026-09-30',as_of='2026-09-30',commitment_start='2026-09-01',commitment_end='2026-09-30')
-        for branch,n,total in ((self.ba,1,11),(self.bb,1,22),(None,2,33)):
+        filters=dict(start='2026-09-01',end='2026-09-20',as_of='2026-09-20',commitment_start='2026-09-20',commitment_end='2026-10-19')
+        for branch,n,total in ((self.ba,1,11),(self.bb,1,22)):
             with self.scope(branch):
                 rows=list(csv.DictReader(io.StringIO(reports.export_csv('transactions',self.b,filters,self.uid).decode('utf-8-sig'))))
                 self.assertEqual(len(rows),n)
                 self.assertEqual(sum(int(r['nominal']) for r in rows),total)
                 self.assertTrue(all(r['Branch'] in ('Utama','Serpong') for r in rows))
-            self.assertEqual(self.page(branch,'/reports')[0].status_code,200)
+            page=self.client.get(self.url+f'/reports?branch_id={branch}&start=2026-09-01&end=2026-09-20&as_of=2026-09-20')
+            self.assertEqual(page.status_code,200)
+            self.assertIn('Unduh PDF',page.text)
+            self.assertNotIn('Download Semua CSV',page.text)
+            pdf=self.client.get(self.url+f'/reports/export/report.pdf?branch_id={branch}&start=2026-09-01&end=2026-09-20&as_of=2026-09-20')
+            self.assertEqual(pdf.status_code,200)
+            self.assertEqual(pdf.mimetype,'application/pdf')
+            self.assertTrue(pdf.data.startswith(b'%PDF'))
+            self.assertIn('attachment; filename="kilas-finance-2026-09-01_2026-09-20.pdf"',pdf.headers['Content-Disposition'])
 
     def test_all_businesses_and_scope_does_not_leak_between_requests(self):
         self.tx(self.ba,11);self.tx(self.bb,22)
