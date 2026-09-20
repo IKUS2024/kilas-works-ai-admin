@@ -596,6 +596,31 @@ def list_customers(business_id, include_inactive=False, actor_user_id=None):
         ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY name,id', (business_id,))
 
 
+def update_customer(business_id, customer_id, name, phone=None, email=None, notes=None, *, actor_user_id=None):
+    from finance_draft_fields import customer_values
+    values = customer_values(dict(name=name, phone=phone, email=email, notes=notes))
+    with _write(business_id, actor_user_id):
+        row = get_customer(business_id, customer_id, actor_user_id)
+        if not row or not row['is_active']:
+            raise FinanceError('customer_unavailable')
+        db.execute('UPDATE finance_customers SET name=?,phone=?,email=?,notes=?,updated_at=? WHERE business_id=? AND id=?',
+                   (*values, repo._now(), business_id, row['id']))
+        _audit(business_id, actor_user_id, 'FINANCE_CUSTOMER_UPDATED', row['id'])
+        return row['id']
+
+
+def delete_customer(business_id, customer_id, *, actor_user_id=None):
+    with _write(business_id, actor_user_id):
+        row = get_customer(business_id, customer_id, actor_user_id)
+        if not row:
+            raise FinanceError('customer_unavailable')
+        if row['is_active']:
+            db.execute('UPDATE finance_customers SET is_active=FALSE,updated_at=? WHERE business_id=? AND id=?',
+                       (repo._now(), business_id, row['id']))
+            _audit(business_id, actor_user_id, 'FINANCE_CUSTOMER_DELETED', row['id'])
+        return row['id']
+
+
 def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None, *, idempotency_key=None):
     issue_date, due_date = _period(issue_date, due_date)
     currency=_currency(currency)
