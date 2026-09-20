@@ -114,6 +114,15 @@ test('dashboard keeps monthly overview compact with total saldo inside cashflow 
 });
 
 
+test('balance detail hides zero-value exchange rows but preserves real FX accounting',()=>{
+  const detail=fs.readFileSync(path.join(__dirname,'../templates/_finance_balance_detail.html'),'utf8');
+  assert.match(detail,/Rincian Total Saldo/);
+  assert.match(detail,/\{% if row\.exchange_in_minor or row\.exchange_out_minor %\}/);
+  assert.match(detail,/\{% if a\.exchange_in_minor or a\.exchange_out_minor %\}/);
+  assert.match(detail,/Penukaran mata uang hanya ditampilkan kalau memang pernah terjadi/);
+  assert.match(detail,/Tukar Mata Uang/);
+});
+
 test('finance actual dates are capped at today and empty latest card is conditional',()=>{
   const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   const edit=fs.readFileSync(path.join(__dirname,'../templates/finance_transaction_edit.html'),'utf8');
