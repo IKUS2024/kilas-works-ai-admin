@@ -51,6 +51,35 @@ _PLATFORM_WA_STATE_TTL_SECONDS = 15 * 60
 STATUS_FILTERS = ("READY_FOR_REVIEW", "NEEDS_REVISION", "APPROVED", "ACTIVE")
 
 
+def _platform_wa_server_resume_migration():
+    """Explicit, temporary server-side resume state for the platform-number migration.
+
+    The original migration state lives in a signed browser session. That is ideal for the
+    destructive deregister step, but it means a separately authenticated Work/Cloud Browser
+    cannot continue Step 3 after the operator completes the Business-App registration on another
+    device. This opt-in bridge carries only non-secret expected identity data (display number and
+    old Phone Number ID) and never performs a mutation by itself. It is admin-only because the
+    calling route is admin-only, and it is disabled unless PLATFORM_WA_MIGRATION_RESUME=true.
+    Remove/disable the env flag after Coexistence is verified.
+    """
+    if (os.environ.get("PLATFORM_WA_MIGRATION_RESUME") or "").strip().lower() != "true":
+        return {}
+    display = (os.environ.get("PLATFORM_WA_MIGRATION_DISPLAY_NUMBER") or "").strip()
+    digits = whatsapp_signup.normalize_phone_digits(display)
+    if not digits:
+        return {}
+    old_phone_id = (os.environ.get("PLATFORM_WA_MIGRATION_OLD_PHONE_ID") or "").strip()
+    migration = {
+        "expected_phone_digits": digits,
+        "last_known_display_phone": display,
+        "deregistered": True,
+        "server_resume": True,
+    }
+    if old_phone_id.isdigit() and len(old_phone_id) <= 32:
+        migration["old_phone_number_id"] = old_phone_id
+    return migration
+
+
 def get_display_status(business):
     """APPROVED-but-not-connected reads as a distinct pseudo-status in the UI (section 30).
 
@@ -225,6 +254,14 @@ def dashboard():
 def platform_whatsapp_coexistence():
     """Operator-only migration workspace for Kilas Works' own platform number."""
     migration = dict(session.get(_PLATFORM_WA_MIGRATION_SESSION) or {})
+    # Allow an explicitly staged server-side resume so Work/Cloud Browser can continue Step 3
+    # even though deregistration + Business-App activation happened in a different browser.
+    # This only restores expected identity metadata; it cannot deregister/delete/connect anything.
+    server_resume = _platform_wa_server_resume_migration()
+    if server_resume:
+        for key, value in server_resume.items():
+            migration.setdefault(key, value)
+        session[_PLATFORM_WA_MIGRATION_SESSION] = migration
     identity = None
     error = None
     config = None
