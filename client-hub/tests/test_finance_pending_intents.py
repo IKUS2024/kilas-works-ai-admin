@@ -222,6 +222,98 @@ class PendingIntentTests(unittest.TestCase):
         self.assertEqual(self.http.call_count,1)
         self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
 
+    def test_screenshot_balance_phrase_does_not_invent_an_account(self):
+        self.tx(123000)
+        self.model({'intent':'all_accounts','slots':{}})
+        result=self.ask('berapa saldo kita weh ?')
+        self.assertEqual(result['title'],'Saldo akun')
+        self.assertIn('123.000',str(result['preview']))
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            plan=flow.unseal_query(self.b,self.uid,result['query_context'])['plan']
+        self.assertNotIn('account',plan)
+        self.assertEqual(self.http.call_count,1)
+
+    def test_screenshot_balance_phrase_also_interrupts_pending_draft(self):
+        draft=self.ask('pengeluaran makan')
+        before=self.snapshot()
+        self.model({'intent':'all_accounts','slots':{}})
+        result=self.interrupt(draft,'berapa saldo kita weh ?')
+        self.assertEqual(result['title'],'Saldo akun')
+        self.assertEqual(before,self.snapshot())
+        self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
+
+    def test_balance_semantics_can_extract_a_literal_account_name(self):
+        self.model({'intent':'named_account','slots':{'account':'BankTakAda'}})
+        result=self.ask('berapa saldo punya kita di BankTakAda weh?')
+        self.assertEqual(result['title'],'Rekening')
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            plan=flow.unseal_query(self.b,self.uid,result['query_context'])['plan']
+        self.assertEqual(plan['account'],'BankTakAda')
+        self.assertEqual(plan['awaiting'],'account')
+
+    def test_balance_semantic_failure_never_silently_broadens_scope(self):
+        self.tx(987000)
+        self.http.side_effect=requests.Timeout('PRIVATE')
+        result=self.ask('berapa saldo BankTakAda weh?')
+        self.assertEqual(result['title'],'Rekening')
+        self.assertNotIn('987.000',str(result['preview']))
+        self.assertNotIn('PRIVATE',str(result))
+        self.http.side_effect=None
+
+    def test_explicit_unknown_account_is_not_removed_by_semantics(self):
+        self.model({'intent':'all_accounts','slots':{}})
+        result=self.ask('saldo rekening BankTakAda berapa?')
+        self.assertEqual(result['title'],'Rekening')
+        self.http.assert_not_called()
+
+    def test_known_balance_account_and_native_currency_are_preserved(self):
+        usd=f.create_account(self.b,'BOFA',currency='USD',opening_balance_minor=10000,actor_user_id=self.uid)
+        self.tx(987000)
+        result=self.ask('berapa saldo BOFA kita weh?')
+        self.assertIn('100.00',str(result['preview']))
+        self.assertNotIn('987.000',str(result['preview']))
+        self.http.assert_not_called()
+
+    def test_unresolved_account_can_be_interrupted_by_a_new_complete_query(self):
+        self.tx(421000)
+        first=self.ask('saldo rekening BankTakAda berapa?')
+        self.assertEqual(first['title'],'Rekening')
+        second=self.ask('laporan pemasukan bulan ini',first)
+        self.assertIn('421.000',str(second['preview']))
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            plan=flow.unseal_query(self.b,self.uid,second['query_context'])['plan']
+        self.assertNotIn('account',plan)
+        self.assertNotIn('awaiting',plan)
+        self.http.assert_not_called()
+
+    def test_unresolved_account_still_accepts_a_genuine_entity_answer(self):
+        self.tx(421000)
+        account=f.get_account(self.b,self.a)['name']
+        first=self.ask('saldo rekening BankTakAda berapa?')
+        second=self.ask(account,first)
+        self.assertEqual(second['title'],'Saldo akun')
+        self.assertIn('421.000',str(second['preview']))
+        self.http.assert_not_called()
+
+    def test_assistant_html_uses_content_version_and_is_never_cached(self):
+        import hashlib
+        from pathlib import Path
+        import routes_finance
+        response=self.client.get(self.path)
+        self.assertEqual(response.status_code,200)
+        self.assertIn('no-store',response.headers['Cache-Control'])
+        version=hashlib.sha256((Path(app.static_folder)/'finance_assistant.js').read_bytes()).hexdigest()[:16]
+        self.assertIn('finance_assistant.js?v='+version,response.text)
+        self.assertNotIn('semantic-finance-5',response.text)
+        asset=self.client.get('/static/finance_assistant.js?v='+version)
+        self.assertEqual(asset.status_code,200)
+        self.assertIn(b'data.keep_pending',asset.data)
+        self.assertIn('no-cache',asset.headers['Cache-Control'])
+        with patch.object(routes_finance.Path,'read_bytes',return_value=b'changed-assistant-content'):
+            updated=self.client.get(self.path)
+        self.assertNotIn('finance_assistant.js?v='+version,updated.text)
+        self.assertIn('finance_assistant.js?v='+hashlib.sha256(b'changed-assistant-content').hexdigest()[:16],updated.text)
+
     def test_query_does_not_refresh_an_expired_draft(self):
         draft=self.ask('pengeluaran makan')
         with app.app_context(),patch('itsdangerous.timed.TimestampSigner.get_timestamp',return_value=10**10):

@@ -1,5 +1,7 @@
 """Authenticated, beta-only Finance UI; all ledger operations stay in finance_service."""
 import calendar
+import hashlib
+from pathlib import Path
 from datetime import date
 import os
 import re
@@ -1196,6 +1198,7 @@ def assistant(business_id, user, business):
     actor = {'actor_user_id': user['id']}
     operator_enabled = finance_operator.enabled(business_id)
     return render_template('finance_assistant.html', user=user, business=business,
+        assistant_asset_version=hashlib.sha256((Path(current_app.static_folder)/'finance_assistant.js').read_bytes()).hexdigest()[:16],
         assistant_embedded=True, analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=operator_enabled, actions=finance_operator.ACTIONS,
         today=date.today().isoformat(), month=date.today().strftime('%Y-%m'),

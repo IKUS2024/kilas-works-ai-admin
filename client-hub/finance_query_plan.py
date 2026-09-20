@@ -14,10 +14,37 @@ from finance_assistant_queries import result,fuzzy_matches,money_groups
 RESOURCES=('cashflow','transactions','balances','customers','projects','accounts','categories','branches','invoices','receivables','reminder','recurring','exchanges')
 
 
+def implicit_account(b,u,message,candidate):
+    """A balance query's conversational tail is not necessarily an account name.
+
+    Exact scoped names and explicit rekening/akun filters use the existing resolver.
+    Only uncertain implicit references need semantic interpretation; on failure keep
+    the unresolved filter so we never silently answer for all accounts instead.
+    """
+    import requests
+    import finance_ai_safety as safety
+    from finance_semantics import interpret
+    # Preserve a bare unresolved name; interpretation is for ambiguous phrases.
+    if len(candidate.split())==1:return candidate
+    try:
+        if not safety.allow_attempt(u,b,'ai'):return candidate
+        data=interpret(message,('unknown','all_accounts','named_account'),('account',),context={
+            'task':'Resolve the account scope of this balance query. all_accounts means no particular account is requested (possessives and conversational fillers are not account names). named_account means a particular account is requested; copy its literal name into account. unknown means uncertain. Never invent or discard an explicitly named account.',
+            'candidate':candidate,
+        })
+    except (ValueError,requests.RequestException,TypeError,KeyError):return candidate
+    if data['intent']=='all_accounts' and not data['slots']:return None
+    if data['intent']=='named_account':return data['slots'].get('account') or candidate
+    return candidate
+
+
 def plan(b,u,message,previous=None):
     from finance_assistant_flow import currency_hint
     from finance_assistant_queries import is_contextual_followup
     text=normalize(message);low=text.lower();previous=previous or {}
+    # A complete new question must escape a prior entity-clarification question.
+    from finance_assistant_flow import is_read_query
+    if previous.get('awaiting') and not is_contextual_followup(text) and is_read_query(b,u,text):previous={}
     follow=is_contextual_followup(text) or bool(previous.get('awaiting')) or bool(re.fullmatch(r'(?:berikutnya|selanjutnya|lanjut|next)[ ?.]*',low))
     p=dict(previous) if follow else {}
     p.pop('awaiting',None)
@@ -84,7 +111,11 @@ def plan(b,u,message,previous=None):
             if raw:
                 value=raw[1].strip()
                 generic=all(w.lower() in set('gw gue gua aku saya kita apa siapa aja saja semua daftar total tersedia sekarang ini itu awal terbesar paling banyak bayar per minggu lalu depan telat overdue aging outstanding'.split())|{c.lower() for c in f.SUPPORTED_CURRENCIES} for w in value.split())
-                if value and not generic and not period_patch(value):p[key]=value
+                if value and not generic and not period_patch(value):
+                    if key=='account' and p['resource']=='balances' and not re.search(r'\b(?:rekening|akun)\b',low):
+                        value=implicit_account(b,u,message,value)
+                    if value:p[key]=value
+                    else:p.pop(key,None)
     return p
 
 
