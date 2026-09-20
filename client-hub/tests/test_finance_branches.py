@@ -394,6 +394,49 @@ class BranchTests(unittest.TestCase):
         self.assertIsNone(db.query_one('SELECT id FROM finance_branches WHERE business_id=? AND id=?',(self.b,empty)))
         self.assertEqual(db.query_all('SELECT id FROM finance_accounts WHERE business_id=? AND branch_id=?',(self.b,empty)),[])
 
+    def test_essential_settings_cannot_all_be_deleted(self):
+        with self.scope(self.ba):
+            # One active account must always remain in an active branch.
+            accounts=f.list_accounts(self.b)
+            for account in accounts[1:]:
+                branches.update_record(self.b,'account',account['id'],deactivate=True,actor_user_id=self.uid)
+            remaining=f.list_accounts(self.b)
+            with self.assertRaisesRegex(f.FinanceError,'account_last_active'):
+                branches.update_record(self.b,'account',remaining[0]['id'],deactivate=True,actor_user_id=self.uid)
+
+            # Keep at least one usable category for each side of the ledger.
+            for direction in ('INCOME','EXPENSE'):
+                categories=f.list_categories(self.b,direction)
+                for category in categories[1:]:
+                    branches.update_record(self.b,'category',category['id'],deactivate=True,actor_user_id=self.uid)
+                with self.assertRaisesRegex(f.FinanceError,'category_last_active'):
+                    branches.update_record(self.b,'category',categories[0]['id'],deactivate=True,actor_user_id=self.uid)
+
+    def test_last_account_for_currency_with_balance_is_protected(self):
+        with self.scope(self.ba):
+            usd=f.create_account(self.b,'USD Bank','BANK','USD',10000,actor_user_id=self.uid)
+            other=f.create_account(self.b,'Spare IDR','BANK','IDR',0,actor_user_id=self.uid)
+            self.assertTrue(other)
+            with self.assertRaisesRegex(f.FinanceError,'account_currency_required'):
+                branches.update_record(self.b,'account',usd,deactivate=True,actor_user_id=self.uid)
+
+    def test_new_finance_setup_has_working_defaults(self):
+        empty=repo.create_business(self.uid,'Fresh finance')
+        url=f'/business/{empty}/finance'
+        response=self.client.post(url+'/start')
+        self.assertEqual(response.status_code,303)
+        branch=branches.list_branches(empty)[0]
+        self.assertTrue(branch['is_active'])
+        with branches.scope(empty,branch['id'],self.uid):
+            accounts=f.list_accounts(empty)
+            self.assertEqual([(a['name'],a['currency']) for a in accounts],[('Kas','IDR')])
+            self.assertGreaterEqual(len(f.list_categories(empty,'INCOME')),1)
+            self.assertGreaterEqual(len(f.list_categories(empty,'EXPENSE')),1)
+        page=self.client.get(url+f'?branch_id={branch["id"]}')
+        self.assertEqual(page.status_code,200)
+        for value in ('data-finance-open="add-transaction-dialog"','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant'):
+            self.assertIn(value,page.text)
+
     def test_readding_hidden_branch_reactivates_same_record(self):
         with self.scope(self.bb):
             branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
