@@ -744,6 +744,67 @@ def list_finance_invoices(business_id, status=None, customer_id=None, actor_user
     return db.query_all(sql + ' ORDER BY issue_date DESC,id DESC', params)
 
 
+def _invoice_archive_states(business_id, actor_user_id=None):
+    """UI-only invoice archive state from the audit log.
+
+    Archiving never changes invoice/payment/ledger accounting state. The latest
+    archive/restore event wins, so paid history remains available and reversible.
+    """
+    _scope(business_id, actor_user_id)
+    rows=db.query_all("""SELECT action,detail FROM audit_log
+        WHERE business_id=? AND action IN ('FINANCE_INVOICE_ARCHIVED','FINANCE_INVOICE_RESTORED')
+        ORDER BY id""",(business_id,))
+    archived=set()
+    for row in rows:
+        match=re.fullmatch(r'finance_record_id=(\d+)',row['detail'] or '')
+        if not match:continue
+        ident=int(match[1])
+        if row['action']=='FINANCE_INVOICE_ARCHIVED':archived.add(ident)
+        else:archived.discard(ident)
+    return archived
+
+
+def archived_invoice_ids(business_id, actor_user_id=None):
+    return _invoice_archive_states(business_id,actor_user_id)
+
+
+def archive_finance_invoice(business_id, invoice_id, actor_user_id=None):
+    """Hide a fully paid invoice from the working list without touching accounting."""
+    with _write(business_id,actor_user_id):
+        invoice=_invoice(business_id,invoice_id,actor_user_id)
+        totals=get_invoice_totals(business_id,invoice_id,actor_user_id)
+        if invoice['status']!='PAID' or totals['outstanding_minor']!=0:
+            raise FinanceError('invoice_archive_requires_paid')
+        if invoice['id'] not in _invoice_archive_states(business_id,actor_user_id):
+            _audit(business_id,actor_user_id,'FINANCE_INVOICE_ARCHIVED',invoice['id'])
+        return invoice['id']
+
+
+def restore_finance_invoice(business_id, invoice_id, actor_user_id=None):
+    """Restore a UI-archived invoice. Accounting was never changed."""
+    with _write(business_id,actor_user_id):
+        invoice=_invoice(business_id,invoice_id,actor_user_id)
+        if invoice['status']!='PAID':raise FinanceError('invoice_archive_requires_paid')
+        if invoice['id'] in _invoice_archive_states(business_id,actor_user_id):
+            _audit(business_id,actor_user_id,'FINANCE_INVOICE_RESTORED',invoice['id'])
+        return invoice['id']
+
+
+def update_finance_invoice_notes(business_id, invoice_id, notes=None, actor_user_id=None):
+    """Edit non-financial invoice notes in any non-void state.
+
+    Totals, items, payment history, status and linked income stay immutable.
+    """
+    notes=_text(notes,4000)
+    with _write(business_id,actor_user_id):
+        invoice=_invoice(business_id,invoice_id,actor_user_id)
+        if invoice['status']=='VOID':raise FinanceError('invoice_unavailable')
+        db.execute('UPDATE finance_invoices SET notes=?,updated_at=? WHERE business_id=? AND id=?',
+                   (notes,repo._now(),business_id,invoice['id']))
+        _audit(business_id,actor_user_id,'FINANCE_INVOICE_NOTES_UPDATED',invoice['id'])
+        return invoice['id']
+
+
 def invoice_fingerprint(business_id, invoice, actor_user_id=None):
     fields={k:invoice[k] for k in ('id','customer_id','issue_date','due_date','currency','notes')}
     fields['items']=[{k:r[k] for k in ('description','quantity','unit_price_minor')} for r in list_invoice_items(business_id,invoice['id'],actor_user_id)]
