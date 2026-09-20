@@ -216,7 +216,9 @@ def _bank_preview(row,currency):
 def _bank_confirm(b,u,context):
     import finance_bank_service as bank
     imp=bank.get_import(b,context['import_id'],u)
-    if imp['status']=='CANCELLED':raise ValueError('invalid_draft')
+    if imp['status']=='CANCELLED':
+        imp=bank.reactivate_cancelled_import(b,imp['id'],u,expected_revision=context.get('revision'))
+        context=dict(context,revision=imp['revision'])
     rows=bank.get_rows(b,imp['id'],u)
     if len(rows)>BANK_CHAT_LIMIT:raise ValueError('bank_chat_limit')
     if imp['status']=='REVIEW':
