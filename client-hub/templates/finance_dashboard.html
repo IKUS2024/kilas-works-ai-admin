@@ -178,6 +178,8 @@
 <div class="finance-home-grid">
 {% if not branch_read_only %}
 <button type="button" class="finance-home-tile primary" data-finance-open="add-transaction-dialog"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat transaksi manual</span></button>
+{% elif all_branches %}
+<button type="button" class="finance-home-tile primary" data-finance-open="manual-branch-dialog"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat manual · pilih cabang</span></button>
 {% else %}
 <a class="finance-home-tile" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Lihat transaksi</span></a>
 {% endif %}
@@ -188,6 +190,20 @@
 <a class="finance-home-tile finance-home-ai" href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id or 'all') }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Chat, scan struk &amp; baca mutasi bank</span></a>
 </div>
 </div>
+
+{% if all_branches %}
+<dialog id="manual-branch-dialog" class="finance-sheet">
+<div class="finance-sheet-head"><h2>📒 Catat Transaksi Manual</h2><button type="button" class="finance-sheet-close" data-finance-close="manual-branch-dialog" aria-label="Tutup">×</button></div>
+<div class="finance-sheet-body">
+<p class="muted">Transaksi harus masuk ke satu cabang. Pilih cabang tempat transaksi terjadi, lalu form manual akan langsung terbuka.</p>
+<div class="finance-record-list">
+{% for branch in finance_branches if branch.is_active %}
+<a class="finance-record-row" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=branch.id,open_manual='1') }}"><div class="finance-record-main"><strong>{{ branch.name }}</strong><div class="finance-record-sub">Catat pemasukan / pengeluaran manual</div></div><span aria-hidden="true">›</span></a>
+{% else %}<div class="finance-empty">Belum ada cabang aktif untuk mencatat transaksi.</div>{% endfor %}
+</div>
+</div>
+</dialog>
+{% endif %}
 
 {% if not branch_read_only %}
 <details class="card finance-settings-hub">
