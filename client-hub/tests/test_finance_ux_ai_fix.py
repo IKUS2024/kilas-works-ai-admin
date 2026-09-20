@@ -112,22 +112,23 @@ class FinanceUXTests(unittest.TestCase):
         self.assertIn('.finance-filter select{width:100%;box-sizing:border-box}', html)
         self.assertIn('@media(max-width:480px){.finance-filter>div{flex-basis:100%}}', html)
 
-    def test_dashboard_currency_picker_and_recent_transaction_history(self):
+    def test_dashboard_currency_picker_and_history_launcher_only(self):
         self.trial()
         finance = __import__('finance_service')
         income = finance.list_categories(self.b, 'INCOME')[0]
         finance.create_transaction(self.b, 'INCOME', 2200000, self.a, income['id'], '2026-09-17',
             description='Jasa foto', actor_user_id=self.uid)
-        finance.create_transaction(self.b, 'EXPENSE', 200000, self.a, self.expense['id'], '2026-09-17',
-            description='Transport shooting', actor_user_id=self.uid)
         usd_account = finance.create_account(self.b, 'BOFA', currency='USD', actor_user_id=self.uid)
         finance.create_transaction(self.b, 'INCOME', 1500, usd_account, income['id'], '2026-09-17',
             currency='USD', description='USD client payment', actor_user_id=self.uid)
         html = self.client.get(self.url + '?month=2026-09').text
-        for value in ('data-cashflow-currency', 'Riwayat Transaksi', 'Jasa foto',
-                      'Transport shooting', 'Buka riwayat lengkap', '↑ Pemasukan', '↓ Pengeluaran'):
-            self.assertIn(value, html)
-        self.assertEqual(html.count('data-cashflow-block='), len(__import__('finance_service').get_finance_summaries(
+        self.assertIn('data-cashflow-currency', html)
+        self.assertIn('finance-history-launch', html)
+        self.assertIn('Riwayat Transaksi', html)
+        self.assertNotIn('Jasa foto', html)
+        self.assertNotIn('USD client payment', html)
+        self.assertNotIn('Buka riwayat lengkap', html)
+        self.assertEqual(html.count('data-cashflow-block='), len(finance.get_finance_summaries(
             self.b, '2026-09-01', '2026-09-17', actor_user_id=self.uid)))
 
     def test_transaction_history_is_all_time_and_paginated_ten_per_page(self):
@@ -144,8 +145,13 @@ class FinanceUXTests(unittest.TestCase):
         self.assertEqual(parse_qs(history.query).get('page'), ['1'])
 
         page1 = self.client.get(history.geturl()).text
-        self.assertIn('23 transaksi aktif', page1)
+        self.assertIn('23 transaksi', page1)
         self.assertIn('10 per halaman', page1)
+        self.assertNotIn('Kilas Finance</h1>', page1)
+        self.assertNotIn('Arus Kas Periode', page1)
+        self.assertNotIn('Pengaturan Finance', page1)
+        self.assertNotIn('Pilih yang mau dikerjakan', page1)
+        self.assertNotIn('Uang Tersedia', page1)
         self.assertIn('PAGED-22', page1)
         self.assertNotIn('PAGED-00', page1)
         links1 = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', page1)]
