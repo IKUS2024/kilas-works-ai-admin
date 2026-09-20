@@ -157,6 +157,28 @@ def uncertain():
         'Belum ada data yang diubah.'))
 
 
+def manual_fallback(pending=False):
+    message=('Saya belum bisa memproses permintaan ini dengan aman saat ini. Tidak ada data yang diubah. '
+             'Mohon lakukan tindakan ini melalui menu Finance secara manual, atau coba lagi nanti.')
+    if pending:message+=' Draft yang tadi belum disimpan.'
+    return dict(kind='clarification',title='Kilas Finance',message=message)
+
+
+def pending_uncertain(current):
+    key=current.get('next_field')
+    spec=next((r for r in current.get('fields',[]) if r.get('key')==key),None)
+    if not spec:return uncertain()
+    examples={'date':'“hari ini” atau “20 September 2026”','due_date':'“30 September 2026”',
+              'issue_date':'“hari ini”','amount':'“200 ribu”','account_id':'nama rekening, misalnya “BCA”',
+              'category_id':'nama kategori, misalnya “Transport”','invoice_id':'nomor invoice yang dimaksud',
+              'name':'nama yang ingin digunakan','cadence':'“Bulanan” atau “Mingguan”'}
+    example=examples.get(key)
+    message='Saya masih menunggu '+spec.get('label','data yang diminta').lower()+'.'
+    if example:message+=' Tulis '+example+'.'
+    message+=' Kalau ingin pindah ke pekerjaan lain, langsung tulis perintah barunya.'
+    return dict(kind='clarification',title=current.get('title') or 'Kilas Finance',message=message)
+
+
 def read(b,u,intent,slots,previous):
     flow.authorize(b,u,'ANALYST',write=False)
     if intent=='continue_query':
@@ -374,7 +396,8 @@ def message(b,u,text,query_context=''):
     contextual=contextual_last_action(b,u,text,previous)
     if contextual:return contextual
     data=classify(b,u,text,previous)
-    if not data or data['intent']=='unknown':return uncertain()
+    if data is None:return manual_fallback()
+    if data['intent']=='unknown':return uncertain()
     intent=data['intent'];slots=data['slots']
     if intent=='capabilities':return flow.capabilities()
     if intent in READS or intent=='continue_query':return read(b,u,intent,slots,previous)
@@ -396,7 +419,12 @@ def exact_updates(message,context,current):
     key=context.get('awaiting') or current.get('next_field')
     if key in ('amount','from_amount','to_amount','opening_balance') and (flow.AMOUNT.fullmatch(raw) or re.fullmatch(r'\d+(?:[.,]\d+)?',raw)):
         return {key:raw}
-    if key in ('date','due_date','issue_date','end_on') and re.fullmatch(r'\d{4}-\d{2}-\d{2}',raw):return {key:raw}
+    if key in ('date','due_date','issue_date','end_on'):
+        try:
+            if flow.proposed_date(raw,scheduled=context['action'] in ('recurring','invoice'),default_today=False):
+                return {key:raw}
+        except (ValueError,TypeError):
+            pass
     return {}
 
 
@@ -413,7 +441,8 @@ def pending(b,u,message,context,current,query_context=''):
         if context['action']=='record_invoice_payment' and 'amount' in updates:context['settle_full']=False
         return None,updates,True
     data=classify(b,u,message,previous,context,current)
-    if not data:return uncertain(),{},False
+    if data is None:return manual_fallback(pending=True),{},False
+    if data['intent']=='unknown':return pending_uncertain(current),{},False
     intent=data['intent'];slots=data['slots']
     if intent=='capabilities':return flow.capabilities(),{},False
     if intent in READS or intent=='continue_query':return read(b,u,intent,slots,previous),{},False
