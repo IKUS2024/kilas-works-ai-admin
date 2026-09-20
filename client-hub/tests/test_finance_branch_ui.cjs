@@ -107,10 +107,12 @@ test('dashboard keeps monthly overview compact with total saldo inside cashflow 
   assert.doesNotMatch(html,/<h2>Bulan \{\{ month \}\}<\/h2>/);
   assert.doesNotMatch(html,/_finance_balance_card\.html/);
   assert.match(cash,/Ringkasan Kas/);
-  assert.match(cash,/Total Saldo Saat Ini/);
-  assert.match(cash,/data-cash-position-card/);
+  assert.match(cash,/Saldo Tersedia Sekarang/);
+  assert.match(cash,/Saldo ditampilkan dalam mata uang asli/);
   assert.match(cash,/data-cashflow-card/);
-  assert.match(cash,/filter periode tidak mengubah total saldo/);
+  assert.match(cash,/data-cashflow-currency=/);
+  assert.doesNotMatch(cash,/data-cash-position-card/);
+  assert.doesNotMatch(cash,/Estimasi gabungan/);
 });
 
 
@@ -133,7 +135,7 @@ test('FX UI is professional: only multi-currency branches expose exchange and ex
   assert.match(dashboard,/tidak masuk omzet\/pemasukan atau biaya operasional/);
   assert.match(detail,/active_currencies\|length>1/);
   assert.match(detail,/Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan\/pengeluaran/);
-  assert.match(cash,/Perubahan estimasi total karena kurs tidak masuk Pemasukan\/Pengeluaran/);
+  assert.match(cash,/Penukaran mata uang memindahkan saldo antar-mata-uang dan bukan pemasukan\/pengeluaran/);
 });
 
 test('finance actual dates are capped at today and empty latest card is conditional',()=>{

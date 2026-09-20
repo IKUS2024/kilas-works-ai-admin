@@ -349,5 +349,5 @@
 <div class="finance-record-list">{% for c in categories %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 {% endif %}
-</div><script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script><script src="{{ url_for('static',filename='finance_balance_display.js',v='20260919-1') }}" defer></script>
+</div><script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>
 {% endblock %}
