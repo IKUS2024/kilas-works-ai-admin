@@ -90,12 +90,12 @@
       complete();
     }, {
       config_id: config.configId,
+      auth_type: 'rerequest',
       response_type: 'code',
       override_default_response_type: true,
       extras: {
         setup: {},
-        featureType: 'whatsapp_business_app_onboarding',
-        sessionInfoVersion: '3'
+        featureType: 'whatsapp_business_app_onboarding'
       }
     });
   });
