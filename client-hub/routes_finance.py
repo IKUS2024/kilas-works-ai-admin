@@ -347,10 +347,49 @@ def dashboard(business_id, user, business):
         item['idr_estimate_minor'] = finance_fx.to_idr(item['balance_minor'], item['currency'], fx)
 
     show_transactions = view == 'transactions'
-    transaction_limit = 1000 if period_mode in ('range', 'all') else 100
-    transactions = finance.list_transactions(
-        business_id, start_date=start, end_date=end, direction=direction,
-        status='POSTED', limit=transaction_limit, **actor) if show_transactions else []
+    transaction_page_size = 10
+    transaction_page = 1
+    transaction_total = 0
+    transaction_page_count = 1
+    transaction_page_items = [1]
+    transactions = []
+    if show_transactions:
+        try:
+            transaction_page = int(request.args.get('page', '1'))
+            if transaction_page < 1 or transaction_page > 100000:
+                raise ValueError('page')
+        except (TypeError, ValueError):
+            transaction_page = 1
+        transaction_total = finance.count_transactions(
+            business_id, start_date=start, end_date=end, direction=direction,
+            status='POSTED', **actor)
+        transaction_page_count = max(1, (transaction_total + transaction_page_size - 1) // transaction_page_size)
+        if transaction_page > transaction_page_count:
+            target = transaction_page_count
+            args = dict(period_query, branch_id=branch_value, view='transactions', page=target)
+            if direction:
+                args['direction'] = direction
+            return redirect(url_for('finance.dashboard', business_id=business_id, **args))
+        transactions = finance.list_transactions(
+            business_id, start_date=start, end_date=end, direction=direction,
+            status='POSTED', limit=transaction_page_size,
+            offset=(transaction_page - 1) * transaction_page_size, **actor)
+        if transaction_page_count <= 7:
+            transaction_page_items = list(range(1, transaction_page_count + 1))
+        else:
+            visible = sorted({1, transaction_page_count, transaction_page - 1,
+                              transaction_page, transaction_page + 1})
+            visible = [page for page in visible if 1 <= page <= transaction_page_count]
+            transaction_page_items = []
+            previous = None
+            for page in visible:
+                if previous is not None and page - previous > 1:
+                    transaction_page_items.append(None)
+                transaction_page_items.append(page)
+                previous = page
+    transaction_query = dict(period_query, branch_id=branch_value, view='transactions')
+    if direction:
+        transaction_query['direction'] = direction
     recent_transactions = finance.list_transactions(
         business_id, start_date=start, end_date=end, direction=direction,
         status='POSTED', limit=6, **actor) if not show_transactions else []
@@ -377,7 +416,10 @@ def dashboard(business_id, user, business):
     return render_template('finance_dashboard.html', user=user, business=business,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
-        transaction_limit=transaction_limit,
+        transaction_limit=transaction_page_size, transaction_page_size=transaction_page_size,
+        transaction_page=transaction_page, transaction_total=transaction_total,
+        transaction_page_count=transaction_page_count, transaction_page_items=transaction_page_items,
+        transaction_query=transaction_query,
         balances=balances, balance_totals=balance_totals, balance_total=balance_total,
         estimated_balance_idr=estimated_balance_idr, fx=fx, balance_displays=balance_displays,
         display_currency=display_currency, display_options=display_options,

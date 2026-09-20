@@ -130,6 +130,34 @@ class FinanceUXTests(unittest.TestCase):
         self.assertEqual(html.count('data-cashflow-block='), len(__import__('finance_service').get_finance_summaries(
             self.b, '2026-09-01', '2026-09-17', actor_user_id=self.uid)))
 
+    def test_transaction_history_is_all_time_and_paginated_ten_per_page(self):
+        self.trial()
+        finance = __import__('finance_service')
+        income = finance.list_categories(self.b, 'INCOME')[0]
+        for index in range(23):
+            finance.create_transaction(self.b, 'INCOME', 100000 + index, self.a, income['id'], '2026-09-17',
+                description=f'PAGED-{index:02d}', actor_user_id=self.uid)
+        summary = self.client.get(self.url + '?month=2026-09').text
+        full_links = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', summary)]
+        history = next(link for link in full_links if parse_qs(link.query).get('view') == ['transactions']
+                       and parse_qs(link.query).get('period_mode') == ['all'])
+        self.assertEqual(parse_qs(history.query).get('page'), ['1'])
+
+        page1 = self.client.get(history.geturl()).text
+        self.assertIn('23 transaksi aktif', page1)
+        self.assertIn('10 per halaman', page1)
+        self.assertIn('PAGED-22', page1)
+        self.assertNotIn('PAGED-00', page1)
+        links1 = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', page1)]
+        pages1 = {parse_qs(link.query).get('page', [''])[0] for link in links1
+                  if parse_qs(link.query).get('view') == ['transactions']}
+        self.assertTrue({'1','2','3'}.issubset(pages1))
+
+        page3 = self.client.get(self.url, query_string={'period_mode':'all','view':'transactions','page':'3'}).text
+        self.assertIn('PAGED-00', page3)
+        self.assertIn('Halaman 3 dari 3', page3)
+        self.assertNotIn('PAGED-22', page3)
+
     def test_receipt_fenced_success_populates_review_without_write_and_confirms_once(self):
         result = self.prepare_receipt()
         self.response.json.return_value['content'][0]['text'] = '```json\n' + json.dumps(result) + '\n```'

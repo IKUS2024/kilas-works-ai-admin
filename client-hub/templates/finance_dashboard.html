@@ -83,6 +83,12 @@
 .finance-history-amount.expense{color:var(--text)}
 .finance-history-footer{display:flex;justify-content:flex-end;margin-top:10px}
 .finance-history-footer a{font-size:12px;font-weight:800}
+.finance-pagination{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:14px}
+.finance-pagination a,.finance-pagination span{display:inline-flex;align-items:center;justify-content:center;min-width:38px;height:38px;padding:0 9px;border:1px solid var(--border);border-radius:10px;color:var(--text-dim);font-size:12px;font-weight:850;text-decoration:none}
+.finance-pagination a:hover,.finance-pagination a:focus{border-color:var(--orange);color:var(--text)}
+.finance-pagination a.active{border-color:var(--orange);background:color-mix(in srgb,var(--orange) 14%,transparent);color:var(--text)}
+.finance-pagination span{border-color:transparent;min-width:24px;padding:0;color:var(--text-dim)}
+.finance-pagination-meta{text-align:center;margin:10px 0 0;color:var(--text-dim);font-size:11px}
 @media(max-width:480px){
   .finance-history-card{padding:13px}
   .finance-history-head{align-items:center}
@@ -143,9 +149,9 @@
 <p class="muted finance-section-copy">Fitur utama dibuat singkat supaya kamu langsung tahu harus masuk ke mana.</p>
 <div class="finance-home-grid">
 {% if not branch_read_only %}
-<a class="finance-home-tile primary" href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,view='transactions',**period_query) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat &amp; lihat transaksi</span></a>
+<a class="finance-home-tile primary" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat &amp; lihat transaksi</span></a>
 {% else %}
-<a class="finance-home-tile" href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,view='transactions',**period_query) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Lihat transaksi</span></a>
+<a class="finance-home-tile" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Lihat transaksi</span></a>
 {% endif %}
 <a class="finance-home-tile" href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}"><span class="finance-home-icon">👥</span><span class="finance-home-label">Pelanggan</span><span class="finance-home-meta">Customer &amp; invoice</span></a>
 <a class="finance-home-tile" href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}"><span class="finance-home-icon">⏰</span><span class="finance-home-label">Penagihan</span><span class="finance-home-meta">Invoice belum dibayar</span></a>
@@ -183,12 +189,12 @@
 <section class="card finance-history-card" aria-labelledby="finance-history-title">
   <div class="finance-history-head">
     <div><h2 id="finance-history-title">Riwayat Transaksi</h2><p>Terbaru di {{ period_label }} · lihat apa saja yang sudah dicatat.</p></div>
-    <a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,view='transactions',**period_query) }}">Lihat semua</a>
+    <a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}">Lihat semua</a>
   </div>
   <nav class="finance-history-tabs" aria-label="Filter riwayat transaksi">
-    <a href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',**period_query) }}">Semua</a>
-    <a href="{{ url_for('finance.dashboard',business_id=business.id,direction='INCOME',view='transactions',**period_query) }}">↑ Pemasukan</a>
-    <a href="{{ url_for('finance.dashboard',business_id=business.id,direction='EXPENSE',view='transactions',**period_query) }}">↓ Pengeluaran</a>
+    <a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,view='transactions',page=1) }}">Semua</a>
+    <a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction='INCOME',view='transactions',page=1) }}">↑ Pemasukan</a>
+    <a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction='EXPENSE',view='transactions',page=1) }}">↓ Pengeluaran</a>
   </nav>
   <div class="finance-history-list">
   {% for t in recent_transactions %}
@@ -210,7 +216,7 @@
     <div class="finance-empty">Belum ada pemasukan atau pengeluaran pada periode ini.</div>
   {% endfor %}
   </div>
-  {% if recent_transactions %}<div class="finance-history-footer"><a href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,view='transactions',**period_query) }}">Buka riwayat lengkap →</a></div>{% endif %}
+  {% if recent_transactions %}<div class="finance-history-footer"><a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id or 'all',period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}">Buka riwayat lengkap →</a></div>{% endif %}
 </section>
 
 <div class="finance-quick-grid">
@@ -222,9 +228,20 @@
 
 {% if show_transactions %}
 <div class="card" id="transactions">
-<div class="finance-entry-head"><div><h2 style="margin:0">Transaksi · {{ period_label }}</h2><p class="muted">Menampilkan maksimal {{ transaction_limit }} transaksi aktif pada periode ini. Tanggal transaksi tidak dapat melebihi hari ini.</p></div><a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,**period_query) }}">← Ringkasan</a></div>
+<div class="finance-entry-head"><div><h2 style="margin:0">Riwayat Transaksi · {{ period_label }}</h2><p class="muted">{{ transaction_total }} transaksi aktif · {{ transaction_page_size }} per halaman. Tanggal transaksi tidak dapat melebihi hari ini.</p></div><a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,**period_query) }}">← Ringkasan</a></div>
 {% if not branch_read_only %}<button type="button" class="btn" data-finance-open="add-transaction-dialog">＋ Tambah Transaksi</button>{% endif %}
 {% for t in transactions %}<article class="finance-entry"><div class="finance-entry-head"><div><strong>{{ t.occurred_on }}</strong><div class="finance-entry-meta">{{ t.branch_name }} · {{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }}</div></div><span class="finance-entry-amount">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.amount_minor|finance_money(t.currency) }}</span></div><p style="white-space:pre-wrap">{{ t.description or 'Tanpa catatan' }}</p><p class="muted">{{ account_map.get(t.account_id, {}).get('name','Kas / Rekening') }} · {{ category_map.get(t.category_id, {}).get('name','Kategori') }}</p>{% if not branch_read_only and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<div class="finance-entry-actions">{% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">✏️ Edit</a>{% endif %}<form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button></form></div>{% endif %}</article>{% else %}<p class="finance-empty">Belum ada transaksi pada periode ini.</p>{% endfor %}
+{% if transaction_page_count > 1 %}
+<nav class="finance-pagination" aria-label="Halaman riwayat transaksi">
+  {% if transaction_page > 1 %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page-1,**transaction_query) }}" aria-label="Halaman sebelumnya">‹</a>{% endif %}
+  {% for item in transaction_page_items %}
+    {% if item %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=item,**transaction_query) }}" class="{{ 'active' if item == transaction_page }}" {% if item == transaction_page %}aria-current="page"{% endif %}>{{ item }}</a>
+    {% else %}<span aria-hidden="true">…</span>{% endif %}
+  {% endfor %}
+  {% if transaction_page < transaction_page_count %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page+1,**transaction_query) }}" aria-label="Halaman berikutnya">›</a>{% endif %}
+</nav>
+<p class="finance-pagination-meta">Halaman {{ transaction_page }} dari {{ transaction_page_count }}</p>
+{% endif %}
 </div>
 {% endif %}
 

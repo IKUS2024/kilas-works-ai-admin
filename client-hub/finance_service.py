@@ -304,6 +304,26 @@ def list_transactions(business_id, *, start_date=None, end_date=None, direction=
     return db.query_all(sql + ' ORDER BY occurred_on DESC,id DESC LIMIT ? OFFSET ?', params + [limit, offset])
 
 
+def count_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
+                       account_id=None, actor_user_id=None):
+    """Count the same scoped transaction set used by list_transactions without materializing rows."""
+    _scope(business_id, actor_user_id)
+    sql, params = ('SELECT COUNT(*) AS n FROM finance_transactions WHERE business_id=?' + branches.predicate()), [business_id]
+    if start_date is not None and end_date is not None:
+        _period(start_date, end_date)
+    for value, clause in ((start_date, ' AND occurred_on>=?'), (end_date, ' AND occurred_on<=?')):
+        if value is not None:
+            sql += clause; params.append(_date(value))
+    if direction is not None:
+        sql += ' AND direction=?'; params.append(_enum(direction, DIRECTIONS))
+    if status is not None:
+        sql += ' AND status=?'; params.append(_enum(status, ('POSTED', 'VOID')))
+    if account_id is not None:
+        sql += ' AND account_id=?'; params.append(_id(account_id))
+    row = db.query_one(sql, params)
+    return int(row['n']) if row else 0
+
+
 def update_transaction(business_id, transaction_id, *, actor_user_id=None, **changes):
     if set(changes) - set(FIELDS):
         raise FinanceError('unsupported_fields')
