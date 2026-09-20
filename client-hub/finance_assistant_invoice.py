@@ -80,9 +80,15 @@ def review_invoice(b,u,context,edits=None):
         if not invoice or invoice['status'] not in ('DRAFT','ISSUED'):raise ValueError('invoice_unavailable')
         if context['values'].get('fingerprint') != issue_fingerprint(b,u,invoice):raise ValueError('invalid_draft')
         totals=f.get_invoice_totals(b,invoice['id'],u)
-        return dict(kind='review',state='READY_FOR_CONFIRMATION',ready=True,title='Terbitkan invoice',
-                    message='Terbitkan invoice '+invoice['invoice_number']+'?',fields=[],
-                    preview=[['Total',fx.format_money(totals['total_minor'],invoice['currency'])]],
+        settle_after=bool(context.get('settle_after'))
+        return dict(kind='review',state='READY_FOR_CONFIRMATION',ready=True,
+                    title='Terbitkan + pelunasan' if settle_after else 'Terbitkan invoice',
+                    message=('Terbitkan invoice '+invoice['invoice_number']+
+                             ' lalu lanjutkan ke review pelunasan?' if settle_after else
+                             'Terbitkan invoice '+invoice['invoice_number']+'?'),
+                    fields=[],
+                    preview=([['Tindakan','Terbitkan invoice → review pembayaran penuh']] if settle_after else [])+
+                            [['Total',fx.format_money(totals['total_minor'],invoice['currency'])]],
                     context=flow.seal(b,u,'review',context),token=flow.seal(b,u,'confirm',context))
     values=context['values'].copy()
     if edits is not None:
@@ -179,6 +185,15 @@ def confirm_invoice(b,u,context):
     if context['action']=='issue_invoice':
         f.issue_finance_invoice(b,context['values']['invoice_id'],u,idempotency_key=context['nonce'],expected_fingerprint=context['values']['fingerprint'])
         row=f.get_finance_invoice(b,context['values']['invoice_id'],u)
+        if context.get('settle_after'):
+            from finance_assistant_payment import review as payment_review
+            payment_context=dict(action='record_invoice_payment',nonce=context['nonce'],settle_full=True,
+                values=dict(invoice_id=str(row['id']),customer_id=str(row['customer_id']),amount='',currency=row['currency'],
+                            date=date.today().isoformat(),account_id='',category_id='',description=''))
+            if context.get('conversation'):payment_context['conversation']=context['conversation']
+            result=payment_review(b,u,payment_context)
+            result['message']='✅ Invoice '+row['invoice_number']+' sudah diterbitkan. '+result['message']
+            return result
         return dict(record_id=row['id'],message='✅ Invoice '+row['invoice_number']+' berhasil diterbitkan.')
     # The existing Finance business lock makes the ordered services atomic.
     # Same nonce per service/audit namespace ensures transport retries never duplicate.
