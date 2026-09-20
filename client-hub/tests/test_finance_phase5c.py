@@ -45,6 +45,47 @@ class CollectionsTests(unittest.TestCase):
         i=self.invoice();self.pay(i,250,paid_on=date.today().isoformat())
         self.assertEqual(c.position(self.b,self.uid)['rows'],[])
 
+    def test_paid_invoice_archive_is_ui_only_and_reversible(self):
+        i=self.invoice()
+        self.pay(i,250,paid_on=date.today().isoformat())
+        number=f.get_finance_invoice(self.b,i)['invoice_number']
+        before_totals=f.get_invoice_totals(self.b,i).copy()
+        before_tx=[dict(row) for row in f.list_transactions(self.b)]
+        before_payments=[dict(row) for row in f.list_invoice_payments(self.b,i)]
+
+        f.archive_finance_invoice(self.b,i,self.uid)
+        self.assertIn(i,f.archived_invoice_ids(self.b,self.uid))
+        self.assertEqual(f.get_finance_invoice(self.b,i)['status'],'PAID')
+        self.assertEqual(f.get_invoice_totals(self.b,i),before_totals)
+        self.assertEqual([dict(row) for row in f.list_transactions(self.b)],before_tx)
+        self.assertEqual([dict(row) for row in f.list_invoice_payments(self.b,i)],before_payments)
+        self.assertNotIn(number.encode(),self.client.get(self.url+'/receivables?section=invoices').data)
+        self.assertIn(number.encode(),self.client.get(self.url+'/receivables?section=invoices&archived=1').data)
+
+        f.restore_finance_invoice(self.b,i,self.uid)
+        self.assertNotIn(i,f.archived_invoice_ids(self.b,self.uid))
+        self.assertIn(number.encode(),self.client.get(self.url+'/receivables?section=invoices').data)
+        self.assertEqual(f.get_invoice_totals(self.b,i),before_totals)
+
+    def test_paid_invoice_note_edit_never_changes_money_or_payment_history(self):
+        i=self.invoice()
+        self.pay(i,250,paid_on=date.today().isoformat())
+        before=f.get_invoice_totals(self.b,i).copy()
+        payments=[dict(row) for row in f.list_invoice_payments(self.b,i)]
+        transactions=[dict(row) for row in f.list_transactions(self.b)]
+        f.update_finance_invoice_notes(self.b,i,'Catatan baru',self.uid)
+        self.assertEqual(f.get_finance_invoice(self.b,i)['notes'],'Catatan baru')
+        self.assertEqual(f.get_invoice_totals(self.b,i),before)
+        self.assertEqual([dict(row) for row in f.list_invoice_payments(self.b,i)],payments)
+        self.assertEqual([dict(row) for row in f.list_transactions(self.b)],transactions)
+
+    def test_collections_default_as_of_uses_business_today(self):
+        expected=date(2026,9,20)
+        with patch.object(f,'business_today',return_value=expected) as local_today:
+            data=c.position(self.b,self.uid)
+        local_today.assert_called_once_with(self.b)
+        self.assertEqual(data['as_of'],expected.isoformat())
+
     def test_partial_payment_remaining_and_shared_phase3(self):
         i=self.invoice(20);self.pay(i,100,paid_on=date.today().isoformat())
         data=c.position(self.b,self.uid)
