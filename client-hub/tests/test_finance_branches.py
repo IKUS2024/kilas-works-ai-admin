@@ -391,6 +391,16 @@ class BranchTests(unittest.TestCase):
                 self.assertEqual(f.list_finance_projects(self.b)[0]['id'],project)
                 self.assertEqual(f.list_customers(self.b)[0]['id'],self.c)
 
+    def test_shared_finance_pages_normalize_archived_branch_to_active(self):
+        self.tx(self.bb,10)
+        with self.scope(self.ba):
+            branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
+        for suffix in ('/assistant','/reports','/receivables','/operations'):
+            response=self.client.get(self.url+suffix+f'?branch_id={self.bb}')
+            self.assertEqual(response.status_code,200,suffix)
+            self.assertNotIn('Serpong (Nonaktif)',response.text)
+            self.assertNotIn('Semua Cabang',response.text)
+
     def test_dashboard_redirects_archived_branch_to_active_branch(self):
         self.tx(self.bb, 10)
         with self.scope(self.ba):
