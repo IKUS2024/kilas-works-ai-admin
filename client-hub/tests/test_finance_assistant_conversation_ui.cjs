@@ -98,10 +98,10 @@ test('interrupted ready draft confirms only its original token and clears both c
   assert.equal(h.calls[2].body.context,draft.context);
   assert.deepEqual(h.calls[3].body,{text:'saldo?'});
 });
-test('new command interruption preserves the draft until explicit cancel',async()=>{
-  const h=harness([draft,{kind:'answer',keep_pending:true,message:'Balas batal'},
-    {kind:'answer',state:'CANCELLED'},{kind:'review',context:'new-draft',fields:[]}]);
-  await h.send('tambah customer Wilson');await h.send('catat pemasukan 3 juta');await h.send('batal');await h.send('catat pemasukan 3 juta');
-  assert.equal(h.calls[2].body.context,draft.context);
-  assert.deepEqual(h.calls[3].body,{text:'catat pemasukan 3 juta'});
+test('new reviewed command replaces the uncommitted draft without a cancel ritual',async()=>{
+  const replacement={kind:'review',context:'new-draft',ready:false,fields:[{key:'amount',value:'3 juta',required:true}]};
+  const h=harness([draft,replacement,{...replacement,context:'new-draft-2'}]);
+  await h.send('tambah customer Wilson');await h.send('catat pemasukan 3 juta');await h.send('ubah jadi 4 juta');
+  assert.equal(h.calls[1].body.context,draft.context);
+  assert.equal(h.calls[2].body.context,'new-draft');
 });
