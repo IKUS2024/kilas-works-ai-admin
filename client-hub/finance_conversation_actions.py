@@ -17,16 +17,18 @@ from finance_semantics import entity_options
 
 TITLES={'create_account':'Rekening baru','create_category':'Kategori baru','create_branch':'Cabang baru',
         'rename_account':'Ubah nama rekening','rename_category':'Ubah nama kategori','rename_branch':'Ubah nama cabang',
+        'edit_customer':'Ubah customer','deactivate_customer':'Hapus customer',
         'deactivate_account':'Nonaktifkan rekening','deactivate_category':'Nonaktifkan kategori','deactivate_branch':'Nonaktifkan cabang',
         'deactivate_recurring':'Hentikan biaya rutin','post_recurring':'Catat biaya rutin jatuh tempo',
         'void_transaction':'Batalkan transaksi','edit_transaction':'Koreksi transaksi',
         'void_invoice':'Batalkan invoice','void_fx':'Batalkan penukaran mata uang','exchange':'Catat penukaran mata uang'}
-LABELS={'name':'Nama','account_type':'Jenis rekening','currency':'Mata uang','opening_balance':'Saldo awal',
+LABELS={'name':'Nama','phone':'Nomor telepon','email':'Email','notes':'Catatan customer',
+        'account_type':'Jenis rekening','currency':'Mata uang','opening_balance':'Saldo awal',
         'direction':'Jenis','from_account_id':'Rekening asal','to_account_id':'Rekening tujuan',
         'from_amount':'Nominal keluar','to_amount':'Nominal diterima','date':'Tanggal','note':'Catatan',
         'amount':'Nominal','account_id':'Kas / Rekening','category_id':'Kategori','description':'Catatan',
         'project_id':'Proyek','customer_id':'Pelanggan','counterparty_name':'Pihak terkait'}
-OPTIONAL={'note','description','project_id','customer_id','counterparty_name'}
+OPTIONAL={'note','description','project_id','customer_id','counterparty_name','phone','email','notes'}
 REFS={'account_id':'account','from_account_id':'account','to_account_id':'account','category_id':'category','project_id':'project','customer_id':'customer'}
 
 
@@ -37,6 +39,7 @@ def fingerprint(row):
 def targets(b,u,kind):
     if kind=='account':return f.list_accounts(b,actor_user_id=u)
     if kind=='category':return f.list_categories(b,actor_user_id=u)
+    if kind=='customer':return f.list_customers(b,actor_user_id=u)
     if kind=='branch':return branches.list_branches(b,u)
     if kind=='recurring':return f.list_recurring_expenses(b,actor_user_id=u)
     if kind=='invoice':return [dict(r,name=r['invoice_number']) for r in f.list_finance_invoices(b,actor_user_id=u)]
@@ -66,6 +69,9 @@ def start(b,u,operation,values=None,row=None):
     if operation=='create_account':v={'name':'','account_type':'','currency':'','opening_balance':'0',**v}
     elif operation=='create_category':v={'name':'','direction':'',**v}
     elif operation in ('create_branch','rename_account','rename_category','rename_branch'):v={'name':'',**v}
+    elif operation=='edit_customer':
+        if not row:raise ValueError('invalid_draft')
+        v={'name':row['name'],'phone':row['phone'] or '','email':row['email'] or '','notes':row['notes'] or '',**v}
     elif operation=='exchange':v={'from_account_id':'','to_account_id':'','from_amount':'','to_amount':'','date':date.today().isoformat(),'note':'',**v}
     elif operation=='edit_transaction':
         v={'direction':row['direction'],'amount':str(fx.major(row['amount_minor'],row['currency'])),'currency':row['currency'],
@@ -112,6 +118,10 @@ def prepared(b,u,c):
                   customer_id=int(v['customer_id']) if v['customer_id'] else None,counterparty_name=v['counterparty_name'])
         if row['source_type'] in ('FINANCE_INVOICE_PAYMENT','FINANCE_RECURRING_EXPENSE') or row['status']!='POSTED':raise ValueError('managed_transaction')
         f._transaction_data(b,dict(data,source_type=row['source_type'],source_ref=row['source_ref']))
+    elif op=='edit_customer':
+        from finance_draft_fields import customer_values
+        name,phone,email,notes=customer_values(dict(name=v['name'],phone=v['phone'],email=v['email'],notes=v['notes']))
+        data=dict(name=name,phone=phone,email=email,notes=notes)
     elif op=='post_recurring':
         due=f.preview_due_recurring_expenses(b,date.today().isoformat(),u)
         found=next((r for r in due if r['id']==row['id'] and r['next_due_on']==row['next_due_on']),None)
@@ -183,6 +193,8 @@ def confirm(b,u,c):
             elif op=='create_branch':ident=branches.create_branch(b,**data,actor_user_id=u)
             elif op.startswith('rename_') or op in ('deactivate_account','deactivate_category','deactivate_branch'):
                 branches.update_record(b,op.split('_')[1],ident,name=data.get('name'),deactivate=op.startswith('deactivate_'),actor_user_id=u)
+            elif op=='edit_customer':ident=f.update_customer(b,ident,actor_user_id=u,**data)
+            elif op=='deactivate_customer':ident=f.delete_customer(b,ident,actor_user_id=u)
             elif op=='deactivate_recurring':f.deactivate_recurring_expense(b,ident,u)
             elif op=='void_transaction':f.void_transaction(b,ident,u)
             elif op=='void_invoice':f.void_finance_invoice(b,ident,u)
@@ -228,14 +240,15 @@ def route(b,u,text,query_context='',classify_only=False):
                 if typ:values['account_type']={'bank':'BANK','cash':'CASH','tunai':'CASH','ewallet':'EWALLET'}[typ[1].lower()];name=name[:typ.start()]+name[typ.end():]
                 values['name']=name.strip()
         if not op:
-            action=re.search(r'\b(nonaktifkan|hentikan|stop|batalkan|void|koreksi|ubah|ganti nama|bayar|posting|proses)\s+(?:biaya\s+)?(rutin|transaksi|invoice|rekening|akun|kategori|cabang|fx)\s*(.*)',text,re.I)
+            action=re.search(r'\b(nonaktifkan|hentikan|stop|hapus|delete|batalkan|void|koreksi|edit|ubah|ganti nama|bayar|posting|proses)\s+(?:biaya\s+)?(rutin|transaksi|invoice|rekening|akun|kategori|cabang|customer|pelanggan|fx)\s*(.*)',text,re.I)
             if action:
-                verb,kind,raw=action.groups();kind={'rutin':'recurring','rekening':'account','akun':'account','kategori':'category','cabang':'branch','transaksi':'transaction'}.get(kind.lower(),kind.lower())
+                verb,kind,raw=action.groups();kind={'rutin':'recurring','rekening':'account','akun':'account','kategori':'category','cabang':'branch','pelanggan':'customer','transaksi':'transaction'}.get(kind.lower(),kind.lower())
                 verb=verb.lower()
                 if verb in ('bayar','posting','proses') and kind=='recurring':op='post_recurring'
-                elif verb in ('nonaktifkan','hentikan','stop') and kind in ('recurring','account','category','branch'):op='deactivate_'+kind
-                elif verb in ('batalkan','void') and kind in ('transaction','invoice','fx'):op='void_'+kind
-                elif verb in ('ubah','koreksi') and kind=='transaction':op='edit_transaction'
+                elif verb in ('nonaktifkan','hentikan','stop','hapus','delete') and kind in ('recurring','account','category','branch','customer'):op='deactivate_'+kind
+                elif verb in ('batalkan','void','hapus','delete') and kind in ('transaction','invoice','fx'):op='void_'+kind
+                elif verb in ('ubah','koreksi','edit') and kind=='transaction':op='edit_transaction'
+                elif verb in ('ubah','edit') and kind=='customer':op='edit_customer'
                 elif verb in ('ubah','ganti nama') and kind in ('account','category','branch'):
                     op='rename_'+kind
                     pieces=re.split(r'\s+(?:jadi|menjadi)\s+',raw,maxsplit=1,flags=re.I);raw=pieces[0]
