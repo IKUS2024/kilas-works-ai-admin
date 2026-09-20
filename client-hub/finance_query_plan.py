@@ -131,7 +131,7 @@ def ask(p,key,rows,label='name'):
 
 
 def execute(b,u,p,scoped=False):
-    today=date.today().isoformat();resource=p['resource'];ids={}
+    today=f.business_today(b).isoformat();resource=p['resource'];ids={}
     if not scoped and p.get('branch'):
         if p['branch']=='*':branch=None
         else:
@@ -199,7 +199,7 @@ def execute(b,u,p,scoped=False):
         if currency:rows=[r for r in rows if r['currency']==currency]
         if p.get('overdue') or resource=='reminder':rows=[r for r in rows if r['overdue']]
         if p.get('due_week'):
-            end=(date.today()+timedelta(days=6-date.today().weekday())).isoformat()
+            local_today=f.business_today(b);end=(local_today+timedelta(days=6-local_today.weekday())).isoformat()
             rows=[r for r in rows if today<=r['due_date']<=end]
         rows.sort(key=lambda r:(-r['days_late'],r['id']))
         if not rows and resource=='receivables':
