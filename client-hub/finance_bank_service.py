@@ -103,6 +103,45 @@ def insert_row(imp,index,row):
         row['direction'],row['amount_minor'],row['description'],row['reference'],now,now))
 
 
+def reactivate_cancelled_import(business_id, import_id, user_id, expected_revision=None):
+    """Start a fresh reconciliation generation for an explicitly retried cancelled import.
+
+    Reset keeps historical imports/transactions for audit. Re-uploading that same statement must
+    not surface a dead CANCELLED review, and must not collide with old VOID bank-origin hashes.
+    """
+    with f._write(business_id,user_id):
+        imp=get_import(business_id,import_id,user_id)
+        if imp['status']!='CANCELLED':
+            return imp
+        if expected_revision is not None and imp['revision']!=expected_revision:
+            raise f.FinanceError('bank_stale_review')
+        live=db.query_one('''SELECT 1 FROM finance_bank_rows r
+            JOIN finance_transactions t ON t.business_id=r.business_id
+             AND (t.id=r.matched_transaction_id OR t.id=r.created_transaction_id)
+            WHERE r.business_id=? AND r.import_id=? AND t.status='POSTED' LIMIT 1''',
+            (business_id,import_id))
+        if live:
+            raise f.FinanceError('bank_cannot_reactivate')
+        generation=imp['revision']+1
+        rows=get_rows(business_id,import_id,user_id)
+        for row in rows:
+            normalized=dict(transaction_date=row['occurred_on'],direction=row['direction'],
+                amount_minor=row['amount_minor'],description=row['description'],reference=row['reference'])
+            fresh_hash=hashlib.sha256(json.dumps(dict(version=2,business_id=business_id,
+                account_id=imp['account_id'],source_hash=imp['file_hash'],generation=generation,
+                index=row['row_index'],row=normalized),sort_keys=True,separators=(',',':'),
+                ensure_ascii=False).encode()).hexdigest()
+            db.execute('''UPDATE finance_bank_rows
+                SET reconciliation_status='UNMATCHED',matched_transaction_id=NULL,
+                    created_transaction_id=NULL,row_hash=?,updated_at=?
+                WHERE business_id=? AND import_id=? AND id=?''',
+                (fresh_hash,repo._now(),business_id,import_id,row['id']))
+        db.execute("UPDATE finance_bank_imports SET status='REVIEW',revision=?,updated_at=? WHERE business_id=? AND id=?",
+                   (generation,repo._now(),business_id,import_id))
+        f._audit(business_id,user_id,'FINANCE_BANK_IMPORT_REACTIVATED',import_id)
+        return get_import(business_id,import_id,user_id)
+
+
 def stage(business_id,account_id,source,rows,user_id):
     if len(rows)>1000:raise f.FinanceError('bank_volume_limit')
     rows=[extraction.normalize(row) for row in rows]
@@ -132,6 +171,8 @@ def analyze(business_id,account_id,files,user_id,document_kind='bank',*,validate
     existing=find_import(business_id,account_id,source['identity'],user_id)
     if existing:
         imp=get_import(business_id,existing['id'],user_id)
+        if imp['status']=='CANCELLED':
+            imp=reactivate_cancelled_import(business_id,imp['id'],user_id,expected_revision=imp['revision'])
         if imp['status']!='REVIEW' or get_rows(business_id,imp['id'],user_id):
             return imp['id'],False
         # An empty failed extraction can be retried. Never replace a user's review edits.
