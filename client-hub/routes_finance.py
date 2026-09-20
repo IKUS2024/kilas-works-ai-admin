@@ -114,6 +114,7 @@ ERRORS = {
     'invalid_period': 'Tanggal jatuh tempo tidak boleh sebelum tanggal terbit.',
     'invalid_invoice_state': 'Status invoice tidak mengizinkan tindakan ini. Muat ulang halaman.',
     'invoice_cannot_void': 'Invoice yang sudah memiliki pembayaran tidak dapat dibatalkan.',
+    'invoice_archive_requires_paid': 'Hanya invoice yang sudah lunas penuh yang dapat dihapus dari daftar kerja. Pembayaran dan pembukuan tetap dilindungi.',
     'empty_invoice_total': 'Total invoice harus lebih dari nol sebelum diterbitkan.',
     'overpayment': 'Nominal melebihi sisa tagihan. Muat ulang untuk melihat saldo terbaru.',
     'payment_key_conflict': 'Form pembayaran sudah digunakan. Muat ulang untuk pembayaran baru.',
