@@ -112,6 +112,22 @@ def resolve(updates,context,fields):
             if not hits:
                 from finance_semantics import entity_options
                 hits=entity_options([dict(o,name=o['label'].split('·')[0].strip()) for o in spec.get('options',[])],raw)
+            if not hits:
+                from difflib import SequenceMatcher
+                def norm(v):return re.sub(r'[^0-9a-z]+',' ',str(v).casefold()).strip()
+                value=norm(raw);ranked=[]
+                for option in spec.get('options',[]):
+                    name=norm(option['label'].split('·')[0].strip())
+                    if not value or not name:continue
+                    score=max(SequenceMatcher(None,value,name).ratio(),
+                              max((SequenceMatcher(None,value,part).ratio() for part in name.split()),default=0))
+                    ranked.append((score,option))
+                ranked.sort(key=lambda x:x[0],reverse=True)
+                if ranked:
+                    best_score,best=ranked[0];best_name=norm(best['label'].split('·')[0].strip())
+                    short=min(len(value),len(best_name))<=4
+                    threshold=0.66 if short else 0.84;gap=0.20 if short else 0.08
+                    if best_score>=threshold and (len(ranked)==1 or best_score-ranked[1][0]>=gap):hits=[best]
             if not hits and semantic=='category':
                 from finance_assistant_flow import category_choice
                 choices=[dict(id=o['value'],name=o['label']) for o in spec.get('options',[])]
