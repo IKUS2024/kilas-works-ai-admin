@@ -57,3 +57,66 @@ def understand(b,u,text):
     try:values=draft.resolve(slots,context,initial['fields'])
     except ValueError:return initial
     return flow.review(b,u,context,values)
+
+
+def pending_turn(b,u,message,context,current,query_context=''):
+    """Distinguish a draft edit from an independent intent before slot_reply.
+
+    Reuse the normal query signals and the constrained semantic interpreter.
+    A model can select a read plan, never confirmation authority. New writes
+    require explicit cancellation of the current draft instead of replacing it.
+    """
+    import finance_assistant_flow as flow
+    import finance_draft_interpreter as draft
+    from finance_semantics import normalize
+    from finance_query_plan import RESOURCES,plan,execute
+    text=normalize(message)
+    updates=draft.deterministic(message,context,current['fields'])
+    # Exact current select options are data, not independent account/category commands.
+    if any(message.strip().casefold() in (o['label'].casefold(),o['label'].split('·')[0].strip().casefold())
+           for field in current['fields'] for o in field.get('options',[])):
+        return None,updates,True
+    # Explicit literal field edits remain edits even when a name contains Finance words.
+    literal_edit=(bool(updates) and set(updates)<= {'name','phone','email','notes','description','counterparty_name','end_on'}
+                  and updates==draft.deterministic(message,context,current['fields'],anchored=True))
+    if not literal_edit and flow.is_read_query(b,u,text,query_context):
+        return flow.answer(b,u,text,query_context),{},False
+    _,explicit_write,schedule=flow.message_intents(text)
+    from finance_conversation_actions import route
+    independent_command=bool(route(b,u,text,classify_only=True)) if not literal_edit else False
+    independent_command=independent_command or (schedule and context['action']!='recurring')
+    amount_in_sentence=set(updates)=={'amount'} and message.strip()!=updates['amount'].strip() and flow.FINANCE_DOMAIN.search(text)
+    if updates and not explicit_write and not independent_command and not amount_in_sentence:return None,updates,True
+    read_intents=tuple('recurring_list' if r=='recurring' else r for r in RESOURCES)
+    reverse={v:k for k,v in draft.REFERENCES.items()}
+    slots=tuple(dict.fromkeys(SLOTS+tuple(reverse.get(k,k) for k in context['values'])))
+    try:
+        if not safety.allow_attempt(u,b,'ai'):raise ValueError('rate_limited')
+        data=interpret(message,('unknown','continue_draft','new_command')+read_intents,slots,context={
+            'task':'Route the current turn: continue_draft edits the active draft; new_command starts a separate Finance write; resource intents are independent read-only queries. Never treat a report or balance query as a missing field. Confirmation/cancel are handled only by the server.',
+            'action':context['action'],'operation':context.get('operation'),
+            'awaiting':context.get('awaiting') or current.get('next_field'),
+            'editable_fields':[{'name':reverse.get(field['key'],field['key']),'missing':not bool(field['value'])} for field in current['fields']],
+        })
+    except (ValueError,requests.RequestException,TypeError,KeyError):
+        data={'intent':'unknown','slots':{}}
+    intent=data['intent']
+    if intent in read_intents:
+        flow.authorize(b,u,'ANALYST',write=False)
+        previous=flow.unseal_query(b,u,query_context).get('plan',{}) if query_context else {}
+        p=plan(b,u,text,previous);p['resource']='recurring' if intent=='recurring_list' else intent
+        for key in ('account','customer','project','category'):
+            if key in data['slots']:p[key]=data['slots'][key]
+        if 'period' in data['slots']:
+            from finance_semantics import period_patch
+            period=period_patch(data['slots']['period'])
+            if period:p['period']=period
+        result=execute(b,u,p);result['query_context']=flow.seal_query(b,u,{'plan':p})
+        return result,{},False
+    if intent=='new_command' or (explicit_write or independent_command) and intent!='continue_draft':
+        return dict(kind='answer',message='Ini perintah Finance baru. Draft sebelumnya belum disimpan. Balas “batal” untuk membatalkannya, lalu kirim perintah baru tadi.'),{},False
+    if intent=='continue_draft':
+        allowed={draft.REFERENCES.get(k,k) for k in data['slots']}
+        if allowed.issubset(context['values']):return None,data['slots'] or updates,True
+    # An unavailable/uncertain model must not pour arbitrary text into a name or amount.
+    return None,{},False

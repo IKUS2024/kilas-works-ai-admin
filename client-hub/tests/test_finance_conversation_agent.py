@@ -193,10 +193,10 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(r.status_code,400)
     def test_model_patch_accepts_raw_values_never_ids_or_action(self):
         draft=self.message('tambah customer Wilson').json
-        for malicious in ({'updates':{'customer_id':'123'}},{'updates':{'action':'create_income'}},{'updates':{'phone':'999'}}):
+        for malicious in ({'intent':'continue_draft','slots':{'customer_id':'123'}},{'intent':'continue_draft','slots':{'action':'create_income'}},{'intent':'continue_draft','slots':{'phone':'999'}}):
             self.model(malicious);r=self.follow(draft,'tolong isi kontaknya dong 082213039137')
             self.assertEqual(self.values(r)['phone'],'')
-        self.model({'updates':{'phone':'082213039137'}})
+        self.model({'intent':'continue_draft','slots':{'phone':'082213039137'}})
         r=self.follow(draft,'tolong isi kontaknya dong 082213039137')
         self.assertEqual(self.values(r)['phone'],'082213039137')
     def test_unknown_account_does_not_silently_replace(self):

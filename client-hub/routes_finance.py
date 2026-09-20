@@ -1428,9 +1428,9 @@ def assistant_message(business_id,user,business):
     payload,error=finance_ai_payload(user['id'],business_id,'confirm')
     if error is not None:return error
     try:
-        if set(payload) not in ({'text'}, {'text','query_context'}, {'text','context','confirmation'}):raise ValueError('invalid_fields')
+        if set(payload) not in ({'text'}, {'text','query_context'}, {'text','context','confirmation'}, {'text','context','confirmation','query_context'}):raise ValueError('invalid_fields')
         if 'context' in payload:
-            return jsonify(assistant_flow.follow_up(business_id,user['id'],payload['context'],payload['text'],payload['confirmation']))
+            return jsonify(assistant_flow.follow_up(business_id,user['id'],payload['context'],payload['text'],payload['confirmation'],payload.get('query_context','')))
         return jsonify(assistant_flow.text_message(business_id,user['id'],payload['text'],payload.get('query_context','')))
     except ValueError as error:return assistant_error(error)
     except Exception:

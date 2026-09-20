@@ -266,7 +266,7 @@ class SemanticAgentTests(unittest.TestCase):
 
     def test_missing_slot_context_supplied_to_model_without_ids(self):
         draft=self.ask('tambah customer Wilson')
-        self.model({'updates':{'phone':'082213039137'}})
+        self.model({'intent':'continue_draft','slots':{'phone':'082213039137'}})
         second=self.follow(draft,'kontaknya tolong dibenerin 082213039137')
         self.assertEqual(self.values(second)['phone'],'082213039137')
         body=self.http.call_args.kwargs['json']['messages'][0]['content']

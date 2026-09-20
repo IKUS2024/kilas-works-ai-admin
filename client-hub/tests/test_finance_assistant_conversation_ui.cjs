@@ -81,3 +81,27 @@ test('retained bank upload accepts typed account selection and resolves it on se
   assert.equal(h.calls[2].body.text,'pakai BCA');assert.equal(h.calls[2].body.document_context,'signed-file-currency');
   assert.equal(h.calls[2].body.account_id,undefined);assert.equal(h.calls[2].body.sources.name,'bank.pdf');
 });
+
+test('read-only interruption keeps the original draft and passes query context separately',async()=>{
+  const incomplete={...draft,ready:false,token:undefined};
+  const answer={kind:'answer',message:'Pengeluaran bulan ini',keep_pending:true,query_context:'signed-report'};
+  const h=harness([incomplete,answer,answer,{...draft,context:'amount-updated'}]);
+  await h.send('pengeluaran');await h.send('laporan pengeluaran');await h.send('kalau agustus?');await h.send('200 ribu');
+  assert.deepEqual(h.calls[3].body,{text:'200 ribu',context:incomplete.context,confirmation:null,query_context:'signed-report'});
+  assert.equal(h.calls[2].body.context,incomplete.context);
+});
+test('interrupted ready draft confirms only its original token and clears both contexts',async()=>{
+  const h=harness([draft,{kind:'answer',keep_pending:true,query_context:'query-only'},
+    {kind:'success',message:'Saved'},{kind:'answer',message:'Saldo'}]);
+  await h.send('tambah customer Wilson');await h.send('saldo gw berapa?');await h.send('oke');await h.send('saldo?');
+  assert.equal(h.calls[2].body.confirmation,draft.token);
+  assert.equal(h.calls[2].body.context,draft.context);
+  assert.deepEqual(h.calls[3].body,{text:'saldo?'});
+});
+test('new command interruption preserves the draft until explicit cancel',async()=>{
+  const h=harness([draft,{kind:'answer',keep_pending:true,message:'Balas batal'},
+    {kind:'answer',state:'CANCELLED'},{kind:'review',context:'new-draft',fields:[]}]);
+  await h.send('tambah customer Wilson');await h.send('catat pemasukan 3 juta');await h.send('batal');await h.send('catat pemasukan 3 juta');
+  assert.equal(h.calls[2].body.context,draft.context);
+  assert.deepEqual(h.calls[3].body,{text:'catat pemasukan 3 juta'});
+});

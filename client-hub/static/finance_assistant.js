@@ -91,8 +91,9 @@
     turn.append(avatar,bubble);log.append(turn);scroll();
     if(data.query_context)queryContext=data.query_context;
     if(['review','bank_review','document_account'].includes(data.kind)){pending=data;queryContext='';}
+    else if(data.state==='CANCELLED'){pending=null;queryContext='';}
     else if(data.kind==='success'){pending=null;if(!data.query_context)queryContext='';}
-    else if(!options.keepPending)pending=null;
+    else if(!options.keepPending&&!data.keep_pending)pending=null;
   };
   const appendError=message=>appendAssistant({title:'Belum berhasil',message:message||'Coba lagi sebentar. Belum ada data yang diubah.'},{error:true,keepPending:true});
   const clearFiles=()=>{files.value='';try{files.files=[];}catch(_){}if(camera)camera.value='';el('assistant-file-list').replaceChildren();};
@@ -126,7 +127,9 @@
   };
   const followPending=async message=>{
     if(pending?.context){
-      const data=await send(composer.dataset.message,{text:message,context:pending.context,confirmation:pending.token||null});
+      const payload={text:message,context:pending.context,confirmation:pending.token||null};
+      if(queryContext)payload.query_context=queryContext;
+      const data=await send(composer.dataset.message,payload);
       appendAssistant(data,{success:data.kind==='success'});return;
     }
     if(cancelWords.test(message)){pending=null;clearFiles();appendAssistant({message:'Oke, draft tadi dibatalkan. Mau catat atau cek apa lagi?'});return;}

@@ -265,6 +265,29 @@ def answer(b,u,text,query_context=''):
     return result
 
 
+def message_intents(text):
+    """Shared existing intent signals for new messages and interrupted drafts."""
+    from finance_semantics import period_patch
+    question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total|nama)\b|\?',text,re.I))
+    explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|lunas|lunasi|pelunasan|terima|dibayar|bayaran|buat|terbitkan)\b',text,re.I))
+    amounts=[m for m in BARE_AMOUNT.finditer(text) if not (re.fullmatch(r'20\d{2}',m[0]) and period_patch(text))]
+    if not explicit_write and not (AMOUNT.search(text) or amounts) and (period_patch(text) or re.search(r'\b(daftar|ada|status)\b',text,re.I)):
+        question_intent=True
+    schedule_hint=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap|per bulan|per minggu)\b',text,re.I))
+    if re.search(r'belum bayar|belum lunas',text,re.I):explicit_write=False;question_intent=True
+    return question_intent,explicit_write,schedule_hint
+
+
+def is_read_query(b,u,text,query_context=''):
+    from finance_assistant_queries import looks_finance,is_contextual_followup
+    from finance_semantics import period_patch
+    question_intent,explicit_write,_=message_intents(text)
+    if re.search(r'\b(reminder|cari (?:customer|custumer|costumer)|ada (?:customer|custumer|costumer)|nomor .* apa)\b',text,re.I):return True
+    return question_intent and not explicit_write and (FINANCE_DOMAIN.search(text) or looks_finance(text,b,u) or
+        (period_patch(text) and re.search(r'\b(bandingkan|bandingin|compare)\b',text,re.I)) or
+        (query_context and is_contextual_followup(text)))
+
+
 def text_message(b,u,text,query_context=''):
     text=operator.text(text,2000)
     from finance_assistant_queries import canonicalize,is_contextual_followup
@@ -280,23 +303,12 @@ def text_message(b,u,text,query_context=''):
         return dict(kind='answer',title='Kilas Finance',message='Untuk keamanan, aku tidak melakukan transfer uang atau menghapus transaksi lewat chat. Aku bisa membantu menyiapkan dan mencatat transaksi baru, lalu kamu konfirmasi sebelum disimpan.')
     if re.search(r'\b(apa itu|jelaskan|bedanya|beda apa|gimana cara)\b',text,re.I) and FINANCE_DOMAIN.search(text):
         return accounting_help(text)
-    question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total|nama)\b|\?',text,re.I))
-    explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|lunas|lunasi|pelunasan|terima|dibayar|bayaran|buat|terbitkan)\b',text,re.I))
-    amounts=[m for m in BARE_AMOUNT.finditer(text) if not (re.fullmatch(r'20\d{2}',m[0]) and period_patch(text))]
-    if not explicit_write and not (AMOUNT.search(text) or amounts) and (period_patch(text) or re.search(r'\b(daftar|ada|status)\b',text,re.I)):
-        question_intent=True
+    question_intent,explicit_write,schedule_hint=message_intents(text)
     if query_context:
         remembered=unseal_query(b,u,query_context)
         if remembered.get('plan',{}).get('awaiting'):return answer(b,u,text,query_context)
-    schedule_hint=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap|per bulan|per minggu)\b',text,re.I))
-    if re.search(r'belum bayar|belum lunas',text,re.I):explicit_write=False;question_intent=True
     from finance_assistant_queries import looks_finance
-    if re.search(r'\b(reminder|cari (?:customer|custumer|costumer)|ada (?:customer|custumer|costumer)|nomor .* apa)\b',text,re.I):
-        return answer(b,u,text,query_context)
-    if question_intent and not explicit_write and (FINANCE_DOMAIN.search(text) or looks_finance(text,b,u) or
-                                                     (period_patch(text) and re.search(r'\b(bandingkan|bandingin|compare)\b',text,re.I)) or
-                                                     (query_context and is_contextual_followup(text))):
-        return answer(b,u,text,query_context)
+    if is_read_query(b,u,text,query_context):return answer(b,u,text,query_context)
     if explicit_write or schedule_hint or re.search(r'\b(pemasukan|pengeluaran)\b',text,re.I):
         try:branches.token_branch(b)
         except f.FinanceError as error:
@@ -640,11 +652,12 @@ def document(b,u,files,text,workflow,account_id='',document_context=''):
     return dict(kind='bank_review',title=title,message=message,hint='Balas “oke” untuk memproses, “batal” untuk membatalkan.',ready=True,token=token,preview=preview,count=len(rows),fallback=fallback)
 
 
-def follow_up(b,u,token,message,confirmation=None):
+def follow_up(b,u,token,message,confirmation=None,query_context=''):
     import finance_draft_interpreter as interpreter
     message=operator.text(message,2000)
     context=unseal(b,u,token,'review')
     authorize(b,u,None if context['action']=='receipt' else 'OPERATOR')
+    if query_context:unseal_query(b,u,query_context)
     if interpreter.NO.fullmatch(message):return dict(kind='answer',state='CANCELLED',message='Oke, draft dibatalkan. Belum ada pencatatan.')
     if interpreter.YES.fullmatch(message):
         if context.get('awaiting'):
@@ -662,17 +675,17 @@ def follow_up(b,u,token,message,confirmation=None):
         from finance_assistant_invoice import add_item
         added=add_item(b,u,context,message)
         if added is not None:return added
+    # Route before permissive slot filling, for every signed draft adapter.
+    from finance_intent_interpreter import pending_turn
+    interruption,updates,continuation=pending_turn(b,u,message,context,current,query_context)
+    if interruption is not None:
+        interruption['keep_pending']=True
+        interruption.setdefault('hint','Draft sebelumnya tetap tersedia. Lanjutkan isinya atau balas “batal”.')
+        return interruption
     if context['action']=='issue_invoice':
         current['message']='Balas “oke” untuk menerbitkan invoice yang ditinjau, atau “batal”.'
         return current
-    updates=interpreter.deterministic(message,context,current['fields'])
-    if not updates:updates=interpreter.slot_reply(message,context,current['fields'],current.get('next_field'))
-    if not updates:
-        try:
-            import finance_ai_safety as safety
-            if not safety.allow_attempt(u,b,'ai'):raise ValueError('rate_limited')
-            updates=interpreter.interpret(message,context,current['fields'])
-        except (ValueError,requests.RequestException,TypeError,KeyError):updates={}
+    if not updates and continuation:updates=interpreter.slot_reply(message,context,current['fields'],current.get('next_field'))
     if not updates:
         current['message']='Bagian mana yang mau diubah? Sebut nama kolom dan nilainya, atau balas “oke” untuk menyimpan.'
         return current

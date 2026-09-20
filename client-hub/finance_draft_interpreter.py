@@ -44,10 +44,10 @@ def interpret(message, context, fields):
     return updates
 
 
-def deterministic(message, context, fields):
+def deterministic(message, context, fields, anchored=False):
     values=context['values'];updates={}
     def take(key,pattern):
-        match=re.search(pattern,message,re.I)
+        match=(re.match if anchored else re.search)(pattern,message.strip(),re.I)
         if key in values and match:updates[key]=match[1].strip()
     take('phone',r'(?:nomor\s*(?:telepon|hp)?|no\s*hp|hp|whatsapp|whatsap|wa|telepon)(?:\s*(?:nya|ya))?\s*[:=]?\s*(\+?\d[\d -]{4,62})')
     take('email',r'([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})')

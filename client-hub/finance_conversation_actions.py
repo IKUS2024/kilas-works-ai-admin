@@ -197,7 +197,7 @@ def confirm(b,u,c):
     return dict(record_id=ident,message='✅ '+TITLES[op]+' berhasil disimpan.'+(' Satu pengeluaran aktual dicatat sesuai tanggal jatuh tempo.' if op=='post_recurring' else ''))
 
 
-def route(b,u,text,query_context=''):
+def route(b,u,text,query_context='',classify_only=False):
     """Deterministic action selection; ambiguous references become signed questions."""
     import finance_assistant_flow as flow
     remembered=flow.unseal_query(b,u,query_context) if query_context else {}
@@ -242,6 +242,7 @@ def route(b,u,text,query_context=''):
                     if len(pieces)==2:values['name']=pieces[1]
         if not op and re.search(r'\b(catat|tambah|buat)\b.*\b(fx|penukaran|konversi)\b|^tukar\b',text,re.I):op='exchange'
     if not op:return None
+    if classify_only:return op
     try:flow.authorize(b,u,'OPERATOR')
     except f.FinanceError as exc:
         if str(exc) not in ('all_branches_read_only','branch_required'):raise

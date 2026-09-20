@@ -20,6 +20,16 @@ contract and the server's next question. Required slots are requested one at a t
 optional fields do not prevent confirmation. Ambiguous names require clarification.
 Bare account names are resolved as accounts, not assumed to be currency codes.
 
+Pending drafts are arbitrated before permissive slot filling, using the same query
+signals, command classifier, and constrained semantic interpreter as new messages.
+A read-only interruption returns `keep_pending` and its separate signed query context;
+the browser retains the original draft and confirmation token, without renewing its
+expiry. Draft edits clear the read context. Confirmation/cancellation remain explicit
+server decisions. A new write asks the user to cancel the old draft before submitting
+the new command, so no review is silently replaced. Unknown or unavailable semantic
+results leave the draft unchanged. Each ambiguous turn uses at most one model request.
+
+
 Successful writes return a signed record reference. A request such as “ubah transaksi
 yang tadi” creates another review; it never modifies the earlier record implicitly.
 
