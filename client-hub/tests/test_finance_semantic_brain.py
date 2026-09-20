@@ -141,6 +141,7 @@ class SemanticBrainTests(unittest.TestCase):
         before=self.snapshot()
         result=self.ask('buatkan customer baru')
         self.assertEqual(result['kind'],'clarification')
+        self.assertIn('manual',result['message'].lower())
         self.assertNotIn('context',result)
         self.assertEqual(before,self.snapshot())
 
@@ -180,12 +181,13 @@ class SemanticBrainTests(unittest.TestCase):
                 self.assertEqual(self.follow(draft,'batal').json['state'],'CANCELLED')
                 self.assertEqual(before,self.snapshot())
 
-    def test_new_write_does_not_replace_pending_draft(self):
+    def test_new_write_replaces_pending_draft_without_cancel_ritual(self):
         draft=self.propose('customer baru','customer')
-        result=self.edit(draft,'catat makan 100 ribu',{'amount':'100 ribu'},'new_command')
-        self.assertTrue(result['keep_pending'])
-        self.assertIn('batal',result['message'])
-        self.assertNotIn('context',result)
+        result=self.edit(draft,'catat makan 100 ribu',{'amount':'100 ribu'},'create_expense')
+        self.assertEqual(result['kind'],'review')
+        self.assertEqual(result['title'],'Pengeluaran')
+        self.assertIn('Draft sebelumnya tidak disimpan',result['message'])
+        self.assertIn('context',result)
 
     def test_confirm_only_exact_review_and_idempotent(self):
         draft=self.propose('customer Putri','customer',{'name':'Putri'})
@@ -260,6 +262,24 @@ class SemanticBrainTests(unittest.TestCase):
         other=branches.create_branch(self.b,'Other',self.uid)
         result=self.client.post(self.path+'/message?branch_id='+str(other),json={'text':'nomernya 082213039137','context':draft['context']})
         self.assertEqual(result.status_code,400)
+        self.assertEqual(self.http.call_count,calls)
+
+    def test_payment_date_short_reply_and_month_typo_do_not_need_provider(self):
+        invoice=self.invoice()
+        draft=self.propose('Wilson Wijaya sudah bayar','record_invoice_payment',
+                           {'customer':'Wilson Wijaya','settlement':'sudah bayar'})
+        self.assertEqual(draft['next_field'],'date',draft)
+        calls=self.http.call_count
+        self.http.side_effect=requests.Timeout('provider should not be used')
+        today_reply=self.follow(draft,'hari ini')
+        self.assertEqual(today_reply.status_code,200,today_reply.text)
+        values={x['key']:x['value'] for x in today_reply.json['fields']}
+        self.assertEqual(values['date'],date.today().isoformat())
+        self.assertEqual(self.http.call_count,calls)
+        typo_reply=self.follow(draft,'20 sepetember 2026')
+        self.assertEqual(typo_reply.status_code,200,typo_reply.text)
+        values={x['key']:x['value'] for x in typo_reply.json['fields']}
+        self.assertEqual(values['date'],'2026-09-20')
         self.assertEqual(self.http.call_count,calls)
 
     def test_exact_options_and_dates_do_not_call_provider(self):
