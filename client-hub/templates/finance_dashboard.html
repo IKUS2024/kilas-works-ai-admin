@@ -202,7 +202,7 @@
 {% endif %}
 {% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan cabang Utama, Kas, dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
 <div class="card finance-period-card">
-<div class="finance-period-copy"><strong>{{ period_label }}</strong><span>{{ 'Semua jenis transaksi' if not direction else ('Pemasukan' if direction == 'INCOME' else 'Pengeluaran') }}</span></div>
+<div class="finance-period-copy"><strong>{{ period_label }}</strong></div>
 <button type="button" class="finance-period-button" data-finance-open="period-dialog">🗓️ Ubah</button>
 </div>
 
@@ -247,12 +247,12 @@
 
 {% if not branch_read_only %}
 <dialog id="period-dialog" class="finance-sheet">
-<div class="finance-sheet-head"><h2>🗓️ Periode &amp; Filter</h2><button type="button" class="finance-sheet-close" data-finance-close="period-dialog" aria-label="Tutup">×</button></div>
+<div class="finance-sheet-head"><h2>🗓️ Periode</h2><button type="button" class="finance-sheet-close" data-finance-close="period-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body"><form method="get" class="finance-filter">
 <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
 <input type="hidden" name="display_currency" value="{{ display_currency }}">
 {% include '_finance_dashboard_period_selector.html' %}
-<div><label for="filter-direction">Jenis transaksi</label><select id="filter-direction" name="direction"><option value="">Semua</option><option value="INCOME" {{ 'selected' if direction == 'INCOME' }}>Pemasukan</option><option value="EXPENSE" {{ 'selected' if direction == 'EXPENSE' }}>Pengeluaran</option></select></div><button class="btn">Tampilkan</button>
+<button class="btn">Tampilkan</button>
 </form></div></dialog>
 
 {% include '_finance_balance_detail.html' %}
