@@ -138,7 +138,7 @@
 
 {% if error %}
   <div class="report-hero"><div class="report-hero-copy"><span class="report-eyebrow">Kilas Finance</span><h1>Laporan Finance</h1><p>Data laporan belum dapat ditampilkan.</p></div></div>
-  <div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id or 'all',section='summary') }}">Kembali ke laporan</a></div>
+  <div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary') }}">Kembali ke laporan</a></div>
 {% else %}
 {% set report_scope = selected_branch_id %}
 {% set section_target = 'summary' if section == 'filter' else section %}
@@ -184,7 +184,7 @@
 <main class="report-content">
 {% if section=='filter' %}
   <section class="card report-inline-filter">
-    <h2>Filter Laporan</h2><p class="muted">Atur periode, tanggal acuan piutang, dan rentang komitmen. Setelah disimpan kamu kembali ke Ringkasan.</p>
+    <h2>Filter Laporan</h2><p class="muted">Atur periode dan tanggal acuan piutang. Setelah disimpan kamu kembali ke Ringkasan.</p>
     <div class="report-presets">
       {% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}
       <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section='summary') }}">{{ label }}</a>
