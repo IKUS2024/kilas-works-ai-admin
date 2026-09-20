@@ -126,7 +126,12 @@ def classify(b,u,message,previous,context=None,current=None):
         if context:
             reverse={v:k for k,v in draft.REFERENCES.items()}
             slots=tuple(dict.fromkeys(SLOTS+tuple(reverse.get(k,k) for k in context['values'] if not k.endswith('_id') and k!='fingerprint')))
-        return semantics.interpret(message,INTENTS,slots,safe_context(b,u,previous,context,current))
+        state=safe_context(b,u,previous,context,current)
+        normalized=semantics.normalize(message)
+        if normalized.casefold()!=message.casefold():
+            state['vocabulary_hint']=normalized
+            state['vocabulary_hint_rule']='Understanding only. Slots must still copy literal text from the original message.'
+        return semantics.interpret(message,INTENTS,slots,state)
     except (ValueError,requests.RequestException,TypeError,KeyError):return None
 
 
