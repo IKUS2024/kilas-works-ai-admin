@@ -219,7 +219,6 @@
 </a>
 
 <div class="finance-quick-grid">
-{% include '_finance_balance_card.html' %}
 <div class="card finance-quick-card"><h3>🧾 Piutang</h3>{% if collection_summary.by_currency %}{% for g in collection_summary.by_currency %}<div class="{{ 'finance-quick-value' if loop.first else 'finance-currency-line' }}">{{ g.total_outstanding_minor|finance_money(g.currency) }}</div>{% endfor %}{% else %}<div class="finance-quick-value">{{ 0|finance_idr }}</div>{% endif %}<div class="finance-quick-meta">{{ collection_summary.open_invoice_count }} invoice terbuka · {{ collection_summary.overdue_invoice_count }} terlambat</div><a class="finance-quick-link" href="{{ url_for('finance.collections',business_id=business.id,section='queue',view='overdue') }}">Lihat tagihan →</a></div>
 </div>
 {% if all_branches %}<div class="card"><h2>Ringkasan per Cabang</h2>{% for item in branch_breakdown %}<article class="finance-entry"><h3>{{ item.branch.name }}</h3>{% for s in item.summaries %}<p><strong>{{ s.currency }}</strong> · Masuk {{ s.total_income_minor|finance_money(s.currency) }} · Keluar {{ s.total_expense_minor|finance_money(s.currency) }} · Selisih {{ s.net_cashflow_minor|finance_money(s.currency) }}</p>{% endfor %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=item.branch.id,**period_query) }}">Lihat Cabang</a></article>{% endfor %}</div>{% endif %}

@@ -1,10 +1,37 @@
 {% set cash_currencies = summaries|map(attribute='currency')|list %}
 {% set cash_selected_currency = display_currency if display_currency in cash_currencies else cash_currencies[0] %}
-<section class="card cash-flow-card" aria-label="Arus kas periode" data-cashflow-card>
+{% set balance_chosen = balance_displays[display_currency] %}
+<style>
+.cash-overview-card{padding:16px!important}
+.cash-overview-balance{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0 13px;margin-bottom:13px;border-bottom:1px solid var(--border)}
+.cash-overview-balance-copy{min-width:0}
+.cash-overview-balance-label{display:block;color:var(--text-dim);font-size:10.5px;font-weight:850;text-transform:uppercase;letter-spacing:.05em}
+.cash-overview-balance-value{margin-top:4px;font-size:30px;font-weight:900;line-height:1.08;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cash-overview-balance-sub{display:block;margin-top:4px;color:var(--text-dim);font-size:10.5px;line-height:1.35}
+.cash-overview-period-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 9px}
+.cash-overview-period-head strong{font-size:13px}.cash-overview-period-head span{color:var(--text-dim);font-size:10.5px}
+.cash-overview-details{border-top:1px solid var(--border);margin-top:12px;padding-top:9px}
+.cash-overview-details summary{cursor:pointer;color:var(--text-dim);font-size:11px;font-weight:800;list-style:none}
+.cash-overview-details summary::-webkit-details-marker{display:none}
+.cash-overview-details summary::after{content:" ▾"}.cash-overview-details[open] summary::after{content:" ▴"}
+.cash-overview-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center;margin-top:9px}
+.cash-overview-detail-grid p{grid-column:1/-1;margin:0;color:var(--text-dim);font-size:10.5px;line-height:1.45}
+.cash-overview-native{grid-column:1/-1;display:grid;gap:5px}
+.cash-overview-native-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cash-overview-native-row span{color:var(--text-dim);font-size:11px}.cash-overview-native-row strong{font-size:13px}
+.cash-overview-display-select{width:auto!important;min-width:80px!important;height:38px;padding:5px 26px 5px 9px!important;border-radius:10px;font-size:13px;font-weight:850}
+.cash-overview-card .cash-flow-note{margin-top:10px}
+@media(max-width:640px){
+  .cash-overview-card{padding:14px!important}
+  .cash-overview-balance-value{font-size:27px}
+  .cash-overview-period-head{align-items:flex-start}
+}
+</style>
+<section class="card cash-flow-card cash-overview-card" aria-label="Ringkasan kas" data-cashflow-card data-cash-position-card>
   <div class="cash-summary-head">
-    <div><h2>Arus Kas Periode</h2><p class="cash-muted">{{ period_label }} · berdasarkan tanggal transaksi, bukan tanggal input/import</p></div>
+    <div><h2>Ringkasan Kas</h2><p class="cash-muted">{{ period_label }} · arus kas periode + total saldo sekarang</p></div>
     {% if summaries|length > 1 %}
-    <label class="cash-currency-picker"><span>Mata uang</span>
+    <label class="cash-currency-picker"><span>Arus kas</span>
       <select data-cashflow-currency aria-label="Pilih mata uang arus kas">
         {% for row in summaries %}<option value="{{ row.currency }}" {{ 'selected' if row.currency == cash_selected_currency }}>{{ row.currency }}</option>{% endfor %}
       </select>
@@ -13,9 +40,19 @@
     <span class="cash-currency-chip">{{ cash_selected_currency }}</span>
     {% endif %}
   </div>
+
+  <div class="cash-overview-balance">
+    <div class="cash-overview-balance-copy">
+      <span class="cash-overview-balance-label">💰 Total Saldo Saat Ini</span>
+      <div class="cash-overview-balance-value cash-money" data-cash-display-value>{{ '≈ ' if balance_chosen.estimated and balance_chosen.complete }}{{ balance_chosen.value }}</div>
+      <span class="cash-overview-balance-sub" data-cash-display-label>{{ balance_chosen.label }} · tidak berubah saat filter periode diganti</span>
+    </div>
+  </div>
+  <p class="cash-warning" data-cash-display-warning {% if balance_chosen.complete %}hidden{% endif %}>Kurs belum lengkap. Total gabungan tidak ditampilkan sebagai nilai lengkap.</p>
+
   {% for row in summaries %}
   <section class="cash-currency-block" data-cashflow-block="{{ row.currency }}" aria-label="Arus kas {{ row.currency }}" {% if row.currency != cash_selected_currency %}hidden{% endif %}>
-    <div class="cash-currency-title"><strong>{{ row.currency }}</strong><span>{{ row.transaction_count }} transaksi</span></div>
+    <div class="cash-overview-period-head"><strong>Arus Kas {{ row.currency }}</strong><span>{{ row.transaction_count }} transaksi</span></div>
     <div class="cash-flow-row">
       <div class="cash-flow-stat"><span>↑ Pemasukan</span><strong class="cash-money">{{ row.total_income_minor|finance_money(row.currency) }}</strong></div>
       <div class="cash-flow-stat"><span>↓ Pengeluaran</span><strong class="cash-money">{{ row.total_expense_minor|finance_money(row.currency) }}</strong></div>
@@ -23,5 +60,27 @@
     </div>
   </section>
   {% endfor %}
-  <p class="cash-muted cash-flow-note">Hanya transaksi yang tanggal transaksinya masuk periode ini yang dihitung. Mutasi bulan sebelumnya yang baru diimpor akan mengubah saldo sekarang, tetapi tidak dipindahkan ke periode ini. Saldo awal dan penukaran mata uang juga bukan pemasukan/pengeluaran.</p>
+
+  <details class="cash-overview-details">
+    <summary>Rincian saldo &amp; cara hitung</summary>
+    <div class="cash-overview-detail-grid">
+      <span class="cash-muted">Tampilkan total dalam</span>
+      <select class="cash-overview-display-select" data-cash-display-currency aria-label="Tampilkan total saldo dalam mata uang">
+        {% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code == display_currency }}>{{ code }}</option>{% endfor %}
+      </select>
+      <div class="cash-overview-native" aria-label="Saldo asli per mata uang">
+        {% for row in balance_totals %}
+        <div class="cash-overview-native-row"><span>{{ row.currency }}</span><strong class="cash-money">{{ row.balance_minor|finance_money(row.currency) }}</strong></div>
+        {% endfor %}
+      </div>
+      {% set opening = balance_totals|rejectattr('opening_balance_minor','equalto',0)|list %}
+      {% if opening %}<p>Saldo awal: {% for row in opening %}<strong class="cash-money">{{ row.opening_balance_minor|finance_money(row.currency) }}</strong>{{ ' · ' if not loop.last }}{% endfor %} · saldo awal bukan pemasukan.</p>{% endif %}
+      <p>Arus Kas hanya menghitung transaksi yang tanggal transaksinya masuk {{ period_label }}. Total Saldo adalah posisi kas/rekening kumulatif sampai {{ today }}, jadi filter periode tidak mengubah total saldo.</p>
+      {% if balance_chosen.estimated %}<p>{% if fx.source == 'Frankfurter' %}Kurs referensi {{ fx.date }}{% if fx.stale %} · data tersimpan{% endif %}{% else %}Kurs referensi belum tersedia{% endif %}. Bukan kurs jual/beli bank.</p>{% endif %}
+      <p data-cash-display-rates>{{ balance_chosen.rates }}</p>
+      <div class="cash-card-actions"><button type="button" class="finance-mini-action" data-finance-open="balance-dialog">Lihat perhitungan rekening</button></div>
+    </div>
+  </details>
+
+  <script type="application/json" data-cash-display-data>{{ balance_displays|tojson }}</script>
 </section>
