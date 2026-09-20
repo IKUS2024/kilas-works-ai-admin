@@ -13,6 +13,7 @@ from flask import Blueprint, Response, abort, flash, redirect, render_template, 
 import finance_branches as branches
 import finance_service as finance
 import finance_reports
+import finance_report_pdf
 import finance_invoice_view
 import finance_collections
 import finance_receipts
@@ -723,7 +724,7 @@ def report_error(error):
 @finance_access
 def reports(business_id,user,business):
     section = request.args.get('section', 'summary')
-    if section not in ('filter', 'summary', 'trend', 'categories', 'accounts', 'customers', 'projects', 'receivables', 'commitments'):
+    if section not in ('filter', 'summary', 'trend', 'accounts', 'receivables', 'analysis', 'categories', 'customers', 'projects', 'commitments'):
         section = 'filter'
     try:
         filters=finance_reports.parse_filters(request.args)
@@ -739,6 +740,28 @@ def reports(business_id,user,business):
         account_types=finance_reports.ACCOUNT_TYPES,export_names=finance_reports.REPORT_NAMES))
     response.headers['Cache-Control']='private, no-store'
     return response
+
+
+@finance_bp.route('/business/<int:business_id>/finance/reports/export/report.pdf')
+@finance_access
+def report_pdf(business_id,user,business):
+    try:
+        filters=finance_reports.parse_filters(request.args)
+        actor={'actor_user_id':user['id']}
+        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
+        summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
+        trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
+            start_date=filters['start'],end_date=filters['end'],**actor)
+        pdf=finance_report_pdf.build(
+            business_name=business['business_name'],
+            branch_name=g.finance_branch['name'],
+            filters=filters,summary=summary,trend=trend,data=data)
+    except finance.FinanceError as error:
+        return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
+    filename='kilas-finance-'+filters['start']+'_'+filters['end']+'.pdf'
+    return Response(pdf,content_type='application/pdf',headers={
+        'Content-Disposition':f'attachment; filename="{filename}"',
+        'Cache-Control':'private, no-store'})
 
 
 @finance_bp.route('/business/<int:business_id>/finance/reports/export/<report_name>.csv')
