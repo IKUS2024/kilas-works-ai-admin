@@ -245,8 +245,17 @@ def platform_whatsapp_coexistence():
             if not migration.get("expected_phone_digits"):
                 raise
             error = "Nomor Cloud API sedang tidak aktif. Lanjutkan aktivasi di WhatsApp Business HP lalu hubungkan kembali."
-    except whatsapp_signup.SignupError:
-        error = "Konfigurasi Meta untuk nomor utama Kilas Works belum siap."
+    except whatsapp_signup.SignupError as exc:
+        safe_reason = str(exc)
+        print("PLATFORM_WHATSAPP_PAGE unavailable reason=" + safe_reason)
+        error = (
+            "Koneksi aman Client Hub → AI Admin belum siap."
+            if safe_reason in ("platform_bot_bridge_unavailable", "platform_bot_rejected", "platform_bot_bad_response")
+            else "Konfigurasi Meta untuk nomor utama Kilas Works belum siap."
+        )
+    except Exception as exc:
+        print("PLATFORM_WHATSAPP_PAGE internal_failure class=" + type(exc).__name__)
+        error = "Status WhatsApp utama belum bisa dibaca. Tidak ada perubahan yang dilakukan ke nomor."
 
     signup_config = None
     expected = migration.get("expected_phone_digits")
