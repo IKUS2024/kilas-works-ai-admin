@@ -1,180 +1,214 @@
 'use strict';
 (() => {
-  const el = id => document.getElementById(id), composer = el('assistant-composer');
-  if (!composer) return;
-  const files = el('assistant-files'), text = el('assistant-text'), mode = el('assistant-mode');
-  const status = el('assistant-status');
-  let busy = false, result = null, token = null, attempted = false, docWorkflow = null;
-  const controls = [];
-  const setStatus = (message, error = false) => {
-    status.textContent = message || '';
-    status.classList.toggle('is-error', !!error);
+  const el=id=>document.getElementById(id), composer=el('assistant-composer');
+  if(!composer)return;
+  const log=el('assistant-result'),files=el('assistant-files'),camera=el('assistant-camera'),text=el('assistant-text'),
+        mode=el('assistant-mode'),status=el('assistant-status'),sendButton=el('assistant-send');
+  let busy=false,pending=null,docWorkflow=null,uploadInstruction='';
+  const confirmWords=/^\s*(oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(\s+(ya|aja|saja))?[.! ]*$/i;
+  const cancelWords=/^\s*(batal|cancel|jangan|ga jadi|gak jadi|nggak jadi|tidak jadi)[.! ]*$/i;
+  const normalize=value=>(value||'').toString().trim().toLowerCase();
+  const setStatus=(message,error=false)=>{status.textContent=message||'';status.classList.toggle('is-error',!!error);};
+  const setBusy=value=>{
+    busy=value;composer.setAttribute('aria-busy',String(value));
+    for(const node of [sendButton,el('assistant-clear'),camera,files,text,mode])if(node)node.disabled=value;
+    document.querySelectorAll('[data-assistant-prompt]').forEach(node=>node.disabled=value);
+    sendButton.textContent=value?'Memproses…':'Kirim';
+    if(!value)sendButton.disabled=!text.value.trim()&&!files.files.length;
   };
-  const state = value => {
-    busy = value; composer.setAttribute('aria-busy', String(value));
-    for (const id of ['assistant-send','assistant-clear','assistant-camera','assistant-files','assistant-text','assistant-mode',
-                      'assistant-review-send','assistant-confirm','assistant-edit','assistant-result-cancel','assistant-cancel']) {
-      if (el(id)) el(id).disabled = value;
-    }
-    document.querySelectorAll('[data-assistant-choice],[data-assistant-prompt]').forEach(node => { node.disabled = value; });
-    el('assistant-result-fields').disabled = value;
-    el('assistant-send').textContent = value ? 'Memproses…' : 'Kirim';
-    if (!value) el('assistant-send').disabled = !text.value.trim() && !files.files.length;
-  };
-  const send = async (url, body) => {
-    const multipart = body instanceof FormData;
-    const response = await fetch(url, {method:'POST',credentials:'same-origin',cache:'no-store',
-      headers:multipart ? {'X-CSRF-Token':composer.dataset.csrf} : {'Content-Type':'application/json','X-CSRF-Token':composer.dataset.csrf},
-      body:multipart ? body : JSON.stringify(body)});
-    if (response.redirected) throw new Error('Sesi berubah. Muat ulang dan masuk kembali.');
-    let data;
-    try { data = await response.json(); } catch (_) { throw new Error('Respons belum dapat dibaca. Muat ulang dan coba lagi.'); }
-    if (!response.ok) throw new Error(data.error || 'Permintaan belum dapat diproses. Coba lagi.');
+  const send=async(url,body)=>{
+    const multipart=body instanceof FormData;
+    const response=await fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:multipart?{'X-CSRF-Token':composer.dataset.csrf}:{'Content-Type':'application/json','X-CSRF-Token':composer.dataset.csrf},
+      body:multipart?body:JSON.stringify(body)});
+    if(response.redirected)throw new Error('Sesi berubah. Muat ulang lalu masuk kembali.');
+    let data;try{data=await response.json();}catch(_){throw new Error('Respons belum dapat dibaca. Coba lagi.');}
+    if(!response.ok)throw new Error(data.error||'Permintaan belum dapat diproses. Coba lagi.');
     return data;
   };
-  const uploadBody = () => {
-    const body = new FormData();
-    body.append('csrf_token',composer.dataset.csrf); body.append('text',text.value);
-    for (const file of files.files) body.append('sources',file);
-    return body;
+  const node=(tag,className,textValue)=>{
+    const item=document.createElement(tag);if(className)item.className=className;if(textValue!==undefined)item.textContent=textValue;return item;
   };
-  const values = () => Object.fromEntries(controls.map(({key,node}) => [key,node.value]));
-  const render = data => {
-    result = data; token = data.token || null; attempted = false;
-    const resultBox = el('assistant-result');
-    resultBox.hidden = false; resultBox.dataset.kind = data.kind || '';
-    el('assistant-result-title').textContent = data.title || 'Assistant';
-    el('assistant-result-message').textContent = data.message || '';
-    const hint = el('assistant-result-hint'); hint.textContent = data.hint || ''; hint.hidden = !data.hint;
-    el('assistant-result-preview').replaceChildren();
-    for (const [label,value] of data.preview || []) {
-      const dt=document.createElement('dt'), dd=document.createElement('dd');
-      dt.textContent=label;dd.textContent=String(value);el('assistant-result-preview').append(dt,dd);
-    }
-    controls.length=0; el('assistant-result-fields').replaceChildren();
-    for (const spec of data.fields || []) {
-      const label=document.createElement('label'), node=document.createElement(spec.type==='select' ? 'select':'input');
-      node.id='assistant-field-'+spec.key;label.htmlFor=node.id;label.textContent=spec.label;
-      if (spec.type==='select') {
-        const empty=document.createElement('option');empty.value='';empty.textContent='Pilih…';node.append(empty);
-        for (const option of spec.options || []) { const item=document.createElement('option');item.value=option.value;item.textContent=option.label;node.append(item); }
-      } else { node.type=spec.type || 'text';node.maxLength=spec.key==='notes'?4000:500; }
-      node.value=spec.value || '';node.required=!!spec.required;
-      node.addEventListener('input',()=>{token=null;el('assistant-confirm').hidden=true;el('assistant-review-send').hidden=false;});
-      controls.push({key:spec.key,node});el('assistant-result-fields').append(label,node);
-    }
-    el('assistant-result-fields').hidden=!!data.ready || !controls.length;
-    el('assistant-edit').hidden=!data.ready;el('assistant-confirm').hidden=!data.ready;
-    el('assistant-review-send').hidden=!controls.length || !!data.ready;
-    el('assistant-review-send').textContent=data.kind==='document_account'?'Lanjut membaca dokumen':'Review perubahan';
-    el('assistant-review-link').hidden=true;
-    if (data.review_url && /^\/business\/\d+\/finance\//.test(data.review_url)) {
-      el('assistant-review-link').href=data.review_url;el('assistant-review-link').hidden=false;
-    }
-    el('assistant-confirm').textContent=data.title==='Customer baru'?'Tambahkan Customer':data.title==='Biaya rutin'?'Aktifkan jadwal':'Konfirmasi';
-    el('assistant-result-cancel').textContent=(data.kind==='answer' && !data.ready)?'Pesan baru':'Batal';
-    setStatus('');
-    resultBox.focus();
-    resultBox.scrollIntoView({behavior:'smooth',block:'nearest'});
+  const scroll=()=>{const last=log.lastElementChild;if(last&&last.scrollIntoView)last.scrollIntoView({behavior:'smooth',block:'nearest'});};
+  const appendUser=(message,names=[])=>{
+    const turn=node('article','assistant-turn assistant-turn-user'),bubble=node('div','assistant-bubble');
+    bubble.append(node('div','assistant-speaker','Kamu'));
+    if(message)bubble.append(node('p','',message));
+    if(names.length){const chips=node('div','assistant-message-files');for(const name of names)chips.append(node('span','','📎 '+name));bubble.append(chips);}
+    turn.append(bubble);log.append(turn);scroll();
   };
-  const processDocument = async workflow => {
-    const body=uploadBody();body.append('workflow',workflow);
-    const selected=values().account_id;
-    if (result?.kind==='document_account' && selected) body.append('account_id',selected);
-    docWorkflow=workflow;
-    render(await send(composer.dataset.document,body));
+  const currentValues=data=>Object.fromEntries((data?.fields||[]).map(field=>[field.key,field.value==null?'':String(field.value)]));
+  const missingSelect=data=>(data?.fields||[]).find(field=>field.type==='select'&&!field.value&&Array.isArray(field.options)&&field.options.length);
+  const quickButton=(label,handler,primary=false)=>{
+    const button=node('button',primary?'primary':'',label);button.type='button';button.addEventListener('click',handler);return button;
   };
-  const showUserMessage = () => {
-    const messageText=text.value.trim(), messageFiles=el('assistant-message-files');
-    el('assistant-message-text').textContent=messageText;
-    el('assistant-message-text').hidden=!messageText;
-    messageFiles.replaceChildren();
-    for (const file of files.files) {
-      const chip=document.createElement('span');chip.textContent='📎 '+file.name;messageFiles.append(chip);
+  const appendAssistant=(data,options={})=>{
+    const turn=node('article','assistant-turn assistant-turn-ai'+(options.success?' assistant-turn-success':'')+(options.error?' assistant-turn-error':''));
+    const avatar=node('div','assistant-avatar','K');avatar.setAttribute('aria-hidden','true');
+    const bubble=node('div','assistant-bubble');bubble.append(node('div','assistant-speaker','Kilas AI'));
+    if(data.title)bubble.append(node('h2','',data.title));
+    bubble.append(node('p','',data.message||''));
+    if(Array.isArray(data.preview)&&data.preview.length){
+      const dl=node('dl','assistant-preview');
+      for(const pair of data.preview){const dt=node('dt','',String(pair[0]??'')),dd=node('dd','',String(pair[1]??''));dl.append(dt,dd);}
+      bubble.append(dl);
     }
-    el('assistant-message').hidden=!messageText && !files.files.length;
+    if(data.hint)bubble.append(node('p','assistant-hint',data.hint));
+    const actions=node('div','assistant-quick-replies');
+    const select=missingSelect(data);
+    if(select){
+      for(const option of (select.options||[]).slice(0,8)){
+        actions.append(quickButton(option.label,()=>chooseField(select.key,String(option.value),option.label)));
+      }
+    }else if(data.ready&&data.token){
+      actions.append(quickButton('Oke, catat',()=>submitQuick('oke'),true),quickButton('Batal',()=>submitQuick('batal')));
+    }
+    if(data.kind==='needs_document_choice'){
+      actions.append(
+        quickButton('Struk',()=>processDocument('RECEIPT')),
+        quickButton('Mutasi bank',()=>processDocument('BANK_STATEMENT')),
+        quickButton('Catatan keuangan',()=>processDocument('HANDWRITTEN_NOTE'))
+      );
+    }
+    if(actions.children.length)bubble.append(actions);
+    turn.append(avatar,bubble);log.append(turn);scroll();
+    if(['review','bank_review','document_account'].includes(data.kind))pending=data;
+    else if(!options.keepPending)pending=null;
   };
-  const run = async manual => {
-    if (busy) return;
-    if (token || result?.kind==='review') { setStatus('Selesaikan atau batalkan review sebelum mengirim pesan baru.');return; }
-    if (!text.value.trim() && !files.files.length) { setStatus('Tulis pesan atau pilih file.');return; }
-    if (text.value.length>2000 || files.files.length>10) { setStatus('Maksimal 2.000 karakter dan 10 file.',true);return; }
-    if (Array.from(files.files).some(f=>f.size>20*1024*1024) || Array.from(files.files).reduce((n,f)=>n+(f.size||0),0)>25*1024*1024) {
-      setStatus('Maksimal 20 MiB per foto dan 25 MiB total.',true);return;
+  const appendError=message=>appendAssistant({title:'Belum berhasil',message:message||'Coba lagi sebentar. Belum ada data yang diubah.'},{error:true,keepPending:true});
+  const clearFiles=()=>{files.value='';try{files.files=[];}catch(_){}if(camera)camera.value='';el('assistant-file-list').replaceChildren();};
+  const uploadBody=()=>{
+    const body=new FormData();body.append('csrf_token',composer.dataset.csrf);body.append('text',uploadInstruction||'');
+    for(const file of files.files)body.append('sources',file);return body;
+  };
+  const refreshFiles=()=>{
+    const list=el('assistant-file-list');list.replaceChildren();
+    for(const file of files.files)list.append(node('li','','📎 '+file.name));
+    setBusy(false);
+  };
+  const localDate=offset=>{
+    const d=new Date();d.setDate(d.getDate()+offset);
+    const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+  };
+  const applyNaturalEdits=(message,data)=>{
+    const values=currentValues(data),lower=normalize(message);let changed=false;
+    for(const field of data.fields||[]){
+      if(field.type!=='select'||!Array.isArray(field.options))continue;
+      const hits=field.options.filter(option=>{
+        const label=normalize(option.label),head=label.split('·')[0].trim();
+        return lower===label||lower===head||lower.includes(label)||lower.includes(head)||(lower.length>=3&&label.includes(lower));
+      });
+      if(hits.length===1&&values[field.key]!==String(hits[0].value)){values[field.key]=String(hits[0].value);changed=true;}
     }
-    state(true);el('assistant-clarification').hidden=true;setStatus('Kilas AI sedang memahami pesan dan dokumen…');
-    showUserMessage();
-    try {
-      if (!files.files.length) { render(await send(composer.dataset.message,{text:text.value}));return; }
-      const workflows={receipt:'RECEIPT',bank:'BANK_STATEMENT',notes:'HANDWRITTEN_NOTE'};
-      const choice=manual || mode.value;
-      let workflow=workflows[choice];
-      if (!workflow) workflow=(await send(composer.dataset.recognize,uploadBody())).workflow;
-      if (!['RECEIPT','BANK_STATEMENT','HANDWRITTEN_NOTE'].includes(workflow)) {
-        el('assistant-clarification').hidden=false;
-        el('assistant-clarification-title').textContent='Saya belum yakin jenis dokumen ini. Pilih yang sesuai ya.';
-        document.querySelectorAll('[data-assistant-choice]').forEach(node=>{node.hidden=!workflows[node.dataset.assistantChoice];});
-        setStatus('Dokumen belum jelas. Pilih jenisnya atau gunakan foto yang lebih jelas.');return;
+    if(Object.prototype.hasOwnProperty.call(values,'amount')){
+      const match=message.match(/(?:rp\.?\s*)?\d[\d.,]*(?:\s*(?:ribu|rb|juta|jt))?|(?:usd|idr|sgd|myr|eur|gbp|aud|jpy|cny|hkd|thb)\s+\d[\d.,]*/i);
+      if(match&&!/^\d{4}-\d{2}-\d{2}$/.test(match[0])&&values.amount!==match[0].trim()){values.amount=match[0].trim();changed=true;}
+    }
+    if(Object.prototype.hasOwnProperty.call(values,'currency')){
+      const code=(message.match(/\b(USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b/i)||[])[1];
+      if(code&&values.currency!==code.toUpperCase()){values.currency=code.toUpperCase();changed=true;}
+    }
+    if(Object.prototype.hasOwnProperty.call(values,'date')){
+      let date=(message.match(/\b\d{4}-\d{2}-\d{2}\b/)||[])[0];
+      if(/hari ini|sekarang/i.test(message))date=localDate(0);else if(/kemarin/i.test(message))date=localDate(-1);
+      if(date&&values.date!==date){values.date=date;changed=true;}
+    }
+    if(Object.prototype.hasOwnProperty.call(values,'cadence')){
+      const cadence=/minggu/i.test(message)?'WEEKLY':/bulan/i.test(message)?'MONTHLY':'';
+      if(cadence&&values.cadence!==cadence){values.cadence=cadence;changed=true;}
+    }
+    const email=(message.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)||[])[0];
+    if(email&&Object.prototype.hasOwnProperty.call(values,'email')&&values.email!==email){values.email=email;changed=true;}
+    return {values,changed};
+  };
+  const chooseField=async(key,value,label)=>{
+    if(busy||!pending)return;
+    appendUser(label);setBusy(true);setStatus('Kilas AI sedang memperbarui ringkasan…');
+    try{
+      if(pending.kind==='document_account'){await processDocument(docWorkflow,value);return;}
+      const values=currentValues(pending);values[key]=value;
+      const data=await send(composer.dataset.review,{context:pending.context,values});appendAssistant(data);
+    }catch(error){appendError(error.message);}
+    finally{setStatus('');setBusy(false);}
+  };
+  const confirmPending=async()=>{
+    if(!pending?.token)return;
+    const same=pending;setBusy(true);setStatus('Menyimpan setelah konfirmasi kamu…');
+    try{
+      const data=await send(composer.dataset.confirm,{token:same.token,confirm:true});
+      pending=null;appendAssistant({title:'Berhasil',message:data.message||'Sudah disimpan di Kilas Finance.'},{success:true});clearFiles();
+    }catch(error){pending=same;appendError(error.message+' Kamu bisa balas “oke” lagi dengan draft yang sama setelah koneksi normal.');}
+    finally{setStatus('');setBusy(false);}
+  };
+  const followPending=async message=>{
+    if(cancelWords.test(message)){pending=null;clearFiles();appendAssistant({message:'Oke, draft tadi dibatalkan. Mau catat atau cek apa lagi?'});return;}
+    if(confirmWords.test(message)&&pending?.token){await confirmPending();return;}
+    if(pending?.kind==='document_account'){
+      const spec=missingSelect(pending),lower=normalize(message);
+      const hits=(spec?.options||[]).filter(option=>normalize(option.label).includes(lower)||lower.includes(normalize(option.label).split('·')[0].trim()));
+      if(hits.length===1){await chooseField(spec.key,String(hits[0].value),hits[0].label);return;}
+      appendAssistant({message:'Saya masih perlu tahu rekening yang dipakai. Pilih salah satu pilihan di bawah atau ketik nama rekeningnya.',kind:'document_account',fields:pending.fields},{keepPending:true});return;
+    }
+    if(pending?.context){
+      const edit=applyNaturalEdits(message,pending);
+      if(!edit.changed){
+        appendAssistant({message:pending.ready?'Draftnya masih sama. Balas “oke” untuk menyimpan, tulis perubahan seperti “ubah jadi 300 ribu”, atau “batal”.':(pending.message||'Masih ada data yang perlu dilengkapi. Pilih opsi yang saya tampilkan atau ketik nilainya.')},{keepPending:true});
+        return;
+      }
+      const data=await send(composer.dataset.review,{context:pending.context,values:edit.values});appendAssistant(data);return;
+    }
+    appendAssistant({message:'Selesaikan draft ini dulu dengan “oke” atau “batal”.'},{keepPending:true});
+  };
+  const processDocument=async(workflow,accountId='')=>{
+    docWorkflow=workflow;setStatus('Kilas AI sedang membaca dokumen…');
+    const body=uploadBody();body.append('workflow',workflow);if(accountId)body.append('account_id',accountId);
+    const data=await send(composer.dataset.document,body);
+    appendAssistant(data);
+    if(data.kind!=='document_account')clearFiles();
+  };
+  const run=async manual=>{
+    if(busy)return;
+    const message=text.value.trim(),hasFiles=files.files.length>0;
+    if(!message&&!hasFiles){setStatus('Tulis pesan atau pilih file.');return;}
+    if(text.value.length>2000||files.files.length>10){appendError('Maksimal 2.000 karakter dan 10 file.');return;}
+    const selected=Array.from(files.files);
+    if(selected.some(file=>(file.size||0)>20*1024*1024)||selected.reduce((n,file)=>n+(file.size||0),0)>25*1024*1024){appendError('Lampiran terlalu besar. Maksimal 20 MiB per foto dan 25 MiB total.');return;}
+    if(pending&&!hasFiles){
+      appendUser(message);text.value='';setBusy(true);setStatus('Kilas AI sedang memahami balasanmu…');
+      try{await followPending(message);}catch(error){appendError(error.message);}finally{setStatus('');setBusy(false);}return;
+    }
+    if(pending&&hasFiles){appendAssistant({message:'Masih ada draft yang belum selesai. Balas “oke” atau “batal” dulu sebelum mengirim dokumen baru.'},{keepPending:true});return;}
+    appendUser(message,selected.map(file=>file.name));uploadInstruction=message;text.value='';setBusy(true);
+    try{
+      if(!hasFiles){setStatus('Kilas AI sedang memahami pesanmu…');appendAssistant(await send(composer.dataset.message,{text:message}));return;}
+      let workflow={receipt:'RECEIPT',bank:'BANK_STATEMENT',notes:'HANDWRITTEN_NOTE'}[manual||mode.value];
+      if(!workflow){
+        setStatus('Kilas AI sedang mengenali dokumen…');
+        workflow=(await send(composer.dataset.recognize,uploadBody())).workflow;
+      }
+      if(!['RECEIPT','BANK_STATEMENT','HANDWRITTEN_NOTE'].includes(workflow)){
+        appendAssistant({kind:'needs_document_choice',title:'Saya belum yakin jenis dokumennya',message:'File sudah diterima. Pilih apakah ini struk, mutasi bank, atau catatan keuangan. Belum ada data yang dicatat.'},{keepPending:true});return;
       }
       await processDocument(workflow);
-    } catch (error) { setStatus(error.message,true); }
-    finally { state(false); }
+    }catch(error){appendError(error.message);clearFiles();}
+    finally{setStatus('');setBusy(false);}
   };
-  composer.addEventListener('submit',event=>{event.preventDefault();return run();});
-  el('assistant-review-form').addEventListener('submit',async event=>{
-    event.preventDefault();if(busy || !result || attempted)return;
-    state(true);setStatus('Memeriksa perubahan…');
-    try {
-      if (result.kind==='document_account') await processDocument(docWorkflow);
-      else render(await send(composer.dataset.review,{context:result.context,values:values()}));
-    } catch(error) {setStatus(error.message,true);}
-    finally {state(false);}
-  });
-  el('assistant-edit').addEventListener('click',()=>{
-    if(busy || attempted)return;
-    token=null;el('assistant-result-fields').hidden=false;el('assistant-confirm').hidden=true;
-    el('assistant-review-send').hidden=false;el('assistant-edit').hidden=true;
-  });
-  el('assistant-confirm').addEventListener('click',async()=>{
-    if(busy || !token)return;attempted=true;state(true);setStatus('Menyimpan setelah konfirmasi…');
-    try {
-      const data=await send(composer.dataset.confirm,{token,confirm:true});
-      const technical=/Konfirmasi sudah diproses/i.test(data.message || '');
-      render({kind:'answer',title:'Sudah dicatat',message:technical?'Tersimpan di Kilas Finance.':data.message,
-        hint:'Konfirmasi yang sama aman dari pencatatan ganda.',completed:true});
-    } catch(error) {setStatus(error.message+' Jika belum pasti, ulangi konfirmasi yang sama.',true);}
-    finally {state(false);el('assistant-edit').disabled=attempted;}
-  });
-  const clear = () => {
-    if(busy)return;
-    const uncertain=attempted;result=null;token=null;attempted=false;docWorkflow=null;controls.length=0;
-    text.value='';files.value='';if(el('assistant-camera'))el('assistant-camera').value='';mode.value='auto';
-    for(const id of ['assistant-result','assistant-clarification','assistant-message'])el(id).hidden=true;
-    for(const id of ['assistant-file-list','assistant-result-fields','assistant-result-preview','assistant-message-files'])el(id).replaceChildren();
-    el('assistant-message-text').textContent='';el('assistant-result-hint').textContent='';el('assistant-result-hint').hidden=true;
-    setStatus(uncertain?'Periksa catatan Finance sebelum mengirim ulang; konfirmasi sebelumnya mungkin sudah diproses.':'');
-    state(false);text.focus();
-  };
-  for(const id of ['assistant-clear','assistant-cancel','assistant-result-cancel'])el(id).addEventListener('click',clear);
-  const refreshFiles = () => {
-    el('assistant-file-list').replaceChildren();
-    for(const file of files.files){const item=document.createElement('li');item.textContent='📎 '+file.name;el('assistant-file-list').append(item);}
-    state(false);
-  };
+  const submitQuick=value=>{if(busy)return;text.value=value;setBusy(false);composer.dispatchEvent(new Event('submit',{cancelable:true}));};
+  composer.addEventListener('submit',event=>{event.preventDefault();run();});
+  text.addEventListener('input',()=>setBusy(false));
+  text.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();if(!sendButton.disabled)composer.dispatchEvent(new Event('submit',{cancelable:true}));}});
   files.addEventListener('change',refreshFiles);
-  text.addEventListener('input',()=>state(false));
-  document.querySelectorAll('[data-assistant-choice]').forEach(node=>node.addEventListener('click',()=>run(node.dataset.assistantChoice)));
-  document.querySelectorAll('[data-assistant-prompt]').forEach(node=>node.addEventListener('click',()=>{
-    if(busy || token || result?.kind==='review')return;
-    text.value=node.dataset.assistantPrompt || '';state(false);text.focus();
-  }));
-  el('assistant-camera').addEventListener('change',()=>{
-    const camera=el('assistant-camera');if(busy || token || result?.kind==='review')return;
-    try {
+  camera.addEventListener('change',()=>{
+    if(busy)return;
+    try{
       if(typeof DataTransfer==='function'){const transfer=new DataTransfer();for(const file of camera.files)transfer.items.add(file);files.files=transfer.files;}
       else files.files=camera.files;
       files.dispatchEvent(new Event('change'));
-    } catch(_){setStatus('Foto belum dapat dipindahkan. Gunakan File untuk memilih foto ini.',true);}
+    }catch(_){appendError('Foto belum dapat dipindahkan. Gunakan tombol File / PDF untuk memilih foto ini.');}
   });
-  state(false);
+  document.querySelectorAll('[data-assistant-prompt]').forEach(button=>button.addEventListener('click',()=>{if(busy||pending)return;text.value=button.dataset.assistantPrompt||'';setBusy(false);text.focus();}));
+  el('assistant-clear').addEventListener('click',()=>{
+    if(busy)return;pending=null;docWorkflow=null;uploadInstruction='';text.value='';clearFiles();log.replaceChildren();setStatus('');mode.value='auto';setBusy(false);text.focus();
+  });
+  setBusy(false);
 })();

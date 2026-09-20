@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
-{% block title %}AI Assistant · Kilas Finance{% endblock %}
+{% block title %}Kilas Finance AI{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260920-chat-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260920-chat-2') }}">
 <main class="finance-assistant" id="finance-assistant">
 <header class="assistant-page-head">
   <a class="assistant-back" href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
@@ -9,77 +9,28 @@
     <div class="assistant-brandmark" aria-hidden="true">✦</div>
     <div class="assistant-title-copy">
       <h1>Kilas Finance AI</h1>
-      <p class="assistant-intro">{{ business.business_name }} · Ngobrol biasa saja. Assistant bisa membaca, menyiapkan, dan mengarahkan pekerjaan Finance tanpa langsung menyimpan data.</p>
+      <p class="assistant-intro">{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua Cabang' }} · Chat khusus keuangan &amp; akuntansi.</p>
     </div>
-    <span class="assistant-ready">Siap bantu</span>
+    <span class="assistant-ready">Online</span>
   </div>
 </header>
-
-<details class="assistant-safety-details"><summary>Privasi & cara kerja</summary><p class="muted">Kamu tetap memeriksa dan mengonfirmasi pencatatan. Percakapan tidak disimpan; muat ulang menghapus tampilan sementara. Jangan masukkan kredensial atau nomor rekening.</p></details>
 
 <section id="assistant-thread" class="assistant-thread" aria-label="Percakapan Finance Assistant">
   <article class="assistant-turn assistant-turn-ai assistant-welcome">
     <div class="assistant-avatar" aria-hidden="true">K</div>
     <div class="assistant-bubble">
       <div class="assistant-speaker">Kilas AI</div>
-      <p>Hai. Mau catat transaksi, tambah customer, cek laporan, biaya rutin, scan struk, atau baca mutasi? Tulis seperti ngobrol biasa.</p>
+      <p>Hai. Chat seperti biasa. Aku bisa mencatat pemasukan/pengeluaran, biaya rutin, customer, membaca struk, PDF/foto mutasi bank, dan menjawab laporan Finance. Sebelum ada perubahan data, aku rangkum dulu dan kamu cukup balas <strong>oke</strong>.</p>
       <div class="assistant-suggestions" aria-label="Contoh perintah">
-        <button type="button" data-assistant-prompt="catat pengeluaran 200 ribu hari ini">+ Pengeluaran</button>
-        <button type="button" data-assistant-prompt="berapa pengeluaran saya bulan ini?">Cek bulan ini</button>
-        <button type="button" data-assistant-prompt="tambah customer baru">+ Customer</button>
-        <button type="button" data-assistant-prompt="tambah biaya rutin bulanan">Biaya rutin</button>
+        <button type="button" data-assistant-prompt="tambahin pengeluaran 200 ribu untuk transport hari ini">+ Pengeluaran</button>
+        <button type="button" data-assistant-prompt="tambahin pendapatan jasa foto 2,2 juta hari ini">+ Pemasukan</button>
+        <button type="button" data-assistant-prompt="setiap bulan bayar internet 500 ribu mulai hari ini">Biaya rutin</button>
+        <button type="button" data-assistant-prompt="berapa pengeluaran saya bulan ini?">Cek laporan</button>
       </div>
     </div>
   </article>
-
-  <section id="assistant-message" class="assistant-turn assistant-turn-user" hidden>
-    <div class="assistant-bubble">
-      <div class="assistant-speaker">Kamu</div>
-      <p id="assistant-message-text"></p>
-      <div id="assistant-message-files" class="assistant-message-files" aria-label="Lampiran pesan"></div>
-    </div>
-  </section>
-
-  <section id="assistant-clarification" class="assistant-turn assistant-turn-ai" hidden tabindex="-1">
-    <div class="assistant-avatar" aria-hidden="true">K</div>
-    <div class="assistant-bubble">
-      <div class="assistant-speaker">Kilas AI</div>
-      <h2 id="assistant-clarification-title">File ini mau diproses sebagai apa?</h2>
-      <p>Belum ada ekstraksi atau pencatatan. Pilih alur yang paling sesuai.</p>
-      <div class="assistant-actions assistant-choice-actions">
-        <button type="button" class="btn secondary" data-assistant-choice="receipt">Struk / Pengeluaran</button>
-        <button type="button" class="btn secondary" data-assistant-choice="bank">Mutasi Bank</button>
-        <button type="button" class="btn secondary" data-assistant-choice="notes">Catatan Keuangan</button>
-        <button type="button" class="btn secondary" data-assistant-choice="recurring">Biaya Rutin</button>
-        <button type="button" class="btn secondary" data-assistant-choice="ask">Tanya Finance</button>
-        <button type="button" class="btn secondary" data-assistant-choice="record">Catat Transaksi</button>
-        <button type="button" class="btn secondary" id="assistant-cancel">Batal</button>
-      </div>
-    </div>
-  </section>
-
-  <section id="assistant-result" class="assistant-turn assistant-turn-ai assistant-workflow" hidden tabindex="-1">
-    <div class="assistant-avatar" aria-hidden="true">K</div>
-    <div class="assistant-bubble assistant-result-bubble">
-      <div class="assistant-speaker">Kilas AI</div>
-      <h2 id="assistant-result-title"></h2>
-      <p id="assistant-result-message"></p>
-      <p id="assistant-result-hint" class="assistant-result-hint" hidden></p>
-      <dl id="assistant-result-preview"></dl>
-      <form id="assistant-review-form" autocomplete="off">
-        <fieldset id="assistant-result-fields" hidden></fieldset>
-        <div class="assistant-actions assistant-result-actions">
-          <button id="assistant-edit" type="button" class="btn secondary" hidden>Edit</button>
-          <button id="assistant-review-send" type="submit" class="btn" hidden>Review perubahan</button>
-          <button id="assistant-confirm" type="button" class="btn" hidden>Konfirmasi</button>
-          <button id="assistant-result-cancel" type="button" class="btn secondary">Pesan baru</button>
-          <a id="assistant-review-link" class="btn" hidden>Buka Review</a>
-        </div>
-      </form>
-    </div>
-  </section>
-
-  <p id="assistant-status" class="assistant-live-status" role="status" aria-live="polite">Tulis pesan atau pilih file. Belum ada pencatatan.</p>
+  <div id="assistant-result" class="assistant-chat-log" aria-live="polite"></div>
+  <p id="assistant-status" class="assistant-live-status" role="status" aria-live="polite"></p>
 </section>
 
 <form id="assistant-composer" class="assistant-composer" method="post" enctype="multipart/form-data" data-finance-document-upload autocomplete="off"
@@ -89,39 +40,43 @@
       data-confirm="{{ url_for('finance.assistant_confirm',business_id=business.id) }}"
       data-document="{{ url_for('finance.assistant_document',business_id=business.id) }}"
       data-recognize="{{ url_for('finance.assistant_recognize',business_id=business.id) }}"
-      data-route="{{ url_for('finance.assistant_route',business_id=business.id) }}"
-      data-receipt="{{ url_for('finance.receipt_analyze',business_id=business.id) }}"
-      data-bank="{{ url_for('finance.bank_analyze',business_id=business.id) }}" data-csrf="{{ csrf_token() }}">
+      data-csrf="{{ csrf_token() }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="assistant-composer-shell">
-    <label class="assistant-composer-label" for="assistant-text">Pesan atau instruksi</label>
-    <textarea id="assistant-text" maxlength="2000" rows="3" placeholder="Tulis ke Kilas AI… contoh: tambahin pengeluaran 200 ribu" aria-describedby="assistant-text-help"></textarea>
-    <p id="assistant-text-help" class="assistant-composer-help">AI menentukan alurnya otomatis. Tidak ada pencatatan tanpa review/konfirmasi.</p>
-
+    <textarea id="assistant-text" maxlength="2000" rows="2" placeholder="Ketik pesan ke Kilas AI…" aria-label="Pesan ke Kilas AI"></textarea>
+    <ul id="assistant-file-list" class="assistant-file-list" aria-live="polite"></ul>
     <div class="assistant-composer-row">
       <div class="assistant-upload-actions" aria-label="Tambah lampiran">
         <label class="attachment-label" for="assistant-camera" title="Ambil foto">📷 <span>Foto</span></label>
-        <label class="attachment-label" for="assistant-files" title="Pilih file">📎 <span>File</span></label>
+        <label class="attachment-label" for="assistant-files" title="Pilih file">📎 <span>File / PDF</span></label>
       </div>
       <button id="assistant-send" class="btn assistant-send" type="submit" disabled>Kirim</button>
     </div>
     <input id="assistant-camera" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden>
     <input id="assistant-files" name="sources" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf,.csv" hidden>
-    <ul id="assistant-file-list" class="assistant-file-list" aria-live="polite"></ul>
   </div>
 
   <details class="assistant-options">
-    <summary>Opsi dokumen & alur manual</summary>
+    <summary>Opsi dokumen &amp; bantuan</summary>
     <div class="assistant-options-body">
-      <label for="assistant-mode">Jenis bantuan</label>
-      <select id="assistant-mode"><option value="auto">Auto — pilih alur yang sesuai</option><option value="ask">Tanya / analisis laporan</option><option value="record">Catat transaksi</option><option value="receipt">Struk / pengeluaran</option><option value="bank">Mutasi / rekening bank</option><option value="notes">Catatan tulisan tangan / kertas</option><option value="recurring">Biaya rutin</option></select>
-      <details class="assistant-file-details"><summary>Format & batas file</summary><p class="muted">Foto JPG/PNG/WEBP maksimal 20 MiB, maksimal 10 foto / 25 MiB total. PDF struk 5 MiB / 10 halaman; PDF bank 10 MiB / 20 halaman; CSV 2 MiB.</p></details>
-      <button id="assistant-clear" class="assistant-clear" type="button">Bersihkan pesan & lampiran</button>
+      <label for="assistant-mode">Kalau AI salah mengenali file</label>
+      <select id="assistant-mode">
+        <option value="auto">Auto — biarkan AI menentukan</option>
+        <option value="receipt">Struk / pengeluaran</option>
+        <option value="bank">Mutasi / rekening bank</option>
+        <option value="notes">Catatan keuangan</option>
+        <option value="ask">Tanya / analisis laporan</option>
+        <option value="record">Catat transaksi</option>
+        <option value="recurring">Biaya rutin</option>
+      </select>
+      <details class="assistant-file-details"><summary>Format &amp; batas file</summary><p class="muted">JPG/PNG/WEBP, PDF, dan CSV. Maksimal 10 file / 25 MiB total. PDF yang aman akan dicoba lewat teks lalu dokumen asli bila perlu.</p></details>
+      <p class="assistant-domain-note">Kilas AI hanya menjawab topik Finance/akuntansi dan tidak melakukan transfer uang. Pencatatan tetap memakai review + konfirmasi aman di belakang chat.</p>
+      <button id="assistant-clear" class="assistant-clear" type="button">Mulai percakapan baru</button>
     </div>
   </details>
 </form>
 
-<noscript><p>Aktifkan JavaScript untuk menggunakan Finance Assistant. File belum diproses.</p></noscript>
+<noscript><p>Aktifkan JavaScript untuk menggunakan Finance Assistant.</p></noscript>
 </main>
-<script src="{{ url_for('static',filename='finance_assistant.js',v='20260920-chat-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_assistant.js',v='20260920-chat-2') }}" defer></script>
 {% endblock %}
