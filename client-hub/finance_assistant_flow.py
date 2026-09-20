@@ -543,10 +543,6 @@ def confirm(b,u,token):
     if action=='command':kind=context['operation'].split('_',1)[-1] if context['operation']!='exchange' else 'fx'
     if kind and type(result.get('record_id')) is int:
         result['query_context']=seal_query(b,u,{'last_record':{'kind':kind,'id':result['record_id']}})
-    if action=='invoice' and type(result.get('record_id')) is int:
-        # Draft creation and issuing are deliberately separate accounting actions,
-        # but the chat should make the safe next step obvious.
-        result['choices']=['Terbitkan yang tadi']
     return result
 
 

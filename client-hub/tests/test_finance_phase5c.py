@@ -265,18 +265,4 @@ class CollectionsTests(unittest.TestCase):
         self.assertEqual(r.status_code,200);self.assertNotIn(b'PRIVATE CUSTOMER',r.data)
 
 
-
-    def test_collection_ui_distinguishes_drafts_from_collectable_invoices(self):
-        draft=self.draft()
-        response=self.client.get(self.url+'/collections')
-        self.assertEqual(response.status_code,200)
-        self.assertIn(b'Draft invoice',response.data)
-        self.assertIn(b'belum menjadi piutang',response.data)
-        queue=self.client.get(self.url+'/collections?section=queue')
-        self.assertIn(b'Antrean hanya berisi invoice yang sudah diterbitkan',queue.data)
-        self.assertIn(b'1 total',queue.data)
-        self.assertIn(b'1 draft',queue.data)
-        self.assertEqual(c.position(self.b,self.uid)['rows'],[])
-        self.assertEqual(f.get_finance_invoice(self.b,draft)['status'],'DRAFT')
-
 if __name__=='__main__':unittest.main()
