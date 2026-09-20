@@ -22,9 +22,32 @@
 {% if section=='summary' %}
 <div class="fin-grid"><div class="card"><h2>Invoice terbuka</h2><div class="fin-total">{{ summary.open_invoice_count }}</div></div><div class="card"><h2>Invoice terlambat</h2><div class="fin-total">{{ summary.overdue_invoice_count }}</div></div>{% for g in summary.by_currency %}<div class="card"><h2>Total piutang · {{ g.currency }}</h2><div class="fin-total">{{ g.total_outstanding_minor|finance_money(g.currency) }}</div><p class="muted">Jatuh tempo {{ g.overdue_outstanding_minor|finance_money(g.currency) }}</p></div>{% endfor %}</div>
 <div class="card"><div class="fin-section-head"><h2>Invoice terbaru</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}">Lihat semua</a></div>
-{% for i in invoices[:5] %}{% set t=totals[i.id] %}<article class="fin-entry"><strong>{{ i.invoice_number }}</strong> · {{ i.currency }} · {{ i.branch_name }} · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
-<p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p><p>Total {{ t.total_minor|finance_money(i.currency) }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_money(i.currency) }}{% endif %}</p>
-<a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat</a></article>{% else %}<div class="fin-empty">Belum ada invoice.</div>{% endfor %}</div>
+{% for i in invoices[:5] %}{% set t=totals[i.id] %}
+<article class="fin-entry fin-invoice-row">
+  <div class="fin-invoice-head">
+    <span class="fin-invoice-number">{{ i.invoice_number }}</span>
+    <span class="fin-status {{ 'fin-status-paid' if i.status=='PAID' else 'fin-status-partial' if i.status=='PARTIALLY_PAID' else 'fin-status-issued' if i.status=='ISSUED' else 'fin-status-draft' }}">{{ labels[i.status] }}</span>
+  </div>
+  <div class="fin-invoice-meta">
+    <span>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</span>
+    <span>{{ i.currency }}</span><span>{{ i.branch_name }}</span><span>Jatuh tempo {{ i.due_date }}</span>
+    {% if t.overdue %}<span class="fin-overdue">Terlambat</span>{% endif %}
+  </div>
+  <div class="fin-invoice-amounts">
+    <span><small>Total</small><strong>{{ t.total_minor|finance_money(i.currency) }}</strong></span>
+    <span><small>Dibayar</small><strong>{{ t.paid_minor|finance_money(i.currency) }}</strong></span>
+    <span><small>Sisa</small><strong>{{ t.outstanding_minor|finance_money(i.currency) }}</strong></span>
+  </div>
+  <div class="fin-invoice-actions">
+    <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat Invoice</a>
+    {% if i.status in ('DRAFT','ISSUED') %}
+    <form method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=i.id) }}" onsubmit="return confirm('Hapus invoice ini dari daftar aktif? Invoice akan dibatalkan, tetapi jejak audit tetap disimpan.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary finance-danger" type="submit">🗑️ Hapus</button>
+    </form>
+    {% endif %}
+  </div>
+</article>
+{% else %}<div class="fin-empty">Belum ada invoice aktif.</div>{% endfor %}</div>
 {% elif section=='add_customer' %}
 <div class="card"><div class="fin-section-head"><h2>Tambah Customer</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,section='customers') }}">Daftar customer</a></div>
 <form method="post" action="{{ url_for('finance.create_customer',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -60,10 +83,35 @@
 </article>
 {% else %}<div class="fin-empty">Belum ada customer.</div>{% endfor %}</div>
 {% elif section=='invoices' %}
-<div class="card"><div class="fin-section-head"><h2>Invoice Pelanggan</h2><a class="btn small" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">＋ Buat Invoice</a></div>
-{% for i in invoices %}{% set t=totals[i.id] %}<article class="fin-entry"><strong>{{ i.invoice_number }}</strong> · {{ i.currency }} · {{ i.branch_name }} · {{ labels[i.status] }}{% if t.overdue %}<span class="fin-overdue"> · Jatuh tempo</span>{% endif %}
-<p>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</p><p>Total {{ t.total_minor|finance_money(i.currency) }} · Sisa {% if i.status in ('DRAFT','VOID') %}—{% else %}{{ t.outstanding_minor|finance_money(i.currency) }}{% endif %}</p><p class="muted">Jatuh tempo {{ i.due_date }}</p>
-<a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat</a></article>{% else %}<div class="fin-empty">Belum ada invoice.</div>{% endfor %}</div>
+<div class="card"><div class="fin-section-head"><div><h2>Semua Invoice Aktif</h2><p class="muted">Invoice dibatalkan disembunyikan dari daftar kerja, tetapi riwayat audit tetap tersimpan.</p></div><a class="btn small" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">＋ Buat Invoice</a></div>
+{% for i in invoices %}{% set t=totals[i.id] %}
+<article class="fin-entry fin-invoice-row">
+  <div class="fin-invoice-head">
+    <span class="fin-invoice-number">{{ i.invoice_number }}</span>
+    <span class="fin-status {{ 'fin-status-paid' if i.status=='PAID' else 'fin-status-partial' if i.status=='PARTIALLY_PAID' else 'fin-status-issued' if i.status=='ISSUED' else 'fin-status-draft' }}">{{ labels[i.status] }}</span>
+  </div>
+  <div class="fin-invoice-meta">
+    <span>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</span>
+    <span>{{ i.currency }}</span><span>{{ i.branch_name }}</span><span>Terbit {{ i.issue_date }}</span><span>Jatuh tempo {{ i.due_date }}</span>
+    {% if t.overdue %}<span class="fin-overdue">Terlambat</span>{% endif %}
+  </div>
+  <div class="fin-invoice-amounts">
+    <span><small>Total</small><strong>{{ t.total_minor|finance_money(i.currency) }}</strong></span>
+    <span><small>Dibayar</small><strong>{{ t.paid_minor|finance_money(i.currency) }}</strong></span>
+    <span><small>Sisa</small><strong>{{ t.outstanding_minor|finance_money(i.currency) }}</strong></span>
+  </div>
+  <div class="fin-invoice-actions">
+    <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat Invoice</a>
+    {% if i.status in ('DRAFT','ISSUED') %}
+    <form method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=i.id) }}" onsubmit="return confirm('Hapus invoice ini dari daftar aktif? Invoice akan dibatalkan, tetapi jejak audit tetap disimpan.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary finance-danger" type="submit">🗑️ Hapus</button>
+    </form>
+    {% elif i.status in ('PARTIALLY_PAID','PAID') %}
+    <span class="muted">Riwayat pembayaran dilindungi.</span>
+    {% endif %}
+  </div>
+</article>
+{% else %}<div class="fin-empty">Belum ada invoice aktif.</div>{% endfor %}</div>
 {% endif %}
 </div>
 {% endblock %}
