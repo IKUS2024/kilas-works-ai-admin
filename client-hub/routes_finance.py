@@ -570,14 +570,61 @@ def receivables(business_id, user, business):
     section = request.args.get('section', 'summary')
     if section not in ('summary', 'customers', 'add_customer', 'invoices'):
         section = 'summary'
-    customers = finance.list_customers(business_id, **actor)
+
+    active_customers = finance.list_customers(business_id, **actor)
     all_customers = finance.list_customers(business_id, include_inactive=True, **actor)
-    # VOID means removed/cancelled from the active invoice workspace. Keep it in the
-    # database for audit/history, but do not clutter the customer's working list.
-    invoices = [i for i in finance.list_finance_invoices(business_id, **actor) if i['status'] != 'VOID']
-    totals = {i['id']: finance.get_invoice_totals(business_id, i['id'], **actor) for i in invoices}
-    return render_template('finance_receivables.html', user=user, business=business, customers=customers,
-        customer_map={c['id']:c for c in all_customers}, invoices=invoices, totals=totals, section=section,
+    customer_map = {row['id']: row for row in all_customers}
+
+    # VOID is accounting cancellation. Archive is UI-only and MUST NOT alter
+    # receivables, payments, income, balances, reports or historical statements.
+    all_invoices = [row for row in finance.list_finance_invoices(business_id, **actor) if row['status'] != 'VOID']
+    archived_ids = finance.archived_invoice_ids(business_id, **actor)
+    working_invoices = [row for row in all_invoices if row['id'] not in archived_ids]
+    recent_invoices = working_invoices[:3]
+
+    q = (request.args.get('q') or '').strip()
+    if len(q) > 120: q = q[:120]
+    status_filter = (request.args.get('status') or 'all').upper()
+    if status_filter not in ('ALL','DRAFT','ISSUED','PARTIALLY_PAID','PAID'):status_filter='ALL'
+    archived_view = request.args.get('archived') == '1'
+
+    try:page=max(1,int(request.args.get('page','1')))
+    except (TypeError,ValueError):page=1
+    page_size=10
+
+    customers=active_customers
+    customer_pages=1
+    customer_total=len(active_customers)
+    if section=='customers':
+        if q:
+            needle=q.casefold()
+            customers=[row for row in active_customers if needle in (row.get('name') or '').casefold()
+                or needle in (row.get('phone') or '').casefold() or needle in (row.get('email') or '').casefold()]
+        customer_total=len(customers);customer_pages=max(1,(customer_total+page_size-1)//page_size);page=min(page,customer_pages)
+        customers=customers[(page-1)*page_size:page*page_size]
+
+    invoice_source=[row for row in all_invoices if row['id'] in archived_ids] if archived_view else working_invoices
+    if status_filter!='ALL':invoice_source=[row for row in invoice_source if row['status']==status_filter]
+    if q:
+        needle=q.casefold()
+        invoice_source=[row for row in invoice_source if needle in row['invoice_number'].casefold()
+            or needle in (customer_map.get(row['customer_id'],{}).get('name') or '').casefold()]
+    invoice_total=len(invoice_source);invoice_pages=max(1,(invoice_total+page_size-1)//page_size)
+    invoice_page=min(page,invoice_pages) if section=='invoices' else 1
+    invoices=invoice_source[(invoice_page-1)*page_size:invoice_page*page_size] if section=='invoices' else working_invoices
+
+    visible={row['id']:row for row in recent_invoices}
+    visible.update({row['id']:row for row in invoices})
+    totals={ident:finance.get_invoice_totals(business_id,ident,**actor) for ident in visible}
+
+    return render_template('finance_receivables.html', user=user, business=business,
+        customers=customers, customer_count=len(active_customers), customer_total=customer_total,
+        customer_pages=customer_pages, customer_map=customer_map,
+        invoices=invoices, recent_invoices=recent_invoices, totals=totals, section=section,
+        invoice_count=len(working_invoices), paid_invoice_count=sum(row['status']=='PAID' for row in working_invoices),
+        archived_invoice_count=len(archived_ids), invoice_total=invoice_total, invoice_page=invoice_page,
+        invoice_pages=invoice_pages, page=page, q=q, status_filter=status_filter,
+        archived_view=archived_view,
         summary=finance.get_receivables_summary(business_id, **actor), labels=INVOICE_LABELS)
 
 
@@ -637,7 +684,7 @@ def new_invoice(business_id, user, business):
             return redirect(url_for('finance.new_invoice',business_id=business_id),code=303)
         return redirect(url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id),code=303)
     return render_template('finance_invoice_form.html',user=user,business=business,
-        customers=finance.list_customers(business_id,actor_user_id=user['id']),today=date.today().isoformat(),
+        customers=finance.list_customers(business_id,actor_user_id=user['id']),today=finance.business_today(business_id).isoformat(),
         supported_currencies=finance.SUPPORTED_CURRENCIES)
 
 
@@ -657,7 +704,7 @@ def render_invoice_detail(business_id,user,business,invoice_id,share_url=None):
         payments=finance.list_invoice_payments(business_id,invoice_id,**actor),
         totals=doc['totals'],
         accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'INCOME',**actor),
-        today=date.today().isoformat(),payment_key=uuid.uuid4().hex,labels=INVOICE_LABELS)
+        today=finance.business_today(business_id).isoformat(),payment_key=uuid.uuid4().hex,labels=INVOICE_LABELS)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/issue',methods=['POST'])
@@ -672,6 +719,33 @@ def issue_invoice(business_id,user,business,invoice_id):
 def void_invoice(business_id,user,business,invoice_id):
     return mutate(business_id,lambda: finance.void_finance_invoice(business_id,invoice_id,actor_user_id=user['id']),
         'Invoice dibatalkan. Riwayat tetap tersimpan.',url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/notes',methods=['POST'])
+@finance_access
+def update_invoice_notes(business_id,user,business,invoice_id):
+    return mutate(business_id,lambda: finance.update_finance_invoice_notes(
+        business_id,invoice_id,request.form.get('notes'),actor_user_id=user['id']),
+        'Catatan invoice diperbarui. Nominal, item dan histori pembayaran tidak berubah.',
+        url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/archive',methods=['POST'])
+@finance_access
+def archive_invoice(business_id,user,business,invoice_id):
+    return mutate(business_id,lambda: finance.archive_finance_invoice(
+        business_id,invoice_id,actor_user_id=user['id']),
+        'Invoice lunas diarsipkan dari daftar kerja. Pemasukan, pembayaran dan laporan tetap utuh.',
+        url_for('finance.receivables',business_id=business_id,section='invoices'))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/restore',methods=['POST'])
+@finance_access
+def restore_invoice(business_id,user,business,invoice_id):
+    return mutate(business_id,lambda: finance.restore_finance_invoice(
+        business_id,invoice_id,actor_user_id=user['id']),
+        'Invoice dikembalikan ke daftar kerja. Tidak ada angka Finance yang berubah.',
+        url_for('finance.receivables',business_id=business_id,section='invoices',archived=1))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/payments',methods=['POST'])
