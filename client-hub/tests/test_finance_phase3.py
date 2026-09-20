@@ -211,6 +211,14 @@ class ReportsTests(unittest.TestCase):
         with patch.object(reports,'MAX_BUNDLE_BYTES',10):
             with self.assertRaises(f.FinanceError):reports.export_zip(self.b,self.filters,self.uid)
 
+    def test_reports_default_to_summary_and_professional_toolbar_preserves_scope(self):
+        result=self.client.get(self.url+'/reports?branch_id='+str(__import__('finance_branches').list_branches(self.b)[0]['id']))
+        self.assertEqual(result.status_code,200)
+        html=result.get_data(as_text=True)
+        for text in ('Laporan Finance','report-tabs','data-report-filter-open','Export ▾','Download Semua CSV','Ringkasan Arus Kas'):
+            self.assertIn(text,html)
+        self.assertNotIn('fin-tool-grid compact',html)
+
     def test_print_report_empty_states_no_writes_and_scoped_files(self):
         before={t:db.query_all('SELECT * FROM '+t) for t in ('audit_log','finance_transactions','finance_recurring_postings','finance_invoices')}
         result=self.client.get(self.url+'/reports'+self.query)

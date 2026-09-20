@@ -1,30 +1,294 @@
 {% extends 'base.html' %}
-{% block title %}Laporan & Export · Kilas Finance{% endblock %}
+{% block title %}Laporan Finance · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<style>.report-table td{overflow-wrap:anywhere}.report-table{table-layout:fixed}.report-controls{display:flex;flex-wrap:wrap;gap:10px}.report-controls>*{flex:1;min-width:150px}@media(max-width:600px){.report-table thead{display:none}.report-table,.report-table tbody,.report-table tr,.report-table td{display:block;width:100%}.report-table tr{padding:10px 0;border-bottom:1px solid var(--border)}.report-table td{border:0;padding:4px 0}.report-table td::before{content:attr(data-label) ': ';color:var(--text-dim);font-size:12px}}@media print{nav,button,form,.no-print,.topbar,footer{display:none!important}.card{background:#fff;color:#000}.report-table{display:table}.report-table thead{display:table-header-group}.report-table tbody{display:table-row-group}.report-table tr{display:table-row}.report-table td{display:table-cell;width:auto;color:#000}.report-table td::before{content:none}}</style>
-{% macro report_table(rows,columns) %}{% if rows %}<table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ account_types[row[key]] }}{% elif kind=='active' %}{{ 'Aktif' if row[key] else 'Nonaktif' }}{% else %}{{ row[key] or '—' if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table>{% else %}<div class="fin-empty">Belum ada data pada periode ini.</div>{% endif %}{% endmacro %}
-<div class="fin-page">{% set active_finance_area='reports' %}{% include '_finance_area_nav.html' %}
-<h1 class="fin-page-title">Laporan &amp; Export</h1><p class="muted fin-page-subtitle">{{ business.business_name }} · Analisis, filter, dan export data Finance.</p>
-{% if error %}<div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id) }}">Kembali</a></div>{% else %}
-<div class="card no-print"><div class="fin-tool-grid compact">
-<a class="fin-tool {{ 'active' if section=='filter' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='filter',**filters) }}"><span class="fin-icon">⚙️</span><span class="fin-label">Filter &amp; Export</span><span class="fin-meta">Tanggal &amp; unduhan</span></a>
-<a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='summary',**filters) }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Angka utama</span></a>
-<a class="fin-tool {{ 'active' if section=='trend' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='trend',**filters) }}"><span class="fin-icon">📈</span><span class="fin-label">Tren</span><span class="fin-meta">Arus kas bulanan</span></a>
-<a class="fin-tool {{ 'active' if section=='categories' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='categories',**filters) }}"><span class="fin-icon">🏷️</span><span class="fin-label">Kategori</span></a>
-<a class="fin-tool {{ 'active' if section=='accounts' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='accounts',**filters) }}"><span class="fin-icon">💳</span><span class="fin-label">Kas &amp; Rekening</span></a>
-<a class="fin-tool {{ 'active' if section=='customers' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='customers',**filters) }}"><span class="fin-icon">👥</span><span class="fin-label">Customer</span></a>
-<a class="fin-tool {{ 'active' if section=='projects' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='projects',**filters) }}"><span class="fin-icon">📁</span><span class="fin-label">Proyek</span></a>
-<a class="fin-tool {{ 'active' if section=='receivables' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='receivables',**filters) }}"><span class="fin-icon">🧾</span><span class="fin-label">Piutang</span></a>
-<a class="fin-tool {{ 'active' if section=='commitments' else '' }}" href="{{ url_for('finance.reports',business_id=business.id,section='commitments',**filters) }}"><span class="fin-icon">🔁</span><span class="fin-label">Komitmen</span></a>
-</div></div>
-{% if section=='filter' %}<div class="card no-print"><nav>{% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}<a class="btn secondary" href="{{ url_for('finance.reports',business_id=business.id,preset=value,section='filter') }}">{{ label }}</a>{% endfor %}</nav><form method="get"><input type="hidden" name="section" value="filter">{% if finance_branch_business_id %}<input type="hidden" name="branch_id" value="{{ selected_branch_id or 'all' }}">{% endif %}<div class="report-controls"><label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label><label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label><label>Tanggal acuan<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label></div><details><summary>Rentang komitmen biaya rutin</summary><div class="report-controls"><label>Mulai<input type="date" name="commitment_start" value="{{ filters.commitment_start }}" required></label><label>Selesai<input type="date" name="commitment_end" value="{{ filters.commitment_end }}" required></label></div></details><button class="btn">Tampilkan</button></form><button type="button" class="btn secondary" onclick="window.print()">Cetak / Simpan PDF</button><a class="btn" href="{{ url_for('finance.report_zip',business_id=business.id,**filters) }}">Download Semua CSV</a></div>
-{% elif section=='summary' %}<div class="fin-grid">{% for s in summary %}<div class="card"><h2>{{ s.currency }}</h2><p>Pemasukan <strong>{{ s.total_income_minor|finance_money(s.currency) }}</strong></p><p>Pengeluaran <strong>{{ s.total_expense_minor|finance_money(s.currency) }}</strong></p><p>Selisih <strong>{{ s.net_cashflow_minor|finance_money(s.currency) }}</strong></p><p class="muted">{{ s.transaction_count }} transaksi</p></div>{% endfor %}</div>
-{% elif section=='trend' %}<div class="card"><h2>Tren Arus Kas Bulanan</h2>{{ report_table(trend,[('Bulan','month','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Selisih','net_cashflow_minor','money')]) }}</div>
-{% elif section=='categories' %}<div class="card"><h2>Rincian Kategori</h2>{{ report_table(data.category_breakdown,[('Mata uang','currency','text'),('Jenis','direction','direction'),('Kategori','name','text'),('Nominal','amount_minor','money'),('Transaksi','transaction_count','number'),('Persentase','percentage','percent')]) }}</div>
-{% elif section=='accounts' %}<div class="card"><h2>Saldo Kas &amp; Rekening</h2>{{ report_table(data.accounts,[('Cabang','branch_name','text'),('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Status','is_active','active'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Penukaran masuk','exchange_in_minor','money'),('Penukaran keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}</div>
-{% elif section=='customers' %}<div class="card"><h2>Kontribusi Customer</h2>{{ report_table(data.customers,[('Customer','name','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Kontribusi','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</div>
-{% elif section=='projects' %}<div class="card"><h2>Uang Masuk &amp; Keluar per Proyek</h2>{{ report_table(data.projects,[('Proyek','title','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Selisih','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</div>
-{% elif section=='receivables' %}<div class="card"><h2>Piutang</h2>{{ report_table(data.receivables_aging,[('Mata uang','currency','text'),('Kelompok','label','text'),('Piutang','amount_minor','money'),('Invoice','invoice_count','number')]) }}</div>
-{% elif section=='commitments' %}<div class="card"><h2>Komitmen Biaya Rutin</h2>{{ report_table(data.recurring_commitments,[('Cabang','branch_name','text'),('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Proyek','project_name','text'),('Kas / Rekening','account_name','text'),('Kategori','category_name','text')]) }}</div>{% endif %}
-{% endif %}</div>{% endblock %}
+<style>
+.report-page{max-width:980px;margin:0 auto}
+.report-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin:4px 0 14px}
+.report-hero-copy{min-width:0}
+.report-eyebrow{display:block;color:var(--orange);font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px}
+.report-hero h1{margin:0;font-size:clamp(28px,5vw,36px);line-height:1.08;letter-spacing:-.035em}
+.report-hero p{margin:6px 0 0;color:var(--text-dim);font-size:13px;line-height:1.45}
+.report-scope-badge{flex:0 0 auto;max-width:45%;padding:7px 10px;border:1px solid color-mix(in srgb,var(--orange) 42%,var(--border));border-radius:999px;background:color-mix(in srgb,var(--orange) 9%,transparent);color:#ffc18f;font-size:11px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.report-meta{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 13px}
+.report-chip{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.015);color:var(--text-dim);font-size:11px;font-weight:750}
+.report-chip strong{color:var(--text)}
+
+.report-shell{padding:0!important;overflow:visible}
+.report-tabs-wrap{position:relative;border-bottom:1px solid var(--border)}
+.report-tabs{display:flex;gap:3px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:7px 9px 0}
+.report-tabs::-webkit-scrollbar{display:none}
+.report-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:8px 10px;border-radius:10px 10px 0 0;color:var(--text-dim);font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent}
+.report-tab:hover,.report-tab:focus{text-decoration:none;color:var(--text);background:rgba(255,255,255,.025)}
+.report-tab.active{color:var(--orange);border-bottom-color:var(--orange);background:color-mix(in srgb,var(--orange) 7%,transparent)}
+.report-tab-icon{font-size:14px}
+
+.report-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px}
+.report-toolbar-left,.report-toolbar-right{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.report-tool-btn,.report-export>summary{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:7px 11px;border:1px solid var(--border);border-radius:11px;background:transparent;color:var(--text);font:inherit;font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;list-style:none}
+.report-tool-btn:hover,.report-tool-btn:focus,.report-export>summary:hover,.report-export>summary:focus{border-color:#555a63;background:rgba(255,255,255,.025);text-decoration:none}
+.report-tool-btn.primary,.report-export>summary{border-color:color-mix(in srgb,var(--orange) 58%,var(--border))}
+.report-export{position:relative}
+.report-export>summary::-webkit-details-marker{display:none}
+.report-export-menu{position:absolute;right:0;top:44px;z-index:20;width:min(82vw,280px);padding:7px;border:1px solid var(--border);border-radius:14px;background:var(--card);box-shadow:0 16px 42px rgba(0,0,0,.38)}
+.report-export-menu a,.report-export-menu button{display:flex;width:100%;align-items:center;gap:9px;min-height:40px;padding:8px 9px;border:0;border-radius:9px;background:transparent;color:var(--text);font:inherit;font-size:12px;text-align:left;text-decoration:none;cursor:pointer}
+.report-export-menu a:hover,.report-export-menu button:hover{background:rgba(255,255,255,.05);text-decoration:none}
+.report-export-menu small{display:block;color:var(--text-dim);font-size:10px;margin-top:1px}
+.report-export-sep{height:1px;background:var(--border);margin:5px}
+
+.report-content{margin-top:13px}
+.report-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 2px 10px}
+.report-section-head h2{margin:0;font-size:19px;line-height:1.2}
+.report-section-head p{margin:4px 0 0;color:var(--text-dim);font-size:11px;line-height:1.4}
+.report-section-tag{flex:0 0 auto;color:var(--text-dim);font-size:11px;font-weight:800}
+
+.report-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px}
+.report-kpi-card{padding:14px;border-radius:16px}
+.report-kpi-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.report-kpi-top strong{font-size:16px}.report-kpi-top span{color:var(--text-dim);font-size:11px}
+.report-kpi-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.report-kpi-stat{padding:9px 7px;border:1px solid var(--border);border-radius:11px;min-width:0}
+.report-kpi-stat span{display:block;color:var(--text-dim);font-size:10px;margin-bottom:5px}
+.report-kpi-stat strong{display:block;font-size:clamp(14px,3.7vw,19px);line-height:1.2;overflow-wrap:anywhere}
+.report-kpi-stat.income strong{color:var(--green)}
+.report-kpi-stat.expense strong{color:var(--red)}
+.report-kpi-stat.net strong{color:var(--text)}
+
+.report-data-card{padding:15px;border-radius:16px}
+.report-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.report-table{width:100%;table-layout:auto;border-collapse:separate;border-spacing:0;font-size:12px}
+.report-table th{position:sticky;top:0;background:var(--card);color:var(--text-dim);font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:9px 8px;white-space:nowrap}
+.report-table td{padding:10px 8px;border-bottom:1px solid var(--border);vertical-align:top;overflow-wrap:anywhere}
+.report-table tbody tr:last-child td{border-bottom:0}
+.report-table tbody tr:hover{background:rgba(255,255,255,.018)}
+.report-empty{padding:26px 14px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--text-dim);font-size:12px}
+
+.report-note{margin-top:13px;padding:11px 13px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.012);color:var(--text-dim);font-size:10.5px;line-height:1.5}
+.report-note strong{color:var(--text)}
+
+.report-dialog{border:0;padding:0;width:min(100% - 18px,640px);max-height:88vh;border-radius:22px 22px 0 0;background:var(--card);color:var(--text);box-shadow:0 -12px 46px rgba(0,0,0,.42);position:fixed;inset:auto 0 0;margin:auto}
+.report-dialog::backdrop{background:rgba(0,0,0,.65)}
+.report-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.report-dialog-head h2{margin:0;font-size:18px}
+.report-dialog-close{display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--border);border-radius:50%;background:transparent;color:var(--text);font-size:21px;cursor:pointer}
+.report-dialog-body{padding:15px;overflow:auto;max-height:calc(88vh - 66px)}
+.report-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:12px}
+.report-presets a{display:flex;align-items:center;justify-content:center;min-height:40px;padding:6px;border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:11px;font-weight:800;text-decoration:none;text-align:center}
+.report-presets a:hover{border-color:var(--orange);text-decoration:none}
+.report-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.report-controls .wide{grid-column:1/-1}
+.report-controls label{margin:0}
+.report-filter-help{margin:10px 0;color:var(--text-dim);font-size:10.5px;line-height:1.45}
+.report-dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.report-dialog-actions .btn{margin:0}
+
+.report-inline-filter{padding:15px}
+.report-inline-filter h2{margin:0 0 5px}
+.report-inline-filter>p{margin:0 0 12px}
+
+@media(max-width:620px){
+  .report-hero{display:block}.report-scope-badge{display:inline-flex;max-width:100%;margin-top:9px}
+  .report-shell{margin-left:-1px;margin-right:-1px}
+  .report-toolbar{align-items:stretch}
+  .report-toolbar-left{flex:1}.report-toolbar-right{flex:0 0 auto}
+  .report-tool-btn,.report-export>summary{min-height:40px}
+  .report-tab{padding:8px 9px;font-size:11px}
+  .report-tab-icon{display:none}
+  .report-kpi-row{grid-template-columns:1fr}
+  .report-kpi-stat{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .report-kpi-stat span{margin:0}.report-kpi-stat strong{text-align:right}
+  .report-table thead{display:none}
+  .report-table,.report-table tbody,.report-table tr,.report-table td{display:block;width:100%}
+  .report-table tr{padding:8px 0;border-bottom:1px solid var(--border)}
+  .report-table tr:last-child{border-bottom:0}
+  .report-table td{display:grid;grid-template-columns:minmax(105px,.7fr) minmax(0,1.3fr);gap:8px;padding:4px 0;border:0}
+  .report-table td::before{content:attr(data-label);color:var(--text-dim);font-size:10px;font-weight:750}
+  .report-table td{font-size:12px}
+  .report-controls{grid-template-columns:1fr}
+  .report-controls .wide{grid-column:auto}
+}
+@media(min-width:700px){.report-dialog{inset:0;margin:auto;border-radius:22px;max-height:82vh}.report-dialog-body{max-height:calc(82vh - 66px)}}
+@media print{
+  .topbar,footer,.flash,.no-print,.fin-area-nav,.report-toolbar,.report-tabs-wrap,.report-dialog{display:none!important}
+  body{background:#fff!important;color:#000!important}
+  .wrap,.report-page{max-width:none!important;padding:0!important}
+  .report-hero{display:block;margin-bottom:12px}.report-scope-badge{display:inline-block;color:#000;border-color:#999;background:#fff;margin-top:6px}
+  .report-chip{color:#333;border-color:#bbb;background:#fff}.report-chip strong{color:#000}
+  .card,.report-data-card,.report-kpi-card{background:#fff!important;color:#000!important;border-color:#bbb!important;box-shadow:none!important}
+  .report-table{display:table}.report-table thead{display:table-header-group}.report-table tbody{display:table-row-group}.report-table tr{display:table-row}.report-table td,.report-table th{display:table-cell;width:auto;color:#000!important}.report-table td::before{content:none}
+  .report-note{color:#333;border-color:#bbb;background:#fff}.muted{color:#444!important}
+}
+</style>
+
+{% macro report_table(rows,columns) %}
+  {% if rows %}
+  <div class="report-table-wrap"><table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
+  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ account_types[row[key]] }}{% elif kind=='active' %}{{ 'Aktif' if row[key] else 'Nonaktif' }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="report-empty">Belum ada data pada periode ini.</div>{% endif %}
+{% endmacro %}
+
+{% macro section_head(title,description) %}
+<div class="report-section-head"><div><h2>{{ title }}</h2><p>{{ description }}</p></div><span class="report-section-tag">{{ filters.start }} → {{ filters.end }}</span></div>
+{% endmacro %}
+
+<div class="fin-page report-page">
+{% set active_finance_area='reports' %}{% include '_finance_area_nav.html' %}
+
+{% if error %}
+  <div class="report-hero"><div class="report-hero-copy"><span class="report-eyebrow">Kilas Finance</span><h1>Laporan Finance</h1><p>Data laporan belum dapat ditampilkan.</p></div></div>
+  <div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id or 'all',section='summary') }}">Kembali ke laporan</a></div>
+{% else %}
+{% set report_scope = selected_branch_id or 'all' %}
+{% set section_target = 'summary' if section == 'filter' else section %}
+{% set export_map = {'categories':'category_breakdown','accounts':'accounts','customers':'customers','projects':'projects','receivables':'receivables_aging','commitments':'recurring_commitments'} %}
+{% set current_export = export_map.get(section) %}
+
+<header class="report-hero">
+  <div class="report-hero-copy">
+    <span class="report-eyebrow">Kilas Finance · Reporting</span>
+    <h1>Laporan Finance</h1>
+    <p>{{ business.business_name }} · Analisis operasional dan export data keuangan.</p>
+  </div>
+  <span class="report-scope-badge">{{ 'Semua Cabang · Gabungan' if all_branches else selected_branch.name }}</span>
+</header>
+
+<div class="report-meta">
+  <span class="report-chip">📅 <strong>{{ filters.start }}</strong> – <strong>{{ filters.end }}</strong></span>
+  <span class="report-chip">🏪 <strong>{{ 'Semua Cabang' if all_branches else selected_branch.name }}</strong></span>
+  <span class="report-chip">🧾 Acuan piutang <strong>{{ filters.as_of }}</strong></span>
+</div>
+
+<section class="card report-shell no-print" aria-label="Navigasi laporan">
+  <div class="report-tabs-wrap">
+    <nav class="report-tabs" aria-label="Jenis laporan">
+      {% for key,label,icon in [
+        ('summary','Ringkasan','📊'),('trend','Tren','📈'),('categories','Kategori','🏷️'),
+        ('accounts','Kas & Rekening','💳'),('customers','Customer','👥'),('projects','Proyek','📁'),
+        ('receivables','Piutang','🧾'),('commitments','Komitmen','🔁')
+      ] %}
+      <a class="report-tab {{ 'active' if section_target==key }}" href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,section=key,**filters) }}" {% if section_target==key %}aria-current="page"{% endif %}><span class="report-tab-icon">{{ icon }}</span>{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+  <div class="report-toolbar">
+    <div class="report-toolbar-left">
+      <button type="button" class="report-tool-btn primary" data-report-filter-open>⚙️ Filter</button>
+      <span class="report-chip">Periode aktif · {{ filters.start }} – {{ filters.end }}</span>
+    </div>
+    <div class="report-toolbar-right">
+      <details class="report-export">
+        <summary>Export ▾</summary>
+        <div class="report-export-menu">
+          {% if current_export %}<a href="{{ url_for('finance.report_csv',business_id=business.id,report_name=current_export,branch_id=report_scope,**filters) }}">⬇️ <span>Export tampilan ini<small>CSV sesuai laporan aktif</small></span></a>{% endif %}
+          <a href="{{ url_for('finance.report_csv',business_id=business.id,report_name='transactions',branch_id=report_scope,**filters) }}">📒 <span>Transaksi CSV<small>Detail pemasukan & pengeluaran</small></span></a>
+          <a href="{{ url_for('finance.report_csv',business_id=business.id,report_name='invoices',branch_id=report_scope,**filters) }}">🧾 <span>Invoice CSV<small>Invoice dan status pembayaran</small></span></a>
+          <div class="report-export-sep"></div>
+          <a href="{{ url_for('finance.report_zip',business_id=business.id,branch_id=report_scope,**filters) }}">📦 <span>Download Semua CSV<small>Semua dataset dalam ZIP</small></span></a>
+          <button type="button" onclick="window.print()">🖨️ <span>Cetak / Simpan PDF<small>Versi siap cetak</small></span></button>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<main class="report-content">
+{% if section=='filter' %}
+  <section class="card report-inline-filter">
+    <h2>Filter Laporan</h2><p class="muted">Atur periode, tanggal acuan piutang, dan rentang komitmen. Setelah disimpan kamu kembali ke Ringkasan.</p>
+    <div class="report-presets">
+      {% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}
+      <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section='summary') }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <form method="get">
+      <input type="hidden" name="section" value="summary"><input type="hidden" name="branch_id" value="{{ report_scope }}">
+      <div class="report-controls">
+        <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
+        <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
+        <label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>
+        <label>Komitmen mulai<input type="date" name="commitment_start" value="{{ filters.commitment_start }}" required></label>
+        <label>Komitmen selesai<input type="date" name="commitment_end" value="{{ filters.commitment_end }}" required></label>
+      </div>
+      <div class="report-dialog-actions"><button class="btn">Terapkan Filter</button></div>
+    </form>
+  </section>
+{% elif section=='summary' %}
+  {{ section_head('Ringkasan Arus Kas','Angka utama pemasukan, pengeluaran, dan selisih per mata uang.') }}
+  <div class="report-kpi-grid">
+    {% for s in summary %}
+    <article class="card report-kpi-card">
+      <div class="report-kpi-top"><strong>{{ s.currency }}</strong><span>{{ s.transaction_count }} transaksi</span></div>
+      <div class="report-kpi-row">
+        <div class="report-kpi-stat income"><span>↑ Pemasukan</span><strong>{{ s.total_income_minor|finance_money(s.currency) }}</strong></div>
+        <div class="report-kpi-stat expense"><span>↓ Pengeluaran</span><strong>{{ s.total_expense_minor|finance_money(s.currency) }}</strong></div>
+        <div class="report-kpi-stat net"><span>= Selisih</span><strong>{{ s.net_cashflow_minor|finance_money(s.currency) }}</strong></div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+{% elif section=='trend' %}
+  {{ section_head('Tren Arus Kas Bulanan','Pergerakan pemasukan, pengeluaran, dan selisih dari bulan ke bulan.') }}
+  <section class="card report-data-card">{{ report_table(trend,[('Bulan','month','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Selisih','net_cashflow_minor','money')]) }}</section>
+{% elif section=='categories' %}
+  {{ section_head('Rincian Kategori','Lihat kategori yang paling banyak berkontribusi pada arus kas.') }}
+  <section class="card report-data-card">{{ report_table(data.category_breakdown,[('Mata uang','currency','text'),('Jenis','direction','direction'),('Kategori','name','text'),('Nominal','amount_minor','money'),('Transaksi','transaction_count','number'),('Persentase','percentage','percent')]) }}</section>
+{% elif section=='accounts' %}
+  {{ section_head('Kas & Rekening','Posisi setiap kas/rekening termasuk saldo awal, transaksi, dan penukaran.') }}
+  <section class="card report-data-card">{{ report_table(data.accounts,[('Cabang','branch_name','text'),('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Status','is_active','active'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Penukaran masuk','exchange_in_minor','money'),('Penukaran keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}</section>
+{% elif section=='customers' %}
+  {{ section_head('Kontribusi Customer','Arus kas yang dikaitkan ke setiap customer dalam periode laporan.') }}
+  <section class="card report-data-card">{{ report_table(data.customers,[('Customer','name','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Kontribusi','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</section>
+{% elif section=='projects' %}
+  {{ section_head('Kontribusi Proyek','Uang masuk dan keluar yang dikaitkan dengan proyek.') }}
+  <section class="card report-data-card">{{ report_table(data.projects,[('Proyek','title','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Selisih','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</section>
+{% elif section=='receivables' %}
+  {{ section_head('Umur Piutang','Piutang terbuka dikelompokkan berdasarkan tingkat keterlambatan.') }}
+  <section class="card report-data-card">{{ report_table(data.receivables_aging,[('Mata uang','currency','text'),('Kelompok','label','text'),('Piutang','amount_minor','money'),('Invoice','invoice_count','number')]) }}</section>
+{% elif section=='commitments' %}
+  {{ section_head('Komitmen Biaya Rutin','Jadwal biaya rutin pada rentang komitmen yang dipilih.') }}
+  <section class="card report-data-card">{{ report_table(data.recurring_commitments,[('Cabang','branch_name','text'),('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Proyek','project_name','text'),('Kas / Rekening','account_name','text'),('Kategori','category_name','text')]) }}</section>
+{% endif %}
+</main>
+
+<aside class="report-note">
+  <strong>Catatan laporan:</strong> laporan ini berbasis pencatatan kas di Kilas Finance dan <strong>bukan laporan laba rugi akuntansi</strong>. Saldo tercatat <strong>belum tentu sama dengan saldo bank aktual</strong> sebelum rekonsiliasi. Mata uang asli tidak digabung tanpa konteks kurs.
+</aside>
+
+<dialog id="report-filter-dialog" class="report-dialog no-print">
+  <div class="report-dialog-head"><h2>⚙️ Filter Laporan</h2><button type="button" class="report-dialog-close" data-report-filter-close aria-label="Tutup">×</button></div>
+  <div class="report-dialog-body">
+    <div class="report-presets">
+      {% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}
+      <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section=section_target) }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <form method="get">
+      <input type="hidden" name="section" value="{{ section_target }}"><input type="hidden" name="branch_id" value="{{ report_scope }}">
+      <div class="report-controls">
+        <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
+        <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
+        <label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>
+        <label>Komitmen mulai<input type="date" name="commitment_start" value="{{ filters.commitment_start }}" required></label>
+        <label>Komitmen selesai<input type="date" name="commitment_end" value="{{ filters.commitment_end }}" required></label>
+      </div>
+      <p class="report-filter-help">Tanggal acuan dipakai untuk status piutang. Rentang komitmen hanya memengaruhi tab Komitmen.</p>
+      <div class="report-dialog-actions"><button type="button" class="btn secondary" data-report-filter-close>Batal</button><button class="btn">Terapkan</button></div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  const dialog=document.getElementById('report-filter-dialog');
+  if(!dialog)return;
+  document.querySelectorAll('[data-report-filter-open]').forEach(button=>button.addEventListener('click',()=>dialog.showModal()));
+  document.querySelectorAll('[data-report-filter-close]').forEach(button=>button.addEventListener('click',()=>dialog.close()));
+  dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+  document.querySelectorAll('.report-export').forEach(menu=>document.addEventListener('click',event=>{if(menu.open&&!menu.contains(event.target))menu.removeAttribute('open');}));
+})();
+</script>
+{% endif %}
+</div>
+{% endblock %}

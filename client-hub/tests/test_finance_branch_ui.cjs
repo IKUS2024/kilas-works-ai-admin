@@ -67,7 +67,7 @@ test('dashboard uses compact management tiles and explicit transaction delete',(
 });
 
 
-test('receivables operations and reports expose compact section hubs',()=>{
+test('receivables operations and reports expose professional compact navigation',()=>{
   const receivables=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
   const operations=fs.readFileSync(path.join(__dirname,'../templates/finance_operations.html'),'utf8');
   const reports=fs.readFileSync(path.join(__dirname,'../templates/finance_reports.html'),'utf8');
@@ -75,10 +75,13 @@ test('receivables operations and reports expose compact section hubs',()=>{
   assert.match(receivables,/Tambah Customer/);
   assert.match(operations,/Biaya Rutin/);
   assert.match(operations,/Tambah Biaya/);
-  assert.match(reports,/Filter &amp; Export/);
-  assert.match(reports,/Kas &amp; Rekening/);
+  assert.match(reports,/report-tabs/);
+  assert.match(reports,/data-report-filter-open/);
+  assert.match(reports,/Export ▾/);
+  assert.match(reports,/Download Semua CSV/);
+  assert.match(reports,/Cetak \/ Simpan PDF/);
+  assert.doesNotMatch(reports,/fin-tool-grid compact/);
 });
-
 
 test('dashboard exposes main finance icon navigation',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');

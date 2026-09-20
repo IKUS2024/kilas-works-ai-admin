@@ -702,7 +702,7 @@ def report_error(error):
 @finance_bp.route('/business/<int:business_id>/finance/reports')
 @finance_access
 def reports(business_id,user,business):
-    section = request.args.get('section', 'filter')
+    section = request.args.get('section', 'summary')
     if section not in ('filter', 'summary', 'trend', 'categories', 'accounts', 'customers', 'projects', 'receivables', 'commitments'):
         section = 'filter'
     try:
