@@ -201,6 +201,14 @@ def create_app():
     def healthz():
         return {"status": "ok", "service": "kilas-works-client-hub", "db_backend": db.BACKEND}, 200
 
+    @app.route("/privacy")
+    def privacy_policy():
+        """Public privacy policy used by Kilas Works products and Meta app configuration."""
+        return render_template("privacy_policy.html"), 200, {
+            "Cache-Control": "public, max-age=300",
+            "X-Robots-Tag": "index, follow",
+        }
+
     @app.route("/catalog.pdf")
     def public_catalog_pdf():
         """Serve the owner's exact official PDF; catalog DB changes never rebuild this asset."""
