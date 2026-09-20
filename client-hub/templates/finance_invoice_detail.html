@@ -26,8 +26,29 @@
 <p class="muted">Tautan berlaku 7 hari. Siapa pun yang menerima tautan dapat membaca invoice ini. Tidak ada pengiriman otomatis.</p>
 {% if share_url %}<label for="invoice-link">Tautan customer</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Open Customer View</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
 {% endif %}
+
+<details class="fin-detail-editor">
+  <summary class="btn secondary">✏️ Edit catatan</summary>
+  <form method="post" action="{{ url_for('finance.update_invoice_notes',business_id=business.id,invoice_id=invoice.id) }}" class="fin-inline-edit">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Catatan invoice<textarea name="notes" maxlength="4000">{{ invoice.notes or '' }}</textarea></label>
+    <p class="muted">Aman untuk invoice lunas: hanya catatan yang berubah. Customer, item, nominal, pembayaran, pemasukan dan saldo tetap terkunci.</p>
+    <button class="btn">Simpan catatan</button>
+  </form>
+</details>
+
 {% if invoice.status=='DRAFT' %}<form class="no-print" method="post" action="{{ url_for('finance.issue_invoice',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Terbitkan Invoice</button></form>{% endif %}
-{% if invoice.status in ('DRAFT','ISSUED') and not payments %}<form class="no-print" method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=invoice.id) }}" onsubmit="return confirm('Hapus invoice ini dari daftar aktif? Invoice akan dibatalkan, tetapi jejak audit tetap disimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">🗑️ Hapus Invoice</button></form>{% endif %}
+{% if invoice.status in ('DRAFT','ISSUED') and not payments %}
+<form class="no-print" method="post" action="{{ url_for('finance.void_invoice',business_id=business.id,invoice_id=invoice.id) }}" onsubmit="return confirm('Batalkan invoice ini? Nilainya akan keluar dari piutang aktif, tetapi audit tetap disimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">🗑️ Hapus Invoice</button></form>
+{% elif invoice.status=='PAID' %}
+  {% if archived %}
+  <form class="no-print" method="post" action="{{ url_for('finance.restore_invoice',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary">↩ Kembalikan ke daftar</button></form>
+  {% else %}
+  <form class="no-print" method="post" action="{{ url_for('finance.archive_invoice',business_id=business.id,invoice_id=invoice.id) }}" onsubmit="return confirm('Hapus invoice lunas ini dari daftar kerja? Ini hanya mengarsipkan tampilan. Pembayaran, pemasukan, saldo, laporan dan audit tidak berubah.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn danger">🗑️ Hapus dari daftar</button></form>
+  {% endif %}
+{% elif invoice.status=='PARTIALLY_PAID' %}
+<p class="muted">Invoice belum dapat dihapus karena masih memiliki sisa piutang. Lunasi atau koreksi melalui alur pembayaran terlebih dahulu.</p>
+{% endif %}
 </div>
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID') and totals.outstanding_minor>0 %}
 <form class="card no-print" method="post" action="{{ url_for('finance.record_payment',business_id=business.id,invoice_id=invoice.id) }}">
