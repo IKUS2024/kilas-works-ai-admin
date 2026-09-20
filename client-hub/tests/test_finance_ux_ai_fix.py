@@ -112,6 +112,21 @@ class FinanceUXTests(unittest.TestCase):
         self.assertIn('.finance-filter select{width:100%;box-sizing:border-box}', html)
         self.assertIn('@media(max-width:480px){.finance-filter>div{flex-basis:100%}}', html)
 
+    def test_dashboard_currency_picker_and_recent_transaction_history(self):
+        self.trial()
+        finance = __import__('finance_service')
+        income = finance.list_categories(self.b, 'INCOME')[0]
+        finance.create_transaction(self.b, 'INCOME', 2200000, self.a, income['id'], '2026-09-17',
+            description='Jasa foto', actor_user_id=self.uid)
+        finance.create_transaction(self.b, 'EXPENSE', 200000, self.a, self.expense['id'], '2026-09-17',
+            description='Transport shooting', actor_user_id=self.uid)
+        html = self.client.get(self.url + '?month=2026-09').text
+        for value in ('data-cashflow-currency', 'Riwayat Transaksi', 'Jasa foto',
+                      'Transport shooting', 'Buka riwayat lengkap', '↑ Pemasukan', '↓ Pengeluaran'):
+            self.assertIn(value, html)
+        self.assertEqual(html.count('data-cashflow-block='), len(__import__('finance_service').get_finance_summaries(
+            self.b, '2026-09-01', '2026-09-17', actor_user_id=self.uid)))
+
     def test_receipt_fenced_success_populates_review_without_write_and_confirms_once(self):
         result = self.prepare_receipt()
         self.response.json.return_value['content'][0]['text'] = '```json\n' + json.dumps(result) + '\n```'

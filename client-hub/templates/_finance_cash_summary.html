@@ -1,8 +1,20 @@
-
-<section class="card cash-flow-card" aria-label="Arus kas periode">
-  <div class="cash-summary-head"><div><h2>Arus Kas Periode</h2><p class="cash-muted">{{ period_label }} · hanya transaksi pemasukan &amp; pengeluaran</p></div></div>
+{% set cash_currencies = summaries|map(attribute='currency')|list %}
+{% set cash_selected_currency = display_currency if display_currency in cash_currencies else cash_currencies[0] %}
+<section class="card cash-flow-card" aria-label="Arus kas periode" data-cashflow-card>
+  <div class="cash-summary-head">
+    <div><h2>Arus Kas Periode</h2><p class="cash-muted">{{ period_label }} · hanya transaksi pemasukan &amp; pengeluaran</p></div>
+    {% if summaries|length > 1 %}
+    <label class="cash-currency-picker"><span>Mata uang</span>
+      <select data-cashflow-currency aria-label="Pilih mata uang arus kas">
+        {% for row in summaries %}<option value="{{ row.currency }}" {{ 'selected' if row.currency == cash_selected_currency }}>{{ row.currency }}</option>{% endfor %}
+      </select>
+    </label>
+    {% else %}
+    <span class="cash-currency-chip">{{ cash_selected_currency }}</span>
+    {% endif %}
+  </div>
   {% for row in summaries %}
-  <section class="cash-currency-block" aria-label="Arus kas {{ row.currency }}">
+  <section class="cash-currency-block" data-cashflow-block="{{ row.currency }}" aria-label="Arus kas {{ row.currency }}" {% if row.currency != cash_selected_currency %}hidden{% endif %}>
     <div class="cash-currency-title"><strong>{{ row.currency }}</strong><span>{{ row.transaction_count }} transaksi</span></div>
     <div class="cash-flow-row">
       <div class="cash-flow-stat"><span>↑ Pemasukan</span><strong class="cash-money">{{ row.total_income_minor|finance_money(row.currency) }}</strong></div>
@@ -11,5 +23,5 @@
     </div>
   </section>
   {% endfor %}
-  <p class="cash-muted" style="margin-top:12px">Saldo awal rekening dan penukaran mata uang bukan pemasukan/pengeluaran, jadi tidak masuk Arus Kas Periode.</p>
+  <p class="cash-muted cash-flow-note">Saldo awal rekening dan penukaran mata uang bukan pemasukan/pengeluaran, jadi tidak masuk Arus Kas Periode.</p>
 </section>

@@ -61,8 +61,40 @@
   .finance-home-label{font-size:14px}
   .finance-home-meta{font-size:10.5px}
 }
+
+.finance-history-card{padding:16px}
+.finance-history-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.finance-history-head h2{margin:0;font-size:18px}
+.finance-history-head p{margin:4px 0 0;color:var(--text-dim);font-size:12px}
+.finance-history-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.finance-history-tabs a{display:inline-flex;align-items:center;min-height:34px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:11px;font-weight:800;text-decoration:none}
+.finance-history-tabs a:hover,.finance-history-tabs a:focus{border-color:var(--orange);color:var(--text)}
+.finance-history-list{display:grid;gap:7px}
+.finance-history-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 11px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.012)}
+.finance-history-main{min-width:0}
+.finance-history-title{font-size:14px;font-weight:800;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.finance-history-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:4px;color:var(--text-dim);font-size:10.5px;line-height:1.35}
+.finance-history-kind{padding:2px 6px;border-radius:999px;background:rgba(127,127,127,.10);font-weight:800}
+.finance-history-kind.income{color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent)}
+.finance-history-kind.expense{color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent)}
+.finance-history-source{color:var(--text-dim)}
+.finance-history-amount{font-size:16px;font-weight:850;white-space:nowrap;font-variant-numeric:tabular-nums}
+.finance-history-amount.income{color:var(--green)}
+.finance-history-amount.expense{color:var(--text)}
+.finance-history-footer{display:flex;justify-content:flex-end;margin-top:10px}
+.finance-history-footer a{font-size:12px;font-weight:800}
+@media(max-width:480px){
+  .finance-history-card{padding:13px}
+  .finance-history-head{align-items:center}
+  .finance-history-head .finance-mini-action{padding:7px 9px;font-size:11px}
+  .finance-history-row{padding:10px}
+  .finance-history-title{font-size:13px}
+  .finance-history-amount{font-size:15px}
+}
+
 </style>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260919-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
+<script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
 <div class="finance-page">
 <header class="finance-hero">
 <a class="finance-back-link" href="{{ url_for('client.dashboard') }}">← Dashboard</a>
@@ -147,6 +179,39 @@
 </div>
 
 {% include '_finance_cash_summary.html' %}
+
+<section class="card finance-history-card" aria-labelledby="finance-history-title">
+  <div class="finance-history-head">
+    <div><h2 id="finance-history-title">Riwayat Transaksi</h2><p>Terbaru di {{ period_label }} · lihat apa saja yang sudah dicatat.</p></div>
+    <a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,view='transactions',**period_query) }}">Lihat semua</a>
+  </div>
+  <nav class="finance-history-tabs" aria-label="Filter riwayat transaksi">
+    <a href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',**period_query) }}">Semua</a>
+    <a href="{{ url_for('finance.dashboard',business_id=business.id,direction='INCOME',view='transactions',**period_query) }}">↑ Pemasukan</a>
+    <a href="{{ url_for('finance.dashboard',business_id=business.id,direction='EXPENSE',view='transactions',**period_query) }}">↓ Pengeluaran</a>
+  </nav>
+  <div class="finance-history-list">
+  {% for t in recent_transactions %}
+    {% set source_label = 'AI Assistant' if t.source_type == 'FINANCE_OPERATOR' else ('Struk' if t.source_type == 'FINANCE_RECEIPT' else ('Bank' if t.source_type == 'FINANCE_BANK_IMPORT' else ('Invoice' if t.source_type == 'FINANCE_INVOICE_PAYMENT' else ('Biaya rutin' if t.source_type == 'FINANCE_RECURRING_EXPENSE' else 'Manual')))) %}
+    <article class="finance-history-row">
+      <div class="finance-history-main">
+        <div class="finance-history-title">{{ t.description or category_map.get(t.category_id, {}).get('name','Transaksi') }}</div>
+        <div class="finance-history-meta">
+          <span>{{ t.occurred_on }}</span><span>·</span>
+          <span class="finance-history-kind {{ 'income' if t.direction == 'INCOME' else 'expense' }}">{{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }}</span>
+          <span>·</span><span>{{ account_map.get(t.account_id, {}).get('name','Kas / Rekening') }}</span>
+          <span>·</span><span>{{ category_map.get(t.category_id, {}).get('name','Kategori') }}</span>
+          <span class="finance-history-source">· {{ source_label }}</span>
+        </div>
+      </div>
+      <strong class="finance-history-amount {{ 'income' if t.direction == 'INCOME' else 'expense' }}">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.amount_minor|finance_money(t.currency) }}</strong>
+    </article>
+  {% else %}
+    <div class="finance-empty">Belum ada pemasukan atau pengeluaran pada periode ini.</div>
+  {% endfor %}
+  </div>
+  {% if recent_transactions %}<div class="finance-history-footer"><a href="{{ url_for('finance.dashboard',business_id=business.id,direction=direction,view='transactions',**period_query) }}">Buka riwayat lengkap →</a></div>{% endif %}
+</section>
 
 <div class="finance-quick-grid">
 {% include '_finance_balance_card.html' %}

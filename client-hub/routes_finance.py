@@ -351,6 +351,9 @@ def dashboard(business_id, user, business):
     transactions = finance.list_transactions(
         business_id, start_date=start, end_date=end, direction=direction,
         status='POSTED', limit=transaction_limit, **actor) if show_transactions else []
+    recent_transactions = finance.list_transactions(
+        business_id, start_date=start, end_date=end, direction=direction,
+        status='POSTED', limit=6, **actor) if not show_transactions else []
 
     breakdown = []
     if g.finance_branch_id is None:
@@ -382,7 +385,7 @@ def dashboard(business_id, user, business):
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, summaries=summaries,
-        transactions=transactions,
+        transactions=transactions, recent_transactions=recent_transactions,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
