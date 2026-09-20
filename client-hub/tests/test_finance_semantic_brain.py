@@ -321,6 +321,14 @@ class SemanticBrainTests(unittest.TestCase):
         self.assertIn('100.000',str(result['preview']))
         self.assertNotIn('900.000',str(result['preview']))
 
+    def test_customer_pronoun_survives_a_confirmed_customer_linked_transaction(self):
+        customer=f.create_customer(self.b,'Putri',actor_user_id=self.uid)
+        draft=self.propose('pemasukan Putri 100k','create_income',{'amount':'100k','customer':'Putri'})
+        saved=self.save(draft)
+        invoice=self.propose('dia belum bayar 500k','invoice',{'customer_reference':'dia','amount':'500k'},saved)
+        values={x['key']:x['value'] for x in invoice['fields']}
+        self.assertEqual(values['customer_id'],str(customer))
+        self.assertEqual(values['amount'],'500k')
     def test_pending_draft_can_use_confirmed_customer_pronoun(self):
         customer=self.propose('customer putri','customer',{'name':'putri'});saved=self.save(customer)
         draft=self.propose('pemasukan 100 ribu','create_income',{'amount':'100 ribu'},saved)
