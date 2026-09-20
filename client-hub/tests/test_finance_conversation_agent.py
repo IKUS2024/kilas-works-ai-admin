@@ -294,4 +294,25 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(flow.currency_hint('saldo 500 yuan'),'CNY')
         self.assertEqual(flow.currency_hint('saldo 100 baht'),'THB')
 
+
+    def test_english_july_and_month_aliases_are_understood(self):
+        f.create_transaction(self.b,'INCOME',61108839,self.a,self.cat,'2026-07-31',actor_user_id=self.uid)
+        for wording in ('pendapatan kita berapa bulan july','pemasukan bulan jul','laporan pendapatan Juli 2026'):
+            response=self.message(wording)
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertIn('61.108.839',response.text)
+            self.assertIn('2026-07',response.text)
+
+    def test_recurring_inventory_question_is_not_generic_empty_report(self):
+        empty=self.message('biaya rutin kita ada?')
+        self.assertEqual(empty.status_code,200,empty.text)
+        self.assertEqual(empty.json['title'],'Biaya rutin')
+        self.assertIn('Belum ada biaya rutin aktif',empty.json['message'])
+        f.create_recurring_expense(self.b,'Internet',500000,self.a,self.meal,'MONTHLY',
+                                   date.today().isoformat(),actor_user_id=self.uid)
+        found=self.message('biaya rutin kita ada?')
+        self.assertEqual(found.status_code,200,found.text)
+        self.assertIn('Internet',found.text)
+        self.assertIn('500.000',found.text)
+
 if __name__=='__main__':unittest.main()

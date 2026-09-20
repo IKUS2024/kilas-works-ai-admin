@@ -9,6 +9,12 @@ import finance_branches as branches
 import finance_fx as fx
 
 MONTHS='januari februari maret april mei juni juli agustus september oktober november desember'.split()
+MONTH_ALIASES={
+    1:('januari','january','jan'),2:('februari','february','feb'),3:('maret','march','mar'),
+    4:('april','apr'),5:('mei','may'),6:('juni','june','jun'),7:('juli','july','jul'),
+    8:('agustus','august','aug'),9:('september','sept','sep'),10:('oktober','october','okt','oct'),
+    11:('november','nov'),12:('desember','december','des','dec')}
+MONTH_ALIAS_TO_NUMBER={alias:number for number,aliases in MONTH_ALIASES.items() for alias in aliases}
 FINANCE_TERMS=('finance','keuangan','akuntansi','transaksi','pemasukan','pendapatan','penjualan','pengeluaran','biaya',
                'kas','cash','rekening','bank','saldo','invoice','tagihan','piutang','utang','customer','pelanggan',
                'kategori','proyek','struk','receipt','mutasi','rekonsiliasi','overdue','outstanding','aging',
@@ -87,14 +93,26 @@ def contextualize(previous,current):
 def periods(text):
     today=date.today();year=re.search(r'\b(20\d{2})\b',text)
     year=int(year[1]) if year else today.year
-    found=[(m.start(),i+1) for i,name in enumerate(MONTHS) for m in re.finditer(r'\b'+name+r'\b',text,re.I)]
+    found=[]
+    for match in re.finditer(r'\b[A-Za-z]+\b',text):
+        word=match.group(0).casefold()
+        month=MONTH_ALIAS_TO_NUMBER.get(word)
+        if month is None and len(word)>=3:
+            ranked=sorted(((SequenceMatcher(None,word,alias).ratio(),number)
+                           for alias,number in MONTH_ALIAS_TO_NUMBER.items()),reverse=True)
+            if ranked and ranked[0][0]>=0.84:month=ranked[0][1]
+        if month:found.append((match.start(),month))
     starts=[date(year,m,1) for _,m in sorted(found)]
     if not starts:
         start=today.replace(day=1)
-        if 'bulan lalu' in text.lower():start=(start-timedelta(days=1)).replace(day=1)
-        if 'bulan depan' in text.lower():start=(start+timedelta(days=32)).replace(day=1)
+        lower=text.lower()
+        if 'bulan lalu' in lower or 'bulan sebelumnya' in lower:start=(start-timedelta(days=1)).replace(day=1)
+        if 'bulan depan' in lower:start=(start+timedelta(days=32)).replace(day=1)
         starts=[start]
-    return [(d.isoformat(),d.replace(day=calendar.monthrange(d.year,d.month)[1]).isoformat()) for d in starts[:2]]
+    unique=[]
+    for item in starts:
+        if item not in unique:unique.append(item)
+    return [(d.isoformat(),d.replace(day=calendar.monthrange(d.year,d.month)[1]).isoformat()) for d in unique[:2]]
 
 
 def result(title,preview,message='Data mengikuti cabang yang dipilih; mata uang tetap terpisah.'):
@@ -168,14 +186,27 @@ def query(b,u,text,branch_checked=False):
     customer_words=bool(re.search(r'customer|custumer|costumer|pelanggan|nomor|telepon|email',lower))
     if (customer_words or (customer and re.search(r'\b(nama|cek|lihat|cari|ada)\b',lower))) and not re.search(r'paling banyak|transaksi|pemasukan|pengeluaran',lower):
         rows=[customer] if customer else customers if re.search(r'tampilkan|cari|data|lihat|daftar|cek|apa aja|siapa aja',lower) else []
+        if not rows:return result('Data customer',[],'Customer yang dimaksud belum ditemukan. Coba tulis nama atau ejaan yang lebih dekat.')
         return result('Data customer',[[r['name'],'Telepon: '+(r['phone'] or '—')+' · Email: '+(r['email'] or '—')] for r in rows[:50]])
+    recurring_intent=bool(re.search(r'\b(biaya rutin|pengeluaran rutin|rutin)\b',lower))
+    explicit_period=bool(re.search(r'\b(bulan ini|bulan lalu|bulan sebelumnya|bulan depan|minggu ini|20\d{2})\b',lower) or
+                         any(re.search(r'\b'+re.escape(alias)+r'\b',lower) for alias in MONTH_ALIAS_TO_NUMBER))
+    if recurring_intent and not explicit_period and not all_time:
+        rules=f.list_recurring_expenses(b,actor_user_id=u)
+        if not rules:return result('Biaya rutin',[],'Belum ada biaya rutin aktif pada cabang yang dipilih.')
+        return result('Biaya rutin',[[r['name']+' · '+r['cadence'],
+            fx.format_money(r['amount_minor'],r['currency'])+' · jatuh tempo berikutnya '+r['next_due_on']] for r in rules[:100]],
+            'Daftar biaya rutin aktif pada cabang yang dipilih.')
     preview=[]
     ranges=[('1900-01-01',today.isoformat())] if all_time else periods(text)
     for start,end in ranges:
         period_label='Semua waktu' if all_time else start[:7]
-        if re.search(r'biaya rutin|rutin bulan',lower):
+        if recurring_intent:
             rows=f.get_upcoming_recurring_commitments(b,start,end,u)
-            preview.extend([[r['name']+' · '+r['scheduled_on'],fx.format_money(r['amount_minor'],r['currency'])] for r in rows[:100]])
+            if not rows:
+                preview.append([period_label,'Belum ada biaya rutin terjadwal.'])
+            else:
+                preview.extend([[r['name']+' · '+r['scheduled_on'],fx.format_money(r['amount_minor'],r['currency'])] for r in rows[:100]])
             continue
         rows=f.get_report_transactions(b,start,end,u)
         projects=f.list_finance_projects(b,actor_user_id=u)
@@ -201,8 +232,8 @@ def query(b,u,text,branch_checked=False):
             for code in codes:
                 ins=sum(r['amount_minor'] for r in rows if r['currency']==code and r['direction']=='INCOME')
                 outs=sum(r['amount_minor'] for r in rows if r['currency']==code and r['direction']=='EXPENSE')
-                if not expense:preview.append([start[:7]+' · Pemasukan',fx.format_money(ins,code)])
-                if not income:preview.append([start[:7]+' · Pengeluaran',fx.format_money(outs,code)])
-                if not income and not expense:preview.append([start[:7]+' · Arus kas bersih',fx.format_money(ins-outs,code)])
+                if not expense:preview.append([period_label+' · Pemasukan',fx.format_money(ins,code)])
+                if not income:preview.append([period_label+' · Pengeluaran',fx.format_money(outs,code)])
+                if not income and not expense:preview.append([period_label+' · Arus kas bersih',fx.format_money(ins-outs,code)])
             if customer and 'transaksi' in lower:preview.append(['Jumlah transaksi',str(len(rows))])
     return result('Laporan Finance',preview)
