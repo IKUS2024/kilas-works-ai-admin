@@ -120,6 +120,9 @@ class FinanceUXTests(unittest.TestCase):
             description='Jasa foto', actor_user_id=self.uid)
         finance.create_transaction(self.b, 'EXPENSE', 200000, self.a, self.expense['id'], '2026-09-17',
             description='Transport shooting', actor_user_id=self.uid)
+        usd_account = finance.create_account(self.b, 'BOFA', currency='USD', actor_user_id=self.uid)
+        finance.create_transaction(self.b, 'INCOME', 1500, usd_account, income['id'], '2026-09-17',
+            currency='USD', description='USD client payment', actor_user_id=self.uid)
         html = self.client.get(self.url + '?month=2026-09').text
         for value in ('data-cashflow-currency', 'Riwayat Transaksi', 'Jasa foto',
                       'Transport shooting', 'Buka riwayat lengkap', '↑ Pemasukan', '↓ Pengeluaran'):
