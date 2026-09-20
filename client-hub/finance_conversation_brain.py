@@ -34,6 +34,8 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'Unpaid debt is not income or a payment. When the user wants to record a new unpaid amount for a customer, choose invoice '
       'and leave item_description missing if its purpose is unknown. Asking who owes money is receivables. '
       'Projects can be listed or linked to a transaction; project creation is unsupported. FX records an exchange, never sends money. '
+      'edit_customer changes an existing customer name/phone/email/notes; deactivate_customer is the reviewed safe delete for a customer. '
+      'For edit/delete/void/rename operations, target is the existing record being changed; resource-specific names may identify that target. '
       'Use visible names to understand references, but return literal user spelling, not IDs. Keep unspecified fields unchanged. '
       'Capabilities means asking what you can do. Unknown means unclear/unsupported/off-topic. '
       'Invoice item additions use add_invoice_item and literal item_description, quantity, amount. '
@@ -275,6 +277,8 @@ def start(b,u,intent,slots,previous):
         slots={**previous['command'].get('slots',{}),**slots}
     if intent in commands.TITLES or intent=='issue_invoice':
         row=None
+        settle_after=bool(slots.pop('settlement',None)) if intent=='issue_invoice' else False
+        slots.pop('issue',None) if intent=='issue_invoice' else None
         if intent not in ('create_account','create_category','create_branch','exchange'):
             kind=intent.split('_',1)[1]
             if 'target_reference' in slots:
@@ -283,8 +287,12 @@ def start(b,u,intent,slots,previous):
                 slots.pop('target_reference')
             else:
                 raw=slots.pop('target','')
-                found=semantics.entity_options(commands.targets(b,u,kind),raw)
+                if not raw and kind in slots:raw=slots.pop(kind)
+                found=semantics.entity_options(commands.targets(b,u,kind),raw) if raw else []
                 if len(found)==1:row=found[0]
+                elif not raw:
+                    last_kind,last=last_record(b,u,previous)
+                    if last_kind==kind:row=last
             if row is None:
                 remembered={'command':{'operation':intent,'slots':slots}}
                 if previous.get('last_record'):remembered['last_record']=previous['last_record']
@@ -292,7 +300,9 @@ def start(b,u,intent,slots,previous):
                     choices=[r['name'] for r in commands.targets(b,u,kind)[:8]],query_context=flow.seal_query(b,u,remembered))
         if intent=='issue_invoice':
             from finance_assistant_invoice import review_invoice,issue_fingerprint
-            return review_invoice(b,u,dict(action=intent,values={'invoice_id':row['id'],'fingerprint':issue_fingerprint(b,u,row)},nonce=uuid.uuid4().hex))
+            context=dict(action=intent,values={'invoice_id':row['id'],'fingerprint':issue_fingerprint(b,u,row)},nonce=uuid.uuid4().hex)
+            if settle_after:context['settle_after']=True
+            return review_invoice(b,u,context)
         initial=commands.start(b,u,intent,row=row)
     elif intent=='customer':
         initial=flow.review(b,u,dict(action=intent,nonce=uuid.uuid4().hex,values=dict(name='',phone='',email='',notes='')))
@@ -303,11 +313,49 @@ def start(b,u,intent,slots,previous):
         values=dict(amount='',currency='',date='' if intent=='recurring' else flow.proposed_date('hari ini'),
                     account_id='',category_id='',description='')
         if intent=='recurring':values.update(name='',cadence='',end_on='',project_id='',counterparty_name='')
-        elif intent=='record_invoice_payment':values.update(invoice_id='',customer_id='',date='')
+        elif intent=='record_invoice_payment':
+            values.update(invoice_id='',customer_id='',date='')
+            if not any(k in slots for k in ('invoice','customer','target','target_reference')):
+                last_kind,last=last_record(b,u,previous)
+                if last_kind=='invoice' and last:values['invoice_id']=str(last['id'])
         else:values.update(project_id='',customer_id='',counterparty_name='')
         initial=flow.review(b,u,dict(action=intent,nonce=uuid.uuid4().hex,values=values))
     else:return uncertain()
     return apply_slots(b,u,initial,slots,previous)
+
+
+def contextual_last_action(b,u,text,previous):
+    """Resolve short follow-ups against the last confirmed live record.
+
+    This is protocol context, not a stale business snapshot: last_record() always
+    re-reads the scoped database row before an action is proposed.
+    """
+    kind,row=last_record(b,u,previous)
+    if not row:return None
+    low=' '.join(re.findall(r'[a-z0-9]+',semantics.normalize(text).casefold()))
+    if not low or '?' in text or re.search(r'\b(apa|apakah|berapa|kenapa|mengapa|status|cek|lihat|tampilkan)\b',low):
+        return None
+    words=low.split()
+    paid=re.search(r'\b(?:sudah|udah|telah)?\s*(bayar|dibayar|lunas|lunasi|lunasin|pelunasan)\b',low)
+    if kind=='invoice' and len(words)<=10 and re.search(r'\b(terbitkan|issue)\b',low):
+        slots={'settlement':paid[0]} if paid else {}
+        return start(b,u,'issue_invoice',slots,previous)
+    if kind=='invoice' and paid and len(words)<=8:
+        if row.get('status')=='DRAFT':
+            return start(b,u,'issue_invoice',{'settlement':paid[0]},previous)
+        if row.get('status') in ('ISSUED','PARTIALLY_PAID'):
+            return start(b,u,'record_invoice_payment',{'settlement':paid[0]},previous)
+        if row.get('status')=='PAID':
+            totals=flow.f.get_invoice_totals(b,row['id'],u)
+            return dict(kind='answer',title='Invoice sudah lunas',
+                        message='Invoice '+row['invoice_number']+' sudah berstatus PAID. Sisa tagihan: '+
+                                flow.fx.format_money(totals['outstanding_minor'],row['currency'])+'.')
+    if len(words)<=7 and 'semua' not in words and re.search(r'\b(hapus|delete|batalkan|void|nonaktifkan)\b',low):
+        operation={'customer':'deactivate_customer','account':'deactivate_account','category':'deactivate_category',
+                   'branch':'deactivate_branch','recurring':'deactivate_recurring','transaction':'void_transaction',
+                   'invoice':'void_invoice','fx':'void_fx'}.get(kind)
+        if operation:return start(b,u,operation,{},previous)
+    return None
 
 
 def message(b,u,text,query_context=''):
@@ -317,6 +365,8 @@ def message(b,u,text,query_context=''):
     if draft.YES.fullmatch(text):return dict(kind='answer',message='Belum ada draft yang menunggu konfirmasi. Silakan sampaikan apa yang ingin dicatat atau dicek.')
     social=social_response(text)
     if social:return social
+    contextual=contextual_last_action(b,u,text,previous)
+    if contextual:return contextual
     data=classify(b,u,text,previous)
     if not data or data['intent']=='unknown':return uncertain()
     intent=data['intent'];slots=data['slots']
@@ -383,6 +433,19 @@ def pending(b,u,message,context,current,query_context=''):
         values=dict(context['values']);prefix='item'+str(count+1)+'_'
         values.update({prefix+'description':slots['item_description'],prefix+'quantity':slots.get('quantity','1'),prefix+'amount':slots.get('amount','')})
         return flow.review(b,u,dict(context,values=values)),{},False
-    if intent in WRITES or intent=='new_command':
-        return dict(kind='answer',message='Draft sebelumnya belum disimpan. Balas “batal” untuk membatalkannya sebelum memulai perintah baru.'),{},False
+    if intent=='new_command':
+        routed=commands.route(b,u,message)
+        if routed is not None:
+            if routed.get('kind')=='review':routed['message']='Draft sebelumnya tidak disimpan. '+routed['message']
+            return routed,{},False
+        fresh=classify(b,u,message,previous)
+        if fresh and fresh['intent'] in WRITES:
+            result=start(b,u,fresh['intent'],fresh['slots'],previous)
+            if result.get('kind')=='review':result['message']='Draft sebelumnya tidak disimpan. '+result['message']
+            return result,{},False
+        return uncertain(),{},False
+    if intent in WRITES:
+        result=start(b,u,intent,slots,previous)
+        if result.get('kind')=='review':result['message']='Draft sebelumnya tidak disimpan. '+result['message']
+        return result,{},False
     return uncertain(),{},False
