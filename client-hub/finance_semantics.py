@@ -95,7 +95,10 @@ def period_patch(text):
         month_aliases=list(MONTH_ALIAS_TO_NUMBER.items())
         for word in words:
             if len(word)<3 or word in ('bulan','tahun','laporan','pemasukan','pengeluaran','pendapatan','invoice','saldo','yang','kalau','kalo'):continue
-            ranked=sorted(((SequenceMatcher(None,word,alias).ratio(),number) for alias,number in month_aliases),reverse=True)
+            scores={}
+            for alias,number in month_aliases:
+                scores[number]=max(scores.get(number,0),SequenceMatcher(None,word,alias).ratio())
+            ranked=sorted(((score,number) for number,score in scores.items()),reverse=True)
             if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.05):
                 months=[ranked[0][1]];break
     year=re.search(r'\b(20\d{2})\b',low)
