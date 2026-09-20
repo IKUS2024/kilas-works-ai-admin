@@ -108,6 +108,15 @@ test('shared Finance branch selector only shows active real branches',()=>{
   assert.doesNotMatch(html,/value="all"/);
 });
 
+test('customer list exposes edit and delete and never shows inactive rows',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
+  assert.match(html,/finance\.update_customer/);
+  assert.match(html,/finance\.delete_customer/);
+  assert.match(html,/✏️ Edit/);
+  assert.match(html,/🗑️ Hapus/);
+  assert.doesNotMatch(html,/Nonaktif/);
+});
+
 test('dashboard transaction tile opens manual entry while history stays separate',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   assert.match(html,/finance-home-tile primary" data-finance-open="add-transaction-dialog"/);
