@@ -53,7 +53,7 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
                            fontSize=20, leading=23, textColor=colors.HexColor('#151515'), spaceAfter=4)
     eyebrow = ParagraphStyle('KilasEyebrow', parent=styles['Normal'], fontName='Helvetica-Bold',
                              fontSize=8, leading=10, textColor=colors.HexColor('#D86818'),
-                             spaceAfter=3, letterSpacing=1.1)
+                             spaceAfter=3)
     h2 = ParagraphStyle('KilasH2', parent=styles['Heading2'], fontName='Helvetica-Bold',
                         fontSize=12, leading=15, textColor=colors.HexColor('#202124'),
                         spaceBefore=9, spaceAfter=5)
@@ -168,7 +168,7 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
         canvas.saveState()
         canvas.setFont('Helvetica',7)
         canvas.setFillColor(colors.HexColor('#777777'))
-        canvas.drawString(15*mm,8*mm,f'Kilas Finance · {_safe(branch_name)}')
+        canvas.drawString(15*mm,8*mm,f'Kilas Finance · {branch_name}')
         canvas.drawRightString(A4[0]-15*mm,8*mm,f'Halaman {doc.page}')
         canvas.restoreState()
 
