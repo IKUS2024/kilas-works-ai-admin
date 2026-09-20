@@ -567,11 +567,12 @@ def receivables(business_id, user, business):
     section = request.args.get('section', 'summary')
     if section not in ('summary', 'customers', 'add_customer', 'invoices'):
         section = 'summary'
-    customers = finance.list_customers(business_id, include_inactive=True, **actor)
+    customers = finance.list_customers(business_id, **actor)
+    all_customers = finance.list_customers(business_id, include_inactive=True, **actor)
     invoices = finance.list_finance_invoices(business_id, **actor)
     totals = {i['id']: finance.get_invoice_totals(business_id, i['id'], **actor) for i in invoices}
     return render_template('finance_receivables.html', user=user, business=business, customers=customers,
-        customer_map={c['id']:c for c in customers}, invoices=invoices, totals=totals, section=section,
+        customer_map={c['id']:c for c in all_customers}, invoices=invoices, totals=totals, section=section,
         summary=finance.get_receivables_summary(business_id, **actor), labels=INVOICE_LABELS)
 
 
@@ -581,6 +582,26 @@ def create_customer(business_id, user, business):
     return mutate(business_id, lambda: finance.create_customer(business_id,request.form.get('name'),
         phone=request.form.get('phone'), email=request.form.get('email'), notes=request.form.get('notes'),
         actor_user_id=user['id']), 'Customer ditambahkan.', url_for('finance.receivables',business_id=business_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/edit', methods=['POST'])
+@finance_access
+def update_customer(business_id, user, business, customer_id):
+    return mutate(business_id, lambda: finance.update_customer(
+        business_id,customer_id,request.form.get('name'),
+        phone=request.form.get('phone'),email=request.form.get('email'),notes=request.form.get('notes'),
+        actor_user_id=user['id']),
+        'Customer diperbarui.',
+        url_for('finance.receivables',business_id=business_id,section='customers'))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/delete', methods=['POST'])
+@finance_access
+def delete_customer(business_id, user, business, customer_id):
+    return mutate(business_id, lambda: finance.delete_customer(
+        business_id,customer_id,actor_user_id=user['id']),
+        'Customer dihapus dari daftar aktif. Riwayat invoice dan pembayaran tetap aman.',
+        url_for('finance.receivables',business_id=business_id,section='customers'))
 
 
 def nonnegative_idr(value):
