@@ -121,20 +121,7 @@
   </details>
 </form>
 
-<noscript><p>Aktifkan JavaScript untuk Assistant, atau gunakan alat langsung di bawah. File belum diproses.</p></noscript>
-
-<section class="assistant-tools-section" aria-labelledby="assistant-tools-title">
-  <div class="assistant-tools-head">
-    <h2 id="assistant-tools-title">Alat Finance</h2>
-    <span>Kalau mau buka langsung tanpa chat</span>
-  </div>
-  <nav class="assistant-tools" aria-label="Alat Finance langsung">
-    <a data-finance-write href="{{ url_for('finance.receipt_new',business_id=business.id) }}"><span aria-hidden="true">🧾</span><span><strong>Scan Struk</strong><small>Baca pengeluaran</small></span></a>
-    <a href="{{ url_for('finance.bank_index',business_id=business.id) }}"><span aria-hidden="true">🏦</span><span><strong>Mutasi Bank</strong><small>Cocokkan transaksi</small></span></a>
-    <a href="{{ url_for('finance.reports',business_id=business.id) }}"><span aria-hidden="true">📊</span><span><strong>Reports</strong><small>Lihat laporan</small></span></a>
-    <a href="{{ url_for('finance.receivables',business_id=business.id) }}"><span aria-hidden="true">🧾</span><span><strong>Receivables</strong><small>Piutang customer</small></span></a>
-  </nav>
-</section>
+<noscript><p>Aktifkan JavaScript untuk menggunakan Finance Assistant. File belum diproses.</p></noscript>
 </main>
 <script src="{{ url_for('static',filename='finance_assistant.js',v='20260920-chat-1') }}" defer></script>
 {% endblock %}
