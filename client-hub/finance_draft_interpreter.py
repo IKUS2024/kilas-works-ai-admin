@@ -5,8 +5,8 @@ import requests
 import finance_ai_safety as safety
 import finance_bank_extract as extraction
 
-YES = re.compile(r'\s*(oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(\s+(ya|aja|saja))?[.! ]*', re.I)
-NO = re.compile(r'\s*(batal|cancel|jangan|ga jadi|gak jadi|nggak jadi|tidak jadi)[.! ]*', re.I)
+YES = re.compile(r'\s*(oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(\s+(ya|aja|saja|deh|dong|simpan|catat))?[.! ]*', re.I)
+NO = re.compile(r'\s*(batal|cancel|jangan|ga jadi|gak jadi|nggak jadi|tidak jadi)(\s+(ya|aja|saja|deh|dong))?[.! ]*', re.I)
 REFERENCES = {'account':'account_id','category':'category_id','customer':'customer_id','project':'project_id','invoice':'invoice_id',
               'from_account':'from_account_id','to_account':'to_account_id'}
 
