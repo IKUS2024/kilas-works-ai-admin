@@ -111,6 +111,31 @@ class SemanticBrainTests(unittest.TestCase):
         self.assertEqual(next(r['value'] for r in result['fields'] if r['key']=='account_id'),str(bca))
         self.assertEqual(self.http.call_count,2)
 
+    def test_greeting_and_thanks_are_natural_without_provider_or_writes(self):
+        before=self.snapshot()
+        for text_value,expected in (
+            ('hai','Halo! Saya siap membantu.'),
+            ('terima kasih','Sama-sama.'),
+            ('apa kabar','Baik, terima kasih.')
+        ):
+            self.http.reset_mock()
+            result=self.ask(text_value)
+            self.assertEqual(result['kind'],'answer',result)
+            self.assertIn(expected,result['message'])
+            self.http.assert_not_called()
+            self.assertEqual(before,self.snapshot())
+
+    def test_greeting_does_not_destroy_active_draft(self):
+        draft=self.propose('customer baru','customer')
+        self.http.reset_mock()
+        response=self.follow(draft,'halo')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertTrue(response.json['keep_pending'])
+        self.assertIn('Halo! Saya siap membantu.',response.json['message'])
+        self.http.assert_not_called()
+        continued=self.edit(draft,'namanya Putri',{'name':'Putri'})
+        self.assertEqual(next(r['value'] for r in continued['fields'] if r['key']=='name'),'Putri')
+
     def test_provider_failure_never_invokes_old_parser_or_mutates(self):
         self.http.side_effect=requests.Timeout()
         before=self.snapshot()
