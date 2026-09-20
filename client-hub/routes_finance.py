@@ -1349,9 +1349,10 @@ def update_setting(business_id, user, business, kind, record_id):
         abort(404)
     deactivate = request.form.get('action') == 'deactivate'
     destination = url_for('finance.dashboard', business_id=business_id, branch_id='all') if kind == 'branch' and deactivate else None
+    message = 'Dihapus dari daftar aktif. Riwayat lama tetap tersedia.' if deactivate else 'Perubahan disimpan. Riwayat tetap tersedia.'
     return mutate(business_id, lambda: branches.update_record(business_id, kind, record_id,
         name=request.form.get('name'), deactivate=deactivate, actor_user_id=user['id']),
-        'Perubahan disimpan. Riwayat tetap tersedia.', destination)
+        message, destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/edit', methods=['GET', 'POST'])

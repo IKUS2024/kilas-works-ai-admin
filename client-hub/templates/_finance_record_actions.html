@@ -1,12 +1,12 @@
 <details class="finance-record-actions">
-<summary class="finance-icon-btn" aria-label="Tindakan {{ item.name }}" title="Edit atau nonaktifkan">•••</summary>
+<summary class="finance-icon-btn" aria-label="Tindakan {{ item.name }}" title="Edit atau hapus">•••</summary>
 <div class="finance-record-popover">
 <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind=kind,record_id=item.id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Nama<input name="name" value="{{ item.name }}" maxlength="160" required></label>
 <div class="finance-record-buttons">
 <button class="btn secondary" name="action" value="edit">✏️ Simpan</button>
-{% if item.is_active %}<button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Nonaktifkan {{ item.name }}? Riwayat lama tetap tersimpan dan tidak ikut terhapus.');">⏸ Nonaktifkan</button>{% endif %}
+<button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Hapus {{ item.name }} dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.');">🗑️ Hapus</button>
 </div>
 </form>
 </div>

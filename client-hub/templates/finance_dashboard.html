@@ -193,9 +193,9 @@
 <details class="card finance-settings-hub">
 <summary><strong>⚙️ Pengaturan Finance</strong> <span class="muted">· Cabang, Kas &amp; Rekening, Kategori</span></summary>
 <div class="finance-settings-grid">
-<button type="button" class="finance-settings-tile" data-finance-open="branch-dialog"><span class="finance-settings-icon">🏪</span><strong>Cabang</strong><span class="finance-settings-count">{{ finance_branches|length }} cabang</span></button>
-<button type="button" class="finance-settings-tile" data-finance-open="account-dialog"><span class="finance-settings-icon">💳</span><strong>Kas &amp; Rekening</strong><span class="finance-settings-count">{{ accounts|length }} tempat uang</span></button>
-<button type="button" class="finance-settings-tile" data-finance-open="category-dialog"><span class="finance-settings-icon">🏷️</span><strong>Kategori</strong><span class="finance-settings-count">{{ categories|length }} kategori</span></button>
+<button type="button" class="finance-settings-tile" data-finance-open="branch-dialog"><span class="finance-settings-icon">🏪</span><strong>Cabang</strong><span class="finance-settings-count">{{ finance_branches|selectattr('is_active')|list|length }} cabang</span></button>
+<button type="button" class="finance-settings-tile" data-finance-open="account-dialog"><span class="finance-settings-icon">💳</span><strong>Kas &amp; Rekening</strong><span class="finance-settings-count">{{ accounts|selectattr('is_active')|list|length }} tempat uang</span></button>
+<button type="button" class="finance-settings-tile" data-finance-open="category-dialog"><span class="finance-settings-icon">🏷️</span><strong>Kategori</strong><span class="finance-settings-count">{{ categories|selectattr('is_active')|list|length }} kategori</span></button>
 </div>
 <button type="button" class="finance-reset-trigger" data-finance-open="reset-dialog">↺ Reset Finance Cabang Ini</button>
 </details>
@@ -328,21 +328,21 @@
 <div class="finance-sheet-head"><h2>🏪 Cabang</h2><button type="button" class="finance-sheet-close" data-finance-close="branch-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
 <details class="finance-add-panel"><summary>＋ Tambah Cabang</summary><form method="post" action="{{ url_for('finance.create_branch',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama cabang<input name="name" placeholder="Contoh: Serpong" maxlength="160" required></label><button class="btn secondary">Tambah Cabang</button></form></details>
-<div class="finance-record-list">{% for b in finance_branches %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ b.name }}</strong><div class="finance-record-sub">{{ 'Dipilih sekarang' if selected_branch and b.id == selected_branch.id else ('Nonaktif' if not b.is_active else 'Cabang aktif') }}</div></div>{% with kind='branch',item=b %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
+<div class="finance-record-list">{% for b in finance_branches if b.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ b.name }}</strong><div class="finance-record-sub">{{ 'Dipilih sekarang' if selected_branch and b.id == selected_branch.id else ('Nonaktif' if not b.is_active else 'Cabang aktif') }}</div></div>{% with kind='branch',item=b %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
 <dialog id="account-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>💳 Kas &amp; Rekening</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body"><p class="muted">Tempat uang cabang {{ selected_branch.name }}. Beri nama yang gampang dikenali, misalnya Kas Toko, BCA Utama, atau GoPay.</p>
 <details class="finance-add-panel"><summary>＋ Tambah Kas / Rekening</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama tempat uang<input name="name" placeholder="Contoh: BCA Utama, Wise USD, Cash SGD" maxlength="160" required></label><label>Tipe tempat uang<select name="account_type">{% for key,label in account_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label><label>Mata uang<select name="currency" data-account-currency>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></label><label>Saldo awal <span data-opening-currency>IDR</span><input name="opening_balance" value="0" inputmode="decimal" maxlength="20" required></label><p class="muted">Mata uang rekening tidak dapat diubah setelah dibuat supaya riwayat tetap konsisten.</p><button class="btn secondary">Tambah Kas / Rekening</button></form></details>
-<div class="finance-record-list">{% for a in accounts %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
+<div class="finance-record-list">{% for a in accounts if a.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
 <dialog id="category-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>🏷️ Kategori</h2><button type="button" class="finance-sheet-close" data-finance-close="category-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
 <details class="finance-add-panel"><summary>＋ Tambah Kategori</summary><form method="post" action="{{ url_for('finance.create_category',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Jenis<select name="direction"><option value="INCOME">Pemasukan</option><option value="EXPENSE">Pengeluaran</option></select></label><label>Nama kategori<input name="name" maxlength="160" required></label><button class="btn secondary">Tambah Kategori</button></form></details>
-<div class="finance-record-list">{% for c in categories %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
+<div class="finance-record-list">{% for c in categories if c.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 {% endif %}
 </div><script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>

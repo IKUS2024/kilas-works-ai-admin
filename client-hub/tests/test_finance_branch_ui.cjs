@@ -64,6 +64,13 @@ test('dashboard uses compact management tiles and explicit transaction delete',(
   assert.match(html,/name="confirmation"[^>]*pattern="RESET"/);
   assert.match(html,/Reset Cabang ke saldo 0/);
   assert.match(html,/Hapus transaksi ini/);
+  const actions=fs.readFileSync(path.join(__dirname,'../templates/_finance_record_actions.html'),'utf8');
+  assert.match(actions,/🗑️ Hapus/);
+  assert.match(actions,/value="deactivate"/);
+  assert.doesNotMatch(actions,/⏸ Nonaktifkan/);
+  assert.match(html,/finance_branches\|selectattr\('is_active'\)/);
+  assert.match(html,/accounts\|selectattr\('is_active'\)/);
+  assert.match(html,/categories\|selectattr\('is_active'\)/);
   assert.doesNotMatch(html,/Pengaturan cabang, akun &amp; kategori/);
 });
 
