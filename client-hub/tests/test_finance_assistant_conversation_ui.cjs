@@ -42,6 +42,24 @@ test('successful confirmation clears draft before next command',async()=>{
   await h.send('tambah customer Wilson');await h.send('oke');await h.send('saldo berapa?');
   assert.deepEqual(h.calls[2].body,{text:'saldo berapa?'});
 });
+test('successful write carries a signed reference into the next reviewed command',async()=>{
+  const h=harness([draft,{kind:'success',message:'Disimpan',query_context:'signed-record-reference'},{kind:'review',fields:[]}]);
+  await h.send('buat invoice');await h.send('oke');await h.send('terbitkan yang tadi');
+  assert.deepEqual(h.calls[2].body,{text:'terbitkan yang tadi',query_context:'signed-record-reference'});
+});
+test('ambiguous entity answers preserve the signed read plan',async()=>{
+  const h=harness([{kind:'answer',message:'Yang mana?',choices:['Wilson Wijaya','Wilson Kusuma'],query_context:'signed-question'},{kind:'answer',message:'Piutang'}]);
+  await h.send('piutang Wilson?');await h.send('Wilson Wijaya');
+  assert.deepEqual(h.calls[1].body,{text:'Wilson Wijaya',query_context:'signed-question'});
+});
+test('server next field prevents an unrelated account picker during cadence question',async()=>{
+  const h=harness([{kind:'review',context:'signed',ready:false,next_field:'cadence',fields:[
+    {key:'account_id',value:'',type:'select',options:[{label:'BCA',value:'1'}]},
+    {key:'cadence',value:'',type:'select',options:[{label:'Bulanan',value:'MONTHLY'}]}]}]);
+  await h.send('biaya rutin 2 juta');
+  const texts=[];const visit=e=>{if(e.textContent)texts.push(e.textContent);for(const child of e.children||[])visit(child);};
+  visit(h.get('assistant-result'));assert.ok(texts.includes('Bulanan'));assert.ok(!texts.includes('BCA'));
+});
 test('cancel is interpreted server-side and clears active draft',async()=>{
   const h=harness([draft,{kind:'answer',state:'CANCELLED',message:'Batal'},{kind:'answer',message:'Saldo'}]);
   await h.send('tambah customer Wilson');await h.send('ga jadi');await h.send('saldo berapa?');

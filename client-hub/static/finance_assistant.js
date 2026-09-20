@@ -37,7 +37,7 @@
     turn.append(bubble);log.append(turn);scroll();
   };
   const currentValues=data=>Object.fromEntries((data?.fields||[]).map(field=>[field.key,field.value==null?'':String(field.value)]));
-  const missingSelect=data=>(data?.fields||[]).find(field=>field.required!==false&&field.type==='select'&&!field.value&&Array.isArray(field.options)&&field.options.length);
+  const missingSelect=data=>(data?.fields||[]).find(field=>(!data.next_field||field.key===data.next_field)&&field.required!==false&&field.type==='select'&&!field.value&&Array.isArray(field.options)&&field.options.length);
   const quickButton=(label,handler,primary=false)=>{
     const button=node('button',primary?'primary':'',label);button.type='button';button.addEventListener('click',handler);return button;
   };
@@ -54,6 +54,7 @@
     }
     if(data.hint)bubble.append(node('p','assistant-hint',data.hint));
     const actions=node('div','assistant-quick-replies');
+    for(const choice of (data.choices||[]).slice(0,8))actions.append(quickButton(choice,()=>submitQuick(choice)));
     const select=missingSelect(data);
     if(select){
       for(const option of (select.options||[]).slice(0,8)){
@@ -90,7 +91,7 @@
     turn.append(avatar,bubble);log.append(turn);scroll();
     if(data.query_context)queryContext=data.query_context;
     if(['review','bank_review','document_account'].includes(data.kind)){pending=data;queryContext='';}
-    else if(data.kind==='success')queryContext='';
+    else if(data.kind==='success'){pending=null;if(!data.query_context)queryContext='';}
     else if(!options.keepPending)pending=null;
   };
   const appendError=message=>appendAssistant({title:'Belum berhasil',message:message||'Coba lagi sebentar. Belum ada data yang diubah.'},{error:true,keepPending:true});

@@ -8,7 +8,8 @@ import finance_fx as fx
 
 def start(b,u,text):
     import finance_assistant_flow as flow
-    customers=flow.exact_matches(f.list_customers(b,actor_user_id=u),text)
+    from finance_assistant_queries import fuzzy_matches
+    customers=fuzzy_matches(f.list_customers(b,actor_user_id=u),text)
     amounts=list(flow.AMOUNT.finditer(text)) or list(flow.BARE_AMOUNT.finditer(text))
     if len(amounts)>1:return dict(kind='clarification',message='Sebut satu item dan harga terlebih dahulu agar invoice tidak salah.')
     amount=amounts[0][0] if amounts else ''
@@ -34,11 +35,18 @@ def invoice_data(b,u,values):
     issue,due=f._period(values['issue_date'],values['due_date'])
     if issue>date.today().isoformat():raise ValueError('future_date')
     currency=f._currency(values['currency'])
-    quantity=f._money(int(values['quantity']),positive=True)
-    price=f._money(flow.minor(values['amount'],currency),positive=True)
-    f._money(quantity*price)
+    items=[];total=0
+    count=1+sum(1 for key in values if re.fullmatch(r'item\d+_description',key))
+    if not 1<=count<=100:raise ValueError('invalid_items')
+    for index in range(1,count+1):
+        keys=('item_description','quantity','amount') if index==1 else tuple('item'+str(index)+'_'+k for k in ('description','quantity','amount'))
+        if any(key not in values for key in keys):raise ValueError('invalid_items')
+        quantity=f._money(int(values[keys[1]]),positive=True)
+        price=0 if values[keys[2]].strip()=='0' else f._money(flow.minor(values[keys[2]],currency),positive=True)
+        total=f._money(total+quantity*price)
+        items.append(dict(description=f._text(values[keys[0]],500,True),quantity=quantity,unit_price_minor=price))
     return dict(customer_id=customer['id'],issue_date=issue,due_date=due,currency=currency,
-                items=[dict(description=f._text(values['item_description'],500,True),quantity=quantity,unit_price_minor=price)],
+                items=items,
                 notes=f._text(values['notes'],4000))
 
 
@@ -69,20 +77,43 @@ def review_invoice(b,u,context,edits=None):
     fields=[]
     for key,value in values.items():
         options=flow.pick_options(customers) if key=='customer_id' else [dict(value=c,label=c) for c in f.SUPPORTED_CURRENCIES] if key=='currency' else None
-        fields.append(flow.field(key,labels[key],value,options,kind='date' if key.endswith('_date') else 'text',required=key!='notes'))
+        label=labels.get(key)
+        if not label:
+            item=re.fullmatch(r'item(\d+)_(description|quantity|amount)',key)
+            if not item or not 2<=int(item[1])<=100:raise ValueError('invalid_fields')
+            label='Item '+item[1]+' · '+{'description':'Deskripsi','quantity':'Qty','amount':'Harga satuan'}[item[2]]
+        fields.append(flow.field(key,label,value,options,kind='date' if key.endswith('_date') else 'text',required=key!='notes'))
     missing=next((v for v in fields if v['required'] and not v['value']),None)
     context=dict(context,values=values)
     result=dict(kind='review',title='Draft invoice',ready=False,fields=fields,preview=[],
                 message='Lengkapi '+missing['label'].lower()+'.' if missing else 'Buat invoice ini sebagai draft? Balas “oke”.',
                 state='NEEDS_INFORMATION' if missing else 'READY_FOR_CONFIRMATION',context=flow.seal(b,u,'review',context))
+    if missing:result['next_field']=missing['key']
     if not missing:
         data=invoice_data(b,u,values);item=data['items'][0]
         customer=next(c for c in customers if c['id']==data['customer_id'])
         result.update(ready=True,token=flow.seal(b,u,'confirm',context),preview=[['Customer',customer['name']],
             ['Item',item['description']],['Qty',str(item['quantity'])],['Harga',fx.format_money(item['unit_price_minor'],data['currency'])],
-            ['Total',fx.format_money(item['quantity']*item['unit_price_minor'],data['currency'])],
+            ['Total',fx.format_money(sum(i['quantity']*i['unit_price_minor'] for i in data['items']),data['currency'])],
             ['Tanggal terbit',data['issue_date']],['Jatuh tempo',data['due_date']],['Catatan',data['notes'] or '—']])
+        for index,item in enumerate(data['items'][1:],2):
+            result['preview'].insert(index+2,['Item '+str(index),item['description']+' · '+str(item['quantity'])+' × '+fx.format_money(item['unit_price_minor'],data['currency'])])
     return result
+
+
+def add_item(b,u,context,message):
+    """Append an explicitly requested line; each price/quantity stays reviewable."""
+    import finance_assistant_flow as flow
+    match=re.match(r'\s*(?:tambah(?:kan)?|add)\s+item\s+(.+)',message,re.I)
+    if not match:return None
+    count=2+sum(1 for k in context['values'] if re.fullmatch(r'item\d+_description',k))
+    if count>100:raise ValueError('invalid_items')
+    text=match[1];amounts=list(flow.AMOUNT.finditer(text)) or list(flow.BARE_AMOUNT.finditer(text))
+    if len(amounts)!=1:return dict(review_invoice(b,u,context),message='Harga satuan item barunya berapa? Tulis “tambah item nama item 100 ribu qty 1”.')
+    amount=amounts[0];qty=re.search(r'\b(?:qty|jumlah)\s+(\d+)\b',text,re.I)
+    description=text[:amount.start()].strip(' ,')
+    values=dict(context['values'],**{'item'+str(count)+'_description':description,'item'+str(count)+'_quantity':qty[1] if qty else '1','item'+str(count)+'_amount':amount[0]})
+    return review_invoice(b,u,dict(context,values=values))
 
 
 def issue_start(b,u,text):

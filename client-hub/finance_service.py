@@ -8,6 +8,7 @@ No operation hard-deletes a transaction. All monetary amounts are caller-supplie
 minor units of the stated currency (IDR defaults); there is no conversion or float calculation.
 """
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, timedelta
 import calendar
 import hashlib
@@ -36,6 +37,9 @@ class FinanceError(ValueError):
     """Safe categories only: never includes supplied text or other tenant data."""
 
 
+_finance_write = ContextVar('finance_write_owner', default=None)
+
+
 def _id(value):
     if type(value) is not int or value <= 0 or value > 2**63-1:
         raise FinanceError('invalid_id')
@@ -59,6 +63,15 @@ def _scope(business_id, actor_user_id=None):
 @contextmanager
 def _write(business_id, actor_user_id):
     _id(business_id)
+    # A reviewed compound command may reuse Finance services under ONE existing
+    # business lock. Never adopt an unrelated commerce transaction or another actor.
+    if _finance_write.get() == (business_id, actor_user_id):
+        _scope(business_id, actor_user_id)
+        import finance_entitlements
+        finance_entitlements.require_write(business_id, actor_user_id)
+        branches.validate(business_id, write=True)
+        yield
+        return
     # Existing abstraction holds a business row lock and keeps nested DB/audit writes atomic.
     # No new transaction framework, no payment/project operation is called.
     with db.app_purchase_transaction(business_id, None):
@@ -66,7 +79,11 @@ def _write(business_id, actor_user_id):
         import finance_entitlements
         finance_entitlements.require_write(business_id, actor_user_id)
         branches.validate(business_id, write=True)
-        yield
+        token = _finance_write.set((business_id, actor_user_id))
+        try:
+            yield
+        finally:
+            _finance_write.reset(token)
 
 
 def _enum(value, allowed):
@@ -286,7 +303,8 @@ def _period(start_date, end_date):
 
 
 def list_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
-                      account_id=None, limit=100, offset=0, actor_user_id=None):
+                      account_id=None, customer_id=None, project_id=None, category_id=None, currency=None,
+                      limit=100, offset=0, actor_user_id=None):
     _scope(business_id, actor_user_id)
     if type(limit) is not int or not 1 <= limit <= 1000 or type(offset) is not int or offset < 0:
         raise FinanceError('invalid_pagination')
@@ -302,11 +320,14 @@ def list_transactions(business_id, *, start_date=None, end_date=None, direction=
         sql += ' AND status=?'; params.append(_enum(status, ('POSTED', 'VOID')))
     if account_id is not None:
         sql += ' AND account_id=?'; params.append(_id(account_id))
+    for key,value in (('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
+        if value is not None:sql+=' AND '+key+'=?';params.append(_id(value))
+    if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
     return db.query_all(sql + ' ORDER BY occurred_on DESC,id DESC LIMIT ? OFFSET ?', params + [limit, offset])
 
 
 def count_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
-                       account_id=None, actor_user_id=None):
+                       account_id=None, customer_id=None, project_id=None, category_id=None, currency=None,actor_user_id=None):
     """Count the same scoped transaction set used by list_transactions without materializing rows."""
     _scope(business_id, actor_user_id)
     sql, params = ('SELECT COUNT(*) AS n FROM finance_transactions WHERE business_id=?' + branches.predicate()), [business_id]
@@ -321,6 +342,9 @@ def count_transactions(business_id, *, start_date=None, end_date=None, direction
         sql += ' AND status=?'; params.append(_enum(status, ('POSTED', 'VOID')))
     if account_id is not None:
         sql += ' AND account_id=?'; params.append(_id(account_id))
+    for key,value in (('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
+        if value is not None:sql+=' AND '+key+'=?';params.append(_id(value))
+    if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
     row = db.query_one(sql, params)
     return int(row['n']) if row else 0
 
@@ -452,20 +476,67 @@ def get_finance_summary(business_id, start_date, end_date, *, currency='IDR', ac
 
 def get_finance_summaries(business_id, start_date, end_date, *, actor_user_id=None):
     """Cash movement grouped by original currency; currencies are never silently mixed."""
-    _scope(business_id, actor_user_id)
-    start, end = _period(start_date, end_date)
-    rows = db.query_all(('SELECT currency,direction,amount_minor FROM finance_transactions WHERE business_id=?' +
-                         branches.predicate('') + " AND status='POSTED' AND occurred_on>=? AND occurred_on<=?"),
-                        (business_id, start, end))
-    grouped = {}
+    return get_cash_totals(business_id,start_date,end_date,actor_user_id=actor_user_id)
+
+
+def _money_sum():
+    """Exact aggregation even when multiple int64 entries exceed int64 in total.
+
+    Postgres SUM(bigint) returns numeric. SQLite SUM overflows and TOTAL loses
+    precision, so its aggregate returns decimal text, converted to Python int.
+    """
+    if db.BACKEND!='sqlite':return 'SUM'
+    class IntegerSum:
+        def __init__(self):self.total=0
+        def step(self,value):self.total+=int(value or 0)
+        def finalize(self):return str(self.total)
+    db.get_connection().create_aggregate('finance_integer_sum',1,IntegerSum)
+    return 'finance_integer_sum'
+
+
+def get_cash_totals(business_id, start_date=None, end_date=None, *, actor_user_id=None,
+                    account_id=None, customer_id=None, project_id=None, category_id=None,
+                    currency=None, direction=None, group_by=None):
+    """Complete native-currency totals, including all time, without exporting ledger rows.
+
+    Shared by manual summaries and conversation. The export's 366-day/row bounds
+    must not truncate totals. Opening balances and FX are separate records.
+    """
+    _scope(business_id,actor_user_id)
+    where='t.business_id=?'+branches.predicate('t')+" AND t.status='POSTED'"
+    params=[business_id]
+    if start_date is not None and end_date is not None:_period(start_date,end_date)
+    for value,clause in ((start_date,'t.occurred_on>=?'),(end_date,'t.occurred_on<=?')):
+        if value is not None:where+=' AND '+clause;params.append(_date(value))
+    for key,value in (('account_id',account_id),('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
+        if value is not None:where+=' AND t.'+key+'=?';params.append(_id(value))
+    if currency:where+=' AND t.currency=?';params.append(_currency(currency))
+    if direction:where+=' AND t.direction=?';params.append(_enum(direction,DIRECTIONS))
+    dimensions={
+        'account':('t.account_id','a.name'), 'category':('t.category_id','c.name'),
+        'customer':('t.customer_id','u.name'), 'project':('t.project_id','p.title'),
+        'branch':('t.branch_id','b.name')}
+    if group_by is not None and group_by not in dimensions:raise FinanceError('invalid_enum')
+    extra='';group='t.currency'
+    if group_by:
+        ident,label=dimensions[group_by];extra=f', {ident} AS entity_id, {label} AS name';group+=f', {ident}, {label}'
+    money_sum=_money_sum()
+    sql='''SELECT t.currency,
+        COALESCE(SUM(CASE WHEN t.direction='INCOME' THEN t.amount_minor ELSE 0 END),0) AS total_income_minor,
+        COALESCE(SUM(CASE WHEN t.direction='EXPENSE' THEN t.amount_minor ELSE 0 END),0) AS total_expense_minor,
+        COUNT(*) AS transaction_count'''+extra+''' FROM finance_transactions t
+        LEFT JOIN finance_accounts a ON a.business_id=t.business_id AND a.id=t.account_id
+        LEFT JOIN finance_categories c ON c.business_id=t.business_id AND c.id=t.category_id
+        LEFT JOIN finance_customers u ON u.business_id=t.business_id AND u.id=t.customer_id
+        LEFT JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id
+        LEFT JOIN finance_branches b ON b.business_id=t.business_id AND b.id=t.branch_id
+        WHERE '''+where+' GROUP BY '+group+' ORDER BY t.currency'
+    rows=db.query_all(sql.replace('SUM(',money_sum+'('),params)
     for row in rows:
-        currency = _currency(row['currency'])
-        item = grouped.setdefault(currency, {'currency': currency, 'total_income_minor': 0,
-            'total_expense_minor': 0, 'net_cashflow_minor': 0, 'transaction_count': 0})
-        item['total_income_minor' if row['direction'] == 'INCOME' else 'total_expense_minor'] += row['amount_minor']
-        item['net_cashflow_minor'] = item['total_income_minor'] - item['total_expense_minor']
-        item['transaction_count'] += 1
-    return [grouped[c] for c in SUPPORTED_CURRENCIES if c in grouped]
+        _currency(row['currency'])
+        for key in ('total_income_minor','total_expense_minor','transaction_count'):row[key]=int(row[key])
+        row['net_cashflow_minor']=row['total_income_minor']-row['total_expense_minor']
+    return sorted(rows,key=lambda r:SUPPORTED_CURRENCIES.index(r['currency']))
 
 
 def get_transaction_date_bounds(business_id, *, actor_user_id=None):
@@ -1042,11 +1113,11 @@ def get_category_breakdown(business_id,start_date,end_date,actor_user_id=None):
 def get_account_balance_report(business_id, as_of, actor_user_id=None):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
     accounts=_report_query(('SELECT branch_id,id,name,account_type,currency,opening_balance_minor,is_active,(SELECT name FROM finance_branches b WHERE b.business_id=finance_accounts.business_id AND b.id=finance_accounts.branch_id) AS branch_name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' ORDER BY currency,name,id'),(business_id,))
-    rows=_report_query(('SELECT account_id,currency,direction,amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
+    rows=db.query_all(('SELECT account_id,currency,direction,'+_money_sum()+'(amount_minor) AS amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND occurred_on<=? GROUP BY account_id,currency,direction"),(business_id,as_of))
     groups={a['id']:dict(a,income_minor=0,expense_minor=0,exchange_in_minor=0,exchange_out_minor=0,balance_minor=a['opening_balance_minor']) for a in accounts}
     for row in rows:
         if row['account_id'] in groups and groups[row['account_id']]['currency']==row['currency']:
-            item=groups[row['account_id']];item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=row['amount_minor']
+            item=groups[row['account_id']];item['income_minor' if row['direction']=='INCOME' else 'expense_minor']+=int(row['amount_minor'])
     exchanges=db.query_all(('SELECT from_account_id,to_account_id,from_amount_minor,to_amount_minor FROM finance_fx_exchanges WHERE business_id=?' +
         branches.predicate('') + " AND status='POSTED' AND occurred_on<=? ORDER BY id"),(business_id,as_of))
     for row in exchanges:
@@ -1152,16 +1223,20 @@ def get_report_invoices(business_id, as_of, start_date=None, end_date=None, acto
     if customer_id is not None:
         if not get_customer(business_id,customer_id,actor_user_id):raise FinanceError('customer_unavailable')
         sql+=' AND i.customer_id=?';params.append(customer_id)
-    if open_only:sql+=" AND i.status IN ('ISSUED','PARTIALLY_PAID')"
+    if open_only:sql+=" AND i.status IN ('ISSUED','PARTIALLY_PAID','PAID')"
     if start_date is not None or end_date is not None:
         start,end=report_period(start_date,end_date);sql+=' AND i.issue_date>=? AND i.issue_date<=?';params.extend([start,end])
     rows=_report_query(sql+' ORDER BY i.issue_date,i.id',params)
     for r in rows:
         r['currency']=_currency(r['currency']);r['total_minor'],r['paid_minor']=int(r['total_minor']),int(r['paid_minor'])
         r['outstanding_minor']=r['total_minor']-r['paid_minor']
+        # A payment after as_of cannot erase a historical receivable. Derive
+        # payment status from this dated projection, not the invoice's live status.
+        if r['status'] in ('ISSUED','PARTIALLY_PAID','PAID'):
+            r['status']='PAID' if r['outstanding_minor']<=0 else 'PARTIALLY_PAID' if r['paid_minor'] else 'ISSUED'
         r['days_late']=max(0,(date.fromisoformat(as_of)-date.fromisoformat(r['due_date'])).days)
         r['overdue']=r['status'] in ('ISSUED','PARTIALLY_PAID') and r['outstanding_minor']>0 and r['days_late']>0
-    return rows
+    return [r for r in rows if r['outstanding_minor']>0] if open_only else rows
 
 def get_receivables_aging(business_id, as_of, actor_user_id=None):
     return receivables_aging_rows(get_report_invoices(business_id,as_of,actor_user_id=actor_user_id))
