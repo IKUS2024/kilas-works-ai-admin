@@ -68,9 +68,9 @@ class AnalystTests(unittest.TestCase):
         oa=f.list_accounts(self.other)[0]['id']; oc=f.list_categories(self.other,'INCOME')[0]['id']
         f.create_transaction(self.other,'INCOME',999999,oa,oc,'2026-09-01',description='PRIVATE')
         context=a.build_context(self.b,self.uid,date(2026,9,1),'comparison')
-        values={r['label']:r['value'] for r in context['facts']}
+        values={r['label'].replace(' IDR',''):r['value'] for r in context['facts']}
         self.assertEqual(values['Pemasukan'],900); self.assertEqual(values['Arus kas bersih'],700)
-        self.assertEqual(values['Selisih pemasukan'],800)
+        self.assertEqual(values['Pemasukan']-values['Pemasukan bulan sebelumnya'],800)
         self.assertNotIn('999999',str(context));self.assertNotIn('PRIVATE',str(context))
         with self.assertRaises(f.FinanceError): a.build_context(self.other,self.uid,date(2026,9,1),'summary')
 
@@ -122,7 +122,7 @@ class AnalystTests(unittest.TestCase):
         invoice=f.create_finance_invoice(self.b,self.c,'2026-09-01','2026-09-10',[dict(description='work',quantity=1,unit_price_minor=300)])
         f.issue_finance_invoice(self.b,invoice)
         context=a.build_context(self.b,self.uid,date(2026,9,1),'receivables')
-        values={r['label']:r['value'] for r in context['facts']}
+        values={r['label'].replace(' IDR',''):r['value'] for r in context['facts']}
         self.assertEqual(values['Total piutang'],300);self.assertEqual(values['Piutang terlambat'],300)
         self.assertNotIn('Customer <test>',str(context))
 

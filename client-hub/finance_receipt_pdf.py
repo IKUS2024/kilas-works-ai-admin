@@ -27,15 +27,43 @@ def main():
         raise PDFRejected('size_limit')
     # Bank exports often contain recoverable xref/font metadata defects. Validate structure
     # and limits here; an unusable text layer must not block the original PDF vision path.
-    reader = pypdf.PdfReader(io.BytesIO(raw), strict=False)
-    # A permissions/owner-password flag does not necessarily require an opening password.
-    if reader.is_encrypted and not reader.decrypt(''):
-        raise PDFRejected('encrypted/password_required')
-    count = len(reader.pages)
-    if count > pages:
-        raise PDFRejected('page_limit')
-    if count < 1:
-        raise PDFRejected('malformed_pdf')
+    try:
+        reader = pypdf.PdfReader(io.BytesIO(raw), strict=False)
+        if reader.is_encrypted and not reader.decrypt(''):
+            raise PDFRejected('encrypted/password_required')
+        count = len(reader.pages)
+        if count > pages:
+            raise PDFRejected('page_limit')
+        if count < 1:
+            raise ValueError('empty')
+        # Force lazy page dictionaries while still inside the bounded process.
+        for page in reader.pages:
+            if page.get('/Type') != '/Page':
+                raise ValueError('page')
+    except (PDFRejected, MemoryError):
+        raise
+    except Exception:
+        # Independent QPDF structure recovery; never executes JS, renders, or OCRs.
+        # A parser failure alone is not proof of corruption. Raw bytes stay unchanged.
+        import pikepdf
+        try:
+            with pikepdf.Pdf.open(io.BytesIO(raw), password='', attempt_recovery=True,
+                                 suppress_warnings=True) as secondary:
+                count = len(secondary.pages)
+                if count > pages:
+                    raise PDFRejected('page_limit')
+                if count < 1:
+                    raise PDFRejected('malformed_pdf')
+                for page in secondary.pages:
+                    if str(page.obj.get('/Type')) != '/Page' or len(page.mediabox) != 4:
+                        raise PDFRejected('malformed_pdf')
+        except pikepdf.PasswordError:
+            raise PDFRejected('encrypted/password_required') from None
+        except pikepdf.PdfError:
+            raise PDFRejected('malformed_pdf') from None
+        sys.stderr.write('vision_fallback\n')
+        print(json.dumps({'text': ''}))
+        return
     if '--validate-only' in sys.argv[1:]:
         print(json.dumps({'text': ''}))
         return

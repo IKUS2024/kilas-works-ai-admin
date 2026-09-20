@@ -41,7 +41,7 @@ def upload_event(reason):
 
 def pdf_event(reason):
     allowed = {'encrypted/password_required', 'page_limit', 'parser_timeout',
-               'resource_limit', 'malformed_pdf', 'size_limit', 'text_extraction_failed'}
+               'resource_limit', 'malformed_pdf', 'size_limit', 'text_extraction_failed', 'vision_fallback', 'classification_uncertain', 'provider_failure'}
     _LOG.info('FINANCE_AI pdf_reason=%s', reason if reason in allowed else 'malformed_pdf')
 
 

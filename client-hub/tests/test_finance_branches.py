@@ -129,7 +129,7 @@ class BranchTests(unittest.TestCase):
         response, context = self.page(None)
         self.assertEqual(sum(x['summary']['total_income_minor'] for x in context['branch_breakdown']), 500)
         self.assertIn('Utama', response.text); self.assertIn('Serpong', response.text)
-        self.assertIn('Uang Tersedia', response.text)
+        self.assertIn('Saldo Tersedia Sekarang', response.text)
 
     def test_opening_foreign_balance_is_not_period_income_and_is_explained(self):
         with self.scope(self.ba):
@@ -162,7 +162,8 @@ class BranchTests(unittest.TestCase):
             response, context = self.page(self.ba, period_mode='all')
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(context['estimated_balance_idr'])
-        self.assertIn('Kurs belum lengkap', response.text)
+        self.assertNotIn('≈', response.text)
+        self.assertIn('<span>USD</span>', response.text)
         self.assertIn('US$100.00', response.text)
 
     def test_dashboard_range_and_all_period_modes(self):

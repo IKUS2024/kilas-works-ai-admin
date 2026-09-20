@@ -45,7 +45,7 @@ class FinalFlowTests(unittest.TestCase):
         bill=self.bill();self.proof(bill);billing.review(self.b,bill,self.admin,True);return bill
     def test_public_three_products(self):
         response=app.test_client().get('/products');self.assertEqual(response.status_code,200)
-        for text in ('499.000','149.000','99.000','Harga promo pengguna awal','7 × 24','Layanan Kreatif','Tanpa trial'):self.assertIn(text,response.text)
+        for text in ('499.000','149.000','99.000','Harga promo pengguna awal','7 hari','Layanan Kreatif','Tanpa trial'):self.assertIn(text,response.text)
     def test_public_catalog_has_real_keys(self):
         response=app.test_client().get('/products');self.assertIn('value="content_basic"',response.text)
     def test_get_and_login_do_not_activate(self):
@@ -239,10 +239,14 @@ class FinalFlowTests(unittest.TestCase):
             self.assertIn(table,pg);self.assertIsNotNone(db.query_one("SELECT name FROM sqlite_master WHERE name=?",(table,)))
         self.assertIn('BYTEA',pg);self.assertIn('idx_finance_bill_pending',pg)
     def test_brain_checkout_get_is_read_only(self):
+        db.execute("UPDATE businesses SET package='AI_ADMIN' WHERE id=?",(self.b,))
+        ready=patch.object(repo,'required_fields_missing',return_value=[]);ready.start();self.addCleanup(ready.stop)
         before=self.snapshot();response=self.client.get(f'/business/{self.b}/ai-admin/checkout')
         self.assertEqual(response.status_code,200);self.assertEqual(before,self.snapshot())
         self.assertIn('Buat Pesanan',response.text)
     def test_brain_checkout_post_idempotent(self):
+        db.execute("UPDATE businesses SET package='AI_ADMIN' WHERE id=?",(self.b,))
+        ready=patch.object(repo,'required_fields_missing',return_value=[]);ready.start();self.addCleanup(ready.stop)
         url=f'/business/{self.b}/ai-admin/checkout';a=self.client.post(url);b=self.client.post(url)
         self.assertEqual(a.location,b.location);self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM projects WHERE business_id=? AND catalog_key='ai_admin'",(self.b,))['n'],1)
     def test_customer_cannot_review_bill_route(self):
@@ -253,7 +257,7 @@ class FinalFlowTests(unittest.TestCase):
         ident=self.bill();self.proof(ident)
         with self.client.session_transaction() as session:session['user_id']=self.admin
         response=self.client.get(f'/business/{self.b}/finance-bills/{ident}')
-        self.assertEqual(response.status_code,200);self.assertIn('Verifikasi Pembayaran Finance',response.text)
+        self.assertEqual(response.status_code,200);self.assertIn('Aksi Admin',response.text)
     def test_dashboard_business_selection_scoped(self):
         self.assertEqual(self.client.post('/products/dashboard-business',data={'business_id':self.other}).status_code,404)
         self.assertEqual(self.client.post('/products/dashboard-business',data={'business_id':self.b}).status_code,303)

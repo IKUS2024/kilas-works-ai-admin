@@ -123,7 +123,7 @@ class InlineTests(unittest.TestCase):
 
     def test_transaction_optional_manual_fields_persist_through_assistant(self):
         r=self.message('pengeluaran makan 120 ribu hari ini')
-        r=self.revise(r,counterparty_name='Warung Test')
+        r=self.revise(r.json,counterparty_name='Warung Test')
         self.assertTrue(r.json['ready'],r.json)
         self.assertEqual(self.confirm(r.json['token']).status_code,200)
         row=f.list_transactions(self.b)[0]
@@ -131,7 +131,7 @@ class InlineTests(unittest.TestCase):
 
     def test_recurring_manual_optional_fields_persist_through_assistant(self):
         r=self.message('setiap bulan bayar internet 500 ribu hari ini')
-        r=self.revise(r,category_id=str(self.expense['id']),counterparty_name='Telkom',description='Internet kantor')
+        r=self.revise(r.json,category_id=str(self.expense['id']),counterparty_name='Telkom',description='Internet kantor')
         self.assertTrue(r.json['ready'],r.json)
         self.assertEqual(self.confirm(r.json['token']).status_code,200)
         rule=f.list_recurring_expenses(self.b)[0]
@@ -286,9 +286,9 @@ class InlineTests(unittest.TestCase):
             if '--validate-only' not in args:raise subprocess.TimeoutExpired(args,8)
             return run(args,**kw)
         with patch.object(subprocess,'run',side_effect=fail_text):
-            self.assertEqual(file_utils.validate_bank_pdf('bank.pdf',pdf_bytes(text=True))[1],'')
-            self.assertIsNone(file_utils.validate_receipt_upload('receipt.pdf',pdf_bytes(text=True))[2])
-            with self.assertRaises(file_utils.UploadRejected):file_utils.validate_bank_pdf('bank.pdf',b'%PDF broken')
+            for validator in (file_utils.validate_bank_pdf,file_utils.validate_receipt_upload):
+                with self.assertRaises(file_utils.UploadRejected) as error:validator('bank.pdf',pdf_bytes(text=True))
+                self.assertEqual(error.exception.code,'parser_timeout')
     def test_encrypted_pdf_rejected_before_provider(self):
         from pypdf import PdfWriter
         writer=PdfWriter();writer.add_blank_page(100,100);writer.encrypt('password');out=io.BytesIO();writer.write(out)
@@ -311,7 +311,7 @@ class InlineTests(unittest.TestCase):
         self.assertTrue(r.json['ready']);self.assertEqual(next(v['value'] for v in r.json['fields'] if v['key']=='account_id'),str(self.a))
     def test_incomplete_invoice_creation_does_not_invent(self):
         r=self.message('buat invoice Budi jasa desain 2 juta jatuh tempo tanggal 30')
-        self.assertEqual(r.status_code,200);self.assertEqual(r.json['kind'],'clarification');self.assertNotIn('token',r.json)
+        self.assertEqual(r.status_code,200);self.assertEqual(r.json['kind'],'review');self.assertFalse(r.json['ready']);self.assertNotIn('token',r.json)
 
     def test_template_and_no_native_handoff(self):
         html=self.client.get(self.path).text

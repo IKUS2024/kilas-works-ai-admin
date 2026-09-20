@@ -16,6 +16,11 @@ f,db,repo,app=prior.f,prior.db,prior.repo,prior.app
 class ReportsTests(unittest.TestCase):
     def setUp(self):
         prior.ReceivablesTests.setUp(self)
+        class ReportDay(date):
+            @classmethod
+            def today(cls):return cls(2026,10,31)
+        for module in (f,reports):
+            clock=patch.object(module,'date',ReportDay);clock.start();self.addCleanup(clock.stop)
         self.exp=f.list_categories(self.b,'EXPENSE')[0]['id']
         self.project=db.insert_returning_id("INSERT INTO projects (business_id,project_type,pricing_mode,title,status,created_by_user_id) VALUES (?,'CONTENT','CUSTOM_QUOTE','My project','REQUESTED',?)",(self.b,self.uid))
         self.filters=reports.parse_filters(dict(start='2026-09-01',end='2026-09-30',as_of='2026-09-30',commitment_start='2026-09-01',commitment_end='2026-09-30'))
@@ -42,7 +47,7 @@ class ReportsTests(unittest.TestCase):
         void=self.tx(999);f.void_transaction(self.b,void)
         self.tx(800,occurred_on='2026-10-01')
         result=f.get_cashflow_report(self.b,'2026-09-01','2026-09-30')
-        self.assertEqual(result,dict(total_income_minor=300,total_expense_minor=50,net_cashflow_minor=250,transaction_count=3))
+        self.assertEqual(result,dict(currency='IDR',total_income_minor=300,total_expense_minor=50,net_cashflow_minor=250,transaction_count=3))
         rows=f.get_category_breakdown(self.b,'2026-09-01','2026-09-30')
         self.assertEqual([r['percentage'] for r in rows],['100.00','100.00'])
         self.assertEqual(rows[1]['transaction_count'],2)
@@ -62,7 +67,8 @@ class ReportsTests(unittest.TestCase):
         f.create_account(self.b,'Dollar',currency='USD',opening_balance_minor=1000)
         db.execute('UPDATE finance_accounts SET is_active=FALSE WHERE business_id=? AND id=?',(self.b,self.a))
         rows=f.get_account_balance_report(self.b,'2026-09-30')
-        self.assertEqual(len(rows),1);self.assertEqual(rows[0]['balance_minor'],650)
+        self.assertEqual(len(rows),2);self.assertEqual(rows[0]['balance_minor'],650)
+        self.assertEqual(rows[1]['currency'],'USD');self.assertEqual(rows[1]['balance_minor'],1000)
         self.assertEqual(rows[0]['income_minor'],200);self.assertFalse(rows[0]['is_active'])
 
     def test_customer_project_contributions_and_period(self):
@@ -135,7 +141,7 @@ class ReportsTests(unittest.TestCase):
         data=reports.export_csv('transactions',self.b,self.filters,self.uid)
         self.assertTrue(data.startswith(b'\xef\xbb\xbf'))
         rows=self.parse_csv(data);self.assertEqual(len(rows),2)
-        self.assertEqual(rows[0]['nominal_rupiah'],'1500000')
+        self.assertEqual(rows[0]['nominal'],'1500000')
         self.assertEqual(rows[0]['deskripsi'],"'=SUM(A1:A2)")
         self.assertEqual(rows[0]['pihak_lawan'],'Vendor, "A"\nB');self.assertEqual(rows[1]['status'],'Dibatalkan')
         self.assertEqual(f.list_transactions(self.b)[-1]['description'],'=SUM(A1:A2)')
@@ -224,7 +230,7 @@ class ReportsTests(unittest.TestCase):
         result=self.client.get(self.url+'/reports'+self.query)
         self.assertEqual(result.status_code,200)
         html=result.get_data(as_text=True)
-        for text in ('window.print()','Cetak / Simpan PDF','@media print','Belum ada data','bukan laporan laba rugi akuntansi','belum tentu sama dengan saldo bank aktual'):
+        for text in ('window.print()','Cetak / Simpan PDF','@media print','0 transaksi','bukan laporan laba rugi akuntansi','belum tentu sama dengan saldo bank aktual'):
             self.assertIn(text,html)
         self.assertEqual(before,{t:db.query_all('SELECT * FROM '+t) for t in before})
         self.assertIn('no-store',result.headers['Cache-Control'])

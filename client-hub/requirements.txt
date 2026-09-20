@@ -3,6 +3,7 @@
 flask>=3.1
 requests
 pypdf
+pikepdf>=10.13.0.post1,<11  # QPDF recovery wheels; isolated bounded PDF worker only
 Pillow
 gunicorn
 reportlab

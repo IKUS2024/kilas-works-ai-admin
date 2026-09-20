@@ -1,3 +1,4 @@
+from finance_test_clock import closed_period
 """Offline Finance receivables, integer money, isolation and atomic posting tests."""
 import os
 import re
@@ -178,6 +179,7 @@ class ReceivablesTests(unittest.TestCase):
                    dict(income_category_id=f.list_categories(self.b,'EXPENSE')[0]['id'])):
             with self.assertRaises(f.FinanceError):self.pay(i,50,'new-payment-key-123',**kw)
 
+    @closed_period
     def test_manual_customer_link_and_contribution(self):
         with self.assertRaises(f.FinanceError):f.create_transaction(self.b,'INCOME',1,self.a,self.cat,'2026-09-01',customer_id=self.oc)
         i=self.issued();self.pay(i,100)
@@ -196,7 +198,7 @@ class ReceivablesTests(unittest.TestCase):
         partial=self.issued();self.pay(partial,50,'partial-payment-key')
         later=self.draft(due_date='2026-09-16');f.issue_finance_invoice(self.b,later)
         summary=f.get_receivables_summary(self.b,today='2026-09-16')
-        self.assertEqual(summary,dict(total_outstanding_minor=450,overdue_outstanding_minor=200,open_invoice_count=2,overdue_invoice_count=1))
+        self.assertEqual({key:summary[key] for key in ('total_outstanding_minor','overdue_outstanding_minor','open_invoice_count','overdue_invoice_count')},dict(total_outstanding_minor=450,overdue_outstanding_minor=200,open_invoice_count=2,overdue_invoice_count=1))
 
     def test_platform_commerce_untouched_with_colliding_ids(self):
         catalog_service.seed_catalog_if_needed()
@@ -233,7 +235,7 @@ class ReceivablesTests(unittest.TestCase):
             form.add('item_description',d);form.add('quantity',q);form.add('unit_price',p)
         result=self.client.post(self.url+'/invoices/new',data=form)
         self.assertEqual(result.status_code,303)
-        detail=result.location;i=f.list_finance_invoices(self.b)[0]['id']
+        detail=__import__('urllib.parse',fromlist=['urlsplit']).urlsplit(result.location).path;i=f.list_finance_invoices(self.b)[0]['id']
         self.assertIn('Terbitkan Invoice',self.client.get(detail).get_data(as_text=True))
         self.client.post(detail+'/issue')
         html=self.client.get(detail).get_data(as_text=True)
@@ -242,7 +244,7 @@ class ReceivablesTests(unittest.TestCase):
         data=dict(amount='100',paid_on='2026-09-10',account_id=self.a,category_id=self.cat,payment_key=key)
         for _ in range(2):self.assertEqual(self.client.post(detail+'/payments',data=data).status_code,303)
         self.assertEqual(len(f.list_invoice_payments(self.b,i)),1)
-        html=self.client.get(self.url+'/receivables').get_data(as_text=True)
+        html=self.client.get(self.url+'/receivables?section=invoices').get_data(as_text=True)
         self.assertIn('Dibayar sebagian',html);self.assertIn('Rp150',html)
 
     def test_ui_customer_create_manual_dropdown_and_no_get_writes(self):

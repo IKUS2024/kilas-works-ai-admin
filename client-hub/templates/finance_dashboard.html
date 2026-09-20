@@ -185,11 +185,7 @@
 <a class="finance-home-tile" href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}"><span class="finance-home-icon">⏰</span><span class="finance-home-label">Penagihan</span><span class="finance-home-meta">Invoice belum dibayar</span></a>
 <a class="finance-home-tile" href="{{ url_for('finance.operations',business_id=business.id,section='recurring',month=month) }}"><span class="finance-home-icon">🔁</span><span class="finance-home-label">Biaya Rutin</span><span class="finance-home-meta">Jadwal &amp; proyek</span></a>
 <a class="finance-home-tile" href="{{ url_for('finance.reports',business_id=business.id,section='summary',start=period_start,end=period_end,as_of=period_end) }}"><span class="finance-home-icon">📊</span><span class="finance-home-label">Laporan</span><span class="finance-home-meta">Ringkasan &amp; export</span></a>
-{% if not branch_read_only %}
-<a data-finance-write class="finance-home-tile finance-home-ai" href="{{ url_for('finance.assistant',business_id=business.id) }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Chat, scan struk &amp; baca mutasi bank</span></a>
-{% else %}
-<span class="finance-home-tile finance-home-ai" style="opacity:.45"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Pilih cabang aktif dulu</span></span>
-{% endif %}
+<a class="finance-home-tile finance-home-ai" href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id or 'all') }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Chat, scan struk &amp; baca mutasi bank</span></a>
 </div>
 </div>
 

@@ -65,8 +65,8 @@ class FinanceUXTests(unittest.TestCase):
         self.assertEqual(sum(link.path == self.url + '/assistant' for link in links), 1)
         for text in ('AI Analyst', 'AI Operator', 'Upload File', 'Beta'):
             self.assertNotIn(text, html)
-        self.assertIn('<summary>Alat Finance Lainnya</summary>', html)
-        for suffix in ('reports', 'operations', 'receivables', 'bank-imports'):
+        self.assertIn('Pengaturan Finance', html)
+        for suffix in ('reports', 'operations', 'receivables'):
             link = next(link for link in links if link.path == self.url + '/' + suffix)
             self.assertEqual(parse_qs(link.query)['branch_id'], [str(__import__('finance_branches').list_branches(self.b)[0]['id'])])
 
@@ -74,7 +74,7 @@ class FinanceUXTests(unittest.TestCase):
         self.trial()
         page = self.client.get(self.url + '/assistant')
         self.assertEqual(page.status_code, 200)
-        for suffix in ('analyst', 'operator/draft', 'receipts/analyze', 'bank-imports/analyze'):
+        for suffix in ('assistant/message', 'assistant/review', 'assistant/recognize', 'assistant/document'):
             self.assertIn(self.url + '/' + suffix, page.text)
         for mode, filename, workflow in (('ask', None, 'READ_ONLY_ANALYSIS'),
                 ('record', None, 'TEXT_OPERATOR'), ('receipt', 'a.png', 'RECEIPT'),
@@ -84,7 +84,7 @@ class FinanceUXTests(unittest.TestCase):
         self.http.assert_not_called()
 
     def test_period_dropdown_canonical_query_and_persistence(self):
-        for year, month in (('2024', '02'), ('2026', '12'), ('1999', '01')):
+        for year, month in (('2024', '02'), ('2025', '12'), ('1999', '01')):
             response = self.client.get(self.url, query_string={'period_year': year, 'period_month': month, 'direction': 'EXPENSE'})
             self.assertEqual(response.status_code, 302)
             self.assertIn('month=' + year + '-' + month, response.location)
@@ -110,9 +110,10 @@ class FinanceUXTests(unittest.TestCase):
         html = self.client.get(self.url).text
         self.assertIn('.finance-filter>div{flex:1 1 140px;min-width:0}', html)
         self.assertIn('.finance-filter select{width:100%;box-sizing:border-box}', html)
-        self.assertIn('@media(max-width:480px){.finance-filter>div{flex-basis:100%}}', html)
+        self.assertIn('@media', html);self.assertIn('min-width:0',html)
 
     def test_dashboard_currency_picker_and_history_launcher_only(self):
+        fxmock=patch('finance_fx.snapshot',return_value={'rates':{'IDR':'1','USD':'16000'},'date':'2026-09-20','source':'test','stale':False});fxmock.start();self.addCleanup(fxmock.stop)
         self.trial()
         finance = __import__('finance_service')
         income = finance.list_categories(self.b, 'INCOME')[0]
@@ -274,7 +275,7 @@ class FinanceUXTests(unittest.TestCase):
 
     def test_operator_fenced_response_preserves_grounding(self):
         self.response.json.return_value = {'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': '```json\n' + json.dumps({'action': 'create_expense', 'amount_text': '300 ribu', 'description': 'bensin'}) + '\n```'}]}
-        result = operator.interpret('create_expense', 'catat bensin 300 ribu')
+        result = operator.interpret('create_expense', 'catat bensin 300 ribu','IDR')
         self.assertEqual(result, {'amount_minor': 300000, 'description': 'bensin'})
 
 

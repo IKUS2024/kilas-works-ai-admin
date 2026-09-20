@@ -67,14 +67,14 @@ def finance_access(view):
         g.finance_branches = branch_list
         g.finance_branch = selected_branch
         g.finance_branch_read_only = branch_id is None or not selected_branch['is_active']
-        if g.finance_branch_read_only and request.method not in ('GET', 'HEAD'):
+        if g.finance_branch_read_only and request.method not in ('GET', 'HEAD') and view.__name__ not in ('assistant_message','assistant_recognize'):
             # Setup has no historical branch yet; existing entitlement checks still apply.
             if not branch_list and view.__name__ == 'start' and not choices:
                 return view(business_id, user, business, **kwargs)
             if request.is_json:
                 return jsonify(error='Pilih satu cabang aktif untuk mencatat atau mengubah transaksi.'), 403
             abort(403)
-        if g.finance_branch_read_only and view.__name__ in ('assistant', 'operator', 'receipt_new', 'bank_new', 'new_invoice', 'edit_transaction'):
+        if g.finance_branch_read_only and view.__name__ in ('operator', 'receipt_new', 'bank_new', 'new_invoice', 'edit_transaction'):
             flash('Pilih satu cabang aktif untuk mencatat atau mengubah transaksi.', 'error')
             return redirect(url_for('finance.dashboard', business_id=business_id))
         with branches.scope(business_id, branch_id, user['id']):
@@ -1236,6 +1236,9 @@ def assistant_route(business_id, user, business):
 @ai_safety.endpoint
 @finance_access
 def assistant_recognize(business_id,user,business):
+    if g.finance_branch_id is None:
+        return jsonify(kind='branch_choice',message='Dokumen ini untuk cabang mana?',document=True,
+                       branches=[dict(id=r['id'],name=r['name']) for r in branches.list_branches(business_id,user['id']) if r['is_active']])
     uploads=request.files.getlist('sources')
     try:
         if (set(request.files)!={'sources'} or not 1<=len(uploads)<=10
@@ -1247,8 +1250,8 @@ def assistant_recognize(business_id,user,business):
             raw=upload.stream.read(file_utils.FINANCE_IMAGE_INPUT_BYTES+1);total+=len(raw)
             if total>25*1024*1024:raise ValueError('aggregate')
             files.append((upload.filename,raw))
-        workflow=finance_documents.recognize(business_id,user['id'],files,request.form.get('text',''))
-        return jsonify(workflow=workflow)
+        workflow=finance_documents.recognize(business_id,user['id'],files,request.form.get('text',''),detailed=True)
+        return jsonify(workflow if isinstance(workflow,dict) else dict(workflow=workflow))
     except HTTPException:raise
     except (ValueError,file_utils.UploadRejected) as error:
         return assistant_error(error)
@@ -1397,6 +1400,8 @@ def assistant_json_errors(response):
 
 
 def assistant_error(error):
+    if isinstance(error,finance_documents.DocumentProviderError):
+        return jsonify(error='Dokumen berhasil dibuka, tapi AI belum berhasil membacanya. Coba lagi sebentar.'),503
     if isinstance(error,file_utils.UploadRejected):
         ai_safety.upload_event(error.code)
         return jsonify(error=str(error)),400
@@ -1420,10 +1425,12 @@ def assistant_error(error):
 @ai_safety.endpoint
 @finance_access
 def assistant_message(business_id,user,business):
-    payload,error=finance_ai_payload(user['id'],business_id,'ai')
+    payload,error=finance_ai_payload(user['id'],business_id,'confirm')
     if error is not None:return error
     try:
-        if set(payload)!={'text'}:raise ValueError('invalid_fields')
+        if set(payload) not in ({'text'}, {'text','context','confirmation'}):raise ValueError('invalid_fields')
+        if 'context' in payload:
+            return jsonify(assistant_flow.follow_up(business_id,user['id'],payload['context'],payload['text'],payload['confirmation']))
         return jsonify(assistant_flow.text_message(business_id,user['id'],payload['text']))
     except ValueError as error:return assistant_error(error)
     except Exception:
@@ -1468,7 +1475,7 @@ def assistant_document(business_id,user,business):
     uploads=request.files.getlist('sources')
     try:
         if (set(request.files)!={'sources'} or not 1<=len(uploads)<=10
-                or set(request.form)-{'csrf_token','branch_id','text','workflow','account_id'}
+                or set(request.form)-{'csrf_token','branch_id','text','workflow','account_id','document_context'}
                 or any(len(request.form.getlist(k))!=1 for k in request.form)):
             raise ValueError('invalid_fields')
         assistant_flow.authorize(business_id,user['id'])
@@ -1478,7 +1485,7 @@ def assistant_document(business_id,user,business):
             if total>25*1024*1024:raise ValueError('aggregate')
             files.append((upload.filename,raw))
         return jsonify(assistant_flow.document(business_id,user['id'],files,request.form.get('text',''),
-            request.form.get('workflow',''),request.form.get('account_id','')))
+            request.form.get('workflow',''),request.form.get('account_id',''),request.form.get('document_context','')))
     except HTTPException:raise
     except (ValueError,file_utils.UploadRejected) as error:return assistant_error(error)
     except Exception:

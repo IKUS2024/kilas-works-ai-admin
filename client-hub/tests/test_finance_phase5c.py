@@ -105,7 +105,7 @@ class CollectionsTests(unittest.TestCase):
         response=self.public(self.token())
         self.assertEqual(response.status_code,200)
         self.assertIn(b'Tidak ada piutang terbuka',response.data)
-        self.assertIn(b'Rp0',response.data)
+        self.assertEqual(c.statement(self.b,self.c)['aging']['total_outstanding_minor'],0)
 
     def test_unauthenticated_access(self):
         client=app.test_client()
@@ -120,13 +120,13 @@ class CollectionsTests(unittest.TestCase):
 
     def test_queue_markup_navigation_and_filters(self):
         i=self.invoice()
-        response=self.client.get(self.url+'/collections?sort=balance&view=overdue')
+        response=self.client.get(self.url+'/collections?section=queue&sort=balance&view=overdue')
         self.assertEqual(response.status_code,200)
-        for text in ('Statement Customer','Catat Pembayaran','Siapkan Reminder','Rp250','1 hari terlambat'):
+        for text in ('Statement','Invoice / Bayar','Reminder','Rp250','1 hari terlambat'):
             self.assertIn(text.encode(),response.data)
         markup=(Path(__file__).parents[1]/'templates/finance_collections.html').read_text()
         self.assertNotIn('<table',markup)
-        self.assertIn(self.path().encode(),self.client.get(self.url+'/receivables').data)
+        self.assertIn(self.path().encode(),self.client.get(self.url+'/receivables?section=customers').data)
 
     def test_invalid_filters(self):
         for query in ('sort=bad','view=bad','page=-1','page=x'):

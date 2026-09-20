@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
+const ROOT=path.join(__dirname,'..');
 test('direction changes and Lainnya visibility preserve notes',()=>{
   const input={value:'Servis mesin kopi',required:false,disabled:false};
   const other={hidden:true,style:{display:'none'},querySelector:()=>input};
@@ -61,7 +62,7 @@ test('dashboard uses compact management tiles and explicit transaction delete',(
   assert.match(html,/data-finance-open="category-dialog"/);
   assert.match(html,/data-finance-open="reset-dialog"/);
   assert.match(html,/name="confirmation"[^>]*pattern="RESET"/);
-  assert.match(html,/Reset Cabang ke Rp0/);
+  assert.match(html,/Reset Cabang ke saldo 0/);
   assert.match(html,/Hapus transaksi ini/);
   assert.doesNotMatch(html,/Pengaturan cabang, akun &amp; kategori/);
 });
@@ -85,7 +86,7 @@ test('receivables operations and reports expose professional compact navigation'
 
 test('dashboard exposes focused finance navigation with bank handled by AI Assistant',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
-  for(const label of ['Menu Finance','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant']){
+  for(const label of ['Pilih yang mau dikerjakan','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant']){
     assert.match(html,new RegExp(label));
   }
   assert.doesNotMatch(html,/finance-home-label">Bank</);
@@ -99,9 +100,9 @@ test('dashboard exposes focused finance navigation with bank handled by AI Assis
 test('dashboard keeps monthly overview compact with total saldo inside cashflow card',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   const cash=fs.readFileSync(path.join(__dirname,'../templates/_finance_cash_summary.html'),'utf8');
-  assert.match(html,/Ringkasan Bulan/);
+  assert.match(html,/period_label/);
   assert.match(html,/data-finance-open="period-dialog"/);
-  assert.match(html,/data-finance-open="balance-dialog"/);
+  assert.match(cash,/data-finance-open="balance-dialog"/);
   assert.match(html,/view='transactions'/);
   assert.match(html,/if show_transactions/);
   assert.doesNotMatch(html,/<h2>Bulan \{\{ month \}\}<\/h2>/);
@@ -122,7 +123,7 @@ test('balance detail hides zero-value exchange rows but preserves real FX accoun
   assert.match(detail,/\{% if row\.exchange_in_minor or row\.exchange_out_minor %\}/);
   assert.match(detail,/\{% if a\.exchange_in_minor or a\.exchange_out_minor %\}/);
   assert.match(detail,/Penukaran mata uang hanya ditampilkan kalau memang pernah terjadi/);
-  assert.match(detail,/Tukar Mata Uang/);
+  assert.match(detail,/Penukaran Mata Uang/);
 });
 
 test('FX UI is professional: only multi-currency branches expose exchange and exchange is not revenue',()=>{
@@ -153,7 +154,7 @@ test('finance actual dates are capped at today and empty latest card is conditio
   assert.match(payment,/name="paid_on"[^>]*max="\{\{ today \}\}"/);
   assert.match(bank,/name="occurred_on"[^>]*max="\{\{ today \}\}"/);
   assert.match(bankReview,/name="transaction_date"[^>]*max="\{\{ today \}\}"/);
-  assert.match(dashboard,/\{% if transactions %\}<div class="card" id="transactions">/);
+  assert.match(dashboard,/\{% if show_transactions %\}\s*<div class="card finance-history-page" id="transactions">/);
 });
 
 
@@ -167,14 +168,15 @@ test('finance date inputs cap actual transaction dates while schedules may be fu
   assert.doesNotMatch(invoice,/name="due_date"[^>]*max=/);
 });
 
-test('transaction forms expose formatted rupiah input and hide conditional details cleanly',()=>{
+test('transaction forms preserve account currency and hide conditional details cleanly',()=>{
   const dashboard=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   const edit=fs.readFileSync(path.join(__dirname,'../templates/finance_transaction_edit.html'),'utf8');
-  assert.match(dashboard,/name="amount"[^>]*data-idr-input/);
-  assert.match(edit,/name="amount"[^>]*data-idr-input/);
+  assert.match(dashboard,/name="amount"[^>]*data-currency-amount/);
+  assert.match(edit,/name="amount"[^>]*inputmode="decimal"/);
+  assert.match(edit,/transaction.currency/);
   assert.match(dashboard,/\[data-other-field\]\[hidden\]\{display:none!important\}/);
   assert.match(edit,/\[data-other-field\]\[hidden\]\{display:none!important\}/);
-  assert.match(dashboard,/1000000, 1\.000\.000, atau 1,000,000/);
+  assert.match(dashboard,/Nominal mengikuti mata uang Kas/);
 });
 
 
@@ -189,7 +191,7 @@ test('period month availability follows the selected year',()=>{
 test('dashboard period picker supports single range and all modes',()=>{
   const dashboard=fs.readFileSync(path.join(ROOT,'templates','finance_dashboard.html'),'utf8');
   const selector=fs.readFileSync(path.join(ROOT,'templates','_finance_dashboard_period_selector.html'),'utf8');
-  assert.match(dashboard,/Ringkasan Periode/);
+  assert.match(dashboard,/period_label/);
   assert.match(dashboard,/\*\*period_query/);
   assert.match(selector,/Satu bulan/);
   assert.match(selector,/Rentang bulan/);
@@ -203,11 +205,10 @@ test('multi currency dashboard keeps original currency and reference FX copy',()
   assert.match(html,/data-account-currency/);
   assert.match(html,/data-currency-account/);
   assert.match(html,/USD/);
-  assert.match(html,/Estimasi total dalam IDR/);
-  assert.match(html,/data-balance-display-currency/);
-  assert.match(html,/data-balance-display-value/);
-  assert.match(html,/Saldo asli per rekening/);
-  assert.match(html,/bukan kurs jual\/beli bank/);
+  const cash=fs.readFileSync(path.join(ROOT,'templates','_finance_cash_summary.html'),'utf8');
+  assert.match(cash,/Saldo ditampilkan dalam mata uang asli/);
+  assert.match(cash,/Tidak dikonversi atau digabung dengan kurs/);
+  assert.doesNotMatch(cash,/data-balance-display-value/);
   assert.match(html,/Mata uang rekening tidak dapat diubah/);
 });
 

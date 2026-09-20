@@ -4,10 +4,9 @@
   if(!composer)return;
   const log=el('assistant-result'),files=el('assistant-files'),camera=el('assistant-camera'),text=el('assistant-text'),
         mode=el('assistant-mode'),status=el('assistant-status'),sendButton=el('assistant-send');
-  let busy=false,pending=null,docWorkflow=null,uploadInstruction='';
+  let busy=false,pending=null,docWorkflow=null,uploadInstruction='',documentContext='';
   const confirmWords=/^\s*(oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(\s+(ya|aja|saja))?[.! ]*$/i;
   const cancelWords=/^\s*(batal|cancel|jangan|ga jadi|gak jadi|nggak jadi|tidak jadi)[.! ]*$/i;
-  const normalize=value=>(value||'').toString().trim().toLowerCase();
   const setStatus=(message,error=false)=>{status.textContent=message||'';status.classList.toggle('is-error',!!error);};
   const setBusy=value=>{
     busy=value;composer.setAttribute('aria-busy',String(value));
@@ -64,6 +63,22 @@
       const confirmLabel=['Customer baru','Biaya rutin'].includes(data.title)?'Oke, simpan':'Oke, catat';
       actions.append(quickButton(confirmLabel,()=>submitQuick('oke'),true),quickButton('Batal',()=>submitQuick('batal')));
     }
+    if(data.kind==='branch_choice'){
+      for(const branch of data.branches||[])actions.append(quickButton(branch.name,async()=>{
+        if(busy)return;setBusy(true);
+        try{
+          for(const key of ['message','review','confirm','document','recognize']){
+            const url=new URL(composer.dataset[key],location.href);url.searchParams.set('branch_id',branch.id);composer.dataset[key]=url.pathname+url.search;
+          }
+          appendUser(branch.name);
+          if(data.document){
+            const recognition=await send(composer.dataset.recognize,uploadBody());documentContext=recognition.document_context||'';
+            if(['RECEIPT','BANK_STATEMENT','HANDWRITTEN_NOTE'].includes(recognition.workflow))await processDocument(recognition.workflow);
+            else appendAssistant({kind:'needs_document_choice',message:'Jenis dokumen belum jelas. Pilih jenisnya.'});
+          }else appendAssistant(await send(composer.dataset.message,{text:data.text}));
+        }catch(error){appendError(error.message);}finally{setBusy(false);}
+      }));
+    }
     if(data.kind==='needs_document_choice'){
       actions.append(
         quickButton('Struk',()=>processDocument('RECEIPT')),
@@ -87,110 +102,6 @@
     for(const file of files.files)list.append(node('li','','📎 '+file.name));
     setBusy(false);
   };
-  const localDate=offset=>{
-    const d=new Date();d.setDate(d.getDate()+offset);
-    const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
-  };
-  const applyNaturalEdits=(message,data)=>{
-    const values=currentValues(data),lower=normalize(message);let changed=false;
-    const has=key=>Object.prototype.hasOwnProperty.call(values,key);
-    const setValue=(key,value)=>{
-      if(!has(key)||value===undefined||value===null)return;
-      const clean=String(value).trim();
-      if(values[key]!==clean){values[key]=clean;changed=true;}
-    };
-    const optionMatch=(key,phrase)=>{
-      const field=(data.fields||[]).find(item=>item.key===key&&item.type==='select'&&Array.isArray(item.options));
-      if(!field||!phrase)return;
-      const wanted=normalize(phrase).replace(/^(?:ke|pakai|gunakan)\s+/,'').trim();
-      const hits=field.options.filter(option=>{
-        const label=normalize(option.label),head=label.split('·')[0].trim();
-        return wanted===label||wanted===head||label.includes(wanted)||head.includes(wanted)||(wanted.length>=3&&wanted.includes(head));
-      });
-      if(hits.length===1)setValue(key,String(hits[0].value));
-    };
-
-    // Explicit reference phrases are preferred over broad fuzzy matching.
-    const referencePatterns=[
-      ['account_id',/(?:rekening|akun|kas)(?:nya)?\s*(?:jadi|pakai|gunakan|ke|:|=)?\s+(.+)/i],
-      ['category_id',/kategori(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i],
-      ['project_id',/proyek(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i],
-      ['customer_id',/(?:customer|pelanggan)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i]
-    ];
-    for(const [key,pattern] of referencePatterns){
-      const match=message.match(pattern);if(match)optionMatch(key,match[1]);
-    }
-
-    // Also allow typing an exact visible option such as "BCA" or "Transport".
-    for(const field of data.fields||[]){
-      if(field.type!=='select'||!Array.isArray(field.options)||field.required===false)continue;
-      const hits=field.options.filter(option=>{
-        const label=normalize(option.label),head=label.split('·')[0].trim();
-        return lower===label||lower===head||(lower.length>=3&&(label.includes(lower)||head.includes(lower)));
-      });
-      if(hits.length===1)setValue(field.key,String(hits[0].value));
-    }
-
-    if(has('amount')){
-      const match=message.match(/(?:rp\.?\s*)?\d[\d.,]*(?:\s*(?:ribu|rb|juta|jt))?|(?:usd|idr|sgd|myr|eur|gbp|aud|jpy|cny|hkd|thb)\s+\d[\d.,]*/i);
-      if(match&&!/^\d{4}-\d{2}-\d{2}$/.test(match[0]))setValue('amount',match[0]);
-    }
-    if(has('currency')){
-      const code=(message.match(/\b(USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b/i)||[])[1];
-      if(code)setValue('currency',code.toUpperCase());
-    }
-    if(has('date')){
-      let date=(message.match(/\b\d{4}-\d{2}-\d{2}\b/)||[])[0];
-      if(/hari ini|sekarang/i.test(message))date=localDate(0);
-      else if(/kemarin/i.test(message))date=localDate(-1);
-      else if(has('cadence')){
-        const dayMatch=message.match(/\btanggal\s+([0-9]{1,2})\b/i);
-        if(dayMatch){
-          const day=Number(dayMatch[1]),d=new Date();
-          if(day>=1&&day<=31){
-            if(day<d.getDate())d.setMonth(d.getMonth()+1);
-            const target=new Date(d.getFullYear(),d.getMonth(),day);
-            if(target.getMonth()===d.getMonth()){
-              const p=n=>String(n).padStart(2,'0');date=target.getFullYear()+'-'+p(target.getMonth()+1)+'-'+p(target.getDate());
-            }
-          }
-        }
-      }
-      if(date)setValue('date',date);
-    }
-    if(has('end_on')){
-      const endMatch=message.match(/(?:sampai|berakhir(?:\s+tanggal)?|end)\s+(\d{4}-\d{2}-\d{2})/i);
-      if(endMatch)setValue('end_on',endMatch[1]);
-    }
-    if(has('cadence')){
-      const cadence=/minggu/i.test(message)?'WEEKLY':/bulan/i.test(message)?'MONTHLY':'';
-      if(cadence)setValue('cadence',cadence);
-    }
-
-    const phoneMatch=message.match(/(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon|phone)(?:nya)?\s*(?:jadi|:|=)?\s*(\+?[0-9][0-9\s-]{5,})/i);
-    if(phoneMatch&&has('phone'))setValue('phone',phoneMatch[1].replace(/[\s-]+/g,''));
-
-    const email=(message.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/)||[])[0];
-    if(email&&has('email'))setValue('email',email);
-
-    const nameMatch=message.match(/(?:^|\b)(?:nama(?:nya)?|atas\s+nama)(?:\s+(?:jadi|adalah))?\s*[:=]?\s+(.+)/i);
-    if(nameMatch&&has('name')){
-      const name=nameMatch[1].replace(/\s+(?:ya|dong|weh)[.! ]*$/i,'').trim();
-      if(name)setValue('name',name);
-    }
-
-    const counterparty=message.match(/(?:vendor|penerima|pihak\s+terkait)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i);
-    if(counterparty&&has('counterparty_name'))setValue('counterparty_name',counterparty[1].trim());
-
-    const note=message.match(/(?:catatan|note)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i);
-    if(note&&has('notes'))setValue('notes',note[1].trim());
-    else if(note&&has('description'))setValue('description',note[1].trim());
-
-    const description=message.match(/(?:deskripsi|keterangan)(?:nya)?\s*(?:jadi|:|=)?\s+(.+)/i);
-    if(description&&has('description'))setValue('description',description[1].trim());
-
-    return {values,changed};
-  };
   const chooseField=async(key,value,label)=>{
     if(busy||!pending)return;
     appendUser(label);setBusy(true);setStatus('Kilas AI sedang memperbarui ringkasan…');
@@ -211,27 +122,20 @@
     finally{setStatus('');setBusy(false);}
   };
   const followPending=async message=>{
+    if(pending?.context){
+      const data=await send(composer.dataset.message,{text:message,context:pending.context,confirmation:pending.token||null});
+      appendAssistant(data,{success:data.kind==='success'});return;
+    }
     if(cancelWords.test(message)){pending=null;clearFiles();appendAssistant({message:'Oke, draft tadi dibatalkan. Mau catat atau cek apa lagi?'});return;}
     if(confirmWords.test(message)&&pending?.token){await confirmPending();return;}
     if(pending?.kind==='document_account'){
-      const spec=missingSelect(pending),lower=normalize(message);
-      const hits=(spec?.options||[]).filter(option=>normalize(option.label).includes(lower)||lower.includes(normalize(option.label).split('·')[0].trim()));
-      if(hits.length===1){await chooseField(spec.key,String(hits[0].value),hits[0].label);return;}
-      appendAssistant({message:'Saya masih perlu tahu rekening yang dipakai. Pilih salah satu pilihan di bawah atau ketik nama rekeningnya.',kind:'document_account',fields:pending.fields},{keepPending:true});return;
-    }
-    if(pending?.context){
-      const edit=applyNaturalEdits(message,pending);
-      if(!edit.changed){
-        appendAssistant({message:pending.ready?'Saya belum menangkap bagian yang ingin diubah. Coba tulis spesifik, misalnya “WhatsApp 0822…”, “nama jadi Irvan”, “pakai BCA”, “vendor Telkom”, “ubah jadi 300 ribu”, atau “batal”.':(pending.message||'Masih ada data yang perlu dilengkapi. Pilih opsi yang saya tampilkan atau ketik nilainya.')},{keepPending:true});
-        return;
-      }
-      const data=await send(composer.dataset.review,{context:pending.context,values:edit.values});appendAssistant(data);return;
+      await processDocument(docWorkflow,'',message);return;
     }
     appendAssistant({message:'Selesaikan draft ini dulu dengan “oke” atau “batal”.'},{keepPending:true});
   };
-  const processDocument=async(workflow,accountId='')=>{
+  const processDocument=async(workflow,accountId='',accountMessage='')=>{
     docWorkflow=workflow;setStatus('Kilas AI sedang membaca dokumen…');
-    const body=uploadBody();body.append('workflow',workflow);if(accountId)body.append('account_id',accountId);
+    const body=uploadBody();if(accountMessage)body.set('text',accountMessage);body.append('workflow',workflow);if(documentContext)body.append('document_context',documentContext);if(accountId)body.append('account_id',accountId);
     const data=await send(composer.dataset.document,body);
     appendAssistant(data);
     if(data.kind!=='document_account')clearFiles();
@@ -243,18 +147,20 @@
     if(text.value.length>2000||files.files.length>10){appendError('Maksimal 2.000 karakter dan 10 file.');return;}
     const selected=Array.from(files.files);
     if(selected.some(file=>(file.size||0)>20*1024*1024)||selected.reduce((n,file)=>n+(file.size||0),0)>25*1024*1024){appendError('Lampiran terlalu besar. Maksimal 20 MiB per foto dan 25 MiB total.');return;}
-    if(pending&&!hasFiles){
+    if(pending&&(!hasFiles||pending.kind==='document_account')){
       appendUser(message);text.value='';setBusy(true);setStatus('Kilas AI sedang memahami balasanmu…');
       try{await followPending(message);}catch(error){appendError(error.message);}finally{setStatus('');setBusy(false);}return;
     }
     if(pending&&hasFiles){appendAssistant({message:'Masih ada draft yang belum selesai. Balas “oke” atau “batal” dulu sebelum mengirim dokumen baru.'},{keepPending:true});return;}
-    appendUser(message,selected.map(file=>file.name));uploadInstruction=message;text.value='';setBusy(true);
+    appendUser(message,selected.map(file=>file.name));documentContext='';uploadInstruction=message;text.value='';setBusy(true);
     try{
       if(!hasFiles){setStatus('Kilas AI sedang memahami pesanmu…');appendAssistant(await send(composer.dataset.message,{text:message}));return;}
       let workflow={receipt:'RECEIPT',bank:'BANK_STATEMENT',notes:'HANDWRITTEN_NOTE'}[manual||mode.value];
       if(!workflow){
         setStatus('Kilas AI sedang mengenali dokumen…');
-        workflow=(await send(composer.dataset.recognize,uploadBody())).workflow;
+        const recognition=await send(composer.dataset.recognize,uploadBody());
+        if(recognition.kind==='branch_choice'){appendAssistant(recognition);return;}
+        workflow=recognition.workflow;documentContext=recognition.document_context||'';
       }
       if(!['RECEIPT','BANK_STATEMENT','HANDWRITTEN_NOTE'].includes(workflow)){
         appendAssistant({kind:'needs_document_choice',title:'Saya belum yakin jenis dokumennya',message:'File sudah diterima. Pilih apakah ini struk, mutasi bank, atau catatan keuangan. Belum ada data yang dicatat.'},{keepPending:true});return;

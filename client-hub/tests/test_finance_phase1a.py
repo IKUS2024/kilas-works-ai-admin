@@ -1,3 +1,4 @@
+from finance_test_clock import closed_period
 """Offline Phase 1A ledger tests. No UI or production integrations."""
 import os
 from pathlib import Path
@@ -141,6 +142,7 @@ class FinanceTests(unittest.TestCase):
         with self.assertRaises(f.FinanceError): f.update_transaction(self.b, tx, amount_minor=200)
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM audit_log WHERE action='FINANCE_TRANSACTION_VOIDED'")['n'], 1)
 
+    @closed_period
     def test_summary_inclusive_dates_currency_and_tenant(self):
         self.create(amount_minor=100, occurred_on='2026-09-01')
         self.create(amount_minor=40, direction='EXPENSE', category_id=self.e, occurred_on='2026-09-30')

@@ -23,18 +23,16 @@ test('chat understands typed confirmation, cancellation and revisions',()=>{
   assert.match(script,/confirmWords=/);
   assert.match(script,/cancelWords=/);
   assert.match(script,/confirmPending/);
-  assert.match(script,/applyNaturalEdits/);
-  assert.match(script,/ubah jadi 300 ribu/);
+  assert.doesNotMatch(script,/applyNaturalEdits/);
+  assert.match(script,/context:pending.context,confirmation:pending.token/);
+
   assert.match(script,/token:same\.token,confirm:true/);
 });
 
 test('follow-up chat edits understand customer and operational fields',()=>{
-  assert.match(script,/whatsapp\|whatsap\|telepon\|phone/);
-  assert.match(script,/counterparty_name/);
-  assert.match(script,/project_id/);
-  assert.match(script,/customer_id/);
-  assert.match(script,/field\.required!==false/);
-  assert.match(script,/Saya belum menangkap bagian yang ingin diubah/);
+  assert.match(script,/composer.dataset.message/);
+  assert.match(script,/field.required!==false/);
+  assert.doesNotMatch(script,/Saya belum menangkap bagian yang ingin diubah/);
 });
 
 test('AI and manual Finance writes share the same business fields',()=>{

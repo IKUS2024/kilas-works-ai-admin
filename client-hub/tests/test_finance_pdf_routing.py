@@ -72,21 +72,12 @@ class PDFValidationTests(unittest.TestCase):
             file_utils.validate_receipt_upload('document.pdf', pdf_bytes(11))
         self.assertEqual(raised.exception.code, 'page_limit')
 
-    def test_parser_timeout_requires_successful_structure_retry(self):
-        raw = pdf_bytes(text=True)
-        run = subprocess.run
-        def fail_text(args, **kwargs):
-            if '--validate-only' not in args:
-                raise subprocess.TimeoutExpired('PRIVATE filename 998877', 8)
-            return run(args, **kwargs)
-        with patch.object(subprocess, 'run', side_effect=fail_text), self.assertLogs('kilas.finance_ai') as logs:
-            source = extraction.validate_sources([('private.pdf', raw)])
-        self.assertEqual(logs.output, ['INFO:kilas.finance_ai:FINANCE_AI pdf_reason=parser_timeout'])
-        self.assertEqual(base64.b64decode(extraction.provider_content(source)[0]['source']['data']), raw)
-        with patch.object(subprocess, 'run', side_effect=subprocess.TimeoutExpired('PRIVATE', 8)):
+    def test_parser_timeout_rejected_without_provider_or_retry(self):
+        with patch.object(subprocess, 'run', side_effect=subprocess.TimeoutExpired('PRIVATE', 8)) as run:
             with self.assertRaises(file_utils.UploadRejected) as raised:
-                file_utils.validate_bank_pdf('private.pdf', raw)
+                file_utils.validate_bank_pdf('private.pdf', pdf_bytes())
         self.assertEqual(raised.exception.code, 'parser_timeout')
+        self.assertEqual(run.call_count, 1)
 
     def test_resource_limit_and_malformed_worker_output_fail_closed(self):
         for failure, reason in ((subprocess.CalledProcessError(-9, 'PRIVATE'), 'resource_limit'),
@@ -160,7 +151,7 @@ class PDFAssistantTests(unittest.TestCase):
         run = subprocess.run
         def fail_text(args, **kwargs):
             if '--validate-only' not in args:
-                raise subprocess.TimeoutExpired('PRIVATE', 8)
+                return subprocess.CompletedProcess(args,0,b'{"error":"malformed_pdf"}',b'')
             return run(args, **kwargs)
         with patch.object(subprocess, 'run', side_effect=fail_text):
             response = self.document('BANK_STATEMENT', raw, 'document.pdf')

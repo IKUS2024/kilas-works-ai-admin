@@ -10,6 +10,7 @@ minor units of the stated currency (IDR defaults); there is no conversion or flo
 from contextlib import contextmanager
 from datetime import date, timedelta
 import calendar
+import hashlib
 import json
 import re
 import uuid
@@ -478,7 +479,8 @@ def get_transaction_date_bounds(business_id, *, actor_user_id=None):
 
 # Finance receivables: deliberately never reads platform invoices/payments/payment_service.
 def create_customer(business_id, name, phone=None, email=None, notes=None, actor_user_id=None, *, idempotency_key=None):
-    values = (_text(name, 160, True), _text(phone, 64), _text(email, 254), _text(notes, 4000))
+    from finance_draft_fields import customer_values
+    values = customer_values(dict(name=name,phone=phone,email=email,notes=notes))
     with _write(business_id, actor_user_id):
         if idempotency_key is not None:
             if not isinstance(idempotency_key,str) or not re.fullmatch('[a-f0-9]{32}',idempotency_key):
@@ -513,7 +515,7 @@ def list_customers(business_id, include_inactive=False, actor_user_id=None):
         ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY name,id', (business_id,))
 
 
-def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None):
+def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None, *, idempotency_key=None):
     issue_date, due_date = _period(issue_date, due_date)
     currency=_currency(currency)
     if issue_date > date.today().isoformat():
@@ -532,6 +534,21 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
         total = _money(total + quantity * price)
         clean.append((description, quantity, price))
     with _write(business_id, actor_user_id):
+        marker=None
+        if idempotency_key is not None:
+            if not isinstance(idempotency_key,str) or not re.fullmatch('[a-f0-9]{32}',idempotency_key):
+                raise FinanceError('invalid_invoice_key')
+            marker='draft='+idempotency_key+';id='
+            previous=db.query_one('SELECT detail FROM audit_log WHERE business_id=? AND actor_user_id=? AND action=? AND detail LIKE ?',
+                (business_id,actor_user_id,'FINANCE_ASSISTANT_INVOICE_CONFIRMED',marker+'%'))
+            if previous:
+                existing=get_finance_invoice(business_id,int(previous['detail'].removeprefix(marker)),actor_user_id)
+                old_items=list_invoice_items(business_id,existing['id'],actor_user_id) if existing else []
+                if (not existing or tuple(existing[k] for k in ('customer_id','issue_date','due_date','currency','notes')) !=
+                        (customer_id,issue_date,due_date,currency,notes) or
+                        [(r['description'],r['quantity'],r['unit_price_minor']) for r in old_items] != clean):
+                    raise FinanceError('invoice_key_conflict')
+                return existing['id']
         customer = get_customer(business_id, customer_id, actor_user_id)
         if not customer or not customer['is_active']:
             raise FinanceError('customer_unavailable')
@@ -547,6 +564,8 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
                 '(business_id,invoice_id,description,quantity,unit_price_minor,created_at) VALUES (?,?,?,?,?,?)',
                 (business_id, invoice_id, description, quantity, price, now))
         _audit(business_id, actor_user_id, 'FINANCE_INVOICE_CREATED', invoice_id)
+        if marker is not None:
+            repo.write_audit(actor_user_id,business_id,'FINANCE_ASSISTANT_INVOICE_CONFIRMED',marker+str(invoice_id))
         return invoice_id
 
 
@@ -605,9 +624,24 @@ def list_finance_invoices(business_id, status=None, customer_id=None, actor_user
     return db.query_all(sql + ' ORDER BY issue_date DESC,id DESC', params)
 
 
-def issue_finance_invoice(business_id, invoice_id, actor_user_id=None):
+def invoice_fingerprint(business_id, invoice, actor_user_id=None):
+    fields={k:invoice[k] for k in ('id','customer_id','issue_date','due_date','currency','notes')}
+    fields['items']=[{k:r[k] for k in ('description','quantity','unit_price_minor')} for r in list_invoice_items(business_id,invoice['id'],actor_user_id)]
+    return hashlib.sha256(json.dumps(fields,sort_keys=True).encode()).hexdigest()
+
+
+def issue_finance_invoice(business_id, invoice_id, actor_user_id=None, *, idempotency_key=None, expected_fingerprint=None):
     with _write(business_id, actor_user_id):
         invoice = _invoice(business_id, invoice_id, actor_user_id)
+        marker=None
+        if expected_fingerprint is not None and invoice_fingerprint(business_id,invoice,actor_user_id)!=expected_fingerprint:
+            raise FinanceError('invalid_draft')
+        if idempotency_key is not None:
+            if not isinstance(idempotency_key,str) or not re.fullmatch('[a-f0-9]{32}',idempotency_key):raise FinanceError('invalid_invoice_key')
+            marker='draft='+idempotency_key+';id='+str(invoice_id)
+            if db.query_one('SELECT id FROM audit_log WHERE business_id=? AND actor_user_id=? AND action=? AND detail=?',
+                            (business_id,actor_user_id,'FINANCE_ASSISTANT_ISSUE_CONFIRMED',marker)):
+                return invoice_id
         if invoice['status'] != 'DRAFT':
             raise FinanceError('invalid_invoice_state')
         # Zero-priced drafts are allowed but cannot create a permanently open zero receivable.
@@ -616,6 +650,7 @@ def issue_finance_invoice(business_id, invoice_id, actor_user_id=None):
         db.execute("UPDATE finance_invoices SET status='ISSUED',updated_at=? WHERE business_id=? AND id=?",
                    (repo._now(), business_id, invoice_id))
         _audit(business_id, actor_user_id, 'FINANCE_INVOICE_ISSUED', invoice_id)
+        if marker is not None:repo.write_audit(actor_user_id,business_id,'FINANCE_ASSISTANT_ISSUE_CONFIRMED',marker)
 
 
 def void_finance_invoice(business_id, invoice_id, actor_user_id=None):

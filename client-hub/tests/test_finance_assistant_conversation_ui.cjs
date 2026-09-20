@@ -1,0 +1,65 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+class Element {
+  constructor(){this.children=[];this.dataset={};this.value='';this.files=[];this.events={};this.classList={toggle(){}};}
+  append(...items){this.children.push(...items);}
+  replaceChildren(){this.children=[];}
+  setAttribute(){}
+  addEventListener(name,handler){this.events[name]=handler;}
+  dispatchEvent(event){this.events[event.type]?.(event);}
+  focus(){}
+  scrollIntoView(){}
+  get lastElementChild(){return this.children.at(-1);}
+}
+const draft={kind:'review',context:'signed-active-context',token:'signed-reviewed-token',ready:true,title:'Customer baru',
+  fields:[{key:'name',value:'Wilson',required:true},{key:'phone',value:'',required:false}],preview:[['Nama','Wilson']]};
+function harness(responses){
+  const elements=new Map();const get=id=>{if(!elements.has(id))elements.set(id,new Element());return elements.get(id);};
+  const composer=get('assistant-composer');composer.dataset={message:'/message',review:'/review',confirm:'/confirm',recognize:'/recognize',document:'/document',csrf:'csrf'};
+  const calls=[];
+  const context={document:{getElementById:get,createElement:()=>new Element(),querySelectorAll:()=>[]},
+    FormData:class {constructor(){this.data={};} append(key,value){this.data[key]=value;} set(key,value){this.data[key]=value;}},Event:class{constructor(type){this.type=type;}preventDefault(){}},
+    fetch:async(url,options)=>{calls.push({url,body:typeof options.body==='string'?JSON.parse(options.body):options.body.data});return {ok:true,json:async()=>responses.shift()};}};
+  vm.runInNewContext(fs.readFileSync(__dirname+'/../static/finance_assistant.js','utf8'),context);
+  return {get,calls,async send(text){get('assistant-text').value=text;composer.events.submit({preventDefault(){}});await new Promise(resolve=>setImmediate(resolve));}};
+}
+test('typo follow-up reaches server with signed context instead of browser interpretation',async()=>{
+  const h=harness([draft,{...draft,context:'updated'}]);
+  await h.send('tambah customer Wilson');await h.send('nomor teleponya 082213039137');
+  assert.deepEqual(h.calls[1],{url:'/message',body:{text:'nomor teleponya 082213039137',context:'signed-active-context',confirmation:'signed-reviewed-token'}});
+  assert.equal(h.get('assistant-text').value,'');
+});
+test('typed oke sends only the active signed review and no invented fields',async()=>{
+  const h=harness([draft,{kind:'success',message:'Customer disimpan'}]);
+  await h.send('tambah customer Wilson');await h.send('oke');
+  assert.equal(h.calls[1].body.confirmation,draft.token);assert.equal(h.calls[1].body.context,draft.context);
+  assert.equal(h.calls[1].body.text,'oke');assert.equal(h.calls[1].body.values,undefined);
+});
+test('successful confirmation clears draft before next command',async()=>{
+  const h=harness([draft,{kind:'success',message:'Disimpan'},{kind:'answer',message:'Saldo'}]);
+  await h.send('tambah customer Wilson');await h.send('oke');await h.send('saldo berapa?');
+  assert.deepEqual(h.calls[2].body,{text:'saldo berapa?'});
+});
+test('cancel is interpreted server-side and clears active draft',async()=>{
+  const h=harness([draft,{kind:'answer',state:'CANCELLED',message:'Batal'},{kind:'answer',message:'Saldo'}]);
+  await h.send('tambah customer Wilson');await h.send('ga jadi');await h.send('saldo berapa?');
+  assert.equal(h.calls[1].body.context,draft.context);assert.deepEqual(h.calls[2].body,{text:'saldo berapa?'});
+});
+test('one incomplete draft survives multiple server revisions',async()=>{
+  const first={...draft,ready:false,token:undefined};const second={...first,context:'revision-two'};
+  const h=harness([first,second,draft]);
+  await h.send('pengeluaran 200 ribu');await h.send('pakai BCA');await h.send('kategori transport');
+  assert.equal(h.calls[2].body.context,'revision-two');assert.equal(h.calls[2].body.confirmation,null);
+});
+
+test('retained bank upload accepts typed account selection and resolves it on server',async()=>{
+  const account={kind:'document_account',fields:[{key:'account_id',type:'select',required:true,value:'',options:[{value:'1',label:'BCA · IDR'}]}]};
+  const h=harness([{workflow:'BANK_STATEMENT',document_context:'signed-file-currency'},account,{kind:'bank_review',ready:true,token:'bank-token'}]);
+  h.get('assistant-files').files=[{name:'bank.pdf',size:10}];
+  await h.send('baca mutasi ini');await h.send('pakai BCA');
+  assert.equal(h.calls.length,3);assert.equal(h.calls[2].url,'/document');
+  assert.equal(h.calls[2].body.text,'pakai BCA');assert.equal(h.calls[2].body.document_context,'signed-file-currency');
+  assert.equal(h.calls[2].body.account_id,undefined);assert.equal(h.calls[2].body.sources.name,'bank.pdf');
+});

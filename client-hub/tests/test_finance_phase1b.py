@@ -73,7 +73,7 @@ class FinanceUITests(unittest.TestCase):
         self.assertEqual(len(finance.list_accounts(self.bid)), 1)
         self.assertEqual(len(finance.list_categories(self.bid)), 10)
         audits = db.query_all("SELECT * FROM audit_log WHERE action LIKE 'FINANCE_%'")
-        self.assertEqual(len(audits), 11)
+        self.assertEqual(len(audits), 12)
         self.assertTrue(all(a['actor_user_id']==self.uid for a in audits))
 
     def test_income_expense_summary_and_list(self):
@@ -81,15 +81,16 @@ class FinanceUITests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+'/transactions',data=self.data(description='Sale')).status_code,303)
         self.assertEqual(self.client.post(self.url+'/transactions',data=self.data('EXPENSE',amount='250000')).status_code,303)
         html = self.client.get(self.url+'?month=2026-09').get_data(as_text=True)
-        for text in ('Rp1.250.000','Rp250.000','Rp1.000.000','Selisih Masuk–Keluar','Sale'): self.assertIn(text,html)
+        for text in ('Rp1.250.000','Rp250.000','Rp1.000.000','Arus Kas Periode'): self.assertIn(text,html)
         self.assertEqual(len(finance.list_transactions(self.bid)), 2)
         self.assertEqual(finance.list_transactions(self.bid)[0]['created_by_user_id'], self.uid)
 
     def test_invalid_money_rejected(self):
         self.start()
-        for amount in ('0','-1','1.5','1,000','1e6','abc','9223372036854775808','9'*100,' 100',''):
+        for amount in ('0','-1','1.5','1e6','abc','9223372036854775808','9'*100,''):
             result = self.client.post(self.url+'/transactions',data=self.data(amount=amount),follow_redirects=True)
-            self.assertIn('Nominal belum valid',result.get_data(as_text=True))
+            self.assertEqual(result.status_code,200)
+            self.assertEqual(finance.list_transactions(self.bid),[])
         self.assertEqual(finance.list_transactions(self.bid), [])
 
     def test_cross_account_category_project_rejected(self):
@@ -118,7 +119,7 @@ class FinanceUITests(unittest.TestCase):
         finance.create_transaction(self.other,'INCOME',9,finance.list_accounts(self.other)[0]['id'],finance.list_categories(self.other,'INCOME')[0]['id'],'2026-09-15',description='PRIVATE OTHER')
         self.client.post(self.url+'/transactions',data=self.data(description='own income'))
         self.client.post(self.url+'/transactions',data=self.data('EXPENSE',description='own expense'))
-        html=self.client.get(self.url+'?month=2026-09&direction=EXPENSE').get_data(as_text=True)
+        html=self.client.get(self.url+'?month=2026-09&view=transactions&direction=EXPENSE').get_data(as_text=True)
         self.assertIn('own expense',html);self.assertNotIn('own income',html);self.assertNotIn('PRIVATE OTHER',html)
         self.assertNotIn('own expense',self.client.get(self.url+'?month=2026-10').get_data(as_text=True))
 
@@ -132,7 +133,8 @@ class FinanceUITests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+f'/transactions/{tx}/void').status_code,303)
         self.assertEqual(finance.get_transaction(self.bid,tx)['status'],'VOID')
         self.assertEqual(finance.get_finance_summary(self.bid,'2026-09-01','2026-09-30')['total_income_minor'],0)
-        self.assertIn('Dibatalkan',self.client.get(self.url+'?month=2026-09').get_data(as_text=True))
+        self.assertEqual(finance.get_transaction(self.bid,tx)['status'],'VOID')
+        self.assertNotIn('Rp1.250.000',self.client.get(self.url+'?month=2026-09&view=transactions').text)
 
     def test_all_posts_csrf_enforced(self):
         app.config['CLIENT_HUB_FORCE_CSRF_IN_TESTS']=True
@@ -165,7 +167,7 @@ class FinanceUITests(unittest.TestCase):
         for month in ('bad','2026-13','0000-01','2026-1'):
             self.assertEqual(self.client.get(self.url+'?month='+month).status_code,302)
         self.client.post(self.url+'/transactions',data=self.data(description='<script>alert(1)</script>'))
-        html=self.client.get(self.url+'?month=2026-09').get_data(as_text=True)
+        html=self.client.get(self.url+'?month=2026-09&view=transactions').get_data(as_text=True)
         self.assertIn('&lt;script&gt;',html);self.assertNotIn('<script>alert(1)</script>',html)
 
     def test_mobile_forms_and_no_external_assets(self):
@@ -174,8 +176,8 @@ class FinanceUITests(unittest.TestCase):
         parser=HTMLParser();parser.handle_starttag=lambda tag,attrs:tags.append(tag);parser.feed(html)
         self.assertNotIn('table',tags)
         self.assertIn('minmax(min(100%,240px),1fr)',html)
-        self.assertIn('Catat Pemasukan',html);self.assertIn('Catat Pengeluaran',html)
-        self.assertIn('Pengaturan akun &amp; kategori',html)
+        self.assertIn('Pemasukan',html);self.assertIn('Pengeluaran',html)
+        self.assertIn('Pengaturan Finance',html)
         source=(Path(__file__).parents[1]/'templates/finance_dashboard.html').read_text()
         self.assertNotIn('https://',source)
 

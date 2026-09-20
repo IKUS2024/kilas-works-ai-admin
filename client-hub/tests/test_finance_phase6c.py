@@ -99,7 +99,7 @@ class AssistantTests(unittest.TestCase):
         before=self.snapshot()
         response=self.client.get(self.assistant_url)
         self.assertEqual(response.status_code,200)
-        self.assertIn(b'AI Assistant',response.data)
+        self.assertIn(b'Kilas Finance AI',response.data)
         self.assertIn(self.assistant_url.encode(),self.client.get(self.url).data)
         self.assertEqual(before,self.snapshot());self.http.assert_not_called()
 
@@ -216,7 +216,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_operator_embedded_controls_blank_references(self):
         page=self.client.get(self.assistant_url).data
-        self.assertIn(b'id="assistant-result-fields" hidden',page)
+        self.assertIn(b'id="assistant-result"',page)
         self.assertNotIn(b'id="op-action"',page)
         self.assertIn((self.assistant_url+'/review').encode(),page)
         self.assertIn((self.assistant_url+'/confirm').encode(),page)
@@ -549,11 +549,11 @@ class AssistantTests(unittest.TestCase):
                       'role="status"','aria-live="polite"','type="button"','multiple','id="assistant-file-list"'):
             self.assertIn(value.encode(),page)
         css=(ROOT/'static/finance_assistant.css').read_text()
-        for value in ('min-height:48px','flex-wrap:wrap','overflow-wrap:anywhere','@media'):self.assertIn(value,css)
+        for value in ('min-height:44px','flex-wrap:wrap','overflow-wrap:anywhere','@media'):self.assertIn(value,css)
 
     def test_loading_and_double_submit_guard(self):
         js=(ROOT/'static/finance_assistant.js').read_text()
-        for value in ('if (busy)','aria-busy',"result?.kind==='review'",'if(busy || !token)', 'state(true)','state(false)'):
+        for value in ('if(busy)','aria-busy',"pending?.context",'if(!pending?.token)', 'setBusy(true)','setBusy(false)'):
             self.assertIn(value,js)
 
     def test_no_unsafe_dom_or_sensitive_storage(self):
@@ -565,8 +565,8 @@ class AssistantTests(unittest.TestCase):
 
     def test_browser_handoffs_only_existing_engines(self):
         page=self.client.get(self.assistant_url).data
-        self.assertIn(('data-receipt="'+self.url+'/receipts/analyze?branch_id=').encode(),page)
-        self.assertIn(('data-bank="'+self.base+'/analyze?branch_id=').encode(),page)
+        self.assertIn(('data-recognize="'+self.assistant_url+'/recognize?branch_id=').encode(),page)
+        self.assertIn(('data-document="'+self.assistant_url+'/document?branch_id=').encode(),page)
         js=(ROOT/'static/finance_assistant.js').read_text()
         self.assertNotIn('HTMLFormElement.prototype.submit.call(composer)',js)
         self.assertIn('composer.dataset.document',js)

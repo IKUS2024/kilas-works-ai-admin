@@ -1,3 +1,4 @@
+from finance_test_clock import closed_period
 """Offline membership-only consolidated reporting and single-business regressions."""
 import os
 import unittest
@@ -34,6 +35,7 @@ class MultiBusinessTests(unittest.TestCase):
         self.second = repo.create_business(self.uid, 'Second authorized business')
         self.empty = repo.create_business(self.uid, 'Empty authorized business')
         finance.ensure_finance_defaults(self.second, actor_user_id=self.uid)
+        rates=patch('finance_fx.snapshot',return_value={'rates':{'IDR':'1','USD':'16000'},'date':'2026-09-20','source':'test','stale':False});rates.start();self.addCleanup(rates.stop)
 
     def page(self, url='/finance?month=2026-09'):
         contexts = []
@@ -42,7 +44,16 @@ class MultiBusinessTests(unittest.TestCase):
         with template_rendered.connected_to(capture, app):
             result = self.client.get(url, follow_redirects=True)
         self.assertEqual(result.status_code, 200)
-        return result, contexts[-1]
+        context=contexts[-1]
+        if 'totals_by_currency' in context:
+            context['summary']=next(r for r in context['totals_by_currency'] if r['currency']=='IDR').copy()
+            context['summary'].pop('currency')
+            context['summary'].update(open_invoice_count=context['open_invoice_count'],overdue_invoice_count=context['overdue_invoice_count'])
+            for row in context['breakdown']:
+                cash=next((r for r in row['cash_summaries'] if r['currency']=='IDR'),{})
+                row['summary']={k:cash.get(k,0) for k in context['summary']}
+                row['summary'].update({k:row['receivables'][k] for k in ('total_outstanding_minor','total_overdue_minor','open_invoice_count','overdue_invoice_count')})
+        return result, context
 
     def transaction(self, business, direction, amount, day='2026-09-10', currency='IDR'):
         actor = self.other_uid if business == self.other else self.uid
@@ -94,6 +105,7 @@ class MultiBusinessTests(unittest.TestCase):
         self.assertNotIn('Other business', response.get_data(as_text=True))
         self.assertEqual(self.client.get('/finance?business_id='+str(self.other)).status_code, 404)
 
+    @closed_period
     def test_cash_totals_sum_only_posted_idr_in_selected_month(self):
         self.transaction(self.b, 'INCOME', 1100)
         self.transaction(self.b, 'EXPENSE', 300)
@@ -110,9 +122,10 @@ class MultiBusinessTests(unittest.TestCase):
             self.assertEqual(context['summary'][key], expected)
             self.assertEqual(context['summary'][key], sum(row['summary'][key] for row in context['breakdown']))
         _, single = self.page(self.url+'?month=2026-09')
-        self.assertEqual(single['summary'], finance.get_finance_summary(self.b, '2026-09-01', '2026-09-30', actor_user_id=self.uid))
+        self.assertEqual({k:v for k,v in single['summary'].items() if k!='transaction_count'}, finance.get_finance_summary(self.b, '2026-09-01', '2026-09-30', actor_user_id=self.uid))
         self.assertEqual(single['summary']['net_cashflow_minor'], 800)
 
+    @closed_period
     def test_receivables_and_overdue_use_existing_period_end_calculations(self):
         invoice = self.issued()
         self.pay(invoice, 100)
@@ -186,7 +199,7 @@ class MultiBusinessTests(unittest.TestCase):
         self.assertEqual(self.client.post('/finance').status_code, 405)
         self.assertIn('no-store', response.headers['Cache-Control'])
         single, _ = self.page('/finance?business_id='+str(self.b)+'&month=2026-09')
-        for text in ('AI Assistant', 'Catat Pemasukan', 'Catat Pengeluaran'):
+        for text in ('AI Assistant', 'Pemasukan', 'Pengeluaran'):
             self.assertIn(text, single.get_data(as_text=True))
 
     def test_login_and_feature_gates_unchanged(self):

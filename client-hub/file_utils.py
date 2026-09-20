@@ -260,7 +260,8 @@ def _validate_finance_pdf_bytes(filename, raw, receipt=False):
     if len(raw) > (5 if receipt else 10) * 1024 * 1024:
         raise _pdf_rejected('size_limit', receipt)
     safe_name = sanitize_filename(filename)
-    if _extension_of(safe_name) != 'pdf' or not raw or not _looks_like_valid_pdf(raw):
+    if (_extension_of(safe_name) != 'pdf' or not raw or not _looks_like_valid_pdf(raw)
+            or b'%%EOF' not in raw[-4096:]):
         raise _pdf_rejected('malformed_pdf', receipt)
     return safe_name
 
@@ -287,6 +288,8 @@ def _run_finance_pdf(raw, receipt=False, structure_only=False):
             raise ValueError()
         if b'text_extraction_failed\n' in result.stderr:
             safety.pdf_event('text_extraction_failed')
+        if b'vision_fallback\n' in result.stderr:
+            safety.pdf_event('vision_fallback')
         return data['text']
     except UploadRejected:
         raise
@@ -306,7 +309,7 @@ def _finance_pdf_text(raw, receipt=False):
     try:
         return _run_finance_pdf(raw, receipt=receipt)
     except UploadRejected as error:
-        if error.code in ('encrypted/password_required', 'page_limit', 'size_limit'):
+        if error.code in ('encrypted/password_required', 'page_limit', 'size_limit', 'parser_timeout', 'resource_limit'):
             raise
         # A failed text decoder is not proof of a bad document. A separate bounded
         # structure-only pass must succeed before passing original bytes to vision.

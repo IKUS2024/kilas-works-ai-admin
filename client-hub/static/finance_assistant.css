@@ -89,3 +89,5 @@
   .assistant-upload-actions .attachment-label span{display:none}
   .finance-assistant .assistant-upload-actions .attachment-label{width:39px;padding:6px}
 }
+/* Comfortable touch targets for conversational choices and attachment controls. */
+.assistant-quick-replies button,.assistant-suggestions button,.assistant-upload-actions .attachment-label{min-height:44px}

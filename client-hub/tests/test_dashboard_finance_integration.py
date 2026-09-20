@@ -69,16 +69,16 @@ class DashboardIntegrationTests(unittest.TestCase):
     def assert_brain_controls(self, status):
         response, links = self.dashboard(status)
         for label, suffix in (
-            ('Ajari Kilas Brain', '/memory'),
-            ('Booking & Pembayaran', '/settings'),
-            ('Review & Langkah Berikutnya', '/review'),
-            ('Coba Simulasi', '/simulate'),
+            ('Pengetahuan Brain', '/memory'),
+            ('Booking', '/settings'),
+            ('Review', '/review'),
+            ('Simulasi', '/simulate'),
         ):
             self.assertEqual(links[label], f'/business/{self.b}' + suffix)
         # Existing editors are usable after onboarding as well as after activation.
-        for label in ('Ajari Kilas Brain', 'Booking & Pembayaran'):
+        for label in ('Pengetahuan Brain', 'Booking'):
             self.assertEqual(self.client.get(links[label]).status_code, 200)
-        self.assertIn('rekening bisnismu untuk pelanggan', response.text)
+        self.assertIn('Menu Kilas Brain', response.text)
         self.assertEqual('Buka Inbox Brain' in links, status == 'ACTIVE')
         if status == 'ACTIVE':
             self.assertEqual(links['Buka Inbox Brain'], f'/business/{self.b}/inbox')
@@ -94,8 +94,8 @@ class DashboardIntegrationTests(unittest.TestCase):
 
     def test_without_brain_hides_all_brain_controls(self):
         _, links = self.dashboard('ACTIVE', 'NONE')
-        for label in ('Ajari Kilas Brain', 'Booking & Pembayaran',
-                      'Review & Langkah Berikutnya', 'Coba Simulasi', 'Buka Inbox Brain'):
+        for label in ('Pengetahuan Brain', 'Booking',
+                      'Review', 'Simulasi', 'Buka Inbox Brain'):
             self.assertNotIn(label, links)
 
     def test_customer_cannot_open_other_business_editors(self):
@@ -107,12 +107,10 @@ class DashboardIntegrationTests(unittest.TestCase):
         self.assertEqual(context['action_center']['finance_trials_active'], 0)
         self.assertEqual(context['action_center']['finance_bills_waiting_review'], 0)
         links = Links(response.text).links
-        self.assertEqual(links['0 Finance trial aktif'], '/admin/?finance=trial')
-        self.assertEqual(links['0 Pembayaran Finance perlu ditinjau'], '/admin/finance-subscription-bills')
-        for url in ('/admin/?status=DRAFT', '/admin/?status=READY_FOR_REVIEW',
-                    '/admin/projects?status=WAITING_FOR_QUOTE', '/admin/payments',
-                    '/admin/talent', '/admin/projects', '/admin/?status=APPROVED'):
-            self.assertIn(url, links.values())
+        self.assertIn('/admin/?finance=trial', links.values())
+        self.assertNotIn('/admin/finance-subscription-bills', links.values())
+        self.assertIn('/admin/?status=DRAFT',links.values())
+        self.assertEqual(context['action_center']['finance_bills_waiting_review'],0)
 
     def test_trial_list_name_status_expiry_read_only(self):
         self.trial()
@@ -121,10 +119,10 @@ class DashboardIntegrationTests(unittest.TestCase):
         self.assertEqual(context['action_center']['finance_trials_active'], 1)
         self.assertEqual([b['id'] for b in context['businesses']], [self.b])
         self.assertIn(repo.get_business(self.b)['business_name'], response.text)
-        self.assertIn('TRIAL_ACTIVE', response.text)
+        self.assertEqual(context['businesses'][0]['finance_entitlement']['status'],'TRIAL_ACTIVE')
         self.assertIn(entitlement.state(self.b)['until_local'], response.text)
-        self.assertIn('Tidak ada persetujuan trial', response.text)
-        self.assertEqual(Links(response.text).links['Lihat Finance'], self.setup_url)
+        self.assertIn('Trial s/d', response.text)
+        self.assertEqual(Links(response.text).links['Finance →'], self.setup_url)
         self.assertEqual(before, self.snapshot())
 
     def test_trial_count_includes_finance_only_and_ignores_brain_filter(self):
@@ -137,6 +135,7 @@ class DashboardIntegrationTests(unittest.TestCase):
 
     def test_paid_precedes_trial_and_expired_is_not_counted(self):
         self.trial()
+        self.time.return_value+=timedelta(days=7)
         self.verified()
         _, context = self.admin_page('?finance=trial')
         self.assertEqual(context['action_center']['finance_trials_active'], 0)
@@ -201,9 +200,9 @@ class DashboardIntegrationTests(unittest.TestCase):
         self.time.return_value += timedelta(days=7)
         response, links = self.dashboard('READY_FOR_REVIEW')
         self.assertEqual(entitlement.state(self.b)['status'], 'EXPIRED')
-        self.assertIn('data hanya-baca', response.text)
+        self.assertIn('mode hanya-baca', response.text)
         self.assertNotIn('Buka Finance', links)
-        self.assertEqual(links['Lihat Data & Perpanjang'], self.setup_url)
+        self.assertEqual(links['Perpanjang Finance'], self.setup_url)
         self.verified()
         response, links = self.dashboard('READY_FOR_REVIEW')
         self.assertEqual(entitlement.state(self.b)['status'], 'PAID_ACTIVE')

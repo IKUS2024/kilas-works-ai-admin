@@ -3,6 +3,7 @@ import calendar
 import hashlib
 import re
 import uuid
+import requests
 from datetime import date, timedelta
 
 from flask import current_app, url_for
@@ -20,13 +21,13 @@ TTL = 600
 AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|juta|jt)\b|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
 BARE_AMOUNT = re.compile(r'(?<![\w.,+−-])\d{4,}(?![\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
-          'customer':'Customer baru','recurring':'Biaya rutin','receipt':'Struk pengeluaran'}
+          'customer':'Customer baru','recurring':'Biaya rutin','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
 
 
-def authorize(b, u, capability=None):
+def authorize(b, u, capability=None, write=True):
     f._scope(b, u)
     entitlement.require_ai(b, u, capability)
-    branches.token_branch(b)
+    if write:branches.token_branch(b)
 
 
 def signer():
@@ -72,12 +73,18 @@ def category_choice(categories,text):
     matches=exact_matches(categories,text)
     if len(matches)==1:return matches[0]['id']
     if not matches:
-        groups=[('makan','makanan','minuman','konsumsi'),('bensin','bbm','transportasi','transport'),
-                ('software','aplikasi','langganan'),('internet','telepon','komunikasi'),('sewa','rent'),
-                ('jasa','penjualan','sales','pendapatan'),('operasional','peralatan','perlengkapan')]
-        for words in groups:
-            if any(re.search(r'\b'+w+r'\b',text,re.I) for w in words):
-                matches += [c for c in categories if any(re.search(r'\b'+w+r'\b',c['name'],re.I) for w in words)]
+        # Specific shared words outrank generic direction words such as pendapatan.
+        scores={c['id']:sum((1 if w in ('pendapatan','pengeluaran','penjualan') else 3)
+                           for w in set(re.findall(r'[a-z]+',c['name'].lower()))
+                           if len(w)>2 and re.search(r'\b'+re.escape(w)+r'\b',text,re.I)) for c in categories}
+        highest=max(scores.values(),default=0)
+        if highest:matches=[c for c in categories if scores[c['id']]==highest]
+        if not matches:
+            groups=[('makan','makanan','minuman','konsumsi'),('bensin','bbm','transportasi','transport'),
+                    ('software','aplikasi','langganan'),('internet','telepon','komunikasi'),('sewa','rent')]
+            for words in groups:
+                if any(re.search(r'\b'+w+r'\b',text,re.I) for w in words):
+                    matches += [c for c in categories if any(re.search(r'\b'+w+r'\b',c['name'],re.I) for w in words)]
     ids={c['id'] for c in matches}
     if len(ids)==1:return next(iter(ids))
     return categories[0]['id'] if len(categories)==1 else ''
@@ -86,6 +93,11 @@ def category_choice(categories,text):
 def proposed_date(text, scheduled=False):
     today=date.today()
     if re.search(r'\bkemarin\b',text,re.I):return (today-timedelta(days=1)).isoformat()
+    months='januari februari maret april mei juni juli agustus september oktober november desember'.split()
+    calendar_date=re.search(r'\b(\d{1,2})\s+('+'|'.join(months)+r')(?:\s+(20\d{2}))?\b',text,re.I)
+    if calendar_date:
+        try:return date(int(calendar_date[3] or today.year),months.index(calendar_date[2].lower())+1,int(calendar_date[1])).isoformat()
+        except ValueError:return ''
     iso=re.findall(r'\b\d{4}-\d{2}-\d{2}\b',text)
     if len(iso)==1:return f._date(iso[0])
     match=re.search(r'\btanggal\s+([0-9]{1,2})\b',text,re.I)
@@ -122,7 +134,7 @@ def pick_options(rows,label='name'):
 FINANCE_DOMAIN = re.compile(
     r'\b(finance|keuangan|akuntansi|transaksi|pemasukan|pendapatan|penjualan|pengeluaran|biaya|kas|cash|rekening|bank|'
     r'saldo|invoice|tagihan|piutang|utang|customer|pelanggan|kategori|proyek|struk|receipt|mutasi|rekonsiliasi|'
-    r'laporan|arus kas|cash ?flow|laba|rugi|aset|liabilitas|modal|pajak|budget|anggaran|rutin|bulanan|mingguan)\b', re.I)
+    r'belum bayar|belum lunas|overdue|outstanding|aging|reminder|laporan|arus kas|cash ?flow|laba|rugi|aset|liabilitas|modal|pajak|budget|anggaran|rutin|bulanan|mingguan)\b', re.I)
 BANK_CHAT_LIMIT = 200
 
 
@@ -201,29 +213,14 @@ def _bank_confirm(b,u,context):
                 posted_count=posted,held_count=held,already_count=already)
 
 def answer(b,u,text):
-    authorize(b,u,'ANALYST')
-    today=date.today()
-    if re.search(r'\bsaldo\b',text,re.I):
-        rows=f.get_account_balance_report(b,today.isoformat(),u)
-        named=exact_matches(rows,text)
-        if named:rows=named
-        return dict(kind='answer',title='Saldo akun',message='Saldo mencakup saldo awal dan transaksi tercatat. Mata uang ditampilkan terpisah.',
-                    preview=[[r['name'],fx.format_money(r['balance_minor'],r['currency'])] for r in rows])
-    if re.search(r'customer|pelanggan|siapa',text,re.I) and re.search(r'belum bayar|piutang|belum lunas',text,re.I):
-        rows=[r for r in f.get_report_invoices(b,today.isoformat(),actor_user_id=u) if r['status'] in ('ISSUED','PARTIALLY_PAID') and r['outstanding_minor']>0]
-        return dict(kind='answer',title='Customer belum lunas',message='Invoice terbuka pada cabang ini; maksimal 50 ditampilkan.',
-                    preview=[[r['customer_name']+' · '+r['invoice_number'],fx.format_money(r['outstanding_minor'],r['currency'])] for r in rows[:50]])
-    month=today.replace(day=1)
-    if re.search(r'bulan lalu',text,re.I):month=(month-timedelta(days=1)).replace(day=1)
-    scope='categories' if re.search(r'terbesar|kategori',text,re.I) else 'receivables' if 'piutang' in text.lower() else 'summary'
-    context=analyst.build_context(b,u,month,scope)
-    return dict(kind='answer',title='Ringkasan Finance',message=context['period_start']+' — '+context['period_end'],
-                preview=[[r['label'],r['display']] for r in context['facts']])
+    authorize(b,u,'ANALYST',write=False)
+    from finance_assistant_queries import query
+    return query(b,u,text)
 
 
 def text_message(b,u,text):
     text=operator.text(text,2000)
-    authorize(b,u)
+    authorize(b,u,write=False)
     if re.fullmatch(r'\s*(hai|halo|hi|pagi|siang|sore|malam)[!. ]*',text,re.I):
         return dict(kind='answer',title='Kilas Finance AI',message='Hai. Aku siap bantu urusan Finance: catat pemasukan/pengeluaran, customer, invoice & piutang, biaya rutin, laporan, struk, dan mutasi bank.')
     if re.search(r'\b(hapus|delete|transfer|kirim uang|bayarkan|ubah transaksi)\b',text,re.I):
@@ -231,10 +228,18 @@ def text_message(b,u,text):
     if re.search(r'\b(apa itu|jelaskan|bedanya|beda apa|gimana cara)\b',text,re.I) and FINANCE_DOMAIN.search(text):
         return accounting_help(text)
     question_intent=bool(re.search(r'\b(berapa|apa|siapa|laporan|analisis|ringkas|saldo|cek|lihat|tampilkan|total)\b|\?',text,re.I))
-    explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|terima|dibayar|bayaran|buat)\b',text,re.I))
+    explicit_write=bool(re.search(r'\b(tambah(?:in|kan)?|masukin|catat(?:kan)?|beli|bayar|terima|dibayar|bayaran|buat|terbitkan)\b',text,re.I))
     schedule_hint=bool(re.search(r'\b(rutin|berulang|mingguan|bulanan|tiap|setiap|per bulan|per minggu)\b',text,re.I))
-    if question_intent and not explicit_write and not schedule_hint and FINANCE_DOMAIN.search(text):
+    if re.search(r'belum bayar|belum lunas',text,re.I) and question_intent:explicit_write=False
+    if re.search(r'\b(reminder|cari customer|ada customer|nomor .* apa)\b',text,re.I):return answer(b,u,text)
+    if question_intent and not explicit_write and FINANCE_DOMAIN.search(text):
         return answer(b,u,text)
+    if explicit_write or schedule_hint or re.search(r'\b(pemasukan|pengeluaran)\b',text,re.I):
+        try:branches.token_branch(b)
+        except f.FinanceError as error:
+            if str(error) not in ('all_branches_read_only','branch_required'):raise
+            return dict(kind='branch_choice',message='Transaksi ini untuk cabang mana?',text=text,
+                        branches=[dict(id=r['id'],name=r['name']) for r in branches.list_branches(b,u) if r['is_active']])
     customer=re.search(r'\b(?:tambah(?:kan)?|masukin|buat)\s+(?:customer|pelanggan)\s+(.+)',text,re.I)
     if customer:
         raw=customer[1].strip()
@@ -247,7 +252,11 @@ def text_message(b,u,text):
         return review(b,u,dict(action='customer',nonce=uuid.uuid4().hex,values=dict(
             name=name,phone=phone[1].strip() if phone else '',email=email[0] if email else '',notes=notes[1] if notes else '')))
     if re.search(r'\b(buat|bikin|tambah)\s+invoice\b',text,re.I):
-        return dict(kind='answer',title='Invoice',message='Aku bisa bantu alur invoice dan pembayaran, tapi pembuatan invoice item-per-item belum saya eksekusi otomatis dari chat ini. Sebut customer, item, nominal, tanggal terbit, dan jatuh tempo; data sensitif tidak perlu dikirim.')
+        from finance_assistant_invoice import start
+        return start(b,u,text)
+    if re.search(r'\bterbitkan\b',text,re.I):
+        from finance_assistant_invoice import issue_start
+        return issue_start(b,u,text)
     schedule=schedule_hint
     action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima|dibayar|bayaran)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa|belanja)\b',text,re.I) else ''
     if not action:
@@ -266,10 +275,18 @@ def text_message(b,u,text):
     if schedule:
         values.update(name=description[:160],cadence='WEEKLY' if re.search(r'minggu',text,re.I) else 'MONTHLY',
                       end_on='',project_id='',counterparty_name='')
+    if action=='recurring':
+        vendor=re.search(r'\bke\s+(.+?)(?=\s+(?:tanggal|pakai|kategori)\b|$)',text,re.I)
+        if vendor:values['counterparty_name']=vendor[1].strip()
+        label=re.search(r'\bbayar\s+(.+?)(?=\s+(?:Rp\.?\s*)?\d)',text,re.I)
+        if label:values['name']=label[1].strip()
     if action=='record_invoice_payment':values['invoice_id']=''
     return review(b,u,dict(action=action,text=text,nonce=uuid.uuid4().hex,values=values))
 
 def review(b,u,context,edits=None):
+    if context['action'] in ('invoice','issue_invoice'):
+        from finance_assistant_invoice import review_invoice
+        return review_invoice(b,u,context,edits)
     action=context['action'];authorize(b,u,None if action=='receipt' else 'OPERATOR')
     values=dict(context['values']);text=context.get('text','')
     if edits is not None:
@@ -278,7 +295,8 @@ def review(b,u,context,edits=None):
     context=dict(context,values=values)
     form=[];preview=[];result=dict(kind='review',title=LABELS[action],message='Periksa usulan ini. Belum ada pencatatan.',ready=False)
     if action=='customer':
-        limits={'name':160,'phone':64,'email':254,'notes':4000}
+        from finance_draft_fields import CUSTOMER_LIMITS as limits, customer_values
+        customer_values(values)
         labels={'name':'Nama customer','phone':'Nomor telepon','email':'Email','notes':'Catatan'}
         for k in values:
             f._text(values[k],limits[k],k=='name')
@@ -289,6 +307,17 @@ def review(b,u,context,edits=None):
     else:
         currency=values['currency']
         if currency and currency not in f.SUPPORTED_CURRENCIES:raise ValueError('currency')
+        if action=='record_invoice_payment' and not values.get('invoice_id'):
+            available=f.operator_invoice_choices(b,actor_user_id=u)
+            matched=exact_matches(available,text,'invoice_number')
+            if not matched and not re.search(r'KFIN-|INV-',text,re.I):
+                names=exact_matches(f.list_customers(b,actor_user_id=u),text)
+                if len(names)==1:
+                    ids={r['id'] for r in f.list_finance_invoices(b,customer_id=names[0]['id'],actor_user_id=u)}
+                    matched=[r for r in available if r['id'] in ids]
+            if len(matched)==1:
+                values['invoice_id']=str(matched[0]['id'])
+                if not currency:currency=values['currency']=matched[0]['currency']
         accounts,chosen=account_options(b,u,text,currency)
         if not values['account_id'] and chosen:values['account_id']=str(chosen['id'])
         account=next((a for a in accounts if str(a['id'])==values['account_id']),None)
@@ -356,7 +385,7 @@ def review(b,u,context,edits=None):
             if action=='receipt':
                 form.append(field('merchant_name','Merchant',values['merchant_name'],required=False))
 
-        if not account:result['message']='Nominal sudah terbaca. Tinggal pilih kas / rekening yang dipakai.' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
+        if not account:result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif not category:result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
         elif not values['date']:result['message']='Tanggal belum jelas. Lengkapi tanggal pada review.'
         elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
@@ -389,6 +418,7 @@ def review(b,u,context,edits=None):
     if result.get('ready'):
         result['message']='Oke, saya sudah rangkum '+LABELS[action].lower()+' ini. Kalau sudah benar, balas “oke”.'
         result['hint']='Kalau ada yang perlu diubah, cukup tulis di chat, misalnya “WhatsApp 0822…”, “pakai BCA”, “vendor Telkom”, atau “ubah jadi 300 ribu”. Ketik “batal” untuk membatalkan.'
+    result['state']='READY_FOR_CONFIRMATION' if result['ready'] else 'NEEDS_INFORMATION'
     result.update(fields=form,preview=preview,context=seal(b,u,'review',context))
     return result
 
@@ -400,6 +430,9 @@ def revise(b,u,token,values):
 def confirm(b,u,token):
     context=unseal(b,u,token,'confirm');action=context['action']
     authorize(b,u,None if action in ('receipt','bank_import') else 'OPERATOR')
+    if action in ('invoice','issue_invoice'):
+        from finance_assistant_invoice import confirm_invoice
+        return confirm_invoice(b,u,context)
     if action=='bank_import':return _bank_confirm(b,u,context)
     values=context['values']
     amount_label=''
@@ -410,11 +443,18 @@ def confirm(b,u,token):
         result=operator.confirm(b,u,context['service_token'])
         label='Pemasukan' if action=='create_income' else 'Pengeluaran' if action=='create_expense' else 'Pembayaran invoice'
         detail=(' · '+values.get('description','')) if values.get('description') else ''
-        result['message']=f'Sudah. {label} {amount_label}{detail} berhasil dicatat di Kilas Finance.'
+        result['message']=f'✅ {label} {amount_label}{detail} berhasil dicatat di Kilas Finance.'
+        if action=='record_invoice_payment':
+            invoice=f.get_finance_invoice(b,int(values['invoice_id']),u)
+            totals=f.get_invoice_totals(b,invoice['id'],u)
+            result['message']='✅ Pembayaran '+amount_label+' untuk invoice '+invoice['invoice_number']+' berhasil dicatat. Sisa tagihan: '+fx.format_money(totals['outstanding_minor'],invoice['currency'])+'.'
+        else:
+            account=f.get_account(b,int(values['account_id']),actor_user_id=u)
+            result['message']+=' Rekening: '+account['name']+'.'
         return result
     if action=='recurring':
         result=recurring.confirm(b,u,context['service_token'])
-        result['message']=f'Sudah. Biaya rutin {values.get("name") or values.get("description") or ""} {amount_label} berhasil dijadwalkan.'
+        result['message']=f'Sudah. Biaya rutin {values.get("name") or values.get("description") or ""} {amount_label} berhasil dijadwalkan. Belum ada pengeluaran aktual yang dibuat.'
         return result
     if action=='customer':
         ident=f.create_customer(b,**values,actor_user_id=u,idempotency_key=context['nonce'])
@@ -426,7 +466,7 @@ def confirm(b,u,token):
         return dict(record_id=ident,message='Sudah. Pengeluaran '+fx.format_money(amount,values['currency'])+merchant+' dari struk berhasil dicatat.')
     raise ValueError('invalid_draft')
 
-def document(b,u,files,text,workflow,account_id=''):
+def document(b,u,files,text,workflow,account_id='',document_context=''):
     import finance_bank_service as bank
     import finance_bank_extract as extraction
     authorize(b,u)
@@ -446,7 +486,12 @@ def document(b,u,files,text,workflow,account_id=''):
         if result['fallback']:review_result['message']='Struk belum terbaca dengan yakin. Lengkapi data yang belum jelas sebelum review dan konfirmasi.'
         return review_result
     if workflow not in ('BANK_STATEMENT','HANDWRITTEN_NOTE'):raise ValueError('document_kind')
-    accounts,chosen=account_options(b,u,text,currency_hint(text))
+    detected_currency=''
+    if document_context:
+        detection=unseal(b,u,document_context,'document')
+        if detection['hashes'] != [hashlib.sha256(raw).hexdigest() for _,raw in files]:raise ValueError('invalid_draft')
+        detected_currency=detection['currency']
+    accounts,chosen=account_options(b,u,text,detected_currency or currency_hint(text))
     if account_id:
         chosen=next((a for a in accounts if str(a['id'])==account_id),None)
         if not chosen:raise ValueError('account_unavailable')
@@ -471,3 +516,37 @@ def document(b,u,files,text,workflow,account_id=''):
     if attention:message+=f' Ada {attention} baris yang terlihat duplikat di dalam dokumen.'
     message+=' Saat kamu balas “oke”, saya akan mencatat transaksi yang aman dan menahan yang berpotensi duplikat atau kategorinya belum jelas.'
     return dict(kind='bank_review',title=title,message=message,hint='Balas “oke” untuk memproses, “batal” untuk membatalkan.',ready=True,token=token,preview=preview,count=len(rows),fallback=fallback)
+
+
+def follow_up(b,u,token,message,confirmation=None):
+    import finance_draft_interpreter as interpreter
+    message=operator.text(message,2000)
+    context=unseal(b,u,token,'review')
+    authorize(b,u,None if context['action']=='receipt' else 'OPERATOR')
+    if interpreter.NO.fullmatch(message):return dict(kind='answer',state='CANCELLED',message='Oke, draft dibatalkan. Belum ada pencatatan.')
+    if interpreter.YES.fullmatch(message):
+        if not confirmation:return review(b,u,context)
+        confirmed=unseal(b,u,confirmation,'confirm')
+        # The confirmation must be for exactly the active reviewed values, not an older revision.
+        if any(confirmed.get(k)!=context.get(k) for k in ('action','values','nonce')):raise ValueError('invalid_draft')
+        result=confirm(b,u,confirmation)
+        return dict(kind='success',state='CONFIRMED',**result)
+    current=review(b,u,context)
+    if context['action']=='issue_invoice':
+        current['message']='Balas “oke” untuk menerbitkan invoice yang ditinjau, atau “batal”.'
+        return current
+    updates=interpreter.deterministic(message,context,current['fields'])
+    if not updates:
+        try:
+            import finance_ai_safety as safety
+            if not safety.allow_attempt(u,b,'ai'):raise ValueError('rate_limited')
+            updates=interpreter.interpret(message,context,current['fields'])
+        except (ValueError,requests.RequestException,TypeError,KeyError):updates={}
+    if not updates:
+        current['message']='Bagian mana yang mau diubah? Sebut nama kolom dan nilainya, atau balas “oke” untuk menyimpan.'
+        return current
+    try:values=interpreter.resolve(updates,context,current['fields'])
+    except ValueError:
+        current['message']='Pilihan atau tanggal belum jelas. Pilih nama yang tersedia atau tulis tanggal lengkap; draft sebelumnya tetap aman.'
+        return current
+    return review(b,u,context,values)

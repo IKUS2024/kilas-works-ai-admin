@@ -84,7 +84,8 @@ class UnifiedTests(unittest.TestCase):
     def test_visual_timeout_safe_and_retry_manual(self):
         import requests
         self.http.side_effect=requests.Timeout('PRIVATE')
-        response=self.recognize();self.assertEqual(response.json['workflow'],'NEEDS_CLARIFICATION')
+        response=self.recognize();self.assertEqual(response.status_code,503)
+        self.assertIn('Dokumen berhasil dibuka',response.json['error'])
         self.assertNotIn('PRIVATE',response.text)
     def test_visual_tenant_access_and_expiry(self):
         self.assertEqual(self.recognize(url=f'/business/{self.other}/finance/assistant').status_code,404)
