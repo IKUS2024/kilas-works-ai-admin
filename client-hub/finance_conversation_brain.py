@@ -448,7 +448,26 @@ def exact_updates(message,context,current):
         return {'email':raw}
     if spec and spec.get('options') and len(raw)<=120 and '?' not in raw:
         candidate=re.sub(r'^\s*(?:pakai|gunakan|pilih|rekening|akun|kategori|customer|pelanggan|invoice|proyek)\s+','',raw,flags=re.I)
-        candidate=re.sub(r'\s+(?:aja|saja|ya|dong)
+        candidate=re.sub(r'\s+(?:aja|saja|ya|dong)$','',candidate,flags=re.I).strip()
+        def norm(value):return re.sub(r'[^0-9a-z]+',' ',value.casefold()).strip()
+        value=norm(candidate);ranked=[]
+        if value and not re.search(r'\b(buat|catat|tambah|hapus|ubah|cek|lihat|laporan)\b',value):
+            for option in spec['options']:
+                name=norm(option['label'].split('·')[0].strip())
+                if not name:continue
+                score=max(SequenceMatcher(None,value,name).ratio(),
+                          max((SequenceMatcher(None,value,part).ratio() for part in name.split()),default=0))
+                ranked.append((score,option))
+        ranked.sort(key=lambda x:x[0],reverse=True)
+        if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.08):
+            return {reverse.get(key,key):candidate}
+    if key=='name' and 1<=len(raw)<=160 and '?' not in raw and not re.search(
+            r'^\s*(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan|invoice|pemasukan|pengeluaran)\b',raw,re.I):
+        return {'name':raw}
+    if key=='item_description' and 1<=len(raw)<=500 and '?' not in raw and not re.search(
+            r'^\s*(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan)\b',raw,re.I):
+        return {'item_description':raw}
+    return {}
 
 def pending(b,u,message,context,current,query_context=''):
     previous=dict(context.get('conversation',{}))
