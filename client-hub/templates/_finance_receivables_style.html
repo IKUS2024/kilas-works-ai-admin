@@ -38,3 +38,32 @@
 .finance-danger{border-color:rgba(235,87,87,.45)!important;color:#ff8f8f!important}
 @media(max-width:560px){.fin-invoice-amounts{grid-template-columns:1fr 1fr}.fin-invoice-amounts span:last-child{grid-column:1/-1}}
 </style>
+
+
+<style>
+.fin-menu-card{padding-bottom:14px}
+.fin-receivable-explainer{padding:14px 16px;margin-bottom:14px}
+.fin-receivable-explainer strong{display:block;margin-bottom:5px}.fin-receivable-explainer p{margin:0;color:var(--muted);line-height:1.5;font-size:13px}
+.fin-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.fin-summary-card{min-height:116px;padding:15px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+.fin-summary-card strong{font-size:25px;line-height:1.1}.fin-summary-card small{color:var(--muted);font-size:11px;line-height:1.35}
+.fin-summary-label{font-weight:800;font-size:13px}.fin-summary-money{grid-column:span 2}
+.fin-compact-money{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted)}
+.fin-compact-money b{color:inherit;margin-left:3px}.fin-accounting-note{margin:0!important;font-size:11px;color:var(--muted)}
+.fin-invoice-compact{gap:6px;padding:12px 0}.fin-invoice-compact .fin-invoice-actions .btn{margin-top:2px}
+.fin-search-row,.fin-filter-bar{display:flex;flex-wrap:wrap;align-items:end;gap:9px;padding:12px 0 4px}
+.fin-search-row label,.fin-filter-bar label{margin:0;min-width:150px}.fin-grow{flex:1 1 220px}
+.fin-inline-edit{margin-top:8px;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,.04);min-width:min(480px,82vw)}
+.fin-inline-edit textarea{min-height:76px}
+.fin-pagination{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.fin-pagination .btn{margin:0}
+@media(max-width:560px){
+  .fin-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .fin-summary-card{min-height:96px;padding:12px}.fin-summary-card strong{font-size:21px}.fin-summary-money{grid-column:1/-1}
+  .fin-invoice-compact .fin-invoice-head{align-items:flex-start}.fin-invoice-compact .fin-invoice-number{font-size:14px}
+  .fin-invoice-compact .fin-invoice-meta{font-size:10px}.fin-compact-money{font-size:11px;gap:4px 9px}
+  .fin-filter-bar{display:grid;grid-template-columns:1fr 1fr}.fin-filter-bar .fin-grow{grid-column:1/-1}.fin-filter-bar button{grid-column:1/-1}
+  .fin-search-row{display:grid;grid-template-columns:1fr auto}.fin-search-row .fin-grow{min-width:0}
+  .fin-inline-edit{min-width:0;width:min(78vw,430px)}
+}
+</style>
