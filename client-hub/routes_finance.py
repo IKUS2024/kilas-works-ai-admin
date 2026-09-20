@@ -69,6 +69,15 @@ def finance_access(view):
             if request.is_json:
                 return jsonify(error='Pilih satu cabang aktif. Data antar cabang tidak digabung.'), 403
             abort(403)
+        if selected is not None:
+            selected_row = next((branch for branch in branch_list if str(branch['id']) == str(selected)), None)
+            if selected_row is not None and not selected_row['is_active']:
+                if request.method in ('GET','HEAD') and fallback_branch:
+                    selected = str(fallback_branch['id'])
+                else:
+                    if request.is_json:
+                        return jsonify(error='Cabang tersebut sudah dihapus atau tidak aktif.'), 403
+                    abort(403)
         try:
             branch_id = record_id(selected) if selected is not None else None
             selected_branch = branches.get(business_id, branch_id) if branch_id is not None else None
