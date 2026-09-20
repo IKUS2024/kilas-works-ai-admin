@@ -23,11 +23,36 @@ def account(business_id,account_id,user_id):
     return row
 
 
+def extraction_metadata(business_id,import_id):
+    return {r['row_index']:json.loads(r['metadata']) for r in db.query_all(
+        'SELECT row_index,metadata FROM finance_bank_extraction_reviews WHERE business_id=? AND import_id=?',
+        (business_id,import_id))}
+
+
+def store_extraction_metadata(imp,source):
+    # Called only while holding the import's Finance write lock. Keys are server-generated.
+    metadata={0:dict(currencies=source.get('currencies',[]))}
+    metadata.update({int(k):v for k,v in source.get('row_reviews',{}).items()})
+    for index,data in metadata.items():
+        db.execute('INSERT INTO finance_bank_extraction_reviews (business_id,import_id,row_index,metadata) '
+            'VALUES (?,?,?,?) ON CONFLICT(business_id,import_id,row_index) DO UPDATE SET metadata=excluded.metadata',
+            (imp['business_id'],imp['id'],index,json.dumps(data,separators=(',',':'))))
+
+
+def extraction_notice(imp,currency):
+    others=[c for c in imp.get('extraction',{}).get('currencies',[]) if c!=currency]
+    if not others:return ''
+    return (' Bagian '+', '.join(others)+' juga ditemukan dan tidak dimasukkan ke rekening ini. '
+            'Untuk bagian tersebut, unggah dokumen yang sama lalu pilih rekening dengan mata uang yang sesuai; '
+            'jika ada beberapa rekening, pilih rekening tujuan secara eksplisit.')
+
+
 def get_import(business_id,import_id,user_id):
     f._id(user_id)
     f._scope(business_id,user_id)
     row=db.query_one(('SELECT * FROM finance_bank_imports WHERE business_id=?' + branches.predicate('') + ' AND id=?'),(business_id,f._id(import_id)))
     if not row:raise f.FinanceError('bank_unavailable')
+    row['extraction']=extraction_metadata(business_id,import_id).get(0,{})
     return row
 
 
@@ -39,7 +64,10 @@ def get_rows(business_id,import_id,user_id):
         'WHERE r.business_id=? AND r.import_id=? ORDER BY r.row_index LIMIT 1001',(business_id,import_id))
     if len(rows)>1000:raise f.FinanceError('bank_volume_limit')
     counts=Counter((r['occurred_on'],r['direction'],r['amount_minor'],r['description'],r['reference']) for r in rows)
+    metadata=extraction_metadata(business_id,import_id)
     for row in rows:
+        row['extraction_review']=metadata.get(row['row_index'],{})
+        row['held_for_review']=bool(row['extraction_review'])
         row['possible_overlap']=counts[(row['occurred_on'],row['direction'],row['amount_minor'],row['description'],row['reference'])]>1
         linked=row['matched_transaction_id'] or row['created_transaction_id']
         row['needs_attention']=bool(linked and (row['linked_status']!='POSTED' or row['linked_amount']!=row['amount_minor']
@@ -88,14 +116,15 @@ def stage(business_id,account_id,source,rows,user_id):
             'VALUES (?,?,?,?,?,?,?,?,?,?)',(business_id,branches.account_branch(business_id,account_id),account_id,source['kind'],source['label'],source['identity'],source['count'],user_id,now,now))
         imp=get_import(business_id,import_id,user_id)
         for index,row in enumerate(rows,1):insert_row(imp,index,row)
+        store_extraction_metadata(imp,source)
         f._audit(business_id,user_id,'FINANCE_BANK_IMPORT_CREATED',import_id)
         return import_id
 
 
-def analyze(business_id,account_id,files,user_id,document_kind='bank'):
+def analyze(business_id,account_id,files,user_id,document_kind='bank',*,validated_source=None):
     account(business_id,account_id,user_id)
     if document_kind not in ('bank','notes'):raise ValueError('document_kind')
-    source=extraction.validate_sources(files)
+    source=validated_source if validated_source is not None else extraction.validate_sources(files)
     if document_kind=='notes':
         if source['kind']=='CSV':raise ValueError('notes_format')
         source['document_kind']='notes'
@@ -113,6 +142,7 @@ def analyze(business_id,account_id,files,user_id,document_kind='bank'):
             if (not fallback and current['status']=='REVIEW' and current['revision']==imp['revision']
                     and not get_rows(business_id,imp['id'],user_id)):
                 for index,row in enumerate(rows,1):insert_row(current,index,extraction.normalize(row))
+                store_extraction_metadata(current,source)
                 db.execute('UPDATE finance_bank_imports SET revision=revision+1,display_label=?,updated_at=? WHERE business_id=? AND id=?',
                            (source['label'],repo._now(),business_id,imp['id']))
                 f._audit(business_id,user_id,'FINANCE_BANK_IMPORT_REEXTRACTED',imp['id'])
@@ -225,6 +255,8 @@ def decide(business_id,import_id,row_id,action,user_id,*,transaction_id=None,fie
         if imp['status'] not in ('OPEN','COMPLETED'):raise f.FinanceError('bank_not_open')
         state=row['reconciliation_status']
         data=None;tx=None
+        if action in ('post','match') and extraction_metadata(business_id,import_id).get(row['row_index']):
+            raise f.FinanceError('bank_extraction_review_required')
         if action=='post':
             if not isinstance(fields,dict) or set(fields)!={'category_id','occurred_on','description','counterparty_name'}:
                 raise f.FinanceError('bank_invalid_fields')

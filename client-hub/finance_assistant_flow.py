@@ -207,7 +207,10 @@ def _bank_preview(row,currency):
     label=row['occurred_on']+' · '+direction
     description=(row['description'] or 'Tanpa keterangan').strip()
     if len(description)>80:description=description[:77]+'…'
-    return [label,fx.format_money(row['amount_minor'],currency)+' · '+description]
+    review=row.get('extraction_review',{})
+    if review:label+=' · DITAHAN'
+    amount=(review['original_amount']+' '+currency+' (nominal asli)') if review.get('precision') else fx.format_money(row['amount_minor'],currency)
+    return [label,amount+' · '+description]
 
 
 def _bank_confirm(b,u,context):
@@ -226,7 +229,7 @@ def _bank_confirm(b,u,context):
     for row in bank.get_rows(b,imp['id'],u):
         if row['reconciliation_status']!='UNMATCHED':
             already+=1;continue
-        if row['possible_overlap'] or row['needs_attention'] or candidates.get(row['id']):
+        if row.get('held_for_review') or row['possible_overlap'] or row['needs_attention'] or candidates.get(row['id']):
             held+=1;continue
         categories=f.list_categories(b,row['direction'],actor_user_id=u)
         category_id=category_choice(categories,row['description'] or '') or _other_category(categories)
@@ -242,7 +245,7 @@ def _bank_confirm(b,u,context):
                 held+=1;continue
             raise
     suffix=''
-    if held:suffix=f' {held} transaksi saya tahan karena kemungkinan duplikat atau kategorinya belum cukup jelas; tidak saya catat otomatis.'
+    if held:suffix=f' {held} transaksi saya tahan untuk review FX/pecahan nominal, kemungkinan duplikat, atau kategori yang belum jelas; tidak saya catat otomatis.'
     if already:suffix+=f' {already} baris sudah pernah diproses sebelumnya.'
     dates=[row['occurred_on'] for row in rows if row.get('occurred_on')]
     date_note=''
@@ -580,21 +583,27 @@ def document(b,u,files,text,workflow,account_id='',document_context=''):
         detection=unseal(b,u,document_context,'document')
         if detection['hashes'] != [hashlib.sha256(raw).hexdigest() for _,raw in files]:raise ValueError('invalid_draft')
         detected_currency=detection['currency']
-    accounts,chosen=account_options(b,u,text,detected_currency or currency_hint(text))
+    source=extraction.validate_sources(files)
+    detected=[]
+    if workflow=='BANK_STATEMENT' and source['kind']=='PDF':
+        detected=sorted({p['currency'] for p in extraction.statement.sections(source['sources'][0].get('text'))
+                         if p['currency'] in f.SUPPORTED_CURRENCIES})
+    # An AI classifier's single currency is not authoritative for a multi-section PDF.
+    preferred=detected[0] if len(detected)==1 else ('' if len(detected)>1 else detected_currency or currency_hint(text))
+    accounts,chosen=account_options(b,u,text,preferred)
     if account_id:
+        accounts=f.list_accounts(b,actor_user_id=u)
         chosen=next((a for a in accounts if str(a['id'])==account_id),None)
         if not chosen:raise ValueError('account_unavailable')
     if not chosen:
-        # Validate before asking, without processing the same source twice on a ready path.
-        extraction.validate_sources(files)
         return dict(kind='document_account',title='Catatan keuangan' if workflow=='HANDWRITTEN_NOTE' else 'Mutasi bank',
-                    workflow=workflow,message='Pilih rekening untuk melanjutkan. Gunakan mata uang yang sama dengan dokumen.',
+                    workflow=workflow,message=('Bagian '+', '.join(detected)+' ditemukan. ' if detected else '')+'Pilih rekening tujuan untuk satu bagian. Bagian mata uang lain tidak dimasukkan ke rekening ini.',
                     fields=[field('account_id','Kas / Rekening','',[dict(value=str(a['id']),label=a['name']+' · '+a['currency']) for a in accounts])])
-    ident,fallback=bank.analyze(b,chosen['id'],files,u,document_kind='notes' if workflow=='HANDWRITTEN_NOTE' else 'bank')
+    ident,fallback=bank.analyze(b,chosen['id'],files,u,document_kind='notes' if workflow=='HANDWRITTEN_NOTE' else 'bank',validated_source=source)
     imp=bank.get_import(b,ident,u);rows=bank.get_rows(b,ident,u)
     title='Catatan keuangan' if workflow=='HANDWRITTEN_NOTE' else 'Mutasi bank'
     if not rows:
-        return dict(kind='answer',title=title,message='Dokumennya berhasil saya buka, tapi transaksi belum terbaca dengan cukup yakin. Coba kirim PDF asli atau foto/scan yang lebih jelas. Belum ada data yang saya catat.',count=0,fallback=fallback)
+        return dict(kind='answer',title=title,message='Belum ada baris transaksi untuk direview. Coba ulang dokumen yang sama atau tambahkan baris manual. Belum ada data yang saya catat.',count=0,fallback=fallback)
     currency=chosen['currency'];attention=sum(bool(r['possible_overlap']) for r in rows)
     preview=[_bank_preview(row,currency) for row in rows[:8]]
     if len(rows)>8:preview.append(['Lainnya',str(len(rows)-8)+' transaksi lagi'])
@@ -602,6 +611,9 @@ def document(b,u,files,text,workflow,account_id='',document_context=''):
         return dict(kind='answer',title=title,message=f'Saya membaca {len(rows)} transaksi, tetapi terlalu banyak untuk konfirmasi chat sekali jalan. Pecah mutasi per bulan atau maksimal {BANK_CHAT_LIMIT} transaksi supaya aman.',preview=preview,count=len(rows),fallback=fallback)
     token=seal(b,u,'confirm',dict(action='bank_import',import_id=ident,revision=imp['revision'],document_kind=workflow,nonce=uuid.uuid4().hex))
     message=f'Saya menemukan {len(rows)} transaksi pada {chosen["name"]} ({currency}).'
+    message+=bank.extraction_notice(imp,currency)
+    held=sum(bool(r.get('held_for_review')) for r in rows)
+    if held:message+=f' {held} baris ditahan untuk review transfer FX atau pecahan nominal; tidak akan dicatat sebagai pemasukan/pengeluaran otomatis. Buka review impor bank untuk rinciannya.'
     if attention:message+=f' Ada {attention} baris yang terlihat duplikat di dalam dokumen.'
     message+=' Saat kamu balas “oke”, saya akan mencatat transaksi yang aman dan menahan yang berpotensi duplikat atau kategorinya belum jelas.'
     return dict(kind='bank_review',title=title,message=message,hint='Balas “oke” untuk memproses, “batal” untuk membatalkan.',ready=True,token=token,preview=preview,count=len(rows),fallback=fallback)

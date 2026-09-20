@@ -85,7 +85,7 @@ class UnifiedTests(unittest.TestCase):
         import requests
         self.http.side_effect=requests.Timeout('PRIVATE')
         response=self.recognize();self.assertEqual(response.status_code,503)
-        self.assertIn('Dokumen berhasil dibuka',response.json['error'])
+        self.assertIn('Layanan ekstraksi sementara gagal',response.json['error'])
         self.assertNotIn('PRIVATE',response.text)
     def test_visual_tenant_access_and_expiry(self):
         self.assertEqual(self.recognize(url=f'/business/{self.other}/finance/assistant').status_code,404)
@@ -171,23 +171,24 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(row['status'],'REVIEW');self.assertIn('Catatan',row['display_label'])
     def test_bank_empty_failure_can_retry_same_file(self):
         self.model({'readable':False,'rows':[]})
-        ident,fallback=bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid)
-        self.assertTrue(fallback);self.assertEqual(bank.get_rows(self.b,ident,self.uid),[])
+        with self.assertRaises(extraction.BankError):bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid)
+        ident=bank.stage(self.b,self.a,extraction.validate_sources([('a.png',self.raw)]),[],self.uid)
         self.model(self.result)
         second,fallback=bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid)
         self.assertEqual(second,ident);self.assertFalse(fallback)
         self.assertEqual(len(bank.get_rows(self.b,ident,self.uid)),1);self.assertEqual(f.list_transactions(self.b),[])
     def test_bank_retry_never_overwrites_manual_rows(self):
         self.model({'readable':False,'rows':[]})
-        ident,_=bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid)
+        ident=bank.stage(self.b,self.a,extraction.validate_sources([('a.png',self.raw)]),[],self.uid)
         bank.edit_row(self.b,ident,None,0,self.row,self.uid)
         before=self.snapshot();self.http.reset_mock()
         self.assertEqual(bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid),(ident,False))
         self.assertEqual(before,self.snapshot());self.http.assert_not_called()
     def test_bank_truncated_response_no_partial_rows(self):
         self.model(self.result,'max_tokens')
-        ident,fallback=bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid)
-        self.assertTrue(fallback);self.assertEqual(bank.get_rows(self.b,ident,self.uid),[])
+        with self.assertRaisesRegex(extraction.BankError,'invalid_result'):
+            bank.analyze(self.b,self.a,[('a.png',self.raw)],self.uid)
+        self.assertIsNone(db.query_one('SELECT id FROM finance_bank_imports WHERE business_id=?',(self.b,)))
     def test_semicolon_tab_csv_and_ambiguous_direction(self):
         for sep in (';','\t'):
             raw=sep.join(['tanggal','keterangan','jumlah','jenis'])+'\n'+sep.join(['17/09/2026','bensin','100.000,00','KELUAR'])

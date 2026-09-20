@@ -81,7 +81,8 @@ def main():
         if len(text.strip()) < 40 or len(text) > 20000:
             complete_text = False
         parts.append(text[:20000])
-    text = '\n'.join(parts)
+    # A form feed preserves page ownership without changing the bounded worker protocol.
+    text = ('\f' if document else '\n').join(parts)
     # Mixed scanned/text documents and truncated extraction require the PDF document path.
     # Preserve the receipt worker's original text behavior and limits.
     if not complete_text or len(text) > text_limit:

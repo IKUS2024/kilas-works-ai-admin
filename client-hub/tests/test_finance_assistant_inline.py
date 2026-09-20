@@ -235,7 +235,7 @@ class InlineTests(unittest.TestCase):
         self.assertEqual(f.list_transactions(self.b),[])
     def test_notes_and_uncertain_notes_never_post(self):
         self.model(self.result);r=self.document('HANDWRITTEN_NOTE');self.assertEqual(r.status_code,200);self.assertEqual(r.json['count'],1);self.assertIn('FINANCIAL NOTE',self.http.call_args.kwargs['json']['system'])
-        self.model(dict(rows=[],readable=False));r=self.document('HANDWRITTEN_NOTE',pdf_bytes(),'scan.pdf');self.assertEqual(r.status_code,200);self.assertEqual(r.json['count'],0);self.assertTrue(r.json['fallback']);self.assertEqual(f.list_transactions(self.b),[])
+        self.model(dict(rows=[],readable=False));r=self.document('HANDWRITTEN_NOTE',pdf_bytes(),'scan.pdf');self.assertEqual(r.status_code,422);self.assertIn('Coba ulang',r.json['error']);self.assertEqual(f.list_transactions(self.b),[])
     def test_bank_account_ambiguity_then_only_account(self):
         f.create_account(self.b,'Other',actor_user_id=self.uid)
         r=self.document('BANK_STATEMENT',self.csv,'bank.csv');self.assertEqual(r.json['kind'],'document_account');self.assertEqual([f['key'] for f in r.json['fields']],['account_id']);self.http.assert_not_called()

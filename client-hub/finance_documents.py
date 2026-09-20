@@ -38,7 +38,7 @@ def recognize(business_id, user_id, files, text, detailed=False):
     if source['kind'] == 'CSV':
         return 'BANK_STATEMENT'
     if not safety.allow_attempt(user_id, business_id, 'ai'):
-        return 'NEEDS_CLARIFICATION'
+        raise DocumentProviderError('rate_limited')
     try:
         key, model = extraction.configuration()
         content = extraction.provider_content(source)
@@ -48,6 +48,8 @@ def recognize(business_id, user_id, files, text, detailed=False):
             json={'model': model, 'max_tokens': 160, 'system': SYSTEM,
                   'messages': [{'role': 'user', 'content': content}]},
             timeout=(5, 20), allow_redirects=False)
+        if response.status_code == 429:
+            raise DocumentProviderError('rate_limited')
         if response.status_code != 200:
             raise DocumentProviderError('document_provider_failure')
         result = safety.json_object(safety.response_text(response.json(), 1000))
@@ -61,7 +63,10 @@ def recognize(business_id, user_id, files, text, detailed=False):
             context=seal(business_id,user_id,'document',dict(currency=result['currency'],hashes=[hashlib.sha256(raw).hexdigest() for _,raw in files]))
             return dict(workflow=result['workflow'],document_context=context)
         return result['workflow']
-    except (DocumentProviderError, requests.RequestException):
+    except DocumentProviderError as error:
+        safety.event('rate_limited' if str(error)=='rate_limited' else 'upstream_failure')
+        raise
+    except requests.RequestException:
         safety.pdf_event('provider_failure')
         raise DocumentProviderError('document_provider_failure') from None
     except (ValueError, TypeError, KeyError, AttributeError, RecursionError):

@@ -12,6 +12,7 @@ import requests
 import file_utils
 import finance_service as finance
 import finance_ai_safety as safety
+import finance_bank_statement as statement
 
 MAX_ROWS = 1000
 ROW_KEYS = {'transaction_date','description','direction','amount_minor','reference'}
@@ -46,6 +47,83 @@ return readable=false and rows=[] so the user can enter the note manually. Never
 
 class BankError(ValueError):
     pass
+
+
+ERROR_MESSAGES = {
+    'rate_limited': ('Ekstraksi sementara dibatasi. Tunggu sebentar lalu coba lagi; belum ada transaksi dicatat.', 429),
+    'upstream_failure': ('Layanan ekstraksi sementara gagal. Coba lagi sebentar; belum ada transaksi dicatat.', 503),
+    'network_failure': ('Koneksi layanan ekstraksi sementara gagal. Coba lagi sebentar.', 503),
+    'timeout': ('Layanan ekstraksi belum merespons tepat waktu. Coba lagi sebentar.', 503),
+    'not_configured': ('Layanan ekstraksi belum tersedia. Hubungi pengelola aplikasi.', 503),
+    'invalid_result': ('Hasil ekstraksi belum dapat divalidasi. Coba ulang dokumen yang sama atau review manual; belum ada transaksi dicatat.', 422),
+    'parser_uncertain': ('Struktur transaksi belum dapat dipastikan. Coba ulang dokumen yang sama untuk review; belum ada transaksi dicatat.', 422),
+    'currency_mismatch': ('Tidak ditemukan bagian dengan mata uang rekening ini. Pilih rekening yang sesuai dengan bagian dokumen.', 422),
+}
+
+BANK_SYSTEM = SYSTEM.replace('"amount_minor":positive integer',
+    '"currency":"ISO code","amount":"exact decimal string"').replace(
+    'The caller supplies exactly one account currency. Extract every amount in that currency only and never convert currencies, perform arithmetic or invent missing values.',
+    'Preserve the printed currency of each section. Never convert currencies or invent missing values.').replace(
+    'For IDR/JPY amount_minor is whole units. For other supported currencies amount_minor is minor units, e.g. USD 12.34 => 1234.',
+    'Amounts are exact major-unit decimal strings, including fractional IDR/JPY.') + '''
+For bank documents, each row MUST additionally include currency (printed section ISO code)
+and amount (the exact major-unit decimal string without grouping, e.g. "123.45").
+Do not round fractional IDR/JPY: amount preserves the original precision. amount_minor is
+optional when amount is present. Preserve physical pages and currency sections; NEVER use
+amounts embedded in transfer descriptions as the row amount. DD/MM dates use the visible
+statement period/year; never today's year. If a page/section currency or year is unknown,
+return readable=false. When inspecting an original PDF, include ALL currencies and mark each
+row with its own section currency. Do not treat foreign-currency funding/self transfers as
+sales: preserve transfer and currency wording in descriptions for mandatory FX review.
+'''
+
+
+def extraction_error(reason):
+    reason = reason if reason in ERROR_MESSAGES else 'invalid_result'
+    safety.event(reason if reason != 'parser_uncertain' else 'invalid_result')
+    return BankError(reason)
+
+
+def select_rows(source, rows, currency):
+    """Validate currency before normalization; persist only selected-account rows."""
+    normalized=[];reviews={};detected=set(source.get('currencies', []))
+    # An explicit shared transfer reference on opposite currency legs is a review signal,
+    # never authority to create an FX exchange or select destination accounts.
+    pairs={}
+    for row in rows:
+        if isinstance(row,dict) and isinstance(row.get('reference'),str) and row['reference'].strip():
+            key=(row.get('transaction_date'),row['reference'])
+            pairs.setdefault(key,[]).append((row.get('currency'),row.get('direction')))
+    paired={key for key,legs in pairs.items() if len({code for code,_ in legs if code})>1
+            and {direction for _,direction in legs}=={'INCOME','EXPENSE'}}
+    for row in rows:
+        if not isinstance(row,dict):raise BankError('invalid_result')
+        item=dict(row)
+        code=item.pop('currency',None)
+        if code is None:
+            # Legacy image/note responses are supported; bank PDFs require section evidence.
+            if source['kind']=='PDF' and source.get('document_kind')!='notes':
+                raise BankError('invalid_result')
+            code=currency
+        code=finance._currency(code);detected.add(code)
+        amount=item.pop('amount',None)
+        review={}
+        if amount is not None:
+            item['amount_minor'],review=statement.review_amount(amount,code)
+        elif source['kind']=='PDF' and source.get('document_kind')!='notes':
+            raise BankError('invalid_result')
+        if (statement.possible_fx(str(item.get('description','')),code)
+                or (isinstance(item.get('reference'),str) and (item.get('transaction_date'),item['reference']) in paired)):
+            review['fx']=True
+        cleaned=normalize(item)
+        if code!=currency:continue
+        normalized.append(cleaned)
+        if review:reviews[str(len(normalized))]=review
+    if not normalized:raise BankError('currency_mismatch' if detected and currency not in detected else 'parser_uncertain')
+    source['currencies']=sorted(detected)
+    source['row_reviews']=reviews
+    return normalized
+
 
 
 def privacy_text(value, maximum, nullable=False):
@@ -246,14 +324,26 @@ def ai_rows(source,currency):
     content=provider_content(source)
     response=requests.post('https://api.anthropic.com/v1/messages',
         headers={'x-api-key':key,'anthropic-version':'2023-06-01','content-type':'application/json'},
-        json={'model':model,'max_tokens':12000,'system':(NOTES_SYSTEM if source.get('document_kind')=='notes' else SYSTEM)+'\nSelected account currency: '+currency+'. Return amounts only in this currency.', 'messages':[{'role':'user','content':content}]},
+        json={'model':model,'max_tokens':12000,'system':(NOTES_SYSTEM if source.get('document_kind')=='notes' else BANK_SYSTEM)+'\nSelected account currency: '+currency+'. Never relabel another section as this currency.', 'messages':[{'role':'user','content':content}]},
         timeout=(5,45),allow_redirects=False)
+    if response.status_code==429:raise BankError('rate_limited')
     if response.status_code!=200:raise BankError('upstream_failure')
     result=safety.json_object(safety.response_text(response.json(),800000))
     if (set(result)!={'rows','readable'} or type(result['readable']) is not bool or not isinstance(result['rows'],list)
-            or len(result['rows'])>MAX_ROWS or not result['readable'] or not result['rows']):
+            or len(result['rows'])>MAX_ROWS):
         raise BankError('invalid_result')
-    return [normalize(row) for row in result['rows']]
+    if not result['readable'] or not result['rows']:raise BankError('parser_uncertain')
+    return select_rows(source,result['rows'],currency)
+
+
+def provider_attempt(source,user_id,business_id,currency):
+    if not safety.allow_attempt(user_id,business_id,'ai'):raise extraction_error('rate_limited')
+    try:return ai_rows(source,currency)
+    except BankError as error:raise extraction_error(str(error)) from None
+    except requests.Timeout:raise extraction_error('timeout') from None
+    except requests.RequestException:raise extraction_error('network_failure') from None
+    except (ValueError,TypeError,KeyError,AttributeError,RecursionError):
+        raise extraction_error('invalid_result') from None
 
 
 def extract(source,user_id,business_id,currency='IDR'):
@@ -281,16 +371,36 @@ def extract(source,user_id,business_id,currency='IDR'):
             if len(meanings)!=len(set(meanings)) or ({'debit','credit'} & set(meanings) and {'amount','direction'} & set(meanings)):
                 raise BankError('ambiguous_header')
             source=dict(source,sources=[dict(source['sources'][0],text=text)])
-    if not safety.allow_attempt(user_id,business_id,'ai'):return [],True
-    try:return ai_rows(source,currency),False
-    except (ValueError,TypeError,KeyError,AttributeError,RecursionError,requests.RequestException):
-        safety.event('invalid_result')
-        # A text layer may be readable yet have broken column order/encoding. Retry once
-        # with the already-validated original PDF; never send model-generated text back in.
-        if (source['kind']=='PDF' and source['sources'][0].get('text')
-                and safety.allow_attempt(user_id,business_id,'ai')):
-            visual=dict(source,sources=[dict(item,text=None) for item in source['sources']])
-            try:return ai_rows(visual,currency),False
-            except (ValueError,TypeError,KeyError,AttributeError,RecursionError,requests.RequestException):
+    if source['kind']=='PDF' and source.get('document_kind')!='notes':
+        text=source['sources'][0].get('text') or ''
+        parts=statement.sections(text)
+        source['currencies']=sorted({p['currency'] for p in parts if p['currency']})
+        rows=statement.parse(text)
+        if rows is not None:
+            try:return select_rows(source,rows,currency),False
+            except ValueError as error:
+                if str(error)=='currency_mismatch':raise extraction_error('currency_mismatch') from None
+                # A supported table can still contain a field outside staging bounds.
+                # Keep the original document available for the normal bounded AI path.
                 safety.event('invalid_result')
-        return [],True
+        if source['currencies'] and all(p['currency'] for p in parts):
+            if currency not in source['currencies']:raise extraction_error('currency_mismatch')
+            # Only this currency's text goes to the text model. The original bytes remain
+            # unchanged for duplicate identity and the bounded original-PDF visual retry.
+            selected='\f'.join(p['text'] for p in parts if p['currency']==currency)
+            provider_source=dict(source,sources=[dict(source['sources'][0],text=selected)])
+        else:provider_source=source
+    else:provider_source=source
+    try:
+        rows=provider_attempt(provider_source,user_id,business_id,currency)
+    except BankError as error:
+        # Only uncertainty/invalid model output merits a visual retry. An outage or quota
+        # is not a document failure and never turns into a successful empty import.
+        if (str(error) not in ('invalid_result','parser_uncertain') or source['kind']!='PDF'
+                or not source['sources'][0].get('text')):raise
+        safety.pdf_event('vision_fallback')
+        provider_source=dict(source,sources=[dict(item,text=None) for item in source['sources']])
+        rows=provider_attempt(provider_source,user_id,business_id,currency)
+    for key in ('currencies','row_reviews'):
+        if key in provider_source:source[key]=provider_source[key]
+    return rows,False

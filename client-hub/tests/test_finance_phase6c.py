@@ -466,8 +466,8 @@ class AssistantTests(unittest.TestCase):
 
     def test_bank_shared_quota_fallback(self):
         for _ in range(6):safety.allow_attempt(self.uid,self.b,'ai')
-        i=self.import_id(self.upload([('a.png',self.raw)]))
-        self.assertEqual(self.rows(i),[]);self.assertEqual(self.imp(i)['status'],'REVIEW');self.http.assert_not_called()
+        self.assertEqual(self.upload([('a.png',self.raw)]).status_code,429)
+        self.assertEqual(self.ledger(),[]);self.http.assert_not_called()
 
     def test_confirmation_spends_no_ai_quota(self):
         token=self.draft().json['token'];before={k:list(v) for k,v in safety._RATE.items() if k[0]=='ai'}

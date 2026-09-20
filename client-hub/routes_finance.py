@@ -1072,6 +1072,10 @@ def bank_safe(view):
             return view(*args, **kwargs)
         except HTTPException:
             raise
+        except bank_extract.BankError as error:
+            return bank_extract.ERROR_MESSAGES.get(str(error),('Permintaan impor belum valid. Periksa isian.',400))
+        except file_utils.UploadRejected as error:
+            return str(error),400
         except (ValueError, file_utils.UploadRejected) as error:
             ai_safety.upload_event(error.code if isinstance(error,file_utils.UploadRejected) else str(error))
             unavailable=str(error) in ('bank_unavailable','bank_row_unavailable','business_unavailable')
@@ -1413,8 +1417,12 @@ def assistant_json_errors(response):
 
 
 def assistant_error(error):
+    if isinstance(error,bank_extract.BankError) and str(error) in bank_extract.ERROR_MESSAGES:
+        message,status=bank_extract.ERROR_MESSAGES[str(error)]
+        return jsonify(error=message),status
     if isinstance(error,finance_documents.DocumentProviderError):
-        return jsonify(error='Dokumen berhasil dibuka, tapi AI belum berhasil membacanya. Coba lagi sebentar.'),503
+        message,status=bank_extract.ERROR_MESSAGES.get(str(error),bank_extract.ERROR_MESSAGES['upstream_failure'])
+        return jsonify(error=message),status
     if isinstance(error,file_utils.UploadRejected):
         ai_safety.upload_event(error.code)
         return jsonify(error=str(error)),400
