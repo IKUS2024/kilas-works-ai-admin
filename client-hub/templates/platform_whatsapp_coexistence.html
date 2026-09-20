@@ -74,7 +74,7 @@
       <p id="platform-wa-status" role="status" aria-live="polite">Menyiapkan Meta Embedded Signup…</p>
       <script type="application/json" id="platform-wa-config">{{ signup_config|tojson }}</script>
       <input type="hidden" id="platform-wa-csrf" value="{{ csrf_token() }}">
-      <script src="{{ url_for('static', filename='platform_whatsapp_coexistence.js') }}" defer></script>
+      <script src="{{ url_for('static', filename='platform_whatsapp_coexistence.js', v='20260921-1') }}" defer></script>
       {% else %}
       <p>Konfigurasi Embedded Signup belum tersedia.</p>
       {% endif %}
