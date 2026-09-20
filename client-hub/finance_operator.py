@@ -88,7 +88,7 @@ def validate_request(payload):
     question=text(payload['request'],1000)
     fields=dict(account_id=finance._id(payload['account_id']), category_id=finance._id(payload['category_id']),
                 date=finance._date(payload['date']), invoice_id=payload['invoice_id'],currency=None)
-    if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
+    if fields['date'] > finance.business_today(business_id).isoformat(): raise OperatorError('future_date')
     if action=='record_invoice_payment': finance._id(fields['invoice_id'])
     elif fields['invoice_id'] is not None: raise OperatorError('unexpected_invoice')
     return action,question,fields
@@ -101,7 +101,7 @@ def resolve(business_id, user_id, action, fields, *, draft):
     fields=normalize_fields(fields)
     if fields['currency'] not in finance.SUPPORTED_CURRENCIES: raise OperatorError('currency')
     finance._money(fields['amount_minor'],positive=True);finance._date(fields['date'])
-    if fields['date'] > date.today().isoformat(): raise OperatorError('future_date')
+    if fields['date'] > finance.business_today(business_id).isoformat(): raise OperatorError('future_date')
     description=finance._text(fields['description'],4000)
     counterparty=finance._text(fields['counterparty_name'],160)
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
