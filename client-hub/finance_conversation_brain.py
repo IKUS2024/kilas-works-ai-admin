@@ -5,6 +5,7 @@ visible labels, never IDs/tokens, and emits only literal spans from this turn.
 """
 import re
 import uuid
+from difflib import SequenceMatcher
 import requests
 import finance_ai_safety as safety
 import finance_semantics as semantics
@@ -162,6 +163,15 @@ def manual_fallback(pending=False):
              'Mohon lakukan tindakan ini melalui menu Finance secara manual, atau coba lagi nanti.')
     if pending:message+=' Draft yang tadi belum disimpan.'
     return dict(kind='clarification',title='Kilas Finance',message=message)
+
+
+def manual_only_request(text):
+    """Keep bulk/destructive operations out of conversational execution."""
+    low=semantics.normalize(text).casefold()
+    destructive=bool(re.search(r'\b(reset|kosongkan|bersihkan|hapus|delete)\b',low))
+    bulk=bool(re.search(r'\b(semua|seluruh|keseluruhan)\b',low))
+    finance_object=bool(re.search(r'\b(finance|data|transaksi|invoice|customer|rekening|akun|kategori|cabang)\b',low))
+    return destructive and bulk and finance_object
 
 
 def pending_uncertain(current):
@@ -393,6 +403,7 @@ def message(b,u,text,query_context=''):
     if draft.YES.fullmatch(text):return dict(kind='answer',message='Belum ada draft yang menunggu konfirmasi. Silakan sampaikan apa yang ingin dicatat atau dicek.')
     social=social_response(text)
     if social:return social
+    if manual_only_request(text):return manual_fallback()
     contextual=contextual_last_action(b,u,text,previous)
     if contextual:return contextual
     data=classify(b,u,text,previous)
@@ -407,7 +418,12 @@ def message(b,u,text,query_context=''):
 
 
 def exact_updates(message,context,current):
-    """Only whole-message literals/options may bypass semantic interpretation."""
+    """Resolve an unambiguous answer to the field the server just asked for.
+
+    This is deliberately narrower than intent interpretation: short dates,
+    amounts, contacts and one clearly matching visible option can skip an AI
+    round-trip, including common spelling noise.
+    """
     raw=message.strip();reverse={v:k for k,v in draft.REFERENCES.items()}
     matches=[]
     for field in current['fields']:
@@ -417,6 +433,7 @@ def exact_updates(message,context,current):
     matches=list(dict.fromkeys(matches))
     if len(matches)==1:return dict(matches)
     key=context.get('awaiting') or current.get('next_field')
+    spec=next((r for r in current.get('fields',[]) if r.get('key')==key),None)
     if key in ('amount','from_amount','to_amount','opening_balance') and (flow.AMOUNT.fullmatch(raw) or re.fullmatch(r'\d+(?:[.,]\d+)?',raw)):
         return {key:raw}
     if key in ('date','due_date','issue_date','end_on'):
@@ -425,6 +442,90 @@ def exact_updates(message,context,current):
                 return {key:raw}
         except (ValueError,TypeError):
             pass
+    if key=='phone' and re.fullmatch(r'\+?\d[\d -]{4,62}',raw):
+        return {'phone':raw}
+    if key=='email' and re.fullmatch(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}',raw):
+        return {'email':raw}
+    if spec and spec.get('options') and len(raw)<=120 and '?' not in raw:
+        candidate=re.sub(r'^\s*(?:pakai|gunakan|pilih|rekening|akun|kategori|customer|pelanggan|invoice|proyek)\s+','',raw,flags=re.I)
+        candidate=re.sub(r'\s+(?:aja|saja|ya|dong)
+
+def pending(b,u,message,context,current,query_context=''):
+    previous=dict(context.get('conversation',{}))
+    if query_context:previous.update(flow.unseal_query(b,u,query_context))
+    social=social_response(message)
+    if social:
+        social['keep_pending']=True
+        social['hint']='Draft sebelumnya tetap tersedia. Kamu bisa melanjutkannya kapan saja atau membatalkannya dengan “batal”.'
+        return social,{},False
+    if manual_only_request(message):return manual_fallback(pending=True),{},False
+    updates=exact_updates(message,context,current)
+    if updates:
+        if context['action']=='record_invoice_payment' and 'amount' in updates:context['settle_full']=False
+        return None,updates,True
+    data=classify(b,u,message,previous,context,current)
+    if data is None:return manual_fallback(pending=True),{},False
+    if data['intent']=='unknown':return pending_uncertain(current),{},False
+    intent=data['intent'];slots=data['slots']
+    if intent=='capabilities':return flow.capabilities(),{},False
+    if intent in READS or intent=='continue_query':return read(b,u,intent,slots,previous),{},False
+    if intent=='continue_draft':
+        slots=dict(slots)
+        if 'customer_reference' in slots:
+            row=live.customer(b,u,previous)
+            if not row or 'customer_id' not in context['values']:return live.unavailable('Customer'),{},False
+            slots.pop('customer_reference');slots['customer']=row['name']
+        if context['action']=='invoice' and ('issue' in slots or 'settlement' in slots):
+            result=apply_slots(b,u,current,slots,previous)
+            return result,{},False
+        if context['action']=='record_invoice_payment':
+            if 'settlement' in slots:context['settle_full']=True;slots.pop('settlement')
+            elif 'amount' in slots:context['settle_full']=False
+            if 'customer' in slots:context['values']['invoice_id']=''
+        if not {draft.REFERENCES.get(k,k) for k in slots}.issubset(context['values']):return uncertain(),{},False
+        return None,slots,False
+    if intent=='add_invoice_item' and context['action']=='invoice':
+        if set(slots)-{'item_description','quantity','amount'} or not slots.get('item_description'):return uncertain(),{},False
+        count=1+sum(bool(re.fullmatch(r'item\d+_description',k)) for k in context['values'])
+        if count>=100:return uncertain(),{},False
+        values=dict(context['values']);prefix='item'+str(count+1)+'_'
+        values.update({prefix+'description':slots['item_description'],prefix+'quantity':slots.get('quantity','1'),prefix+'amount':slots.get('amount','')})
+        return flow.review(b,u,dict(context,values=values)),{},False
+    if intent=='new_command':
+        routed=commands.route(b,u,message)
+        if routed is not None:
+            if routed.get('kind')=='review':routed['message']='Draft sebelumnya tidak disimpan. '+routed['message']
+            return routed,{},False
+        fresh=classify(b,u,message,previous)
+        if fresh and fresh['intent'] in WRITES:
+            result=start(b,u,fresh['intent'],fresh['slots'],previous)
+            if result.get('kind')=='review':result['message']='Draft sebelumnya tidak disimpan. '+result['message']
+            return result,{},False
+        return uncertain(),{},False
+    if intent in WRITES:
+        result=start(b,u,intent,slots,previous)
+        if result.get('kind')=='review':result['message']='Draft sebelumnya tidak disimpan. '+result['message']
+        return result,{},False
+    return uncertain(),{},False
+,'',candidate,flags=re.I).strip()
+        def norm(value):return re.sub(r'[^0-9a-z]+',' ',value.casefold()).strip()
+        value=norm(candidate);ranked=[]
+        if value and not re.search(r'\b(buat|catat|tambah|hapus|ubah|cek|lihat|laporan)\b',value):
+            for option in spec['options']:
+                name=norm(option['label'].split('·')[0].strip())
+                if not name:continue
+                score=max(SequenceMatcher(None,value,name).ratio(),
+                          max((SequenceMatcher(None,value,part).ratio() for part in name.split()),default=0))
+                ranked.append((score,option))
+        ranked.sort(key=lambda x:x[0],reverse=True)
+        if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.08):
+            return {reverse.get(key,key):candidate}
+    if key=='name' and 1<=len(raw)<=160 and '?' not in raw and not re.search(
+            r'^\s*(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan|invoice|pemasukan|pengeluaran)\b',raw,re.I):
+        return {'name':raw}
+    if key=='item_description' and 1<=len(raw)<=500 and '?' not in raw and not re.search(
+            r'^\s*(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan)\b',raw,re.I):
+        return {'item_description':raw}
     return {}
 
 
