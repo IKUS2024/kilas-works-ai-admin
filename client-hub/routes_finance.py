@@ -702,7 +702,7 @@ def render_invoice_detail(business_id,user,business,invoice_id,share_url=None):
     return render_template('finance_invoice_detail.html',user=user,business=business,invoice=invoice,
         doc=doc,share_url=share_url,
         payments=finance.list_invoice_payments(business_id,invoice_id,**actor),
-        totals=doc['totals'],
+        totals=doc['totals'],archived=invoice_id in finance.archived_invoice_ids(business_id,**actor),
         accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'INCOME',**actor),
         today=finance.business_today(business_id).isoformat(),payment_key=uuid.uuid4().hex,labels=INVOICE_LABELS)
 
