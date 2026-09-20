@@ -91,7 +91,7 @@ class BranchTests(unittest.TestCase):
         with self.assertRaises(f.FinanceError): f.update_transaction(self.b, tx, account_id=self.ab)
         self.assertEqual(f.get_transaction(self.b, tx)['amount_minor'], 100)
 
-    def test_history_branch_isolation_and_all_branches_aggregate(self):
+    def test_history_branch_isolation_and_legacy_all_resolves_default_branch(self):
         self.tx(self.ba, 111, description='UTAMA-ONLY')
         self.tx(self.bb, 222, description='SERPONG-ONLY')
 
@@ -108,27 +108,30 @@ class BranchTests(unittest.TestCase):
         self.assertIn('SERPONG-ONLY', serpong.text)
         self.assertNotIn('UTAMA-ONLY', serpong.text)
 
-        combined, combined_context = self.page(None, period_mode='all', view='transactions', page=1)
-        self.assertEqual(combined.status_code, 200)
-        self.assertEqual(combined_context['transaction_total'], 2)
-        for value in ('UTAMA-ONLY', 'SERPONG-ONLY', 'Semua Cabang · Gabungan', 'Utama', 'Serpong'):
-            self.assertIn(value, combined.text)
+        legacy, legacy_context = self.page(None, period_mode='all', view='transactions', page=1)
+        self.assertEqual(legacy.status_code, 200)
+        self.assertEqual(legacy_context['transaction_total'], 1)
+        self.assertIn('UTAMA-ONLY', legacy.text)
+        self.assertNotIn('SERPONG-ONLY', legacy.text)
+        self.assertNotIn('Semua Cabang', legacy.text)
 
-    def test_monthly_totals_all_sum_and_current_balances_void_excluded(self):
+    def test_monthly_totals_and_current_balances_remain_branch_scoped(self):
         db.execute('UPDATE finance_accounts SET opening_balance_minor=50 WHERE id=?', (self.a,))
         self.tx(self.ba, 300); self.tx(self.ba, 70, 'EXPENSE'); self.tx(self.bb, 200)
         self.tx(self.ba, 40, day='2026-08-01')
         void = self.tx(self.bb, 900)
         with self.scope(self.bb): f.void_transaction(self.b, void)
-        for branch, income, expense, balance in ((self.ba,300,70,320),(self.bb,200,0,200),(None,500,70,520)):
+        for branch, income, expense, balance in ((self.ba,300,70,320),(self.bb,200,0,200)):
             response, context = self.page(branch)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(context['summary']['total_income_minor'], income)
             self.assertEqual(context['summary']['total_expense_minor'], expense)
             self.assertEqual(context['balance_total'], balance)
         response, context = self.page(None)
-        self.assertEqual(sum(x['summary']['total_income_minor'] for x in context['branch_breakdown']), 500)
-        self.assertIn('Utama', response.text); self.assertIn('Serpong', response.text)
+        self.assertEqual(context['summary']['total_income_minor'], 300)
+        self.assertEqual(context['summary']['total_expense_minor'], 70)
+        self.assertIn('Utama', response.text)
+        self.assertNotIn('Semua Cabang', response.text)
         self.assertIn('Saldo Tersedia Sekarang', response.text)
 
     def test_opening_foreign_balance_is_not_period_income_and_is_explained(self):
@@ -185,7 +188,7 @@ class BranchTests(unittest.TestCase):
         with self.scope(self.ba):
             self.assertEqual(f.get_transaction_date_bounds(self.b)['first_on'], '2025-12-10')
 
-    def test_all_branches_read_only_services_and_routes(self):
+    def test_legacy_all_get_resolves_default_branch_but_all_writes_stay_rejected(self):
         with self.scope(None):
             for operation in (lambda: f.create_account(self.b, 'Forbidden'),
                               lambda: f.create_customer(self.b, 'Forbidden'),
@@ -197,10 +200,12 @@ class BranchTests(unittest.TestCase):
             response = self.client.post(self.url + '/' + suffix + '?branch_id=all', data={})
             self.assertEqual(response.status_code, 403, suffix)
         self.assertEqual(before, '\n'.join(db.get_connection().iterdump()))
-        page, _ = self.page(None)
-        self.assertNotIn('id="add-transaction"', page.text)
-        self.assertNotIn('>AI Assistant</a>', page.text)
-        self.assertIn('Pilih satu cabang untuk menambah atau mengubah data.', page.text)
+        page, context = self.page(None)
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(context['selected_branch_id'], self.ba)
+        self.assertIn('id="add-transaction"', page.text)
+        self.assertIn('AI Assistant', page.text)
+        self.assertNotIn('Semua Cabang', page.text)
         self.http.assert_not_called()
 
     def test_unscoped_multibranch_post_and_conflicting_selector_rejected(self):
