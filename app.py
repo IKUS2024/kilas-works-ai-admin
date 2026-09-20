@@ -8722,6 +8722,129 @@ def internal_platform_inbox_media_send():
     return jsonify({'status': 'ok' if ok else 'error', 'reason': reason}), 200 if ok else 409
 
 
+def _platform_wa_migration_auth():
+    provided = request.headers.get("X-Internal-Service-Secret", "")
+    return bool(INTERNAL_SERVICE_SECRET and hmac.compare_digest(provided, INTERNAL_SERVICE_SECRET))
+
+
+def _platform_wa_graph_call(method, path, payload=None, fields=None):
+    """Small bounded Meta transport for the platform-number migration bridge.
+
+    Never logs or returns raw Graph response bodies/tokens. Returns (data, None) on success or
+    (None, safe_reason) on failure.
+    """
+    if not WHATSAPP_ACCESS_TOKEN:
+        return None, "platform_phone_unavailable"
+    url = f"https://graph.facebook.com/v21.0/{path}"
+    kwargs = {
+        "headers": {"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"},
+        "timeout": (3, 10),
+        "allow_redirects": False,
+    }
+    if payload is not None:
+        kwargs["json"] = payload
+    if fields:
+        kwargs["params"] = {"fields": fields}
+    try:
+        resp = requests.request(method, url, **kwargs)
+        try:
+            data = resp.json()
+        except ValueError:
+            return None, "meta_request_failed"
+        if resp.status_code != 200 or not isinstance(data, dict) or "error" in data:
+            return None, "meta_request_failed"
+        return data, None
+    except requests.RequestException:
+        return None, "meta_request_failed"
+
+
+def _platform_wa_identity(phone_number_id=None):
+    phone_id = str(phone_number_id or WHATSAPP_PHONE_NUMBER_ID or "").strip()
+    if not re.fullmatch(r"\d{1,32}", phone_id):
+        return None, "platform_phone_unavailable"
+    row, reason = _platform_wa_graph_call(
+        "GET", phone_id,
+        fields="id,display_phone_number,status,is_on_biz_app,platform_type",
+    )
+    if reason:
+        return None, reason
+    digits = re.sub(r"\D", "", str(row.get("display_phone_number") or ""))
+    if str(row.get("id")) != phone_id or not re.fullmatch(r"\d{6,20}", digits):
+        return None, "platform_phone_unavailable"
+    return {
+        "phone_number_id": phone_id,
+        "display_phone_number": row.get("display_phone_number"),
+        "display_phone_digits": digits,
+        "status": row.get("status"),
+        "is_on_biz_app": row.get("is_on_biz_app"),
+        "platform_type": row.get("platform_type"),
+    }, None
+
+
+@app.route("/internal/platform-wa-migration/status", methods=["POST"])
+def internal_platform_wa_migration_status():
+    if not _platform_wa_migration_auth():
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+    identity, reason = _platform_wa_identity()
+    if reason:
+        return jsonify({"status": "error", "reason": reason}), 503
+    return jsonify({"status": "ok", "identity": identity}), 200
+
+
+@app.route("/internal/platform-wa-migration/deregister", methods=["POST"])
+def internal_platform_wa_migration_deregister():
+    if not _platform_wa_migration_auth():
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+    payload = request.get_json(silent=True) or {}
+    expected = re.sub(r"\D", "", str(payload.get("expected_phone_digits") or ""))
+    if not re.fullmatch(r"\d{6,20}", expected):
+        return jsonify({"status": "error", "reason": "invalid_payload"}), 400
+
+    identity, reason = _platform_wa_identity()
+    if reason:
+        return jsonify({"status": "error", "reason": reason}), 503
+    if identity["display_phone_digits"] != expected:
+        return jsonify({"status": "error", "reason": "platform_phone_mismatch"}), 409
+    if identity.get("is_on_biz_app") is True:
+        return jsonify({"status": "error", "reason": "platform_already_coexistence"}), 409
+
+    result, reason = _platform_wa_graph_call("POST", identity["phone_number_id"] + "/deregister", payload={})
+    if reason or result.get("success") is not True:
+        return jsonify({"status": "error", "reason": "meta_request_failed"}), 502
+    print("PLATFORM_WA_MIGRATION deregistered phone_number_id=" + identity["phone_number_id"])
+    return jsonify({"status": "ok", "identity": identity}), 200
+
+
+@app.route("/internal/platform-wa-migration/verify", methods=["POST"])
+def internal_platform_wa_migration_verify():
+    if not _platform_wa_migration_auth():
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+    payload = request.get_json(silent=True) or {}
+    waba = str(payload.get("waba_id") or "").strip()
+    phone_id = str(payload.get("phone_number_id") or "").strip()
+    expected = re.sub(r"\D", "", str(payload.get("expected_phone_digits") or ""))
+    if (not re.fullmatch(r"\d{1,32}", waba)
+            or not re.fullmatch(r"\d{1,32}", phone_id)
+            or not re.fullmatch(r"\d{6,20}", expected)):
+        return jsonify({"status": "error", "reason": "invalid_payload"}), 400
+
+    identity, reason = _platform_wa_identity(phone_id)
+    if reason:
+        return jsonify({"status": "error", "reason": reason}), 503
+    if identity["display_phone_digits"] != expected:
+        return jsonify({"status": "error", "reason": "platform_phone_mismatch"}), 409
+    if (identity.get("is_on_biz_app") is not True
+            or identity.get("status") != "CONNECTED"
+            or identity.get("platform_type") not in (None, "CLOUD_API")):
+        return jsonify({"status": "error", "reason": "coexistence_not_ready"}), 409
+
+    result, reason = _platform_wa_graph_call("POST", waba + "/subscribed_apps", payload={})
+    if reason or result.get("success") is not True:
+        return jsonify({"status": "error", "reason": "meta_request_failed"}), 502
+    print("PLATFORM_WA_MIGRATION coexistence_verified phone_number_id=" + phone_id)
+    return jsonify({"status": "ok", "phone_number_id": phone_id, "waba_id": waba}), 200
+
+
 @app.route("/internal/platform-cs-reply", methods=["POST"])
 def internal_platform_cs_reply():
     """Authenticated Client Hub -> Kilas Works WhatsApp manual reply bridge.

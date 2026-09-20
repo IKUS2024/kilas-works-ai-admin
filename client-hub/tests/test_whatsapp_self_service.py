@@ -304,58 +304,46 @@ class SignupTests(unittest.TestCase):
         for value in ('PRIVATE_CUSTOMER_TOKEN','PRIVATE_CODE','PRIVATE_RUNTIME_TOKEN','PRIVATE_ADMIN_TOKEN','PRIVATE_APP_SECRET','PRIVATE_PIN_KEY'):
             self.assertNotIn(value, persisted)
 
-    def test_platform_identity_and_deregister_are_exact_and_reversible(self):
-        class FakeGraph:
-            def __init__(self, config): self.config = config; self.calls = []
-            def call(self, method, path, token=None, **kwargs):
-                self.calls.append((method, path, token, kwargs))
-                if path == 'debug_token':
-                    return {'data': {'is_valid': True, 'app_id': '100', 'user_id': '400',
-                                     'scopes': ['whatsapp_business_management', 'whatsapp_business_messaging']}}
-                if path == '999':
-                    return {'id': '999', 'display_phone_number': '+62 822-1303-9137',
-                            'status': 'CONNECTED', 'is_on_biz_app': False, 'platform_type': 'CLOUD_API'}
-                if path == '999/deregister':
-                    return {'success': True}
-                raise AssertionError(path)
-        graph = FakeGraph(ENV)
-        with patch.object(signup, 'Graph', return_value=graph):
+    def test_platform_identity_uses_internal_bot_bridge(self):
+        fake_identity = {'phone_number_id': '999', 'display_phone_number': '+62 822-1303-9137',
+                         'display_phone_digits': '6282213039137', 'status': 'CONNECTED',
+                         'is_on_biz_app': False, 'platform_type': 'CLOUD_API'}
+        with patch.object(signup, '_platform_bot_call',
+                          return_value={'status': 'ok', 'identity': fake_identity}) as bridge:
             identity = signup.platform_current_identity()
-            self.assertEqual(identity['display_phone_digits'], '6282213039137')
-            signup.deregister_platform_phone('6282213039137')
-        self.assertTrue(any(c[0] == 'POST' and c[1] == '999/deregister' for c in graph.calls))
+        self.assertEqual(identity['display_phone_digits'], '6282213039137')
+        bridge.assert_called_once_with('status')
 
-    def test_platform_coexistence_verifies_same_display_number_and_never_registers(self):
-        class FakeGraph:
-            def __init__(self, config): self.calls = []
-            def call(self, method, path, token=None, **kwargs):
-                self.calls.append((method, path, token, kwargs))
-                if path == 'oauth/access_token':
-                    return {'access_token': 'CUSTOMER'}
-                if path == 'debug_token' and kwargs['params']['input_token'] == 'CUSTOMER':
-                    return {'data': {'is_valid': True, 'app_id': '100', 'granular_scopes': [
-                        {'scope': 'whatsapp_business_management', 'target_ids': ['500']}]}}
-                if path == 'debug_token':
-                    return {'data': {'is_valid': True, 'app_id': '100', 'user_id': '400',
-                                     'scopes': ['whatsapp_business_management', 'whatsapp_business_messaging']}}
-                if path == '777':
-                    return {'id': '777', 'display_phone_number': '+62 822-1303-9137',
-                            'status': 'CONNECTED', 'is_on_biz_app': True, 'platform_type': 'CLOUD_API'}
-                if path == '500/subscribed_apps':
-                    return {'success': True}
-                raise AssertionError(path)
-            def list_rows(self, path, token, fields='id'):
-                self.calls.append(('GET_LIST', path, token, {'fields': fields}))
-                return [{'id': '777', 'display_phone_number': '+62 822-1303-9137'}]
-            def success(self, path, token, payload):
-                result = self.call('POST', path, token, json=payload)
-                if result.get('success') is not True: raise signup.SignupError('meta_step_incomplete')
-        graph = FakeGraph(ENV)
-        with patch.object(signup, 'Graph', return_value=graph):
+    def test_platform_deregister_uses_internal_bot_bridge(self):
+        fake_identity = {'phone_number_id': '999', 'display_phone_digits': '6282213039137'}
+        with patch.object(signup, '_platform_bot_call',
+                          return_value={'status': 'ok', 'identity': fake_identity}) as bridge:
+            identity = signup.deregister_platform_phone('6282213039137')
+        self.assertEqual(identity['phone_number_id'], '999')
+        bridge.assert_called_once_with('deregister', {'expected_phone_digits': '6282213039137'})
+
+    def test_platform_coexistence_browser_grant_then_runtime_bridge(self):
+        original = self.meta
+        self.biz_app = True
+        def meta(method, url, **kwargs):
+            response = original(method, url, **kwargs)
+            if url.endswith('/600'):
+                response.json.return_value = {
+                    'id': '600', 'display_phone_number': '+62 822-1303-9137',
+                    'status': 'CONNECTED', 'is_on_biz_app': True, 'platform_type': 'CLOUD_API'}
+            elif url.endswith('/500/phone_numbers'):
+                response.json.return_value = {
+                    'data': [{'id': '600', 'display_phone_number': '+62 822-1303-9137'}]}
+            return response
+        self.http_mock.side_effect = meta
+        with patch.object(signup, '_platform_bot_call',
+                          return_value={'status': 'ok', 'phone_number_id': '600', 'waba_id': '500'}) as bridge:
             waba, phone = signup.verify_platform_coexistence(
-                'CODE', '500', None, expected_phone_digits='6282213039137')
-        self.assertEqual((waba, phone), ('500', '777'))
-        self.assertFalse(any('/register' in c[1] for c in graph.calls if len(c) > 1))
+                'PRIVATE_CODE', '500', '600', expected_phone_digits='6282213039137')
+        self.assertEqual((waba, phone), ('500', '600'))
+        bridge.assert_called_once_with('verify', {
+            'waba_id': '500', 'phone_number_id': '600',
+            'expected_phone_digits': '6282213039137'})
 
     def test_request_size_limit(self):
         data = self.payload(); data['code'] = 'x'*9000

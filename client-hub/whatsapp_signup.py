@@ -10,6 +10,7 @@ import re
 import secrets
 import time
 from contextlib import contextmanager
+from urllib.parse import urlparse
 
 import requests
 import db
@@ -40,20 +41,17 @@ def settings():
 
 
 def platform_settings():
-    """Minimum server-side configuration for Kilas Works' own platform number.
+    """Browser-side Meta configuration for Kilas Works' own platform Coexistence flow.
 
-    Unlike tenant onboarding, this path does not need provider client-WABA sharing/admin assignment
-    because the platform number belongs to Kilas Works itself. It still validates the same app,
-    runtime System User and messaging scopes before any mutation.
+    Platform Cloud API credentials deliberately stay in the AI Admin bot service. Client Hub only
+    needs the app/config identity and app secret for the one-time Embedded Signup OAuth exchange.
     """
-    keys = ('META_APP_ID', 'META_EMBEDDED_SIGNUP_CONFIG_ID', 'WHATSAPP_APP_SECRET',
-            'META_PROVIDER_SYSTEM_USER_ID', 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID')
+    keys = ('META_APP_ID', 'META_EMBEDDED_SIGNUP_CONFIG_ID', 'WHATSAPP_APP_SECRET')
     values = {k: os.environ.get(k, '').strip() for k in keys}
     version = os.environ.get('META_GRAPH_API_VERSION', 'v21.0').strip()
     if (not all(values.values()) or not re.fullmatch(r'v\d+\.\d+', version)
             or any(not re.fullmatch(r'[0-9]{1,32}', values[k]) for k in
-                   ('META_APP_ID', 'META_EMBEDDED_SIGNUP_CONFIG_ID',
-                    'META_PROVIDER_SYSTEM_USER_ID', 'WHATSAPP_PHONE_NUMBER_ID'))):
+                   ('META_APP_ID', 'META_EMBEDDED_SIGNUP_CONFIG_ID'))):
         raise SignupError('configuration_missing')
     values['version'] = version
     return values
@@ -62,6 +60,145 @@ def platform_settings():
 def normalize_phone_digits(value):
     digits = re.sub(r'\D', '', str(value or ''))
     return digits if re.fullmatch(r'\d{6,20}', digits) else None
+
+
+def _platform_bot_base_url():
+    explicit = (os.environ.get('KILAS_BOT_INTERNAL_URL') or '').strip()
+    if not explicit:
+        explicit = (os.environ.get('KILAS_BOT_PLATFORM_REPLY_URL') or '').strip()
+    if not explicit:
+        return None
+    try:
+        parsed = urlparse(explicit)
+    except Exception:
+        return None
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc:
+        return None
+    return f'{parsed.scheme}://{parsed.netloc}'
+
+
+def _platform_bot_call(action, payload=None):
+    base = _platform_bot_base_url()
+    secret = (os.environ.get('INTERNAL_SERVICE_SECRET') or '').strip()
+    if not base or not secret:
+        raise SignupError('platform_bot_bridge_unavailable')
+    try:
+        response = requests.post(
+            f'{base}/internal/platform-wa-migration/{action}',
+            json=payload or {},
+            headers={'X-Internal-Service-Secret': secret},
+            timeout=(3, 12),
+            allow_redirects=False,
+        )
+        try:
+            data = response.json()
+        except ValueError:
+            raise SignupError('platform_bot_bad_response') from None
+        if response.status_code != 200 or not isinstance(data, dict) or data.get('status') != 'ok':
+            reason = str(data.get('reason') or '') if isinstance(data, dict) else ''
+            allowed = {
+                'platform_phone_unavailable', 'platform_phone_mismatch',
+                'platform_already_coexistence', 'coexistence_not_ready',
+                'invalid_payload', 'meta_request_failed', 'access_denied',
+            }
+            raise SignupError(reason if reason in allowed else 'platform_bot_rejected')
+        return data
+    except SignupError:
+        raise
+    except requests.RequestException:
+        raise SignupError('platform_bot_bridge_unavailable') from None
+
+
+def platform_current_identity():
+    data = _platform_bot_call('status')
+    identity = data.get('identity')
+    if not isinstance(identity, dict) or not identity.get('phone_number_id'):
+        raise SignupError('platform_phone_unavailable')
+    return identity
+
+
+def deregister_platform_phone(expected_phone_digits):
+    expected = normalize_phone_digits(expected_phone_digits)
+    if not expected:
+        raise SignupError('platform_phone_unavailable')
+    data = _platform_bot_call('deregister', {'expected_phone_digits': expected})
+    identity = data.get('identity')
+    if not isinstance(identity, dict):
+        raise SignupError('platform_bot_bad_response')
+    return identity
+
+
+def verify_platform_coexistence(code, waba, phone=None, *, expected_phone_digits):
+    """Verify browser authorization in Client Hub, runtime access in the bot service.
+
+    Client Hub never receives the production WhatsApp runtime token. The one-time Meta login code
+    proves that the logged-in business granted this app access to the selected WABA/phone; the bot
+    then independently verifies that its existing server-side runtime credential can see the same
+    number in CONNECTED Business-App Coexistence state.
+    """
+    config = platform_settings()
+    expected = normalize_phone_digits(expected_phone_digits)
+    if (not expected or not isinstance(code, str) or not 1 <= len(code) <= 4096
+            or not isinstance(waba, str) or not re.fullmatch(r'[0-9]{1,32}', waba)
+            or (phone is not None and
+                (not isinstance(phone, str) or not re.fullmatch(r'[0-9]{1,32}', phone)))):
+        raise SignupError('invalid_payload')
+
+    graph = Graph(config)
+    exchanged = graph.call('GET', 'oauth/access_token', params={
+        'client_id': config['META_APP_ID'],
+        'client_secret': config['WHATSAPP_APP_SECRET'],
+        'code': code,
+    })
+    customer_token = exchanged.get('access_token')
+    if not isinstance(customer_token, str) or not customer_token:
+        raise SignupError('meta_token_missing')
+
+    debug = graph.call(
+        'GET', 'debug_token', config['META_APP_ID'] + '|' + config['WHATSAPP_APP_SECRET'],
+        params={'input_token': customer_token},
+    ).get('data', {})
+    targets = {
+        str(target)
+        for scope in debug.get('granular_scopes', [])
+        if scope.get('scope') == 'whatsapp_business_management'
+        for target in scope.get('target_ids', [])
+    }
+    if (debug.get('is_valid') is not True
+            or str(debug.get('app_id')) != config['META_APP_ID']
+            or waba not in targets):
+        raise SignupError('customer_grant_mismatch')
+
+    rows = graph.list_rows(waba + '/phone_numbers', customer_token, 'id,display_phone_number')
+    if not rows or len(rows) > 25:
+        raise SignupError('coexistence_phone_missing')
+    matches = []
+    for row in rows:
+        candidate = str(row.get('id') or '')
+        if not re.fullmatch(r'[0-9]{1,32}', candidate):
+            continue
+        detail = graph.call(
+            'GET', candidate, customer_token,
+            params={'fields': 'id,display_phone_number,status,is_on_biz_app,platform_type'},
+        )
+        if (str(detail.get('id')) == candidate
+                and normalize_phone_digits(detail.get('display_phone_number')) == expected
+                and detail.get('is_on_biz_app') is True):
+            matches.append((candidate, detail))
+    if phone:
+        matches = [item for item in matches if item[0] == phone]
+    if len(matches) != 1:
+        raise SignupError('coexistence_phone_ambiguous' if matches else 'coexistence_phone_missing')
+
+    selected = matches[0][0]
+    runtime = _platform_bot_call('verify', {
+        'waba_id': waba,
+        'phone_number_id': selected,
+        'expected_phone_digits': expected,
+    })
+    if str(runtime.get('phone_number_id') or '') != selected:
+        raise SignupError('platform_phone_mismatch')
+    return waba, selected
 
 
 def eligible(business_id, user):
