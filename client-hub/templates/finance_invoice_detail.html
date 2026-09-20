@@ -27,6 +27,7 @@
 {% if share_url %}<label for="invoice-link">Tautan customer</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Open Customer View</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
 {% endif %}
 
+{% if invoice.status!='VOID' %}
 <details class="fin-detail-editor">
   <summary class="btn secondary">✏️ Edit catatan</summary>
   <form method="post" action="{{ url_for('finance.update_invoice_notes',business_id=business.id,invoice_id=invoice.id) }}" class="fin-inline-edit">
@@ -36,6 +37,7 @@
     <button class="btn">Simpan catatan</button>
   </form>
 </details>
+{% endif %}
 
 {% if invoice.status=='DRAFT' %}<form class="no-print" method="post" action="{{ url_for('finance.issue_invoice',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Terbitkan Invoice</button></form>{% endif %}
 {% if invoice.status in ('DRAFT','ISSUED') and not payments %}
