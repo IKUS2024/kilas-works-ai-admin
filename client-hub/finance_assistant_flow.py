@@ -170,7 +170,7 @@ def proposed_date(text, scheduled=False, default_today=True):
             month=month%12+1;year+=month==1
         try:return date(year,month,day).isoformat()
         except ValueError:return ''
-    if re.search(r'\b(hari ini|sekarang)\b',text,re.I):return today.isoformat()
+    if re.search(r'\b(hari ini|sekarang|barusan|tadi|(?:pagi|siang|sore|malam) ini)\b',text,re.I):return today.isoformat()
     if scheduled and re.fullmatch(r'(?:mulai\s+)?(?:besok|lusa)',text.strip(),re.I):return (today+timedelta(days=2 if 'lusa' in text.lower() else 1)).isoformat()
     # Explicit but unsupported calendar wording is never silently changed to today.
     if scheduled or not default_today or re.search(r'\b(tanggal|besok|lusa|bulan lalu|bulan depan|bulan ini)\b',text,re.I) or any(re.search(r'\b'+word+r'\b',text,re.I) for word in months):return ''
