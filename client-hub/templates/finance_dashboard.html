@@ -162,14 +162,13 @@
 {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
 <label for="finance-branch"><span>Cabang</span><small>Lokasi / outlet</small></label>
 <select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">
-<option value="all" {{ 'selected' if all_branches }}>Semua Cabang · Gabungan</option>
 {% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}</option>{% endfor %}
 </select>
 <noscript><button class="btn secondary finance-context-apply">Gunakan</button></noscript>
 </form>
 </div>
-<p class="finance-context-help"><strong>Bisnis</strong> adalah brand/usaha. <strong>Cabang</strong> menyimpan data masing-masing. Pilih satu cabang untuk mencatat; pilih <strong>Semua Cabang · Gabungan</strong> untuk melihat total dan riwayat seluruh cabang.</p>
-{% if all_branches %}<div class="finance-context-notice" role="status">ℹ️ Tampilan gabungan aktif. Transaksi tetap tersimpan di cabang asalnya dan tidak dicampur identitasnya. Pilih satu cabang untuk menambah atau mengubah data.</div>{% elif branch_read_only %}<div class="finance-context-notice" role="status">ℹ️ Cabang ini nonaktif. Riwayat dan laporan tetap bisa dilihat.</div>{% else %}<div class="finance-context-notice" role="status">📍 Data yang tampil dan transaksi baru hanya untuk cabang <strong>{{ selected_branch.name }}</strong>. Cabang lain tetap terpisah.</div>{% endif %}
+<p class="finance-context-help"><strong>Bisnis</strong> adalah brand/usaha. <strong>Setiap cabang berdiri sendiri</strong>: transaksi, saldo, laporan, invoice, biaya rutin, dan data Finance selalu mengikuti cabang yang sedang dipilih.</p>
+{% if branch_read_only %}<div class="finance-context-notice" role="status">ℹ️ Cabang ini nonaktif. Riwayat dan laporan tetap bisa dilihat.</div>{% else %}<div class="finance-context-notice" role="status">📍 Data yang tampil dan transaksi baru hanya untuk cabang <strong>{{ selected_branch.name }}</strong>. Data cabang lain tidak digabung.</div>{% endif %}
 </section>
 
 <div class="card finance-home-card">
@@ -190,20 +189,6 @@
 <a class="finance-home-tile finance-home-ai" href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id or 'all') }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Chat, scan struk &amp; baca mutasi bank</span></a>
 </div>
 </div>
-
-{% if all_branches %}
-<dialog id="manual-branch-dialog" class="finance-sheet">
-<div class="finance-sheet-head"><h2>📒 Catat Transaksi Manual</h2><button type="button" class="finance-sheet-close" data-finance-close="manual-branch-dialog" aria-label="Tutup">×</button></div>
-<div class="finance-sheet-body">
-<p class="muted">Transaksi harus masuk ke satu cabang. Pilih cabang tempat transaksi terjadi, lalu form manual akan langsung terbuka.</p>
-<div class="finance-record-list">
-{% for branch in finance_branches if branch.is_active %}
-<a class="finance-record-row" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=branch.id,open_manual='1') }}"><div class="finance-record-main"><strong>{{ branch.name }}</strong><div class="finance-record-sub">Catat pemasukan / pengeluaran manual</div></div><span aria-hidden="true">›</span></a>
-{% else %}<div class="finance-empty">Belum ada cabang aktif untuk mencatat transaksi.</div>{% endfor %}
-</div>
-</div>
-</dialog>
-{% endif %}
 
 {% if not branch_read_only %}
 <details class="card finance-settings-hub">
