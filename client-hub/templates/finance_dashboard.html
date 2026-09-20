@@ -32,6 +32,9 @@
 .finance-home-tile{position:relative;align-items:flex-start;justify-content:flex-start;text-align:left;min-height:126px;padding:13px 34px 13px 13px;border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,.018),rgba(255,255,255,0));transition:transform .15s ease,border-color .15s ease,background .15s ease}
 .finance-home-tile:hover,.finance-home-tile:focus{transform:translateY(-1px);text-decoration:none;border-color:#4a4e56;background:rgba(127,127,127,.08)}
 .finance-home-tile.primary{border-color:color-mix(in srgb,var(--orange) 58%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,var(--orange) 13%,transparent),rgba(255,255,255,.015))}
+.finance-home-ai{grid-column:1/-1;border-color:color-mix(in srgb,var(--orange) 34%,var(--border));background:linear-gradient(145deg,color-mix(in srgb,var(--orange) 7%,transparent),rgba(255,255,255,.012))}
+.finance-home-ai .finance-home-icon{background:color-mix(in srgb,var(--orange) 14%,transparent)}
+
 .finance-home-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:rgba(127,127,127,.09);font-size:21px;margin-bottom:2px}
 .finance-home-tile.primary .finance-home-icon{background:color-mix(in srgb,var(--orange) 15%,transparent)}
 .finance-home-label{font-size:15px;line-height:1.15}
@@ -182,11 +185,10 @@
 <a class="finance-home-tile" href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}"><span class="finance-home-icon">⏰</span><span class="finance-home-label">Penagihan</span><span class="finance-home-meta">Invoice belum dibayar</span></a>
 <a class="finance-home-tile" href="{{ url_for('finance.operations',business_id=business.id,section='recurring',month=month) }}"><span class="finance-home-icon">🔁</span><span class="finance-home-label">Biaya Rutin</span><span class="finance-home-meta">Jadwal &amp; proyek</span></a>
 <a class="finance-home-tile" href="{{ url_for('finance.reports',business_id=business.id,section='summary',start=period_start,end=period_end,as_of=period_end) }}"><span class="finance-home-icon">📊</span><span class="finance-home-label">Laporan</span><span class="finance-home-meta">Ringkasan &amp; export</span></a>
-<a class="finance-home-tile" href="{{ url_for('finance.bank_index',business_id=business.id) }}"><span class="finance-home-icon">🏦</span><span class="finance-home-label">Bank</span><span class="finance-home-meta">Cocokkan mutasi</span></a>
 {% if not branch_read_only %}
-<a data-finance-write class="finance-home-tile" href="{{ url_for('finance.assistant',business_id=business.id) }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Bantu kerja Finance</span></a>
+<a data-finance-write class="finance-home-tile finance-home-ai" href="{{ url_for('finance.assistant',business_id=business.id) }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Chat, scan struk &amp; baca mutasi bank</span></a>
 {% else %}
-<span class="finance-home-tile" style="opacity:.45"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Pilih cabang aktif dulu</span></span>
+<span class="finance-home-tile finance-home-ai" style="opacity:.45"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Pilih cabang aktif dulu</span></span>
 {% endif %}
 </div>
 </div>

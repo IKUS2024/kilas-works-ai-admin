@@ -83,11 +83,14 @@ test('receivables operations and reports expose professional compact navigation'
   assert.doesNotMatch(reports,/fin-tool-grid compact/);
 });
 
-test('dashboard exposes main finance icon navigation',()=>{
+test('dashboard exposes focused finance navigation with bank handled by AI Assistant',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
-  for(const label of ['Menu Finance','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','Bank','AI Assistant']){
+  for(const label of ['Menu Finance','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant']){
     assert.match(html,new RegExp(label));
   }
+  assert.doesNotMatch(html,/finance-home-label">Bank</);
+  assert.match(html,/Chat, scan struk &amp; baca mutasi bank/);
+  assert.match(html,/finance-home-ai/);
   assert.doesNotMatch(html,/Alat Finance Lainnya/);
   assert.match(html,/finance-home-grid/);
 });
