@@ -247,6 +247,10 @@ def overview():
 @finance_bp.route('/business/<int:business_id>/finance')
 @finance_access
 def dashboard(business_id, user, business):
+    if g.finance_branch_id is not None and g.finance_branch and not g.finance_branch['is_active']:
+        active = next((branch for branch in g.finance_branches if branch['is_active']), None)
+        return redirect(url_for('finance.dashboard', business_id=business_id,
+                                branch_id=active['id'] if active else 'all'), code=303)
     today_value = date.today()
     current_value = today_value.strftime('%Y-%m')
     period_mode = request.args.get('period_mode', 'month')

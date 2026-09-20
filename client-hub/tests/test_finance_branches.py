@@ -377,6 +377,14 @@ class BranchTests(unittest.TestCase):
                 self.assertEqual(f.list_finance_projects(self.b)[0]['id'],project)
                 self.assertEqual(f.list_customers(self.b)[0]['id'],self.c)
 
+    def test_dashboard_redirects_archived_branch_to_active_branch(self):
+        self.tx(self.bb, 10)
+        with self.scope(self.ba):
+            branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
+        response=self.client.get(self.url+f'?branch_id={self.bb}')
+        self.assertEqual(response.status_code,303)
+        self.assertIn('branch_id='+str(self.ba),response.location)
+
     def test_delete_empty_branch_removes_it_instead_of_leaving_nonactive_choice(self):
         with self.scope(self.ba):
             empty=branches.create_branch(self.b,'Disposable',self.uid)
