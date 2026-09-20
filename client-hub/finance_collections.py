@@ -13,7 +13,7 @@ PAGE_SIZE = 50
 
 
 def position(business_id, user_id=None, customer_id=None, today=None):
-    as_of=finance._date(today or date.today())
+    as_of=finance._date(today or finance.business_today(business_id))
     rows=finance.get_report_invoices(business_id,as_of,actor_user_id=user_id,
                                      customer_id=customer_id,open_only=True)
     rows=[r for r in rows if r['outstanding_minor']>0]
