@@ -9,7 +9,7 @@ import finance_fx
 
 SORTS = ('overdue','balance','due','customer')
 FILTERS = ('all','overdue','soon')
-PAGE_SIZE = 50
+PAGE_SIZE = 10
 
 
 def position(business_id, user_id=None, customer_id=None, today=None):
