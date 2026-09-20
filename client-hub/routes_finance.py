@@ -22,6 +22,9 @@ import finance_analyst
 import finance_operator
 import finance_assistant
 import finance_assistant_flow as assistant_flow
+# Import the conversation brain at process startup so syntax/import regressions
+# fail the deploy instead of surfacing only after the first Assistant message.
+import finance_conversation_brain as finance_conversation_brain
 import finance_documents
 import finance_assistant_recurring as assistant_recurring
 import finance_ai_safety as ai_safety
