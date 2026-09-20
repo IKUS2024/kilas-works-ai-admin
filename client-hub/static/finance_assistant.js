@@ -5,8 +5,8 @@
   const log=el('assistant-result'),files=el('assistant-files'),camera=el('assistant-camera'),text=el('assistant-text'),
         mode=el('assistant-mode'),status=el('assistant-status'),sendButton=el('assistant-send');
   let busy=false,pending=null,docWorkflow=null,uploadInstruction='',documentContext='',queryContext='';
-  const confirmWords=/^\s*(oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(\s+(ya|aja|saja|deh|dong|simpan|catat))?[.! ]*$/i;
-  const cancelWords=/^\s*(batal|cancel|jangan|ga jadi|gak jadi|nggak jadi|tidak jadi)(\s+(ya|aja|saja|deh|dong))?[.! ]*$/i;
+  const confirmWords=/^\s*((?:oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(?:\s+(?:ya|aja|saja|deh|dong|simpan|catat|lanjut))?|(?:sudah|udah)\s+(?:benar|betul))[.! ]*$/i;
+  const cancelWords=/^\s*((?:batal|cancel|ga jadi|gak jadi|nggak jadi|tidak jadi|skip|stop)(?:\s+(?:ya|aja|saja|deh|dong))?|jangan(?:\s+(?:simpan|disimpan|catat|dicatat))?(?:\s+(?:ya|aja|saja|deh|dong))?)[.! ]*$/i;
   const setStatus=(message,error=false)=>{status.textContent=message||'';status.classList.toggle('is-error',!!error);};
   const setBusy=value=>{
     busy=value;composer.setAttribute('aria-busy',String(value));
