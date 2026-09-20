@@ -112,6 +112,11 @@ def resolve(updates,context,fields):
             if not hits:
                 from finance_semantics import entity_options
                 hits=entity_options([dict(o,name=o['label'].split('·')[0].strip()) for o in spec.get('options',[])],raw)
+            if not hits and semantic=='category':
+                from finance_assistant_flow import category_choice
+                choices=[dict(id=o['value'],name=o['label']) for o in spec.get('options',[])]
+                selected=category_choice(choices,raw,auto_single=False)
+                hits=[o for o in spec.get('options',[]) if o['value']==selected]
             if len(hits)!=1:raise ReferenceAmbiguous(key,hits)
             result[key]=hits[0]['value']
             if key=='account_id' and 'currency' in result:
@@ -131,6 +136,7 @@ def resolve(updates,context,fields):
             value=vocabulary[key].get(raw.lower())
             if key=='cadence' and not value:
                 if re.fullmatch(r'(?:tiap|setiap|per)\s+(?:bulan|minggu)',raw,re.I):value='WEEKLY' if 'minggu' in raw.lower() else 'MONTHLY'
+            if key=='cadence' and not value and re.fullmatch(r'(?:tiap|setiap) tanggal \d{1,2}',raw,re.I):value='MONTHLY'
             if not value:raise ValueError('invalid_enum')
             result[key]=value
         elif key=='currency':

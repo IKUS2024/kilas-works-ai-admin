@@ -147,7 +147,8 @@ class SemanticAgentTests(unittest.TestCase):
     def test_recurring_unknown_cadence_is_not_silently_monthly(self):
         first=self.ask('tambah biaya rutin 2 juta untuk AI')
         second=self.follow(first,'tiap tahun')
-        self.assertEqual(self.values(second)['cadence'],'');self.assertFalse(second.json['ready'])
+        self.assertTrue(second.json['keep_pending']);self.assertNotIn('context',second.json)
+        self.assertEqual(self.values(self.follow(first,'oke'))['cadence'],'')
 
     def test_recurring_post_one_reviewed_due_occurrence_once(self):
         f.create_recurring_expense(self.b,'AI',2000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
@@ -270,7 +271,7 @@ class SemanticAgentTests(unittest.TestCase):
         second=self.follow(draft,'kontaknya tolong dibenerin 082213039137')
         self.assertEqual(self.values(second)['phone'],'082213039137')
         body=self.http.call_args.kwargs['json']['messages'][0]['content']
-        self.assertIn('editable_fields',body);self.assertNotIn('account_id',body)
+        self.assertIn('fields',body);self.assertNotIn('account_id',body)
 
     def test_fx_review_once_and_void_restore_native_balances(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',opening_balance_minor=20000,actor_user_id=self.uid)

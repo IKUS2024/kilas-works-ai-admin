@@ -83,12 +83,16 @@ def review_invoice(b,u,context,edits=None):
             if not item or not 2<=int(item[1])<=100:raise ValueError('invalid_fields')
             label='Item '+item[1]+' · '+{'description':'Deskripsi','quantity':'Qty','amount':'Harga satuan'}[item[2]]
         fields.append(flow.field(key,label,value,options,kind='date' if key.endswith('_date') else 'text',required=key!='notes'))
-    missing=next((v for v in fields if v['required'] and not v['value']),None)
+    order=['customer_id','item_description','amount','currency','due_date','issue_date','quantity']
+    ordered=sorted(fields,key=lambda v:order.index(v['key']) if v['key'] in order else len(order))
+    missing=next((v for v in ordered if v['required'] and not v['value']),None)
     context=dict(context,values=values)
     result=dict(kind='review',title='Draft invoice',ready=False,fields=fields,preview=[],
                 message='Lengkapi '+missing['label'].lower()+'.' if missing else 'Buat invoice ini sebagai draft? Balas “oke”.',
                 state='NEEDS_INFORMATION' if missing else 'READY_FOR_CONFIRMATION',context=flow.seal(b,u,'review',context))
-    if missing:result['next_field']=missing['key']
+    if missing:
+        result['next_field']=missing['key']
+        if missing['key']=='item_description':result['message']='Tagihan ini untuk apa?'
     if not missing:
         data=invoice_data(b,u,values);item=data['items'][0]
         customer=next(c for c in customers if c['id']==data['customer_id'])

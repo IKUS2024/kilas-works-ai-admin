@@ -26,6 +26,8 @@ class InlineTests(unittest.TestCase):
         self.gas=f.create_category(self.b,'EXPENSE','Bensin',actor_user_id=self.uid)
         self.branch=branches.list_branches(self.b,self.uid)[0]['id']
         self.path=self.assistant
+        from finance_semantic_fixtures import install
+        install(self)
     snapshot=prior.UnifiedTests.snapshot
     race=prior.UnifiedTests.race
     model=prior.UnifiedTests.model
@@ -42,7 +44,7 @@ class InlineTests(unittest.TestCase):
     def test_expense_fills_draft_no_write_and_confirm_once(self):
         before=self.snapshot();r=self.message('pengeluaran makan 120 ribu hari ini')
         self.assertEqual(r.status_code,200,r.text);self.assertTrue(r.json['ready'],r.json)
-        self.assertEqual(before,self.snapshot());self.http.assert_not_called()
+        self.assertEqual(before,self.snapshot());self.http.assert_called()
         fields={v['key']:v['value'] for v in r.json['fields']}
         self.assertEqual(fields['account_id'],str(self.a));self.assertEqual(fields['category_id'],str(self.meal));self.assertEqual(fields['date'],date.today().isoformat())
         for _ in range(2):self.assertEqual(self.confirm(r.json['token']).status_code,200)
@@ -93,7 +95,7 @@ class InlineTests(unittest.TestCase):
         self.assertEqual(len(f.list_categories(self.b)),before)
     def test_chat_is_finance_only_and_monthly_language_becomes_recurring(self):
         outside=self.message('siapa presiden sekarang?')
-        self.assertEqual(outside.status_code,200);self.assertEqual(outside.json['kind'],'answer')
+        self.assertEqual(outside.status_code,200);self.assertEqual(outside.json['kind'],'clarification')
         self.assertIn('khusus',outside.json['message'].lower())
         recurring=self.message('setiap bulan bayar internet 500 ribu')
         self.assertEqual(recurring.status_code,200,recurring.text)
@@ -103,7 +105,7 @@ class InlineTests(unittest.TestCase):
         before=self.snapshot()
         for question in ('bulan ini pengeluaran saya berapa?','pengeluaran terbesar apa?','saldo BOFA berapa?','customer yang belum bayar siapa?'):
             r=self.message(question);self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'answer');self.assertNotIn('token',r.json)
-        self.assertEqual(before,self.snapshot());self.http.assert_not_called()
+        self.assertEqual(before,self.snapshot());self.http.assert_called()
     def test_customer_conversational_name_cleanup_and_manual_field_contract(self):
         r=self.message('tambah customer atas nama irvan ya')
         self.assertEqual(r.status_code,200,r.text)

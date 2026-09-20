@@ -31,7 +31,7 @@ class ConversationalBoundaryTests(unittest.TestCase):
         finance_entitlements.start_trial(self.other,self.other_uid)
         f.create_customer(self.other,'Hidden',actor_user_id=self.other_uid)
         before=self.snapshot()
-        self.model({'intent':'all_entities','slots':{}})
+        self.model({'intent':'customers','slots':{}})
         answer=self.ask('jita punya customer namanya siapa aja')
         self.assertEqual(answer['title'],'Data customer')
         self.assertIn('Daniel',str(answer['preview']))
@@ -47,21 +47,21 @@ class ConversationalBoundaryTests(unittest.TestCase):
                 answer=self.ask(text)
                 self.assertEqual(answer['title'],'Data customer')
                 self.assertIn('Daniel',str(answer['preview']))
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_semantic_list_scope_applies_across_entity_types(self):
         for noun,title in (('customer','Data customer'),('proyek','Proyek'),('rekening','Rekening'),
                            ('kategori','Kategori'),('cabang','Cabang')):
             with self.subTest(noun=noun):
                 safety._RATE.clear()
-                self.model({'intent':'all_accounts' if noun=='rekening' else 'all_entities','slots':{}})
+                self.model({'intent':{'rekening':'accounts','customer':'customers','proyek':'projects','kategori':'categories','cabang':'branches'}[noun],'slots':{}})
                 answer=self.ask(noun+' namanya apa aja yang tersedia?')
                 self.assertEqual(answer['title'],title,answer)
                 self.assertNotIn('belum jelas',answer['message'])
 
     def test_named_multiword_customer_is_not_broadened(self):
         f.create_customer(self.b,'Daniel',actor_user_id=self.uid)
-        self.model({'intent':'named_entity','slots':{'customer':'Nobody Here'}})
+        self.model({'intent':'customers','slots':{'customer':'Nobody Here'}})
         answer=self.ask('customer Nobody Here ada?')
         self.assertIn('belum jelas',answer['message'])
         self.assertNotIn('Daniel',str(answer['preview']))
@@ -73,11 +73,11 @@ class ConversationalBoundaryTests(unittest.TestCase):
                 safety._RATE.clear()
                 self.http.side_effect=None
                 self.model({'intent':'unknown','slots':{}} if failure!='fabricated' else
-                           {'intent':'named_entity','slots':{'customer':'Daniel'}})
+                           {'intent':'customers','slots':{'customer':'Daniel'}})
                 if failure=='unavailable':self.http.side_effect=requests.Timeout()
                 answer=self.ask('customer Nobody Here ada?')
-                self.assertIn('belum jelas',answer['message'])
-                self.assertNotIn('Daniel',str(answer['preview']))
+                self.assertEqual(answer['kind'],'clarification')
+                self.assertNotIn('Daniel',str(answer))
 
     def test_screenshot_write_variants_start_amount_first_today(self):
         f.create_account(self.b,'BOFA',currency='USD',actor_user_id=self.uid)
@@ -96,7 +96,7 @@ class ConversationalBoundaryTests(unittest.TestCase):
                 self.assertNotIn('token',draft)
                 self.assertEqual(self.follow(draft,'batal').json['state'],'CANCELLED')
         self.assertEqual(before,self.snapshot())
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_amount_account_category_then_confirm_once(self):
         f.create_account(self.b,'BCA',actor_user_id=self.uid)
@@ -150,7 +150,7 @@ class ConversationalBoundaryTests(unittest.TestCase):
                 self.assertEqual(context.get('operation'),operation)
                 self.assertEqual(self.follow(draft,'batal').json['state'],'CANCELLED')
         self.assertEqual(before,self.snapshot())
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_normalization_preserves_literal_customer_name(self):
         for verb in ('buatkan','bikinin','tambahin','masukin','create'):

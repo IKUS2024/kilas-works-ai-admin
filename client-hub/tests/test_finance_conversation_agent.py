@@ -43,18 +43,20 @@ class ConversationTests(unittest.TestCase):
         rows=[x for x in f.list_customers(self.b) if x['name']=='wilson']
         self.assertEqual(len(f.list_customers(self.b)),before+1)
         self.assertEqual(len(rows),1);self.assertEqual(rows[0]['phone'],'082213039137')
-        self.assertEqual(rows[0]['email'],'wilson@gmail.com');self.http.assert_not_called()
+        self.assertEqual(rows[0]['email'],'wilson@gmail.com');self.http.assert_called()
     def test_all_phone_variants_are_server_parsed(self):
         for label in ('nomor teleponya','nomor teleponnya','nomornya','no hp','nomor hpnya','hp nya','whatsappnya','whatsapnya','wa nya'):
             safety._RATE.clear()
             with self.subTest(label=label):
                 r=self.follow(self.message('tambah customer Wilson').json,label+' 082213039137')
                 self.assertEqual(self.values(r)['phone'],'082213039137')
-        self.http.assert_not_called()
+        self.http.assert_called()
     def test_customer_name_notes_variants_optional_fields(self):
         for label in ('nama jadi','namanya','atas nama'):
+            safety._RATE.clear()
             r=self.follow(self.message('tambah customer Wilson').json,label+' Wilson Wijaya')
             self.assertEqual(self.values(r)['name'],'Wilson Wijaya')
+        safety._RATE.clear()
         r=self.follow(r.json,'catatannya customer lama')
         self.assertEqual(self.values(r)['notes'],'customer lama')
         self.assertTrue(self.message('tambah customer Nama Saja').json['ready'])
@@ -195,7 +197,7 @@ class ConversationTests(unittest.TestCase):
         draft=self.message('tambah customer Wilson').json
         for malicious in ({'intent':'continue_draft','slots':{'customer_id':'123'}},{'intent':'continue_draft','slots':{'action':'create_income'}},{'intent':'continue_draft','slots':{'phone':'999'}}):
             self.model(malicious);r=self.follow(draft,'tolong isi kontaknya dong 082213039137')
-            self.assertEqual(self.values(r)['phone'],'')
+            self.assertTrue(r.json['keep_pending']);self.assertNotIn('context',r.json)
         self.model({'intent':'continue_draft','slots':{'phone':'082213039137'}})
         r=self.follow(draft,'tolong isi kontaknya dong 082213039137')
         self.assertEqual(self.values(r)['phone'],'082213039137')
@@ -236,7 +238,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(response.status_code,400)
         self.assertEqual(f.list_transactions(self.b),[])
     def test_finance_domain_refusal(self):
-        r=self.message('cuaca hari ini bagaimana?');self.assertEqual(r.json['kind'],'answer');self.assertIn('khusus',r.text)
+        r=self.message('cuaca hari ini bagaimana?');self.assertEqual(r.json['kind'],'clarification');self.assertIn('khusus',r.text)
     def test_manual_contracts(self):
         root=Path(__file__).resolve().parents[1]/'templates'
         mappings=[('finance_receivables.html',contracts.CUSTOMER),('finance_dashboard.html',contracts.TRANSACTION),

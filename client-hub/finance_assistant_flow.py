@@ -103,7 +103,7 @@ def account_options(b,u,text='',currency=''):
     return accounts,selected
 
 
-def category_choice(categories,text):
+def category_choice(categories,text,auto_single=True):
     matches=exact_matches(categories,text)
     if len(matches)==1:return matches[0]['id']
     if not matches:
@@ -121,7 +121,7 @@ def category_choice(categories,text):
                     matches += [c for c in categories if any(re.search(r'\b'+w+r'\b',c['name'],re.I) for w in words)]
     ids={c['id'] for c in matches}
     if len(ids)==1:return next(iter(ids))
-    return categories[0]['id'] if len(categories)==1 else ''
+    return categories[0]['id'] if auto_single and len(categories)==1 else ''
 
 
 def proposed_date(text, scheduled=False, default_today=True):
@@ -301,96 +301,9 @@ def capabilities():
 
 
 def text_message(b,u,text,query_context=''):
-    text=operator.text(text,2000)
-    from finance_assistant_queries import canonicalize,is_contextual_followup
-    from finance_semantics import normalize,period_patch
-    text=normalize(text)
-    authorize(b,u,write=False)
-    from finance_conversation_actions import route
-    routed=route(b,u,text,query_context)
-    if routed is not None:return routed
-    if re.fullmatch(r'\s*(hai|halo|hi|pagi|siang|sore|malam)[!. ]*',text,re.I):
-        return dict(kind='answer',title='Kilas Finance AI',message='Hai. Aku siap bantu urusan Finance: catat pemasukan/pengeluaran, customer, invoice & piutang, biaya rutin, laporan, struk, dan mutasi bank.')
-    if re.search(r'\b(hapus|delete|transfer|kirim uang|bayarkan|ubah transaksi)\b',text,re.I):
-        return dict(kind='answer',title='Kilas Finance',message='Untuk keamanan, aku tidak melakukan transfer uang atau menghapus transaksi lewat chat. Aku bisa membantu menyiapkan dan mencatat transaksi baru, lalu kamu konfirmasi sebelum disimpan.')
-    if re.search(r'\b(apa itu|jelaskan|bedanya|beda apa|gimana cara)\b',text,re.I) and FINANCE_DOMAIN.search(text):
-        return accounting_help(text)
-    question_intent,explicit_write,schedule_hint=message_intents(text)
-    if query_context:
-        remembered=unseal_query(b,u,query_context)
-        if remembered.get('plan',{}).get('awaiting') and not explicit_write:return answer(b,u,text,query_context)
-    from finance_assistant_queries import looks_finance
-    if is_read_query(b,u,text,query_context):
-        # A date supplies a report period, not evidence that an unfamiliar verb
-        # is read-only. Let the shared interpreter resolve that boundary first.
-        if (period_patch(text) and not QUESTION_INTENT.search(text) and not is_contextual_followup(text)
-                and not FINANCE_DOMAIN.match(text.strip())):
-            from finance_intent_interpreter import understand
-            understood=understand(b,u,text)
-            if understood is not None:return understood
-            return dict(kind='clarification',message='Mau mencatat transaksi baru atau melihat laporan? Belum ada perubahan data.')
-        return answer(b,u,text,query_context)
-    if explicit_write or schedule_hint or re.search(r'\b(pemasukan|pengeluaran)\b',text,re.I):
-        try:branches.token_branch(b)
-        except f.FinanceError as error:
-            if str(error) not in ('all_branches_read_only','branch_required'):raise
-            return dict(kind='branch_choice',message='Transaksi ini untuk cabang mana?',text=text,
-                        branches=[dict(id=r['id'],name=r['name']) for r in branches.list_branches(b,u) if r['is_active']])
-    customer=re.search(r'\b(?:tambah(?:kan)?|masukin|buat)\s+(?:customer|custumer|costumer|pelanggan)\s+(.+)',text,re.I)
-    if customer:
-        raw=customer[1].strip()
-        parts=re.split(r'\s*,\s*|\s+(?=(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon)(?:nya)?\b|email(?:nya)?\b|catatan(?:nya)?\b)',raw,flags=re.I)
-        name=re.sub(r'^(?:atas\s+nama|bernama|nama(?:nya)?(?:\s+adalah)?)\s+','',parts[0].strip(),flags=re.I)
-        name=re.sub(r'\s+(?:ya|dong|weh)$','',name,flags=re.I).strip()
-        phone=re.search(r'(?:nomor|no(?:mor)?(?:\s+hp)?|wa|whatsapp|whatsap|telepon)(?:nya)?\s*[:=]?\s*(\+?[0-9][0-9 -]{4,62})',raw,re.I)
-        email=re.search(r'\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b',raw)
-        notes=re.search(r'\bcatatan(?:nya)?\s*[:=]?\s*(.+)',raw,re.I)
-        return review(b,u,dict(action='customer',nonce=uuid.uuid4().hex,values=dict(
-            name=name,phone=phone[1].strip() if phone else '',email=email[0] if email else '',notes=notes[1] if notes else '')))
-    if re.search(r'\b(buat|bikin|tambah)\s+invoice\b',text,re.I):
-        from finance_assistant_invoice import start
-        return start(b,u,text)
-    if re.search(r'\bterbitkan\b',text,re.I):
-        from finance_assistant_invoice import issue_start
-        return issue_start(b,u,text)
-    schedule=schedule_hint
-    action='recurring' if schedule else 'record_invoice_payment' if re.search(r'\binvoice\b',text,re.I) else 'create_income' if re.search(r'\b(pemasukan|pendapatan|penjualan|terima|dibayar|bayaran)\b',text,re.I) else 'create_expense' if re.search(r'\b(pengeluaran|makan|bensin|beli|bayar|catat|software|biaya|sewa|belanja)\b',text,re.I) else ''
-    if not action:
-        if query_context and is_contextual_followup(text):return answer(b,u,text,query_context)
-        if explicit_write or looks_finance(text,b,u) or AMOUNT.search(text):
-            from finance_intent_interpreter import understand
-            understood=understand(b,u,text)
-            if understood is not None:return understood
-        return accounting_help(text) if FINANCE_DOMAIN.search(text) else capabilities()
-    matches=list(AMOUNT.finditer(text))
-    if not matches:matches=list(BARE_AMOUNT.finditer(text))
-    if len(matches)>1:return dict(kind='clarification',message='Saya menemukan lebih dari satu nominal. Kirim satu transaksi per pesan supaya tidak salah pencatatan.')
-    amount=matches[0][0] if matches else ''
-    description=text
-    if matches:description=text[:matches[0].start()]+text[matches[0].end():]
-    description=re.sub(r'\b(pengeluaran|pemasukan|pendapatan|catat(?:kan)?|tambah(?:in|kan)?|tadi|beli|hari ini|kemarin|setiap bulan|tiap bulan|bulanan)\b','',description,flags=re.I).strip(' ,.')[:500]
-    values=dict(amount=amount,currency=currency_hint(text),date=proposed_date(text,scheduled=schedule),
-                description=description or text[:500],account_id='',category_id='')
-    if action in ('create_income','create_expense'):
-        values.update(project_id='',customer_id='',counterparty_name='')
-    if schedule:
-        cadence='WEEKLY' if re.search(r'\b(mingguan|tiap minggu|setiap minggu|per minggu)\b',text,re.I) else (
-                'MONTHLY' if re.search(r'\b(bulanan|tiap bulan|setiap bulan|per bulan|tiap tanggal|setiap tanggal)\b',text,re.I) else '')
-        recurring_name=description[:160]
-        purpose=re.search(r'\buntuk\s+(.+?)(?=\s+(?:tanggal|mulai|pakai|rekening|kategori|tiap|setiap|per)\b|$)',text,re.I)
-        if purpose:
-            recurring_name=purpose[1].strip(' ,.')
-        recurring_name=re.sub(r'^(?:rutin|biaya rutin)\s+','',recurring_name,flags=re.I).strip() or 'Biaya rutin'
-        recurring_name=re.split(r'\b(?:tiap|setiap|per bulan|per minggu|mulai|tanggal)\b',recurring_name,flags=re.I)[0].strip() or recurring_name
-        values.update(name=recurring_name[:160],cadence=cadence,
-                      end_on='',project_id='',counterparty_name='')
-    if action=='recurring':
-        vendor=re.search(r'\bke\s+(.+?)(?=\s+(?:tanggal|pakai|kategori)\b|$)',text,re.I)
-        if vendor:values['counterparty_name']=vendor[1].strip()
-        label=re.search(r'\bbayar\s+(.+?)(?=\s+(?:Rp\.?\s*)?\d)',text,re.I)
-        if label:values['name']=label[1].strip()
-    if action=='record_invoice_payment':values['invoice_id']=''
-    return review(b,u,dict(action=action,text=text,nonce=uuid.uuid4().hex,values=values))
+    from finance_conversation_brain import message
+    return message(b,u,text,query_context)
+
 
 def review(b,u,context,edits=None):
     if context['action']=='command':
@@ -553,6 +466,11 @@ def review(b,u,context,edits=None):
                        'category_id':'Kategori apa yang sesuai?', 'amount':'Nominalnya berapa?',
                        'invoice_id':'Invoice mana yang dibayar?','name':'Nama biaya rutinnya apa?'}
             result['message']=questions[missing['key']]
+    if action=='customer':
+        if not values['name'].strip():
+            result.update(next_field='name',message='Siapa nama customernya?')
+        elif result.get('ready'):
+            result['message']='Oke, customer '+values['name']+'. Mau isi nomor telepon atau langsung simpan? Balas “oke” untuk menyimpan.'
     if context.get('awaiting'):
         if values.get(context['awaiting']):context.pop('awaiting')
         else:
@@ -578,6 +496,8 @@ def confirm(b,u,token):
     if action=='command':kind=context['operation'].split('_',1)[-1] if context['operation']!='exchange' else 'fx'
     if kind and type(result.get('record_id')) is int:
         result['query_context']=seal_query(b,u,{'last_record':{'kind':kind,'id':result['record_id']}})
+    elif context.get('conversation',{}).get('last_record'):
+        result['query_context']=seal_query(b,u,{'last_record':context['conversation']['last_record']})
     return result
 
 
@@ -694,10 +614,6 @@ def follow_up(b,u,token,message,confirmation=None,query_context=''):
         result=confirm(b,u,confirmation)
         return dict(kind='success',state='CONFIRMED',**result)
     current=review(b,u,context)
-    if context['action']=='invoice':
-        from finance_assistant_invoice import add_item
-        added=add_item(b,u,context,message)
-        if added is not None:return added
     # Route before permissive slot filling, for every signed draft adapter.
     from finance_intent_interpreter import pending_turn
     interruption,updates,continuation=pending_turn(b,u,message,context,current,query_context)
@@ -708,7 +624,6 @@ def follow_up(b,u,token,message,confirmation=None,query_context=''):
     if context['action']=='issue_invoice':
         current['message']='Balas “oke” untuk menerbitkan invoice yang ditinjau, atau “batal”.'
         return current
-    if not updates and continuation:updates=interpreter.slot_reply(message,context,current['fields'],current.get('next_field'))
     if not updates:
         current['message']='Bagian mana yang mau diubah? Sebut nama kolom dan nilainya, atau balas “oke” untuk menyimpan.'
         return current

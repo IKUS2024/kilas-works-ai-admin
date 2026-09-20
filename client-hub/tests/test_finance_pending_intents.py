@@ -51,7 +51,7 @@ class PendingIntentTests(unittest.TestCase):
         self.assertEqual(before,self.snapshot())
         self.save(response.json)
         self.assertEqual(len(f.list_transactions(self.b)),2)
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_recurring_date_can_be_interrupted_by_balance(self):
         draft=self.ask('tambah biaya rutin 2 juta untuk AI')
@@ -124,7 +124,7 @@ class PendingIntentTests(unittest.TestCase):
                                ('kategori transport','category_id',str(transport))]:
             response=self.follow(draft,text);self.assertEqual(self.values(response)[key],value);draft=response.json
         self.assertEqual(f.list_transactions(self.b),[])
-        self.save(draft);self.http.assert_not_called()
+        self.save(draft);self.http.assert_called()
 
     def test_semantic_read_without_report_keywords_is_not_a_slot(self):
         self.tx(123000)
@@ -134,7 +134,7 @@ class PendingIntentTests(unittest.TestCase):
         result=self.interrupt(draft,'duit kita masih nyisa segimana nih')
         self.assertEqual(result['title'],'Saldo akun')
         self.assertEqual(before,self.snapshot())
-        self.assertEqual(self.http.call_count,1)
+        self.assertEqual(self.http.call_count,2)
         self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
 
     def test_new_commands_never_replace_or_fill_existing_draft(self):
@@ -150,6 +150,7 @@ class PendingIntentTests(unittest.TestCase):
                 self.assertEqual(before,self.snapshot())
         self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
         self.assertEqual(self.follow(draft,'batal').json['state'],'CANCELLED')
+        self.model({'intent':'create_income','slots':{'amount':'3 juta'}})
         self.assertEqual(self.ask('catat pemasukan 3 juta')['title'],'Pemasukan')
 
     def test_semantic_continuation_can_fill_a_literal_free_text_slot(self):
@@ -157,7 +158,7 @@ class PendingIntentTests(unittest.TestCase):
         self.model({'intent':'continue_draft','slots':{'name':'BSD'}})
         result=self.follow(draft,'BSD')
         self.assertEqual(self.values(result)['name'],'BSD')
-        self.assertEqual(self.http.call_count,1)
+        self.assertEqual(self.http.call_count,2)
         self.assertFalse(any(r['name']=='BSD' for r in branches.list_branches(self.b,self.uid)))
 
     def test_query_followups_preserve_period_then_draft_can_resume(self):
@@ -185,10 +186,10 @@ class PendingIntentTests(unittest.TestCase):
                        {'intent':'continue_draft','slots':{'account_id':'123'}}):
             safety._RATE.clear();self.model(output)
             result=self.follow(draft,'tolong urus semuanya')
-            self.assertEqual(self.values(result)['name'],'')
+            self.assertTrue(result.json['keep_pending']);self.assertNotIn('context',result.json)
         safety._RATE.clear();self.http.side_effect=requests.Timeout('PRIVATE')
         result=self.follow(draft,'tolong urus semuanya')
-        self.assertEqual(self.values(result)['name'],'')
+        self.assertTrue(result.json['keep_pending']);self.assertNotIn('context',result.json)
         self.assertNotIn('PRIVATE',result.text)
         self.http.side_effect=None
 
@@ -219,12 +220,12 @@ class PendingIntentTests(unittest.TestCase):
         self.model({'intent':'new_command','slots':{}})
         result=self.interrupt(draft,'pemasukan 2 juta')
         self.assertIn('batal',result['message'])
-        self.assertEqual(self.http.call_count,1)
+        self.assertEqual(self.http.call_count,2)
         self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
 
     def test_screenshot_balance_phrase_does_not_invent_an_account(self):
         self.tx(123000)
-        self.model({'intent':'all_accounts','slots':{}})
+        self.model({'intent':'balances','slots':{}})
         result=self.ask('berapa saldo kita weh ?')
         self.assertEqual(result['title'],'Saldo akun')
         self.assertIn('123.000',str(result['preview']))
@@ -236,14 +237,14 @@ class PendingIntentTests(unittest.TestCase):
     def test_screenshot_balance_phrase_also_interrupts_pending_draft(self):
         draft=self.ask('pengeluaran makan')
         before=self.snapshot()
-        self.model({'intent':'all_accounts','slots':{}})
+        self.model({'intent':'balances','slots':{}})
         result=self.interrupt(draft,'berapa saldo kita weh ?')
         self.assertEqual(result['title'],'Saldo akun')
         self.assertEqual(before,self.snapshot())
         self.assertEqual(self.values(self.follow(draft,'200 ribu'))['amount'],'200 ribu')
 
     def test_balance_semantics_can_extract_a_literal_account_name(self):
-        self.model({'intent':'named_account','slots':{'account':'BankTakAda'}})
+        self.model({'intent':'balances','slots':{'account':'BankTakAda'}})
         result=self.ask('berapa saldo punya kita di BankTakAda weh?')
         self.assertEqual(result['title'],'Rekening')
         with app.app_context(),branches.scope(self.b,self.branch,self.uid):
@@ -255,16 +256,16 @@ class PendingIntentTests(unittest.TestCase):
         self.tx(987000)
         self.http.side_effect=requests.Timeout('PRIVATE')
         result=self.ask('berapa saldo BankTakAda weh?')
-        self.assertEqual(result['title'],'Rekening')
-        self.assertNotIn('987.000',str(result['preview']))
+        self.assertEqual(result['kind'],'clarification')
+        self.assertNotIn('987.000',str(result))
         self.assertNotIn('PRIVATE',str(result))
         self.http.side_effect=None
 
     def test_explicit_unknown_account_is_not_removed_by_semantics(self):
-        self.model({'intent':'all_accounts','slots':{}})
+        self.model({'intent':'balances','slots':{'account':'BankTakAda'}})
         result=self.ask('saldo rekening BankTakAda berapa?')
         self.assertEqual(result['title'],'Rekening')
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_known_balance_account_and_native_currency_are_preserved(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',opening_balance_minor=10000,actor_user_id=self.uid)
@@ -272,7 +273,7 @@ class PendingIntentTests(unittest.TestCase):
         result=self.ask('berapa saldo BOFA kita weh?')
         self.assertIn('100.00',str(result['preview']))
         self.assertNotIn('987.000',str(result['preview']))
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_unresolved_account_can_be_interrupted_by_a_new_complete_query(self):
         self.tx(421000)
@@ -284,7 +285,7 @@ class PendingIntentTests(unittest.TestCase):
             plan=flow.unseal_query(self.b,self.uid,second['query_context'])['plan']
         self.assertNotIn('account',plan)
         self.assertNotIn('awaiting',plan)
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_unresolved_account_still_accepts_a_genuine_entity_answer(self):
         self.tx(421000)
@@ -293,7 +294,7 @@ class PendingIntentTests(unittest.TestCase):
         second=self.ask(account,first)
         self.assertEqual(second['title'],'Saldo akun')
         self.assertIn('421.000',str(second['preview']))
-        self.http.assert_not_called()
+        self.http.assert_called()
 
     def test_assistant_html_uses_content_version_and_is_never_cached(self):
         import hashlib

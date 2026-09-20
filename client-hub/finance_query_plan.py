@@ -201,6 +201,7 @@ def execute(b,u,p,scoped=False):
         return result('Piutang / invoice',preview,'Posisi invoice saat ini. Draft dan void tidak dihitung sebagai piutang; maksimal 50 rincian ditampilkan.')
     if resource=='exchanges':
         rows=f.list_currency_exchanges(b,actor_user_id=u)
+        if p.get('exchange'):rows=[row for row in rows if row['id']==p['exchange']]
         return result('Penukaran mata uang',[[r['occurred_on'],fx.format_money(r['from_amount_minor'],r['from_currency'])+' → '+fx.format_money(r['to_amount_minor'],r['to_currency'])+' · '+r['status']] for r in rows],
                       'FX memindahkan saldo antar mata uang, bukan pemasukan atau pengeluaran operasional.')
     if resource=='recurring' and not p.get('forecast'):
