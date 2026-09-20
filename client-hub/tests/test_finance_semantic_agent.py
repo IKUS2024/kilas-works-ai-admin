@@ -209,8 +209,10 @@ class SemanticAgentTests(unittest.TestCase):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
         draft=self.ask('buat invoice Wilson jasa foto 2 juta jatuh tempo 30 september')
         saved=self.save(draft);row=f.get_finance_invoice(self.b,saved['record_id']);self.assertEqual(row['status'],'DRAFT')
+        self.assertIn('Terbitkan yang tadi',saved.get('choices',[]))
         issue=self.ask('terbitkan yang tadi',saved);self.assertEqual(issue['title'],'Terbitkan invoice')
-        self.save(issue);self.assertEqual(f.get_finance_invoice(self.b,row['id'])['status'],'ISSUED')
+        issued=self.save(issue);self.assertEqual(f.get_finance_invoice(self.b,row['id'])['status'],'ISSUED')
+        self.assertIn('masuk piutang',issued['message'])
 
     def test_multi_item_invoice_matches_manual_totals(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)

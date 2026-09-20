@@ -529,6 +529,14 @@ def create_category(business_id, user, business):
 
 INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dibayar sebagian','PAID':'Lunas','VOID':'Dibatalkan'}
 
+def invoice_status_counts(invoices):
+    counts={status:0 for status in INVOICE_LABELS}
+    for invoice in invoices:
+        if invoice['status'] in counts:counts[invoice['status']]+=1
+    counts['total']=len(invoices)
+    counts['open']=counts['ISSUED']+counts['PARTIALLY_PAID']
+    return counts
+
 
 @finance_bp.route('/business/<int:business_id>/finance/receivables')
 @finance_access
@@ -542,7 +550,8 @@ def receivables(business_id, user, business):
     totals = {i['id']: finance.get_invoice_totals(business_id, i['id'], **actor) for i in invoices}
     return render_template('finance_receivables.html', user=user, business=business, customers=customers,
         customer_map={c['id']:c for c in customers}, invoices=invoices, totals=totals, section=section,
-        summary=finance.get_receivables_summary(business_id, **actor), labels=INVOICE_LABELS)
+        summary=finance.get_receivables_summary(business_id, **actor), labels=INVOICE_LABELS,
+        invoice_counts=invoice_status_counts(invoices))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/customers', methods=['POST'])
@@ -908,11 +917,13 @@ def collections(business_id,user,business):
         if sort not in finance_collections.SORTS or view not in finance_collections.FILTERS or page<1:raise ValueError()
         data=finance_collections.position(business_id,user['id'])
         queue=finance_collections.queue(data,sort,view,page)
+        invoices=finance.list_finance_invoices(business_id,actor_user_id=user['id'])
+        invoice_counts=invoice_status_counts(invoices)
     except finance.FinanceError:
         return 'Daftar piutang belum dapat ditampilkan. Hubungi pengelola aplikasi.',503
     except ValueError:abort(400)
     return render_template('finance_collections.html',user=user,business=business,data=data,queue=queue,section=section,
-                           sort=sort,view=view,labels=INVOICE_LABELS)
+                           sort=sort,view=view,labels=INVOICE_LABELS,invoice_counts=invoice_counts)
 
 
 def render_statement(business_id,user,business,customer_id,standalone=False,share_url=None):

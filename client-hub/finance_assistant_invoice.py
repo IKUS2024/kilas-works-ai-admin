@@ -128,7 +128,7 @@ def confirm_invoice(b,u,context):
     if context['action']=='issue_invoice':
         f.issue_finance_invoice(b,context['values']['invoice_id'],u,idempotency_key=context['nonce'],expected_fingerprint=context['values']['fingerprint'])
         row=f.get_finance_invoice(b,context['values']['invoice_id'],u)
-        return dict(record_id=row['id'],message='✅ Invoice '+row['invoice_number']+' berhasil diterbitkan.')
+        return dict(record_id=row['id'],message='✅ Invoice '+row['invoice_number']+' berhasil diterbitkan. Selama masih ada sisa tagihan, invoice ini sekarang masuk piutang dan antrean penagihan.')
     data=invoice_data(b,u,context['values'])
     ident=f.create_finance_invoice(b,**data,actor_user_id=u,idempotency_key=context['nonce'])
     invoice=f.get_finance_invoice(b,ident,u)
