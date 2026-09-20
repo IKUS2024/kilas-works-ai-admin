@@ -99,6 +99,15 @@ test('receivables operations and reports expose professional compact navigation'
 });
 
 
+test('shared Finance branch selector only shows active real branches',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../templates/_finance_branch_selector.html'),'utf8');
+  assert.match(html,/for branch in finance_branches if branch\.is_active/);
+  assert.match(html,/finance\.assistant/);
+  assert.doesNotMatch(html,/Semua Cabang/);
+  assert.doesNotMatch(html,/Nonaktif/);
+  assert.doesNotMatch(html,/value="all"/);
+});
+
 test('dashboard transaction tile opens manual entry while history stays separate',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
   assert.match(html,/finance-home-tile primary" data-finance-open="add-transaction-dialog"/);
