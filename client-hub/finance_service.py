@@ -1354,8 +1354,8 @@ def get_receivables_aging(business_id, as_of, actor_user_id=None):
 
 def receivables_aging_rows(rows):
     """Deterministic aging grouped by native currency; never mixes monetary amounts."""
-    labels=('Belum jatuh tempo','Telat Dibayar 1–30 Hari','Telat Dibayar 31–60 Hari',
-            'Telat Dibayar 61–90 Hari','>90 hari terlambat')
+    labels=('Belum jatuh tempo','Terlambat 1–30 hari','Terlambat 31–60 hari',
+            'Terlambat 61–90 hari','Terlambat >90 hari')
     groups={}
     for r in rows:
         if r['status'] not in ('ISSUED','PARTIALLY_PAID') or r['outstanding_minor']<=0:continue
