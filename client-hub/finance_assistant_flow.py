@@ -128,7 +128,7 @@ def category_choice(categories,text,auto_single=True):
 
 
 def proposed_date(text, scheduled=False, default_today=True):
-    today=date.today()
+    today=f.business_today()
     text=re.sub(r'\b(kemaren|kmrn)\b','kemarin',text,flags=re.I)
     text=re.sub(r'\b(skrg|skrng)\b','sekarang',text,flags=re.I)
     text=re.sub(r'\btgl\b','tanggal',text,flags=re.I)
