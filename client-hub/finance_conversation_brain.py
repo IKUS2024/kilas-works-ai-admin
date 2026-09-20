@@ -126,8 +126,32 @@ def classify(b,u,message,previous,context=None,current=None):
     except (ValueError,requests.RequestException,TypeError,KeyError):return None
 
 
+def social_response(message):
+    """Natural small-talk replies only; no Finance state, services, or writes are touched."""
+    text=re.sub(r'[^a-z0-9 ]+',' ',semantics.normalize(message).casefold())
+    text=' '.join(text.split())
+    greetings={
+        'hai','halo','hi','hello','hey','pagi','siang','sore','malam',
+        'selamat pagi','selamat siang','selamat sore','selamat malam'
+    }
+    thanks={'makasih','makasi','terima kasih','thanks','thank you','thx'}
+    if text in greetings:
+        return dict(kind='answer',title='Kilas Finance',
+                    message='Halo! Saya siap membantu. Kamu bisa langsung ceritakan kebutuhan Finance-mu, misalnya mencatat transaksi, membuat invoice, mengecek piutang, atau melihat laporan.')
+    if text in thanks:
+        return dict(kind='answer',title='Kilas Finance',
+                    message='Sama-sama. Kalau ada yang ingin dicek atau dicatat di Finance, langsung sampaikan saja.')
+    if text in ('apa kabar','gimana kabar','bagaimana kabar','how are you'):
+        return dict(kind='answer',title='Kilas Finance',
+                    message='Baik, terima kasih. Saya siap membantu urusan Finance-mu. Mau cek data, membuat pencatatan, atau melanjutkan pekerjaan yang tadi?')
+    return None
+
+
 def uncertain():
-    return dict(kind='clarification',title='Kilas Finance',message='Aku khusus membantu Finance dan belum yakin maksudnya. Mau mencatat, mengubah draft, atau melihat data Finance? Belum ada perubahan data.')
+    return dict(kind='clarification',title='Kilas Finance',message=(
+        'Saya belum menangkap maksud Finance dari pesan itu. Kamu bisa langsung tulis kebutuhannya, '
+        'misalnya “catat pengeluaran 200 ribu”, “siapa yang belum bayar?”, atau “buat invoice untuk Putri”. '
+        'Belum ada data yang diubah.'))
 
 
 def read(b,u,intent,slots,previous):
@@ -289,8 +313,10 @@ def start(b,u,intent,slots,previous):
 def message(b,u,text,query_context=''):
     text=flow.operator.text(text,2000);flow.authorize(b,u,write=False)
     previous=flow.unseal_query(b,u,query_context) if query_context else {}
-    if draft.NO.fullmatch(text):return dict(kind='answer',state='CANCELLED',message='Oke, dibatalkan.')
-    if draft.YES.fullmatch(text):return dict(kind='answer',message='Belum ada draft yang ditinjau untuk disimpan. Mau mencatat apa?')
+    if draft.NO.fullmatch(text):return dict(kind='answer',state='CANCELLED',message='Baik, draft dibatalkan. Tidak ada data yang diubah.')
+    if draft.YES.fullmatch(text):return dict(kind='answer',message='Belum ada draft yang menunggu konfirmasi. Silakan sampaikan apa yang ingin dicatat atau dicek.')
+    social=social_response(text)
+    if social:return social
     data=classify(b,u,text,previous)
     if not data or data['intent']=='unknown':return uncertain()
     intent=data['intent'];slots=data['slots']
@@ -321,6 +347,11 @@ def exact_updates(message,context,current):
 def pending(b,u,message,context,current,query_context=''):
     previous=dict(context.get('conversation',{}))
     if query_context:previous.update(flow.unseal_query(b,u,query_context))
+    social=social_response(message)
+    if social:
+        social['keep_pending']=True
+        social['hint']='Draft sebelumnya tetap tersedia. Kamu bisa melanjutkannya kapan saja atau membatalkannya dengan “batal”.'
+        return social,{},False
     updates=exact_updates(message,context,current)
     if updates:
         if context['action']=='record_invoice_payment' and 'amount' in updates:context['settle_full']=False
