@@ -19,7 +19,7 @@ def start(b,u,text):
     label=re.split(r'jatuh tempo',label,flags=re.I)[0].strip(' ,')
     due=re.search(r'jatuh tempo\s+(.+)',text,re.I)
     values=dict(customer_id=str(customers[0]['id']) if len(customers)==1 else '',
-                issue_date=date.today().isoformat(),due_date=flow.proposed_date(due[1],True) if due else '',
+                issue_date=f.business_today(b).isoformat(),due_date=flow.proposed_date(due[1],True) if due else '',
                 currency=flow.currency_hint(text) or '',item_description=label,quantity='1',amount=amount,notes='')
     # Rupiah wording is evidence; bare amounts with multiple native currencies need a question.
     if not values['currency']:
@@ -42,7 +42,7 @@ def payment_data(b,u,values):
     category=next((r for r in f.list_categories(b,'INCOME',actor_user_id=u) if str(r['id'])==values['category_id']),None)
     if not category:raise ValueError('category_unavailable')
     when=f._date(values['date'])
-    if when>date.today().isoformat():raise ValueError('future_date')
+    if when>f.business_today(b).isoformat():raise ValueError('future_date')
     return account,category,when
 
 
@@ -51,7 +51,7 @@ def invoice_data(b,u,values):
     customer=f.get_customer(b,int(values['customer_id']),u)
     if not customer or not customer['is_active']:raise ValueError('customer_unavailable')
     issue,due=f._period(values['issue_date'],values['due_date'])
-    if issue>date.today().isoformat():raise ValueError('future_date')
+    if issue>f.business_today(b).isoformat():raise ValueError('future_date')
     currency=f._currency(values['currency'])
     items=[];total=0
     count=1+sum(1 for key in values if re.fullmatch(r'item\d+_description',key))
@@ -189,7 +189,7 @@ def confirm_invoice(b,u,context):
             from finance_assistant_payment import review as payment_review
             payment_context=dict(action='record_invoice_payment',nonce=context['nonce'],settle_full=True,
                 values=dict(invoice_id=str(row['id']),customer_id=str(row['customer_id']),amount='',currency=row['currency'],
-                            date=date.today().isoformat(),account_id='',category_id='',description=''))
+                            date=f.business_today(b).isoformat(),account_id='',category_id='',description=''))
             if context.get('conversation'):payment_context['conversation']=context['conversation']
             result=payment_review(b,u,payment_context)
             result['message']='✅ Invoice '+row['invoice_number']+' sudah diterbitkan. '+result['message']
