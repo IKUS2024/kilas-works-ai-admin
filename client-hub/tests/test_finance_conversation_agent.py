@@ -315,4 +315,34 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('Internet',found.text)
         self.assertIn('500.000',found.text)
 
+
+    def test_recurring_without_frequency_does_not_assume_monthly(self):
+        response=self.message('tambah biaya rutin 2 juta untuk ai')
+        self.assertEqual(response.status_code,200,response.text)
+        values=self.values(response)
+        self.assertEqual(values['cadence'],'')
+        self.assertEqual(values['name'].lower(),'ai')
+        self.assertIn('seberapa sering',response.json['message'])
+        categories={c['id']:c['name'] for c in f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)}
+        if 'Software / API' in categories.values():
+            self.assertEqual(categories[int(values['category_id'])],'Software / API')
+        self.assertFalse(response.json['ready'])
+
+    def test_recurring_missing_fields_are_collected_in_order(self):
+        response=self.message('tambah biaya rutin 2 juta untuk ai')
+        values=self.values(response)
+        if not values['account_id']:
+            response=self.revise(response.json,account_id=str(self.a))
+        values=self.values(response)
+        if not values['category_id']:
+            response=self.revise(response.json,category_id=str(self.meal))
+        values=self.values(response)
+        self.assertEqual(values['cadence'],'')
+        response=self.follow(response.json,'bulanan')
+        self.assertEqual(self.values(response)['cadence'],'MONTHLY')
+        self.assertIn('Mulai kapan',response.json['message'])
+        response=self.follow(response.json,'tanggal 25')
+        self.assertTrue(self.values(response)['date'])
+        self.assertTrue(response.json['ready'],response.json)
+
 if __name__=='__main__':unittest.main()

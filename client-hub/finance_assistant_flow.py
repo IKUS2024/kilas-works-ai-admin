@@ -115,7 +115,7 @@ def category_choice(categories,text):
         if highest:matches=[c for c in categories if scores[c['id']]==highest]
         if not matches:
             groups=[('makan','makanan','minuman','konsumsi'),('bensin','bbm','transportasi','transport'),
-                    ('software','aplikasi','langganan'),('internet','telepon','komunikasi'),('sewa','rent')]
+                    ('software','aplikasi','langganan','api','ai'),('internet','telepon','komunikasi'),('sewa','rent')]
             for words in groups:
                 if any(re.search(r'\b'+w+r'\b',text,re.I) for w in words):
                     matches += [c for c in categories if any(re.search(r'\b'+w+r'\b',c['name'],re.I) for w in words)]
@@ -320,7 +320,14 @@ def text_message(b,u,text,query_context=''):
     if action in ('create_income','create_expense'):
         values.update(project_id='',customer_id='',counterparty_name='')
     if schedule:
-        values.update(name=description[:160],cadence='WEEKLY' if re.search(r'minggu',text,re.I) else 'MONTHLY',
+        cadence='WEEKLY' if re.search(r'\b(mingguan|tiap minggu|setiap minggu|per minggu)\b',text,re.I) else (
+                'MONTHLY' if re.search(r'\b(bulanan|tiap bulan|setiap bulan|per bulan)\b',text,re.I) else '')
+        recurring_name=description[:160]
+        purpose=re.search(r'\buntuk\s+(.+?)(?=\s+(?:tanggal|mulai|pakai|rekening|kategori|tiap|setiap|per)\b|$)',text,re.I)
+        if purpose:
+            recurring_name=purpose[1].strip(' ,.')
+        recurring_name=re.sub(r'^(?:rutin|biaya rutin)\s+','',recurring_name,flags=re.I).strip() or 'Biaya rutin'
+        values.update(name=recurring_name[:160],cadence=cadence,
                       end_on='',project_id='',counterparty_name='')
     if action=='recurring':
         vendor=re.search(r'\bke\s+(.+?)(?=\s+(?:tanggal|pakai|kategori)\b|$)',text,re.I)
@@ -434,7 +441,10 @@ def review(b,u,context,edits=None):
 
         if not account:result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif not category:result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
-        elif not values['date']:result['message']='Tanggal belum jelas. Lengkapi tanggal pada review.'
+        elif action=='recurring' and not values.get('cadence'):
+            result['message']='Biaya rutin ini mau berulang seberapa sering? Pilih Bulanan atau Mingguan.'
+        elif not values['date']:
+            result['message']='Mulai kapan biaya rutin ini berlaku? Tulis misalnya “hari ini”, “tanggal 25”, atau tanggal lengkap.'
         elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
         elif not values['amount']:result['message']='Nominal belum jelas. Lengkapi nominal pada review.'
         else:
