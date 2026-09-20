@@ -39,6 +39,31 @@ def settings():
     return values
 
 
+def platform_settings():
+    """Minimum server-side configuration for Kilas Works' own platform number.
+
+    Unlike tenant onboarding, this path does not need provider client-WABA sharing/admin assignment
+    because the platform number belongs to Kilas Works itself. It still validates the same app,
+    runtime System User and messaging scopes before any mutation.
+    """
+    keys = ('META_APP_ID', 'META_EMBEDDED_SIGNUP_CONFIG_ID', 'WHATSAPP_APP_SECRET',
+            'META_PROVIDER_SYSTEM_USER_ID', 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID')
+    values = {k: os.environ.get(k, '').strip() for k in keys}
+    version = os.environ.get('META_GRAPH_API_VERSION', 'v21.0').strip()
+    if (not all(values.values()) or not re.fullmatch(r'v\d+\.\d+', version)
+            or any(not re.fullmatch(r'[0-9]{1,32}', values[k]) for k in
+                   ('META_APP_ID', 'META_EMBEDDED_SIGNUP_CONFIG_ID',
+                    'META_PROVIDER_SYSTEM_USER_ID', 'WHATSAPP_PHONE_NUMBER_ID'))):
+        raise SignupError('configuration_missing')
+    values['version'] = version
+    return values
+
+
+def normalize_phone_digits(value):
+    digits = re.sub(r'\D', '', str(value or ''))
+    return digits if re.fullmatch(r'\d{6,20}', digits) else None
+
+
 def eligible(business_id, user):
     import security
     import payment_service
@@ -161,6 +186,151 @@ class Graph:
     def success(self, path, token, payload):
         if self.call('POST', path, token, json=payload).get('success') is not True:
             raise SignupError('meta_step_incomplete')
+
+
+def _platform_runtime(config, graph):
+    """Return the configured platform runtime token only after app/user/scope verification."""
+    runtime = config['WHATSAPP_ACCESS_TOKEN']
+    debug = graph.call(
+        'GET', 'debug_token', config['META_APP_ID'] + '|' + config['WHATSAPP_APP_SECRET'],
+        params={'input_token': runtime},
+    ).get('data', {})
+    if (debug.get('is_valid') is not True
+            or str(debug.get('app_id')) != config['META_APP_ID']
+            or str(debug.get('user_id')) != config['META_PROVIDER_SYSTEM_USER_ID']
+            or not {'whatsapp_business_management', 'whatsapp_business_messaging'}.issubset(
+                debug.get('scopes', []))):
+        raise SignupError('provider_token_invalid')
+    return runtime
+
+
+def platform_current_identity():
+    """Live identity/status for Kilas Works' own currently configured Cloud API number."""
+    config = platform_settings()
+    graph = Graph(config)
+    runtime = _platform_runtime(config, graph)
+    phone = config['WHATSAPP_PHONE_NUMBER_ID']
+    row = graph.call(
+        'GET', phone, runtime,
+        params={'fields': 'id,display_phone_number,status,is_on_biz_app,platform_type'},
+    )
+    digits = normalize_phone_digits(row.get('display_phone_number'))
+    if str(row.get('id')) != phone or not digits:
+        raise SignupError('platform_phone_unavailable')
+    return {
+        'phone_number_id': phone,
+        'display_phone_number': row.get('display_phone_number'),
+        'display_phone_digits': digits,
+        'status': row.get('status'),
+        'is_on_biz_app': row.get('is_on_biz_app'),
+        'platform_type': row.get('platform_type'),
+    }
+
+
+def deregister_platform_phone(expected_phone_digits):
+    """Explicitly remove ONLY the configured platform Phone Number ID from Cloud API.
+
+    The caller must already have required a typed human confirmation. No WABA, app, webhook or
+    tenant row is deleted. This is the reversible Meta registration step used before putting the
+    same number into WhatsApp Business App and then onboarding it back as Coexistence.
+    """
+    expected = normalize_phone_digits(expected_phone_digits)
+    if not expected:
+        raise SignupError('platform_phone_unavailable')
+    identity = platform_current_identity()
+    if identity['display_phone_digits'] != expected:
+        raise SignupError('platform_phone_mismatch')
+    if identity.get('is_on_biz_app') is True:
+        raise SignupError('platform_already_coexistence')
+
+    config = platform_settings()
+    graph = Graph(config)
+    runtime = _platform_runtime(config, graph)
+    result = graph.call('POST', identity['phone_number_id'] + '/deregister', runtime)
+    if result.get('success') is not True:
+        raise SignupError('meta_step_incomplete')
+    return identity
+
+
+def verify_platform_coexistence(code, waba, phone=None, *, expected_phone_digits):
+    """Verify the platform number after WhatsApp Business App Coexistence Embedded Signup.
+
+    This is intentionally separate from tenant verify_and_prepare(): the platform number is
+    reserved from tenant binding and its WABA is Kilas Works' own asset, not a provider-shared
+    client WABA. Authorization still comes from the one-time customer/business login code and the
+    configured runtime System User must independently see the exact same display phone number.
+    """
+    config = platform_settings()
+    expected = normalize_phone_digits(expected_phone_digits)
+    if (not expected or not isinstance(code, str) or not 1 <= len(code) <= 4096
+            or not isinstance(waba, str) or not re.fullmatch(r'[0-9]{1,32}', waba)
+            or (phone is not None and
+                (not isinstance(phone, str) or not re.fullmatch(r'[0-9]{1,32}', phone)))):
+        raise SignupError('invalid_payload')
+
+    graph = Graph(config)
+    exchanged = graph.call('GET', 'oauth/access_token', params={
+        'client_id': config['META_APP_ID'],
+        'client_secret': config['WHATSAPP_APP_SECRET'],
+        'code': code,
+    })
+    customer_token = exchanged.get('access_token')
+    if not isinstance(customer_token, str) or not customer_token:
+        raise SignupError('meta_token_missing')
+
+    debug = graph.call(
+        'GET', 'debug_token', config['META_APP_ID'] + '|' + config['WHATSAPP_APP_SECRET'],
+        params={'input_token': customer_token},
+    ).get('data', {})
+    targets = {
+        str(target)
+        for scope in debug.get('granular_scopes', [])
+        if scope.get('scope') == 'whatsapp_business_management'
+        for target in scope.get('target_ids', [])
+    }
+    if (debug.get('is_valid') is not True
+            or str(debug.get('app_id')) != config['META_APP_ID']
+            or waba not in targets):
+        raise SignupError('customer_grant_mismatch')
+
+    rows = graph.list_rows(waba + '/phone_numbers', customer_token, 'id,display_phone_number')
+    if not rows or len(rows) > 25:
+        raise SignupError('coexistence_phone_missing')
+    matches = []
+    for row in rows:
+        candidate = str(row.get('id') or '')
+        if not re.fullmatch(r'[0-9]{1,32}', candidate):
+            continue
+        detail = graph.call(
+            'GET', candidate, customer_token,
+            params={'fields': 'id,display_phone_number,status,is_on_biz_app,platform_type'},
+        )
+        if (str(detail.get('id')) == candidate
+                and normalize_phone_digits(detail.get('display_phone_number')) == expected
+                and detail.get('is_on_biz_app') is True):
+            matches.append((candidate, detail))
+
+    if phone:
+        matches = [item for item in matches if item[0] == phone]
+    if len(matches) != 1:
+        raise SignupError('coexistence_phone_ambiguous' if matches else 'coexistence_phone_missing')
+    selected = matches[0][0]
+
+    runtime = _platform_runtime(config, graph)
+    runtime_row = graph.call(
+        'GET', selected, runtime,
+        params={'fields': 'id,display_phone_number,status,is_on_biz_app,platform_type'},
+    )
+    if (str(runtime_row.get('id')) != selected
+            or normalize_phone_digits(runtime_row.get('display_phone_number')) != expected):
+        raise SignupError('platform_phone_mismatch')
+    if (runtime_row.get('is_on_biz_app') is not True
+            or runtime_row.get('status') != 'CONNECTED'
+            or runtime_row.get('platform_type') not in (None, 'CLOUD_API')):
+        raise SignupError('coexistence_not_ready')
+
+    graph.success(waba + '/subscribed_apps', runtime, {})
+    return waba, selected
 
 
 def verify_and_prepare(code, waba, phone=None, *, coexistence=False):

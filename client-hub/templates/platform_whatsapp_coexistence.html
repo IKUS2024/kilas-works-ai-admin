@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}WhatsApp Utama · Coexistence{% endblock %}
+{% block content %}
+<style>
+.wa-platform{max-width:760px;margin:18px auto}.wa-platform h1{margin-bottom:6px}
+.wa-step{border:1px solid var(--border);border-radius:14px;padding:14px;margin:10px 0;background:rgba(255,255,255,.012)}
+.wa-step h2{font-size:16px;margin:0 0 7px}.wa-step p{margin:6px 0;color:var(--text-dim);line-height:1.45}
+.wa-status{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:10px 0}
+.wa-status div{border:1px solid var(--border);border-radius:11px;padding:9px}.wa-status span{display:block;color:var(--text-dim);font-size:11px}.wa-status strong{display:block;margin-top:3px;overflow-wrap:anywhere}
+.wa-danger{border-color:rgba(241,101,101,.35)}.wa-ok{border-color:rgba(62,207,142,.35)}
+@media(max-width:560px){.wa-status{grid-template-columns:1fr}}
+</style>
+<div class="wa-platform">
+  <p><a href="{{ url_for('admin.dashboard') }}">← Owner Dashboard</a></p>
+  <h1>WhatsApp Utama · Coexistence</h1>
+  <p class="muted">Khusus nomor utama Kilas Works. Flow ini tidak mengubah tenant/client WhatsApp.</p>
+
+  {% if error %}<div class="card"><p role="alert">{{ error }}</p></div>{% endif %}
+
+  {% if identity %}
+  <div class="wa-status">
+    <div><span>Nomor</span><strong>{{ identity.display_phone_number }}</strong></div>
+    <div><span>Phone Number ID saat ini</span><strong>{{ identity.phone_number_id }}</strong></div>
+    <div><span>Status Cloud API</span><strong>{{ identity.status or '—' }}</strong></div>
+    <div><span>Aktif di WhatsApp Business App</span><strong>{{ 'Ya' if identity.is_on_biz_app else 'Belum' }}</strong></div>
+  </div>
+  {% elif migration.last_known_display_phone %}
+  <div class="wa-status">
+    <div><span>Nomor migrasi</span><strong>{{ migration.last_known_display_phone }}</strong></div>
+    <div><span>Status</span><strong>Cloud API dilepas sementara / menunggu Coexistence</strong></div>
+  </div>
+  {% endif %}
+
+  {% if migration.completed %}
+  <section class="wa-step wa-ok">
+    <h2>✓ Coexistence terverifikasi</h2>
+    <p>WABA: {{ migration.waba_id }} · Phone Number ID: {{ migration.new_phone_number_id }}</p>
+    {% if migration.env_update_required %}
+    <p><strong>Phone Number ID berubah.</strong> Jangan tes customer dulu sampai environment Render bot + Client Hub diperbarui.</p>
+    {% else %}
+    <p>Phone Number ID tetap sama. Webhook dan bot bisa memakai konfigurasi yang sudah ada.</p>
+    {% endif %}
+  </section>
+  {% else %}
+
+  <section class="wa-step wa-danger">
+    <h2>1. Lepas sementara dari Cloud API</h2>
+    {% if migration.deregistered %}
+      <p>✓ Deregister sudah dilakukan. Jangan ulangi langkah ini.</p>
+    {% elif identity and identity.is_on_biz_app %}
+      <p>Nomor sudah terdeteksi di WhatsApp Business App. Deregister tidak diperlukan.</p>
+    {% elif identity %}
+      <p>Langkah ini membuat bot berhenti sementara, tetapi tidak menghapus WABA, webhook, tenant, atau histori Kilas.</p>
+      <form method="post" action="{{ url_for('admin.platform_whatsapp_coexistence_deregister') }}" onsubmit="return confirm('Lepas sementara nomor utama dari Cloud API? Bot akan downtime sampai Coexistence selesai.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>Ketik <strong>DEREGISTER</strong><input name="confirmation" pattern="DEREGISTER" autocomplete="off" required></label>
+        <button class="btn secondary" type="submit">Deregister Cloud API</button>
+      </form>
+    {% else %}
+      <p>Status Cloud API belum bisa dibaca. Jangan deregister dari tempat lain.</p>
+    {% endif %}
+  </section>
+
+  <section class="wa-step">
+    <h2>2. Aktifkan nomor yang sama di WhatsApp Business HP</h2>
+    <p>Setelah langkah 1 sukses, buka aplikasi <strong>WhatsApp Business</strong> di HP dan verifikasi nomor yang sama. Pastikan aplikasi sudah bisa masuk ke layar chat sebelum lanjut.</p>
+  </section>
+
+  <section class="wa-step">
+    <h2>3. Hubungkan kembali sebagai Coexistence</h2>
+    {% if migration.deregistered or (identity and identity.is_on_biz_app) %}
+      {% if signup_config %}
+      <button type="button" class="btn" id="platform-wa-signup" disabled>Hubungkan Coexistence</button>
+      <p id="platform-wa-status" role="status" aria-live="polite">Menyiapkan Meta Embedded Signup…</p>
+      <script type="application/json" id="platform-wa-config">{{ signup_config|tojson }}</script>
+      <input type="hidden" id="platform-wa-csrf" value="{{ csrf_token() }}">
+      <script src="{{ url_for('static', filename='platform_whatsapp_coexistence.js') }}" defer></script>
+      {% else %}
+      <p>Konfigurasi Embedded Signup belum tersedia.</p>
+      {% endif %}
+    {% else %}
+      <p>Selesaikan langkah 1 dan 2 dulu. Tombol Coexistence akan aktif setelah migrasi dimulai.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -71,7 +71,8 @@
     }, {config_id: config.configId, response_type: 'code', override_default_response_type: true,
         extras: {
           setup: {},
-          featureType: 'whatsapp_business_app_onboarding'
+          featureType: 'whatsapp_business_app_onboarding',
+          sessionInfoVersion: '3'
         }
        });
   });

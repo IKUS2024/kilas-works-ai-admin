@@ -12,9 +12,14 @@ Until (b), the UI shows "APPROVED — WAITING_WHATSAPP_CONNECTION" even though t
 is still literally "APPROVED" — see get_display_status() below, reused by templates.
 """
 import io
+import hashlib
+import hmac
+import os
+import secrets
+import time
 import inbox_media_service
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, send_file, session, jsonify
 
 import ai_onboarding
 import db
@@ -35,8 +40,13 @@ import wa_takeover_service
 import platform_inbox_service
 import subscription_service
 import finance_entitlements
+import whatsapp_signup
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
+
+_PLATFORM_WA_MIGRATION_SESSION = "_platform_wa_migration"
+_PLATFORM_WA_SIGNUP_STATE_SESSION = "_platform_wa_signup_state"
+_PLATFORM_WA_STATE_TTL_SECONDS = 15 * 60
 
 STATUS_FILTERS = ("READY_FOR_REVIEW", "NEEDS_REVISION", "APPROVED", "ACTIVE")
 
@@ -208,6 +218,158 @@ def dashboard():
         client_page=client_page,
         client_total_pages=client_total_pages,
     )
+
+
+@admin_bp.route("/platform-whatsapp/coexistence")
+@security.admin_required
+def platform_whatsapp_coexistence():
+    """Operator-only migration workspace for Kilas Works' own platform number."""
+    migration = dict(session.get(_PLATFORM_WA_MIGRATION_SESSION) or {})
+    identity = None
+    error = None
+    config = None
+
+    try:
+        config = whatsapp_signup.platform_settings()
+        try:
+            identity = whatsapp_signup.platform_current_identity()
+            if identity.get("display_phone_digits"):
+                migration.setdefault("expected_phone_digits", identity["display_phone_digits"])
+                migration.setdefault("old_phone_number_id", identity["phone_number_id"])
+                migration["last_known_display_phone"] = identity.get("display_phone_number")
+                session[_PLATFORM_WA_MIGRATION_SESSION] = migration
+        except whatsapp_signup.SignupError as exc:
+            # After deregistration the old Cloud API registration can be temporarily unavailable.
+            # The expected number captured BEFORE deregistration stays in the signed session and is
+            # sufficient to verify the later Coexistence result. Before migration, fail visibly.
+            if not migration.get("expected_phone_digits"):
+                raise
+            error = "Nomor Cloud API sedang tidak aktif. Lanjutkan aktivasi di WhatsApp Business HP lalu hubungkan kembali."
+    except whatsapp_signup.SignupError:
+        error = "Konfigurasi Meta untuk nomor utama Kilas Works belum siap."
+
+    signup_config = None
+    expected = migration.get("expected_phone_digits")
+    if config and expected:
+        state = secrets.token_urlsafe(32)
+        session[_PLATFORM_WA_SIGNUP_STATE_SESSION] = {
+            "state_hash": hashlib.sha256(state.encode()).hexdigest(),
+            "expires_at": int(time.time()) + _PLATFORM_WA_STATE_TTL_SECONDS,
+            "expected_phone_digits": expected,
+        }
+        signup_config = {
+            "appId": config["META_APP_ID"],
+            "configId": config["META_EMBEDDED_SIGNUP_CONFIG_ID"],
+            "version": config["version"],
+            "state": state,
+            "endpoint": url_for("admin.platform_whatsapp_coexistence_complete"),
+        }
+
+    return render_template(
+        "platform_whatsapp_coexistence.html",
+        identity=identity,
+        migration=migration,
+        signup_config=signup_config,
+        error=error,
+    )
+
+
+@admin_bp.route("/platform-whatsapp/coexistence/deregister", methods=["POST"])
+@security.admin_required
+def platform_whatsapp_coexistence_deregister():
+    if request.form.get("confirmation") != "DEREGISTER":
+        flash("Ketik DEREGISTER untuk mengonfirmasi pelepasan sementara nomor dari Cloud API.", "error")
+        return redirect(url_for("admin.platform_whatsapp_coexistence"), code=303)
+
+    try:
+        identity = whatsapp_signup.platform_current_identity()
+        if identity.get("is_on_biz_app") is True:
+            flash("Nomor ini sudah terdeteksi aktif di WhatsApp Business App. Tidak perlu deregister lagi.", "success")
+            return redirect(url_for("admin.platform_whatsapp_coexistence"), code=303)
+        whatsapp_signup.deregister_platform_phone(identity["display_phone_digits"])
+        session[_PLATFORM_WA_MIGRATION_SESSION] = {
+            "expected_phone_digits": identity["display_phone_digits"],
+            "old_phone_number_id": identity["phone_number_id"],
+            "last_known_display_phone": identity.get("display_phone_number"),
+            "deregistered": True,
+            "deregistered_at": int(time.time()),
+        }
+        print("PLATFORM_WHATSAPP_DEREGISTERED phone_number_id=" + identity["phone_number_id"])
+        flash(
+            "Nomor utama sudah dilepas sementara dari Cloud API. Sekarang aktifkan nomor yang sama "
+            "di aplikasi WhatsApp Business HP. Setelah chat WhatsApp Business bisa dibuka, kembali "
+            "ke halaman ini dan jalankan Hubungkan sebagai Coexistence.",
+            "success",
+        )
+    except whatsapp_signup.SignupError as exc:
+        print("PLATFORM_WHATSAPP_DEREGISTER_FAILED reason=" + str(exc))
+        flash("Deregister belum berhasil. Tidak ada WABA atau konfigurasi tenant yang dihapus.", "error")
+    return redirect(url_for("admin.platform_whatsapp_coexistence"), code=303)
+
+
+@admin_bp.route("/platform-whatsapp/coexistence/complete", methods=["POST"])
+@security.admin_required
+def platform_whatsapp_coexistence_complete():
+    if not request.is_json or not request.content_length or request.content_length > 8192:
+        return jsonify(error="Payload koneksi tidak valid."), 400
+    data = request.get_json(silent=True)
+    required = {"state", "code", "waba_id", "phone_number_id", "coexistence"}
+    if (not isinstance(data, dict) or set(data) != required
+            or data.get("coexistence") is not True):
+        return jsonify(error="Payload koneksi tidak valid."), 400
+
+    saved = session.pop(_PLATFORM_WA_SIGNUP_STATE_SESSION, None)
+    state = data.get("state")
+    if (not isinstance(saved, dict) or not isinstance(state, str) or len(state) > 128
+            or int(saved.get("expires_at") or 0) <= int(time.time())
+            or not hmac.compare_digest(
+                saved.get("state_hash") or "",
+                hashlib.sha256(state.encode()).hexdigest(),
+            )):
+        return jsonify(error="Sesi koneksi sudah kedaluwarsa. Muat ulang halaman dan coba lagi."), 400
+
+    try:
+        waba, phone = whatsapp_signup.verify_platform_coexistence(
+            data.get("code"),
+            data.get("waba_id"),
+            data.get("phone_number_id"),
+            expected_phone_digits=saved["expected_phone_digits"],
+        )
+        configured_phone = (os.environ.get("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
+        env_update_required = phone != configured_phone
+        migration = dict(session.get(_PLATFORM_WA_MIGRATION_SESSION) or {})
+        migration.update({
+            "completed": True,
+            "waba_id": waba,
+            "new_phone_number_id": phone,
+            "env_update_required": env_update_required,
+            "completed_at": int(time.time()),
+        })
+        session[_PLATFORM_WA_MIGRATION_SESSION] = migration
+        print(
+            "PLATFORM_WHATSAPP_COEXISTENCE_VERIFIED "
+            f"phone_number_id={phone} waba_id={waba} "
+            f"env_update_required={str(env_update_required).lower()}"
+        )
+        message = (
+            "Coexistence berhasil diverifikasi. Phone Number ID berubah; update konfigurasi Render "
+            "diperlukan sebelum bot menerima traffic lagi."
+            if env_update_required else
+            "Coexistence berhasil diverifikasi. Nomor tetap memakai Phone Number ID yang sama."
+        )
+        return jsonify(
+            status="connected",
+            phone_number_id=phone,
+            waba_id=waba,
+            env_update_required=env_update_required,
+            message=message,
+        )
+    except whatsapp_signup.SignupError as exc:
+        print("PLATFORM_WHATSAPP_COEXISTENCE_FAILED reason=" + str(exc))
+        return jsonify(error=(
+            "Coexistence belum terverifikasi. Pastikan nomor yang sama sudah aktif di aplikasi "
+            "WhatsApp Business HP dan selesaikan seluruh langkah Meta/QR."
+        )), 400
 
 
 @admin_bp.route("/search")
