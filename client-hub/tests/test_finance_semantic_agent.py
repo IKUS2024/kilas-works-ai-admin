@@ -61,6 +61,12 @@ class SemanticAgentTests(unittest.TestCase):
         alltime=self.ask('semuanya dari awal?',expense);self.assertIn('Semua waktu',str(alltime['preview']))
         julyagain=self.ask('bulan july aja',alltime);self.assertNotIn('340.000',str(julyagain['preview']))
 
+    def test_typoed_month_names_still_select_the_requested_report_period(self):
+        self.tx(120000,'2026-08-02');self.tx(990000,'2026-09-02')
+        august=self.ask('pemasukan agstus 2026?')
+        self.assertIn('120.000',str(august['preview']));self.assertNotIn('990.000',str(august['preview']))
+        september=self.ask('pemasukan sepetember 2026?')
+        self.assertIn('990.000',str(september['preview']));self.assertNotIn('120.000',str(september['preview']))
     def test_currency_followup_replaces_old_currency(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',actor_user_id=self.uid)
         self.tx(210000);self.tx(3456,account=usd,currency='USD')
