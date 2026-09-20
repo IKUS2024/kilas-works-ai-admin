@@ -1521,7 +1521,7 @@ def assistant_message(business_id,user,business):
     except ValueError as error:return assistant_error(error)
     except Exception:
         ai_safety.event('request_failed')
-        return jsonify(error='Assistant belum dapat membaca data saat ini. Coba lagi sebentar; belum ada pencatatan.'),503
+        return jsonify(error='Assistant belum dapat memproses permintaan ini dengan aman saat ini. Belum ada data yang diubah. Mohon lakukan melalui menu Finance secara manual, atau coba lagi nanti.'),503
 
 
 @finance_bp.route('/business/<int:business_id>/finance/assistant/review',methods=['POST'])
@@ -1536,7 +1536,7 @@ def assistant_review(business_id,user,business):
     except ValueError as error:return assistant_error(error)
     except Exception:
         ai_safety.event('request_failed')
-        return jsonify(error='Review belum tersedia. Coba lagi sebentar; belum ada pencatatan.'),503
+        return jsonify(error='Review belum dapat dipastikan dengan aman. Belum ada data yang diubah. Mohon lakukan tindakan ini melalui menu Finance secara manual jika perlu segera diproses.'),503
 
 
 @finance_bp.route('/business/<int:business_id>/finance/assistant/confirm',methods=['POST'])
@@ -1551,7 +1551,7 @@ def assistant_confirm(business_id,user,business):
     except ValueError as error:return assistant_error(error)
     except Exception:
         ai_safety.event('request_failed')
-        return jsonify(error='Konfirmasi belum dapat dipastikan. Ulangi konfirmasi yang sama; jangan buat draft pengganti sebelum memeriksa catatan.'),503
+        return jsonify(error='Konfirmasi belum dapat dipastikan. Periksa catatan Finance secara manual sebelum mencoba lagi agar tidak terjadi pencatatan ganda.'),503
 
 
 @finance_bp.route('/business/<int:business_id>/finance/assistant/document',methods=['POST'])
