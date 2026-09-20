@@ -71,7 +71,7 @@ def entity_options(rows, raw, key='name'):
 def period_patch(text):
     """Return None when no new period was requested; replace, never concatenate."""
     from finance_assistant_queries import MONTH_ALIAS_TO_NUMBER
-    low=text.casefold();today=date.today()
+    low=text.casefold();today=__import__('finance_service').business_today()
     if re.search(r'\b(keseluruhan|semuanya|d[ar]*i\s+(?:bulan\s+)?awal|sejak awal|selama ini|all[ -]?time)\b',low):
         return {'mode':'all','ranges':[]}
     iso=re.findall(r'\b\d{4}-\d{2}-\d{2}\b',text)
