@@ -69,6 +69,8 @@ test('dashboard uses compact management tiles and explicit transaction delete',(
   assert.match(actions,/value="deactivate"/);
   assert.doesNotMatch(actions,/⏸ Nonaktifkan/);
   assert.match(html,/finance_branches\|selectattr\('is_active'\)/);
+  assert.match(html,/for branch in finance_branches if branch\.is_active/);
+  assert.doesNotMatch(html,/\(Nonaktif\).*option/);
   assert.match(html,/accounts\|selectattr\('is_active'\)/);
   assert.match(html,/categories\|selectattr\('is_active'\)/);
   assert.doesNotMatch(html,/Pengaturan cabang, akun &amp; kategori/);

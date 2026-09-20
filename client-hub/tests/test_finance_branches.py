@@ -377,6 +377,15 @@ class BranchTests(unittest.TestCase):
                 self.assertEqual(f.list_finance_projects(self.b)[0]['id'],project)
                 self.assertEqual(f.list_customers(self.b)[0]['id'],self.c)
 
+    def test_delete_empty_branch_removes_it_instead_of_leaving_nonactive_choice(self):
+        with self.scope(self.ba):
+            empty=branches.create_branch(self.b,'Disposable',self.uid)
+        self.assertEqual(len([a for a in f.list_accounts(self.b,True) if a['branch_id']==empty]),1)
+        with self.scope(self.ba):
+            branches.update_record(self.b,'branch',empty,deactivate=True,actor_user_id=self.uid)
+        self.assertIsNone(db.query_one('SELECT id FROM finance_branches WHERE business_id=? AND id=?',(self.b,empty)))
+        self.assertEqual(db.query_all('SELECT id FROM finance_accounts WHERE business_id=? AND branch_id=?',(self.b,empty)),[])
+
     def test_readding_hidden_branch_reactivates_same_record(self):
         with self.scope(self.bb):
             branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)

@@ -161,6 +161,24 @@ def update_record(business_id, kind, record_id, name=None, deactivate=False, act
             active = db.query_one('SELECT COUNT(*) AS n FROM finance_branches WHERE business_id=? AND is_active=TRUE', (business_id,))
             if active['n'] <= 1:
                 error('branch_last_active')
+            # Truly remove a disposable branch that never carried Finance history.
+            # Historical branches stay archived internally so ledger/audit references remain valid,
+            # but the UI hides archived branches from normal selectors.
+            history_tables = ('finance_transactions','finance_invoices','finance_recurring_expenses',
+                              'finance_bank_imports','finance_fx_exchanges')
+            has_history = any(db.query_one(
+                'SELECT 1 FROM ' + table + ' WHERE business_id=? AND branch_id=? LIMIT 1',
+                (business_id, row['id'])) for table in history_tables)
+            opening = db.query_one(
+                'SELECT 1 FROM finance_accounts WHERE business_id=? AND branch_id=? AND opening_balance_minor<>0 LIMIT 1',
+                (business_id, row['id']))
+            if not has_history and not opening and not row['is_default']:
+                db.execute('DELETE FROM finance_accounts WHERE business_id=? AND branch_id=?',
+                           (business_id, row['id']))
+                db.execute('DELETE FROM finance_branches WHERE business_id=? AND id=?',
+                           (business_id, row['id']))
+                _audit(business_id, actor_user_id, 'FINANCE_BRANCH_DELETED', row['id'])
+                return
         if kind == 'account':
             account_branch(business_id, record_id)
         clean = _text(name, 160, True) if name is not None else row['name']
