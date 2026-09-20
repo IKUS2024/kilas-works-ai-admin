@@ -81,7 +81,7 @@ test('receivables operations and reports expose professional compact navigation'
   const receivables=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
   const operations=fs.readFileSync(path.join(__dirname,'../templates/finance_operations.html'),'utf8');
   const reports=fs.readFileSync(path.join(__dirname,'../templates/finance_reports.html'),'utf8');
-  assert.match(receivables,/Menu Pelanggan/);
+  assert.match(receivables,/Workspace Piutang/);
   assert.match(receivables,/Tambah Customer/);
   assert.match(operations,/Biaya Rutin/);
   assert.match(operations,/Tambah Biaya/);
@@ -117,16 +117,22 @@ test('customer list exposes edit and delete and never shows inactive rows',()=>{
   assert.doesNotMatch(html,/Nonaktif/);
 });
 
-test('invoice workspace is professional and protects paid history',()=>{
+test('invoice workspace is professional compact and preserves paid accounting',()=>{
   const list=fs.readFileSync(path.join(__dirname,'../templates/finance_receivables.html'),'utf8');
   const detail=fs.readFileSync(path.join(__dirname,'../templates/finance_invoice_detail.html'),'utf8');
-  assert.match(list,/Semua Invoice Aktif/);
-  assert.match(list,/Dibayar/);
-  assert.match(list,/🗑️ Hapus/);
-  assert.match(list,/Riwayat pembayaran dilindungi/);
+  assert.match(list,/Cara hitung piutang/);
+  assert.match(list,/Invoice lunas tidak masuk piutang lagi/);
+  assert.match(list,/10 per halaman/);
+  assert.match(list,/name="q"/);
+  assert.match(list,/name="status"/);
+  assert.match(list,/Arsip Invoice Lunas/);
+  assert.match(list,/Edit catatan/);
+  assert.match(list,/Hapus dari daftar/);
   assert.match(detail,/Status Pembayaran/);
   assert.match(detail,/Invoice ini sudah lunas/);
-  assert.match(detail,/🗑️ Hapus Invoice/);
+  assert.match(detail,/Edit catatan/);
+  assert.match(detail,/Hapus dari daftar/);
+  assert.match(detail,/pemasukan dan saldo tetap terkunci/);
 });
 
 test('dashboard transaction tile opens manual entry while history stays separate',()=>{
