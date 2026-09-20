@@ -570,6 +570,20 @@ def test_kilas_works_own_followup_unchanged():
 # test deliberately does NOT use _run_sweep() (which scopes the flag to True) — it calls the
 # endpoint directly to verify the opposite, default-off case matches production right now.
 # ---------------------------------------------------------------------------
+def test_render_followup_cron_secret_is_accepted_without_replacing_legacy_secret():
+    reset_bot_state()
+    original = appmod.RENDER_FOLLOWUP_CRON_SECRET
+    try:
+        appmod.RENDER_FOLLOWUP_CRON_SECRET = "render-followup-secret"
+        with patch.object(appmod, "get_customers_due_for_followup", return_value=[]), \
+             patch.object(appmod, "send_appointment_reminders", return_value=[]):
+            resp = client.get("/cron/followups?key=render-followup-secret")
+        assert resp.status_code == 200, resp.get_json()
+    finally:
+        appmod.RENDER_FOLLOWUP_CRON_SECRET = original
+    print("test_render_followup_cron_secret_is_accepted_without_replacing_legacy_secret OK")
+
+
 def test_tenant_followup_disabled_when_enable_multi_tenant_false():
     reset_client_hub_db()
     reset_bot_state()

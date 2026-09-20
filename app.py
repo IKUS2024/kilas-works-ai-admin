@@ -1726,6 +1726,17 @@ DASHBOARD_KEY = os.environ.get("DASHBOARD_KEY", "kilasworks-dashboard")
 # dari luar secara berkala (misal via cron-job.org tiap 1 jam) — Render gak bisa "bangunin dirinya
 # sendiri" tiap 12 jam, jadi butuh trigger eksternal. Kalau kosong, fallback ke DASHBOARD_KEY.
 CRON_SECRET = os.environ.get("CRON_SECRET", "") or DASHBOARD_KEY
+RENDER_FOLLOWUP_CRON_SECRET = (os.environ.get("RENDER_FOLLOWUP_CRON_SECRET") or "").strip()
+
+
+def _followup_cron_authorized(provided):
+    """Accept legacy cron auth or the dedicated Render follow-up scheduler secret."""
+    candidate = str(provided or "")
+    return any(
+        secret and hmac.compare_digest(candidate, secret)
+        for secret in (CRON_SECRET, RENDER_FOLLOWUP_CRON_SECRET)
+    )
+
 
 # Absolute Final Production Patch — shared secret for the internal Client Hub -> bot notification
 # channel (POST /internal/owner-notify, defined further down). Deliberately has NO fallback/default
@@ -9069,7 +9080,7 @@ def run_followups():
     # internal_owner_notify's identical comment). This sweep is Kilas-Works-own only regardless.
     _clear_active_whatsapp_channel()
     key = request.args.get("key", "")
-    if not CRON_SECRET or key != CRON_SECRET:
+    if not _followup_cron_authorized(key):
         return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
 
     reminder_results = []
@@ -9160,7 +9171,7 @@ def run_tenant_followups():
     """
     _clear_active_whatsapp_channel()
     key = request.args.get("key", "")
-    if not CRON_SECRET or key != CRON_SECRET:
+    if not _followup_cron_authorized(key):
         return jsonify({"status": "error", "message": "Akses ditolak, key salah/kosong."}), 403
 
     if not ENABLE_MULTI_TENANT:
