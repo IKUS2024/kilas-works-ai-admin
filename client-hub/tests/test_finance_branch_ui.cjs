@@ -218,6 +218,8 @@ test('dashboard period picker supports single range and all modes',()=>{
   assert.match(selector,/Rentang bulan/);
   assert.match(selector,/Semua transaksi/);
   assert.match(selector,/data-period-range/);
+  assert.doesNotMatch(dashboard,/filter-direction/);
+  assert.doesNotMatch(dashboard,/Periode &amp; Filter/);
 });
 
 
