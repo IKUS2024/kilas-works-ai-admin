@@ -121,15 +121,15 @@ ERRORS = {
     'invalid_payment_key': 'Form pembayaran tidak valid. Muat ulang halaman.',
     'invoice_ledger_managed': 'Transaksi ini berasal dari pembayaran invoice dan tidak dapat diubah atau dibatalkan langsung.',
     'invalid_money_minor': 'Nominal belum valid. Masukkan angka rupiah yang benar.',
-    'account_unavailable': 'Kas / rekening tidak tersedia.',
-    'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang kas / rekening yang dipilih.',
+    'account_unavailable': 'Akun tidak tersedia.',
+    'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang akun yang dipilih.',
     'unsupported_currency': 'Mata uang belum didukung Kilas Finance.',
-    'fx_same_currency': 'Pilih dua Kas / Rekening dengan mata uang berbeda.',
+    'fx_same_currency': 'Pilih dua akun dengan mata uang berbeda.',
     'fx_exchange_unavailable': 'Penukaran mata uang tidak tersedia.',
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
-    'account_exists': 'Kas / rekening dengan nama dan jenis tersebut sudah ada.',
+    'account_exists': 'Akun dengan nama dan jenis tersebut sudah ada.',
     'category_exists': 'Kategori tersebut sudah ada.',
     'invalid_date': 'Tanggal belum valid.',
     'future_date': 'Tanggal tidak boleh melebihi hari ini.',
@@ -138,14 +138,14 @@ ERRORS = {
     'invalid_enum': 'Pilihan belum valid.',
     'invalid_id': 'Pilihan tidak tersedia.',
     'branch_last_active': 'Sisakan minimal satu cabang aktif. Tambahkan cabang baru sebelum menghapus cabang terakhir.',
-    'account_last_active': 'Sisakan minimal satu Kas / Rekening aktif di cabang ini.',
+    'account_last_active': 'Sisakan minimal satu akun aktif di cabang ini.',
     'account_currency_required': 'Rekening ini masih diperlukan karena mata uang tersebut masih memiliki saldo. Pindahkan atau nolkan saldonya dulu.',
-    'account_in_use': 'Kas / rekening ini masih dipakai biaya rutin aktif. Ubah biaya rutinnya dulu sebelum menghapus.',
+    'account_in_use': 'Akun ini masih dipakai biaya rutin aktif. Ubah biaya rutinnya dulu sebelum menghapus.',
     'category_last_active': 'Sisakan minimal satu kategori Pemasukan dan satu kategori Pengeluaran.',
     'category_in_use': 'Kategori ini masih dipakai biaya rutin aktif. Ubah atau hentikan biaya rutinnya dulu sebelum menghapus.',
     'branch_exists': 'Nama cabang sudah digunakan.',
     'branch_unavailable': 'Cabang tidak tersedia.',
-    'branch_mismatch': 'Kas / rekening harus berada dalam cabang yang sama.',
+    'branch_mismatch': 'Akun harus berada dalam cabang yang sama.',
     'budget_unavailable': 'Anggaran tidak tersedia.',
 }
 
@@ -494,6 +494,7 @@ def dashboard(business_id, user, business):
     dashboard_trend = []
     recent_activity = []
     recurring_items = []
+    payee_count = 0
     if not show_transactions and not show_accounts:
         native_trend = finance.get_monthly_cashflow_trends(
             business_id, month_at(max(12, month_index - 5)), month,
@@ -511,16 +512,12 @@ def dashboard(business_id, user, business):
             dashboard_trend.append(dict(
                 month=trend_month, currency=display_currency,
                 income_minor=income_minor, expense_minor=expense_minor))
-        recent_activity = [dict(row) for row in finance.list_transactions(
-            business_id, status='POSTED', end_date=today_value.isoformat(), limit=5, **actor)]
-        for row in recent_activity:
-            converted = finance_fx.convert_total(
-                [{'currency':row['currency'],'balance_minor':row['amount_minor']}],
-                display_currency, fx)
-            row['display_amount_minor'] = converted
-            row['display_amount_value'] = ('Kurs belum lengkap' if converted is None
-                                           else finance_fx.format_money(converted, display_currency))
         recurring_items = finance.list_recurring_expenses(business_id, **actor)
+        payee_count = len({
+            row['name'].strip().casefold()
+            for row in finance.list_payee_summaries(business_id, **actor)
+            if row.get('name')
+        })
 
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     return render_template('finance_dashboard.html', user=user, business=business,
@@ -543,7 +540,7 @@ def dashboard(business_id, user, business):
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, summaries=summaries,
         transactions=transactions, dashboard_trend=dashboard_trend, recent_activity=recent_activity,
-        recurring_items=recurring_items, previous_month=previous_month,
+        recurring_items=recurring_items, payee_count=payee_count, previous_month=previous_month,
         next_month=next_month if next_month <= current_value else None,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
@@ -557,6 +554,63 @@ def dashboard(business_id, user, business):
         operator_enabled=finance_operator.enabled(business_id),
         today=today_value.isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
 
+
+
+@finance_bp.route('/business/<int:business_id>/finance/payees')
+@finance_access
+def payees(business_id, user, business):
+    display_currency = request.args.get('display_currency', 'IDR')
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
+    native = finance.list_payee_summaries(business_id, actor_user_id=user['id'])
+    currencies = ['IDR'] + [row['currency'] for row in native if row['currency'] != 'IDR']
+    currencies = list(dict.fromkeys(currencies))
+    if display_currency not in currencies:
+        currencies.append(display_currency)
+    fx = finance_fx.snapshot(currencies)
+
+    grouped = {}
+    for row in native:
+        name = (row['name'] or '').strip()
+        if not name:
+            continue
+        item = grouped.setdefault(name, dict(
+            name=name, native_rows=[], transaction_count=0, last_paid_on=row['last_paid_on']))
+        item['native_rows'].append(dict(currency=row['currency'], total_minor=int(row['total_minor'])))
+        item['transaction_count'] += int(row['transaction_count'])
+        if row['last_paid_on'] > item['last_paid_on']:
+            item['last_paid_on'] = row['last_paid_on']
+
+    query = (request.args.get('q') or '').strip()[:160]
+    items = []
+    for item in grouped.values():
+        if query and query.casefold() not in item['name'].casefold():
+            continue
+        total_minor = finance_fx.convert_total(item['native_rows'], display_currency, fx, field='total_minor')
+        item['total_display'] = ('Kurs belum lengkap' if total_minor is None
+                                 else finance_fx.format_money(total_minor, display_currency))
+        item['native_labels'] = [finance_fx.format_money(row['total_minor'], row['currency'])
+                                 for row in item['native_rows']]
+        items.append(item)
+    items.sort(key=lambda item: (item['last_paid_on'], item['name'].casefold()), reverse=True)
+
+    try:
+        page = max(1, int(request.args.get('page', '1')))
+    except (TypeError, ValueError):
+        page = 1
+    page_size = 10
+    total = len(items)
+    pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, pages)
+    visible = items[(page - 1) * page_size:page * page_size]
+    fx_status_label = ('Kurs belum tersedia' if fx.get('source') == 'unavailable'
+                       else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
+                            + (' · data tertunda' if fx.get('stale') else ''))
+    return render_template(
+        'finance_payees.html', user=user, business=business, payees=visible,
+        payee_total=total, page=page, pages=pages, q=query,
+        display_currency=display_currency, display_options=currencies,
+        fx_status_label=fx_status_label)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/budget', methods=['GET', 'POST'])
@@ -765,7 +819,7 @@ def create_account(business_id,user,business):
     return mutate(business_id,lambda:finance.create_account(business_id,request.form.get('name'),
         request.form.get('account_type'),currency=currency,
         opening_balance_minor=currency_amount(request.form.get('opening_balance','0'),currency,signed=True),
-        actor_user_id=user['id']),'Kas / rekening siap digunakan.',destination)
+        actor_user_id=user['id']),'Akun siap digunakan.',destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/exchanges',methods=['POST'])

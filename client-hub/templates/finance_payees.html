@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Penerima · Kilas Finance{% endblock %}
+{% block content %}
+{% include '_finance_receivables_style.html' %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-homebudget-1') }}">
+<div class="fin-page">
+{% set active_finance_area='payees' %}{% include '_finance_area_nav.html' %}
+<div class="fin-section-head">
+  <div><span class="finance-eyebrow">KILAS FINANCE</span><h1 class="fin-page-title">Penerima</h1><p class="muted fin-page-subtitle">{{ business.business_name }} · pihak yang menerima pembayaran dari Pengeluaran.</p></div>
+  <a class="btn" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',open_manual=1) }}">＋ Tambah Pengeluaran</a>
+</div>
+<form method="get" class="card fin-filter-bar">
+  <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+  <label class="fin-grow">Cari penerima<input name="q" value="{{ q }}" placeholder="Nama penerima"></label>
+  <label>Mata uang<select name="display_currency">{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label>
+  <button class="btn secondary">Tampilkan</button>
+</form>
+<section class="card">
+  <div class="fin-section-head"><div><h2>Daftar Penerima</h2><p class="muted">{{ payee_total }} penerima · {{ fx_status_label }}</p></div></div>
+  {% for item in payees %}
+  <article class="fin-entry">
+    <div class="fin-section-head"><div><strong>{{ item.name }}</strong><p class="muted">{{ item.transaction_count }} pembayaran · terakhir {{ item.last_paid_on }}</p></div><strong>{{ item.total_display }}</strong></div>
+    {% if item.native_labels|length > 1 %}<p class="muted">Nilai asli: {{ item.native_labels|join(' · ') }}</p>{% endif %}
+  </article>
+  {% else %}<div class="fin-empty">Belum ada penerima. Saat menambah Pengeluaran, isi kolom “Penerima / sumber” agar penerima otomatis muncul di sini.</div>{% endfor %}
+  {% if pages>1 %}<nav class="fin-pagination">{% if page>1 %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page-1) }}">‹</a>{% endif %}<span>Halaman {{ page }} / {{ pages }}</span>{% if page<pages %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page+1) }}">›</a>{% endif %}</nav>{% endif %}
+</section>
+<section class="card">
+  <div class="fin-section-head"><div><h2>Invoice &amp; Piutang</h2><p class="muted">Fitur bisnis Kilas tetap tersedia tanpa memenuhi dashboard utama.</p></div><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}">Kelola</a></div>
+</section>
+</div>
+{% endblock %}

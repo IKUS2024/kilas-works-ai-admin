@@ -518,6 +518,34 @@ def _money_sum():
     return 'finance_integer_sum'
 
 
+def list_payee_summaries(business_id, start_date=None, end_date=None, *, actor_user_id=None):
+    """Expense counterparties grouped like HomeBudget Payees, without inventing a parallel ledger."""
+    _scope(business_id, actor_user_id)
+    where = ("business_id=?" + branches.predicate("") +
+             " AND status='POSTED' AND direction='EXPENSE' " +
+             "AND counterparty_name IS NOT NULL AND TRIM(counterparty_name)<>''")
+    params = [business_id]
+    if start_date is not None and end_date is not None:
+        _period(start_date, end_date)
+    for value, clause in ((start_date, 'occurred_on>=?'), (end_date, 'occurred_on<=?')):
+        if value is not None:
+            where += ' AND ' + clause
+            params.append(_date(value))
+    money_sum = _money_sum()
+    rows = db.query_all(
+        ("SELECT counterparty_name AS name,currency," + money_sum +
+         "(amount_minor) AS total_minor,COUNT(*) AS transaction_count," +
+         "MAX(occurred_on) AS last_paid_on FROM finance_transactions WHERE " +
+         where + " GROUP BY counterparty_name,currency " +
+         "ORDER BY MAX(occurred_on) DESC,counterparty_name,currency"),
+        params)
+    for row in rows:
+        row['total_minor'] = int(row['total_minor'])
+        row['transaction_count'] = int(row['transaction_count'])
+        _currency(row['currency'])
+    return rows
+
+
 def get_cash_totals(business_id, start_date=None, end_date=None, *, actor_user_id=None,
                     account_id=None, customer_id=None, project_id=None, category_id=None,
                     currency=None, direction=None, group_by=None):

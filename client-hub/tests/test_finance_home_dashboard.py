@@ -30,10 +30,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual([r['month'] for r in context['dashboard_trend']],
                          [f'2026-{m:02d}' for m in range(4,10)])
         self.assertEqual(context['dashboard_trend'][-1]['income_minor'],2800)
-        self.assertEqual(len(context['recent_activity']),5)
-        self.assertEqual(context['recent_activity'][0]['description'],'Transaction 7')
         self.assertNotIn('PRIVATE OTHER BUSINESS',html)
-        self.assertEqual(html.count('class="finance-history-row"'),5)
+        self.assertNotIn('Aktivitas terbaru',html)
         self.assertEqual(len(fixture.f.list_transactions(self.b)),7)
 
     def test_foreign_opening_balance_converts_for_display_but_not_income(self):
@@ -85,7 +83,8 @@ class DashboardHomeTests(unittest.TestCase):
         account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
         html,context=self.page('?month=2026-09&view=accounts')
         self.assertTrue(context['show_accounts'])
-        self.assertIn('Kas &amp; Rekening',html)
+        self.assertIn('Akun',html)
+        self.assertNotIn('Pengaturan Finance',html)
         self.assertIn(account['name'],html)
         self.assertIn('Saldo tersedia',html)
         self.assertIn('Saldo awal',html)
@@ -116,5 +115,26 @@ class DashboardHomeTests(unittest.TestCase):
         rows=fixture.f.list_monthly_budgets(self.b,'2026-09',actor_user_id=self.uid)
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['category_id'],expense_cat)
+
+    def test_home_uses_translated_homebudget_primary_sections(self):
+        html,context=self.page('?month=2026-09')
+        for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
+            self.assertIn(label,html)
+        self.assertNotIn('Pengaturan Finance',html)
+        self.assertNotIn('Customer</span>',html)
+        self.assertIn('Pengeluaran dari anggaran',html)
+        self.assertIn('Tanya Kilas Finance',html)
+
+    def test_penerima_is_derived_from_expense_counterparty(self):
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.create_transaction(self.b,'EXPENSE',125000,self.a,expense_cat,
+            '2026-09-12',counterparty_name='Vendor Kopi',description='Biji kopi',
+            actor_user_id=self.uid)
+        html,context=self.page('?month=2026-09')
+        self.assertEqual(context['payee_count'],1)
+        page=self.client.get(f'/business/{self.b}/finance/payees')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('Penerima',page.text)
+        self.assertIn('Vendor Kopi',page.text)
 
 if __name__=='__main__': unittest.main()

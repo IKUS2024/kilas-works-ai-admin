@@ -19,9 +19,9 @@
     </section>
     {% endfor %}
 
-    <p class="cash-muted">Saldo awal adalah uang yang sudah dimiliki saat rekening ditambahkan, jadi bukan pemasukan. Penukaran mata uang juga bukan pendapatan atau biaya baru—hanya memindahkan nilai antar-rekening/mata uang. Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan/pengeluaran.</p>
+    <p class="cash-muted">Saldo awal adalah uang yang sudah dimiliki saat akun ditambahkan, jadi bukan pemasukan. Penukaran mata uang juga bukan pendapatan atau biaya baru—hanya memindahkan nilai antar-akun/mata uang. Perubahan estimasi nilai gabungan karena kurs tidak otomatis dianggap pemasukan/pengeluaran.</p>
 
-    <h3 style="margin-top:18px">Per Kas / Rekening</h3>
+    <h3 style="margin-top:18px">Per Akun</h3>
     {% for a in balances %}
     <details class="cash-account-detail">
       <summary><span>{{ a.name }}<small>{% if all_branches %}{{ a.branch_name }} · {% endif %}{{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</small></span><strong class="cash-money">{{ a.balance_minor|finance_money(a.currency) }}</strong></summary>
@@ -35,7 +35,7 @@
         {% endif %}
       </dl>
     </details>
-    {% else %}<p class="finance-empty">Belum ada Kas / Rekening.</p>{% endfor %}
+    {% else %}<p class="finance-empty">Belum ada akun.</p>{% endfor %}
 
     {% set active_accounts = accounts|selectattr('is_active')|list %}
     {% set active_currencies = active_accounts|map(attribute='currency')|unique|list %}

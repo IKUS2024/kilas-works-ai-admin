@@ -93,8 +93,9 @@
       for (const selector of [
         '.finance-metric-grid',
         '.finance-available',
-        '.finance-home-columns',
-        '.finance-recent'
+        '.finance-budget-overview',
+        '.finance-trend',
+        '.finance-ai-home'
       ]) swap(selector, incoming);
 
       const currentPeriod = document.querySelector('#period-dialog .finance-sheet-body');
