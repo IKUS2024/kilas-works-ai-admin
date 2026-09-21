@@ -143,7 +143,7 @@ class DashboardHomeTests(unittest.TestCase):
             self.assertIn(label,html)
         self.assertNotIn('Pengaturan Finance',html)
         self.assertNotIn('Customer</span>',html)
-        self.assertIn('Pengeluaran dari anggaran',html)
+        self.assertNotIn('Pengeluaran dari anggaran',html)
         self.assertIn('Tanya Kilas Finance',html)
 
     def test_penerima_is_derived_from_expense_counterparty(self):
