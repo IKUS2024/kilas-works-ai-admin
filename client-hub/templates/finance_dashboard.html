@@ -128,7 +128,7 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-category-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-types-1') }}">
 <script src="{{ url_for('static',filename='finance_home.js',v='20260922-live-1') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
@@ -187,8 +187,8 @@
 </header>
 
 <section class="card finance-account-hb-list" aria-label="Daftar Akun">
-{% for type_key,type_label in account_types.items() %}
-  {% set type_rows = account_balance_rows|selectattr('account_type','equalto',type_key)|list %}
+{% for type_label in account_type_group_labels %}
+  {% set type_rows = account_balance_rows|selectattr('account_type_label','equalto',type_label)|list %}
   {% if type_rows %}
   {% set group = namespace(total=0,complete=true) %}
   {% for a in type_rows %}
@@ -223,7 +223,7 @@
 <section class="card finance-account-hb-detail" aria-label="Rincian {{ selected_account.name }}">
   <div class="finance-account-hb-detail-head">
     <div>
-      <span>{{ account_types.get(selected_account.account_type,'Lainnya') }}</span>
+      <span>{{ selected_account.account_type_label }}</span>
       <h2>{{ selected_account.name }}</h2>
       <small>{{ selected_account.currency }}{% if all_branches %} · {{ selected_account.branch_name }}{% endif %}</small>
     </div>
@@ -254,7 +254,7 @@
         <input type="hidden" name="return_view" value="accounts">
         <input type="hidden" name="display_currency" value="{{ display_currency }}">
         <label>Nama akun<input name="name" value="{{ selected_account.name }}" maxlength="160" required></label>
-        <p class="finance-account-hb-readonly">Tipe {{ account_types.get(selected_account.account_type,'Lainnya') }} · {{ selected_account.currency }}. Mata uang tidak diubah agar riwayat saldo tetap konsisten.</p>
+        <p class="finance-account-hb-readonly">Tipe {{ selected_account.account_type_label }} · {{ selected_account.currency }}. Mata uang tidak diubah agar riwayat saldo tetap konsisten.</p>
         <div class="finance-record-buttons">
           <button class="btn secondary" name="action" value="edit">Simpan</button>
           <button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Hapus {{ selected_account.name }} dari daftar akun aktif? Riwayat lama tetap tersimpan.');">Hapus Akun</button>
@@ -451,8 +451,26 @@
 <dialog id="account-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>💳 Akun</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body"><p class="muted">Tempat uang cabang {{ selected_branch.name }}. Beri nama yang gampang dikenali, misalnya Kas Toko, BCA Utama, atau GoPay. Minimal satu tempat uang harus tetap aktif; untuk pengguna baru Finance otomatis menyiapkan Kas · IDR.</p>
-<details class="finance-add-panel" {{ 'open' if show_accounts else '' }}><summary>＋ Tambah Akun</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if show_accounts %}<input type="hidden" name="return_view" value="accounts">{% endif %}<label>Nama akun<input name="name" placeholder="Contoh: BCA Utama, Wise USD, Cash SGD" maxlength="160" required></label><label>Tipe tempat uang<select name="account_type">{% for key,label in account_types.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label><label>Mata uang<select name="currency" data-account-currency>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></label><label>Saldo awal <span data-opening-currency>IDR</span><input name="opening_balance" value="0" inputmode="decimal" maxlength="20" required></label><p class="muted">Mata uang rekening tidak dapat diubah setelah dibuat supaya riwayat tetap konsisten.</p><button class="btn secondary">Tambah Akun</button></form></details>
-<div class="finance-record-list">{% for a in accounts if a.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ account_types.get(a.account_type,'Lainnya') }} · {{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
+<details class="finance-add-panel" {{ 'open' if show_accounts else '' }}><summary>＋ Tambah Akun</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}" data-account-type-manager><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if show_accounts %}<input type="hidden" name="return_view" value="accounts">{% endif %}<label>Nama akun<input name="name" placeholder="Contoh: BCA Utama, Wise USD, Cash SGD" maxlength="160" required></label><label>Tipe tempat uang<select name="account_type_name" data-account-type-select required>{% for item in account_type_options %}<option value="{{ item.name }}">{{ item.name }}</option>{% else %}<option value="" selected disabled>Tambah tipe terlebih dahulu</option>{% endfor %}</select></label>
+<button type="button" class="finance-account-type-toggle" data-account-type-toggle>＋ Tambah / kelola tipe</button>
+<div class="finance-account-type-panel" data-account-type-panel data-account-type-url="{{ url_for('finance.manage_account_types',business_id=business.id) }}" data-account-type-branch="{{ selected_branch_id or '' }}" hidden>
+  <div class="finance-account-type-add">
+    <input type="text" data-account-type-name maxlength="80" autocomplete="off" placeholder="Contoh: Investasi">
+    <button type="button" class="finance-mini-action" data-account-type-add>Tambah</button>
+  </div>
+  <p class="finance-account-type-status" data-account-type-status aria-live="polite"></p>
+  <div class="finance-account-type-list" data-account-type-list>
+    {% for item in account_type_options %}
+    <div class="finance-account-type-row" data-account-type-row data-name="{{ item.name }}">
+      <span>{{ item.name }}</span>
+      <button type="button" class="finance-account-type-delete" data-account-type-delete>Hapus</button>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="finance-account-type-note">Menghapus tipe hanya menghilangkannya dari pilihan akun baru. Akun dan riwayat lama tetap aman.</p>
+</div>
+<label>Mata uang<select name="currency" data-account-currency>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></label><label>Saldo awal <span data-opening-currency>IDR</span><input name="opening_balance" value="0" inputmode="decimal" maxlength="20" required></label><p class="muted">Mata uang rekening tidak dapat diubah setelah dibuat supaya riwayat tetap konsisten.</p><button class="btn secondary">Tambah Akun</button></form></details>
+<div class="finance-record-list">{% for a in accounts if a.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ a.account_type_label }} · {{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
 <dialog id="category-dialog" class="finance-sheet">
@@ -462,5 +480,5 @@
 <div class="finance-record-list">{% for c in categories if c.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 {% endif %}
-</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-category-1') }}" defer></script>
+</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-account-types-1') }}" defer></script>
 {% endblock %}
