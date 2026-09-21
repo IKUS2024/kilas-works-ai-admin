@@ -267,6 +267,7 @@ MIGRATIONS = [
     ("0037_finance_budgets_sqlite.sql", "0037_finance_budgets_postgres.sql"),
     ("0038_finance_payees_sqlite.sql", "0038_finance_payees_postgres.sql"),
     ("0039_finance_account_types_sqlite.sql", "0039_finance_account_types_postgres.sql"),
+    ("0040_finance_default_categories_sqlite.sql", "0040_finance_default_categories_postgres.sql"),
 ]
 
 
