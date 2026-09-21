@@ -56,15 +56,8 @@
 
   <section class="cash-balance-section" aria-label="Saldo tersedia">
     <span class="cash-section-label">💰 Saldo Tersedia Sekarang</span>
-    <div class="cash-native-balance-grid">
-      {% for row in balance_totals %}
-      <article class="cash-native-balance">
-        <span>{{ row.currency }}</span>
-        <strong class="cash-money">{{ row.balance_minor|finance_money(row.currency) }}</strong>
-      </article>
-      {% endfor %}
-    </div>
-    <p class="cash-balance-note">Saldo ditampilkan dalam mata uang asli. Tidak dikonversi atau digabung dengan kurs, dan tidak berubah hanya karena filter periode laporan diganti.</p>
+    <strong class="cash-total">{{ balance_total_display }}</strong>
+    <p class="cash-balance-note">{{ fx_status_label }} · seluruh rekening otomatis dikonversi ke {{ display_currency }} untuk tampilan. Nilai asli tetap tersimpan di ledger.</p>
   </section>
 
   <section class="cash-period-section" aria-label="Arus kas periode">
@@ -84,16 +77,14 @@
       {% endif %}
     </div>
 
-    {% for row in summaries %}
-    <section class="cash-period-block" data-cashflow-block="{{ row.currency }}" aria-label="Arus kas {{ row.currency }}" {% if row.currency != cash_selected_currency %}hidden{% endif %}>
-      <div class="cash-period-block-head"><strong>{{ row.currency }}</strong><span>{{ row.transaction_count }} transaksi</span></div>
+    <section class="cash-period-block" data-cashflow-block="{{ display_currency }}" aria-label="Arus kas {{ display_currency }}">
+      <div class="cash-period-block-head"><strong>{{ display_currency }}</strong><span>kurs otomatis</span></div>
       <div class="cash-flow-row">
-        <div class="cash-flow-stat"><span>↑ Pemasukan</span><strong class="cash-money">{{ row.total_income_minor|finance_money(row.currency) }}</strong></div>
-        <div class="cash-flow-stat"><span>↓ Pengeluaran</span><strong class="cash-money">{{ row.total_expense_minor|finance_money(row.currency) }}</strong></div>
-        <div class="cash-flow-stat"><span>= Selisih arus kas</span><strong class="cash-money">{{ row.net_cashflow_minor|finance_money(row.currency) }}</strong></div>
+        <div class="cash-flow-stat"><span>↑ Pemasukan</span><strong class="cash-money">{{ period_income_display }}</strong></div>
+        <div class="cash-flow-stat"><span>↓ Pengeluaran</span><strong class="cash-money">{{ period_expense_display }}</strong></div>
+        <div class="cash-flow-stat"><span>= Selisih arus kas</span><strong class="cash-money">{{ period_net_display }}</strong></div>
       </div>
     </section>
-    {% endfor %}
   </section>
 
   <details class="cash-overview-details">

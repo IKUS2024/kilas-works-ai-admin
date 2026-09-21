@@ -369,7 +369,9 @@ def dashboard(business_id, user, business):
     summary = summary_map.get('IDR', dict(currency='IDR', total_income_minor=0,
         total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))
 
-    display_options = ['IDR'] + [row['currency'] for row in balance_totals if row['currency'] != 'IDR']
+    display_options = ['IDR']
+    display_options += [a['currency'] for a in accounts if a.get('currency') != 'IDR']
+    display_options += [row['currency'] for row in summaries if row['currency'] != 'IDR']
     display_options = list(dict.fromkeys(display_options))
     if display_currency not in display_options:
         display_currency = 'IDR'
@@ -377,8 +379,28 @@ def dashboard(business_id, user, business):
     fx = finance_fx.snapshot(display_options)
     balance_displays = finance_fx.balance_displays(balance_totals, fx, display_options)
     estimated_balance_idr = finance_fx.convert_total(balance_totals, 'IDR', fx)
-    for item in balance_totals:
+    balance_total_display = balance_displays.get(display_currency, {}).get('value', 'Kurs belum lengkap')
+    period_income_minor = finance_fx.convert_total(summaries, display_currency, fx, field='total_income_minor')
+    period_expense_minor = finance_fx.convert_total(summaries, display_currency, fx, field='total_expense_minor')
+    period_net_minor = finance_fx.convert_total(summaries, display_currency, fx, field='net_cashflow_minor')
+    period_income_display = ('Kurs belum lengkap' if period_income_minor is None
+                             else finance_fx.format_money(period_income_minor, display_currency))
+    period_expense_display = ('Kurs belum lengkap' if period_expense_minor is None
+                              else finance_fx.format_money(period_expense_minor, display_currency))
+    period_net_display = ('Kurs belum lengkap' if period_net_minor is None
+                          else finance_fx.format_money(period_net_minor, display_currency))
+    fx_status_label = ('Kurs belum tersedia' if fx.get('source') == 'unavailable'
+                       else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
+                            + (' · data tertunda' if fx.get('stale') else ''))
+    balances = [dict(item) for item in balances]
+    for item in balances:
         item['idr_estimate_minor'] = finance_fx.to_idr(item['balance_minor'], item['currency'], fx)
+        converted = finance_fx.convert_total(
+            [{'currency':item['currency'],'balance_minor':item['balance_minor']}],
+            display_currency, fx)
+        item['display_balance_minor'] = converted
+        item['display_balance_value'] = ('Kurs belum lengkap' if converted is None
+                                         else finance_fx.format_money(converted, display_currency))
 
     show_transactions = view == 'transactions'
     show_accounts = view == 'accounts'
@@ -405,10 +427,17 @@ def dashboard(business_id, user, business):
             if direction:
                 args['direction'] = direction
             return redirect(url_for('finance.dashboard', business_id=business_id, **args))
-        transactions = finance.list_transactions(
+        transactions = [dict(row) for row in finance.list_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
             status='POSTED', limit=transaction_page_size,
-            offset=(transaction_page - 1) * transaction_page_size, **actor)
+            offset=(transaction_page - 1) * transaction_page_size, **actor)]
+        for row in transactions:
+            converted = finance_fx.convert_total(
+                [{'currency':row['currency'],'balance_minor':row['amount_minor']}],
+                display_currency, fx)
+            row['display_amount_minor'] = converted
+            row['display_amount_value'] = ('Kurs belum lengkap' if converted is None
+                                           else finance_fx.format_money(converted, display_currency))
         if transaction_page_count <= 7:
             transaction_page_items = list(range(1, transaction_page_count + 1))
         else:
@@ -451,11 +480,31 @@ def dashboard(business_id, user, business):
     recent_activity = []
     recurring_items = []
     if not show_transactions and not show_accounts:
-        dashboard_trend = finance.get_monthly_cashflow_trends(
+        native_trend = finance.get_monthly_cashflow_trends(
             business_id, month_at(max(12, month_index - 5)), month,
             end_date=min(period(month)[1], today_value.isoformat()), **actor)
-        recent_activity = finance.list_transactions(
-            business_id, status='POSTED', end_date=today_value.isoformat(), limit=5, **actor)
+        trend_by_month = {}
+        for row in native_trend:
+            trend_by_month.setdefault(row['month'], []).append(row)
+        for trend_month in sorted(trend_by_month):
+            rows = trend_by_month[trend_month]
+            income_minor = finance_fx.convert_total(rows, display_currency, fx, field='income_minor')
+            expense_minor = finance_fx.convert_total(rows, display_currency, fx, field='expense_minor')
+            if income_minor is None or expense_minor is None:
+                dashboard_trend = []
+                break
+            dashboard_trend.append(dict(
+                month=trend_month, currency=display_currency,
+                income_minor=income_minor, expense_minor=expense_minor))
+        recent_activity = [dict(row) for row in finance.list_transactions(
+            business_id, status='POSTED', end_date=today_value.isoformat(), limit=5, **actor)]
+        for row in recent_activity:
+            converted = finance_fx.convert_total(
+                [{'currency':row['currency'],'balance_minor':row['amount_minor']}],
+                display_currency, fx)
+            row['display_amount_minor'] = converted
+            row['display_amount_value'] = ('Kurs belum lengkap' if converted is None
+                                           else finance_fx.format_money(converted, display_currency))
         recurring_items = finance.list_recurring_expenses(business_id, **actor)
 
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
@@ -468,6 +517,9 @@ def dashboard(business_id, user, business):
         transaction_query=transaction_query,
         balances=balances, balance_totals=balance_totals, balance_total=balance_total,
         estimated_balance_idr=estimated_balance_idr, fx=fx, balance_displays=balance_displays,
+        balance_total_display=balance_total_display, period_income_display=period_income_display,
+        period_expense_display=period_expense_display, period_net_display=period_net_display,
+        fx_status_label=fx_status_label,
         display_currency=display_currency, display_options=display_options,
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,

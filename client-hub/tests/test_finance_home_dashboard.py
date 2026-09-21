@@ -36,15 +36,18 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(html.count('class="finance-history-row"'),5)
         self.assertEqual(len(fixture.f.list_transactions(self.b)),7)
 
-    def test_foreign_opening_balance_does_not_become_chart_income(self):
+    def test_foreign_opening_balance_converts_for_display_but_not_income(self):
         fixture.f.create_account(self.b,'Dollar','BANK','USD',12000,actor_user_id=self.uid)
         import finance_fx
-        with patch.object(finance_fx,'snapshot',return_value={'rates':{'IDR':'1'},'date':'','source':'unavailable','stale':True}):
+        fx={'rates':{'IDR':'1','USD':'10000'},'date':'2026-09-21','source':'Test FX','stale':False}
+        with patch.object(finance_fx,'snapshot',return_value=fx):
             html, context=self.page()
-        self.assertIn('US$120.00',html)
+        self.assertEqual(context['balance_total_display'],'Rp1.200.000')
+        self.assertEqual(context['period_income_display'],'Rp0')
         self.assertEqual({r['currency'] for r in context['dashboard_trend']},{'IDR'})
         self.assertTrue(all(r['income_minor']==0 for r in context['dashboard_trend']))
-        self.assertIn('Mata uang ditampilkan terpisah',html)
+        self.assertIn('Test FX',html)
+        self.assertIn('dikonversi otomatis ke IDR',html)
 
     def test_navigation_year_boundary_and_history_unchanged(self):
         _, context=self.page('?month=2026-01')
@@ -87,5 +90,20 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Saldo awal',html)
         self.assertNotIn('id="finance-trend-data"',html)
         self.assertNotIn('Tanya Kilas Finance',html)
+
+    def test_mixed_currency_income_is_combined_in_display_currency(self):
+        usd=fixture.f.create_account(self.b,'USD Bank','BANK','USD',0,actor_user_id=self.uid)
+        usd_cat=fixture.f.list_categories(self.b,'INCOME')[0]['id']
+        fixture.f.create_transaction(self.b,'INCOME',100000,self.a,self.cat,
+            '2026-09-03',description='IDR sale',actor_user_id=self.uid)
+        fixture.f.create_transaction(self.b,'INCOME',1000,usd,usd_cat,
+            '2026-09-04',currency='USD',description='USD sale',actor_user_id=self.uid)
+        import finance_fx
+        fx={'rates':{'IDR':'1','USD':'16000'},'date':'2026-09-21','source':'Test FX','stale':False}
+        with patch.object(finance_fx,'snapshot',return_value=fx):
+            html,context=self.page('?month=2026-09')
+        self.assertEqual(context['period_income_display'],'Rp260.000')
+        self.assertIn('Rp260.000',html)
+        self.assertNotIn('Mata uang ditampilkan terpisah',html)
 
 if __name__=='__main__': unittest.main()

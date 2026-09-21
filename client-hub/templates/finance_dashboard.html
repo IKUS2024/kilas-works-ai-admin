@@ -189,14 +189,15 @@
 </header>
 <section class="card finance-ledger-summary">
   <div class="finance-section-heading"><h2>Saldo tersedia</h2><span class="finance-subtle">Sekarang</span></div>
-  <div class="finance-native-balances">{% for row in balance_totals %}<div><span>{{ row.currency }}</span><strong>{{ row.balance_minor|finance_money(row.currency) }}</strong></div>{% else %}<p class="finance-empty">Belum ada Kas / Rekening.</p>{% endfor %}</div>
-  <p class="finance-subtle">Saldo awal adalah uang yang sudah dimiliki ketika rekening dibuat, bukan pemasukan.</p>
+  <strong class="finance-combined-balance">{{ balance_total_display }}</strong>
+  <p class="finance-subtle">{{ fx_status_label }} · seluruh rekening dikonversi otomatis ke {{ display_currency }}. Saldo awal tetap bukan pemasukan.</p>
 </section>
 <section class="finance-account-grid" aria-label="Daftar Kas dan Rekening">
 {% for a in balances %}
 <article class="card finance-account-card">
   <div class="finance-account-card-head"><div><span class="finance-account-type">{{ account_types.get(a.account_type,'Lainnya') }}</span><h2>{{ a.name }}</h2><small>{{ a.currency }}{% if all_branches %} · {{ a.branch_name }}{% endif %}</small></div><span class="finance-account-status">{{ 'Aktif' if a.is_active else 'Nonaktif' }}</span></div>
-  <strong class="finance-account-balance">{{ a.balance_minor|finance_money(a.currency) }}</strong>
+  <strong class="finance-account-balance">{{ a.display_balance_value }}</strong>
+  {% if a.currency != display_currency %}<p class="finance-account-native">Nilai asli {{ a.balance_minor|finance_money(a.currency) }}</p>{% endif %}
   <div class="finance-account-math"><span>Saldo awal <b>{{ a.opening_balance_minor|finance_money(a.currency) }}</b></span><span>Masuk <b>{{ a.income_minor|finance_money(a.currency) }}</b></span><span>Keluar <b>{{ a.expense_minor|finance_money(a.currency) }}</b></span></div>
 </article>
 {% else %}<div class="card finance-empty">Belum ada Kas / Rekening. Tambahkan rekening pertama untuk mulai mencatat saldo.</div>{% endfor %}
@@ -224,8 +225,8 @@
 {% if direction %}
 <section class="card finance-ledger-summary">
   <span class="finance-ledger-summary-label">Total {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }} · {{ period_label }}</span>
-  <div class="finance-ledger-summary-values">{% for row in summaries %}<div><small>{{ row.currency }}</small><strong>{{ (row.total_income_minor if direction == 'INCOME' else row.total_expense_minor)|finance_money(row.currency) }}</strong></div>{% endfor %}</div>
-  <p class="finance-subtle">{{ transaction_total }} transaksi tercatat. Tambahkan transaksi manual di atas atau cukup bilang ke AI Finance.</p>
+  <div class="finance-ledger-summary-values"><div><small>{{ display_currency }}</small><strong>{{ period_income_display if direction == 'INCOME' else period_expense_display }}</strong></div></div>
+  <p class="finance-subtle">{{ transaction_total }} transaksi tercatat · {{ fx_status_label }}. Tambahkan transaksi manual di atas atau cukup bilang ke AI Finance.</p>
 </section>
 {% endif %}
 <nav class="finance-history-tabs finance-history-page-tabs" aria-label="Filter riwayat transaksi">
@@ -235,7 +236,7 @@
 </nav>
 <section class="card finance-ledger-list">
 <div class="finance-section-heading"><h2>Transaksi {{ 'pemasukan' if direction == 'INCOME' else ('pengeluaran' if direction == 'EXPENSE' else '') }}</h2><span class="finance-subtle">{{ transaction_page_size }} per halaman</span></div>
-{% for t in transactions %}<article class="finance-entry"><div class="finance-entry-head"><div><strong>{{ t.occurred_on }}</strong><div class="finance-entry-meta">{{ t.branch_name }} · {{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }}</div></div><span class="finance-entry-amount">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.amount_minor|finance_money(t.currency) }}</span></div><p style="white-space:pre-wrap">{{ t.description or 'Tanpa catatan' }}</p><p class="muted">{{ account_map.get(t.account_id, {}).get('name','Kas / Rekening') }} · {{ category_map.get(t.category_id, {}).get('name','Kategori') }}</p>{% if not branch_read_only and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<div class="finance-entry-actions">{% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">✏️ Edit</a>{% endif %}<form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button></form></div>{% endif %}</article>{% else %}<p class="finance-empty">Belum ada transaksi pada periode ini.</p>{% endfor %}
+{% for t in transactions %}<article class="finance-entry"><div class="finance-entry-head"><div><strong>{{ t.occurred_on }}</strong><div class="finance-entry-meta">{{ t.branch_name }} · {{ 'Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran' }}{% if t.currency != display_currency %} · asli {{ t.amount_minor|finance_money(t.currency) }}{% endif %}</div></div><span class="finance-entry-amount">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.display_amount_value }}</span></div><p style="white-space:pre-wrap">{{ t.description or 'Tanpa catatan' }}</p><p class="muted">{{ account_map.get(t.account_id, {}).get('name','Kas / Rekening') }} · {{ category_map.get(t.category_id, {}).get('name','Kategori') }}</p>{% if not branch_read_only and t.source_type != 'FINANCE_INVOICE_PAYMENT' %}<div class="finance-entry-actions">{% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a class="finance-mini-action" href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">✏️ Edit</a>{% endif %}<form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button></form></div>{% endif %}</article>{% else %}<p class="finance-empty">Belum ada transaksi pada periode ini.</p>{% endfor %}
 </section>
 {% if transaction_page_count > 1 %}
 <nav class="finance-pagination" aria-label="Halaman riwayat transaksi">
