@@ -29,7 +29,7 @@ Return exactly {"rows":[{"transaction_date":"YYYY-MM-DD","description":"string",
 "direction":"INCOME or EXPENSE","amount_minor":positive integer,"reference":string or null}],
 "readable":boolean}. No other keys. Max 1000 rows, description 500 chars, reference 160 chars.
 The caller supplies exactly one account currency. Extract every amount in that currency only and never convert currencies, perform arithmetic or invent missing values.
-For IDR/JPY amount_minor is whole units. For other supported currencies amount_minor is minor units, e.g. USD 12.34 => 1234.
+For every supported currency amount_minor is stored at two decimal places: e.g. IDR 12.34 => 1234 and USD 12.34 => 1234.
 Debit/withdrawal is EXPENSE; credit/deposit is INCOME. Do not extract balances or summary totals
 as transactions. Never return bank account numbers or credentials, including in descriptions.
 Dates must contain a visible/unambiguous year. Omit uncertain rows; if extraction is unreliable,
@@ -64,12 +64,11 @@ BANK_SYSTEM = SYSTEM.replace('"amount_minor":positive integer',
     '"currency":"ISO code","amount":"exact decimal string"').replace(
     'The caller supplies exactly one account currency. Extract every amount in that currency only and never convert currencies, perform arithmetic or invent missing values.',
     'Preserve the printed currency of each section. Never convert currencies or invent missing values.').replace(
-    'For IDR/JPY amount_minor is whole units. For other supported currencies amount_minor is minor units, e.g. USD 12.34 => 1234.',
-    'Amounts are exact major-unit decimal strings, including fractional IDR/JPY.') + '''
+    'For every supported currency amount_minor is stored at two decimal places: e.g. IDR 12.34 => 1234 and USD 12.34 => 1234.',
+    'Amounts are exact major-unit decimal strings for every currency.') + '''
 For bank documents, each row MUST additionally include currency (printed section ISO code)
 and amount (the exact major-unit decimal string without grouping, e.g. "123.45").
-Do not round fractional IDR/JPY: amount preserves the original precision. amount_minor is
-optional when amount is present. Preserve physical pages and currency sections; NEVER use
+Preserve up to two decimal places for every currency. amount_minor is optional when amount is present. Preserve physical pages and currency sections; NEVER use
 amounts embedded in transfer descriptions as the row amount. DD/MM dates use the visible
 statement period/year; never today's year. If a page/section currency or year is unknown,
 return readable=false. When inspecting an original PDF, include ALL currencies and mark each
@@ -152,36 +151,34 @@ def normalize(row):
 
 def parse_amount(value,currency='IDR'):
     from decimal import Decimal,InvalidOperation
-    currency=finance._currency(currency);value=value.strip().replace(' ','')
+    finance._currency(currency)
+    value=value.strip().replace(' ','')
     if not value:return 0
-    if currency in ('IDR','JPY'):
-        if re.fullmatch(r'[0-9]+',value):number=value
-        elif re.fullmatch(r'[0-9]+[.,]00',value):number=value[:-3]
-        elif re.fullmatch(r'[0-9]{1,3}(?:,[0-9]{3})+(?:\.00)?',value):number=value.removesuffix('.00').replace(',','')
-        elif re.fullmatch(r'[0-9]{1,3}(?:\.[0-9]{3})+(?:,00)?',value):number=value.removesuffix(',00').replace('.','')
-        else:raise BankError('invalid_amount')
-        result=int(number)
+    if not re.fullmatch(r'[0-9][0-9.,]*',value):raise BankError('invalid_amount')
+    if ',' in value and '.' in value:
+        last=max(value.rfind(','),value.rfind('.'))
+        integer=re.sub(r'[.,]','',value[:last]);fraction=value[last+1:]
+        if not integer.isdigit() or not fraction.isdigit() or len(fraction)>2:
+            raise BankError('invalid_amount')
+        normalized=integer+'.'+fraction
+    elif ',' in value or '.' in value:
+        sep=',' if ',' in value else '.'
+        parts=value.split(sep)
+        if len(parts)>2:
+            if not all(p.isdigit() for p in parts) or any(len(p)!=3 for p in parts[1:]):
+                raise BankError('invalid_amount')
+            normalized=''.join(parts)
+        else:
+            left,right=parts
+            if not left.isdigit() or not right.isdigit():raise BankError('invalid_amount')
+            normalized=left+'.'+right if len(right)<=2 else (left+right if len(right)==3 else '')
+            if not normalized:raise BankError('invalid_amount')
     else:
-        if not re.fullmatch(r'[0-9][0-9.,]*',value):raise BankError('invalid_amount')
-        if ',' in value and '.' in value:
-            last=max(value.rfind(','),value.rfind('.'));integer=re.sub(r'[.,]','',value[:last]);fraction=value[last+1:]
-            if not integer.isdigit() or not fraction.isdigit() or len(fraction)>2:raise BankError('invalid_amount')
-            normalized=integer+'.'+fraction
-        elif ',' in value or '.' in value:
-            sep=',' if ',' in value else '.';parts=value.split(sep)
-            if len(parts)>2:
-                if not all(p.isdigit() for p in parts) or any(len(p)!=3 for p in parts[1:]):raise BankError('invalid_amount')
-                normalized=''.join(parts)
-            else:
-                left,right=parts
-                if not left.isdigit() or not right.isdigit():raise BankError('invalid_amount')
-                normalized=left+'.'+right if len(right)<=2 else (left+right if len(right)==3 else '')
-                if not normalized:raise BankError('invalid_amount')
-        else:normalized=value
-        try:minor=Decimal(normalized)*100
-        except InvalidOperation:raise BankError('invalid_amount') from None
-        if minor!=minor.to_integral_value():raise BankError('invalid_amount')
-        result=int(minor)
+        normalized=value
+    try:minor=Decimal(normalized)*100
+    except InvalidOperation:raise BankError('invalid_amount') from None
+    if minor!=minor.to_integral_value():raise BankError('invalid_amount')
+    result=int(minor)
     if result<0 or result>=2**63:raise BankError('invalid_amount')
     return result
 
