@@ -135,6 +135,7 @@
 <header class="finance-hero">
 <a class="finance-back-link" href="{{ url_for('finance.workspace_choice',business_id=business.id) }}">← Pilih Finance</a>
 <div class="finance-hero-row"><div><span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span><h1>Kilas Finance</h1><p>{% if finance_workspace_personal %}Pribadi · data terpisah dari Bisnis{% else %}{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua cabang' }}{% endif %}</p></div></div>
+{% if not finance_workspace_personal %}
 <details class="finance-context-compact"><summary>Ganti ruang / cabang</summary><div class="finance-context-grid">
 <div class="finance-context-field">
 <label><span>Ruang Finance</span><small>Pribadi / Bisnis</small></label>
@@ -168,6 +169,8 @@
 </div>
 {% if not branch_read_only and not finance_workspace_personal %}<button type="button" class="finance-mini-action finance-context-manage" data-finance-open="branch-dialog">Kelola cabang</button>{% endif %}
 </details>
+{% endif %}
+
 <nav class="finance-month-nav" aria-label="Navigasi bulan">
 <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month) }}">‹</a>
 <button class="finance-period-button" type="button" data-finance-open="period-dialog">{{ period_label }} <small>⌄</small></button>
@@ -376,7 +379,7 @@
 <section class="card finance-ledger-summary">
   <span class="finance-ledger-summary-label">Total {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }} · {{ period_label }}</span>
   <div class="finance-ledger-summary-values"><div><small>{{ display_currency }}</small><strong>{{ period_income_display if direction == 'INCOME' else period_expense_display }}</strong></div></div>
-  <p class="finance-subtle">{{ transaction_total }} transaksi tercatat · {{ fx_status_label }}. Tambahkan transaksi manual di atas atau cukup bilang ke AI Finance.</p>
+  <p class="finance-subtle">{{ transaction_total }} transaksi tercatat · {{ fx_status_label }}. {% if finance_workspace_personal %}Tambahkan dan edit transaksi secara manual.{% else %}Tambahkan transaksi manual di atas atau cukup bilang ke AI Finance.{% endif %}</p>
 </section>
 {% endif %}
 <nav class="finance-history-tabs finance-history-page-tabs" aria-label="Filter riwayat transaksi">
@@ -501,7 +504,7 @@
 <dialog id="reset-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>↺ Reset Finance</h2><button type="button" class="finance-sheet-close" data-finance-close="reset-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
-<div class="finance-reset-warning"><strong>Cabang {{ selected_branch.name }} akan kembali ke saldo 0.</strong><p class="muted">Saldo awal semua rekening menjadi 0, semua transaksi aktif tidak dihitung lagi, invoice dibatalkan, dan biaya rutin dinonaktifkan. Cabang, akun, kategori, customer, serta riwayat audit tetap tersimpan.</p></div>
+<div class="finance-reset-warning"><strong>{{ 'Ruang Pribadi' if finance_workspace_personal else 'Cabang ' ~ selected_branch.name }} akan kembali ke saldo 0.</strong><p class="muted">Saldo awal semua rekening menjadi 0, semua transaksi aktif tidak dihitung lagi, dan biaya rutin dinonaktifkan.{% if not finance_workspace_personal %} Invoice dibatalkan.{% endif %} Akun, kategori, serta riwayat audit tetap tersimpan.</p></div>
 <form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id) }}" onsubmit="return confirm('Reset Finance cabang {{ selected_branch.name }} ke Rp0? Tindakan ini tidak bisa dibatalkan dari halaman ini.');">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Ketik <strong>RESET</strong> untuk melanjutkan<input name="confirmation" autocomplete="off" autocapitalize="characters" pattern="RESET" placeholder="RESET" required></label>
@@ -535,17 +538,18 @@
   <div class="finance-category-quick-actions"><button type="button" class="finance-mini-action" data-category-save>Tambah &amp; pilih</button><button type="button" class="finance-mini-action" data-category-cancel>Tutup</button></div>
   <p class="finance-category-quick-status" data-category-status aria-live="polite"></p>
   <div class="finance-category-quick-list" data-category-list></div>
-  <p class="finance-category-quick-note">Kategori yang ditambah atau dihapus di sini memakai data yang sama untuk transaksi, Anggaran, biaya rutin, laporan, dan AI Finance.</p>
+  <p class="finance-category-quick-note">Kategori yang ditambah atau dihapus di sini memakai data yang sama untuk transaksi, Anggaran, biaya rutin, dan laporan{% if not finance_workspace_personal %}, termasuk AI Finance{% endif %}.</p>
 </div>
 </div>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
 <label>Penerima / sumber<input name="counterparty_name" list="finance-payee-options" maxlength="160" placeholder="Contoh: Vendor A atau Client B"></label>
 <datalist id="finance-payee-options">{% for name in payee_names %}<option value="{{ name }}">{% endfor %}</datalist>
 <label for="transaction-note">Catatan</label><textarea id="transaction-note" name="description" maxlength="4000"></textarea>
-<details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>
+{% if not finance_workspace_personal %}<details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>{% endif %}
 <button class="btn">Simpan Transaksi</button>
 </form></div></dialog>
 
+{% if not finance_workspace_personal %}
 <dialog id="branch-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>🏪 Cabang</h2><button type="button" class="finance-sheet-close" data-finance-close="branch-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
@@ -553,6 +557,7 @@
 <div class="finance-record-list">{% for b in finance_branches if b.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ b.name }}</strong><div class="finance-record-sub">{{ 'Dipilih sekarang' if selected_branch and b.id == selected_branch.id else ('Nonaktif' if not b.is_active else 'Cabang aktif') }}</div></div>{% with kind='branch',item=b %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
+{% endif %}
 <dialog id="account-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>💳 Akun</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body"><p class="muted">Tempat uang cabang {{ selected_branch.name }}. Beri nama yang gampang dikenali, misalnya Kas Toko, BCA Utama, atau GoPay. Minimal satu tempat uang harus tetap aktif; untuk pengguna baru Finance otomatis menyiapkan Kas · IDR.</p>
