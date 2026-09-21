@@ -131,6 +131,7 @@ ERRORS = {
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
     'payee_unavailable': 'Penerima tidak tersedia.',
     'payee_exists': 'Nama penerima tersebut sudah ada.',
+    'payee_in_use': 'Penerima ini masih dipakai tagihan aktif. Edit atau hapus tagihan tersebut terlebih dahulu.',
     'account_exists': 'Akun dengan nama dan jenis tersebut sudah ada.',
     'category_exists': 'Kategori tersebut sudah ada.',
     'invalid_date': 'Tanggal belum valid.',
