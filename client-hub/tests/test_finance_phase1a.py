@@ -67,7 +67,7 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(f.list_accounts(self.b), [])
         self.assertEqual(f.list_accounts(self.b, True)[0]['opening_balance_minor'], 123)
 
-    def test_default_category_migration_hides_legacy_defaults_without_rewriting_history(self):
+    def test_default_category_migration_hides_unused_legacy_defaults_without_rewriting_history(self):
         legacy=f.create_category(self.b,'EXPENSE','Transport')
         tx=f.create_transaction(self.b,'EXPENSE',100,self.a,legacy,'2026-09-01')
         db.init_schema()
