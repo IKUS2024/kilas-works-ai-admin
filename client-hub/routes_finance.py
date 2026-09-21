@@ -40,7 +40,7 @@ PERSONAL_DISABLED_VIEWS = {
     # Personal Finance is intentionally manual-only.
     'assistant','assistant_route','assistant_recognize','assistant_recurring_action',
     'assistant_message','assistant_review','assistant_confirm','assistant_document',
-    'operator','operator_action',
+    'analyst','operator','operator_action',
     'receipt_new','receipt_analyze','receipt_confirm',
     'bank_index','bank_new','bank_analyze','bank_detail','bank_review','bank_open',
     'bank_cancel','bank_decide',
