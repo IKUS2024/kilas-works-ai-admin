@@ -62,6 +62,14 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(
             [row['name'] for row in f.list_categories(self.b,'EXPENSE')],
             list(f.DEFAULT_CATEGORIES['EXPENSE']))
+        utility=next(row for row in f.list_categories(self.b,'EXPENSE') if row['name']=='Utilitas')
+        children=f.list_category_children(self.b,utility['id'])
+        self.assertEqual(
+            [row['name'] for row in children],
+            list(f.DEFAULT_CATEGORY_CHILDREN['EXPENSE']['Utilitas']))
+        self.assertTrue(all(row['parent_category_id']==utility['id'] for row in children))
+        all_expense=f.list_categories(self.b,'EXPENSE',include_children=True)
+        self.assertEqual(len(all_expense),len(f.DEFAULT_CATEGORIES['EXPENSE'])+len(children))
         db.execute('UPDATE finance_accounts SET is_active=FALSE, opening_balance_minor=123 WHERE business_id=?', (self.b,))
         f.ensure_finance_defaults(self.b)
         self.assertEqual(f.list_accounts(self.b), [])
@@ -77,6 +85,19 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(f.get_transaction(self.b,tx)['category_id'],legacy)
         active=[row['name'] for row in f.list_categories(self.b,'EXPENSE')]
         self.assertEqual(active,list(f.DEFAULT_CATEGORIES['EXPENSE']))
+
+    def test_utility_subcategory_selection_is_required_and_resolves_to_child(self):
+        utility=next(row for row in f.list_categories(self.b,'EXPENSE') if row['name']=='Utilitas')
+        children=f.list_category_children(self.b,utility['id'])
+        electricity=next(row for row in children if row['name']=='Listrik')
+        with self.assertRaisesRegex(f.FinanceError,'subcategory_required'):
+            f.resolve_category_selection(self.b,'EXPENSE',utility['id'])
+        resolved=f.resolve_category_selection(
+            self.b,'EXPENSE',utility['id'],electricity['id'])
+        self.assertEqual(resolved,electricity['id'])
+        with self.assertRaisesRegex(f.FinanceError,'subcategory_unavailable'):
+            f.resolve_category_selection(
+                self.b,'EXPENSE',utility['id'],f.list_categories(self.b,'EXPENSE')[0]['id'])
 
     def test_account_category_creation_and_validation(self):
         a = f.create_account(self.b, 'Bank', 'BANK', 'idr', 123)
