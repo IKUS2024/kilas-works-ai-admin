@@ -1182,14 +1182,25 @@ def void_transaction(business_id, user, business, transaction_id):
 @finance_bp.route('/business/<int:business_id>/finance/reset', methods=['POST'])
 @finance_access
 def reset_finance(business_id, user, business):
+    personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     if request.form.get('confirmation') != 'RESET':
-        flash('Ketik RESET untuk mengonfirmasi reset Finance cabang ini.', 'error')
-        return redirect(url_for('finance.dashboard', business_id=business_id), code=303)
+        flash(
+            'Ketik RESET untuk mengonfirmasi reset Finance Pribadi.' if personal
+            else 'Ketik RESET untuk mengonfirmasi reset Finance cabang ini.',
+            'error')
+        return redirect(
+            url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id),
+            code=303)
     branch_name = g.finance_branch['name']
+    success = (
+        'Finance Pribadi direset ke Rp0. Struktur tetap tersedia dan riwayat audit tetap tersimpan.'
+        if personal else
+        f'Finance cabang {branch_name} direset ke Rp0. Struktur tetap tersedia dan riwayat audit tetap tersimpan.'
+    )
     return mutate(
         business_id,
         lambda: finance.reset_branch_finance(business_id, actor_user_id=user['id']),
-        f'Finance cabang {branch_name} direset ke Rp0. Struktur tetap tersedia dan riwayat audit tetap tersimpan.',
+        success,
         url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id))
 
 
