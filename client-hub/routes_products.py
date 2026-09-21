@@ -23,7 +23,7 @@ def _start_finance_trial_now(business_id, user):
     if state['active']:
         session['dashboard_business_id'] = business_id
         session.pop('product_intent', None)
-        return url_for('finance.dashboard', business_id=business_id)
+        return url_for('finance.workspace_choice', business_id=business_id)
 
     if state['status'] != 'NOT_ACTIVATED' or state['trial_used']:
         return url_for('products.finance_setup', business_id=business_id)
@@ -57,7 +57,7 @@ def _start_finance_trial_now(business_id, user):
     session['dashboard_business_id'] = business_id
     session.pop('product_intent', None)
     flash('Trial Kilas Finance 7 hari aktif. Kamu bisa langsung mulai.', 'success')
-    return url_for('finance.dashboard', business_id=business_id)
+    return url_for('finance.workspace_choice', business_id=business_id)
 
 
 @products_bp.after_request
