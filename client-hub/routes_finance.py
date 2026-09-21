@@ -813,6 +813,12 @@ def budget(business_id, user, business):
     fx = finance_fx.snapshot(display_options)
     categories = finance.list_categories(
         business_id, 'EXPENSE', actor_user_id=user['id'])
+    all_expense_categories = finance.list_categories(
+        business_id, 'EXPENSE', include_children=True, actor_user_id=user['id'])
+    children_by_parent = {}
+    for item in all_expense_categories:
+        if item.get('parent_category_id'):
+            children_by_parent.setdefault(item['parent_category_id'], []).append(item)
     if month > today_value.strftime('%Y-%m'):
         actual_rows = []
     else:
@@ -829,7 +835,24 @@ def budget(business_id, user, business):
     total_spent_rows = []
     for category in categories:
         budget_row = budget_map.get(category['id'])
-        spend_rows = by_category.get(category['id'], [])
+        child_categories = children_by_parent.get(category['id'], [])
+        category_ids = [category['id']] + [child['id'] for child in child_categories]
+        spend_rows = [
+            row for category_id in category_ids
+            for row in by_category.get(category_id, [])
+        ]
+        child_summaries = []
+        for child in child_categories:
+            child_spend_rows = by_category.get(child['id'], [])
+            child_spent_minor = finance_fx.convert_total(
+                [{'currency':row['currency'],'balance_minor':int(row['amount_minor'])}
+                 for row in child_spend_rows], display_currency, fx) if child_spend_rows else 0
+            child_summaries.append(dict(
+                category=child,
+                spent_display=('Kurs belum lengkap' if child_spent_minor is None
+                               else finance_fx.format_money(child_spent_minor, display_currency)),
+                transaction_count=sum(int(row.get('transaction_count') or 0) for row in child_spend_rows),
+            ))
         spent_minor = finance_fx.convert_total(
             [{'currency':row['currency'],'balance_minor':int(row['amount_minor'])}
              for row in spend_rows], display_currency, fx) if spend_rows else 0
@@ -856,7 +879,7 @@ def budget(business_id, user, business):
         percent_used = (0 if not budget_display_minor or spent_minor is None else
                         min(999, round(spent_minor * 100 / budget_display_minor)))
         rows.append(dict(
-            category=category, budget=budget_row, input_amount=input_amount,
+            category=category, children=child_summaries, budget=budget_row, input_amount=input_amount,
             input_currency=input_currency,
             budget_value_minor=budget_display_minor,
             spent_value_minor=spent_minor,
