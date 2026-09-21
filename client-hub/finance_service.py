@@ -1428,9 +1428,11 @@ def get_upcoming_recurring_commitments(business_id,start_date,end_date,actor_use
         last=min(end,rule['end_on']) if rule['end_on'] else end
         while rule['next_due_on']<=last:
             if len(result)>=MAX_COMMITMENT_OCCURRENCES:raise FinanceError('forecast_limit')
-            result.append(dict(branch_name=rule['branch_name'],name=rule['name'],currency=rule['currency'],
+            result.append(dict(recurring_id=rule['id'],branch_name=rule['branch_name'],name=rule['name'],currency=rule['currency'],
                 scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],project_name=rule['project_name'],
-                account_name=rule['account_name'],category_name=rule['category_name']))
+                account_name=rule['account_name'],category_name=rule['category_name'],
+                counterparty_name=rule['counterparty_name'],description=rule['description'],
+                cadence=rule['cadence'],end_on=rule['end_on']))
             if rule['next_due_on']==last:break
             try:rule['next_due_on']=_next_recurring_date(rule)
             except FinanceError:

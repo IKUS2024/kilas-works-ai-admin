@@ -1,26 +1,205 @@
 {% extends 'base.html' %}
-{% block title %}Tagihan & Rutin · Kilas Finance{% endblock %}
+{% block title %}Tagihan · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<div class="fin-page">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-1') }}">
+<div class="fin-page finance-bills-homebudget">
 {% set active_finance_area='operations' %}{% include '_finance_area_nav.html' %}
-<h1 class="fin-page-title">Tagihan &amp; Rutin</h1><p class="muted fin-page-subtitle">{{ business.business_name }} · Kelola jatuh tempo, biaya berulang, dan arus kas proyek.</p>
-<div class="card"><div class="fin-tool-grid">
-<a class="fin-tool {{ 'active' if section=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,section='recurring',month=month) }}"><span class="fin-icon">↻</span><span class="fin-label">Tagihan Rutin</span><span class="fin-meta">{{ rules|length }} jadwal</span></a>
-<a class="fin-tool {{ 'active' if section=='add' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,section='add',month=month) }}"><span class="fin-icon">＋</span><span class="fin-label">Tambah Tagihan</span><span class="fin-meta">Jadwal biaya rutin</span></a>
-<a class="fin-tool {{ 'active' if section=='projects' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,section='projects',month=month) }}"><span class="fin-icon">📁</span><span class="fin-label">Per Proyek</span><span class="fin-meta">Arus kas proyek</span></a>
-</div></div>
 
-{% if section=='recurring' %}
-<div class="card"><h2>Tagihan rutin</h2><p class="muted">Tagihan jatuh tempo belum mengubah saldo sampai dicatat sebagai pengeluaran. Maksimal {{ max_occurrences }} jadwal per proses.</p>
-{% if preview %}<details open><summary>Tinjau Tagihan Jatuh Tempo</summary><form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% for r in preview %}<label><input type="checkbox" name="occurrence" value="{{ r.selection }}"> {{ r.name }} · {{ r.next_due_on }} · {{ r.amount_minor|finance_money(r.currency) }} · {{ r.account_name }}</label>{% endfor %}<button class="btn">Catat sebagai Pengeluaran</button></form></details>{% else %}<div class="fin-empty">Belum ada kejadian siap dicatat.</div>{% endif %}
-{% for r in rules %}<article class="fin-entry"><strong>{{ r.name }}</strong> · {{ r.branch_name }} · {{ 'Aktif' if r.is_active else 'Nonaktif' }}<p>{{ r.amount_minor|finance_money(r.currency) }} · {{ 'Mingguan' if r.cadence=='WEEKLY' else 'Bulanan' }}</p><p class="muted">Jadwal berikutnya {{ r.next_due_on }}</p>{% if r.is_active %}<form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,recurring_id=r.id) }}" onsubmit="return confirm('Nonaktifkan biaya rutin ini?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary small">Nonaktifkan</button></form>{% endif %}</article>{% else %}<div class="fin-empty">Belum ada tagihan rutin.</div>{% endfor %}</div>
-{% elif section=='add' %}
-<div class="card"><h2>Tambah Tagihan Rutin</h2><form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<div class="fin-form-grid"><label>Nama<input name="name" maxlength="160" required></label><label>Akun<select name="account_id" data-currency-account required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label><label>Nominal <span data-currency-label></span><input name="amount" data-currency-amount inputmode="decimal" maxlength="25" required></label><label>Kategori pengeluaran<select name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label><label>Frekuensi<select name="cadence"><option value="MONTHLY">Bulanan</option><option value="WEEKLY">Mingguan</option></select></label><label>Jatuh tempo pertama<input type="date" name="next_due_on" value="{{ today }}" required></label><label>Berakhir (opsional)<input type="date" name="end_on"></label><label>Proyek (opsional)<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Vendor / penerima<input name="counterparty_name" maxlength="160"></label></div>
-<label>Deskripsi (opsional)<textarea name="description" maxlength="4000"></textarea></label><button class="btn">Simpan Tagihan Rutin</button></form></div>
-{% elif section=='projects' %}
-<div class="card"><h2>Uang Masuk &amp; Keluar per Proyek</h2><form method="get"><input type="hidden" name="section" value="projects">{% if finance_branch_business_id %}<input type="hidden" name="branch_id" value="{{ selected_branch_id or 'all' }}">{% endif %}<label>Bulan<input name="month" type="month" value="{{ month }}" max="{{ current_month }}" required></label><button class="btn secondary">Tampilkan</button></form>
-{% for p in contributions %}<article class="fin-entry"><h3>{{ p.title }} · {{ p.currency }}</h3><div class="fin-grid compact"><p>Pemasukan<br><strong>{{ p.income_minor|finance_money(p.currency) }}</strong></p><p>Pengeluaran<br><strong>{{ p.expense_minor|finance_money(p.currency) }}</strong></p><p>Selisih<br><strong>{{ p.net_cash_contribution_minor|finance_money(p.currency) }}</strong></p></div><p class="muted">{{ p.transaction_count }} transaksi</p></article>{% else %}<div class="fin-empty">Belum ada transaksi terhubung ke proyek untuk periode ini.</div>{% endfor %}</div>
+{% if section == 'projects' %}
+<header class="finance-bills-project-head">
+  <div><span class="finance-eyebrow">KILAS FINANCE</span><h1>Arus Kas Proyek</h1><p>{{ business.business_name }} · {{ month_label }}</p></div>
+  <a class="finance-mini-action" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month) }}">← Tagihan</a>
+</header>
+<section class="card">
+  <form method="get" class="finance-bills-project-filter">
+    <input type="hidden" name="section" value="projects">
+    <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+    <label>Bulan<input name="month" type="month" value="{{ month }}" required></label>
+    <button class="btn secondary">Tampilkan</button>
+  </form>
+  {% for p in contributions %}
+  <article class="fin-entry"><h3>{{ p.title }} · {{ p.currency }}</h3><div class="fin-grid compact"><p>Pemasukan<br><strong>{{ p.income_minor|finance_money(p.currency) }}</strong></p><p>Pengeluaran<br><strong>{{ p.expense_minor|finance_money(p.currency) }}</strong></p><p>Selisih<br><strong>{{ p.net_cash_contribution_minor|finance_money(p.currency) }}</strong></p></div><p class="muted">{{ p.transaction_count }} transaksi</p></article>
+  {% else %}<div class="fin-empty">Belum ada transaksi proyek pada bulan ini.</div>{% endfor %}
+</section>
+
+{% else %}
+<header class="finance-bills-header">
+  <div>
+    <span class="finance-eyebrow">KILAS FINANCE</span>
+    <h1>Tagihan</h1>
+    <strong>{{ total_bills_display }}</strong>
+    <small>Belum dibayar {{ unpaid_bills_display }} · {{ unpaid_count }} tagihan</small>
+  </div>
+  <div class="finance-bills-header-actions">
+    <button type="button" class="finance-bills-add" data-finance-open="bill-add-dialog" aria-label="Tambah tagihan">＋</button>
+    <details class="finance-budget-options finance-bills-options">
+      <summary aria-label="Opsi tagihan">•••</summary>
+      <div class="finance-budget-options-menu finance-bills-options-menu">
+        <form method="get">
+          <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="view" value="{{ view }}">
+          <label>Mata uang
+            <select name="display_currency" onchange="this.form.submit()">
+              {% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}
+            </select>
+          </label>
+        </form>
+        <a href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,section='projects',month=month) }}">Arus kas proyek</a>
+      </div>
+    </details>
+  </div>
+</header>
+
+<nav class="finance-month-nav finance-bills-month-nav" aria-label="Navigasi bulan tagihan">
+  <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view=view,display_currency=display_currency) }}">‹</a>
+  <span class="finance-bills-month-label">{{ month_label }}</span>
+  <a aria-label="Bulan berikutnya" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=next_month,view=view,display_currency=display_currency) }}">›</a>
+</nav>
+
+{% if view == 'calendar' %}
+<section class="card finance-bills-calendar" aria-label="Kalender tagihan {{ month_label }}">
+  <div class="finance-bills-weekdays">{% for label in weekday_labels %}<span>{{ label }}</span>{% endfor %}</div>
+  <div class="finance-bills-calendar-grid">
+  {% for week in calendar_weeks %}
+    {% for day in week %}
+      {% if day.outside %}
+      <span class="finance-bills-day outside">{{ day.day }}</span>
+      {% else %}
+      <a class="finance-bills-day {{ day.state }} {{ 'selected' if day.selected else '' }}"
+         href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,day=day.date,view='calendar',display_currency=display_currency) }}"
+         aria-label="{{ day.date }}{% if day.count %}, {{ day.count }} tagihan{% endif %}">
+        <span>{{ day.day }}</span>{% if day.count %}<i aria-hidden="true"></i>{% endif %}
+      </a>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+  </div>
+</section>
+
+<section class="card finance-bills-list">
+  <div class="finance-bills-list-head"><strong>{{ selected_day_label }}</strong><span>{{ selected_occurrences|length }} tagihan</span></div>
+  {% set bill_rows = selected_occurrences %}
+  {% for r in bill_rows %}
+  <article class="finance-bill-row {{ r.status }}">
+    <span class="finance-bill-status-dot" aria-hidden="true"></span>
+    <div class="finance-bill-main">
+      <strong>{{ r.name }}</strong>
+      <small>{{ r.counterparty_name or r.account_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}</small>
+    </div>
+    <div class="finance-bill-money">
+      <strong>{{ r.display_amount }}</strong>
+      {% if r.show_native %}<small>Asli {{ r.native_amount }}</small>{% endif %}
+      <span class="finance-bill-status-label">{{ r.status_label }}</span>
+    </div>
+    {% if r.can_mark_paid %}
+    <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-pay-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="hidden" name="day" value="{{ selected_day }}">
+      <input type="hidden" name="view" value="calendar">
+      <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
+      <button class="finance-mini-action" type="submit">✓ Dibayar</button>
+    </form>
+    {% endif %}
+  </article>
+  {% else %}<div class="fin-empty finance-bills-empty">Tidak ada tagihan pada tanggal ini.</div>{% endfor %}
+</section>
+
+{% elif view == 'list' %}
+<section class="card finance-bills-list finance-bills-all-list">
+  <div class="finance-bills-list-head"><strong>{{ month_label }}</strong><span>{{ occurrences|length }} tagihan</span></div>
+  {% for r in occurrences %}
+  <article class="finance-bill-row {{ r.status }}">
+    <span class="finance-bill-status-dot" aria-hidden="true"></span>
+    <div class="finance-bill-main">
+      <strong>{{ r.name }}</strong>
+      <small>{{ r.scheduled_on }} · {{ r.counterparty_name or r.account_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}</small>
+    </div>
+    <div class="finance-bill-money">
+      <strong>{{ r.display_amount }}</strong>
+      {% if r.show_native %}<small>Asli {{ r.native_amount }}</small>{% endif %}
+      <span class="finance-bill-status-label">{{ r.status_label }}</span>
+    </div>
+    {% if r.can_mark_paid %}
+    <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-pay-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="hidden" name="day" value="{{ r.scheduled_on }}">
+      <input type="hidden" name="view" value="list">
+      <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
+      <button class="finance-mini-action" type="submit">✓ Dibayar</button>
+    </form>
+    {% endif %}
+  </article>
+  {% else %}<div class="fin-empty finance-bills-empty">Belum ada tagihan pada bulan ini.</div>{% endfor %}
+</section>
+
+{% else %}
+<section class="card finance-bills-rules">
+  <div class="finance-bills-list-head"><strong>Tagihan Rutin</strong><span>{{ rules_count }} aktif</span></div>
+  {% for r in rules %}
+  <article class="finance-bill-rule {{ 'inactive' if not r.is_active else '' }}">
+    <div>
+      <strong>{{ r.name }}</strong>
+      <small>{{ 'Mingguan' if r.cadence=='WEEKLY' else 'Bulanan' }} · berikutnya {{ r.next_due_on }}</small>
+      {% if r.counterparty_name %}<small>{{ r.counterparty_name }}</small>{% endif %}
+    </div>
+    <div class="finance-bill-rule-right">
+      <strong>{{ r.amount_minor|finance_money(r.currency) }}</strong>
+      <span>{{ 'Aktif' if r.is_active else 'Nonaktif' }}</span>
+      {% if r.is_active %}
+      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,recurring_id=r.id) }}" onsubmit="return confirm('Hapus jadwal {{ r.name }} dari daftar aktif? Riwayat pembayaran tetap tersimpan.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <button class="finance-mini-action finance-danger" type="submit">Hapus Jadwal</button>
+      </form>
+      {% endif %}
+    </div>
+  </article>
+  {% else %}<div class="fin-empty finance-bills-empty">Belum ada jadwal tagihan.</div>{% endfor %}
+</section>
 {% endif %}
-</div>{% endblock %}
+
+<nav class="card finance-bills-toolbar" aria-label="Tampilan tagihan">
+  <a class="{{ 'active' if view=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='recurring',display_currency=display_currency) }}"><span>↻</span><small>Rutin</small></a>
+  <a class="{{ 'active' if view=='calendar' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='calendar',display_currency=display_currency) }}"><span>▦</span><small>Kalender</small></a>
+  <a class="{{ 'active' if view=='list' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='list',display_currency=display_currency) }}"><span>☰</span><small>Daftar</small></a>
+</nav>
+
+<dialog id="bill-add-dialog" class="finance-sheet finance-bill-add-sheet">
+  <div class="finance-sheet-head">
+    <div><small>Tagihan</small><h2>Tambah Tagihan</h2></div>
+    <button type="button" class="finance-sheet-close" data-finance-close="bill-add-dialog" aria-label="Tutup">×</button>
+  </div>
+  <div class="finance-sheet-body">
+    <form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id) }}" class="finance-bill-add-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <label>Nama Tagihan<input name="name" maxlength="160" placeholder="Contoh: Internet" required></label>
+      <div class="finance-bill-form-grid">
+        <label>Akun<select name="account_id" data-currency-account required><option value="">Pilih akun</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+        <label>Nominal <span data-currency-label></span><input name="amount" data-currency-amount inputmode="decimal" maxlength="25" required></label>
+        <label>Kategori<select name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+        <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ today }}" required></label>
+        <label>Frekuensi<select name="cadence"><option value="ONCE">Sekali</option><option value="MONTHLY">Bulanan</option><option value="WEEKLY">Mingguan</option></select></label>
+        <label>Berakhir (opsional)<input type="date" name="end_on"></label>
+      </div>
+      <label>Penerima / Vendor<input name="counterparty_name" maxlength="160" placeholder="Opsional"></label>
+      <details class="finance-bill-more"><summary>Detail tambahan</summary>
+        <label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>
+        <label>Catatan<textarea name="description" maxlength="4000"></textarea></label>
+      </details>
+      <button class="btn" type="submit">Simpan Tagihan</button>
+    </form>
+  </div>
+</dialog>
+{% endif %}
+</div>
+<script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>
+{% endblock %}

@@ -180,4 +180,36 @@ class DashboardHomeTests(unittest.TestCase):
         income_names=[c['name'] for c in fixture.f.list_categories(self.b,'INCOME',actor_user_id=self.uid)]
         self.assertNotIn('Jangan Ubah',income_names)
 
+    def test_bills_page_uses_homebudget_calendar_list_and_recurring_views(self):
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.create_recurring_expense(
+            self.b,'Internet',275000,self.a,expense_cat,'MONTHLY','2026-09-10',
+            counterparty_name='Provider Net',actor_user_id=self.uid)
+        response=self.client.get(f'/business/{self.b}/finance/operations?month=2026-09')
+        self.assertEqual(response.status_code,200)
+        html=response.text
+        for token in ('finance-bills-calendar','September 2026','Tambah Tagihan','Kalender','Daftar','Rutin','Internet','Provider Net'):
+            self.assertIn(token,html)
+        self.assertNotIn('Tagihan &amp; Rutin',html)
+        self.assertNotIn('fin-tool-grid',html)
+
+        future=self.client.get(f'/business/{self.b}/finance/operations?month=2026-10')
+        self.assertEqual(future.status_code,200)
+        self.assertIn('Oktober 2026',future.text)
+        self.assertIn('Internet',future.text)
+
+    def test_bills_add_once_maps_to_single_due_rule(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        response=self.client.post(f'/business/{self.b}/finance/recurring',data={
+            'branch_id':str(branch_id),'month':'2026-09','name':'Sewa Studio',
+            'account_id':str(self.a),'amount':'450000','category_id':str(expense_cat),
+            'next_due_on':'2026-09-25','cadence':'ONCE','counterparty_name':'Studio A'})
+        self.assertEqual(response.status_code,303)
+        rules=fixture.f.list_recurring_expenses(self.b,include_inactive=True,actor_user_id=self.uid)
+        rule=next(row for row in rules if row['name']=='Sewa Studio')
+        self.assertEqual(rule['cadence'],'MONTHLY')
+        self.assertEqual(rule['next_due_on'],'2026-09-25')
+        self.assertEqual(rule['end_on'],'2026-09-25')
+
 if __name__=='__main__': unittest.main()

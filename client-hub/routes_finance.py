@@ -1096,69 +1096,276 @@ def record_payment(business_id,user,business,invoice_id):
         url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
 
 
+def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_user_id):
+    """Read-only HomeBudget-style month projection with paid posting history."""
+    rule_map = {row['id']: row for row in rules}
+    occurrences = []
+    seen = set()
+
+    for row in finance.get_upcoming_recurring_commitments(
+            business_id, start, end, actor_user_id=actor_user_id):
+        rule = rule_map.get(row.get('recurring_id'))
+        if not rule:
+            continue
+        scheduled = row['scheduled_on']
+        if scheduled < today_iso:
+            status, status_label = 'overdue', 'Terlambat'
+        elif scheduled == today_iso:
+            status, status_label = 'today', 'Jatuh tempo hari ini'
+        else:
+            status, status_label = 'upcoming', 'Akan datang'
+        occurrences.append(dict(
+            row,
+            rule_id=rule['id'],
+            status=status,
+            status_label=status_label,
+            can_mark_paid=bool(rule['is_active'] and scheduled == rule['next_due_on'] and scheduled <= today_iso),
+            source='schedule'))
+        seen.add((rule['id'], scheduled))
+
+    for rule in rules:
+        for posting in finance.list_recurring_postings(
+                business_id, rule['id'], actor_user_id=actor_user_id):
+            scheduled = posting['scheduled_on']
+            key = (rule['id'], scheduled)
+            if scheduled < start or scheduled > end or key in seen:
+                continue
+            transaction = None
+            if posting['ledger_transaction_id']:
+                transaction = finance.get_transaction(
+                    business_id, posting['ledger_transaction_id'],
+                    actor_user_id=actor_user_id)
+            if transaction and transaction['status'] == 'POSTED':
+                status, status_label = 'paid', 'Lunas'
+            elif transaction and transaction['status'] == 'VOID':
+                status, status_label = 'void', 'Dibatalkan'
+            elif scheduled < today_iso:
+                status, status_label = 'overdue', 'Terlambat'
+            elif scheduled == today_iso:
+                status, status_label = 'today', 'Jatuh tempo hari ini'
+            else:
+                status, status_label = 'upcoming', 'Akan datang'
+            occurrences.append(dict(
+                recurring_id=rule['id'],
+                rule_id=rule['id'],
+                branch_name=rule['branch_name'],
+                name=rule['name'],
+                currency=rule['currency'],
+                scheduled_on=scheduled,
+                amount_minor=rule['amount_minor'],
+                project_name=None,
+                account_name=None,
+                category_name=None,
+                counterparty_name=rule['counterparty_name'],
+                description=rule['description'],
+                cadence=rule['cadence'],
+                end_on=rule['end_on'],
+                status=status,
+                status_label=status_label,
+                can_mark_paid=False,
+                source='posting'))
+            seen.add(key)
+
+    return sorted(occurrences, key=lambda row: (row['scheduled_on'], row['rule_id'], row['name']))
+
+
 @finance_bp.route('/business/<int:business_id>/finance/operations')
 @finance_access
 def operations(business_id,user,business):
-    section = request.args.get('section', 'recurring')
-    if section not in ('recurring', 'add', 'projects'):
-        section = 'recurring'
-    local_today=finance.business_today(business_id)
-    month = request.args.get('month',local_today.strftime('%Y-%m'))
+    raw_section = request.args.get('section', '')
+    section = 'projects' if raw_section == 'projects' else 'bills'
+    view = request.args.get('view') or ('recurring' if raw_section == 'recurring' else 'calendar')
+    if view not in ('calendar', 'list', 'recurring'):
+        view = 'calendar'
+
+    local_today = finance.business_today(business_id)
+    current_month = local_today.strftime('%Y-%m')
+    month = request.args.get('month', current_month)
     try:
-        start,end = period(month)
-        if month > local_today.strftime('%Y-%m'):
-            raise ValueError('future_month')
-        end = min(end, local_today.isoformat())
+        start, end = period(month)
+    except (ValueError, finance.FinanceError):
+        flash('Bulan tagihan belum valid.', 'error')
+        return redirect(url_for('finance.operations', business_id=business_id), code=303)
+
+    actor = {'actor_user_id': user['id']}
+    rules = finance.list_recurring_expenses(business_id, include_inactive=True, **actor)
+    accounts = finance.list_accounts(business_id, **actor)
+    categories = finance.list_categories(business_id, 'EXPENSE', **actor)
+    projects = finance.list_finance_projects(business_id, **actor)
+
+    occurrences = _bill_month_occurrences(
+        business_id, rules, start, end, local_today.isoformat(), user['id'])
+
+    display_options = ['IDR']
+    display_options += [row['currency'] for row in accounts if row['currency'] != 'IDR']
+    display_options += [row['currency'] for row in rules if row['currency'] != 'IDR']
+    display_options = list(dict.fromkeys(display_options))
+    display_currency = request.args.get('display_currency') or 'IDR'
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
+    if display_currency not in display_options:
+        display_options.append(display_currency)
+    fx = finance_fx.snapshot(display_options)
+
+    for row in occurrences:
+        converted = finance_fx.convert_total(
+            [{'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}],
+            display_currency, fx)
+        row['display_amount'] = (
+            finance_fx.format_money(converted, display_currency)
+            if converted is not None
+            else finance_fx.format_money(int(row['amount_minor']), row['currency']))
+        row['native_amount'] = finance_fx.format_money(int(row['amount_minor']), row['currency'])
+        row['show_native'] = row['currency'] != display_currency and converted is not None
+
+    total_rows = [
+        {'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}
+        for row in occurrences if row['status'] != 'void']
+    unpaid_rows = [
+        {'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}
+        for row in occurrences if row['status'] not in ('paid', 'void')]
+    total_minor = finance_fx.convert_total(total_rows, display_currency, fx) if total_rows else 0
+    unpaid_minor = finance_fx.convert_total(unpaid_rows, display_currency, fx) if unpaid_rows else 0
+
+    month_names = ('Januari','Februari','Maret','April','Mei','Juni',
+                   'Juli','Agustus','September','Oktober','November','Desember')
+    year, month_number = map(int, month.split('-'))
+    month_label = month_names[month_number - 1] + ' ' + str(year)
+    month_index = year * 12 + month_number - 1
+    month_at = lambda index: f'{index // 12:04d}-{index % 12 + 1:02d}'
+    previous_month = month_at(month_index - 1)
+    next_month = month_at(month_index + 1)
+
+    selected = request.args.get('day')
+    try:
+        selected_date = date.fromisoformat(selected) if selected else None
     except ValueError:
-        flash('Periode belum valid. Bulan masa depan belum dapat dipilih.','error')
-        return redirect(url_for('finance.operations',business_id=business_id))
-    actor = {'actor_user_id':user['id']}
-    rules = finance.list_recurring_expenses(business_id,include_inactive=True,**actor)
-    projects = finance.list_finance_projects(business_id,**actor)
-    return render_template('finance_operations.html',user=user,business=business,rules=rules,projects=projects,section=section,
-        preview=finance.preview_due_recurring_expenses(business_id,local_today,**actor),
-        project_map={p['id']:p for p in projects},
-        attention={r['id']:finance.recurring_needs_attention(business_id,r['id'],**actor) for r in rules if r['is_active']},
-        accounts=finance.list_accounts(business_id,**actor),categories=finance.list_categories(business_id,'EXPENSE',**actor),
-        contributions=finance.get_project_cash_contribution(business_id,start,end,**actor),
-        month=month,current_month=local_today.strftime('%Y-%m'),today=local_today.isoformat(),
+        selected_date = None
+    if not selected_date or selected_date.strftime('%Y-%m') != month:
+        if month == current_month:
+            selected_date = local_today
+        elif occurrences:
+            selected_date = date.fromisoformat(occurrences[0]['scheduled_on'])
+        else:
+            selected_date = date(year, month_number, 1)
+    selected_day = selected_date.isoformat()
+    selected_day_label = f'{selected_date.day} {month_names[selected_date.month - 1]} {selected_date.year}'
+    selected_occurrences = [row for row in occurrences if row['scheduled_on'] == selected_day]
+
+    by_day = {}
+    for row in occurrences:
+        by_day.setdefault(row['scheduled_on'], []).append(row)
+    calendar_weeks = []
+    for week in calendar.Calendar(firstweekday=6).monthdatescalendar(year, month_number):
+        cells = []
+        for calendar_date in week:
+            iso = calendar_date.isoformat()
+            day_rows = by_day.get(iso, [])
+            states = {row['status'] for row in day_rows}
+            state = ('overdue' if 'overdue' in states else
+                     'today' if 'today' in states else
+                     'upcoming' if 'upcoming' in states else
+                     'paid' if 'paid' in states else
+                     'void' if 'void' in states else '')
+            cells.append(dict(
+                date=iso, day=calendar_date.day,
+                outside=calendar_date.month != month_number,
+                selected=iso == selected_day,
+                count=len(day_rows), state=state))
+        calendar_weeks.append(cells)
+
+    contributions = finance.get_project_cash_contribution(
+        business_id, start, end, **actor) if section == 'projects' else []
+
+    return render_template(
+        'finance_operations.html',
+        user=user, business=business, rules=rules, projects=projects, section=section, view=view,
+        occurrences=occurrences, selected_occurrences=selected_occurrences,
+        calendar_weeks=calendar_weeks, weekday_labels=('Min','Sen','Sel','Rab','Kam','Jum','Sab'),
+        selected_day=selected_day, selected_day_label=selected_day_label,
+        accounts=accounts, categories=categories,
+        contributions=contributions, month=month, month_label=month_label,
+        previous_month=previous_month, next_month=next_month,
+        current_month=current_month, today=local_today.isoformat(),
+        display_currency=display_currency, display_options=display_options,
+        total_bills_display=('Kurs belum lengkap' if total_minor is None
+                             else finance_fx.format_money(total_minor, display_currency)),
+        unpaid_bills_display=('Kurs belum lengkap' if unpaid_minor is None
+                              else finance_fx.format_money(unpaid_minor, display_currency)),
+        unpaid_count=len(unpaid_rows), rules_count=sum(1 for row in rules if row['is_active']),
         max_occurrences=finance.MAX_RECURRING_OCCURRENCES)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/recurring',methods=['POST'])
 @finance_access
 def create_recurring(business_id,user,business):
-    account_id=record_id(request.form.get('account_id'))
-    account=finance.get_account(business_id,account_id,actor_user_id=user['id'],active=True)
-    return mutate(business_id,lambda:finance.create_recurring_expense(business_id,request.form.get('name'),
-        currency_amount(request.form.get('amount'),account['currency']),account_id,record_id(request.form.get('category_id')),
-        request.form.get('cadence'),request.form.get('next_due_on'),end_on=request.form.get('end_on') or None,
-        project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
-        counterparty_name=request.form.get('counterparty_name'),description=request.form.get('description'),actor_user_id=user['id']),
-        'Biaya rutin disimpan.',url_for('finance.operations',business_id=business_id))
+    month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
+    destination = url_for(
+        'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
+        month=month, view='calendar')
+    def action():
+        account_id = record_id(request.form.get('account_id'))
+        account = finance.get_account(
+            business_id, account_id, actor_user_id=user['id'], active=True)
+        if not account:
+            raise finance.FinanceError('account_unavailable')
+        requested_cadence = request.form.get('cadence') or 'MONTHLY'
+        next_due_on = request.form.get('next_due_on')
+        if requested_cadence == 'ONCE':
+            cadence = 'MONTHLY'
+            end_on = next_due_on
+        elif requested_cadence in ('WEEKLY', 'MONTHLY'):
+            cadence = requested_cadence
+            end_on = request.form.get('end_on') or None
+        else:
+            raise finance.FinanceError('invalid_enum')
+        return finance.create_recurring_expense(
+            business_id, request.form.get('name'),
+            currency_amount(request.form.get('amount'), account['currency']),
+            account_id, record_id(request.form.get('category_id')),
+            cadence, next_due_on, end_on=end_on,
+            project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
+            counterparty_name=request.form.get('counterparty_name'),
+            description=request.form.get('description'),
+            actor_user_id=user['id'])
+    return mutate(business_id, action, 'Tagihan disimpan.', destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/recurring/<int:recurring_id>/deactivate',methods=['POST'])
 @finance_access
 def deactivate_recurring(business_id,user,business,recurring_id):
-    return mutate(business_id,lambda:finance.deactivate_recurring_expense(business_id,recurring_id,actor_user_id=user['id']),
-        'Biaya rutin dinonaktifkan. Riwayat tetap tersimpan.',url_for('finance.operations',business_id=business_id))
+    month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
+    return mutate(
+        business_id,
+        lambda: finance.deactivate_recurring_expense(
+            business_id, recurring_id, actor_user_id=user['id']),
+        'Jadwal tagihan dihapus dari daftar aktif. Riwayat tetap tersimpan.',
+        url_for('finance.operations', business_id=business_id,
+                branch_id=g.finance_branch_id, month=month, view='recurring'))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/recurring/process',methods=['POST'])
 @finance_access
 def process_recurring(business_id,user,business):
-    if not request.form.getlist('occurrence'):
-        flash('Pilih pengeluaran yang sudah dibayar terlebih dahulu.','error')
-        return redirect(url_for('finance.operations',business_id=business_id),code=303)
-    result = finance.process_due_recurring_expenses(business_id,finance.business_today(business_id),actor_user_id=user['id'],selected=request.form.getlist('occurrence'))
-    flash(f"{result['posted_count']} biaya rutin dicatat.",'success')
+    selected = request.form.getlist('occurrence')
+    month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
+    day = request.form.get('day') or None
+    view = request.form.get('view') if request.form.get('view') in ('calendar','list') else 'calendar'
+    destination = url_for(
+        'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
+        month=month, day=day, view=view)
+    if not selected:
+        flash('Pilih tagihan yang sudah dibayar terlebih dahulu.', 'error')
+        return redirect(destination, code=303)
+    result = finance.process_due_recurring_expenses(
+        business_id, finance.business_today(business_id),
+        actor_user_id=user['id'], selected=selected)
+    flash(f"{result['posted_count']} tagihan dicatat sebagai pengeluaran.", 'success')
     if result['needs_attention_count']:
-        flash('Ada biaya rutin yang belum dapat dicatat. Periksa akun, kategori, dan proyek. Jadwalnya tetap tersimpan.','error')
+        flash('Ada tagihan yang belum dapat dicatat. Periksa akun, kategori, dan proyek. Jadwalnya tetap tersimpan.', 'error')
     if result['limit_reached']:
-        flash('Batas pemrosesan tercapai. Masih ada jadwal jatuh tempo; proses kembali untuk melanjutkan.','error')
-    return redirect(url_for('finance.operations',business_id=business_id),code=303)
-
+        flash('Batas pemrosesan tercapai. Masih ada tagihan jatuh tempo; proses kembali untuk melanjutkan.', 'error')
+    return redirect(destination, code=303)
 
 def report_error(error):
     if str(error) in ('report_limit','forecast_limit'):
