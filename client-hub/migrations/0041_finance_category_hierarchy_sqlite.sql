@@ -1,12 +1,10 @@
 -- Finance category hierarchy: one level of subcategories. Existing category ids remain unchanged.
 CREATE TABLE IF NOT EXISTS finance_category_hierarchy (
  business_id INTEGER NOT NULL REFERENCES businesses(id),
- child_category_id INTEGER NOT NULL,
- parent_category_id INTEGER NOT NULL,
+ child_category_id INTEGER NOT NULL REFERENCES finance_categories(id),
+ parent_category_id INTEGER NOT NULL REFERENCES finance_categories(id),
  created_at TEXT NOT NULL,
  PRIMARY KEY(business_id,child_category_id),
- FOREIGN KEY(business_id,child_category_id) REFERENCES finance_categories(business_id,id),
- FOREIGN KEY(business_id,parent_category_id) REFERENCES finance_categories(business_id,id),
  CHECK(child_category_id<>parent_category_id)
 );
 CREATE INDEX IF NOT EXISTS idx_finance_category_hierarchy_parent
