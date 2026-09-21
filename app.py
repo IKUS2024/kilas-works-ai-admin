@@ -8769,6 +8769,116 @@ def _platform_wa_graph_call(method, path, payload=None, fields=None):
         return None, "meta_request_failed"
 
 
+def _platform_wa_discover_current_phone():
+    """One-shot, migration-only discovery of the current Meta phone object for Kilas Works.
+
+    Runs only while the explicit PLATFORM_WA_MIGRATION_RESUME flag is true. It never logs tokens,
+    PINs, message content, customer data, or raw Graph bodies. The only successful-match output is
+    Meta asset ids plus connection status for the exact expected Kilas Works display number.
+    """
+    if (os.environ.get("PLATFORM_WA_MIGRATION_RESUME") or "").strip().lower() != "true":
+        return
+    expected = re.sub(
+        r"\D", "", str(os.environ.get("PLATFORM_WA_MIGRATION_DISPLAY_NUMBER") or "")
+    )
+    business_id = (os.environ.get("META_PROVIDER_BUSINESS_ID") or "").strip()
+    admin_token = (os.environ.get("META_PROVIDER_ADMIN_ACCESS_TOKEN") or "").strip()
+    runtime_token = (WHATSAPP_ACCESS_TOKEN or "").strip()
+    version = (os.environ.get("META_GRAPH_API_VERSION") or "v21.0").strip()
+
+    if not re.fullmatch(r"\d{6,20}", expected):
+        print("PLATFORM_WA_DISCOVERY skipped reason=expected_number_missing")
+        return
+    if not re.fullmatch(r"\d{1,32}", business_id) or not admin_token:
+        print("PLATFORM_WA_DISCOVERY skipped reason=provider_business_or_admin_token_missing")
+        return
+
+    base = f"https://graph.facebook.com/{version}/"
+    waba_ids = set()
+
+    for edge in ("owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"):
+        try:
+            resp = requests.get(
+                base + business_id + "/" + edge,
+                headers={"Authorization": "Bearer " + admin_token},
+                params={"fields": "id", "limit": 100},
+                timeout=(3, 10),
+                allow_redirects=False,
+            )
+            try:
+                data = resp.json()
+            except ValueError:
+                data = None
+            if resp.status_code == 200 and isinstance(data, dict) and "error" not in data:
+                for row in data.get("data") or []:
+                    candidate = str((row or {}).get("id") or "")
+                    if re.fullmatch(r"\d{1,32}", candidate):
+                        waba_ids.add(candidate)
+                print(f"PLATFORM_WA_DISCOVERY edge={edge} result=ok count={len(data.get('data') or [])}")
+            else:
+                error = data.get("error") if isinstance(data, dict) else None
+                code = error.get("code") if isinstance(error, dict) else None
+                subcode = error.get("error_subcode") if isinstance(error, dict) else None
+                print(
+                    f"PLATFORM_WA_DISCOVERY edge={edge} result=failed "
+                    f"http={int(resp.status_code)} code={code} subcode={subcode}"
+                )
+        except requests.RequestException:
+            print(f"PLATFORM_WA_DISCOVERY edge={edge} result=network_error")
+
+    matches = []
+    for waba_id in sorted(waba_ids)[:50]:
+        rows = None
+        for token_label, token in (("runtime", runtime_token), ("admin", admin_token)):
+            if not token:
+                continue
+            try:
+                resp = requests.get(
+                    base + waba_id + "/phone_numbers",
+                    headers={"Authorization": "Bearer " + token},
+                    params={
+                        "fields": "id,display_phone_number,status,is_on_biz_app,platform_type",
+                        "limit": 100,
+                    },
+                    timeout=(3, 10),
+                    allow_redirects=False,
+                )
+                try:
+                    data = resp.json()
+                except ValueError:
+                    data = None
+                if resp.status_code == 200 and isinstance(data, dict) and "error" not in data:
+                    rows = data.get("data") or []
+                    break
+            except requests.RequestException:
+                data = None
+        if rows is None:
+            continue
+        for row in rows:
+            digits = re.sub(r"\D", "", str((row or {}).get("display_phone_number") or ""))
+            if digits != expected:
+                continue
+            phone_id = str((row or {}).get("id") or "")
+            if not re.fullmatch(r"\d{1,32}", phone_id):
+                continue
+            match = {
+                "waba_id": waba_id,
+                "phone_number_id": phone_id,
+                "status": (row or {}).get("status"),
+                "is_on_biz_app": (row or {}).get("is_on_biz_app"),
+                "platform_type": (row or {}).get("platform_type"),
+            }
+            matches.append(match)
+            print(
+                "PLATFORM_WA_DISCOVERY match "
+                f"waba_id={waba_id} phone_number_id={phone_id} "
+                f"status={match['status']} is_on_biz_app={match['is_on_biz_app']} "
+                f"platform_type={match['platform_type']}"
+            )
+
+    print(f"PLATFORM_WA_DISCOVERY done wabas={len(waba_ids)} matches={len(matches)}")
+
+
 def _platform_wa_identity(phone_number_id=None):
     phone_id = str(phone_number_id or WHATSAPP_PHONE_NUMBER_ID or "").strip()
     if not re.fullmatch(r"\d{1,32}", phone_id):
@@ -10066,6 +10176,10 @@ print(
     f"openai_api_key_present={bool((OPENAI_API_KEY or '').strip())}"
 )
 init_db()
+try:
+    _platform_wa_discover_current_phone()
+except Exception as _platform_wa_discovery_error:
+    print("PLATFORM_WA_DISCOVERY internal_failure class=" + type(_platform_wa_discovery_error).__name__)
 _restore_handoff_state()
 customer_names.update(load_all_customer_names_from_db())
 agreed_facts.update(load_all_customer_facts_from_db())
