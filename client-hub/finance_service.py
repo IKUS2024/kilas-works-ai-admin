@@ -169,7 +169,7 @@ def _audit(business_id, actor_user_id, event, record_id):
 
 def _create_account(business_id, name, account_type, currency, opening_balance_minor, actor_user_id, branch_id=None):
     branch_id = branch_id or branches.write_branch(business_id, actor_user_id)
-    branches.get(business_id, branch_id, active=True)
+    branches.get(business_id, branch_id, active=True, actor_user_id=actor_user_id)
     now = repo._now()
     record_id = db.insert_returning_id(
         'INSERT INTO finance_accounts (business_id,branch_id,name,account_type,currency,opening_balance_minor,created_at,updated_at) '
@@ -826,7 +826,7 @@ def _money_sum():
 def _ensure_payee(business_id, branch_id, name, actor_user_id):
     """Create/reactivate one branch-scoped payee while the caller already holds Finance's write lock."""
     name = _text(name, 160, True)
-    branches.get(business_id, branch_id, active=True)
+    branches.get(business_id, branch_id, active=True, actor_user_id=actor_user_id)
     row = db.query_one(
         'SELECT id,is_active FROM finance_payees WHERE business_id=? AND branch_id=? AND name=?',
         (business_id, branch_id, name))
