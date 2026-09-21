@@ -354,6 +354,7 @@ def dashboard(business_id, user, business):
     period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | relevant_years)
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
     categories = finance.list_categories(business_id, include_inactive=True, **actor)
+    budget_rows = finance.list_monthly_budgets(business_id, month, **actor)
 
     # One balance read feeds both the card and its detail so those two surfaces cannot disagree.
     balances = finance.get_account_balance_report(business_id, today_value.isoformat(), user['id'])
@@ -373,6 +374,7 @@ def dashboard(business_id, user, business):
     display_options = ['IDR']
     display_options += [a['currency'] for a in accounts if a.get('currency') != 'IDR']
     display_options += [row['currency'] for row in summaries if row['currency'] != 'IDR']
+    display_options += [row['currency'] for row in budget_rows if row['currency'] != 'IDR']
     display_options = list(dict.fromkeys(display_options))
     if display_currency not in display_options:
         display_currency = 'IDR'
@@ -393,17 +395,17 @@ def dashboard(business_id, user, business):
     fx_status_label = ('Kurs belum tersedia' if fx.get('source') == 'unavailable'
                        else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
                             + (' · data tertunda' if fx.get('stale') else ''))
-    budget_rows = finance.list_monthly_budgets(business_id, month, **actor)
     budget_total_minor = finance_fx.convert_total(
         [{'currency':row['currency'],'balance_minor':row['amount_minor']} for row in budget_rows],
         display_currency, fx) if budget_rows else 0
     budget_total_display = ('Kurs belum lengkap' if budget_total_minor is None
                             else finance_fx.format_money(budget_total_minor, display_currency))
-    budget_remaining_minor = (None if budget_total_minor is None or period_expense_minor is None
+    budget_remaining_minor = (None if not budget_rows or budget_total_minor is None or period_expense_minor is None
                               else budget_total_minor - period_expense_minor)
-    budget_remaining_display = ('Kurs belum lengkap' if budget_remaining_minor is None
-                                else finance_fx.format_money(budget_remaining_minor, display_currency))
-    budget_percent = (0 if not budget_total_minor or period_expense_minor is None else
+    budget_remaining_display = ('Belum diatur' if not budget_rows else
+                                ('Kurs belum lengkap' if budget_remaining_minor is None
+                                 else finance_fx.format_money(budget_remaining_minor, display_currency)))
+    budget_percent = (0 if not budget_rows or not budget_total_minor or period_expense_minor is None else
                       min(999, round(period_expense_minor * 100 / budget_total_minor)))
     balances = [dict(item) for item in balances]
     for item in balances:
