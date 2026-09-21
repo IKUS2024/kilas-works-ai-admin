@@ -3,30 +3,83 @@
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-homebudget-1') }}">
-<div class="fin-page">
+<style>
+.fin-payees-page .fin-section-head{gap:10px}
+.fin-payee-search{display:flex;align-items:end;gap:8px;margin:10px 0 12px}
+.fin-payee-search label{margin:0;flex:1 1 auto;min-width:0}
+.fin-payee-search .btn{margin:0;white-space:nowrap}
+.fin-payee-list{padding:0;overflow:hidden}
+.fin-payee-list-head{padding:14px 16px 10px}
+.fin-payee-list-head h2{margin:0 0 3px;font-size:18px}
+.fin-payee-list-head p{margin:0;font-size:12px}
+.fin-payee-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;border-top:1px solid var(--border)}
+.fin-payee-main{min-width:0}
+.fin-payee-name{display:block;font-size:15px;font-weight:800;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fin-payee-meta{display:block;margin-top:3px;color:var(--muted);font-size:11px;line-height:1.35}
+.fin-payee-total{flex:0 0 auto;text-align:right;font-size:13px;font-weight:800}
+.fin-payee-native{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-weight:500}
+.fin-payee-empty{margin:0 16px 16px}
+.fin-payees-page .fin-pagination{margin:0 16px 14px}
+@media(max-width:560px){
+  .fin-payee-search{display:grid;grid-template-columns:minmax(0,1fr) auto}
+  .fin-payee-row{padding:12px 14px}
+  .fin-payee-list-head{padding:13px 14px 9px}
+  .fin-payee-name{font-size:14px}
+  .fin-payee-total{font-size:12px}
+}
+</style>
+<div class="fin-page fin-payees-page">
 {% set active_finance_area='payees' %}{% include '_finance_area_nav.html' %}
+
 <div class="fin-section-head">
-  <div><span class="finance-eyebrow">KILAS FINANCE</span><h1 class="fin-page-title">Penerima</h1><p class="muted fin-page-subtitle">{{ business.business_name }} · pihak yang menerima pembayaran dari Pengeluaran.</p></div>
+  <div>
+    <span class="finance-eyebrow">KILAS FINANCE</span>
+    <h1 class="fin-page-title">Penerima</h1>
+    <p class="muted fin-page-subtitle">Toko, vendor, atau pihak yang kamu bayar dari Pengeluaran.</p>
+  </div>
   <a class="btn" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',open_manual=1) }}">＋ Tambah Pengeluaran</a>
 </div>
-<form method="get" class="card fin-filter-bar">
+
+<form method="get" class="fin-payee-search">
   <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-  <label class="fin-grow">Cari penerima<input name="q" value="{{ q }}" placeholder="Nama penerima"></label>
-  <label>Mata uang<select name="display_currency">{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label>
-  <button class="btn secondary">Tampilkan</button>
+  <input type="hidden" name="display_currency" value="{{ display_currency }}">
+  <label>
+    <span class="sr-only">Cari penerima</span>
+    <input name="q" value="{{ q }}" placeholder="Ketik nama penerima" autocomplete="off">
+  </label>
+  <button class="btn secondary">Cari</button>
 </form>
-<section class="card">
-  <div class="fin-section-head"><div><h2>Daftar Penerima</h2><p class="muted">{{ payee_total }} penerima · {{ fx_status_label }}</p></div></div>
+
+<section class="card fin-payee-list">
+  <div class="fin-payee-list-head">
+    <h2>Daftar Penerima</h2>
+    <p class="muted">{{ payee_total }} penerima{% if payee_total %} · total ditampilkan dalam {{ display_currency }}{% endif %}</p>
+  </div>
+
   {% for item in payees %}
-  <article class="fin-entry">
-    <div class="fin-section-head"><div><strong>{{ item.name }}</strong><p class="muted">{{ item.transaction_count }} pembayaran · terakhir {{ item.last_paid_on }}</p></div><strong>{{ item.total_display }}</strong></div>
-    {% if item.native_labels|length > 1 %}<p class="muted">Nilai asli: {{ item.native_labels|join(' · ') }}</p>{% endif %}
+  <article class="fin-payee-row">
+    <div class="fin-payee-main">
+      <span class="fin-payee-name">{{ item.name }}</span>
+      <span class="fin-payee-meta">{{ item.transaction_count }} pembayaran · terakhir {{ item.last_paid_on }}</span>
+    </div>
+    <div class="fin-payee-total">
+      {{ item.total_display }}
+      {% if item.native_labels|length > 1 %}
+      <span class="fin-payee-native">{{ item.native_labels|join(' · ') }}</span>
+      {% endif %}
+    </div>
   </article>
-  {% else %}<div class="fin-empty">Belum ada penerima. Saat menambah Pengeluaran, isi kolom “Penerima / sumber” agar penerima otomatis muncul di sini.</div>{% endfor %}
-  {% if pages>1 %}<nav class="fin-pagination">{% if page>1 %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page-1) }}">‹</a>{% endif %}<span>Halaman {{ page }} / {{ pages }}</span>{% if page<pages %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page+1) }}">›</a>{% endif %}</nav>{% endif %}
-</section>
-<section class="card">
-  <div class="fin-section-head"><div><h2>Invoice &amp; Piutang</h2><p class="muted">Fitur bisnis Kilas tetap tersedia tanpa memenuhi dashboard utama.</p></div><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}">Kelola</a></div>
+  {% else %}
+  <div class="fin-empty fin-payee-empty">Belum ada penerima. Saat mencatat Pengeluaran, isi nama toko, vendor, atau pihak yang dibayar. Nama itu otomatis muncul di sini.</div>
+  {% endfor %}
+
+  {% if pages>1 %}
+  <nav class="fin-pagination">
+    {% if page>1 %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page-1) }}">‹</a>{% endif %}
+    <span>Halaman {{ page }} / {{ pages }}</span>
+    {% if page<pages %}<a class="btn small secondary" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=q,display_currency=display_currency,page=page+1) }}">›</a>{% endif %}
+  </nav>
+  {% endif %}
 </section>
 </div>
 {% endblock %}
