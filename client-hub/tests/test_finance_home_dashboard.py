@@ -94,7 +94,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Dana keluar',html)
         self.assertIn('Lihat Transaksi',html)
         self.assertIn('Edit Akun',html)
-        self.assertIn('Import Mutasi',html)
+        self.assertNotIn('Import Mutasi',html)
+        self.assertNotIn('/finance/bank/new',html)
         self.assertNotIn('id="finance-trend-data"',html)
         self.assertNotIn('Tanya Kilas Finance',html)
 
