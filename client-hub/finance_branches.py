@@ -35,7 +35,10 @@ def _enrich(row):
     meta = _workspace_row(item['business_id'], item['id'])
     item['workspace_type'] = meta['workspace_type']
     item['owner_user_id'] = meta['owner_user_id']
-    item['display_name'] = 'Pribadi' if item['workspace_type'] == 'PERSONAL' else item['name']
+    item['stored_name'] = item['name']
+    if item['workspace_type'] == 'PERSONAL':
+        item['name'] = 'Pribadi'
+    item['display_name'] = item['name']
     return item
 
 
