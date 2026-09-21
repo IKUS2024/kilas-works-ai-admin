@@ -479,7 +479,7 @@
 <div class="finance-sheet-head"><h2>🏷️ Kategori</h2><button type="button" class="finance-sheet-close" data-finance-close="category-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
 <details class="finance-add-panel"><summary>＋ Tambah Kategori</summary><form method="post" action="{{ url_for('finance.create_category',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Jenis<select name="direction"><option value="INCOME">Pemasukan</option><option value="EXPENSE">Pengeluaran</option></select></label><label>Nama kategori<input name="name" maxlength="160" required></label><button class="btn secondary">Tambah Kategori</button></form></details>
-<div class="finance-record-list">{% for c in categories if c.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
+<div class="finance-record-list">{% for c in categories if c.is_active %}<div class="finance-record-row" data-finance-category-record="{{ c.id }}"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 {% endif %}
 </div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-category-manager-2') }}" defer></script>
