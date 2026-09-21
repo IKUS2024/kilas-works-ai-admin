@@ -43,8 +43,13 @@
 
 <div class="product-home">
   <header class="home-intro">
-    <h1>Beranda</h1>
-    <p class="muted">Kelola produk Kilas Works dari satu tempat.</p>
+    {% if not all_businesses and not my_projects %}
+      <h1>Mulai</h1>
+      <p class="muted">Tambahkan bisnis dulu untuk mulai menggunakan Kilas Works.</p>
+    {% else %}
+      <h1>Beranda</h1>
+      <p class="muted">Kelola produk Kilas Works dari satu tempat.</p>
+    {% endif %}
   </header>
 
   {% if not all_businesses and not my_projects %}
