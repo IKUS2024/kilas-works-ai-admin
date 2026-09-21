@@ -1903,13 +1903,23 @@ def report_error(error):
 @finance_bp.route('/business/<int:business_id>/finance/reports')
 @finance_access
 def reports(business_id,user,business):
+    personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     section = request.args.get('section', 'summary')
     if section not in ('filter', 'summary', 'trend', 'accounts', 'receivables', 'analysis', 'categories', 'customers', 'projects', 'commitments'):
         section = 'filter'
+    if personal and section in ('receivables','analysis','customers','projects'):
+        section = 'summary'
     try:
         filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         actor={'actor_user_id':user['id']}
-        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
+        allowed = (
+            ('category_breakdown','accounts','recurring_commitments')
+            if personal else
+            tuple(name for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices'))
+        )
+        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in allowed}
+        for name in ('category_breakdown','accounts','customers','projects','receivables_aging','recurring_commitments'):
+            data.setdefault(name,[])
         summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
         trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
             start_date=filters['start'],end_date=filters['end'],**actor)
@@ -1925,16 +1935,22 @@ def reports(business_id,user,business):
 @finance_bp.route('/business/<int:business_id>/finance/reports/export/report.pdf')
 @finance_access
 def report_pdf(business_id,user,business):
+    personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     try:
         filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         actor={'actor_user_id':user['id']}
-        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices')}
+        allowed = (
+            ('category_breakdown','accounts','recurring_commitments')
+            if personal else
+            tuple(name for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices'))
+        )
+        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in allowed}
         summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
         trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
             start_date=filters['start'],end_date=filters['end'],**actor)
         pdf=finance_report_pdf.build(
-            business_name=business['business_name'],
-            branch_name=g.finance_branch['name'],
+            business_name=('Pribadi' if personal else business['business_name']),
+            branch_name=('Pribadi' if personal else g.finance_branch['name']),
             filters=filters,summary=summary,trend=trend,data=data)
     except finance.FinanceError as error:
         return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
@@ -1948,6 +1964,9 @@ def report_pdf(business_id,user,business):
 @finance_access
 def report_csv(business_id,user,business,report_name):
     if report_name not in finance_reports.REPORT_NAMES:abort(404)
+    if (getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
+            and report_name in ('invoices','customers','projects','receivables_aging')):
+        abort(404)
     try:
         filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
         data=finance_reports.export_csv(report_name,business_id,filters,user['id'])
