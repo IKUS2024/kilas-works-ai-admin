@@ -140,6 +140,140 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   syncKind();
 }
 
+
+
+// Account type choices are business-level preferences. Users can add or remove
+// choices here without leaving the account form; existing accounts keep their
+// assigned label even when that label is removed from future choices.
+for (const manager of document.querySelectorAll('[data-account-type-manager]')) {
+  const select=manager.querySelector('[data-account-type-select]');
+  const toggle=manager.querySelector('[data-account-type-toggle]');
+  const panel=manager.querySelector('[data-account-type-panel]');
+  const input=manager.querySelector('[data-account-type-name]');
+  const add=manager.querySelector('[data-account-type-add]');
+  const list=manager.querySelector('[data-account-type-list]');
+  const status=manager.querySelector('[data-account-type-status]');
+  if(!select||!toggle||!panel||!input||!add||!list||!status)continue;
+
+  const setStatus=(message,type='')=>{
+    status.textContent=message||'';
+    status.classList.remove('error','success');
+    if(type)status.classList.add(type);
+  };
+  const render=(options,preferred='')=>{
+    const previous=preferred||select.value;
+    select.replaceChildren();
+    list.replaceChildren();
+    const rows=Array.isArray(options)?options:[];
+    if(!rows.length){
+      const empty=document.createElement('option');
+      empty.value='';
+      empty.textContent='Tambah tipe terlebih dahulu';
+      empty.disabled=true;
+      empty.selected=true;
+      select.appendChild(empty);
+    }
+    for(const item of rows){
+      const name=String(item && item.name || '').trim();
+      if(!name)continue;
+      const option=document.createElement('option');
+      option.value=name;
+      option.textContent=name;
+      select.appendChild(option);
+
+      const row=document.createElement('div');
+      row.className='finance-account-type-row';
+      row.dataset.accountTypeRow='';
+      row.dataset.name=name;
+      const label=document.createElement('span');
+      label.textContent=name;
+      const remove=document.createElement('button');
+      remove.type='button';
+      remove.className='finance-account-type-delete';
+      remove.dataset.accountTypeDelete='';
+      remove.textContent='Hapus';
+      row.append(label,remove);
+      list.appendChild(row);
+    }
+    const preferredOption=[...select.options].find(option=>option.value===previous);
+    if(preferredOption)select.value=previous;
+    else if(select.options.length && !select.options[0].disabled)select.selectedIndex=0;
+  };
+  const request=async(action,name)=>{
+    const endpoint=panel.dataset.accountTypeUrl;
+    if(!endpoint)throw new Error('Tipe tempat uang belum bisa diubah dari halaman ini.');
+    const body=new FormData();
+    const csrf=manager.querySelector('input[name="csrf_token"]');
+    if(csrf)body.set('csrf_token',csrf.value);
+    const branchId=panel.dataset.accountTypeBranch;
+    if(branchId)body.set('branch_id',branchId);
+    body.set('action',action);
+    body.set('name',name);
+    const response=await fetch(endpoint,{
+      method:'POST',
+      body,
+      credentials:'same-origin',
+      headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Tipe tempat uang belum bisa diubah.');
+    return data;
+  };
+
+  toggle.setAttribute('aria-expanded','false');
+  toggle.addEventListener('click',()=>{
+    panel.hidden=!panel.hidden;
+    toggle.setAttribute('aria-expanded',panel.hidden?'false':'true');
+    setStatus('');
+    if(!panel.hidden)input.focus({preventScroll:true});
+  });
+  input.addEventListener('keydown',event=>{
+    if(event.key==='Enter'){
+      event.preventDefault();
+      add.click();
+    }
+  });
+  add.addEventListener('click',async()=>{
+    const name=String(input.value||'').trim();
+    if(!name){
+      setStatus('Nama tipe wajib diisi.','error');
+      input.focus({preventScroll:true});
+      return;
+    }
+    add.disabled=true;
+    setStatus('Menambahkan tipe…');
+    try{
+      const data=await request('create',name);
+      render(data.options,name);
+      input.value='';
+      setStatus('Tipe ditambahkan dan langsung dipilih.','success');
+    }catch(error){
+      setStatus(error && error.message?error.message:'Tipe belum bisa ditambahkan.','error');
+    }finally{
+      add.disabled=false;
+    }
+  });
+  list.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-account-type-delete]');
+    if(!button)return;
+    const row=button.closest('[data-account-type-row]');
+    const name=String(row && row.dataset.name || '').trim();
+    if(!name)return;
+    if(!window.confirm('Hapus tipe "'+name+'" dari pilihan akun baru? Akun lama tetap aman.'))return;
+    button.disabled=true;
+    setStatus('Menghapus tipe…');
+    const keep=select.value===name?'':select.value;
+    try{
+      const data=await request('delete',name);
+      render(data.options,keep);
+      setStatus('Tipe dihapus dari pilihan akun baru.','success');
+    }catch(error){
+      button.disabled=false;
+      setStatus(error && error.message?error.message:'Tipe belum bisa dihapus.','error');
+    }
+  });
+}
+
 for (const amount of document.querySelectorAll('[data-idr-input]')) {
   function formatAmount() {
     const signed = amount.dataset?.idrSigned === 'true';
