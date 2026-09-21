@@ -58,7 +58,7 @@ def validate(business_id, user_id, fields):
     if end is not None:end=finance._period(start,end)[1]
     account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
     accounts=finance.list_accounts(business_id,actor_user_id=user_id)
-    categories=finance.list_categories(business_id,'EXPENSE',actor_user_id=user_id)
+    categories=finance.list_categories(business_id,'EXPENSE',include_children=True,actor_user_id=user_id)
     account=next((a for a in accounts if a['id']==account_id),None)
     category=next((c for c in categories if c['id']==category_id),None)
     if not account or not category:raise ValueError('reference_unavailable')
