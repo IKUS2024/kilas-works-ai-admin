@@ -1653,8 +1653,9 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
 @finance_bp.route('/business/<int:business_id>/finance/operations')
 @finance_access
 def operations(business_id,user,business):
+    personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     raw_section = request.args.get('section', '')
-    section = 'projects' if raw_section == 'projects' else 'bills'
+    section = 'projects' if raw_section == 'projects' and not personal else 'bills'
     view = request.args.get('view') or ('recurring' if raw_section == 'recurring' else 'calendar')
     if view not in ('calendar', 'list', 'recurring'):
         view = 'calendar'
@@ -1677,7 +1678,7 @@ def operations(business_id,user,business):
             and rule['end_on'] == rule['next_due_on'] else rule['cadence'])
     accounts = finance.list_accounts(business_id, **actor)
     categories = finance.list_categories(business_id, 'EXPENSE', include_children=True, **actor)
-    projects = finance.list_finance_projects(business_id, **actor)
+    projects = [] if personal else finance.list_finance_projects(business_id, **actor)
 
     occurrences = _bill_month_occurrences(
         business_id, rules, start, end, local_today.isoformat(), user['id'])
