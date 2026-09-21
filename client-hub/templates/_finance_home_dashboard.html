@@ -14,16 +14,6 @@
 <p class="finance-subtle">Semua akun dikonversi otomatis ke {{ display_currency }} memakai kurs referensi terbaru. Nilai asli tetap tersimpan di akun.</p>
 </section>
 
-<section class="card finance-budget-overview" aria-label="Pengeluaran dibanding anggaran">
-<div class="finance-section-heading"><div><h2>Pengeluaran dari anggaran</h2><span class="finance-subtle">{{ period_label }}</span></div><a href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}">Kelola ›</a></div>
-{% if budget_rows %}
-<div class="finance-budget-overview-main"><strong>{{ budget_percent }}%</strong><span>terpakai · sisa {{ budget_remaining_display }}</span></div>
-<div class="finance-budget-progress" aria-label="{{ budget_percent }} persen anggaran terpakai"><i style="--budget-progress:{{ [budget_percent,100]|min }}%"></i></div>
-{% else %}
-<p class="finance-subtle">Belum ada anggaran untuk bulan ini. Tambahkan anggaran per kategori untuk melihat pemakaian.</p>
-{% endif %}
-</section>
-
 <section class="card finance-trend" aria-label="Grafik arus kas enam bulan">
 <div class="finance-section-heading"><h2>Arus kas</h2><span class="finance-display-chip">{{ display_currency }}</span></div>
 <p class="finance-subtle">6 bulan hingga {{ month }} · <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary',start=period_start,end=period_end,as_of=period_end) }}">Lihat laporan ›</a></p>
