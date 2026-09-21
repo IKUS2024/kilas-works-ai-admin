@@ -143,10 +143,13 @@ def format_money(amount_minor, currency):
         raise ValueError('invalid_money_minor')
     sign = '-' if amount_minor < 0 else ''
     amount = abs(amount_minor)
-    if currency in ('IDR','JPY'):
-        number = format(amount, ',')
-        if currency == 'IDR':
-            number = number.replace(',', '.')
+    if currency == 'IDR':
+        # Presentation uses two visible decimals consistently while the ledger
+        # still stores whole rupiah exactly.
+        number = format(amount, ',').replace(',', '.') + ',00'
+    elif currency == 'JPY':
+        # JPY remains whole-unit in the ledger; .00 is presentation only.
+        number = format(amount, ',') + '.00'
     else:
         number = f'{amount // 100:,}.{amount % 100:02d}'
     return sign + _SYMBOLS[currency] + number
