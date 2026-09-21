@@ -248,7 +248,7 @@
             <input type="hidden" name="display_currency" value="{{ display_currency }}">
             <input type="hidden" name="action" value="opening">
             <label>Saldo awal {{ selected_account.currency }}
-              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.opening_balance_minor if selected_account.currency in ('IDR','JPY') else '%.2f'|format(selected_account.opening_balance_minor / 100) }}" required>
+              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.opening_balance_minor|finance_input_money(selected_account.currency) }}" required>
             </label>
             <button class="finance-mini-action" type="submit">Simpan nominal</button>
           </form>
@@ -301,7 +301,7 @@
             <input type="hidden" name="display_currency" value="{{ display_currency }}">
             <input type="hidden" name="action" value="current">
             <label>Saldo sekarang {{ selected_account.currency }}
-              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.balance_minor if selected_account.currency in ('IDR','JPY') else '%.2f'|format(selected_account.balance_minor / 100) }}" required>
+              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.balance_minor|finance_input_money(selected_account.currency) }}" required>
             </label>
             <p>Transaksi tidak diubah. Kilas menyesuaikan saldo awal agar saldo sekarang cocok.</p>
             <button class="finance-mini-action" type="submit">Sesuaikan saldo</button>
@@ -472,8 +472,8 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="return_account_id" value="{{ selected_account.id if selected_account else x.from_account_id }}">
         <input type="hidden" name="display_currency" value="{{ display_currency }}">
-        <label>{{ x.from_currency }} dilepas<input name="from_amount" inputmode="decimal" maxlength="25" value="{{ x.from_amount_minor if x.from_currency in ('IDR','JPY') else '%.2f'|format(x.from_amount_minor / 100) }}" required></label>
-        <label>{{ x.to_currency }} diterima<input name="to_amount" inputmode="decimal" maxlength="25" value="{{ x.to_amount_minor if x.to_currency in ('IDR','JPY') else '%.2f'|format(x.to_amount_minor / 100) }}" required></label>
+        <label>{{ x.from_currency }} dilepas<input name="from_amount" inputmode="decimal" maxlength="25" value="{{ x.from_amount_minor|finance_input_money(x.from_currency) }}" required></label>
+        <label>{{ x.to_currency }} diterima<input name="to_amount" inputmode="decimal" maxlength="25" value="{{ x.to_amount_minor|finance_input_money(x.to_currency) }}" required></label>
         <button class="finance-mini-action" type="submit">Simpan nominal</button>
       </form>
     </details>
@@ -563,7 +563,7 @@
   </div>
   <p class="finance-account-type-note">Menghapus tipe hanya menghilangkannya dari pilihan akun baru. Akun dan riwayat lama tetap aman.</p>
 </div>
-<label>Mata uang<select name="currency" data-account-currency>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></label><label>Saldo awal <span data-opening-currency>IDR</span><input name="opening_balance" value="0" inputmode="decimal" maxlength="20" required></label><p class="muted">Mata uang rekening tidak dapat diubah setelah dibuat supaya riwayat tetap konsisten.</p><button class="btn secondary">Tambah Akun</button></form></details>
+<label>Mata uang<select name="currency" data-account-currency>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></label><label>Saldo awal <span data-opening-currency>IDR</span><input name="opening_balance" value="0.00" inputmode="decimal" maxlength="20" required></label><p class="muted">Mata uang rekening tidak dapat diubah setelah dibuat supaya riwayat tetap konsisten.</p><button class="btn secondary">Tambah Akun</button></form></details>
 <div class="finance-record-list">{% for a in accounts if a.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ a.name }}</strong><div class="finance-record-sub">{{ a.account_type_label }} · {{ a.currency }}{{ ' · Nonaktif' if not a.is_active }}</div></div>{% with kind='account',item=a %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
