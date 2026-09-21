@@ -3,7 +3,7 @@
 -- categories already used by Personal history; new Personal defaults are seeded by the service.
 CREATE TABLE IF NOT EXISTS finance_category_workspace_settings (
  business_id INTEGER NOT NULL REFERENCES businesses(id),
- category_id INTEGER NOT NULL,
+ category_id INTEGER NOT NULL REFERENCES finance_categories(id),
  scope_key TEXT NOT NULL,
  workspace_type TEXT NOT NULL CHECK(workspace_type IN ('BUSINESS','PERSONAL')),
  owner_user_id INTEGER REFERENCES users(id),
@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS finance_category_workspace_settings (
  created_at TEXT NOT NULL,
  updated_at TEXT NOT NULL,
  PRIMARY KEY(business_id,category_id,scope_key),
- FOREIGN KEY(business_id,category_id) REFERENCES finance_categories(business_id,id),
  CHECK((workspace_type='BUSINESS' AND owner_user_id IS NULL AND scope_key='BUSINESS')
     OR (workspace_type='PERSONAL' AND owner_user_id IS NOT NULL
         AND scope_key='PERSONAL:' || owner_user_id))
