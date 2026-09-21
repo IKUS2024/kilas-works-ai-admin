@@ -147,6 +147,13 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Pengeluaran dari anggaran',html)
         self.assertIn('Tanya Kilas Finance',html)
 
+    def test_finance_pages_have_distinct_global_header_context(self):
+        html,_=self.page('?month=2026-09')
+        self.assertIn('finance-context-bar',html)
+        self.assertIn('finance-brand-label">Finance</strong>',html)
+        self.assertIn('class="topbar-active" aria-current="page"',html)
+        self.assertIn('>Finance</a>',html)
+
     def test_penerima_is_derived_from_expense_counterparty(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.create_transaction(self.b,'EXPENSE',125000,self.a,expense_cat,
