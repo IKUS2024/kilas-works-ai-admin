@@ -121,7 +121,7 @@ ERRORS = {
     'payment_key_conflict': 'Form pembayaran sudah digunakan. Muat ulang untuk pembayaran baru.',
     'invalid_payment_key': 'Form pembayaran tidak valid. Muat ulang halaman.',
     'invoice_ledger_managed': 'Transaksi ini berasal dari pembayaran invoice dan tidak dapat diubah atau dibatalkan langsung.',
-    'invalid_money_minor': 'Nominal belum valid. Gunakan angka; desimal boleh memakai titik atau koma.',
+    'invalid_money_minor': 'Nominal belum valid. Gunakan angka; maksimal 2 angka desimal dengan titik atau koma.',
     'account_unavailable': 'Akun tidak tersedia.',
     'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang akun yang dipilih.',
     'account_type_unavailable': 'Tipe tempat uang tidak tersedia. Pilih atau tambahkan tipe lain.',
@@ -241,7 +241,7 @@ def currency_amount(value, currency, signed=False):
     """Parse all Finance money inputs as decimals, then round to ledger precision."""
     currency=finance._currency(currency)
     amount=_money_decimal(value,signed=signed)
-    scale=Decimal(1) if currency in ('IDR','JPY') else Decimal(100)
+    scale=Decimal(100)
     with localcontext() as context:
         context.prec=60
         minor=amount*scale
