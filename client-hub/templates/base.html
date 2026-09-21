@@ -18,6 +18,10 @@
   .brand { font-weight:700; letter-spacing:.3px; }
   .brand span { color: var(--orange); }
   .topbar nav a { margin-left:16px; color:var(--text-dim); font-size:14px; }
+  .finance-context-bar { background:linear-gradient(180deg,color-mix(in srgb,var(--orange) 5%,var(--bg-soft)),var(--bg-soft)); border-bottom-color:color-mix(in srgb,var(--orange) 42%,var(--border)); }
+  .finance-context-bar .finance-brand-label { color:var(--text); font-weight:800; }
+  .topbar nav a.topbar-active { display:inline-flex; align-items:center; min-height:32px; padding:6px 10px; border:1px solid color-mix(in srgb,var(--orange) 56%,var(--border)); border-radius:9px; background:color-mix(in srgb,var(--orange) 9%,transparent); color:var(--orange); font-weight:800; box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--orange) 72%,transparent); }
+  .topbar nav a.topbar-active:hover,.topbar nav a.topbar-active:focus { color:var(--orange); border-color:var(--orange); text-decoration:none; }
   .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
   .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:18px; }
   h1 { font-size:22px; margin:0 0 6px; }
@@ -217,8 +221,12 @@
 </style>
 </head>
 <body class="{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
-<div class="topbar">
+<div class="topbar{% if request.blueprint == 'finance' %} finance-context-bar{% endif %}">
+  {% if request.blueprint == 'finance' %}
+  <div class="brand">Kilas<span>Works</span> <strong class="finance-brand-label">Finance</strong></div>
+  {% else %}
   <div class="brand">Kilas<span>Works</span> Client Hub</div>
+  {% endif %}
   <nav>
     {% if session.get('user_id') %}
       {% if session.get('role') == 'KILAS_ADMIN' %}
@@ -232,6 +240,9 @@
         <a href="{{ url_for('admin.admin_search') }}">Search</a>
       {% else %}
         <a href="{{ url_for('client.dashboard') }}">Beranda</a>
+        {% if request.blueprint == 'finance' %}
+          <a class="topbar-active" aria-current="page" href="{{ url_for('finance.dashboard',business_id=request.view_args.get('business_id')) if request.view_args and request.view_args.get('business_id') else request.path }}">Finance</a>
+        {% endif %}
         <a href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
         <a href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
         <a href="{{ url_for('products.account_bills') }}">Tagihan</a>
