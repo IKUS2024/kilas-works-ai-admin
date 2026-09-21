@@ -42,8 +42,8 @@ FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 
           'description', 'counterparty_name', 'project_id', 'source_type', 'source_ref', 'customer_id')
 DEFAULT_CATEGORIES = {
     'INCOME': ('Penjualan / Jasa', 'Subscription', 'Pendapatan Lain'),
-    'EXPENSE': ('Produksi / Vendor', 'Gaji / Freelancer', 'Marketing / Ads', 'Transport',
-                'Software / API', 'Operasional', 'Pengeluaran Lain'),
+    'EXPENSE': ('Biaya Sewa', 'Utilitas', 'Makanan & Belanja Harian', 'Perlengkapan',
+                'Transportasi', 'Asuransi', 'Biaya Tak Terduga'),
 }
 
 
