@@ -422,9 +422,7 @@ for (const account of document.querySelectorAll('[data-currency-account]')) {
   const form=account.closest('form');const amount=form && form.querySelector('[data-currency-amount]');
   const label=form && form.querySelector('[data-currency-label]');const help=form && form.querySelector('[data-currency-help]');
   const sync=()=>{const code=account.selectedOptions[0]?.dataset.currency||'IDR';if(label)label.textContent=code;
-    if(help)help.textContent=(code==='IDR'||code==='JPY')
-      ?'Boleh desimal pakai titik atau koma; akan dibulatkan ke satuan '+code+' terdekat. Contoh 1250,50.'
-      :'Boleh desimal pakai titik atau koma. Contoh 1250.50 atau 1250,50; disimpan sampai 2 angka desimal.';};
+    if(help)help.textContent='Boleh desimal pakai titik atau koma. Contoh 1250.50 atau 1250,50; dua angka desimal disimpan.';};
   account.addEventListener('change',sync);sync();
 }
 for (const currency of document.querySelectorAll('[data-account-currency]')) {
