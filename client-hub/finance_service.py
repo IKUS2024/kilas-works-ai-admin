@@ -594,6 +594,12 @@ def deactivate_payee(business_id, payee_id, *, actor_user_id=None):
             (business_id, branch_id, _id(payee_id)))
         if not payee:
             raise FinanceError('payee_unavailable')
+        if payee['is_active'] and db.query_one(
+                'SELECT 1 FROM finance_recurring_expenses '
+                'WHERE business_id=? AND branch_id=? AND counterparty_name=? '
+                'AND is_active=TRUE LIMIT 1',
+                (business_id, branch_id, payee['name'])):
+            raise FinanceError('payee_in_use')
         if payee['is_active']:
             db.execute(
                 'UPDATE finance_payees SET is_active=FALSE,updated_at=? '
