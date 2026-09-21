@@ -19,7 +19,7 @@
       <span class="finance-scope-kicker">Kilas Finance · {{ finance_workspace_label }}</span>
       <strong class="finance-scope-business">{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</strong>
     </div>
-    <a class="finance-scope-chip" href="{{ url_for('finance.workspace_choice',business_id=finance_branch_business_id) }}">{{ finance_workspace_label }} · Ganti</a>
+    {% if not finance_workspace_personal %}<a class="finance-scope-chip" href="{{ url_for('finance.workspace_choice',business_id=finance_branch_business_id) }}">Bisnis · Ganti</a>{% endif %}
   </div>
 
   {% if not finance_workspace_personal %}
@@ -35,8 +35,7 @@
   <p class="finance-scope-help">Setiap cabang bisnis berdiri sendiri. Data cabang lain tidak digabung ke cabang yang sedang dipilih.</p>
   {% if selected_branch %}<p class="finance-scope-status" role="status">Cabang aktif: <strong>{{ selected_branch.name }}</strong>.</p>{% endif %}
   {% else %}
-  <p class="finance-scope-help">Ruang Pribadi khusus akunmu dan terpisah dari data Finance Bisnis.</p>
-  <p class="finance-scope-status" role="status">Ruang aktif: <strong>Pribadi</strong>.</p>
+  <p class="finance-scope-help">Finance Pribadi · tanpa pilihan bisnis atau cabang. Semua pencatatan di ruang ini khusus akunmu.</p>
   {% endif %}
 </section>
 {% if branch_read_only and finance_branches|selectattr('is_active')|list %}<style>form[method="post"]{display:none!important}a[data-finance-write]{display:none!important}</style>{% endif %}
