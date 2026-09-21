@@ -90,7 +90,7 @@ def export_csv(name,business_id,filters,actor_user_id):
         rows=((r['currency'],DIRECTIONS[r['direction']],r['name'],r['amount_minor'],r['transaction_count'],r['percentage']) for r in data)
     elif name=='accounts':
         headers=('Branch','akun','jenis','mata_uang','status','saldo_awal','pemasukan','pengeluaran','penukaran_masuk','penukaran_keluar','saldo')
-        rows=((r['branch_name'],r['name'],ACCOUNT_TYPES[r['account_type']],r['currency'],'Aktif' if r['is_active'] else 'Nonaktif',
+        rows=((r['branch_name'],r['name'],r.get('account_type_label') or ACCOUNT_TYPES.get(r['account_type'],r['account_type']),r['currency'],'Aktif' if r['is_active'] else 'Nonaktif',
                r['opening_balance_minor'],r['income_minor'],r['expense_minor'],r.get('exchange_in_minor',0),r.get('exchange_out_minor',0),r['balance_minor']) for r in data)
     elif name in ('customers','projects'):
         headers=(('customer' if name=='customers' else 'proyek'),'mata_uang','pemasukan','pengeluaran','kontribusi_kas','jumlah_transaksi')
