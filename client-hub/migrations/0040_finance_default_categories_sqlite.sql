@@ -28,6 +28,27 @@ WHERE direction='EXPENSE'
   );
 
 UPDATE finance_categories
+SET is_active=TRUE, updated_at=CURRENT_TIMESTAMP
+WHERE direction='EXPENSE'
+  AND name IN (
+    'Produksi / Vendor','Gaji / Freelancer','Marketing / Ads','Transport',
+    'Software / API','Operasional','Pengeluaran Lain'
+  )
+  AND (
+    EXISTS (
+      SELECT 1 FROM finance_recurring_expenses r
+      WHERE r.business_id=finance_categories.business_id
+        AND r.category_id=finance_categories.id
+        AND r.is_active=TRUE
+    )
+    OR EXISTS (
+      SELECT 1 FROM finance_budgets b
+      WHERE b.business_id=finance_categories.business_id
+        AND b.category_id=finance_categories.id
+    )
+  );
+
+UPDATE finance_categories
 SET is_active=FALSE, updated_at=CURRENT_TIMESTAMP
 WHERE direction='EXPENSE'
   AND name IN (
@@ -40,4 +61,9 @@ WHERE direction='EXPENSE'
     WHERE r.business_id=finance_categories.business_id
       AND r.category_id=finance_categories.id
       AND r.is_active=TRUE
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM finance_budgets b
+    WHERE b.business_id=finance_categories.business_id
+      AND b.category_id=finance_categories.id
   );
