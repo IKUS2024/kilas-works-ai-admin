@@ -552,6 +552,57 @@ def create_payee(business_id, name, *, actor_user_id=None):
         return _ensure_payee(business_id, branch_id, name, actor_user_id)
 
 
+def update_payee(business_id, payee_id, name, *, actor_user_id=None):
+    """Rename active payee master data and its descriptive references without changing money."""
+    name = _text(name, 160, True)
+    with _write(business_id, actor_user_id):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        payee = db.query_one(
+            'SELECT * FROM finance_payees WHERE business_id=? AND branch_id=? AND id=?',
+            (business_id, branch_id, _id(payee_id)))
+        if not payee or not payee['is_active']:
+            raise FinanceError('payee_unavailable')
+        duplicate = db.query_one(
+            'SELECT id FROM finance_payees WHERE business_id=? AND branch_id=? AND name=? AND id<>?',
+            (business_id, branch_id, name, payee['id']))
+        if duplicate:
+            raise FinanceError('payee_exists')
+        old_name = payee['name']
+        now = repo._now()
+        db.execute(
+            'UPDATE finance_payees SET name=?,updated_at=? WHERE business_id=? AND branch_id=? AND id=?',
+            (name, now, business_id, branch_id, payee['id']))
+        if old_name != name:
+            db.execute(
+                "UPDATE finance_transactions SET counterparty_name=?,updated_at=? "
+                "WHERE business_id=? AND branch_id=? AND direction='EXPENSE' AND counterparty_name=?",
+                (name, now, business_id, branch_id, old_name))
+            db.execute(
+                'UPDATE finance_recurring_expenses SET counterparty_name=?,updated_at=? '
+                'WHERE business_id=? AND branch_id=? AND counterparty_name=?',
+                (name, now, business_id, branch_id, old_name))
+        _audit(business_id, actor_user_id, 'FINANCE_PAYEE_UPDATED', payee['id'])
+        return payee['id']
+
+
+def deactivate_payee(business_id, payee_id, *, actor_user_id=None):
+    """Hide a payee from active master data; historical ledger descriptions stay intact."""
+    with _write(business_id, actor_user_id):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        payee = db.query_one(
+            'SELECT * FROM finance_payees WHERE business_id=? AND branch_id=? AND id=?',
+            (business_id, branch_id, _id(payee_id)))
+        if not payee:
+            raise FinanceError('payee_unavailable')
+        if payee['is_active']:
+            db.execute(
+                'UPDATE finance_payees SET is_active=FALSE,updated_at=? '
+                'WHERE business_id=? AND branch_id=? AND id=?',
+                (repo._now(), business_id, branch_id, payee['id']))
+            _audit(business_id, actor_user_id, 'FINANCE_PAYEE_DEACTIVATED', payee['id'])
+        return payee['id']
+
+
 def list_payees(business_id, include_inactive=False, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
     sql = ('SELECT * FROM finance_payees WHERE business_id=?' + branches.predicate(''))
@@ -581,14 +632,26 @@ def list_payee_summaries(business_id, start_date=None, end_date=None, *, actor_u
          where + " GROUP BY counterparty_name,currency " +
          "ORDER BY MAX(occurred_on) DESC,counterparty_name,currency"),
         params)
+    all_payees = list_payees(
+        business_id, include_inactive=True, actor_user_id=actor_user_id)
+    active_by_name = {payee['name']: payee for payee in all_payees if payee['is_active']}
+    inactive_names = {payee['name'] for payee in all_payees if not payee['is_active']}
+    visible_rows = []
     for row in rows:
         row['total_minor'] = int(row['total_minor'])
         row['transaction_count'] = int(row['transaction_count'])
         _currency(row['currency'])
+        # Deleting a payee hides it from the Payee master list only. The source
+        # transactions remain untouched and continue to count in Finance reports.
+        if row['name'] in inactive_names:
+            continue
+        row['payee_id'] = active_by_name.get(row['name'], {}).get('id')
+        visible_rows.append(row)
+    rows = visible_rows
 
     # A Payee is master data, not a fake Rp0 ledger entry. For presentation only,
     # emit a zero-total IDR summary when it has never been used yet.
-    active_payees = list_payees(business_id, actor_user_id=actor_user_id)
+    active_payees = [payee for payee in all_payees if payee['is_active']]
     names_with_transactions = {row['name'] for row in rows}
     for payee in active_payees:
         if payee['name'] not in names_with_transactions:
@@ -1065,6 +1128,47 @@ def create_recurring_expense(business_id, name, amount_minor, account_id, catego
         if idempotency_key:
             repo.write_audit(actor_user_id,business_id,'FINANCE_ASSISTANT_RECURRING_CONFIRMED',marker+str(recurring_id))
         return recurring_id
+
+
+def update_recurring_expense(business_id, recurring_id, name, amount_minor, account_id,
+                             category_id, cadence, next_due_on, end_on=None,
+                             project_id=None, counterparty_name=None, description=None,
+                             actor_user_id=None, *, expected_currency=None):
+    """Edit only the future recurring rule; already-posted ledger history is immutable."""
+    name, cadence = _text(name,160,True), _enum(cadence,('WEEKLY','MONTHLY'))
+    next_due_on = _date(next_due_on)
+    end_on = _period(next_due_on,end_on)[1] if end_on is not None else None
+    anchor = date.fromisoformat(next_due_on).day if cadence=='MONTHLY' else None
+    with _write(business_id,actor_user_id):
+        existing = get_recurring_expense(
+            business_id, _id(recurring_id), actor_user_id)
+        if not existing or not existing['is_active']:
+            raise FinanceError('recurring_unavailable')
+        account = get_account(
+            business_id, _id(account_id), actor_user_id=actor_user_id, active=True)
+        if not account:
+            raise FinanceError('account_unavailable')
+        if expected_currency is not None and account['currency'] != _currency(expected_currency):
+            raise FinanceError('account_currency_mismatch')
+        rule = dict(
+            branch_id=existing['branch_id'], name=name, amount_minor=amount_minor,
+            currency=account['currency'], account_id=account_id,
+            category_id=category_id, next_due_on=next_due_on,
+            project_id=project_id, counterparty_name=counterparty_name,
+            description=description)
+        data = _recurring_data(business_id, rule, scheduled=True)
+        now = repo._now()
+        db.execute(
+            'UPDATE finance_recurring_expenses SET '
+            'name=?,amount_minor=?,currency=?,account_id=?,category_id=?,project_id=?,'
+            'counterparty_name=?,description=?,cadence=?,anchor_day=?,next_due_on=?,end_on=?,updated_at=? '
+            'WHERE business_id=? AND branch_id=? AND id=?',
+            (name, data['amount_minor'], data['currency'], account_id, category_id,
+             data['project_id'], data['counterparty_name'], _text(description,4000),
+             cadence, anchor, next_due_on, end_on, now,
+             business_id, existing['branch_id'], existing['id']))
+        _audit(business_id,actor_user_id,'FINANCE_RECURRING_UPDATED',existing['id'])
+        return existing['id']
 
 
 def get_recurring_expense(business_id, recurring_id, actor_user_id=None):
