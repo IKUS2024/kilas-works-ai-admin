@@ -66,6 +66,55 @@ class FinalFlowTests(unittest.TestCase):
     def test_not_activated_read_only(self):
         self.assertFalse(e.state(self.b)['active']);self.assertEqual(self.client.get(self.url).status_code,200)
         with self.assertRaises(f.FinanceError):self.tx()
+    def test_finance_workspace_chooser_keeps_legacy_data_in_business_and_personal_separate(self):
+        import finance_branches as branches
+        self.trial()
+        business_branch=branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]
+        with branches.scope(self.b,business_branch['id'],self.uid):
+            legacy=self.tx()
+        mapping=db.query_one(
+            'SELECT workspace_type,owner_user_id FROM finance_branch_workspaces '
+            'WHERE business_id=? AND branch_id=?',
+            (self.b,business_branch['id']))
+        self.assertEqual(mapping['workspace_type'],'BUSINESS')
+        self.assertIsNone(mapping['owner_user_id'])
+
+        chooser=self.client.get(f'/business/{self.b}/finance/workspaces')
+        self.assertEqual(chooser.status_code,200)
+        self.assertIn('Buka Finance Bisnis',chooser.text)
+        self.assertIn('Buka Finance Pribadi',chooser.text)
+        self.assertIn('Data lama aman di sini',chooser.text)
+
+        entered=self.client.post(
+            f'/business/{self.b}/finance/workspaces/PERSONAL')
+        self.assertEqual(entered.status_code,303)
+        personal=branches.list_branches(
+            self.b,self.uid,workspace_type='PERSONAL')
+        self.assertEqual(len(personal),1)
+        self.assertEqual(personal[0]['name'],'Pribadi')
+        self.assertIn(f'branch_id={personal[0]["id"]}',entered.location)
+
+        with branches.scope(self.b,personal[0]['id'],self.uid):
+            self.assertEqual(f.list_transactions(self.b,actor_user_id=self.uid),[])
+            account=f.list_accounts(self.b,actor_user_id=self.uid)[0]
+            category=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)[0]
+            personal_tx=f.create_transaction(
+                self.b,'EXPENSE',12345,account['id'],category['id'],
+                '2026-09-17',actor_user_id=self.uid)
+
+        with branches.scope(self.b,business_branch['id'],self.uid):
+            business_ids={row['id'] for row in f.list_transactions(
+                self.b,actor_user_id=self.uid)}
+            self.assertIn(legacy,business_ids)
+            self.assertNotIn(personal_tx,business_ids)
+
+        personal_page=self.client.get(
+            f'/business/{self.b}/finance?branch_id={personal[0]["id"]}')
+        self.assertEqual(personal_page.status_code,200)
+        self.assertIn('KILAS FINANCE · PRIBADI',personal_page.text)
+        self.assertIn('data terpisah dari Bisnis',personal_page.text)
+
     def test_trial_exact_seven_days(self):
         self.trial();self.assertEqual(e.parse(e.state(self.b)['until'])-self.time.return_value,timedelta(days=7))
     def test_trial_expiry_exact_boundary(self):
