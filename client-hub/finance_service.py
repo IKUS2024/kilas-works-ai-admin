@@ -1163,10 +1163,14 @@ def get_cash_totals(business_id, start_date=None, end_date=None, *, actor_user_i
         LEFT JOIN finance_branches b ON b.business_id=t.business_id AND b.id=t.branch_id
         WHERE '''+where+' GROUP BY '+group+' ORDER BY t.currency'
     rows=db.query_all(sql.replace('SUM(',money_sum+'('),params)
+    category_names = category_display_map(
+        business_id, actor_user_id=actor_user_id) if group_by == 'category' else {}
     for row in rows:
         _currency(row['currency'])
         for key in ('total_income_minor','total_expense_minor','transaction_count'):row[key]=int(row[key])
         row['net_cashflow_minor']=row['total_income_minor']-row['total_expense_minor']
+        if group_by == 'category' and row.get('entity_id') in category_names:
+            row['name'] = category_names[row['entity_id']]
     return sorted(rows,key=lambda r:SUPPORTED_CURRENCIES.index(r['currency']))
 
 
@@ -1702,8 +1706,17 @@ def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
         WHERE r.business_id=?''' + branches.predicate('r') +
         ' AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id LIMIT 100'),(business_id,as_of))
     result=[]
+    category_rows = {
+        item['id']: item for item in list_categories(
+            business_id, include_inactive=True, include_children=True,
+            actor_user_id=actor_user_id)
+    }
     for row in rows:
         row=dict(row)
+        mapped = category_rows.get(row['category_id'])
+        if mapped:
+            row['category_name'] = mapped['name']
+            row['parent_category_name'] = mapped.get('parent_name')
         if row.get('parent_category_name'):
             row['category_name']=row['parent_category_name']+' / '+row['category_name']
         if row['end_on'] and row['next_due_on']>row['end_on']:continue
@@ -1830,7 +1843,7 @@ def _report_query(sql, params):
 def get_report_transactions(business_id, start_date, end_date, actor_user_id=None, include_void=False):
     _scope(business_id,actor_user_id)
     start,end=report_period(start_date,end_date)
-    return _report_query(('''SELECT t.branch_id,(SELECT name FROM finance_branches b WHERE b.id=t.branch_id AND b.business_id=t.business_id) AS branch_name,
+    rows = [dict(row) for row in _report_query(('''SELECT t.branch_id,(SELECT name FROM finance_branches b WHERE b.id=t.branch_id AND b.business_id=t.business_id) AS branch_name,
         t.occurred_on,t.direction,t.amount_minor,t.currency,t.status,t.source_type,t.counterparty_name,t.description,
         t.category_id,t.customer_id,t.project_id,a.name AS account_name,c.name AS category_name,
         pc.name AS parent_category_name,u.name AS customer_name,p.title AS project_name
@@ -1842,7 +1855,18 @@ def get_report_transactions(business_id, start_date, end_date, actor_user_id=Non
         LEFT JOIN finance_customers u ON u.business_id=t.business_id AND u.id=t.customer_id
         LEFT JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id
         WHERE t.business_id=?''' + branches.predicate('t') + " AND t.occurred_on>=? AND t.occurred_on<=?")+
-        ('' if include_void else " AND t.status='POSTED'")+' ORDER BY t.occurred_on,t.id',(business_id,start,end))
+        ('' if include_void else " AND t.status='POSTED'")+' ORDER BY t.occurred_on,t.id',(business_id,start,end))]
+    categories = {
+        row['id']: row for row in list_categories(
+            business_id, include_inactive=True, include_children=True,
+            actor_user_id=actor_user_id)
+    }
+    for row in rows:
+        category = categories.get(row['category_id'])
+        if category:
+            row['category_name'] = category['name']
+            row['parent_category_name'] = category.get('parent_name')
+    return rows
 
 
 def get_cashflow_reports(business_id,start_date,end_date,actor_user_id=None):
@@ -2086,7 +2110,16 @@ def get_upcoming_recurring_commitments(business_id,start_date,end_date,actor_use
         WHERE r.business_id=?''' + branches.predicate('r') + " AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id"),
         (business_id,end))
     result=[];start_day=date.fromisoformat(start)
+    category_rows = {
+        item['id']: item for item in list_categories(
+            business_id, include_inactive=True, include_children=True,
+            actor_user_id=actor_user_id)
+    }
     for rule in rules:
+        mapped = category_rows.get(rule['category_id'])
+        if mapped:
+            rule['category_name'] = mapped['name']
+            rule['parent_category_name'] = mapped.get('parent_name')
         rule['currency']=_currency(rule['currency']);current=date.fromisoformat(rule['next_due_on'])
         if current<start_day:
             if rule['cadence']=='WEEKLY':current+=timedelta(days=((start_day-current).days//7)*7)
@@ -2183,12 +2216,16 @@ def _budget_month(value):
 def list_monthly_budgets(business_id, month, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
     month = _budget_month(month)
-    return db.query_all(
+    rows = [dict(row) for row in db.query_all(
         ('SELECT b.*,c.name AS category_name FROM finance_budgets b '
          'JOIN finance_categories c ON c.business_id=b.business_id AND c.id=b.category_id '
          'WHERE b.business_id=?' + branches.predicate('') +
          ' AND b.month=? ORDER BY c.name,b.id'),
-        (business_id, month))
+        (business_id, month))]
+    names = category_display_map(business_id, actor_user_id=actor_user_id)
+    for row in rows:
+        row['category_name'] = names.get(row['category_id'], row['category_name'])
+    return rows
 
 
 def set_monthly_budget(business_id, month, category_id, amount_minor, currency='IDR', *,
