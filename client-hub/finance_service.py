@@ -1776,6 +1776,34 @@ def list_currency_exchanges(business_id,actor_user_id=None,limit=100):
         ' ORDER BY occurred_on DESC,id DESC LIMIT ?'),(business_id,limit))
 
 
+def get_currency_exchange(business_id,exchange_id,actor_user_id=None):
+    _scope(business_id,actor_user_id)
+    row=db.query_one(
+        ('SELECT * FROM finance_fx_exchanges WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
+        (business_id,_id(exchange_id)))
+    if not row:raise FinanceError('fx_exchange_unavailable')
+    return row
+
+
+def update_currency_exchange(business_id,exchange_id,from_amount_minor,to_amount_minor,*,actor_user_id=None):
+    from_amount_minor=_money(from_amount_minor,positive=True)
+    to_amount_minor=_money(to_amount_minor,positive=True)
+    with _write(business_id,actor_user_id):
+        row=get_currency_exchange(business_id,exchange_id,actor_user_id)
+        if row['status']!='POSTED':raise FinanceError('fx_exchange_unavailable')
+        source=get_account(business_id,row['from_account_id'],actor_user_id=actor_user_id)
+        target=get_account(business_id,row['to_account_id'],actor_user_id=actor_user_id)
+        import finance_fx
+        actual=finance_fx.major(to_amount_minor,target['currency'])/finance_fx.major(
+            from_amount_minor,source['currency'])
+        db.execute(
+            'UPDATE finance_fx_exchanges SET from_amount_minor=?,to_amount_minor=?,actual_rate=?,updated_at=? '
+            'WHERE business_id=? AND id=?',
+            (from_amount_minor,to_amount_minor,str(actual),repo._now(),business_id,exchange_id))
+        _audit(business_id,actor_user_id,'FINANCE_FX_EXCHANGE_UPDATED',exchange_id)
+    return exchange_id
+
+
 def record_currency_exchange(business_id,from_account_id,to_account_id,from_amount_minor,to_amount_minor,occurred_on,
                              *,note=None,reference_rate=None,rate_source=None,rate_as_of=None,actor_user_id=None):
     occurred_on=_date(occurred_on)
