@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Meta WhatsApp Direct · Coexistence{% endblock %}
+{% block content %}
+<style>
+.meta-direct{max-width:760px;margin:22px auto}
+.meta-direct .panel{border:1px solid var(--border);border-radius:16px;padding:18px;background:rgba(255,255,255,.015)}
+.meta-direct h1{margin:0 0 8px}.meta-direct p{line-height:1.5}
+.meta-direct .status{margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:12px}
+.meta-direct .ok{border-color:rgba(62,207,142,.45)}
+.meta-direct .warn{border-color:rgba(241,177,68,.45)}
+.meta-direct code{overflow-wrap:anywhere}
+</style>
+
+<div class="meta-direct">
+  <p><a href="{{ url_for('admin.dashboard') }}">← Owner Dashboard</a></p>
+  <div class="panel">
+    <h1>Meta WhatsApp Direct · Coexistence</h1>
+    <p class="muted">
+      Jalur ini langsung membuka Meta Embedded Signup untuk WhatsApp Business App.
+      Tidak memakai tenant onboarding, payment flow, atau setup Client Hub.
+    </p>
+
+    {% if expected_masked %}
+      <p>Nomor target: <strong>{{ expected_masked }}</strong></p>
+    {% endif %}
+
+    {% if result %}
+      <div class="status ok">
+        <strong>Coexistence siap</strong>
+        <p>WABA ID: <code>{{ result.waba_id }}</code></p>
+        <p>Phone Number ID: <code>{{ result.phone_number_id }}</code></p>
+        <p>Status: {{ result.status }}{% if result.platform_type %} · {{ result.platform_type }}{% endif %}</p>
+      </div>
+    {% else %}
+      <button type="button" class="btn" id="meta-direct-start" disabled>Hubungkan langsung lewat Meta</button>
+      <div class="status warn" id="meta-direct-status" role="status" aria-live="polite">
+        Menyiapkan Meta Embedded Signup…
+      </div>
+    {% endif %}
+
+    <script type="application/json" id="meta-direct-config">{{ signup_config|tojson }}</script>
+    <input type="hidden" id="meta-direct-csrf" value="{{ csrf_token() }}">
+  </div>
+</div>
+
+{% if not result %}
+<script>
+(() => {
+  'use strict';
+
+  const config = JSON.parse(document.getElementById('meta-direct-config').textContent);
+  const button = document.getElementById('meta-direct-start');
+  const status = document.getElementById('meta-direct-status');
+  const csrf = document.getElementById('meta-direct-csrf').value;
+
+  let started = false;
+  let sent = false;
+  let code = null;
+  let assets = null;
+
+  function fail(message) {
+    started = false;
+    sent = false;
+    code = null;
+    assets = null;
+    button.disabled = false;
+    status.textContent = message || 'Meta belum menyelesaikan Coexistence.';
+  }
+
+  async function complete() {
+    if (!started || sent || !code || !assets || !assets.waba_id) return;
+    sent = true;
+    status.textContent = 'Memverifikasi langsung ke Meta…';
+
+    try {
+      const response = await fetch('{{ url_for("meta_direct.complete") }}', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf
+        },
+        body: JSON.stringify({
+          state: config.state,
+          code,
+          waba_id: assets.waba_id,
+          phone_number_id: assets.phone_number_id || null
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        fail(result.error || 'Meta belum menyelesaikan Coexistence.');
+        return;
+      }
+      status.textContent = 'Berhasil. Coexistence terverifikasi dan webhook sudah disubscribe.';
+      button.disabled = true;
+      setTimeout(() => window.location.reload(), 900);
+    } catch (_) {
+      fail('Koneksi ke server gagal. Muat ulang halaman dan coba lagi.');
+    }
+  }
+
+  window.addEventListener('message', event => {
+    if (!started || sent) return;
+    if (!['https://www.facebook.com', 'https://web.facebook.com'].includes(event.origin)) return;
+
+    try {
+      const result = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      if (!result || result.type !== 'WA_EMBEDDED_SIGNUP') return;
+
+      const eventName = String(result.event || '');
+      const data = result.data || {};
+      const isCoexistence =
+        eventName === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING' ||
+        (eventName === 'FINISH' && data.is_wa_login_user === true);
+
+      if (isCoexistence && data.waba_id) {
+        assets = {
+          waba_id: String(data.waba_id),
+          phone_number_id: data.phone_number_id ? String(data.phone_number_id) : null
+        };
+        complete();
+        return;
+      }
+
+      if (eventName === 'CANCEL') {
+        fail('Flow Meta dibatalkan.');
+      } else if (eventName === 'ERROR') {
+        fail('Meta mengembalikan error. Jangan deregister nomor; cek eligibility/App Review.');
+      } else if (eventName.startsWith('FINISH')) {
+        fail('Meta selesai, tetapi bukan dalam mode WhatsApp Business App Coexistence.');
+      }
+    } catch (_) {}
+  });
+
+  window.fbAsyncInit = () => {
+    FB.init({
+      appId: config.appId,
+      version: config.version,
+      cookie: false,
+      xfbml: false
+    });
+    button.disabled = false;
+    status.textContent = 'Siap. Tekan tombol lalu selesaikan semua langkah di Meta.';
+  };
+
+  button.addEventListener('click', () => {
+    if (started || sent) return;
+    started = true;
+    button.disabled = true;
+    status.textContent = 'Selesaikan login/pairing di jendela Meta yang muncul.';
+
+    FB.login(response => {
+      if (!started) return;
+      if (!response.authResponse || !response.authResponse.code) {
+        fail('Login Meta dibatalkan atau belum selesai.');
+        return;
+      }
+      code = response.authResponse.code;
+      complete();
+    }, {
+      config_id: config.configId,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: {
+        setup: {},
+        featureType: 'whatsapp_business_app_onboarding'
+      }
+    });
+  });
+
+  const sdk = document.createElement('script');
+  sdk.src = 'https://connect.facebook.net/id_ID/sdk.js';
+  sdk.async = true;
+  sdk.onerror = () => fail('Facebook SDK gagal dimuat. Muat ulang halaman.');
+  document.head.appendChild(sdk);
+})();
+</script>
+{% endif %}
+{% endblock %}
