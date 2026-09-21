@@ -178,6 +178,43 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Vendor Baru',page.text)
         self.assertIn('belum pernah dibayar',page.text)
 
+    def test_penerima_edit_and_delete_are_safe_global_actions(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.create_transaction(
+            self.b,'EXPENSE',125000,self.a,expense_cat,'2026-09-12',
+            counterparty_name='Vendor Lama',description='Biji kopi',
+            actor_user_id=self.uid)
+        payee=next(p for p in fixture.f.list_payees(
+            self.b,actor_user_id=self.uid) if p['name']=='Vendor Lama')
+
+        page=self.client.get(f'/business/{self.b}/finance/payees?branch_id={branch_id}')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('✏️ Edit',page.text)
+        self.assertIn('🗑️ Hapus',page.text)
+
+        edited=self.client.post(
+            f'/business/{self.b}/finance/payees/{payee["id"]}/edit',data={
+                'branch_id':str(branch_id),'display_currency':'IDR','page':'1',
+                'name':'Vendor Baru'})
+        self.assertEqual(edited.status_code,303)
+        transaction=fixture.f.list_transactions(self.b,actor_user_id=self.uid)[0]
+        self.assertEqual(transaction['counterparty_name'],'Vendor Baru')
+        self.assertIn('Vendor Baru',[p['name'] for p in fixture.f.list_payees(
+            self.b,actor_user_id=self.uid)])
+
+        deleted=self.client.post(
+            f'/business/{self.b}/finance/payees/{payee["id"]}/delete',data={
+                'branch_id':str(branch_id),'display_currency':'IDR','page':'1'})
+        self.assertEqual(deleted.status_code,303)
+        self.assertNotIn('Vendor Baru',[p['name'] for p in fixture.f.list_payees(
+            self.b,actor_user_id=self.uid)])
+        self.assertNotIn('Vendor Baru',[p['name'] for p in fixture.f.list_payee_summaries(
+            self.b,actor_user_id=self.uid)])
+        transaction=fixture.f.list_transactions(self.b,actor_user_id=self.uid)[0]
+        self.assertEqual(transaction['status'],'POSTED')
+        self.assertEqual(transaction['amount_minor'],125000)
+
     def test_budget_page_uses_compact_homebudget_style_rows(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,500000,'IDR',actor_user_id=self.uid)
@@ -190,8 +227,9 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Tersedia',html)
         self.assertIn('Simpan Anggaran',html)
         self.assertIn('＋ Tambah Kategori',html)
-        self.assertIn('Simpan Nama',html)
-        self.assertIn('Ketuk kategori untuk mengatur anggaran atau mengubah namanya.',html)
+        self.assertIn('✏️ Simpan Edit',html)
+        self.assertIn('🗑️ Hapus Kategori',html)
+        self.assertIn('Ketuk kategori untuk mengatur anggaran, mengedit, atau menghapus kategori.',html)
         self.assertNotIn('finance-budget-form',html)
 
     def test_budget_page_adds_and_renames_expense_categories_in_place(self):
@@ -212,6 +250,18 @@ class DashboardHomeTests(unittest.TestCase):
         names=[c['name'] for c in fixture.f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)]
         self.assertIn('Studio / Lokasi',names)
         self.assertNotIn('Sewa Studio',names)
+
+        deleted=self.client.post(budget_url,data={
+            'branch_id':str(branch_id),'month':'2026-09','display_currency':'IDR',
+            'action':'delete_category','category_id':str(category['id'])})
+        self.assertEqual(deleted.status_code,303)
+        active_names=[c['name'] for c in fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid)]
+        self.assertNotIn('Studio / Lokasi',active_names)
+        archived=next(c for c in fixture.f.list_categories(
+            self.b,'EXPENSE',include_inactive=True,actor_user_id=self.uid)
+            if c['id']==category['id'])
+        self.assertFalse(archived['is_active'])
 
         income=fixture.f.list_categories(self.b,'INCOME',actor_user_id=self.uid)[0]
         blocked=self.client.post(budget_url,data={
@@ -238,6 +288,44 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(future.status_code,200)
         self.assertIn('Oktober 2026',future.text)
         self.assertIn('Internet',future.text)
+
+    def test_bills_recurring_rules_have_edit_and_safe_delete(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        rule_id=fixture.f.create_recurring_expense(
+            self.b,'Internet Lama',275000,self.a,expense_cat,'MONTHLY','2026-09-10',
+            counterparty_name='Provider Lama',actor_user_id=self.uid)
+
+        page=self.client.get(
+            f'/business/{self.b}/finance/operations?branch_id={branch_id}&month=2026-09&view=recurring')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('✏️ Edit',page.text)
+        self.assertIn('🗑️ Hapus',page.text)
+        self.assertIn(f'id="bill-edit-{rule_id}"',page.text)
+
+        edited=self.client.post(
+            f'/business/{self.b}/finance/recurring/{rule_id}/edit',data={
+                'branch_id':str(branch_id),'month':'2026-09','display_currency':'IDR',
+                'name':'Internet Baru','account_id':str(self.a),'amount':'325000',
+                'category_id':str(expense_cat),'next_due_on':'2026-09-17',
+                'cadence':'WEEKLY','counterparty_name':'Provider Baru',
+                'description':'Paket kantor'})
+        self.assertEqual(edited.status_code,303)
+        rule=fixture.f.get_recurring_expense(self.b,rule_id,self.uid)
+        self.assertEqual(rule['name'],'Internet Baru')
+        self.assertEqual(rule['amount_minor'],325000)
+        self.assertEqual(rule['cadence'],'WEEKLY')
+        self.assertEqual(rule['next_due_on'],'2026-09-17')
+        self.assertEqual(rule['counterparty_name'],'Provider Baru')
+        self.assertEqual(fixture.f.list_transactions(self.b),[])
+
+        deleted=self.client.post(
+            f'/business/{self.b}/finance/recurring/{rule_id}/deactivate',data={
+                'branch_id':str(branch_id),'month':'2026-09','display_currency':'IDR'})
+        self.assertEqual(deleted.status_code,303)
+        rule=fixture.f.get_recurring_expense(self.b,rule_id,self.uid)
+        self.assertFalse(rule['is_active'])
+        self.assertEqual(fixture.f.list_transactions(self.b),[])
 
     def test_bills_add_once_maps_to_single_due_rule(self):
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
