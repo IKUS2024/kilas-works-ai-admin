@@ -260,6 +260,14 @@ def format_money(value,currency):
     return money_label(value,currency)
 
 
+@finance_bp.app_template_filter('finance_input_money')
+def format_input_money(value,currency):
+    currency=finance._currency(currency)
+    if type(value) is not int:
+        raise finance.FinanceError('invalid_money_minor')
+    return f'{finance_fx.major(value,currency):.2f}'
+
+
 def record_id(value):
     if not isinstance(value, str) or not re.fullmatch(r'[0-9]{1,19}', value):
         raise finance.FinanceError('invalid_id')
