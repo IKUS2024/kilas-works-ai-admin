@@ -922,8 +922,8 @@ def budget(business_id, user, business):
                 [{'currency':budget_row['currency'],
                   'balance_minor':int(budget_row['amount_minor'])}],
                 display_currency, fx)
-            input_amount = str(finance_fx.major(
-                int(budget_row['amount_minor']), budget_row['currency']))
+            input_amount = f"{finance_fx.major(
+                int(budget_row['amount_minor']), budget_row['currency']):.2f}"
             input_currency = budget_row['currency']
             total_budget_rows.append(
                 {'currency':budget_row['currency'],
@@ -1545,7 +1545,7 @@ def operations(business_id,user,business):
     actor = {'actor_user_id': user['id']}
     rules = finance.list_recurring_expenses(business_id, include_inactive=True, **actor)
     for rule in rules:
-        rule['input_amount'] = str(finance_fx.major(int(rule['amount_minor']), rule['currency']))
+        rule['input_amount'] = f"{finance_fx.major(int(rule['amount_minor']), rule['currency']):.2f}"
         rule['input_cadence'] = (
             'ONCE' if rule['cadence'] == 'MONTHLY'
             and rule['end_on'] == rule['next_due_on'] else rule['cadence'])
