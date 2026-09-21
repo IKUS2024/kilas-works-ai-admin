@@ -113,7 +113,7 @@
 
           <div class="product-primary">
             {% if b.finance_entitlement.active %}
-              <a class="btn btn-wide" href="{{ url_for('finance.dashboard',business_id=b.id) }}">Buka Finance</a>
+              <a class="btn btn-wide" href="{{ url_for('finance.workspace_choice',business_id=b.id) }}">Buka Finance</a>
               <a class="btn secondary btn-wide" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Kelola Langganan</a>
             {% elif finance_status=='NOT_ACTIVATED' and not b.finance_entitlement.trial_used %}
               <form method="post" action="{{ url_for('products.start_finance_trial',business_id=b.id) }}" style="flex:1 1 100%;margin:0;">
