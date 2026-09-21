@@ -54,7 +54,7 @@
             </select>
           </label>
         </form>
-        <a href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,section='projects',month=month) }}">Arus kas proyek</a>
+        {% if not finance_workspace_personal %}<a href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,section='projects',month=month) }}">Arus kas proyek</a>{% endif %}
       </div>
     </details>
   </div>
@@ -199,7 +199,7 @@
       </div>
       <label>Penerima / Vendor<input name="counterparty_name" value="{{ r.counterparty_name or '' }}" maxlength="160" placeholder="Opsional"></label>
       <details class="finance-bill-more"><summary>Detail tambahan</summary>
-        <label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}" {{ 'selected' if p.id==r.project_id }}>{{ p.title }}</option>{% endfor %}</select></label>
+        {% if not finance_workspace_personal %}<label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}" {{ 'selected' if p.id==r.project_id }}>{{ p.title }}</option>{% endfor %}</select></label>{% endif %}
         <label>Catatan<textarea name="description" maxlength="4000">{{ r.description or '' }}</textarea></label>
       </details>
       <button class="btn" type="submit">Simpan Edit</button>
@@ -236,7 +236,7 @@
       </div>
       <label>Penerima / Vendor<input name="counterparty_name" maxlength="160" placeholder="Opsional"></label>
       <details class="finance-bill-more"><summary>Detail tambahan</summary>
-        <label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>
+        {% if not finance_workspace_personal %}<label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>{% endif %}
         <label>Catatan<textarea name="description" maxlength="4000"></textarea></label>
       </details>
       <button class="btn" type="submit">Simpan Tagihan</button>
