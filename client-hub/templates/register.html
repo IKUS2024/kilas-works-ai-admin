@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card" style="max-width:420px;margin:40px auto;">
   <h1>Buat akun</h1>
-  <p class="muted">Mulai onboarding AI Admin untuk bisnismu.</p>
+  <p class="muted">Buat akun dulu. Setelah daftar, tambahkan bisnis lalu pilih layanan yang ingin kamu pakai.</p>
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>Nama lengkap</label>
@@ -12,7 +12,7 @@
     <input type="email" name="email" value="{{ email or '' }}" required>
     <label>Password (min 8 karakter)</label>
     <input type="password" name="password" minlength="8" required>
-    <div style="margin-top:18px;"><button class="btn" type="submit">Daftar</button></div>
+    <div style="margin-top:18px;"><button class="btn" type="submit">Daftar & Lanjut</button></div>
   </form>
   <p class="muted" style="margin-top:14px;">Sudah punya akun? <a href="{{ url_for('auth.login_page') }}">Login</a></p>
 </div>
