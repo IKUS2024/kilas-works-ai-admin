@@ -128,6 +128,50 @@ def deregister_platform_phone(expected_phone_digits):
     return identity
 
 
+def restore_platform_cloud_api(pin):
+    """Ask the bot service to re-register Kilas Works' own number in normal Cloud API mode.
+
+    The PIN is forwarded only over the authenticated internal service bridge and is not logged or
+    persisted by Client Hub. This recovery path never binds a tenant number and never changes a
+    client WABA.
+    """
+    if not isinstance(pin, str) or not re.fullmatch(r'\d{6}', pin):
+        raise SignupError('invalid_pin')
+    base = _platform_bot_base_url()
+    secret = (os.environ.get('INTERNAL_SERVICE_SECRET') or '').strip()
+    if not base or not secret:
+        raise SignupError('platform_bot_bridge_unavailable')
+    try:
+        response = requests.post(
+            f'{base}/internal/platform-wa-migration/restore',
+            json={'pin': pin},
+            headers={'X-Internal-Service-Secret': secret},
+            timeout=(3, 15),
+            allow_redirects=False,
+        )
+        try:
+            data = response.json()
+        except ValueError:
+            raise SignupError('platform_bot_bad_response') from None
+        if not isinstance(data, dict):
+            raise SignupError('platform_bot_bad_response')
+        if response.status_code == 200 and data.get('status') == 'ok':
+            return data
+        if response.status_code == 202 and data.get('status') == 'registered_pending_identity':
+            return data
+        # Keep Graph/provider details private. The admin UI only needs a stable recovery category.
+        reason = str(data.get('reason') or '')
+        allowed = {
+            'invalid_pin', 'platform_phone_unavailable', 'meta_request_failed',
+            'meta_step_incomplete', 'access_denied',
+        }
+        raise SignupError(reason if reason in allowed else 'platform_restore_rejected')
+    except SignupError:
+        raise
+    except requests.RequestException:
+        raise SignupError('platform_bot_bridge_unavailable') from None
+
+
 def verify_platform_coexistence(code, waba, phone=None, *, expected_phone_digits):
     """Verify browser authorization in Client Hub, runtime access in the bot service.
 
