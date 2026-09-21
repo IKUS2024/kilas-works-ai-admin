@@ -47,14 +47,12 @@ def decimal_amount(value):
 
 
 def review_amount(amount,currency):
-    """The ledger's IDR/JPY integer convention is unchanged; fractional rows are HELD."""
+    """Every Finance currency is stored at two decimal places."""
     exact=decimal_amount(amount)
-    units=exact*(1 if currency in ('IDR','JPY') else 100)
+    units=exact*100
     rounded=max(1,int(units.to_integral_value(rounding=ROUND_HALF_UP)))
     if rounded>=2**63:raise ValueError('invalid_amount')
-    review={}
-    if units!=rounded:review=dict(precision=True,original_amount=str(exact),currency=currency)
-    return rounded,review
+    return rounded,{}
 
 
 def possible_fx(description,currency):
