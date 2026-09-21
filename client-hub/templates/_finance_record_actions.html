@@ -3,9 +3,9 @@
 <div class="finance-record-popover">
 <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind=kind,record_id=item.id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label>Nama<input name="name" value="{{ item.name }}" maxlength="160" required></label>
+<label>{{ 'Nama Cabang' if kind=='branch' else ('Nama Akun' if kind=='account' else 'Nama Kategori') }}<input name="name" value="{{ item.name }}" maxlength="160" required></label>
 <div class="finance-record-buttons">
-<button class="btn secondary" name="action" value="edit">✏️ Simpan</button>
+<button class="btn secondary" name="action" value="edit">✏️ Simpan Nama</button>
 <button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Hapus {{ item.name }} dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.');">🗑️ Hapus</button>
 </div>
 </form>
