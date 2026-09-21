@@ -319,6 +319,21 @@ def reject_payment(payment_id, business_id, actor_user_id, admin_notes=None):
                       project_id=invoice["project_id"] if invoice else None)
 
 
+def meta_review_payment_bypass_enabled(business_id):
+    """Explicit App Review-only payment bypass for one non-production demo business.
+
+    Disabled by default. It becomes true only when BOTH env vars are set deliberately:
+      META_REVIEW_BYPASS_ENABLED=true
+      META_REVIEW_BUSINESS_ID=<exact business id>
+
+    This never creates/marks a payment as VERIFIED and never affects any other business. Remove
+    the env flag after Meta review is finished.
+    """
+    enabled = (os.environ.get("META_REVIEW_BYPASS_ENABLED") or "").strip().lower() == "true"
+    target = (os.environ.get("META_REVIEW_BUSINESS_ID") or "").strip()
+    return bool(enabled and target.isdigit() and int(target) == int(business_id))
+
+
 def has_verified_ai_admin_payment(business_id):
     """Section 22's activation gate: 'Never activate an unpaid tenant.'
 
@@ -357,6 +372,9 @@ def has_verified_ai_admin_payment(business_id):
     repo.upgrade_business_package(). Already-ACTIVE tenants are unaffected: activate_tenant()
     returns early for a business that's already ACTIVE, so this gate only ever runs on the
     APPROVED -> ACTIVE transition, never re-checked against tenants activated before this fix."""
+    if meta_review_payment_bypass_enabled(business_id):
+        return True
+
     business = db.query_one("SELECT package FROM businesses WHERE id = ?", (business_id,))
     if not business:
         return False
