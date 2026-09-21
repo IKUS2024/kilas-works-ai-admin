@@ -16,6 +16,50 @@ from pricing_config import BRAIN_PLAN,FINANCE_PLAN
 products_bp=Blueprint('products',__name__)
 
 
+def _start_finance_trial_now(business_id, user):
+    """One-click trial entry used by dashboard/product flows; never creates ledger activity."""
+    security.require_business_access(business_id, user)
+    state = entitlement.state(business_id)
+    if state['active']:
+        session['dashboard_business_id'] = business_id
+        session.pop('product_intent', None)
+        return url_for('finance.dashboard', business_id=business_id)
+
+    if state['status'] != 'NOT_ACTIVATED' or state['trial_used']:
+        return url_for('products.finance_setup', business_id=business_id)
+
+    idr_accounts = [
+        account for account in finance.list_accounts(
+            business_id, actor_user_id=user['id'])
+        if account['is_active'] and account['currency'] == 'IDR'
+    ]
+    if not idr_accounts:
+        entitlement.setup(
+            business_id, user['id'], 'Kas', 'CASH', 0)
+
+    state = entitlement.start_trial(business_id, user['id'])
+    if not state['active']:
+        return url_for('products.finance_setup', business_id=business_id)
+
+    # Old/imported businesses may already have an account but no default categories.
+    # Complete only the missing harmless master data after the trial is active.
+    existing = {
+        (row['direction'], row['name'])
+        for row in finance.list_categories(
+            business_id, include_inactive=False, actor_user_id=user['id'])
+    }
+    for direction, names in finance.DEFAULT_CATEGORIES.items():
+        for name in names:
+            if (direction, name) not in existing:
+                finance.create_category(
+                    business_id, direction, name, actor_user_id=user['id'])
+
+    session['dashboard_business_id'] = business_id
+    session.pop('product_intent', None)
+    flash('Trial Kilas Finance 7 hari aktif. Kamu bisa langsung mulai.', 'success')
+    return url_for('finance.dashboard', business_id=business_id)
+
+
 @products_bp.after_request
 def privacy(response):
     response.headers['Cache-Control']='private, no-store'
@@ -73,7 +117,8 @@ def continue_product():
             business_id=request.form.get('business_id',type=int)
             if business_id:security.require_business_access(business_id,user)
             elif key in ('brain','finance'):abort(400)
-        if key=='finance':return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
+        if key=='finance':
+            return redirect(_start_finance_trial_now(business_id, user), code=303)
         if key=='brain':
             with db.app_purchase_transaction(business_id,None):
                 security.require_business_access(business_id,user)
@@ -84,6 +129,13 @@ def continue_product():
         if not item or not item['is_active']:abort(404)
         return render_template('product_continue.html',item=item,chosen_business_id=business_id,ready=True)
     return render_template('product_continue.html',product=key,businesses=repo.list_businesses_for_user(user['id']),setup_identity=uuid.uuid4().hex,ready=False)
+
+
+@products_bp.route('/business/<int:business_id>/finance-trial/start',methods=['POST'])
+@security.login_required
+def start_finance_trial(business_id):
+    user = security.current_user()
+    return redirect(_start_finance_trial_now(business_id, user), code=303)
 
 
 @products_bp.route('/business/<int:business_id>/finance-subscription',methods=['GET','POST'])
