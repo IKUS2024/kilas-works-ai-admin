@@ -56,41 +56,54 @@ def finance_access(view):
                 if request.is_json: return jsonify(error='Finance hanya-baca. Aktifkan trial atau perpanjang langganan.'),403
                 flash('Finance hanya-baca. Data tetap tersedia; aktifkan atau perpanjang untuk melanjutkan.','error')
                 return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
-        branch_list = branches.list_branches(business_id, user['id'])
         choices = request.args.getlist('branch_id') + request.form.getlist('branch_id')
         if len(set(choices)) > 1 or len(request.args.getlist('branch_id')) > 1 or len(request.form.getlist('branch_id')) > 1:
             abort(400)
         selected = choices[0] if choices else None
+        workspace_type = 'BUSINESS'
+        selected_branch = None
+        try:
+            if selected not in (None, 'all'):
+                selected_branch = branches.get(
+                    business_id, record_id(selected), actor_user_id=user['id'])
+                workspace_type = selected_branch['workspace_type']
+            branch_list = branches.list_branches(
+                business_id, user['id'], workspace_type=workspace_type)
+        except finance.FinanceError:
+            abort(404)
+
         active_branches = [branch for branch in branch_list if branch['is_active']]
         default_branch = next((branch for branch in active_branches if branch['is_default']), None)
         fallback_branch = default_branch or (active_branches[0] if active_branches else None)
-        # Finance workspaces are always branch-scoped. "all" remains accepted only as
-        # a legacy GET URL and resolves to a real active branch; combined branch data
-        # is never rendered. Writes must still name one concrete branch.
+        # Legacy URLs without an explicit branch always resolve to Business, so all
+        # pre-workspace Finance data stays in Business exactly as before.
         if selected is None or (selected == 'all' and request.method in ('GET', 'HEAD')):
             selected = str(fallback_branch['id']) if fallback_branch else None
+            selected_branch = fallback_branch
         if selected == 'all':
             if request.is_json:
                 return jsonify(error='Pilih satu cabang aktif. Data antar cabang tidak digabung.'), 403
             abort(403)
         if selected is not None:
             selected_row = next((branch for branch in branch_list if str(branch['id']) == str(selected)), None)
-            if selected_row is not None and not selected_row['is_active']:
+            if selected_row is None:
+                abort(404)
+            if not selected_row['is_active']:
                 if request.method in ('GET','HEAD') and fallback_branch:
                     selected = str(fallback_branch['id'])
+                    selected_row = fallback_branch
                 else:
                     if request.is_json:
                         return jsonify(error='Cabang tersebut sudah dihapus atau tidak aktif.'), 403
                     abort(403)
-        try:
-            branch_id = record_id(selected) if selected is not None else None
-            selected_branch = branches.get(business_id, branch_id) if branch_id is not None else None
-        except finance.FinanceError:
-            abort(404)
+            selected_branch = selected_row
+        branch_id = record_id(selected) if selected is not None else None
         g.finance_business_id = business_id
         g.finance_branch_id = branch_id
         g.finance_branches = branch_list
         g.finance_branch = selected_branch
+        g.finance_workspace_type = workspace_type
+        g.finance_workspace_label = 'Pribadi' if workspace_type == 'PERSONAL' else 'Bisnis'
         g.finance_branch_read_only = branch_id is None or not selected_branch['is_active']
         if g.finance_branch_read_only and request.method not in ('GET', 'HEAD') and view.__name__ not in ('assistant_message','assistant_recognize'):
             # Setup has no historical branch yet; existing entitlement checks still apply.
@@ -340,6 +353,60 @@ def overview():
         period_years=period_years,selected_year=selected_year,current_year=current_year,current_month=current_month,
         totals_by_currency=totals_by_currency,open_invoice_count=open_count,overdue_invoice_count=overdue_count,
         breakdown=breakdown,as_of=end),headers={'Cache-Control':'private, no-store'})
+
+@finance_bp.route('/business/<int:business_id>/finance/workspaces')
+@security.login_required
+def workspace_choice(business_id):
+    user=security.current_user()
+    import finance_entitlements as entitlement
+    if not (beta_enabled() or entitlement.self_service()) and user['role']!='KILAS_ADMIN':
+        abort(404)
+    business=security.require_business_access(business_id,user=user)
+    business_branches=branches.list_branches(
+        business_id,user['id'],workspace_type='BUSINESS')
+    personal_branches=branches.list_branches(
+        business_id,user['id'],workspace_type='PERSONAL')
+    state=entitlement.state(business_id)
+    return render_template(
+        'finance_workspace_choice.html',business=business,user=user,
+        entitlement=state,
+        business_ready=any(row['is_active'] for row in business_branches),
+        personal_ready=any(row['is_active'] for row in personal_branches),
+    )
+
+
+@finance_bp.route('/business/<int:business_id>/finance/workspaces/<workspace_type>',methods=['POST'])
+@security.login_required
+def enter_workspace(business_id,workspace_type):
+    user=security.current_user()
+    import finance_entitlements as entitlement
+    if not (beta_enabled() or entitlement.self_service()) and user['role']!='KILAS_ADMIN':
+        abort(404)
+    security.require_business_access(business_id,user=user)
+    try:
+        workspace_type=branches.workspace(workspace_type)
+        rows=branches.list_branches(
+            business_id,user['id'],workspace_type=workspace_type)
+        active=next((row for row in rows if row['is_active'] and row['is_default']),None)
+        active=active or next((row for row in rows if row['is_active']),None)
+        if active is None:
+            entitlement.require_write(business_id,user['id'])
+            if workspace_type=='PERSONAL':
+                branch_id=branches.ensure_personal(business_id,user['id'])
+            else:
+                branch_id=branches.default(business_id,user['id'])
+            active=branches.get(
+                business_id,branch_id,active=True,actor_user_id=user['id'])
+            with branches.scope(business_id,branch_id,user['id']):
+                finance.ensure_finance_defaults(
+                    business_id,actor_user_id=user['id'])
+    except finance.FinanceError as error:
+        flash(ERRORS.get(str(error),'Workspace Finance belum dapat dibuka.'),'error')
+        return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
+    return redirect(
+        url_for('finance.dashboard',business_id=business_id,branch_id=active['id']),
+        code=303)
+
 
 @finance_bp.route('/business/<int:business_id>/finance')
 @finance_access
@@ -2418,7 +2485,10 @@ def finance_branch_context():
         return {}
     return dict(finance_branch_business_id=g.finance_business_id, finance_branches=g.finance_branches,
         selected_branch=g.finance_branch, selected_branch_id=g.finance_branch_id,
-        all_branches=g.finance_branch_id is None, branch_read_only=g.finance_branch_read_only)
+        all_branches=g.finance_branch_id is None, branch_read_only=g.finance_branch_read_only,
+        finance_workspace_type=getattr(g,'finance_workspace_type','BUSINESS'),
+        finance_workspace_label=getattr(g,'finance_workspace_label','Bisnis'),
+        finance_workspace_personal=getattr(g,'finance_workspace_type','BUSINESS')=='PERSONAL')
 
 
 def transaction_note(business_id, form):
@@ -2436,6 +2506,8 @@ def transaction_note(business_id, form):
 @finance_bp.route('/business/<int:business_id>/finance/branches', methods=['POST'])
 @finance_access
 def create_branch(business_id, user, business):
+    if getattr(g,'finance_workspace_type','BUSINESS') != 'BUSINESS':
+        abort(403)
     try:
         branch_id = branches.create_branch(business_id, request.form.get('name'), user['id'])
     except finance.FinanceError as error:
@@ -2449,6 +2521,8 @@ def create_branch(business_id, user, business):
 def update_setting(business_id, user, business, kind, record_id):
     if kind not in ('branch', 'account', 'category'):
         abort(404)
+    if kind == 'branch' and getattr(g,'finance_workspace_type','BUSINESS') != 'BUSINESS':
+        abort(403)
     deactivate = request.form.get('action') == 'deactivate'
     destination = url_for('finance.dashboard', business_id=business_id, branch_id='all') if kind == 'branch' and deactivate else None
     if kind == 'account' and request.form.get('return_view') == 'accounts':
