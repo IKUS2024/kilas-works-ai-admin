@@ -34,6 +34,7 @@
 .action-tile{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:12px;padding:9px;display:flex;align-items:center;gap:8px;min-height:50px;text-decoration:none;font-size:13px;font-weight:650;min-width:0}
 .action-tile:hover{border-color:#4a4e56;background:rgba(255,255,255,.025);text-decoration:none}
 .action-icon{width:30px;height:30px;border-radius:9px;background:var(--bg-soft);display:grid;place-items:center;color:var(--text-dim);flex:0 0 auto}.action-icon svg{width:17px;height:17px}
+.new-business-start{max-width:560px;margin:18px auto 0;padding:18px}.new-business-start h2{font-size:20px;margin-bottom:5px}.new-business-start p{margin:0 0 12px;color:var(--text-dim);font-size:13px;line-height:1.45}.new-business-start form{display:grid;gap:10px}.new-business-start label{margin:0}.new-business-start .btn{width:100%;min-height:46px}
 .orders-card{padding:14px}.orders-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.orders-head h2{margin:0}
 .order-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border)}.order-row:first-of-type{border-top:0}.order-main{min-width:0;flex:1}.order-main a{font-weight:700}.order-meta{font-size:12px;color:var(--text-dim);margin-top:2px}.order-action{flex:0 0 auto}.order-action .btn{margin:0}
 @media(max-width:720px){.home-intro{margin-bottom:9px}.home-intro h1{font-size:22px}.business-picker{padding:10px 12px}.product-grid{grid-template-columns:1fr}.business-shell{padding:12px}.product-panel{padding:11px}.product-primary{display:flex;gap:7px}.product-primary .btn{flex:1 1 140px}.action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-right:0;padding-right:0}.action-tile{min-height:52px;padding:8px;font-size:12px;white-space:normal;overflow-wrap:anywhere}.brain-flow{gap:4px}.brain-flow-step{padding:6px 3px}.brain-flow-step strong{font-size:9.5px}.brain-flow-step span{font-size:8.5px}.orders-card{padding:12px}}
@@ -46,6 +47,21 @@
     <p class="muted">Kelola produk Kilas Works dari satu tempat.</p>
   </header>
 
+  {% if not all_businesses and not my_projects %}
+  <section class="card new-business-start">
+    <h2>Tambah Bisnis</h2>
+    <p>Masukkan nama bisnis atau brand kamu. Setelah itu kamu bisa langsung memilih Kilas Finance, Kilas Brain, atau layanan lainnya.</p>
+    <form method="post" action="{{ url_for('client.create_business') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="package" value="NONE">
+      <label>Nama bisnis
+        <input type="text" name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required autofocus>
+      </label>
+      <button class="btn" type="submit">＋ Tambah Bisnis</button>
+    </form>
+  </section>
+  {% else %}
+  {% if all_businesses %}
   <form method="post" class="card business-picker" action="{{ url_for('products.dashboard_business') }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="business-picker-field">
@@ -58,6 +74,7 @@
     </div>
     <button class="btn secondary" type="submit">Ganti</button>
   </form>
+  {% endif %}
 
   {% for b in businesses %}
     <section class="card business-shell">
@@ -92,8 +109,16 @@
           <div class="product-primary">
             {% if b.finance_entitlement.active %}
               <a class="btn btn-wide" href="{{ url_for('finance.dashboard',business_id=b.id) }}">Buka Finance</a>
+              <a class="btn secondary btn-wide" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Kelola Langganan</a>
+            {% elif finance_status=='NOT_ACTIVATED' and not b.finance_entitlement.trial_used %}
+              <form method="post" action="{{ url_for('products.start_finance_trial',business_id=b.id) }}" style="flex:1 1 100%;margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-wide" type="submit" style="width:100%;">Coba Gratis 7 Hari</button>
+              </form>
+              <span class="status-meta" style="flex-basis:100%;">Langsung aktif · tanpa kartu · tanpa auto-renew.</span>
+            {% else %}
+              <a class="btn btn-wide" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Perpanjang Finance</a>
             {% endif %}
-            <a class="btn secondary btn-wide" href="{{ url_for('products.finance_setup',business_id=b.id) }}">{{ 'Perpanjang Finance' if finance_status=='EXPIRED' else ('Coba Gratis 7 Hari' if finance_status=='NOT_ACTIVATED' else 'Kelola Langganan') }}</a>
           </div>
         </section>
 
@@ -207,8 +232,6 @@
         </section>
       </div>
     </section>
-  {% else %}
-    <section class="card"><p>Belum ada bisnis. Pilih produk untuk memulai.</p></section>
   {% endfor %}
 
   <section class="card orders-card">
@@ -223,5 +246,6 @@
       <p class="muted">Belum ada pesanan berjalan.</p>
     {% endfor %}
   </section>
+  {% endif %}
 </div>
 {% endblock %}
