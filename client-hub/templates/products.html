@@ -64,7 +64,7 @@
         <div class="product-name"><h2>Kilas Finance</h2><span>Keuangan + AI</span></div>
       </div>
       <p class="product-pitch">Catat transaksi, struk, invoice, laporan, dan rekonsiliasi mutasi bank.</p>
-      <p class="product-price">{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %}<span class="product-price-old">{{ finance_plan.regular_amount_minor|finance_idr }}</span>{% endif %}{{ finance_plan.amount_minor|finance_idr }} <small>/ {{ finance_plan.period_days }} hari</small></p>
+      <p class="product-price">{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %}<span class="product-price-old">{{ finance_plan.regular_amount_minor|finance_money('IDR') }}</span>{% endif %}{{ finance_plan.amount_minor|finance_money('IDR') }} <small>/ {{ finance_plan.period_days }} hari</small></p>
       <div class="product-chips">{% if finance_plan.regular_amount_minor > finance_plan.amount_minor %}<span class="product-chip">{{ finance_plan.promo_label }}</span>{% endif %}<span class="product-chip">{{ finance_plan.trial_days }} hari trial</span><span class="product-chip">AI Finance</span><span class="product-chip">Tanpa Brain</span></div>
       <form class="product-cta" method="post" action="{{ url_for('products.select') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="finance">
