@@ -257,7 +257,7 @@ def _bank_confirm(b,u,context):
             already+=1;continue
         if row.get('held_for_review') or row['possible_overlap'] or row['needs_attention'] or candidates.get(row['id']):
             held+=1;continue
-        categories=f.list_categories(b,row['direction'],actor_user_id=u)
+        categories=f.list_categories(b,row['direction'],include_children=True,actor_user_id=u)
         category_id=category_choice(categories,row['description'] or '') or _other_category(categories)
         if not category_id:
             held+=1;continue
@@ -384,7 +384,7 @@ def review(b,u,context,edits=None):
         if values['account_id'] and not account:raise ValueError('account_unavailable')
         if not currency and account:currency=values['currency']=account['currency']
         direction='INCOME' if action in ('create_income','record_invoice_payment') else 'EXPENSE'
-        categories=f.list_categories(b,direction,actor_user_id=u)
+        categories=f.list_categories(b,direction,include_children=True,actor_user_id=u)
         if not values['category_id'] and edits is None and 'category_id' not in stale and context.get('awaiting')!='category_id':values['category_id']=str(category_choice(categories,text or values.get('description','')) or '')
         category=next((c for c in categories if str(c['id'])==values['category_id']),None)
         if values['category_id'] and not category:raise ValueError('category_unavailable')
@@ -598,7 +598,7 @@ def document(b,u,files,text,workflow,account_id='',document_context=''):
         values=dict(amount=amount,currency=data['currency'] or '',date=data['transaction_date'] or '',description=data['description'] or data['merchant_name'] or '',
                     merchant_name=data['merchant_name'] or '',account_id='',category_id='')
         if data['suggested_category_name']:
-            matches=[c for c in f.list_categories(b,'EXPENSE',actor_user_id=u) if c['name']==data['suggested_category_name']]
+            matches=[c for c in f.list_categories(b,'EXPENSE',include_children=True,actor_user_id=u) if c['name']==data['suggested_category_name']]
             if len(matches)==1:values['category_id']=str(matches[0]['id'])
         review_result=review(b,u,dict(action='receipt',text=text,values=values,receipt_token=result['token'],nonce=uuid.uuid4().hex))
         if result['fallback']:review_result['message']='Struk belum terbaca dengan yakin. Lengkapi data yang belum jelas sebelum review dan konfirmasi.'
