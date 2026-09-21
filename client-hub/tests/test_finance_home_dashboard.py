@@ -99,6 +99,43 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('id="finance-trend-data"',html)
         self.assertNotIn('Tanya Kilas Finance',html)
 
+    def test_account_types_default_add_delete_and_assignment_are_consistent(self):
+        html,_=self.page('?month=2026-09&view=accounts')
+        for label in ('Credit','Debit','Piutang','Tabungan','E-Wallet'):
+            self.assertIn(f'value="{label}"',html)
+        self.assertIn('＋ Tambah / kelola tipe',html)
+
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        endpoint=f'/business/{self.b}/finance/account-types'
+        created=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'action':'create','name':'Investasi',
+        },headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'})
+        self.assertEqual(created.status_code,200)
+        self.assertIn('Investasi',[row['name'] for row in created.get_json()['options']])
+
+        removed=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'action':'delete','name':'Credit',
+        },headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'})
+        self.assertEqual(removed.status_code,200)
+        self.assertNotIn('Credit',[row['name'] for row in removed.get_json()['options']])
+
+        added=self.client.post(f'/business/{self.b}/finance/accounts',data={
+            'branch_id':str(branch_id),'return_view':'accounts','name':'Broker',
+            'account_type_name':'Investasi','currency':'IDR','opening_balance':'0',
+        })
+        self.assertEqual(added.status_code,303)
+        account=next(row for row in fixture.f.list_accounts(
+            self.b,actor_user_id=self.uid) if row['name']=='Broker')
+        self.assertEqual(account['account_type_label'],'Investasi')
+        self.assertEqual(account['account_type'],'OTHER')
+        balance=next(row for row in fixture.f.get_account_balance_report(
+            self.b,'2026-09-22',actor_user_id=self.uid) if row['id']==account['id'])
+        self.assertEqual(balance['account_type_label'],'Investasi')
+
+        html,_=self.page('?month=2026-09&view=accounts')
+        self.assertIn('Investasi',html)
+        self.assertNotIn('value="Credit"',html)
+
     def test_account_transaction_drilldown_filters_to_selected_account(self):
         second=fixture.f.create_account(self.b,'BCA Kedua','BANK','IDR',0,actor_user_id=self.uid)
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
