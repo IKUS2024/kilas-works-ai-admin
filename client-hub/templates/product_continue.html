@@ -15,22 +15,36 @@
       </form>
     </section>
   {% else %}
-    <section class="card">
-      <div class="client-item-title">Pilih bisnis</div>
-      <p class="client-note">Produk: {{ product }}{% if product not in ('brain','finance') %} · bisa sebagai pesanan pribadi tanpa bisnis.{% endif %}</p>
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <select name="business_id" {% if product in ('brain','finance') %}required{% endif %}><option value="">{{ 'Pilih bisnis' if product in ('brain','finance') else 'Pesanan pribadi, tanpa bisnis' }}</option>{% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}</select>
-        <div class="client-actions"><button class="btn" type="submit">Gunakan Pilihan Ini</button></div>
-      </form>
-    </section>
+    {% if not businesses and product in ('brain','finance') %}
+      <section class="card">
+        <div class="client-item-title">Tambah Bisnis</div>
+        <p class="client-note">{{ 'Buat bisnis dulu. Setelah disimpan, trial Finance 7 hari langsung aktif tanpa kartu dan tanpa auto-renew.' if product=='finance' else 'Buat bisnis dulu untuk melanjutkan setup Kilas Brain.' }}</p>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="create" value="yes">
+          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+          <label>Nama bisnis<input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required autofocus></label>
+          <div class="client-actions"><button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Gratis' if product=='finance' else 'Tambah Bisnis & Lanjut' }}</button></div>
+        </form>
+      </section>
+    {% else %}
+      <section class="card">
+        <div class="client-item-title">{{ 'Pilih Bisnis' if product in ('brain','finance') else 'Lanjutkan Pesanan' }}</div>
+        <p class="client-note">Produk: {{ product }}{% if product not in ('brain','finance') %} · bisa sebagai pesanan pribadi tanpa bisnis.{% endif %}</p>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="business_id" {% if product in ('brain','finance') %}required{% endif %}><option value="">{{ 'Pilih bisnis' if product in ('brain','finance') else 'Pesanan pribadi, tanpa bisnis' }}</option>{% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}</select>
+          <div class="client-actions"><button class="btn" type="submit">{{ 'Coba Gratis 7 Hari' if product=='finance' else 'Gunakan Pilihan Ini' }}</button></div>
+        </form>
+      </section>
 
-    <details class="card client-collapsible">
-      <summary>＋ Buat bisnis baru</summary>
-      <div class="client-collapsible-body">
-        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="create" value="yes"><input type="hidden" name="setup_identity" value="{{ setup_identity }}"><label>Nama bisnis<input name="business_name" maxlength="160" required></label><p class="client-note">Nama yang sama tidak digabung otomatis.</p><button class="btn" type="submit">Buat Bisnis &amp; Lanjut</button></form>
-      </div>
-    </details>
+      <details class="card client-collapsible">
+        <summary>＋ Tambah bisnis baru</summary>
+        <div class="client-collapsible-body">
+          <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="create" value="yes"><input type="hidden" name="setup_identity" value="{{ setup_identity }}"><label>Nama bisnis<input name="business_name" maxlength="160" required></label><p class="client-note">Nama yang sama tidak digabung otomatis.</p><button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Gratis' if product=='finance' else 'Tambah Bisnis & Lanjut' }}</button></form>
+        </div>
+      </details>
+    {% endif %}
   {% endif %}
 </div>
 {% endblock %}
