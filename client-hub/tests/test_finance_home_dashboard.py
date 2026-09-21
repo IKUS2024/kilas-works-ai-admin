@@ -40,8 +40,8 @@ class DashboardHomeTests(unittest.TestCase):
         fx={'rates':{'IDR':'1','USD':'10000'},'date':'2026-09-21','source':'Test FX','stale':False}
         with patch.object(finance_fx,'snapshot',return_value=fx):
             html, context=self.page()
-        self.assertEqual(context['balance_total_display'],'Rp1.200.000')
-        self.assertEqual(context['period_income_display'],'Rp0')
+        self.assertEqual(context['balance_total_display'],'Rp1.200.000,00')
+        self.assertEqual(context['period_income_display'],'Rp0,00')
         self.assertEqual({r['currency'] for r in context['dashboard_trend']},{'IDR'})
         self.assertTrue(all(r['income_minor']==0 for r in context['dashboard_trend']))
         self.assertIn('Test FX',html)
@@ -59,7 +59,7 @@ class DashboardHomeTests(unittest.TestCase):
     def test_empty_dashboard_shows_real_zero_budget_and_omits_attention(self):
         html,context=self.page()
         self.assertIn('Anggaran',html)
-        self.assertEqual(context['budget_total_display'],'Rp0')
+        self.assertEqual(context['budget_total_display'],'Rp0,00')
         self.assertNotIn('Perlu perhatian',html)
         self.assertIn('Belum ada transaksi.',html)
         self.assertEqual(context['recurring_items'],[])
@@ -213,16 +213,16 @@ class DashboardHomeTests(unittest.TestCase):
         fx={'rates':{'IDR':'1','USD':'16000'},'date':'2026-09-21','source':'Test FX','stale':False}
         with patch.object(finance_fx,'snapshot',return_value=fx):
             html,context=self.page('?month=2026-09')
-        self.assertEqual(context['period_income_display'],'Rp260.000')
-        self.assertIn('Rp260.000',html)
+        self.assertEqual(context['period_income_display'],'Rp260.000,00')
+        self.assertIn('Rp260.000,00',html)
         self.assertNotIn('Mata uang ditampilkan terpisah',html)
 
     def test_monthly_budget_is_branch_scoped_and_updates_dashboard(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,500000,'IDR',actor_user_id=self.uid)
         html,context=self.page('?month=2026-09')
-        self.assertEqual(context['budget_total_display'],'Rp500.000')
-        self.assertIn('Rp500.000',html)
+        self.assertEqual(context['budget_total_display'],'Rp500.000,00')
+        self.assertIn('Rp500.000,00',html)
         rows=fixture.f.list_monthly_budgets(self.b,'2026-09',actor_user_id=self.uid)
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['category_id'],expense_cat)
@@ -267,7 +267,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(budget.status_code,200)
         self.assertIn('Rincian Utilitas',budget.text)
         self.assertIn('Listrik',budget.text)
-        self.assertIn('Rp50.000',budget.text)
+        self.assertIn('Rp50.000,00',budget.text)
 
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
