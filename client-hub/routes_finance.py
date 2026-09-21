@@ -442,6 +442,21 @@ def dashboard(business_id, user, business):
                     summary=branch_map.get('IDR', dict(currency='IDR', total_income_minor=0,
                         total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))))
 
+    # Dashboard presentation reads reuse the existing scoped Finance services.
+    month_index = int(month[:4]) * 12 + int(month[5:7]) - 1
+    month_at = lambda index: f'{index // 12:04d}-{index % 12 + 1:02d}'
+    previous_month, next_month = month_at(month_index - 1), month_at(month_index + 1)
+    dashboard_trend = []
+    recent_activity = []
+    recurring_items = []
+    if not show_transactions:
+        dashboard_trend = finance.get_monthly_cashflow_trends(
+            business_id, month_at(max(12, month_index - 5)), month,
+            end_date=min(period(month)[1], today_value.isoformat()), **actor)
+        recent_activity = finance.list_transactions(
+            business_id, status='POSTED', end_date=today_value.isoformat(), limit=5, **actor)
+        recurring_items = finance.list_recurring_expenses(business_id, **actor)
+
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     return render_template('finance_dashboard.html', user=user, business=business,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
@@ -457,7 +472,9 @@ def dashboard(business_id, user, business):
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, categories=categories, summary=summary, summaries=summaries,
-        transactions=transactions,
+        transactions=transactions, dashboard_trend=dashboard_trend, recent_activity=recent_activity,
+        recurring_items=recurring_items, previous_month=previous_month,
+        next_month=next_month if next_month <= current_value else None,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),

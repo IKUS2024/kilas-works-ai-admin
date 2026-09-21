@@ -55,7 +55,7 @@ class OperatorTests(unittest.TestCase):
         with patch.object(op,'interpret',side_effect=AssertionError('No AI on GET')):
             self.assertEqual(self.client.get(self.url).status_code,200)
             dashboard=self.client.get(self.url.rsplit('/operator',1)[0])
-            self.assertIn(b'AI Assistant',dashboard.data);self.assertNotIn(b'AI Operator',dashboard.data)
+            self.assertIn(b'Tanya Kilas Finance',dashboard.data);self.assertNotIn(b'AI Operator',dashboard.data)
 
     def test_disabled_by_default_ui_and_all_endpoints(self):
         with patch.dict(os.environ,{'KILAS_FINANCE_OPERATOR_BUSINESS_IDS':''}),patch.object(op,'interpret') as call:

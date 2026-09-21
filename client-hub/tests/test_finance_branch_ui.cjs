@@ -135,29 +135,24 @@ test('invoice workspace is professional compact and preserves paid accounting',(
   assert.match(detail,/pemasukan dan saldo tetap terkunci/);
 });
 
-test('dashboard transaction tile opens manual entry while history stays separate',()=>{
-  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
-  assert.match(html,/finance-home-tile primary" data-finance-open="add-transaction-dialog"/);
-  assert.match(html,/Catat transaksi manual/);
+test('dashboard manual entry and full history remain separate from the recent preview',()=>{
+  const html=fs.readFileSync(path.join(ROOT,'templates','finance_dashboard.html'),'utf8');
+  const home=fs.readFileSync(path.join(ROOT,'templates','_finance_home_dashboard.html'),'utf8');
+  assert.match(html,/data-finance-open="add-transaction-dialog"/);
   assert.match(html,/id="add-transaction-dialog"/);
-  assert.match(html,/finance-history-launch/);
   assert.match(html,/Riwayat Transaksi/);
-  assert.doesNotMatch(html,/Semua Cabang · Gabungan/);
+  assert.match(home,/Lihat semua/);
+  assert.match(home,/recent_activity/);
   assert.doesNotMatch(html,/manual-branch-dialog/);
 });
 
-test('dashboard exposes focused finance navigation with bank handled by AI Assistant',()=>{
-  const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
-  for(const label of ['Pilih yang mau dikerjakan','Transaksi','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant']){
-    assert.match(html,new RegExp(label));
-  }
-  assert.doesNotMatch(html,/finance-home-label">Bank</);
-  assert.match(html,/Chat, scan struk &amp; baca mutasi bank/);
-  assert.match(html,/finance-home-ai/);
-  assert.doesNotMatch(html,/Alat Finance Lainnya/);
-  assert.match(html,/finance-home-grid/);
+test('dashboard presents financial summaries and one semantic assistant entry',()=>{
+  const home=fs.readFileSync(path.join(ROOT,'templates','_finance_home_dashboard.html'),'utf8');
+  for(const label of ['Pemasukan','Pengeluaran','Customer','Piutang','Biaya Rutin','Lihat laporan','Tanya Kilas Finance']) assert.ok(home.includes(label));
+  assert.equal((home.match(/url_for\('finance.assistant'/g)||[]).length,1);
+  assert.match(home,/finance-metric-grid/);
+  assert.doesNotMatch(home,/Anggaran/);
 });
-
 
 test('dashboard keeps monthly overview compact with total saldo inside cashflow card',()=>{
   const html=fs.readFileSync(path.join(__dirname,'../templates/finance_dashboard.html'),'utf8');
@@ -254,7 +249,7 @@ test('dashboard period picker supports single range and all modes',()=>{
   const dashboard=fs.readFileSync(path.join(ROOT,'templates','finance_dashboard.html'),'utf8');
   const selector=fs.readFileSync(path.join(ROOT,'templates','_finance_dashboard_period_selector.html'),'utf8');
   assert.match(dashboard,/period_label/);
-  assert.match(dashboard,/\*\*period_query/);
+  assert.match(fs.readFileSync(path.join(ROOT,'templates','_finance_home_dashboard.html'),'utf8'),/\*\*period_query/);
   assert.match(selector,/Satu bulan/);
   assert.match(selector,/Rentang bulan/);
   assert.match(selector,/Semua transaksi/);

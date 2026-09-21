@@ -128,26 +128,15 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922') }}">
+<script src="{{ url_for('static',filename='finance_home.js',v='20260922') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions %}
 <header class="finance-hero">
 <a class="finance-back-link" href="{{ url_for('client.dashboard') }}">← Dashboard</a>
-<div class="finance-hero-row">
-<div>
-<span class="finance-eyebrow">KILAS WORKS</span>
-<h1>Kilas Finance</h1>
-<p>Kelola uang usaha, tagihan, bank, dan laporan dari satu tempat.</p>
-</div>
-<span class="finance-hero-status">{{ selected_branch.name if selected_branch else 'Pilih Cabang' }}</span>
-</div>
-</header>
-
-<section class="card finance-context-card" aria-label="Pilihan bisnis dan cabang">
-<div class="finance-context-heading">
-<div><span class="finance-context-kicker">Ruang kerja aktif</span><h2>{{ business.business_name }}</h2></div>
-<span class="finance-context-pill">{{ selected_branch.name if selected_branch else 'Belum pilih cabang' }}</span>
-</div>
-<div class="finance-context-grid">
+<div class="finance-hero-row"><div><span class="finance-eyebrow">KILAS WORKS</span><h1>Kilas Finance</h1><p>{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua cabang' }}</p></div>
+{% if not branch_read_only %}<button class="finance-mini-action" data-finance-open="add-transaction-dialog" type="button">＋ Transaksi</button>{% endif %}</div>
+<details class="finance-context-compact"><summary>Ganti bisnis / cabang</summary><div class="finance-context-grid">
 <form method="get" action="{{ url_for('finance.overview') }}" class="finance-context-field">
 <input type="hidden" name="month" value="{{ month }}">
 <label for="finance-business"><span>Bisnis</span><small>Brand / usaha</small></label>
@@ -167,27 +156,13 @@
 <noscript><button class="btn secondary finance-context-apply">Gunakan</button></noscript>
 </form>
 </div>
-<p class="finance-context-help"><strong>Bisnis</strong> adalah brand/usaha. <strong>Setiap cabang berdiri sendiri</strong>: transaksi, saldo, laporan, invoice, biaya rutin, dan data Finance selalu mengikuti cabang yang sedang dipilih.</p>
-{% if branch_read_only %}<div class="finance-context-notice" role="status">ℹ️ Cabang ini nonaktif. Riwayat dan laporan tetap bisa dilihat.</div>{% else %}<div class="finance-context-notice" role="status">📍 Data yang tampil dan transaksi baru hanya untuk cabang <strong>{{ selected_branch.name }}</strong>. Data cabang lain tidak digabung.</div>{% endif %}
-</section>
-
-<div class="card finance-home-card">
-<div class="finance-section-heading"><div><span class="finance-context-kicker">Akses cepat</span><h2>Pilih yang mau dikerjakan</h2></div><span class="finance-section-badge">Finance</span></div>
-<p class="muted finance-section-copy">Fitur utama dibuat singkat supaya kamu langsung tahu harus masuk ke mana.</p>
-<div class="finance-home-grid">
-{% if not branch_read_only %}
-<button type="button" class="finance-home-tile primary" data-finance-open="add-transaction-dialog"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Catat transaksi manual</span></button>
-{% else %}
-<a class="finance-home-tile" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',display_currency=display_currency,direction=direction,view='transactions',page=1) }}"><span class="finance-home-icon">📒</span><span class="finance-home-label">Transaksi</span><span class="finance-home-meta">Lihat transaksi</span></a>
-{% endif %}
-<a class="finance-home-tile" href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}"><span class="finance-home-icon">👥</span><span class="finance-home-label">Pelanggan</span><span class="finance-home-meta">Customer &amp; invoice</span></a>
-<a class="finance-home-tile" href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}"><span class="finance-home-icon">⏰</span><span class="finance-home-label">Penagihan</span><span class="finance-home-meta">Invoice belum dibayar</span></a>
-<a class="finance-home-tile" href="{{ url_for('finance.operations',business_id=business.id,section='recurring',month=month) }}"><span class="finance-home-icon">🔁</span><span class="finance-home-label">Biaya Rutin</span><span class="finance-home-meta">Jadwal &amp; proyek</span></a>
-<a class="finance-home-tile" href="{{ url_for('finance.reports',business_id=business.id,section='summary',start=period_start,end=period_end,as_of=period_end) }}"><span class="finance-home-icon">📊</span><span class="finance-home-label">Laporan</span><span class="finance-home-meta">Ringkasan &amp; export</span></a>
-<a class="finance-home-tile finance-home-ai" href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}"><span class="finance-home-icon">✦</span><span class="finance-home-label">AI Assistant</span><span class="finance-home-meta">Chat, scan struk &amp; baca mutasi bank</span></a>
-</div>
-</div>
-
+</details>
+<nav class="finance-month-nav" aria-label="Navigasi bulan">
+<a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month) }}">‹</a>
+<button class="finance-period-button" type="button" data-finance-open="period-dialog">{{ period_label }} <small>⌄</small></button>
+{% if next_month %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month) }}">›</a>{% else %}<span aria-disabled="true">›</span>{% endif %}
+</nav></header>
+{% include '_finance_home_dashboard.html' %}
 {% if not branch_read_only %}
 <details class="card finance-settings-hub">
 <summary><strong>⚙️ Pengaturan Finance</strong> <span class="muted">· Cabang, Kas &amp; Rekening, Kategori</span></summary>
@@ -201,22 +176,6 @@
 </details>
 {% endif %}
 {% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan cabang Utama, Kas, dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
-<div class="card finance-period-card">
-<div class="finance-period-copy"><strong>{{ period_label }}</strong></div>
-<button type="button" class="finance-period-button" data-finance-open="period-dialog">🗓️ Ubah</button>
-</div>
-
-{% include '_finance_cash_summary.html' %}
-
-<a class="card finance-history-launch" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',display_currency=display_currency,view='transactions',page=1) }}">
-  <span class="finance-history-launch-icon" aria-hidden="true">🕘</span>
-  <span class="finance-history-launch-copy"><strong>Riwayat Transaksi</strong><small>Lihat semua pemasukan &amp; pengeluaran</small></span>
-  <span class="finance-history-launch-arrow" aria-hidden="true">›</span>
-</a>
-
-<div class="finance-quick-grid">
-<div class="card finance-quick-card"><h3>🧾 Piutang</h3>{% if collection_summary.by_currency %}{% for g in collection_summary.by_currency %}<div class="{{ 'finance-quick-value' if loop.first else 'finance-currency-line' }}">{{ g.total_outstanding_minor|finance_money(g.currency) }}</div>{% endfor %}{% else %}<div class="finance-quick-value">{{ 0|finance_idr }}</div>{% endif %}<div class="finance-quick-meta">{{ collection_summary.open_invoice_count }} invoice terbuka · {{ collection_summary.overdue_invoice_count }} terlambat</div><p class="finance-quick-note">Hanya sisa invoice belum lunas. Pembayaran invoice lunas masuk Pemasukan &amp; saldo rekening.</p><a class="finance-quick-link" href="{{ url_for('finance.collections',business_id=business.id,section='queue',view='overdue') }}">Lihat tagihan →</a></div>
-</div>
 {% endif %}
 
 {% if show_transactions %}

@@ -199,7 +199,7 @@ class MultiBusinessTests(unittest.TestCase):
         self.assertEqual(self.client.post('/finance').status_code, 405)
         self.assertIn('no-store', response.headers['Cache-Control'])
         single, _ = self.page('/finance?business_id='+str(self.b)+'&month=2026-09')
-        for text in ('AI Assistant', 'Pemasukan', 'Pengeluaran'):
+        for text in ('Tanya Kilas Finance', 'Pemasukan', 'Pengeluaran'):
             self.assertIn(text, single.get_data(as_text=True))
 
     def test_login_and_feature_gates_unchanged(self):

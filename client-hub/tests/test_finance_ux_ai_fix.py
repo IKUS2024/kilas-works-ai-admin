@@ -112,7 +112,7 @@ class FinanceUXTests(unittest.TestCase):
         self.assertIn('.finance-filter select{width:100%;box-sizing:border-box}', html)
         self.assertIn('@media', html);self.assertIn('min-width:0',html)
 
-    def test_dashboard_currency_picker_and_history_launcher_only(self):
+    def test_dashboard_currency_chart_and_recent_activity(self):
         fxmock=patch('finance_fx.snapshot',return_value={'rates':{'IDR':'1','USD':'16000'},'date':'2026-09-20','source':'test','stale':False});fxmock.start();self.addCleanup(fxmock.stop)
         self.trial()
         finance = __import__('finance_service')
@@ -123,14 +123,12 @@ class FinanceUXTests(unittest.TestCase):
         finance.create_transaction(self.b, 'INCOME', 1500, usd_account, income['id'], '2026-09-17',
             currency='USD', description='USD client payment', actor_user_id=self.uid)
         html = self.client.get(self.url + '?month=2026-09').text
-        self.assertIn('data-cashflow-currency', html)
-        self.assertIn('finance-history-launch', html)
-        self.assertIn('Riwayat Transaksi', html)
-        self.assertNotIn('Jasa foto', html)
-        self.assertNotIn('USD client payment', html)
-        self.assertNotIn('Buka riwayat lengkap', html)
-        self.assertEqual(html.count('data-cashflow-block='), len(finance.get_finance_summaries(
-            self.b, '2026-09-01', '2026-09-17', actor_user_id=self.uid)))
+        self.assertIn('finance-trend-currency', html)
+        self.assertIn('Lihat semua', html)
+        self.assertIn('Jasa foto', html)
+        self.assertIn('USD client payment', html)
+        self.assertIn('finance-trend-data', html)
+        self.assertLessEqual(html.count('class="finance-history-row"'), 5)
 
     def test_transaction_history_is_all_time_and_paginated_ten_per_page(self):
         self.trial()

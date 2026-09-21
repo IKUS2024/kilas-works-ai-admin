@@ -1,0 +1,33 @@
+<section class="finance-metric-grid" aria-label="Ringkasan keuangan">
+{% for kind,label,icon in [('INCOME','Pemasukan','↗'),('EXPENSE','Pengeluaran','↙')] %}
+<a class="finance-metric" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction=kind,**period_query) }}">
+<span class="finance-metric-label"><i aria-hidden="true">{{ icon }}</i>{{ label }}</span>
+{% for row in summaries %}<strong>{{ (row.total_income_minor if kind == 'INCOME' else row.total_expense_minor)|finance_money(row.currency) }}</strong>{% endfor %}
+<small>{{ period_label }}</small><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
+{% endfor %}
+<a class="finance-metric" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,section='recurring',month=month) }}"><span class="finance-metric-label"><i aria-hidden="true">↻</i>Biaya Rutin</span><strong>{{ recurring_items|length }} <em>jadwal</em></strong><small>Jadwal aktif cabang</small><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
+{% if not branch_read_only %}<button type="button" class="finance-metric" data-finance-open="balance-dialog">{% else %}<div class="finance-metric">{% endif %}
+<span class="finance-metric-label"><i aria-hidden="true">▤</i>Rekening</span><strong>{{ accounts|selectattr('is_active')|list|length }} <em>aktif</em></strong><small>Saldo per mata uang di bawah</small><span class="finance-metric-chevron" aria-hidden="true">›</span>{% if not branch_read_only %}</button>{% else %}</div>{% endif %}
+<a class="finance-metric" href="{{ url_for('finance.collections',business_id=business.id,branch_id=selected_branch_id,section='queue') }}"><span class="finance-metric-label"><i aria-hidden="true">≡</i>Piutang</span>{% for row in collection_summary.by_currency %}<strong>{{ row.total_outstanding_minor|finance_money(row.currency) }}</strong>{% else %}<strong>{{ 0|finance_idr }}</strong>{% endfor %}<small>{{ collection_summary.open_invoice_count }} invoice terbuka</small><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
+<a class="finance-metric" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='summary') }}"><span class="finance-metric-label"><i aria-hidden="true">◎</i>Customer</span><strong>{{ customers|length }} <em>customer</em></strong><small>Customer &amp; invoice</small><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
+</section>
+<section class="card finance-available" aria-label="Saldo tersedia">
+<div class="finance-section-heading"><h2>Saldo tersedia</h2><span class="finance-subtle">Sekarang</span></div>
+<div class="finance-native-balances">{% for row in balance_totals %}<div><span>{{ row.currency }}</span><strong>{{ row.balance_minor|finance_money(row.currency) }}</strong></div>{% else %}<p class="finance-subtle">Tambahkan rekening untuk mulai mencatat saldo.</p>{% endfor %}</div>
+<p class="finance-subtle">Saldo awal termasuk saldo rekening, bukan pemasukan. Mata uang ditampilkan terpisah.</p>
+</section>
+<div class="finance-home-columns">
+<section class="card finance-trend" aria-label="Grafik arus kas enam bulan">
+<div class="finance-section-heading"><h2>Arus kas</h2><select id="finance-trend-currency" aria-label="Mata uang grafik">{% for code in dashboard_trend|map(attribute='currency')|unique %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></div>
+<p class="finance-subtle">6 bulan hingga {{ month }} · <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary',start=period_start,end=period_end,as_of=period_end) }}">Lihat laporan ›</a></p>
+<div class="finance-chart-legend"><span>Pemasukan</span><span>Pengeluaran</span></div>
+<div id="finance-trend-chart"></div><p id="finance-trend-empty" class="finance-subtle" hidden>Belum ada arus kas dalam enam bulan ini.</p>
+<details class="finance-chart-data"><summary>Rincian bulanan</summary><div class="finance-chart-table-wrap"><table><thead><tr><th>Bulan</th><th>Mata uang</th><th>Pemasukan</th><th>Pengeluaran</th></tr></thead><tbody>{% for row in dashboard_trend %}<tr><td>{{ row.month }}</td><td>{{ row.currency }}</td><td>{{ row.income_minor|finance_money(row.currency) }}</td><td>{{ row.expense_minor|finance_money(row.currency) }}</td></tr>{% endfor %}</tbody></table></div></details>
+<script type="application/json" id="finance-trend-data">{{ dashboard_trend|tojson }}</script>
+</section>
+<div class="finance-home-side">
+{% if collection_summary.open_invoice_count %}<section class="card finance-attention"><h2>Perlu perhatian</h2>{% if collection_summary.overdue_invoice_count %}<a href="{{ url_for('finance.collections',business_id=business.id,branch_id=selected_branch_id,section='queue',view='overdue') }}"><strong>{{ collection_summary.overdue_invoice_count }} invoice terlambat</strong><span>Periksa jatuh tempo ›</span></a>{% endif %}<a href="{{ url_for('finance.collections',business_id=business.id,branch_id=selected_branch_id,section='queue') }}"><strong>{{ collection_summary.open_invoice_count }} invoice belum lunas</strong><span>Lihat piutang ›</span></a></section>{% endif %}
+<a class="card finance-ai-card" href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}"><span class="finance-eyebrow">AI FINANCE <span aria-hidden="true">✦</span></span><h2>Tanya Kilas Finance <span aria-hidden="true">›</span></h2><p>“Berapa pengeluaran bulan ini?”</p><small>Buat invoice customer · Catat pengeluaran hari ini</small></a>
+</div></div>
+<section class="card finance-recent"><div class="finance-section-heading"><h2>Aktivitas terbaru</h2><a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',page=1) }}">Lihat semua ›</a></div>
+<div class="finance-history-list">{% for t in recent_activity %}<article class="finance-history-row"><div class="finance-history-main"><div class="finance-history-title">{{ t.description or ('Pemasukan' if t.direction == 'INCOME' else 'Pengeluaran') }}</div><div class="finance-history-meta">{{ t.occurred_on }} · {{ account_map.get(t.account_id,{}).get('name','Rekening') }}</div></div><strong class="finance-history-amount {{ 'income' if t.direction == 'INCOME' else 'expense' }}">{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.amount_minor|finance_money(t.currency) }}</strong></article>{% else %}<p class="finance-empty">Belum ada transaksi. Mulai lewat ＋ Transaksi atau Tanya Kilas Finance.</p>{% endfor %}</div></section>

@@ -81,7 +81,7 @@ class FinanceUITests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+'/transactions',data=self.data(description='Sale')).status_code,303)
         self.assertEqual(self.client.post(self.url+'/transactions',data=self.data('EXPENSE',amount='250000')).status_code,303)
         html = self.client.get(self.url+'?month=2026-09').get_data(as_text=True)
-        for text in ('Rp1.250.000','Rp250.000','Rp1.000.000','Arus Kas Periode'): self.assertIn(text,html)
+        for text in ('Rp1.250.000','Rp250.000','Rp1.000.000','Arus kas'): self.assertIn(text,html)
         self.assertEqual(len(finance.list_transactions(self.bid)), 2)
         self.assertEqual(finance.list_transactions(self.bid)[0]['created_by_user_id'], self.uid)
 
@@ -174,7 +174,7 @@ class FinanceUITests(unittest.TestCase):
         self.start();html=self.client.get(self.url).get_data(as_text=True)
         tags=[]
         parser=HTMLParser();parser.handle_starttag=lambda tag,attrs:tags.append(tag);parser.feed(html)
-        self.assertNotIn('table',tags)
+        self.assertIn('finance-chart-table-wrap',html)  # chart details scroll independently
         self.assertIn('minmax(min(100%,240px),1fr)',html)
         self.assertIn('Pemasukan',html);self.assertIn('Pengeluaran',html)
         self.assertIn('Pengaturan Finance',html)

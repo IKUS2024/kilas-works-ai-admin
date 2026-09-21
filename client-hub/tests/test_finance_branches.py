@@ -132,7 +132,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(context['summary']['total_expense_minor'], 70)
         self.assertIn('Utama', response.text)
         self.assertNotIn('Semua Cabang', response.text)
-        self.assertIn('Saldo Tersedia Sekarang', response.text)
+        self.assertIn('Saldo tersedia', response.text)
 
     def test_opening_foreign_balance_is_not_period_income_and_is_explained(self):
         with self.scope(self.ba):
@@ -151,7 +151,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(usd_balance['balance_minor'], 10000)
         self.assertEqual(context['balance_total'], 1000000)
         self.assertNotIn('Arus kas USD', response.text)
-        for text in ('Arus Kas Periode', 'US$100.00'):
+        for text in ('Arus kas', 'US$100.00'):
             self.assertIn(text, response.text)
 
     def test_missing_fx_rate_never_returns_partial_combined_balance(self):
@@ -204,7 +204,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertEqual(context['selected_branch_id'], self.ba)
         self.assertIn('id="add-transaction"', page.text)
-        self.assertIn('AI Assistant', page.text)
+        self.assertIn('Tanya Kilas Finance', page.text)
         self.assertNotIn('Semua Cabang', page.text)
         self.http.assert_not_called()
 
@@ -481,7 +481,7 @@ class BranchTests(unittest.TestCase):
             self.assertGreaterEqual(len(f.list_categories(empty,'EXPENSE')),1)
         page=self.client.get(url+f'?branch_id={branch["id"]}')
         self.assertEqual(page.status_code,200)
-        for value in ('data-finance-open="add-transaction-dialog"','Pelanggan','Penagihan','Biaya Rutin','Laporan','AI Assistant'):
+        for value in ('data-finance-open="add-transaction-dialog"','Customer','Piutang','Biaya Rutin','Lihat laporan','Tanya Kilas Finance'):
             self.assertIn(value,page.text)
 
     def test_readding_hidden_branch_reactivates_same_record(self):
