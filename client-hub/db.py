@@ -271,6 +271,7 @@ MIGRATIONS = [
     ("0041_finance_category_hierarchy_sqlite.sql", "0041_finance_category_hierarchy_postgres.sql"),
     ("0042_finance_all_currency_two_decimals_sqlite.sql", "0042_finance_all_currency_two_decimals_postgres.sql"),
     ("0043_finance_workspaces_sqlite.sql", "0043_finance_workspaces_postgres.sql"),
+    ("0044_finance_category_workspaces_sqlite.sql", "0044_finance_category_workspaces_postgres.sql"),
 ]
 
 
