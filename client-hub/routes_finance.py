@@ -997,8 +997,29 @@ def void_exchange(business_id,user,business,exchange_id):
 @finance_bp.route('/business/<int:business_id>/finance/categories', methods=['POST'])
 @finance_access
 def create_category(business_id, user, business):
-    return mutate(business_id, lambda: finance.create_category(business_id, request.form.get('direction'),
-        request.form.get('name'), actor_user_id=user['id']), 'Kategori siap digunakan.')
+    direction = request.form.get('direction')
+    name = request.form.get('name')
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            category_id = finance.create_category(
+                business_id, direction, name, actor_user_id=user['id'])
+        except finance.FinanceError as error:
+            return jsonify(error=ERRORS.get(
+                str(error), 'Kategori belum valid. Periksa nama dan coba lagi.')), 400
+        category = next((
+            row for row in finance.list_categories(
+                business_id, direction, actor_user_id=user['id'])
+            if row['id'] == category_id
+        ), None)
+        if category is None:
+            return jsonify(error='Kategori belum bisa dimuat. Coba lagi.'), 409
+        return jsonify(category={
+            'id': category['id'],
+            'name': category['name'],
+            'direction': category['direction'],
+        }), 201
+    return mutate(business_id, lambda: finance.create_category(
+        business_id, direction, name, actor_user_id=user['id']), 'Kategori siap digunakan.')
 
 
 INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dibayar sebagian','PAID':'Lunas','VOID':'Dibatalkan'}
