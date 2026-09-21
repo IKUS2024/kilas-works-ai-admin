@@ -36,6 +36,22 @@ import repo
 
 finance_bp = Blueprint('finance', __name__)
 
+PERSONAL_DISABLED_VIEWS = {
+    # Personal Finance is intentionally manual-only.
+    'assistant','assistant_route','assistant_recognize','assistant_recurring_action',
+    'assistant_message','assistant_review','assistant_confirm','assistant_document',
+    'operator','operator_action',
+    'receipt_new','receipt_analyze','receipt_confirm',
+    'bank_index','bank_new','bank_analyze','bank_detail','bank_review','bank_open',
+    'bank_cancel','bank_decide',
+    # Personal does not use business receivables / invoice workflows.
+    'receivables','create_customer','update_customer','delete_customer','new_invoice',
+    'invoice_detail','issue_invoice','void_invoice','update_invoice_notes',
+    'archive_invoice','restore_invoice','record_payment','invoice_print','invoice_share',
+    'collections','customer_statement','statement_print','statement_share',
+    'collection_reminder',
+}
+
 
 def beta_enabled():
     return os.environ.get('KILAS_FINANCE_BETA', '').strip().lower() in ('true', '1', 'yes', 'on')
@@ -105,6 +121,12 @@ def finance_access(view):
         g.finance_workspace_type = workspace_type
         g.finance_workspace_label = 'Pribadi' if workspace_type == 'PERSONAL' else 'Bisnis'
         g.finance_branch_read_only = branch_id is None or not selected_branch['is_active']
+        if workspace_type == 'PERSONAL' and view.__name__ in PERSONAL_DISABLED_VIEWS:
+            if request.is_json:
+                return jsonify(error='Fitur ini hanya tersedia di Finance Bisnis.'), 403
+            flash('Fitur ini hanya tersedia di Finance Bisnis. Finance Pribadi memakai pencatatan manual.', 'info')
+            return redirect(url_for(
+                'finance.dashboard', business_id=business_id, branch_id=branch_id), code=303)
         if g.finance_branch_read_only and request.method not in ('GET', 'HEAD') and view.__name__ not in ('assistant_message','assistant_recognize'):
             # Setup has no historical branch yet; existing entitlement checks still apply.
             if not branch_list and view.__name__ == 'start' and not choices:
@@ -432,7 +454,8 @@ def enter_workspace(business_id,workspace_type):
                 branch_id=branches.default(business_id,user['id'])
             active=branches.get(
                 business_id,branch_id,active=True,actor_user_id=user['id'])
-            with branches.scope(business_id,branch_id,user['id']):
+        if entitlement.state(business_id)['active']:
+            with branches.scope(business_id,active['id'],user['id']):
                 finance.ensure_finance_defaults(
                     business_id,actor_user_id=user['id'])
     except finance.FinanceError as error:
@@ -726,6 +749,7 @@ def dashboard(business_id, user, business):
         })
 
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
+    finance_workspace_personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     return render_template('finance_dashboard.html', user=user, business=business,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
@@ -752,15 +776,15 @@ def dashboard(business_id, user, business):
         next_month=next_month if next_month <= current_value else None,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
-        customers=finance.list_customers(business_id, **actor),
-        projects=finance.list_finance_projects(business_id, **actor),
+        customers=[] if finance_workspace_personal else finance.list_customers(business_id, **actor),
+        projects=[] if finance_workspace_personal else finance.list_finance_projects(business_id, **actor),
         payee_names=[row['name'] for row in finance.list_payees(business_id, **actor)],
         initialized=bool(accounts and categories), month=month, month_label=period_label,
         direction=direction, view=view, show_transactions=show_transactions, show_accounts=show_accounts,
         period_years=period_years, selected_year=selected_year,
         current_year=current_year, current_month=current_month,
-        analyst_enabled=finance_analyst.enabled(business_id),
-        operator_enabled=finance_operator.enabled(business_id),
+        analyst_enabled=(False if finance_workspace_personal else finance_analyst.enabled(business_id)),
+        operator_enabled=(False if finance_workspace_personal else finance_operator.enabled(business_id)),
         account_type_options=account_type_options,
         account_type_group_labels=account_type_group_labels,
         today=today_value.isoformat(), account_types=finance.LEGACY_ACCOUNT_TYPE_LABELS)
@@ -2569,9 +2593,16 @@ def update_setting(business_id, user, business, kind, record_id):
             branch_id=g.finance_branch_id or 'all', view='accounts',
             display_currency=display_currency)
     message = 'Dihapus dari daftar aktif. Riwayat lama tetap tersedia.' if deactivate else 'Perubahan disimpan. Riwayat tetap tersedia.'
-    return mutate(business_id, lambda: branches.update_record(business_id, kind, record_id,
-        name=request.form.get('name'), deactivate=deactivate, actor_user_id=user['id']),
-        message, destination)
+    action = (
+        (lambda: finance.update_category_workspace_setting(
+            business_id, record_id, name=request.form.get('name'),
+            deactivate=deactivate, actor_user_id=user['id']))
+        if kind == 'category' else
+        (lambda: branches.update_record(
+            business_id, kind, record_id, name=request.form.get('name'),
+            deactivate=deactivate, actor_user_id=user['id']))
+    )
+    return mutate(business_id, action, message, destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/edit', methods=['GET', 'POST'])
