@@ -62,6 +62,113 @@ def normalize_phone_digits(value):
     return digits if re.fullmatch(r'\d{6,20}', digits) else None
 
 
+def discover_migration_phone_assets():
+    """Migration-only discovery of the exact Kilas Works display number across provider WABAs.
+
+    Safe diagnostics only: never logs tokens, PINs, customer messages, raw Meta bodies, or unrelated
+    phone numbers. Returns matching Meta asset metadata for the expected migration number.
+    """
+    if (os.environ.get("PLATFORM_WA_MIGRATION_RESUME") or "").strip().lower() != "true":
+        return []
+    expected = normalize_phone_digits(os.environ.get("PLATFORM_WA_MIGRATION_DISPLAY_NUMBER"))
+    business_id = (os.environ.get("META_PROVIDER_BUSINESS_ID") or "").strip()
+    admin_token = (os.environ.get("META_PROVIDER_ADMIN_ACCESS_TOKEN") or "").strip()
+    runtime_token = (os.environ.get("WHATSAPP_ACCESS_TOKEN") or "").strip()
+    version = (os.environ.get("META_GRAPH_API_VERSION") or "v21.0").strip()
+
+    if not expected:
+        print("PLATFORM_WA_HUB_DISCOVERY skipped reason=expected_number_missing")
+        return []
+    if not re.fullmatch(r"\d{1,32}", business_id) or not admin_token:
+        print("PLATFORM_WA_HUB_DISCOVERY skipped reason=provider_business_or_admin_token_missing")
+        return []
+
+    base = f"https://graph.facebook.com/{version}/"
+    waba_ids = set()
+    for edge in ("owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"):
+        try:
+            response = requests.get(
+                base + business_id + "/" + edge,
+                headers={"Authorization": "Bearer " + admin_token},
+                params={"fields": "id", "limit": 100},
+                timeout=(3, 10),
+                allow_redirects=False,
+            )
+            try:
+                data = response.json()
+            except ValueError:
+                data = None
+            if response.status_code == 200 and isinstance(data, dict) and "error" not in data:
+                rows = data.get("data") or []
+                for row in rows:
+                    candidate = str((row or {}).get("id") or "")
+                    if re.fullmatch(r"\d{1,32}", candidate):
+                        waba_ids.add(candidate)
+                print(f"PLATFORM_WA_HUB_DISCOVERY edge={edge} result=ok count={len(rows)}")
+            else:
+                error = data.get("error") if isinstance(data, dict) else None
+                code = error.get("code") if isinstance(error, dict) else None
+                subcode = error.get("error_subcode") if isinstance(error, dict) else None
+                print(
+                    f"PLATFORM_WA_HUB_DISCOVERY edge={edge} result=failed "
+                    f"http={int(response.status_code)} code={code} subcode={subcode}"
+                )
+        except requests.RequestException:
+            print(f"PLATFORM_WA_HUB_DISCOVERY edge={edge} result=network_error")
+
+    matches = []
+    for waba_id in sorted(waba_ids)[:50]:
+        rows = None
+        for token in (runtime_token, admin_token):
+            if not token:
+                continue
+            try:
+                response = requests.get(
+                    base + waba_id + "/phone_numbers",
+                    headers={"Authorization": "Bearer " + token},
+                    params={
+                        "fields": "id,display_phone_number,status,is_on_biz_app,platform_type",
+                        "limit": 100,
+                    },
+                    timeout=(3, 10),
+                    allow_redirects=False,
+                )
+                try:
+                    data = response.json()
+                except ValueError:
+                    data = None
+                if response.status_code == 200 and isinstance(data, dict) and "error" not in data:
+                    rows = data.get("data") or []
+                    break
+            except requests.RequestException:
+                data = None
+        if rows is None:
+            continue
+        for row in rows:
+            digits = normalize_phone_digits((row or {}).get("display_phone_number"))
+            if digits != expected:
+                continue
+            phone_id = str((row or {}).get("id") or "")
+            if not re.fullmatch(r"\d{1,32}", phone_id):
+                continue
+            match = {
+                "waba_id": waba_id,
+                "phone_number_id": phone_id,
+                "status": (row or {}).get("status"),
+                "is_on_biz_app": (row or {}).get("is_on_biz_app"),
+                "platform_type": (row or {}).get("platform_type"),
+            }
+            matches.append(match)
+            print(
+                "PLATFORM_WA_HUB_DISCOVERY match "
+                f"waba_id={waba_id} phone_number_id={phone_id} "
+                f"status={match['status']} is_on_biz_app={match['is_on_biz_app']} "
+                f"platform_type={match['platform_type']}"
+            )
+    print(f"PLATFORM_WA_HUB_DISCOVERY done wabas={len(waba_ids)} matches={len(matches)}")
+    return matches
+
+
 def _platform_bot_base_url():
     explicit = (os.environ.get('KILAS_BOT_INTERNAL_URL') or '').strip()
     if not explicit:
