@@ -63,7 +63,7 @@ def visible_options(b,u):
     pools={
         'customer':flow.f.list_customers(b,actor_user_id=u),
         'account':flow.f.list_accounts(b,actor_user_id=u),
-        'category':flow.f.list_categories(b,actor_user_id=u),
+        'category':flow.f.list_categories(b,include_children=True,actor_user_id=u),
         'project':flow.f.list_finance_projects(b,actor_user_id=u),
         'branch':flow.branches.list_branches(b,u),
         'invoice':flow.f.list_finance_invoices(b,actor_user_id=u),
@@ -91,9 +91,11 @@ def safe_context(b,u,previous,context=None,current=None):
         state['previous_query']={k:v for k,v in plan.items() if k not in ('transaction','exchange','entity_refs')}
         for key,ident in plan.get('entity_refs',{}).items():
             rows=({'customer':flow.f.list_customers,'account':flow.f.list_accounts,
-                   'category':flow.f.list_categories,'project':flow.f.list_finance_projects}.get(key))
-            if rows:
-                row=next((r for r in rows(b,actor_user_id=u) if r['id']==ident),None)
+                   'project':flow.f.list_finance_projects}.get(key))
+            records=(flow.f.list_categories(b,include_children=True,actor_user_id=u)
+                     if key=='category' else (rows(b,actor_user_id=u) if rows else []))
+            if records:
+                row=next((r for r in records if r['id']==ident),None)
                 state['previous_query'][key]=(row.get('name') or row.get('title')) if row else '[tidak tersedia]'
     if previous.get('command'):state['previous_command']={'operation':previous['command']['operation'],'missing_field':'target','values':previous['command'].get('slots',{})}
     customer=live.customer(b,u,previous)
