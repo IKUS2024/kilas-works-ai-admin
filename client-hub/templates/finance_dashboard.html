@@ -424,7 +424,15 @@
 <label for="transaction-amount">Nominal <span data-currency-label>IDR</span></label><input id="transaction-amount" name="amount" inputmode="decimal" data-currency-amount maxlength="25" autocomplete="off" required><p class="muted" data-currency-help>Nominal mengikuti mata uang akun yang dipilih.</p>
 <label for="transaction-date">Tanggal</label><input id="transaction-date" name="occurred_on" type="date" value="{{ today }}" max="{{ today }}" required>
 <p class="muted">Pilih tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · pembayaran digital → GoPay.</p>
+<div class="finance-category-quick" data-category-quick-add data-category-create-url="{{ url_for('finance.create_category',business_id=business.id) }}" data-category-branch="{{ selected_branch_id }}">
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
+<button type="button" class="finance-category-add-toggle" data-category-add-toggle>＋ Tambah kategori</button>
+<div class="finance-category-quick-panel" data-category-add-panel hidden>
+  <label class="finance-category-quick-label">Nama kategori <small data-category-kind>Pengeluaran</small><input type="text" data-category-name maxlength="160" autocomplete="off" placeholder="Contoh: Sewa Studio"></label>
+  <div class="finance-category-quick-actions"><button type="button" class="finance-mini-action" data-category-save>Tambah &amp; pilih</button><button type="button" class="finance-mini-action" data-category-cancel>Batal</button></div>
+  <p class="finance-category-quick-status" data-category-status aria-live="polite"></p>
+</div>
+</div>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
 <label>Penerima / sumber<input name="counterparty_name" list="finance-payee-options" maxlength="160" placeholder="Contoh: Vendor A atau Client B"></label>
 <datalist id="finance-payee-options">{% for name in payee_names %}<option value="{{ name }}">{% endfor %}</datalist>
