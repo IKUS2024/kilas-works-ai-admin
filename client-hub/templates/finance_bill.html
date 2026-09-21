@@ -11,7 +11,7 @@
 
   <section class="card">
     <div class="client-stats">
-      <div class="client-stat" style="grid-column:span 2;"><strong>{{ bill.amount_minor|finance_idr }}</strong><span>Total</span></div>
+      <div class="client-stat" style="grid-column:span 2;"><strong>{{ bill.amount_minor|finance_money('IDR') }}</strong><span>Total</span></div>
       <div class="client-stat"><strong>{{ bill.currency }}</strong><span>Mata uang</span></div>
     </div>
     <p class="client-note">Langganan aplikasi Finance. Bukan invoice pelanggan dan tidak masuk sebagai transaksi Finance.</p>
