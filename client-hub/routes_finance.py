@@ -381,6 +381,7 @@ def dashboard(business_id, user, business):
         item['idr_estimate_minor'] = finance_fx.to_idr(item['balance_minor'], item['currency'], fx)
 
     show_transactions = view == 'transactions'
+    show_accounts = view == 'accounts'
     transaction_page_size = 10
     transaction_page = 1
     transaction_total = 0
@@ -449,7 +450,7 @@ def dashboard(business_id, user, business):
     dashboard_trend = []
     recent_activity = []
     recurring_items = []
-    if not show_transactions:
+    if not show_transactions and not show_accounts:
         dashboard_trend = finance.get_monthly_cashflow_trends(
             business_id, month_at(max(12, month_index - 5)), month,
             end_date=min(period(month)[1], today_value.isoformat()), **actor)
@@ -480,7 +481,7 @@ def dashboard(business_id, user, business):
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
         initialized=bool(accounts and categories), month=month, month_label=period_label,
-        direction=direction, show_transactions=show_transactions,
+        direction=direction, view=view, show_transactions=show_transactions, show_accounts=show_accounts,
         period_years=period_years, selected_year=selected_year,
         current_year=current_year, current_month=current_month,
         analyst_enabled=finance_analyst.enabled(business_id),
@@ -520,7 +521,19 @@ def create_transaction(business_id, user, business):
             description=transaction_note(business_id,request.form),counterparty_name=request.form.get('counterparty_name'),
             customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,actor_user_id=user['id'])
-    return mutate(business_id,action,'Transaksi dicatat.')
+    destination = None
+    return_direction = (request.form.get('return_direction') or '').strip()
+    return_month = (request.form.get('return_month') or '').strip()
+    if return_direction in finance.DIRECTIONS and return_month <= finance.business_today(business_id).strftime('%Y-%m'):
+        try:
+            period(return_month)
+        except (ValueError, finance.FinanceError):
+            pass
+        else:
+            destination = url_for('finance.dashboard', business_id=business_id,
+                                  branch_id=g.finance_branch_id or 'all', period_mode='month',
+                                  month=return_month, view='transactions', direction=return_direction)
+    return mutate(business_id,action,'Transaksi dicatat.',destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/void', methods=['POST'])
@@ -548,10 +561,13 @@ def reset_finance(business_id, user, business):
 @finance_access
 def create_account(business_id,user,business):
     currency=request.form.get('currency','IDR')
+    destination = (url_for('finance.dashboard',business_id=business_id,
+                           branch_id=g.finance_branch_id or 'all',view='accounts')
+                   if request.form.get('return_view') == 'accounts' else None)
     return mutate(business_id,lambda:finance.create_account(business_id,request.form.get('name'),
         request.form.get('account_type'),currency=currency,
         opening_balance_minor=currency_amount(request.form.get('opening_balance','0'),currency,signed=True),
-        actor_user_id=user['id']),'Kas / rekening siap digunakan.')
+        actor_user_id=user['id']),'Kas / rekening siap digunakan.',destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/exchanges',methods=['POST'])

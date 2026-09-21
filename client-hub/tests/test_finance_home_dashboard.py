@@ -62,4 +62,30 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Belum ada transaksi.',html)
         self.assertEqual(context['recurring_items'],[])
 
+    def test_income_view_is_month_scoped_and_has_add_action(self):
+        fixture.f.create_transaction(self.b,'INCOME',250000,self.a,self.cat,
+            '2026-09-09',description='Retainer September',actor_user_id=self.uid)
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.create_transaction(self.b,'EXPENSE',99000,self.a,expense_cat,
+            '2026-09-10',description='Office expense',actor_user_id=self.uid)
+        html,context=self.page('?month=2026-09&view=transactions&direction=INCOME')
+        self.assertEqual(context['transaction_total'],1)
+        self.assertEqual(context['view'],'transactions')
+        self.assertIn('＋ Tambah Pemasukan',html)
+        self.assertIn('Retainer September',html)
+        self.assertNotIn('Office expense',html)
+        self.assertIn('name="return_direction" value="INCOME"',html)
+        self.assertIn('Transaksi pemasukan',html)
+
+    def test_accounts_view_uses_live_balance_report_not_dashboard_cards(self):
+        account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
+        html,context=self.page('?month=2026-09&view=accounts')
+        self.assertTrue(context['show_accounts'])
+        self.assertIn('Kas &amp; Rekening',html)
+        self.assertIn(account['name'],html)
+        self.assertIn('Saldo tersedia',html)
+        self.assertIn('Saldo awal',html)
+        self.assertNotIn('id="finance-trend-data"',html)
+        self.assertNotIn('Tanya Kilas Finance',html)
+
 if __name__=='__main__': unittest.main()

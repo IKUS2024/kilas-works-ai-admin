@@ -1,14 +1,17 @@
 <div class="fin-area-nav no-print">
   <a class="fin-back-link" href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
   <nav class="fin-area-tabs" aria-label="Navigasi area Finance">
+    <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='INCOME') }}">Pemasukan</a>
+    <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='EXPENSE') }}">Pengeluaran</a>
+    <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='accounts') }}">Rekening</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='receivables' else '' }}"
        href="{{ url_for('finance.receivables',business_id=business.id) }}"
-       {% if active_finance_area=='receivables' %}aria-current="page"{% endif %}>Pelanggan &amp; Piutang</a>
+       {% if active_finance_area=='receivables' %}aria-current="page"{% endif %}>Customer &amp; Piutang</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='operations' else '' }}"
        href="{{ url_for('finance.operations',business_id=business.id) }}"
-       {% if active_finance_area=='operations' %}aria-current="page"{% endif %}>Biaya Rutin &amp; Proyek</a>
+       {% if active_finance_area=='operations' %}aria-current="page"{% endif %}>Tagihan &amp; Rutin</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='reports' else '' }}"
        href="{{ url_for('finance.reports',business_id=business.id) }}"
-       {% if active_finance_area=='reports' %}aria-current="page"{% endif %}>Laporan &amp; Export</a>
+       {% if active_finance_area=='reports' %}aria-current="page"{% endif %}>Laporan</a>
   </nav>
 </div>

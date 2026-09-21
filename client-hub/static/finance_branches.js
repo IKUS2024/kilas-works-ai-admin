@@ -52,6 +52,14 @@ for (const trigger of document.querySelectorAll('[data-finance-open]')) {
   trigger.addEventListener('click', () => {
     const dialog = document.getElementById && document.getElementById(id);
     if (!dialog) return;
+    const forcedDirection = trigger.dataset && trigger.dataset.transactionDirection;
+    if (forcedDirection && dialog.id === 'add-transaction-dialog') {
+      const kind = dialog.querySelector('[name="direction"]');
+      if (kind && (forcedDirection === 'INCOME' || forcedDirection === 'EXPENSE')) {
+        kind.value = forcedDirection;
+        kind.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+    }
     if (typeof dialog.showModal === 'function') dialog.showModal();
     else dialog.setAttribute('open', '');
     const focusable = dialog.querySelector && dialog.querySelector('input:not([type="hidden"]),select,textarea,button');
@@ -136,6 +144,12 @@ if (typeof window !== 'undefined' && typeof URLSearchParams !== 'undefined') {
     if (params.get('open_manual') === '1') {
       const dialog = document.getElementById && document.getElementById('add-transaction-dialog');
       if (dialog) {
+        const forcedDirection = params.get('direction');
+        const kind = dialog.querySelector && dialog.querySelector('[name="direction"]');
+        if (kind && (forcedDirection === 'INCOME' || forcedDirection === 'EXPENSE')) {
+          kind.value = forcedDirection;
+          kind.dispatchEvent(new Event('change', {bubbles:true}));
+        }
         if (typeof dialog.showModal === 'function') dialog.showModal();
         else dialog.setAttribute('open', '');
         const focusable = dialog.querySelector && dialog.querySelector('input:not([type="hidden"]),select,textarea,button');
