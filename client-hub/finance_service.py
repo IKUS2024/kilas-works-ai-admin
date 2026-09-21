@@ -304,6 +304,8 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
 
 def _insert_transaction(business_id, data, actor_user_id):
     """Caller already holds the business lock; used by atomic Finance payment posting."""
+    if data['direction'] == 'EXPENSE' and data.get('counterparty_name'):
+        _ensure_payee(business_id, data['branch_id'], data['counterparty_name'], actor_user_id)
     now = repo._now()
     record_id = db.insert_returning_id(
         'INSERT INTO finance_transactions (business_id,branch_id,' + ','.join(FIELDS) +
@@ -518,8 +520,48 @@ def _money_sum():
     return 'finance_integer_sum'
 
 
+def _ensure_payee(business_id, branch_id, name, actor_user_id):
+    """Create/reactivate one branch-scoped payee while the caller already holds Finance's write lock."""
+    name = _text(name, 160, True)
+    branches.get(business_id, branch_id, active=True)
+    row = db.query_one(
+        'SELECT id,is_active FROM finance_payees WHERE business_id=? AND branch_id=? AND name=?',
+        (business_id, branch_id, name))
+    if row:
+        if not row['is_active']:
+            db.execute(
+                'UPDATE finance_payees SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                (repo._now(), business_id, row['id']))
+            _audit(business_id, actor_user_id, 'FINANCE_PAYEE_REACTIVATED', row['id'])
+        return row['id']
+    now = repo._now()
+    payee_id = db.insert_returning_id(
+        'INSERT INTO finance_payees '
+        '(business_id,branch_id,name,is_active,created_by_user_id,created_at,updated_at) '
+        'VALUES (?,?,?,TRUE,?,?,?)',
+        (business_id, branch_id, name, actor_user_id, now, now))
+    _audit(business_id, actor_user_id, 'FINANCE_PAYEE_CREATED', payee_id)
+    return payee_id
+
+
+def create_payee(business_id, name, *, actor_user_id=None):
+    """HomeBudget-style manual Payee creation; no ledger transaction is posted."""
+    name = _text(name, 160, True)
+    with _write(business_id, actor_user_id):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        return _ensure_payee(business_id, branch_id, name, actor_user_id)
+
+
+def list_payees(business_id, include_inactive=False, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    sql = ('SELECT * FROM finance_payees WHERE business_id=?' + branches.predicate(''))
+    if not include_inactive:
+        sql += ' AND is_active=TRUE'
+    return db.query_all(sql + ' ORDER BY name,id', (business_id,))
+
+
 def list_payee_summaries(business_id, start_date=None, end_date=None, *, actor_user_id=None):
-    """Expense counterparties grouped like HomeBudget Payees, without inventing a parallel ledger."""
+    """HomeBudget-style Payees plus their expense totals; manual payees can exist before first payment."""
     _scope(business_id, actor_user_id)
     where = ("business_id=?" + branches.predicate("") +
              " AND status='POSTED' AND direction='EXPENSE' " +
@@ -543,6 +585,16 @@ def list_payee_summaries(business_id, start_date=None, end_date=None, *, actor_u
         row['total_minor'] = int(row['total_minor'])
         row['transaction_count'] = int(row['transaction_count'])
         _currency(row['currency'])
+
+    # A Payee is master data, not a fake Rp0 ledger entry. For presentation only,
+    # emit a zero-total IDR summary when it has never been used yet.
+    active_payees = list_payees(business_id, actor_user_id=actor_user_id)
+    names_with_transactions = {row['name'] for row in rows}
+    for payee in active_payees:
+        if payee['name'] not in names_with_transactions:
+            rows.append(dict(
+                payee_id=payee['id'], name=payee['name'], currency='IDR',
+                total_minor=0, transaction_count=0, last_paid_on=None))
     return rows
 
 
