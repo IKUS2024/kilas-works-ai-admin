@@ -10,6 +10,33 @@ import db
 import repo
 
 _current = ContextVar('finance_branch', default=None)
+WORKSPACE_TYPES = ('BUSINESS', 'PERSONAL')
+
+
+def workspace(value):
+    value = (value or 'BUSINESS').strip().upper() if isinstance(value, str) else value
+    if value not in WORKSPACE_TYPES:
+        error('workspace_unavailable')
+    return value
+
+
+def _workspace_row(business_id, branch_id):
+    row = db.query_one(
+        'SELECT workspace_type,owner_user_id FROM finance_branch_workspaces '
+        'WHERE business_id=? AND branch_id=?',
+        (business_id, branch_id))
+    return row or {'workspace_type':'BUSINESS','owner_user_id':None}
+
+
+def _enrich(row):
+    if row is None:
+        return None
+    item = dict(row)
+    meta = _workspace_row(item['business_id'], item['id'])
+    item['workspace_type'] = meta['workspace_type']
+    item['owner_user_id'] = meta['owner_user_id']
+    item['display_name'] = 'Pribadi' if item['workspace_type'] == 'PERSONAL' else item['name']
+    return item
 
 
 def error(code):
@@ -17,11 +44,19 @@ def error(code):
     raise FinanceError(code)
 
 
-def get(business_id, branch_id, active=False):
+def get(business_id, branch_id, active=False, actor_user_id=None):
     from finance_service import _id
     row = db.query_one('SELECT * FROM finance_branches WHERE business_id=? AND id=?',
                        (business_id, _id(branch_id)))
     if not row or (active and not row['is_active']):
+        error('branch_unavailable')
+    row = _enrich(row)
+    context = _current.get()
+    actor = actor_user_id
+    if actor is None and context and context[0] == business_id:
+        actor = context[2]
+    if row['workspace_type'] == 'PERSONAL' and (
+            actor is None or int(row['owner_user_id']) != int(actor)):
         error('branch_unavailable')
     return row
 
@@ -36,7 +71,7 @@ def validate(business_id, write=False):
         if write:
             error('all_branches_read_only')
     else:
-        get(business_id, context[1], active=write)
+        get(business_id, context[1], active=write, actor_user_id=context[2])
 
 
 @contextmanager
@@ -47,8 +82,8 @@ def scope(business_id, branch_id, actor_user_id=None):
     try:
         _scope(business_id, actor_user_id)
         if branch_id is not None:
-            get(business_id, branch_id)
-        _current.set((business_id, branch_id))
+            get(business_id, branch_id, actor_user_id=actor_user_id)
+        _current.set((business_id, branch_id, actor_user_id))
         yield
     finally:
         _current.reset(previous)
@@ -69,31 +104,95 @@ def predicate(alias=''):
     return ' AND ' + column + '=' + str(_id(context[1])) + ' '
 
 
-def list_branches(business_id, actor_user_id=None):
+def list_branches(business_id, actor_user_id=None, workspace_type=None):
     from finance_service import _scope
     _scope(business_id, actor_user_id)
-    return db.query_all('SELECT * FROM finance_branches WHERE business_id=? ORDER BY id', (business_id,))
+    context = _current.get()
+    if workspace_type is None and context and context[0] == business_id and context[1] is not None:
+        workspace_type = get(
+            business_id, context[1], actor_user_id=context[2])['workspace_type']
+    workspace_type = workspace(workspace_type or 'BUSINESS')
+    if workspace_type == 'PERSONAL':
+        if actor_user_id is None:
+            error('branch_unavailable')
+        rows = db.query_all(
+            '''SELECT b.* FROM finance_branches b
+               JOIN finance_branch_workspaces w
+                 ON w.business_id=b.business_id AND w.branch_id=b.id
+               WHERE b.business_id=? AND w.workspace_type='PERSONAL'
+                 AND w.owner_user_id=? ORDER BY b.id''',
+            (business_id, actor_user_id))
+    else:
+        rows = db.query_all(
+            '''SELECT b.* FROM finance_branches b
+               LEFT JOIN finance_branch_workspaces w
+                 ON w.business_id=b.business_id AND w.branch_id=b.id
+               WHERE b.business_id=?
+                 AND COALESCE(w.workspace_type,'BUSINESS')='BUSINESS'
+               ORDER BY b.id''',
+            (business_id,))
+    return [_enrich(row) for row in rows]
 
 
 def default(business_id, actor_user_id=None):
-    """Called only inside the existing business write lock; deterministic legacy branch."""
-    row = db.query_one('SELECT * FROM finance_branches WHERE business_id=? AND is_default=TRUE', (business_id,))
+    """Legacy/default Finance always belongs to the Business workspace."""
+    rows = list_branches(business_id, actor_user_id, workspace_type='BUSINESS')
+    row = next((item for item in rows if item['is_default']), None)
     if row:
         return row['id']
     now = repo._now()
     branch_id = db.insert_returning_id('INSERT INTO finance_branches '
         '(business_id,name,is_default,created_at,updated_at) VALUES (?,?,TRUE,?,?)',
         (business_id, 'Utama', now, now))
+    db.execute(
+        'INSERT INTO finance_branch_workspaces '
+        '(business_id,branch_id,workspace_type,owner_user_id,created_at) VALUES (?,?,?,NULL,?)',
+        (business_id, branch_id, 'BUSINESS', now))
     from finance_service import _audit
     _audit(business_id, actor_user_id, 'FINANCE_BRANCH_CREATED', branch_id)
     return branch_id
+
+
+def ensure_personal(business_id, actor_user_id):
+    """Create one owner-private Personal workspace on explicit entry."""
+    from finance_service import _write, _audit, _create_account
+    if actor_user_id is None:
+        error('branch_unavailable')
+    with _write(business_id, actor_user_id):
+        rows = list_branches(
+            business_id, actor_user_id, workspace_type='PERSONAL')
+        if rows:
+            row = next((item for item in rows if item['is_active']), rows[0])
+            if not row['is_active']:
+                db.execute(
+                    'UPDATE finance_branches SET is_active=TRUE,updated_at=? '
+                    'WHERE business_id=? AND id=?',
+                    (repo._now(), business_id, row['id']))
+            return row['id']
+        now = repo._now()
+        # Stored name is unique inside the business; UI always displays "Pribadi".
+        stored_name = 'Pribadi · ' + str(actor_user_id)
+        branch_id = db.insert_returning_id(
+            'INSERT INTO finance_branches '
+            '(business_id,name,is_default,created_at,updated_at) VALUES (?,?,FALSE,?,?)',
+            (business_id, stored_name, now, now))
+        db.execute(
+            'INSERT INTO finance_branch_workspaces '
+            '(business_id,branch_id,workspace_type,owner_user_id,created_at) VALUES (?,?,?,?,?)',
+            (business_id, branch_id, 'PERSONAL', actor_user_id, now))
+        _audit(business_id, actor_user_id, 'FINANCE_PERSONAL_WORKSPACE_CREATED', branch_id)
+        _create_account(
+            business_id, 'Kas', 'CASH', 'IDR', 0, actor_user_id,
+            branch_id=branch_id)
+        return branch_id
 
 
 def write_branch(business_id, actor_user_id=None):
     validate(business_id, write=True)
     context = _current.get()
     branch_id = context[1] if context else default(business_id, actor_user_id)
-    get(business_id, branch_id, active=True)
+    actor = context[2] if context else actor_user_id
+    get(business_id, branch_id, active=True, actor_user_id=actor)
     return branch_id
 
 
@@ -107,7 +206,8 @@ def account_branch(business_id, account_id):
     context = _current.get()
     if context and context[1] != row['branch_id']:
         error('account_unavailable')
-    get(business_id, row['branch_id'], active=True)
+    actor = context[2] if context else None
+    get(business_id, row['branch_id'], active=True, actor_user_id=actor)
     return row['branch_id']
 
 
@@ -130,9 +230,21 @@ def check_token(business_id, branch_id):
 
 def create_branch(business_id, name, actor_user_id=None):
     from finance_service import _write, _text, _audit, _create_account
+    context = _current.get()
+    workspace_type = (
+        get(business_id, context[1], actor_user_id=context[2])['workspace_type']
+        if context and context[1] is not None else 'BUSINESS')
+    if workspace_type != 'BUSINESS':
+        error('workspace_branch_locked')
     name = _text(name, 160, True)
     with _write(business_id, actor_user_id):
-        existing = db.query_one('SELECT id,is_active FROM finance_branches WHERE business_id=? AND name=?', (business_id, name))
+        existing = db.query_one(
+            '''SELECT b.id,b.is_active FROM finance_branches b
+               LEFT JOIN finance_branch_workspaces w
+                 ON w.business_id=b.business_id AND w.branch_id=b.id
+               WHERE b.business_id=? AND b.name=?
+                 AND COALESCE(w.workspace_type,'BUSINESS')='BUSINESS' ''',
+            (business_id, name))
         if existing:
             if not existing['is_active']:
                 db.execute('UPDATE finance_branches SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
@@ -140,8 +252,13 @@ def create_branch(business_id, name, actor_user_id=None):
                 _audit(business_id, actor_user_id, 'FINANCE_BRANCH_REACTIVATED', existing['id'])
             return existing['id']
         now = repo._now()
-        branch_id = db.insert_returning_id('INSERT INTO finance_branches (business_id,name,created_at,updated_at) VALUES (?,?,?,?)',
-                                          (business_id, name, now, now))
+        branch_id = db.insert_returning_id(
+            'INSERT INTO finance_branches (business_id,name,created_at,updated_at) VALUES (?,?,?,?)',
+            (business_id, name, now, now))
+        db.execute(
+            'INSERT INTO finance_branch_workspaces '
+            '(business_id,branch_id,workspace_type,owner_user_id,created_at) VALUES (?,?,?,NULL,?)',
+            (business_id, branch_id, 'BUSINESS', now))
         _audit(business_id, actor_user_id, 'FINANCE_BRANCH_CREATED', branch_id)
         _create_account(business_id, 'Kas', 'CASH', 'IDR', 0, actor_user_id, branch_id=branch_id)
         return branch_id
