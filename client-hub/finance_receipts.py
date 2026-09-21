@@ -31,9 +31,8 @@ Return exactly one JSON object with these exact keys:
 "currency":string|null,"receipt_number":string|null,"description":string|null,
 "suggested_category_name":string|null,"readable":boolean}.
 Use null when absent, unclear or ambiguous. Date must be exact YYYY-MM-DD; never guess a year.
-For IDR and JPY total_minor is the positive whole-unit final paid total. For USD, SGD, MYR, EUR,
-GBP, AUD, CNY, HKD and THB total_minor is the final paid total in minor units (for example USD
-12.34 => 1234). Never perform FX conversion. Do not mistake subtotal, tax, change or account
+For every supported currency total_minor is the final paid total stored at two decimal places.
+Examples: IDR 12.34 => 1234, USD 12.34 => 1234. Never perform FX conversion. Do not mistake subtotal, tax, change or account
 numbers for the total. Currency must be one of the supported ISO codes and visible or clearly
 identified on the receipt; otherwise null.
 Merchant max 160 chars, receipt number max 120, factual description max 500.
