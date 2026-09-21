@@ -16,12 +16,13 @@
 <section class="card finance-scope-card" aria-label="Cabang Finance">
   <div class="finance-scope-head">
     <div>
-      <span class="finance-scope-kicker">Ruang kerja Finance</span>
-      <strong class="finance-scope-business">{{ business.business_name }}</strong>
+      <span class="finance-scope-kicker">Kilas Finance · {{ finance_workspace_label }}</span>
+      <strong class="finance-scope-business">{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</strong>
     </div>
-    <span class="finance-scope-chip">{{ selected_branch.name if selected_branch else 'Pilih Cabang' }}</span>
+    <a class="finance-scope-chip" href="{{ url_for('finance.workspace_choice',business_id=finance_branch_business_id) }}">{{ finance_workspace_label }} · Ganti</a>
   </div>
 
+  {% if not finance_workspace_personal %}
   {% set branch_destination = request.endpoint if request.endpoint in ('finance.dashboard','finance.reports','finance.collections','finance.operations','finance.receivables','finance.bank_index','finance.assistant') else 'finance.dashboard' %}
   <form method="get" action="{{ url_for(branch_destination,business_id=finance_branch_business_id) }}" class="finance-scope-form">
     {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
@@ -31,8 +32,11 @@
     </select>
     <noscript><button class="btn secondary finance-scope-noscript">Gunakan Cabang</button></noscript>
   </form>
-
-  <p class="finance-scope-help">Setiap cabang berdiri sendiri. Data cabang lain tidak digabung ke cabang yang sedang dipilih.</p>
+  <p class="finance-scope-help">Setiap cabang bisnis berdiri sendiri. Data cabang lain tidak digabung ke cabang yang sedang dipilih.</p>
   {% if selected_branch %}<p class="finance-scope-status" role="status">Cabang aktif: <strong>{{ selected_branch.name }}</strong>.</p>{% endif %}
+  {% else %}
+  <p class="finance-scope-help">Ruang Pribadi khusus akunmu dan terpisah dari data Finance Bisnis.</p>
+  <p class="finance-scope-status" role="status">Ruang aktif: <strong>Pribadi</strong>.</p>
+  {% endif %}
 </section>
 {% if branch_read_only and finance_branches|selectattr('is_active')|list %}<style>form[method="post"]{display:none!important}a[data-finance-write]{display:none!important}</style>{% endif %}
