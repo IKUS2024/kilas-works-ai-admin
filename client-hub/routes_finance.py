@@ -960,9 +960,11 @@ def create_transaction(business_id, user, business):
         if not account:raise finance.FinanceError('account_unavailable')
         currency=account['currency']
         direction=request.form.get('direction')
+        subcategory_value=request.form.get('subcategory_id')
+        subcategory_id=record_id(subcategory_value) if subcategory_value else None
         category_id=finance.resolve_category_selection(
             business_id,direction,record_id(request.form.get('category_id')),
-            request.form.get('subcategory_id') or None,actor_user_id=user['id'])
+            subcategory_id,actor_user_id=user['id'])
         finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
             account_id,category_id,request.form.get('occurred_on'),currency=currency,
             description=transaction_note(business_id,request.form),counterparty_name=request.form.get('counterparty_name'),
