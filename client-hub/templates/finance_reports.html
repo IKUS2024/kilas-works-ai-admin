@@ -124,7 +124,7 @@
 {% macro report_table(rows,columns) %}
   {% if rows %}
   <div class="report-table-wrap"><table class="report-table"><thead><tr>{% for label,key,kind in columns %}<th>{{ label }}</th>{% endfor %}</tr></thead><tbody>
-  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ account_types[row[key]] }}{% elif kind=='active' %}{{ 'Aktif' if row[key] else 'Nonaktif' }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
+  {% for row in rows %}<tr>{% for label,key,kind in columns %}<td data-label="{{ label }}">{% if kind=='money' %}{{ row[key]|finance_money(row.get('currency','IDR')) }}{% elif kind=='percent' %}{{ row[key] }}%{% elif kind=='direction' %}{{ directions[row[key]] }}{% elif kind=='account_type' %}{{ row.get('account_type_label') or account_types.get(row[key],row[key]) }}{% elif kind=='active' %}{{ 'Aktif' if row[key] else 'Nonaktif' }}{% else %}{{ (row[key] or '—') if kind=='text' else row[key] }}{% endif %}</td>{% endfor %}</tr>{% endfor %}
   </tbody></table></div>
   {% else %}<div class="report-empty">Belum ada data pada periode ini.</div>{% endif %}
 {% endmacro %}
