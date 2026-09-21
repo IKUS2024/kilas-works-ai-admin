@@ -59,10 +59,24 @@ class FinanceTests(unittest.TestCase):
             self.assertEqual(len(f.list_accounts(b)), 1)
             self.assertEqual(len(f.list_categories(b)), 10)
         self.assertEqual(before, db.query_all('SELECT * FROM audit_log ORDER BY id'))
+        self.assertEqual(
+            [row['name'] for row in f.list_categories(self.b,'EXPENSE')],
+            list(f.DEFAULT_CATEGORIES['EXPENSE']))
         db.execute('UPDATE finance_accounts SET is_active=FALSE, opening_balance_minor=123 WHERE business_id=?', (self.b,))
         f.ensure_finance_defaults(self.b)
         self.assertEqual(f.list_accounts(self.b), [])
         self.assertEqual(f.list_accounts(self.b, True)[0]['opening_balance_minor'], 123)
+
+    def test_default_category_migration_hides_legacy_defaults_without_rewriting_history(self):
+        legacy=f.create_category(self.b,'EXPENSE','Transport')
+        tx=f.create_transaction(self.b,'EXPENSE',100,self.a,legacy,'2026-09-01')
+        db.init_schema()
+        all_rows=f.list_categories(self.b,'EXPENSE',True)
+        legacy_row=next(row for row in all_rows if row['id']==legacy)
+        self.assertFalse(legacy_row['is_active'])
+        self.assertEqual(f.get_transaction(self.b,tx)['category_id'],legacy)
+        active=[row['name'] for row in f.list_categories(self.b,'EXPENSE')]
+        self.assertEqual(active,list(f.DEFAULT_CATEGORIES['EXPENSE']))
 
     def test_account_category_creation_and_validation(self):
         a = f.create_account(self.b, 'Bank', 'BANK', 'idr', 123)
