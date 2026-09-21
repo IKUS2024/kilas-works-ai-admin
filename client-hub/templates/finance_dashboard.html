@@ -505,10 +505,10 @@
 <div class="finance-sheet-head"><h2>↺ Reset Finance</h2><button type="button" class="finance-sheet-close" data-finance-close="reset-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
 <div class="finance-reset-warning"><strong>{{ 'Ruang Pribadi' if finance_workspace_personal else 'Cabang ' ~ selected_branch.name }} akan kembali ke saldo 0.</strong><p class="muted">Saldo awal semua rekening menjadi 0, semua transaksi aktif tidak dihitung lagi, dan biaya rutin dinonaktifkan.{% if not finance_workspace_personal %} Invoice dibatalkan.{% endif %} Akun, kategori, serta riwayat audit tetap tersimpan.</p></div>
-<form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id) }}" onsubmit="return confirm('Reset Finance cabang {{ selected_branch.name }} ke Rp0? Tindakan ini tidak bisa dibatalkan dari halaman ini.');">
+<form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id) }}" onsubmit="return confirm('{{ 'Reset Finance Pribadi' if finance_workspace_personal else 'Reset Finance cabang ' ~ selected_branch.name }} ke Rp0? Tindakan ini tidak bisa dibatalkan dari halaman ini.');">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Ketik <strong>RESET</strong> untuk melanjutkan<input name="confirmation" autocomplete="off" autocapitalize="characters" pattern="RESET" placeholder="RESET" required></label>
-<button class="btn secondary finance-danger" type="submit">↺ Reset Cabang ke saldo 0</button>
+<button class="btn secondary finance-danger" type="submit">↺ {{ 'Reset Pribadi' if finance_workspace_personal else 'Reset Cabang' }} ke saldo 0</button>
 </form>
 </div></dialog>
 
@@ -560,7 +560,7 @@
 {% endif %}
 <dialog id="account-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>💳 Akun</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
-<div class="finance-sheet-body"><p class="muted">Tempat uang cabang {{ selected_branch.name }}. Beri nama yang gampang dikenali, misalnya Kas Toko, BCA Utama, atau GoPay. Minimal satu tempat uang harus tetap aktif; untuk pengguna baru Finance otomatis menyiapkan Kas · IDR.</p>
+<div class="finance-sheet-body"><p class="muted">{% if finance_workspace_personal %}Tempat uang pribadi. Beri nama yang gampang dikenali, misalnya Dompet, BCA, GoPay, atau Tabungan. Minimal satu akun harus tetap aktif; Finance Pribadi otomatis menyiapkan Kas · IDR.{% else %}Tempat uang cabang {{ selected_branch.name }}. Beri nama yang gampang dikenali, misalnya Kas Toko, BCA Utama, atau GoPay. Minimal satu tempat uang harus tetap aktif; untuk pengguna baru Finance otomatis menyiapkan Kas · IDR.{% endif %}</p>
 <details class="finance-add-panel" {{ 'open' if show_accounts else '' }}><summary>＋ Tambah Akun</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}" data-account-type-manager><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if show_accounts %}<input type="hidden" name="return_view" value="accounts">{% endif %}<label>Nama akun<input name="name" placeholder="Contoh: BCA Utama, Wise USD, Cash SGD" maxlength="160" required></label><label>Tipe tempat uang<select name="account_type_name" data-account-type-select required>{% for item in account_type_options %}<option value="{{ item.name }}">{{ item.name }}</option>{% else %}<option value="" selected disabled>Tambah tipe terlebih dahulu</option>{% endfor %}</select></label>
 <button type="button" class="finance-account-type-toggle" data-account-type-toggle>＋ Tambah / kelola tipe</button>
 <div class="finance-account-type-panel" data-account-type-panel data-account-type-url="{{ url_for('finance.manage_account_types',business_id=business.id) }}" data-account-type-branch="{{ selected_branch_id or '' }}" hidden>
