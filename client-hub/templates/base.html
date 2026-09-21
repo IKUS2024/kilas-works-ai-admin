@@ -223,7 +223,7 @@
 <body class="{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 <div class="topbar{% if request.blueprint == 'finance' %} finance-context-bar{% endif %}">
   {% if request.blueprint == 'finance' %}
-  <div class="brand">Kilas<span>Works</span> <strong class="finance-brand-label">Finance</strong></div>
+  <div class="brand">Kilas<span>Works</span> <strong class="finance-brand-label">Finance{% if finance_workspace_label is defined %} · {{ finance_workspace_label }}{% endif %}</strong></div>
   {% else %}
   <div class="brand">Kilas<span>Works</span> Client Hub</div>
   {% endif %}
@@ -241,7 +241,7 @@
       {% else %}
         <a href="{{ url_for('client.dashboard') }}">Beranda</a>
         {% if request.blueprint == 'finance' %}
-          <a class="topbar-active" aria-current="page" href="{{ url_for('finance.dashboard',business_id=request.view_args.get('business_id')) if request.view_args and request.view_args.get('business_id') else request.path }}">Finance</a>
+          <a class="topbar-active" aria-current="page" href="{{ url_for('finance.workspace_choice',business_id=request.view_args.get('business_id')) if request.view_args and request.view_args.get('business_id') else request.path }}">Finance</a>
         {% endif %}
         <a href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
         <a href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
