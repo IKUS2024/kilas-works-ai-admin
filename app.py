@@ -8826,6 +8826,69 @@ def internal_platform_wa_migration_deregister():
     return jsonify({"status": "ok", "identity": identity}), 200
 
 
+@app.route("/internal/platform-wa-migration/restore", methods=["POST"])
+def internal_platform_wa_migration_restore():
+    """Restore Kilas Works' own number to normal Cloud API mode after an explicit deregister.
+
+    This is an operator-only recovery bridge called by the authenticated Client Hub admin page.
+    The 6-digit PIN is used only in-memory for Meta's /register request: it is never logged,
+    persisted, returned, or stored in the database. No WABA, webhook, tenant, or customer data is
+    deleted or rewritten by this endpoint.
+    """
+    if not _platform_wa_migration_auth():
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    pin = str(payload.get("pin") or "").strip()
+    if not re.fullmatch(r"\d{6}", pin):
+        return jsonify({"status": "error", "reason": "invalid_pin"}), 400
+
+    phone_id = str(WHATSAPP_PHONE_NUMBER_ID or "").strip()
+    if not re.fullmatch(r"\d{1,32}", phone_id):
+        return jsonify({"status": "error", "reason": "platform_phone_unavailable"}), 503
+
+    result, reason = _platform_wa_graph_call(
+        "POST",
+        phone_id + "/register",
+        payload={"messaging_product": "whatsapp", "pin": pin},
+    )
+    # Drop the PIN reference immediately after the one outbound request. Do not include it in
+    # logs, responses, exceptions, or any persisted state below.
+    pin = None
+
+    if reason or not isinstance(result, dict) or result.get("success") not in (True, "true"):
+        print("PLATFORM_WA_RESTORE failed reason=" + (reason or "meta_step_incomplete"))
+        return jsonify({
+            "status": "error",
+            "reason": reason or "meta_step_incomplete",
+            "message": (
+                "Meta belum menerima registrasi ulang Cloud API. Tidak ada aset/WABA yang dihapus "
+                "atau diubah oleh Kilas."
+            ),
+        }), 409
+
+    identity, identity_reason = _platform_wa_identity(phone_id)
+    if identity_reason:
+        # Registration may have succeeded even if the immediate read is temporarily stale.
+        # Report a retryable state instead of claiming the bot is live before Meta confirms it.
+        print("PLATFORM_WA_RESTORE registered identity_check=" + identity_reason)
+        return jsonify({
+            "status": "registered_pending_identity",
+            "reason": identity_reason,
+            "message": "Registrasi diterima Meta. Tunggu sebentar lalu cek status bot lagi.",
+        }), 202
+
+    print(
+        "PLATFORM_WA_RESTORE registered "
+        f"phone_number_id={identity['phone_number_id']} status={identity.get('status')}"
+    )
+    return jsonify({
+        "status": "ok",
+        "identity": identity,
+        "message": "Nomor berhasil diregistrasikan kembali ke Cloud API.",
+    }), 200
+
+
 @app.route("/internal/platform-wa-migration/verify", methods=["POST"])
 def internal_platform_wa_migration_verify():
     if not _platform_wa_migration_auth():
