@@ -419,6 +419,31 @@ def dashboard(business_id, user, business):
 
     show_transactions = view == 'transactions'
     show_accounts = view == 'accounts'
+
+    # HomeBudget-style account view only shows active accounts. Archived/deactivated
+    # accounts remain in the ledger and totals for audit/accounting, but disappear
+    # from the normal account manager as requested.
+    account_balance_rows = [item for item in balances if item['is_active']]
+    selected_account = None
+    transaction_account_id = None
+    raw_account_id = request.args.get('account_id')
+    if raw_account_id:
+        try:
+            candidate_account_id = record_id(raw_account_id)
+        except finance.FinanceError:
+            candidate_account_id = None
+        candidate_account = next(
+            (item for item in account_balance_rows if item['id'] == candidate_account_id), None)
+        if candidate_account:
+            if show_accounts:
+                selected_account = candidate_account
+            elif show_transactions:
+                transaction_account_id = candidate_account['id']
+    if show_accounts and selected_account is None:
+        selected_account = account_balance_rows[0] if account_balance_rows else None
+    transaction_account = next(
+        (item for item in account_balance_rows if item['id'] == transaction_account_id), None)
+
     transaction_page_size = 10
     transaction_page = 1
     transaction_total = 0
@@ -434,17 +459,19 @@ def dashboard(business_id, user, business):
             transaction_page = 1
         transaction_total = finance.count_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
-            status='POSTED', **actor)
+            status='POSTED', account_id=transaction_account_id, **actor)
         transaction_page_count = max(1, (transaction_total + transaction_page_size - 1) // transaction_page_size)
         if transaction_page > transaction_page_count:
             target = transaction_page_count
             args = dict(period_query, branch_id=branch_value, view='transactions', page=target)
             if direction:
                 args['direction'] = direction
+            if transaction_account_id:
+                args['account_id'] = transaction_account_id
             return redirect(url_for('finance.dashboard', business_id=business_id, **args))
         transactions = [dict(row) for row in finance.list_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
-            status='POSTED', limit=transaction_page_size,
+            status='POSTED', account_id=transaction_account_id, limit=transaction_page_size,
             offset=(transaction_page - 1) * transaction_page_size, **actor)]
         for row in transactions:
             converted = finance_fx.convert_total(
@@ -469,6 +496,8 @@ def dashboard(business_id, user, business):
     transaction_query = dict(period_query, branch_id=branch_value, view='transactions')
     if direction:
         transaction_query['direction'] = direction
+    if transaction_account_id:
+        transaction_query['account_id'] = transaction_account_id
     breakdown = []
     if g.finance_branch_id is None:
         for branch in g.finance_branches:
@@ -538,7 +567,9 @@ def dashboard(business_id, user, business):
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
-        accounts=accounts, categories=categories, summary=summary, summaries=summaries,
+        accounts=accounts, account_balance_rows=account_balance_rows, selected_account=selected_account,
+        transaction_account=transaction_account, transaction_account_id=transaction_account_id,
+        categories=categories, summary=summary, summaries=summaries,
         transactions=transactions, dashboard_trend=dashboard_trend, recent_activity=recent_activity,
         recurring_items=recurring_items, payee_count=payee_count, previous_month=previous_month,
         next_month=next_month if next_month <= current_value else None,
@@ -2049,6 +2080,14 @@ def update_setting(business_id, user, business, kind, record_id):
         abort(404)
     deactivate = request.form.get('action') == 'deactivate'
     destination = url_for('finance.dashboard', business_id=business_id, branch_id='all') if kind == 'branch' and deactivate else None
+    if kind == 'account' and request.form.get('return_view') == 'accounts':
+        display_currency = request.form.get('display_currency', 'IDR')
+        if display_currency not in finance.SUPPORTED_CURRENCIES:
+            display_currency = 'IDR'
+        destination = url_for(
+            'finance.dashboard', business_id=business_id,
+            branch_id=g.finance_branch_id or 'all', view='accounts',
+            display_currency=display_currency)
     message = 'Dihapus dari daftar aktif. Riwayat lama tetap tersedia.' if deactivate else 'Perubahan disimpan. Riwayat tetap tersedia.'
     return mutate(business_id, lambda: branches.update_record(business_id, kind, record_id,
         name=request.form.get('name'), deactivate=deactivate, actor_user_id=user['id']),
