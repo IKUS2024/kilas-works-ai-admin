@@ -138,7 +138,11 @@
       appId: config.appId,
       version: config.version,
       cookie: false,
-      xfbml: false
+      xfbml: false,
+      // Chrome/Edge currently have a Meta FedCM regression on Login for Business that can
+      // intercept config_id based Embedded Signup before the WhatsApp flow starts. Force the
+      // classic Facebook Login popup path for this launcher until Meta fixes that regression.
+      fedCM: false
     });
     button.disabled = false;
     status.textContent = 'Siap. Tekan tombol lalu selesaikan semua langkah di Meta.';
