@@ -20,6 +20,14 @@
 .fin-payee-native{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-weight:500}
 .fin-payee-empty{margin:0 16px 16px}
 .fin-payees-page .fin-pagination{margin:0 16px 14px}
+.fin-payee-dialog{border:1px solid var(--border);border-radius:18px;background:var(--card);color:inherit;width:min(440px,calc(100vw - 28px));padding:0}
+.fin-payee-dialog::backdrop{background:rgba(0,0,0,.62)}
+.fin-payee-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid var(--border)}
+.fin-payee-dialog-head h2{margin:0;font-size:18px}
+.fin-payee-dialog-close{border:0;background:transparent;color:var(--muted);font-size:28px;line-height:1;cursor:pointer;padding:2px 5px}
+.fin-payee-dialog form{padding:16px}
+.fin-payee-dialog form label{margin:0 0 12px}
+.fin-payee-dialog form .btn{width:100%;margin:0}
 @media(max-width:560px){
   .fin-payee-search{display:grid;grid-template-columns:minmax(0,1fr) auto}
   .fin-payee-row{padding:12px 14px}
@@ -37,7 +45,24 @@
     <h1 class="fin-page-title">Penerima</h1>
     <p class="muted fin-page-subtitle">Toko, vendor, atau pihak yang kamu bayar dari Pengeluaran.</p>
   </div>
+  <button class="btn" type="button" onclick="document.getElementById('payee-dialog').showModal()">＋ Tambah Penerima</button>
 </div>
+
+<dialog id="payee-dialog" class="fin-payee-dialog">
+  <div class="fin-payee-dialog-head">
+    <h2>Tambah Penerima</h2>
+    <button class="fin-payee-dialog-close" type="button" aria-label="Tutup" onclick="document.getElementById('payee-dialog').close()">×</button>
+  </div>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+    <input type="hidden" name="display_currency" value="{{ display_currency }}">
+    <label>Nama penerima
+      <input name="name" maxlength="160" placeholder="Contoh: Indomaret, PLN, Vendor A" autocomplete="off" required autofocus>
+    </label>
+    <button class="btn" type="submit">Simpan Penerima</button>
+  </form>
+</dialog>
 
 <form method="get" class="fin-payee-search">
   <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
@@ -59,7 +84,7 @@
   <article class="fin-payee-row">
     <div class="fin-payee-main">
       <span class="fin-payee-name">{{ item.name }}</span>
-      <span class="fin-payee-meta">{{ item.transaction_count }} pembayaran · terakhir {{ item.last_paid_on }}</span>
+      <span class="fin-payee-meta">{{ item.transaction_count }} pembayaran{% if item.last_paid_on %} · terakhir {{ item.last_paid_on }}{% else %} · belum pernah dibayar{% endif %}</span>
     </div>
     <div class="fin-payee-total">
       {{ item.total_display }}
@@ -69,7 +94,7 @@
     </div>
   </article>
   {% else %}
-  <div class="fin-empty fin-payee-empty">Belum ada penerima. Saat mencatat Pengeluaran, isi nama toko, vendor, atau pihak yang dibayar. Nama itu otomatis muncul di sini.</div>
+  <div class="fin-empty fin-payee-empty">Belum ada penerima. Tekan “＋ Tambah Penerima” untuk menambah toko, vendor, atau pihak yang biasa kamu bayar.</div>
   {% endfor %}
 
   {% if pages>1 %}
