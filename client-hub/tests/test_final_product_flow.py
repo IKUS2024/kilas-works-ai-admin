@@ -51,6 +51,18 @@ class FinalFlowTests(unittest.TestCase):
     def test_get_and_login_do_not_activate(self):
         before=self.snapshot();self.client.get(self.setup_url);self.client.get('/dashboard');self.assertEqual(before,self.snapshot())
     def test_dashboard_regular_customer(self):self.assertEqual(self.client.get('/dashboard').status_code,200)
+    def test_fresh_account_dashboard_only_asks_for_business(self):
+        email='fresh-onboarding@example.test';password='password123'
+        repo.create_user(email,security.hash_password(password),role='CLIENT_OWNER',full_name='Fresh User')
+        client=app.test_client()
+        login=client.post('/login',data={'email':email,'password':password})
+        self.assertEqual(login.status_code,302)
+        body=client.get('/dashboard').get_data(as_text=True)
+        self.assertIn('Tambah Bisnis',body)
+        self.assertIn('＋ Tambah Bisnis',body)
+        self.assertNotIn('Bisnis aktif',body)
+        self.assertNotIn('Belum ada bisnis. Pilih produk untuk memulai.',body)
+        self.assertNotIn('Pesanan Layanan',body)
     def test_not_activated_read_only(self):
         self.assertFalse(e.state(self.b)['active']);self.assertEqual(self.client.get(self.url).status_code,200)
         with self.assertRaises(f.FinanceError):self.tx()
@@ -197,7 +209,36 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(e.setup(biz,self.uid,'Another','CASH',999),a);self.assertFalse(f.list_transactions(biz));self.assertEqual(f.list_accounts(biz)[0]['opening_balance_minor'],50000)
     def test_reuse_existing_business(self):
         self.client.post('/products/select',data={'product':'finance'});before=len(repo.list_businesses_for_user(self.uid))
-        response=self.client.post('/products/continue',data={'business_id':self.b});self.assertIn(self.setup_url,response.location);self.assertEqual(before,len(repo.list_businesses_for_user(self.uid)))
+        response=self.client.post('/products/continue',data={'business_id':self.b})
+        self.assertIn(f'/business/{self.b}/finance',response.location)
+        self.assertEqual(e.state(self.b)['status'],'TRIAL_ACTIVE')
+        self.assertEqual(before,len(repo.list_businesses_for_user(self.uid)))
+
+    def test_dashboard_trial_is_one_click_and_bootstraps_defaults(self):
+        biz=repo.create_business(self.uid,'Quick Trial',package='NONE')
+        self.assertEqual(f.list_accounts(biz,actor_user_id=self.uid),[])
+        response=self.client.post(f'/business/{biz}/finance-trial/start')
+        self.assertEqual(response.status_code,303)
+        self.assertIn(f'/business/{biz}/finance',response.location)
+        self.assertEqual(e.state(biz)['status'],'TRIAL_ACTIVE')
+        accounts=f.list_accounts(biz,actor_user_id=self.uid)
+        self.assertTrue(any(a['currency']=='IDR' and a['is_active'] for a in accounts))
+        categories=f.list_categories(biz,actor_user_id=self.uid)
+        self.assertTrue(any(row['direction']=='INCOME' for row in categories))
+        self.assertTrue(any(row['direction']=='EXPENSE' for row in categories))
+        self.assertEqual(f.list_transactions(biz,actor_user_id=self.uid),[])
+
+    def test_finance_product_new_business_starts_trial_directly(self):
+        self.client.post('/products/select',data={'product':'finance'})
+        before={b['id'] for b in repo.list_businesses_for_user(self.uid)}
+        response=self.client.post('/products/continue',data={
+            'create':'yes','setup_identity':uuid.uuid4().hex,'business_name':'Trial Baru'})
+        self.assertEqual(response.status_code,303)
+        after=repo.list_businesses_for_user(self.uid)
+        created=next(b for b in after if b['id'] not in before)
+        self.assertIn(f'/business/{created["id"]}/finance',response.location)
+        self.assertEqual(e.state(created['id'])['status'],'TRIAL_ACTIVE')
+        self.assertEqual(f.list_transactions(created['id'],actor_user_id=self.uid),[])
     def test_brain_setup_no_payment_activation(self):
         biz=repo.create_business(self.uid,'Brain',package='NONE');self.client.post('/products/select',data={'product':'brain'})
         response=self.client.post('/products/continue',data={'business_id':biz});self.assertIn('/wizard/basics',response.location);self.assertEqual(repo.get_business(biz)['package'],'AI_ADMIN');self.assertNotEqual(repo.get_business(biz)['status'],'ACTIVE')
@@ -206,7 +247,9 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code,200);self.assertIn('/services/content_basic/checkout-fixed',response.text)
     def test_csrf_all_new_mutations(self):
         app.config['CLIENT_HUB_FORCE_CSRF_IN_TESTS']=True
-        for url in ('/products/select','/products/continue',self.setup_url,f'/business/{self.b}/finance-bills/1/review'):
+        for url in ('/products/select','/products/continue',self.setup_url,
+                    f'/business/{self.b}/finance-trial/start',
+                    f'/business/{self.b}/finance-bills/1/review'):
             self.assertEqual(self.client.post(url,data={}).status_code,400)
     def test_xss_business_escaped(self):
         db.execute('UPDATE businesses SET business_name=? WHERE id=?',('<script>bad()</script>',self.b));response=self.client.get(self.setup_url)
