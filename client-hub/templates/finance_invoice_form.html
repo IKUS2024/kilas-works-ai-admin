@@ -9,7 +9,7 @@
 <label for="customer">Customer</label><select id="customer" name="customer_id" required><option value="">Pilih customer</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="currency">Mata uang invoice</label><select id="currency" name="currency" data-invoice-currency required>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select>
 <div class="fin-grid"><div><label for="issue">Tanggal terbit</label><input id="issue" name="issue_date" type="date" value="{{ today }}" max="{{ today }}" required></div><div><label for="due">Jatuh tempo</label><input id="due" name="due_date" type="date" value="{{ today }}" required></div></div>
-<h2 style="margin-top:20px;">Rincian tagihan</h2><p class="muted">Harga memakai mata uang invoice. IDR/JPY tanpa desimal; mata uang lain maksimal 2 desimal. Total dihitung saat draft disimpan.</p>
+<h2 style="margin-top:20px;">Rincian tagihan</h2><p class="muted">Harga boleh memakai desimal dengan titik atau koma. IDR/JPY dibulatkan ke satuan terdekat; mata uang lain disimpan sampai 2 angka desimal. Total dihitung saat draft disimpan.</p>
 <div id="invoice-items"><div class="fin-entry invoice-item">
 <label>Deskripsi<input name="item_description" maxlength="500" required></label><div class="fin-grid">
 <label>Jumlah<input name="quantity" value="1" inputmode="numeric" pattern="[0-9]+" maxlength="19" required></label>
