@@ -133,9 +133,14 @@
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
 <header class="finance-hero">
-<a class="finance-back-link" href="{{ url_for('client.dashboard') }}">← Dashboard</a>
-<div class="finance-hero-row"><div><span class="finance-eyebrow">KILAS WORKS</span><h1>Kilas Finance</h1><p>{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua cabang' }}</p></div></div>
-<details class="finance-context-compact"><summary>Ganti bisnis / cabang</summary><div class="finance-context-grid">
+<a class="finance-back-link" href="{{ url_for('finance.workspace_choice',business_id=business.id) }}">← Pilih Finance</a>
+<div class="finance-hero-row"><div><span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span><h1>Kilas Finance</h1><p>{% if finance_workspace_personal %}Pribadi · data terpisah dari Bisnis{% else %}{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua cabang' }}{% endif %}</p></div></div>
+<details class="finance-context-compact"><summary>Ganti ruang / cabang</summary><div class="finance-context-grid">
+<div class="finance-context-field">
+<label><span>Ruang Finance</span><small>Pribadi / Bisnis</small></label>
+<a class="finance-mini-action finance-context-apply" href="{{ url_for('finance.workspace_choice',business_id=business.id) }}">{{ finance_workspace_label }} · Ganti</a>
+</div>
+{% if not finance_workspace_personal %}
 <form method="get" action="{{ url_for('finance.overview') }}" class="finance-context-field">
 <input type="hidden" name="month" value="{{ month }}">
 <label for="finance-business"><span>Bisnis</span><small>Brand / usaha</small></label>
@@ -154,8 +159,14 @@
 </select>
 <noscript><button class="btn secondary finance-context-apply">Gunakan</button></noscript>
 </form>
+{% else %}
+<div class="finance-context-field">
+<label><span>Ruang pribadi</span><small>Khusus akunmu</small></label>
+<div class="finance-context-notice">Pribadi</div>
 </div>
-{% if not branch_read_only %}<button type="button" class="finance-mini-action finance-context-manage" data-finance-open="branch-dialog">Kelola cabang</button>{% endif %}
+{% endif %}
+</div>
+{% if not branch_read_only and not finance_workspace_personal %}<button type="button" class="finance-mini-action finance-context-manage" data-finance-open="branch-dialog">Kelola cabang</button>{% endif %}
 </details>
 <nav class="finance-month-nav" aria-label="Navigasi bulan">
 <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month) }}">‹</a>
@@ -163,7 +174,7 @@
 {% if next_month %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month) }}">›</a>{% else %}<span aria-disabled="true">›</span>{% endif %}
 </nav></header>
 {% include '_finance_home_dashboard.html' %}
-{% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan cabang Utama, Kas, dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
+{% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan {{ 'Kas pribadi' if finance_workspace_personal else 'cabang Utama, Kas' }} dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
 {% endif %}
 
 {% if show_accounts %}
@@ -175,7 +186,7 @@
     <div>
       <span class="finance-eyebrow">KILAS FINANCE</span>
       <h1>Akun</h1>
-      <small>{{ business.business_name }} · {{ selected_branch.name }}</small>
+      <small>{% if finance_workspace_personal %}Pribadi{% else %}{{ business.business_name }} · {{ selected_branch.name }}{% endif %}</small>
     </div>
     <div class="finance-account-hb-total">
       <span>Saldo tersedia</span>
