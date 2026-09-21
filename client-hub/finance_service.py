@@ -352,6 +352,39 @@ def get_account(business_id, account_id, *, actor_user_id=None, active=False):
     return _label_accounts(business_id, [row], actor_user_id)[0]
 
 
+def update_account_opening_balance(business_id, account_id, opening_balance_minor, *, actor_user_id=None):
+    opening_balance_minor=_money(opening_balance_minor)
+    with _write(business_id,actor_user_id):
+        branches.account_branch(business_id,account_id)
+        row=db.query_one(
+            'SELECT id FROM finance_accounts WHERE business_id=? AND id=? AND is_active=TRUE',
+            (business_id,_id(account_id)))
+        if not row:raise FinanceError('account_unavailable')
+        db.execute(
+            'UPDATE finance_accounts SET opening_balance_minor=?,updated_at=? WHERE business_id=? AND id=?',
+            (opening_balance_minor,repo._now(),business_id,account_id))
+        _audit(business_id,actor_user_id,'FINANCE_ACCOUNT_OPENING_BALANCE_UPDATED',account_id)
+    return opening_balance_minor
+
+
+def set_account_current_balance(business_id, account_id, target_balance_minor, *, actor_user_id=None):
+    target_balance_minor=_money(target_balance_minor)
+    with _write(business_id,actor_user_id):
+        branches.account_branch(business_id,account_id)
+        account=get_account(business_id,account_id,actor_user_id=actor_user_id,active=True)
+        balances=get_account_balance_report(
+            business_id,business_today(business_id).isoformat(),actor_user_id)
+        current=next((row for row in balances if row['id']==account_id),None)
+        if not current:raise FinanceError('account_unavailable')
+        delta=_money(target_balance_minor-int(current['balance_minor']))
+        new_opening=_money(int(account['opening_balance_minor'])+delta)
+        db.execute(
+            'UPDATE finance_accounts SET opening_balance_minor=?,updated_at=? WHERE business_id=? AND id=?',
+            (new_opening,repo._now(),business_id,account_id))
+        _audit(business_id,actor_user_id,'FINANCE_ACCOUNT_BALANCE_ADJUSTED',account_id)
+    return new_opening
+
+
 def _create_category(business_id, direction, name, actor_user_id):
     now = repo._now()
     record_id = db.insert_returning_id(
