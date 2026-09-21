@@ -2,7 +2,7 @@
 {% block title %}Anggaran · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-4') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-subcats-1') }}">
 <div class="fin-page finance-budget-homebudget">
 {% set active_finance_area='budget' %}{% include '_finance_area_nav.html' %}
 
@@ -44,6 +44,9 @@
         <strong>{{ row.budget_display }}</strong>
       </div>
       <div class="finance-budget-category-sub"><span></span><small>Bulanan</small></div>
+      {% if row.children %}
+      <div class="finance-budget-child-preview">{% for child in row.children %}<span>{{ child.category.name }}</span>{% endfor %}</div>
+      {% endif %}
       <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
         <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
       </div>
@@ -82,6 +85,16 @@
     <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
       <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
     </div>
+
+    {% if row.children %}
+    <section class="finance-budget-child-breakdown" aria-label="Rincian subkategori {{ row.category.name }}">
+      <strong>Rincian {{ row.category.name }}</strong>
+      {% for child in row.children %}
+      <div><span>{{ child.category.name }}</span><span>{{ child.spent_display }}</span></div>
+      {% endfor %}
+      <small>Pengeluaran subkategori otomatis masuk ke total {{ row.category.name }}.</small>
+    </section>
+    {% endif %}
 
     <form method="post" class="finance-budget-category-name-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
