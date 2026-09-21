@@ -158,6 +158,26 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Penerima',page.text)
         self.assertIn('Vendor Kopi',page.text)
 
+    def test_penerima_can_be_added_before_any_expense_like_homebudget(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        response=self.client.post(f'/business/{self.b}/finance/payees',data={
+            'branch_id':str(branch_id),'display_currency':'IDR','name':'Vendor Baru'})
+        self.assertEqual(response.status_code,303)
+        self.assertIn('/finance/payees',response.location)
+        self.assertEqual(fixture.f.list_transactions(self.b),[])
+
+        rows=fixture.f.list_payee_summaries(self.b,actor_user_id=self.uid)
+        vendor=next(row for row in rows if row['name']=='Vendor Baru')
+        self.assertEqual(vendor['transaction_count'],0)
+        self.assertEqual(vendor['total_minor'],0)
+        self.assertIsNone(vendor['last_paid_on'])
+
+        page=self.client.get(f'/business/{self.b}/finance/payees?branch_id={branch_id}')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('＋ Tambah Penerima',page.text)
+        self.assertIn('Vendor Baru',page.text)
+        self.assertIn('belum pernah dibayar',page.text)
+
     def test_budget_page_uses_compact_homebudget_style_rows(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,500000,'IDR',actor_user_id=self.uid)
