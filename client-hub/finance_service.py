@@ -45,6 +45,11 @@ DEFAULT_CATEGORIES = {
     'EXPENSE': ('Biaya Sewa', 'Utilitas', 'Makanan & Belanja Harian', 'Perlengkapan',
                 'Transportasi', 'Asuransi', 'Biaya Tak Terduga'),
 }
+DEFAULT_CATEGORY_CHILDREN = {
+    'EXPENSE': {
+        'Utilitas': ('Listrik', 'Air', 'Internet', 'Telepon', 'Gas', 'Laundry', 'Sampah / Kebersihan'),
+    },
+}
 
 
 class FinanceError(ValueError):
@@ -356,28 +361,112 @@ def _create_category(business_id, direction, name, actor_user_id):
     return record_id
 
 
-def create_category(business_id, direction, name, *, actor_user_id=None):
+def _link_category_parent(business_id, child_category_id, parent_category_id):
+    child = db.query_one(
+        'SELECT id,direction FROM finance_categories WHERE business_id=? AND id=?',
+        (business_id, _id(child_category_id)))
+    parent = db.query_one(
+        'SELECT id,direction,is_active FROM finance_categories WHERE business_id=? AND id=?',
+        (business_id, _id(parent_category_id)))
+    if not child or not parent or not parent['is_active']:
+        raise FinanceError('category_unavailable')
+    if child['id'] == parent['id'] or child['direction'] != parent['direction']:
+        raise FinanceError('category_parent_mismatch')
+    if db.query_one(
+        'SELECT 1 FROM finance_category_hierarchy WHERE business_id=? AND child_category_id=?',
+        (business_id, parent['id'])):
+        raise FinanceError('category_parent_mismatch')
+    db.execute(
+        'INSERT INTO finance_category_hierarchy '
+        '(business_id,child_category_id,parent_category_id,created_at) VALUES (?,?,?,?) '
+        'ON CONFLICT(business_id,child_category_id) DO UPDATE SET parent_category_id=excluded.parent_category_id',
+        (business_id, child['id'], parent['id'], repo._now()))
+
+
+def create_category(business_id, direction, name, *, parent_category_id=None, actor_user_id=None):
     direction, name = _enum(direction, DIRECTIONS), _text(name, 160, True)
     with _write(business_id, actor_user_id):
-        existing = db.query_one('SELECT id,is_active FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
-                                (business_id, direction, name))
+        existing = db.query_one(
+            'SELECT id,is_active FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
+            (business_id, direction, name))
         if existing:
             if not existing['is_active']:
-                db.execute('UPDATE finance_categories SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
-                           (repo._now(), business_id, existing['id']))
+                db.execute(
+                    'UPDATE finance_categories SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                    (repo._now(), business_id, existing['id']))
                 _audit(business_id, actor_user_id, 'FINANCE_CATEGORY_REACTIVATED', existing['id'])
-            return existing['id']
-        return _create_category(business_id, direction, name, actor_user_id)
+            category_id = existing['id']
+        else:
+            category_id = _create_category(business_id, direction, name, actor_user_id)
+        if parent_category_id is not None:
+            _link_category_parent(business_id, category_id, parent_category_id)
+        return category_id
 
 
-def list_categories(business_id, direction=None, include_inactive=False, *, actor_user_id=None):
+def list_categories(business_id, direction=None, include_inactive=False, include_children=False, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    sql, params = 'SELECT * FROM finance_categories WHERE business_id=?', [business_id]
+    sql = (
+        'SELECT c.*,h.parent_category_id,p.name AS parent_name '
+        'FROM finance_categories c '
+        'LEFT JOIN finance_category_hierarchy h '
+        'ON h.business_id=c.business_id AND h.child_category_id=c.id '
+        'LEFT JOIN finance_categories p '
+        'ON p.business_id=c.business_id AND p.id=h.parent_category_id '
+        'WHERE c.business_id=?'
+    )
+    params = [business_id]
     if direction is not None:
-        sql += ' AND direction=?'; params.append(_enum(direction, DIRECTIONS))
+        sql += ' AND c.direction=?'; params.append(_enum(direction, DIRECTIONS))
     if not include_inactive:
-        sql += ' AND is_active=TRUE'
-    return db.query_all(sql + ' ORDER BY direction,id', params)
+        sql += ' AND c.is_active=TRUE'
+    if not include_children:
+        sql += ' AND h.child_category_id IS NULL'
+    rows = [dict(row) for row in db.query_all(sql + ' ORDER BY c.direction,c.id', params)]
+    return rows
+
+
+def list_category_children(business_id, parent_category_id, include_inactive=False, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    parent_id = _id(parent_category_id)
+    sql = (
+        'SELECT c.*,h.parent_category_id,p.name AS parent_name '
+        'FROM finance_category_hierarchy h '
+        'JOIN finance_categories c '
+        'ON c.business_id=h.business_id AND c.id=h.child_category_id '
+        'JOIN finance_categories p '
+        'ON p.business_id=h.business_id AND p.id=h.parent_category_id '
+        'WHERE h.business_id=? AND h.parent_category_id=?'
+    )
+    if not include_inactive:
+        sql += ' AND c.is_active=TRUE'
+    return [dict(row) for row in db.query_all(sql + ' ORDER BY c.id', (business_id, parent_id))]
+
+
+def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    direction = _enum(direction, DIRECTIONS)
+    category_id = _id(category_id)
+    parent = db.query_one(
+        'SELECT id,direction,is_active FROM finance_categories WHERE business_id=? AND id=?',
+        (business_id, category_id))
+    if not parent or not parent['is_active'] or parent['direction'] != direction:
+        raise FinanceError('category_unavailable')
+    if db.query_one(
+        'SELECT 1 FROM finance_category_hierarchy WHERE business_id=? AND child_category_id=?',
+        (business_id, category_id)):
+        raise FinanceError('category_parent_mismatch')
+    children = list_category_children(
+        business_id, category_id, actor_user_id=actor_user_id)
+    if not children:
+        if subcategory_id not in (None, ''):
+            raise FinanceError('subcategory_unavailable')
+        return category_id
+    if subcategory_id in (None, ''):
+        raise FinanceError('subcategory_required')
+    child_id = _id(subcategory_id)
+    if not any(row['id'] == child_id and row['direction'] == direction for row in children):
+        raise FinanceError('subcategory_unavailable')
+    return child_id
 
 
 def ensure_finance_defaults(business_id, *, actor_user_id=None):
@@ -387,11 +476,36 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
         if not db.query_one(('SELECT id FROM finance_accounts WHERE business_id=?' + branches.predicate('') + " AND branch_id=? AND name=? AND account_type='CASH' AND currency='IDR'"),
                             (business_id, branch_id, 'Kas')):
             _create_account(business_id, 'Kas', 'CASH', 'IDR', 0, actor_user_id)
+        category_ids = {}
         for direction, names in DEFAULT_CATEGORIES.items():
             for name in names:
-                if not db.query_one('SELECT id FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
-                                    (business_id, direction, name)):
-                    _create_category(business_id, direction, name, actor_user_id)
+                row = db.query_one(
+                    'SELECT id,is_active FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
+                    (business_id, direction, name))
+                if not row:
+                    category_id = _create_category(business_id, direction, name, actor_user_id)
+                else:
+                    category_id = row['id']
+                category_ids[(direction, name)] = category_id
+        for direction, parents in DEFAULT_CATEGORY_CHILDREN.items():
+            for parent_name, child_names in parents.items():
+                parent_id = category_ids.get((direction, parent_name))
+                if parent_id is None:
+                    continue
+                for child_name in child_names:
+                    row = db.query_one(
+                        'SELECT id,is_active FROM finance_categories WHERE business_id=? AND direction=? AND name=?',
+                        (business_id, direction, child_name))
+                    if row:
+                        child_id = row['id']
+                        if not row['is_active']:
+                            db.execute(
+                                'UPDATE finance_categories SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                                (repo._now(), business_id, child_id))
+                    else:
+                        child_id = _create_category(
+                            business_id, direction, child_name, actor_user_id)
+                    _link_category_parent(business_id, child_id, parent_id)
 
 
 def _transaction_data(business_id, data, *, scheduled=False):
