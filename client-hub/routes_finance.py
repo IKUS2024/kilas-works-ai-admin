@@ -129,6 +129,9 @@ ERRORS = {
     'fx_exchange_unavailable': 'Penukaran mata uang tidak tersedia.',
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
+    'category_parent_mismatch': 'Hubungan kategori dan subkategori belum valid.',
+    'subcategory_required': 'Pilih subkategori untuk kategori ini.',
+    'subcategory_unavailable': 'Subkategori tidak tersedia untuk kategori yang dipilih.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
     'payee_unavailable': 'Penerima tidak tersedia.',
     'payee_exists': 'Nama penerima tersebut sudah ada.',
@@ -357,7 +360,7 @@ def dashboard(business_id, user, business):
     relevant_years = {selected_year, int(range_start_value[:4]), int(range_end_value[:4])}
     period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | relevant_years)
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
-    categories = finance.list_categories(business_id, include_inactive=True, **actor)
+    categories = finance.list_categories(business_id, include_inactive=True, include_children=True, **actor)
     budget_rows = finance.list_monthly_budgets(business_id, month, **actor)
 
     # One balance read feeds both the card and its detail so those two surfaces cannot disagree.
@@ -933,8 +936,12 @@ def create_transaction(business_id, user, business):
         account=next((a for a in finance.list_accounts(business_id,actor_user_id=user['id']) if a['id']==account_id),None)
         if not account:raise finance.FinanceError('account_unavailable')
         currency=account['currency']
-        finance.create_transaction(business_id,request.form.get('direction'),currency_amount(request.form.get('amount'),currency),
-            account_id,record_id(request.form.get('category_id')),request.form.get('occurred_on'),currency=currency,
+        direction=request.form.get('direction')
+        category_id=finance.resolve_category_selection(
+            business_id,direction,record_id(request.form.get('category_id')),
+            request.form.get('subcategory_id') or None,actor_user_id=user['id'])
+        finance.create_transaction(business_id,direction,currency_amount(request.form.get('amount'),currency),
+            account_id,category_id,request.form.get('occurred_on'),currency=currency,
             description=transaction_note(business_id,request.form),counterparty_name=request.form.get('counterparty_name'),
             customer_id=record_id(request.form['customer_id']) if request.form.get('customer_id') else None,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,actor_user_id=user['id'])
@@ -1404,7 +1411,7 @@ def operations(business_id,user,business):
             'ONCE' if rule['cadence'] == 'MONTHLY'
             and rule['end_on'] == rule['next_due_on'] else rule['cadence'])
     accounts = finance.list_accounts(business_id, **actor)
-    categories = finance.list_categories(business_id, 'EXPENSE', **actor)
+    categories = finance.list_categories(business_id, 'EXPENSE', include_children=True, **actor)
     projects = finance.list_finance_projects(business_id, **actor)
 
     occurrences = _bill_month_occurrences(
@@ -1742,7 +1749,7 @@ def operator(business_id, user, business):
     return render_template('finance_operator.html', user=user, business=business,
         actions=finance_operator.ACTIONS, today=finance.business_today(business_id).isoformat(),
         accounts=finance.list_accounts(business_id, **actor),
-        categories=finance.list_categories(business_id, **actor),
+        categories=finance.list_categories(business_id, include_children=True, **actor),
         invoices=invoices)
 
 
@@ -2082,7 +2089,7 @@ def bank_detail(business_id,user,business,import_id):
     if imp['status']=='OPEN':
         try:candidates=bank.candidates(business_id,import_id,user['id'])
         except finance.FinanceError:candidate_error=True
-    categories=finance.list_categories(business_id,actor_user_id=user['id'])
+    categories=finance.list_categories(business_id,include_children=True,actor_user_id=user['id'])
     counts={state:sum(r['reconciliation_status']==state for r in all_rows) for state in ('UNMATCHED','MATCHED','POSTED','IGNORED')}
     account=next((a for a in finance.list_accounts(business_id,True,actor_user_id=user['id']) if a['id']==imp['account_id']),None)
     return render_template('finance_bank_detail.html',user=user,business=business,imp=imp,account=account,
@@ -2157,7 +2164,7 @@ def assistant(business_id, user, business):
         today=local_today.isoformat(), month=local_today.strftime('%Y-%m'),
         current_month=local_today.strftime('%Y-%m'),
         accounts=[a for a in finance.list_accounts(business_id, **actor) if a['is_active']],
-        categories=finance.list_categories(business_id, **actor) if operator_enabled else [],
+        categories=finance.list_categories(business_id, include_children=True, **actor) if operator_enabled else [],
         invoices=finance.operator_invoice_choices(business_id, **actor) if operator_enabled else [])
 
 
@@ -2276,8 +2283,10 @@ def finance_branch_context():
 
 
 def transaction_note(business_id, form):
-    category = next((c for c in finance.list_categories(business_id, include_inactive=True)
-                     if str(c['id']) == form.get('category_id')), None)
+    chosen_category_id = form.get('subcategory_id') or form.get('category_id')
+    category = next((c for c in finance.list_categories(
+        business_id, include_inactive=True, include_children=True)
+                     if str(c['id']) == chosen_category_id), None)
     note = finance._text(form.get('description'), 4000)
     if category and category['name'] in ('Lainnya', 'Pendapatan Lain', 'Pengeluaran Lain'):
         other = finance._text(form.get('other_description'), 1000, True)
@@ -2331,7 +2340,8 @@ def edit_transaction(business_id, user, business, transaction_id):
             account_id=record_id(request.form.get('account_id')), category_id=record_id(request.form.get('category_id')),
             description=transaction_note(business_id, request.form), actor_user_id=user['id']),
             'Transaksi diperbarui. Riwayat perubahan tersimpan.')
-    categories = finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id'])
+    categories = finance.list_categories(
+        business_id, transaction['direction'], include_children=True, actor_user_id=user['id'])
     is_other = any(c['id'] == transaction['category_id'] and c['name'] in ('Lainnya', 'Pendapatan Lain', 'Pengeluaran Lain') for c in categories)
     description = transaction['description'] or ''
     other_description = ''
@@ -2340,7 +2350,8 @@ def edit_transaction(business_id, user, business, transaction_id):
     return render_template('finance_transaction_edit.html', business=business, user=user, transaction=transaction,
         initial_description=description, initial_other_description=other_description,
         accounts=finance.list_accounts(business_id, actor_user_id=user['id']),
-        categories=finance.list_categories(business_id, transaction['direction'], actor_user_id=user['id']),
+        categories=finance.list_categories(
+            business_id, transaction['direction'], include_children=True, actor_user_id=user['id']),
         today=finance.business_today(business_id).isoformat())
 
 
