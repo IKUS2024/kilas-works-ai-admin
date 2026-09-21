@@ -332,8 +332,43 @@ def overview():
     open_count=overdue_count=0
     for business in businesses:
         security.require_business_access(business['id'],user=user)
-        cash=finance.get_finance_summaries(business['id'],start,end,actor_user_id=user['id'])
-        aging=finance_collections.position(business['id'],user['id'],today=end)['aging']
+        business_cash={}
+        business_aging={}
+        business_open=business_overdue=0
+        # Overview is explicitly Business-only. Personal workspaces are never
+        # merged into business dashboards or multi-business totals.
+        business_branches=branches.list_branches(
+            business['id'],user['id'],workspace_type='BUSINESS')
+        for branch in business_branches:
+            with branches.scope(business['id'],branch['id'],user['id']):
+                branch_cash=finance.get_finance_summaries(
+                    business['id'],start,end,actor_user_id=user['id'])
+                branch_aging=finance_collections.position(
+                    business['id'],user['id'],today=end)['aging']
+            for row in branch_cash:
+                item=business_cash.setdefault(
+                    row['currency'],dict(currency=row['currency'],
+                        total_income_minor=0,total_expense_minor=0,
+                        net_cashflow_minor=0,transaction_count=0))
+                item['total_income_minor']+=row['total_income_minor']
+                item['total_expense_minor']+=row['total_expense_minor']
+                item['net_cashflow_minor']=item['total_income_minor']-item['total_expense_minor']
+                item['transaction_count']+=row.get('transaction_count',0)
+            business_open+=branch_aging['open_invoice_count']
+            business_overdue+=branch_aging['overdue_invoice_count']
+            for row in branch_aging['by_currency']:
+                item=business_aging.setdefault(
+                    row['currency'],dict(currency=row['currency'],
+                        total_outstanding_minor=0,total_overdue_minor=0,
+                        open_invoice_count=0,overdue_invoice_count=0))
+                item['total_outstanding_minor']+=row['total_outstanding_minor']
+                item['total_overdue_minor']+=row['total_overdue_minor']
+                item['open_invoice_count']+=row.get('open_invoice_count',0)
+                item['overdue_invoice_count']+=row.get('overdue_invoice_count',0)
+        cash=[business_cash[code] for code in finance.SUPPORTED_CURRENCIES if code in business_cash]
+        aging=dict(
+            by_currency=[business_aging[code] for code in finance.SUPPORTED_CURRENCIES if code in business_aging],
+            open_invoice_count=business_open,overdue_invoice_count=business_overdue)
         breakdown.append(dict(business=business,cash_summaries=cash,receivables=aging))
         for row in cash:
             item=totals.setdefault(row['currency'],dict(currency=row['currency'],total_income_minor=0,total_expense_minor=0,
