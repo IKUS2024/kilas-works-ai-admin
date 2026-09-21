@@ -123,6 +123,7 @@ ERRORS = {
     'invalid_money_minor': 'Nominal belum valid. Masukkan angka rupiah yang benar.',
     'account_unavailable': 'Akun tidak tersedia.',
     'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang akun yang dipilih.',
+    'account_type_unavailable': 'Tipe tempat uang tidak tersedia. Pilih atau tambahkan tipe lain.',
     'unsupported_currency': 'Mata uang belum didukung Kilas Finance.',
     'fx_same_currency': 'Pilih dua akun dengan mata uang berbeda.',
     'fx_exchange_unavailable': 'Penukaran mata uang tidak tersedia.',
@@ -427,6 +428,13 @@ def dashboard(business_id, user, business):
     # accounts remain in the ledger and totals for audit/accounting, but disappear
     # from the normal account manager as requested.
     account_balance_rows = [item for item in balances if item['is_active']]
+    account_type_options = finance.list_account_type_options(business_id, **actor)
+    account_type_group_labels = [item['name'] for item in account_type_options]
+    for item in account_balance_rows:
+        label = item.get('account_type_label') or finance.LEGACY_ACCOUNT_TYPE_LABELS.get(
+            item.get('account_type'), 'Lainnya')
+        if label not in account_type_group_labels:
+            account_type_group_labels.append(label)
     selected_account = None
     transaction_account_id = None
     raw_account_id = request.args.get('account_id')
@@ -587,7 +595,9 @@ def dashboard(business_id, user, business):
         current_year=current_year, current_month=current_month,
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
-        today=today_value.isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
+        account_type_options=account_type_options,
+        account_type_group_labels=account_type_group_labels,
+        today=today_value.isoformat(), account_types=finance.LEGACY_ACCOUNT_TYPE_LABELS)
 
 
 
@@ -971,10 +981,42 @@ def create_account(business_id,user,business):
     destination = (url_for('finance.dashboard',business_id=business_id,
                            branch_id=g.finance_branch_id or 'all',view='accounts')
                    if request.form.get('return_view') == 'accounts' else None)
-    return mutate(business_id,lambda:finance.create_account(business_id,request.form.get('name'),
-        request.form.get('account_type'),currency=currency,
+    account_type_label = request.form.get('account_type_name')
+    return mutate(business_id,lambda:finance.create_account(
+        business_id,request.form.get('name'),request.form.get('account_type') or 'CASH',
+        currency=currency,
         opening_balance_minor=currency_amount(request.form.get('opening_balance','0'),currency,signed=True),
+        account_type_label=account_type_label if account_type_label else None,
         actor_user_id=user['id']),'Akun siap digunakan.',destination)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/account-types', methods=['POST'])
+@finance_access
+def manage_account_types(business_id,user,business):
+    action=(request.form.get('action') or 'create').strip()
+    name=request.form.get('name')
+    try:
+        if action == 'create':
+            finance.create_account_type_option(business_id,name,actor_user_id=user['id'])
+        elif action == 'delete':
+            finance.delete_account_type_option(business_id,name,actor_user_id=user['id'])
+        else:
+            abort(400)
+    except finance.FinanceError as error:
+        message=ERRORS.get(str(error),'Tipe tempat uang belum valid. Periksa nama dan coba lagi.')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(error=message),400
+        flash(message,'error')
+    else:
+        message='Tipe tempat uang ditambahkan.' if action=='create' else 'Tipe tempat uang dihapus dari pilihan baru. Akun lama tetap aman.'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(options=[
+                {'name': row['name'], 'is_default': bool(row.get('is_default'))}
+                for row in finance.list_account_type_options(business_id,actor_user_id=user['id'])
+            ],message=message)
+        flash(message,'success')
+    return redirect(url_for('finance.dashboard',business_id=business_id,
+                            branch_id=g.finance_branch_id or 'all',view='accounts'),code=303)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/exchanges',methods=['POST'])
