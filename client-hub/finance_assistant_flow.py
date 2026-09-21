@@ -183,8 +183,10 @@ def minor(amount,currency):
     raw=re.sub(r'\b'+re.escape(currency)+r'\b','',amount,flags=re.I).strip()
     symbols={'USD':'US$','SGD':'S$','AUD':'A$','HKD':'HK$','EUR':'€','GBP':'£','JPY':'¥','THB':'฿'}
     if currency in symbols:raw=re.sub(re.escape(symbols[currency]),'',raw,flags=re.I).strip()
-    if not re.fullmatch(r'\d+(?:[.,]\d{1,2})?',raw):raise ValueError('invalid_amount')
-    return currency_amount(raw,currency)
+    try:
+        return currency_amount(raw,currency)
+    except f.FinanceError:
+        raise ValueError('invalid_amount') from None
 
 
 def field(key,label,value='',options=None,kind='text',required=True):
