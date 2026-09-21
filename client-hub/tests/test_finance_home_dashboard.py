@@ -160,7 +160,7 @@ class DashboardHomeTests(unittest.TestCase):
                   'display_currency':'IDR'})
         self.assertEqual(response.status_code,303)
         account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
-        self.assertEqual(account['opening_balance_minor'],100001)
+        self.assertEqual(account['opening_balance_minor'],10000050)
 
         before=[(row['id'],row['amount_minor']) for row in fixture.f.list_transactions(
             self.b,actor_user_id=self.uid)]
@@ -171,10 +171,24 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(response.status_code,303)
         balance=next(row for row in fixture.f.get_account_balance_report(
             self.b,'2026-09-22',actor_user_id=self.uid) if row['id']==self.a)
-        self.assertEqual(balance['balance_minor'],500000)
+        self.assertEqual(balance['balance_minor'],50000000)
         after=[(row['id'],row['amount_minor']) for row in fixture.f.list_transactions(
             self.b,actor_user_id=self.uid)]
         self.assertEqual(before,after)
+
+    def test_idr_decimal_account_value_is_persisted_not_rounded_away(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        response=self.client.post(
+            f'/business/{self.b}/finance/accounts/{self.a}/balance',
+            data={'branch_id':str(branch_id),'action':'opening','amount':'1441000,25',
+                  'display_currency':'IDR'})
+        self.assertEqual(response.status_code,303)
+        account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
+        self.assertEqual(account['opening_balance_minor'],144100025)
+        html,_=self.page(
+            f'?view=accounts&account_id={self.a}&branch_id={branch_id}&display_currency=IDR')
+        self.assertIn('Rp1.441.000,25',html)
+        self.assertIn('value="1441000.25"',html)
 
     def test_account_transaction_drilldown_filters_to_selected_account(self):
         second=fixture.f.create_account(self.b,'BCA Kedua','BANK','IDR',0,actor_user_id=self.uid)
@@ -197,15 +211,15 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(currency_amount('1.250,50','USD'),125050)
         self.assertEqual(currency_amount('1,250.50','USD'),125050)
         self.assertEqual(currency_amount('1 250,50','USD'),125050)
-        self.assertEqual(currency_amount('1.000.000','IDR'),1000000)
-        self.assertEqual(currency_amount('1250,50','IDR'),1251)
-        self.assertEqual(currency_amount('1250.49','IDR'),1250)
+        self.assertEqual(currency_amount('1.000.000','IDR'),100000000)
+        self.assertEqual(currency_amount('1250,50','IDR'),125050)
+        self.assertEqual(currency_amount('1250.49','IDR'),125049)
         self.assertEqual(currency_amount('-12,50','USD',signed=True),-1250)
 
     def test_mixed_currency_income_is_combined_in_display_currency(self):
         usd=fixture.f.create_account(self.b,'USD Bank','BANK','USD',0,actor_user_id=self.uid)
         usd_cat=fixture.f.list_categories(self.b,'INCOME')[0]['id']
-        fixture.f.create_transaction(self.b,'INCOME',100000,self.a,self.cat,
+        fixture.f.create_transaction(self.b,'INCOME',10000000,self.a,self.cat,
             '2026-09-03',description='IDR sale',actor_user_id=self.uid)
         fixture.f.create_transaction(self.b,'INCOME',1000,usd,usd_cat,
             '2026-09-04',currency='USD',description='USD sale',actor_user_id=self.uid)
@@ -219,7 +233,7 @@ class DashboardHomeTests(unittest.TestCase):
 
     def test_monthly_budget_is_branch_scoped_and_updates_dashboard(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
-        fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,500000,'IDR',actor_user_id=self.uid)
+        fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,50000000,'IDR',actor_user_id=self.uid)
         html,context=self.page('?month=2026-09')
         self.assertEqual(context['budget_total_display'],'Rp500.000,00')
         self.assertIn('Rp500.000,00',html)
