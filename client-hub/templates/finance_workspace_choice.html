@@ -19,7 +19,7 @@
   <header class="finance-workspace-head">
     <span>KILAS FINANCE</span>
     <h1>Pilih ruang Finance</h1>
-    <p>Pisahkan pencatatan pribadi dan bisnis. Fitur keduanya sama untuk sekarang, tetapi saldo dan transaksi tidak dicampur.</p>
+    <p>Pilih Finance Bisnis atau Pribadi. Saldo dan transaksi tidak dicampur; Finance Pribadi dibuat lebih sederhana untuk pencatatan manual.</p>
   </header>
 
   <div class="finance-workspace-grid">
@@ -38,8 +38,8 @@
     <section class="finance-workspace-card">
       <div class="finance-workspace-icon">👤</div>
       <h2>Pribadi</h2>
-      <p>Ruang terpisah untuk pencatatan pribadi. Menu dan fitur dibuat sama dulu supaya gampang dipakai.</p>
-      <div class="finance-workspace-note"><strong>Terpisah dari Bisnis.</strong> Saat pertama dibuka, Kilas menyiapkan ruang pribadi kosong khusus akunmu.</div>
+      <p>Pencatatan pribadi manual untuk pemasukan, pengeluaran, akun, anggaran, tagihan rutin, dan laporan.</p>
+      <div class="finance-workspace-note"><strong>Lebih sederhana.</strong> Tidak ada pilihan bisnis/cabang, AI Finance, customer, atau invoice. Kategori default dibuat khusus kebutuhan pribadi.</div>
       <span class="finance-workspace-status {{ 'ready' if personal_ready else '' }}">{{ 'Siap digunakan' if personal_ready else 'Belum dibuat' }}</span>
       <form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type='PERSONAL') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -48,6 +48,6 @@
     </section>
   </div>
 
-  <div class="finance-workspace-foot">Langganan / trial Finance tetap satu untuk bisnis ini. Pemisahan ini hanya memisahkan ruang pencatatan agar data pribadi tidak bercampur dengan data bisnis.</div>
+  <div class="finance-workspace-foot">Langganan / trial Finance tetap satu. Data Finance lama tetap di Bisnis; ruang Pribadi mulai terpisah dan hanya memakai data pribadi pemilik akun.</div>
 </div>
 {% endblock %}
