@@ -150,6 +150,18 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Akun kedua only',html)
         self.assertNotIn('Akun pertama only',html)
 
+    def test_money_inputs_accept_decimal_dot_comma_and_grouping(self):
+        from routes_finance import currency_amount
+        self.assertEqual(currency_amount('1250.50','USD'),125050)
+        self.assertEqual(currency_amount('1250,50','USD'),125050)
+        self.assertEqual(currency_amount('1.250,50','USD'),125050)
+        self.assertEqual(currency_amount('1,250.50','USD'),125050)
+        self.assertEqual(currency_amount('1 250,50','USD'),125050)
+        self.assertEqual(currency_amount('1.000.000','IDR'),1000000)
+        self.assertEqual(currency_amount('1250,50','IDR'),1251)
+        self.assertEqual(currency_amount('1250.49','IDR'),1250)
+        self.assertEqual(currency_amount('-12,50','USD',signed=True),-1250)
+
     def test_mixed_currency_income_is_combined_in_display_currency(self):
         usd=fixture.f.create_account(self.b,'USD Bank','BANK','USD',0,actor_user_id=self.uid)
         usd_cat=fixture.f.list_categories(self.b,'INCOME')[0]['id']
