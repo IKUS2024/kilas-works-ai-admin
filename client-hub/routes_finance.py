@@ -577,6 +577,7 @@ def dashboard(business_id, user, business):
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
+        payee_names=[row['name'] for row in finance.list_payees(business_id, **actor)],
         initialized=bool(accounts and categories), month=month, month_label=period_label,
         direction=direction, view=view, show_transactions=show_transactions, show_accounts=show_accounts,
         period_years=period_years, selected_year=selected_year,
