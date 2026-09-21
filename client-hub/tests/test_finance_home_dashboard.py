@@ -79,17 +79,38 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('name="return_direction" value="INCOME"',html)
         self.assertIn('Transaksi pemasukan',html)
 
-    def test_accounts_view_uses_live_balance_report_not_dashboard_cards(self):
+    def test_accounts_view_uses_homebudget_overview_and_live_balance_report(self):
         account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
         html,context=self.page('?month=2026-09&view=accounts')
         self.assertTrue(context['show_accounts'])
+        self.assertEqual(context['selected_account']['id'],self.a)
+        self.assertIn('finance-account-hb-list',html)
         self.assertIn('Akun',html)
         self.assertNotIn('Pengaturan Finance',html)
         self.assertIn(account['name'],html)
         self.assertIn('Saldo tersedia',html)
         self.assertIn('Saldo awal',html)
+        self.assertIn('Dana masuk',html)
+        self.assertIn('Dana keluar',html)
+        self.assertIn('Lihat Transaksi',html)
+        self.assertIn('Edit Akun',html)
+        self.assertIn('Import Mutasi',html)
         self.assertNotIn('id="finance-trend-data"',html)
         self.assertNotIn('Tanya Kilas Finance',html)
+
+    def test_account_transaction_drilldown_filters_to_selected_account(self):
+        second=fixture.f.create_account(self.b,'BCA Kedua','BANK','IDR',0,actor_user_id=self.uid)
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.create_transaction(self.b,'EXPENSE',1111,self.a,expense_cat,
+            '2026-09-05',description='Akun pertama only',actor_user_id=self.uid)
+        fixture.f.create_transaction(self.b,'EXPENSE',2222,second,expense_cat,
+            '2026-09-06',description='Akun kedua only',actor_user_id=self.uid)
+        html,context=self.page(f'?period_mode=all&view=transactions&account_id={second}')
+        self.assertEqual(context['transaction_account_id'],second)
+        self.assertEqual(context['transaction_total'],1)
+        self.assertIn('BCA Kedua',html)
+        self.assertIn('Akun kedua only',html)
+        self.assertNotIn('Akun pertama only',html)
 
     def test_mixed_currency_income_is_combined_in_display_currency(self):
         usd=fixture.f.create_account(self.b,'USD Bank','BANK','USD',0,actor_user_id=self.uid)
