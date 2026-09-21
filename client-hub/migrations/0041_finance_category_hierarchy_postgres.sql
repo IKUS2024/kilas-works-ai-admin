@@ -35,10 +35,11 @@ WHERE direction='EXPENSE'
 
 INSERT INTO finance_category_hierarchy
  (business_id,child_category_id,parent_category_id,created_at)
-SELECT p.business_id,c.id,p.parent_id,CURRENT_TIMESTAMP
-FROM utility_parents p
+SELECT p.business_id,c.id,p.id,CURRENT_TIMESTAMP
+FROM finance_categories p
 JOIN finance_categories c ON c.business_id=p.business_id
  AND c.direction='EXPENSE'
  AND c.name IN ('Listrik','Air','Internet','Telepon','Gas','Laundry','Sampah / Kebersihan')
+WHERE p.direction='EXPENSE' AND p.name='Utilitas'
 ON CONFLICT(business_id,child_category_id)
 DO UPDATE SET parent_category_id=EXCLUDED.parent_category_id;
