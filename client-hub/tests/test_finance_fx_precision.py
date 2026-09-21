@@ -18,7 +18,7 @@ class FxPrecisionTests(unittest.TestCase):
     def test_exact_large_money_format(self):
         self.assertEqual(fx.format_money(9223372036854775807,'USD'),
                          'US$92,233,720,368,547,758.07')
-        self.assertEqual(fx.format_money(1000000,'IDR'),'Rp1.000.000')
+        self.assertEqual(fx.format_money(1000000,'IDR'),'Rp1.000.000,00')
 
     def test_reference_pair_uses_decimal(self):
         rates={'rates':{'IDR':'1','USD':'17857.14','SGD':'13000'}}
