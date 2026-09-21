@@ -21,7 +21,10 @@ def money(value, currency):
     if currency == 'IDR':
         return f'{sign}Rp{grouped},{fraction:02d}'
     if currency == 'USD':
-        prefix = 'US
+        prefix = 'US' + '$'
+    else:
+        prefix = currency + ' '
+    return f'{sign}{prefix}{grouped},{fraction:02d}'
 
 def _safe(value):
     if value is None or value == '':
