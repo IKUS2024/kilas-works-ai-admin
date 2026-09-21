@@ -5,10 +5,22 @@
   {% if business.status == 'ACTIVE' %}
     <p>Kilas Brain aktif.</p>
   {% else %}
-    <p>Masuk dengan akun Meta pemilik bisnis, lalu hubungkan nomor yang sudah aktif di aplikasi <strong>WhatsApp Business</strong>.</p>
-    <p>Nomor yang memenuhi syarat Coexistence tetap bisa dipakai dan dibalas dari WhatsApp Business di HP, sementara Kilas Brain menangani otomatisasi lewat Cloud API.</p>
-    <p>Kilas Works tidak pernah meminta password Meta. Jika Meta meminta konfirmasi, OTP, atau scan QR, selesaikan langsung dari WhatsApp Business di HP.</p>
-    <p class="muted">Gunakan WhatsApp Business, bukan WhatsApp personal. Ketersediaan Coexistence tetap ditentukan oleh Meta untuk nomor tersebut.</p>
+    {% if review_test_asset %}
+      <p><strong>Mode Meta App Review.</strong> Bisnis demo ini memakai aset test resmi Meta yang sudah disiapkan untuk aplikasi KILAS WORKS AI ADMIN.</p>
+      <p>Test WABA: <code>{{ review_test_asset.waba_id }}</code><br>
+         Test Phone Number ID: <code>{{ review_test_asset.phone_number_id }}</code><br>
+         Test number: <strong>+1 555 668 1315</strong></p>
+      <p class="muted">Tidak ada nomor produksi yang disentuh. Tombol di bawah menjalankan validasi live ke Meta dan menghubungkan hanya aset test ini.</p>
+      <form method="post" action="{{ url_for('whatsapp.review_test_connect', business_id=business.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Hubungkan Aset Test Meta</button>
+      </form>
+    {% else %}
+      <p>Masuk dengan akun Meta pemilik bisnis, lalu hubungkan nomor yang sudah aktif di aplikasi <strong>WhatsApp Business</strong>.</p>
+      <p>Nomor yang memenuhi syarat Coexistence tetap bisa dipakai dan dibalas dari WhatsApp Business di HP, sementara Kilas Brain menangani otomatisasi lewat Cloud API.</p>
+      <p>Kilas Works tidak pernah meminta password Meta. Jika Meta meminta konfirmasi, OTP, atau scan QR, selesaikan langsung dari WhatsApp Business di HP.</p>
+      <p class="muted">Gunakan WhatsApp Business, bukan WhatsApp personal. Ketersediaan Coexistence tetap ditentukan oleh Meta untuk nomor tersebut.</p>
+    {% endif %}
     {% if error %}<p role="alert">{{ error }}</p>{% endif %}
     {% if retry_activation %}
       <p>WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan kesiapan bisnis.</p>
@@ -17,7 +29,7 @@
         <button class="btn">Coba aktivasi kembali</button>
       </form>
     {% endif %}
-    {% if signup_config and not retry_activation %}
+    {% if signup_config and not retry_activation and not review_test_asset %}
       <button type="button" class="btn" id="wa-signup" disabled>Hubungkan WhatsApp</button>
       <p id="wa-status" role="status" aria-live="polite">Menyiapkan koneksi Meta…</p>
       <script type="application/json" id="wa-config">{{ signup_config|tojson }}</script>
