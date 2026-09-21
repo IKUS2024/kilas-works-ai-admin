@@ -137,4 +137,17 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Penerima',page.text)
         self.assertIn('Vendor Kopi',page.text)
 
+    def test_budget_page_uses_compact_homebudget_style_rows(self):
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,500000,'IDR',actor_user_id=self.uid)
+        response=self.client.get(f'/business/{self.b}/finance/budget?month=2026-09')
+        self.assertEqual(response.status_code,200)
+        html=response.text
+        self.assertIn('finance-budget-category-row',html)
+        self.assertIn('Bulanan',html)
+        self.assertIn('Terpakai',html)
+        self.assertIn('Tersedia',html)
+        self.assertIn('Simpan Anggaran',html)
+        self.assertNotIn('finance-budget-form',html)
+
 if __name__=='__main__': unittest.main()

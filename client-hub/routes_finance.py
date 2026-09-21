@@ -709,6 +709,9 @@ def budget(business_id, user, business):
         rows.append(dict(
             category=category, budget=budget_row, input_amount=input_amount,
             input_currency=input_currency,
+            budget_value_minor=budget_display_minor,
+            spent_value_minor=spent_minor,
+            remaining_value_minor=remaining,
             budget_display=('Kurs belum lengkap' if budget_display_minor is None
                             else finance_fx.format_money(budget_display_minor, display_currency)),
             spent_display=('Kurs belum lengkap' if spent_minor is None
@@ -726,9 +729,24 @@ def budget(business_id, user, business):
     month_names = ('Januari','Februari','Maret','April','Mei','Juni',
                    'Juli','Agustus','September','Oktober','November','Desember')
     month_label = month_names[int(month[5:7])-1] + ' ' + month[:4]
+    month_index = int(month[:4]) * 12 + int(month[5:7]) - 1
+    month_at = lambda index: f'{index // 12:04d}-{index % 12 + 1:02d}'
+    previous_month = month_at(month_index - 1)
+    next_month = month_at(month_index + 1)
+    for row in rows:
+        row['over_budget'] = (
+            row.get('budget_value_minor') is not None and
+            row.get('spent_value_minor') is not None and
+            row['budget_value_minor'] > 0 and
+            row['spent_value_minor'] > row['budget_value_minor']
+        )
+        row['has_activity'] = bool(
+            (row.get('budget_value_minor') or 0) or (row.get('spent_value_minor') or 0)
+        )
     return render_template(
         'finance_budget.html', user=user, business=business, month=month,
-        month_label=month_label, rows=rows, display_currency=display_currency,
+        month_label=month_label, previous_month=previous_month, next_month=next_month,
+        rows=rows, display_currency=display_currency,
         display_options=display_options, supported_currencies=finance.SUPPORTED_CURRENCIES,
         fx_status_label=('Kurs belum tersedia' if fx.get('source') == 'unavailable'
                          else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
