@@ -4,6 +4,9 @@
     <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='INCOME') }}">Pemasukan</a>
     <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='EXPENSE') }}">Pengeluaran</a>
     <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='accounts') }}">Rekening</a>
+    <a class="fin-area-tab {{ 'active' if active_finance_area=='budget' else '' }}"
+       href="{{ url_for('finance.budget',business_id=business.id) }}"
+       {% if active_finance_area=='budget' %}aria-current="page"{% endif %}>Anggaran</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='receivables' else '' }}"
        href="{{ url_for('finance.receivables',business_id=business.id) }}"
        {% if active_finance_area=='receivables' %}aria-current="page"{% endif %}>Customer &amp; Piutang</a>

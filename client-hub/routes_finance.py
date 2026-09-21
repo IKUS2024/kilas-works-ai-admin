@@ -146,6 +146,7 @@ ERRORS = {
     'branch_exists': 'Nama cabang sudah digunakan.',
     'branch_unavailable': 'Cabang tidak tersedia.',
     'branch_mismatch': 'Kas / rekening harus berada dalam cabang yang sama.',
+    'budget_unavailable': 'Anggaran tidak tersedia.',
 }
 
 
@@ -392,6 +393,18 @@ def dashboard(business_id, user, business):
     fx_status_label = ('Kurs belum tersedia' if fx.get('source') == 'unavailable'
                        else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
                             + (' · data tertunda' if fx.get('stale') else ''))
+    budget_rows = finance.list_monthly_budgets(business_id, month, **actor)
+    budget_total_minor = finance_fx.convert_total(
+        [{'currency':row['currency'],'balance_minor':row['amount_minor']} for row in budget_rows],
+        display_currency, fx) if budget_rows else 0
+    budget_total_display = ('Kurs belum lengkap' if budget_total_minor is None
+                            else finance_fx.format_money(budget_total_minor, display_currency))
+    budget_remaining_minor = (None if budget_total_minor is None or period_expense_minor is None
+                              else budget_total_minor - period_expense_minor)
+    budget_remaining_display = ('Kurs belum lengkap' if budget_remaining_minor is None
+                                else finance_fx.format_money(budget_remaining_minor, display_currency))
+    budget_percent = (0 if not budget_total_minor or period_expense_minor is None else
+                      min(999, round(period_expense_minor * 100 / budget_total_minor)))
     balances = [dict(item) for item in balances]
     for item in balances:
         item['idr_estimate_minor'] = finance_fx.to_idr(item['balance_minor'], item['currency'], fx)
@@ -520,6 +533,8 @@ def dashboard(business_id, user, business):
         balance_total_display=balance_total_display, period_income_display=period_income_display,
         period_expense_display=period_expense_display, period_net_display=period_net_display,
         fx_status_label=fx_status_label,
+        budget_rows=budget_rows, budget_total_display=budget_total_display,
+        budget_remaining_display=budget_remaining_display, budget_percent=budget_percent,
         display_currency=display_currency, display_options=display_options,
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
@@ -539,6 +554,135 @@ def dashboard(business_id, user, business):
         analyst_enabled=finance_analyst.enabled(business_id),
         operator_enabled=finance_operator.enabled(business_id),
         today=today_value.isoformat(), account_types={'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'})
+
+
+
+@finance_bp.route('/business/<int:business_id>/finance/budget', methods=['GET', 'POST'])
+@finance_access
+def budget(business_id, user, business):
+    today_value = finance.business_today(business_id)
+    month = request.values.get('month') or today_value.strftime('%Y-%m')
+    try:
+        start, end = period(month)
+    except (ValueError, finance.FinanceError):
+        flash('Bulan anggaran belum valid.', 'error')
+        return redirect(url_for('finance.budget', business_id=business_id,
+                                branch_id=g.finance_branch_id), code=303)
+
+    accounts = finance.list_accounts(business_id, actor_user_id=user['id'])
+    existing = finance.list_monthly_budgets(business_id, month, actor_user_id=user['id'])
+    display_options = ['IDR']
+    display_options += [a['currency'] for a in accounts if a['currency'] != 'IDR']
+    display_options += [row['currency'] for row in existing if row['currency'] != 'IDR']
+    display_options = list(dict.fromkeys(display_options))
+    display_currency = request.values.get('display_currency') or 'IDR'
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
+    if display_currency not in display_options:
+        display_options.append(display_currency)
+
+    if request.method == 'POST':
+        action = request.form.get('action', 'save')
+        if action == 'delete':
+            return mutate(
+                business_id,
+                lambda: finance.delete_monthly_budget(
+                    business_id, record_id(request.form.get('budget_id')),
+                    actor_user_id=user['id']),
+                'Anggaran dihapus.',
+                url_for('finance.budget', business_id=business_id,
+                        branch_id=g.finance_branch_id, month=month,
+                        display_currency=display_currency))
+        currency = request.form.get('currency') or display_currency
+        return mutate(
+            business_id,
+            lambda: finance.set_monthly_budget(
+                business_id, month, record_id(request.form.get('category_id')),
+                currency_amount(request.form.get('amount'), currency),
+                currency=currency, actor_user_id=user['id']),
+            'Anggaran disimpan.',
+            url_for('finance.budget', business_id=business_id,
+                    branch_id=g.finance_branch_id, month=month,
+                    display_currency=display_currency))
+
+    fx = finance_fx.snapshot(display_options)
+    categories = finance.list_categories(
+        business_id, 'EXPENSE', actor_user_id=user['id'])
+    if month > today_value.strftime('%Y-%m'):
+        actual_rows = []
+    else:
+        actual_rows = finance.get_expense_category_totals(
+            business_id, start, min(end, today_value.isoformat()),
+            actor_user_id=user['id'])
+    by_category = {}
+    for row in actual_rows:
+        by_category.setdefault(row['category_id'], []).append(row)
+    budget_map = {row['category_id']: row for row in existing}
+
+    rows = []
+    total_budget_rows = []
+    total_spent_rows = []
+    for category in categories:
+        budget_row = budget_map.get(category['id'])
+        spend_rows = by_category.get(category['id'], [])
+        spent_minor = finance_fx.convert_total(
+            [{'currency':row['currency'],'balance_minor':int(row['amount_minor'])}
+             for row in spend_rows], display_currency, fx) if spend_rows else 0
+        if budget_row:
+            budget_display_minor = finance_fx.convert_total(
+                [{'currency':budget_row['currency'],
+                  'balance_minor':int(budget_row['amount_minor'])}],
+                display_currency, fx)
+            input_amount = str(finance_fx.major(
+                int(budget_row['amount_minor']), budget_row['currency']))
+            input_currency = budget_row['currency']
+            total_budget_rows.append(
+                {'currency':budget_row['currency'],
+                 'balance_minor':int(budget_row['amount_minor'])})
+        else:
+            budget_display_minor = 0
+            input_amount = ''
+            input_currency = display_currency
+        total_spent_rows.extend(
+            {'currency':row['currency'],'balance_minor':int(row['amount_minor'])}
+            for row in spend_rows)
+        remaining = (None if budget_display_minor is None or spent_minor is None
+                     else budget_display_minor - spent_minor)
+        percent_used = (0 if not budget_display_minor or spent_minor is None else
+                        min(999, round(spent_minor * 100 / budget_display_minor)))
+        rows.append(dict(
+            category=category, budget=budget_row, input_amount=input_amount,
+            input_currency=input_currency,
+            budget_display=('Kurs belum lengkap' if budget_display_minor is None
+                            else finance_fx.format_money(budget_display_minor, display_currency)),
+            spent_display=('Kurs belum lengkap' if spent_minor is None
+                           else finance_fx.format_money(spent_minor, display_currency)),
+            remaining_display=('Kurs belum lengkap' if remaining is None
+                               else finance_fx.format_money(remaining, display_currency)),
+            percent_used=percent_used))
+
+    total_budget_minor = finance_fx.convert_total(
+        total_budget_rows, display_currency, fx) if total_budget_rows else 0
+    total_spent_minor = finance_fx.convert_total(
+        total_spent_rows, display_currency, fx) if total_spent_rows else 0
+    remaining_minor = (None if total_budget_minor is None or total_spent_minor is None
+                       else total_budget_minor - total_spent_minor)
+    month_names = ('Januari','Februari','Maret','April','Mei','Juni',
+                   'Juli','Agustus','September','Oktober','November','Desember')
+    month_label = month_names[int(month[5:7])-1] + ' ' + month[:4]
+    return render_template(
+        'finance_budget.html', user=user, business=business, month=month,
+        month_label=month_label, rows=rows, display_currency=display_currency,
+        display_options=display_options, supported_currencies=finance.SUPPORTED_CURRENCIES,
+        fx_status_label=('Kurs belum tersedia' if fx.get('source') == 'unavailable'
+                         else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
+                              + (' · data tertunda' if fx.get('stale') else '')),
+        total_budget_display=('Kurs belum lengkap' if total_budget_minor is None
+                              else finance_fx.format_money(total_budget_minor, display_currency)),
+        total_spent_display=('Kurs belum lengkap' if total_spent_minor is None
+                             else finance_fx.format_money(total_spent_minor, display_currency)),
+        remaining_display=('Kurs belum lengkap' if remaining_minor is None
+                           else finance_fx.format_money(remaining_minor, display_currency)))
 
 
 def mutate(business_id, action, success, destination=None):

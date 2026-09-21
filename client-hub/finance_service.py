@@ -1466,3 +1466,87 @@ def create_receipt_expense(business_id, receipt_hash, amount_minor, account_id, 
                 raise FinanceError('receipt_duplicate_conflict')
             return existing['id']
         return _insert_transaction(business_id, data, actor_user_id)
+
+
+# Monthly expense budgets. Planning metadata only; never posts ledger transactions.
+def _budget_month(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[0-9]{4}-[0-9]{2}', value):
+        raise FinanceError('invalid_period')
+    try:
+        year, month = map(int, value.split('-'))
+        date(year, month, 1)
+    except (ValueError, TypeError):
+        raise FinanceError('invalid_period') from None
+    return value
+
+
+def list_monthly_budgets(business_id, month, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    month = _budget_month(month)
+    return db.query_all(
+        ('SELECT b.*,c.name AS category_name FROM finance_budgets b '
+         'JOIN finance_categories c ON c.business_id=b.business_id AND c.id=b.category_id '
+         'WHERE b.business_id=?' + branches.predicate('') +
+         ' AND b.month=? ORDER BY c.name,b.id'),
+        (business_id, month))
+
+
+def set_monthly_budget(business_id, month, category_id, amount_minor, currency='IDR', *,
+                       actor_user_id=None):
+    month = _budget_month(month)
+    category_id = _id(category_id)
+    amount_minor = _money(amount_minor, positive=True)
+    currency = _currency(currency)
+    with _write(business_id, actor_user_id):
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        category = db.query_one(
+            'SELECT id,direction,is_active FROM finance_categories WHERE business_id=? AND id=?',
+            (business_id, category_id))
+        if not category or not category['is_active']:
+            raise FinanceError('category_unavailable')
+        if category['direction'] != 'EXPENSE':
+            raise FinanceError('category_direction_mismatch')
+        existing = db.query_one(
+            'SELECT id FROM finance_budgets WHERE business_id=? AND branch_id=? AND month=? AND category_id=?',
+            (business_id, branch_id, month, category_id))
+        now = repo._now()
+        if existing:
+            db.execute(
+                'UPDATE finance_budgets SET amount_minor=?,currency=?,updated_at=? '
+                'WHERE business_id=? AND branch_id=? AND id=?',
+                (amount_minor, currency, now, business_id, branch_id, existing['id']))
+            _audit(business_id, actor_user_id, 'FINANCE_BUDGET_UPDATED', existing['id'])
+            return existing['id']
+        record_id = db.insert_returning_id(
+            'INSERT INTO finance_budgets '
+            '(business_id,branch_id,month,category_id,amount_minor,currency,created_by_user_id,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?,?,?)',
+            (business_id, branch_id, month, category_id, amount_minor, currency,
+             actor_user_id, now, now))
+        _audit(business_id, actor_user_id, 'FINANCE_BUDGET_CREATED', record_id)
+        return record_id
+
+
+def delete_monthly_budget(business_id, budget_id, *, actor_user_id=None):
+    with _write(business_id, actor_user_id):
+        budget_id = _id(budget_id)
+        row = db.query_one(
+            ('SELECT id FROM finance_budgets WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
+            (business_id, budget_id))
+        if not row:
+            raise FinanceError('budget_unavailable')
+        db.execute('DELETE FROM finance_budgets WHERE business_id=? AND id=?',
+                   (business_id, budget_id))
+        _audit(business_id, actor_user_id, 'FINANCE_BUDGET_DELETED', budget_id)
+        return budget_id
+
+
+def get_expense_category_totals(business_id, start_date, end_date, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    start_date, end_date = _period(start_date, end_date)
+    return db.query_all(
+        ('SELECT category_id,currency,SUM(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
+         'FROM finance_transactions WHERE business_id=?' + branches.predicate('') +
+         " AND status='POSTED' AND direction='EXPENSE' AND occurred_on>=? AND occurred_on<=? "
+         'GROUP BY category_id,currency ORDER BY category_id,currency'),
+        (business_id, start_date, end_date))

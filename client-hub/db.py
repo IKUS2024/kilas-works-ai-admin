@@ -264,6 +264,7 @@ MIGRATIONS = [
     ("0034_finance_promo_trial_billing_sqlite.sql", "0034_finance_promo_trial_billing_postgres.sql"),
     ("0035_finance_multicurrency_sqlite.sql", "0035_finance_multicurrency_postgres.sql"),
     ("0036_finance_bank_extraction_sqlite.sql", "0036_finance_bank_extraction_postgres.sql"),
+    ("0037_finance_budgets_sqlite.sql", "0037_finance_budgets_postgres.sql"),
 ]
 
 

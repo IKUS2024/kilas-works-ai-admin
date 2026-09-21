@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Anggaran · Kilas Finance{% endblock %}
+{% block content %}
+{% include '_finance_receivables_style.html' %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-1') }}">
+<div class="fin-page">
+{% set active_finance_area='budget' %}{% include '_finance_area_nav.html' %}
+<div class="fin-section-head">
+  <div><span class="finance-eyebrow">KILAS FINANCE</span><h1 class="fin-page-title">Anggaran</h1><p class="muted fin-page-subtitle">{{ business.business_name }} · {{ selected_branch.name }} · {{ month_label }}</p></div>
+</div>
+
+<form method="get" class="card fin-filter-bar">
+  <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+  <label>Bulan<input type="month" name="month" value="{{ month }}" required></label>
+  <label>Mata uang tampilan<select name="display_currency">{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label>
+  <button class="btn secondary">Tampilkan</button>
+</form>
+
+<section class="card">
+  <div class="finance-section-heading"><div><h2>Ringkasan anggaran</h2><span class="finance-subtle">{{ fx_status_label }}</span></div><span class="finance-display-chip">{{ display_currency }}</span></div>
+  <div class="finance-budget-summary">
+    <div><span>Anggaran</span><strong>{{ total_budget_display }}</strong></div>
+    <div><span>Terpakai</span><strong>{{ total_spent_display }}</strong></div>
+    <div><span>Tersisa</span><strong>{{ remaining_display }}</strong></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="fin-section-head"><div><h2>Anggaran per kategori</h2><p class="muted">Atur batas pengeluaran tiap kategori. Transaksi tetap berasal dari ledger yang sama.</p></div></div>
+  {% for row in rows %}
+  <article class="finance-budget-row">
+    <div>
+      <h3>{{ row.category.name }}</h3>
+      <div class="finance-budget-stats"><span>Anggaran {{ row.budget_display }}</span><span>Terpakai {{ row.spent_display }}</span><span>Sisa {{ row.remaining_display }}</span></div>
+      <div class="finance-budget-progress" aria-label="{{ row.percent_used }} persen terpakai"><i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i></div>
+    </div>
+    <div>
+      <form method="post" class="finance-budget-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <input type="hidden" name="display_currency" value="{{ display_currency }}">
+        <input type="hidden" name="category_id" value="{{ row.category.id }}">
+        <label><span class="muted">Nominal</span><input name="amount" inputmode="decimal" value="{{ row.input_amount }}" placeholder="0" required></label>
+        <label><span class="muted">Mata uang</span><select name="currency">{% for code in supported_currencies %}<option value="{{ code }}" {{ 'selected' if code==row.input_currency }}>{{ code }}</option>{% endfor %}</select></label>
+        <button class="btn" name="action" value="save">{{ 'Ubah' if row.budget else 'Tambah' }}</button>
+      </form>
+      {% if row.budget %}<form method="post" class="finance-budget-delete" onsubmit="return confirm('Hapus anggaran kategori ini? Transaksi tidak akan berubah.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="display_currency" value="{{ display_currency }}"><input type="hidden" name="budget_id" value="{{ row.budget.id }}"><button class="finance-mini-action finance-danger" name="action" value="delete">Hapus anggaran</button></form>{% endif %}
+    </div>
+  </article>
+  {% else %}<div class="fin-empty">Belum ada kategori Pengeluaran aktif.</div>{% endfor %}
+</section>
+</div>
+{% endblock %}

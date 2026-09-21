@@ -58,9 +58,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('id="finance-trend-data"',html)
         self.assertNotIn('Tanya Kilas Finance',html)
 
-    def test_empty_dashboard_omits_fake_budget_and_attention(self):
+    def test_empty_dashboard_shows_real_zero_budget_and_omits_attention(self):
         html,context=self.page()
-        self.assertNotIn('Anggaran',html)
+        self.assertIn('Anggaran',html)
+        self.assertEqual(context['budget_total_display'],'Rp0')
         self.assertNotIn('Perlu perhatian',html)
         self.assertIn('Belum ada transaksi.',html)
         self.assertEqual(context['recurring_items'],[])
@@ -105,5 +106,15 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(context['period_income_display'],'Rp260.000')
         self.assertIn('Rp260.000',html)
         self.assertNotIn('Mata uang ditampilkan terpisah',html)
+
+    def test_monthly_budget_is_branch_scoped_and_updates_dashboard(self):
+        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,500000,'IDR',actor_user_id=self.uid)
+        html,context=self.page('?month=2026-09')
+        self.assertEqual(context['budget_total_display'],'Rp500.000')
+        self.assertIn('Rp500.000',html)
+        rows=fixture.f.list_monthly_budgets(self.b,'2026-09',actor_user_id=self.uid)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['category_id'],expense_cat)
 
 if __name__=='__main__': unittest.main()
