@@ -13,3 +13,22 @@
 
 .finance-context-manage{margin-top:10px}.finance-budget-overview{padding:18px;margin-bottom:14px}.finance-budget-overview-main{display:flex;align-items:baseline;gap:10px;margin-top:13px}.finance-budget-overview-main strong{font-size:clamp(30px,6vw,40px);letter-spacing:-.05em}.finance-budget-overview-main span{color:var(--text-dim);font-size:12px}.finance-ai-home{display:block;margin-top:14px;min-height:0}.finance-ledger-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.finance-account-secondary-actions{display:flex;justify-content:flex-end;margin:12px 2px 22px}.finance-page.finance-live-loading .finance-budget-overview,.finance-page.finance-live-loading .finance-trend,.finance-page.finance-live-loading .finance-ai-home{opacity:.55;pointer-events:none;transition:opacity .12s ease}
 @media(max-width:700px){.finance-budget-overview{padding:14px}.finance-ledger-actions{width:100%}.finance-ledger-actions .finance-ledger-add{flex:1}.finance-account-secondary-actions{justify-content:flex-start}}
+
+/* Compact finance numbers: keep money readable without oversized result typography. */
+.finance-metric strong{font-size:clamp(16px,2vw,20px)!important;letter-spacing:-.02em}
+.finance-combined-balance{font-size:clamp(24px,5vw,30px)!important;letter-spacing:-.035em}
+.finance-ledger-summary-values strong{font-size:clamp(20px,4vw,26px)!important;letter-spacing:-.025em}
+.finance-account-balance{font-size:clamp(20px,3.6vw,25px)!important;letter-spacing:-.025em}
+.finance-entry-amount{font-size:17px!important}
+.finance-history-amount{font-size:15px!important}
+.finance-budget-overview-main strong{font-size:clamp(24px,5vw,30px)!important;letter-spacing:-.03em}
+.finance-budget-summary strong{font-size:17px!important}
+.finance-native-balances strong{font-size:clamp(20px,3.6vw,25px)!important}
+@media(max-width:700px){
+  .finance-metric strong{font-size:17px!important}
+  .finance-combined-balance{font-size:26px!important}
+  .finance-ledger-summary-values strong{font-size:22px!important}
+  .finance-account-balance{font-size:22px!important}
+  .finance-entry-amount{font-size:16px!important}
+  .finance-budget-overview-main strong{font-size:26px!important}
+}
