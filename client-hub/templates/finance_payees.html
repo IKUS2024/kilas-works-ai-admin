@@ -16,8 +16,12 @@
 .fin-payee-main{min-width:0}
 .fin-payee-name{display:block;font-size:15px;font-weight:800;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fin-payee-meta{display:block;margin-top:3px;color:var(--muted);font-size:11px;line-height:1.35}
-.fin-payee-total{flex:0 0 auto;text-align:right;font-size:13px;font-weight:800}
+.fin-payee-side{flex:0 0 auto;display:grid;justify-items:end;gap:7px}
+.fin-payee-total{text-align:right;font-size:13px;font-weight:800}
 .fin-payee-native{display:block;margin-top:2px;color:var(--muted);font-size:10px;font-weight:500}
+.fin-payee-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.fin-payee-actions form{margin:0}
+.fin-payee-actions .finance-mini-action{padding:6px 8px;font-size:10px;line-height:1.1}
 .fin-payee-empty{margin:0 16px 16px}
 .fin-payees-page .fin-pagination{margin:0 16px 14px}
 .fin-payee-dialog{border:1px solid var(--border);border-radius:18px;background:var(--card);color:inherit;width:min(440px,calc(100vw - 28px));padding:0}
@@ -34,6 +38,7 @@
   .fin-payee-list-head{padding:13px 14px 9px}
   .fin-payee-name{font-size:14px}
   .fin-payee-total{font-size:12px}
+  .fin-payee-actions .finance-mini-action{padding:6px 7px;font-size:9.5px}
 }
 </style>
 <div class="fin-page fin-payees-page">
@@ -86,13 +91,47 @@
       <span class="fin-payee-name">{{ item.name }}</span>
       <span class="fin-payee-meta">{{ item.transaction_count }} pembayaran{% if item.last_paid_on %} · terakhir {{ item.last_paid_on }}{% else %} · belum pernah dibayar{% endif %}</span>
     </div>
-    <div class="fin-payee-total">
-      {{ item.total_display }}
-      {% if item.native_labels|length > 1 %}
-      <span class="fin-payee-native">{{ item.native_labels|join(' · ') }}</span>
+    <div class="fin-payee-side">
+      <div class="fin-payee-total">
+        {{ item.total_display }}
+        {% if item.native_labels|length > 1 %}
+        <span class="fin-payee-native">{{ item.native_labels|join(' · ') }}</span>
+        {% endif %}
+      </div>
+      {% if item.payee_id %}
+      <div class="fin-payee-actions">
+        <button class="finance-mini-action" type="button" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').showModal()">✏️ Edit</button>
+        <form method="post" action="{{ url_for('finance.delete_payee',business_id=business.id,payee_id=item.payee_id) }}" onsubmit="return confirm('Hapus {{ item.name }} dari daftar Penerima? Transaksi lama tetap tersimpan.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+          <input type="hidden" name="display_currency" value="{{ display_currency }}">
+          <input type="hidden" name="q" value="{{ q }}">
+          <input type="hidden" name="page" value="{{ page }}">
+          <button class="finance-mini-action finance-danger" type="submit">🗑️ Hapus</button>
+        </form>
+      </div>
       {% endif %}
     </div>
   </article>
+  {% if item.payee_id %}
+  <dialog id="payee-edit-{{ item.payee_id }}" class="fin-payee-dialog">
+    <div class="fin-payee-dialog-head">
+      <h2>Edit Penerima</h2>
+      <button class="fin-payee-dialog-close" type="button" aria-label="Tutup" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').close()">×</button>
+    </div>
+    <form method="post" action="{{ url_for('finance.update_payee',business_id=business.id,payee_id=item.payee_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="display_currency" value="{{ display_currency }}">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="page" value="{{ page }}">
+      <label>Nama penerima
+        <input name="name" value="{{ item.name }}" maxlength="160" autocomplete="off" required>
+      </label>
+      <button class="btn" type="submit">Simpan Edit</button>
+    </form>
+  </dialog>
+  {% endif %}
   {% else %}
   <div class="fin-empty fin-payee-empty">Belum ada penerima. Tekan “＋ Tambah Penerima” untuk menambah toko, vendor, atau pihak yang biasa kamu bayar.</div>
   {% endfor %}
