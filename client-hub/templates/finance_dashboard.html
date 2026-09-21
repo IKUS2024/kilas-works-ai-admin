@@ -427,7 +427,8 @@
 <p class="muted">Pilih tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · pembayaran digital → GoPay.</p>
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
-<label>Penerima / sumber<input name="counterparty_name" maxlength="160" placeholder="Contoh: Vendor A atau Client B"></label>
+<label>Penerima / sumber<input name="counterparty_name" list="finance-payee-options" maxlength="160" placeholder="Contoh: Vendor A atau Client B"></label>
+<datalist id="finance-payee-options">{% for name in payee_names %}<option value="{{ name }}">{% endfor %}</datalist>
 <label for="transaction-note">Catatan</label><textarea id="transaction-note" name="description" maxlength="4000"></textarea>
 <details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>
 <button class="btn">Simpan Transaksi</button>
