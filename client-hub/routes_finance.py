@@ -3,6 +3,7 @@ import calendar
 import hashlib
 from pathlib import Path
 from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, localcontext
 import os
 import re
 import uuid
@@ -177,25 +178,77 @@ def whole_idr(value, signed=False):
     return amount
 
 
-def currency_amount(value, currency, signed=False):
-    """Whole units for IDR/JPY; cents for supported decimal currencies."""
-    currency=finance._currency(currency)
-    if currency in ('IDR','JPY'):
-        return whole_idr(value,signed=signed)
-    if not isinstance(value,str):
+def _money_decimal(value, signed=False):
+    """Parse localized decimal money safely without float arithmetic.
+
+    Accepts Indonesian/international decimal separators and grouped thousands,
+    e.g. 1250.50, 1250,50, 1.250,50, 1,250.50, and 1 250,50.
+    """
+    if not isinstance(value, str):
         raise finance.FinanceError('invalid_money_minor')
-    text=value.strip();negative=text.startswith('-')
+    text=value.strip()
+    negative=text.startswith('-')
     if negative:
-        if not signed:raise finance.FinanceError('invalid_money_minor')
-        text=text[1:]
-    if not re.fullmatch(r'[0-9]{1,16}(?:[.,][0-9]{1,2})?',text):
+        if not signed:
+            raise finance.FinanceError('invalid_money_minor')
+        text=text[1:].strip()
+    if not text or len(text)>40 or not re.fullmatch(r'[0-9][0-9., ]*|[.,][0-9]+',text):
         raise finance.FinanceError('invalid_money_minor')
-    parts=re.split(r'[.,]',text,maxsplit=1)
-    amount=int(parts[0])*100+int((parts[1]+'00')[:2] if len(parts)==2 else '00')
-    amount=-amount if negative else amount
-    if not -(2**63)<=amount<=2**63-1 or (not signed and amount<=0):
+    text=text.replace(' ','')
+    if text.startswith(('.',',')):
+        text='0'+text
+
+    # A repeated single separator with groups of exactly three digits is a
+    # thousands-grouped integer. Otherwise a single separator is decimal.
+    grouped_integer = bool(re.fullmatch(r'[0-9]{1,3}(?:[.,][0-9]{3})+',text))
+    normalized=None
+    if grouped_integer:
+        normalized=re.sub(r'[.,]','',text)
+    elif '.' in text and ',' in text:
+        decimal_sep='.' if text.rfind('.')>text.rfind(',') else ','
+        group_sep=',' if decimal_sep=='.' else '.'
+        integer_part,fraction=text.rsplit(decimal_sep,1)
+        if not re.fullmatch(r'[0-9]{1,3}(?:'+re.escape(group_sep)+r'[0-9]{3})*|[0-9]+',integer_part):
+            raise finance.FinanceError('invalid_money_minor')
+        if not re.fullmatch(r'[0-9]{1,6}',fraction):
+            raise finance.FinanceError('invalid_money_minor')
+        normalized=integer_part.replace(group_sep,'')+'.'+fraction
+    elif '.' in text or ',' in text:
+        sep='.' if '.' in text else ','
+        if text.count(sep)!=1:
+            raise finance.FinanceError('invalid_money_minor')
+        integer_part,fraction=text.split(sep,1)
+        if not integer_part.isdigit() or not re.fullmatch(r'[0-9]{1,6}',fraction):
+            raise finance.FinanceError('invalid_money_minor')
+        normalized=integer_part+'.'+fraction
+    elif text.isdigit():
+        normalized=text
+    else:
+        raise finance.FinanceError('invalid_money_minor')
+
+    try:
+        amount=Decimal(normalized)
+    except InvalidOperation:
+        raise finance.FinanceError('invalid_money_minor') from None
+    if negative:
+        amount=-amount
+    if not amount.is_finite():
         raise finance.FinanceError('invalid_money_minor')
     return amount
+
+
+def currency_amount(value, currency, signed=False):
+    """Parse all Finance money inputs as decimals, then round to ledger precision."""
+    currency=finance._currency(currency)
+    amount=_money_decimal(value,signed=signed)
+    scale=Decimal(1) if currency in ('IDR','JPY') else Decimal(100)
+    with localcontext() as context:
+        context.prec=60
+        minor=amount*scale
+        minor=int(minor.quantize(Decimal('1'),rounding=ROUND_HALF_UP))
+    if not -(2**63)<=minor<=2**63-1 or (not signed and minor<=0):
+        raise finance.FinanceError('invalid_money_minor')
+    return minor
 
 
 def money_label(value,currency):
