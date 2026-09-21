@@ -2,7 +2,7 @@
 {% block title %}Anggaran · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-2') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-3') }}">
 <div class="fin-page finance-budget-homebudget">
 {% set active_finance_area='budget' %}{% include '_finance_area_nav.html' %}
 
@@ -57,6 +57,8 @@
   {% else %}
   <div class="fin-empty">Belum ada kategori Pengeluaran aktif.</div>
   {% endfor %}
+  <button type="button" class="finance-budget-add-category" data-finance-open="budget-add-category-dialog">＋ Tambah Kategori</button>
+  <p class="finance-budget-list-note">Ketuk kategori untuk mengatur anggaran atau mengubah namanya.</p>
 </section>
 
 <footer class="card finance-budget-footer">
@@ -80,6 +82,20 @@
     <div class="finance-budget-progress {{ 'over' if row.over_budget else '' }}" aria-label="{{ row.percent_used }} persen terpakai">
       <i style="--budget-progress:{{ [row.percent_used,100]|min }}%"></i>
     </div>
+
+    <form method="post" class="finance-budget-category-name-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="hidden" name="display_currency" value="{{ display_currency }}">
+      <input type="hidden" name="category_id" value="{{ row.category.id }}">
+      <label>Nama Kategori
+        <span class="finance-budget-inline-edit">
+          <input name="name" value="{{ row.category.name }}" maxlength="160" autocomplete="off" required>
+          <button class="finance-mini-action" name="action" value="rename_category">Simpan Nama</button>
+        </span>
+      </label>
+    </form>
 
     <form method="post" class="finance-budget-sheet-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -113,6 +129,27 @@
   </div>
 </dialog>
 {% endfor %}
+
+<dialog id="budget-add-category-dialog" class="finance-sheet finance-budget-sheet">
+  <div class="finance-sheet-head">
+    <div><small>Kategori Pengeluaran</small><h2>Tambah Kategori</h2></div>
+    <button type="button" class="finance-sheet-close" data-finance-close="budget-add-category-dialog" aria-label="Tutup">×</button>
+  </div>
+  <div class="finance-sheet-body">
+    <form method="post" class="finance-budget-sheet-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="hidden" name="display_currency" value="{{ display_currency }}">
+      <input type="hidden" name="action" value="create_category">
+      <label>Nama Kategori
+        <input name="name" maxlength="160" autocomplete="off" placeholder="Contoh: Sewa Studio" required>
+      </label>
+      <p class="finance-budget-dialog-note">Kategori baru langsung tersedia di Anggaran dan pilihan Pengeluaran.</p>
+      <button class="btn" type="submit">Tambah Kategori</button>
+    </form>
+  </div>
+</dialog>
 </div>
 <script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>
 {% endblock %}

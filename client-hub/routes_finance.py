@@ -639,6 +639,39 @@ def budget(business_id, user, business):
 
     if request.method == 'POST':
         action = request.form.get('action', 'save')
+        destination = url_for(
+            'finance.budget', business_id=business_id,
+            branch_id=g.finance_branch_id, month=month,
+            display_currency=display_currency)
+
+        if action == 'create_category':
+            return mutate(
+                business_id,
+                lambda: finance.create_category(
+                    business_id, 'EXPENSE', request.form.get('name'),
+                    actor_user_id=user['id']),
+                'Kategori pengeluaran ditambahkan.',
+                destination)
+
+        if action == 'rename_category':
+            category_id = record_id(request.form.get('category_id'))
+
+            def rename_expense_category():
+                categories = finance.list_categories(
+                    business_id, 'EXPENSE', include_inactive=True,
+                    actor_user_id=user['id'])
+                if not any(category['id'] == category_id for category in categories):
+                    raise finance.FinanceError('category_unavailable')
+                branches.update_record(
+                    business_id, 'category', category_id,
+                    name=request.form.get('name'),
+                    actor_user_id=user['id'])
+
+            return mutate(
+                business_id, rename_expense_category,
+                'Nama kategori diperbarui.',
+                destination)
+
         if action == 'delete':
             return mutate(
                 business_id,
@@ -646,9 +679,10 @@ def budget(business_id, user, business):
                     business_id, record_id(request.form.get('budget_id')),
                     actor_user_id=user['id']),
                 'Anggaran dihapus.',
-                url_for('finance.budget', business_id=business_id,
-                        branch_id=g.finance_branch_id, month=month,
-                        display_currency=display_currency))
+                destination)
+
+        if action != 'save':
+            abort(400)
         currency = request.form.get('currency') or display_currency
         return mutate(
             business_id,
@@ -657,9 +691,7 @@ def budget(business_id, user, business):
                 currency_amount(request.form.get('amount'), currency),
                 currency=currency, actor_user_id=user['id']),
             'Anggaran disimpan.',
-            url_for('finance.budget', business_id=business_id,
-                    branch_id=g.finance_branch_id, month=month,
-                    display_currency=display_currency))
+            destination)
 
     fx = finance_fx.snapshot(display_options)
     categories = finance.list_categories(

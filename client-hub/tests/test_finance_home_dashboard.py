@@ -148,6 +148,36 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Terpakai',html)
         self.assertIn('Tersedia',html)
         self.assertIn('Simpan Anggaran',html)
+        self.assertIn('＋ Tambah Kategori',html)
+        self.assertIn('Simpan Nama',html)
+        self.assertIn('Ketuk kategori untuk mengatur anggaran atau mengubah namanya.',html)
         self.assertNotIn('finance-budget-form',html)
+
+    def test_budget_page_adds_and_renames_expense_categories_in_place(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        budget_url=f'/business/{self.b}/finance/budget'
+        created=self.client.post(budget_url,data={
+            'branch_id':str(branch_id),'month':'2026-09','display_currency':'IDR',
+            'action':'create_category','name':'Sewa Studio'})
+        self.assertEqual(created.status_code,303)
+        self.assertIn('/finance/budget',created.location)
+        categories=fixture.f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)
+        category=next(c for c in categories if c['name']=='Sewa Studio')
+
+        renamed=self.client.post(budget_url,data={
+            'branch_id':str(branch_id),'month':'2026-09','display_currency':'IDR',
+            'action':'rename_category','category_id':str(category['id']),'name':'Studio / Lokasi'})
+        self.assertEqual(renamed.status_code,303)
+        names=[c['name'] for c in fixture.f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)]
+        self.assertIn('Studio / Lokasi',names)
+        self.assertNotIn('Sewa Studio',names)
+
+        income=fixture.f.list_categories(self.b,'INCOME',actor_user_id=self.uid)[0]
+        blocked=self.client.post(budget_url,data={
+            'branch_id':str(branch_id),'month':'2026-09','display_currency':'IDR',
+            'action':'rename_category','category_id':str(income['id']),'name':'Jangan Ubah'})
+        self.assertEqual(blocked.status_code,303)
+        income_names=[c['name'] for c in fixture.f.list_categories(self.b,'INCOME',actor_user_id=self.uid)]
+        self.assertNotIn('Jangan Ubah',income_names)
 
 if __name__=='__main__': unittest.main()
