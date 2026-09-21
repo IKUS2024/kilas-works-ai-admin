@@ -28,6 +28,42 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
 
 
 
+// A top-level category may expose one level of subcategories. Utility defaults use
+// this for Listrik, Air, Internet, Telepon, Gas, Laundry, and Sampah / Kebersihan.
+for (const category of document.querySelectorAll('[data-other-category]')) {
+  const form=category.closest('form');
+  const field=form && form.querySelector('[data-subcategory-field]');
+  const subcategory=form && form.querySelector('[data-subcategory-select]');
+  const direction=form && form.querySelector('[name="direction"]');
+  if(!form||!field||!subcategory)continue;
+
+  const refresh=()=>{
+    const parentId=String(category.value||'');
+    const kind=direction ? direction.value : '';
+    let count=0;
+    for(const option of subcategory.options){
+      if(!option.value)continue;
+      const visible=String(option.dataset.parentId||'')===parentId &&
+        (!kind || !option.dataset.direction || option.dataset.direction===kind);
+      option.disabled=!visible;
+      option.hidden=!visible;
+      if(visible)count+=1;
+    }
+    const selected=subcategory.selectedOptions[0];
+    if(selected && selected.value && selected.disabled)subcategory.value='';
+    field.hidden=count===0;
+    if(field.style)field.style.display=count===0?'none':'';
+    subcategory.disabled=count===0;
+    subcategory.required=count>0;
+    if(count===0)subcategory.value='';
+  };
+  category.addEventListener('change',refresh);
+  if(direction)direction.addEventListener('change',refresh);
+  refresh();
+}
+
+
+
 // Manage transaction categories without leaving the transaction sheet.
 // The same Finance category records feed transactions, budgets, recurring costs,
 // reports, and AI Finance, so add/delete here stays consistent everywhere.
