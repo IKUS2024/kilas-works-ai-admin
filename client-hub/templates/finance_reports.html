@@ -147,25 +147,34 @@
   <div class="report-hero-copy">
     <span class="report-eyebrow">Kilas Finance · Reporting</span>
     <h1>Laporan Finance</h1>
-    <p>{{ business.business_name }} · Ringkasan keuangan berbasis kas untuk keputusan usaha.</p>
+    <p>{% if finance_workspace_personal %}Pribadi · Ringkasan pemasukan, pengeluaran, akun, kategori, dan tagihan rutin.{% else %}{{ business.business_name }} · Ringkasan keuangan berbasis kas untuk keputusan usaha.{% endif %}</p>
   </div>
-  <span class="report-scope-badge">{{ selected_branch.name }}</span>
+  <span class="report-scope-badge">{{ 'Pribadi' if finance_workspace_personal else selected_branch.name }}</span>
 </header>
 
 <div class="report-meta">
   <span class="report-chip">📅 <strong>{{ filters.start }}</strong> – <strong>{{ filters.end }}</strong></span>
+  {% if finance_workspace_personal %}
+  <span class="report-chip">👤 <strong>Pribadi</strong></span>
+  {% else %}
   <span class="report-chip">🏪 <strong>{{ selected_branch.name }}</strong></span>
   <span class="report-chip">🧾 Acuan piutang <strong>{{ filters.as_of }}</strong></span>
+  {% endif %}
 </div>
 
 <section class="card report-shell no-print" aria-label="Navigasi laporan">
   <div class="report-tabs-wrap">
     <nav class="report-tabs" aria-label="Jenis laporan">
-      {% for key,label,icon in [
+      {% set report_tabs = [
+        ('summary','Ringkasan','📊'),('trend','Arus Kas','📈'),
+        ('accounts','Kas & Rekening','💳'),('categories','Kategori','🏷️'),
+        ('commitments','Tagihan Rutin','◷')
+      ] if finance_workspace_personal else [
         ('summary','Ringkasan','📊'),('trend','Arus Kas','📈'),
         ('accounts','Kas & Rekening','💳'),('receivables','Piutang','🧾'),
         ('analysis','Analisis','🔎')
       ] %}
+      {% for key,label,icon in report_tabs %}
       <a class="report-tab {{ 'active' if section_target==key }}" href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,section=key,**filters) }}" {% if section_target==key %}aria-current="page"{% endif %}><span class="report-tab-icon">{{ icon }}</span>{{ label }}</a>
       {% endfor %}
     </nav>
@@ -184,7 +193,7 @@
 <main class="report-content">
 {% if section=='filter' %}
   <section class="card report-inline-filter">
-    <h2>Filter Laporan</h2><p class="muted">Atur periode dan tanggal acuan piutang. Setelah disimpan kamu kembali ke Ringkasan.</p>
+    <h2>Filter Laporan</h2><p class="muted">{% if finance_workspace_personal %}Atur periode laporan pribadi. Setelah disimpan kamu kembali ke Ringkasan.{% else %}Atur periode dan tanggal acuan piutang. Setelah disimpan kamu kembali ke Ringkasan.{% endif %}</p>
     <div class="report-presets">
       {% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}
       <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section='summary') }}">{{ label }}</a>
@@ -195,7 +204,7 @@
       <div class="report-controls">
         <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
         <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
-        <label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>
+        {% if finance_workspace_personal %}<input type="hidden" name="as_of" value="{{ filters.end }}">{% else %}<label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>{% endif %}
       </div>
       <div class="report-dialog-actions"><button class="btn">Terapkan Filter</button></div>
     </form>
@@ -222,7 +231,7 @@
   <section class="card report-data-card">{{ report_table(data.category_breakdown,[('Mata uang','currency','text'),('Jenis','direction','direction'),('Kategori','name','text'),('Nominal','amount_minor','money'),('Transaksi','transaction_count','number'),('Persentase','percentage','percent')]) }}</section>
 {% elif section=='accounts' %}
   {{ section_head('Kas & Rekening','Posisi setiap kas/rekening termasuk saldo awal, transaksi, dan penukaran.') }}
-  <section class="card report-data-card">{{ report_table(data.accounts,[('Cabang','branch_name','text'),('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Status','is_active','active'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Penukaran masuk','exchange_in_minor','money'),('Penukaran keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}</section>
+  <section class="card report-data-card">{% if finance_workspace_personal %}{{ report_table(data.accounts,[('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Status','is_active','active'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Penukaran masuk','exchange_in_minor','money'),('Penukaran keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}{% else %}{{ report_table(data.accounts,[('Cabang','branch_name','text'),('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Status','is_active','active'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Penukaran masuk','exchange_in_minor','money'),('Penukaran keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}{% endif %}</section>
 {% elif section=='customers' %}
   {{ section_head('Kontribusi Customer','Arus kas yang dikaitkan ke setiap customer dalam periode laporan.') }}
   <section class="card report-data-card">{{ report_table(data.customers,[('Customer','name','text'),('Mata uang','currency','text'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Kontribusi','net_cash_contribution_minor','money'),('Transaksi','transaction_count','number')]) }}</section>
@@ -240,12 +249,12 @@
   <section class="card report-data-card"><h3>Komitmen Biaya Rutin</h3>{{ report_table(data.recurring_commitments,[('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Proyek','project_name','text'),('Kas / Rekening','account_name','text')]) }}</section>
 {% elif section=='commitments' %}
   {{ section_head('Komitmen Biaya Rutin','Jadwal biaya rutin pada rentang komitmen yang dipilih.') }}
-  <section class="card report-data-card">{{ report_table(data.recurring_commitments,[('Cabang','branch_name','text'),('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Proyek','project_name','text'),('Kas / Rekening','account_name','text'),('Kategori','category_name','text')]) }}</section>
+  <section class="card report-data-card">{% if finance_workspace_personal %}{{ report_table(data.recurring_commitments,[('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Kas / Rekening','account_name','text'),('Kategori','category_name','text')]) }}{% else %}{{ report_table(data.recurring_commitments,[('Cabang','branch_name','text'),('Nama','name','text'),('Jatuh tempo','scheduled_on','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Proyek','project_name','text'),('Kas / Rekening','account_name','text'),('Kategori','category_name','text')]) }}{% endif %}</section>
 {% endif %}
 </main>
 
 <aside class="report-note">
-  <strong>Catatan laporan:</strong> laporan ini adalah laporan operasional berbasis kas, bukan laporan laba rugi akrual. Saldo tercatat dapat berbeda dari saldo bank aktual sebelum rekonsiliasi. Mata uang selalu disajikan terpisah.
+  <strong>Catatan laporan:</strong> {% if finance_workspace_personal %}laporan ini merangkum pencatatan kas pribadi. Saldo tercatat mengikuti transaksi dan saldo akun yang kamu masukkan manual.{% else %}laporan ini adalah laporan operasional berbasis kas, bukan laporan laba rugi akrual. Saldo tercatat dapat berbeda dari saldo bank aktual sebelum rekonsiliasi.{% endif %} Mata uang selalu disajikan terpisah.
 </aside>
 
 <dialog id="report-filter-dialog" class="report-dialog no-print">
@@ -263,7 +272,7 @@
         <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
         <label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>
       </div>
-      <p class="report-filter-help">Tanggal acuan dipakai untuk posisi piutang. Komitmen biaya rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.</p>
+      <p class="report-filter-help">{% if finance_workspace_personal %}Tagihan rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% else %}Tanggal acuan dipakai untuk posisi piutang. Komitmen biaya rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% endif %}</p>
       <div class="report-dialog-actions"><button type="button" class="btn secondary" data-report-filter-close>Batal</button><button class="btn">Terapkan</button></div>
     </form>
   </div>
