@@ -97,8 +97,24 @@ class FinalFlowTests(unittest.TestCase):
 
         with branches.scope(self.b,personal[0]['id'],self.uid):
             self.assertEqual(f.list_transactions(self.b,actor_user_id=self.uid),[])
+            personal_income={row['name'] for row in f.list_categories(
+                self.b,'INCOME',actor_user_id=self.uid)}
+            personal_expense={row['name'] for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)}
+            self.assertIn('Gaji',personal_income)
+            self.assertIn('Freelance / Side Job',personal_income)
+            self.assertIn('Kesehatan',personal_expense)
+            self.assertIn('Belanja Pribadi',personal_expense)
+            self.assertIn('Cicilan / Utang',personal_expense)
+            self.assertNotIn('Penjualan / Jasa',personal_income)
+            custom=f.create_category(
+                self.b,'EXPENSE','Hobi Pribadi',actor_user_id=self.uid)
+            self.assertIn('Hobi Pribadi',{row['name'] for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)})
             account=f.list_accounts(self.b,actor_user_id=self.uid)[0]
-            category=f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)[0]
+            category=next(row for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)
+                if row['name']=='Makanan & Belanja Harian')
             personal_tx=f.create_transaction(
                 self.b,'EXPENSE',12345,account['id'],category['id'],
                 '2026-09-17',actor_user_id=self.uid)
@@ -108,12 +124,26 @@ class FinalFlowTests(unittest.TestCase):
                 self.b,actor_user_id=self.uid)}
             self.assertIn(legacy,business_ids)
             self.assertNotIn(personal_tx,business_ids)
+            business_categories={row['name'] for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)}
+            self.assertNotIn('Hobi Pribadi',business_categories)
+            self.assertNotIn('Belanja Pribadi',business_categories)
 
         personal_page=self.client.get(
             f'/business/{self.b}/finance?branch_id={personal[0]["id"]}')
         self.assertEqual(personal_page.status_code,200)
         self.assertIn('KILAS FINANCE · PRIBADI',personal_page.text)
         self.assertIn('data terpisah dari Bisnis',personal_page.text)
+        self.assertNotIn('Ganti ruang / cabang',personal_page.text)
+        self.assertNotIn('AI FINANCE',personal_page.text)
+        self.assertNotIn('Tanya Kilas Finance',personal_page.text)
+        self.assertNotIn('Buat invoice',personal_page.text)
+
+        for path in ('assistant','analyst','invoices/new'):
+            blocked=self.client.get(
+                f'/business/{self.b}/finance/{path}?branch_id={personal[0]["id"]}')
+            self.assertEqual(blocked.status_code,303)
+            self.assertIn('/finance',blocked.location)
 
     def test_trial_exact_seven_days(self):
         self.trial();self.assertEqual(e.parse(e.state(self.b)['until'])-self.time.return_value,timedelta(days=7))
