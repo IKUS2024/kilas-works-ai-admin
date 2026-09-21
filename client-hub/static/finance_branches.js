@@ -26,6 +26,120 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
   refresh();
 }
 
+
+
+// Let users create a transaction category without leaving the transaction sheet.
+// One implementation handles both Pemasukan and Pengeluaran and selects the new
+// category immediately, so the in-progress transaction stays intact.
+for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
+  const form=quick.closest('form');
+  const category=quick.querySelector('[data-other-category]');
+  const direction=form && form.querySelector('[name="direction"]');
+  const toggle=quick.querySelector('[data-category-add-toggle]');
+  const panel=quick.querySelector('[data-category-add-panel]');
+  const input=quick.querySelector('[data-category-name]');
+  const save=quick.querySelector('[data-category-save]');
+  const cancel=quick.querySelector('[data-category-cancel]');
+  const status=quick.querySelector('[data-category-status]');
+  const kindLabel=quick.querySelector('[data-category-kind]');
+  if(!form||!category||!direction||!toggle||!panel||!input||!save||!cancel||!status)continue;
+
+  const labelForDirection=()=>direction.value==='INCOME'?'Pemasukan':'Pengeluaran';
+  const setStatus=(message,type='')=>{
+    status.textContent=message||'';
+    status.classList.remove('error','success');
+    if(type)status.classList.add(type);
+  };
+  const syncKind=()=>{
+    if(kindLabel)kindLabel.textContent=labelForDirection();
+    input.placeholder=direction.value==='INCOME'?'Contoh: Pendapatan Konten':'Contoh: Sewa Studio';
+  };
+  const closePanel=()=>{
+    panel.hidden=true;
+    toggle.setAttribute('aria-expanded','false');
+    setStatus('');
+  };
+  toggle.setAttribute('aria-expanded','false');
+  toggle.addEventListener('click',()=>{
+    panel.hidden=!panel.hidden;
+    toggle.setAttribute('aria-expanded',panel.hidden?'false':'true');
+    setStatus('');
+    syncKind();
+    if(!panel.hidden)input.focus({preventScroll:true});
+  });
+  cancel.addEventListener('click',()=>{
+    input.value='';
+    closePanel();
+    category.focus({preventScroll:true});
+  });
+  direction.addEventListener('change',syncKind);
+  input.addEventListener('keydown',event=>{
+    if(event.key==='Enter'){
+      event.preventDefault();
+      save.click();
+    }
+  });
+  save.addEventListener('click',async()=>{
+    const name=String(input.value||'').trim();
+    if(!name){
+      setStatus('Nama kategori wajib diisi.','error');
+      input.focus({preventScroll:true});
+      return;
+    }
+    const endpoint=quick.dataset.categoryCreateUrl;
+    if(!endpoint){
+      setStatus('Kategori belum bisa ditambahkan dari halaman ini.','error');
+      return;
+    }
+    const body=new FormData();
+    const csrf=form.querySelector('input[name="csrf_token"]');
+    if(csrf)body.set('csrf_token',csrf.value);
+    const branchId=quick.dataset.categoryBranch;
+    if(branchId && branchId!=='None')body.set('branch_id',branchId);
+    body.set('direction',direction.value);
+    body.set('name',name);
+    save.disabled=true;
+    cancel.disabled=true;
+    setStatus('Menambahkan kategori…');
+    try{
+      const response=await fetch(endpoint,{
+        method:'POST',
+        body,
+        credentials:'same-origin',
+        headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.category)throw new Error(data.error||'Kategori belum bisa ditambahkan.');
+      const created=data.category;
+      let option=[...category.options].find(item=>String(item.value)===String(created.id));
+      if(!option){
+        option=document.createElement('option');
+        option.value=String(created.id);
+        option.textContent=created.name;
+        category.appendChild(option);
+      }
+      option.dataset.direction=created.direction;
+      option.dataset.other='false';
+      option.disabled=false;
+      option.hidden=false;
+      category.value=String(created.id);
+      category.dispatchEvent(new Event('change',{bubbles:true}));
+      input.value='';
+      setStatus('Kategori ditambahkan dan langsung dipilih.','success');
+      window.setTimeout(()=>{
+        closePanel();
+        category.focus({preventScroll:true});
+      },550);
+    }catch(error){
+      setStatus(error && error.message?error.message:'Kategori belum bisa ditambahkan. Coba lagi.','error');
+    }finally{
+      save.disabled=false;
+      cancel.disabled=false;
+    }
+  });
+  syncKind();
+}
+
 for (const amount of document.querySelectorAll('[data-idr-input]')) {
   function formatAmount() {
     const signed = amount.dataset?.idrSigned === 'true';
