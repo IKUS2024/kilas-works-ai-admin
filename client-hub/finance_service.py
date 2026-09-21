@@ -29,8 +29,13 @@ DEFAULT_ACCOUNT_TYPE_OPTIONS = (
     ('Debit', 'BANK'),
     ('Piutang', 'OTHER'),
     ('Tabungan', 'BANK'),
-    ('E-Wallet', 'EWALLET'),
+    ('E-wallet', 'EWALLET'),
+    ('Wallet', 'CASH'),
 )
+
+def _account_type_display_name(name):
+    text = (name or '').strip()
+    return 'E-wallet' if text.casefold() == 'e-wallet' else text
 DIRECTIONS = ('INCOME', 'EXPENSE')
 SUPPORTED_CURRENCIES = ('IDR', 'USD', 'SGD', 'MYR', 'EUR', 'GBP', 'AUD', 'JPY', 'CNY', 'HKD', 'THB')
 FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 'occurred_on',
@@ -210,7 +215,12 @@ def list_account_type_options(business_id, include_inactive=False, *, actor_user
         ]
     if not include_inactive:
         rows = [row for row in rows if row['is_active']]
-    return [dict(row) for row in rows]
+    result = []
+    for raw in rows:
+        row = dict(raw)
+        row['name'] = _account_type_display_name(row.get('name'))
+        result.append(row)
+    return result
 
 
 def create_account_type_option(business_id, name, *, actor_user_id=None):
@@ -268,7 +278,7 @@ def account_type_label_map(business_id, *, actor_user_id=None):
         'ON o.business_id=a.business_id AND o.id=a.option_id '
         'WHERE a.business_id=?',
         (business_id,))
-    return {row['account_id']: row['name'] for row in rows}
+    return {row['account_id']: _account_type_display_name(row['name']) for row in rows}
 
 
 def _label_accounts(business_id, rows, actor_user_id=None):
