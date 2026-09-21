@@ -154,6 +154,25 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('class="topbar-active" aria-current="page"',html)
         self.assertIn('>Finance</a>',html)
 
+    def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
+        html,_=self.page('?month=2026-09')
+        self.assertIn('data-category-quick-add',html)
+        self.assertIn('＋ Tambah kategori',html)
+        self.assertIn('Tambah &amp; pilih',html)
+
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        endpoint=f'/business/{self.b}/finance/categories'
+        for direction,name in (('INCOME','Affiliate Baru'),('EXPENSE','Sewa Studio Baru')):
+            response=self.client.post(endpoint,data={
+                'branch_id':str(branch_id),'direction':direction,'name':name,
+            },headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'})
+            self.assertEqual(response.status_code,201)
+            payload=response.get_json()
+            self.assertEqual(payload['category']['name'],name)
+            self.assertEqual(payload['category']['direction'],direction)
+            rows=fixture.f.list_categories(self.b,direction,actor_user_id=self.uid)
+            self.assertTrue(any(row['id']==payload['category']['id'] and row['name']==name for row in rows))
+
     def test_penerima_is_derived_from_expense_counterparty(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.create_transaction(self.b,'EXPENSE',125000,self.a,expense_cat,
