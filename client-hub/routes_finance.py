@@ -129,6 +129,8 @@ ERRORS = {
     'category_unavailable': 'Kategori tidak tersedia.',
     'category_direction_mismatch': 'Kategori tidak sesuai dengan jenis transaksi.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
+    'payee_unavailable': 'Penerima tidak tersedia.',
+    'payee_exists': 'Nama penerima tersebut sudah ada.',
     'account_exists': 'Akun dengan nama dan jenis tersebut sudah ada.',
     'category_exists': 'Kategori tersebut sudah ada.',
     'invalid_date': 'Tanggal belum valid.',
@@ -618,7 +620,10 @@ def payees(business_id, user, business):
         if not name:
             continue
         item = grouped.setdefault(name, dict(
-            name=name, native_rows=[], transaction_count=0, last_paid_on=row['last_paid_on']))
+            payee_id=row.get('payee_id'), name=name, native_rows=[],
+            transaction_count=0, last_paid_on=row['last_paid_on']))
+        if not item.get('payee_id') and row.get('payee_id'):
+            item['payee_id'] = row['payee_id']
         item['native_rows'].append(dict(currency=row['currency'], total_minor=int(row['total_minor'])))
         item['transaction_count'] += int(row['transaction_count'])
         if (row['last_paid_on'] or '') > (item['last_paid_on'] or ''):
@@ -654,6 +659,43 @@ def payees(business_id, user, business):
         payee_total=total, page=page, pages=pages, q=query,
         display_currency=display_currency, display_options=currencies,
         fx_status_label=fx_status_label)
+
+
+def _payee_destination(business_id):
+    query = (request.form.get('q') or '').strip()[:160]
+    try:
+        page = max(1, int(request.form.get('page') or '1'))
+    except (TypeError, ValueError):
+        page = 1
+    display_currency = request.form.get('display_currency') or 'IDR'
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
+    return url_for(
+        'finance.payees', business_id=business_id, branch_id=g.finance_branch_id,
+        q=query or None, page=page, display_currency=display_currency)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/payees/<int:payee_id>/edit', methods=['POST'])
+@finance_access
+def update_payee(business_id, user, business, payee_id):
+    return mutate(
+        business_id,
+        lambda: finance.update_payee(
+            business_id, payee_id, request.form.get('name'),
+            actor_user_id=user['id']),
+        'Penerima diperbarui.',
+        _payee_destination(business_id))
+
+
+@finance_bp.route('/business/<int:business_id>/finance/payees/<int:payee_id>/delete', methods=['POST'])
+@finance_access
+def delete_payee(business_id, user, business, payee_id):
+    return mutate(
+        business_id,
+        lambda: finance.deactivate_payee(
+            business_id, payee_id, actor_user_id=user['id']),
+        'Penerima dihapus dari daftar aktif. Riwayat transaksi tetap tersimpan.',
+        _payee_destination(business_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/budget', methods=['GET', 'POST'])
@@ -713,6 +755,24 @@ def budget(business_id, user, business):
             return mutate(
                 business_id, rename_expense_category,
                 'Nama kategori diperbarui.',
+                destination)
+
+        if action == 'delete_category':
+            category_id = record_id(request.form.get('category_id'))
+
+            def delete_expense_category():
+                categories = finance.list_categories(
+                    business_id, 'EXPENSE', include_inactive=True,
+                    actor_user_id=user['id'])
+                if not any(category['id'] == category_id for category in categories):
+                    raise finance.FinanceError('category_unavailable')
+                branches.update_record(
+                    business_id, 'category', category_id, deactivate=True,
+                    actor_user_id=user['id'])
+
+            return mutate(
+                business_id, delete_expense_category,
+                'Kategori dihapus dari daftar aktif. Riwayat transaksi dan laporan lama tetap tersimpan.',
                 destination)
 
         if action == 'delete':
@@ -838,7 +898,8 @@ def mutate(business_id, action, success, destination=None):
     try:
         action()
     except finance.FinanceError as error:
-        if str(error) in ('transaction_unavailable', 'business_unavailable', 'invoice_unavailable', 'recurring_unavailable'):
+        if str(error) in ('transaction_unavailable', 'business_unavailable', 'invoice_unavailable',
+                          'recurring_unavailable', 'payee_unavailable'):
             abort(404)
         flash(ERRORS.get(str(error), 'Data belum valid. Periksa isian dan coba lagi.'), 'error')
     else:
@@ -1232,6 +1293,11 @@ def operations(business_id,user,business):
 
     actor = {'actor_user_id': user['id']}
     rules = finance.list_recurring_expenses(business_id, include_inactive=True, **actor)
+    for rule in rules:
+        rule['input_amount'] = str(finance_fx.major(int(rule['amount_minor']), rule['currency']))
+        rule['input_cadence'] = (
+            'ONCE' if rule['cadence'] == 'MONTHLY'
+            and rule['end_on'] == rule['next_due_on'] else rule['cadence'])
     accounts = finance.list_accounts(business_id, **actor)
     categories = finance.list_categories(business_id, 'EXPENSE', **actor)
     projects = finance.list_finance_projects(business_id, **actor)
@@ -1372,6 +1438,46 @@ def create_recurring(business_id,user,business):
             description=request.form.get('description'),
             actor_user_id=user['id'])
     return mutate(business_id, action, 'Tagihan disimpan.', destination)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/recurring/<int:recurring_id>/edit',methods=['POST'])
+@finance_access
+def update_recurring(business_id,user,business,recurring_id):
+    month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
+    display_currency = request.form.get('display_currency') or 'IDR'
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
+    destination = url_for(
+        'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
+        month=month, view='recurring', display_currency=display_currency)
+
+    def action():
+        account_id = record_id(request.form.get('account_id'))
+        account = finance.get_account(
+            business_id, account_id, actor_user_id=user['id'], active=True)
+        if not account:
+            raise finance.FinanceError('account_unavailable')
+        requested_cadence = request.form.get('cadence') or 'MONTHLY'
+        next_due_on = request.form.get('next_due_on')
+        if requested_cadence == 'ONCE':
+            cadence = 'MONTHLY'
+            end_on = next_due_on
+        elif requested_cadence in ('WEEKLY', 'MONTHLY'):
+            cadence = requested_cadence
+            end_on = request.form.get('end_on') or None
+        else:
+            raise finance.FinanceError('invalid_enum')
+        return finance.update_recurring_expense(
+            business_id, recurring_id, request.form.get('name'),
+            currency_amount(request.form.get('amount'), account['currency']),
+            account_id, record_id(request.form.get('category_id')),
+            cadence, next_due_on, end_on=end_on,
+            project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
+            counterparty_name=request.form.get('counterparty_name'),
+            description=request.form.get('description'),
+            actor_user_id=user['id'], expected_currency=account['currency'])
+
+    return mutate(business_id, action, 'Tagihan diperbarui. Riwayat pembayaran lama tidak berubah.', destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/recurring/<int:recurring_id>/deactivate',methods=['POST'])
