@@ -93,7 +93,7 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
     account_rows=[['Rekening','Jenis','Mata uang','Saldo']]
     for row in data.get('accounts',[]):
         account_rows.append([
-            _safe(row['name']), _safe(row.get('account_type')), row['currency'],
+            _safe(row['name']), _safe(row.get('account_type_label') or row.get('account_type')), row['currency'],
             money(row['balance_minor'],row['currency'])
         ])
     story.append(_table(account_rows,[63*mm,34*mm,26*mm,52*mm],header=True,empty='Belum ada rekening.'))
