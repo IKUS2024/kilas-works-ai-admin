@@ -128,7 +128,7 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-types-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-category-manager-2') }}">
 <script src="{{ url_for('static',filename='finance_home.js',v='20260922-live-1') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
@@ -426,11 +426,13 @@
 <p class="muted">Pilih tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · pembayaran digital → GoPay.</p>
 <div class="finance-category-quick" data-category-quick-add data-category-create-url="{{ url_for('finance.create_category',business_id=business.id) }}" data-category-branch="{{ selected_branch_id or '' }}">
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
-<button type="button" class="finance-category-add-toggle" data-category-add-toggle>＋ Tambah kategori</button>
+<button type="button" class="finance-category-add-toggle" data-category-add-toggle>＋ Tambah / kelola kategori</button>
 <div class="finance-category-quick-panel" data-category-add-panel hidden>
-  <label class="finance-category-quick-label">Nama kategori <small data-category-kind>Pengeluaran</small><input type="text" data-category-name maxlength="160" autocomplete="off" placeholder="Contoh: Sewa Studio"></label>
-  <div class="finance-category-quick-actions"><button type="button" class="finance-mini-action" data-category-save>Tambah &amp; pilih</button><button type="button" class="finance-mini-action" data-category-cancel>Batal</button></div>
+  <label class="finance-category-quick-label">Nama kategori <small data-category-kind>Pengeluaran</small><input type="text" data-category-name maxlength="160" autocomplete="off" placeholder="Contoh: Perawatan"></label>
+  <div class="finance-category-quick-actions"><button type="button" class="finance-mini-action" data-category-save>Tambah &amp; pilih</button><button type="button" class="finance-mini-action" data-category-cancel>Tutup</button></div>
   <p class="finance-category-quick-status" data-category-status aria-live="polite"></p>
+  <div class="finance-category-quick-list" data-category-list></div>
+  <p class="finance-category-quick-note">Kategori yang ditambah atau dihapus di sini memakai data yang sama untuk transaksi, Anggaran, biaya rutin, laporan, dan AI Finance.</p>
 </div>
 </div>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
@@ -480,5 +482,5 @@
 <div class="finance-record-list">{% for c in categories if c.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 {% endif %}
-</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-account-types-1') }}" defer></script>
+</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-category-manager-2') }}" defer></script>
 {% endblock %}
