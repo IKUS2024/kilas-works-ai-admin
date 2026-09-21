@@ -128,7 +128,7 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-utility-subcats-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-values-1') }}">
 <script src="{{ url_for('static',filename='finance_home.js',v='20260922-live-1') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
@@ -235,12 +235,81 @@
   </div>
 
   <div class="finance-account-hb-breakdown">
-    <div><span>Saldo awal</span><strong>{{ selected_account.opening_balance_minor|finance_money(selected_account.currency) }}</strong></div>
-    <div><span>＋ Dana masuk</span><strong>{{ selected_account.income_minor|finance_money(selected_account.currency) }}</strong></div>
-    <div><span>− Dana keluar</span><strong>{{ selected_account.expense_minor|finance_money(selected_account.currency) }}</strong></div>
-    {% if selected_account.exchange_in_minor %}<div><span>＋ Transfer masuk</span><strong>{{ selected_account.exchange_in_minor|finance_money(selected_account.currency) }}</strong></div>{% endif %}
-    {% if selected_account.exchange_out_minor %}<div><span>− Transfer keluar</span><strong>{{ selected_account.exchange_out_minor|finance_money(selected_account.currency) }}</strong></div>{% endif %}
-    <div class="current"><span>Saldo sekarang</span><strong>{{ selected_account.balance_minor|finance_money(selected_account.currency) }}</strong></div>
+    <div class="finance-account-value-row">
+      <span>Saldo awal</span>
+      <div class="finance-account-value-control">
+        <strong>{{ selected_account.opening_balance_minor|finance_money(selected_account.currency) }}</strong>
+        {% if not branch_read_only %}
+        <details class="finance-account-value-edit">
+          <summary>Edit</summary>
+          <form method="post" action="{{ url_for('finance.update_account_balance',business_id=business.id,account_id=selected_account.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+            <input type="hidden" name="display_currency" value="{{ display_currency }}">
+            <input type="hidden" name="action" value="opening">
+            <label>Saldo awal {{ selected_account.currency }}
+              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.opening_balance_minor if selected_account.currency in ('IDR','JPY') else '%.2f'|format(selected_account.opening_balance_minor / 100) }}" required>
+            </label>
+            <button class="finance-mini-action" type="submit">Simpan nominal</button>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+    <div class="finance-account-value-row">
+      <span>＋ Dana masuk</span>
+      <div class="finance-account-value-control">
+        <strong>{{ selected_account.income_minor|finance_money(selected_account.currency) }}</strong>
+        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='INCOME',display_currency=display_currency,page=1) }}">Edit</a>{% endif %}
+      </div>
+    </div>
+    <div class="finance-account-value-row">
+      <span>− Dana keluar</span>
+      <div class="finance-account-value-control">
+        <strong>{{ selected_account.expense_minor|finance_money(selected_account.currency) }}</strong>
+        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='EXPENSE',display_currency=display_currency,page=1) }}">Edit</a>{% endif %}
+      </div>
+    </div>
+    {% if selected_account.exchange_in_minor %}
+    <div class="finance-account-value-row">
+      <span>＋ Transfer masuk</span>
+      <div class="finance-account-value-control">
+        <strong>{{ selected_account.exchange_in_minor|finance_money(selected_account.currency) }}</strong>
+        {% if not branch_read_only and account_active_currencies|length > 1 %}<button type="button" data-finance-open="fx-dialog">Kelola</button>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% if selected_account.exchange_out_minor %}
+    <div class="finance-account-value-row">
+      <span>− Transfer keluar</span>
+      <div class="finance-account-value-control">
+        <strong>{{ selected_account.exchange_out_minor|finance_money(selected_account.currency) }}</strong>
+        {% if not branch_read_only and account_active_currencies|length > 1 %}<button type="button" data-finance-open="fx-dialog">Kelola</button>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="current finance-account-value-row">
+      <span>Saldo sekarang</span>
+      <div class="finance-account-value-control">
+        <strong>{{ selected_account.balance_minor|finance_money(selected_account.currency) }}</strong>
+        {% if not branch_read_only %}
+        <details class="finance-account-value-edit">
+          <summary>Edit</summary>
+          <form method="post" action="{{ url_for('finance.update_account_balance',business_id=business.id,account_id=selected_account.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+            <input type="hidden" name="display_currency" value="{{ display_currency }}">
+            <input type="hidden" name="action" value="current">
+            <label>Saldo sekarang {{ selected_account.currency }}
+              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.balance_minor if selected_account.currency in ('IDR','JPY') else '%.2f'|format(selected_account.balance_minor / 100) }}" required>
+            </label>
+            <p>Transaksi tidak diubah. Kilas menyesuaikan saldo awal agar saldo sekarang cocok.</p>
+            <button class="finance-mini-action" type="submit">Sesuaikan saldo</button>
+          </form>
+        </details>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
   <div class="finance-account-hb-actions">
