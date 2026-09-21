@@ -31,6 +31,33 @@
   </div>
   {% endif %}
 
+  {% if migration.restored_cloud_api and not migration.completed %}
+  <section class="wa-step wa-ok">
+    <h2>✓ Cloud API dipulihkan</h2>
+    {% if migration.restore_pending_identity %}
+      <p>Meta sudah menerima registrasi ulang. Status nomor masih sinkronisasi; muat ulang halaman lalu tes bot.</p>
+    {% else %}
+      <p>Nomor sudah diregistrasikan kembali ke Cloud API. Tes bot dari nomor WhatsApp lain.</p>
+    {% endif %}
+    <p class="muted">Mode ini memprioritaskan bot Cloud API. WhatsApp Business di HP tidak dijamin bisa tetap aktif bersamaan tanpa Coexistence.</p>
+  </section>
+  {% endif %}
+
+  {% if migration.deregistered and not migration.completed and not migration.restored_cloud_api %}
+  <section class="wa-step wa-ok">
+    <h2>Pulihkan bot Cloud API sekarang</h2>
+    <p>Gunakan ini untuk membatalkan percobaan Coexistence sementara dan menghidupkan kembali bot seperti sebelum nomor dideregister.</p>
+    <form method="post" action="{{ url_for('admin.platform_whatsapp_restore_cloud_api') }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>PIN registrasi WhatsApp 6 digit
+        <input type="password" name="pin" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required autocomplete="one-time-code">
+      </label>
+      <button class="btn" type="submit">Register ulang & hidupkan bot</button>
+    </form>
+    <p class="muted">PIN hanya dipakai untuk request registrasi ke Meta dan tidak disimpan oleh Kilas.</p>
+  </section>
+  {% endif %}
+
   {% if migration.completed %}
   <section class="wa-step wa-ok">
     <h2>✓ Coexistence terverifikasi</h2>
