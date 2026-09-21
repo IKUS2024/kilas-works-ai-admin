@@ -1040,28 +1040,69 @@ def void_exchange(business_id,user,business,exchange_id):
 @finance_access
 def create_category(business_id, user, business):
     direction = request.form.get('direction')
-    name = request.form.get('name')
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        try:
-            category_id = finance.create_category(
-                business_id, direction, name, actor_user_id=user['id'])
-        except finance.FinanceError as error:
-            return jsonify(error=ERRORS.get(
-                str(error), 'Kategori belum valid. Periksa nama dan coba lagi.')), 400
-        category = next((
-            row for row in finance.list_categories(
+    action = (request.form.get('action') or 'create').strip()
+    ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
+    def active_options():
+        return [
+            {'id': row['id'], 'name': row['name'], 'direction': row['direction']}
+            for row in finance.list_categories(
                 business_id, direction, actor_user_id=user['id'])
-            if row['id'] == category_id
-        ), None)
-        if category is None:
-            return jsonify(error='Kategori belum bisa dimuat. Coba lagi.'), 409
-        return jsonify(category={
-            'id': category['id'],
-            'name': category['name'],
-            'direction': category['direction'],
-        }), 201
-    return mutate(business_id, lambda: finance.create_category(
-        business_id, direction, name, actor_user_id=user['id']), 'Kategori siap digunakan.')
+        ]
+
+    try:
+        if action == 'create':
+            category_id = finance.create_category(
+                business_id, direction, request.form.get('name'),
+                actor_user_id=user['id'])
+            category = next((
+                row for row in finance.list_categories(
+                    business_id, direction, actor_user_id=user['id'])
+                if row['id'] == category_id
+            ), None)
+            if category is None:
+                raise finance.FinanceError('category_unavailable')
+        elif action == 'delete':
+            category_id = record_id(request.form.get('category_id'))
+            category = next((
+                row for row in finance.list_categories(
+                    business_id, direction, include_inactive=True,
+                    actor_user_id=user['id'])
+                if row['id'] == category_id
+            ), None)
+            if category is None:
+                raise finance.FinanceError('category_unavailable')
+            branches.update_record(
+                business_id, 'category', category_id, deactivate=True,
+                actor_user_id=user['id'])
+        else:
+            abort(400)
+    except finance.FinanceError as error:
+        if ajax:
+            return jsonify(error=ERRORS.get(
+                str(error), 'Kategori belum valid. Periksa pilihan dan coba lagi.')), 400
+        flash(ERRORS.get(str(error), 'Kategori belum valid. Periksa pilihan dan coba lagi.'), 'error')
+        return redirect(url_for(
+            'finance.dashboard', business_id=business_id,
+            branch_id=g.finance_branch_id or 'all'), code=303)
+
+    if ajax:
+        payload = {'options': active_options()}
+        if action == 'create':
+            payload['category'] = {
+                'id': category['id'],
+                'name': category['name'],
+                'direction': category['direction'],
+            }
+            payload['message'] = 'Kategori ditambahkan dan langsung dipilih.'
+            return jsonify(payload), 201
+        payload['message'] = 'Kategori dihapus dari daftar aktif. Riwayat lama tetap aman.'
+        return jsonify(payload)
+
+    return mutate(
+        business_id,
+        lambda: None,
+        'Kategori siap digunakan.' if action == 'create' else 'Kategori dihapus dari daftar aktif.')
 
 
 INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dibayar sebagian','PAID':'Lunas','VOID':'Dibatalkan'}
