@@ -28,9 +28,9 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
 
 
 
-// Let users create a transaction category without leaving the transaction sheet.
-// One implementation handles both Pemasukan and Pengeluaran and selects the new
-// category immediately, so the in-progress transaction stays intact.
+// Manage transaction categories without leaving the transaction sheet.
+// The same Finance category records feed transactions, budgets, recurring costs,
+// reports, and AI Finance, so add/delete here stays consistent everywhere.
 for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   const form=quick.closest('form');
   const category=quick.querySelector('[data-other-category]');
@@ -42,7 +42,8 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   const cancel=quick.querySelector('[data-category-cancel]');
   const status=quick.querySelector('[data-category-status]');
   const kindLabel=quick.querySelector('[data-category-kind]');
-  if(!form||!category||!direction||!toggle||!panel||!input||!save||!cancel||!status)continue;
+  const list=quick.querySelector('[data-category-list]');
+  if(!form||!category||!direction||!toggle||!panel||!input||!save||!cancel||!status||!list)continue;
 
   const labelForDirection=()=>direction.value==='INCOME'?'Pemasukan':'Pengeluaran';
   const setStatus=(message,type='')=>{
@@ -50,9 +51,72 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     status.classList.remove('error','success');
     if(type)status.classList.add(type);
   };
+  const isOtherName=name=>['Lainnya','Pendapatan Lain','Pengeluaran Lain'].includes(name);
+
+  const renderList=()=>{
+    list.replaceChildren();
+    const visible=[...category.options].filter(option=>option.dataset.direction===direction.value);
+    for(const option of visible){
+      const row=document.createElement('div');
+      row.className='finance-category-quick-row';
+      row.dataset.categoryRow='';
+      row.dataset.categoryId=option.value;
+      const label=document.createElement('span');
+      label.textContent=option.textContent;
+      const remove=document.createElement('button');
+      remove.type='button';
+      remove.className='finance-category-quick-delete';
+      remove.dataset.categoryDelete='';
+      remove.textContent='Hapus';
+      row.append(label,remove);
+      list.appendChild(row);
+    }
+  };
+
+  const applyOptions=(rows,preferredId='')=>{
+    const currentDirection=direction.value;
+    const preserved=[...category.options].filter(option=>option.dataset.direction!==currentDirection);
+    category.replaceChildren(...preserved);
+    for(const item of Array.isArray(rows)?rows:[]){
+      const option=document.createElement('option');
+      option.value=String(item.id);
+      option.textContent=item.name;
+      option.dataset.direction=item.direction;
+      option.dataset.other=isOtherName(item.name)?'true':'false';
+      category.appendChild(option);
+    }
+    const preferred=[...category.options].find(option=>option.value===String(preferredId) && option.dataset.direction===currentDirection);
+    const available=preferred||[...category.options].find(option=>option.dataset.direction===currentDirection);
+    if(available)category.value=available.value;
+    category.dispatchEvent(new Event('change',{bubbles:true}));
+    renderList();
+  };
+
+  const request=async(payload)=>{
+    const endpoint=quick.dataset.categoryCreateUrl;
+    if(!endpoint)throw new Error('Kategori belum bisa diubah dari halaman ini.');
+    const body=new FormData();
+    const csrf=form.querySelector('input[name="csrf_token"]');
+    if(csrf)body.set('csrf_token',csrf.value);
+    const branchId=quick.dataset.categoryBranch;
+    if(branchId && branchId!=='None')body.set('branch_id',branchId);
+    body.set('direction',direction.value);
+    Object.entries(payload).forEach(([key,value])=>body.set(key,String(value)));
+    const response=await fetch(endpoint,{
+      method:'POST',
+      body,
+      credentials:'same-origin',
+      headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Kategori belum bisa diubah.');
+    return data;
+  };
+
   const syncKind=()=>{
     if(kindLabel)kindLabel.textContent=labelForDirection();
-    input.placeholder=direction.value==='INCOME'?'Contoh: Pendapatan Konten':'Contoh: Sewa Studio';
+    input.placeholder=direction.value==='INCOME'?'Contoh: Pendapatan Konten':'Contoh: Perawatan';
+    renderList();
   };
   const closePanel=()=>{
     panel.hidden=true;
@@ -86,50 +150,15 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       input.focus({preventScroll:true});
       return;
     }
-    const endpoint=quick.dataset.categoryCreateUrl;
-    if(!endpoint){
-      setStatus('Kategori belum bisa ditambahkan dari halaman ini.','error');
-      return;
-    }
-    const body=new FormData();
-    const csrf=form.querySelector('input[name="csrf_token"]');
-    if(csrf)body.set('csrf_token',csrf.value);
-    const branchId=quick.dataset.categoryBranch;
-    if(branchId && branchId!=='None')body.set('branch_id',branchId);
-    body.set('direction',direction.value);
-    body.set('name',name);
     save.disabled=true;
     cancel.disabled=true;
     setStatus('Menambahkan kategori…');
     try{
-      const response=await fetch(endpoint,{
-        method:'POST',
-        body,
-        credentials:'same-origin',
-        headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
-      });
-      const data=await response.json().catch(()=>({}));
-      if(!response.ok||!data.category)throw new Error(data.error||'Kategori belum bisa ditambahkan.');
-      const created=data.category;
-      let option=[...category.options].find(item=>String(item.value)===String(created.id));
-      if(!option){
-        option=document.createElement('option');
-        option.value=String(created.id);
-        option.textContent=created.name;
-        category.appendChild(option);
-      }
-      option.dataset.direction=created.direction;
-      option.dataset.other='false';
-      option.disabled=false;
-      option.hidden=false;
-      category.value=String(created.id);
-      category.dispatchEvent(new Event('change',{bubbles:true}));
+      const data=await request({action:'create',name});
+      if(!data.category)throw new Error('Kategori belum bisa dimuat.');
+      applyOptions(data.options,data.category.id);
       input.value='';
-      setStatus('Kategori ditambahkan dan langsung dipilih.','success');
-      window.setTimeout(()=>{
-        closePanel();
-        category.focus({preventScroll:true});
-      },550);
+      setStatus(data.message||'Kategori ditambahkan dan langsung dipilih.','success');
     }catch(error){
       setStatus(error && error.message?error.message:'Kategori belum bisa ditambahkan. Coba lagi.','error');
     }finally{
@@ -137,9 +166,30 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       cancel.disabled=false;
     }
   });
+  list.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-category-delete]');
+    if(!button)return;
+    const row=button.closest('[data-category-row]');
+    const categoryId=row && row.dataset.categoryId;
+    const name=row && row.querySelector('span')?.textContent;
+    if(!categoryId)return;
+    if(!window.confirm('Hapus kategori "'+(name||'ini')+'" dari daftar aktif? Riwayat lama tetap aman.'))return;
+    button.disabled=true;
+    setStatus('Menghapus kategori…');
+    const keep=category.value===String(categoryId)?'':category.value;
+    try{
+      const data=await request({action:'delete',category_id:categoryId});
+      applyOptions(data.options,keep);
+      const globalRow=document.querySelector('[data-finance-category-record="'+categoryId+'"]');
+      if(globalRow)globalRow.remove();
+      setStatus(data.message||'Kategori dihapus dari daftar aktif.','success');
+    }catch(error){
+      button.disabled=false;
+      setStatus(error && error.message?error.message:'Kategori belum bisa dihapus.','error');
+    }
+  });
   syncKind();
 }
-
 
 
 // Account type choices are business-level preferences. Users can add or remove
