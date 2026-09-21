@@ -587,12 +587,23 @@ def dashboard(business_id, user, business):
 
 
 
-@finance_bp.route('/business/<int:business_id>/finance/payees')
+@finance_bp.route('/business/<int:business_id>/finance/payees', methods=['GET', 'POST'])
 @finance_access
 def payees(business_id, user, business):
-    display_currency = request.args.get('display_currency', 'IDR')
+    display_currency = request.values.get('display_currency', 'IDR')
     if display_currency not in finance.SUPPORTED_CURRENCIES:
         display_currency = 'IDR'
+    if request.method == 'POST':
+        destination = url_for(
+            'finance.payees', business_id=business_id,
+            branch_id=g.finance_branch_id, display_currency=display_currency)
+        return mutate(
+            business_id,
+            lambda: finance.create_payee(
+                business_id, request.form.get('name'), actor_user_id=user['id']),
+            'Penerima ditambahkan.',
+            destination)
+
     native = finance.list_payee_summaries(business_id, actor_user_id=user['id'])
     currencies = ['IDR'] + [row['currency'] for row in native if row['currency'] != 'IDR']
     currencies = list(dict.fromkeys(currencies))
@@ -609,7 +620,7 @@ def payees(business_id, user, business):
             name=name, native_rows=[], transaction_count=0, last_paid_on=row['last_paid_on']))
         item['native_rows'].append(dict(currency=row['currency'], total_minor=int(row['total_minor'])))
         item['transaction_count'] += int(row['transaction_count'])
-        if row['last_paid_on'] > item['last_paid_on']:
+        if (row['last_paid_on'] or '') > (item['last_paid_on'] or ''):
             item['last_paid_on'] = row['last_paid_on']
 
     query = (request.args.get('q') or '').strip()[:160]
@@ -623,7 +634,7 @@ def payees(business_id, user, business):
         item['native_labels'] = [finance_fx.format_money(row['total_minor'], row['currency'])
                                  for row in item['native_rows']]
         items.append(item)
-    items.sort(key=lambda item: (item['last_paid_on'], item['name'].casefold()), reverse=True)
+    items.sort(key=lambda item: (item['last_paid_on'] or '', item['name'].casefold()), reverse=True)
 
     try:
         page = max(1, int(request.args.get('page', '1')))
