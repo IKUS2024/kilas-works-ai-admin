@@ -17,5 +17,5 @@
 <button class="btn">💾 Simpan Perubahan</button>
 </form>
 <div class="card"><h2>Tindakan</h2><p class="muted">Menghapus transaksi akan mengeluarkan nilainya dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar perubahan dapat dilacak.</p><form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=transaction.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari semua perhitungan Finance.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary finance-delete" type="submit">🗑️ Hapus Transaksi</button></form></div>
-<script src="{{ url_for('static',filename='finance_branches.js') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-decimal-1') }}" defer></script>
 {% endblock %}
