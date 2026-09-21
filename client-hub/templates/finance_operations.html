@@ -192,7 +192,7 @@
       <div class="finance-bill-form-grid">
         <label>Akun<select name="account_id" data-currency-account required>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
         <label>Nominal <span data-currency-label>{{ r.currency }}</span><input name="amount" value="{{ r.input_amount }}" data-currency-amount inputmode="decimal" maxlength="25" required></label>
-        <label>Kategori<select name="category_id" required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" {{ 'selected' if c.id==r.category_id }}>{{ c.name }}</option>{% endfor %}</select></label>
+        <label>Kategori<select name="category_id" required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" {{ 'selected' if c.id==r.category_id }}>{{ (c.parent_name ~ ' / ' if c.parent_name else '') ~ c.name }}</option>{% endfor %}</select></label>
         <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ r.next_due_on }}" required></label>
         <label>Frekuensi<select name="cadence"><option value="ONCE" {{ 'selected' if r.input_cadence=='ONCE' }}>Sekali</option><option value="MONTHLY" {{ 'selected' if r.input_cadence=='MONTHLY' }}>Bulanan</option><option value="WEEKLY" {{ 'selected' if r.input_cadence=='WEEKLY' }}>Mingguan</option></select></label>
         <label>Berakhir (opsional)<input type="date" name="end_on" value="{{ '' if r.input_cadence=='ONCE' else (r.end_on or '') }}"></label>
@@ -229,7 +229,7 @@
       <div class="finance-bill-form-grid">
         <label>Akun<select name="account_id" data-currency-account required><option value="">Pilih akun</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
         <label>Nominal <span data-currency-label></span><input name="amount" data-currency-amount inputmode="decimal" maxlength="25" required></label>
-        <label>Kategori<select name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+        <label>Kategori<select name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active %}<option value="{{ c.id }}">{{ (c.parent_name ~ ' / ' if c.parent_name else '') ~ c.name }}</option>{% endfor %}</select></label>
         <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ today }}" required></label>
         <label>Frekuensi<select name="cadence"><option value="ONCE">Sekali</option><option value="MONTHLY">Bulanan</option><option value="WEEKLY">Mingguan</option></select></label>
         <label>Berakhir (opsional)<input type="date" name="end_on"></label>
