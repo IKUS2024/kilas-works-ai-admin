@@ -2,7 +2,7 @@
 {% block title %}Anggaran · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-3') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-4') }}">
 <div class="fin-page finance-budget-homebudget">
 {% set active_finance_area='budget' %}{% include '_finance_area_nav.html' %}
 
@@ -58,7 +58,7 @@
   <div class="fin-empty">Belum ada kategori Pengeluaran aktif.</div>
   {% endfor %}
   <button type="button" class="finance-budget-add-category" data-finance-open="budget-add-category-dialog">＋ Tambah Kategori</button>
-  <p class="finance-budget-list-note">Ketuk kategori untuk mengatur anggaran atau mengubah namanya.</p>
+  <p class="finance-budget-list-note">Ketuk kategori untuk mengatur anggaran, mengedit, atau menghapus kategori.</p>
 </section>
 
 <footer class="card finance-budget-footer">
@@ -92,7 +92,7 @@
       <label>Nama Kategori
         <span class="finance-budget-inline-edit">
           <input name="name" value="{{ row.category.name }}" maxlength="160" autocomplete="off" required>
-          <button class="finance-mini-action" name="action" value="rename_category">Simpan Nama</button>
+          <button class="finance-mini-action" name="action" value="rename_category">✏️ Simpan Edit</button>
         </span>
       </label>
     </form>
@@ -114,6 +114,15 @@
         <div><span>Periode</span><strong>{{ month_label }}</strong></div>
       </div>
       <button class="btn" name="action" value="save">Simpan Anggaran</button>
+    </form>
+
+    <form method="post" class="finance-budget-sheet-delete" onsubmit="return confirm('Hapus kategori {{ row.category.name }} dari daftar aktif? Transaksi dan laporan lama tetap tersimpan.');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="hidden" name="display_currency" value="{{ display_currency }}">
+      <input type="hidden" name="category_id" value="{{ row.category.id }}">
+      <button class="finance-mini-action finance-danger" name="action" value="delete_category">🗑️ Hapus Kategori</button>
     </form>
 
     {% if row.budget %}
