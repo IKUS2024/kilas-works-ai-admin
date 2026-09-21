@@ -1504,9 +1504,20 @@ def _next_recurring_date(rule):
 def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
     """Read-only next occurrence per rule; no future schedule is skipped."""
     _scope(business_id,actor_user_id);as_of=_date(as_of)
-    rows=db.query_all(('SELECT r.*,a.name AS account_name,c.name AS category_name FROM finance_recurring_expenses r JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id WHERE r.business_id=?' + branches.predicate('r') + ' AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id LIMIT 100'),(business_id,as_of))
+    rows=db.query_all(('''SELECT r.*,a.name AS account_name,c.name AS category_name,
+        pc.name AS parent_category_name
+        FROM finance_recurring_expenses r
+        JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id
+        JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id
+        LEFT JOIN finance_category_hierarchy h ON h.business_id=c.business_id AND h.child_category_id=c.id
+        LEFT JOIN finance_categories pc ON pc.business_id=h.business_id AND pc.id=h.parent_category_id
+        WHERE r.business_id=?''' + branches.predicate('r') +
+        ' AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id LIMIT 100'),(business_id,as_of))
     result=[]
     for row in rows:
+        row=dict(row)
+        if row.get('parent_category_name'):
+            row['category_name']=row['parent_category_name']+' / '+row['category_name']
         if row['end_on'] and row['next_due_on']>row['end_on']:continue
         try:_recurring_data(business_id,row)
         except FinanceError:continue
@@ -1634,10 +1645,12 @@ def get_report_transactions(business_id, start_date, end_date, actor_user_id=Non
     return _report_query(('''SELECT t.branch_id,(SELECT name FROM finance_branches b WHERE b.id=t.branch_id AND b.business_id=t.business_id) AS branch_name,
         t.occurred_on,t.direction,t.amount_minor,t.currency,t.status,t.source_type,t.counterparty_name,t.description,
         t.category_id,t.customer_id,t.project_id,a.name AS account_name,c.name AS category_name,
-        u.name AS customer_name,p.title AS project_name
+        pc.name AS parent_category_name,u.name AS customer_name,p.title AS project_name
         FROM finance_transactions t
         LEFT JOIN finance_accounts a ON a.business_id=t.business_id AND a.id=t.account_id
         LEFT JOIN finance_categories c ON c.business_id=t.business_id AND c.id=t.category_id
+        LEFT JOIN finance_category_hierarchy h ON h.business_id=c.business_id AND h.child_category_id=c.id
+        LEFT JOIN finance_categories pc ON pc.business_id=h.business_id AND pc.id=h.parent_category_id
         LEFT JOIN finance_customers u ON u.business_id=t.business_id AND u.id=t.customer_id
         LEFT JOIN projects p ON p.business_id=t.business_id AND p.id=t.project_id
         WHERE t.business_id=?''' + branches.predicate('t') + " AND t.occurred_on>=? AND t.occurred_on<=?")+
@@ -1670,8 +1683,11 @@ def get_category_breakdown(business_id,start_date,end_date,actor_user_id=None):
         code=_currency(r['currency']);total_key=(code,r['direction'])
         totals[total_key]=totals.get(total_key,0)+r['amount_minor']
         key=(code,r['direction'],r['category_id'])
+        category_name=r['category_name'] or 'Kategori tidak tersedia'
+        if r.get('parent_category_name'):
+            category_name=r['parent_category_name']+' / '+category_name
         item=groups.setdefault(key,dict(currency=code,direction=r['direction'],category_id=r['category_id'],
-            name=r['category_name'] or 'Kategori tidak tersedia',amount_minor=0,transaction_count=0))
+            name=category_name,amount_minor=0,transaction_count=0))
         item['amount_minor']+=r['amount_minor'];item['transaction_count']+=1
     for item in groups.values():
         denominator=totals.get((item['currency'],item['direction']),0)
@@ -1843,11 +1859,14 @@ def receivables_aging_rows(rows):
 def get_upcoming_recurring_commitments(business_id,start_date,end_date,actor_user_id=None):
     _scope(business_id,actor_user_id);start,end=report_period(start_date,end_date)
     rules=_report_query(('''SELECT r.*,(SELECT name FROM finance_branches b WHERE b.business_id=r.business_id AND b.id=r.branch_id) AS branch_name,
-        p.title AS project_name,a.name AS account_name,c.name AS category_name
+        p.title AS project_name,a.name AS account_name,c.name AS category_name,
+        pc.name AS parent_category_name
         FROM finance_recurring_expenses r
         LEFT JOIN projects p ON p.business_id=r.business_id AND p.id=r.project_id
         LEFT JOIN finance_accounts a ON a.business_id=r.business_id AND a.id=r.account_id
         LEFT JOIN finance_categories c ON c.business_id=r.business_id AND c.id=r.category_id
+        LEFT JOIN finance_category_hierarchy h ON h.business_id=c.business_id AND h.child_category_id=c.id
+        LEFT JOIN finance_categories pc ON pc.business_id=h.business_id AND pc.id=h.parent_category_id
         WHERE r.business_id=?''' + branches.predicate('r') + " AND r.is_active=TRUE AND r.next_due_on<=? ORDER BY r.next_due_on,r.id"),
         (business_id,end))
     result=[];start_day=date.fromisoformat(start)
@@ -1863,7 +1882,9 @@ def get_upcoming_recurring_commitments(business_id,start_date,end_date,actor_use
             if len(result)>=MAX_COMMITMENT_OCCURRENCES:raise FinanceError('forecast_limit')
             result.append(dict(recurring_id=rule['id'],branch_name=rule['branch_name'],name=rule['name'],currency=rule['currency'],
                 scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],project_name=rule['project_name'],
-                account_name=rule['account_name'],category_name=rule['category_name'],
+                account_name=rule['account_name'],category_name=(
+                    (rule['parent_category_name']+' / ') if rule.get('parent_category_name') else ''
+                )+(rule['category_name'] or 'Kategori tidak tersedia'),
                 counterparty_name=rule['counterparty_name'],description=rule['description'],
                 cadence=rule['cadence'],end_on=rule['end_on']))
             if rule['next_due_on']==last:break
