@@ -23,6 +23,14 @@ import finance_ai_safety
 import finance_branches as branches
 
 ACCOUNT_TYPES = ('CASH', 'BANK', 'EWALLET', 'OTHER')
+LEGACY_ACCOUNT_TYPE_LABELS = {'CASH':'Tunai','BANK':'Rekening Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'}
+DEFAULT_ACCOUNT_TYPE_OPTIONS = (
+    ('Credit', 'OTHER'),
+    ('Debit', 'BANK'),
+    ('Piutang', 'OTHER'),
+    ('Tabungan', 'BANK'),
+    ('E-Wallet', 'EWALLET'),
+)
 DIRECTIONS = ('INCOME', 'EXPENSE')
 SUPPORTED_CURRENCIES = ('IDR', 'USD', 'SGD', 'MYR', 'EUR', 'GBP', 'AUD', 'JPY', 'CNY', 'HKD', 'THB')
 FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 'occurred_on',
@@ -160,27 +168,164 @@ def _create_account(business_id, name, account_type, currency, opening_balance_m
     return record_id
 
 
-def create_account(business_id, name, account_type='CASH', currency='IDR', opening_balance_minor=0, *, actor_user_id=None):
-    name = _text(name, 160, True)
-    account_type, currency = _enum(account_type, ACCOUNT_TYPES), _currency(currency)
-    opening_balance_minor = _money(opening_balance_minor)
+def _materialize_account_type_options(business_id):
+    rows = db.query_all(
+        'SELECT id,name,is_active FROM finance_account_type_options WHERE business_id=? ORDER BY id',
+        (business_id,))
+    known = {(row['name'] or '').strip().casefold() for row in rows}
+    now = repo._now()
+    for name, legacy_type in DEFAULT_ACCOUNT_TYPE_OPTIONS:
+        if name.casefold() in known:
+            continue
+        db.insert_returning_id(
+            'INSERT INTO finance_account_type_options '
+            '(business_id,name,legacy_type,is_default,is_active,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?)',
+            (business_id, name, legacy_type, True, True, now, now))
+        known.add(name.casefold())
+
+
+def _account_type_option_by_name(business_id, name, include_inactive=False):
+    key = (name or '').strip().casefold()
+    if not key:
+        return None
+    rows = db.query_all(
+        'SELECT * FROM finance_account_type_options WHERE business_id=? ORDER BY id',
+        (business_id,))
+    return next((row for row in rows
+                 if (row['name'] or '').strip().casefold() == key
+                 and (include_inactive or row['is_active'])), None)
+
+
+def list_account_type_options(business_id, include_inactive=False, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    rows = db.query_all(
+        'SELECT * FROM finance_account_type_options WHERE business_id=? ORDER BY id',
+        (business_id,))
+    if not rows:
+        return [
+            dict(id=None, business_id=business_id, name=name, legacy_type=legacy_type,
+                 is_default=True, is_active=True)
+            for name, legacy_type in DEFAULT_ACCOUNT_TYPE_OPTIONS
+        ]
+    if not include_inactive:
+        rows = [row for row in rows if row['is_active']]
+    return [dict(row) for row in rows]
+
+
+def create_account_type_option(business_id, name, *, actor_user_id=None):
+    name = _text(name, 80, True)
     with _write(business_id, actor_user_id):
-        branch_id = branches.write_branch(business_id, actor_user_id)
-        existing = db.query_one(('SELECT id,is_active FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND branch_id=? AND name=? AND account_type=? AND currency=?'),
-                                (business_id, branch_id, name, account_type, currency))
+        _materialize_account_type_options(business_id)
+        existing = _account_type_option_by_name(business_id, name, include_inactive=True)
         if existing:
             if not existing['is_active']:
-                db.execute('UPDATE finance_accounts SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
-                           (repo._now(), business_id, existing['id']))
-                _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_REACTIVATED', existing['id'])
+                db.execute(
+                    'UPDATE finance_account_type_options SET is_active=TRUE,updated_at=? '
+                    'WHERE business_id=? AND id=?',
+                    (repo._now(), business_id, existing['id']))
+                _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_TYPE_REACTIVATED', existing['id'])
             return existing['id']
-        return _create_account(business_id, name, account_type, currency, opening_balance_minor, actor_user_id)
+        now = repo._now()
+        record_id = db.insert_returning_id(
+            'INSERT INTO finance_account_type_options '
+            '(business_id,name,legacy_type,is_default,is_active,created_at,updated_at) '
+            'VALUES (?,?,?,?,?,?,?)',
+            (business_id, name, 'OTHER', False, True, now, now))
+        _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_TYPE_CREATED', record_id)
+        return record_id
+
+
+def delete_account_type_option(business_id, name, *, actor_user_id=None):
+    name = _text(name, 80, True)
+    with _write(business_id, actor_user_id):
+        _materialize_account_type_options(business_id)
+        existing = _account_type_option_by_name(business_id, name)
+        if not existing:
+            raise FinanceError('account_type_unavailable')
+        db.execute(
+            'UPDATE finance_account_type_options SET is_active=FALSE,updated_at=? '
+            'WHERE business_id=? AND id=?',
+            (repo._now(), business_id, existing['id']))
+        _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_TYPE_DEACTIVATED', existing['id'])
+
+
+def _assign_account_type_option(business_id, account_id, option_id):
+    now = repo._now()
+    db.execute(
+        'INSERT INTO finance_account_type_assignments '
+        '(business_id,account_id,option_id,created_at,updated_at) VALUES (?,?,?,?,?) '
+        'ON CONFLICT(business_id,account_id) DO UPDATE SET '
+        'option_id=excluded.option_id,updated_at=excluded.updated_at',
+        (business_id, account_id, option_id, now, now))
+
+
+def account_type_label_map(business_id, *, actor_user_id=None):
+    _scope(business_id, actor_user_id)
+    rows = db.query_all(
+        'SELECT a.account_id,o.name FROM finance_account_type_assignments a '
+        'JOIN finance_account_type_options o '
+        'ON o.business_id=a.business_id AND o.id=a.option_id '
+        'WHERE a.business_id=?',
+        (business_id,))
+    return {row['account_id']: row['name'] for row in rows}
+
+
+def _label_accounts(business_id, rows, actor_user_id=None):
+    labels = account_type_label_map(business_id, actor_user_id=actor_user_id)
+    result = []
+    for raw in rows:
+        row = dict(raw)
+        row['account_type_label'] = labels.get(
+            row['id'], LEGACY_ACCOUNT_TYPE_LABELS.get(row['account_type'], 'Lainnya'))
+        result.append(row)
+    return result
+
+
+def create_account(business_id, name, account_type='CASH', currency='IDR', opening_balance_minor=0,
+                   *, account_type_label=None, actor_user_id=None):
+    name = _text(name, 160, True)
+    currency = _currency(currency)
+    opening_balance_minor = _money(opening_balance_minor)
+    label = _text(account_type_label, 80, True) if account_type_label is not None else None
+    legacy_type = None if label is not None else _enum(account_type, ACCOUNT_TYPES)
+    with _write(business_id, actor_user_id):
+        option = None
+        if label is not None:
+            _materialize_account_type_options(business_id)
+            option = _account_type_option_by_name(business_id, label)
+            if not option:
+                raise FinanceError('account_type_unavailable')
+            legacy_type = _enum(option['legacy_type'], ACCOUNT_TYPES)
+        branch_id = branches.write_branch(business_id, actor_user_id)
+        existing = db.query_one(
+            ('SELECT id,is_active FROM finance_accounts WHERE business_id=?' +
+             branches.predicate('') +
+             ' AND branch_id=? AND name=? AND account_type=? AND currency=?'),
+            (business_id, branch_id, name, legacy_type, currency))
+        if existing:
+            if not existing['is_active']:
+                db.execute(
+                    'UPDATE finance_accounts SET is_active=TRUE,updated_at=? WHERE business_id=? AND id=?',
+                    (repo._now(), business_id, existing['id']))
+                _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_REACTIVATED', existing['id'])
+            if option:
+                _assign_account_type_option(business_id, existing['id'], option['id'])
+            return existing['id']
+        account_id = _create_account(
+            business_id, name, legacy_type, currency, opening_balance_minor, actor_user_id)
+        if option:
+            _assign_account_type_option(business_id, account_id, option['id'])
+        return account_id
 
 
 def list_accounts(business_id, include_inactive=False, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
-    return db.query_all(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate()) +
-                        ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY id', (business_id,))
+    rows = db.query_all(
+        ('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate()) +
+        ('' if include_inactive else ' AND is_active=TRUE') + ' ORDER BY id',
+        (business_id,))
+    return _label_accounts(business_id, rows, actor_user_id)
 
 
 def get_account(business_id, account_id, *, actor_user_id=None, active=False):
@@ -188,7 +333,8 @@ def get_account(business_id, account_id, *, actor_user_id=None, active=False):
     row=db.query_one(('SELECT * FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' AND id=?'),
                      (business_id,_id(account_id)))
     if not row or (active and not row['is_active']):raise FinanceError('account_unavailable')
-    _currency(row['currency']);return row
+    _currency(row['currency'])
+    return _label_accounts(business_id, [row], actor_user_id)[0]
 
 
 def _create_category(business_id, direction, name, actor_user_id):
@@ -1413,6 +1559,7 @@ def get_category_breakdown(business_id,start_date,end_date,actor_user_id=None):
 def get_account_balance_report(business_id, as_of, actor_user_id=None):
     _scope(business_id,actor_user_id);as_of=_date(as_of)
     accounts=_report_query(('SELECT branch_id,id,name,account_type,currency,opening_balance_minor,is_active,(SELECT name FROM finance_branches b WHERE b.business_id=finance_accounts.business_id AND b.id=finance_accounts.branch_id) AS branch_name FROM finance_accounts WHERE business_id=?' + branches.predicate('') + ' ORDER BY currency,name,id'),(business_id,))
+    accounts=_label_accounts(business_id,accounts,actor_user_id)
     rows=db.query_all(('SELECT account_id,currency,direction,'+_money_sum()+'(amount_minor) AS amount_minor FROM finance_transactions WHERE business_id=?' + branches.predicate('') + " AND status='POSTED' AND occurred_on<=? GROUP BY account_id,currency,direction"),(business_id,as_of))
     groups={a['id']:dict(a,income_minor=0,expense_minor=0,exchange_in_minor=0,exchange_out_minor=0,balance_minor=a['opening_balance_minor']) for a in accounts}
     for row in rows:
