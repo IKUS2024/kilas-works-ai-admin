@@ -114,7 +114,7 @@
               <button class="btn btn-wide" type="submit">Kenali &amp; Siapkan Brain</button>
             </form>
           {% else %}
-            {% set brain_payment = namespace(verified=false, status='NONE') %}
+            {% set brain_payment = namespace(verified=b.brain_payment_verified, status='VERIFIED' if b.brain_payment_verified else 'NONE') %}
             {% for p in my_projects %}
               {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment %}
                 {% set brain_payment.status = p.payment.status %}
