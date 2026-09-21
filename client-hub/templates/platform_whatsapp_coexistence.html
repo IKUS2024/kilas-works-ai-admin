@@ -68,7 +68,7 @@
     <p>Phone Number ID tetap sama. Webhook dan bot bisa memakai konfigurasi yang sudah ada.</p>
     {% endif %}
   </section>
-  {% else %}
+  {% elif not migration.restored_cloud_api %}
 
   <section class="wa-step wa-danger">
     <h2>1. Lepas sementara dari Cloud API</h2>
