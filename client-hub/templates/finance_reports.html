@@ -270,7 +270,7 @@
       <div class="report-controls">
         <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
         <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
-        <label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>
+        {% if finance_workspace_personal %}<input type="hidden" name="as_of" value="{{ filters.end }}">{% else %}<label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>{% endif %}
       </div>
       <p class="report-filter-help">{% if finance_workspace_personal %}Tagihan rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% else %}Tanggal acuan dipakai untuk posisi piutang. Komitmen biaya rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% endif %}</p>
       <div class="report-dialog-actions"><button type="button" class="btn secondary" data-report-filter-close>Batal</button><button class="btn">Terapkan</button></div>
