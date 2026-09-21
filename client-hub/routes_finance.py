@@ -1145,6 +1145,29 @@ def create_exchange(business_id,user,business):
         request.form.get('occurred_on'),note=request.form.get('note'),reference_rate=reference,rate_source=snap.get('source'),rate_as_of=snap.get('date'),actor_user_id=user['id']),
         'Penukaran mata uang dicatat.')
 
+@finance_bp.route('/business/<int:business_id>/finance/exchanges/<int:exchange_id>/edit',methods=['POST'])
+@finance_access
+def edit_exchange(business_id,user,business,exchange_id):
+    exchange=finance.get_currency_exchange(
+        business_id,exchange_id,actor_user_id=user['id'])
+    from_amount=currency_amount(
+        request.form.get('from_amount'),exchange['from_currency'])
+    to_amount=currency_amount(
+        request.form.get('to_amount'),exchange['to_currency'])
+    return_account_id=request.form.get('return_account_id')
+    destination=url_for(
+        'finance.dashboard',business_id=business_id,
+        branch_id=g.finance_branch_id or 'all',view='accounts',
+        account_id=record_id(return_account_id) if return_account_id else exchange['from_account_id'],
+        display_currency=request.form.get('display_currency','IDR'))
+    return mutate(
+        business_id,
+        lambda: finance.update_currency_exchange(
+            business_id,exchange_id,from_amount,to_amount,actor_user_id=user['id']),
+        'Nominal transfer diperbarui. Saldo kedua akun dihitung ulang otomatis.',
+        destination)
+
+
 @finance_bp.route('/business/<int:business_id>/finance/exchanges/<int:exchange_id>/void',methods=['POST'])
 @finance_access
 def void_exchange(business_id,user,business,exchange_id):
