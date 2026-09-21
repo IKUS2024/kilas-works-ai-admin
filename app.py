@@ -8847,20 +8847,45 @@ def internal_platform_wa_migration_restore():
     if not re.fullmatch(r"\d{1,32}", phone_id):
         return jsonify({"status": "error", "reason": "platform_phone_unavailable"}), 503
 
-    result, reason = _platform_wa_graph_call(
-        "POST",
-        phone_id + "/register",
-        payload={"messaging_product": "whatsapp", "pin": pin},
-    )
-    # Drop the PIN reference immediately after the one outbound request. Do not include it in
-    # logs, responses, exceptions, or any persisted state below.
-    pin = None
+    # Use a restore-specific transport so we can retain ONLY Meta's non-secret numeric
+    # error code/subcode for diagnosis. Never log the response body, access token, PIN, phone
+    # number, or message text.
+    url = f"https://graph.facebook.com/v21.0/{phone_id}/register"
+    try:
+        resp = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}"},
+            json={"messaging_product": "whatsapp", "pin": pin},
+            timeout=(3, 10),
+            allow_redirects=False,
+        )
+        try:
+            result = resp.json()
+        except ValueError:
+            result = None
+        status_code = int(resp.status_code)
+    except requests.RequestException:
+        result = None
+        status_code = 0
+    finally:
+        # Drop the PIN reference immediately after the one outbound request. Do not include it in
+        # logs, responses, exceptions, or any persisted state below.
+        pin = None
 
-    if reason or not isinstance(result, dict) or result.get("success") not in (True, "true"):
-        print("PLATFORM_WA_RESTORE failed reason=" + (reason or "meta_step_incomplete"))
+    if status_code != 200 or not isinstance(result, dict) or result.get("success") not in (True, "true"):
+        error = result.get("error") if isinstance(result, dict) else None
+        safe_code = error.get("code") if isinstance(error, dict) else None
+        safe_subcode = error.get("error_subcode") if isinstance(error, dict) else None
+        safe_type = error.get("type") if isinstance(error, dict) else None
+        print(
+            "PLATFORM_WA_RESTORE failed "
+            f"http={status_code} code={safe_code} subcode={safe_subcode} type={safe_type}"
+        )
         return jsonify({
             "status": "error",
-            "reason": reason or "meta_step_incomplete",
+            "reason": "meta_request_failed",
+            "meta_code": safe_code,
+            "meta_subcode": safe_subcode,
             "message": (
                 "Meta belum menerima registrasi ulang Cloud API. Tidak ada aset/WABA yang dihapus "
                 "atau diubah oleh Kilas."
