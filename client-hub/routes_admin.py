@@ -353,6 +353,53 @@ def platform_whatsapp_coexistence_deregister():
     return redirect(url_for("admin.platform_whatsapp_coexistence"), code=303)
 
 
+@admin_bp.route("/platform-whatsapp/restore-cloud-api", methods=["POST"])
+@security.admin_required
+def platform_whatsapp_restore_cloud_api():
+    """Operator recovery: put Kilas Works' own number back on normal Cloud API."""
+    pin = (request.form.get("pin") or "").strip()
+    if not re.fullmatch(r"\d{6}", pin):
+        flash("PIN registrasi WhatsApp harus tepat 6 digit.", "error")
+        return redirect(url_for("admin.platform_whatsapp_coexistence"), code=303)
+
+    try:
+        result = whatsapp_signup.restore_platform_cloud_api(pin)
+        migration = dict(session.get(_PLATFORM_WA_MIGRATION_SESSION) or {})
+        migration["restored_cloud_api"] = True
+        migration["restored_at"] = int(time.time())
+        migration["restore_pending_identity"] = result.get("status") == "registered_pending_identity"
+        session[_PLATFORM_WA_MIGRATION_SESSION] = migration
+        if result.get("status") == "ok":
+            flash(
+                "Nomor berhasil diregistrasikan kembali ke Cloud API. Bot bisa dites lagi sekarang.",
+                "success",
+            )
+        else:
+            flash(
+                "Meta menerima registrasi ulang. Status nomor masih sinkronisasi sebentar; muat ulang lalu tes bot.",
+                "success",
+            )
+    except whatsapp_signup.SignupError as exc:
+        reason = str(exc)
+        safe_message = {
+            "invalid_pin": "PIN registrasi WhatsApp tidak valid.",
+            "platform_phone_unavailable": "Phone Number ID lama belum bisa diregistrasikan oleh Meta.",
+            "meta_request_failed": (
+                "Meta belum menerima registrasi ulang Cloud API. Nomor di WhatsApp Business HP "
+                "tidak diubah oleh Kilas."
+            ),
+            "meta_step_incomplete": "Meta belum menyelesaikan registrasi ulang Cloud API.",
+            "platform_bot_bridge_unavailable": "Koneksi internal Client Hub ke bot sedang tidak tersedia.",
+            "access_denied": "Koneksi internal ditolak. Tidak ada perubahan pada nomor.",
+        }.get(reason, "Registrasi ulang Cloud API belum berhasil. Tidak ada aset/WABA yang dihapus.")
+        flash(safe_message, "error")
+    finally:
+        # Do not retain the operator-entered two-step PIN in local variables longer than needed.
+        pin = None
+
+    return redirect(url_for("admin.platform_whatsapp_coexistence"), code=303)
+
+
 @admin_bp.route("/platform-whatsapp/coexistence/complete", methods=["POST"])
 @security.admin_required
 def platform_whatsapp_coexistence_complete():
