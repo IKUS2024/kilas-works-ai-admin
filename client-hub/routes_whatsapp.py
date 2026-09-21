@@ -1,14 +1,32 @@
 """Authenticated, CSRF-protected Embedded Signup. No credentials in customer responses."""
 import logging
+import os
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.exceptions import HTTPException
 import security
 import repo
 import provisioning
+import payment_service
 import whatsapp_signup as signup
 
 whatsapp_bp = Blueprint('whatsapp', __name__)
 log = logging.getLogger(__name__)
+
+def _meta_review_test_asset(business_id):
+    """Return the one explicitly configured Meta test asset for the dedicated reviewer demo.
+
+    This path is disabled by default and only available when the exact business is also covered by
+    the review-only payment bypass. It never falls back to production WhatsApp ids.
+    """
+    if not payment_service.meta_review_payment_bypass_enabled(business_id):
+        return None
+    waba_id = (os.environ.get("META_REVIEW_TEST_WABA_ID") or "").strip()
+    phone_id = (os.environ.get("META_REVIEW_TEST_PHONE_ID") or "").strip()
+    phone = signup.normalize_phone_digits(os.environ.get("META_REVIEW_TEST_PHONE"))
+    if (not waba_id.isdigit() or not phone_id.isdigit() or not phone):
+        return None
+    return {"waba_id": waba_id, "phone_number_id": phone_id, "display_phone": phone}
+
 
 MESSAGES = {
     'configuration_missing': 'Hubungkan WhatsApp belum tersedia. Hubungi Kilas Works.',
@@ -31,11 +49,16 @@ def embedded_signup_start(business_id):
     error = None
     config = None
     state = None
+    review_test_asset = _meta_review_test_asset(business_id)
     if business['status'] != 'ACTIVE':
         try:
             signup.eligible(business_id, user)
-            config = signup.settings()
-            state = signup.new_state(business_id, user['id'])
+            # Dedicated Meta App Review demo uses the app's existing Meta test WABA/phone.
+            # Do not open Embedded Signup here: that flow itself is what requires the Advanced
+            # Access currently under review. Production businesses still use the normal flow below.
+            if review_test_asset is None:
+                config = signup.settings()
+                state = signup.new_state(business_id, user['id'])
         except signup.SignupError as exc:
             error = MESSAGES.get(str(exc), signup.PUBLIC_ERROR)
     public_config = None if not config else {
@@ -45,8 +68,69 @@ def embedded_signup_start(business_id):
     }
     channel = repo.get_whatsapp_config(business_id) or {}
     retry_activation = business['status'] == 'APPROVED' and channel.get('connection_status') == 'CONNECTED' and not channel.get('credentials_reference')
-    response = render_template('whatsapp_connect.html', business=business, signup_config=public_config, error=error, retry_activation=retry_activation)
+    response = render_template(
+        'whatsapp_connect.html',
+        business=business,
+        signup_config=public_config,
+        error=error,
+        retry_activation=retry_activation,
+        review_test_asset=review_test_asset,
+    )
     return response, 200, {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'}
+
+
+@whatsapp_bp.route('/business/<int:business_id>/whatsapp/review-test-connect', methods=['POST'])
+@security.login_required
+def review_test_connect(business_id):
+    """Connect only the dedicated Meta test WABA/phone for App Review.
+
+    The IDs come from server-side env and the route is enabled only for the exact review demo
+    business. It performs the same live Meta reachability, display-number match, duplicate guard,
+    tenant-config write, and activation path as normal self-service onboarding.
+    """
+    user = security.current_user()
+    business = security.require_business_access(business_id, user=user)
+    asset = _meta_review_test_asset(business_id)
+    if asset is None:
+        abort(404)
+    if business['status'] not in ('APPROVED', 'ACTIVE'):
+        flash('Bisnis demo harus berstatus APPROVED sebelum aset test dihubungkan.', 'error')
+        return redirect(url_for('whatsapp.embedded_signup_start', business_id=business_id), code=303)
+    if business['status'] == 'ACTIVE':
+        flash('Aset test Meta sudah aktif untuk bisnis reviewer ini.', 'success')
+        return redirect(url_for('client.dashboard'), code=303)
+
+    try:
+        result = provisioning.complete_self_service_whatsapp(
+            business_id,
+            user,
+            asset['waba_id'],
+            asset['phone_number_id'],
+            connection_mode='CLOUD_API',
+        )
+    except signup.SignupError as exc:
+        log.warning('META_REVIEW_TEST_CONNECT reason=%s', str(exc))
+        reason = str(exc)
+        message = {
+            'channel_validation_failed': (
+                'Aset test Meta belum bisa divalidasi oleh credential server. '
+                'Tidak ada nomor produksi yang diubah.'
+            ),
+            'duplicate_phone': 'Phone Number ID test sudah dipakai oleh bisnis lain.',
+            'approval_required': 'Bisnis demo belum APPROVED.',
+            'payment_verification_required': 'Akses reviewer belum diaktifkan.',
+            'provisioning_required': 'Tenant config reviewer belum tersedia.',
+        }.get(reason, signup.PUBLIC_ERROR)
+        flash(message, 'error')
+        return redirect(url_for('whatsapp.embedded_signup_start', business_id=business_id), code=303)
+
+    flash(
+        'Aset test Meta berhasil terhubung.'
+        if result.get('status') in ('ACTIVE', 'CONNECTED')
+        else 'Aset test Meta tersimpan; aktivasi masih menunggu pemeriksaan.',
+        'success',
+    )
+    return redirect(url_for('client.dashboard'), code=303)
 
 
 @whatsapp_bp.route('/business/<int:business_id>/whatsapp/complete', methods=['POST'])
