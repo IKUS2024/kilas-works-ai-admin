@@ -119,6 +119,12 @@ def create_app():
         import ai_usage
         ai_usage.startup_schema_check()
 
+        try:
+            import whatsapp_signup
+            whatsapp_signup.discover_migration_phone_assets()
+        except Exception as exc:
+            print("PLATFORM_WA_HUB_DISCOVERY internal_failure class=" + type(exc).__name__)
+
         print("Catalog seed: starting")
         catalog_service.seed_catalog_if_needed()
         print("Catalog seed: OK")
