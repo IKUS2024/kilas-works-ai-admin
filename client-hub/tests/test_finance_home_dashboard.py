@@ -175,6 +175,20 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['category_id'],expense_cat)
 
+    def test_default_expense_categories_use_requested_indonesian_set(self):
+        names=[row['name'] for row in fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid)]
+        self.assertEqual(names,[
+            'Biaya Sewa','Utilitas','Makanan & Belanja Harian','Perlengkapan',
+            'Transportasi','Asuransi','Biaya Tak Terduga',
+        ])
+        html,_=self.page('?month=2026-09')
+        for name in names:
+            self.assertIn(name,html)
+        self.assertNotIn('Produksi / Vendor',html)
+        self.assertNotIn('Gaji / Freelancer',html)
+        self.assertNotIn('Marketing / Ads',html)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
@@ -194,7 +208,7 @@ class DashboardHomeTests(unittest.TestCase):
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
         html,_=self.page('?month=2026-09')
         self.assertIn('data-category-quick-add',html)
-        self.assertIn('＋ Tambah kategori',html)
+        self.assertIn('＋ Tambah / kelola kategori',html)
         self.assertIn('Tambah &amp; pilih',html)
 
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
@@ -209,6 +223,13 @@ class DashboardHomeTests(unittest.TestCase):
             self.assertEqual(payload['category']['direction'],direction)
             rows=fixture.f.list_categories(self.b,direction,actor_user_id=self.uid)
             self.assertTrue(any(row['id']==payload['category']['id'] and row['name']==name for row in rows))
+
+            deleted=self.client.post(endpoint,data={
+                'branch_id':str(branch_id),'direction':direction,'action':'delete',
+                'category_id':str(payload['category']['id']),
+            },headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'})
+            self.assertEqual(deleted.status_code,200)
+            self.assertNotIn(name,[row['name'] for row in deleted.get_json()['options']])
 
     def test_penerima_is_derived_from_expense_counterparty(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
