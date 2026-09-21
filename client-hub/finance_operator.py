@@ -75,7 +75,7 @@ def rupiah(value):
         number=_money_decimal(raw)
         number *= {'rb':1000,'ribu':1000,'k':1000,'jt':1000000,'juta':1000000,
                    'miliar':1000000000,'milyar':1000000000,None:1}[suffix]
-        amount=int(number.quantize(Decimal('1'),rounding=ROUND_HALF_UP))
+        amount=int((number*100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
         return finance._money(amount,positive=True)
     except (InvalidOperation, finance.FinanceError):
         raise OperatorError('invalid_amount') from None
