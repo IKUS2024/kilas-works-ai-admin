@@ -11,7 +11,7 @@
       <div><div class="client-item-title">{{ finance_label }}</div><div class="client-item-meta">{% if entitlement.until_local %}Aktif s/d {{ entitlement.until_local }}{% else %}Finance berdiri sendiri dari Brain.{% endif %}</div></div>
       <span class="client-status {{ 'ok' if entitlement.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else ('danger' if entitlement.status=='EXPIRED' else '') }}">{{ finance_label }}</span>
     </div>
-    <div class="client-actions"><a class="btn" href="{{ url_for('finance.dashboard',business_id=business.id) }}">{{ 'Buka Finance' if entitlement.active else 'Lihat Data Finance' }}</a></div>
+    <div class="client-actions"><a class="btn" href="{{ url_for('finance.workspace_choice',business_id=business.id) }}">{{ 'Buka Finance' if entitlement.active else 'Lihat Data Finance' }}</a></div>
     <p class="client-note">Kas, bank, dan e-wallet hanya dicatat di aplikasi; tidak ada koneksi bank langsung.</p>
     {% if entitlement.status=='TRIAL_ACTIVE' %}<p class="client-note">Selama trial 7 hari aktif, tidak ada tagihan langganan. Setelah trial berakhir, langganan promo {{ finance_plan.amount_minor|finance_money('IDR') }} / {{ finance_plan.period_days }} hari akan tersedia.</p>{% endif %}
   </section>
