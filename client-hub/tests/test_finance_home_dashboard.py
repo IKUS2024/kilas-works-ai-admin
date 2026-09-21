@@ -101,7 +101,7 @@ class DashboardHomeTests(unittest.TestCase):
 
     def test_account_types_default_add_delete_and_assignment_are_consistent(self):
         html,_=self.page('?month=2026-09&view=accounts')
-        for label in ('Credit','Debit','Piutang','Tabungan','E-Wallet'):
+        for label in ('Credit','Debit','Piutang','Tabungan','E-wallet','Wallet'):
             self.assertIn(f'value="{label}"',html)
         self.assertIn('＋ Tambah / kelola tipe',html)
 
