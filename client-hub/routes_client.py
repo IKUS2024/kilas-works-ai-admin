@@ -139,6 +139,7 @@ def dashboard():
                 b["package"] != "NONE"
                 and (repo.get_ai_settings(b["id"]) or {}).get("ai_status") == "STALE"
             ),
+            "brain_payment_verified": payment_service.has_verified_ai_admin_payment(b["id"]),
         })
         # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
         # across every business they own, so "what's happening with my order" doesn't require
