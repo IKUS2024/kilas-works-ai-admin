@@ -13,7 +13,7 @@
 </section>
 <section class="card finance-available" aria-label="Saldo tersedia">
 <div class="finance-section-heading"><div><h2>Saldo tersedia</h2><span class="finance-subtle">{{ fx_status_label }}</span></div>
-{% if display_options|length > 1 %}<form method="get" class="finance-display-currency"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="period_mode" value="month"><label>Mata uang<select name="display_currency" onchange="this.form.submit()">{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label></form>{% else %}<span class="finance-display-chip">{{ display_currency }}</span>{% endif %}</div>
+{% if display_options|length > 1 %}<form method="get" class="finance-display-currency" data-finance-live-form><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="period_mode" value="month"><label>Mata uang<select name="display_currency" data-finance-live-currency>{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label></form>{% else %}<span class="finance-display-chip">{{ display_currency }}</span>{% endif %}</div>
 <strong class="finance-combined-balance">{{ balance_total_display }}</strong>
 <p class="finance-subtle">Semua rekening dikonversi otomatis ke {{ display_currency }} memakai kurs referensi terbaru. Nilai asli tetap tersimpan di rekening dan tidak mengubah pemasukan/pengeluaran.</p>
 </section>
