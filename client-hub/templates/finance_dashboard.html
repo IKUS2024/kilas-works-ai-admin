@@ -464,7 +464,22 @@
     <strong>{{ x.from_amount_minor|finance_money(x.from_currency) }} → {{ x.to_amount_minor|finance_money(x.to_currency) }}</strong>
     <div class="finance-record-sub">{{ x.occurred_on }} · {{ x.from_account_name }} → {{ x.to_account_name }} · {{ 'Aktif' if x.status=='POSTED' else 'Dihapus dari saldo' }}</div>
   </div>
-  {% if x.status=='POSTED' %}<form method="post" action="{{ url_for('finance.void_exchange',business_id=business.id,exchange_id=x.id) }}" onsubmit="return confirm('Hapus penukaran ini dari saldo?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger">Hapus</button></form>{% endif %}
+  {% if x.status=='POSTED' %}
+  <div class="finance-fx-record-actions">
+    <details class="finance-fx-inline-edit">
+      <summary class="finance-mini-action">Edit nominal</summary>
+      <form method="post" action="{{ url_for('finance.edit_exchange',business_id=business.id,exchange_id=x.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="return_account_id" value="{{ selected_account.id if selected_account else x.from_account_id }}">
+        <input type="hidden" name="display_currency" value="{{ display_currency }}">
+        <label>{{ x.from_currency }} dilepas<input name="from_amount" inputmode="decimal" maxlength="25" value="{{ x.from_amount_minor if x.from_currency in ('IDR','JPY') else '%.2f'|format(x.from_amount_minor / 100) }}" required></label>
+        <label>{{ x.to_currency }} diterima<input name="to_amount" inputmode="decimal" maxlength="25" value="{{ x.to_amount_minor if x.to_currency in ('IDR','JPY') else '%.2f'|format(x.to_amount_minor / 100) }}" required></label>
+        <button class="finance-mini-action" type="submit">Simpan nominal</button>
+      </form>
+    </details>
+    <form method="post" action="{{ url_for('finance.void_exchange',business_id=business.id,exchange_id=x.id) }}" onsubmit="return confirm('Hapus penukaran ini dari saldo?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger">Hapus</button></form>
+  </div>
+  {% endif %}
 </div>
 {% endfor %}
 {% endif %}
