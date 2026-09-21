@@ -189,6 +189,34 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Gaji / Freelancer',html)
         self.assertNotIn('Marketing / Ads',html)
 
+    def test_utilitas_shows_connected_subcategories_and_posts_child_category(self):
+        html,_=self.page('?month=2026-09')
+        self.assertIn('data-subcategory-field',html)
+        self.assertIn('>Subkategori',html)
+        for name in ('Listrik','Air','Internet','Telepon','Gas','Laundry','Sampah / Kebersihan'):
+            self.assertIn(name,html)
+
+        utility=next(row for row in fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid) if row['name']=='Utilitas')
+        electricity=next(row for row in fixture.f.list_category_children(
+            self.b,utility['id'],actor_user_id=self.uid) if row['name']=='Listrik')
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        response=self.client.post(f'/business/{self.b}/finance/transactions',data={
+            'branch_id':str(branch_id),'direction':'EXPENSE','account_id':str(self.a),
+            'amount':'50000','occurred_on':'2026-09-22','category_id':str(utility['id']),
+            'subcategory_id':str(electricity['id']),'description':'Tagihan listrik',
+        })
+        self.assertEqual(response.status_code,303)
+        transaction=fixture.f.list_transactions(self.b)[0]
+        self.assertEqual(transaction['category_id'],electricity['id'])
+
+        budget=self.client.get(
+            f'/business/{self.b}/finance/budget?branch_id={branch_id}&month=2026-09')
+        self.assertEqual(budget.status_code,200)
+        self.assertIn('Rincian Utilitas',budget.text)
+        self.assertIn('Listrik',budget.text)
+        self.assertIn('Rp50.000',budget.text)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
