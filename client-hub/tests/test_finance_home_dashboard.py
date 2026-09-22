@@ -442,6 +442,31 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('finance-scope-card',operations.text)
         self.assertNotIn('Cabang aktif:',operations.text)
 
+    def test_business_home_surfaces_invoice_status_without_mixing_with_personal(self):
+        invoice=fixture.f.create_finance_invoice(
+            self.b,self.c,'2026-09-22','2026-09-30',
+            [dict(description='Jasa',quantity=1,unit_price_minor=200000000)],
+            actor_user_id=self.uid)
+        fixture.f.issue_finance_invoice(
+            self.b,invoice,actor_user_id=self.uid)
+        paid=fixture.f.create_finance_invoice(
+            self.b,self.c,'2026-09-22','2026-09-30',
+            [dict(description='Lunas',quantity=1,unit_price_minor=100000000)],
+            actor_user_id=self.uid)
+        fixture.f.issue_finance_invoice(
+            self.b,paid,actor_user_id=self.uid)
+        fixture.f.record_invoice_payment(
+            self.b,paid,100000000,'2026-09-22',self.a,self.cat,
+            actor_user_id=self.uid,idempotency_key='dashboard-invoice-paid-0001')
+
+        html,context=self.page('?month=2026-09')
+        self.assertIn('>Invoice</span>',html)
+        self.assertIn('1 <em>belum bayar</em>',html)
+        self.assertIn('1 lunas',html)
+        self.assertIn('otomatis masuk Piutang',html)
+        self.assertEqual(context['invoice_open_count'],1)
+        self.assertEqual(context['invoice_paid_count'],1)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
