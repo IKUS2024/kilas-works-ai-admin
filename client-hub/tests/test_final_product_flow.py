@@ -263,6 +263,7 @@ class FinalFlowTests(unittest.TestCase):
 
         saved=self.client.post('/account',data={
             'action':'personal_profile',
+            'full_name':'Irvan Personal Edited',
             'phone':'08123456789',
             'address':'Alamat Pribadi 1',
             'tax_id':'NPWP-P',
@@ -276,10 +277,12 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(saved.status_code,303)
         self.assertTrue(saved.location.endswith('#personal'))
 
+        self.assertEqual(repo.get_user_by_id(self.uid)['full_name'],'Irvan Personal Edited')
+
         personal_id=branches.ensure_personal(self.b,self.uid)
         with branches.scope(self.b,personal_id,self.uid):
             defaults=editor.defaults(self.b,self.uid)
-        self.assertEqual(defaults['sender']['name'],'Irvan Personal')
+        self.assertEqual(defaults['sender']['name'],'Irvan Personal Edited')
         self.assertEqual(defaults['sender']['email'],repo.get_user_by_id(self.uid)['email'])
         self.assertEqual(defaults['sender']['phone'],'08123456789')
         self.assertEqual(defaults['sender']['address'],'Alamat Pribadi 1')
