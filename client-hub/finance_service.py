@@ -1994,6 +1994,28 @@ def _report_query(sql, params):
     return rows
 
 
+def get_budget_report_rows(business_id, start_date, end_date, actor_user_id=None):
+    """Configured monthly budgets that overlap the selected report period."""
+    _scope(business_id, actor_user_id)
+    start, end = report_period(start_date, end_date)
+    start_month, end_month = start[:7], end[:7]
+    rows = [dict(row) for row in _report_query(
+        ('SELECT b.id,b.branch_id,b.month,b.category_id,b.amount_minor,b.currency,'
+         'c.name AS category_name '
+         'FROM finance_budgets b '
+         'JOIN finance_categories c ON c.business_id=b.business_id AND c.id=b.category_id '
+         'WHERE b.business_id=?' + branches.predicate('b') +
+         ' AND b.month>=? AND b.month<=? '
+         'ORDER BY b.month,c.name,b.id'),
+        (business_id, start_month, end_month))]
+    names = category_display_map(business_id, actor_user_id=actor_user_id)
+    for row in rows:
+        row['amount_minor'] = int(row['amount_minor'])
+        row['category_name'] = names.get(row['category_id'], row['category_name'])
+        _currency(row['currency'])
+    return rows
+
+
 def get_report_transactions(business_id, start_date, end_date, actor_user_id=None, include_void=False):
     _scope(business_id,actor_user_id)
     start,end=report_period(start_date,end_date)
