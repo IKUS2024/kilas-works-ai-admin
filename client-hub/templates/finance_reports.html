@@ -76,6 +76,8 @@
 .report-presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:12px}
 .report-presets a{display:flex;align-items:center;justify-content:center;min-height:40px;padding:6px;border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:11px;font-weight:800;text-decoration:none;text-align:center}
 .report-presets a:hover{border-color:var(--orange);text-decoration:none}
+.report-presets a.active{border-color:var(--orange);background:color-mix(in srgb,var(--orange) 10%,transparent);color:var(--orange)}
+.report-custom-title{margin:3px 0 9px;color:var(--text);font-size:11px;font-weight:850}
 .report-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .report-controls .wide{grid-column:1/-1}
 .report-controls label{margin:0}
@@ -152,8 +154,13 @@
   <span class="report-scope-badge">{{ 'Pribadi' if finance_workspace_personal else selected_branch.name }}</span>
 </header>
 
+{% set preset_names = {
+  'today':'Hari ini','month':'Bulan ini','last_month':'Bulan lalu',
+  'three':'3 bulan','six':'6 bulan','year':'Tahun ini',
+  'all':'Semua waktu','custom':'Tanggal khusus'
+} %}
 <div class="report-meta">
-  <span class="report-chip">📅 <strong>{{ filters.start }}</strong> – <strong>{{ filters.end }}</strong></span>
+  <span class="report-chip">📅 <strong>{{ preset_names.get(filters.preset,'Tanggal khusus') }}</strong> · {{ filters.start }} – {{ filters.end }}</span>
   {% if finance_workspace_personal %}
   <span class="report-chip">👤 <strong>Pribadi</strong></span>
   {% else %}
@@ -182,7 +189,7 @@
   <div class="report-toolbar">
     <div class="report-toolbar-left">
       <button type="button" class="report-tool-btn primary" data-report-filter-open>⚙️ Filter</button>
-      <span class="report-chip">Periode aktif · {{ filters.start }} – {{ filters.end }}</span>
+      <span class="report-chip">{{ preset_names.get(filters.preset,'Tanggal khusus') }} · {{ filters.start }} – {{ filters.end }}</span>
     </div>
     <div class="report-toolbar-right">
       <a class="report-tool-btn primary" href="{{ url_for('finance.report_pdf',business_id=business.id,branch_id=report_scope,**filters) }}">⬇️ Unduh PDF</a>
@@ -195,16 +202,21 @@
   <section class="card report-inline-filter">
     <h2>Filter Laporan</h2><p class="muted">{% if finance_workspace_personal %}Atur periode laporan pribadi. Setelah disimpan kamu kembali ke Ringkasan.{% else %}Atur periode dan tanggal acuan piutang. Setelah disimpan kamu kembali ke Ringkasan.{% endif %}</p>
     <div class="report-presets">
-      {% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}
-      <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section='summary') }}">{{ label }}</a>
+      {% for value,label in [
+        ('today','Hari ini'),('month','Bulan ini'),('last_month','Bulan lalu'),
+        ('three','3 bulan'),('six','6 bulan'),('year','Tahun ini'),
+        ('all','Semua waktu')
+      ] %}
+      <a class="{{ 'active' if filters.preset==value }}" href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section='summary') }}">{{ label }}</a>
       {% endfor %}
     </div>
+    <div class="report-custom-title">Atau pilih tanggal sendiri</div>
     <form method="get">
-      <input type="hidden" name="section" value="summary"><input type="hidden" name="branch_id" value="{{ report_scope }}">
+      <input type="hidden" name="section" value="summary"><input type="hidden" name="branch_id" value="{{ report_scope }}"><input type="hidden" name="preset" value="custom">
       <div class="report-controls">
         <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
         <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
-        {% if finance_workspace_personal %}<input type="hidden" name="as_of" value="{{ filters.end }}">{% else %}<label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>{% endif %}
+        {% if not finance_workspace_personal %}<label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>{% endif %}
       </div>
       <div class="report-dialog-actions"><button class="btn">Terapkan Filter</button></div>
     </form>
@@ -261,18 +273,23 @@
   <div class="report-dialog-head"><h2>⚙️ Filter Laporan</h2><button type="button" class="report-dialog-close" data-report-filter-close aria-label="Tutup">×</button></div>
   <div class="report-dialog-body">
     <div class="report-presets">
-      {% for value,label in [('month','Bulan ini'),('three','3 bulan terakhir'),('year','Tahun ini')] %}
-      <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section=section_target) }}">{{ label }}</a>
+      {% for value,label in [
+        ('today','Hari ini'),('month','Bulan ini'),('last_month','Bulan lalu'),
+        ('three','3 bulan'),('six','6 bulan'),('year','Tahun ini'),
+        ('all','Semua waktu')
+      ] %}
+      <a class="{{ 'active' if filters.preset==value }}" href="{{ url_for('finance.reports',business_id=business.id,branch_id=report_scope,preset=value,section=section_target) }}">{{ label }}</a>
       {% endfor %}
     </div>
+    <div class="report-custom-title">Tanggal khusus</div>
     <form method="get">
-      <input type="hidden" name="section" value="{{ section_target }}"><input type="hidden" name="branch_id" value="{{ report_scope }}">
+      <input type="hidden" name="section" value="{{ section_target }}"><input type="hidden" name="branch_id" value="{{ report_scope }}"><input type="hidden" name="preset" value="custom">
       <div class="report-controls">
         <label>Dari tanggal<input type="date" name="start" value="{{ filters.start }}" max="{{ today }}" required></label>
         <label>Sampai tanggal<input type="date" name="end" value="{{ filters.end }}" max="{{ today }}" required></label>
-        {% if finance_workspace_personal %}<input type="hidden" name="as_of" value="{{ filters.end }}">{% else %}<label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>{% endif %}
+        {% if not finance_workspace_personal %}<label>Tanggal acuan piutang<input type="date" name="as_of" value="{{ filters.as_of }}" max="{{ today }}" required></label>{% endif %}
       </div>
-      <p class="report-filter-help">{% if finance_workspace_personal %}Tagihan rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% else %}Tanggal acuan dipakai untuk posisi piutang. Komitmen biaya rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% endif %}</p>
+      <p class="report-filter-help">{% if finance_workspace_personal %}Pilih preset cepat, Semua waktu, atau tentukan tanggal sendiri. Tagihan rutin otomatis menampilkan jadwal sekitar 30 hari ke depan.{% else %}Pilih preset cepat, Semua waktu, atau tentukan tanggal sendiri. Tanggal acuan dipakai untuk posisi piutang.{% endif %}</p>
       <div class="report-dialog-actions"><button type="button" class="btn secondary" data-report-filter-close>Batal</button><button class="btn">Terapkan</button></div>
     </form>
   </div>
