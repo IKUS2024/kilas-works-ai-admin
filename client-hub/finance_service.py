@@ -111,10 +111,6 @@ BUSINESS_LEGACY_DEFAULT_NAMES = {
         'Perjalanan Dinas','Kerusakan','Kehilangan','Denda Operasional','Lainnya',
     )),
 }
-BUSINESS_COMPACT_DEFAULTS = {
-    direction: frozenset(names) for direction, names in DEFAULT_CATEGORIES.items()
-}
-
 PERSONAL_DEFAULT_CATEGORIES = {
     'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi',
                'Hadiah / Transfer Masuk'),
@@ -2289,7 +2285,7 @@ def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
         if row.get('parent_category_name'):
             row['category_name']=row['parent_category_name']+' / '+row['category_name']
         if row['end_on'] and row['next_due_on']>row['end_on']:continue
-        try:_recurring_data(business_id,row)
+        try:_recurring_data(business_id,row,scheduled=True)
         except FinanceError:continue
         if not db.query_one('SELECT id FROM finance_recurring_postings WHERE business_id=? AND recurring_expense_id=? AND scheduled_on=?',(business_id,row['id'],row['next_due_on'])):
             result.append(dict(row,selection=f"{row['id']}:{row['next_due_on']}"))
@@ -2402,7 +2398,7 @@ def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_o
                     _audit(business_id,actor_user_id,'FINANCE_RECURRING_DEACTIVATED',rule['id'])
                     break
                 try:
-                    data = _recurring_data(business_id,rule)
+                    data = _recurring_data(business_id,rule,scheduled=True)
                     next_due = _next_recurring_date(rule)
                 except FinanceError:
                     attention += 1
