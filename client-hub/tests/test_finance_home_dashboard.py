@@ -136,7 +136,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Investasi',html)
         self.assertNotIn('value="Credit"',html)
 
-    def test_account_value_rows_all_have_safe_edit_paths(self):
+    def test_account_value_rows_edit_sources_not_calculated_total(self):
         expense=fixture.f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
         fixture.f.create_transaction(
             self.b,'INCOME',250000,self.a,self.cat,'2026-09-20',
@@ -151,8 +151,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn(f'/accounts/{self.a}/balance',html)
         self.assertIn('Saldo awal',html)
         self.assertIn('Saldo sekarang',html)
+        self.assertIn('Dihitung otomatis',html)
+        self.assertIn('Kelola transaksi',html)
         self.assertIn('direction=INCOME',html)
         self.assertIn('direction=EXPENSE',html)
+        self.assertNotIn('name="action" value="current"',html)
+        self.assertNotIn('Sesuaikan saldo',html)
 
         response=self.client.post(
             f'/business/{self.b}/finance/accounts/{self.a}/balance',
@@ -162,18 +166,13 @@ class DashboardHomeTests(unittest.TestCase):
         account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
         self.assertEqual(account['opening_balance_minor'],10000050)
 
-        before=[(row['id'],row['amount_minor']) for row in fixture.f.list_transactions(
-            self.b,actor_user_id=self.uid)]
-        response=self.client.post(
+        before=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)['opening_balance_minor']
+        blocked=self.client.post(
             f'/business/{self.b}/finance/accounts/{self.a}/balance',
             data={'branch_id':str(branch_id),'action':'current','amount':'500000',
                   'display_currency':'IDR'})
-        self.assertEqual(response.status_code,303)
-        balance=next(row for row in fixture.f.get_account_balance_report(
-            self.b,'2026-09-22',actor_user_id=self.uid) if row['id']==self.a)
-        self.assertEqual(balance['balance_minor'],50000000)
-        after=[(row['id'],row['amount_minor']) for row in fixture.f.list_transactions(
-            self.b,actor_user_id=self.uid)]
+        self.assertEqual(blocked.status_code,303)
+        after=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)['opening_balance_minor']
         self.assertEqual(before,after)
 
     def test_idr_decimal_account_value_is_persisted_not_rounded_away(self):
