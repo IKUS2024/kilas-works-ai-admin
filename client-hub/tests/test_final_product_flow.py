@@ -225,7 +225,7 @@ class FinalFlowTests(unittest.TestCase):
         with branches.scope(self.b,personal_id,self.uid):
             defaults=editor.defaults(self.b,self.uid)
             owner=repo.get_user_by_id(self.uid)
-            self.assertEqual(defaults['sender']['name'],owner['full_name'])
+            self.assertEqual(defaults['sender']['name'],owner['full_name'] or owner['email'].split('@')[0])
             self.assertEqual(defaults['sender']['email'],owner['email'])
             self.assertEqual(defaults['sender']['address'],'')
             self.assertEqual(defaults['sender']['phone'],'')
