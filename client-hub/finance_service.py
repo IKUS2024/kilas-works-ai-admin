@@ -332,6 +332,16 @@ def delete_account_type_option(business_id, name, *, actor_user_id=None):
         existing = _account_type_option_by_name(business_id, name)
         if not existing:
             raise FinanceError('account_type_unavailable')
+        alternatives = db.query_one(
+            'SELECT 1 FROM finance_account_type_options '
+            'WHERE business_id=? AND legacy_type=? AND is_active=TRUE AND id<>? LIMIT 1',
+            (business_id, existing['legacy_type'], existing['id']))
+        in_use = db.query_one(
+            'SELECT 1 FROM finance_accounts '
+            'WHERE business_id=? AND account_type=? AND is_active=TRUE LIMIT 1',
+            (business_id, existing['legacy_type']))
+        if in_use and not alternatives:
+            raise FinanceError('account_type_in_use')
         db.execute(
             'UPDATE finance_account_type_options SET is_active=FALSE,updated_at=? '
             'WHERE business_id=? AND id=?',
@@ -355,18 +365,32 @@ def account_type_label_map(business_id, *, actor_user_id=None):
         'SELECT a.account_id,o.name FROM finance_account_type_assignments a '
         'JOIN finance_account_type_options o '
         'ON o.business_id=a.business_id AND o.id=a.option_id '
-        'WHERE a.business_id=?',
+        'WHERE a.business_id=? AND o.is_active=TRUE',
         (business_id,))
     return {row['account_id']: _account_type_display_name(row['name']) for row in rows}
 
 
 def _label_accounts(business_id, rows, actor_user_id=None):
     labels = account_type_label_map(business_id, actor_user_id=actor_user_id)
+    # Old accounts can predate the editable account-type catalog and therefore have
+    # no explicit assignment. Keep their money/account record intact, but display
+    # them under an ACTIVE catalog option with the same underlying legacy type.
+    # This prevents stale headings such as "Tunai" from reappearing after the UI
+    # catalog has standardized CASH as "Wallet".
+    active_options = list_account_type_options(
+        business_id, actor_user_id=actor_user_id)
+    fallback_by_legacy = {}
+    for option in active_options:
+        fallback_by_legacy.setdefault(
+            option['legacy_type'], _account_type_display_name(option['name']))
     result = []
     for raw in rows:
         row = dict(raw)
         row['account_type_label'] = labels.get(
-            row['id'], LEGACY_ACCOUNT_TYPE_LABELS.get(row['account_type'], 'Lainnya'))
+            row['id'],
+            fallback_by_legacy.get(
+                row['account_type'],
+                LEGACY_ACCOUNT_TYPE_LABELS.get(row['account_type'], 'Lainnya')))
         result.append(row)
     return result
 
