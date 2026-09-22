@@ -124,15 +124,14 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
                         empty='Tidak ada tagihan rutin aktif.'))
 
     story.append(Paragraph('Akun', h2))
-    account_rows=[['Akun','Jenis','Mata uang','Saldo awal','Pemasukan','Pengeluaran','Saldo']]
+    account_rows=[['Akun','Jenis','Mata uang','Saldo awal','Saldo akhir periode']]
     for row in data.get('accounts',[]):
         cur=row['currency']
         account_rows.append([
             _safe(row['name']),_safe(row.get('account_type_label') or row.get('account_type')),
-            cur,money(row['opening_balance_minor'],cur),money(row['income_minor'],cur),
-            money(row['expense_minor'],cur),money(row['balance_minor'],cur)
+            cur,money(row['opening_balance_minor'],cur),money(row['balance_minor'],cur)
         ])
-    story.append(_table(account_rows,[34*mm,27*mm,19*mm,25*mm,25*mm,25*mm,25*mm],
+    story.append(_table(account_rows,[55*mm,38*mm,25*mm,35*mm,32*mm],
                         header=True,empty='Belum ada akun aktif.'))
 
     story.append(Paragraph('Penerima', h2))
