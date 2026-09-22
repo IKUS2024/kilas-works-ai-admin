@@ -596,6 +596,7 @@ if(categoryEditor){
   let editorMode='category';
 
   const currentDirection=()=>manager?.querySelector('[data-category-direction-tab].active')?.dataset.categoryDirectionTab||'INCOME';
+  const hasMainCategoryName=()=>Boolean(createName&&createName.value.trim());
   const showEditor=()=>{
     if(typeof categoryEditor.showModal==='function')categoryEditor.showModal();
     else categoryEditor.setAttribute('open','');
@@ -610,7 +611,7 @@ if(categoryEditor){
     }
   };
   const updateChildBuilder=()=>{
-    const enabled=editorMode==='category'&&childEnabled();
+    const enabled=editorMode==='category'&&hasMainCategoryName()&&childEnabled();
     if(childBuilder)childBuilder.hidden=!enabled;
     if(childList){
       const inputs=[...childList.querySelectorAll('[data-category-editor-child-name]')];
@@ -651,12 +652,18 @@ if(categoryEditor){
     if(parentField)parentField.hidden=!directChild;
     parent.disabled=!directChild;
     parent.required=directChild;
-    if(childChoice)childChoice.hidden=directChild;
+    if(childChoice)childChoice.hidden=directChild||!hasMainCategoryName();
     if(nameLabel)nameLabel.textContent=directChild?'Nama subkategori':'Nama kategori';
     if(createName)createName.placeholder=directChild?'Contoh: Internet':'Contoh: Operasional';
     if(createSubmit)createSubmit.textContent=directChild?'Tambah Subkategori':'Tambah Kategori';
     updateChildBuilder();
   };
+
+  if(createName){
+    createName.addEventListener('input',()=>{
+      refreshParents();
+    });
+  }
 
   for(const input of childChoiceInputs){
     input.addEventListener('change',()=>{
