@@ -183,71 +183,25 @@
 {% if show_accounts %}
 {% set account_active_currencies = account_balance_rows|map(attribute='currency')|unique|list %}
 <div class="finance-ledger-page finance-account-page finance-account-homebudget" id="accounts">
-<header class="finance-account-hb-header">
-  <a class="finance-history-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">← Finance</a>
+
+{% if account_detail_mode and selected_account %}
+<header class="finance-account-hb-header finance-account-detail-page-head">
+  <a class="finance-history-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',display_currency=display_currency) }}">← Akun</a>
   <div class="finance-account-hb-title-row">
     <div>
-      <span class="finance-eyebrow">KILAS FINANCE</span>
-      <h1>Akun</h1>
-      <small>{% if finance_workspace_personal %}Pribadi{% else %}{{ business.business_name }} · {{ selected_branch.name }}{% endif %}</small>
-    </div>
-    <div class="finance-account-hb-total">
-      <span>Saldo tersedia</span>
-      <strong>{{ balance_total_display }}</strong>
-      {% if not branch_read_only %}<button type="button" class="finance-account-hb-add" data-finance-open="account-dialog" aria-label="Tambah akun">＋</button>{% endif %}
-    </div>
-  </div>
-  <p class="finance-account-hb-fx">{{ fx_status_label }} · saldo lintas mata uang dikonversi ke {{ display_currency }}. Nilai asli akun tetap disimpan.</p>
-</header>
-
-<section class="card finance-account-hb-list" aria-label="Daftar Akun">
-{% for type_label in account_type_group_labels %}
-  {% set type_rows = account_balance_rows|selectattr('account_type_label','equalto',type_label)|list %}
-  {% if type_rows %}
-  {% set group = namespace(total=0,complete=true) %}
-  {% for a in type_rows %}
-    {% if a.display_balance_minor is none %}{% set group.complete = false %}{% else %}{% set group.total = group.total + a.display_balance_minor %}{% endif %}
-  {% endfor %}
-  <div class="finance-account-hb-group">
-    <div class="finance-account-hb-group-head">
-      <span>{{ type_label }}</span>
-      <strong>{{ (group.total|finance_money(display_currency)) if group.complete else 'Kurs belum lengkap' }}</strong>
-    </div>
-    {% for a in type_rows %}
-    <a class="finance-account-hb-row {{ 'selected' if selected_account and selected_account.id==a.id else '' }}"
-       href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',account_id=a.id,display_currency=display_currency) }}">
-      <div class="finance-account-hb-row-main">
-        <strong>{{ a.name }}</strong>
-        <small>{{ a.currency }}{% if all_branches %} · {{ a.branch_name }}{% endif %}{% if a.currency != display_currency %} · asli {{ a.balance_minor|finance_money(a.currency) }}{% endif %}</small>
-      </div>
-      <div class="finance-account-hb-row-balance">
-        <strong>{{ a.display_balance_value }}</strong>
-        <span aria-hidden="true">›</span>
-      </div>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
-{% else %}
-<div class="finance-empty">Belum ada akun aktif. Tambahkan akun untuk mulai mencatat saldo.</div>
-{% endfor %}
-</section>
-
-{% if selected_account %}
-<section class="card finance-account-hb-detail" aria-label="Rincian {{ selected_account.name }}">
-  <div class="finance-account-hb-detail-head">
-    <div>
-      <span>{{ selected_account.account_type_label }}</span>
-      <h2>{{ selected_account.name }}</h2>
+      <span class="finance-eyebrow">{{ selected_account.account_type_label|upper }}</span>
+      <h1>{{ selected_account.name }}</h1>
       <small>{{ selected_account.currency }}{% if all_branches %} · {{ selected_account.branch_name }}{% endif %}</small>
     </div>
-    <div>
-      <small>Saldo sekarang</small>
+    <div class="finance-account-hb-total finance-account-detail-balance">
+      <span>Saldo sekarang</span>
       <strong>{{ selected_account.balance_minor|finance_money(selected_account.currency) }}</strong>
-      {% if selected_account.currency != display_currency %}<span>≈ {{ selected_account.display_balance_value }}</span>{% endif %}
+      {% if selected_account.currency != display_currency %}<small>≈ {{ selected_account.display_balance_value }}</small>{% endif %}
     </div>
   </div>
+</header>
 
+<section class="card finance-account-hb-detail finance-account-hb-detail-page" aria-label="Rincian {{ selected_account.name }}">
   <div class="finance-account-hb-breakdown">
     <div class="finance-account-value-row">
       <span>Saldo awal</span>
@@ -311,9 +265,26 @@
     </div>
   </div>
 
-  <div class="finance-account-hb-actions">
-    <a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,display_currency=display_currency,page=1) }}">Lihat Transaksi</a>
-    {% if not branch_read_only %}
+  {% if not branch_read_only %}
+  <div class="finance-account-detail-top-actions">
+    <details class="finance-account-hb-edit">
+      <summary class="finance-mini-action">Edit Akun</summary>
+      <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='account',record_id=selected_account.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+        <input type="hidden" name="return_view" value="accounts">
+        <input type="hidden" name="display_currency" value="{{ display_currency }}">
+        <label>Nama akun<input name="name" value="{{ selected_account.name }}" maxlength="160" required></label>
+        <p class="finance-account-hb-readonly">Tipe {{ selected_account.account_type_label }} · {{ selected_account.currency }}. Mata uang tidak diubah agar riwayat saldo tetap konsisten.</p>
+        <div class="finance-record-buttons">
+          <button class="btn secondary" name="action" value="edit">Simpan</button>
+          <button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Hapus {{ selected_account.name }} dari daftar akun aktif? Riwayat lama tetap tersimpan.');">Hapus Akun</button>
+        </div>
+      </form>
+    </details>
+  </div>
+
+  <div class="finance-account-hb-actions finance-account-detail-move-only">
     <button type="button" class="finance-mini-action" data-finance-open="move-account-workspace-dialog">Pindahkan ke {{ workspace_move_target_label }}</button>
     <dialog id="move-account-workspace-dialog" class="finance-sheet">
       <div class="finance-sheet-head"><div><small>Finance {{ finance_workspace_label }}</small><h2>Pindahkan Akun</h2></div><button type="button" class="finance-sheet-close" data-finance-close="move-account-workspace-dialog" aria-label="Tutup">×</button></div>
@@ -332,25 +303,60 @@
         </form>
       </div>
     </dialog>
-    <details class="finance-account-hb-edit">
-      <summary class="finance-mini-action">Edit Akun</summary>
-      <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='account',record_id=selected_account.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-        <input type="hidden" name="return_view" value="accounts">
-        <input type="hidden" name="display_currency" value="{{ display_currency }}">
-        <label>Nama akun<input name="name" value="{{ selected_account.name }}" maxlength="160" required></label>
-        <p class="finance-account-hb-readonly">Tipe {{ selected_account.account_type_label }} · {{ selected_account.currency }}. Mata uang tidak diubah agar riwayat saldo tetap konsisten.</p>
-        <div class="finance-record-buttons">
-          <button class="btn secondary" name="action" value="edit">Simpan</button>
-          <button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Hapus {{ selected_account.name }} dari daftar akun aktif? Riwayat lama tetap tersimpan.');">Hapus Akun</button>
-        </div>
-      </form>
-    </details>
-    {% endif %}
   </div>
+  {% endif %}
 </section>
-{% endif %}
+
+{% else %}
+<header class="finance-account-hb-header">
+  <a class="finance-history-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">← Finance</a>
+  <div class="finance-account-hb-title-row">
+    <div>
+      <span class="finance-eyebrow">KILAS FINANCE</span>
+      <h1>Akun</h1>
+      <small>{% if finance_workspace_personal %}Pribadi{% else %}{{ business.business_name }} · {{ selected_branch.name }}{% endif %}</small>
+    </div>
+    <div class="finance-account-hb-total">
+      <span>Saldo tersedia</span>
+      <strong>{{ balance_total_display }}</strong>
+      {% if not branch_read_only %}<button type="button" class="finance-account-hb-add" data-finance-open="account-dialog" aria-label="Tambah akun">＋</button>{% endif %}
+    </div>
+  </div>
+  <p class="finance-account-hb-fx">{{ fx_status_label }} · saldo lintas mata uang dikonversi ke {{ display_currency }}. Nilai asli akun tetap disimpan.</p>
+</header>
+
+<section class="card finance-account-hb-list" aria-label="Daftar Akun">
+{% for type_label in account_type_group_labels %}
+  {% set type_rows = account_balance_rows|selectattr('account_type_label','equalto',type_label)|list %}
+  {% if type_rows %}
+  {% set group = namespace(total=0,complete=true) %}
+  {% for a in type_rows %}
+    {% if a.display_balance_minor is none %}{% set group.complete = false %}{% else %}{% set group.total = group.total + a.display_balance_minor %}{% endif %}
+  {% endfor %}
+  <div class="finance-account-hb-group">
+    <div class="finance-account-hb-group-head">
+      <span>{{ type_label }}</span>
+      <strong>{{ (group.total|finance_money(display_currency)) if group.complete else 'Kurs belum lengkap' }}</strong>
+    </div>
+    {% for a in type_rows %}
+    <a class="finance-account-hb-row"
+       href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',account_id=a.id,display_currency=display_currency) }}">
+      <div class="finance-account-hb-row-main">
+        <strong>{{ a.name }}</strong>
+        <small>{{ a.currency }}{% if all_branches %} · {{ a.branch_name }}{% endif %}{% if a.currency != display_currency %} · asli {{ a.balance_minor|finance_money(a.currency) }}{% endif %}</small>
+      </div>
+      <div class="finance-account-hb-row-balance">
+        <strong>{{ a.display_balance_value }}</strong>
+        <span aria-hidden="true">›</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% else %}
+<div class="finance-empty">Belum ada akun aktif. Tambahkan akun untuk mulai mencatat saldo.</div>
+{% endfor %}
+</section>
 
 {% if not branch_read_only %}
 <nav class="card finance-account-hb-toolbar" aria-label="Tindakan Akun">
@@ -358,6 +364,7 @@
   <button type="button" data-finance-open="account-dialog"><span>＋</span><small>Tambah Akun</small></button>
 </nav>
 <div class="finance-account-secondary-actions"><button type="button" class="finance-mini-action finance-danger-soft" data-finance-open="reset-dialog">Reset data cabang</button></div>
+{% endif %}
 {% endif %}
 </div>
 {% endif %}
