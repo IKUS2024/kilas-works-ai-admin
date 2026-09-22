@@ -692,6 +692,7 @@ if(categoryEditor){
       if(!row)return;
       row.remove();
       updateRemoveButtons();
+      updateChildBuilder();
     });
   }
 
