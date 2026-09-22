@@ -24,7 +24,7 @@
 <div class="invoice-form-grid"><label>Tanggal terbit<input name="issue_date" type="date" value="{{ values.issue_date }}" max="{{ today }}" required {{ 'readonly' if locked }}></label><label>Jatuh tempo<input name="due_date" type="date" value="{{ values.due_date }}" required {{ 'readonly' if locked }}></label>
 <label>Mata uang<select name="currency" id="currency" {{ 'disabled' if locked }}>{% for code in supported_currencies %}<option {{ 'selected' if values.currency==code }}>{{ code }}</option>{% endfor %}</select></label><label>Referensi / PO (opsional)<input name="reference" value="{{ data.reference }}" maxlength="254"></label></div>
 {% if locked %}<input type="hidden" name="currency" value="{{ values.currency }}">{% endif %}
-<details {% if not data.sender.address or not data.sender.phone %}open{% endif %}><summary>Detail pengirim · {{ data.sender.name }}</summary>{{ sender(data.sender,['name'] if invoice else ['name','address','phone']) }}</details>
+<details {% if not data.sender.address or not data.sender.phone %}open{% endif %}><summary>Detail pengirim · {{ data.sender.name }}</summary>{{ sender(data.sender,['name'] if (invoice or g.finance_workspace_type=='PERSONAL') else ['name','address','phone']) }}</details>
 <h2>3. Rincian Tagihan</h2>
 <div id="invoice-items">{% for item in form_items %}<div class="invoice-item">
 <label>Deskripsi<input name="item_description" maxlength="500" value="{{ item.description }}" required></label><div class="invoice-form-grid">
