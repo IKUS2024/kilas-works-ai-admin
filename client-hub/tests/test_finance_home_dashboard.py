@@ -397,6 +397,37 @@ class DashboardHomeTests(unittest.TestCase):
                       'Tahun ini','Semua waktu','Tanggal khusus'):
             self.assertIn(label,custom.text)
 
+    def test_reports_are_one_complete_dashboard_aligned_report(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        expense_cat=fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
+        fixture.f.create_transaction(
+            self.b,'INCOME',15000000,self.a,self.cat,'2026-09-10',
+            description='Report income',actor_user_id=self.uid)
+        fixture.f.create_transaction(
+            self.b,'EXPENSE',2500000,self.a,expense_cat,'2026-09-11',
+            counterparty_name='Vendor Report',description='Report expense',
+            actor_user_id=self.uid)
+        fixture.f.set_monthly_budget(
+            self.b,'2026-09',expense_cat,5000000,'IDR',
+            actor_user_id=self.uid)
+
+        response=self.client.get(
+            f'/business/{self.b}/finance/reports?branch_id={branch_id}'
+            '&preset=month')
+        self.assertEqual(response.status_code,200)
+        html=response.text
+        self.assertNotIn('aria-label="Jenis laporan"',html)
+        self.assertNotIn('Kas &amp; Rekening',html)
+        self.assertNotIn('Acuan piutang',html)
+        for heading in ('Ringkasan','Pemasukan','Pengeluaran','Anggaran',
+                        'Tagihan','Akun','Penerima'):
+            self.assertIn(f'<h2>{heading}</h2>',html)
+        self.assertIn('Vendor Report',html)
+        self.assertIn('Rp50.000,00',html)
+        self.assertIn('Rp150.000,00',html)
+        self.assertIn('Rp25.000,00',html)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
