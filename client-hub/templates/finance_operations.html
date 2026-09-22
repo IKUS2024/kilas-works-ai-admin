@@ -117,6 +117,7 @@
           <input type="hidden" name="day" value="{{ selected_day }}">
           <input type="hidden" name="view" value="calendar">
           <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
+          <label>Dibayar dari<select name="account_id" required>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
           <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
           <p class="muted">Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.</p>
           <button class="btn" type="submit">Catat Dibayar</button>
@@ -159,6 +160,7 @@
           <input type="hidden" name="day" value="{{ r.scheduled_on }}">
           <input type="hidden" name="view" value="list">
           <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
+          <label>Dibayar dari<select name="account_id" required>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
           <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
           <p class="muted">Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.</p>
           <button class="btn" type="submit">Catat Dibayar</button>
@@ -273,5 +275,5 @@
 </dialog>
 {% endif %}
 </div>
-<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-bills-accounting-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-bills-accounting-2') }}" defer></script>
 {% endblock %}

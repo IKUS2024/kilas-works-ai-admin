@@ -2071,7 +2071,7 @@ def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
 
 
 
-def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, actor_user_id=None):
+def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, actor_user_id=None, *, account_id=None):
     """Record exactly one bill occurrence as an actual expense on the real payment date.
 
     scheduled_on remains the bill's due date. paid_on is the cash/accounting date used by
@@ -2080,6 +2080,7 @@ def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, a
     recurring_id = _id(recurring_id)
     scheduled_on = _date(scheduled_on)
     paid_on = _date(paid_on)
+    requested_account_id = _id(account_id) if account_id is not None else None
     if paid_on > business_today(business_id).isoformat():
         raise FinanceError('future_date')
 
@@ -2098,7 +2099,9 @@ def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, a
                 business_id, existing['ledger_transaction_id'],
                 actor_user_id=actor_user_id)
             if (transaction and transaction['status'] == 'POSTED'
-                    and transaction['occurred_on'] == paid_on):
+                    and transaction['occurred_on'] == paid_on
+                    and (requested_account_id is None
+                         or transaction['account_id'] == requested_account_id)):
                 return dict(
                     posting_id=existing['id'],
                     ledger_transaction_id=existing['ledger_transaction_id'],
@@ -2113,7 +2116,15 @@ def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, a
         if rule['end_on'] and scheduled_on > rule['end_on']:
             raise FinanceError('recurring_occurrence_unavailable')
 
-        data = _recurring_data(business_id, rule, scheduled=True)
+        payment_rule = dict(rule)
+        if requested_account_id is not None:
+            account = get_account(
+                business_id, requested_account_id,
+                actor_user_id=actor_user_id, active=True)
+            if account['currency'] != rule['currency']:
+                raise FinanceError('account_currency_mismatch')
+            payment_rule['account_id'] = requested_account_id
+        data = _recurring_data(business_id, payment_rule, scheduled=True)
         data['occurred_on'] = paid_on
         next_due = _next_recurring_date(rule)
 
@@ -2572,7 +2583,7 @@ def get_upcoming_recurring_commitments(business_id,start_date,end_date,actor_use
             if len(result)>=MAX_COMMITMENT_OCCURRENCES:raise FinanceError('forecast_limit')
             result.append(dict(recurring_id=rule['id'],branch_name=rule['branch_name'],name=rule['name'],currency=rule['currency'],
                 scheduled_on=rule['next_due_on'],amount_minor=rule['amount_minor'],project_name=rule['project_name'],
-                account_name=rule['account_name'],category_name=(
+                account_id=rule['account_id'],account_name=rule['account_name'],category_name=(
                     (rule['parent_category_name']+' / ') if rule.get('parent_category_name') else ''
                 )+(rule['category_name'] or 'Kategori tidak tersedia'),
                 counterparty_name=rule['counterparty_name'],description=rule['description'],

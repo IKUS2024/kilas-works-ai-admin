@@ -846,6 +846,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(fixture.f.list_transactions(self.b),[])
 
         # Budget is planning only. The unpaid August due date changes no actual cash figures.
+        payment_account=fixture.f.create_account(
+            self.b,'BCA Bayar',account_type='BANK',actor_user_id=self.uid)
         fixture.f.set_monthly_budget(
             self.b,'2026-09',utility['id'],1000000,'IDR',actor_user_id=self.uid)
         self.assertEqual(
@@ -853,7 +855,8 @@ class DashboardHomeTests(unittest.TestCase):
 
         payment={
             'branch_id':str(branch_id),'month':'2026-08','day':'2026-08-31','view':'calendar',
-            'occurrence':f"{rule['id']}:2026-08-31",'paid_on':'2026-09-22'}
+            'occurrence':f"{rule['id']}:2026-08-31",'paid_on':'2026-09-22',
+            'account_id':str(payment_account)}
         first=self.client.post(f'/business/{self.b}/finance/recurring/process',data=payment)
         second=self.client.post(f'/business/{self.b}/finance/recurring/process',data=payment)
         self.assertEqual(first.status_code,303)
@@ -871,8 +874,10 @@ class DashboardHomeTests(unittest.TestCase):
             fixture.f.get_finance_summary(self.b,'2026-09-01','2026-09-30')['total_expense_minor'],500000)
 
         balances=fixture.f.get_account_balance_report(self.b,'2026-09-22',self.uid)
-        account=next(row for row in balances if row['id']==self.a)
-        self.assertEqual(account['balance_minor'],-500000)
+        planned_account=next(row for row in balances if row['id']==self.a)
+        actual_account=next(row for row in balances if row['id']==payment_account)
+        self.assertEqual(planned_account['balance_minor'],0)
+        self.assertEqual(actual_account['balance_minor'],-500000)
 
         budget=self.client.get(
             f'/business/{self.b}/finance/budget?branch_id={branch_id}&month=2026-09')

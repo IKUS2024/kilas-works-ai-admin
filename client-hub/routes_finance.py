@@ -2011,9 +2011,11 @@ def process_recurring(business_id,user,business):
         recurring_raw, scheduled_on = selected[0].split(':', 1)
         recurring_id = record_id(recurring_raw)
         paid_on = request.form.get('paid_on') or finance.business_today(business_id).isoformat()
+        payment_account = request.form.get('account_id')
         finance.record_recurring_payment(
             business_id, recurring_id, scheduled_on, paid_on,
-            actor_user_id=user['id'])
+            actor_user_id=user['id'],
+            account_id=record_id(payment_account) if payment_account else None)
     except (ValueError, finance.FinanceError) as error:
         flash(ERRORS.get(str(error), 'Pembayaran tagihan belum valid. Periksa tanggal lalu coba lagi.'), 'error')
     else:
