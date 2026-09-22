@@ -2,9 +2,9 @@
 {% include '_finance_receivables_style.html' %}
 {% endblock %}
 {% block content %}
-<div class="fin-page"><a href="{{ url_for('finance.bank_index',business_id=business.id) }}">← Impor bank</a><h1>Cocokkan Mutasi Bank</h1>
+<div class="fin-page"><a href="{{ url_for('finance.bank_index',business_id=business.id,branch_id=g.finance_branch_id) }}">← Impor bank</a><h1>Cocokkan Mutasi Bank</h1>
 <p>Upload → Ekstrak → Review → Mulai Rekonsiliasi. Upload tidak mengubah saldo Finance. PDF/gambar dikirim ke penyedia AI untuk ekstraksi; CSV dibaca terstruktur; format yang tidak dikenali dapat dikirim ke AI untuk review. File asli tidak diarsipkan.</p>
-<form class="card" method="post" enctype="multipart/form-data" data-finance-document-upload action="{{ url_for('finance.bank_analyze',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<form class="card" method="post" enctype="multipart/form-data" data-finance-document-upload action="{{ url_for('finance.bank_analyze',business_id=business.id,branch_id=g.finance_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label for="bank-account">Kas / Rekening untuk seluruh impor</label><select id="bank-account" name="account_id" required><option value="">Pilih akun</option>{% for a in accounts %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select>
 <label for="bank-sources">PDF, CSV, atau gambar mutasi</label><input id="bank-sources" type="file" name="sources" multiple accept=".csv,.pdf,.jpg,.jpeg,.png,.webp" required>
 <p>Satu PDF ≤10 MiB / 20 halaman; satu CSV UTF-8 ≤2 MiB / 1.000 baris; atau maksimal 10 gambar ≤5 MiB per gambar dan total ≤25 MiB. Pilih rekening dengan mata uang yang sama dengan mutasi. Kilas tidak melakukan konversi FX saat impor.</p><button class="btn">Ekstrak untuk Review</button></form>
