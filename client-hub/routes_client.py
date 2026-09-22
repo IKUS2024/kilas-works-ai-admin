@@ -235,6 +235,17 @@ def upgrade_to_ai_admin(business_id):
     if business["package"] != "NONE":
         flash("Bisnis ini sudah punya paket Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))
+    finance_state = (__import__('finance_entitlements').state(business_id)
+                     if __import__('finance_entitlements').self_service() else None)
+    finance_claimed = bool(
+        (finance_state and finance_state['status'] != 'NOT_ACTIVATED')
+        or db.query_one('SELECT 1 FROM finance_accounts WHERE business_id=? LIMIT 1', (business_id,))
+    )
+    if finance_claimed:
+        # New product setup must stay separated. Do not rewrite or migrate the Finance business.
+        session['product_intent'] = 'brain'
+        flash("AI Admin memakai bisnis terpisah dari Kilas Finance. Tambahkan bisnis AI Admin untuk melanjutkan.", "info")
+        return redirect(url_for("products.continue_product"))
     package = "AI_ADMIN"
     repo.upgrade_business_package(business_id, package, user["id"])
     flash("Kilas Brain ditambahkan. Lanjutkan setup awal di bawah ini.", "success")
