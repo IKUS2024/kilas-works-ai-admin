@@ -68,9 +68,11 @@ class DashboardHomeTests(unittest.TestCase):
     def test_direction_views_are_category_first_with_inline_totals(self):
         fixture.f.create_transaction(self.b,'INCOME',250000,self.a,self.cat,
             '2026-09-09',description='Retainer September',actor_user_id=self.uid)
-        income_category=fixture.f.get_category(self.b,self.cat,actor_user_id=self.uid)
-        expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
-        expense_category=fixture.f.get_category(self.b,expense_cat,actor_user_id=self.uid)
+        income_category=next(row for row in fixture.f.list_categories(
+            self.b,'INCOME',actor_user_id=self.uid) if row['id']==self.cat)
+        expense_category=fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid)[0]
+        expense_cat=expense_category['id']
         fixture.f.create_transaction(self.b,'EXPENSE',99000,self.a,expense_cat,
             '2026-09-10',description='Office expense',actor_user_id=self.uid)
 
