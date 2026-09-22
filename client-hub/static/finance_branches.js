@@ -582,20 +582,60 @@ if(categoryEditor){
   const createForm=categoryEditor.querySelector('[data-category-create-form]');
   const editForm=categoryEditor.querySelector('[data-category-edit-form]');
   const directionInput=categoryEditor.querySelector('[data-category-editor-direction]');
-  const level=categoryEditor.querySelector('[data-category-editor-level]');
   const parentField=categoryEditor.querySelector('[data-category-editor-parent-field]');
   const parent=categoryEditor.querySelector('[data-category-editor-parent]');
   const createName=categoryEditor.querySelector('[data-category-editor-create-name]');
+  const nameLabel=categoryEditor.querySelector('[data-category-editor-name-label]');
+  const createSubmit=categoryEditor.querySelector('[data-category-editor-submit]');
+  const childChoice=categoryEditor.querySelector('[data-category-editor-child-choice]');
+  const childChoiceInputs=[...categoryEditor.querySelectorAll('[data-category-editor-child-choice-input]')];
+  const childBuilder=categoryEditor.querySelector('[data-category-editor-child-builder]');
+  const childList=categoryEditor.querySelector('[data-category-editor-child-list]');
+  const addChildRow=categoryEditor.querySelector('[data-category-editor-add-child-row]');
   const editName=categoryEditor.querySelector('[data-category-editor-edit-name]');
+  let editorMode='category';
 
   const currentDirection=()=>manager?.querySelector('[data-category-direction-tab].active')?.dataset.categoryDirectionTab||'INCOME';
   const showEditor=()=>{
     if(typeof categoryEditor.showModal==='function')categoryEditor.showModal();
     else categoryEditor.setAttribute('open','');
   };
+  const childEnabled=()=>childChoiceInputs.some(input=>input.checked&&input.value==='1');
+  const updateRemoveButtons=()=>{
+    if(!childList)return;
+    const rows=[...childList.querySelectorAll('[data-category-editor-child-row]')];
+    for(const row of rows){
+      const remove=row.querySelector('[data-category-editor-remove-child]');
+      if(remove)remove.hidden=rows.length===1;
+    }
+  };
+  const updateChildBuilder=()=>{
+    const enabled=editorMode==='category'&&childEnabled();
+    if(childBuilder)childBuilder.hidden=!enabled;
+    if(childList){
+      const inputs=[...childList.querySelectorAll('[data-category-editor-child-name]')];
+      for(const [index,input] of inputs.entries()){
+        input.disabled=!enabled;
+        input.required=enabled&&index===0;
+      }
+    }
+  };
+  const resetChildRows=()=>{
+    if(!childList)return;
+    const rows=[...childList.querySelectorAll('[data-category-editor-child-row]')];
+    for(const row of rows.slice(1))row.remove();
+    const first=childList.querySelector('[data-category-editor-child-row]');
+    if(first){
+      const input=first.querySelector('[data-category-editor-child-name]');
+      if(input)input.value='';
+    }
+    const noChoice=childChoiceInputs.find(input=>input.value==='0');
+    if(noChoice)noChoice.checked=true;
+    updateRemoveButtons();
+    updateChildBuilder();
+  };
   const refreshParents=()=>{
-    if(!parent||!level)return;
-    const wantsChild=level.value==='subcategory';
+    if(!parent)return;
     const kind=directionInput?.value||currentDirection();
     let first=null;
     for(const option of parent.options){
@@ -607,20 +647,64 @@ if(categoryEditor){
     if(first && (!parent.selectedOptions.length || parent.selectedOptions[0].disabled)){
       parent.value=first.value;
     }
-    if(parentField)parentField.hidden=!wantsChild;
-    parent.disabled=!wantsChild;
-    parent.required=wantsChild;
+    const directChild=editorMode==='subcategory';
+    if(parentField)parentField.hidden=!directChild;
+    parent.disabled=!directChild;
+    parent.required=directChild;
+    if(childChoice)childChoice.hidden=directChild;
+    if(nameLabel)nameLabel.textContent=directChild?'Nama subkategori':'Nama kategori';
+    if(createName)createName.placeholder=directChild?'Contoh: Internet':'Contoh: Operasional';
+    if(createSubmit)createSubmit.textContent=directChild?'Tambah Subkategori':'Tambah Kategori';
+    updateChildBuilder();
   };
+
+  for(const input of childChoiceInputs){
+    input.addEventListener('change',()=>{
+      updateChildBuilder();
+      if(childEnabled()){
+        const first=childList?.querySelector('[data-category-editor-child-name]');
+        if(first)first.focus({preventScroll:true});
+      }
+    });
+  }
+
+  if(addChildRow&&childList){
+    addChildRow.addEventListener('click',()=>{
+      const source=childList.querySelector('[data-category-editor-child-row]');
+      if(!source)return;
+      const row=source.cloneNode(true);
+      const input=row.querySelector('[data-category-editor-child-name]');
+      if(input){
+        input.value='';
+        input.disabled=false;
+        input.required=false;
+      }
+      const remove=row.querySelector('[data-category-editor-remove-child]');
+      if(remove)remove.hidden=false;
+      childList.appendChild(row);
+      updateRemoveButtons();
+      if(input)input.focus({preventScroll:true});
+    });
+    childList.addEventListener('click',(event)=>{
+      const remove=event.target.closest('[data-category-editor-remove-child]');
+      if(!remove)return;
+      const row=remove.closest('[data-category-editor-child-row]');
+      if(!row)return;
+      row.remove();
+      updateRemoveButtons();
+    });
+  }
 
   for(const button of document.querySelectorAll('[data-category-create-popup]')){
     button.addEventListener('click',()=>{
+      editorMode='category';
       const kind=currentDirection();
       if(title)title.textContent='Tambah Kategori';
       if(createForm)createForm.hidden=false;
       if(editForm)editForm.hidden=true;
       if(directionInput)directionInput.value=kind;
-      if(level)level.value='category';
       if(createName)createName.value='';
+      resetChildRows();
       refreshParents();
       showEditor();
       if(createName)createName.focus({preventScroll:true});
@@ -629,6 +713,7 @@ if(categoryEditor){
 
   for(const button of document.querySelectorAll('[data-category-add-child-popup]')){
     button.addEventListener('click',()=>{
+      editorMode='subcategory';
       const kind=String(button.dataset.categoryDirection||currentDirection());
       const parentId=String(button.dataset.categoryParentId||'');
       const parentName=String(button.dataset.categoryParentName||'');
@@ -637,12 +722,12 @@ if(categoryEditor){
       if(createForm)createForm.hidden=false;
       if(editForm)editForm.hidden=true;
       if(directionInput)directionInput.value=kind;
-      if(level)level.value='subcategory';
+      if(createName)createName.value='';
+      resetChildRows();
       refreshParents();
       if(parent && [...parent.options].some(option=>option.value===parentId)){
         parent.value=parentId;
       }
-      if(createName)createName.value='';
       showEditor();
       if(createName)createName.focus({preventScroll:true});
     });
@@ -670,7 +755,6 @@ if(categoryEditor){
     });
   }
 
-  if(level)level.addEventListener('change',refreshParents);
   refreshParents();
 }
 

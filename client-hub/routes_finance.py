@@ -1372,16 +1372,34 @@ def create_category(business_id, user, business):
         if action == 'create':
             parent_value = request.form.get('parent_category_id')
             parent_category_id = record_id(parent_value) if parent_value else None
-            category_id = finance.create_category(
-                business_id, direction, request.form.get('name'),
-                parent_category_id=parent_category_id,
+            child_names = []
+            if parent_category_id is None and request.form.get('add_subcategories') == '1':
+                child_names = [
+                    value for value in request.form.getlist('subcategory_name')
+                    if isinstance(value, str) and value.strip()
+                ]
+
+            if child_names:
+                category_id, child_ids = finance.create_category_group(
+                    business_id, direction, request.form.get('name'), child_names,
+                    actor_user_id=user['id'])
+            else:
+                category_id = finance.create_category(
+                    business_id, direction, request.form.get('name'),
+                    parent_category_id=parent_category_id,
+                    actor_user_id=user['id'])
+                child_ids = []
+
+            all_rows = finance.list_categories(
+                business_id, direction, include_children=True,
                 actor_user_id=user['id'])
             category = next((
-                row for row in finance.list_categories(
-                    business_id, direction, include_children=True,
-                    actor_user_id=user['id'])
+                row for row in all_rows
                 if row['id'] == category_id
             ), None)
+            children = [
+                row for row in all_rows if row['id'] in set(child_ids)
+            ]
             if category is None:
                 raise finance.FinanceError('category_unavailable')
         elif action == 'edit':
@@ -1432,11 +1450,24 @@ def create_category(business_id, user, business):
                 'parent_category_id': category.get('parent_category_id'),
                 'parent_name': category.get('parent_name'),
             }
-            payload['message'] = (
-                'Kategori ditambahkan dan langsung dipilih.'
-                if action == 'create' else
-                'Nama kategori diperbarui.'
-            )
+            if action == 'create':
+                payload['children'] = [
+                    {
+                        'id': row['id'],
+                        'name': row['name'],
+                        'direction': row['direction'],
+                        'parent_category_id': row.get('parent_category_id'),
+                        'parent_name': row.get('parent_name'),
+                    }
+                    for row in children
+                ]
+                payload['message'] = (
+                    f"Kategori dan {len(children)} subkategori ditambahkan."
+                    if children else
+                    'Kategori ditambahkan dan langsung dipilih.'
+                )
+            else:
+                payload['message'] = 'Nama kategori diperbarui.'
             return jsonify(payload), 201 if action == 'create' else 200
         payload['message'] = 'Kategori dihapus dari daftar aktif. Riwayat lama tetap aman.'
         return jsonify(payload)

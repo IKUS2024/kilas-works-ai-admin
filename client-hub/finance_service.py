@@ -676,6 +676,38 @@ def create_category(business_id, direction, name, *, parent_category_id=None, ac
         return category_id
 
 
+
+def create_category_group(business_id, direction, name, child_names, *, actor_user_id=None):
+    """Create one top-level category and optional children atomically."""
+    if not isinstance(child_names, (list, tuple)):
+        raise FinanceError('invalid_text')
+    cleaned_children = []
+    seen = set()
+    for value in child_names:
+        if not isinstance(value, str):
+            raise FinanceError('invalid_text')
+        if not value.strip():
+            continue
+        clean = _text(value, 160, True)
+        key = clean.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned_children.append(clean)
+
+    with _write(business_id, actor_user_id):
+        parent_id = create_category(
+            business_id, direction, name, actor_user_id=actor_user_id)
+        child_ids = [
+            create_category(
+                business_id, direction, child_name,
+                parent_category_id=parent_id,
+                actor_user_id=actor_user_id)
+            for child_name in cleaned_children
+        ]
+        return parent_id, child_ids
+
+
 def update_category_workspace_setting(business_id, category_id, name=None, deactivate=False,
                                       *, actor_user_id=None):
     if type(deactivate) is not bool:

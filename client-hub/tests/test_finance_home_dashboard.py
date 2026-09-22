@@ -585,7 +585,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('data-category-edit-popup',html)
         self.assertIn('data-category-add-child-popup',html)
         self.assertIn('finance-category-tree',html)
-        self.assertIn('＋ Tambah Kategori / Subkategori',html)
+        self.assertIn('＋ Tambah Kategori',html)
+        self.assertNotIn('＋ Tambah Kategori / Subkategori',html)
+        self.assertIn('data-category-editor-child-choice',html)
+        self.assertIn('name="add_subcategories"',html)
+        self.assertIn('name="subcategory_name"',html)
+        self.assertIn('＋ Tambah subkategori lagi',html)
         self.assertIn('＋ Subkategori',html)
         self.assertIn('>Edit</button>',html)
         self.assertIn('>Hapus</button>',html)
@@ -603,18 +608,19 @@ class DashboardHomeTests(unittest.TestCase):
         parent_response=self.client.post(endpoint,data={
             'branch_id':str(branch_id),'direction':'EXPENSE',
             'action':'create','name':'Operasional Khusus',
+            'add_subcategories':'1',
+            'subcategory_name':['Bensin Genset','Oli Genset'],
         },headers=headers)
         self.assertEqual(parent_response.status_code,201)
-        parent=parent_response.get_json()['category']
+        parent_payload=parent_response.get_json()
+        parent=parent_payload['category']
         self.assertIsNone(parent['parent_category_id'])
-
-        child_response=self.client.post(endpoint,data={
-            'branch_id':str(branch_id),'direction':'EXPENSE',
-            'action':'create','name':'Bensin Genset',
-            'parent_category_id':str(parent['id']),
-        },headers=headers)
-        self.assertEqual(child_response.status_code,201)
-        child=child_response.get_json()['category']
+        self.assertEqual(
+            {row['name'] for row in parent_payload['children']},
+            {'Bensin Genset','Oli Genset'})
+        child=next(
+            row for row in parent_payload['children']
+            if row['name']=='Bensin Genset')
         self.assertEqual(child['parent_category_id'],parent['id'])
         self.assertEqual(child['parent_name'],'Operasional Khusus')
 
@@ -636,11 +642,13 @@ class DashboardHomeTests(unittest.TestCase):
         remaining=deleted_parent.get_json()['options']
         self.assertNotIn('Operasional Khusus',[row['name'] for row in remaining])
         self.assertNotIn('BBM Genset',[row['name'] for row in remaining])
+        self.assertNotIn('Oli Genset',[row['name'] for row in remaining])
 
         active=fixture.f.list_categories(
             self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)
         self.assertNotIn('Operasional Khusus',[row['name'] for row in active])
         self.assertNotIn('BBM Genset',[row['name'] for row in active])
+        self.assertNotIn('Oli Genset',[row['name'] for row in active])
 
     def test_retired_lainnya_categories_cannot_return_to_active_ui(self):
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
