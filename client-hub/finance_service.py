@@ -2066,8 +2066,14 @@ def aggregate_account_balances_by_currency(accounts):
 
 
 def get_balance_totals_by_currency(business_id, as_of, actor_user_id=None):
+    """Current available cash by currency: active accounts only.
+
+    Inactive accounts remain in get_account_balance_report() for audit/history,
+    but they must never leak back into current "available balance" totals.
+    """
+    rows = get_account_balance_report(business_id, as_of, actor_user_id)
     return aggregate_account_balances_by_currency(
-        get_account_balance_report(business_id, as_of, actor_user_id))
+        [row for row in rows if row['is_active']])
 
 
 def list_currency_exchanges(business_id,actor_user_id=None,limit=100):
