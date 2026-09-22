@@ -23,6 +23,11 @@ INSERT INTO finance_category_workspace_settings
  (business_id,category_id,scope_key,workspace_type,owner_user_id,display_name,is_active,created_at,updated_at)
 SELECT c.business_id,c.id,'BUSINESS','BUSINESS',NULL,c.name,c.is_active,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
 FROM finance_categories c
+WHERE NOT EXISTS (
+  SELECT 1 FROM finance_category_workspace_settings p
+  WHERE p.business_id=c.business_id AND p.category_id=c.id
+    AND p.workspace_type='PERSONAL'
+)
 ON CONFLICT(business_id,category_id,scope_key) DO NOTHING;
 
 INSERT INTO finance_category_workspace_settings
