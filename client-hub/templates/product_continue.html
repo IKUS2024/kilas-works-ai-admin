@@ -65,21 +65,41 @@
   {% endif %}
 
   {% if is_product_business %}
-    {% if businesses %}<details class="product-add-more"><summary>＋ Tambah bisnis {{ business_label }} baru</summary><div class="product-add-more-body">{% endif %}
+    {% if product=='finance' and not businesses %}
     <section class="card product-create-card">
-      <h2>{{ 'Bisnis Finance baru' if product=='finance' else 'Bisnis AI Admin baru' }}</h2>
-      <p>{{ 'Bisnis ini hanya menjadi awal untuk Kilas Finance. Kamu dapat memakai nama yang sama dengan bisnis AI Admin tanpa menggabungkan datanya.' if product=='finance' else 'Bisnis ini khusus setup AI Admin / Kilas Brain. Finance tidak diaktifkan otomatis.' }}</p>
+      <h2>Mulai Kilas Finance</h2>
+      <p>Isi data akun dasar dulu. Nama bisnis, cabang, alamat, nomor telepon, dan metode pembayaran bisa dilengkapi nanti di Akun → Bisnis.</p>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="create" value="yes">
         <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-        <label>Nama bisnis
-          <input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required {% if not businesses %}autofocus{% endif %}>
+        <label>Nama pemilik
+          <input name="owner_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama lengkap" autocomplete="name" required autofocus>
         </label>
-        <button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Finance 7 Hari' if product=='finance' else 'Tambah Bisnis & Setup AI Admin' }}</button>
+        <label style="display:block;margin-top:10px;">Email
+          <input value="{{ user.email }}" type="email" autocomplete="email" readonly aria-readonly="true">
+        </label>
+        <p class="muted" style="margin-top:8px;">Email mengikuti akun login dan tidak dapat diubah dari setup Finance.</p>
+        <button class="btn" type="submit">Mulai Finance 7 Hari</button>
       </form>
     </section>
-    {% if businesses %}</div></details>{% endif %}
+    {% else %}
+      {% if businesses %}<details class="product-add-more"><summary>＋ Tambah bisnis {{ business_label }} baru</summary><div class="product-add-more-body">{% endif %}
+      <section class="card product-create-card">
+        <h2>{{ 'Bisnis Finance baru' if product=='finance' else 'Bisnis AI Admin baru' }}</h2>
+        <p>{{ 'Tambahkan bisnis Finance lain. Profil bisnis lengkap dan data invoice tetap dapat dikelola dari Akun → Bisnis.' if product=='finance' else 'Bisnis ini khusus setup AI Admin / Kilas Brain. Finance tidak diaktifkan otomatis.' }}</p>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="create" value="yes">
+          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+          <label>Nama bisnis
+            <input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required>
+          </label>
+          <button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Finance 7 Hari' if product=='finance' else 'Tambah Bisnis & Setup AI Admin' }}</button>
+        </form>
+      </section>
+      {% if businesses %}</div></details>{% endif %}
+    {% endif %}
   {% else %}
     <section class="card product-create-card">
       <h2>Lanjutkan Pesanan</h2>
