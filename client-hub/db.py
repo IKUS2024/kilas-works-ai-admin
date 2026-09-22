@@ -273,6 +273,7 @@ MIGRATIONS = [
     ("0043_finance_workspaces_sqlite.sql", "0043_finance_workspaces_postgres.sql"),
     ("0044_finance_category_workspaces_sqlite.sql", "0044_finance_category_workspaces_postgres.sql"),
     ("0045_finance_business_category_defaults_sqlite.sql", "0045_finance_business_category_defaults_postgres.sql"),
+    ("0046_finance_remove_personal_defaults_from_business_sqlite.sql", "0046_finance_remove_personal_defaults_from_business_postgres.sql"),
 ]
 
 
