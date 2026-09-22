@@ -65,20 +65,36 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Belum ada transaksi.',html)
         self.assertEqual(context['recurring_items'],[])
 
-    def test_income_view_is_month_scoped_and_has_add_action(self):
+    def test_direction_views_are_category_first_with_inline_totals(self):
         fixture.f.create_transaction(self.b,'INCOME',250000,self.a,self.cat,
             '2026-09-09',description='Retainer September',actor_user_id=self.uid)
+        income_category=fixture.f.get_category(self.b,self.cat,actor_user_id=self.uid)
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
+        expense_category=fixture.f.get_category(self.b,expense_cat,actor_user_id=self.uid)
         fixture.f.create_transaction(self.b,'EXPENSE',99000,self.a,expense_cat,
             '2026-09-10',description='Office expense',actor_user_id=self.uid)
-        html,context=self.page('?month=2026-09&view=transactions&direction=INCOME')
-        self.assertEqual(context['transaction_total'],1)
-        self.assertEqual(context['view'],'transactions')
-        self.assertIn('＋ Tambah Pemasukan',html)
-        self.assertIn('Retainer September',html)
-        self.assertNotIn('Office expense',html)
-        self.assertIn('name="return_direction" value="INCOME"',html)
-        self.assertIn('Transaksi pemasukan',html)
+
+        income_html,income_context=self.page('?month=2026-09&view=transactions&direction=INCOME')
+        self.assertEqual(income_context['transaction_total'],1)
+        self.assertIn('＋ Tambah Pemasukan',income_html)
+        self.assertIn('Total pemasukan',income_html)
+        self.assertNotIn('Retainer September',income_html)
+        self.assertNotIn('Transaksi pemasukan',income_html)
+        self.assertNotIn('finance-history-page-tabs',income_html)
+        self.assertIn('name="return_direction" value="INCOME"',income_html)
+        income_row=next(row for row in income_context['ledger_category_rows']
+                        if row['name']==income_category['name'])
+        self.assertEqual(income_row['amount_minor'],250000)
+
+        expense_html,expense_context=self.page('?month=2026-09&view=transactions&direction=EXPENSE')
+        self.assertIn('＋ Tambah Pengeluaran',expense_html)
+        self.assertIn('Total pengeluaran',expense_html)
+        self.assertNotIn('Office expense',expense_html)
+        self.assertNotIn('Transaksi pengeluaran',expense_html)
+        self.assertNotIn('finance-history-page-tabs',expense_html)
+        expense_row=next(row for row in expense_context['ledger_category_rows']
+                         if row['name']==expense_category['name'])
+        self.assertEqual(expense_row['amount_minor'],99000)
 
     def test_accounts_view_uses_homebudget_overview_and_live_balance_report(self):
         account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
