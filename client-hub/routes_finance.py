@@ -38,21 +38,10 @@ import repo
 
 finance_bp = Blueprint('finance', __name__)
 
-PERSONAL_DISABLED_VIEWS = {
-    # Personal Finance is intentionally manual-only.
-    'assistant','assistant_route','assistant_recognize','assistant_recurring_action',
-    'assistant_message','assistant_review','assistant_confirm','assistant_document',
-    'analyst','operator','operator_action',
-    'receipt_new','receipt_analyze','receipt_confirm',
-    'bank_index','bank_new','bank_analyze','bank_detail','bank_review','bank_open',
-    'bank_cancel','bank_decide',
-    # Personal does not use business receivables / invoice workflows.
-    'receivables','create_customer','update_customer','delete_customer','new_invoice',
-    'invoice_detail','issue_invoice','void_invoice','update_invoice_notes',
-    'archive_invoice','restore_invoice','record_payment','invoice_print','invoice_share',
-    'collections','customer_statement','statement_print','statement_share',
-    'collection_reminder',
-}
+# Personal and Business share the same Finance feature set. Their ledgers remain
+# isolated by workspace/branch scope, while entitlement/trial/subscription stays
+# business-level so one Finance upgrade covers both modes.
+PERSONAL_DISABLED_VIEWS = set()
 
 
 def beta_enabled():
@@ -935,7 +924,7 @@ def dashboard(business_id, user, business):
             dashboard_view = finance_dashboard_view.build(
                 business_id, user['id'], month, today_value, display_currency, fx,
                 _bill_month_occurrences,
-                personal=getattr(g, 'finance_workspace_type', 'BUSINESS') == 'PERSONAL',
+                personal=False,
                 trend_months=trend_months, query=(request.args.get('q') or '').strip()[:160])
         except finance.FinanceError as error:
             if str(error) not in ('report_limit', 'forecast_limit', 'report_range'):
@@ -952,15 +941,13 @@ def dashboard(business_id, user, business):
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     finance_workspace_personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     workspace_move = _workspace_move_options(business_id, user['id'])
-    invoice_open_count = invoice_paid_count = invoice_draft_count = 0
-    if not finance_workspace_personal:
-        invoice_summary = finance.get_receivables_summary(
-            business_id, actor_user_id=user['id'])
-        invoice_open_count = int(invoice_summary['open_invoice_count'])
-        invoice_rows = finance.list_finance_invoices(
-            business_id, actor_user_id=user['id'])
-        invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
-        invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
+    invoice_summary = finance.get_receivables_summary(
+        business_id, actor_user_id=user['id'])
+    invoice_open_count = int(invoice_summary['open_invoice_count'])
+    invoice_rows = finance.list_finance_invoices(
+        business_id, actor_user_id=user['id'])
+    invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
+    invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
     return render_template('finance_dashboard.html', user=user, business=business,
         dashboard_view=dashboard_view,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
@@ -997,15 +984,15 @@ def dashboard(business_id, user, business):
         next_month=next_month if next_month <= current_value else None,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in all_categories},
-        customers=[] if finance_workspace_personal else finance.list_customers(business_id, **actor),
-        projects=[] if finance_workspace_personal else finance.list_finance_projects(business_id, **actor),
+        customers=finance.list_customers(business_id, **actor),
+        projects=finance.list_finance_projects(business_id, **actor),
         payee_names=[row['name'] for row in finance.list_payees(business_id, **actor)],
         initialized=bool(accounts and categories), month=month, month_label=period_label,
         direction=direction, view=view, show_transactions=show_transactions, show_accounts=show_accounts,
         period_years=period_years, selected_year=selected_year,
         current_year=current_year, current_month=current_month,
-        analyst_enabled=(False if finance_workspace_personal else finance_analyst.enabled(business_id)),
-        operator_enabled=(False if finance_workspace_personal else finance_operator.enabled(business_id)),
+        analyst_enabled=finance_analyst.enabled(business_id),
+        operator_enabled=finance_operator.enabled(business_id),
         account_type_options=account_type_options,
         account_type_group_labels=account_type_group_labels,
         workspace_move_target_type=workspace_move['target_type'],
