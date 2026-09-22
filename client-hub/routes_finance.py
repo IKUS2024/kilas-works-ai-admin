@@ -674,13 +674,25 @@ def dashboard(business_id, user, business):
         display_currency, fx) if budget_rows else 0
     budget_total_display = ('Kurs belum lengkap' if budget_total_minor is None
                             else finance_fx.format_money(budget_total_minor, display_currency))
-    budget_remaining_minor = (None if not budget_rows or budget_total_minor is None or period_expense_minor is None
-                              else budget_total_minor - period_expense_minor)
+    # Budget availability is always monthly: remaining = monthly budget - monthly expense.
+    # Do not subtract a range/all-time expense total from a single month's budget.
+    if period_mode == 'month':
+        budget_expense_minor = period_expense_minor
+    else:
+        budget_start, budget_end = period(month)
+        budget_end = min(budget_end, today_value.isoformat())
+        budget_summaries = finance.get_finance_summaries(
+            business_id, budget_start, budget_end, **actor)
+        budget_expense_minor = finance_fx.convert_total(
+            budget_summaries, display_currency, fx, field='total_expense_minor'
+        ) if budget_summaries else 0
+    budget_remaining_minor = (None if not budget_rows or budget_total_minor is None or budget_expense_minor is None
+                              else budget_total_minor - budget_expense_minor)
     budget_remaining_display = ('Belum diatur' if not budget_rows else
                                 ('Kurs belum lengkap' if budget_remaining_minor is None
                                  else finance_fx.format_money(budget_remaining_minor, display_currency)))
-    budget_percent = (0 if not budget_rows or not budget_total_minor or period_expense_minor is None else
-                      min(999, round(period_expense_minor * 100 / budget_total_minor)))
+    budget_percent = (0 if not budget_rows or not budget_total_minor or budget_expense_minor is None else
+                      min(999, round(budget_expense_minor * 100 / budget_total_minor)))
     balances = [dict(item) for item in balances]
     for item in balances:
         item['idr_estimate_minor'] = finance_fx.to_idr(item['balance_minor'], item['currency'], fx)
