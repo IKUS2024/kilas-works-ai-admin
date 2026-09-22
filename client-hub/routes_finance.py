@@ -2007,6 +2007,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
             status=status,
             status_label=status_label,
             can_mark_paid=bool(rule['is_active'] and scheduled == rule['next_due_on']),
+            can_edit=bool(rule['is_active'] and scheduled == rule['next_due_on']),
             source='schedule'))
         seen.add((rule['id'], scheduled))
 
@@ -2051,6 +2052,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 status_label=status_label,
                 paid_on=(transaction['occurred_on'] if transaction and transaction['status'] == 'POSTED' else None),
                 can_mark_paid=False,
+                can_edit=False,
                 source='posting'))
             seen.add(key)
 
@@ -2189,7 +2191,7 @@ def operations(business_id,user,business):
 
     return render_template(
         'finance_operations.html',
-        user=user, business=business, rules=rules, projects=projects, section=section, view=view,
+        user=user, business=business, rules=rules, rules_by_id={row['id']: row for row in rules}, projects=projects, section=section, view=view,
         occurrences=occurrences, selected_occurrences=selected_occurrences,
         calendar_weeks=calendar_weeks, weekday_labels=('Min','Sen','Sel','Rab','Kam','Jum','Sab'),
         selected_day=selected_day, selected_day_label=selected_day_label,
@@ -2267,9 +2269,17 @@ def update_recurring(business_id,user,business,recurring_id):
     display_currency = request.form.get('display_currency') or 'IDR'
     if display_currency not in finance.SUPPORTED_CURRENCIES:
         display_currency = 'IDR'
+    return_view = request.form.get('view')
+    if return_view not in ('calendar', 'list', 'recurring'):
+        return_view = 'recurring'
+    return_day = request.form.get('day') or None
+    payment_status = request.form.get('payment_status') or 'unpaid'
+    if payment_status not in ('all', 'unpaid', 'paid'):
+        payment_status = 'unpaid'
     destination = url_for(
         'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
-        month=month, view='recurring', display_currency=display_currency)
+        month=month, day=return_day, view=return_view,
+        display_currency=display_currency, payment_status=payment_status)
 
     def action():
         account_id = record_id(request.form.get('account_id'))
@@ -2328,9 +2338,13 @@ def process_recurring(business_id,user,business):
     payment_status = request.form.get('payment_status') or 'unpaid'
     if payment_status not in ('all','unpaid','paid'):
         payment_status = 'unpaid'
+    display_currency = request.form.get('display_currency') or 'IDR'
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
     destination = url_for(
         'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
-        month=month, day=day, view=view, payment_status=payment_status)
+        month=month, day=day, view=view, payment_status=payment_status,
+        display_currency=display_currency)
     if len(selected) != 1:
         flash('Pilih satu tagihan yang ingin dicatat sudah dibayar.', 'error')
         return redirect(destination, code=303)
