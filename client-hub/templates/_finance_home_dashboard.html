@@ -11,18 +11,25 @@
 </section>
 
 <section class="card finance-available" aria-label="Saldo tersedia">
-<div class="finance-section-heading"><div><h2>Saldo tersedia</h2><span class="finance-subtle">{{ fx_status_label }}</span></div>
+<div class="finance-section-heading"><h2>Saldo tersedia</h2>
 {% if display_options|length > 1 %}<form method="get" class="finance-display-currency" data-finance-live-form><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="period_mode" value="month"><label>Mata uang<select name="display_currency" data-finance-live-currency>{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label></form>{% else %}<span class="finance-display-chip">{{ display_currency }}</span>{% endif %}</div>
 <strong class="finance-combined-balance">{{ balance_total_display }}</strong>
-<p class="finance-subtle">Semua akun dikonversi otomatis ke {{ display_currency }} memakai kurs referensi terbaru. Nilai asli tetap tersimpan di akun.</p>
+<div class="finance-available-gauge" aria-label="Pengeluaran {{ budget_percent }} persen dari anggaran">
+  <span class="finance-available-gauge-label">Pengeluaran dari Anggaran</span>
+  <svg viewBox="0 0 200 108" role="img" aria-hidden="true">
+    <path class="finance-available-gauge-track" d="M22 94 A78 78 0 0 1 178 94" pathLength="100"></path>
+    <path class="finance-available-gauge-value" d="M22 94 A78 78 0 0 1 178 94" pathLength="100" stroke-dasharray="{{ [budget_percent,100]|min }} 100"></path>
+    <text x="100" y="91">{{ budget_percent }}%</text>
+  </svg>
+</div>
 </section>
 
 <section class="card finance-trend" aria-label="Grafik arus kas enam bulan">
 <div class="finance-section-heading"><h2>Arus kas</h2><span class="finance-display-chip">{{ display_currency }}</span></div>
 <p class="finance-subtle">6 bulan hingga {{ month }} · <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary',start=period_start,end=period_end,as_of=period_end) }}">Lihat laporan ›</a></p>
-<div class="finance-chart-legend"><span>Pemasukan</span><span>Pengeluaran</span></div>
+<div class="finance-chart-legend"><span>Pemasukan</span><span>Pengeluaran</span><span>Anggaran</span></div>
 <div id="finance-trend-chart"></div><p id="finance-trend-empty" class="finance-subtle" hidden>Belum ada arus kas dalam enam bulan ini.</p>
-<details class="finance-chart-data"><summary>Rincian bulanan</summary><div class="finance-chart-table-wrap"><table><thead><tr><th>Bulan</th><th>Mata uang</th><th>Pemasukan</th><th>Pengeluaran</th></tr></thead><tbody>{% for row in dashboard_trend %}<tr><td>{{ row.month }}</td><td>{{ row.currency }}</td><td>{{ row.income_minor|finance_money(row.currency) }}</td><td>{{ row.expense_minor|finance_money(row.currency) }}</td></tr>{% endfor %}</tbody></table></div></details>
+<details class="finance-chart-data"><summary>Rincian bulanan</summary><div class="finance-chart-table-wrap"><table><thead><tr><th>Bulan</th><th>Mata uang</th><th>Pemasukan</th><th>Pengeluaran</th><th>Anggaran</th></tr></thead><tbody>{% for row in dashboard_trend %}<tr><td>{{ row.month }}</td><td>{{ row.currency }}</td><td>{{ row.income_minor|finance_money(row.currency) }}</td><td>{{ row.expense_minor|finance_money(row.currency) }}</td><td>{{ row.budget_minor|finance_money(row.currency) }}</td></tr>{% endfor %}</tbody></table></div></details>
 <script type="application/json" id="finance-trend-data">{{ dashboard_trend|tojson }}</script>
 </section>
 
