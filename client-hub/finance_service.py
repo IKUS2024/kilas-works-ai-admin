@@ -1321,14 +1321,31 @@ def get_report_date_bounds(business_id, *, actor_user_id=None):
          'FROM finance_invoices i WHERE i.business_id=?' + branches.predicate('i') +
          " AND i.status<>'VOID'"),
         (business_id,))
+    budget = db.query_one(
+        ('SELECT MIN(month) AS first_month,MAX(month) AS last_month '
+         'FROM finance_budgets b WHERE b.business_id=?' + branches.predicate('b')),
+        (business_id,))
+    budget_first = (
+        budget['first_month'] + '-01'
+        if budget and budget.get('first_month') else None
+    )
+    budget_last = None
+    if budget and budget.get('last_month'):
+        year, month = map(int, budget['last_month'].split('-'))
+        budget_last = date(
+            year, month, calendar.monthrange(year, month)[1]).isoformat()
     firsts = [
         row['first_on'] for row in (tx, invoice)
         if row and row.get('first_on')
     ]
+    if budget_first:
+        firsts.append(budget_first)
     lasts = [
         row['last_on'] for row in (tx, invoice)
         if row and row.get('last_on')
     ]
+    if budget_last:
+        lasts.append(budget_last)
     return {
         'first_on': min(firsts) if firsts else None,
         'last_on': max(lasts) if lasts else None,
