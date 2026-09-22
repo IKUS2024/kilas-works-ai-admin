@@ -2,7 +2,7 @@
 {% block title %}Tagihan · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-4') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-5') }}">
 <style>
 /* Keep bill form selects readable on Android Chrome even when the browser applies native select styling. */
 .finance-bill-add-form select,
@@ -26,6 +26,7 @@
   -webkit-text-fill-color:#a3a7ad!important;
   opacity:.72!important;
 }
+.finance-bills-title-line{display:flex;align-items:baseline;gap:10px;min-width:0;flex-wrap:wrap}.finance-bills-title-line h1{margin:0}.finance-bills-title-line strong{font-size:clamp(20px,4.7vw,28px);line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .finance-bill-status-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0 0 10px}.finance-bill-status-tabs a{display:flex;align-items:center;justify-content:center;gap:5px;padding:7px 8px;border:1px solid var(--border);border-radius:999px;font-size:10.5px;font-weight:800;color:var(--text-dim);text-decoration:none}.finance-bill-status-tabs a span{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:rgba(127,127,127,.1);font-size:9px}.finance-bill-status-tabs a.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .finance-bill-category-picker{margin-top:5px}.finance-bill-category-picker>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:42px;padding:8px 11px;border:1px solid #33363c;border-radius:10px;background:#17181b!important;color:#eef0f2!important;-webkit-text-fill-color:#eef0f2!important;font-size:12px;font-weight:700;list-style:none;cursor:pointer;color-scheme:dark}.finance-bill-category-picker>summary::-webkit-details-marker{display:none}.finance-bill-category-picker>summary::after{content:'⌄';color:#a3a7ad}.finance-bill-category-picker[open]>summary{border-color:var(--orange,#ff7a1a)}.finance-bill-category-menu{display:grid;gap:3px;margin-top:5px;padding:5px;border:1px solid #33363c;border-radius:10px;background:#17181b!important;max-height:220px;overflow:auto}.finance-bill-category-menu button{width:100%;min-height:36px;padding:7px 9px;border:0;border-radius:8px;background:transparent;color:#eef0f2!important;font:inherit;font-size:11px;font-weight:750;text-align:left;cursor:pointer}.finance-bill-category-menu button:hover,.finance-bill-category-menu button:focus,.finance-bill-category-menu button.active{background:rgba(255,122,26,.12);color:var(--orange,#ff7a1a)!important}
 .finance-bill-rule-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:5px}
@@ -61,31 +62,12 @@
 
 {% else %}
 <header class="finance-bills-header">
-  <div>
-    <span class="finance-eyebrow">KILAS FINANCE</span>
+  <div class="finance-bills-title-line">
     <h1>Tagihan</h1>
     <strong>{{ total_bills_display }}</strong>
-    <small>Total {{ all_count }} tagihan · Belum dibayar {{ unpaid_bills_display }} ({{ unpaid_count }})</small>
   </div>
   <div class="finance-bills-header-actions">
     <button type="button" class="finance-bills-add" data-finance-open="bill-add-dialog" aria-label="Tambah tagihan">＋</button>
-    <details class="finance-budget-options finance-bills-options">
-      <summary aria-label="Opsi tagihan">•••</summary>
-      <div class="finance-budget-options-menu finance-bills-options-menu">
-        <form method="get">
-          <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-          <input type="hidden" name="month" value="{{ month }}">
-          <input type="hidden" name="view" value="{{ view }}">
-          <input type="hidden" name="payment_status" value="{{ payment_status }}">
-          <label>Mata uang
-            <select name="display_currency" onchange="this.form.submit()">
-              {% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}
-            </select>
-          </label>
-        </form>
-        {% if not finance_workspace_personal %}<a href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,section='projects',month=month) }}">Arus kas proyek</a>{% endif %}
-      </div>
-    </details>
   </div>
 </header>
 
