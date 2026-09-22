@@ -116,7 +116,6 @@ BUSINESS_COMPACT_DEFAULTS = {
 }
 
 PERSONAL_DEFAULT_CATEGORIES = {
-PERSONAL_DEFAULT_CATEGORIES = {
     'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi',
                'Hadiah / Transfer Masuk'),
     'EXPENSE': ('Tempat Tinggal / Sewa', 'Utilitas', 'Makanan & Belanja Harian',
@@ -129,9 +128,6 @@ PERSONAL_DEFAULT_CATEGORY_CHILDREN = {
         'Utilitas': ('Listrik', 'Air', 'Internet', 'Telepon', 'Gas', 'Laundry', 'Sampah / Kebersihan'),
     },
 }
-
-class FinanceError(ValueError):
-
 
 class FinanceError(ValueError):
     """Safe categories only: never includes supplied text or other tenant data."""
@@ -862,8 +858,6 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
         return changed
 
 
-
-def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
 
 def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
