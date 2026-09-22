@@ -129,7 +129,7 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-invoice-card-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-ledger-category-1') }}">
 <script src="{{ url_for('static',filename='finance_home.js',v='20260922-live-1') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
@@ -367,8 +367,19 @@
 <header class="finance-ledger-head">
   <a class="finance-history-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">← Finance</a>
   <div class="finance-ledger-head-row">
-    <div><span class="finance-eyebrow">KILAS FINANCE</span><h1>{{ 'Pemasukan' if direction == 'INCOME' else ('Pengeluaran' if direction == 'EXPENSE' else 'Riwayat Transaksi') }}</h1><p><strong>{{ selected_branch.name }}</strong>{% if transaction_account %} · {{ transaction_account.name }}{% endif %} · {{ transaction_total }} transaksi · {{ period_label }}</p></div>
-    {% if direction and not branch_read_only %}<div class="finance-ledger-actions"><button type="button" class="finance-mini-action" data-finance-open="category-dialog">Kategori</button><button type="button" class="btn finance-ledger-add" data-finance-open="add-transaction-dialog" data-transaction-direction="{{ direction }}">＋ Tambah {{ 'Pemasukan' if direction == 'INCOME' else 'Pengeluaran' }}</button></div>{% endif %}
+    <div class="finance-ledger-title-block">
+      <span class="finance-eyebrow">KILAS FINANCE</span>
+      <div class="finance-ledger-title-line">
+        <h1>{{ 'Pemasukan' if direction == 'INCOME' else ('Pengeluaran' if direction == 'EXPENSE' else 'Riwayat Transaksi') }}</h1>
+        {% if direction %}
+        <div class="finance-ledger-inline-total">
+          <span>Total {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }}</span>
+          <strong>{{ period_income_display if direction == 'INCOME' else period_expense_display }}</strong>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% if direction and not branch_read_only %}<div class="finance-ledger-actions"><button type="button" class="btn finance-ledger-add" data-finance-open="add-transaction-dialog" data-transaction-direction="{{ direction }}">＋ Tambah {{ 'Pemasukan' if direction == 'INCOME' else 'Pengeluaran' }}</button></div>{% endif %}
   </div>
 </header>
 {% if direction and period_mode == 'month' %}
@@ -379,12 +390,19 @@
 </nav>
 {% endif %}
 {% if direction %}
-<section class="card finance-ledger-summary">
-  <span class="finance-ledger-summary-label">Total {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }} · {{ period_label }}</span>
-  <div class="finance-ledger-summary-values"><div><small>{{ display_currency }}</small><strong>{{ period_income_display if direction == 'INCOME' else period_expense_display }}</strong></div></div>
-  <p class="finance-subtle">{{ transaction_total }} transaksi tercatat · {{ fx_status_label }}. {% if finance_workspace_personal %}Tambahkan dan edit transaksi secara manual.{% else %}Tambahkan transaksi manual di atas atau cukup bilang ke AI Finance.{% endif %}</p>
+<section class="card finance-ledger-category-card" aria-label="Kategori {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }}">
+  <div class="finance-ledger-category-list">
+    {% for row in ledger_category_rows %}
+    <div class="finance-ledger-category-row">
+      <span>{{ row.name }}</span>
+      <strong>{{ row.display_amount }}</strong>
+    </div>
+    {% else %}
+    <div class="finance-ledger-category-empty">Belum ada kategori.</div>
+    {% endfor %}
+  </div>
 </section>
-{% endif %}
+{% else %}
 <nav class="finance-history-tabs finance-history-page-tabs" aria-label="Filter riwayat transaksi">
   <a class="{{ 'active' if not direction }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',page=1,**period_query) }}">Semua</a>
   <a class="{{ 'active' if direction == 'INCOME' }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,direction='INCOME',view='transactions',page=1,**period_query) }}">↑ Pemasukan</a>
@@ -455,6 +473,7 @@
   {% if transaction_page < transaction_page_count %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page+1,**transaction_query) }}" aria-label="Halaman berikutnya">›</a>{% endif %}
 </nav>
 <p class="finance-pagination-meta">Halaman {{ transaction_page }} dari {{ transaction_page_count }}</p>
+{% endif %}
 {% endif %}
 </div>
 {% endif %}
