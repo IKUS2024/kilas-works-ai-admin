@@ -2010,6 +2010,7 @@ def reports(business_id,user,business):
         filters=finance_reports.parse_filters(
             request.args,today=finance.business_today(business_id),
             business_id=business_id,actor_user_id=user['id'])
+        filters['as_of']=filters['end']
         actor={'actor_user_id':user['id']}
         data=comprehensive_report_data(business_id,user['id'],filters)
         summary=finance.get_cashflow_reports(
@@ -2035,6 +2036,7 @@ def report_pdf(business_id,user,business):
         filters=finance_reports.parse_filters(
             request.args,today=finance.business_today(business_id),
             business_id=business_id,actor_user_id=user['id'])
+        filters['as_of']=filters['end']
         actor={'actor_user_id':user['id']}
         data=comprehensive_report_data(business_id,user['id'],filters)
         summary=finance.get_cashflow_reports(
