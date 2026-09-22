@@ -553,7 +553,17 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Subkategori',html)
         self.assertIn('bisa ditambah, diedit, atau dihapus',html)
         self.assertIn('data-category-manager-form',html)
+        self.assertIn('data-category-manager-root',html)
+        self.assertIn('data-category-record-list',html)
         self.assertIn('＋ Tambah Kategori / Subkategori',html)
+        for direction in ('INCOME','EXPENSE'):
+            rows=fixture.f.list_categories(
+                self.b,direction,include_children=True,actor_user_id=self.uid)
+            self.assertTrue(rows)
+            for row in rows:
+                self.assertIn(
+                    f'data-finance-category-record="{row["id"]}" data-category-direction="{direction}"',
+                    html)
 
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         endpoint=f'/business/{self.b}/finance/categories'
