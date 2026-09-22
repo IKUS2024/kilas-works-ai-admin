@@ -106,7 +106,7 @@
       {% if item.payee_id %}
       <div class="fin-payee-actions">
         <button class="finance-mini-action" type="button" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').showModal()">✏️ Edit</button>
-        <form method="post" action="{{ url_for('finance.delete_payee',business_id=business.id,payee_id=item.payee_id) }}" onsubmit="return confirm('Hapus {{ item.name }} dari daftar Penerima? Transaksi lama tetap tersimpan.');">
+        <form method="post" action="{{ url_for('finance.delete_payee',business_id=business.id,branch_id=g.finance_branch_id,payee_id=item.payee_id) }}" onsubmit="return confirm('Hapus {{ item.name }} dari daftar Penerima? Transaksi lama tetap tersimpan.');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="display_currency" value="{{ display_currency }}">
@@ -124,7 +124,7 @@
       <h2>Edit Penerima</h2>
       <button class="fin-payee-dialog-close" type="button" aria-label="Tutup" onclick="document.getElementById('payee-edit-{{ item.payee_id }}').close()">×</button>
     </div>
-    <form method="post" action="{{ url_for('finance.update_payee',business_id=business.id,payee_id=item.payee_id) }}">
+    <form method="post" action="{{ url_for('finance.update_payee',business_id=business.id,branch_id=g.finance_branch_id,payee_id=item.payee_id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
