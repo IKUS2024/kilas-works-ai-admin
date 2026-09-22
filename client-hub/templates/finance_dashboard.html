@@ -129,7 +129,7 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-ledger-total-2') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-ledger-total-3') }}">
 <script src="{{ url_for('static',filename='finance_home.js',v='20260922-live-1') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
@@ -374,7 +374,9 @@
         {% if direction %}
         <div class="finance-ledger-inline-total">
           <span>Total {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }}</span>
-          <strong>{{ period_income_compact_display if direction == 'INCOME' else period_expense_compact_display }}</strong>
+          <strong class="finance-ledger-total-value">
+            <span>{{ period_income_display_main if direction == 'INCOME' else period_expense_display_main }}</span>{% if direction == 'INCOME' and period_income_display_fraction %}<small>{{ period_income_display_fraction }}</small>{% elif direction == 'EXPENSE' and period_expense_display_fraction %}<small>{{ period_expense_display_fraction }}</small>{% endif %}
+          </strong>
         </div>
         {% endif %}
       </div>
