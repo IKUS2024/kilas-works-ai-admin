@@ -432,12 +432,15 @@ class DashboardHomeTests(unittest.TestCase):
 
         html,context=self.page('?month=2026-09')
         self.assertEqual(context['budget_total_display'],'Rp500.000,00')
+        self.assertEqual(context['budget_used_display'],'Rp125.000,00')
         self.assertEqual(context['budget_remaining_display'],'Rp375.000,00')
         self.assertEqual(context['budget_percent'],25)
-        self.assertIn('Sisa Rp375.000,00',html)
+        self.assertIn('Rp375.000,00',html)
+        self.assertIn('Rp125.000,00',html)
         self.assertIn('Rp500.000,00',html)
         self.assertIn('aria-label="Penggunaan anggaran 25 persen"',html)
-        self.assertIn('>25%</span>',html)
+        self.assertIn('>25%</strong>',html)
+        self.assertIn('>terpakai</small>',html)
         self.assertEqual(context['dashboard_trend'][-1]['expense_minor'],12500000)
         self.assertIn('finance-budget-ring',html)
         self.assertIn('<th>Arus Bersih</th>',html)
@@ -699,11 +702,16 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Pengaturan Finance',html)
         self.assertNotIn('Customer</span>',html)
         self.assertNotIn('Pengeluaran dari anggaran',html)
-        self.assertLess(html.index('>Invoice</span>'),html.index('>Penerima</span>'))
-        invoice_card=html[html.index('>Invoice</span>')-220:html.index('>Penerima</span>')]
-        penerima_card=html[html.index('>Penerima</span>')-220:html.index('>Penerima</span>')+260]
+        budget_index=html.index('finance-budget-metric')
+        invoice_index=html.index('>Invoice</span>')
+        penerima_index=html.index('>Penerima</span>')
+        self.assertLess(budget_index,invoice_index)
+        self.assertLess(invoice_index,penerima_index)
+        invoice_card=html[invoice_index-220:penerima_index]
+        penerima_card=html[penerima_index-220:penerima_index+260]
         self.assertIn('finance-metric compact',invoice_card)
         self.assertIn('finance-metric compact',penerima_card)
+        self.assertIn('finance-budget-chart-wrap',html)
         self.assertIn('finance-budget-ring',html)
         self.assertIn('Bantu kelola keuanganmu lebih cepat.',html)
 
