@@ -172,6 +172,41 @@ PERSONAL_DEFAULT_CATEGORY_CHILDREN = {
     },
 }
 
+# Clean business-income catalog. These are additive defaults for existing Business
+# workspaces: an explicitly deleted category is never reactivated.
+BUSINESS_INCOME_CATALOG = {
+    'Langganan / Retainer': (
+        'Retainer Bulanan',
+        'Subscription / Membership',
+        'Maintenance / Support',
+    ),
+    'Komisi & Affiliate': (
+        'Affiliate',
+        'Referral',
+        'Komisi Penjualan',
+    ),
+    'Sponsor / Kerja Sama': (
+        'Sponsorship',
+        'Brand Partnership',
+        'Endorsement',
+    ),
+    'Sewa / Rental': (
+        'Sewa Peralatan',
+        'Sewa Ruang / Studio',
+        'Rental Aset',
+    ),
+    'Royalti / Lisensi': (
+        'Royalti',
+        'Lisensi Konten',
+        'Lisensi Software / IP',
+    ),
+    'Bunga / Cashback': (
+        'Bunga Bank',
+        'Cashback',
+        'Reward',
+    ),
+}
+
 
 class FinanceError(ValueError):
     """Safe categories only: never includes supplied text or other tenant data."""
@@ -564,7 +599,7 @@ def _category_setting_by_id(business_id, category_id, actor_user_id=None, *, inc
     )
     params = [business_id, _id(category_id), scope['scope_key']]
     if not include_inactive:
-        sql += ' AND s.is_active=TRUE'
+        sql += ' AND s.is_active=TRUE AND (h.child_category_id IS NULL OR ps.category_id IS NOT NULL)'
     row = db.query_one(sql, params)
     return dict(row) if row else None
 
@@ -773,6 +808,86 @@ def list_category_children(business_id, parent_category_id, include_inactive=Fal
     if not include_inactive:
         rows = [row for row in rows if row['name'].casefold() not in RETIRED_CATEGORY_NAMES]
     return rows
+
+
+def sync_business_category_catalog(business_id, *, actor_user_id=None):
+    """Idempotently clean retired catch-alls and add the current Business income catalog.
+
+    Existing user deletions remain authoritative: inactive mapped names are never
+    reactivated. This is safe to call when an active writable Business workspace
+    is opened after a catalog update.
+    """
+    with _write(business_id, actor_user_id):
+        scope = _category_scope(business_id, actor_user_id)
+        if scope['workspace_type'] != 'BUSINESS':
+            return False
+
+        changed = False
+        now = repo._now()
+
+        # Retire the old catch-all roots and their one-level children together so
+        # children can never float up as accidental top-level categories.
+        retired_roots = db.query_all(
+            'SELECT s.category_id FROM finance_category_workspace_settings s '
+            'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
+            'WHERE s.business_id=? AND s.scope_key=? AND s.is_active=TRUE '
+            'AND lower(trim(s.display_name)) IN (?,?,?)',
+            (business_id, scope['scope_key'],
+             'pendapatan lain', 'pengeluaran lain', 'lainnya'))
+        retire_ids = {row['category_id'] for row in retired_roots}
+        for root_id in list(retire_ids):
+            for child in db.query_all(
+                'SELECT child_category_id FROM finance_category_hierarchy '
+                'WHERE business_id=? AND parent_category_id=?',
+                (business_id, root_id)):
+                retire_ids.add(child['child_category_id'])
+        for category_id in retire_ids:
+            result = db.execute(
+                'UPDATE finance_category_workspace_settings '
+                'SET is_active=FALSE,updated_at=? '
+                'WHERE business_id=? AND category_id=? AND scope_key=? AND is_active=TRUE',
+                (now, business_id, category_id, scope['scope_key']))
+            if getattr(result, 'rowcount', 0):
+                changed = True
+                _audit(
+                    business_id, actor_user_id,
+                    'FINANCE_CATEGORY_DEACTIVATED', category_id)
+
+        def mapped(direction, name):
+            row = db.query_one(
+                'SELECT c.id,s.is_active FROM finance_category_workspace_settings s '
+                'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
+                'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? '
+                'AND lower(trim(s.display_name))=lower(trim(?)) '
+                'ORDER BY s.category_id LIMIT 1',
+                (business_id, scope['scope_key'], direction, name))
+            return dict(row) if row else None
+
+        for parent_name, child_names in BUSINESS_INCOME_CATALOG.items():
+            parent = mapped('INCOME', parent_name)
+            if parent is not None and not parent['is_active']:
+                # User intentionally deleted this catalog category earlier.
+                continue
+            if parent is None:
+                parent_id = create_category(
+                    business_id, 'INCOME', parent_name,
+                    actor_user_id=actor_user_id)
+                changed = True
+            else:
+                parent_id = parent['id']
+
+            for child_name in child_names:
+                child = mapped('INCOME', child_name)
+                if child is not None:
+                    # Active existing custom/default names stay where the user put
+                    # them; inactive names are respected as explicit deletions.
+                    continue
+                create_category(
+                    business_id, 'INCOME', child_name,
+                    parent_category_id=parent_id,
+                    actor_user_id=actor_user_id)
+                changed = True
+        return changed
 
 
 def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
