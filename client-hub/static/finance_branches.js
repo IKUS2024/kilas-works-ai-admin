@@ -548,6 +548,44 @@ for (const form of document.querySelectorAll('[data-category-manager-form]')) {
 }
 
 
+const setCategoryDialogDirection=(dialog,kind)=>{
+  if(!dialog || (kind!=='INCOME' && kind!=='EXPENSE'))return;
+  for(const tab of dialog.querySelectorAll('[data-category-direction-tab]')){
+    const active=tab.dataset.categoryDirectionTab===kind;
+    tab.classList.toggle('active',active);
+    tab.setAttribute('aria-selected',active?'true':'false');
+  }
+  for(const section of dialog.querySelectorAll('[data-category-direction-section]')){
+    section.hidden=section.dataset.categoryDirectionSection!==kind;
+  }
+  const managerDirection=dialog.querySelector('[data-category-manager-direction]');
+  if(managerDirection && managerDirection.value!==kind){
+    managerDirection.value=kind;
+    managerDirection.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+};
+
+for(const dialog of document.querySelectorAll('[data-category-manager-root]')){
+  for(const tab of dialog.querySelectorAll('[data-category-direction-tab]')){
+    tab.addEventListener('click',()=>{
+      setCategoryDialogDirection(dialog,tab.dataset.categoryDirectionTab);
+    });
+  }
+  for(const toggle of dialog.querySelectorAll('[data-category-expand]')){
+    toggle.addEventListener('click',()=>{
+      const targetId=toggle.getAttribute('aria-controls');
+      const children=targetId?document.getElementById(targetId):null;
+      if(!children)return;
+      const open=toggle.getAttribute('aria-expanded')==='true';
+      toggle.setAttribute('aria-expanded',open?'false':'true');
+      children.hidden=open;
+    });
+  }
+  const initial=dialog.querySelector('[data-category-direction-tab].active')?.dataset.categoryDirectionTab||'INCOME';
+  setCategoryDialogDirection(dialog,initial);
+}
+
+
 // Account type choices are business-level preferences. Users can add or remove
 // choices here without leaving the account form; existing accounts keep their
 // assigned label even when that label is removed from future choices.
@@ -712,6 +750,13 @@ for (const trigger of document.querySelectorAll('[data-finance-open]')) {
       if (kind && (forcedDirection === 'INCOME' || forcedDirection === 'EXPENSE')) {
         kind.value = forcedDirection;
         kind.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+    }
+    if(dialog.id==='category-dialog'){
+      const sourceForm=trigger.closest && trigger.closest('form');
+      const sourceKind=sourceForm && sourceForm.querySelector('[name="direction"]');
+      if(sourceKind && (sourceKind.value==='INCOME'||sourceKind.value==='EXPENSE')){
+        setCategoryDialogDirection(dialog,sourceKind.value);
       }
     }
     if (typeof dialog.showModal === 'function') dialog.showModal();
