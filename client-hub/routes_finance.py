@@ -2094,6 +2094,13 @@ def operations(business_id,user,business):
 
     occurrences = _bill_month_occurrences(
         business_id, rules, start, end, local_today.isoformat(), user['id'])
+    payment_status = request.args.get('payment_status', 'all')
+    if payment_status not in ('all', 'unpaid', 'paid'):
+        payment_status = 'all'
+    if payment_status == 'paid':
+        occurrences = [row for row in occurrences if row['status'] == 'paid']
+    elif payment_status == 'unpaid':
+        occurrences = [row for row in occurrences if row['status'] not in ('paid', 'void')]
 
     display_options = ['IDR']
     display_options += [row['currency'] for row in accounts if row['currency'] != 'IDR']
@@ -2187,6 +2194,8 @@ def operations(business_id,user,business):
         previous_month=previous_month, next_month=next_month,
         current_month=current_month, today=local_today.isoformat(),
         display_currency=display_currency, display_options=display_options,
+        bill_currency_options=[code for code in display_options if any(a['is_active'] and a['currency']==code for a in accounts)],
+        payment_status=payment_status,
         total_bills_display=('Kurs belum lengkap' if total_minor is None
                              else finance_fx.format_money(total_minor, display_currency)),
         unpaid_bills_display=('Kurs belum lengkap' if unpaid_minor is None
@@ -2203,11 +2212,23 @@ def create_recurring(business_id,user,business):
         'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
         month=month, view='calendar')
     def action():
-        account_id = record_id(request.form.get('account_id'))
-        account = finance.get_account(
-            business_id, account_id, actor_user_id=user['id'], active=True)
-        if not account:
+        # A bill is a payable commitment, not a cash movement. The user chooses
+        # the real payment account only when marking the occurrence as paid.
+        # Keep the existing recurring schema compatible by assigning an internal
+        # active account in the selected bill currency; this is never posted
+        # until payment and may be overridden at payment time.
+        currency = request.form.get('currency') or 'IDR'
+        if currency not in finance.SUPPORTED_CURRENCIES:
+            raise finance.FinanceError('unsupported_currency')
+        available_accounts = [
+            row for row in finance.list_accounts(
+                business_id, actor_user_id=user['id'])
+            if row['is_active'] and row['currency'] == currency
+        ]
+        if not available_accounts:
             raise finance.FinanceError('account_unavailable')
+        account = available_accounts[0]
+        account_id = account['id']
         requested_cadence = request.form.get('cadence') or 'MONTHLY'
         next_due_on = request.form.get('next_due_on')
         if requested_cadence == 'ONCE':
