@@ -1,7 +1,8 @@
-"""Future daily cron: cd client-hub && python scripts/process_finance_recurring.py
+"""Read-only recurring-bill checker.
 
-No migrations, app import, background thread, network or automatic boot invocation.
-Each business is processed independently. Configure a cron job separately after review.
+A due date is a commitment, not proof that cash moved. This script intentionally never
+posts ledger transactions. Actual expenses are created only by an explicit paid action
+that supplies the real payment date.
 """
 import sys
 from pathlib import Path
@@ -13,28 +14,22 @@ import finance_service as finance
 
 
 def run(as_of=None):
-    """Trusted CLI entry only; no route exposes this cross-business dispatcher.
-
-    Logs only fixed labels and counts. Configuration attention/catch-up is not an execution
-    failure; DB/setup/processing exceptions produce nonzero exit while other businesses continue.
-    """
+    """Report due recurring rules without changing balances, expenses, budgets, or reports."""
     try:
         as_of = finance._date(as_of or datetime.now(timezone.utc).date())
-        businesses = db.query_all('SELECT DISTINCT business_id FROM finance_recurring_expenses '
-            'WHERE is_active=TRUE AND next_due_on<=? ORDER BY business_id',(as_of,))
+        row = db.query_one(
+            'SELECT COUNT(*) AS due_rules,COUNT(DISTINCT business_id) AS businesses '
+            'FROM finance_recurring_expenses WHERE is_active=TRUE AND next_due_on<=?',
+            (as_of,))
+        due_rules = int(row['due_rules'] or 0) if row else 0
+        businesses = int(row['businesses'] or 0) if row else 0
     except Exception:
-        print('FINANCE_RECURRING status=setup_failed',file=sys.stderr)
+        print('FINANCE_RECURRING status=read_failed',file=sys.stderr)
         return 1
-    failed = posted = attention = pending = 0
-    for row in businesses:
-        try:
-            result = finance.process_due_recurring_expenses(row['business_id'],as_of)
-            posted += result['posted_count']; attention += result['needs_attention_count']; pending += int(result['has_more'])
-        except Exception:
-            failed += 1
-            print('FINANCE_RECURRING status=business_processing_failed',file=sys.stderr)
-    print(f'FINANCE_RECURRING processed_businesses={len(businesses)} posted={posted} needs_attention={attention} pending_businesses={pending} failed={failed}')
-    return 1 if failed else 0
+    print(
+        f'FINANCE_RECURRING auto_post=disabled due_businesses={businesses} '
+        f'due_rules={due_rules}')
+    return 0
 
 
 if __name__=='__main__':

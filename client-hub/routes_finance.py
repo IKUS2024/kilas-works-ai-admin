@@ -145,6 +145,10 @@ def finance_access(view):
 
 ERRORS = {
     'recurring_ledger_managed': 'Biaya rutin tidak dapat diedit langsung. Batalkan transaksi jika keliru; riwayat kejadian tetap tersimpan.',
+    'recurring_occurrence_unavailable': 'Tagihan ini sudah berubah atau bukan kejadian berikutnya. Muat ulang daftar tagihan.',
+    'recurring_posting_unresolved': 'Pembayaran tagihan ini belum dapat dipastikan. Muat ulang sebelum mencoba lagi.',
+    'recurring_already_paid': 'Tagihan ini sudah dicatat dibayar dengan tanggal pembayaran yang berbeda.',
+    'recurring_occurrence_void': 'Pembayaran tagihan ini sudah dibatalkan dan tidak dapat dibuat ulang otomatis.',
     'invalid_recurring_limit': 'Batas pemrosesan belum valid.',
     'customer_unavailable': 'Customer tidak tersedia untuk bisnis ini.',
     'invalid_items': 'Isi 1–100 baris dengan deskripsi, jumlah, dan harga yang valid.',
@@ -1703,7 +1707,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
             rule_id=rule['id'],
             status=status,
             status_label=status_label,
-            can_mark_paid=bool(rule['is_active'] and scheduled == rule['next_due_on'] and scheduled <= today_iso),
+            can_mark_paid=bool(rule['is_active'] and scheduled == rule['next_due_on']),
             source='schedule'))
         seen.add((rule['id'], scheduled))
 
@@ -1746,6 +1750,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 end_on=rule['end_on'],
                 status=status,
                 status_label=status_label,
+                paid_on=(transaction['occurred_on'] if transaction and transaction['status'] == 'POSTED' else None),
                 can_mark_paid=False,
                 source='posting'))
             seen.add(key)
@@ -1774,13 +1779,18 @@ def operations(business_id,user,business):
 
     actor = {'actor_user_id': user['id']}
     rules = finance.list_recurring_expenses(business_id, include_inactive=True, **actor)
+    accounts = finance.list_accounts(business_id, **actor)
+    categories = finance.list_categories(business_id, 'EXPENSE', include_children=True, **actor)
+    category_by_id = {row['id']: row for row in categories}
     for rule in rules:
         rule['input_amount'] = f"{finance_fx.major(int(rule['amount_minor']), rule['currency']):.2f}"
         rule['input_cadence'] = (
             'ONCE' if rule['cadence'] == 'MONTHLY'
             and rule['end_on'] == rule['next_due_on'] else rule['cadence'])
-    accounts = finance.list_accounts(business_id, **actor)
-    categories = finance.list_categories(business_id, 'EXPENSE', include_children=True, **actor)
+        selected_category = category_by_id.get(rule['category_id'])
+        parent_id = selected_category.get('parent_category_id') if selected_category else None
+        rule['input_parent_category_id'] = parent_id or rule['category_id']
+        rule['input_subcategory_id'] = rule['category_id'] if parent_id else None
     projects = [] if personal else finance.list_finance_projects(business_id, **actor)
 
     occurrences = _bill_month_occurrences(
@@ -1909,10 +1919,15 @@ def create_recurring(business_id,user,business):
             end_on = request.form.get('end_on') or None
         else:
             raise finance.FinanceError('invalid_enum')
+        subcategory_value = request.form.get('subcategory_id')
+        category_id = finance.resolve_category_selection(
+            business_id, 'EXPENSE', record_id(request.form.get('category_id')),
+            record_id(subcategory_value) if subcategory_value else None,
+            actor_user_id=user['id'])
         return finance.create_recurring_expense(
             business_id, request.form.get('name'),
             currency_amount(request.form.get('amount'), account['currency']),
-            account_id, record_id(request.form.get('category_id')),
+            account_id, category_id,
             cadence, next_due_on, end_on=end_on,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
             counterparty_name=request.form.get('counterparty_name'),
@@ -1948,10 +1963,15 @@ def update_recurring(business_id,user,business,recurring_id):
             end_on = request.form.get('end_on') or None
         else:
             raise finance.FinanceError('invalid_enum')
+        subcategory_value = request.form.get('subcategory_id')
+        category_id = finance.resolve_category_selection(
+            business_id, 'EXPENSE', record_id(request.form.get('category_id')),
+            record_id(subcategory_value) if subcategory_value else None,
+            actor_user_id=user['id'])
         return finance.update_recurring_expense(
             business_id, recurring_id, request.form.get('name'),
             currency_amount(request.form.get('amount'), account['currency']),
-            account_id, record_id(request.form.get('category_id')),
+            account_id, category_id,
             cadence, next_due_on, end_on=end_on,
             project_id=record_id(request.form['project_id']) if request.form.get('project_id') else None,
             counterparty_name=request.form.get('counterparty_name'),
@@ -1984,19 +2004,23 @@ def process_recurring(business_id,user,business):
     destination = url_for(
         'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
         month=month, day=day, view=view)
-    if not selected:
-        flash('Pilih tagihan yang sudah dibayar terlebih dahulu.', 'error')
+    if len(selected) != 1:
+        flash('Pilih satu tagihan yang ingin dicatat sudah dibayar.', 'error')
         return redirect(destination, code=303)
-    result = finance.process_due_recurring_expenses(
-        business_id, finance.business_today(business_id),
-        actor_user_id=user['id'], selected=selected)
-    flash(f"{result['posted_count']} tagihan dicatat sebagai pengeluaran.", 'success')
-    if result['needs_attention_count']:
-        flash('Ada tagihan yang belum dapat dicatat. Periksa akun, kategori, dan proyek. Jadwalnya tetap tersimpan.', 'error')
-    if result['limit_reached']:
-        flash('Batas pemrosesan tercapai. Masih ada tagihan jatuh tempo; proses kembali untuk melanjutkan.', 'error')
+    try:
+        recurring_raw, scheduled_on = selected[0].split(':', 1)
+        recurring_id = record_id(recurring_raw)
+        paid_on = request.form.get('paid_on') or finance.business_today(business_id).isoformat()
+        finance.record_recurring_payment(
+            business_id, recurring_id, scheduled_on, paid_on,
+            actor_user_id=user['id'])
+    except (ValueError, finance.FinanceError) as error:
+        flash(ERRORS.get(str(error), 'Pembayaran tagihan belum valid. Periksa tanggal lalu coba lagi.'), 'error')
+    else:
+        flash('Tagihan dicatat sebagai pengeluaran sesuai tanggal pembayaran.', 'success')
     return redirect(destination, code=303)
 
+def report_error(error):
 def report_error(error):
     if str(error) in ('report_limit','forecast_limit'):
         return 'Data laporan terlalu banyak. Persempit rentang tanggal atau komitmen biaya rutin.'

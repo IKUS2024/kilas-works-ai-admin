@@ -360,8 +360,8 @@ class DashboardHomeTests(unittest.TestCase):
         budget=self.client.get(
             f'/business/{self.b}/finance/budget?branch_id={branch_id}&month=2026-09')
         self.assertEqual(budget.status_code,200)
-        self.assertIn('Rincian Utilitas',budget.text)
-        self.assertIn('Listrik',budget.text)
+        self.assertNotIn('Rincian Utilitas',budget.text)
+        self.assertIn('Utilitas',budget.text)
         self.assertIn('Rp50.000,00',budget.text)
 
     def test_reports_support_all_time_and_custom_date_ranges(self):
@@ -809,6 +809,8 @@ class DashboardHomeTests(unittest.TestCase):
         html=response.text
         for token in ('finance-bills-calendar','September 2026','Tambah Tagihan','Kalender','Daftar','Rutin','Internet','Provider Net'):
             self.assertIn(token,html)
+        self.assertIn('name="paid_on"',html)
+        self.assertIn('Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.',html)
         self.assertNotIn('Tagihan &amp; Rutin',html)
         self.assertNotIn('fin-tool-grid',html)
 
@@ -816,6 +818,67 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(future.status_code,200)
         self.assertIn('Oktober 2026',future.text)
         self.assertIn('Internet',future.text)
+
+    def test_bill_payment_uses_real_payment_date_subcategory_and_updates_actuals_once(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        utility=next(row for row in fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid) if row['name']=='Utilitas')
+        internet=next(row for row in fixture.f.list_category_children(
+            self.b,utility['id'],actor_user_id=self.uid) if row['name']=='Internet')
+
+        # A parent with subcategories must not silently accept a parent-only bill.
+        blocked=self.client.post(f'/business/{self.b}/finance/recurring',data={
+            'branch_id':str(branch_id),'month':'2026-08','name':'Internet Tanpa Subkategori',
+            'account_id':str(self.a),'amount':'500000','category_id':str(utility['id']),
+            'next_due_on':'2026-08-31','cadence':'ONCE'})
+        self.assertEqual(blocked.status_code,303)
+        self.assertEqual(fixture.f.list_recurring_expenses(self.b),[])
+
+        created=self.client.post(f'/business/{self.b}/finance/recurring',data={
+            'branch_id':str(branch_id),'month':'2026-08','name':'Internet Kantor',
+            'account_id':str(self.a),'amount':'500000','category_id':str(utility['id']),
+            'subcategory_id':str(internet['id']),'next_due_on':'2026-08-31',
+            'cadence':'ONCE','counterparty_name':'Provider Net'})
+        self.assertEqual(created.status_code,303)
+        rule=next(row for row in fixture.f.list_recurring_expenses(
+            self.b,include_inactive=True,actor_user_id=self.uid) if row['name']=='Internet Kantor')
+        self.assertEqual(rule['category_id'],internet['id'])
+        self.assertEqual(fixture.f.list_transactions(self.b),[])
+
+        # Budget is planning only. The unpaid August due date changes no actual cash figures.
+        fixture.f.set_monthly_budget(
+            self.b,'2026-09',utility['id'],1000000,'IDR',actor_user_id=self.uid)
+        self.assertEqual(
+            fixture.f.get_finance_summary(self.b,'2026-08-01','2026-08-31')['total_expense_minor'],0)
+
+        payment={
+            'branch_id':str(branch_id),'month':'2026-08','day':'2026-08-31','view':'calendar',
+            'occurrence':f"{rule['id']}:2026-08-31",'paid_on':'2026-09-22'}
+        first=self.client.post(f'/business/{self.b}/finance/recurring/process',data=payment)
+        second=self.client.post(f'/business/{self.b}/finance/recurring/process',data=payment)
+        self.assertEqual(first.status_code,303)
+        self.assertEqual(second.status_code,303)
+
+        transactions=fixture.f.list_transactions(self.b,actor_user_id=self.uid)
+        self.assertEqual(len(transactions),1)
+        transaction=transactions[0]
+        self.assertEqual(transaction['source_type'],'FINANCE_RECURRING_EXPENSE')
+        self.assertEqual(transaction['occurred_on'],'2026-09-22')
+        self.assertEqual(transaction['category_id'],internet['id'])
+        self.assertEqual(
+            fixture.f.get_finance_summary(self.b,'2026-08-01','2026-08-31')['total_expense_minor'],0)
+        self.assertEqual(
+            fixture.f.get_finance_summary(self.b,'2026-09-01','2026-09-30')['total_expense_minor'],500000)
+
+        balances=fixture.f.get_account_balance_report(self.b,'2026-09-22',self.uid)
+        account=next(row for row in balances if row['id']==self.a)
+        self.assertEqual(account['balance_minor'],-500000)
+
+        budget=self.client.get(
+            f'/business/{self.b}/finance/budget?branch_id={branch_id}&month=2026-09')
+        self.assertEqual(budget.status_code,200)
+        self.assertIn('Rp500.000,00',budget.text)
+        self.assertIn('Rp1.000.000,00',budget.text)
 
     def test_bills_recurring_rules_have_edit_and_safe_delete(self):
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']

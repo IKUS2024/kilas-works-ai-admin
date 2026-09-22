@@ -2070,6 +2070,72 @@ def preview_due_recurring_expenses(business_id, as_of, actor_user_id=None):
     return result
 
 
+
+def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, actor_user_id=None):
+    """Record exactly one bill occurrence as an actual expense on the real payment date.
+
+    scheduled_on remains the bill's due date. paid_on is the cash/accounting date used by
+    balances, Pengeluaran, reports, and Anggaran. Replaying the same occurrence/date is safe.
+    """
+    recurring_id = _id(recurring_id)
+    scheduled_on = _date(scheduled_on)
+    paid_on = _date(paid_on)
+    if paid_on > business_today(business_id).isoformat():
+        raise FinanceError('future_date')
+
+    with _write(business_id, actor_user_id):
+        existing = db.query_one(
+            'SELECT id,ledger_transaction_id FROM finance_recurring_postings '
+            'WHERE business_id=? AND recurring_expense_id=? AND scheduled_on=?',
+            (business_id, recurring_id, scheduled_on))
+        if existing:
+            if not existing['ledger_transaction_id']:
+                raise FinanceError('recurring_posting_unresolved')
+            transaction = get_transaction(
+                business_id, existing['ledger_transaction_id'],
+                actor_user_id=actor_user_id)
+            if (transaction and transaction['status'] == 'POSTED'
+                    and transaction['occurred_on'] == paid_on):
+                return dict(
+                    posting_id=existing['id'],
+                    ledger_transaction_id=existing['ledger_transaction_id'],
+                    created=False)
+            if transaction and transaction['status'] == 'VOID':
+                raise FinanceError('recurring_occurrence_void')
+            raise FinanceError('recurring_already_paid')
+
+        rule = get_recurring_expense(business_id, recurring_id, actor_user_id)
+        if (not rule or not rule['is_active']
+                or rule['next_due_on'] != scheduled_on):
+            raise FinanceError('recurring_occurrence_unavailable')
+        if rule['end_on'] and scheduled_on > rule['end_on']:
+            raise FinanceError('recurring_occurrence_unavailable')
+
+        data = _recurring_data(business_id, rule, scheduled=True)
+        data['occurred_on'] = paid_on
+        next_due = _next_recurring_date(rule)
+
+        posting_id = db.insert_returning_id(
+            'INSERT INTO finance_recurring_postings '
+            '(business_id,recurring_expense_id,scheduled_on,created_at) VALUES (?,?,?,?)',
+            (business_id, recurring_id, scheduled_on, repo._now()))
+        data['source_ref'] = str(posting_id)
+        ledger_id = _insert_transaction(business_id, data, actor_user_id)
+        db.execute(
+            'UPDATE finance_recurring_postings SET ledger_transaction_id=? '
+            'WHERE business_id=? AND id=?',
+            (ledger_id, business_id, posting_id))
+
+        active = not rule['end_on'] or next_due <= rule['end_on']
+        db.execute(
+            'UPDATE finance_recurring_expenses SET next_due_on=?,is_active=?,updated_at=? '
+            'WHERE business_id=? AND branch_id=? AND id=?',
+            (next_due, active, repo._now(), business_id, rule['branch_id'], recurring_id))
+        _audit(business_id, actor_user_id, 'FINANCE_RECURRING_POSTED', posting_id)
+        if not active:
+            _audit(business_id, actor_user_id, 'FINANCE_RECURRING_DEACTIVATED', recurring_id)
+        return dict(posting_id=posting_id, ledger_transaction_id=ledger_id, created=True)
+
 def process_due_recurring_expenses(business_id, as_of, actor_user_id=None, max_occurrences=MAX_RECURRING_OCCURRENCES, selected=None):
     """At most 100 occurrences per call, including already-posted recovery checks.
 

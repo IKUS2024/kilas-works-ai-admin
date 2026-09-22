@@ -73,6 +73,19 @@ class RecurringTests(unittest.TestCase):
         audit=db.query_all("SELECT detail FROM audit_log WHERE action='FINANCE_RECURRING_POSTED'")
         self.assertNotIn('Vendor',str(audit));self.assertNotIn('Bill',str(audit))
 
+    def test_explicit_payment_uses_paid_on_not_due_on_and_replay_is_idempotent(self):
+        r=self.rule(next_due_on='2026-01-31')
+        first=f.record_recurring_payment(self.b,r,'2026-01-31','2026-02-05',self.uid)
+        second=f.record_recurring_payment(self.b,r,'2026-01-31','2026-02-05',self.uid)
+        self.assertTrue(first['created'])
+        self.assertFalse(second['created'])
+        self.assertEqual(first['ledger_transaction_id'],second['ledger_transaction_id'])
+        tx=f.get_transaction(self.b,first['ledger_transaction_id'],actor_user_id=self.uid)
+        self.assertEqual(tx['occurred_on'],'2026-02-05')
+        self.assertEqual(f.get_finance_summary(self.b,'2026-01-01','2026-01-31')['total_expense_minor'],0)
+        self.assertEqual(f.get_finance_summary(self.b,'2026-02-01','2026-02-28')['total_expense_minor'],100)
+        self.assertEqual(f.list_recurring_postings(self.b,r)[0]['scheduled_on'],'2026-01-31')
+
     def test_concurrent_ui_cron_paths_one_posting(self):
         r=self.rule();barrier=threading.Barrier(2)
         def worker(_):
@@ -179,22 +192,19 @@ class RecurringTests(unittest.TestCase):
         rows=f.get_project_cash_contribution(self.b,'2026-01-01','2026-01-31');self.assertEqual([(r['currency'],r['income_minor']) for r in rows],[('USD',9)])
         self.assertEqual(f.get_project_cash_contribution(self.other,'2026-01-01','2026-01-31')[0]['income_minor'],999)
 
-    def test_cron_isolated_business_failures_sanitized_and_repeatable(self):
+    def test_cron_is_read_only_and_never_posts_due_bills(self):
         self.rule()
         self.rule(business_id=self.other,account_id=f.list_accounts(self.other)[0]['id'],category_id=f.list_categories(self.other,'EXPENSE')[0]['id'],project_id=self.op,actor_user_id=self.other_uid)
-        original=f.process_due_recurring_expenses
-        def fail_one(bid,*args,**kw):
-            if bid==self.b:raise RuntimeError('SECRET vendor credential')
-            return original(bid,*args,**kw)
         output=io.StringIO()
-        with patch.object(f,'process_due_recurring_expenses',side_effect=fail_one),contextlib.redirect_stdout(output),contextlib.redirect_stderr(output):
-            self.assertEqual(cron.run('2026-01-31'),1)
-        self.assertNotIn('SECRET',output.getvalue());self.assertEqual(f.list_transactions(self.b),[])
-        self.assertEqual(len(f.list_transactions(self.other)),1)
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(cron.run('2026-01-31'),0);self.assertEqual(cron.run('2026-01-31'),0)
-        self.assertEqual(len(f.list_transactions(self.b)),1);self.assertEqual(len(f.list_transactions(self.other)),1)
+        with contextlib.redirect_stdout(output),contextlib.redirect_stderr(output):
+            self.assertEqual(cron.run('2026-01-31'),0)
+            self.assertEqual(cron.run('2026-01-31'),0)
+        self.assertIn('auto_post=disabled',output.getvalue())
+        self.assertEqual(f.list_transactions(self.b),[])
+        self.assertEqual(f.list_transactions(self.other),[])
+        self.assertEqual(f.list_recurring_postings(self.b,f.list_recurring_expenses(self.b)[0]['id']),[])
 
+    def test_ui_get_read_only_projects_scoped_and_beta(self):
     def test_ui_get_read_only_projects_scoped_and_beta(self):
         self.rule();before=f.list_transactions(self.b)
         html=self.client.get(self.url+'/operations?section=projects').get_data(as_text=True)

@@ -36,8 +36,8 @@
   <div>
     <span class="finance-eyebrow">KILAS FINANCE</span>
     <h1>Tagihan</h1>
-    <strong>{{ total_bills_display }}</strong>
-    <small>Belum dibayar {{ unpaid_bills_display }} · {{ unpaid_count }} tagihan</small>
+    <strong>{{ unpaid_bills_display }}</strong>
+    <small>Belum dibayar · {{ unpaid_count }} tagihan · Total bulan {{ total_bills_display }}</small>
   </div>
   <div class="finance-bills-header-actions">
     <button type="button" class="finance-bills-add" data-finance-open="bill-add-dialog" aria-label="Tambah tagihan">＋</button>
@@ -102,15 +102,27 @@
       <span class="finance-bill-status-label">{{ r.status_label }}</span>
     </div>
     {% if r.can_mark_paid %}
-    <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-pay-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-      <input type="hidden" name="month" value="{{ month }}">
-      <input type="hidden" name="day" value="{{ selected_day }}">
-      <input type="hidden" name="view" value="calendar">
-      <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
-      <button class="finance-mini-action" type="submit">✓ Dibayar</button>
-    </form>
+    <button class="finance-mini-action" type="button" data-finance-open="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}">✓ Dibayar</button>
+    <dialog id="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
+      <div class="finance-sheet-head">
+        <div><small>Tagihan</small><h2>Catat Pembayaran</h2></div>
+        <button type="button" class="finance-sheet-close" data-finance-close="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" aria-label="Tutup">×</button>
+      </div>
+      <div class="finance-sheet-body">
+        <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>Jatuh tempo {{ r.scheduled_on }}</p>
+        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-add-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="day" value="{{ selected_day }}">
+          <input type="hidden" name="view" value="calendar">
+          <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
+          <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
+          <p class="muted">Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.</p>
+          <button class="btn" type="submit">Catat Dibayar</button>
+        </form>
+      </div>
+    </dialog>
     {% endif %}
   </article>
   {% else %}<div class="fin-empty finance-bills-empty">Tidak ada tagihan pada tanggal ini.</div>{% endfor %}
@@ -132,15 +144,27 @@
       <span class="finance-bill-status-label">{{ r.status_label }}</span>
     </div>
     {% if r.can_mark_paid %}
-    <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-pay-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-      <input type="hidden" name="month" value="{{ month }}">
-      <input type="hidden" name="day" value="{{ r.scheduled_on }}">
-      <input type="hidden" name="view" value="list">
-      <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
-      <button class="finance-mini-action" type="submit">✓ Dibayar</button>
-    </form>
+    <button class="finance-mini-action" type="button" data-finance-open="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}">✓ Dibayar</button>
+    <dialog id="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
+      <div class="finance-sheet-head">
+        <div><small>Tagihan</small><h2>Catat Pembayaran</h2></div>
+        <button type="button" class="finance-sheet-close" data-finance-close="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" aria-label="Tutup">×</button>
+      </div>
+      <div class="finance-sheet-body">
+        <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>Jatuh tempo {{ r.scheduled_on }}</p>
+        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-add-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="day" value="{{ r.scheduled_on }}">
+          <input type="hidden" name="view" value="list">
+          <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
+          <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
+          <p class="muted">Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.</p>
+          <button class="btn" type="submit">Catat Dibayar</button>
+        </form>
+      </div>
+    </dialog>
     {% endif %}
   </article>
   {% else %}<div class="fin-empty finance-bills-empty">Belum ada tagihan pada bulan ini.</div>{% endfor %}
@@ -192,7 +216,9 @@
       <div class="finance-bill-form-grid">
         <label>Akun<select name="account_id" data-currency-account required>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
         <label>Nominal <span data-currency-label>{{ r.currency }}</span><input name="amount" value="{{ r.input_amount }}" data-currency-amount inputmode="decimal" maxlength="25" required></label>
-        <label>Kategori<select name="category_id" required>{% for c in categories if c.is_active %}<option value="{{ c.id }}" {{ 'selected' if c.id==r.category_id }}>{{ (c.parent_name ~ ' / ' if c.parent_name else '') ~ c.name }}</option>{% endfor %}</select></label>
+        <input type="hidden" name="direction" value="EXPENSE">
+        <label>Kategori<select name="category_id" data-other-category required><option value="" disabled>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_parent_category_id }}>{{ c.name }}</option>{% endfor %}</select></label>
+        <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori<select name="subcategory_id" data-subcategory-select aria-label="Subkategori"><option value="" {{ 'selected' if not r.input_subcategory_id }} disabled>Pilih subkategori</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_subcategory_id }}>{{ c.name }}</option>{% endfor %}</select></label>
         <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ r.next_due_on }}" required></label>
         <label>Frekuensi<select name="cadence"><option value="ONCE" {{ 'selected' if r.input_cadence=='ONCE' }}>Sekali</option><option value="MONTHLY" {{ 'selected' if r.input_cadence=='MONTHLY' }}>Bulanan</option><option value="WEEKLY" {{ 'selected' if r.input_cadence=='WEEKLY' }}>Mingguan</option></select></label>
         <label>Berakhir (opsional)<input type="date" name="end_on" value="{{ '' if r.input_cadence=='ONCE' else (r.end_on or '') }}"></label>
@@ -229,7 +255,9 @@
       <div class="finance-bill-form-grid">
         <label>Akun<select name="account_id" data-currency-account required><option value="">Pilih akun</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
         <label>Nominal <span data-currency-label></span><input name="amount" data-currency-amount inputmode="decimal" maxlength="25" required></label>
-        <label>Kategori<select name="category_id" required><option value="">Pilih kategori</option>{% for c in categories if c.is_active %}<option value="{{ c.id }}">{{ (c.parent_name ~ ' / ' if c.parent_name else '') ~ c.name }}</option>{% endfor %}</select></label>
+        <input type="hidden" name="direction" value="EXPENSE">
+        <label>Kategori<select name="category_id" data-other-category required><option value="" selected disabled>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
+        <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori<select name="subcategory_id" data-subcategory-select aria-label="Subkategori"><option value="" selected disabled>Pilih subkategori</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
         <label>Jatuh Tempo<input type="date" name="next_due_on" value="{{ today }}" required></label>
         <label>Frekuensi<select name="cadence"><option value="ONCE">Sekali</option><option value="MONTHLY">Bulanan</option><option value="WEEKLY">Mingguan</option></select></label>
         <label>Berakhir (opsional)<input type="date" name="end_on"></label>
@@ -245,5 +273,5 @@
 </dialog>
 {% endif %}
 </div>
-<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-decimal-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-bills-accounting-1') }}" defer></script>
 {% endblock %}

@@ -17,11 +17,15 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
       else if (available) category.value = available.value;
     }
     const visible = category.selectedOptions[0]?.dataset.other === 'true';
-    other.hidden = !visible;
-    if (other.style) other.style.display = visible ? '' : 'none';
-    const otherInput = other.querySelector('input');
-    otherInput.required = visible;
-    otherInput.disabled = !visible;
+    if (other) {
+      other.hidden = !visible;
+      if (other.style) other.style.display = visible ? '' : 'none';
+      const otherInput = other.querySelector('input');
+      if (otherInput) {
+        otherInput.required = visible;
+        otherInput.disabled = !visible;
+      }
+    }
   }
   category.addEventListener('change', refresh);
   if (kind) kind.addEventListener('change', refresh);

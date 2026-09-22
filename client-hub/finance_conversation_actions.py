@@ -126,7 +126,7 @@ def prepared(b,u,c):
         due=f.preview_due_recurring_expenses(b,f.business_today(b).isoformat(),u)
         found=next((r for r in due if r['id']==row['id'] and r['next_due_on']==row['next_due_on']),None)
         if not found:raise ValueError('recurring_unavailable')
-        data={'selection':found['selection']}
+        data={'selection':found['selection'],'paid_on':f.business_today(b).isoformat()}
     else:
         if op=='void_invoice' and (row['status'] not in ('DRAFT','ISSUED') or f.list_invoice_payments(b,row['id'],u)):raise ValueError('invoice_has_payments')
         if op=='void_transaction' and row['source_type']=='FINANCE_INVOICE_PAYMENT':raise ValueError('invoice_ledger_managed')
@@ -159,7 +159,9 @@ def review(b,u,c,edits=None):
             preview.append(['Data yang dipilih',row['name']])
             if 'amount_minor' in row:preview.append(['Nominal saat ini',fx.format_money(row['amount_minor'],row['currency'])])
             if 'occurred_on' in row:preview.append(['Tanggal',row['occurred_on']])
-            if c['operation']=='post_recurring':preview.append(['Tanggal kejadian',row['next_due_on']])
+            if c['operation']=='post_recurring':
+                preview.append(['Jatuh tempo',row['next_due_on']])
+                preview.append(['Tanggal pembayaran',data['paid_on']])
         for field in fields:
             value=field['value'];opts=field.get('options',[])
             display=next((o['label'] for o in opts if o['value']==value),value)
@@ -202,11 +204,12 @@ def confirm(b,u,c):
             elif op=='edit_transaction':f.update_transaction(b,ident,actor_user_id=u,**data)
             elif op=='exchange':ident=f.record_currency_exchange(b,**data,actor_user_id=u)
             elif op=='post_recurring':
-                posted=f.process_due_recurring_expenses(b,f.business_today(b).isoformat(),u,selected=[data['selection']])
-                if posted['posted_count']!=1:raise ValueError('recurring_unavailable')
+                recurring_raw,scheduled_on=data['selection'].split(':',1)
+                f.record_recurring_payment(
+                    b,int(recurring_raw),scheduled_on,data['paid_on'],u)
             else:raise ValueError('invalid_draft')
             repo.write_audit(u,b,'FINANCE_ASSISTANT_COMMAND_CONFIRMED',prefix+json.dumps({'digest':digest,'id':ident},sort_keys=True))
-    return dict(record_id=ident,message='✅ '+TITLES[op]+' berhasil disimpan.'+(' Satu pengeluaran aktual dicatat sesuai tanggal jatuh tempo.' if op=='post_recurring' else ''))
+    return dict(record_id=ident,message='✅ '+TITLES[op]+' berhasil disimpan.'+(' Satu pengeluaran aktual dicatat sesuai tanggal pembayaran.' if op=='post_recurring' else ''))
 
 
 def route(b,u,text,query_context='',classify_only=False):
