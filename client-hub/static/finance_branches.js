@@ -39,8 +39,10 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
   const direction=form && form.querySelector('[name="direction"]');
   if(!form||!field||!subcategory)continue;
 
+  let lastParentId=String(category.value||'');
   const refresh=()=>{
     const parentId=String(category.value||'');
+    const parentChanged=parentId!==lastParentId;
     const kind=direction ? direction.value : '';
     let count=0;
     for(const option of subcategory.options){
@@ -52,7 +54,7 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
       if(visible)count+=1;
     }
     const selected=subcategory.selectedOptions[0];
-    if(selected && selected.disabled)subcategory.selectedIndex=-1;
+    if(parentChanged || (selected && selected.disabled))subcategory.selectedIndex=-1;
     field.hidden=count===0;
     if(field.style)field.style.display=count===0?'none':'';
     subcategory.disabled=count===0;
@@ -63,6 +65,7 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
       const current=subcategory.selectedOptions[0];
       if(!current || current.disabled)subcategory.selectedIndex=-1;
     }
+    lastParentId=parentId;
   };
   category.addEventListener('change',refresh);
   if(direction)direction.addEventListener('change',refresh);
