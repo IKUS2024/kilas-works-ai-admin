@@ -249,12 +249,20 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(page.status_code,200)
         self.assertIn('data-account-tab="personal"',page.text)
         self.assertIn('>Pribadi</button>',page.text)
-        self.assertIn('Profil Pribadi &amp; invoice',page.text)
+        self.assertIn('data-profile-edit',page.text)
+        self.assertIn('Edit profil Pribadi',page.text)
+        self.assertIn('Data invoice Pribadi',page.text)
+        self.assertNotIn('class="profile-photo-row"',page.text)
         self.assertIn('Ganti Foto Bisnis',page.text)
+
+        identity=self.client.post('/account',data={
+            'action':'profile','full_name':'Irvan Personal',
+        })
+        self.assertEqual(identity.status_code,303)
+        self.assertTrue(identity.location.endswith('#personal'))
 
         saved=self.client.post('/account',data={
             'action':'personal_profile',
-            'full_name':'Irvan Personal',
             'phone':'08123456789',
             'address':'Alamat Pribadi 1',
             'tax_id':'NPWP-P',
