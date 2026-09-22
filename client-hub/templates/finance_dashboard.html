@@ -581,16 +581,17 @@
     </summary>
     <div class="finance-category-tree-body">
       <div class="finance-category-parent-actions">
-        <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-id="{{ parent.id }}" data-category-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">Edit kategori</button>
+        <button type="button" class="finance-category-action" data-category-add-child-popup data-category-parent-id="{{ parent.id }}" data-category-parent-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">＋ Subkategori</button>
+        <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="category" data-category-id="{{ parent.id }}" data-category-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">Edit</button>
         <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='category',record_id=parent.id) }}" onsubmit="return confirm('Hapus {{ parent.name|e }} dan semua subkategori di bawahnya? Riwayat transaksi lama tetap tersimpan.');">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">Hapus kategori</button>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">Hapus</button>
         </form>
       </div>
       {% for child in child_rows %}
       <div class="finance-record-row finance-category-child-row">
         <div class="finance-record-main"><strong>{{ child.name }}</strong><div class="finance-record-sub">Subkategori</div></div>
         <div class="finance-category-actions">
-          <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-id="{{ child.id }}" data-category-name="{{ child.name|e }}" data-category-direction="{{ child.direction }}">Edit</button>
+          <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="subcategory" data-category-id="{{ child.id }}" data-category-name="{{ child.name|e }}" data-category-direction="{{ child.direction }}">Edit</button>
           <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='category',record_id=child.id) }}" onsubmit="return confirm('Hapus subkategori {{ child.name|e }}? Riwayat transaksi lama tetap tersimpan.');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">Hapus</button>
           </form>
@@ -627,5 +628,5 @@
 </form>
 </div></dialog>
 {% endif %}
-</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-category-native-tree-6') }}" defer></script>
+</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-category-child-edit-7') }}" defer></script>
 {% endblock %}
