@@ -77,6 +77,42 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
 }
 
 
+// Tagihan uses a tap-friendly category list inside the bottom sheet.
+// Keep the hidden select authoritative so existing subcategory and server logic stay unchanged.
+for (const picker of document.querySelectorAll('[data-bill-category-picker]')) {
+  const form=picker.closest('form');
+  const select=form && form.querySelector('[data-bill-category-select]');
+  const summary=picker.querySelector('[data-bill-category-summary]');
+  if(!form||!select||!summary)continue;
+
+  const sync=()=>{
+    const selected=select.selectedOptions && select.selectedOptions[0];
+    summary.textContent=selected&&selected.value?String(selected.textContent||'').trim():'Pilih kategori';
+    for(const button of picker.querySelectorAll('[data-bill-category-option]')){
+      button.classList.toggle('active',String(button.dataset.categoryValue||'')===String(select.value||''));
+    }
+  };
+
+  picker.addEventListener('click',event=>{
+    const button=event.target.closest('[data-bill-category-option]');
+    if(!button)return;
+    event.preventDefault();
+    select.value=String(button.dataset.categoryValue||'');
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+    picker.removeAttribute('open');
+    sync();
+  });
+  form.addEventListener('submit',event=>{
+    if(select.value)return;
+    event.preventDefault();
+    picker.setAttribute('open','');
+    summary.focus({preventScroll:true});
+  });
+  select.addEventListener('change',sync);
+  sync();
+}
+
+
 
 // Manage categories and one-level subcategories without leaving the transaction sheet.
 // The same workspace-scoped records feed transactions, budgets, recurring costs,

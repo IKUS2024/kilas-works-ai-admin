@@ -2092,15 +2092,17 @@ def operations(business_id,user,business):
         rule['input_subcategory_id'] = rule['category_id'] if parent_id else None
     projects = [] if personal else finance.list_finance_projects(business_id, **actor)
 
-    occurrences = _bill_month_occurrences(
+    all_occurrences = _bill_month_occurrences(
         business_id, rules, start, end, local_today.isoformat(), user['id'])
-    payment_status = request.args.get('payment_status', 'all')
+    payment_status = request.args.get('payment_status', 'unpaid')
     if payment_status not in ('all', 'unpaid', 'paid'):
-        payment_status = 'all'
+        payment_status = 'unpaid'
     if payment_status == 'paid':
-        occurrences = [row for row in occurrences if row['status'] == 'paid']
+        occurrences = [row for row in all_occurrences if row['status'] == 'paid']
     elif payment_status == 'unpaid':
-        occurrences = [row for row in occurrences if row['status'] not in ('paid', 'void')]
+        occurrences = [row for row in all_occurrences if row['status'] not in ('paid', 'void')]
+    else:
+        occurrences = list(all_occurrences)
 
     display_options = ['IDR']
     display_options += [row['currency'] for row in accounts if row['currency'] != 'IDR']
@@ -2126,10 +2128,12 @@ def operations(business_id,user,business):
 
     total_rows = [
         {'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}
-        for row in occurrences if row['status'] != 'void']
+        for row in all_occurrences if row['status'] != 'void']
     unpaid_rows = [
         {'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}
-        for row in occurrences if row['status'] not in ('paid', 'void')]
+        for row in all_occurrences if row['status'] not in ('paid', 'void')]
+    paid_count = sum(1 for row in all_occurrences if row['status'] == 'paid')
+    all_count = len(all_occurrences)
     total_minor = finance_fx.convert_total(total_rows, display_currency, fx) if total_rows else 0
     unpaid_minor = finance_fx.convert_total(unpaid_rows, display_currency, fx) if unpaid_rows else 0
 
@@ -2195,7 +2199,7 @@ def operations(business_id,user,business):
         current_month=current_month, today=local_today.isoformat(),
         display_currency=display_currency, display_options=display_options,
         bill_currency_options=[code for code in display_options if any(a['is_active'] and a['currency']==code for a in accounts)],
-        payment_status=payment_status,
+        payment_status=payment_status, paid_count=paid_count, all_count=all_count,
         total_bills_display=('Kurs belum lengkap' if total_minor is None
                              else finance_fx.format_money(total_minor, display_currency)),
         unpaid_bills_display=('Kurs belum lengkap' if unpaid_minor is None
@@ -2210,7 +2214,7 @@ def create_recurring(business_id,user,business):
     month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
     destination = url_for(
         'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
-        month=month, view='calendar')
+        month=month, view='calendar', payment_status='unpaid')
     def action():
         # A bill is a payable commitment, not a cash movement. The user chooses
         # the real payment account only when marking the occurrence as paid.
@@ -2321,9 +2325,12 @@ def process_recurring(business_id,user,business):
     month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
     day = request.form.get('day') or None
     view = request.form.get('view') if request.form.get('view') in ('calendar','list') else 'calendar'
+    payment_status = request.form.get('payment_status') or 'unpaid'
+    if payment_status not in ('all','unpaid','paid'):
+        payment_status = 'unpaid'
     destination = url_for(
         'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
-        month=month, day=day, view=view)
+        month=month, day=day, view=view, payment_status=payment_status)
     if len(selected) != 1:
         flash('Pilih satu tagihan yang ingin dicatat sudah dibayar.', 'error')
         return redirect(destination, code=303)
@@ -2332,10 +2339,12 @@ def process_recurring(business_id,user,business):
         recurring_id = record_id(recurring_raw)
         paid_on = request.form.get('paid_on') or finance.business_today(business_id).isoformat()
         payment_account = request.form.get('account_id')
+        if not payment_account:
+            raise finance.FinanceError('account_unavailable')
         finance.record_recurring_payment(
             business_id, recurring_id, scheduled_on, paid_on,
             actor_user_id=user['id'],
-            account_id=record_id(payment_account) if payment_account else None)
+            account_id=record_id(payment_account))
     except (ValueError, finance.FinanceError) as error:
         flash(ERRORS.get(str(error), 'Pembayaran tagihan belum valid. Periksa tanggal lalu coba lagi.'), 'error')
     else:
