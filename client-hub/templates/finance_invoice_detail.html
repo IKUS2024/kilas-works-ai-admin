@@ -19,11 +19,11 @@
   {% if invoice.status=='PAID' %}<p class="muted" style="margin:10px 0 0">✅ Invoice ini sudah lunas. Pembayaran dan transaksi pemasukan terkait tetap tersimpan sebagai riwayat Finance.</p>{% endif %}
 </div>
 <div class="card no-print invoice-controls invoice-share">
-<button class="btn secondary" type="button" onclick="window.print()">Cetak halaman ini</button>
-<a class="btn secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=invoice.id) }}" target="_blank" rel="noopener noreferrer">Print / Download PDF</a>
+<button class="btn secondary" type="button" onclick="window.print()">Cetak halaman</button>
+<a class="btn secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=invoice.id) }}">⬇️ Unduh PDF</a>
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID','PAID') %}
-<form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Share Invoice</button></form>
-<p class="muted">Tautan berlaku 7 hari. Siapa pun yang menerima tautan dapat membaca invoice ini. Tidak ada pengiriman otomatis.</p>
+<form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Bagikan Invoice</button></form>
+<p class="muted">Invoice belum bayar, dibayar sebagian, maupun lunas dapat dibagikan. Tautan berlaku 7 hari dan penerima juga bisa mengunduh PDF.</p>
 {% if share_url %}<label for="invoice-link">Tautan customer</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Open Customer View</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
 {% endif %}
 
