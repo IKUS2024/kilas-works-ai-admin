@@ -143,7 +143,18 @@ def continue_product():
         return redirect(url_for('talent.talent_list'))
     if request.method=='POST':
         if request.form.get('create')=='yes':
-            try: business_id=product_flow.create_business(user['id'],request.form.get('business_name'),request.form.get('setup_identity'))
+            business_name=request.form.get('business_name')
+            if key=='finance' and request.form.get('owner_name') is not None:
+                owner_name=(request.form.get('owner_name') or '').strip()
+                if not owner_name or len(owner_name)>100:
+                    flash('Nama pemilik wajib diisi dan maksimal 100 karakter.','error')
+                    return redirect(url_for('products.continue_product'),code=303)
+                repo.update_user_profile(user['id'],owner_name)
+                # Finance needs a business container for ledger isolation. For first-time
+                # onboarding we seed its editable display name from the owner's name only;
+                # the real business identity is completed later in Akun → Bisnis.
+                business_name=owner_name
+            try: business_id=product_flow.create_business(user['id'],business_name,request.form.get('setup_identity'))
             except ValueError:abort(400)
         else:
             business_id=request.form.get('business_id',type=int)
@@ -168,7 +179,7 @@ def continue_product():
         if not item or not item['is_active']:abort(404)
         return render_template('product_continue.html',item=item,chosen_business_id=business_id,ready=True)
     return render_template(
-        'product_continue.html',product=key,
+        'product_continue.html',product=key,user=user,
         businesses=_product_businesses(user['id'],key),
         setup_identity=uuid.uuid4().hex,ready=False
     )
