@@ -180,6 +180,10 @@ def account_page():
         return _account_personal_redirect()
 
     if action == "personal_profile":
+        full_name = (request.form.get("full_name") or "").strip()
+        if not full_name or len(full_name) > 100:
+            flash("Nama pribadi wajib diisi dan maksimal 100 karakter.", "error")
+            return _account_personal_redirect()
         try:
             account_profiles.save_personal_profile(user["id"], {
                 "phone": request.form.get("phone"),
@@ -195,6 +199,7 @@ def account_page():
         except ValueError:
             flash("Data pribadi belum valid. Periksa panjang isian lalu coba lagi.", "error")
             return _account_personal_redirect()
+        repo.update_user_profile(user["id"], full_name)
         repo.write_audit_no_business(
             user["id"], "ACCOUNT_PERSONAL_INVOICE_PROFILE_UPDATED",
             "personal invoice profile updated; existing invoice snapshots unchanged")
