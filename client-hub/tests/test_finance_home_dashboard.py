@@ -467,6 +467,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(context['invoice_open_count'],1)
         self.assertEqual(context['invoice_paid_count'],1)
 
+    def test_finance_global_navigation_has_dashboard_and_exit(self):
+        html,_=self.page('?month=2026-09')
+        self.assertIn('finance-dashboard-link',html)
+        self.assertIn('>Dashboard</a>',html)
+        self.assertIn('>Keluar Finance</a>',html)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
