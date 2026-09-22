@@ -274,14 +274,14 @@
       <span>＋ Dana masuk</span>
       <div class="finance-account-value-control">
         <strong>{{ selected_account.income_minor|finance_money(selected_account.currency) }}</strong>
-        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='INCOME',display_currency=display_currency,page=1) }}">Kelola transaksi</a>{% endif %}
+        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='INCOME',display_currency=display_currency,page=1) }}">Edit transaksi</a>{% endif %}
       </div>
     </div>
     <div class="finance-account-value-row">
       <span>− Dana keluar</span>
       <div class="finance-account-value-control">
         <strong>{{ selected_account.expense_minor|finance_money(selected_account.currency) }}</strong>
-        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='EXPENSE',display_currency=display_currency,page=1) }}">Kelola transaksi</a>{% endif %}
+        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='EXPENSE',display_currency=display_currency,page=1) }}">Edit transaksi</a>{% endif %}
       </div>
     </div>
     {% if selected_account.exchange_in_minor %}
