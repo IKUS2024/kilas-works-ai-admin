@@ -127,7 +127,7 @@
 }
 
 /* Finance workspace header: compact, aligned, and symmetric. */
-.finance-workspace-topline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.finance-workspace-topline{display:block}
 .finance-workspace-topline .finance-eyebrow{margin:0}
 .finance-workspace-segmented{display:grid;grid-template-columns:1fr 1fr;align-items:center;width:154px;padding:3px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.018);flex:0 0 auto}
 .finance-workspace-segmented form{margin:0;display:block}
@@ -135,8 +135,8 @@
 button.finance-workspace-segment{cursor:pointer}
 button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{color:var(--text);background:rgba(127,127,127,.08)}
 .finance-workspace-segment.active{background:color-mix(in srgb,var(--orange) 13%,transparent);color:var(--orange);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--orange) 50%,transparent)}
-.finance-workspace-title-row{margin-top:11px}
-.finance-workspace-title-row h1{margin:0;font-size:clamp(32px,6vw,40px);line-height:1.03;letter-spacing:-.045em;overflow-wrap:anywhere}
+.finance-workspace-title-row{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:11px}
+.finance-workspace-title-row h1{min-width:0;flex:1;margin:0;font-size:clamp(32px,6vw,40px);line-height:1.03;letter-spacing:-.045em;overflow-wrap:anywhere}
 .finance-workspace-scope-row{display:flex;align-items:center;justify-content:flex-start;min-height:44px;margin-top:10px}
 .finance-branch-inline{display:grid;grid-template-columns:minmax(132px,180px) 44px;align-items:center;gap:8px;margin:0;max-width:240px}
 .finance-branch-inline select{width:100%;height:44px;margin:0;padding:7px 34px 7px 12px;border:1px solid var(--border);border-radius:13px;background:#181a1e;color:var(--text);font-size:13px;font-weight:850;cursor:pointer}
@@ -146,10 +146,9 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 .finance-personal-scope{display:inline-flex;align-items:center;min-height:38px;padding:0 2px;color:var(--text-dim);font-size:12px;font-weight:700}
 .finance-hero>.finance-month-nav{margin-top:20px}
 @media(max-width:520px){
-  .finance-workspace-topline{gap:8px}
   .finance-workspace-segmented{width:142px}
   .finance-workspace-segment{min-height:32px;padding:5px 6px;font-size:10.5px}
-  .finance-workspace-title-row{margin-top:9px}
+  .finance-workspace-title-row{gap:9px;margin-top:9px}
   .finance-workspace-scope-row{margin-top:9px}
   .finance-branch-inline{grid-template-columns:minmax(120px,180px) 44px;max-width:232px}
   .finance-hero>.finance-month-nav{margin-top:18px}
@@ -165,6 +164,9 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <header class="finance-hero">
 <div class="finance-workspace-topline">
   <span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span>
+</div>
+<div class="finance-workspace-title-row">
+  <h1>{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</h1>
   <div class="finance-workspace-segmented" role="group" aria-label="Pilih ruang Finance">
     {% if finance_workspace_personal %}
       <form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type='BUSINESS') }}">
@@ -180,9 +182,6 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       </form>
     {% endif %}
   </div>
-</div>
-<div class="finance-workspace-title-row">
-  <h1>{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</h1>
 </div>
 <div class="finance-workspace-scope-row">
   {% if finance_workspace_personal %}
