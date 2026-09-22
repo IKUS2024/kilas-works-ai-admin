@@ -197,8 +197,90 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     parent_name:item.parent_name||null
   }));
 
+  // The transaction sheet and the standalone Kategori sheet are two views of the
+  // same workspace-scoped category records. Keep the second sheet live whenever
+  // this inline editor changes Pemasukan or Pengeluaran so neither UI can drift.
+  const categoryManagerRoot=document.querySelector('[data-category-manager-root]');
+  const globalCategoryList=categoryManagerRoot&&categoryManagerRoot.querySelector('[data-category-record-list]');
+  const globalParentSelect=categoryManagerRoot&&categoryManagerRoot.querySelector('[data-category-manager-parent]');
+  const settingUrlFor=id=>{
+    const template=categoryManagerRoot&&categoryManagerRoot.dataset.categorySettingUrlTemplate;
+    return template ? template.replace(/\/0(?=\?|$)/,'/'+encodeURIComponent(String(id))) : '';
+  };
+  const globalMeta=item=>
+    (item.direction==='INCOME'?'Pemasukan':'Pengeluaran')+
+    (item.parent_name?' · Subkategori '+item.parent_name:'');
+  const updateGlobalRow=(row,item)=>{
+    if(!row)return;
+    row.dataset.financeCategoryRecord=String(item.id);
+    row.dataset.categoryDirection=item.direction;
+    row.dataset.categoryParentId=item.parent_category_id||'';
+    row.dataset.categoryParentName=item.parent_name||'';
+    const name=row.querySelector('.finance-record-main strong');
+    const meta=row.querySelector('.finance-record-sub');
+    const input=row.querySelector('.finance-record-popover input[name="name"]');
+    const formRow=row.querySelector('.finance-record-popover form');
+    const deleteButton=row.querySelector('.finance-danger-soft');
+    if(name)name.textContent=item.name;
+    if(meta)meta.textContent=globalMeta(item);
+    if(input)input.value=item.name;
+    const action=settingUrlFor(item.id);
+    if(formRow&&action)formRow.action=action;
+    if(deleteButton){
+      deleteButton.setAttribute(
+        'onclick',
+        'return confirm('+JSON.stringify('Hapus '+item.name+' dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.')+');'
+      );
+    }
+  };
+  const syncGlobalCategoryRows=(kind,rows)=>{
+    if(!globalCategoryList)return;
+    const sameKind=[...globalCategoryList.querySelectorAll('[data-finance-category-record]')]
+      .filter(row=>row.dataset.categoryDirection===kind);
+    const activeIds=new Set(rows.map(item=>String(item.id)));
+    for(const row of sameKind){
+      if(!activeIds.has(String(row.dataset.financeCategoryRecord||'')))row.remove();
+    }
+    for(const item of rows){
+      let row=[...globalCategoryList.querySelectorAll('[data-finance-category-record]')]
+        .find(candidate=>String(candidate.dataset.financeCategoryRecord||'')===String(item.id));
+      if(!row){
+        const sample=[...globalCategoryList.querySelectorAll('[data-finance-category-record]')]
+          .find(candidate=>candidate.dataset.categoryDirection===kind)
+          ||globalCategoryList.querySelector('[data-finance-category-record]');
+        if(sample){
+          row=sample.cloneNode(true);
+          const details=row.querySelector('details');
+          if(details)details.removeAttribute('open');
+          globalCategoryList.appendChild(row);
+        }
+      }
+      updateGlobalRow(row,item);
+    }
+
+    if(globalParentSelect){
+      const previous=globalParentSelect.value;
+      for(const option of [...globalParentSelect.options]){
+        if(option.dataset.direction===kind)option.remove();
+      }
+      for(const item of rows.filter(entry=>!entry.parent_category_id)){
+        const option=document.createElement('option');
+        option.value=String(item.id);
+        option.dataset.direction=kind;
+        option.textContent=item.name;
+        globalParentSelect.appendChild(option);
+      }
+      if([...globalParentSelect.options].some(option=>option.value===previous)){
+        globalParentSelect.value=previous;
+      }
+      globalParentSelect.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+  };
+
   const applyResponse=(data,preferredCategory='',preferredSubcategory='')=>{
-    rowsByDirection.set(direction.value,normalizeRows(data.options));
+    const normalized=normalizeRows(data.options);
+    rowsByDirection.set(direction.value,normalized);
+    syncGlobalCategoryRows(direction.value,normalized);
     rebuildSelectors(preferredCategory,preferredSubcategory);
   };
 
