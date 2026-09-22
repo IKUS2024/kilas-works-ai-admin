@@ -10,6 +10,11 @@ PAYMENT = ('method','bank','account_number','account_holder','instructions')
 GROUPS = {'sender': SENDER, 'recipient': RECIPIENT, 'payment': PAYMENT}
 
 
+def _owner_email(business_id):
+    """Canonical non-editable sender email for new Finance invoices."""
+    return repo.get_business_owner_email(business_id) or ''
+
+
 def clean_document(data):
     if not isinstance(data, dict) or set(data) - {*GROUPS, 'reference'}:
         raise f.FinanceError('invalid_invoice_document')
@@ -30,11 +35,13 @@ def defaults(business_id, actor_user_id=None):
     row = db.query_one('SELECT defaults_json FROM finance_invoice_settings WHERE business_id=? AND branch_id=?',
                        (business_id, branch_id))
     if row:
-        return json.loads(row['defaults_json'])
+        values = json.loads(row['defaults_json'])
+        values.setdefault('sender', {})['email'] = _owner_email(business_id)
+        return values
     b = db.query_one('SELECT business_name FROM businesses WHERE id=?',(business_id,))
     p = db.query_one('SELECT * FROM business_profiles WHERE business_id=?',(business_id,)) or {}
     return {'sender':dict(name=b['business_name'],address=p.get('address') or '',
-                         phone=p.get('business_phone') or '',email='',tax_id='',website=''),
+                         phone=p.get('business_phone') or '',email=_owner_email(business_id),tax_id='',website=''),
             'payment':dict(method='Transfer Bank' if p.get('payment_bank_name') else '',
                           bank=p.get('payment_bank_name') or '',account_number=p.get('payment_account_number') or '',
                           account_holder=p.get('payment_account_name') or '',instructions=p.get('payment_instructions') or '')}
@@ -42,6 +49,7 @@ def defaults(business_id, actor_user_id=None):
 
 def save_defaults(business_id, data, actor_user_id=None):
     values = clean_document(dict(data,recipient={'name':'-'}))
+    values['sender']['email'] = _owner_email(business_id)
     if not values['sender']['address'] or not values['sender']['phone']:
         raise f.FinanceError('invoice_sender_required')
     values = {k:values[k] for k in ('sender','payment')}
@@ -52,6 +60,28 @@ def save_defaults(business_id, data, actor_user_id=None):
             defaults_json=excluded.defaults_json,updated_at=excluded.updated_at''',
             (business_id,branch_id,json.dumps(values),repo._now()))
         f._audit(business_id,actor_user_id,'FINANCE_INVOICE_SETTINGS_UPDATED',branch_id)
+
+
+def sync_sender_identity(business_id, name, actor_user_id=None):
+    """Update only FUTURE invoice defaults after a business rename; issued invoice snapshots stay frozen."""
+    clean_name = f._text(name, 254, True)
+    email = _owner_email(business_id)
+    with f._write(business_id, actor_user_id):
+        rows = db.query_all(
+            'SELECT branch_id,defaults_json FROM finance_invoice_settings WHERE business_id=?',
+            (business_id,))
+        now = repo._now()
+        for row in rows:
+            values = json.loads(row['defaults_json'])
+            sender = values.setdefault('sender', {})
+            sender['name'] = clean_name
+            sender['email'] = email
+            db.execute(
+                'UPDATE finance_invoice_settings SET defaults_json=?,updated_at=? '
+                'WHERE business_id=? AND branch_id=?',
+                (json.dumps(values), now, business_id, row['branch_id']))
+        if rows:
+            f._audit(business_id, actor_user_id, 'FINANCE_INVOICE_SENDER_IDENTITY_UPDATED', None)
 
 
 def snapshot(invoice, actor_user_id=None):
@@ -88,6 +118,7 @@ def _inline_customer(business_id, recipient, actor_user_id, key=None):
 def create(business_id, customer_id, data, *, actor_user_id=None, submission_key, **kwargs):
     """Atomic inline recipient + invoice, retry-safe without modifying existing customers."""
     doc=clean_document(data)
+    doc['sender']['email'] = _owner_email(business_id)
     with f._write(business_id,actor_user_id):
         if not doc['sender']['address'] or not doc['sender']['phone']:
             raise f.FinanceError('invoice_sender_required')
@@ -113,6 +144,9 @@ def edit(business_id, invoice_id, changes, *, actor_user_id=None, expected_revis
         before.update(items=old_items,document_data=snapshot(old,actor_user_id))
         after=dict(before,**changes)
         after['document_data']=clean_document(after['document_data'])
+        # Sender email is account identity, not a per-invoice editable field. Existing
+        # invoice snapshots keep the email they were created with.
+        after['document_data']['sender']['email'] = before['document_data']['sender'].get('email','')
         after['issue_date'],after['due_date']=f._period(after['issue_date'],after['due_date'])
         if after['issue_date']>f.business_today(business_id).isoformat():
             raise f.FinanceError('future_date')
