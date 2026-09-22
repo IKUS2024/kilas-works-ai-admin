@@ -501,6 +501,12 @@ def dashboard(business_id, user, business):
     label_for = lambda value: month_names[int(value[5:7])-1] + ' ' + value[:4]
     actor = {'actor_user_id': user['id']}
     try:
+        finance.sync_business_category_catalog(
+            business_id, actor_user_id=user['id'])
+    except finance.FinanceError as catalog_error:
+        if str(catalog_error) != 'finance_read_only':
+            raise
+    try:
         if direction not in (None, 'INCOME', 'EXPENSE'):
             raise ValueError('direction')
         if period_mode == 'month':
@@ -550,7 +556,10 @@ def dashboard(business_id, user, business):
     relevant_years = {selected_year, int(range_start_value[:4]), int(range_end_value[:4])}
     period_years = sorted(set(range(max(1, current_year - 10), current_year + 1)) | relevant_years)
     accounts = finance.list_accounts(business_id, include_inactive=True, **actor)
-    categories = finance.list_categories(business_id, include_inactive=True, include_children=True, **actor)
+    categories = finance.list_categories(
+        business_id, include_children=True, **actor)
+    all_categories = finance.list_categories(
+        business_id, include_inactive=True, include_children=True, **actor)
     budget_rows = finance.list_monthly_budgets(business_id, month, **actor)
 
     # One ledger snapshot feeds every current-balance surface. Archived/deactivated
@@ -797,7 +806,7 @@ def dashboard(business_id, user, business):
         invoice_draft_count=invoice_draft_count, previous_month=previous_month,
         next_month=next_month if next_month <= current_value else None,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
-        account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
+        account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in all_categories},
         customers=[] if finance_workspace_personal else finance.list_customers(business_id, **actor),
         projects=[] if finance_workspace_personal else finance.list_finance_projects(business_id, **actor),
         payee_names=[row['name'] for row in finance.list_payees(business_id, **actor)],
