@@ -50,6 +50,28 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Semua akun dikonversi otomatis',html)
         self.assertNotIn('Test FX',html)
 
+    def test_accounts_show_current_ledger_balance_not_a_fake_monthly_expense(self):
+        cash=fixture.f.create_account(
+            self.b,'Kas Audit','CASH','IDR',0,actor_user_id=self.uid)
+        expense=fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
+        fixture.f.create_transaction(
+            self.b,'EXPENSE',2500000,cash,expense,'2026-09-22',
+            description='Air Minum Galon',actor_user_id=self.uid)
+
+        html,context=self.page('?month=2026-08&view=accounts')
+        row=next(item for item in context['account_balance_rows'] if item['id']==cash)
+        self.assertEqual(row['opening_balance_minor'],0)
+        self.assertEqual(row['income_minor'],0)
+        self.assertEqual(row['expense_minor'],2500000)
+        self.assertEqual(row['balance_minor'],-2500000)
+        # August period flow stays August-only; the Accounts page is a current-balance
+        # snapshot, so it must not pretend the September expense belongs to August.
+        self.assertEqual(context['period_expense_display'],'Rp0,00')
+        self.assertIn('Saldo tersedia sekarang',html)
+        self.assertIn('Saldo negatif',html)
+        self.assertNotIn('id="finance-app-month"',html)
+
     def test_navigation_year_boundary_and_history_unchanged(self):
         _, context=self.page('?month=2026-01')
         self.assertEqual(context['previous_month'],'2025-12')
