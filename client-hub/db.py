@@ -275,6 +275,7 @@ MIGRATIONS = [
     ("0045_finance_business_category_defaults_sqlite.sql", "0045_finance_business_category_defaults_postgres.sql"),
     ("0046_finance_remove_personal_defaults_from_business_sqlite.sql", "0046_finance_remove_personal_defaults_from_business_postgres.sql"),
     ("0047_finance_invoice_snapshots_sqlite.sql", "0047_finance_invoice_snapshots_postgres.sql"),
+    ("0048_account_profiles_sqlite.sql", "0048_account_profiles_postgres.sql"),
 ]
 
 
