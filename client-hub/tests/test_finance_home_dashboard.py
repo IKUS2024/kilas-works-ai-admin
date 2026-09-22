@@ -190,6 +190,88 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Rp1.441.000,25',html)
         self.assertIn('value="1441000.25"',html)
 
+    def test_voided_transaction_recalculates_account_and_available_total(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        expense_cat=fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
+        income_id=fixture.f.create_transaction(
+            self.b,'INCOME',30000000,self.a,self.cat,'2026-09-20',
+            description='Income live total',actor_user_id=self.uid)
+        expense_id=fixture.f.create_transaction(
+            self.b,'EXPENSE',5000000,self.a,expense_cat,'2026-09-21',
+            description='Expense to delete',actor_user_id=self.uid)
+
+        _,before=self.page(
+            f'?view=accounts&account_id={self.a}&branch_id={branch_id}&display_currency=IDR')
+        self.assertEqual(before['selected_account']['income_minor'],30000000)
+        self.assertEqual(before['selected_account']['expense_minor'],5000000)
+        self.assertEqual(before['selected_account']['balance_minor'],25000000)
+
+        response=self.client.post(
+            f'/business/{self.b}/finance/transactions/{expense_id}/void',
+            data={'branch_id':str(branch_id)})
+        self.assertEqual(response.status_code,303)
+        self.assertEqual(
+            fixture.f.get_transaction(
+                self.b,expense_id,actor_user_id=self.uid)['status'],'VOID')
+
+        _,after=self.page(
+            f'?view=accounts&account_id={self.a}&branch_id={branch_id}&display_currency=IDR')
+        self.assertEqual(after['selected_account']['income_minor'],30000000)
+        self.assertEqual(after['selected_account']['expense_minor'],0)
+        self.assertEqual(after['selected_account']['balance_minor'],30000000)
+        total=next(row for row in after['balance_totals'] if row['currency']=='IDR')
+        self.assertEqual(total['balance_minor'],30000000)
+
+    def test_nonzero_account_cannot_be_deleted_and_inactive_never_counts_as_available(self):
+        import db
+        import finance_branches as branch_service
+        branch_id=branch_service.list_branches(self.b)[0]['id']
+        second=fixture.f.create_account(
+            self.b,'Dana Cadangan','BANK','IDR',50000000,
+            actor_user_id=self.uid)
+
+        blocked=self.client.post(
+            f'/business/{self.b}/finance/settings/account/{second}',
+            data={'branch_id':str(branch_id),'action':'deactivate','name':'Dana Cadangan',
+                  'return_view':'accounts','display_currency':'IDR'})
+        self.assertEqual(blocked.status_code,303)
+        self.assertTrue(fixture.f.get_account(
+            self.b,second,actor_user_id=self.uid)['is_active'])
+
+        fixture.f.update_account_opening_balance(
+            self.b,second,0,actor_user_id=self.uid)
+        removed=self.client.post(
+            f'/business/{self.b}/finance/settings/account/{second}',
+            data={'branch_id':str(branch_id),'action':'deactivate','name':'Dana Cadangan',
+                  'return_view':'accounts','display_currency':'IDR'})
+        self.assertEqual(removed.status_code,303)
+        self.assertFalse(fixture.f.get_account(
+            self.b,second,actor_user_id=self.uid)['is_active'])
+
+        # Simulate a legacy archived account that still has a historical non-zero
+        # stored opening balance. It must not leak into today's Saldo tersedia.
+        db.execute(
+            'UPDATE finance_accounts SET opening_balance_minor=? '
+            'WHERE business_id=? AND id=?',
+            (99000000,self.b,second))
+        _,context=self.page(
+            f'?view=accounts&branch_id={branch_id}&display_currency=IDR')
+        self.assertTrue(all(row['id']!=second for row in context['account_balance_rows']))
+        active_total=next(
+            row for row in context['balance_totals'] if row['currency']=='IDR')
+        active_ids={
+            row['id'] for row in fixture.f.get_account_balance_report(
+                self.b,'2026-09-22',actor_user_id=self.uid)
+            if row['is_active']
+        }
+        expected=sum(
+            row['balance_minor'] for row in fixture.f.get_account_balance_report(
+                self.b,'2026-09-22',actor_user_id=self.uid)
+            if row['id'] in active_ids and row['currency']=='IDR'
+        )
+        self.assertEqual(active_total['balance_minor'],expected)
+
     def test_account_transaction_drilldown_filters_to_selected_account(self):
         second=fixture.f.create_account(self.b,'BCA Kedua','BANK','IDR',0,actor_user_id=self.uid)
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
