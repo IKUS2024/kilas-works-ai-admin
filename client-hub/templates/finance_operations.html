@@ -4,6 +4,7 @@
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-2') }}">
 <style>
+.finance-bill-status-tabs{display:flex;gap:7px;margin:0 0 10px}.finance-bill-status-tabs a{padding:7px 11px;border:1px solid var(--border);border-radius:999px;font-size:11px;color:var(--text-dim);text-decoration:none}.finance-bill-status-tabs a.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .finance-bill-rule-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;margin-top:5px}
 .finance-bill-rule-actions form{margin:0}
 .finance-bill-rule-actions .finance-mini-action{padding:6px 8px;font-size:10px}
@@ -216,8 +217,8 @@
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
       <label>Nama Tagihan<input name="name" value="{{ r.name }}" maxlength="160" required></label>
       <div class="finance-bill-form-grid">
-        <label>Akun<select name="account_id" data-currency-account required>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" {{ 'selected' if a.id==r.account_id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-        <label>Nominal <span data-currency-label>{{ r.currency }}</span><input name="amount" value="{{ r.input_amount }}" data-currency-amount inputmode="decimal" maxlength="25" required></label>
+        <input type="hidden" name="account_id" value="{{ r.account_id }}">
+        <label>Nominal {{ r.currency }}<input name="amount" value="{{ r.input_amount }}" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
         <label>Kategori<select name="category_id" data-other-category required><option value="" disabled>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_parent_category_id }}>{{ c.name }}</option>{% endfor %}</select></label>
         <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori<select name="subcategory_id" data-subcategory-select aria-label="Subkategori"><option value="" {{ 'selected' if not r.input_subcategory_id }} disabled>Pilih subkategori</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE" {{ 'selected' if c.id==r.input_subcategory_id }}>{{ c.name }}</option>{% endfor %}</select></label>
@@ -237,6 +238,13 @@
 {% endfor %}
 {% endif %}
 
+{% if view in ('calendar','list') %}
+<nav class="finance-bill-status-tabs" aria-label="Status pembayaran tagihan">
+  <a class="{{ 'active' if payment_status=='all' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='all',display_currency=display_currency) }}">Semua</a>
+  <a class="{{ 'active' if payment_status=='unpaid' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='unpaid',display_currency=display_currency) }}">Belum Bayar</a>
+  <a class="{{ 'active' if payment_status=='paid' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view=view,payment_status='paid',display_currency=display_currency) }}">Lunas</a>
+</nav>
+{% endif %}
 <nav class="card finance-bills-toolbar" aria-label="Tampilan tagihan">
   <a class="{{ 'active' if view=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='recurring',display_currency=display_currency) }}"><span>↻</span><small>Rutin</small></a>
   <a class="{{ 'active' if view=='calendar' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='calendar',display_currency=display_currency) }}"><span>▦</span><small>Kalender</small></a>
@@ -255,8 +263,8 @@
       <input type="hidden" name="month" value="{{ month }}">
       <label>Nama Tagihan<input name="name" maxlength="160" placeholder="Contoh: Internet" required></label>
       <div class="finance-bill-form-grid">
-        <label>Akun<select name="account_id" data-currency-account required><option value="">Pilih akun</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
-        <label>Nominal <span data-currency-label></span><input name="amount" data-currency-amount inputmode="decimal" maxlength="25" required></label>
+        <label>Mata uang<select name="currency" required>{% for code in bill_currency_options %}<option value="{{ code }}" {{ 'selected' if code=='IDR' }}>{{ code }}</option>{% endfor %}</select></label>
+        <label>Nominal<input name="amount" inputmode="decimal" maxlength="25" required></label>
         <input type="hidden" name="direction" value="EXPENSE">
         <label>Kategori<select name="category_id" data-other-category required><option value="" selected disabled>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
         <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori<select name="subcategory_id" data-subcategory-select aria-label="Subkategori"><option value="" selected disabled>Pilih subkategori</option>{% for c in categories if c.is_active and c.parent_category_id %}<option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="EXPENSE">{{ c.name }}</option>{% endfor %}</select></label>
