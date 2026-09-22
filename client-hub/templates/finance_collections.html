@@ -12,9 +12,9 @@
 
 <div class="card fin-menu-card">
   <div class="fin-tool-grid compact">
-    <a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,section='summary') }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Piutang &amp; umur</span></a>
-    <a class="fin-tool {{ 'active' if section=='queue' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,section='queue',sort=sort,view=view) }}"><span class="fin-icon">📋</span><span class="fin-label">Antrean</span><span class="fin-meta">{{ queue.count }} belum lunas</span></a>
-    <a class="fin-tool" href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}"><span class="fin-icon">🧾</span><span class="fin-label">Invoice</span><span class="fin-meta">Semua status</span></a>
+    <a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Piutang &amp; umur</span></a>
+    <a class="fin-tool {{ 'active' if section=='queue' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view) }}"><span class="fin-icon">📋</span><span class="fin-label">Antrean</span><span class="fin-meta">{{ queue.count }} belum lunas</span></a>
+    <a class="fin-tool" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}"><span class="fin-icon">🧾</span><span class="fin-label">Invoice</span><span class="fin-meta">Semua status</span></a>
   </div>
 </div>
 
@@ -67,18 +67,18 @@
     {% if i.overdue %}<p class="fin-accounting-note fin-overdue">{{ i.days_late }} hari terlambat</p>{% endif %}
     <div class="fin-compact-money"><span>Total <b>{{ i.total_minor|finance_money(i.currency) }}</b></span><span>Dibayar <b>{{ i.paid_minor|finance_money(i.currency) }}</b></span><span>Sisa <b>{{ i.outstanding_minor|finance_money(i.currency) }}</b></span></div>
     <div class="fin-toolbar">
-      <a class="btn secondary small" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Invoice / Bayar</a>
-      <a class="btn secondary small" href="{{ url_for('finance.customer_statement',business_id=business.id,customer_id=i.customer_id) }}">Statement</a>
-      {% if i.overdue %}<a class="btn secondary small" href="{{ url_for('finance.collection_reminder',business_id=business.id,invoice_id=i.id) }}">Reminder</a>{% endif %}
+      <a class="btn secondary small" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=i.id) }}">Invoice / Bayar</a>
+      <a class="btn secondary small" href="{{ url_for('finance.customer_statement',business_id=business.id,branch_id=g.finance_branch_id,customer_id=i.customer_id) }}">Statement</a>
+      {% if i.overdue %}<a class="btn secondary small" href="{{ url_for('finance.collection_reminder',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=i.id) }}">Reminder</a>{% endif %}
     </div>
   </article>
   {% else %}<div class="fin-empty">Tidak ada invoice untuk pilihan ini.</div>{% endfor %}
 
   {% if queue.pages>1 %}
   <nav class="fin-pagination">
-    {% if queue.page>1 %}<a class="btn small secondary" href="{{ url_for('finance.collections',business_id=business.id,section='queue',sort=sort,view=view,page=queue.page-1) }}">‹</a>{% endif %}
+    {% if queue.page>1 %}<a class="btn small secondary" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view,page=queue.page-1) }}">‹</a>{% endif %}
     <span>Halaman {{ queue.page }} / {{ queue.pages }}</span>
-    {% if queue.page<queue.pages %}<a class="btn small secondary" href="{{ url_for('finance.collections',business_id=business.id,section='queue',sort=sort,view=view,page=queue.page+1) }}">›</a>{% endif %}
+    {% if queue.page<queue.pages %}<a class="btn small secondary" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view,page=queue.page+1) }}">›</a>{% endif %}
   </nav>
   {% endif %}
 </div>
