@@ -1,7 +1,7 @@
 <details class="finance-record-actions">
 <summary class="finance-icon-btn" aria-label="Tindakan {{ item.name }}" title="Edit atau hapus">•••</summary>
 <div class="finance-record-popover">
-<form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind=kind,record_id=item.id) }}">
+<form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind=kind,record_id=item.id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>{{ 'Nama Cabang' if kind=='branch' else ('Nama Akun' if kind=='account' else 'Nama Kategori') }}<input name="name" value="{{ item.name }}" maxlength="160" required></label>
 <div class="finance-record-buttons">
