@@ -284,8 +284,11 @@ JOIN finance_categories parent
 JOIN finance_categories child
  ON child.business_id=parent.business_id
  AND child.direction=l.direction AND child.name=l.child_name
-JOIN finance_branch_workspaces w
- ON w.business_id=parent.business_id AND w.workspace_type='BUSINESS'
+JOIN (
+ SELECT DISTINCT business_id
+ FROM finance_branch_workspaces
+ WHERE workspace_type='BUSINESS'
+) w ON w.business_id=parent.business_id
 ON CONFLICT(business_id,child_category_id)
 DO UPDATE SET parent_category_id=EXCLUDED.parent_category_id;
 
