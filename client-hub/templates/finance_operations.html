@@ -35,6 +35,7 @@
 .finance-bill-edit-sheet .finance-sheet-head>div small{display:block;color:var(--text-dim);font-size:10px}
 .finance-bill-edit-sheet .finance-sheet-head h2{margin:2px 0 0;font-size:18px}
 .finance-bill-row-actions{grid-column:2/4;display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-top:-1px}
+.finance-bill-row-actions form{margin:0}
 .finance-bill-row-actions .finance-mini-action{min-width:72px;min-height:34px;padding:6px 10px;font-size:10px;text-align:center}
 .finance-bill-row-actions .finance-bill-pay-action{border-color:color-mix(in srgb,var(--orange) 65%,var(--border));color:var(--orange)}
 .finance-bill-payment-note{margin:8px 0 0;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02);font-size:10.5px;line-height:1.45;color:var(--text-dim)}
@@ -127,7 +128,13 @@
     </div>
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
-      {% if r.can_edit %}<button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>{% endif %}
+      {% if r.can_edit %}
+      <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>
+      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.rule_id) }}" onsubmit="return confirm('Hapus tagihan {{ r.name }} dari daftar aktif? Riwayat pembayaran lama tetap tersimpan.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="day" value="{{ selected_day }}"><input type="hidden" name="view" value="calendar"><input type="hidden" name="payment_status" value="{{ payment_status }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">
+        <button class="finance-mini-action finance-danger" type="submit">Hapus</button>
+      </form>
+      {% endif %}
       <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
     </div>
     <dialog id="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
@@ -175,7 +182,13 @@
     </div>
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
-      {% if r.can_edit %}<button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>{% endif %}
+      {% if r.can_edit %}
+      <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>
+      <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.rule_id) }}" onsubmit="return confirm('Hapus tagihan {{ r.name }} dari daftar aktif? Riwayat pembayaran lama tetap tersimpan.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="day" value="{{ r.scheduled_on }}"><input type="hidden" name="view" value="list"><input type="hidden" name="payment_status" value="{{ payment_status }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">
+        <button class="finance-mini-action finance-danger" type="submit">Hapus</button>
+      </form>
+      {% endif %}
       <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
     </div>
     <dialog id="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
