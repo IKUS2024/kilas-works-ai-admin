@@ -214,13 +214,9 @@
     {{ report_table(data.recurring_rules,[('Nama','name','text'),('Jadwal berikutnya','next_due_on','text'),('Frekuensi','cadence_label','text'),('Mata uang','currency','text'),('Nominal','amount_minor','money'),('Akun','account_name','text'),('Kategori','category_name','text')]) }}
   </section>
 
-  {{ section_head('Akun','Saldo akun aktif sampai akhir periode laporan.') }}
+  {{ section_head('Akun','Posisi saldo akun aktif per akhir periode laporan.') }}
   <section class="card report-data-card">
-    {% if finance_workspace_personal %}
-      {{ report_table(data.accounts,[('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Transfer masuk','exchange_in_minor','money'),('Transfer keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}
-    {% else %}
-      {{ report_table(data.accounts,[('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Saldo awal','opening_balance_minor','money'),('Pemasukan','income_minor','money'),('Pengeluaran','expense_minor','money'),('Transfer masuk','exchange_in_minor','money'),('Transfer keluar','exchange_out_minor','money'),('Saldo','balance_minor','money')]) }}
-    {% endif %}
+    {{ report_table(data.accounts,[('Nama','name','text'),('Mata uang','currency','text'),('Jenis','account_type','account_type'),('Saldo awal','opening_balance_minor','money'),('Saldo akhir periode','balance_minor','money')]) }}
   </section>
 
   {{ section_head('Penerima','Orang, toko, atau vendor yang menerima pembayaran pada periode laporan.') }}
