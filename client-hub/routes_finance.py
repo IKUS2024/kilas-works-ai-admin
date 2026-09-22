@@ -2021,7 +2021,6 @@ def process_recurring(business_id,user,business):
     return redirect(destination, code=303)
 
 def report_error(error):
-def report_error(error):
     if str(error) in ('report_limit','forecast_limit'):
         return 'Data laporan terlalu banyak. Persempit rentang tanggal atau komitmen biaya rutin.'
     return 'Filter laporan belum valid. Gunakan rentang tanggal yang benar dan tidak melewati hari ini.'

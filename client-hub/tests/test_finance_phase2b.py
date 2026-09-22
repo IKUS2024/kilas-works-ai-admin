@@ -205,7 +205,6 @@ class RecurringTests(unittest.TestCase):
         self.assertEqual(f.list_recurring_postings(self.b,f.list_recurring_expenses(self.b)[0]['id']),[])
 
     def test_ui_get_read_only_projects_scoped_and_beta(self):
-    def test_ui_get_read_only_projects_scoped_and_beta(self):
         self.rule();before=f.list_transactions(self.b)
         html=self.client.get(self.url+'/operations?section=projects').get_data(as_text=True)
         self.assertIn('Biaya Rutin &amp; Proyek',html);self.assertNotIn('PRIVATE project',html)
