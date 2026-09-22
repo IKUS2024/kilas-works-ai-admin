@@ -131,7 +131,7 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
             _safe(row['name']),_safe(row.get('account_type_label') or row.get('account_type')),
             cur,money(row['opening_balance_minor'],cur),money(row['balance_minor'],cur)
         ])
-    story.append(_table(account_rows,[55*mm,38*mm,25*mm,35*mm,32*mm],
+    story.append(_table(account_rows,[52*mm,35*mm,23*mm,35*mm,35*mm],
                         header=True,empty='Belum ada akun aktif.'))
 
     story.append(Paragraph('Penerima', h2))
@@ -141,7 +141,7 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
             _safe(row['name']),row['currency'],money(row['total_minor'],row['currency']),
             str(row.get('transaction_count',0)),_safe(row.get('last_paid_on'))
         ])
-    story.append(_table(payee_rows,[65*mm,27*mm,40*mm,20*mm,33*mm],header=True,
+    story.append(_table(payee_rows,[62*mm,25*mm,38*mm,20*mm,35*mm],header=True,
                         empty='Belum ada penerima pada periode ini.'))
 
     story += [
