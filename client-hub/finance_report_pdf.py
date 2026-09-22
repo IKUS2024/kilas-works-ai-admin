@@ -65,7 +65,7 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
 
     meta = [
         ['Periode', f"{filters['start']} – {filters['end']}"],
-        ['Acuan piutang', filters['as_of']],
+        ['Jenis laporan', 'Ringkasan keseluruhan Finance'],
         ['Basis laporan', 'Kas / cash basis'],
         ['Mata uang', 'Ditampilkan terpisah, tanpa penggabungan kurs'],
     ]
@@ -82,79 +82,74 @@ def build(*, business_name, branch_name, filters, summary, trend, data):
         ])
     story.append(_table(summary_rows, [25*mm,42*mm,42*mm,42*mm,24*mm], header=True))
 
-    story.append(Paragraph('Kas & Rekening', h2))
-    account_rows=[['Rekening','Jenis','Mata uang','Saldo']]
-    for row in data.get('accounts',[]):
-        account_rows.append([
-            _safe(row['name']), _safe(row.get('account_type_label') or row.get('account_type')), row['currency'],
-            money(row['balance_minor'],row['currency'])
+    story.append(Paragraph('Pemasukan', h2))
+    income_rows=[['Kategori','Mata uang','Nominal','Transaksi','%']]
+    for row in data.get('income_categories',[]):
+        income_rows.append([
+            _safe(row['name']),row['currency'],money(row['amount_minor'],row['currency']),
+            str(row.get('transaction_count',0)),f"{row.get('percentage',0)}%"
         ])
-    story.append(_table(account_rows,[63*mm,34*mm,26*mm,52*mm],header=True,empty='Belum ada rekening.'))
+    story.append(_table(income_rows,[68*mm,25*mm,45*mm,22*mm,15*mm],header=True,
+                        empty='Belum ada pemasukan pada periode ini.'))
 
-    story.append(Paragraph('Piutang', h2))
-    receivable_rows=[['Mata uang','Umur piutang','Nominal','Invoice']]
-    for row in data.get('receivables_aging',[]):
-        receivable_rows.append([
-            row['currency'], _safe(row['label']), money(row['amount_minor'],row['currency']),
-            str(row['invoice_count'])
+    story.append(Paragraph('Pengeluaran', h2))
+    expense_rows=[['Kategori','Mata uang','Nominal','Transaksi','%']]
+    for row in data.get('expense_categories',[]):
+        expense_rows.append([
+            _safe(row['name']),row['currency'],money(row['amount_minor'],row['currency']),
+            str(row.get('transaction_count',0)),f"{row.get('percentage',0)}%"
         ])
-    story.append(_table(receivable_rows,[27*mm,66*mm,53*mm,29*mm],header=True,empty='Tidak ada piutang terbuka.'))
+    story.append(_table(expense_rows,[68*mm,25*mm,45*mm,22*mm,15*mm],header=True,
+                        empty='Belum ada pengeluaran pada periode ini.'))
+
+    story.append(Paragraph('Anggaran', h2))
+    budget_rows=[['Bulan','Kategori','Mata uang','Anggaran']]
+    for row in data.get('budgets',[]):
+        budget_rows.append([
+            _safe(row['month']),_safe(row['category_name']),row['currency'],
+            money(row['amount_minor'],row['currency'])
+        ])
+    story.append(_table(budget_rows,[30*mm,75*mm,28*mm,42*mm],header=True,
+                        empty='Belum ada anggaran pada periode ini.'))
 
     story.append(PageBreak())
-    story.append(Paragraph('Arus Kas Bulanan', h2))
-    trend_rows=[['Bulan','Mata uang','Pemasukan','Pengeluaran','Selisih']]
-    for row in trend:
+    story.append(Paragraph('Tagihan', h2))
+    recurring_rows=[['Nama','Jadwal berikutnya','Frekuensi','Mata uang','Nominal','Akun']]
+    for row in data.get('recurring_rules',[]):
+        recurring_rows.append([
+            _safe(row['name']),_safe(row['next_due_on']),_safe(row['cadence_label']),
+            row['currency'],money(row['amount_minor'],row['currency']),_safe(row.get('account_name'))
+        ])
+    story.append(_table(recurring_rows,[43*mm,31*mm,27*mm,22*mm,30*mm,22*mm],header=True,
+                        empty='Tidak ada tagihan rutin aktif.'))
+
+    story.append(Paragraph('Akun', h2))
+    account_rows=[['Akun','Jenis','Mata uang','Saldo awal','Pemasukan','Pengeluaran','Saldo']]
+    for row in data.get('accounts',[]):
         cur=row['currency']
-        trend_rows.append([
-            _safe(row['month']),cur,money(row['income_minor'],cur),
-            money(row['expense_minor'],cur),money(row['net_cashflow_minor'],cur)
+        account_rows.append([
+            _safe(row['name']),_safe(row.get('account_type_label') or row.get('account_type')),
+            cur,money(row['opening_balance_minor'],cur),money(row['income_minor'],cur),
+            money(row['expense_minor'],cur),money(row['balance_minor'],cur)
         ])
-    story.append(_table(trend_rows,[28*mm,24*mm,41*mm,41*mm,41*mm],header=True))
+    story.append(_table(account_rows,[34*mm,27*mm,19*mm,25*mm,25*mm,25*mm,25*mm],
+                        header=True,empty='Belum ada akun aktif.'))
 
-    story.append(Paragraph('Analisis Kategori', h2))
-    category_rows=[['Jenis','Kategori','Mata uang','Nominal','%']]
-    for row in data.get('category_breakdown',[]):
-        category_rows.append([
-            'Pemasukan' if row['direction']=='INCOME' else 'Pengeluaran',
-            _safe(row['name']),row['currency'],money(row['amount_minor'],row['currency']),
-            f"{row.get('percentage',0)}%"
+    story.append(Paragraph('Penerima', h2))
+    payee_rows=[['Penerima','Mata uang','Total dibayar','Transaksi','Terakhir dibayar']]
+    for row in data.get('payees',[]):
+        payee_rows.append([
+            _safe(row['name']),row['currency'],money(row['total_minor'],row['currency']),
+            str(row.get('transaction_count',0)),_safe(row.get('last_paid_on'))
         ])
-    story.append(_table(category_rows,[33*mm,59*mm,25*mm,43*mm,15*mm],header=True))
-
-    story.append(Paragraph('Customer', h2))
-    customer_rows=[['Customer','Mata uang','Pemasukan','Pengeluaran','Kontribusi']]
-    for row in data.get('customers',[]):
-        cur=row['currency']
-        customer_rows.append([
-            _safe(row['name']),cur,money(row['income_minor'],cur),
-            money(row['expense_minor'],cur),money(row['net_cash_contribution_minor'],cur)
-        ])
-    story.append(_table(customer_rows,[51*mm,24*mm,34*mm,34*mm,32*mm],header=True,empty='Belum ada transaksi yang dikaitkan ke customer.'))
-
-    story.append(Paragraph('Proyek', h2))
-    project_rows=[['Proyek','Mata uang','Pemasukan','Pengeluaran','Selisih']]
-    for row in data.get('projects',[]):
-        cur=row['currency']
-        project_rows.append([
-            _safe(row['title']),cur,money(row['income_minor'],cur),
-            money(row['expense_minor'],cur),money(row['net_cash_contribution_minor'],cur)
-        ])
-    story.append(_table(project_rows,[51*mm,24*mm,34*mm,34*mm,32*mm],header=True,empty='Belum ada transaksi yang dikaitkan ke proyek.'))
-
-    story.append(Paragraph('Komitmen Biaya Rutin Mendatang', h2))
-    commitment_rows=[['Tanggal','Biaya rutin','Mata uang','Nominal','Rekening']]
-    for row in data.get('recurring_commitments',[]):
-        commitment_rows.append([
-            _safe(row['scheduled_on']),_safe(row['name']),row['currency'],
-            money(row['amount_minor'],row['currency']),_safe(row.get('account_name'))
-        ])
-    story.append(_table(commitment_rows,[29*mm,54*mm,24*mm,38*mm,30*mm],header=True,empty='Tidak ada komitmen biaya rutin pada rentang mendatang.'))
+    story.append(_table(payee_rows,[65*mm,27*mm,40*mm,20*mm,33*mm],header=True,
+                        empty='Belum ada penerima pada periode ini.'))
 
     story += [
         Spacer(1, 6*mm),
-        Paragraph('<b>Catatan:</b> laporan ini berbasis pencatatan kas di Kilas Finance, bukan laporan laba rugi akrual. '
-                  'Saldo tercatat dapat berbeda dari saldo bank aktual sebelum rekonsiliasi. '
-                  'Setiap mata uang disajikan terpisah.', small)
+        Paragraph('<b>Catatan:</b> laporan ini menyatukan Pemasukan, Pengeluaran, Anggaran, Tagihan, Akun, dan Penerima dari data Kilas Finance yang sama. '
+                  'Laporan bisnis berbasis pencatatan kas, bukan laporan laba rugi akrual. '
+                  'Setiap mata uang disajikan sesuai pencatatannya.', small)
     ]
 
     def footer(canvas, doc):
