@@ -68,7 +68,11 @@ def sync_sender_identity(business_id, name, actor_user_id=None):
     email = _owner_email(business_id)
     with f._write(business_id, actor_user_id):
         rows = db.query_all(
-            'SELECT branch_id,defaults_json FROM finance_invoice_settings WHERE business_id=?',
+            """SELECT s.branch_id,s.defaults_json
+               FROM finance_invoice_settings s
+               LEFT JOIN finance_branch_workspaces w
+                 ON w.business_id=s.business_id AND w.branch_id=s.branch_id
+               WHERE s.business_id=? AND COALESCE(w.workspace_type,'BUSINESS')='BUSINESS'""",
             (business_id,))
         now = repo._now()
         for row in rows:
