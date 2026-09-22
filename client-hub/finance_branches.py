@@ -307,19 +307,19 @@ def update_record(business_id, kind, record_id, name=None, deactivate=False, act
                     (business_id, row['branch_id']))
                 if active['n'] <= 1:
                     error('account_last_active')
-                # A currency that still carries money must retain at least one active place
-                # to receive/record future movements. Historical rows stay auditable either way.
-                same_currency = db.query_one(
-                    'SELECT COUNT(*) AS n FROM finance_accounts WHERE business_id=? AND branch_id=? AND currency=? AND is_active=TRUE',
-                    (business_id, row['branch_id'], row['currency']))
-                if same_currency['n'] <= 1:
-                    from datetime import date
-                    from finance_service import get_account_balance_report
-                    balances = get_account_balance_report(business_id, date.today().isoformat(), actor_user_id)
-                    currency_balance = sum(int(item['balance_minor']) for item in balances
-                                           if item['currency'] == row['currency'])
-                    if currency_balance != 0:
-                        error('account_currency_required')
+                # Never let deleting/hiding an account make money silently disappear from
+                # "Saldo tersedia". Historical rows remain auditable, but an account may only
+                # be deactivated after ITS OWN current balance is zero.
+                from finance_service import business_today, get_account_balance_report
+                balances = get_account_balance_report(
+                    business_id, business_today(business_id).isoformat(), actor_user_id)
+                target_balance = next(
+                    (int(item['balance_minor']) for item in balances
+                     if item['id'] == row['id']), None)
+                if target_balance is None:
+                    error('account_unavailable')
+                if target_balance != 0:
+                    error('account_balance_required')
                 if db.query_one(
                     'SELECT 1 FROM finance_recurring_expenses WHERE business_id=? AND branch_id=? AND account_id=? AND is_active=TRUE LIMIT 1',
                     (business_id, row['branch_id'], row['id'])):
