@@ -331,6 +331,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Kategori utama',html)
         self.assertIn('Subkategori',html)
         self.assertIn('bisa ditambah, diedit, atau dihapus',html)
+        self.assertIn('data-category-manager-form',html)
+        self.assertIn('＋ Tambah Kategori / Subkategori',html)
 
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         endpoint=f'/business/{self.b}/finance/categories'
