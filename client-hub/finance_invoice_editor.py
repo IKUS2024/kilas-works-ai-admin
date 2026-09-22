@@ -98,9 +98,10 @@ def save_defaults(business_id, data, actor_user_id=None):
     workspace_type, sender_name, sender_email = _workspace_identity(
         business_id, actor_user_id)
     values['sender']['email'] = sender_email
+    personal_profile = None
     if workspace_type == 'PERSONAL':
         values['sender']['name'] = sender_name
-        account_profiles.save_personal_profile(actor_user_id, {
+        personal_profile = {
             'phone': values['sender']['phone'],
             'address': values['sender']['address'],
             'tax_id': values['sender']['tax_id'],
@@ -110,7 +111,7 @@ def save_defaults(business_id, data, actor_user_id=None):
             'payment_account_number': values['payment']['account_number'],
             'payment_account_name': values['payment']['account_holder'],
             'payment_instructions': values['payment']['instructions'],
-        })
+        }
     elif not values['sender']['address'] or not values['sender']['phone']:
         raise f.FinanceError('invoice_sender_required')
     values = {k:values[k] for k in ('sender','payment')}
@@ -121,6 +122,9 @@ def save_defaults(business_id, data, actor_user_id=None):
             defaults_json=excluded.defaults_json,updated_at=excluded.updated_at''',
             (business_id,branch_id,json.dumps(values),repo._now()))
         f._audit(business_id,actor_user_id,'FINANCE_INVOICE_SETTINGS_UPDATED',branch_id)
+    if personal_profile is not None:
+        # Keep Account → Pribadi in sync only after the Finance settings write succeeds.
+        account_profiles.save_personal_profile(actor_user_id, personal_profile)
 
 
 def sync_sender_identity(business_id, name, actor_user_id=None):
