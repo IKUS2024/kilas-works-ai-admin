@@ -1950,36 +1950,79 @@ def report_error(error):
     return 'Filter laporan belum valid. Gunakan rentang tanggal yang benar dan tidak melewati hari ini.'
 
 
+def comprehensive_report_data(business_id, user_id, filters):
+    """One read-only report model matching the main Finance dashboard areas."""
+    actor={'actor_user_id':user_id}
+    categories=finance_reports.report_data(
+        'category_breakdown',business_id,filters,user_id)
+    accounts=[
+        dict(row) for row in finance_reports.report_data(
+            'accounts',business_id,filters,user_id)
+        if row['is_active']
+    ]
+    budgets=finance.get_budget_report_rows(
+        business_id,filters['start'],filters['end'],user_id)
+    payees=[
+        dict(row) for row in finance.list_payee_summaries(
+            business_id,filters['start'],filters['end'],actor_user_id=user_id)
+    ]
+
+    account_names={
+        row['id']:row['name'] for row in finance.list_accounts(
+            business_id,include_inactive=True,actor_user_id=user_id)
+    }
+    category_rows=finance.list_categories(
+        business_id,include_inactive=True,include_children=True,
+        actor_user_id=user_id)
+    category_names={
+        row['id']:(
+            (row.get('parent_name')+' / ') if row.get('parent_name') else ''
+        )+row['name']
+        for row in category_rows
+    }
+    cadence_labels={'WEEKLY':'Mingguan','MONTHLY':'Bulanan'}
+    recurring=[]
+    for raw in finance.list_recurring_expenses(
+            business_id,actor_user_id=user_id):
+        row=dict(raw)
+        row['account_name']=account_names.get(row['account_id'],'—')
+        row['category_name']=category_names.get(row['category_id'],'—')
+        row['cadence_label']=cadence_labels.get(row['cadence'],row['cadence'])
+        recurring.append(row)
+
+    return dict(
+        category_breakdown=categories,
+        income_categories=[
+            row for row in categories if row['direction']=='INCOME'],
+        expense_categories=[
+            row for row in categories if row['direction']=='EXPENSE'],
+        accounts=accounts,
+        budgets=budgets,
+        recurring_rules=recurring,
+        payees=payees,
+    )
+
+
 @finance_bp.route('/business/<int:business_id>/finance/reports')
 @finance_access
 def reports(business_id,user,business):
-    personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
-    section = request.args.get('section', 'summary')
-    if section not in ('filter', 'summary', 'trend', 'accounts', 'receivables', 'analysis', 'categories', 'customers', 'projects', 'commitments'):
-        section = 'filter'
-    if personal and section in ('receivables','analysis','customers','projects'):
-        section = 'summary'
     try:
         filters=finance_reports.parse_filters(
             request.args,today=finance.business_today(business_id),
             business_id=business_id,actor_user_id=user['id'])
         actor={'actor_user_id':user['id']}
-        allowed = (
-            ('category_breakdown','accounts','recurring_commitments')
-            if personal else
-            tuple(name for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices'))
-        )
-        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in allowed}
-        for name in ('category_breakdown','accounts','customers','projects','receivables_aging','recurring_commitments'):
-            data.setdefault(name,[])
-        summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
-        trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
-            start_date=filters['start'],end_date=filters['end'],**actor)
+        data=comprehensive_report_data(business_id,user['id'],filters)
+        summary=finance.get_cashflow_reports(
+            business_id,filters['start'],filters['end'],**actor)
     except finance.FinanceError as error:
-        return render_template('finance_reports.html',user=user,business=business,error=report_error(error),section=section,today=finance.business_today(business_id).isoformat()),400
-    response=Response(render_template('finance_reports.html',user=user,business=business,filters=filters,section=section,
-        today=finance.business_today(business_id).isoformat(),data=data,summary=summary,trend=trend,directions=finance_reports.DIRECTIONS,
-        account_types=finance_reports.ACCOUNT_TYPES,export_names=finance_reports.REPORT_NAMES))
+        return render_template(
+            'finance_reports.html',user=user,business=business,
+            error=report_error(error),today=finance.business_today(business_id).isoformat()),400
+    response=Response(render_template(
+        'finance_reports.html',user=user,business=business,
+        filters=filters,today=finance.business_today(business_id).isoformat(),
+        data=data,summary=summary,directions=finance_reports.DIRECTIONS,
+        account_types=finance_reports.ACCOUNT_TYPES))
     response.headers['Cache-Control']='private, no-store'
     return response
 
@@ -1993,21 +2036,17 @@ def report_pdf(business_id,user,business):
             request.args,today=finance.business_today(business_id),
             business_id=business_id,actor_user_id=user['id'])
         actor={'actor_user_id':user['id']}
-        allowed = (
-            ('category_breakdown','accounts','recurring_commitments')
-            if personal else
-            tuple(name for name in finance_reports.REPORT_NAMES if name not in ('transactions','invoices'))
-        )
-        data={name:finance_reports.report_data(name,business_id,filters,user['id']) for name in allowed}
-        summary=finance.get_cashflow_reports(business_id,filters['start'],filters['end'],**actor)
-        trend=finance.get_monthly_cashflow_trends(business_id,filters['start'][:7],filters['end'][:7],
-            start_date=filters['start'],end_date=filters['end'],**actor)
+        data=comprehensive_report_data(business_id,user['id'],filters)
+        summary=finance.get_cashflow_reports(
+            business_id,filters['start'],filters['end'],**actor)
         pdf=finance_report_pdf.build(
             business_name=('Pribadi' if personal else business['business_name']),
             branch_name=('Pribadi' if personal else g.finance_branch['name']),
-            filters=filters,summary=summary,trend=trend,data=data)
+            filters=filters,summary=summary,trend=[],data=data)
     except finance.FinanceError as error:
-        return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
+        return Response(
+            report_error(error),status=400,mimetype='text/plain',
+            headers={'Cache-Control':'no-store'})
     filename='kilas-finance-'+filters['start']+'_'+filters['end']+'.pdf'
     return Response(pdf,content_type='application/pdf',headers={
         'Content-Disposition':f'attachment; filename="{filename}"',
