@@ -425,6 +425,37 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
 }
 
 
+// Category settings dialog: the same create endpoint can add either a
+// top-level category or a subcategory under an active parent.
+for (const form of document.querySelectorAll('[data-category-manager-form]')) {
+  const direction=form.querySelector('[data-category-manager-direction]');
+  const level=form.querySelector('[data-category-manager-level]');
+  const parentField=form.querySelector('[data-category-manager-parent-field]');
+  const parent=form.querySelector('[data-category-manager-parent]');
+  const submit=form.querySelector('[data-category-manager-submit]');
+  if(!direction||!level||!parentField||!parent||!submit)continue;
+
+  const refresh=()=>{
+    const wantsChild=level.value==='subcategory';
+    let firstVisible=null;
+    for(const option of parent.options){
+      const visible=option.dataset.direction===direction.value;
+      option.hidden=!visible;
+      option.disabled=!visible;
+      if(visible&&!firstVisible)firstVisible=option;
+    }
+    if(parent.selectedOptions[0]?.disabled&&firstVisible)parent.value=firstVisible.value;
+    parentField.hidden=!wantsChild;
+    parent.disabled=!wantsChild;
+    parent.required=wantsChild;
+    submit.textContent=wantsChild?'Tambah Subkategori':'Tambah Kategori';
+  };
+  direction.addEventListener('change',refresh);
+  level.addEventListener('change',refresh);
+  refresh();
+}
+
+
 // Account type choices are business-level preferences. Users can add or remove
 // choices here without leaving the account form; existing accounts keep their
 // assigned label even when that label is removed from future choices.
