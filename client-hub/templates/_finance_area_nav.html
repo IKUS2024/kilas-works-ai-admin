@@ -1,12 +1,13 @@
 <div class="fin-area-nav no-print">
   <a class="fin-back-link" href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Kilas Finance</a>
   <nav class="fin-area-tabs" aria-label="Navigasi area Finance">
-    <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='EXPENSE') }}">Pengeluaran</a>
+    <a class="fin-area-tab {{ 'active' if active_finance_area=='expense' else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='EXPENSE') }}" {% if active_finance_area=='expense' %}aria-current="page"{% endif %}>Pengeluaran</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='operations' else '' }}" href="{{ url_for('finance.operations',business_id=business.id) }}" {% if active_finance_area=='operations' %}aria-current="page"{% endif %}>Tagihan</a>
-    <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='INCOME') }}">Pemasukan</a>
+    <a class="fin-area-tab {{ 'active' if active_finance_area=='income' else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,view='transactions',direction='INCOME') }}" {% if active_finance_area=='income' %}aria-current="page"{% endif %}>Pemasukan</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='budget' else '' }}" href="{{ url_for('finance.budget',business_id=business.id) }}" {% if active_finance_area=='budget' %}aria-current="page"{% endif %}>Anggaran</a>
-    <a class="fin-area-tab" href="{{ url_for('finance.dashboard',business_id=business.id,view='accounts') }}">Akun</a>
+    <a class="fin-area-tab {{ 'active' if active_finance_area=='accounts' else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,view='accounts') }}" {% if active_finance_area=='accounts' %}aria-current="page"{% endif %}>Akun</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='payees' else '' }}" href="{{ url_for('finance.payees',business_id=business.id) }}" {% if active_finance_area=='payees' %}aria-current="page"{% endif %}>Penerima</a>
+    <a class="fin-area-tab {{ 'active' if active_finance_area=='receivables' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}" {% if active_finance_area=='receivables' %}aria-current="page"{% endif %}>Invoice</a>
     <a class="fin-area-tab {{ 'active' if active_finance_area=='reports' else '' }}" href="{{ url_for('finance.reports',business_id=business.id) }}" {% if active_finance_area=='reports' %}aria-current="page"{% endif %}>Laporan</a>
   </nav>
 </div>
