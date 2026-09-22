@@ -44,52 +44,24 @@ FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 
 WORKSPACE_MOVABLE_TRANSACTION_SOURCES = (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT')
 WORKSPACE_ACCOUNT_MOVABLE_SOURCES = WORKSPACE_MOVABLE_TRANSACTION_SOURCES + ('FINANCE_RECURRING_EXPENSE', 'FINANCE_BANK_IMPORT')
 DEFAULT_CATEGORIES = {
-    'INCOME': ('Penjualan / Jasa',),
+    'INCOME': (
+        'Produk / Jasa',
+        'Bunga Bank',
+    ),
     'EXPENSE': (
-        'Produksi / HPP',
-        'Gaji & Tenaga Kerja',
         'Biaya Sewa',
         'Utilitas',
-        'Marketing & Promosi',
-        'Software & Langganan',
+        'Konsumsi',
         'Perlengkapan',
-        'Transportasi & Pengiriman',
-        'Perawatan & Perbaikan',
-        'Administrasi & Profesional',
-        'Bank & Pembayaran',
-        'Pajak & Asuransi',
-        'Makan & Operasional Tim',
+        'Transportasi',
+        'Gaji',
         'Biaya Tak Terduga',
     ),
 }
 DEFAULT_CATEGORY_CHILDREN = {
-    'INCOME': {
-        'Penjualan / Jasa': (
-            'Penjualan Produk',
-            'Jasa / Proyek',
-            'Retainer / Langganan',
-            'Penjualan Online / Marketplace',
-        ),
-    },
+    'INCOME': {},
     'EXPENSE': {
-        'Produksi / HPP': (
-            'Bahan Baku',
-            'Stok / Persediaan',
-            'Packaging',
-            'Vendor / Outsourcing',
-            'Ongkos Produksi',
-        ),
-        'Gaji & Tenaga Kerja': (
-            'Gaji',
-            'Freelancer',
-            'Komisi',
-            'Bonus / Insentif',
-        ),
-        'Biaya Sewa': (
-            'Sewa Toko / Kantor',
-            'Sewa Gudang',
-            'Sewa Peralatan',
-        ),
+        # Keep the Utilitas subcategories the user already requested.
         'Utilitas': (
             'Listrik',
             'Air',
@@ -99,67 +71,51 @@ DEFAULT_CATEGORY_CHILDREN = {
             'Laundry',
             'Sampah / Kebersihan',
         ),
-        'Marketing & Promosi': (
-            'Meta Ads',
-            'Google Ads',
-            'TikTok Ads',
-            'Influencer / KOL',
-            'Produksi Konten',
-            'Promo / Diskon',
-        ),
-        'Software & Langganan': (
-            'Software',
-            'AI / API',
-            'Hosting / Domain',
-            'SaaS / Subscription',
-        ),
-        'Perlengkapan': (
-            'Alat Kantor',
-            'Peralatan Operasional',
-            'Perlengkapan Kebersihan',
-            'Peralatan Kecil',
-        ),
-        'Transportasi & Pengiriman': (
-            'BBM',
-            'Tol / Parkir',
-            'Kurir / Delivery',
-            'Transport Online',
-            'Servis Kendaraan Operasional',
-        ),
-        'Perawatan & Perbaikan': (
-            'Servis Peralatan',
-            'Renovasi Kecil',
-            'Maintenance',
-        ),
-        'Administrasi & Profesional': (
-            'Akuntan',
-            'Legal / Notaris',
-            'Perizinan',
-            'Biaya Administrasi',
-        ),
-        'Bank & Pembayaran': (
-            'Biaya Transfer',
-            'MDR / Payment Gateway',
-            'Biaya Bank',
-            'Selisih Kurs',
-        ),
-        'Pajak & Asuransi': (
-            'Pajak',
-            'Asuransi Bisnis',
-            'BPJS / Ketenagakerjaan',
-        ),
-        'Makan & Operasional Tim': (
-            'Konsumsi Karyawan',
-            'Meeting / Client',
-            'Perjalanan Dinas',
-        ),
-        'Biaya Tak Terduga': (
-            'Kerusakan',
-            'Kehilangan',
-            'Denda Operasional',
-        ),
     },
 }
+
+# Known system-seeded Business categories from previous catalog versions.
+# They are hidden from new-entry pickers during catalog sync, while historical
+# ledger rows keep their original category ids/names for audit and reports.
+BUSINESS_LEGACY_DEFAULT_NAMES = {
+    'INCOME': frozenset((
+        'Penjualan / Jasa','Pendapatan Lain',
+        'Penjualan Produk','Jasa / Proyek','Retainer / Langganan',
+        'Penjualan Online / Marketplace','Komisi / Affiliate',
+        'Cashback / Bunga','Refund / Penggantian Biaya','Lainnya',
+        'Langganan / Retainer','Subscription / Membership','Maintenance / Support',
+        'Komisi & Affiliate','Affiliate','Referral','Komisi Penjualan',
+        'Sponsor / Kerja Sama','Sponsorship','Brand Partnership','Endorsement',
+        'Sewa / Rental','Sewa Peralatan','Sewa Ruang / Studio','Rental Aset',
+        'Royalti / Lisensi','Royalti','Lisensi Konten','Lisensi Software / IP',
+        'Bunga / Cashback','Cashback','Reward',
+    )),
+    'EXPENSE': frozenset((
+        'Produksi / HPP','Gaji & Tenaga Kerja','Marketing & Promosi',
+        'Software & Langganan','Transportasi & Pengiriman','Perawatan & Perbaikan',
+        'Administrasi & Profesional','Bank & Pembayaran','Pajak & Asuransi',
+        'Makan & Operasional Tim','Makanan & Belanja Harian','Asuransi','Subscription',
+        'Bahan Baku','Stok / Persediaan','Packaging','Vendor / Outsourcing',
+        'Ongkos Produksi','Freelancer','Komisi','Bonus / Insentif',
+        'Sewa Toko / Kantor','Sewa Gudang','Sewa Peralatan',
+        'Meta Ads','Google Ads','TikTok Ads','Influencer / KOL',
+        'Produksi Konten','Promo / Diskon','Software','AI / API',
+        'Hosting / Domain','SaaS / Subscription','Alat Kantor',
+        'Peralatan Operasional','Perlengkapan Kebersihan','Peralatan Kecil',
+        'BBM','Tol / Parkir','Kurir / Delivery','Transport Online',
+        'Servis Kendaraan Operasional','Servis Peralatan','Renovasi Kecil',
+        'Maintenance','Akuntan','Legal / Notaris','Perizinan',
+        'Biaya Administrasi','Biaya Transfer','MDR / Payment Gateway',
+        'Biaya Bank','Selisih Kurs','Pajak','Asuransi Bisnis',
+        'BPJS / Ketenagakerjaan','Konsumsi Karyawan','Meeting / Client',
+        'Perjalanan Dinas','Kerusakan','Kehilangan','Denda Operasional','Lainnya',
+    )),
+}
+BUSINESS_COMPACT_DEFAULTS = {
+    direction: frozenset(names) for direction, names in DEFAULT_CATEGORIES.items()
+}
+
+PERSONAL_DEFAULT_CATEGORIES = {
 PERSONAL_DEFAULT_CATEGORIES = {
     'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi',
                'Hadiah / Transfer Masuk'),
@@ -174,40 +130,7 @@ PERSONAL_DEFAULT_CATEGORY_CHILDREN = {
     },
 }
 
-# Clean business-income catalog. These are additive defaults for existing Business
-# workspaces: an explicitly deleted category is never reactivated.
-BUSINESS_INCOME_CATALOG = {
-    'Langganan / Retainer': (
-        'Retainer Bulanan',
-        'Subscription / Membership',
-        'Maintenance / Support',
-    ),
-    'Komisi & Affiliate': (
-        'Affiliate',
-        'Referral',
-        'Komisi Penjualan',
-    ),
-    'Sponsor / Kerja Sama': (
-        'Sponsorship',
-        'Brand Partnership',
-        'Endorsement',
-    ),
-    'Sewa / Rental': (
-        'Sewa Peralatan',
-        'Sewa Ruang / Studio',
-        'Rental Aset',
-    ),
-    'Royalti / Lisensi': (
-        'Royalti',
-        'Lisensi Konten',
-        'Lisensi Software / IP',
-    ),
-    'Bunga / Cashback': (
-        'Bunga Bank',
-        'Cashback',
-        'Reward',
-    ),
-}
+class FinanceError(ValueError):
 
 
 class FinanceError(ValueError):
@@ -845,85 +768,102 @@ def list_category_children(business_id, parent_category_id, include_inactive=Fal
 
 
 def sync_business_category_catalog(business_id, *, actor_user_id=None):
-    """Idempotently clean retired catch-alls and add the current Business income catalog.
-
-    Existing user deletions remain authoritative: inactive mapped names are never
-    reactivated. This is safe to call when an active writable Business workspace
-    is opened after a catalog update.
-    """
+    """Keep Business defaults compact while preserving custom and historical categories."""
     with _write(business_id, actor_user_id):
         scope = _category_scope(business_id, actor_user_id)
-
         changed = False
         now = repo._now()
 
-        # Retire the old catch-all roots and their one-level children together so
-        # children can never float up as accidental top-level categories.
-        retired_roots = db.query_all(
-            'SELECT s.category_id FROM finance_category_workspace_settings s '
-            'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
-            'WHERE s.business_id=? AND s.scope_key=? AND s.is_active=TRUE '
-            'AND lower(trim(s.display_name)) IN (?,?,?)',
-            (business_id, scope['scope_key'],
-             'pendapatan lain', 'pengeluaran lain', 'lainnya'))
-        retire_ids = {row['category_id'] for row in retired_roots}
-        for root_id in list(retire_ids):
-            for child in db.query_all(
-                'SELECT child_category_id FROM finance_category_hierarchy '
-                'WHERE business_id=? AND parent_category_id=?',
-                (business_id, root_id)):
-                retire_ids.add(child['child_category_id'])
-        for category_id in retire_ids:
-            result = db.execute(
-                'UPDATE finance_category_workspace_settings '
-                'SET is_active=FALSE,updated_at=? '
-                'WHERE business_id=? AND category_id=? AND scope_key=? AND is_active=TRUE',
-                (now, business_id, category_id, scope['scope_key']))
-            if getattr(result, 'rowcount', 0):
-                changed = True
-                _audit(
-                    business_id, actor_user_id,
-                    'FINANCE_CATEGORY_DEACTIVATED', category_id)
-
+        # The Personal workspace has its own defaults. Only retire generic old
+        # catch-alls there; never apply the Business compact catalog to Personal.
         if scope['workspace_type'] != 'BUSINESS':
+            retired = db.query_all(
+                'SELECT s.category_id FROM finance_category_workspace_settings s '
+                'WHERE s.business_id=? AND s.scope_key=? AND s.is_active=TRUE '
+                'AND lower(trim(s.display_name)) IN (?,?,?)',
+                (business_id, scope['scope_key'],
+                 'pendapatan lain', 'pengeluaran lain', 'lainnya'))
+            for row in retired:
+                result = db.execute(
+                    'UPDATE finance_category_workspace_settings '
+                    'SET is_active=FALSE,updated_at=? '
+                    'WHERE business_id=? AND category_id=? AND scope_key=? AND is_active=TRUE',
+                    (now, business_id, row['category_id'], scope['scope_key']))
+                if getattr(result, 'rowcount', 0):
+                    changed = True
             return changed
 
-        def mapped(direction, name):
-            row = db.query_one(
-                'SELECT c.id,s.is_active FROM finance_category_workspace_settings s '
-                'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
-                'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? '
-                'AND lower(trim(s.display_name))=lower(trim(?)) '
-                'ORDER BY s.category_id LIMIT 1',
-                (business_id, scope['scope_key'], direction, name))
-            return dict(row) if row else None
+        desired_ids = set()
 
-        for parent_name, child_names in BUSINESS_INCOME_CATALOG.items():
-            parent = mapped('INCOME', parent_name)
-            if parent is not None and not parent['is_active']:
-                # User intentionally deleted this catalog category earlier.
-                continue
-            if parent is None:
-                parent_id = create_category(
-                    business_id, 'INCOME', parent_name,
+        # Ensure exactly the requested built-in roots exist. create_category reuses
+        # matching underlying category records when possible, so history is preserved.
+        for direction, names in DEFAULT_CATEGORIES.items():
+            for name in names:
+                category_id = create_category(
+                    business_id, direction, name,
                     actor_user_id=actor_user_id)
-                changed = True
-            else:
-                parent_id = parent['id']
+                desired_ids.add(category_id)
 
-            for child_name in child_names:
-                child = mapped('INCOME', child_name)
-                if child is not None:
-                    # Active existing custom/default names stay where the user put
-                    # them; inactive names are respected as explicit deletions.
+                # Desired defaults must be top-level. This also promotes the old
+                # "Gaji" / "Bunga Bank" child records instead of creating duplicates.
+                linked = db.query_one(
+                    'SELECT parent_category_id FROM finance_category_hierarchy '
+                    'WHERE business_id=? AND child_category_id=?',
+                    (business_id, category_id))
+                if linked:
+                    db.execute(
+                        'DELETE FROM finance_category_hierarchy '
+                        'WHERE business_id=? AND child_category_id=?',
+                        (business_id, category_id))
+                    changed = True
+
+        # Utilitas intentionally keeps the previously requested subcategories.
+        utility = next((
+            row for row in list_categories(
+                business_id, 'EXPENSE', include_children=False,
+                actor_user_id=actor_user_id)
+            if row['name'] == 'Utilitas'
+        ), None)
+        if utility:
+            desired_ids.add(utility['id'])
+            for child_name in DEFAULT_CATEGORY_CHILDREN['EXPENSE']['Utilitas']:
+                child_id = create_category(
+                    business_id, 'EXPENSE', child_name,
+                    parent_category_id=utility['id'],
+                    actor_user_id=actor_user_id)
+                desired_ids.add(child_id)
+
+        # Hide only names that Kilas itself seeded in older Business catalogs.
+        # Custom categories created by the user remain active ("sisanya mereka isi sendiri").
+        for direction, legacy_names in BUSINESS_LEGACY_DEFAULT_NAMES.items():
+            rows = db.query_all(
+                'SELECT c.id,s.display_name,s.is_active '
+                'FROM finance_category_workspace_settings s '
+                'JOIN finance_categories c '
+                'ON c.business_id=s.business_id AND c.id=s.category_id '
+                'WHERE s.business_id=? AND s.scope_key=? AND c.direction=?',
+                (business_id, scope['scope_key'], direction))
+            for row in rows:
+                if row['id'] in desired_ids:
                     continue
-                create_category(
-                    business_id, 'INCOME', child_name,
-                    parent_category_id=parent_id,
-                    actor_user_id=actor_user_id)
-                changed = True
+                if (row['display_name'] or '').strip() not in legacy_names:
+                    continue
+                if row['is_active']:
+                    db.execute(
+                        'UPDATE finance_category_workspace_settings '
+                        'SET is_active=FALSE,updated_at=? '
+                        'WHERE business_id=? AND category_id=? AND scope_key=?',
+                        (now, business_id, row['id'], scope['scope_key']))
+                    _audit(
+                        business_id, actor_user_id,
+                        'FINANCE_CATEGORY_DEACTIVATED', row['id'])
+                    changed = True
+
         return changed
 
+
+
+def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
 
 def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
@@ -1016,7 +956,7 @@ def _transaction_data(business_id, data, *, scheduled=False):
     if account['currency'] != data['currency']:
         raise FinanceError('account_currency_mismatch')
     category = _category_setting_by_id(
-        business_id, data['category_id'])
+        business_id, data['category_id'], include_inactive=scheduled)
     if not category:
         raise FinanceError('category_unavailable')
     if category['direction'] != data['direction']:

@@ -323,19 +323,63 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['category_id'],expense_cat)
 
-    def test_default_expense_categories_use_requested_indonesian_set(self):
-        names=[row['name'] for row in fixture.f.list_categories(
+    def test_default_business_categories_are_compact_and_custom_categories_survive(self):
+        expense_names=[row['name'] for row in fixture.f.list_categories(
             self.b,'EXPENSE',actor_user_id=self.uid)]
-        self.assertEqual(names,[
-            'Biaya Sewa','Utilitas','Makanan & Belanja Harian','Perlengkapan',
-            'Transportasi','Asuransi','Biaya Tak Terduga',
+        self.assertEqual(expense_names,[
+            'Biaya Sewa','Biaya Tak Terduga','Gaji','Konsumsi',
+            'Perlengkapan','Transportasi','Utilitas',
         ])
+        income_names=[row['name'] for row in fixture.f.list_categories(
+            self.b,'INCOME',actor_user_id=self.uid)]
+        self.assertEqual(income_names,['Bunga Bank','Produk / Jasa'])
+
+        for removed in (
+            'Produksi / HPP','Marketing & Promosi','Software & Langganan',
+            'Perawatan & Perbaikan','Administrasi & Profesional',
+            'Bank & Pembayaran','Pajak & Asuransi','Makan & Operasional Tim',
+            'Penjualan / Jasa','Langganan / Retainer','Komisi & Affiliate',
+            'Sponsor / Kerja Sama','Sewa / Rental','Royalti / Lisensi',
+            'Bunga / Cashback','Asuransi','Makanan & Belanja Harian',
+        ):
+            self.assertNotIn(removed,expense_names+income_names)
+
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        with __import__('finance_branches').scope(self.b,branch_id,self.uid):
+            fixture.f.create_category(
+                self.b,'EXPENSE','Event / Custom',actor_user_id=self.uid)
+            fixture.f.sync_business_category_catalog(
+                self.b,actor_user_id=self.uid)
+            custom=[row['name'] for row in fixture.f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)]
+        self.assertIn('Event / Custom',custom)
+
         html,_=self.page('?month=2026-09')
-        for name in names:
+        for name in expense_names+income_names:
             self.assertIn(name,html)
-        self.assertNotIn('Produksi / Vendor',html)
-        self.assertNotIn('Gaji / Freelancer',html)
-        self.assertNotIn('Marketing / Ads',html)
+
+    def test_retired_old_business_category_is_hidden_but_existing_recurring_still_posts(self):
+        import finance_branches
+        branch_id=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]['id']
+        with finance_branches.scope(self.b,branch_id,self.uid):
+            old=fixture.f.create_category(
+                self.b,'EXPENSE','Marketing & Promosi',
+                actor_user_id=self.uid)
+            rule=fixture.f.create_recurring_expense(
+                self.b,'Legacy Ads',100000,self.a,old,'MONTHLY','2026-09-20',
+                actor_user_id=self.uid)
+            fixture.f.sync_business_category_catalog(
+                self.b,actor_user_id=self.uid)
+            active_names=[row['name'] for row in fixture.f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)]
+            self.assertNotIn('Marketing & Promosi',active_names)
+            result=fixture.f.process_due_recurring_expenses(
+                self.b,'2026-09-20',actor_user_id=self.uid,selected=[f"{rule}:2026-09-20"])
+            self.assertEqual(result['posted_count'],1)
+            transaction=fixture.f.list_transactions(
+                self.b,actor_user_id=self.uid)[0]
+            self.assertEqual(transaction['category_id'],old)
 
     def test_utilitas_shows_connected_subcategories_and_posts_child_category(self):
         html,_=self.page('?month=2026-09')
