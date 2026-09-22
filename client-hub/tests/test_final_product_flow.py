@@ -177,6 +177,18 @@ class FinalFlowTests(unittest.TestCase):
             self.assertEqual(blocked.status_code,303)
             self.assertIn('/finance',blocked.location)
 
+    def test_returning_active_finance_customer_skips_setup_and_chooser(self):
+        self.trial()
+        with self.client.session_transaction() as session:
+            session['product_intent']='finance'
+        direct=self.client.get('/products/continue')
+        self.assertEqual(direct.status_code,303)
+        self.assertIn(f'/business/{self.b}/finance/workspaces',direct.location)
+        opened=self.client.get(direct.location)
+        self.assertEqual(opened.status_code,303)
+        self.assertIn(f'/business/{self.b}/finance',opened.location)
+        self.assertNotIn('/finance/workspaces',opened.location)
+
     def test_first_finance_onboarding_only_asks_owner_name_and_locked_email(self):
         email='finance-first@example.test';password='password123'
         repo.create_user(email,security.hash_password(password),role='CLIENT_OWNER',full_name='Finance First')
