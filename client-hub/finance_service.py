@@ -788,27 +788,35 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
             (business_id, branch_id, 'Kas')):
             _create_account(business_id, 'Kas', 'CASH', 'IDR', 0, actor_user_id)
         scope = _category_scope(business_id, actor_user_id)
-        defaults = (
-            PERSONAL_DEFAULT_CATEGORIES
-            if scope['workspace_type'] == 'PERSONAL' else DEFAULT_CATEGORIES)
-        children = (
-            PERSONAL_DEFAULT_CATEGORY_CHILDREN
-            if scope['workspace_type'] == 'PERSONAL' else DEFAULT_CATEGORY_CHILDREN)
-        category_ids = {}
-        for direction, names in defaults.items():
-            for name in names:
-                category_ids[(direction, name)] = create_category(
-                    business_id, direction, name, actor_user_id=actor_user_id)
-        for direction, parents in children.items():
-            for parent_name, child_names in parents.items():
-                parent_id = category_ids.get((direction, parent_name))
-                if parent_id is None:
-                    continue
-                for child_name in child_names:
-                    create_category(
-                        business_id, direction, child_name,
-                        parent_category_id=parent_id,
-                        actor_user_id=actor_user_id)
+        # Defaults are a one-time workspace seed. Once a workspace has category
+        # settings, user edits/deletes are authoritative and must never be
+        # recreated merely because the user opens Finance again.
+        seeded = db.query_one(
+            'SELECT 1 FROM finance_category_workspace_settings '
+            'WHERE business_id=? AND scope_key=? LIMIT 1',
+            (business_id, scope['scope_key']))
+        if not seeded:
+            defaults = (
+                PERSONAL_DEFAULT_CATEGORIES
+                if scope['workspace_type'] == 'PERSONAL' else DEFAULT_CATEGORIES)
+            children = (
+                PERSONAL_DEFAULT_CATEGORY_CHILDREN
+                if scope['workspace_type'] == 'PERSONAL' else DEFAULT_CATEGORY_CHILDREN)
+            category_ids = {}
+            for direction, names in defaults.items():
+                for name in names:
+                    category_ids[(direction, name)] = create_category(
+                        business_id, direction, name, actor_user_id=actor_user_id)
+            for direction, parents in children.items():
+                for parent_name, child_names in parents.items():
+                    parent_id = category_ids.get((direction, parent_name))
+                    if parent_id is None:
+                        continue
+                    for child_name in child_names:
+                        create_category(
+                            business_id, direction, child_name,
+                            parent_category_id=parent_id,
+                            actor_user_id=actor_user_id)
 
 def _transaction_data(business_id, data, *, scheduled=False):
     data = dict(data)
