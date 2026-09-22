@@ -11,8 +11,10 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
       }
     }
     if (!category.selectedOptions.length || category.selectedOptions[0].disabled) {
-      const available = [...category.options].find(option => !option.disabled);
-      if (available) category.value = available.value;
+      const placeholder = [...category.options].find(option => option.value === '');
+      const available = [...category.options].find(option => option.value && !option.disabled);
+      if (placeholder) category.value = '';
+      else if (available) category.value = available.value;
     }
     const visible = category.selectedOptions[0]?.dataset.other === 'true';
     other.hidden = !visible;
@@ -135,7 +137,11 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     const categorySelection=String(preferredCategory||category.value||'');
     const subSelection=String(preferredSubcategory||subcategory.value||'');
 
-    category.replaceChildren();
+    const mainPlaceholder=document.createElement('option');
+    mainPlaceholder.value='';
+    mainPlaceholder.textContent='Pilih kategori';
+    mainPlaceholder.disabled=true;
+    category.replaceChildren(mainPlaceholder);
     const subPlaceholder=document.createElement('option');
     subPlaceholder.value='';
     subPlaceholder.textContent='Pilih subkategori';
@@ -158,9 +164,8 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     }
 
     const preferredMain=[...category.options].find(option=>option.value===categorySelection);
-    const fallback=[...category.options].find(option=>option.dataset.direction===direction.value);
-    if(preferredMain)category.value=preferredMain.value;
-    else if(fallback)category.value=fallback.value;
+    if(preferredMain&&preferredMain.value)category.value=preferredMain.value;
+    else category.value='';
 
     if([...subcategory.options].some(option=>option.value===subSelection)){
       subcategory.value=subSelection;
