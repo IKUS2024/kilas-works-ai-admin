@@ -34,11 +34,16 @@
 
   <header class="product-setup-hero">
     <span class="product-setup-kicker">{{ product_name }}</span>
-    <h1>{{ 'Pilih bisnis ' ~ business_label if businesses else 'Tambah bisnis ' ~ business_label }}</h1>
-    <p>{% if is_product_business %}Nama bisnis baru diisi di sini, setelah akun pemilik dibuat.{% else %}Pilih bisnis terkait atau lanjut sebagai pesanan pribadi.{% endif %}</p>
+    {% if product=='finance' and not businesses %}
+      <h1>Mulai Kilas Finance</h1>
+      <p>Isi nama pemilik dan konfirmasi email akun. Detail bisnis atau pribadi bisa dilengkapi nanti dari menu Akun.</p>
+    {% else %}
+      <h1>{{ 'Pilih bisnis ' ~ business_label if businesses else 'Tambah bisnis ' ~ business_label }}</h1>
+      <p>{% if is_product_business %}Nama bisnis baru diisi di sini, setelah akun pemilik dibuat.{% else %}Pilih bisnis terkait atau lanjut sebagai pesanan pribadi.{% endif %}</p>
+    {% endif %}
   </header>
 
-  {% if is_product_business %}
+  {% if is_product_business and not (product=='finance' and not businesses) %}
   <div class="product-setup-note">
     <span class="product-setup-note-icon">↔</span>
     <div><strong>Bisnis {{ business_label }} berdiri sendiri.</strong> Bisnis dari {{ 'AI Admin' if product=='finance' else 'Finance' }} tidak dipakai otomatis di sini. Nama boleh sama, tetapi data produk tetap terpisah. Data lama yang sudah ada tetap aman.</div>
