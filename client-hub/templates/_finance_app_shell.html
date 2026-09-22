@@ -2,7 +2,7 @@
 {% set ui = finance_ui %}
 {% set display_name = user.full_name or user.email.split('@')[0] %}
 <aside class="finance-app-sidebar" aria-label="Navigasi Kilas Finance">
-<a class="finance-app-brand" href="{{ url_for('finance.dashboard',business_id=business.id) }}">KILAS<span>FINANCE</span></a>
+<a class="finance-app-brand" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">KILAS<span>FINANCE</span></a>
 <nav>{% for area,label,symbol,endpoint,params in [
 ('dashboard','Dashboard','home','dashboard',{}),
 ('transactions','Transaksi','transfer','dashboard',{'view':'transactions'}),
@@ -13,14 +13,14 @@
 ('payees','Penerima','people','payees',{}),
 ('reports','Laporan','chart','reports',{}),
 ('assistant','AI Finance','chat','assistant',{})] %}
-<a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,**params) }}">{{ icon(symbol) }}{{ label }}</a>
+<a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,branch_id=selected_branch_id,**params) }}">{{ icon(symbol) }}{{ label }}</a>
 {% endfor %}</nav>
 <nav class="finance-app-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-finance-ui-open="finance-help-dialog">{{ icon('help') }}Bantuan</button><a href="{{ url_for('client.dashboard') }}">← Keluar Finance</a></nav>
 </aside>
 <div class="finance-app-topbar">
 <form class="finance-app-search" method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" {% if ui.home %}data-finance-live-period{% endif %}>
 <input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ ui.month }}"><input type="hidden" name="display_currency" value="{{ ui.currency }}">{{ icon('search') }}<input type="search" name="q" value="{{ request.args.get('q','') if ui.home else '' }}" aria-label="Cari transaksi, tagihan, atau penerima" placeholder="Cari transaksi, tagihan, atau penerima..."><button type="submit" aria-label="Cari">→</button></form>
-<a class="finance-app-bell" href="{{ url_for('finance.operations',business_id=business.id,payment_status='unpaid') }}" aria-label="Tagihan belum dibayar">{{ icon('bell') }}</a><a class="finance-app-avatar" href="{{ url_for('auth.account_page') }}" title="{{ display_name }}" aria-label="Profil {{ display_name }}">{{ display_name[:1]|upper }}{% if display_name.split()|length>1 %}{{ display_name.split()[-1][:1]|upper }}{% endif %}</a>
+<a class="finance-app-bell" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,payment_status='unpaid') }}" aria-label="Tagihan belum dibayar">{{ icon('bell') }}</a><a class="finance-app-avatar" href="{{ url_for('auth.account_page') }}" title="{{ display_name }}" aria-label="Profil {{ display_name }}">{{ display_name[:1]|upper }}{% if display_name.split()|length>1 %}{{ display_name.split()[-1][:1]|upper }}{% endif %}</a>
 </div>
 {% if ui.home %}<div class="finance-app-greeting"><h1>{{ display_name }}</h1><p>Kelola semua keuanganmu dalam satu tempat.</p></div>{% endif %}
 <div class="finance-context-toolbar" aria-label="Konteks Finance">
