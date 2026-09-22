@@ -18,10 +18,14 @@
     let items = [];
     try { items = JSON.parse(data.textContent || '[]'); } catch (_) { items = []; }
     const currency = items[0]?.currency || document.querySelector('[data-finance-live-currency]')?.value || 'IDR';
-    const max = Math.max(1, ...items.flatMap(row => [Number(row.income_minor || 0), Number(row.expense_minor || 0)]));
+    const max = Math.max(1, ...items.flatMap(row => [
+      Number(row.income_minor || 0),
+      Number(row.expense_minor || 0),
+      Number(row.budget_minor || 0)
+    ]));
     const svg = svgNode('svg', {
       viewBox:'0 0 480 200', role:'img',
-      'aria-label':`Pemasukan dan pengeluaran enam bulan dalam ${currency}, dikonversi memakai kurs referensi terbaru.`
+      'aria-label':`Pemasukan, pengeluaran, dan anggaran enam bulan dalam ${currency}.`
     });
     const format = value => new Intl.NumberFormat('id-ID', {notation:'compact', maximumFractionDigits:1})
       .format(value / (['IDR','JPY'].includes(currency) ? 1 : 100));
@@ -30,13 +34,20 @@
       svg.append(svgNode('line',{x1:55,x2:475,y1:y,y2:y,stroke:'currentColor',opacity:'.12'}));
       svg.append(svgNode('text',{x:49,y:y+4,'text-anchor':'end',fill:'currentColor',opacity:'.6','font-size':10},format(max*level)));
     });
+    const series = [
+      {key:'income_minor', label:'Pemasukan', fill:'var(--orange)'},
+      {key:'expense_minor', label:'Pengeluaran', fill:'#969da8'},
+      {key:'budget_minor', label:'Anggaran', fill:'#d8a15f'}
+    ];
     items.forEach((row,index) => {
       const x = 88 + index * 70;
-      ['income_minor','expense_minor'].forEach((key,j) => {
-        const value = Number(row[key] || 0);
+      series.forEach((item,j) => {
+        const value = Number(row[item.key] || 0);
         const height = value / max * 120;
-        const rect = svgNode('rect',{x:x-18+j*19,y:155-height,width:14,height,rx:3,fill:j ? '#969da8' : 'var(--orange)'});
-        rect.append(svgNode('title',{},`${row.month} ${j ? 'Pengeluaran' : 'Pemasukan'}: ${format(value)} ${currency}`));
+        const rect = svgNode('rect',{
+          x:x-22+j*16,y:155-height,width:12,height,rx:3,fill:item.fill
+        });
+        rect.append(svgNode('title',{},`${row.month} ${item.label}: ${format(value)} ${currency}`));
         svg.append(rect);
       });
       const label = new Intl.DateTimeFormat('id-ID',{month:'short',timeZone:'UTC'})
@@ -45,7 +56,8 @@
     });
     chart.replaceChildren(svg);
     const empty = document.getElementById('finance-trend-empty');
-    if (empty) empty.hidden = items.some(row => Number(row.income_minor) || Number(row.expense_minor));
+    if (empty) empty.hidden = items.some(row =>
+      Number(row.income_minor) || Number(row.expense_minor) || Number(row.budget_minor));
   }
 
   function setLoading(loading) {
