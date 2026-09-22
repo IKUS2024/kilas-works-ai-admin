@@ -126,6 +126,27 @@
 .account-empty{
   border:1px dashed var(--border);border-radius:14px;padding:20px;text-align:center;color:var(--text-dim);font-size:13px;
 }
+.business-profile-note{margin:0 0 12px;padding:10px 11px;border:1px solid rgba(255,122,26,.18);border-radius:11px;background:rgba(255,122,26,.045);color:var(--text-dim);font-size:11px;line-height:1.5}
+.business-identity-form{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) auto;gap:9px;align-items:end;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.business-identity-form label,.business-branch-form label{margin:0;min-width:0}
+.business-locked-email{min-height:44px;padding:11px 12px;border:1px solid var(--border);border-radius:11px;background:#1c1e21;color:#b9bdc4;display:flex;align-items:center;justify-content:space-between;gap:8px;overflow-wrap:anywhere}
+.business-locked-email small{flex:0 0 auto;color:#777d86;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.business-branch-list{display:grid;gap:8px;margin-top:12px}
+.business-branch-card{border:1px solid var(--border);border-radius:12px;background:#1b1d20;overflow:hidden}
+.business-branch-card>summary{list-style:none;cursor:pointer;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.business-branch-card>summary::-webkit-details-marker{display:none}
+.business-branch-summary strong{font-size:13px}
+.business-branch-summary span{display:block;margin-top:2px;color:var(--text-dim);font-size:10px}
+.business-branch-badge{padding:4px 7px;border-radius:999px;border:1px solid rgba(255,122,26,.28);color:#ff9c55;background:rgba(255,122,26,.06);font-size:9px;font-weight:800}
+.business-branch-form{padding:13px;border-top:1px solid var(--border)}
+.business-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.business-form-grid .wide{grid-column:1/-1}
+.business-form-group{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+.business-form-group h3{font-size:13px;margin:0 0 9px}
+.business-branch-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:13px}
+.business-branch-actions .btn,.business-identity-form .btn{margin:0}
+.business-invoice-link{font-size:10px;color:#ff9c55;text-decoration:none}
+.business-invoice-link:hover{text-decoration:underline}
 
 .security-grid{display:grid;gap:10px}
 .security-card{
@@ -184,6 +205,11 @@
   .account-field.full{grid-column:auto}
   .business-top{align-items:flex-start}
   .business-actions .btn{flex:1;text-align:center;min-width:120px}
+  .business-identity-form{grid-template-columns:1fr}
+  .business-form-grid{grid-template-columns:1fr}
+  .business-form-grid .wide{grid-column:auto}
+  .business-branch-actions{justify-content:stretch}
+  .business-branch-actions .btn{width:100%}
   .session-card{align-items:flex-start;flex-direction:column}
   .session-card .btn{width:100%}
 }
@@ -305,28 +331,135 @@
     <div class="card account-section">
       <div class="account-section-head">
         <div>
-          <h2>Bisnis yang kamu kelola</h2>
-          <p class="muted">Pilih bisnis untuk membuka pengaturan atau data Kilas Brain.</p>
+          <h2>Profil bisnis & invoice</h2>
+          <p class="muted">Kelola identitas bisnis, cabang, kontak, dan metode pembayaran untuk Kilas Finance.</p>
         </div>
       </div>
+
+      <p class="business-profile-note">
+        Data cabang di bawah menjadi default untuk <strong>invoice baru</strong>. Invoice yang sudah dibuat tetap menyimpan identitas pengirimnya sendiri. Email bisnis mengikuti email pemilik akun dan tidak dapat diedit dari sini.
+      </p>
 
       {% if businesses %}
         <div class="business-list">
           {% for business in businesses %}
-            {% set package_label = 'AI Admin Pro' if business.package == 'AI_ADMIN_PRO' else ('AI Admin' if business.package == 'AI_ADMIN' else 'Tanpa AI Admin') %}
+            {% set package_label = 'AI Admin Pro' if business.package == 'AI_ADMIN_PRO' else ('AI Admin' if business.package == 'AI_ADMIN' else 'Finance / tanpa AI Admin') %}
             <article class="business-item">
               <div class="business-top">
                 <div class="business-main">
                   <div class="business-icon" aria-hidden="true">{{ business.business_name[:1]|upper }}</div>
                   <div>
                     <div class="business-name">{{ business.business_name }}</div>
-                    <div class="business-sub">{{ package_label }} · Kamu sebagai pemilik</div>
+                    <div class="business-sub">{{ package_label }} · {{ business.finance_branches|length }} cabang Finance</div>
                   </div>
                 </div>
                 <span class="business-status">{{ status_labels.get(business.status, business.status|replace('_',' ')|title) }}</span>
               </div>
+
+              <form method="post" class="business-identity-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="business_identity">
+                <input type="hidden" name="business_id" value="{{ business.id }}">
+                <label>
+                  <span class="account-label">Nama bisnis</span>
+                  <input name="business_name" maxlength="160" value="{{ business.business_name }}" required>
+                </label>
+                <label>
+                  <span class="account-label">Email bisnis</span>
+                  <span class="business-locked-email"><span>{{ business.business_email }}</span><small>Terkunci</small></span>
+                </label>
+                <button class="btn secondary small" type="submit">Simpan Nama</button>
+              </form>
+
+              {% if business.finance_branches %}
+                <div class="business-branch-list">
+                  {% for branch in business.finance_branches %}
+                    {% set sender = branch.invoice_sender %}
+                    {% set payment = branch.invoice_payment %}
+                    <details class="business-branch-card" {% if branch.is_default %}open{% endif %}>
+                      <summary>
+                        <span class="business-branch-summary">
+                          <strong>{{ branch.display_name }}</strong>
+                          <span>Data pengirim & pembayaran invoice</span>
+                        </span>
+                        {% if branch.is_default %}<span class="business-branch-badge">Cabang utama</span>{% else %}<span class="security-arrow" aria-hidden="true">⌄</span>{% endif %}
+                      </summary>
+
+                      <form method="post" class="business-branch-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="business_branch">
+                        <input type="hidden" name="business_id" value="{{ business.id }}">
+                        <input type="hidden" name="branch_id" value="{{ branch.id }}">
+
+                        <div class="business-form-grid">
+                          <label>
+                            <span class="account-label">Nama cabang</span>
+                            <input name="branch_name" maxlength="160" value="{{ branch.display_name }}" required>
+                          </label>
+                          <label>
+                            <span class="account-label">Nomor telepon bisnis</span>
+                            <input name="business_phone" type="tel" maxlength="254" value="{{ sender.get('phone','') }}" required>
+                          </label>
+                          <label class="wide">
+                            <span class="account-label">Alamat bisnis / cabang</span>
+                            <textarea name="address" maxlength="2000" rows="3" required>{{ sender.get('address','') }}</textarea>
+                          </label>
+                          <label>
+                            <span class="account-label">Email bisnis</span>
+                            <span class="business-locked-email"><span>{{ business.business_email }}</span><small>Terkunci</small></span>
+                          </label>
+                          <label>
+                            <span class="account-label">Website</span>
+                            <input name="website" maxlength="254" value="{{ sender.get('website','') }}" placeholder="https://...">
+                          </label>
+                          <label>
+                            <span class="account-label">NPWP / Tax ID</span>
+                            <input name="tax_id" maxlength="254" value="{{ sender.get('tax_id','') }}">
+                          </label>
+                        </div>
+
+                        <div class="business-form-group">
+                          <h3>Metode pembayaran invoice</h3>
+                          <div class="business-form-grid">
+                            <label>
+                              <span class="account-label">Metode pembayaran</span>
+                              <input name="payment_method" maxlength="254" value="{{ payment.get('method','') }}" placeholder="Transfer Bank / QRIS">
+                            </label>
+                            <label>
+                              <span class="account-label">Bank / penyedia</span>
+                              <input name="payment_bank_name" maxlength="254" value="{{ payment.get('bank','') }}" placeholder="BCA, SeaBank, Mandiri...">
+                            </label>
+                            <label>
+                              <span class="account-label">Nomor rekening / tujuan</span>
+                              <input name="payment_account_number" maxlength="254" value="{{ payment.get('account_number','') }}">
+                            </label>
+                            <label>
+                              <span class="account-label">Nama pemilik rekening</span>
+                              <input name="payment_account_name" maxlength="254" value="{{ payment.get('account_holder','') }}">
+                            </label>
+                            <label class="wide">
+                              <span class="account-label">Instruksi pembayaran</span>
+                              <textarea name="payment_instructions" maxlength="2000" rows="2">{{ payment.get('instructions','') }}</textarea>
+                            </label>
+                          </div>
+                        </div>
+
+                        <div class="business-branch-actions">
+                          <button class="btn" type="submit">Simpan Data Cabang</button>
+                          <a class="btn secondary" href="{{ url_for('finance.receivables', business_id=business.id, branch_id=branch.id, section='invoices') }}">Buka Invoice</a>
+                        </div>
+                      </form>
+                    </details>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="account-help">
+                  Bisnis ini belum memiliki cabang Finance. Nama bisnis tetap dapat dikelola di sini; data invoice tersedia setelah Finance diaktifkan.
+                </div>
+              {% endif %}
+
               <div class="business-actions">
-                <a class="btn secondary small" href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan</a>
+                <a class="btn secondary small" href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan lain</a>
                 {% if business.package != 'NONE' %}
                   <a class="btn secondary small" href="{{ url_for('client.business_memory', business_id=business.id) }}">Kilas Brain</a>
                 {% endif %}
@@ -335,9 +468,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <div class="account-empty">
-          Belum ada bisnis yang terhubung ke akun ini.
-        </div>
+        <div class="account-empty">Belum ada bisnis yang terhubung ke akun ini.</div>
       {% endif %}
     </div>
   </section>
