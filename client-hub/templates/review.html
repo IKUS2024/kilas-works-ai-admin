@@ -127,7 +127,9 @@
     </section>
   {% endif %}
 
-  {% if missing_required %}
+  {# Missing business-profile fields are Kilas Brain onboarding requirements.
+     A Finance-only client must not be shown as incomplete just because Brain is not enabled. #}
+  {% if missing_required and business.package != 'NONE' %}
     <div class="review-alert">
       <strong>Data bisnis belum lengkap</strong>
       <p>{{ (missing_required_labels or missing_required)|length }} data wajib masih perlu dilengkapi.</p>
