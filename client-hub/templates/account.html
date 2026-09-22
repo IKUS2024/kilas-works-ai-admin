@@ -31,6 +31,26 @@
   border:1px solid rgba(255,122,26,.16);pointer-events:none;
 }
 .account-hero-main{display:flex;align-items:center;gap:14px;position:relative;z-index:1}
+.account-hero-edit{margin-left:auto;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:7px 10px;border:1px solid rgba(255,122,26,.35);border-radius:10px;background:rgba(255,122,26,.06);color:#ff9c55;font:inherit;font-size:10px;font-weight:850;cursor:pointer}
+.account-hero-edit:hover,.account-hero-edit:focus-visible{border-color:rgba(255,122,26,.7);background:rgba(255,122,26,.11)}
+.account-avatar-button{position:relative;border:0;padding:0;background:none;cursor:pointer;border-radius:18px}
+.account-avatar-button::after{content:'✎';position:absolute;right:-4px;bottom:-4px;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#17191c;border:1px solid rgba(255,122,26,.55);color:#ff9c55;font-size:10px;font-weight:900}
+.account-profile-dialog{width:min(440px,calc(100vw - 28px));padding:0;border:1px solid var(--border);border-radius:18px;background:#191b1f;color:var(--text);box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.account-profile-dialog::backdrop{background:rgba(0,0,0,.68);backdrop-filter:blur(2px)}
+.account-profile-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;border-bottom:1px solid var(--border)}
+.account-profile-dialog-head h2{margin:0;font-size:18px}
+.account-profile-dialog-close{width:34px;height:34px;border:1px solid var(--border);border-radius:10px;background:#202226;color:var(--text);font-size:20px;cursor:pointer}
+.account-profile-dialog-body{padding:16px}
+.account-profile-dialog-preview{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.account-profile-dialog-preview .account-avatar{width:72px;height:72px;border-radius:20px}
+.account-profile-dialog-preview strong{display:block;font-size:15px}
+.account-profile-dialog-preview small{display:block;margin-top:3px;color:var(--text-dim);font-size:10px}
+.account-profile-dialog form+form{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.account-profile-dialog label{display:block;font-size:10px;color:var(--text-dim);font-weight:800}
+.account-profile-dialog input[type=text]{height:42px;margin-top:5px}
+.account-profile-dialog input[type=file]{width:100%;margin-top:7px;padding:9px;border:1px solid var(--border);border-radius:10px;background:#141619;color:var(--text-dim);font-size:10px}
+.account-profile-dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.account-profile-dialog-actions .btn{margin:0}
 .account-avatar{
   width:58px;height:58px;border-radius:18px;display:grid;place-items:center;flex:0 0 auto;overflow:hidden;
   background:linear-gradient(145deg,#ff8d37,#e9640a);color:#1b140f;font-size:23px;font-weight:900;
@@ -229,6 +249,11 @@
   .session-card .btn{width:100%}
 }
 @media(max-width:430px){
+  .account-hero-edit{padding:6px 8px;font-size:9px}
+  .account-profile-dialog{width:calc(100vw - 20px)}
+  .account-profile-dialog-body{padding:13px}
+  .account-profile-dialog-preview .account-avatar{width:62px;height:62px;border-radius:18px}
+
   .account-head p{max-width:245px}
   .account-quick-logout{font-size:10px}
   .account-hero-main{align-items:flex-start}
@@ -272,7 +297,9 @@
 
   <section class="card account-hero">
     <div class="account-hero-main">
-      <div class="account-avatar" aria-hidden="true">{% if personal_photo %}<img src="{{ url_for('auth.account_personal_photo', v=personal_photo.id) }}" alt="">{% else %}{{ initial }}{% endif %}</div>
+      <button class="account-avatar-button" type="button" data-profile-edit aria-label="Edit profil Pribadi">
+        <span class="account-avatar" aria-hidden="true">{% if personal_photo %}<img src="{{ url_for('auth.account_personal_photo', v=personal_photo.id) }}" alt="">{% else %}{{ initial }}{% endif %}</span>
+      </button>
       <div class="account-hero-copy">
         <h2>{{ display_name }}</h2>
         <div class="account-hero-email">{{ user.email }}</div>
@@ -282,8 +309,44 @@
           <span class="account-badge">Akun aktif</span>
         </div>
       </div>
+      <button class="account-hero-edit" type="button" data-profile-edit>✎ Edit profil</button>
     </div>
   </section>
+
+  <dialog class="account-profile-dialog" id="account-profile-dialog">
+    <div class="account-profile-dialog-head">
+      <h2>Edit profil Pribadi</h2>
+      <button class="account-profile-dialog-close" type="button" data-profile-close aria-label="Tutup">×</button>
+    </div>
+    <div class="account-profile-dialog-body">
+      <div class="account-profile-dialog-preview">
+        <div class="account-avatar" aria-hidden="true">{% if personal_photo %}<img src="{{ url_for('auth.account_personal_photo', v=personal_photo.id) }}" alt="">{% else %}{{ initial }}{% endif %}</div>
+        <div><strong>{{ display_name }}</strong><small>{{ user.email }} · email terkunci</small></div>
+      </div>
+
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="profile">
+        <label>Nama lengkap
+          <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu" required>
+        </label>
+        <div class="account-profile-dialog-actions">
+          <button class="btn" type="submit">Simpan Nama</button>
+        </div>
+      </form>
+
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="personal_photo">
+        <label>Foto profil
+          <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required>
+        </label>
+        <div class="account-profile-dialog-actions">
+          <button class="btn secondary" type="submit">{{ 'Ganti Foto' if personal_photo else 'Tambah Foto' }}</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
 
   <div class="account-tabs" role="tablist" aria-label="Menu akun">
     <button class="account-tab active" type="button" role="tab" aria-selected="true" aria-controls="account-panel-personal" data-account-tab="personal">Pribadi</button>
@@ -297,27 +360,13 @@
     <div class="card account-section">
       <div class="account-section-head">
         <div>
-          <h2>Profil Pribadi & invoice</h2>
-          <p class="muted">Identitas pribadi yang dipakai untuk Finance Pribadi dan invoice baru.</p>
-        </div>
-      </div>
-
-      <div class="profile-photo-row">
-        <div class="account-avatar" aria-hidden="true">{% if personal_photo %}<img src="{{ url_for('auth.account_personal_photo', v=personal_photo.id) }}" alt="">{% else %}{{ initial }}{% endif %}</div>
-        <div class="profile-photo-copy">
-          <strong>Foto profil Pribadi</strong>
-          <small>JPG, PNG, atau WEBP. Foto ini hanya untuk identitas profil akun.</small>
-          <form method="post" enctype="multipart/form-data" class="profile-photo-form">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="personal_photo">
-            <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required>
-            <button class="btn secondary small" type="submit">Ganti Foto</button>
-          </form>
+          <h2>Data invoice Pribadi</h2>
+          <p class="muted">Kontak dan pembayaran yang dipakai otomatis saat membuat invoice Pribadi baru.</p>
         </div>
       </div>
 
       <p class="personal-invoice-note">
-        Data ini menjadi default untuk <strong>invoice Pribadi baru</strong>. Invoice yang sudah diterbitkan tetap menyimpan identitas lama. Email mengikuti email login dan tidak dapat diedit.
+        Nama, foto, dan email dikelola dari kartu profil di atas. Data di bawah hanya untuk invoice Pribadi baru; invoice yang sudah diterbitkan tetap menyimpan identitas lama.
       </p>
 
       <form method="post" id="account-personal-form">
@@ -325,14 +374,6 @@
         <input type="hidden" name="action" value="personal_profile">
 
         <div class="business-form-grid">
-          <label>
-            <span class="account-label">Nama lengkap</span>
-            <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu" required>
-          </label>
-          <label>
-            <span class="account-label">Email</span>
-            <span class="business-locked-email"><span>{{ user.email }}</span><small>Terkunci</small></span>
-          </label>
           <label>
             <span class="account-label">Nomor telepon</span>
             <input name="phone" type="tel" maxlength="254" value="{{ personal_profile.phone or '' }}" placeholder="Opsional">
@@ -378,7 +419,7 @@
         </div>
 
         <div class="business-branch-actions">
-          <button class="btn" type="submit">Simpan Profil Pribadi</button>
+          <button class="btn" type="submit">Simpan Data Invoice</button>
         </div>
       </form>
     </div>
@@ -631,6 +672,21 @@
   const serverSecurityOpen = {{ 'true' if password_open else 'false' }};
   const initialTab = serverSecurityOpen ? 'security' : (location.hash || '').replace('#','');
   showTab(initialTab || 'personal', false);
+
+  const profileDialog = document.getElementById('account-profile-dialog');
+  document.querySelectorAll('[data-profile-edit]').forEach(function(button){
+    button.addEventListener('click', function(){
+      if (profileDialog && typeof profileDialog.showModal === 'function') profileDialog.showModal();
+    });
+  });
+  document.querySelectorAll('[data-profile-close]').forEach(function(button){
+    button.addEventListener('click', function(){ if (profileDialog) profileDialog.close(); });
+  });
+  if (profileDialog) {
+    profileDialog.addEventListener('click', function(event){
+      if (event.target === profileDialog) profileDialog.close();
+    });
+  }
 
   document.querySelectorAll('[data-password-toggle]').forEach(function(button){
     button.addEventListener('click', function(){
