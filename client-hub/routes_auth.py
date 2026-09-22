@@ -1,11 +1,14 @@
+import io
 import re
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, abort
 
 import repo
 import security
 import email_utils
+import file_utils
+import account_profile_service as account_profiles
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -92,6 +95,7 @@ def _account_businesses(user):
         business = dict(raw)
         business["business_email"] = repo.get_business_owner_email(business["id"]) or user["email"]
         business["profile"] = dict(repo.get_business_profile(business["id"]) or {})
+        business["profile_photo"] = account_profiles.profile_asset_meta("BUSINESS", business["id"])
         finance_rows = []
         for raw_branch in branches.list_branches(
                 business["id"], user["id"], workspace_type="BUSINESS"):
@@ -114,25 +118,125 @@ def _account_business_redirect():
     return redirect(url_for("auth.account_page") + "#business", code=303)
 
 
+def _account_personal_redirect():
+    return redirect(url_for("auth.account_page") + "#personal", code=303)
+
+
+def _account_context(user):
+    return {
+        "user": user,
+        "businesses": _account_businesses(user),
+        "personal_profile": account_profiles.get_personal_profile(user["id"]),
+        "personal_photo": account_profiles.profile_asset_meta("USER", user["id"]),
+    }
+
+
+def _serve_profile_asset(asset):
+    if asset is None:
+        abort(404)
+    response = send_file(
+        io.BytesIO(asset["content"]),
+        mimetype=asset.get("mime_type") or "application/octet-stream",
+    )
+    response.headers["Cache-Control"] = "private, max-age=3600"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@auth_bp.route("/account/photo")
+@security.login_required
+def account_personal_photo():
+    user = security.current_user()
+    return _serve_profile_asset(account_profiles.profile_asset("USER", user["id"]))
+
+
+@auth_bp.route("/account/business/<int:business_id>/photo")
+@security.login_required
+def account_business_photo(business_id):
+    user = security.current_user()
+    security.require_business_access(business_id, user=user)
+    return _serve_profile_asset(account_profiles.profile_asset("BUSINESS", business_id))
+
+
 @auth_bp.route("/account", methods=["GET", "POST"])
 @security.login_required
 def account_page():
-    """Simple self-service account page: profile name, password, and logout entrypoint."""
+    """Self-service personal/business identity, invoice metadata, photos and security."""
     user = security.current_user()
-    businesses = _account_businesses(user)
+    context = _account_context(user)
+    businesses = context["businesses"]
     if request.method == "GET":
-        return render_template("account.html", user=user, businesses=businesses, password_open=False)
+        return render_template("account.html", **context, password_open=False)
 
     action = (request.form.get("action") or "").strip()
     if action == "profile":
         full_name = (request.form.get("full_name") or "").strip()
         if len(full_name) > 100:
             flash("Nama terlalu panjang.", "error")
-            return render_template("account.html", user=user, businesses=businesses, password_open=False), 400
+            return render_template("account.html", **context, password_open=False), 400
         repo.update_user_profile(user["id"], full_name)
         repo.write_audit_no_business(user["id"], "ACCOUNT_PROFILE_UPDATED", "self-service profile name updated")
         flash("Nama akun berhasil diperbarui.", "success")
-        return redirect(url_for("auth.account_page"))
+        return _account_personal_redirect()
+
+    if action == "personal_profile":
+        full_name = (request.form.get("full_name") or "").strip()
+        if not full_name or len(full_name) > 100:
+            flash("Nama pribadi wajib diisi dan maksimal 100 karakter.", "error")
+            return _account_personal_redirect()
+        try:
+            personal = account_profiles.save_personal_profile(user["id"], {
+                "phone": request.form.get("phone"),
+                "address": request.form.get("address"),
+                "tax_id": request.form.get("tax_id"),
+                "website": request.form.get("website"),
+                "payment_method": request.form.get("payment_method"),
+                "payment_bank_name": request.form.get("payment_bank_name"),
+                "payment_account_number": request.form.get("payment_account_number"),
+                "payment_account_name": request.form.get("payment_account_name"),
+                "payment_instructions": request.form.get("payment_instructions"),
+            })
+        except ValueError:
+            flash("Data pribadi belum valid. Periksa panjang isian lalu coba lagi.", "error")
+            return _account_personal_redirect()
+        repo.update_user_profile(user["id"], full_name)
+        repo.write_audit_no_business(
+            user["id"], "ACCOUNT_PERSONAL_PROFILE_UPDATED",
+            "personal invoice profile updated; existing invoice snapshots unchanged")
+        flash("Profil Pribadi diperbarui. Invoice baru akan memakai data terbaru.", "success")
+        return _account_personal_redirect()
+
+    if action in ("personal_photo", "business_photo"):
+        upload = request.files.get("photo")
+        if not upload or not upload.filename:
+            flash("Pilih foto dulu.", "error")
+            return _account_personal_redirect() if action == "personal_photo" else _account_business_redirect()
+        raw = upload.stream.read(file_utils.MAX_IMAGE_UPLOAD_BYTES + 1)
+        try:
+            safe_name, mime_type = file_utils.validate_image_upload(upload.filename, raw)
+        except file_utils.UploadRejected as error:
+            flash(str(error), "error")
+            return _account_personal_redirect() if action == "personal_photo" else _account_business_redirect()
+        if action == "personal_photo":
+            account_profiles.save_profile_photo(
+                "USER", user["id"], safe_name, mime_type, raw, user["id"])
+            repo.write_audit_no_business(
+                user["id"], "ACCOUNT_PERSONAL_PHOTO_UPDATED", "personal profile photo updated")
+            flash("Foto profil Pribadi diperbarui.", "success")
+            return _account_personal_redirect()
+        try:
+            business_id = int(request.form.get("business_id") or "")
+        except (TypeError, ValueError):
+            flash("Bisnis tidak valid.", "error")
+            return _account_business_redirect()
+        security.require_business_access(business_id, user=user)
+        account_profiles.save_profile_photo(
+            "BUSINESS", business_id, safe_name, mime_type, raw, user["id"])
+        repo.write_audit(
+            user["id"], business_id, "ACCOUNT_BUSINESS_PHOTO_UPDATED",
+            "business profile photo updated")
+        flash("Foto profil bisnis diperbarui.", "success")
+        return _account_business_redirect()
 
     if action == "business_identity":
         try:
@@ -253,7 +357,7 @@ def account_page():
         confirm_password = request.form.get("confirm_password") or ""
         if not security.verify_password(user["password_hash"], current_password):
             flash("Password saat ini tidak cocok.", "error")
-            return render_template("account.html", user=user, businesses=businesses, password_open=True), 400
+            return render_template("account.html", **_account_context(user), password_open=True), 400
         if len(new_password) < 8:
             flash("Password baru minimal 8 karakter.", "error")
             return render_template("account.html", user=user, businesses=businesses, password_open=True), 400
@@ -273,7 +377,7 @@ def account_page():
         saved_user = repo.get_user_by_id(user["id"])
         if not saved_user or not security.verify_password(saved_user["password_hash"], new_password):
             flash("Password belum berhasil disimpan. Coba lagi.", "error")
-            return render_template("account.html", user=user, businesses=businesses, password_open=True), 500
+            return render_template("account.html", **_account_context(user), password_open=True), 500
 
         repo.invalidate_all_reset_tokens_for_user(user["id"], _now_iso())
         security.clear_login_attempts(user["email"])
