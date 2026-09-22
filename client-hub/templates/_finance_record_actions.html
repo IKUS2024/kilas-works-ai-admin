@@ -6,7 +6,7 @@
 <label>{{ 'Nama Cabang' if kind=='branch' else ('Nama Akun' if kind=='account' else 'Nama Kategori') }}<input name="name" value="{{ item.name }}" maxlength="160" required></label>
 <div class="finance-record-buttons">
 <button class="btn secondary" name="action" value="edit">✏️ Simpan Nama</button>
-<button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('Hapus {{ item.name }} dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.');">🗑️ Hapus</button>
+<button class="btn secondary finance-danger-soft" name="action" value="deactivate" onclick="return confirm('{% if kind == 'category' %}Hapus {{ item.name }} dari daftar aktif? Jika ini kategori utama, semua subkategori aktif di bawahnya juga ikut dihapus. Riwayat transaksi lama tetap tersimpan.{% else %}Hapus {{ item.name }} dari daftar aktif? Riwayat lama dan transaksi yang sudah ada tetap tersimpan.{% endif %}');">🗑️ Hapus</button>
 </div>
 </form>
 </div>
