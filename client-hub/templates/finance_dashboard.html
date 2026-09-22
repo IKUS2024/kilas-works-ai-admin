@@ -156,7 +156,7 @@
 <div class="finance-workspace-head-row">
   <div class="finance-workspace-head-main">
     <span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span>
-    <h1>{{ finance_workspace_label }}</h1>
+    <h1>{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</h1>
     {% if finance_workspace_personal %}
       <span class="finance-personal-scope">Keuangan pribadi</span>
     {% else %}
