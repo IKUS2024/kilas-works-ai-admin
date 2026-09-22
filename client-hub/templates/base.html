@@ -221,12 +221,9 @@
 </style>
 </head>
 <body class="{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
-<div class="topbar{% if request.blueprint == 'finance' %} finance-context-bar{% endif %}">
-  {% if request.blueprint == 'finance' %}
-  <div class="brand">Kilas<span>Works</span> <strong class="finance-brand-label">Finance{% if finance_workspace_label is defined %} · {{ finance_workspace_label }}{% endif %}</strong></div>
-  {% else %}
+{% if request.blueprint != 'finance' %}
+<div class="topbar">
   <div class="brand">Kilas<span>Works</span> Client Hub</div>
-  {% endif %}
   <nav>
     {% if session.get('user_id') %}
       {% if session.get('role') == 'KILAS_ADMIN' %}
@@ -255,6 +252,7 @@
     {% endif %}
   </nav>
 </div>
+{% endif %}
 <div class="wrap">
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% for category, message in messages %}
