@@ -15,6 +15,21 @@ def _owner_email(business_id):
     return repo.get_business_owner_email(business_id) or ''
 
 
+def _workspace_identity(business_id, actor_user_id=None):
+    """Return the current scoped workspace and its sender identity."""
+    branch_id = f.branches.write_branch(business_id, actor_user_id)
+    branch = f.branches.get(
+        business_id, branch_id, active=True, actor_user_id=actor_user_id)
+    workspace_type = branch.get('workspace_type') or 'BUSINESS'
+    if workspace_type == 'PERSONAL':
+        user = repo.get_user_by_id(actor_user_id) if actor_user_id is not None else None
+        email = (user or {}).get('email') or _owner_email(business_id)
+        name = (user or {}).get('full_name') or (email.split('@')[0] if email else 'Pribadi')
+        return workspace_type, name, email
+    business = db.query_one('SELECT business_name FROM businesses WHERE id=?',(business_id,))
+    return workspace_type, business['business_name'], _owner_email(business_id)
+
+
 def clean_document(data):
     if not isinstance(data, dict) or set(data) - {*GROUPS, 'reference'}:
         raise f.FinanceError('invalid_invoice_document')
@@ -32,16 +47,23 @@ def clean_document(data):
 def defaults(business_id, actor_user_id=None):
     f._scope(business_id, actor_user_id)
     branch_id = f.branches.write_branch(business_id, actor_user_id)
+    workspace_type, sender_name, sender_email = _workspace_identity(
+        business_id, actor_user_id)
     row = db.query_one('SELECT defaults_json FROM finance_invoice_settings WHERE business_id=? AND branch_id=?',
                        (business_id, branch_id))
     if row:
         values = json.loads(row['defaults_json'])
-        values.setdefault('sender', {})['email'] = _owner_email(business_id)
+        sender = values.setdefault('sender', {})
+        sender['email'] = sender_email
+        if workspace_type == 'PERSONAL':
+            sender['name'] = sender_name
         return values
-    b = db.query_one('SELECT business_name FROM businesses WHERE id=?',(business_id,))
+    if workspace_type == 'PERSONAL':
+        return {'sender':dict(name=sender_name,address='',phone='',email=sender_email,tax_id='',website=''),
+                'payment':dict(method='',bank='',account_number='',account_holder='',instructions='')}
     p = db.query_one('SELECT * FROM business_profiles WHERE business_id=?',(business_id,)) or {}
-    return {'sender':dict(name=b['business_name'],address=p.get('address') or '',
-                         phone=p.get('business_phone') or '',email=_owner_email(business_id),tax_id='',website=''),
+    return {'sender':dict(name=sender_name,address=p.get('address') or '',
+                         phone=p.get('business_phone') or '',email=sender_email,tax_id='',website=''),
             'payment':dict(method='Transfer Bank' if p.get('payment_bank_name') else '',
                           bank=p.get('payment_bank_name') or '',account_number=p.get('payment_account_number') or '',
                           account_holder=p.get('payment_account_name') or '',instructions=p.get('payment_instructions') or '')}
@@ -49,8 +71,12 @@ def defaults(business_id, actor_user_id=None):
 
 def save_defaults(business_id, data, actor_user_id=None):
     values = clean_document(dict(data,recipient={'name':'-'}))
-    values['sender']['email'] = _owner_email(business_id)
-    if not values['sender']['address'] or not values['sender']['phone']:
+    workspace_type, sender_name, sender_email = _workspace_identity(
+        business_id, actor_user_id)
+    values['sender']['email'] = sender_email
+    if workspace_type == 'PERSONAL':
+        values['sender']['name'] = sender_name
+    elif not values['sender']['address'] or not values['sender']['phone']:
         raise f.FinanceError('invoice_sender_required')
     values = {k:values[k] for k in ('sender','payment')}
     with f._write(business_id,actor_user_id):
@@ -127,9 +153,13 @@ def _inline_customer(business_id, recipient, actor_user_id, key=None):
 def create(business_id, customer_id, data, *, actor_user_id=None, submission_key, **kwargs):
     """Atomic inline recipient + invoice, retry-safe without modifying existing customers."""
     doc=clean_document(data)
-    doc['sender']['email'] = _owner_email(business_id)
+    workspace_type, sender_name, sender_email = _workspace_identity(
+        business_id, actor_user_id)
+    doc['sender']['email'] = sender_email
+    if workspace_type == 'PERSONAL':
+        doc['sender']['name'] = sender_name
     with f._write(business_id,actor_user_id):
-        if not doc['sender']['address'] or not doc['sender']['phone']:
+        if workspace_type != 'PERSONAL' and (not doc['sender']['address'] or not doc['sender']['phone']):
             raise f.FinanceError('invoice_sender_required')
         if not customer_id:
             customer_id=_inline_customer(business_id,doc['recipient'],actor_user_id,submission_key)
