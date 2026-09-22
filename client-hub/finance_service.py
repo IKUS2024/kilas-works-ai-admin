@@ -2961,6 +2961,24 @@ def delete_monthly_budget(business_id, budget_id, *, actor_user_id=None):
         return budget_id
 
 
+def get_category_totals(business_id, start_date, end_date, direction, *, account_id=None,
+                        actor_user_id=None):
+    """Return posted transaction totals per category/currency for one ledger direction."""
+    _scope(business_id, actor_user_id)
+    start_date, end_date = _period(start_date, end_date)
+    direction = _enum(direction, DIRECTIONS)
+    params = [business_id, direction, start_date, end_date]
+    sql = (
+        'SELECT category_id,currency,SUM(amount_minor) AS amount_minor,COUNT(*) AS transaction_count '
+        'FROM finance_transactions WHERE business_id=?' + branches.predicate('') +
+        " AND status='POSTED' AND direction=? AND occurred_on>=? AND occurred_on<=? ")
+    if account_id is not None:
+        sql += ' AND account_id=?'
+        params.append(_id(account_id))
+    sql += ' GROUP BY category_id,currency ORDER BY category_id,currency'
+    return db.query_all(sql, params)
+
+
 def get_expense_category_totals(business_id, start_date, end_date, *, actor_user_id=None):
     _scope(business_id, actor_user_id)
     start_date, end_date = _period(start_date, end_date)
