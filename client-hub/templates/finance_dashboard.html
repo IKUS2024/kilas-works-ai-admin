@@ -427,7 +427,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <section class="card finance-ledger-category-card" aria-label="Kategori {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }}">
   <div class="finance-ledger-category-list">
     {% for row in ledger_category_rows %}
-    <a class="finance-ledger-category-row{{ ' active' if selected_category_id == row.category_id else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=1,category_id=row.category_id,**ledger_category_query) }}" {% if selected_category_id == row.category_id %}aria-current="page"{% endif %}>
+    <a class="finance-ledger-category-row{{ ' active' if selected_category_id == row.category_id else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,page=1,category_id=row.category_id,**ledger_category_query) }}" {% if selected_category_id == row.category_id %}aria-current="page"{% endif %}>
       <span>{{ row.name }}</span>
       <strong>{{ row.display_amount }}</strong>
       <i aria-hidden="true">›</i>
@@ -450,7 +450,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <div class="finance-section-heading">
   <h2>{% if selected_ledger_category %}Transaksi {{ selected_ledger_category.name }}{% else %}Riwayat Transaksi{% endif %}</h2>
   {% if selected_ledger_category %}
-  <a class="finance-ledger-category-close" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=1,**ledger_category_query) }}">Tutup</a>
+  <a class="finance-ledger-category-close" href="{{ url_for('finance.dashboard',business_id=business.id,page=1,**ledger_category_query) }}">Tutup</a>
   {% else %}<span class="finance-subtle">{{ transaction_page_size }} per halaman</span>{% endif %}
 </div>
 {% set tx_group = namespace(date='') %}
@@ -508,12 +508,12 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </section>
 {% if transaction_page_count > 1 %}
 <nav class="finance-pagination" aria-label="Halaman riwayat transaksi">
-  {% if transaction_page > 1 %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=transaction_page-1,**transaction_query) }}" aria-label="Halaman sebelumnya">‹</a>{% endif %}
+  {% if transaction_page > 1 %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page-1,**transaction_query) }}" aria-label="Halaman sebelumnya">‹</a>{% endif %}
   {% for item in transaction_page_items %}
-    {% if item %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=item,**transaction_query) }}" class="{{ 'active' if item == transaction_page }}" {% if item == transaction_page %}aria-current="page"{% endif %}>{{ item }}</a>
+    {% if item %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=item,**transaction_query) }}" class="{{ 'active' if item == transaction_page }}" {% if item == transaction_page %}aria-current="page"{% endif %}>{{ item }}</a>
     {% else %}<span aria-hidden="true">…</span>{% endif %}
   {% endfor %}
-  {% if transaction_page < transaction_page_count %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=transaction_page+1,**transaction_query) }}" aria-label="Halaman berikutnya">›</a>{% endif %}
+  {% if transaction_page < transaction_page_count %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page+1,**transaction_query) }}" aria-label="Halaman berikutnya">›</a>{% endif %}
 </nav>
 <p class="finance-pagination-meta">Halaman {{ transaction_page }} dari {{ transaction_page_count }}</p>
 {% endif %}
