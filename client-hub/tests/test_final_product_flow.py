@@ -1,4 +1,5 @@
 """Final release journeys, offline. Ordinary member, disposable SQLite; no admin entitlement bypass."""
+import base64
 import io
 import os
 import uuid
@@ -238,6 +239,64 @@ class FinalFlowTests(unittest.TestCase):
                 notes='',items=[dict(description='Jasa pribadi',quantity=1,unit_price_minor=100000)])
             self.assertIsNotNone(invoice)
             self.assertEqual(f.get_finance_invoice(self.b,invoice,self.uid)['branch_id'],personal_id)
+
+    def test_account_pribadi_profile_photos_and_invoice_defaults(self):
+        import finance_branches as branches
+        import finance_invoice_editor as editor
+        self.trial()
+
+        page=self.client.get('/account')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('data-account-tab="personal"',page.text)
+        self.assertIn('>Pribadi</button>',page.text)
+        self.assertIn('Profil Pribadi &amp; invoice',page.text)
+        self.assertIn('Ganti Foto Bisnis',page.text)
+
+        saved=self.client.post('/account',data={
+            'action':'personal_profile',
+            'full_name':'Irvan Personal',
+            'phone':'08123456789',
+            'address':'Alamat Pribadi 1',
+            'tax_id':'NPWP-P',
+            'website':'https://example.test',
+            'payment_method':'Transfer Bank',
+            'payment_bank_name':'BCA',
+            'payment_account_number':'123456',
+            'payment_account_name':'Irvan Personal',
+            'payment_instructions':'Bayar sesuai invoice',
+        })
+        self.assertEqual(saved.status_code,303)
+        self.assertTrue(saved.location.endswith('#personal'))
+
+        personal_id=branches.ensure_personal(self.b,self.uid)
+        with branches.scope(self.b,personal_id,self.uid):
+            defaults=editor.defaults(self.b,self.uid)
+        self.assertEqual(defaults['sender']['name'],'Irvan Personal')
+        self.assertEqual(defaults['sender']['email'],repo.get_user_by_id(self.uid)['email'])
+        self.assertEqual(defaults['sender']['phone'],'08123456789')
+        self.assertEqual(defaults['sender']['address'],'Alamat Pribadi 1')
+        self.assertEqual(defaults['payment']['bank'],'BCA')
+        self.assertEqual(defaults['payment']['account_number'],'123456')
+
+        png=base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z0aAAAAAASUVORK5CYII=')
+        photo=self.client.post('/account',data={
+            'action':'personal_photo',
+            'photo':(io.BytesIO(png),'profile.png'),
+        },content_type='multipart/form-data')
+        self.assertEqual(photo.status_code,303)
+        personal_photo=self.client.get('/account/photo')
+        self.assertEqual(personal_photo.status_code,200)
+        self.assertEqual(personal_photo.mimetype,'image/png')
+
+        business_photo=self.client.post('/account',data={
+            'action':'business_photo','business_id':str(self.b),
+            'photo':(io.BytesIO(png),'business.png'),
+        },content_type='multipart/form-data')
+        self.assertEqual(business_photo.status_code,303)
+        served=self.client.get(f'/account/business/{self.b}/photo')
+        self.assertEqual(served.status_code,200)
+        self.assertEqual(served.mimetype,'image/png')
 
     def test_trial_exact_seven_days(self):
         self.trial();self.assertEqual(e.parse(e.state(self.b)['until'])-self.time.return_value,timedelta(days=7))
