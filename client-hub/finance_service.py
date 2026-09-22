@@ -819,8 +819,6 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
     """
     with _write(business_id, actor_user_id):
         scope = _category_scope(business_id, actor_user_id)
-        if scope['workspace_type'] != 'BUSINESS':
-            return False
 
         changed = False
         now = repo._now()
@@ -852,6 +850,9 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                 _audit(
                     business_id, actor_user_id,
                     'FINANCE_CATEGORY_DEACTIVATED', category_id)
+
+        if scope['workspace_type'] != 'BUSINESS':
+            return changed
 
         def mapped(direction, name):
             row = db.query_one(
@@ -958,6 +959,9 @@ def ensure_finance_defaults(business_id, *, actor_user_id=None):
                             business_id, direction, child_name,
                             parent_category_id=parent_id,
                             actor_user_id=actor_user_id)
+        if scope['workspace_type'] == 'BUSINESS':
+            sync_business_category_catalog(
+                business_id, actor_user_id=actor_user_id)
 
 def _transaction_data(business_id, data, *, scheduled=False):
     data = dict(data)
