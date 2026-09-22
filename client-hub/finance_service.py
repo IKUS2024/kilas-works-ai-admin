@@ -1323,7 +1323,7 @@ def get_report_date_bounds(business_id, *, actor_user_id=None):
         (business_id,))
     budget = db.query_one(
         ('SELECT MIN(month) AS first_month,MAX(month) AS last_month '
-         'FROM finance_budgets b WHERE b.business_id=?' + branches.predicate('b')),
+         'FROM finance_budgets b WHERE b.business_id=?' + branches.predicate('')),
         (business_id,))
     budget_first = (
         budget['first_month'] + '-01'
@@ -2021,7 +2021,7 @@ def get_budget_report_rows(business_id, start_date, end_date, actor_user_id=None
          'c.name AS category_name '
          'FROM finance_budgets b '
          'JOIN finance_categories c ON c.business_id=b.business_id AND c.id=b.category_id '
-         'WHERE b.business_id=?' + branches.predicate('b') +
+         'WHERE b.business_id=?' + branches.predicate('') +
          ' AND b.month>=? AND b.month<=? '
          'ORDER BY b.month,c.name,b.id'),
         (business_id, start_month, end_month))]
