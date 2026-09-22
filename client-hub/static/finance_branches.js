@@ -64,12 +64,13 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
 
 
 
-// Manage transaction categories without leaving the transaction sheet.
-// The same Finance category records feed transactions, budgets, recurring costs,
-// reports, and AI Finance, so add/delete here stays consistent everywhere.
+// Manage categories and one-level subcategories without leaving the transaction sheet.
+// The same workspace-scoped records feed transactions, budgets, recurring costs,
+// reports, and (Business only) AI Finance.
 for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   const form=quick.closest('form');
   const category=quick.querySelector('[data-other-category]');
+  const subcategory=form && form.querySelector('[data-subcategory-select]');
   const direction=form && form.querySelector('[name="direction"]');
   const toggle=quick.querySelector('[data-category-add-toggle]');
   const panel=quick.querySelector('[data-category-add-panel]');
@@ -79,52 +80,93 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   const status=quick.querySelector('[data-category-status]');
   const kindLabel=quick.querySelector('[data-category-kind]');
   const list=quick.querySelector('[data-category-list]');
-  if(!form||!category||!direction||!toggle||!panel||!input||!save||!cancel||!status||!list)continue;
+  const level=quick.querySelector('[data-category-level]');
+  const parentField=quick.querySelector('[data-category-parent-field]');
+  const parentSelect=quick.querySelector('[data-category-parent]');
+  if(!form||!category||!subcategory||!direction||!toggle||!panel||!input||!save||!cancel||!status||!list||!level||!parentField||!parentSelect)continue;
 
   const labelForDirection=()=>direction.value==='INCOME'?'Pemasukan':'Pengeluaran';
+  const isOtherName=name=>['Lainnya','Pendapatan Lain','Pengeluaran Lain'].includes(name);
+  const rowsByDirection=new Map([['INCOME',[]],['EXPENSE',[]]]);
+
+  for(const option of category.options){
+    if(!option.value||!option.dataset.direction)continue;
+    rowsByDirection.get(option.dataset.direction)?.push({
+      id:String(option.value),name:String(option.textContent||'').trim(),
+      direction:option.dataset.direction,parent_category_id:null,parent_name:null
+    });
+  }
+  for(const option of subcategory.options){
+    if(!option.value||!option.dataset.direction)continue;
+    const parentId=String(option.dataset.parentId||'');
+    const parent=[...category.options].find(item=>String(item.value)===parentId);
+    rowsByDirection.get(option.dataset.direction)?.push({
+      id:String(option.value),name:String(option.textContent||'').trim(),
+      direction:option.dataset.direction,parent_category_id:parentId||null,
+      parent_name:parent?String(parent.textContent||'').trim():null
+    });
+  }
+
   const setStatus=(message,type='')=>{
     status.textContent=message||'';
     status.classList.remove('error','success');
     if(type)status.classList.add(type);
   };
-  const isOtherName=name=>['Lainnya','Pendapatan Lain','Pengeluaran Lain'].includes(name);
+  const currentRows=()=>rowsByDirection.get(direction.value)||[];
+  const parentRows=()=>currentRows().filter(item=>!item.parent_category_id);
 
-  const renderList=()=>{
-    list.replaceChildren();
-    const visible=[...category.options].filter(option=>option.dataset.direction===direction.value);
-    for(const option of visible){
-      const row=document.createElement('div');
-      row.className='finance-category-quick-row';
-      row.dataset.categoryRow='';
-      row.dataset.categoryId=option.value;
-      const label=document.createElement('span');
-      label.textContent=option.textContent;
-      const remove=document.createElement('button');
-      remove.type='button';
-      remove.className='finance-category-quick-delete';
-      remove.dataset.categoryDelete='';
-      remove.textContent='Hapus';
-      row.append(label,remove);
-      list.appendChild(row);
-    }
-  };
-
-  const applyOptions=(rows,preferredId='')=>{
-    const currentDirection=direction.value;
-    const preserved=[...category.options].filter(option=>option.dataset.direction!==currentDirection);
-    category.replaceChildren(...preserved);
-    for(const item of Array.isArray(rows)?rows:[]){
+  const syncParentChoices=()=>{
+    const previous=parentSelect.value;
+    parentSelect.replaceChildren();
+    for(const item of parentRows()){
       const option=document.createElement('option');
       option.value=String(item.id);
       option.textContent=item.name;
-      option.dataset.direction=item.direction;
-      option.dataset.other=isOtherName(item.name)?'true':'false';
-      category.appendChild(option);
+      parentSelect.appendChild(option);
     }
-    const preferred=[...category.options].find(option=>option.value===String(preferredId) && option.dataset.direction===currentDirection);
-    const available=preferred||[...category.options].find(option=>option.dataset.direction===currentDirection);
-    if(available)category.value=available.value;
+    if([...parentSelect.options].some(option=>option.value===previous))parentSelect.value=previous;
+    parentField.hidden=level.value!=='subcategory';
+    parentSelect.disabled=level.value!=='subcategory';
+    parentSelect.required=level.value==='subcategory';
+    save.textContent=level.value==='subcategory'?'Tambah subkategori & pilih':'Tambah kategori & pilih';
+  };
+
+  const rebuildSelectors=(preferredCategory='',preferredSubcategory='')=>{
+    const categorySelection=String(preferredCategory||category.value||'');
+    const subSelection=String(preferredSubcategory||subcategory.value||'');
+
+    category.replaceChildren();
+    const subPlaceholder=document.createElement('option');
+    subPlaceholder.value='';
+    subPlaceholder.textContent='Pilih subkategori';
+    subcategory.replaceChildren(subPlaceholder);
+
+    for(const kind of ['INCOME','EXPENSE']){
+      for(const item of rowsByDirection.get(kind)||[]){
+        const option=document.createElement('option');
+        option.value=String(item.id);
+        option.textContent=item.name;
+        option.dataset.direction=kind;
+        if(item.parent_category_id){
+          option.dataset.parentId=String(item.parent_category_id);
+          subcategory.appendChild(option);
+        }else{
+          option.dataset.other=isOtherName(item.name)?'true':'false';
+          category.appendChild(option);
+        }
+      }
+    }
+
+    const preferredMain=[...category.options].find(option=>option.value===categorySelection);
+    const fallback=[...category.options].find(option=>option.dataset.direction===direction.value);
+    if(preferredMain)category.value=preferredMain.value;
+    else if(fallback)category.value=fallback.value;
+
+    if([...subcategory.options].some(option=>option.value===subSelection)){
+      subcategory.value=subSelection;
+    }
     category.dispatchEvent(new Event('change',{bubbles:true}));
+    syncParentChoices();
     renderList();
   };
 
@@ -135,13 +177,13 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     const csrf=form.querySelector('input[name="csrf_token"]');
     if(csrf)body.set('csrf_token',csrf.value);
     const branchId=quick.dataset.categoryBranch;
-    if(branchId && branchId!=='None')body.set('branch_id',branchId);
+    if(branchId&&branchId!=='None')body.set('branch_id',branchId);
     body.set('direction',direction.value);
-    Object.entries(payload).forEach(([key,value])=>body.set(key,String(value)));
+    Object.entries(payload).forEach(([key,value])=>{
+      if(value!==null&&value!==undefined&&String(value)!=='')body.set(key,String(value));
+    });
     const response=await fetch(endpoint,{
-      method:'POST',
-      body,
-      credentials:'same-origin',
+      method:'POST',body,credentials:'same-origin',
       headers:{'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
     });
     const data=await response.json().catch(()=>({}));
@@ -149,9 +191,138 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     return data;
   };
 
+  const normalizeRows=rows=>(Array.isArray(rows)?rows:[]).map(item=>({
+    id:String(item.id),name:String(item.name||'').trim(),direction:item.direction,
+    parent_category_id:item.parent_category_id===null||item.parent_category_id===undefined?'':String(item.parent_category_id),
+    parent_name:item.parent_name||null
+  }));
+
+  const applyResponse=(data,preferredCategory='',preferredSubcategory='')=>{
+    rowsByDirection.set(direction.value,normalizeRows(data.options));
+    rebuildSelectors(preferredCategory,preferredSubcategory);
+  };
+
+  const beginInlineEdit=(row,item)=>{
+    const wasChild=Boolean(item.parent_category_id);
+    row.replaceChildren();
+    row.classList.toggle('child',wasChild);
+
+    const editor=document.createElement('div');
+    editor.className='finance-category-inline-editor';
+    const hint=document.createElement('small');
+    hint.textContent=wasChild?'Subkategori '+(item.parent_name||''):'Kategori utama';
+    const editInput=document.createElement('input');
+    editInput.type='text';
+    editInput.maxLength=160;
+    editInput.value=item.name;
+    editInput.setAttribute('aria-label','Nama kategori');
+    editor.append(hint,editInput);
+
+    const actions=document.createElement('div');
+    actions.className='finance-category-quick-row-actions';
+    const saveEdit=document.createElement('button');
+    saveEdit.type='button';
+    saveEdit.className='finance-category-quick-edit';
+    saveEdit.textContent='Simpan';
+    const abort=document.createElement('button');
+    abort.type='button';
+    abort.className='finance-category-quick-delete';
+    abort.textContent='Batal';
+    actions.append(saveEdit,abort);
+    row.append(editor,actions);
+    editInput.focus({preventScroll:true});
+    editInput.select();
+
+    const submit=async()=>{
+      const name=String(editInput.value||'').trim();
+      if(!name){
+        setStatus('Nama kategori wajib diisi.','error');
+        editInput.focus({preventScroll:true});
+        return;
+      }
+      saveEdit.disabled=true;abort.disabled=true;
+      setStatus('Menyimpan perubahan…');
+      try{
+        const mainBefore=category.value;
+        const subBefore=subcategory.value;
+        const data=await request({action:'edit',category_id:item.id,name});
+        applyResponse(data,mainBefore,subBefore);
+        const globalRow=document.querySelector('[data-finance-category-record="'+item.id+'"]');
+        const globalName=globalRow&&globalRow.querySelector('.finance-record-main strong');
+        if(globalName)globalName.textContent=name;
+        setStatus(data.message||'Nama kategori diperbarui.','success');
+      }catch(error){
+        saveEdit.disabled=false;abort.disabled=false;
+        setStatus(error&&error.message?error.message:'Kategori belum bisa diedit.','error');
+      }
+    };
+    saveEdit.addEventListener('click',submit);
+    abort.addEventListener('click',renderList);
+    editInput.addEventListener('keydown',event=>{
+      if(event.key==='Enter'){event.preventDefault();submit();}
+      if(event.key==='Escape'){event.preventDefault();renderList();}
+    });
+  };
+
+  function renderList(){
+    list.replaceChildren();
+    const rows=currentRows();
+    const top=rows.filter(item=>!item.parent_category_id);
+    const byParent=new Map();
+    for(const item of rows.filter(item=>item.parent_category_id)){
+      const key=String(item.parent_category_id);
+      if(!byParent.has(key))byParent.set(key,[]);
+      byParent.get(key).push(item);
+    }
+
+    const appendRow=(item,isChild)=>{
+      const row=document.createElement('div');
+      row.className='finance-category-quick-row'+(isChild?' child':'');
+      row.dataset.categoryRow='';
+      row.dataset.categoryId=String(item.id);
+
+      const copy=document.createElement('div');
+      copy.className='finance-category-quick-copy';
+      const label=document.createElement('span');
+      label.textContent=(isChild?'↳ ':'')+item.name;
+      const meta=document.createElement('small');
+      meta.textContent=isChild?'Subkategori '+(item.parent_name||''):'Kategori utama';
+      copy.append(label,meta);
+
+      const actions=document.createElement('div');
+      actions.className='finance-category-quick-row-actions';
+      const edit=document.createElement('button');
+      edit.type='button';
+      edit.className='finance-category-quick-edit';
+      edit.dataset.categoryEdit='';
+      edit.textContent='Edit';
+      const remove=document.createElement('button');
+      remove.type='button';
+      remove.className='finance-category-quick-delete';
+      remove.dataset.categoryDelete='';
+      remove.textContent='Hapus';
+      actions.append(edit,remove);
+      row.append(copy,actions);
+      list.appendChild(row);
+    };
+
+    for(const parent of top){
+      appendRow(parent,false);
+      for(const child of byParent.get(String(parent.id))||[])appendRow(child,true);
+    }
+    const known=new Set(top.map(item=>String(item.id)));
+    for(const child of rows.filter(item=>item.parent_category_id&&!known.has(String(item.parent_category_id)))){
+      appendRow(child,true);
+    }
+    syncParentChoices();
+  }
+
   const syncKind=()=>{
     if(kindLabel)kindLabel.textContent=labelForDirection();
-    input.placeholder=direction.value==='INCOME'?'Contoh: Pendapatan Konten':'Contoh: Perawatan';
+    input.placeholder=level.value==='subcategory'
+      ?'Contoh: Listrik'
+      :(direction.value==='INCOME'?'Contoh: Pendapatan Konten':'Contoh: Perawatan');
+    syncParentChoices();
     renderList();
   };
   const closePanel=()=>{
@@ -159,6 +330,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     toggle.setAttribute('aria-expanded','false');
     setStatus('');
   };
+
   toggle.setAttribute('aria-expanded','false');
   toggle.addEventListener('click',()=>{
     panel.hidden=!panel.hidden;
@@ -169,16 +341,16 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
   });
   cancel.addEventListener('click',()=>{
     input.value='';
+    level.value='category';
     closePanel();
     category.focus({preventScroll:true});
   });
   direction.addEventListener('change',syncKind);
+  level.addEventListener('change',syncKind);
   input.addEventListener('keydown',event=>{
-    if(event.key==='Enter'){
-      event.preventDefault();
-      save.click();
-    }
+    if(event.key==='Enter'){event.preventDefault();save.click();}
   });
+
   save.addEventListener('click',async()=>{
     const name=String(input.value||'').trim();
     if(!name){
@@ -186,44 +358,69 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
       input.focus({preventScroll:true});
       return;
     }
-    save.disabled=true;
-    cancel.disabled=true;
-    setStatus('Menambahkan kategori…');
+    const addingChild=level.value==='subcategory';
+    const parentId=addingChild?String(parentSelect.value||''):'';
+    if(addingChild&&!parentId){
+      setStatus('Pilih kategori utama untuk subkategori ini.','error');
+      parentSelect.focus({preventScroll:true});
+      return;
+    }
+    save.disabled=true;cancel.disabled=true;
+    setStatus(addingChild?'Menambahkan subkategori…':'Menambahkan kategori…');
     try{
-      const data=await request({action:'create',name});
+      const data=await request({
+        action:'create',name,
+        parent_category_id:addingChild?parentId:''
+      });
       if(!data.category)throw new Error('Kategori belum bisa dimuat.');
-      applyOptions(data.options,data.category.id);
+      const created=data.category;
+      if(created.parent_category_id){
+        applyResponse(data,String(created.parent_category_id),String(created.id));
+      }else{
+        applyResponse(data,String(created.id),'');
+      }
       input.value='';
-      setStatus(data.message||'Kategori ditambahkan dan langsung dipilih.','success');
+      setStatus(data.message||(addingChild?'Subkategori ditambahkan.':'Kategori ditambahkan.'),'success');
     }catch(error){
-      setStatus(error && error.message?error.message:'Kategori belum bisa ditambahkan. Coba lagi.','error');
+      setStatus(error&&error.message?error.message:'Kategori belum bisa ditambahkan. Coba lagi.','error');
     }finally{
-      save.disabled=false;
-      cancel.disabled=false;
+      save.disabled=false;cancel.disabled=false;
     }
   });
+
   list.addEventListener('click',async event=>{
-    const button=event.target.closest('[data-category-delete]');
+    const editButton=event.target.closest('[data-category-edit]');
+    const deleteButton=event.target.closest('[data-category-delete]');
+    const button=editButton||deleteButton;
     if(!button)return;
     const row=button.closest('[data-category-row]');
-    const categoryId=row && row.dataset.categoryId;
-    const name=row && row.querySelector('span')?.textContent;
-    if(!categoryId)return;
-    if(!window.confirm('Hapus kategori "'+(name||'ini')+'" dari daftar aktif? Riwayat lama tetap aman.'))return;
-    button.disabled=true;
-    setStatus('Menghapus kategori…');
-    const keep=category.value===String(categoryId)?'':category.value;
+    const categoryId=String(row&&row.dataset.categoryId||'');
+    const item=currentRows().find(entry=>String(entry.id)===categoryId);
+    if(!item)return;
+
+    if(editButton){
+      beginInlineEdit(row,item);
+      return;
+    }
+
+    const kind=item.parent_category_id?'subkategori':'kategori';
+    if(!window.confirm('Hapus '+kind+' "'+item.name+'" dari daftar aktif? Riwayat lama tetap aman.'))return;
+    deleteButton.disabled=true;
+    setStatus('Menghapus '+kind+'…');
+    const keepMain=category.value===categoryId?'':category.value;
+    const keepSub=subcategory.value===categoryId?'':subcategory.value;
     try{
       const data=await request({action:'delete',category_id:categoryId});
-      applyOptions(data.options,keep);
+      applyResponse(data,keepMain,keepSub);
       const globalRow=document.querySelector('[data-finance-category-record="'+categoryId+'"]');
       if(globalRow)globalRow.remove();
       setStatus(data.message||'Kategori dihapus dari daftar aktif.','success');
     }catch(error){
-      button.disabled=false;
-      setStatus(error && error.message?error.message:'Kategori belum bisa dihapus.','error');
+      deleteButton.disabled=false;
+      setStatus(error&&error.message?error.message:'Kategori belum bisa dihapus.','error');
     }
   });
+
   syncKind();
 }
 
