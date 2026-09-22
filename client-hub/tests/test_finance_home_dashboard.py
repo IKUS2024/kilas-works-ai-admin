@@ -168,6 +168,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Saldo tersedia',html)
         self.assertIn('<details class="finance-account-hb-group">',html)
         self.assertIn('finance-account-hb-group-head',html)
+        self.assertRegex(html,r'finance-account-hb-group-summary-right[^>]*>\s*<strong>\d+ akun</strong>')
         self.assertNotIn('finance-account-hb-fx',html)
         self.assertNotIn('finance-account-hb-detail-page',html)
         self.assertNotIn('Saldo awal',html)
