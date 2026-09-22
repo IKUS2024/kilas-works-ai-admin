@@ -314,6 +314,24 @@
   <div class="finance-account-hb-actions">
     <a class="finance-mini-action" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,display_currency=display_currency,page=1) }}">Lihat Transaksi</a>
     {% if not branch_read_only %}
+    <button type="button" class="finance-mini-action" data-finance-open="move-account-workspace-dialog">Pindahkan ke {{ workspace_move_target_label }}</button>
+    <dialog id="move-account-workspace-dialog" class="finance-sheet">
+      <div class="finance-sheet-head"><div><small>Finance {{ finance_workspace_label }}</small><h2>Pindahkan Akun</h2></div><button type="button" class="finance-sheet-close" data-finance-close="move-account-workspace-dialog" aria-label="Tutup">×</button></div>
+      <div class="finance-sheet-body">
+        <p><strong>{{ selected_account.name }}</strong> akan dipindahkan ke Finance {{ workspace_move_target_label }}.</p>
+        <p class="muted">Saldo awal, transaksi, tagihan rutin, dan riwayat impor bank pada akun ini ikut berpindah. Nilai tidak disalin: sumber langsung berkurang dan tujuan langsung bertambah. Pembayaran invoice dan transfer/valas dilindungi dan akan membatalkan pemindahan agar angka tidak rusak.</p>
+        <form method="post" action="{{ url_for('finance.move_account_workspace',business_id=business.id,account_id=selected_account.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+          {% if workspace_move_target_type == 'BUSINESS' and workspace_move_target_branches|length > 1 %}
+          <label>Cabang tujuan<select name="target_branch_id" required>{% for branch in workspace_move_target_branches %}<option value="{{ branch.id }}">{{ branch.name }}</option>{% endfor %}</select></label>
+          {% elif workspace_move_target_type == 'BUSINESS' and workspace_move_target_branches %}
+          <input type="hidden" name="target_branch_id" value="{{ workspace_move_target_branches[0].id }}">
+          {% endif %}
+          <button class="btn" type="submit" onclick="return confirm('Pindahkan akun beserta seluruh isi yang aman? Nilai akan keluar dari Finance {{ finance_workspace_label }} dan masuk ke Finance {{ workspace_move_target_label }}.');">Pindahkan Akun</button>
+        </form>
+      </div>
+    </dialog>
     <details class="finance-account-hb-edit">
       <summary class="finance-mini-action">Edit Akun</summary>
       <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='account',record_id=selected_account.id) }}">
@@ -389,11 +407,32 @@
           <summary aria-label="Tindakan transaksi" title="Tindakan">•••</summary>
           <div class="finance-tx-actions-menu">
             {% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">Edit</a>{% endif %}
+            {% if t.source_type in workspace_movable_sources %}<button type="button" data-finance-open="move-transaction-{{ t.id }}">Pindahkan ke {{ workspace_move_target_label }}</button>{% endif %}
             <form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-danger" type="submit">Hapus</button></form>
           </div>
         </details>
         {% endif %}
       </div>
+      {% if not branch_read_only and t.source_type in workspace_movable_sources %}
+      <dialog id="move-transaction-{{ t.id }}" class="finance-sheet">
+        <div class="finance-sheet-head"><div><small>Finance {{ finance_workspace_label }}</small><h2>Pindahkan Transaksi</h2></div><button type="button" class="finance-sheet-close" data-finance-close="move-transaction-{{ t.id }}" aria-label="Tutup">×</button></div>
+        <div class="finance-sheet-body">
+          <p><strong>{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.display_amount_value }}</strong> · {{ t.occurred_on }}</p>
+          <p class="muted">Ini memindahkan transaksi, bukan menyalin. Saldo, Pemasukan/Pengeluaran, Anggaran terpakai, dan laporan di Finance {{ finance_workspace_label }} akan langsung berkurang; Finance {{ workspace_move_target_label }} akan langsung bertambah.</p>
+          <form method="post" action="{{ url_for('finance.move_transaction_workspace',business_id=business.id,transaction_id=t.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+            {% if workspace_move_target_type == 'BUSINESS' and workspace_move_target_branches|length > 1 %}
+            <label>Cabang tujuan<select name="target_branch_id" required>{% for branch in workspace_move_target_branches %}<option value="{{ branch.id }}">{{ branch.name }}</option>{% endfor %}</select></label>
+            {% elif workspace_move_target_type == 'BUSINESS' and workspace_move_target_branches %}
+            <input type="hidden" name="target_branch_id" value="{{ workspace_move_target_branches[0].id }}">
+            {% endif %}
+            <p class="muted">Akun tujuan dicocokkan otomatis berdasarkan nama dan mata uang. Jika belum ada, Kilas membuat akun tujuan dengan saldo awal Rp0 agar nilai transaksi tetap persis.</p>
+            <button class="btn" type="submit">Pindahkan ke {{ workspace_move_target_label }}</button>
+          </form>
+        </div>
+      </dialog>
+      {% endif %}
       <p class="finance-tx-description">{{ t.description or 'Tanpa catatan' }}</p>
       <div class="finance-tx-meta">
         <span>{{ account_map.get(t.account_id, {}).get('name','Akun') }}</span>

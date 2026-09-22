@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 from flask import template_rendered
 import test_finance_phase2a as fixture
+import db
 
 class DashboardHomeTests(unittest.TestCase):
     def setUp(self):
@@ -798,6 +799,156 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(blocked.status_code,303)
         income_names=[c['name'] for c in fixture.f.list_categories(self.b,'INCOME',actor_user_id=self.uid)]
         self.assertNotIn('Jangan Ubah',income_names)
+
+    def test_transaction_workspace_move_is_real_reversible_and_never_double_counts(self):
+        import finance_branches
+        business_branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]['id']
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            bca=fixture.f.create_account(
+                self.b,'BCA Pindah',account_type='BANK',opening_balance_minor=1000000,
+                actor_user_id=self.uid)
+            category=fixture.f.create_category(
+                self.b,'EXPENSE','Keperluan Bisnis Pindah',actor_user_id=self.uid)
+            transaction_id=fixture.f.create_transaction(
+                self.b,'EXPENSE',250000,bca,category,'2026-09-20',
+                description='Salah workspace',actor_user_id=self.uid)
+            self.assertEqual(
+                fixture.f.get_finance_summary(
+                    self.b,'2026-09-01','2026-09-30',actor_user_id=self.uid)['total_expense_minor'],
+                250000)
+
+        moved=self.client.post(
+            f'/business/{self.b}/finance/transactions/{transaction_id}/move-workspace',data={
+                'branch_id':str(business_branch)})
+        self.assertEqual(moved.status_code,303)
+        personal_branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='PERSONAL')[0]['id']
+
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            self.assertIsNone(fixture.f.get_transaction(
+                self.b,transaction_id,actor_user_id=self.uid))
+            self.assertEqual(
+                fixture.f.get_finance_summary(
+                    self.b,'2026-09-01','2026-09-30',actor_user_id=self.uid)['total_expense_minor'],0)
+            source=fixture.f.get_account(self.b,bca,actor_user_id=self.uid)
+            source_balance=next(row for row in fixture.f.get_account_balance_report(
+                self.b,'2026-09-30',self.uid) if row['id']==bca)
+            self.assertEqual(source_balance['balance_minor'],1000000)
+
+        with finance_branches.scope(self.b,personal_branch,self.uid):
+            tx=fixture.f.get_transaction(self.b,transaction_id,actor_user_id=self.uid)
+            self.assertIsNotNone(tx)
+            self.assertEqual(tx['branch_id'],personal_branch)
+            self.assertEqual(
+                fixture.f.get_finance_summary(
+                    self.b,'2026-09-01','2026-09-30',actor_user_id=self.uid)['total_expense_minor'],250000)
+            target=next(row for row in fixture.f.list_accounts(
+                self.b,actor_user_id=self.uid) if row['name']=='BCA Pindah')
+            target_balance=next(row for row in fixture.f.get_account_balance_report(
+                self.b,'2026-09-30',self.uid) if row['id']==target['id'])
+            self.assertEqual(target_balance['balance_minor'],-250000)
+            self.assertIn('Keperluan Bisnis Pindah',[row['name'] for row in fixture.f.list_categories(
+                self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)])
+
+        self.assertEqual(db.query_one(
+            'SELECT COUNT(*) AS n FROM finance_transactions WHERE business_id=? AND id=?',
+            (self.b,transaction_id))['n'],1)
+
+        back=self.client.post(
+            f'/business/{self.b}/finance/transactions/{transaction_id}/move-workspace',data={
+                'branch_id':str(personal_branch),'target_branch_id':str(business_branch)})
+        self.assertEqual(back.status_code,303)
+        with finance_branches.scope(self.b,personal_branch,self.uid):
+            self.assertIsNone(fixture.f.get_transaction(
+                self.b,transaction_id,actor_user_id=self.uid))
+            self.assertEqual(
+                fixture.f.get_finance_summary(
+                    self.b,'2026-09-01','2026-09-30',actor_user_id=self.uid)['total_expense_minor'],0)
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            tx=fixture.f.get_transaction(self.b,transaction_id,actor_user_id=self.uid)
+            self.assertEqual(tx['account_id'],bca)
+            self.assertEqual(
+                fixture.f.get_finance_summary(
+                    self.b,'2026-09-01','2026-09-30',actor_user_id=self.uid)['total_expense_minor'],250000)
+
+    def test_account_workspace_move_moves_opening_balance_transactions_and_recurring_rule(self):
+        import finance_branches
+        business_branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]['id']
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            source_account=fixture.f.create_account(
+                self.b,'Dompet Migrasi',account_type='EWALLET',opening_balance_minor=700000,
+                actor_user_id=self.uid)
+            income=fixture.f.list_categories(self.b,'INCOME',actor_user_id=self.uid)[0]['id']
+            expense=fixture.f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)[0]['id']
+            fixture.f.create_transaction(
+                self.b,'INCOME',300000,source_account,income,'2026-09-10',
+                actor_user_id=self.uid)
+            fixture.f.create_transaction(
+                self.b,'EXPENSE',120000,source_account,expense,'2026-09-11',
+                actor_user_id=self.uid)
+            recurring=fixture.f.create_recurring_expense(
+                self.b,'Tagihan Migrasi',50000,source_account,expense,
+                'MONTHLY','2026-10-01',actor_user_id=self.uid)
+
+        response=self.client.post(
+            f'/business/{self.b}/finance/accounts/{source_account}/move-workspace',data={
+                'branch_id':str(business_branch)})
+        self.assertEqual(response.status_code,303)
+        personal_branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='PERSONAL')[0]['id']
+
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            source=fixture.f.get_account(
+                self.b,source_account,actor_user_id=self.uid)
+            self.assertEqual(source['opening_balance_minor'],0)
+            source_balance=next(row for row in fixture.f.get_account_balance_report(
+                self.b,'2026-09-30',self.uid) if row['id']==source_account)
+            self.assertEqual(source_balance['balance_minor'],0)
+            self.assertEqual(fixture.f.list_transactions(
+                self.b,actor_user_id=self.uid),[])
+            self.assertEqual(fixture.f.list_recurring_expenses(
+                self.b,actor_user_id=self.uid),[])
+
+        with finance_branches.scope(self.b,personal_branch,self.uid):
+            target=next(row for row in fixture.f.list_accounts(
+                self.b,actor_user_id=self.uid) if row['name']=='Dompet Migrasi')
+            balance=next(row for row in fixture.f.get_account_balance_report(
+                self.b,'2026-09-30',self.uid) if row['id']==target['id'])
+            self.assertEqual(balance['opening_balance_minor'],700000)
+            self.assertEqual(balance['income_minor'],300000)
+            self.assertEqual(balance['expense_minor'],120000)
+            self.assertEqual(balance['balance_minor'],880000)
+            self.assertEqual(len(fixture.f.list_transactions(
+                self.b,actor_user_id=self.uid)),2)
+            moved_rule=fixture.f.get_recurring_expense(
+                self.b,recurring,actor_user_id=self.uid)
+            self.assertEqual(moved_rule['account_id'],target['id'])
+            self.assertEqual(moved_rule['branch_id'],personal_branch)
+
+    def test_account_workspace_move_blocks_invoice_and_fx_without_partial_changes(self):
+        import finance_branches
+        business_branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]['id']
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            usd=fixture.f.create_account(
+                self.b,'USD Move Block',account_type='BANK',currency='USD',
+                actor_user_id=self.uid)
+            fixture.f.record_currency_exchange(
+                self.b,self.a,usd,100000,10,'2026-09-20',actor_user_id=self.uid)
+            before=fixture.f.get_account(
+                self.b,self.a,actor_user_id=self.uid)['opening_balance_minor']
+        blocked=self.client.post(
+            f'/business/{self.b}/finance/accounts/{self.a}/move-workspace',data={
+                'branch_id':str(business_branch)})
+        self.assertEqual(blocked.status_code,303)
+        with finance_branches.scope(self.b,business_branch,self.uid):
+            self.assertEqual(
+                fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)['opening_balance_minor'],
+                before)
+            self.assertEqual(len(fixture.f.list_currency_exchanges(
+                self.b,actor_user_id=self.uid)),1)
 
     def test_bills_page_uses_homebudget_calendar_list_and_recurring_views(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']

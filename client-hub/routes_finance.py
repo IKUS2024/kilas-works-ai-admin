@@ -149,6 +149,10 @@ ERRORS = {
     'recurring_posting_unresolved': 'Pembayaran tagihan ini belum dapat dipastikan. Muat ulang sebelum mencoba lagi.',
     'recurring_already_paid': 'Tagihan ini sudah dicatat dibayar dengan tanggal pembayaran yang berbeda.',
     'recurring_occurrence_void': 'Pembayaran tagihan ini sudah dibatalkan dan tidak dapat dibuat ulang otomatis.',
+    'workspace_move_target': 'Tujuan harus berada di ruang Finance yang berbeda: Bisnis ↔ Pribadi.',
+    'workspace_move_managed': 'Data ini terhubung ke pembukuan khusus dan tidak aman dipindahkan sendiri.',
+    'workspace_move_invoice_linked': 'Akun ini memiliki pembayaran invoice. Pindahkan transaksi manual satu per satu; pembayaran invoice tetap di Finance Bisnis.',
+    'workspace_move_fx_linked': 'Akun ini terhubung ke transfer / penukaran mata uang. Selesaikan atau pindahkan struktur valasnya terlebih dahulu.',
     'invalid_recurring_limit': 'Batas pemrosesan belum valid.',
     'customer_unavailable': 'Customer tidak tersedia untuk bisnis ini.',
     'invalid_items': 'Isi 1–100 baris dengan deskripsi, jumlah, dan harga yang valid.',
@@ -474,6 +478,49 @@ def enter_workspace(business_id,workspace_type):
         code=303)
 
 
+
+def _workspace_move_options(business_id, user_id):
+    source_type = getattr(g, 'finance_workspace_type', 'BUSINESS')
+    target_type = 'PERSONAL' if source_type == 'BUSINESS' else 'BUSINESS'
+    target_rows = [
+        row for row in branches.list_branches(
+            business_id, user_id, workspace_type=target_type)
+        if row['is_active']
+    ]
+    return dict(
+        target_type=target_type,
+        target_label='Pribadi' if target_type == 'PERSONAL' else 'Bisnis',
+        target_branches=target_rows)
+
+
+def _workspace_move_target(business_id, user_id):
+    options = _workspace_move_options(business_id, user_id)
+    rows = options['target_branches']
+    if options['target_type'] == 'PERSONAL':
+        target = rows[0] if rows else None
+        if target is None:
+            branch_id = branches.ensure_personal(business_id, user_id)
+            target = branches.get(
+                business_id, branch_id, active=True, actor_user_id=user_id)
+    else:
+        requested = request.form.get('target_branch_id')
+        if requested:
+            requested_id = record_id(requested)
+            target = next((row for row in rows if row['id'] == requested_id), None)
+            if target is None:
+                raise finance.FinanceError('workspace_move_target')
+        else:
+            target = next((row for row in rows if row['is_default']), None)
+            target = target or (rows[0] if rows else None)
+            if target is None:
+                branch_id = branches.default(business_id, user_id)
+                target = branches.get(
+                    business_id, branch_id, active=True, actor_user_id=user_id)
+    with branches.scope(business_id, target['id'], user_id):
+        finance.ensure_finance_defaults(business_id, actor_user_id=user_id)
+    return target
+
+
 @finance_bp.route('/business/<int:business_id>/finance')
 @finance_access
 def dashboard(business_id, user, business):
@@ -774,6 +821,7 @@ def dashboard(business_id, user, business):
 
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     finance_workspace_personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
+    workspace_move = _workspace_move_options(business_id, user['id'])
     invoice_open_count = invoice_paid_count = invoice_draft_count = 0
     if not finance_workspace_personal:
         invoice_summary = finance.get_receivables_summary(
@@ -822,6 +870,10 @@ def dashboard(business_id, user, business):
         operator_enabled=(False if finance_workspace_personal else finance_operator.enabled(business_id)),
         account_type_options=account_type_options,
         account_type_group_labels=account_type_group_labels,
+        workspace_move_target_type=workspace_move['target_type'],
+        workspace_move_target_label=workspace_move['target_label'],
+        workspace_move_target_branches=workspace_move['target_branches'],
+        workspace_movable_sources=finance.WORKSPACE_MOVABLE_TRANSACTION_SOURCES,
         today=today_value.isoformat(), account_types=finance.LEGACY_ACCOUNT_TYPE_LABELS)
 
 
@@ -1212,6 +1264,52 @@ def create_transaction(business_id, user, business):
 def void_transaction(business_id, user, business, transaction_id):
     return mutate(business_id, lambda: finance.void_transaction(business_id, transaction_id, actor_user_id=user['id']),
                   'Transaksi dihapus dari perhitungan. Riwayat audit tetap tersimpan.')
+
+
+
+@finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/move-workspace', methods=['POST'])
+@finance_access
+def move_transaction_workspace(business_id, user, business, transaction_id):
+    try:
+        target = _workspace_move_target(business_id, user['id'])
+    except finance.FinanceError as error:
+        flash(ERRORS.get(str(error), 'Tujuan pemindahan belum valid.'), 'error')
+        return redirect(url_for(
+            'finance.dashboard', business_id=business_id,
+            branch_id=g.finance_branch_id, view='transactions'), code=303)
+    destination = url_for(
+        'finance.dashboard', business_id=business_id,
+        branch_id=g.finance_branch_id, period_mode='all',
+        view='transactions', page=1)
+    return mutate(
+        business_id,
+        lambda: finance.move_transaction_workspace(
+            business_id, transaction_id, target['id'],
+            actor_user_id=user['id']),
+        f"Transaksi dipindahkan ke Finance {'Pribadi' if target['workspace_type']=='PERSONAL' else 'Bisnis'}. Nilai sumber dan tujuan dihitung ulang otomatis.",
+        destination)
+
+
+@finance_bp.route('/business/<int:business_id>/finance/accounts/<int:account_id>/move-workspace', methods=['POST'])
+@finance_access
+def move_account_workspace(business_id, user, business, account_id):
+    try:
+        target = _workspace_move_target(business_id, user['id'])
+    except finance.FinanceError as error:
+        flash(ERRORS.get(str(error), 'Tujuan pemindahan belum valid.'), 'error')
+        return redirect(url_for(
+            'finance.dashboard', business_id=business_id,
+            branch_id=g.finance_branch_id, view='accounts'), code=303)
+    destination = url_for(
+        'finance.dashboard', business_id=business_id,
+        branch_id=g.finance_branch_id, view='accounts')
+    return mutate(
+        business_id,
+        lambda: finance.move_account_workspace(
+            business_id, account_id, target['id'],
+            actor_user_id=user['id']),
+        f"Akun dan seluruh isi yang aman dipindahkan ke Finance {'Pribadi' if target['workspace_type']=='PERSONAL' else 'Bisnis'}. Saldo kedua ruang dihitung ulang otomatis.",
+        destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/reset', methods=['POST'])

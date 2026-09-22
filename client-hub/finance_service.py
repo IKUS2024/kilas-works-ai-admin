@@ -41,6 +41,8 @@ SUPPORTED_CURRENCIES = ('IDR', 'USD', 'SGD', 'MYR', 'EUR', 'GBP', 'AUD', 'JPY', 
 RETIRED_CATEGORY_NAMES = frozenset(name.casefold() for name in ('Pendapatan Lain', 'Pengeluaran Lain', 'Lainnya'))
 FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 'occurred_on',
           'description', 'counterparty_name', 'project_id', 'source_type', 'source_ref', 'customer_id')
+WORKSPACE_MOVABLE_TRANSACTION_SOURCES = (None, '', 'MANUAL', 'FINANCE_OPERATOR', 'FINANCE_RECEIPT')
+WORKSPACE_ACCOUNT_MOVABLE_SOURCES = WORKSPACE_MOVABLE_TRANSACTION_SOURCES + ('FINANCE_RECURRING_EXPENSE', 'FINANCE_BANK_IMPORT')
 DEFAULT_CATEGORIES = {
     'INCOME': ('Penjualan / Jasa',),
     'EXPENSE': (
@@ -1046,7 +1048,7 @@ def create_transaction(business_id, direction, amount_minor, account_id, categor
             # The existing business lock is held until ledger + audit commit together.
             if not data['source_ref'] or not re.fullmatch('[a-f0-9]{32}', data['source_ref']):
                 raise FinanceError('invalid_operator_key')
-            existing = db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND source_type=? AND source_ref=?'), (business_id, 'FINANCE_OPERATOR', data['source_ref']))
+            existing = db.query_one('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=? AND source_type=? AND source_ref=?', (business_id, 'FINANCE_OPERATOR', data['source_ref']))
             if existing:
                 if existing['created_by_user_id'] != actor_user_id or any(existing[key] != data[key] for key in FIELDS):
                     raise FinanceError('operator_key_conflict')
@@ -1181,6 +1183,296 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
                        [data[key] for key in FIELDS] + [repo._now(), business_id, transaction_id])
             _audit(business_id, actor_user_id, 'FINANCE_TRANSACTION_UPDATED', transaction_id)
         return get_transaction(business_id, transaction_id, actor_user_id=actor_user_id)
+
+
+
+def _workspace_move_pair(business_id, target_branch_id, actor_user_id):
+    context = branches._current.get()
+    if not context or context[0] != business_id or context[1] is None:
+        raise FinanceError('branch_required')
+    source = branches.get(
+        business_id, context[1], active=True,
+        actor_user_id=context[2] if context[2] is not None else actor_user_id)
+    target = branches.get(
+        business_id, _id(target_branch_id), active=True,
+        actor_user_id=actor_user_id)
+    if source['id'] == target['id'] or source['workspace_type'] == target['workspace_type']:
+        raise FinanceError('workspace_move_target')
+    return source, target
+
+
+def _workspace_move_source_category(business_id, category_id, actor_user_id):
+    rows = list_categories(
+        business_id, include_inactive=True, include_children=True,
+        actor_user_id=actor_user_id)
+    row = next((item for item in rows if item['id'] == category_id), None)
+    if not row:
+        raise FinanceError('category_unavailable')
+    return row
+
+
+def _workspace_move_target_category(business_id, source_category, actor_user_id):
+    target_rows = list_categories(
+        business_id, source_category['direction'],
+        include_inactive=True, include_children=True,
+        actor_user_id=actor_user_id)
+    source_name = (source_category.get('name') or '').strip().casefold()
+    source_parent = (source_category.get('parent_name') or '').strip().casefold()
+    exact = next((
+        row for row in target_rows
+        if (row.get('name') or '').strip().casefold() == source_name
+        and (row.get('parent_name') or '').strip().casefold() == source_parent
+    ), None)
+    if exact:
+        if exact.get('parent_category_id'):
+            _ensure_category_setting(
+                business_id, exact['parent_category_id'],
+                exact.get('parent_name') or source_category.get('parent_name'),
+                actor_user_id, active=True)
+        _ensure_category_setting(
+            business_id, exact['id'], exact['name'],
+            actor_user_id, active=True)
+        return exact['id']
+
+    if source_category.get('parent_category_id'):
+        _ensure_category_setting(
+            business_id, source_category['parent_category_id'],
+            source_category.get('parent_name') or 'Kategori',
+            actor_user_id, active=True)
+    _ensure_category_setting(
+        business_id, source_category['id'], source_category['name'],
+        actor_user_id, active=True)
+    return source_category['id']
+
+
+def _workspace_move_target_account(business_id, source_account, actor_user_id):
+    accounts = list_accounts(
+        business_id, include_inactive=True, actor_user_id=actor_user_id)
+    active = [row for row in accounts if row['is_active']]
+    exact = next((
+        row for row in active
+        if row['currency'] == source_account['currency']
+        and row['account_type'] == source_account['account_type']
+        and row['name'].strip().casefold() == source_account['name'].strip().casefold()
+    ), None)
+    if exact:
+        return exact
+    compatible = next((
+        row for row in active
+        if row['currency'] == source_account['currency']
+        and row['name'].strip().casefold() == source_account['name'].strip().casefold()
+    ), None)
+    if compatible:
+        return compatible
+    account_id = create_account(
+        business_id, source_account['name'], source_account['account_type'],
+        currency=source_account['currency'], opening_balance_minor=0,
+        actor_user_id=actor_user_id)
+    return get_account(
+        business_id, account_id, actor_user_id=actor_user_id, active=True)
+
+
+def _workspace_move_revision(business_id, transaction, target_branch_id,
+                             target_account_id, target_category_id, actor_user_id):
+    before = {key: transaction[key] for key in FIELDS}
+    before['branch_id'] = transaction['branch_id']
+    after = dict(
+        before, branch_id=target_branch_id,
+        account_id=target_account_id, category_id=target_category_id)
+    db.execute(
+        'INSERT INTO finance_transaction_revisions '
+        '(business_id,transaction_id,before_json,after_json,actor_user_id,created_at) '
+        'VALUES (?,?,?,?,?,?)',
+        (business_id, transaction['id'],
+         json.dumps(before, sort_keys=True),
+         json.dumps(after, sort_keys=True),
+         actor_user_id, repo._now()))
+    db.execute(
+        'UPDATE finance_transactions SET branch_id=?,account_id=?,category_id=?,updated_at=? '
+        'WHERE business_id=? AND id=?',
+        (target_branch_id, target_account_id, target_category_id, repo._now(),
+         business_id, transaction['id']))
+
+
+def move_transaction_workspace(business_id, transaction_id, target_branch_id,
+                               *, actor_user_id=None):
+    """Move one real ledger row between Business and Personal without duplicating money."""
+    with _write(business_id, actor_user_id):
+        source_branch, target_branch = _workspace_move_pair(
+            business_id, target_branch_id, actor_user_id)
+        transaction = get_transaction(
+            business_id, _id(transaction_id), actor_user_id=actor_user_id)
+        if not transaction or transaction['status'] != 'POSTED':
+            raise FinanceError('transaction_unavailable')
+        if transaction['source_type'] not in WORKSPACE_MOVABLE_TRANSACTION_SOURCES:
+            raise FinanceError('workspace_move_managed')
+
+        source_account = get_account(
+            business_id, transaction['account_id'], actor_user_id=actor_user_id)
+        source_category = _workspace_move_source_category(
+            business_id, transaction['category_id'], actor_user_id)
+
+        with branches.scope(business_id, target_branch['id'], actor_user_id):
+            ensure_finance_defaults(business_id, actor_user_id=actor_user_id)
+            target_account = _workspace_move_target_account(
+                business_id, source_account, actor_user_id)
+            target_category_id = _workspace_move_target_category(
+                business_id, source_category, actor_user_id)
+            validation = {key: transaction[key] for key in FIELDS}
+            validation.update(
+                account_id=target_account['id'],
+                category_id=target_category_id)
+            _transaction_data(
+                business_id,
+                dict(validation, branch_id=target_branch['id']))
+            if transaction['direction'] == 'EXPENSE' and transaction.get('counterparty_name'):
+                _ensure_payee(
+                    business_id, target_branch['id'],
+                    transaction['counterparty_name'], actor_user_id)
+
+        _workspace_move_revision(
+            business_id, transaction, target_branch['id'],
+            target_account['id'], target_category_id, actor_user_id)
+        _audit(
+            business_id, actor_user_id,
+            'FINANCE_TRANSACTION_WORKSPACE_MOVED', transaction['id'])
+        return dict(
+            transaction_id=transaction['id'],
+            source_branch_id=source_branch['id'],
+            target_branch_id=target_branch['id'],
+            target_account_id=target_account['id'])
+
+
+def move_account_workspace(business_id, account_id, target_branch_id,
+                           *, actor_user_id=None):
+    """Move one account's full movable history and opening balance to the opposite workspace.
+
+    Invoice-payment ledgers and FX pairs are intentionally blocked because moving only one
+    side would corrupt linked accounting. Recurring rules and bank-import history move with
+    the account so their ledger links remain internally consistent.
+    """
+    with _write(business_id, actor_user_id):
+        source_branch, target_branch = _workspace_move_pair(
+            business_id, target_branch_id, actor_user_id)
+        source_account = get_account(
+            business_id, _id(account_id), actor_user_id=actor_user_id)
+        if source_account['branch_id'] != source_branch['id']:
+            raise FinanceError('account_unavailable')
+
+        if db.query_one(
+                'SELECT 1 FROM finance_invoice_payments '
+                'WHERE business_id=? AND account_id=? LIMIT 1',
+                (business_id, source_account['id'])):
+            raise FinanceError('workspace_move_invoice_linked')
+        if db.query_one(
+                "SELECT 1 FROM finance_fx_exchanges WHERE business_id=? "
+                "AND (from_account_id=? OR to_account_id=?) LIMIT 1",
+                (business_id, source_account['id'], source_account['id'])):
+            raise FinanceError('workspace_move_fx_linked')
+
+        transactions = [dict(row) for row in db.query_all(
+            'SELECT * FROM finance_transactions '
+            'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
+            (business_id, source_branch['id'], source_account['id']))]
+        if any(row['source_type'] not in WORKSPACE_ACCOUNT_MOVABLE_SOURCES
+               for row in transactions):
+            raise FinanceError('workspace_move_managed')
+        recurring = [dict(row) for row in db.query_all(
+            'SELECT * FROM finance_recurring_expenses '
+            'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
+            (business_id, source_branch['id'], source_account['id']))]
+        imports = [dict(row) for row in db.query_all(
+            'SELECT * FROM finance_bank_imports '
+            'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
+            (business_id, source_branch['id'], source_account['id']))]
+
+        category_ids = {
+            row['category_id'] for row in transactions
+            if row.get('category_id') is not None
+        } | {
+            row['category_id'] for row in recurring
+            if row.get('category_id') is not None
+        }
+        source_categories = {
+            category_id: _workspace_move_source_category(
+                business_id, category_id, actor_user_id)
+            for category_id in category_ids
+        }
+
+        with branches.scope(business_id, target_branch['id'], actor_user_id):
+            ensure_finance_defaults(business_id, actor_user_id=actor_user_id)
+            target_account = _workspace_move_target_account(
+                business_id, source_account, actor_user_id)
+            category_map = {
+                category_id: _workspace_move_target_category(
+                    business_id, source_category, actor_user_id)
+                for category_id, source_category in source_categories.items()
+            }
+            new_opening = _money(
+                int(target_account['opening_balance_minor'])
+                + int(source_account['opening_balance_minor']))
+            for row in transactions:
+                if row['direction'] == 'EXPENSE' and row.get('counterparty_name'):
+                    _ensure_payee(
+                        business_id, target_branch['id'],
+                        row['counterparty_name'], actor_user_id)
+
+        for row in transactions:
+            target_category_id = category_map[row['category_id']]
+            _workspace_move_revision(
+                business_id, row, target_branch['id'],
+                target_account['id'], target_category_id, actor_user_id)
+        for row in recurring:
+            db.execute(
+                'UPDATE finance_recurring_expenses '
+                'SET branch_id=?,account_id=?,category_id=?,updated_at=? '
+                'WHERE business_id=? AND id=?',
+                (target_branch['id'], target_account['id'],
+                 category_map[row['category_id']], repo._now(),
+                 business_id, row['id']))
+            _audit(
+                business_id, actor_user_id,
+                'FINANCE_RECURRING_WORKSPACE_MOVED', row['id'])
+        for row in imports:
+            db.execute(
+                'UPDATE finance_bank_imports SET branch_id=?,account_id=?,updated_at=? '
+                'WHERE business_id=? AND id=?',
+                (target_branch['id'], target_account['id'], repo._now(),
+                 business_id, row['id']))
+            _audit(
+                business_id, actor_user_id,
+                'FINANCE_BANK_IMPORT_WORKSPACE_MOVED', row['id'])
+
+        db.execute(
+            'UPDATE finance_accounts SET opening_balance_minor=?,updated_at=? '
+            'WHERE business_id=? AND id=?',
+            (new_opening, repo._now(), business_id, target_account['id']))
+        db.execute(
+            'UPDATE finance_accounts SET opening_balance_minor=0,updated_at=? '
+            'WHERE business_id=? AND id=?',
+            (repo._now(), business_id, source_account['id']))
+
+        active = db.query_one(
+            'SELECT COUNT(*) AS n FROM finance_accounts '
+            'WHERE business_id=? AND branch_id=? AND is_active=TRUE',
+            (business_id, source_branch['id']))
+        if source_account['is_active'] and int(active['n'] or 0) > 1:
+            db.execute(
+                'UPDATE finance_accounts SET is_active=FALSE,updated_at=? '
+                'WHERE business_id=? AND id=?',
+                (repo._now(), business_id, source_account['id']))
+
+        _audit(
+            business_id, actor_user_id,
+            'FINANCE_ACCOUNT_WORKSPACE_MOVED', source_account['id'])
+        return dict(
+            source_account_id=source_account['id'],
+            target_account_id=target_account['id'],
+            source_branch_id=source_branch['id'],
+            target_branch_id=target_branch['id'],
+            transaction_count=len(transactions),
+            recurring_count=len(recurring),
+            bank_import_count=len(imports))
 
 
 def void_transaction(business_id, transaction_id, actor_user_id=None):
@@ -2627,7 +2919,7 @@ def find_receipt_transaction(business_id, receipt_hash, *, actor_user_id):
     _scope(business_id, actor_user_id)
     if not isinstance(receipt_hash, str) or not re.fullmatch('[a-f0-9]{64}', receipt_hash):
         raise FinanceError('invalid_receipt_hash')
-    return db.query_one(('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=?' + branches.predicate('') + ' AND source_type=? AND source_ref=? ORDER BY id LIMIT 1'),
+    return db.query_one('SELECT *, (SELECT name FROM finance_branches b WHERE b.id=finance_transactions.branch_id AND b.business_id=finance_transactions.business_id) AS branch_name FROM finance_transactions WHERE business_id=? AND source_type=? AND source_ref=? ORDER BY id LIMIT 1',
                         (business_id, 'FINANCE_RECEIPT', receipt_hash))
 
 
