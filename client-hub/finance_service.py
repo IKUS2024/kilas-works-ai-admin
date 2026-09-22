@@ -2084,6 +2084,9 @@ def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, a
         raise FinanceError('future_date')
 
     with _write(business_id, actor_user_id):
+        rule = get_recurring_expense(business_id, recurring_id, actor_user_id)
+        if not rule:
+            raise FinanceError('recurring_occurrence_unavailable')
         existing = db.query_one(
             'SELECT id,ledger_transaction_id FROM finance_recurring_postings '
             'WHERE business_id=? AND recurring_expense_id=? AND scheduled_on=?',
@@ -2104,8 +2107,7 @@ def record_recurring_payment(business_id, recurring_id, scheduled_on, paid_on, a
                 raise FinanceError('recurring_occurrence_void')
             raise FinanceError('recurring_already_paid')
 
-        rule = get_recurring_expense(business_id, recurring_id, actor_user_id)
-        if (not rule or not rule['is_active']
+        if (not rule['is_active']
                 or rule['next_due_on'] != scheduled_on):
             raise FinanceError('recurring_occurrence_unavailable')
         if rule['end_on'] and scheduled_on > rule['end_on']:

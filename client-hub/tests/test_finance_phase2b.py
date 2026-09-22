@@ -86,6 +86,18 @@ class RecurringTests(unittest.TestCase):
         self.assertEqual(f.get_finance_summary(self.b,'2026-02-01','2026-02-28')['total_expense_minor'],100)
         self.assertEqual(f.list_recurring_postings(self.b,r)[0]['scheduled_on'],'2026-01-31')
 
+    def test_explicit_payment_can_be_early_and_future_payment_date_is_rejected(self):
+        early=self.rule(next_due_on='2026-03-31')
+        result=f.record_recurring_payment(self.b,early,'2026-03-31','2026-02-05',self.uid)
+        tx=f.get_transaction(self.b,result['ledger_transaction_id'],actor_user_id=self.uid)
+        self.assertEqual(tx['occurred_on'],'2026-02-05')
+        self.assertEqual(f.list_recurring_postings(self.b,early)[0]['scheduled_on'],'2026-03-31')
+
+        future=self.rule(next_due_on='2026-04-30')
+        with self.assertRaises(f.FinanceError):
+            f.record_recurring_payment(self.b,future,'2026-04-30','9999-12-31',self.uid)
+        self.assertEqual(f.list_recurring_postings(self.b,future),[])
+
     def test_concurrent_ui_cron_paths_one_posting(self):
         r=self.rule();barrier=threading.Barrier(2)
         def worker(_):
