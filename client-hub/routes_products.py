@@ -43,7 +43,14 @@ def _product_businesses(user_id, key):
 
 def _start_finance_trial_now(business_id, user):
     """One-click trial entry used by dashboard/product flows; never creates ledger activity."""
-    security.require_business_access(business_id, user)
+    business = security.require_business_access(business_id, user)
+    # New AI Admin-only businesses may not be converted into Finance businesses in place.
+    # Legacy combined records are allowed only when Finance data already exists, so old IDs/data
+    # remain usable without creating any migration or duplicate ledger.
+    if business['package'] != 'NONE' and not _finance_business_claimed(business_id):
+        session['product_intent'] = 'finance'
+        flash('Kilas Finance memakai bisnis terpisah dari AI Admin. Tambahkan bisnis Finance untuk melanjutkan.', 'info')
+        return url_for('products.continue_product')
     state = entitlement.state(business_id)
     if state['active']:
         session['dashboard_business_id'] = business_id
