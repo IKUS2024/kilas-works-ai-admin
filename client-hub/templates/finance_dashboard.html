@@ -179,7 +179,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </nav>
 </header>
 {% include '_finance_home_dashboard.html' %}
-{% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan {{ 'Kas pribadi' if finance_workspace_personal else 'cabang Utama, Kas' }} dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
+{% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id,branch_id=g.finance_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan {{ 'Kas pribadi' if finance_workspace_personal else 'cabang Utama, Kas' }} dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
 {% endif %}
 
 {% if show_accounts %}
@@ -213,7 +213,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         {% if not branch_read_only %}
         <details class="finance-account-value-edit">
           <summary>Edit</summary>
-          <form method="post" action="{{ url_for('finance.update_account_balance',business_id=business.id,account_id=selected_account.id) }}">
+          <form method="post" action="{{ url_for('finance.update_account_balance',business_id=business.id,branch_id=g.finance_branch_id,account_id=selected_account.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
             <input type="hidden" name="display_currency" value="{{ display_currency }}">
@@ -272,7 +272,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
   <div class="finance-account-detail-top-actions">
     <details class="finance-account-hb-edit">
       <summary class="finance-mini-action">Edit Akun</summary>
-      <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='account',record_id=selected_account.id) }}">
+      <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='account',record_id=selected_account.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
         <input type="hidden" name="return_view" value="accounts">
@@ -294,7 +294,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       <div class="finance-sheet-body">
         <p><strong>{{ selected_account.name }}</strong> akan dipindahkan ke Finance {{ workspace_move_target_label }}.</p>
         <p class="muted">Saldo awal, transaksi, tagihan rutin, dan riwayat impor bank pada akun ini ikut berpindah. Nilai tidak disalin: sumber langsung berkurang dan tujuan langsung bertambah. Pembayaran invoice dan transfer/valas dilindungi dan akan membatalkan pemindahan agar angka tidak rusak.</p>
-        <form method="post" action="{{ url_for('finance.move_account_workspace',business_id=business.id,account_id=selected_account.id) }}">
+        <form method="post" action="{{ url_for('finance.move_account_workspace',business_id=business.id,branch_id=g.finance_branch_id,account_id=selected_account.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           {% if workspace_move_target_type == 'BUSINESS' and workspace_move_target_branches|length > 1 %}
@@ -427,7 +427,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <section class="card finance-ledger-category-card" aria-label="Kategori {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }}">
   <div class="finance-ledger-category-list">
     {% for row in ledger_category_rows %}
-    <a class="finance-ledger-category-row{{ ' active' if selected_category_id == row.category_id else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,page=1,category_id=row.category_id,**ledger_category_query) }}" {% if selected_category_id == row.category_id %}aria-current="page"{% endif %}>
+    <a class="finance-ledger-category-row{{ ' active' if selected_category_id == row.category_id else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=1,category_id=row.category_id,**ledger_category_query) }}" {% if selected_category_id == row.category_id %}aria-current="page"{% endif %}>
       <span>{{ row.name }}</span>
       <strong>{{ row.display_amount }}</strong>
       <i aria-hidden="true">›</i>
@@ -450,7 +450,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <div class="finance-section-heading">
   <h2>{% if selected_ledger_category %}Transaksi {{ selected_ledger_category.name }}{% else %}Riwayat Transaksi{% endif %}</h2>
   {% if selected_ledger_category %}
-  <a class="finance-ledger-category-close" href="{{ url_for('finance.dashboard',business_id=business.id,page=1,**ledger_category_query) }}">Tutup</a>
+  <a class="finance-ledger-category-close" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=1,**ledger_category_query) }}">Tutup</a>
   {% else %}<span class="finance-subtle">{{ transaction_page_size }} per halaman</span>{% endif %}
 </div>
 {% set tx_group = namespace(date='') %}
@@ -467,9 +467,9 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         <details class="finance-tx-actions">
           <summary aria-label="Tindakan transaksi" title="Tindakan">•••</summary>
           <div class="finance-tx-actions-menu">
-            {% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a href="{{ url_for('finance.edit_transaction',business_id=business.id,transaction_id=t.id) }}">Edit</a>{% endif %}
+            {% if t.source_type in (none,'','MANUAL','FINANCE_OPERATOR','FINANCE_RECEIPT') %}<a href="{{ url_for('finance.edit_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}">Edit</a>{% endif %}
             {% if t.source_type in workspace_movable_sources %}<button type="button" data-finance-open="move-transaction-{{ t.id }}">Pindahkan ke {{ workspace_move_target_label }}</button>{% endif %}
-            <form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-danger" type="submit">Hapus</button></form>
+            <form method="post" action="{{ url_for('finance.void_transaction',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}" onsubmit="return confirm('Hapus transaksi ini? Nilainya akan langsung dikeluarkan dari saldo, ringkasan, dan laporan. Riwayat audit tetap disimpan agar aman.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-danger" type="submit">Hapus</button></form>
           </div>
         </details>
         {% endif %}
@@ -480,7 +480,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         <div class="finance-sheet-body">
           <p><strong>{{ '+' if t.direction == 'INCOME' else '−' }}{{ t.display_amount_value }}</strong> · {{ t.occurred_on }}</p>
           <p class="muted">Ini memindahkan transaksi, bukan menyalin. Saldo, Pemasukan/Pengeluaran, Anggaran terpakai, dan laporan di Finance {{ finance_workspace_label }} akan langsung berkurang; Finance {{ workspace_move_target_label }} akan langsung bertambah.</p>
-          <form method="post" action="{{ url_for('finance.move_transaction_workspace',business_id=business.id,transaction_id=t.id) }}">
+          <form method="post" action="{{ url_for('finance.move_transaction_workspace',business_id=business.id,branch_id=g.finance_branch_id,transaction_id=t.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
             {% if workspace_move_target_type == 'BUSINESS' and workspace_move_target_branches|length > 1 %}
@@ -508,12 +508,12 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </section>
 {% if transaction_page_count > 1 %}
 <nav class="finance-pagination" aria-label="Halaman riwayat transaksi">
-  {% if transaction_page > 1 %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page-1,**transaction_query) }}" aria-label="Halaman sebelumnya">‹</a>{% endif %}
+  {% if transaction_page > 1 %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=transaction_page-1,**transaction_query) }}" aria-label="Halaman sebelumnya">‹</a>{% endif %}
   {% for item in transaction_page_items %}
-    {% if item %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=item,**transaction_query) }}" class="{{ 'active' if item == transaction_page }}" {% if item == transaction_page %}aria-current="page"{% endif %}>{{ item }}</a>
+    {% if item %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=item,**transaction_query) }}" class="{{ 'active' if item == transaction_page }}" {% if item == transaction_page %}aria-current="page"{% endif %}>{{ item }}</a>
     {% else %}<span aria-hidden="true">…</span>{% endif %}
   {% endfor %}
-  {% if transaction_page < transaction_page_count %}<a href="{{ url_for('finance.dashboard',business_id=business.id,page=transaction_page+1,**transaction_query) }}" aria-label="Halaman berikutnya">›</a>{% endif %}
+  {% if transaction_page < transaction_page_count %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id,page=transaction_page+1,**transaction_query) }}" aria-label="Halaman berikutnya">›</a>{% endif %}
 </nav>
 <p class="finance-pagination-meta">Halaman {{ transaction_page }} dari {{ transaction_page_count }}</p>
 {% endif %}
@@ -543,7 +543,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
   <strong>Penukaran bukan pemasukan atau pengeluaran.</strong>
   <p class="muted" style="margin:5px 0 0">Ini hanya memindahkan saldo dari satu mata uang ke mata uang lain. Nilai gabungan dalam IDR dapat berubah mengikuti kurs referensi tanpa membuat pendapatan baru.</p>
 </div>
-<form method="post" action="{{ url_for('finance.create_exchange',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<form method="post" action="{{ url_for('finance.create_exchange',business_id=business.id,branch_id=g.finance_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Rekening sumber<select name="from_account_id" data-fx-from required><option value="">Pilih rekening</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" data-idr-rate="{{ fx.rates.get(a.currency,'') }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
 <label>Jumlah yang dilepas<input name="from_amount" data-fx-from-amount inputmode="decimal" maxlength="25" required></label>
 <label>Rekening tujuan<select name="to_account_id" data-fx-to required><option value="">Pilih rekening dengan mata uang berbeda</option>{% for a in accounts if a.is_active %}<option value="{{ a.id }}" data-currency="{{ a.currency }}" data-idr-rate="{{ fx.rates.get(a.currency,'') }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
@@ -568,7 +568,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
   <div class="finance-fx-record-actions">
     <details class="finance-fx-inline-edit">
       <summary class="finance-mini-action">Edit nominal</summary>
-      <form method="post" action="{{ url_for('finance.edit_exchange',business_id=business.id,exchange_id=x.id) }}">
+      <form method="post" action="{{ url_for('finance.edit_exchange',business_id=business.id,branch_id=g.finance_branch_id,exchange_id=x.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="return_account_id" value="{{ selected_account.id if selected_account else x.from_account_id }}">
         <input type="hidden" name="display_currency" value="{{ display_currency }}">
@@ -577,7 +577,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         <button class="finance-mini-action" type="submit">Simpan nominal</button>
       </form>
     </details>
-    <form method="post" action="{{ url_for('finance.void_exchange',business_id=business.id,exchange_id=x.id) }}" onsubmit="return confirm('Hapus penukaran ini dari saldo?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger">Hapus</button></form>
+    <form method="post" action="{{ url_for('finance.void_exchange',business_id=business.id,branch_id=g.finance_branch_id,exchange_id=x.id) }}" onsubmit="return confirm('Hapus penukaran ini dari saldo?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-mini-action finance-danger">Hapus</button></form>
   </div>
   {% endif %}
 </div>
@@ -591,7 +591,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <div class="finance-sheet-head"><h2>↺ Reset Finance</h2><button type="button" class="finance-sheet-close" data-finance-close="reset-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
 <div class="finance-reset-warning"><strong>{{ 'Ruang Pribadi' if finance_workspace_personal else 'Cabang ' ~ selected_branch.name }} akan kembali ke saldo 0.</strong><p class="muted">Saldo awal semua rekening menjadi 0, semua transaksi aktif tidak dihitung lagi, biaya rutin dinonaktifkan, dan invoice pada ruang ini dibatalkan. Akun, kategori, serta riwayat audit tetap tersimpan.</p></div>
-<form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id) }}" onsubmit="return confirm('{{ 'Reset Finance Pribadi' if finance_workspace_personal else 'Reset Finance cabang ' ~ selected_branch.name }} ke Rp0? Tindakan ini tidak bisa dibatalkan dari halaman ini.');">
+<form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id,branch_id=g.finance_branch_id) }}" onsubmit="return confirm('{{ 'Reset Finance Pribadi' if finance_workspace_personal else 'Reset Finance cabang ' ~ selected_branch.name }} ke Rp0? Tindakan ini tidak bisa dibatalkan dari halaman ini.');">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Ketik <strong>RESET</strong> untuk melanjutkan<input name="confirmation" autocomplete="off" autocapitalize="characters" pattern="RESET" placeholder="RESET" required></label>
 <button class="btn secondary finance-danger" type="submit">↺ {{ 'Reset Pribadi' if finance_workspace_personal else 'Reset Cabang' }} ke saldo 0</button>
@@ -600,7 +600,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 
 <dialog id="add-transaction-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>Tambah Transaksi</h2><button type="button" class="finance-sheet-close" data-finance-close="add-transaction-dialog" aria-label="Tutup">×</button></div>
-<div class="finance-sheet-body"><form id="add-transaction" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id) }}">
+<div class="finance-sheet-body"><form id="add-transaction" method="post" action="{{ url_for('finance.create_transaction',business_id=business.id,branch_id=g.finance_branch_id) }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 {% if show_transactions and direction %}<input type="hidden" name="return_direction" value="{{ direction }}"><input type="hidden" name="return_month" value="{{ month }}">{% endif %}
 <label for="transaction-kind">Jenis</label><select id="transaction-kind" name="direction"><option value="INCOME" {{ 'selected' if direction == 'INCOME' else '' }}>Pemasukan</option><option value="EXPENSE" {{ 'selected' if direction == 'EXPENSE' else '' }}>Pengeluaran</option></select>
@@ -608,7 +608,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <label for="transaction-amount">Nominal <span data-currency-label>IDR</span></label><input id="transaction-amount" name="amount" inputmode="decimal" data-currency-amount maxlength="25" autocomplete="off" required><p class="muted" data-currency-help>Nominal mengikuti mata uang akun yang dipilih.</p>
 <label for="transaction-date">Tanggal</label><input id="transaction-date" name="occurred_on" type="date" value="{{ today }}" max="{{ today }}" required>
 <p class="muted">Pilih tempat uang masuk atau keluar. Tunai → Kas · transfer → BCA · pembayaran digital → GoPay.</p>
-<div class="finance-category-quick" data-category-quick-add data-category-create-url="{{ url_for('finance.create_category',business_id=business.id) }}" data-category-branch="{{ selected_branch_id or '' }}">
+<div class="finance-category-quick" data-category-quick-add data-category-create-url="{{ url_for('finance.create_category',business_id=business.id,branch_id=g.finance_branch_id) }}" data-category-branch="{{ selected_branch_id or '' }}">
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required><option value="" data-category-placeholder selected disabled>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
 <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori
   <select name="subcategory_id" data-subcategory-select aria-label="Subkategori">
@@ -631,7 +631,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <dialog id="branch-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>🏪 Cabang</h2><button type="button" class="finance-sheet-close" data-finance-close="branch-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
-<details class="finance-add-panel"><summary>＋ Tambah Cabang</summary><form method="post" action="{{ url_for('finance.create_branch',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama cabang<input name="name" placeholder="Contoh: Serpong" maxlength="160" required></label><button class="btn secondary">Tambah Cabang</button></form></details>
+<details class="finance-add-panel"><summary>＋ Tambah Cabang</summary><form method="post" action="{{ url_for('finance.create_branch',business_id=business.id,branch_id=g.finance_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label>Nama cabang<input name="name" placeholder="Contoh: Serpong" maxlength="160" required></label><button class="btn secondary">Tambah Cabang</button></form></details>
 <div class="finance-record-list">{% for b in finance_branches if b.is_active %}<div class="finance-record-row"><div class="finance-record-main"><strong>{{ b.name }}</strong><div class="finance-record-sub">{{ 'Dipilih sekarang' if selected_branch and b.id == selected_branch.id else ('Nonaktif' if not b.is_active else 'Cabang aktif') }}</div></div>{% with kind='branch',item=b %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 
@@ -639,9 +639,9 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <dialog id="account-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>💳 Akun</h2><button type="button" class="finance-sheet-close" data-finance-close="account-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body"><p class="muted">{% if finance_workspace_personal %}Tempat uang pribadi. Beri nama yang gampang dikenali, misalnya Dompet, BCA, GoPay, atau Tabungan. Minimal satu akun harus tetap aktif; Finance Pribadi otomatis menyiapkan Kas · IDR.{% else %}Tempat uang cabang {{ selected_branch.name }}. Beri nama yang gampang dikenali, misalnya Kas Toko, BCA Utama, atau GoPay. Minimal satu tempat uang harus tetap aktif; untuk pengguna baru Finance otomatis menyiapkan Kas · IDR.{% endif %}</p>
-<details class="finance-add-panel" {{ 'open' if show_accounts else '' }}><summary>＋ Tambah Akun</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id) }}" data-account-type-manager><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if show_accounts %}<input type="hidden" name="return_view" value="accounts">{% endif %}<label>Nama akun<input name="name" placeholder="Contoh: BCA Utama, Wise USD, Cash SGD" maxlength="160" required></label><label>Tipe tempat uang<select name="account_type_name" data-account-type-select required>{% for item in account_type_options %}<option value="{{ item.name }}">{{ item.name }}</option>{% else %}<option value="" selected disabled>Tambah tipe terlebih dahulu</option>{% endfor %}</select></label>
+<details class="finance-add-panel" {{ 'open' if show_accounts else '' }}><summary>＋ Tambah Akun</summary><form method="post" action="{{ url_for('finance.create_account',business_id=business.id,branch_id=g.finance_branch_id) }}" data-account-type-manager><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if show_accounts %}<input type="hidden" name="return_view" value="accounts">{% endif %}<label>Nama akun<input name="name" placeholder="Contoh: BCA Utama, Wise USD, Cash SGD" maxlength="160" required></label><label>Tipe tempat uang<select name="account_type_name" data-account-type-select required>{% for item in account_type_options %}<option value="{{ item.name }}">{{ item.name }}</option>{% else %}<option value="" selected disabled>Tambah tipe terlebih dahulu</option>{% endfor %}</select></label>
 <button type="button" class="finance-account-type-toggle" data-account-type-toggle>＋ Tambah / kelola tipe</button>
-<div class="finance-account-type-panel" data-account-type-panel data-account-type-url="{{ url_for('finance.manage_account_types',business_id=business.id) }}" data-account-type-branch="{{ selected_branch_id or '' }}" hidden>
+<div class="finance-account-type-panel" data-account-type-panel data-account-type-url="{{ url_for('finance.manage_account_types',business_id=business.id,branch_id=g.finance_branch_id) }}" data-account-type-branch="{{ selected_branch_id or '' }}" hidden>
   <div class="finance-account-type-add">
     <input type="text" data-account-type-name maxlength="80" autocomplete="off" placeholder="Contoh: Investasi">
     <button type="button" class="finance-mini-action" data-account-type-add>Tambah</button>
@@ -684,7 +684,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       <div class="finance-category-parent-actions">
         <button type="button" class="finance-category-action" data-category-add-child-popup data-category-parent-id="{{ parent.id }}" data-category-parent-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">＋ Subkategori</button>
         <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="category" data-category-id="{{ parent.id }}" data-category-name="{{ parent.name|e }}" data-category-direction="{{ parent.direction }}">Edit</button>
-        <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='category',record_id=parent.id) }}" onsubmit="return confirm('Hapus {{ parent.name|e }} dan semua subkategori di bawahnya? Riwayat transaksi lama tetap tersimpan.');">
+        <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='category',record_id=parent.id) }}" onsubmit="return confirm('Hapus {{ parent.name|e }} dan semua subkategori di bawahnya? Riwayat transaksi lama tetap tersimpan.');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">Hapus</button>
         </form>
       </div>
@@ -693,7 +693,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         <div class="finance-record-main"><strong>{{ child.name }}</strong><div class="finance-record-sub">Subkategori</div></div>
         <div class="finance-category-actions">
           <button type="button" class="finance-category-action edit" data-category-edit-popup data-category-kind="subcategory" data-category-id="{{ child.id }}" data-category-name="{{ child.name|e }}" data-category-direction="{{ child.direction }}">Edit</button>
-          <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,kind='category',record_id=child.id) }}" onsubmit="return confirm('Hapus subkategori {{ child.name|e }}? Riwayat transaksi lama tetap tersimpan.');">
+          <form method="post" action="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='category',record_id=child.id) }}" onsubmit="return confirm('Hapus subkategori {{ child.name|e }}? Riwayat transaksi lama tetap tersimpan.');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-category-action delete" name="action" value="deactivate">Hapus</button>
           </form>
         </div>
@@ -710,10 +710,10 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 {% endfor %}
 </div></dialog>
 
-<dialog id="category-editor-dialog" class="finance-sheet finance-category-editor-sheet" data-category-editor data-category-setting-url-template="{{ url_for('finance.update_setting',business_id=business.id,kind='category',record_id=0) }}">
+<dialog id="category-editor-dialog" class="finance-sheet finance-category-editor-sheet" data-category-editor data-category-setting-url-template="{{ url_for('finance.update_setting',business_id=business.id,branch_id=g.finance_branch_id,kind='category',record_id=0) }}">
 <div class="finance-sheet-head"><h2 data-category-editor-title>Tambah Kategori</h2><button type="button" class="finance-sheet-close" data-finance-close="category-editor-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
-<form method="post" action="{{ url_for('finance.create_category',business_id=business.id) }}" data-category-create-form>
+<form method="post" action="{{ url_for('finance.create_category',business_id=business.id,branch_id=g.finance_branch_id) }}" data-category-create-form>
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="direction" value="INCOME" data-category-editor-direction>
   <label><span data-category-editor-name-label>Nama kategori</span><input name="name" maxlength="160" autocomplete="off" required data-category-editor-create-name placeholder="Contoh: Operasional"></label>
