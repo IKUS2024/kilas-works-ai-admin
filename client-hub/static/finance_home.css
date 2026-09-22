@@ -104,3 +104,21 @@
   .finance-ledger-category-row span{font-size:13.5px}
   .finance-ledger-category-row strong{font-size:14px}
 }
+/* Saldo tersedia: reference-style budget gauge + three-series cash-flow legend. */
+.finance-available>.finance-combined-balance{margin:18px 0 4px;text-align:center;font-size:clamp(30px,6vw,40px)!important;letter-spacing:-.045em}
+.finance-available-gauge{display:grid;justify-items:center;margin:12px auto 0}
+.finance-available-gauge-label{font-size:13px;font-weight:800;line-height:1.25;text-align:center}
+.finance-available-gauge svg{display:block;width:min(260px,78vw);height:auto;margin-top:3px;overflow:visible}
+.finance-available-gauge-track,.finance-available-gauge-value{fill:none;stroke-width:15;stroke-linecap:round}
+.finance-available-gauge-track{stroke:rgba(150,157,168,.22)}
+.finance-available-gauge-value{stroke:var(--orange)}
+.finance-available-gauge text{fill:var(--text);font-size:23px;font-weight:850;text-anchor:middle;font-variant-numeric:tabular-nums}
+.finance-chart-legend span:nth-child(1)::before{background:var(--orange)}
+.finance-chart-legend span:nth-child(2)::before{background:#969da8}
+.finance-chart-legend span:nth-child(3)::before{background:#d8a15f}
+@media(max-width:700px){
+  .finance-available>.finance-combined-balance{font-size:31px!important}
+  .finance-available-gauge{margin-top:10px}
+  .finance-available-gauge-label{font-size:12px}
+  .finance-available-gauge svg{width:min(230px,76vw)}
+}
