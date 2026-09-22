@@ -77,6 +77,7 @@ DEFAULT_CATEGORY_CHILDREN = {
 # Known system-seeded Business categories from previous catalog versions.
 # They are hidden from new-entry pickers during catalog sync, while historical
 # ledger rows keep their original category ids/names for audit and reports.
+BUSINESS_COMPACT_CATEGORY_SYNC_ACTION = 'FINANCE_CATEGORY_COMPACT_DEFAULTS_V1'
 BUSINESS_LEGACY_DEFAULT_NAMES = {
     'INCOME': frozenset((
         'Penjualan / Jasa','Pendapatan Lain',
@@ -785,6 +786,12 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                     changed = True
             return changed
 
+        already_synced = db.query_one(
+            'SELECT 1 FROM audit_log WHERE business_id=? AND action=? LIMIT 1',
+            (business_id, BUSINESS_COMPACT_CATEGORY_SYNC_ACTION))
+        if already_synced:
+            return False
+
         desired_ids = set()
 
         # Ensure exactly the requested built-in roots exist. create_category reuses
@@ -851,6 +858,9 @@ def sync_business_category_catalog(business_id, *, actor_user_id=None):
                         'FINANCE_CATEGORY_DEACTIVATED', row['id'])
                     changed = True
 
+        repo.write_audit(
+            actor_user_id, business_id,
+            BUSINESS_COMPACT_CATEGORY_SYNC_ACTION, 'version=1')
         return changed
 
 

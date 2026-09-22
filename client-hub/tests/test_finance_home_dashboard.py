@@ -348,11 +348,16 @@ class DashboardHomeTests(unittest.TestCase):
         with __import__('finance_branches').scope(self.b,branch_id,self.uid):
             fixture.f.create_category(
                 self.b,'EXPENSE','Event / Custom',actor_user_id=self.uid)
+            # A user may also intentionally add a name that existed in an old
+            # Kilas catalog after the one-time cleanup; it must not be deleted again.
+            fixture.f.create_category(
+                self.b,'EXPENSE','Marketing & Promosi',actor_user_id=self.uid)
             fixture.f.sync_business_category_catalog(
                 self.b,actor_user_id=self.uid)
             custom=[row['name'] for row in fixture.f.list_categories(
                 self.b,'EXPENSE',actor_user_id=self.uid)]
         self.assertIn('Event / Custom',custom)
+        self.assertIn('Marketing & Promosi',custom)
 
         html,_=self.page('?month=2026-09')
         for name in expense_names+income_names:
@@ -363,6 +368,9 @@ class DashboardHomeTests(unittest.TestCase):
         branch_id=finance_branches.list_branches(
             self.b,self.uid,workspace_type='BUSINESS')[0]['id']
         with finance_branches.scope(self.b,branch_id,self.uid):
+            db.execute(
+                'DELETE FROM audit_log WHERE business_id=? AND action=?',
+                (self.b, fixture.f.BUSINESS_COMPACT_CATEGORY_SYNC_ACTION))
             old=fixture.f.create_category(
                 self.b,'EXPENSE','Marketing & Promosi',
                 actor_user_id=self.uid)
