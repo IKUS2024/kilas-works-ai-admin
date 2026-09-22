@@ -199,7 +199,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
     <div class="finance-account-hb-total finance-account-detail-balance">
       <span>Saldo sekarang</span>
       <strong>{{ selected_account.balance_minor|finance_money(selected_account.currency) }}</strong>
-      {% if selected_account.currency != display_currency %}<small>≈ {{ selected_account.display_balance_value }}</small>{% endif %}
+      {% if selected_account.balance_minor < 0 %}<small class="finance-account-negative">Saldo negatif · cek saldo awal dan transaksi akun</small>{% elif selected_account.currency != display_currency %}<small>≈ {{ selected_account.display_balance_value }}</small>{% endif %}
     </div>
   </div>
 </header>
@@ -320,7 +320,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       <small>{% if finance_workspace_personal %}Pribadi{% else %}{{ business.business_name }} · {{ selected_branch.name }}{% endif %}</small>
     </div>
     <div class="finance-account-hb-total">
-      <span>Saldo tersedia</span>
+      <span>Saldo tersedia sekarang</span>
       <strong>{{ balance_total_display }}</strong>
       {% if not branch_read_only %}<button type="button" class="finance-account-hb-add" data-finance-open="account-dialog" aria-label="Tambah akun">＋</button>{% endif %}
     </div>
@@ -340,6 +340,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       <span>{{ type_label }}</span>
       <span class="finance-account-hb-group-summary-right">
         <strong>{{ (group.total|finance_money(display_currency)) if group.complete else 'Kurs belum lengkap' }}</strong>
+        {% if group.complete and group.total < 0 %}<em class="finance-account-negative">Saldo negatif</em>{% endif %}
         <i class="finance-account-hb-group-chevron" aria-hidden="true">⌄</i>
       </span>
     </summary>
@@ -355,6 +356,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
       </div>
       <div class="finance-account-hb-row-balance">
         <strong>{{ a.display_balance_value }}</strong>
+        {% if a.display_balance_minor is not none and a.display_balance_minor < 0 %}<small class="finance-account-negative">Saldo negatif</small>{% endif %}
         <span aria-hidden="true">›</span>
       </div>
     </a>
