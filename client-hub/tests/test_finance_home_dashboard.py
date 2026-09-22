@@ -152,7 +152,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Saldo awal',html)
         self.assertIn('Saldo sekarang',html)
         self.assertIn('Dihitung otomatis',html)
-        self.assertIn('Kelola transaksi',html)
+        self.assertIn('Edit transaksi',html)
         self.assertIn('direction=INCOME',html)
         self.assertIn('direction=EXPENSE',html)
         self.assertNotIn('name="action" value="current"',html)
