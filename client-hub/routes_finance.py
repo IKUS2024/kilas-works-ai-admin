@@ -550,9 +550,12 @@ def dashboard(business_id, user, business):
     categories = finance.list_categories(business_id, include_inactive=True, include_children=True, **actor)
     budget_rows = finance.list_monthly_budgets(business_id, month, **actor)
 
-    # One balance read feeds both the card and its detail so those two surfaces cannot disagree.
+    # One ledger snapshot feeds every current-balance surface. Archived/deactivated
+    # accounts remain available to historical reports, but "Saldo tersedia" is strictly
+    # the sum of ACTIVE accounts so a removed account cannot remain in the visible total.
     balances = finance.get_account_balance_report(business_id, today_value.isoformat(), user['id'])
-    balance_totals = finance.aggregate_account_balances_by_currency(balances)
+    active_balances = [item for item in balances if item['is_active']]
+    balance_totals = finance.aggregate_account_balances_by_currency(active_balances)
 
     # Period cash flow only shows currencies that actually have transactions in the period.
     # A foreign opening balance belongs to current cash, not to period income/expense.
@@ -566,7 +569,8 @@ def dashboard(business_id, user, business):
         total_expense_minor=0, net_cashflow_minor=0, transaction_count=0))
 
     display_options = ['IDR']
-    display_options += [a['currency'] for a in accounts if a.get('currency') != 'IDR']
+    display_options += [a['currency'] for a in accounts
+                        if a.get('is_active') and a.get('currency') != 'IDR']
     display_options += [row['currency'] for row in summaries if row['currency'] != 'IDR']
     display_options += [row['currency'] for row in budget_rows if row['currency'] != 'IDR']
     display_options = list(dict.fromkeys(display_options))
@@ -617,7 +621,7 @@ def dashboard(business_id, user, business):
     # HomeBudget-style account view only shows active accounts. Archived/deactivated
     # accounts remain in the ledger and totals for audit/accounting, but disappear
     # from the normal account manager as requested.
-    account_balance_rows = [item for item in balances if item['is_active']]
+    account_balance_rows = active_balances
     account_type_options = finance.list_account_type_options(business_id, **actor)
     account_type_group_labels = [item['name'] for item in account_type_options]
     for item in account_balance_rows:
@@ -705,7 +709,8 @@ def dashboard(business_id, user, business):
             with branches.scope(business_id, branch['id'], user['id']):
                 branch_balances = finance.get_account_balance_report(
                     business_id, today_value.isoformat(), user['id'])
-                branch_totals = finance.aggregate_account_balances_by_currency(branch_balances)
+                branch_totals = finance.aggregate_account_balances_by_currency(
+                    [item for item in branch_balances if item['is_active']])
                 branch_map = {row['currency']:dict(row) for row in finance.get_finance_summaries(
                     business_id, start, end, **actor)}
                 if not branch_map:
