@@ -80,6 +80,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(income_context['transaction_total'],1)
         self.assertIn('＋ Tambah Pemasukan',income_html)
         self.assertIn('Total pemasukan',income_html)
+        self.assertIn('Rp2.500,00',income_html)
+        self.assertEqual(income_context['ledger_category_rows'][0]['display_amount'][-3:], ',00')
         self.assertNotIn('Retainer September',income_html)
         self.assertNotIn('Transaksi pemasukan',income_html)
         self.assertNotIn('finance-history-page-tabs',income_html)
