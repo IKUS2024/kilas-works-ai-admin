@@ -143,7 +143,6 @@
   <div class="card"><p>{{ error }}</p><a class="btn" href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary') }}">Kembali ke laporan</a></div>
 {% else %}
 {% set report_scope = selected_branch_id %}
-{% set section_target = 'summary' if section == 'filter' else section %}
 
 <header class="report-hero">
   <div class="report-hero-copy">
