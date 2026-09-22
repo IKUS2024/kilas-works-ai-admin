@@ -2,254 +2,202 @@
 {% block title %}Beranda · Kilas Works{% endblock %}
 {% block content %}
 <style>
-.product-home{max-width:900px;margin:0 auto}
-.home-intro{margin-bottom:12px}.home-intro h1{font-size:25px;margin-bottom:4px}.home-intro p{margin:0}
-.business-picker{display:block;padding:12px 14px}.business-picker label{margin:0 0 4px}.business-picker-field{min-width:0}.business-picker select{cursor:pointer}
-.business-shell{padding:14px}.business-head{display:flex;align-items:center;gap:10px;padding-bottom:11px;border-bottom:1px solid var(--border);margin-bottom:11px}
-.business-avatar{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(255,122,26,.12);color:var(--orange);flex:0 0 auto}
-.business-avatar svg,.product-icon svg,.action-icon svg{width:24px;height:24px;display:block}
-.business-title{min-width:0}.business-title h2{font-size:19px;margin:0 0 2px}.business-title p{margin:0;color:var(--text-dim);font-size:12px}
-.product-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:10px}
-.product-panel{border:1px solid var(--border);border-radius:16px;background:rgba(255,255,255,.012);padding:13px;min-width:0}
-.product-panel-head{display:flex;align-items:center;gap:9px;margin-bottom:10px}
-.product-icon{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:var(--bg-soft);color:var(--orange);flex:0 0 auto}
-.product-panel-title{min-width:0;flex:1}.product-panel-title h3{margin:0;font-size:17px}.product-kicker{font-size:11px;color:var(--text-dim);margin-top:1px}
-.status-line{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:6px 0 10px}
-.status-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#33363c;color:#d6d8dc}
-.status-badge.active{background:rgba(62,207,142,.12);color:var(--green)}.status-badge.warning{background:rgba(224,185,59,.12);color:var(--yellow)}.status-badge.info{background:rgba(127,211,240,.12);color:#7fd3f0}.status-badge.danger{background:rgba(241,101,101,.12);color:var(--red)}
-.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor}
-.status-meta{font-size:12px;color:var(--text-dim)}
-.product-copy{color:var(--text-dim);font-size:12px;line-height:1.4;margin:0 0 10px}
-.product-primary{display:flex;gap:9px;flex-wrap:wrap}.product-primary .btn{margin:0}
-.btn-wide{flex:1 1 150px;text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:7px}
-.progress-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 7px;font-size:12px;color:var(--text-dim)}
-.progress-track{height:5px;border-radius:999px;background:var(--bg-soft);overflow:hidden;margin-bottom:10px}.progress-fill{height:100%;background:var(--orange);border-radius:inherit}
-.brain-note{padding:8px 10px;border-radius:11px;background:var(--bg-soft);color:var(--text-dim);font-size:11px;line-height:1.4;margin:8px 0}
-.brain-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:8px 0 10px}
-.brain-flow-step{min-width:0;padding:7px 5px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.012);text-align:center;color:var(--text-dim)}
-.brain-flow-step strong{display:block;font-size:10px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.brain-flow-step span{display:block;font-size:9px;margin-top:2px}
-.brain-flow-step.done{border-color:rgba(62,207,142,.25);background:rgba(62,207,142,.06);color:var(--green)}
-.brain-flow-step.current{border-color:rgba(255,122,26,.45);background:rgba(255,122,26,.08);color:var(--orange)}
-.action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px}
-.action-tile{border:1px solid var(--border);background:transparent;color:var(--text);border-radius:12px;padding:9px;display:flex;align-items:center;gap:8px;min-height:50px;text-decoration:none;font-size:13px;font-weight:650;min-width:0}
-.action-tile:hover{border-color:#4a4e56;background:rgba(255,255,255,.025);text-decoration:none}
-.action-icon{width:30px;height:30px;border-radius:9px;background:var(--bg-soft);display:grid;place-items:center;color:var(--text-dim);flex:0 0 auto}.action-icon svg{width:17px;height:17px}
-.new-business-start{max-width:560px;margin:18px auto 0;padding:18px}.new-business-start h2{font-size:20px;margin-bottom:5px}.new-business-start p{margin:0 0 12px;color:var(--text-dim);font-size:13px;line-height:1.45}.new-business-start form{display:grid;gap:10px}.new-business-start label{margin:0}.new-business-start .btn{width:100%;min-height:46px}
-.orders-card{padding:14px}.orders-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.orders-head h2{margin:0}
-.order-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--border)}.order-row:first-of-type{border-top:0}.order-main{min-width:0;flex:1}.order-main a{font-weight:700}.order-meta{font-size:12px;color:var(--text-dim);margin-top:2px}.order-action{flex:0 0 auto}.order-action .btn{margin:0}
-@media(max-width:720px){.home-intro{margin-bottom:9px}.home-intro h1{font-size:22px}.business-picker{padding:10px 12px}.product-grid{grid-template-columns:1fr}.business-shell{padding:12px}.product-panel{padding:11px}.product-primary{display:flex;gap:7px}.product-primary .btn{flex:1 1 140px}.action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-right:0;padding-right:0}.action-tile{min-height:52px;padding:8px;font-size:12px;white-space:normal;overflow-wrap:anywhere}.brain-flow{gap:4px}.brain-flow-step{padding:6px 3px}.brain-flow-step strong{font-size:9.5px}.brain-flow-step span{font-size:8.5px}.orders-card{padding:12px}}
-@media(max-width:430px){.product-primary{gap:6px}.product-primary .btn{padding:8px 9px;font-size:12px}.business-avatar{width:38px;height:38px}.business-title h2{font-size:18px}.product-icon{width:35px;height:35px}.status-badge{font-size:11px;padding:4px 7px}.order-meta{font-size:11px}}
+.product-home{max-width:920px;margin:0 auto}
+.home-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.home-intro h1{font-size:clamp(25px,6vw,34px);margin:0 0 4px;letter-spacing:-.04em}.home-intro p{margin:0;color:var(--text-dim);font-size:12px}.owner-pill{flex:0 0 auto;padding:6px 9px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:10px;font-weight:800}
+.separation-note{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;margin-bottom:12px;border:1px solid color-mix(in srgb,var(--orange) 30%,var(--border));border-radius:14px;background:color-mix(in srgb,var(--orange) 5%,transparent);color:var(--text-dim);font-size:11px;line-height:1.5}.separation-note strong{color:var(--text)}.separation-note-icon{color:var(--orange);font-weight:900;flex:0 0 auto}
+.product-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.product-lane{padding:15px;border-radius:19px;min-width:0}.product-lane-head{display:flex;align-items:center;gap:10px;padding-bottom:11px;border-bottom:1px solid var(--border);margin-bottom:10px}.product-lane-icon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--orange) 12%,transparent);font-size:22px;flex:0 0 auto}.product-lane-title{min-width:0;flex:1}.product-lane-title h2{margin:0;font-size:18px}.product-lane-title p{margin:2px 0 0;color:var(--text-dim);font-size:10.5px}.product-lane-count{font-size:10px;color:var(--text-dim);font-weight:800}
+.product-businesses{display:grid;gap:8px}.product-business-card{padding:11px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.012)}.product-business-top{display:flex;align-items:flex-start;justify-content:space-between;gap:9px}.product-business-name{font-size:15px;font-weight:850;line-height:1.25;overflow-wrap:anywhere}.product-business-meta{margin-top:3px;color:var(--text-dim);font-size:10.5px;line-height:1.4}.product-status{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border-radius:999px;background:#33363c;color:#d6d8dc;font-size:9.5px;font-weight:850}.product-status.active{background:rgba(62,207,142,.12);color:var(--green)}.product-status.warn{background:rgba(224,185,59,.12);color:var(--yellow)}.product-status.info{background:rgba(127,211,240,.12);color:#7fd3f0}.product-status.danger{background:rgba(241,101,101,.12);color:var(--red)}
+.product-card-note{margin:8px 0 0;color:var(--text-dim);font-size:10.5px;line-height:1.45}.product-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.product-actions .btn{margin:0;flex:1 1 110px;text-align:center;justify-content:center}
+.product-empty{padding:15px 12px;border:1px dashed var(--border);border-radius:14px;text-align:center;color:var(--text-dim);font-size:11px;line-height:1.5}.product-empty strong{display:block;color:var(--text);font-size:14px;margin-bottom:4px}.product-empty form{margin-top:10px}.product-empty .btn{width:100%;margin:0}
+.product-add{margin-top:9px}.product-add form{margin:0}.product-add .btn{width:100%;margin:0}
+.product-subactions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:8px}.product-subactions a{display:flex;align-items:center;justify-content:center;min-height:36px;padding:6px 7px;border:1px solid var(--border);border-radius:10px;color:var(--text-dim);font-size:10px;font-weight:800;text-decoration:none;text-align:center}.product-subactions a:hover{border-color:var(--orange);color:var(--text);text-decoration:none}
+.legacy-card{padding:13px;margin-top:12px}.legacy-card h2{margin:0 0 4px;font-size:14px}.legacy-card p{margin:0;color:var(--text-dim);font-size:10.5px;line-height:1.45}.legacy-list{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.legacy-chip{padding:5px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:10px}
+.orders-card{padding:14px;margin-top:12px}.orders-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.orders-head h2{margin:0;font-size:17px}.order-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--border)}.order-row:first-of-type{border-top:0}.order-main{min-width:0;flex:1}.order-main a{font-weight:800}.order-meta{font-size:10.5px;color:var(--text-dim);margin-top:3px}.order-action{flex:0 0 auto}.order-action .btn{margin:0}
+@media(max-width:720px){.product-lanes{grid-template-columns:1fr}.home-intro{align-items:flex-start}.product-lane{padding:13px}.orders-card{padding:12px}}
+@media(max-width:430px){.home-intro{display:block}.owner-pill{display:inline-flex;margin-top:8px}.product-actions{gap:5px}.product-actions .btn{font-size:11px;padding:8px}.product-business-card{padding:10px}.product-subactions a{font-size:9.5px}}
 </style>
 
 <div class="product-home">
   <header class="home-intro">
-    {% if not all_businesses and not my_projects %}
-      <h1>Mulai</h1>
-      <p class="muted">Tambahkan bisnis dulu untuk mulai menggunakan Kilas Works.</p>
-    {% else %}
-      <h1>Beranda</h1>
-      <p class="muted">Kelola produk Kilas Works dari satu tempat.</p>
-    {% endif %}
+    <div>
+      <h1>Halo, {{ user.full_name or 'Pemilik' }}</h1>
+      <p>Pilih dan kelola produk Kilas Works tanpa mencampur data bisnis antarproduk.</p>
+    </div>
+    <span class="owner-pill">AKUN PEMILIK</span>
   </header>
 
-  {% if not all_businesses and not my_projects %}
-  <section class="card new-business-start">
-    <h2>Tambah Bisnis</h2>
-    <p>Masukkan nama bisnis atau brand kamu. Setelah itu kamu bisa langsung memilih Kilas Finance, Kilas Brain, atau layanan lainnya.</p>
-    <form method="post" action="{{ url_for('client.create_business') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="package" value="NONE">
-      <label>Nama bisnis
-        <input type="text" name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required autofocus>
-      </label>
-      <button class="btn" type="submit">＋ Tambah Bisnis</button>
-    </form>
-  </section>
-  {% else %}
-  {% if all_businesses %}
-  <form method="post" class="card business-picker" action="{{ url_for('products.dashboard_business') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="business-picker-field">
-      <label for="dashboard-business">Bisnis aktif</label>
-      <select id="dashboard-business" name="business_id" onchange="this.form.requestSubmit()">
-        {% for choice in all_businesses %}
-          <option value="{{ choice.id }}" {% if businesses and choice.id==businesses[0].id %}selected{% endif %}>{{ choice.business_name }}</option>
+  <div class="separation-note">
+    <span class="separation-note-icon">↔</span>
+    <div><strong>Finance dan AI Admin sekarang dipisah.</strong> Saat menambah produk baru, nama bisnis diisi khusus untuk produk itu. Bisnis Finance tidak otomatis menjadi bisnis AI Admin, dan sebaliknya. Data lama tidak dihapus atau dipindahkan.</div>
+  </div>
+
+  <div class="product-lanes">
+    <section class="card product-lane">
+      <div class="product-lane-head">
+        <span class="product-lane-icon" aria-hidden="true">💰</span>
+        <div class="product-lane-title"><h2>Kilas Finance</h2><p>Keuangan bisnis &amp; pribadi</p></div>
+        <span class="product-lane-count">{{ finance_businesses|length }} bisnis</span>
+      </div>
+
+      <div class="product-businesses">
+      {% for b in finance_businesses %}
+        {% set fs = b.finance_entitlement %}
+        {% set finance_status = fs.status if fs else 'NOT_ACTIVATED' %}
+        {% set finance_label = {'NOT_ACTIVATED':'Data lama','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis'}.get(finance_status,'Finance') %}
+        <article class="product-business-card">
+          <div class="product-business-top">
+            <div>
+              <div class="product-business-name">{{ b.business_name }}</div>
+              <div class="product-business-meta">{% if fs and fs.until_local %}Aktif s/d {{ fs.until_local }}{% elif b.finance_has_data and finance_status=='NOT_ACTIVATED' %}Data Finance lama tersimpan{% else %}Kilas Finance{% endif %}</div>
+            </div>
+            <span class="product-status {{ 'active' if finance_status in ('TRIAL_ACTIVE','PAID_ACTIVE') else ('danger' if finance_status=='EXPIRED' else 'info') }}">{{ finance_label }}</span>
+          </div>
+          <div class="product-actions">
+            {% if fs and fs.active %}
+              <a class="btn" href="{{ url_for('finance.workspace_choice',business_id=b.id) }}">Buka Finance</a>
+              <a class="btn secondary" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Langganan</a>
+            {% elif finance_status=='NOT_ACTIVATED' and b.finance_has_data %}
+              <a class="btn secondary" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Aktifkan Finance</a>
+            {% else %}
+              <a class="btn" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Perpanjang Finance</a>
+            {% endif %}
+          </div>
+        </article>
+      {% else %}
+        <div class="product-empty">
+          <strong>Belum ada bisnis Finance</strong>
+          Buat bisnis khusus Finance saat kamu siap. Tidak perlu membuat bisnis di tahap daftar akun.
+          <form method="post" action="{{ url_for('products.select') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="product" value="finance">
+            <button class="btn" type="submit">＋ Mulai Kilas Finance</button>
+          </form>
+        </div>
+      {% endfor %}
+      </div>
+      {% if finance_businesses %}
+      <div class="product-add">
+        <form method="post" action="{{ url_for('products.select') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="product" value="finance">
+          <button class="btn secondary" type="submit">＋ Tambah Bisnis Finance</button>
+        </form>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="card product-lane">
+      <div class="product-lane-head">
+        <span class="product-lane-icon" aria-hidden="true">🧠</span>
+        <div class="product-lane-title"><h2>AI Admin</h2><p>Kilas Brain · customer service AI</p></div>
+        <span class="product-lane-count">{{ brain_businesses|length }} bisnis</span>
+      </div>
+
+      <div class="product-businesses">
+      {% for b in brain_businesses %}
+        {% set brain_payment = namespace(verified=b.brain_payment_verified, status='VERIFIED' if b.brain_payment_verified else 'NONE') %}
+        {% for p in my_projects %}
+          {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment %}
+            {% set brain_payment.status = p.payment.status %}
+            {% if p.payment.status == 'VERIFIED' %}{% set brain_payment.verified = true %}{% endif %}
+          {% endif %}
         {% endfor %}
-      </select>
-    </div>
-  </form>
+        <article class="product-business-card">
+          <div class="product-business-top">
+            <div>
+              <div class="product-business-name">{{ b.business_name }}</div>
+              <div class="product-business-meta">{{ b.package|humanize_package }}{% if b.brain_required_missing and b.status!='ACTIVE' %} · {{ b.brain_required_missing|length }} data perlu dilengkapi{% endif %}</div>
+            </div>
+            {% if b.brain_required_missing and b.status!='ACTIVE' %}
+              <span class="product-status warn">Data belum lengkap</span>
+            {% elif b.brain_review_pending %}
+              <span class="product-status warn">Menunggu review</span>
+            {% else %}
+              <span class="product-status {{ 'active' if b.status=='ACTIVE' else ('warn' if b.status in ('READY_FOR_REVIEW','READY_FOR_AI_SETUP','ONBOARDING') else ('danger' if b.status in ('NEEDS_REVISION','SUSPENDED') else 'info')) }}">{{ 'Sedang ditinjau' if b.status=='READY_FOR_REVIEW' else ('Review disetujui' if b.status=='APPROVED' else (b.status|humanize_status('business'))) }}</span>
+            {% endif %}
+          </div>
+
+          {% if b.brain_required_missing and b.status!='ACTIVE' %}
+            <p class="product-card-note">Lengkapi {{ b.brain_required_missing_labels|join(', ') }} sebelum aktivasi dilanjutkan.</p>
+          {% elif b.status=='ACTIVE' %}
+            <p class="product-card-note">AI Admin aktif dan siap membantu customer melalui WhatsApp.</p>
+          {% elif b.status=='READY_FOR_REVIEW' %}
+            <p class="product-card-note">Setup sudah dikirim dan sedang direview.</p>
+          {% endif %}
+
+          <div class="product-actions">
+            {% if b.brain_required_missing and b.status!='ACTIVE' %}
+              <a class="btn" href="{{ url_for('client.wizard_step',business_id=b.id,step=b.brain_fix_step or 'basics') }}">Lengkapi Data</a>
+              <a class="btn secondary" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
+            {% elif b.status=='ACTIVE' %}
+              <a class="btn" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox</a>
+              <a class="btn secondary" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Edit Data</a>
+            {% elif b.status=='APPROVED' and brain_payment.verified %}
+              <a class="btn" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">Hubungkan WhatsApp</a>
+            {% elif b.status=='APPROVED' %}
+              <a class="btn" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Pembayaran</a>
+            {% elif b.status=='READY_FOR_REVIEW' %}
+              <a class="btn" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Review</a>
+              {% if not brain_payment.verified and brain_payment.status not in ('PROOF_UPLOADED','UNDER_REVIEW') %}<a class="btn secondary" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">Pembayaran</a>{% endif %}
+            {% else %}
+              <a class="btn" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>
+            {% endif %}
+          </div>
+
+          {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
+          <div class="product-subactions">
+            <a href="{{ url_for('client.business_memory',business_id=b.id) }}">Pengetahuan</a>
+            <a href="{{ url_for('client.simulate_page',business_id=b.id) }}">Simulasi</a>
+          </div>
+          {% endif %}
+        </article>
+      {% else %}
+        <div class="product-empty">
+          <strong>Belum ada bisnis AI Admin</strong>
+          Nama dan data bisnis AI Admin baru diminta ketika kamu memilih mulai AI Admin.
+          <form method="post" action="{{ url_for('products.select') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="product" value="brain">
+            <button class="btn" type="submit">＋ Mulai AI Admin</button>
+          </form>
+        </div>
+      {% endfor %}
+      </div>
+      {% if brain_businesses %}
+      <div class="product-add">
+        <form method="post" action="{{ url_for('products.select') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="product" value="brain">
+          <button class="btn secondary" type="submit">＋ Tambah Bisnis AI Admin</button>
+        </form>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if unassigned_businesses %}
+  <section class="card legacy-card">
+    <h2>Bisnis lama / layanan lainnya</h2>
+    <p>Record lama ini tetap ada di database dan tidak disentuh oleh pemisahan Finance–AI Admin.</p>
+    <div class="legacy-list">{% for b in unassigned_businesses %}<span class="legacy-chip">{{ b.business_name }}</span>{% endfor %}</div>
+  </section>
   {% endif %}
 
-  {% for b in businesses %}
-    <section class="card business-shell">
-      <div class="business-head">
-        <span class="business-avatar" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg>
-        </span>
-        <div class="business-title">
-          <h2>{{ b.business_name }}</h2>
-          <p>Produk &amp; layanan aktif</p>
-        </div>
-      </div>
-
-      <div class="product-grid">
-        <section class="product-panel">
-          <div class="product-panel-head">
-            <span class="product-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M16 13h3"/><path d="M3 9h18"/></svg>
-            </span>
-            <div class="product-panel-title"><h3>Kilas Finance</h3><div class="product-kicker">Keuangan pribadi &amp; bisnis</div></div>
-          </div>
-
-          {% set finance_status = b.finance_entitlement.status %}
-          {% set finance_label = {'NOT_ACTIVATED':'Belum diaktifkan','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis'}[finance_status] %}
-          <div class="status-line">
-            <span class="status-badge {{ 'active' if finance_status in ('TRIAL_ACTIVE','PAID_ACTIVE') else ('danger' if finance_status=='EXPIRED' else '') }}"><span class="status-dot"></span>{{ finance_label }}</span>
-            {% if b.finance_entitlement.until_local %}<span class="status-meta">s/d {{ b.finance_entitlement.until_local }}</span>{% endif %}
-          </div>
-
-          <p class="product-copy">{% if finance_status=='TRIAL_ACTIVE' %}Trial Finance sedang berjalan. Semua fitur aktif selama masa trial.{% elif finance_status=='PAID_ACTIVE' %}Finance aktif dan siap dipakai untuk operasional bisnis.{% elif finance_status=='EXPIRED' %}Data tetap aman dan dapat dilihat dalam mode hanya-baca.{% else %}Aktifkan trial gratis untuk mulai mencatat dan menganalisis keuangan.{% endif %}</p>
-
-          <div class="product-primary">
-            {% if b.finance_entitlement.active %}
-              <a class="btn btn-wide" href="{{ url_for('finance.workspace_choice',business_id=b.id) }}">Buka Finance</a>
-              <a class="btn secondary btn-wide" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Kelola Langganan</a>
-            {% elif finance_status=='NOT_ACTIVATED' and not b.finance_entitlement.trial_used %}
-              <form method="post" action="{{ url_for('products.start_finance_trial',business_id=b.id) }}" style="flex:1 1 100%;margin:0;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-wide" type="submit" style="width:100%;">Coba Gratis 7 Hari</button>
-              </form>
-              <span class="status-meta" style="flex-basis:100%;">Langsung aktif · tanpa kartu · tanpa auto-renew.</span>
-            {% else %}
-              <a class="btn btn-wide" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Perpanjang Finance</a>
-            {% endif %}
-          </div>
-        </section>
-
-        <section class="product-panel">
-          <div class="product-panel-head">
-            <span class="product-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5a3 3 0 0 0-5 2.2 3.2 3.2 0 0 0 .7 2A3.5 3.5 0 0 0 6.5 15H9"/><path d="M14.5 4.5a3 3 0 0 1 5 2.2 3.2 3.2 0 0 1-.7 2A3.5 3.5 0 0 1 17.5 15H15"/><path d="M9 4v16M15 4v16"/><path d="M9 9H6.5M15 9h2.5M9 15H7M15 15h2"/></svg>
-            </span>
-            <div class="product-panel-title"><h3>Kilas Brain</h3><div class="product-kicker">AI customer service</div></div>
-          </div>
-
-          {% if b.package=='NONE' %}
-            <div class="status-line"><span class="status-badge"><span class="status-dot"></span>Belum aktif</span></div>
-            <p class="product-copy">Siapkan Kilas Brain untuk mengenali bisnis dan membantu customer melalui WhatsApp.</p>
-            <form method="post" action="{{ url_for('products.select') }}">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="product" value="brain">
-              <button class="btn btn-wide" type="submit">Kenali &amp; Siapkan Brain</button>
-            </form>
-          {% else %}
-            {% set brain_payment = namespace(verified=b.brain_payment_verified, status='VERIFIED' if b.brain_payment_verified else 'NONE') %}
-            {% for p in my_projects %}
-              {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment %}
-                {% set brain_payment.status = p.payment.status %}
-                {% if p.payment.status == 'VERIFIED' %}{% set brain_payment.verified = true %}{% endif %}
-              {% endif %}
-            {% endfor %}
-
-            <div class="status-line">
-              {% if b.brain_required_missing and b.status != 'ACTIVE' %}
-                <span class="status-badge warning"><span class="status-dot"></span>Data belum lengkap</span>
-                <span class="status-meta">{{ b.brain_required_missing|length }} informasi penting perlu diisi</span>
-              {% elif b.brain_review_pending %}
-                <span class="status-badge warning"><span class="status-dot"></span>Perubahan menunggu review</span>
-                <span class="status-meta">Versi live lama tetap aktif</span>
-              {% else %}
-                <span class="status-badge {{ 'active' if b.status=='ACTIVE' else ('warning' if b.status in ('READY_FOR_REVIEW','READY_FOR_AI_SETUP','ONBOARDING') else ('danger' if b.status in ('NEEDS_REVISION','SUSPENDED') else 'info')) }}"><span class="status-dot"></span>{{ 'Sedang ditinjau' if b.status=='READY_FOR_REVIEW' else ('Review disetujui' if b.status=='APPROVED' else (b.status|humanize_status('business'))) }}</span>
-                {% if b.status=='READY_FOR_REVIEW' and brain_payment.verified %}<span class="status-meta">Pembayaran sudah diverifikasi</span>{% elif b.subscription_banner %}<span class="status-meta">{{ b.subscription_banner.status }}</span>{% endif %}
-              {% endif %}
-            </div>
-
-            {% if (b.brain_required_missing and b.status != 'ACTIVE') or b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP','NEEDS_REVISION') %}
-              <div class="progress-row"><span>Kelengkapan data penting</span><strong>{{ b.completion_percent }}%</strong></div>
-              <div class="progress-track" aria-label="Kelengkapan data {{ b.completion_percent }}%"><div class="progress-fill" style="width:{{ b.completion_percent }}%"></div></div>
-            {% else %}
-              <div class="brain-flow" aria-label="Tahapan aktivasi Kilas Brain">
-                <div class="brain-flow-step done"><strong>Setup</strong><span>✓ selesai</span></div>
-                <div class="brain-flow-step {{ 'done' if b.status in ('APPROVED','ACTIVE','SUSPENDED') else 'current' }}"><strong>Review</strong><span>{{ '✓ selesai' if b.status in ('APPROVED','ACTIVE','SUSPENDED') else 'diproses' }}</span></div>
-                <div class="brain-flow-step {{ 'done' if brain_payment.verified or b.status in ('ACTIVE','SUSPENDED') else ('current' if b.status=='APPROVED' else '') }}"><strong>Bayar</strong><span>{{ '✓ selesai' if brain_payment.verified or b.status in ('ACTIVE','SUSPENDED') else ('berikutnya' if b.status=='APPROVED' else 'menunggu') }}</span></div>
-                <div class="brain-flow-step {{ 'done' if b.status=='ACTIVE' else ('current' if b.status=='APPROVED' and brain_payment.verified else '') }}"><strong>WhatsApp</strong><span>{{ '✓ aktif' if b.status=='ACTIVE' else ('hubungkan' if b.status=='APPROVED' and brain_payment.verified else 'menunggu') }}</span></div>
-              </div>
-            {% endif %}
-
-            {% if b.brain_required_missing and b.status != 'ACTIVE' %}
-              <div class="brain-note"><strong>Lengkapi dulu:</strong> {{ b.brain_required_missing_labels|join(', ') }}. Setelah data penting lengkap, proses review dan pembayaran bisa dilanjutkan tanpa mengulang setup dari awal.</div>
-            {% elif b.brain_review_pending %}
-              <div class="brain-note">Perubahan terbaru sudah tersimpan sebagai draft. Versi live lama tetap berjalan sampai perubahan disetujui.</div>
-            {% elif b.status=='READY_FOR_REVIEW' and brain_payment.verified %}
-              <div class="brain-note">Setup dan pembayaran sudah selesai. Sekarang tinggal menunggu review Kilas Works.</div>
-            {% elif b.status=='READY_FOR_REVIEW' and brain_payment.status in ('PROOF_UPLOADED','UNDER_REVIEW') %}
-              <div class="brain-note">Setup sedang direview dan bukti pembayaran juga sedang diverifikasi. Kamu tidak perlu mengisi setup lagi.</div>
-            {% elif b.status=='READY_FOR_REVIEW' %}
-              <div class="brain-note">Setup sudah selesai dan sedang direview. Sambil menunggu, lanjutkan pembayaran supaya setelah disetujui kamu bisa langsung hubungkan WhatsApp.</div>
-            {% elif b.status=='APPROVED' and brain_payment.verified %}
-              <div class="brain-note">Review dan pembayaran sudah selesai. Tinggal hubungkan WhatsApp untuk mulai menerima chat customer.</div>
-            {% elif b.status=='APPROVED' %}
-              <div class="brain-note">Review sudah disetujui. Selesaikan pembayaran untuk lanjut ke aktivasi WhatsApp.</div>
-            {% elif b.status=='ACTIVE' %}
-              <div class="brain-note">Kilas Brain aktif dan siap membantu customer melalui WhatsApp.</div>
-            {% else %}
-              <div class="brain-note">Kamu tetap bisa mengubah data Brain kapan saja. Perubahan pada Brain yang sudah disetujui akan direview sebelum menjadi versi live.</div>
-            {% endif %}
-
-            <div class="product-primary">
-              {% if b.brain_required_missing and b.status != 'ACTIVE' %}
-                <a class="btn btn-wide" href="{{ url_for('client.wizard_step',business_id=b.id,step=b.brain_fix_step or 'basics') }}">Lengkapi Data</a>
-                <a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat yang Kurang</a>
-              {% elif b.status=='ACTIVE' %}
-                <a class="btn btn-wide" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Inbox Brain</a>
-                {% if b.brain_review_pending %}<a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Perubahan</a>{% endif %}
-              {% elif b.status=='APPROVED' and brain_payment.verified %}
-                <a class="btn btn-wide" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">Hubungkan WhatsApp</a>
-                {% if b.brain_review_pending %}<a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Perubahan</a>{% endif %}
-              {% elif b.status=='APPROVED' %}
-                <a class="btn btn-wide" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Invoice &amp; Pembayaran</a>
-              {% elif b.status=='READY_FOR_REVIEW' %}
-                {% if brain_payment.verified %}
-                  <a class="btn btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Status Review</a>
-                {% elif brain_payment.status in ('PROOF_UPLOADED','UNDER_REVIEW') %}
-                  <a class="btn btn-wide" href="{{ url_for('payments.invoice_list',business_id=b.id,view='all') }}">Cek Pembayaran</a>
-                  <a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Review</a>
-                {% else %}
-                  <a class="btn btn-wide" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">{{ 'Perbaiki Pembayaran' if brain_payment.status=='REJECTED' else 'Lanjut Pembayaran' }}</a>
-                  <a class="btn secondary btn-wide" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Review</a>
-                {% endif %}
-              {% else %}
-                <a class="btn btn-wide" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>
-              {% endif %}
-            </div>
-
-            <div class="action-grid" aria-label="Menu Kilas Brain">
-              <a class="action-tile" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}"><span class="action-icon" aria-hidden="true">✏️</span><span>Edit Semua Data</span></a>
-              {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
-                <a class="action-tile" href="{{ url_for('client.business_memory',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M5 8h14M7 16h10"/></svg></span><span>Pengetahuan Brain</span></a>
-              {% endif %}
-              <a class="action-tile" href="{{ url_for('client.business_settings',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></span><span>Booking</span></a>
-              <a class="action-tile" href="{{ url_for('client.review_page',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/><path d="M5 6h6M5 18h14"/></svg></span><span>Review</span></a>
-              <a class="action-tile" href="{{ url_for('client.simulate_page',business_id=b.id) }}"><span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 7 8 5-8 5z"/></svg></span><span>Simulasi</span></a>
-            </div>
-          {% endif %}
-        </section>
-      </div>
-    </section>
-  {% endfor %}
-
   <section class="card orders-card">
-    <div class="orders-head"><div><h2>Pesanan Layanan</h2><div class="order-meta">{{ my_projects|length }} pesanan aktif · 3 terbaru ditampilkan</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><a class="btn small secondary" href="{{ url_for('projects.my_project_list', view='active') }}">Semua Pesanan</a><a class="btn small secondary" href="{{ url_for('products.index') }}">＋ Tambah</a></div></div>
+    <div class="orders-head">
+      <div><h2>Pesanan Layanan</h2><div class="order-meta">{{ my_projects|length }} pesanan aktif · 3 terbaru ditampilkan</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><a class="btn small secondary" href="{{ url_for('projects.my_project_list', view='active') }}">Semua</a><a class="btn small secondary" href="{{ url_for('products.index') }}">＋ Tambah</a></div>
+    </div>
     {% for p in recent_projects %}
       {% set order_url = url_for('talent.talent_list') if p.legacy_talent_flow else (url_for('projects.purchase_brief',project_id=p.id,edit=1) if p.can_edit_brief else url_for('projects.project_view',project_id=p.id)) %}
       <div class="order-row">
-        <div class="order-main"><a href="{{ order_url }}">{{ p.title }}</a><div class="order-meta">{% if p.legacy_talent_flow %}Flow lama · pilih profil talent untuk membuat request baru{% elif p.can_edit_brief %}Lengkapi brief sebelum dikirim ke Kilas Works{% elif p.project_type == 'TALENT' and p.status == 'REQUESTED' %}Menunggu review{% else %}{{ p.status|humanize_status('project') }}{% endif %}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status|humanize_status('payment') }}{% endif %}</div></div>
+        <div class="order-main"><a href="{{ order_url }}">{{ p.title }}</a><div class="order-meta">{% if p.legacy_talent_flow %}Flow lama · pilih profil talent untuk membuat request baru{% elif p.can_edit_brief %}Lengkapi brief sebelum dikirim{% elif p.project_type == 'TALENT' and p.status == 'REQUESTED' %}Menunggu review{% else %}{{ p.status|humanize_status('project') }}{% endif %}{% if p.payment_review_status %} · Pembayaran: {{ p.payment_review_status|humanize_status('payment') }}{% endif %}</div></div>
         <div class="order-action"><a class="btn small secondary" href="{{ order_url }}">{{ 'Pilih Talent' if p.legacy_talent_flow else ('Lanjutkan' if p.can_edit_brief else 'Buka') }}</a></div>
       </div>
     {% else %}
       <p class="muted">Belum ada pesanan berjalan.</p>
     {% endfor %}
   </section>
-  {% endif %}
 </div>
 {% endblock %}
