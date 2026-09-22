@@ -66,14 +66,19 @@ def sync_sender_identity(business_id, name, actor_user_id=None):
     """Update only FUTURE invoice defaults after a business rename; issued invoice snapshots stay frozen."""
     clean_name = f._text(name, 254, True)
     email = _owner_email(business_id)
+    f._scope(business_id, actor_user_id)
+    rows = db.query_all(
+        """SELECT s.branch_id,s.defaults_json
+           FROM finance_invoice_settings s
+           LEFT JOIN finance_branch_workspaces w
+             ON w.business_id=s.business_id AND w.branch_id=s.branch_id
+           WHERE s.business_id=? AND COALESCE(w.workspace_type,'BUSINESS')='BUSINESS'""",
+        (business_id,))
+    # AI-only / non-Finance businesses have nothing to synchronize; renaming the
+    # business account must not accidentally require a Finance entitlement.
+    if not rows:
+        return
     with f._write(business_id, actor_user_id):
-        rows = db.query_all(
-            """SELECT s.branch_id,s.defaults_json
-               FROM finance_invoice_settings s
-               LEFT JOIN finance_branch_workspaces w
-                 ON w.business_id=s.business_id AND w.branch_id=s.branch_id
-               WHERE s.business_id=? AND COALESCE(w.workspace_type,'BUSINESS')='BUSINESS'""",
-            (business_id,))
         now = repo._now()
         for row in rows:
             values = json.loads(row['defaults_json'])
