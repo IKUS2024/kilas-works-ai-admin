@@ -207,6 +207,31 @@ def list_businesses_for_user(user_id):
     )
 
 
+def get_business_owner_email(business_id):
+    """Read the canonical owner login email used as the locked Finance invoice sender email."""
+    row = db.query_one(
+        """SELECT u.email FROM business_memberships m
+           JOIN users u ON u.id = m.user_id
+           WHERE m.business_id = ? AND m.role_in_business = 'OWNER'
+           ORDER BY m.user_id LIMIT 1""",
+        (business_id,),
+    )
+    return row["email"] if row else None
+
+
+def update_business_identity(business_id, business_name, actor_user_id=None):
+    """Rename an existing business without touching any Finance ledger/accounting records."""
+    name = (business_name or "").strip()
+    if not name or len(name) > 160:
+        raise ValueError("invalid_business_name")
+    db.execute(
+        "UPDATE businesses SET business_name = ?, updated_at = ? WHERE id = ?",
+        (name, _now(), business_id),
+    )
+    write_audit(actor_user_id, business_id, "BUSINESS_IDENTITY_UPDATED",
+                "business name updated from customer account")
+
+
 def list_all_businesses(status_filter=None):
     if status_filter:
         return db.query_all(
