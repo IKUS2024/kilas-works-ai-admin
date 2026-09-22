@@ -473,6 +473,36 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('>Dashboard</a>',html)
         self.assertIn('>Keluar Finance</a>',html)
 
+    def test_workspace_chooser_has_no_dashboard_action(self):
+        response=self.client.get(f'/business/{self.b}/finance/workspaces')
+        self.assertEqual(response.status_code,200)
+        self.assertNotIn('finance-dashboard-link',response.text)
+        self.assertNotIn('>Dashboard</a>',response.text)
+        self.assertIn('>Keluar Finance</a>',response.text)
+
+    def test_dashboard_action_stays_inside_current_business_or_personal_workspace(self):
+        import finance_branches
+        business_branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]['id']
+        business=self.client.get(
+            f'/business/{self.b}/finance?branch_id={business_branch}&month=2026-09')
+        self.assertEqual(business.status_code,200)
+        self.assertIn(
+            f'/business/{self.b}/finance?branch_id={business_branch}',
+            business.text)
+
+        personal_branch=finance_branches.ensure_personal(self.b,self.uid)
+        personal=self.client.get(
+            f'/business/{self.b}/finance?branch_id={personal_branch}&month=2026-09')
+        self.assertEqual(personal.status_code,200)
+        self.assertIn('finance-dashboard-link',personal.text)
+        self.assertIn(
+            f'/business/{self.b}/finance?branch_id={personal_branch}',
+            personal.text)
+        self.assertNotIn(
+            f'class="finance-exit-link finance-dashboard-link" href="/business/{self.b}/finance?branch_id={business_branch}"',
+            personal.text)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
