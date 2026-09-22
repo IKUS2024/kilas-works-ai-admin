@@ -38,10 +38,11 @@ def _account_type_display_name(name):
     return 'E-wallet' if text.casefold() == 'e-wallet' else text
 DIRECTIONS = ('INCOME', 'EXPENSE')
 SUPPORTED_CURRENCIES = ('IDR', 'USD', 'SGD', 'MYR', 'EUR', 'GBP', 'AUD', 'JPY', 'CNY', 'HKD', 'THB')
+RETIRED_CATEGORY_NAMES = frozenset(name.casefold() for name in ('Pendapatan Lain', 'Pengeluaran Lain', 'Lainnya'))
 FIELDS = ('direction', 'amount_minor', 'currency', 'account_id', 'category_id', 'occurred_on',
           'description', 'counterparty_name', 'project_id', 'source_type', 'source_ref', 'customer_id')
 DEFAULT_CATEGORIES = {
-    'INCOME': ('Penjualan / Jasa', 'Pendapatan Lain'),
+    'INCOME': ('Penjualan / Jasa',),
     'EXPENSE': (
         'Produksi / HPP',
         'Gaji & Tenaga Kerja',
@@ -66,12 +67,6 @@ DEFAULT_CATEGORY_CHILDREN = {
             'Jasa / Proyek',
             'Retainer / Langganan',
             'Penjualan Online / Marketplace',
-        ),
-        'Pendapatan Lain': (
-            'Komisi / Affiliate',
-            'Cashback / Bunga',
-            'Refund / Penggantian Biaya',
-            'Lainnya',
         ),
     },
     'EXPENSE': {
@@ -160,13 +155,12 @@ DEFAULT_CATEGORY_CHILDREN = {
             'Kerusakan',
             'Kehilangan',
             'Denda Operasional',
-            'Lainnya',
         ),
     },
 }
 PERSONAL_DEFAULT_CATEGORIES = {
     'INCOME': ('Gaji', 'Bonus', 'Freelance / Side Job', 'Investasi',
-               'Hadiah / Transfer Masuk', 'Pendapatan Lain'),
+               'Hadiah / Transfer Masuk'),
     'EXPENSE': ('Tempat Tinggal / Sewa', 'Utilitas', 'Makanan & Belanja Harian',
                 'Transportasi', 'Kesehatan', 'Belanja Pribadi', 'Hiburan',
                 'Pendidikan', 'Asuransi', 'Cicilan / Utang', 'Keluarga',
@@ -608,6 +602,8 @@ def _link_category_parent(business_id, child_category_id, parent_category_id):
 
 def create_category(business_id, direction, name, *, parent_category_id=None, actor_user_id=None):
     direction, name = _enum(direction, DIRECTIONS), _text(name, 160, True)
+    if name.casefold() in RETIRED_CATEGORY_NAMES:
+        raise FinanceError('category_retired')
     with _write(business_id, actor_user_id):
         scope = _category_scope(business_id, actor_user_id)
         mapped = db.query_one(
@@ -728,10 +724,23 @@ def list_categories(business_id, direction=None, include_inactive=False, include
         sql += ' AND c.direction=?'; params.append(_enum(direction, DIRECTIONS))
     if not include_inactive:
         sql += ' AND s.is_active=TRUE'
-    if not include_children:
-        sql += ' AND (h.child_category_id IS NULL OR ps.category_id IS NULL)'
-    return [dict(row) for row in db.query_all(
+    rows = [dict(row) for row in db.query_all(
         sql + ' ORDER BY c.direction,s.display_name,c.id', params)]
+
+    if not include_inactive:
+        cleaned = []
+        for row in rows:
+            if row['name'].casefold() in RETIRED_CATEGORY_NAMES:
+                continue
+            if row.get('parent_name') and row['parent_name'].casefold() in RETIRED_CATEGORY_NAMES:
+                row['parent_category_id'] = None
+                row['parent_name'] = None
+            cleaned.append(row)
+        rows = cleaned
+
+    if not include_children:
+        rows = [row for row in rows if row.get('parent_category_id') is None]
+    return rows
 
 
 def list_category_children(business_id, parent_category_id, include_inactive=False, *, actor_user_id=None):
@@ -760,8 +769,11 @@ def list_category_children(business_id, parent_category_id, include_inactive=Fal
     params = [scope['scope_key'], business_id, parent_id]
     if not include_inactive:
         sql += ' AND s.is_active=TRUE AND ps.is_active=TRUE'
-    return [dict(row) for row in db.query_all(
+    rows = [dict(row) for row in db.query_all(
         sql + ' ORDER BY s.display_name,c.id', params)]
+    if not include_inactive:
+        rows = [row for row in rows if row['name'].casefold() not in RETIRED_CATEGORY_NAMES]
+    return rows
 
 
 def resolve_category_selection(business_id, direction, category_id, subcategory_id=None, *, actor_user_id=None):
