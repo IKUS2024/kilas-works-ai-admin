@@ -45,8 +45,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(context['period_income_display'],'Rp0,00')
         self.assertEqual({r['currency'] for r in context['dashboard_trend']},{'IDR'})
         self.assertTrue(all(r['income_minor']==0 for r in context['dashboard_trend']))
-        self.assertIn('finance-available-gauge',html)
-        self.assertIn('Pengeluaran dari Anggaran',html)
+        self.assertIn('Total Keuangan Akun',html)
+        self.assertIn('finance-budget-progress',html)
         self.assertNotIn('Semua akun dikonversi otomatis',html)
         self.assertNotIn('Test FX',html)
 
@@ -398,11 +398,11 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(context['budget_total_display'],'Rp500.000,00')
         self.assertEqual(context['budget_remaining_display'],'Rp375.000,00')
         self.assertEqual(context['budget_percent'],25)
-        self.assertIn('<strong class="finance-combined-balance">Rp375.000,00</strong>',html)
+        self.assertIn('Sisa Rp375.000,00',html)
         self.assertIn('Rp500.000,00',html)
-        self.assertEqual(context['dashboard_trend'][-1]['budget_minor'],50000000)
-        self.assertIn('<span>Anggaran</span>',html)
-        self.assertIn('<th>Anggaran</th>',html)
+        self.assertEqual(context['dashboard_trend'][-1]['expense_minor'],12500000)
+        self.assertIn('finance-budget-progress',html)
+        self.assertIn('<th>Arus Bersih</th>',html)
 
         # Range filters may change cash-flow totals, but one month's budget must
         # still subtract only that same month's expenses.
@@ -410,7 +410,7 @@ class DashboardHomeTests(unittest.TestCase):
             '?period_mode=range&range_start=2026-08&range_end=2026-09')
         self.assertEqual(range_context['budget_remaining_display'],'Rp375.000,00')
         self.assertEqual(range_context['budget_percent'],25)
-        self.assertIn('<strong class="finance-combined-balance">Rp375.000,00</strong>',range_html)
+        self.assertIn('Sisa Rp375.000,00',range_html)
 
         rows=fixture.f.list_monthly_budgets(self.b,'2026-09',actor_user_id=self.uid)
         self.assertEqual(len(rows),1)
@@ -656,7 +656,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Pengaturan Finance',html)
         self.assertNotIn('Customer</span>',html)
         self.assertNotIn('Pengeluaran dari anggaran',html)
-        self.assertIn('Tanya Kilas Finance',html)
+        self.assertIn('Bantu kelola keuanganmu lebih cepat.',html)
 
     def test_finance_pages_hide_client_hub_topbar_and_offer_dashboard_back(self):
         html,_=self.page('?month=2026-09')

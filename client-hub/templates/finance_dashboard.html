@@ -159,51 +159,33 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-groups-1') }}">
-<script src="{{ url_for('static',filename='finance_home.js',v='20260922-budget-trend-1') }}" defer></script>
-<div class="finance-page">
+<script src="{{ url_for('static',filename='finance_home.js',v='20260922-dashboard-1') }}" defer></script>
+{% if not show_transactions and not show_accounts %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_dashboard.css',v='20260922-1') }}">{% endif %}
+<div class="finance-page {{ 'finance-dashboard-page' if not show_transactions and not show_accounts }}">
 {% if not show_transactions and not show_accounts %}
+{% include '_finance_dashboard_shell.html' %}
 <header class="finance-hero">
-<div class="finance-workspace-topline">
-  <span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span>
+<h1>{{ user.full_name or user.email.split('@')[0] }}</h1>
+<p class="finance-dashboard-subtitle">Kelola semua keuanganmu dalam satu tempat.</p>
+<div class="finance-dashboard-context">
+<div class="finance-workspace-segmented" role="group" aria-label="Pilih ruang Finance">
+{% for workspace,label in [('PERSONAL','Pribadi'),('BUSINESS','Bisnis')] %}
+{% if (workspace=='PERSONAL') == finance_workspace_personal %}<span class="finance-workspace-segment active" aria-current="page">{{ label }}</span>
+{% else %}<form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type=workspace) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-workspace-segment" type="submit">{{ label }}</button></form>{% endif %}
+{% endfor %}</div>
+{% if not finance_workspace_personal %}
+<form method="get" action="{{ url_for('finance.overview') }}" class="finance-dashboard-business"><input type="hidden" name="month" value="{{ month }}"><label class="fd-sr-only" for="finance-business">Bisnis</label><select id="finance-business" name="business_id" onchange="this.form.submit()">{% for item in businesses %}<option value="{{ item.id }}" {{ 'selected' if item.id==business.id }}>{{ item.business_name }}</option>{% endfor %}</select><noscript><button>Tampilkan</button></noscript></form>
+<form method="get" class="finance-branch-inline"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="display_currency" value="{{ display_currency }}"><select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">{% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id==selected_branch_id }}>{{ branch.name }}</option>{% endfor %}</select><noscript><button>Gunakan</button></noscript></form>
+{% if not branch_read_only %}<button type="button" class="finance-branch-manage" data-finance-open="branch-dialog" aria-label="Kelola cabang">•••</button>{% endif %}
+{% endif %}
 </div>
-<div class="finance-workspace-title-row">
-  <h1>{{ 'Pribadi' if finance_workspace_personal else business.business_name }}</h1>
-  <div class="finance-workspace-segmented" role="group" aria-label="Pilih ruang Finance">
-    {% if finance_workspace_personal %}
-      <form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type='BUSINESS') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="finance-workspace-segment" type="submit">Bisnis</button>
-      </form>
-      <span class="finance-workspace-segment active" aria-current="page">Pribadi</span>
-    {% else %}
-      <span class="finance-workspace-segment active" aria-current="page">Bisnis</span>
-      <form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type='PERSONAL') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="finance-workspace-segment" type="submit">Pribadi</button>
-      </form>
-    {% endif %}
-  </div>
-</div>
-<div class="finance-workspace-scope-row">
-  {% if finance_workspace_personal %}
-    <span class="finance-personal-scope">Keuangan pribadi</span>
-  {% else %}
-    <form method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" class="finance-branch-inline">
-      {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
-      <select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">
-        {% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}</option>{% endfor %}
-      </select>
-      {% if not branch_read_only %}<button type="button" class="finance-branch-manage" data-finance-open="branch-dialog" aria-label="Kelola cabang">•••</button>{% endif %}
-      <noscript><button class="btn secondary">Gunakan</button></noscript>
-    </form>
-  {% endif %}
-</div>
-
 <nav class="finance-month-nav" aria-label="Navigasi bulan">
-<a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month) }}">‹</a>
+<a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,display_currency=display_currency,trend_months=dashboard_view.trend_months) }}">‹</a>
 <button class="finance-period-button" type="button" data-finance-open="period-dialog">{{ period_label }} <small>⌄</small></button>
-{% if next_month %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month) }}">›</a>{% else %}<span aria-disabled="true">›</span>{% endif %}
-</nav></header>
+{% if next_month %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,display_currency=display_currency,trend_months=dashboard_view.trend_months) }}">›</a>{% else %}<span aria-disabled="true">›</span>{% endif %}
+</nav>
+<form method="get" class="finance-dashboard-currency" data-finance-live-form><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="trend_months" value="{{ dashboard_view.trend_months }}"><label for="dashboard-currency">Mata uang</label><select id="dashboard-currency" name="display_currency" data-finance-live-currency>{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></form>
+</header>
 {% include '_finance_home_dashboard.html' %}
 {% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan {{ 'Kas pribadi' if finance_workspace_personal else 'cabang Utama, Kas' }} dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
 {% endif %}
@@ -538,7 +520,6 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </div>
 {% endif %}
 
-{% if not branch_read_only %}
 <dialog id="period-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>🗓️ Periode</h2><button type="button" class="finance-sheet-close" data-finance-close="period-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body"><form method="get" class="finance-filter" data-finance-live-period>
@@ -548,6 +529,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <button class="btn">Tampilkan</button>
 </form></div></dialog>
 
+{% if not branch_read_only %}
 {% include '_finance_balance_detail.html' %}
 
 {% set active_fx_accounts = accounts|selectattr('is_active')|list %}

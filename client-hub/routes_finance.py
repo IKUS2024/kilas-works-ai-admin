@@ -904,44 +904,27 @@ def dashboard(business_id, user, business):
     recent_activity = []
     recurring_items = []
     payee_count = 0
+    dashboard_view = None
     if not show_transactions and not show_accounts:
-        native_trend = finance.get_monthly_cashflow_trends(
-            business_id, month_at(max(12, month_index - 5)), month,
-            end_date=min(period(month)[1], today_value.isoformat()), **actor)
-        trend_by_month = {}
-        trend_currencies = {display_currency}
-        for row in native_trend:
-            trend_by_month.setdefault(row['month'], []).append(row)
-            trend_currencies.add(row['currency'])
-        trend_budget_by_month = {}
-        for trend_month in sorted(trend_by_month):
-            monthly_budget_rows = finance.list_monthly_budgets(
-                business_id, trend_month, **actor)
-            trend_budget_by_month[trend_month] = monthly_budget_rows
-            trend_currencies.update(row['currency'] for row in monthly_budget_rows)
-        trend_fx = fx
-        if any(code not in fx.get('rates', {}) for code in trend_currencies):
-            trend_fx = finance_fx.snapshot(
-                list(dict.fromkeys([display_currency] + sorted(trend_currencies))))
-        for trend_month in sorted(trend_by_month):
-            rows = trend_by_month[trend_month]
-            income_minor = finance_fx.convert_total(
-                rows, display_currency, trend_fx, field='income_minor')
-            expense_minor = finance_fx.convert_total(
-                rows, display_currency, trend_fx, field='expense_minor')
-            monthly_budget_rows = trend_budget_by_month.get(trend_month, [])
-            budget_minor = finance_fx.convert_total(
-                [{'currency': row['currency'], 'balance_minor': row['amount_minor']}
-                 for row in monthly_budget_rows],
-                display_currency, trend_fx) if monthly_budget_rows else 0
-            if income_minor is None or expense_minor is None or budget_minor is None:
-                dashboard_trend = []
-                break
-            dashboard_trend.append(dict(
-                month=trend_month, currency=display_currency,
-                income_minor=income_minor, expense_minor=expense_minor,
-                budget_minor=budget_minor))
-        recurring_items = finance.list_recurring_expenses(business_id, **actor)
+        import finance_dashboard_view
+        try:
+            trend_months = int(request.args.get('trend_months', '6'))
+        except (ValueError, TypeError):
+            trend_months = 6
+        if trend_months not in (3, 6, 12):
+            trend_months = 6
+        try:
+            dashboard_view = finance_dashboard_view.build(
+                business_id, user['id'], month, today_value, display_currency, fx,
+                _bill_month_occurrences,
+                personal=getattr(g, 'finance_workspace_type', 'BUSINESS') == 'PERSONAL',
+                trend_months=trend_months, query=(request.args.get('q') or '').strip()[:160])
+        except finance.FinanceError as error:
+            if str(error) not in ('report_limit', 'forecast_limit', 'report_range'):
+                raise
+            dashboard_view = finance_dashboard_view.unavailable(month, trend_months)
+        dashboard_trend = dashboard_view['trend']
+        recurring_items = dashboard_view['rules']
         payee_count = len({
             row['name'].strip().casefold()
             for row in finance.list_payee_summaries(business_id, **actor)
@@ -961,6 +944,7 @@ def dashboard(business_id, user, business):
         invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
         invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
     return render_template('finance_dashboard.html', user=user, business=business,
+        dashboard_view=dashboard_view,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
         transaction_limit=transaction_page_size, transaction_page_size=transaction_page_size,

@@ -1083,3 +1083,11 @@ if (typeof window !== 'undefined' && typeof URLSearchParams !== 'undefined') {
     }
   } catch (_) {}
 }
+
+// Dashboard bill links enter the existing payment dialog for that exact occurrence.
+if (window.location.hash.startsWith('#bill-pay-')) {
+  const target = document.getElementById(window.location.hash.slice(1));
+  if (target?.matches('dialog.finance-bill-pay-sheet') && !target.open) {
+    target.showModal();
+  }
+}

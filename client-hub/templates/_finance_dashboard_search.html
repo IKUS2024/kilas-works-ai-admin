@@ -1,0 +1,6 @@
+{% if dashboard_view.query %}<div class="finance-search-results"><strong>Hasil pencarian</strong>{% for result in dashboard_view.search %}
+{% if result.kind=='bill' %}{% set href=url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=result.day[:7],day=result.day) %}
+{% elif result.kind=='payee' %}{% set href=url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,q=result.label) %}
+{% else %}{% set href=url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',month=month,page=result.page) %}{% endif %}
+<a href="{{ href }}"><span>{{ {'bill':'Tagihan','payee':'Penerima','transaction':'Transaksi'}[result.kind] }}</span>{{ result.label }}</a>
+{% else %}<p>Tidak ada hasil pada konteks dan bulan yang dipilih.</p>{% endfor %}</div>{% endif %}

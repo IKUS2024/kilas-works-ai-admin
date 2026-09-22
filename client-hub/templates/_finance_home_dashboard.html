@@ -1,36 +1,31 @@
+{% from '_finance_dashboard_icons.html' import icon %}
+{% macro metric(label, value, href, symbol, tone='', compact=false, change=none) %}
+<a class="finance-metric {{ tone }} {{ 'compact' if compact }}" href="{{ href }}"><span class="finance-metric-label">{{ icon(symbol) }}{{ label }}</span><strong>{{ value }}</strong>{% if change is not none %}<span class="finance-kpi-change" title="Periode yang sebanding pada bulan sebelumnya">{{ '↑' if change >= 0 else '↓' }} {{ change|abs }}%</span>{% endif %}</a>
+{% endmacro %}
+<div class="finance-dashboard-data">
+{% if dashboard_view.error %}<p role="alert" class="flash error">{{ dashboard_view.error }}</p>{% endif %}
 <section class="finance-metric-grid" aria-label="Ringkasan keuangan">
-<a class="finance-metric" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',**period_query) }}"><span class="finance-metric-label"><i aria-hidden="true">↙</i>Pengeluaran</span><strong>{{ period_expense_display }}</strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
-<a class="finance-metric" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,section='recurring',month=month) }}"><span class="finance-metric-label"><i aria-hidden="true">◷</i>Tagihan</span><strong>{{ recurring_items|length }} <em>jadwal</em></strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
-<a class="finance-metric" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='INCOME',**period_query) }}"><span class="finance-metric-label"><i aria-hidden="true">↗</i>Pemasukan</span><strong>{{ period_income_display }}</strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
-<a class="finance-metric" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}"><span class="finance-metric-label"><i aria-hidden="true">▰</i>Anggaran</span><strong>{{ budget_total_display }}</strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
-<a class="finance-metric" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts') }}"><span class="finance-metric-label"><i aria-hidden="true">▤</i>Akun</span><strong>{{ accounts|selectattr('is_active')|list|length }} <em>aktif</em></strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
-<a class="finance-metric" href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,display_currency=display_currency) }}"><span class="finance-metric-label"><i aria-hidden="true">◎</i>Penerima</span><strong>{{ payee_count }} <em>penerima</em></strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
-{% if not finance_workspace_personal %}
-<a class="finance-metric finance-metric-wide" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='invoices') }}"><span class="finance-metric-label"><i aria-hidden="true">▧</i>Invoice</span><strong>{{ invoice_open_count }} <em>belum bayar</em></strong><span class="finance-metric-chevron" aria-hidden="true">›</span></a>
+{{ metric('Pemasukan', period_income_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='INCOME',**period_query), 'income', 'income', change=dashboard_view.changes.income if period_mode=='month' else none) }}
+{{ metric('Pengeluaran', period_expense_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',**period_query), 'expense', 'expense', change=dashboard_view.changes.expense if period_mode=='month' else none) }}
+{{ metric('Total Keuangan Akun', balance_total_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',display_currency=display_currency), 'account') }}
+{{ metric('Tagihan', dashboard_view.bills_display, url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,payment_status='unpaid',view='list',display_currency=display_currency), 'bill') }}
+<a class="finance-metric" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}"><span class="finance-metric-label">{{ icon('budget') }}Anggaran</span><strong>{{ budget_total_display }}</strong><div class="finance-budget-progress"><progress value="{{ [budget_percent,100]|min }}" max="100" aria-label="Penggunaan anggaran">{{ budget_percent }}%</progress><span>{{ budget_percent }}%</span></div><small>{{ 'Sisa ' ~ budget_remaining_display if budget_rows else 'Belum diatur' }}</small></a>
+{{ metric('Pembayaran', dashboard_view.payments_display, url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,payment_status='paid',view='list',display_currency=display_currency), 'payment') }}
+{% if not finance_workspace_personal %}{{ metric('Invoice', dashboard_view.invoice_display, url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='invoices'), 'invoice', compact=true) }}{% endif %}
+{{ metric('Penerima', payee_count|string ~ ' penerima', url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,display_currency=display_currency), 'people', compact=true) }}
+</section>
+
+<section class="finance-ai-strip" aria-label="AI Finance">
+<div class="finance-ai-copy"><span aria-hidden="true">✦</span><div><h2>AI Finance ✦</h2><p>Bantu kelola keuanganmu lebih cepat.</p></div></div>
+<div class="finance-quick-actions">
+{% if not finance_workspace_personal and not branch_read_only and not finance_read_only %}
+<a href="{{ url_for('finance.receipt_new',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('scan') }}Scan Struk</a>
+<a href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('invoice') }}Buat Invoice</a>
 {% endif %}
-</section>
+{% if not branch_read_only and not finance_read_only %}<button type="button" data-dashboard-open="add-transaction-dialog">{{ icon('plus') }}Catat</button>{% endif %}
+{% if not finance_workspace_personal %}<a href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('chat') }}Tanya</a>{% endif %}
+</div></section>
 
-<section class="card finance-available" aria-label="Saldo tersedia">
-<div class="finance-section-heading"><h2>Saldo tersedia</h2>
-{% if display_options|length > 1 %}<form method="get" class="finance-display-currency" data-finance-live-form><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="period_mode" value="month"><label>Mata uang<select name="display_currency" data-finance-live-currency>{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label></form>{% else %}<span class="finance-display-chip">{{ display_currency }}</span>{% endif %}</div>
-<strong class="finance-combined-balance">{{ budget_remaining_display }}</strong>
-<div class="finance-available-gauge" aria-label="Pengeluaran {{ budget_percent }} persen dari anggaran">
-  <span class="finance-available-gauge-label">Pengeluaran dari Anggaran</span>
-  <svg viewBox="0 0 200 108" role="img" aria-hidden="true">
-    <path class="finance-available-gauge-track" d="M22 94 A78 78 0 0 1 178 94" pathLength="100"></path>
-    <path class="finance-available-gauge-value" d="M22 94 A78 78 0 0 1 178 94" pathLength="100" stroke-dasharray="{{ [budget_percent,100]|min }} 100"></path>
-    <text x="100" y="91">{{ budget_percent }}%</text>
-  </svg>
+{% include '_finance_dashboard_cashflow.html' %}
+{% include '_finance_dashboard_bills.html' %}
 </div>
-</section>
-
-<section class="card finance-trend" aria-label="Grafik arus kas enam bulan">
-<div class="finance-section-heading"><h2>Arus kas</h2><span class="finance-display-chip">{{ display_currency }}</span></div>
-<p class="finance-subtle">6 bulan hingga {{ month }} · <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id,section='summary',start=period_start,end=period_end,as_of=period_end) }}">Lihat laporan ›</a></p>
-<div class="finance-chart-legend"><span>Pemasukan</span><span>Pengeluaran</span><span>Anggaran</span></div>
-<div id="finance-trend-chart"></div><p id="finance-trend-empty" class="finance-subtle" hidden>Belum ada arus kas dalam enam bulan ini.</p>
-<details class="finance-chart-data"><summary>Rincian bulanan</summary><div class="finance-chart-table-wrap"><table><thead><tr><th>Bulan</th><th>Mata uang</th><th>Pemasukan</th><th>Pengeluaran</th><th>Anggaran</th></tr></thead><tbody>{% for row in dashboard_trend %}<tr><td>{{ row.month }}</td><td>{{ row.currency }}</td><td>{{ row.income_minor|finance_money(row.currency) }}</td><td>{{ row.expense_minor|finance_money(row.currency) }}</td><td>{{ row.budget_minor|finance_money(row.currency) }}</td></tr>{% endfor %}</tbody></table></div></details>
-<script type="application/json" id="finance-trend-data">{{ dashboard_trend|tojson }}</script>
-</section>
-
-{% if not finance_workspace_personal %}<a class="card finance-ai-card finance-ai-home" href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}"><span class="finance-eyebrow">AI FINANCE <span aria-hidden="true">✦</span></span><h2>Tanya Kilas Finance <span aria-hidden="true">›</span></h2><p>“Berapa pengeluaran bulan ini?”</p><small>Catat pemasukan · Catat pengeluaran · Buat invoice · Tanya laporan</small></a>{% endif %}

@@ -1,0 +1,21 @@
+{% from '_finance_dashboard_icons.html' import icon %}
+{% set display_name = user.full_name or user.email.split('@')[0] %}
+<aside class="finance-dashboard-sidebar" aria-label="Navigasi Kilas Finance">
+<a class="finance-dashboard-brand" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">KILAS<span>FINANCE</span></a>
+<nav>
+<a class="active" aria-current="page" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('home') }}Dashboard</a>
+<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',**period_query) }}">{{ icon('transfer') }}Transaksi</a>
+<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',display_currency=display_currency) }}">{{ icon('account') }}Akun</a>
+<a href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month) }}">{{ icon('bill') }}Tagihan</a>
+<a href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}">{{ icon('budget') }}Anggaran</a>
+{% if not finance_workspace_personal %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='invoices') }}">{{ icon('invoice') }}Invoice</a>{% endif %}
+<a href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('people') }}Penerima</a>
+<a href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('chart') }}Laporan</a>
+</nav><nav class="finance-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-dashboard-open="dashboard-help">{{ icon('help') }}Bantuan</button><a href="{{ url_for('client.dashboard') }}">← Keluar Finance</a></nav>
+</aside>
+<div class="finance-dashboard-topbar">
+<form class="finance-dashboard-search" method="get" data-finance-live-period><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">{{ icon('search') }}<input type="search" name="q" value="{{ dashboard_view.query }}" aria-label="Cari transaksi, tagihan, atau penerima" placeholder="Cari transaksi, tagihan, atau penerima..."><button type="submit" aria-label="Cari">→</button></form>
+<a class="finance-notification" href="#dashboard-upcoming" aria-label="Lihat tagihan mendatang">{{ icon('bell') }}</a><a class="finance-dashboard-avatar" href="{{ url_for('auth.account_page') }}" title="{{ display_name }}" aria-label="Profil {{ display_name }}">{{ display_name[:1]|upper }}{% if display_name.split()|length>1 %}{{ display_name.split()[-1][:1]|upper }}{% endif %}</a>
+</div>
+<div class="finance-dashboard-search-results" aria-live="polite">{% include '_finance_dashboard_search.html' %}</div>
+<dialog class="finance-sheet" id="dashboard-help"><div class="finance-sheet-head"><h2>Bantuan Finance</h2><button type="button" data-dashboard-close="dashboard-help" aria-label="Tutup">×</button></div><div class="finance-sheet-body"><p>Pilih ruang Pribadi atau Bisnis, lalu cabang dan bulan yang ingin dilihat. Klik kartu untuk membuka rincian.</p><p>Total Keuangan Akun menunjukkan saldo saat ini. Tagihan menampilkan kewajiban belum dibayar; Pembayaran menampilkan tagihan berstatus dibayar untuk bulan jatuh tempo yang dipilih. Invoice menunjukkan sisa tagihan invoice yang diterbitkan pada bulan pilihan.</p><p>Gunakan Catat untuk menambah transaksi. Bayar membuka alur pembayaran tagihan, termasuk pilihan akun dan tanggal pembayaran.</p></div></dialog>

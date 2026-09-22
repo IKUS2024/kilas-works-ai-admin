@@ -15,49 +15,39 @@
     const data = document.getElementById('finance-trend-data');
     const chart = document.getElementById('finance-trend-chart');
     if (!data || !chart) return;
-    let items = [];
-    try { items = JSON.parse(data.textContent || '[]'); } catch (_) { items = []; }
-    const currency = items[0]?.currency || document.querySelector('[data-finance-live-currency]')?.value || 'IDR';
-    const max = Math.max(1, ...items.flatMap(row => [
-      Number(row.income_minor || 0),
-      Number(row.expense_minor || 0),
-      Number(row.budget_minor || 0)
-    ]));
-    const svg = svgNode('svg', {
-      viewBox:'0 0 480 200', role:'img',
-      'aria-label':`Pemasukan, pengeluaran, dan anggaran enam bulan dalam ${currency}.`
+    let items;
+    try { items = JSON.parse(data.textContent || '[]'); } catch (_) { return; }
+    if (!items.length || !items.some(row => row.income_minor || row.expense_minor) || items.some(row => row.income_minor === null || row.expense_minor === null)) {
+      chart.replaceChildren(); return;
+    }
+    const currency = items[0].currency;
+    const divisor = Number(chart.dataset.divisor) || 100;
+    const max = Math.max(1, ...items.flatMap(row => [row.income_minor, row.expense_minor]));
+    const width = 780, left = 64, bottom = 175, height = 140;
+    const step = (width-left-8) / items.length;
+    const barWidth = Math.min(24, step * .3);
+    const svg = svgNode('svg', {viewBox:`0 0 ${width} 208`, role:'img',
+      'aria-label':`Pemasukan dan pengeluaran ${items.length} bulan dalam ${currency}. Rincian tersedia pada tabel.`});
+    const format = value => new Intl.NumberFormat('id-ID', {notation:'compact', maximumFractionDigits:1}).format(value/divisor);
+    [0,.25,.5,.75,1].forEach(level => {
+      const y = bottom - level * height;
+      svg.append(svgNode('line',{x1:left,x2:width-8,y1:y,y2:y,stroke:'currentColor',opacity:'.1'}));
+      svg.append(svgNode('text',{x:left-9,y:y+4,'text-anchor':'end',fill:'currentColor',opacity:'.65','font-size':11},format(max*level)));
     });
-    const format = value => new Intl.NumberFormat('id-ID', {notation:'compact', maximumFractionDigits:1})
-      .format(value / (['IDR','JPY'].includes(currency) ? 1 : 100));
-    [0,.5,1].forEach(level => {
-      const y = 155 - level * 120;
-      svg.append(svgNode('line',{x1:55,x2:475,y1:y,y2:y,stroke:'currentColor',opacity:'.12'}));
-      svg.append(svgNode('text',{x:49,y:y+4,'text-anchor':'end',fill:'currentColor',opacity:'.6','font-size':10},format(max*level)));
-    });
-    const series = [
-      {key:'income_minor', label:'Pemasukan', fill:'var(--orange)'},
-      {key:'expense_minor', label:'Pengeluaran', fill:'#969da8'},
-      {key:'budget_minor', label:'Anggaran', fill:'#d8a15f'}
-    ];
     items.forEach((row,index) => {
-      const x = 88 + index * 70;
-      series.forEach((item,j) => {
-        const value = Number(row[item.key] || 0);
-        const height = value / max * 120;
-        const rect = svgNode('rect',{
-          x:x-22+j*16,y:155-height,width:12,height,rx:3,fill:item.fill
-        });
-        rect.append(svgNode('title',{},`${row.month} ${item.label}: ${format(value)} ${currency}`));
+      const x = left + step*(index+.5);
+      [{key:'income_minor',label:'Pemasukan',color:'var(--green)'},
+       {key:'expense_minor',label:'Pengeluaran',color:'var(--red)'}].forEach((series,j) => {
+        const value = row[series.key], h = value/max*height;
+        const rect = svgNode('rect',{x:x+(j-1)*(barWidth+3),y:bottom-h,width:barWidth,height:h,rx:1,fill:series.color});
+        rect.append(svgNode('title',{},`${row.month} ${series.label}: ${format(value)} ${currency}`));
         svg.append(rect);
       });
-      const label = new Intl.DateTimeFormat('id-ID',{month:'short',timeZone:'UTC'})
+      const label = new Intl.DateTimeFormat('id-ID',{month:'short',year:items.length<=6?'numeric':undefined,timeZone:'UTC'})
         .format(new Date(`${row.month}-01T00:00:00Z`));
-      svg.append(svgNode('text',{x,y:180,'text-anchor':'middle',fill:'currentColor',opacity:'.65','font-size':11},label));
+      svg.append(svgNode('text',{x,y:198,'text-anchor':'middle',fill:'currentColor',opacity:'.8','font-size':11},label));
     });
     chart.replaceChildren(svg);
-    const empty = document.getElementById('finance-trend-empty');
-    if (empty) empty.hidden = items.some(row =>
-      Number(row.income_minor) || Number(row.expense_minor) || Number(row.budget_minor));
   }
 
   function setLoading(loading) {
@@ -88,13 +78,14 @@
     }
     if (controller) controller.abort();
     controller = new AbortController();
+    const activeController = controller;
     setLoading(true);
     try {
       const response = await fetch(url, {
         method:'GET',
         credentials:'same-origin',
         headers:{'X-Requested-With':'fetch','Accept':'text/html'},
-        signal:controller.signal
+        signal:activeController.signal
       });
       if (!response.ok) throw new Error('finance_live_http_' + response.status);
       const html = await response.text();
@@ -102,18 +93,27 @@
       if (!incoming.querySelector(homeSelector)) throw new Error('finance_live_fragment_missing');
 
       syncMonthNav(incoming);
-      for (const selector of [
-        '.finance-metric-grid',
-        '.finance-available',
-        '.finance-budget-overview',
-        '.finance-trend',
-        '.finance-ai-home'
-      ]) swap(selector, incoming);
-
-      const currentPeriod = document.querySelector('#period-dialog .finance-sheet-body');
-      const nextPeriod = incoming.querySelector('#period-dialog .finance-sheet-body');
-      if (currentPeriod && nextPeriod) currentPeriod.replaceWith(nextPeriod);
-
+      for (const selector of ['.finance-dashboard-data', '.finance-dashboard-currency', '.finance-dashboard-search-results', '.finance-dashboard-sidebar']) swap(selector, incoming);
+      // Keep the live dialog's existing change listeners; update values, not script-bearing HTML.
+      const currentPeriod = document.querySelector('#period-dialog form');
+      const nextPeriod = incoming.querySelector('#period-dialog form');
+      if (currentPeriod && nextPeriod) {
+        for (const field of currentPeriod.elements) {
+          const next = nextPeriod.elements.namedItem(field.name);
+          if (next && field.name) field.value = next.value;
+        }
+        currentPeriod.querySelector('[name="period_mode"]')?.dispatchEvent(new Event('change', {bubbles:true}));
+      }
+      const search = document.querySelector('.finance-dashboard-search');
+      const nextSearch = incoming.querySelector('.finance-dashboard-search');
+      if (search && nextSearch) for (const field of search.elements) {
+        const next = nextSearch.elements.namedItem(field.name);
+        if (next && field.name) field.value = next.value;
+      }
+      for (const field of document.querySelectorAll('.finance-dashboard-context input[type="hidden"]')) {
+        const next = incoming.querySelector(`.finance-dashboard-context input[name="${field.name}"]`);
+        if (next) field.value = next.value;
+      }
       const periodDialog = document.getElementById('period-dialog');
       if (periodDialog?.open && typeof periodDialog.close === 'function') periodDialog.close();
 
@@ -123,7 +123,7 @@
       if (error?.name === 'AbortError') return;
       window.location.assign(url);
     } finally {
-      setLoading(false);
+      if (controller === activeController) setLoading(false);
     }
   }
 
@@ -138,7 +138,7 @@
   }
 
   document.addEventListener('change', event => {
-    const select = event.target.closest?.('[data-finance-live-currency]');
+    const select = event.target.closest?.('[data-finance-live-currency], [data-dashboard-period]');
     if (!select || !document.querySelector(homeSelector)) return;
     const form = select.closest('form');
     if (!form) return;
@@ -153,6 +153,13 @@
   });
 
   document.addEventListener('click', event => {
+    const open = event.target.closest?.('[data-dashboard-open]');
+    if (open) {
+      const dialog = document.getElementById(open.dataset.dashboardOpen);
+      if (dialog && !dialog.open) dialog.showModal();
+    }
+    const close = event.target.closest?.('[data-dashboard-close]');
+    if (close) document.getElementById(close.dataset.dashboardClose)?.close();
     const monthLink = event.target.closest?.('.finance-month-nav a[href]');
     if (monthLink && document.querySelector(homeSelector)) {
       event.preventDefault();

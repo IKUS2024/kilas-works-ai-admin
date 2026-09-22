@@ -1,0 +1,7 @@
+<section class="card finance-upcoming" id="dashboard-upcoming" aria-label="Tagihan Mendatang">
+<div class="finance-panel-heading"><h2>Tagihan Mendatang</h2><a href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='list',payment_status='unpaid',display_currency=display_currency) }}">Lihat semua →</a></div>
+{% for bill in dashboard_view.upcoming %}
+<div class="finance-upcoming-row"><span class="finance-bill-icon">{{ icon('bill') }}</span><div><strong>{{ bill.name }}</strong><small>Jatuh tempo {{ bill.next_due_on[8:]|int }} {{ ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][bill.next_due_on[5:7]|int-1] }} {{ bill.next_due_on[:4] }}</small></div><strong class="finance-bill-amount">{{ bill.amount_display }}</strong>
+{% if not branch_read_only and not finance_read_only %}<a class="finance-pay-link" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=bill.next_due_on[:7],day=bill.next_due_on,view='calendar',payment_status='unpaid',display_currency=display_currency) }}#bill-pay-{{ bill.id }}-{{ bill.next_due_on }}">Bayar</a>{% endif %}</div>
+{% else %}<p class="finance-chart-empty">{{ 'Tagihan belum dapat ditampilkan.' if dashboard_view.error else 'Tidak ada tagihan mendatang.' }}</p>{% endfor %}
+</section>
