@@ -52,12 +52,17 @@ for (const category of document.querySelectorAll('[data-other-category]')) {
       if(visible)count+=1;
     }
     const selected=subcategory.selectedOptions[0];
-    if(selected && selected.value && selected.disabled)subcategory.value='';
+    if(selected && selected.disabled)subcategory.selectedIndex=-1;
     field.hidden=count===0;
     if(field.style)field.style.display=count===0?'none':'';
     subcategory.disabled=count===0;
     subcategory.required=count>0;
-    if(count===0)subcategory.value='';
+    if(count===0){
+      subcategory.selectedIndex=-1;
+    }else{
+      const current=subcategory.selectedOptions[0];
+      if(!current || current.disabled)subcategory.selectedIndex=-1;
+    }
   };
   category.addEventListener('change',refresh);
   if(direction)direction.addEventListener('change',refresh);
@@ -142,10 +147,7 @@ for (const quick of document.querySelectorAll('[data-category-quick-add]')) {
     mainPlaceholder.textContent='Pilih kategori';
     mainPlaceholder.disabled=true;
     category.replaceChildren(mainPlaceholder);
-    const subPlaceholder=document.createElement('option');
-    subPlaceholder.value='';
-    subPlaceholder.textContent='Pilih subkategori';
-    subcategory.replaceChildren(subPlaceholder);
+    subcategory.replaceChildren();
 
     for(const kind of ['INCOME','EXPENSE']){
       for(const item of rowsByDirection.get(kind)||[]){
