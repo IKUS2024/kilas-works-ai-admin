@@ -108,20 +108,22 @@ def _human_missing_labels(missing):
 def dashboard():
     user = security.current_user()
     businesses = repo.list_businesses_for_user(user["id"])
-    if __import__('finance_entitlements').self_service():
-        selected=session.get('dashboard_business_id')
-        if selected and any(b['id']==selected for b in businesses):
-            all_businesses=businesses
-            businesses=[b for b in businesses if b['id']==selected]
-        else:
-            all_businesses=businesses
-            businesses=businesses[:1]
-    else: all_businesses=businesses
+    # Product ownership is intentionally separated on the customer home screen.
+    # A Finance business and an AI Admin business are different records for new setup flows.
+    # Existing records are never migrated or rewritten: a legacy business that already contains
+    # both products can still appear in both sections, preserving every old business_id/link.
+    all_businesses = businesses
     enriched = []
     my_projects = []
+    finance_self_service = __import__('finance_entitlements').self_service()
     for b in businesses:
         brain_missing = repo.required_fields_missing(b["id"]) if b["package"] != "NONE" else []
         brain_progress = repo.required_fields_progress(b["id"]) if b["package"] != "NONE" else {"percent": 0}
+        finance_state = (__import__("finance_entitlements").state(b["id"])
+                         if finance_self_service else None)
+        finance_has_data = bool(db.query_one(
+            "SELECT 1 FROM finance_accounts WHERE business_id=? LIMIT 1", (b["id"],)
+        ))
         enriched.append({
             **b,
             "completion_percent": brain_progress["percent"],
@@ -133,7 +135,8 @@ def dashboard():
             # this business's OWN AI Admin subscription only. None when there's no subscription
             # row yet (e.g. this business was never activated with an AI Admin package).
             "subscription_banner": subscription_service.get_subscription_banner(b["id"]),
-            "finance_entitlement": __import__("finance_entitlements").state(b["id"]) if __import__("finance_entitlements").self_service() else None,
+            "finance_entitlement": finance_state,
+            "finance_has_data": finance_has_data,
             "ai_usage": ai_usage.client_summary(b["id"]) if b["package"] != "NONE" else None,
             "brain_review_pending": bool(
                 b["package"] != "NONE"
@@ -178,10 +181,22 @@ def dashboard():
         visible_projects.append(project)
     my_projects = visible_projects
     recent_projects = my_projects[:3]
+    finance_businesses = [
+        row for row in enriched
+        if row.get("finance_has_data")
+        or (row.get("finance_entitlement") and row["finance_entitlement"]["status"] != "NOT_ACTIVATED")
+    ]
+    brain_businesses = [row for row in enriched if row["package"] != "NONE"]
+    unassigned_businesses = [
+        row for row in enriched
+        if row not in finance_businesses and row not in brain_businesses
+    ]
     return render_template(
-        "product_dashboard.html" if __import__("finance_entitlements").self_service() else "client_dashboard.html",
+        "product_dashboard.html" if finance_self_service else "client_dashboard.html",
         user=user, businesses=enriched, my_projects=my_projects, recent_projects=recent_projects,
-        all_businesses=all_businesses, finance_beta_enabled=__import__("routes_finance").beta_enabled()
+        all_businesses=all_businesses, finance_businesses=finance_businesses,
+        brain_businesses=brain_businesses, unassigned_businesses=unassigned_businesses,
+        finance_beta_enabled=__import__("routes_finance").beta_enabled()
     )
 
 
