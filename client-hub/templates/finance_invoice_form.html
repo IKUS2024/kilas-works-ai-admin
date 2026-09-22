@@ -37,6 +37,6 @@
 <h2>4. Pembayaran</h2>{{ payment(data.payment) }}
 <h2>5. Catatan</h2><textarea name="notes" maxlength="4000" aria-label="Catatan invoice">{{ values.notes or '' }}</textarea>
 <p class="muted">{{ 'Perubahan tersimpan dalam riwayat revisi invoice.' if invoice else 'Simpan draft untuk meninjau dokumen sebelum diterbitkan.' }}</p>
-<div class="invoice-form-actions"><button class="btn" data-finance-write>{{ 'Simpan Perubahan' if invoice else 'Simpan Draft & Lihat Preview' }}</button><a class="btn secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,section='invoices') }}">Batal</a></div>
+<div class="invoice-form-actions"><button class="btn" data-finance-write>{{ 'Simpan Perubahan' if invoice else 'Simpan Draft & Lihat Preview' }}</button><a class="btn secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">Batal</a></div>
 </form></div><script src="{{ url_for('static',filename='finance_invoice_editor.js') }}" defer></script>
 {% endblock %}
