@@ -68,7 +68,7 @@ class DashboardDesignTests(unittest.TestCase):
         response = self.client.get(f'/business/{self.other}/finance')
         self.assertIn(response.status_code, (403,404))
 
-    def test_personal_switch_preserves_manual_only_behavior(self):
+    def test_personal_switch_preserves_full_feature_parity(self):
         # Resolve using existing route registration, never a second workspace system.
         with fixture.app.test_request_context():
             from flask import url_for
@@ -82,8 +82,10 @@ class DashboardDesignTests(unittest.TestCase):
             fixture.f.create_transaction(self.b,'INCOME',45000,account,category,'2026-09-01',actor_user_id=self.uid)
         html,c=self.page(f'&branch_id={personal}')
         self.assertEqual(c['period_income_display'],'Rp450,00')
-        self.assertNotIn('>Scan Struk</a>',html)
-        self.assertNotIn('>Buat Invoice</a>',html)
+        self.assertIn('>Scan Struk</a>',html)
+        self.assertIn('>Buat Invoice</a>',html)
+        self.assertIn('>Tanya</a>',html)
+        self.assertIn('Invoice',html)
         _,business=self.page(f'&branch_id={self.branch}')
         self.assertEqual(business['period_income_display'],'Rp0,00')
 
