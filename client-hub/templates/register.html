@@ -1,19 +1,48 @@
 {% extends "base.html" %}
-{% block title %}Daftar — Kilas Works Client Hub{% endblock %}
+{% block title %}Daftar · Kilas Works{% endblock %}
 {% block content %}
-<div class="card" style="max-width:420px;margin:40px auto;">
-  <h1>Buat akun</h1>
-  <p class="muted">Buat akun dulu. Setelah daftar, tambahkan bisnis lalu pilih layanan yang ingin kamu pakai.</p>
-  <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label>Nama lengkap</label>
-    <input type="text" name="full_name" value="{{ full_name or '' }}">
-    <label>Email</label>
-    <input type="email" name="email" value="{{ email or '' }}" required>
-    <label>Password (min 8 karakter)</label>
-    <input type="password" name="password" minlength="8" required>
-    <div style="margin-top:18px;"><button class="btn" type="submit">Daftar & Lanjut</button></div>
-  </form>
-  <p class="muted" style="margin-top:14px;">Sudah punya akun? <a href="{{ url_for('auth.login_page') }}">Login</a></p>
+<style>
+.register-shell{max-width:470px;margin:28px auto 0}
+.register-kicker{display:inline-flex;align-items:center;gap:7px;color:var(--orange);font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.register-card{margin-top:10px;padding:22px;border-radius:22px;background:linear-gradient(145deg,color-mix(in srgb,var(--card) 96%,var(--orange) 4%),var(--card))}
+.register-card h1{font-size:clamp(28px,7vw,36px);margin:0 0 7px;letter-spacing:-.04em}
+.register-card>p{margin:0 0 18px;color:var(--text-dim);font-size:13px;line-height:1.5}
+.register-step{display:flex;align-items:center;gap:9px;margin-bottom:15px;padding:10px 11px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.012)}
+.register-step strong{font-size:12px}.register-step span{display:block;color:var(--text-dim);font-size:10.5px;margin-top:2px}
+.register-step-icon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--orange) 12%,transparent);color:var(--orange);font-weight:900}
+.register-form{display:grid;gap:11px}.register-form label{margin:0}.register-form input{margin-top:5px;min-height:46px;border-radius:12px}
+.register-submit{width:100%;min-height:48px;margin-top:4px;border-radius:12px}
+.register-after{margin-top:13px;padding-top:12px;border-top:1px solid var(--border);color:var(--text-dim);font-size:11px;line-height:1.45}
+.register-login{text-align:center;margin:14px 0 0!important}
+@media(max-width:520px){.register-shell{margin-top:12px}.register-card{padding:18px}.register-card h1{font-size:30px}}
+</style>
+<div class="register-shell">
+  <span class="register-kicker">KILAS WORKS</span>
+  <section class="card register-card">
+    <h1>Buat akun</h1>
+    <p>Mulai dari identitas pemilik. Kamu belum perlu memasukkan data bisnis di tahap ini.</p>
+
+    <div class="register-step">
+      <div class="register-step-icon">1</div>
+      <div><strong>Akun pemilik</strong><span>Setelah masuk, Kilas Finance dan AI Admin dibuat sebagai bisnis yang terpisah.</span></div>
+    </div>
+
+    <form method="post" class="register-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Nama pemilik / nama kamu
+        <input type="text" name="full_name" value="{{ full_name or '' }}" maxlength="100" autocomplete="name" placeholder="Contoh: Irvan Karnawi" required autofocus>
+      </label>
+      <label>Email
+        <input type="email" name="email" value="{{ email or '' }}" autocomplete="email" required>
+      </label>
+      <label>Password
+        <input type="password" name="password" minlength="8" autocomplete="new-password" placeholder="Minimal 8 karakter" required>
+      </label>
+      <button class="btn register-submit" type="submit">Buat Akun &amp; Lanjut</button>
+    </form>
+
+    <div class="register-after">Sesudah daftar, pilih produk yang mau dipakai. Nama bisnis untuk Finance baru diisi saat mulai Finance; nama bisnis untuk AI Admin baru diisi saat mulai AI Admin. Keduanya tidak digabung otomatis.</div>
+    <p class="muted register-login">Sudah punya akun? <a href="{{ url_for('auth.login_page') }}">Login</a></p>
+  </section>
 </div>
 {% endblock %}
