@@ -201,6 +201,11 @@ class DashboardHomeTests(unittest.TestCase):
         for label in ('Credit','Debit','Piutang','Tabungan','E-wallet','Wallet'):
             self.assertIn(f'value="{label}"',html)
         self.assertIn('＋ Tambah / kelola tipe',html)
+        # Legacy CASH accounts must follow the current editable account-type catalog.
+        # "Tunai" is no longer a visible category; CASH falls under active "Wallet".
+        default_account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
+        self.assertEqual(default_account['account_type_label'],'Wallet')
+        self.assertNotIn('<span>Tunai</span>',html)
 
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         endpoint=f'/business/{self.b}/finance/account-types'
@@ -215,6 +220,14 @@ class DashboardHomeTests(unittest.TestCase):
         },headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'})
         self.assertEqual(removed.status_code,200)
         self.assertNotIn('Credit',[row['name'] for row in removed.get_json()['options']])
+
+        # Do not allow the final active category for an underlying account type
+        # to disappear while an active account still depends on it.
+        blocked=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'action':'delete','name':'Wallet',
+        },headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'})
+        self.assertEqual(blocked.status_code,400)
+        self.assertIn('masih dipakai akun aktif',blocked.get_json()['error'])
 
         added=self.client.post(f'/business/{self.b}/finance/accounts',data={
             'branch_id':str(branch_id),'return_view':'accounts','name':'Broker',
