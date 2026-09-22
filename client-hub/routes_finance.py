@@ -2023,8 +2023,13 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 transaction = finance.get_transaction(
                     business_id, posting['ledger_transaction_id'],
                     actor_user_id=actor_user_id)
+            payment_account_name = None
             if transaction and transaction['status'] == 'POSTED':
                 status, status_label = 'paid', 'Lunas'
+                payment_account = finance.get_account(
+                    business_id, transaction['account_id'],
+                    actor_user_id=actor_user_id)
+                payment_account_name = payment_account['name'] if payment_account else None
             elif transaction and transaction['status'] == 'VOID':
                 status, status_label = 'void', 'Dibatalkan'
             elif scheduled < today_iso:
@@ -2042,7 +2047,7 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 scheduled_on=scheduled,
                 amount_minor=rule['amount_minor'],
                 project_name=None,
-                account_name=None,
+                account_name=payment_account_name,
                 category_name=None,
                 counterparty_name=rule['counterparty_name'],
                 description=rule['description'],
