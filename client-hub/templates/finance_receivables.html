@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}Pelanggan & Piutang · Kilas Finance{% endblock %}
+{% block title %}Invoice & Piutang · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page">
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
-<h1 class="fin-page-title">Pelanggan &amp; Piutang</h1>
-<p class="muted fin-page-subtitle">{{ business.business_name }} · Invoice, pembayaran, customer &amp; piutang dalam satu tempat.</p>
+<h1 class="fin-page-title">Invoice &amp; Piutang</h1>
+<p class="muted fin-page-subtitle">{{ business.business_name }} · Invoice belum lunas otomatis menjadi piutang. Saat pembayaran dicatat, nominalnya masuk sebagai Pemasukan.</p>
 
 <div class="card fin-menu-card">
-<div class="fin-section-head"><div><h2>Workspace Piutang</h2><p class="muted">Pilih bagian yang ingin dikelola.</p></div>
+<div class="fin-section-head"><div><h2>Kelola Invoice</h2><p class="muted">Buat invoice, pantau yang belum bayar, dan simpan riwayat invoice lunas.</p></div>
 <a data-finance-write class="btn" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">＋ Buat Invoice</a></div>
 <div class="fin-tool-grid">
 <a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Piutang aktif</span></a>
@@ -46,7 +46,11 @@
     </div>
     <div class="fin-compact-money"><span>Total <b>{{ t.total_minor|finance_money(i.currency) }}</b></span><span>Dibayar <b>{{ t.paid_minor|finance_money(i.currency) }}</b></span><span>Sisa <b>{{ t.outstanding_minor|finance_money(i.currency) }}</b></span></div>
     {% if i.status=='PAID' %}<p class="fin-accounting-note">✓ Lunas · pembayaran sudah tercatat sebagai pemasukan dan saldo rekening.</p>{% elif t.overdue %}<p class="fin-accounting-note fin-overdue">Terlambat · masih termasuk piutang.</p>{% endif %}
-    <div class="fin-invoice-actions"><a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Buka</a></div>
+    <div class="fin-invoice-actions">
+      <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Buka</a>
+      <a class="btn small secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=i.id) }}">PDF</a>
+      {% if i.status in ('ISSUED','PARTIALLY_PAID','PAID') %}<form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,invoice_id=i.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary" type="submit">Bagikan</button></form>{% endif %}
+    </div>
   </article>
   {% else %}<div class="fin-empty">Belum ada invoice aktif.</div>{% endfor %}
 </div>
@@ -112,6 +116,8 @@
     {% if i.status=='PAID' %}<p class="fin-accounting-note">✓ Lunas · Rp0 piutang. Pembayaran tetap tercatat sebagai pemasukan.</p>{% elif i.status=='PARTIALLY_PAID' %}<p class="fin-accounting-note">Sisa {{ t.outstanding_minor|finance_money(i.currency) }} masih dihitung sebagai piutang.</p>{% endif %}
     <div class="fin-invoice-actions">
       <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat</a>
+      <a class="btn small secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=i.id) }}">PDF</a>
+      {% if i.status in ('ISSUED','PARTIALLY_PAID','PAID') %}<form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,invoice_id=i.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary" type="submit">Bagikan</button></form>{% endif %}
       <details>
         <summary class="btn small secondary">✏️ Edit catatan</summary>
         <form method="post" action="{{ url_for('finance.update_invoice_notes',business_id=business.id,invoice_id=i.id) }}" class="fin-inline-edit">
