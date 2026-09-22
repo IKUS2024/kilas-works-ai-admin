@@ -768,6 +768,48 @@ def dashboard(business_id, user, business):
         transaction_query['direction'] = direction
     if transaction_account_id:
         transaction_query['account_id'] = transaction_account_id
+
+    # Direction pages are intentionally category-first: every active main category is
+    # visible (including Rp0), while posted subcategory transactions roll up into the
+    # parent so the rows reconcile to the Pemasukan/Pengeluaran total above.
+    ledger_category_rows = []
+    if show_transactions and direction:
+        category_lookup = {item['id']: item for item in all_categories}
+        grouped = {}
+        for item in categories:
+            if item['direction'] != direction or item.get('parent_category_id') is not None:
+                continue
+            grouped[item['id']] = dict(
+                category_id=item['id'], name=item['name'],
+                amount_minor=0, transaction_count=0)
+        for row in finance.get_category_totals(
+                business_id, start, end, direction,
+                account_id=transaction_account_id, **actor):
+            category = category_lookup.get(row['category_id'], {})
+            parent_id = category.get('parent_category_id')
+            group_id = parent_id or row['category_id']
+            parent = category_lookup.get(group_id, {})
+            group_name = (
+                parent.get('name') or category.get('parent_name') or
+                category.get('name') or 'Kategori')
+            item = grouped.setdefault(
+                group_id, dict(category_id=group_id, name=group_name,
+                               amount_minor=0, transaction_count=0))
+            converted = finance_fx.convert_total(
+                [{'currency': row['currency'], 'balance_minor': int(row['amount_minor'])}],
+                display_currency, fx)
+            if converted is None:
+                item['amount_minor'] = None
+            elif item['amount_minor'] is not None:
+                item['amount_minor'] += converted
+            item['transaction_count'] += int(row['transaction_count'])
+        ledger_category_rows = sorted(
+            grouped.values(), key=lambda item: (item['name'].casefold(), item['category_id']))
+        for item in ledger_category_rows:
+            item['display_amount'] = (
+                'Kurs belum lengkap' if item['amount_minor'] is None
+                else finance_fx.format_money(item['amount_minor'], display_currency))
+
     breakdown = []
     if g.finance_branch_id is None:
         for branch in g.finance_branches:
@@ -837,7 +879,7 @@ def dashboard(business_id, user, business):
         transaction_limit=transaction_page_size, transaction_page_size=transaction_page_size,
         transaction_page=transaction_page, transaction_total=transaction_total,
         transaction_page_count=transaction_page_count, transaction_page_items=transaction_page_items,
-        transaction_query=transaction_query,
+        transaction_query=transaction_query, ledger_category_rows=ledger_category_rows,
         balances=balances, balance_totals=balance_totals, balance_total=balance_total,
         estimated_balance_idr=estimated_balance_idr, fx=fx, balance_displays=balance_displays,
         balance_total_display=balance_total_display, period_income_display=period_income_display,
