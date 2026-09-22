@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% from '_finance_invoice_fields.html' import sender,payment %}
+{% block title %}Pengaturan Invoice · Kilas Finance{% endblock %}
+{% block content %}
+{% include '_finance_receivables_style.html' %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
+<div class="fin-page invoice-editor"><a href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}">← Invoice</a>
+<h1>Pengaturan Invoice</h1><p class="muted">Detail pengirim untuk invoice baru di cabang ini. Perubahan tidak mengubah invoice yang sudah dibuat.</p>
+<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<h2>Detail Pengirim</h2>{{ sender(data.sender,['name','address','phone']) }}
+<h2>Pembayaran</h2>{{ payment(data.payment) }}
+<button class="btn" data-finance-write>Simpan Pengaturan</button></form></div>
+{% endblock %}

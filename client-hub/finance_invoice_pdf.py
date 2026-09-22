@@ -86,29 +86,34 @@ def build(doc):
     if doc['totals'].get('overdue') and invoice['status'] in ('ISSUED', 'PARTIALLY_PAID'):
         status += ' - LEWAT JATUH TEMPO'
 
-    story = [
-        Paragraph('KILAS FINANCE', eyebrow),
-        Paragraph('INVOICE', title),
-        Paragraph(
-            f"<b>{_safe(doc['issuer'])}</b><br/>"
-            f"{_safe(invoice['invoice_number'])} - {status}",
-            body,
-        ),
-        Spacer(1, 5*mm),
-    ]
+    sender = doc.get('sender', {})
+    sender_lines=[_safe(sender[k]) for k in ('address','phone','email','tax_id','website') if sender.get(k)]
+    heading = Table([[
+        [Paragraph('DARI',eyebrow),Paragraph(_safe(doc['issuer']),h2),
+         Paragraph('<br/>'.join(sender_lines) or '-',body)],
+        [Paragraph('INVOICE',ParagraphStyle('InvoiceHeadingRight',parent=title,alignment=TA_RIGHT)),
+         Paragraph(_safe(invoice['invoice_number']),right),Paragraph(status,right)]
+    ]],colWidths=[108*mm,66*mm])
+    heading.setStyle(TableStyle([
+        ('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),0),
+        ('RIGHTPADDING',(0,0),(-1,-1),0),('BOTTOMPADDING',(0,0),(-1,-1),10),
+    ]))
+    story=[heading,Spacer(1,3*mm)]
 
     party = [
         [
             Paragraph(
                 '<b>Ditagihkan kepada</b><br/>'
                 + _safe(doc['customer']['name'])
+                + ''.join('<br/>'+_safe(doc['customer'][k]) for k in ('pic','address','tax_id') if doc['customer'].get(k))
                 + (f"<br/>{_safe(doc['customer'].get('email'))}" if doc['customer'].get('email') else '')
                 + (f"<br/>{_safe(doc['customer'].get('phone'))}" if doc['customer'].get('phone') else ''),
                 body,
             ),
             Paragraph(
                 f"<b>Tanggal terbit</b><br/>{_safe(invoice['issue_date'])}<br/><br/>"
-                f"<b>Jatuh tempo</b><br/>{_safe(invoice['due_date'])}",
+                f"<b>Jatuh tempo</b><br/>{_safe(invoice['due_date'])}"
+                + (f"<br/><b>Referensi / PO</b><br/>{_safe(invoice['reference'])}" if invoice.get('reference') else ''),
                 right,
             ),
         ]
@@ -153,6 +158,7 @@ def build(doc):
 
     totals = doc['totals']
     summary_rows = [
+        ['Subtotal', money(totals['total_minor'], currency)],
         ['Total', money(totals['total_minor'], currency)],
         ['Sudah dibayar', money(totals['paid_minor'], currency)],
         ['Sisa tagihan', '-' if invoice['status'] in ('DRAFT','VOID')
@@ -161,7 +167,7 @@ def build(doc):
     summary = Table(summary_rows, colWidths=[55*mm, 50*mm], hAlign='RIGHT')
     summary.setStyle(TableStyle([
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
         ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
         ('FONTSIZE', (0,0), (-1,-1), 9),
         ('ALIGN', (1,0), (1,-1), 'RIGHT'),
@@ -172,6 +178,13 @@ def build(doc):
         ('BOTTOMPADDING', (0,0), (-1,-1), 5),
     ]))
     story.append(summary)
+
+    payment=doc.get('payment',{})
+    if any(payment.values()):
+        story.append(Paragraph('Pembayaran',h2))
+        for key in ('method','bank','account_number','account_holder','instructions'):
+            if payment.get(key):
+                story.append(Paragraph(('a.n. ' if key=='account_holder' else '')+_safe(payment[key]),body))
 
     if invoice.get('notes'):
         story += [

@@ -47,15 +47,21 @@ def resolve_token(token):
 
 def document(business_id,invoice_id,user_id=None,public=False):
     """Only call with authorized membership or a verified share token. No write helpers."""
-    invoice=finance.get_finance_invoice(business_id,invoice_id,actor_user_id=user_id)
-    if not invoice or (public and invoice['status'] not in VISIBLE): raise ValueError('unavailable')
-    business=db.query_one('SELECT business_name FROM businesses WHERE id=?',(business_id,))
-    customer=finance.get_customer(business_id,invoice['customer_id'],actor_user_id=user_id)
-    if not business or not customer: raise ValueError('unavailable')
-    items=finance.list_invoice_items(business_id,invoice_id,actor_user_id=user_id)
-    totals=finance.get_invoice_totals(business_id,invoice_id,actor_user_id=user_id)
-    # Explicit public projection: no internal IDs, audit, customer/private payment notes or accounts.
-    return dict(issuer=business['business_name'],
-        invoice={key:invoice[key] for key in ('invoice_number','status','issue_date','due_date','currency','notes')},
-        customer={key:customer[key] for key in ('name','email','phone')},
-        items=[{key:item[key] for key in ('description','quantity','unit_price_minor')} for item in items],totals=totals)
+    from finance_invoice_editor import snapshot
+    # A correction commits identity, items and revision atomically. Retry if a writer
+    # crossed our reads so a PDF/public view cannot combine two valid revisions.
+    for _ in range(3):
+        invoice=finance.get_finance_invoice(business_id,invoice_id,actor_user_id=user_id)
+        if not invoice or (public and invoice['status'] not in VISIBLE): raise ValueError('unavailable')
+        data=snapshot(invoice,user_id)
+        items=finance.list_invoice_items(business_id,invoice_id,actor_user_id=user_id)
+        totals=finance.get_invoice_totals(business_id,invoice_id,actor_user_id=user_id)
+        current=finance.get_finance_invoice(business_id,invoice_id,actor_user_id=user_id)
+        if not current or any(current[k]!=invoice[k] for k in ('revision','status')):
+            continue
+        # Explicit public projection: no IDs, audit, private notes or ledger accounts.
+        return dict(issuer=data['sender']['name'], sender=data['sender'], payment=data['payment'],
+            invoice=dict({key:invoice[key] for key in ('invoice_number','status','issue_date','due_date','currency','notes')}, reference=data['reference']),
+            customer=data['recipient'],
+            items=[{key:item[key] for key in ('description','quantity','unit_price_minor')} for item in items],totals=totals)
+    raise ValueError('unavailable')

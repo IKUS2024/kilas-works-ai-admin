@@ -1,0 +1,7 @@
+{% macro fields(group, values, definitions, required=[]) %}
+<div class="invoice-form-grid">{% for key,label in definitions %}
+<label>{{ label }}<input name="{{ group }}_{{ key }}" value="{{ values.get(key,'') or '' }}" maxlength="{{ 2000 if key in ('address','instructions') else 254 }}" {% if key in required %}required{% endif %} {% if key=='email' %}type="email"{% elif key=='phone' %}type="tel"{% endif %}></label>
+{% endfor %}</div>
+{% endmacro %}
+{% macro sender(data, required=['name']) %}{{ fields('sender',data,[('name','Nama bisnis / pengirim'),('address','Alamat'),('phone','Nomor telepon'),('email','Email (opsional)'),('tax_id','NPWP / Tax ID (opsional)'),('website','Website (opsional)')],required) }}{% endmacro %}
+{% macro payment(data) %}{{ fields('payment',data,[('method','Metode pembayaran'),('bank','Nama bank'),('account_number','Nomor rekening'),('account_holder','Nama pemilik rekening'),('instructions','Instruksi pembayaran')]) }}{% endmacro %}

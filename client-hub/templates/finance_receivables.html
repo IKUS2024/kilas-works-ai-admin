@@ -2,8 +2,9 @@
 {% block title %}Invoice & Piutang · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<div class="fin-page">
+<div class="fin-page {{ 'invoice-workspace' if section=='invoices' else '' }}">
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
+{% if section!='invoices' %}
 <h1 class="fin-page-title">Invoice &amp; Piutang</h1>
 <p class="muted fin-page-subtitle">{{ business.business_name }} · Invoice belum lunas otomatis menjadi piutang. Saat pembayaran dicatat, nominalnya masuk sebagai Pemasukan.</p>
 
@@ -18,6 +19,13 @@
 <a class="fin-tool" href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}"><span class="fin-icon">⏰</span><span class="fin-label">Penagihan</span><span class="fin-meta">{{ summary.open_invoice_count }} belum lunas</span></a>
 </div>
 </div>
+
+{% else %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
+<div class="fin-section-head"><h1>Invoice</h1><a data-finance-write class="btn" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">+ Buat Invoice</a></div>
+<div class="invoice-counts"><span>Aktif {{ invoice_count }}</span><span>Terlambat {{ summary.overdue_invoice_count }}</span><span>Lunas {{ paid_invoice_count }}</span></div>
+<nav class="invoice-compact-nav"><a href="{{ url_for('finance.invoice_settings',business_id=business.id) }}" data-finance-write>Pengaturan Invoice</a><a href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}">Ringkasan</a><a href="{{ url_for('finance.receivables',business_id=business.id,section='customers') }}">Customer</a><a href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}">Penagihan</a></nav>
+{% endif %}
 
 {% if section=='summary' %}
 <div class="card fin-receivable-explainer">
@@ -90,8 +98,8 @@
 {% elif section=='invoices' %}
 <div class="card">
   <div class="fin-section-head">
-    <div><h2>{{ 'Arsip Invoice Lunas' if archived_view else 'Invoice' }}</h2><p class="muted">{{ invoice_total }} hasil · 10 per halaman. Invoice dibatalkan tetap tersimpan di audit.</p></div>
-    <a class="btn small" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">＋ Buat Invoice</a>
+    <div><h2>{{ 'Arsip Invoice Lunas' if archived_view else 'Invoice' }}</h2><p class="muted">{{ invoice_total }} hasil · 10 per halaman</p></div>
+
   </div>
 
   <form method="get" class="fin-filter-bar">
@@ -105,7 +113,7 @@
   {% for i in invoices %}{% set t=totals[i.id] %}
   <article class="fin-entry fin-invoice-row">
     <div class="fin-invoice-head">
-      <div><span class="fin-invoice-number">{{ i.invoice_number }}</span><div class="fin-invoice-meta"><span>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</span><span>{{ i.currency }}</span><span>{{ i.branch_name }}</span><span>Terbit {{ i.issue_date }}</span><span>Jatuh tempo {{ i.due_date }}</span></div></div>
+      <div><span class="fin-invoice-number">{{ i.invoice_number }}</span><div class="fin-invoice-meta"><span>{{ invoice_names[i.id] }}</span><span>{{ i.currency }}</span><span>{{ i.branch_name }}</span><span>Terbit {{ i.issue_date }}</span><span>Jatuh tempo {{ i.due_date }}</span></div></div>
       <span class="fin-status {{ 'fin-status-paid' if i.status=='PAID' else 'fin-status-partial' if i.status=='PARTIALLY_PAID' else 'fin-status-issued' if i.status=='ISSUED' else 'fin-status-draft' }}">{{ labels[i.status] }}</span>
     </div>
     <div class="fin-invoice-amounts">
@@ -118,15 +126,8 @@
       <a class="btn small secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=i.id) }}">Lihat</a>
       <a class="btn small secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,invoice_id=i.id) }}">PDF</a>
       {% if i.status in ('ISSUED','PARTIALLY_PAID','PAID') %}<form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,invoice_id=i.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary" type="submit">Bagikan</button></form>{% endif %}
-      <details>
-        <summary class="btn small secondary">✏️ Edit catatan</summary>
-        <form method="post" action="{{ url_for('finance.update_invoice_notes',business_id=business.id,invoice_id=i.id) }}" class="fin-inline-edit">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label>Catatan invoice<textarea name="notes" maxlength="4000">{{ i.notes or '' }}</textarea></label>
-          <p class="muted">Edit ini tidak mengubah customer, item, nominal, pembayaran, atau saldo.</p>
-          <button class="btn small">Simpan catatan</button>
-        </form>
-      </details>
+      <a data-finance-write class="btn small secondary" href="{{ url_for('finance.edit_invoice',business_id=business.id,invoice_id=i.id) }}">Edit</a>
+
       {% if archived_view %}
       <form method="post" action="{{ url_for('finance.restore_invoice',business_id=business.id,invoice_id=i.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary" type="submit">↩ Kembalikan</button></form>
       {% elif i.status in ('DRAFT','ISSUED') %}

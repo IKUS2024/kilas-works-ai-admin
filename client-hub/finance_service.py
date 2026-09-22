@@ -1846,7 +1846,7 @@ def delete_customer(business_id, customer_id, *, actor_user_id=None):
         return row['id']
 
 
-def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None, *, idempotency_key=None):
+def create_finance_invoice(business_id, customer_id, issue_date, due_date, items, notes=None, currency='IDR', actor_user_id=None, *, idempotency_key=None, document_data=None):
     issue_date, due_date = _period(issue_date, due_date)
     currency=_currency(currency)
     if issue_date > business_today(business_id).isoformat():
@@ -1879,6 +1879,10 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
                         (customer_id,issue_date,due_date,currency,notes) or
                         [(r['description'],r['quantity'],r['unit_price_minor']) for r in old_items] != clean):
                     raise FinanceError('invoice_key_conflict')
+                if document_data is not None:
+                    from finance_invoice_editor import clean_document, snapshot
+                    if clean_document(document_data)!=snapshot(existing,actor_user_id):
+                        raise FinanceError('invoice_key_conflict')
                 return existing['id']
         customer = get_customer(business_id, customer_id, actor_user_id)
         if not customer or not customer['is_active']:
@@ -1894,6 +1898,8 @@ def create_finance_invoice(business_id, customer_id, issue_date, due_date, items
             db.execute('INSERT INTO finance_invoice_items '
                 '(business_id,invoice_id,description,quantity,unit_price_minor,created_at) VALUES (?,?,?,?,?,?)',
                 (business_id, invoice_id, description, quantity, price, now))
+        from finance_invoice_editor import initial_snapshot
+        initial_snapshot(business_id, invoice_id, document_data, actor_user_id)
         _audit(business_id, actor_user_id, 'FINANCE_INVOICE_CREATED', invoice_id)
         if marker is not None:
             repo.write_audit(actor_user_id,business_id,'FINANCE_ASSISTANT_INVOICE_CONFIRMED',marker+str(invoice_id))
@@ -2006,18 +2012,14 @@ def update_finance_invoice_notes(business_id, invoice_id, notes=None, actor_user
 
     Totals, items, payment history, status and linked income stay immutable.
     """
-    notes=_text(notes,4000)
-    with _write(business_id,actor_user_id):
-        invoice=_invoice(business_id,invoice_id,actor_user_id)
-        if invoice['status']=='VOID':raise FinanceError('invoice_unavailable')
-        db.execute('UPDATE finance_invoices SET notes=?,updated_at=? WHERE business_id=? AND id=?',
-                   (notes,repo._now(),business_id,invoice['id']))
-        _audit(business_id,actor_user_id,'FINANCE_INVOICE_NOTES_UPDATED',invoice['id'])
-        return invoice['id']
+    from finance_invoice_editor import edit
+    return edit(business_id, invoice_id, {'notes': notes}, actor_user_id=actor_user_id)
 
 
 def invoice_fingerprint(business_id, invoice, actor_user_id=None):
     fields={k:invoice[k] for k in ('id','customer_id','issue_date','due_date','currency','notes')}
+    fields['document_snapshot']=invoice.get('document_snapshot')
+    fields['revision']=invoice.get('revision',0)
     fields['items']=[{k:r[k] for k in ('description','quantity','unit_price_minor')} for r in list_invoice_items(business_id,invoice['id'],actor_user_id)]
     return hashlib.sha256(json.dumps(fields,sort_keys=True).encode()).hexdigest()
 

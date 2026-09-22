@@ -231,6 +231,7 @@ class ReceivablesTests(unittest.TestCase):
 
     def test_ui_create_issue_pay_double_submit_and_print(self):
         form=MultiDict({'customer_id':str(self.c),'issue_date':'2026-09-01','due_date':'2026-09-15'})
+        form.update(dict(currency='IDR',submission_key='a'*32,sender_name='Business',sender_address='Office',sender_phone='08123',recipient_name='Customer <test>'))
         for d,q,p in [('One','2','100'),('Two','1','50')]:
             form.add('item_description',d);form.add('quantity',q);form.add('unit_price',p)
         result=self.client.post(self.url+'/invoices/new',data=form)

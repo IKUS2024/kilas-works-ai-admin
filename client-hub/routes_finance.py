@@ -1736,6 +1736,8 @@ def receivables(business_id, user, business):
     # VOID is accounting cancellation. Archive is UI-only and MUST NOT alter
     # receivables, payments, income, balances, reports or historical statements.
     all_invoices = [row for row in finance.list_finance_invoices(business_id, **actor) if row['status'] != 'VOID']
+    from finance_invoice_editor import snapshot
+    invoice_names={row['id']:snapshot(row,user['id'])['recipient']['name'] for row in all_invoices}
     archived_ids = finance.archived_invoice_ids(business_id, **actor)
     working_invoices = [row for row in all_invoices if row['id'] not in archived_ids]
     recent_invoices = working_invoices[:3]
@@ -1766,7 +1768,7 @@ def receivables(business_id, user, business):
     if q:
         needle=q.casefold()
         invoice_source=[row for row in invoice_source if needle in row['invoice_number'].casefold()
-            or needle in (customer_map.get(row['customer_id'],{}).get('name') or '').casefold()]
+            or needle in invoice_names[row['id']].casefold()]
     invoice_total=len(invoice_source);invoice_pages=max(1,(invoice_total+page_size-1)//page_size)
     invoice_page=min(page,invoice_pages) if section=='invoices' else 1
     invoices=invoice_source[(invoice_page-1)*page_size:invoice_page*page_size] if section=='invoices' else []
@@ -1778,7 +1780,7 @@ def receivables(business_id, user, business):
     return render_template('finance_receivables.html', user=user, business=business,
         customers=customers, customer_count=len(active_customers), customer_total=customer_total,
         customer_pages=customer_pages, customer_map=customer_map,
-        invoices=invoices, recent_invoices=recent_invoices, totals=totals, section=section,
+        invoices=invoices, invoice_names=invoice_names, recent_invoices=recent_invoices, totals=totals, section=section,
         invoice_count=len(working_invoices), paid_invoice_count=sum(row['status']=='PAID' for row in all_invoices),
         archived_invoice_count=len(archived_ids), invoice_total=invoice_total, invoice_page=invoice_page,
         invoice_pages=invoice_pages, page=page, q=q, status_filter=status_filter,
@@ -1821,29 +1823,92 @@ def nonnegative_idr(value):
     return amount
 
 
-@finance_bp.route('/business/<int:business_id>/finance/invoices/new', methods=['GET','POST'])
+def _invoice_form_data():
+    import finance_invoice_editor as editor
+    return dict({group:{key:request.form.get(group+'_'+key,'') for key in keys}
+                 for group,keys in editor.GROUPS.items()},reference=request.form.get('reference',''))
+
+
+def _invoice_form_items(currency):
+    ds=request.form.getlist('item_description');qs=request.form.getlist('quantity');ps=request.form.getlist('unit_price')
+    if not 1<=len(ds)<=100 or len(ds)!=len(qs) or len(ds)!=len(ps):
+        raise finance.FinanceError('invalid_items')
+    return [dict(description=d,quantity=whole_idr(q),unit_price_minor=currency_amount(p,currency))
+            for d,q,p in zip(ds,qs,ps)]
+
+
+INVOICE_EDIT_ERRORS = {
+    'invoice_financial_locked':'Invoice sudah memiliki pembayaran. Jumlah, harga, mata uang, tanggal dan customer terkait dikunci. Anda tetap dapat memperbaiki teks dan informasi kontak.',
+    'invoice_revision_conflict':'Invoice telah diubah. Muat ulang halaman edit sebelum menyimpan agar perubahan terbaru tidak tertimpa.',
+    'invoice_sender_required':'Lengkapi nama pengirim, alamat dan nomor telepon.',
+    'invoice_select_customer':'Ada beberapa customer dengan nama yang sama. Pilih customer yang sesuai.',
+}
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/settings',methods=['GET','POST'])
 @finance_access
-def new_invoice(business_id, user, business):
-    if request.method == 'POST':
+def invoice_settings(business_id,user,business):
+    import finance_invoice_editor as editor
+    data=editor.defaults(business_id,user['id'])
+    error_status=200
+    if request.method=='POST':
+        data={k:v for k,v in _invoice_form_data().items() if k in ('sender','payment')}
         try:
-            descriptions = request.form.getlist('item_description')
-            quantities = request.form.getlist('quantity')
-            prices = request.form.getlist('unit_price')
-            if not 1 <= len(descriptions) <= 100 or len(descriptions) != len(quantities) or len(prices) != len(descriptions):
-                raise finance.FinanceError('invalid_items')
-            currency=finance._currency(request.form.get('currency','IDR'))
-            items = [dict(description=d,quantity=whole_idr(q),unit_price_minor=currency_amount(p,currency))
-                     for d,q,p in zip(descriptions,quantities,prices)]
-            invoice_id = finance.create_finance_invoice(business_id, record_id(request.form.get('customer_id')),
-                request.form.get('issue_date'),request.form.get('due_date'),items,
-                notes=request.form.get('notes'),currency=currency,actor_user_id=user['id'])
+            editor.save_defaults(business_id,data,user['id'])
         except finance.FinanceError as error:
-            flash(ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.'),'error')
-            return redirect(url_for('finance.new_invoice',business_id=business_id),code=303)
-        return redirect(url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id),code=303)
-    return render_template('finance_invoice_form.html',user=user,business=business,
-        customers=finance.list_customers(business_id,actor_user_id=user['id']),today=finance.business_today(business_id).isoformat(),
-        supported_currencies=finance.SUPPORTED_CURRENCIES)
+            flash(INVOICE_EDIT_ERRORS.get(str(error),'Periksa detail pengirim dan pembayaran.'),'error');error_status=400
+        else:
+            flash('Pengaturan invoice cabang disimpan. Invoice yang sudah ada tetap memakai datanya sendiri.','success')
+            return redirect(url_for('finance.receivables',business_id=business_id,section='invoices'),code=303)
+    return render_template('finance_invoice_settings.html',user=user,business=business,data=data),error_status
+
+
+@finance_bp.route('/business/<int:business_id>/finance/invoices/new', methods=['GET','POST'])
+@finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/edit', methods=['GET','POST'],endpoint='edit_invoice')
+@finance_access
+def new_invoice(business_id, user, business, invoice_id=None):
+    import finance_invoice_editor as editor
+    actor=user['id'];today=finance.business_today(business_id).isoformat()
+    invoice=finance.get_finance_invoice(business_id,invoice_id,actor) if invoice_id else None
+    if invoice_id and (not invoice or invoice['status']=='VOID'):abort(404)
+    locked=bool(invoice and (invoice['status'] in ('PARTIALLY_PAID','PAID') or finance.list_invoice_payments(business_id,invoice_id,actor)))
+    if invoice:
+        data=editor.snapshot(invoice,actor)
+        values=dict(invoice)
+        items=finance.list_invoice_items(business_id,invoice_id,actor)
+    else:
+        data=dict(editor.defaults(business_id,actor),recipient={},reference='')
+        values=dict(customer_id='',issue_date=today,due_date=today,currency='IDR',notes='',revision=0)
+        items=[dict(description='',quantity=1,unit_price_minor=0)]
+    form_items=[dict(description=x['description'],quantity=x['quantity'],unit_price=format(Decimal(x['unit_price_minor'])/100,'.2f')) for x in items]
+    submission_key=uuid.uuid4().hex
+    error_status=200
+    if request.method=='POST':
+        data=_invoice_form_data()
+        values={k:request.form.get(k,'') for k in ('customer_id','issue_date','due_date','currency','notes','revision')}
+        form_items=[dict(description=d,quantity=q,unit_price=p) for d,q,p in __import__('itertools').zip_longest(
+            request.form.getlist('item_description'),request.form.getlist('quantity'),request.form.getlist('unit_price'),fillvalue='')]
+        submission_key=request.form.get('submission_key','')
+        try:
+            currency=finance._currency(values['currency'])
+            items=_invoice_form_items(currency)
+            customer_id=record_id(values['customer_id']) if values['customer_id'] else None
+            payload=dict(issue_date=values['issue_date'],due_date=values['due_date'],currency=currency,notes=values['notes'],items=items)
+            if invoice:
+                revision=record_id(values['revision']) if values['revision']!='0' else 0
+                editor.edit(business_id,invoice_id,dict(payload,customer_id=customer_id,document_data=data),
+                            actor_user_id=actor,expected_revision=revision)
+            else:
+                invoice_id=editor.create(business_id,customer_id,data,actor_user_id=actor,submission_key=submission_key,**payload)
+        except finance.FinanceError as error:
+            flash(INVOICE_EDIT_ERRORS.get(str(error),ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.')),'error')
+            error_status=400
+        else:
+            return redirect(url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id),code=303)
+    return render_template('finance_invoice_form.html',user=user,business=business,invoice=invoice,
+        customers=finance.list_customers(business_id,include_inactive=bool(invoice),actor_user_id=actor),today=today,
+        supported_currencies=finance.SUPPORTED_CURRENCIES,data=data,values=values,form_items=form_items,
+        locked=locked,submission_key=submission_key),error_status
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>')

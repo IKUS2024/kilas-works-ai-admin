@@ -1,4 +1,6 @@
 """Offline invoice document/share regressions. Only disposable fixture databases."""
+from io import BytesIO
+from pypdf import PdfReader
 import os
 import unittest
 from pathlib import Path
@@ -30,7 +32,7 @@ class InvoicePresentationTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         self.assertIn(b'DRAFT',response.data);self.assertIn(f'KFIN-2026-{i:06d}'.encode(),response.data)
         self.assertNotIn(b'Share Invoice',response.data);self.assertIn(b'Terbitkan Invoice',response.data)
-        self.assertIn(b'Print / Download PDF',response.data)
+        self.assertIn(b'Unduh PDF',response.data)
 
     def test_cross_tenant_owner_access(self):
         other=f.create_finance_invoice(self.other,self.oc,'2026-09-01','2026-09-30',[dict(description='private',quantity=1,unit_price_minor=900)])
@@ -50,7 +52,7 @@ class InvoicePresentationTests(unittest.TestCase):
         self.assertEqual(doc['totals']['total_minor'],250);self.assertEqual(doc['totals']['paid_minor'],100)
         self.assertEqual(doc['totals']['outstanding_minor'],150)
         response=self.public(self.token(i))
-        for text in ('DIBAYAR SEBAGIAN','Rp250','Rp100','Rp150'):self.assertIn(text.encode(),response.data)
+        for text in ('DIBAYAR SEBAGIAN','Rp2,50','Rp1,00','Rp1,50'):self.assertIn(text.encode(),response.data)
 
     def test_paid_and_overdue_status(self):
         i=self.issued()
@@ -143,12 +145,19 @@ class InvoicePresentationTests(unittest.TestCase):
         db.execute('UPDATE finance_customers SET name=? WHERE id=?',(dangerous,self.c))
         i=self.draft(notes=dangerous,items=[dict(description=dangerous,quantity=1,unit_price_minor=10)]);f.issue_finance_invoice(self.b,i)
         for response in (self.client.get(self.path(i)),self.client.get(self.path(i)+'/print'),self.public(self.token(i))):
-            self.assertNotIn(dangerous.encode(),response.data);self.assertIn(b'&lt;script&gt;',response.data)
+            if response.mimetype=='application/pdf':
+                text='\n'.join(p.extract_text() for p in PdfReader(BytesIO(response.data)).pages)
+                self.assertIn(dangerous,text)  # Literal text, never interpreted as markup.
+            else:
+                self.assertNotIn(dangerous.encode(),response.data);self.assertIn(b'&lt;script&gt;',response.data)
 
     def test_print_page_no_navigation_or_internal_controls(self):
         i=self.issued();response=self.client.get(self.path(i)+'/print')
         for text in (b'<nav',b'Client Hub',b'<form',b'Catat Pembayaran'):self.assertNotIn(text,response.data)
-        self.assertIn(b'invoice-document',response.data);self.assertIn(b'Rp250',response.data)
+        self.assertEqual(response.mimetype,'application/pdf')
+        self.assertTrue(response.data.startswith(b'%PDF-'))
+        text='\n'.join(p.extract_text() for p in PdfReader(BytesIO(response.data)).pages)
+        self.assertIn('Rp2,50',text)
         css=(Path(__file__).resolve().parents[1]/'static/finance_invoice.css').read_text()
         self.assertIn('@page{size:A4;margin:14mm}',css)
         self.assertIn('table-header-group',css);self.assertIn('.invoice-toolbar,.invoice-controls{display:none!important}',css)

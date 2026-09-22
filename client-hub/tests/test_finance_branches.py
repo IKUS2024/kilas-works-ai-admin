@@ -272,7 +272,7 @@ class BranchTests(unittest.TestCase):
         self.assertNotIn('Customer Baru',customers.text)
         invoices=self.client.get(self.url+f'/receivables?branch_id={self.ba}&section=invoices')
         self.assertEqual(invoices.status_code,200)
-        self.assertIn('Customer Baru',invoices.text)
+        self.assertIn('Customer Lama',invoices.text)  # Issued invoice retains its recipient snapshot.
 
     def test_invoice_payment_collections_and_cross_branch_lock(self):
         ia=self.invoice(self.ba);ib=self.invoice(self.bb)

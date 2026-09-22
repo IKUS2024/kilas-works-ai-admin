@@ -1,27 +1,38 @@
 {% extends 'base.html' %}
-{% block title %}Buat Invoice Pelanggan · Kilas Finance{% endblock %}
+{% from '_finance_invoice_fields.html' import fields,sender,payment %}
+{% block title %}{{ 'Edit Invoice' if invoice else 'Buat Invoice' }} · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<div class="fin-page"><a href="{{ url_for('finance.receivables',business_id=business.id) }}">← Pelanggan &amp; Piutang</a>
-<h1 style="margin-top:16px;">Buat Invoice Pelanggan</h1><p class="muted">{{ business.business_name }} · Disimpan sebagai draft. Periksa sebelum diterbitkan.</p>
-{% if not customers %}<p class="card">Tambahkan customer terlebih dahulu di Pelanggan &amp; Piutang.</p>{% else %}
-<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<label for="customer">Customer</label><select id="customer" name="customer_id" required><option value="">Pilih customer</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
-<label for="currency">Mata uang invoice</label><select id="currency" name="currency" data-invoice-currency required>{% for code in supported_currencies %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select>
-<div class="fin-grid"><div><label for="issue">Tanggal terbit</label><input id="issue" name="issue_date" type="date" value="{{ today }}" max="{{ today }}" required></div><div><label for="due">Jatuh tempo</label><input id="due" name="due_date" type="date" value="{{ today }}" required></div></div>
-<h2 style="margin-top:20px;">Rincian tagihan</h2><p class="muted">Harga boleh memakai desimal dengan titik atau koma. Semua mata uang menyimpan sampai 2 angka desimal. Total dihitung saat draft disimpan.</p>
-<div id="invoice-items"><div class="fin-entry invoice-item">
-<label>Deskripsi<input name="item_description" maxlength="500" required></label><div class="fin-grid">
-<label>Jumlah<input name="quantity" value="1" inputmode="numeric" pattern="[0-9]+" maxlength="19" required></label>
-<label>Harga satuan <span data-invoice-currency-label>IDR</span><input name="unit_price" inputmode="decimal" maxlength="25" required></label></div>
-<button type="button" class="btn small secondary remove-item">Hapus baris</button></div></div>
-<button type="button" id="add-item" class="btn secondary">+ Tambah baris</button>
-<label for="notes">Catatan (opsional)</label><textarea id="notes" name="notes" maxlength="4000"></textarea>
-<button class="btn" type="submit">Simpan Draft Invoice</button></form>
-<script>
-(()=>{const items=document.getElementById('invoice-items');const add=document.getElementById('add-item');const currency=document.getElementById('currency');const syncCurrency=()=>document.querySelectorAll('[data-invoice-currency-label]').forEach(n=>n.textContent=currency.value);currency.addEventListener('change',syncCurrency);syncCurrency();
-add.addEventListener('click',()=>{if(items.children.length>=100)return;const row=items.firstElementChild.cloneNode(true);row.querySelectorAll('input').forEach(input=>input.value=input.name==='quantity'?'1':'');items.append(row);});
-items.addEventListener('click',event=>{if(event.target.classList.contains('remove-item')&&items.children.length>1)event.target.closest('.invoice-item').remove();});})();
-</script>
-{% endif %}</div>
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
+<div class="fin-page invoice-editor"><a href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}">← Invoice</a>
+<h1>{{ 'Edit Invoice' if invoice else 'Buat Invoice' }}</h1>
+{% if invoice %}<p class="muted">{{ invoice.invoice_number }}</p>{% endif %}
+{% if locked %}<p class="card" role="note">Invoice sudah memiliki pembayaran. Anda dapat memperbaiki teks dan kontak. Jumlah, harga, mata uang, tanggal dan customer terkait dikunci untuk menjaga riwayat pembayaran.</p>{% endif %}
+<form method="post" class="card" id="invoice-editor-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="submission_key" value="{{ submission_key }}"><input type="hidden" name="revision" value="{{ values.revision }}">
+<h2>1. Penerima</h2>
+<label for="customer">Pilih customer</label><select id="customer" name="customer_id" {% if locked %}disabled{% endif %}>
+<option value="">+ Penerima baru</option>{% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}</select>
+{% if locked %}<input type="hidden" name="customer_id" value="{{ values.customer_id }}">{% else %}<button class="btn small secondary" type="button" id="new-recipient">+ Penerima baru</button>{% endif %}
+{{ fields('recipient',data.recipient,[('name','Nama penerima / perusahaan'),('pic','Nama PIC (opsional)'),('address','Alamat penagihan (opsional)'),('phone','Nomor telepon (opsional)'),('email','Email (opsional)'),('tax_id','NPWP / Tax ID (opsional)')],['name']) }}
+<p class="muted">Detail ini disimpan khusus untuk invoice ini.</p>
+<h2>2. Detail Invoice</h2>
+<div class="invoice-form-grid"><label>Tanggal terbit<input name="issue_date" type="date" value="{{ values.issue_date }}" max="{{ today }}" required {{ 'readonly' if locked }}></label><label>Jatuh tempo<input name="due_date" type="date" value="{{ values.due_date }}" required {{ 'readonly' if locked }}></label>
+<label>Mata uang<select name="currency" id="currency" {{ 'disabled' if locked }}>{% for code in supported_currencies %}<option {{ 'selected' if values.currency==code }}>{{ code }}</option>{% endfor %}</select></label><label>Referensi / PO (opsional)<input name="reference" value="{{ data.reference }}" maxlength="254"></label></div>
+{% if locked %}<input type="hidden" name="currency" value="{{ values.currency }}">{% endif %}
+<details {% if not data.sender.address or not data.sender.phone %}open{% endif %}><summary>Detail pengirim · {{ data.sender.name }}</summary>{{ sender(data.sender,['name'] if invoice else ['name','address','phone']) }}</details>
+<h2>3. Rincian Tagihan</h2>
+<div id="invoice-items">{% for item in form_items %}<div class="invoice-item">
+<label>Deskripsi<input name="item_description" maxlength="500" value="{{ item.description }}" required></label><div class="invoice-form-grid">
+<label>Jumlah<input name="quantity" value="{{ item.quantity }}" inputmode="numeric" pattern="[0-9]+" maxlength="19" required {{ 'readonly' if locked }}></label>
+<label>Harga satuan<input name="unit_price" value="{{ item.unit_price }}" inputmode="decimal" maxlength="25" required {{ 'readonly' if locked }}></label></div>
+<div class="invoice-line-footer"><output class="line-total"></output>{% if not locked %}<button type="button" class="btn small secondary remove-item">Hapus baris</button>{% endif %}</div>
+</div>{% endfor %}</div>
+{% if not locked %}<button type="button" id="add-item" class="btn small secondary">+ Tambah baris</button>{% endif %}
+<div class="invoice-live-total"><span>Subtotal / Total</span><strong id="invoice-total" aria-live="polite"></strong></div>
+<h2>4. Pembayaran</h2>{{ payment(data.payment) }}
+<h2>5. Catatan</h2><textarea name="notes" maxlength="4000" aria-label="Catatan invoice">{{ values.notes or '' }}</textarea>
+<p class="muted">{{ 'Perubahan tersimpan dalam riwayat revisi invoice.' if invoice else 'Simpan draft untuk meninjau dokumen sebelum diterbitkan.' }}</p>
+<div class="invoice-form-actions"><button class="btn" data-finance-write>{{ 'Simpan Perubahan' if invoice else 'Simpan Draft & Lihat Preview' }}</button><a class="btn secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,section='invoices') }}">Batal</a></div>
+</form></div><script src="{{ url_for('static',filename='finance_invoice_editor.js') }}" defer></script>
 {% endblock %}
