@@ -137,7 +137,7 @@
       </div>
       <div class="finance-sheet-body">
         <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>Jatuh tempo {{ r.scheduled_on }}</p>
-        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-add-form">
+        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="month" value="{{ month }}">
@@ -185,7 +185,7 @@
       </div>
       <div class="finance-sheet-body">
         <p class="muted"><strong>{{ r.name }}</strong> · {{ r.display_amount }}<br>Jatuh tempo {{ r.scheduled_on }}</p>
-        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id) }}" class="finance-bill-add-form">
+        <form method="post" action="{{ url_for('finance.process_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="month" value="{{ month }}">
@@ -222,7 +222,7 @@
       {% if r.is_active %}
       <div class="finance-bill-rule-actions">
         <button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.id }}">✏️ Edit</button>
-        <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,recurring_id=r.id) }}" onsubmit="return confirm('Hapus jadwal {{ r.name }} dari daftar aktif? Riwayat pembayaran tetap tersimpan.');">
+        <form method="post" action="{{ url_for('finance.deactivate_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" onsubmit="return confirm('Hapus jadwal {{ r.name }} dari daftar aktif? Riwayat pembayaran tetap tersimpan.');">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
           <input type="hidden" name="month" value="{{ month }}">
@@ -245,7 +245,7 @@
     <button type="button" class="finance-sheet-close" data-finance-close="bill-edit-{{ r.id }}" aria-label="Tutup">×</button>
   </div>
   <div class="finance-sheet-body">
-    <form method="post" action="{{ url_for('finance.update_recurring',business_id=business.id,recurring_id=r.id) }}" class="finance-bill-add-form">
+    <form method="post" action="{{ url_for('finance.update_recurring',business_id=business.id,branch_id=g.finance_branch_id,recurring_id=r.id) }}" class="finance-bill-add-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
@@ -293,7 +293,7 @@
     <button type="button" class="finance-sheet-close" data-finance-close="bill-add-dialog" aria-label="Tutup">×</button>
   </div>
   <div class="finance-sheet-body">
-    <form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id) }}" class="finance-bill-add-form">
+    <form method="post" action="{{ url_for('finance.create_recurring',business_id=business.id,branch_id=g.finance_branch_id) }}" class="finance-bill-add-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
