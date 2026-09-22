@@ -1262,27 +1262,24 @@ def update_account_balance(business_id,user,business,account_id):
     account=finance.get_account(
         business_id,account_id,actor_user_id=user['id'],active=True)
     action=(request.form.get('action') or '').strip()
-    if action not in ('opening','current'):
-        abort(400)
-    amount=currency_amount(
-        request.form.get('amount'),account['currency'],signed=True)
     destination=url_for(
         'finance.dashboard',business_id=business_id,
         branch_id=g.finance_branch_id or 'all',view='accounts',
         account_id=account_id,
         display_currency=request.form.get('display_currency','IDR'))
-    if action=='opening':
-        return mutate(
-            business_id,
-            lambda: finance.update_account_opening_balance(
-                business_id,account_id,amount,actor_user_id=user['id']),
-            'Saldo awal diperbarui. Saldo akun dihitung ulang otomatis.',
-            destination)
+    if action != 'opening':
+        flash(
+            'Saldo sekarang dihitung otomatis dari saldo awal, transaksi, dan transfer. '
+            'Edit sumber nilainya, bukan total hasil perhitungan.',
+            'error')
+        return redirect(destination, code=303)
+    amount=currency_amount(
+        request.form.get('amount'),account['currency'],signed=True)
     return mutate(
         business_id,
-        lambda: finance.set_account_current_balance(
+        lambda: finance.update_account_opening_balance(
             business_id,account_id,amount,actor_user_id=user['id']),
-        'Saldo sekarang disesuaikan. Transaksi tetap sama; penyesuaian diterapkan ke saldo awal.',
+        'Saldo awal diperbarui. Saldo akun dihitung ulang otomatis.',
         destination)
 
 
