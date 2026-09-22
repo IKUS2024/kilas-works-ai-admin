@@ -1308,6 +1308,33 @@ def get_transaction_date_bounds(business_id, *, actor_user_id=None):
     return {'first_on': row['first_on'] if row else None, 'last_on': row['last_on'] if row else None}
 
 
+def get_report_date_bounds(business_id, *, actor_user_id=None):
+    """Earliest/latest dated Finance record relevant to reports in the current scope."""
+    _scope(business_id, actor_user_id)
+    tx = db.query_one(
+        ('SELECT MIN(occurred_on) AS first_on,MAX(occurred_on) AS last_on '
+         'FROM finance_transactions WHERE business_id=?' + branches.predicate('') +
+         " AND status='POSTED'"),
+        (business_id,))
+    invoice = db.query_one(
+        ('SELECT MIN(issue_date) AS first_on,MAX(issue_date) AS last_on '
+         'FROM finance_invoices i WHERE i.business_id=?' + branches.predicate('i') +
+         " AND i.status<>'VOID'"),
+        (business_id,))
+    firsts = [
+        row['first_on'] for row in (tx, invoice)
+        if row and row.get('first_on')
+    ]
+    lasts = [
+        row['last_on'] for row in (tx, invoice)
+        if row and row.get('last_on')
+    ]
+    return {
+        'first_on': min(firsts) if firsts else None,
+        'last_on': max(lasts) if lasts else None,
+    }
+
+
 # Finance receivables: deliberately never reads platform invoices/payments/payment_service.
 def create_customer(business_id, name, phone=None, email=None, notes=None, actor_user_id=None, *, idempotency_key=None):
     from finance_draft_fields import customer_values
@@ -1942,7 +1969,9 @@ MAX_COMMITMENT_OCCURRENCES = 1000
 
 def report_period(start_date, end_date):
     start,end = _period(start_date,end_date)
-    if (date.fromisoformat(end)-date.fromisoformat(start)).days+1 > 366:
+    # Long-range reports are allowed (including "Semua waktu"). Row-level
+    # report limits still protect exports/queries; this only rejects absurd spans.
+    if (date.fromisoformat(end)-date.fromisoformat(start)).days+1 > 7305:
         raise FinanceError('report_range')
     return start,end
 
@@ -1953,7 +1982,7 @@ def report_months(start_month, end_month):
     start,end = _period(start_month+'-01',end_month+'-01')
     a,b = date.fromisoformat(start),date.fromisoformat(end)
     count = (b.year-a.year)*12+b.month-a.month+1
-    if count>12:
+    if count>240:
         raise FinanceError('report_range')
     return [f'{(a.year*12+a.month-1+n)//12:04d}-{(a.month-1+n)%12+1:02d}' for n in range(count)]
 
