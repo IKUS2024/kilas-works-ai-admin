@@ -174,3 +174,5 @@
   .finance-account-hb-group-summary-right .finance-account-negative{display:none}
   .finance-account-detail-balance .finance-account-negative{max-width:180px;font-size:8.5px!important}
 }
+
+.finance-account-balance-negative{color:var(--red,#ef6262)!important}
