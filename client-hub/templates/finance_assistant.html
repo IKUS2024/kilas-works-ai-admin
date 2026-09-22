@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Kilas Finance AI{% endblock %}
-{% block content %}
+{% block finance_styles %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260920-context-agent-4') }}">
+{% endblock %}
+{% block content %}
+
 <main class="finance-assistant" id="finance-assistant">
 <header class="assistant-page-head">
   <a class="assistant-back" href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>

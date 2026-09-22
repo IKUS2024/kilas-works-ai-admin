@@ -1,6 +1,10 @@
 {% extends 'base.html' %}{% block title %}Statement Customer · Kilas Finance{% endblock %}
+{% block finance_styles %}
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice.css') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_collections.css') }}">
+{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice.css') }}"><link rel="stylesheet" href="{{ url_for('static',filename='finance_collections.css') }}">
+
 <div class="fin-page"><div class="card no-print invoice-controls invoice-share">
 <a href="{{ url_for('finance.collections',business_id=business.id) }}">← Penagihan</a>
 <a class="btn secondary" href="{{ url_for('finance.statement_print',business_id=business.id,customer_id=customer_id) }}" target="_blank" rel="noopener noreferrer">Print / Save as PDF</a>

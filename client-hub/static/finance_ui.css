@@ -1,3 +1,4 @@
+html:has(> body.finance-app){color-scheme:dark;scrollbar-gutter:stable}
 /* Finance-only presentation tokens. No Client Hub, public invoice or PDF styling. */
 body.finance-app{--bg:#0c1115;--bg-soft:#151e24;--card:#11191e;--border:#253038;--text:#eef1f4;--text-dim:#a5afb8;--muted:#a5afb8;--orange:#ff7a1a;--green:#3ecf8e;--red:#f16565;background:var(--bg);font-size:13px;line-height:1.45}
 .finance-app>.wrap.finance-app-main{width:calc(100% - 192px);max-width:1280px;padding:22px 26px 36px;margin:0 0 0 192px;min-width:0}

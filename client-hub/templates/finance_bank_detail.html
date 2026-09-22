@@ -1,4 +1,7 @@
-{% extends 'base.html' %}{% block title %}Review & Cocokkan Mutasi Bank{% endblock %}{% block content %}{% include '_finance_receivables_style.html' %}
+{% extends 'base.html' %}{% block title %}Review & Cocokkan Mutasi Bank{% endblock %}{% block finance_styles %}
+{% include '_finance_receivables_style.html' %}
+{% endblock %}
+{% block content %}
 <div class="fin-page"><a href="{{ url_for('finance.bank_index',business_id=business.id) }}">← Impor bank</a><h1>{{ imp.display_label }}</h1><p>Akun: {{ account.name if account else 'Tidak tersedia' }}{% if account %} · {{ account.currency }}{% endif %} · {{ imp.status }}</p>
 {% if imp.extraction.currencies %}<p>Bagian dokumen: {{ imp.extraction.currencies|join(', ') }}. Hanya {{ account.currency }} yang masuk rekening ini. Untuk bagian lain, unggah dokumen yang sama dan pilih rekening tujuannya.</p>{% endif %}
 <div class="fin-grid">{% for label,count in counts.items() %}<div class="card"><strong>{{ label }}</strong><p>{{ count }} baris</p></div>{% endfor %}</div>

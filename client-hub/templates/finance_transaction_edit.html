@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Edit Transaksi{% endblock %}
-{% block content %}
+{% block finance_styles %}
 <style>.finance-edit-actions{display:flex;gap:10px;flex-wrap:wrap}.finance-edit-actions form{margin:0}.finance-delete{color:var(--red)}[data-other-field][hidden]{display:none!important}</style>
+{% endblock %}
+{% block content %}
+
 <a href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
 <h1>Edit Transaksi</h1>
 <form method="post" class="card">

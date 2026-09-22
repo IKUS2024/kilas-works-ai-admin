@@ -1,9 +1,13 @@
 {% extends 'base.html' %}
 {% from '_finance_invoice_fields.html' import fields,sender,payment %}
 {% block title %}{{ 'Edit Invoice' if invoice else 'Buat Invoice' }} · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
+{% endblock %}
+{% block content %}
+
+
 <div class="fin-page invoice-editor">{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
 <h1>{{ 'Edit Invoice' if invoice else 'Buat Invoice' }}</h1>
 {% if invoice %}<p class="muted">{{ invoice.invoice_number }}</p>{% endif %}

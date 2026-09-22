@@ -1,7 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}Invoice & Piutang · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
+{% if section=='invoices' %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">{% endif %}
+{% endblock %}
+{% block content %}
+
 <div class="fin-page {{ 'invoice-workspace' if section=='invoices' else '' }}">
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
 {% if section!='invoices' %}
@@ -21,7 +25,7 @@
 </div>
 
 {% else %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
+
 <div class="fin-section-head"><h1>Invoice</h1><a data-finance-write class="btn" href="{{ url_for('finance.new_invoice',business_id=business.id) }}">+ Buat Invoice</a></div>
 <div class="invoice-counts"><span>Aktif {{ invoice_count }}</span><span>Terlambat {{ summary.overdue_invoice_count }}</span><span>Lunas {{ paid_invoice_count }}</span></div>
 <nav class="invoice-compact-nav"><a href="{{ url_for('finance.invoice_settings',business_id=business.id) }}" data-finance-write>Pengaturan Invoice</a><a href="{{ url_for('finance.receivables',business_id=business.id,section='summary') }}">Ringkasan</a><a href="{{ url_for('finance.receivables',business_id=business.id,section='customers') }}">Customer</a><a href="{{ url_for('finance.collections',business_id=business.id,section='queue') }}">Penagihan</a></nav>

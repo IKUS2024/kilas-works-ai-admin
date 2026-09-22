@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Penerima · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-homebudget-1') }}">
 <style>
@@ -41,6 +41,11 @@
   .fin-payee-actions .finance-mini-action{padding:6px 7px;font-size:9.5px}
 }
 </style>
+{% endblock %}
+{% block content %}
+
+
+
 <div class="fin-page fin-payees-page">
 {% set active_finance_area='payees' %}{% include '_finance_area_nav.html' %}
 

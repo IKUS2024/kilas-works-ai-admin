@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Scan Struk · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
+{% endblock %}
+{% block content %}
+
 <div class="fin-page">
 <a href="{{ url_for('finance.dashboard', business_id=business.id) }}">← Finance / Form Pengeluaran Manual</a>
 <h1>Scan Struk / Receipt</h1>

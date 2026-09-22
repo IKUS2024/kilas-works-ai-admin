@@ -1,8 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Anggaran · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-budget-subcats-1') }}">
+{% endblock %}
+{% block content %}
+
+
 <div class="fin-page finance-budget-homebudget">
 {% set active_finance_area='budget' %}{% include '_finance_area_nav.html' %}
 

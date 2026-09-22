@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Laporan Finance · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 <style>
 .report-page{max-width:980px;margin:0 auto}
@@ -122,6 +122,10 @@
   .report-note{color:#333;border-color:#bbb;background:#fff}.muted{color:#444!important}
 }
 </style>
+{% endblock %}
+{% block content %}
+
+
 
 {% macro report_table(rows,columns) %}
   {% if rows %}

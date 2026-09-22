@@ -1,7 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Penagihan · Kilas Finance{% endblock %}
-{% block content %}
+{% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
+{% endblock %}
+{% block content %}
+
 <div class="fin-page">
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
 <h1 class="fin-page-title">Penagihan</h1>
