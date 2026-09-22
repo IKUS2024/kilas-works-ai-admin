@@ -509,8 +509,7 @@
 <div class="finance-category-quick" data-category-quick-add data-category-create-url="{{ url_for('finance.create_category',business_id=business.id) }}" data-category-branch="{{ selected_branch_id or '' }}">
 <label for="transaction-category">Kategori</label><select id="transaction-category" name="category_id" data-other-category required><option value="" data-category-placeholder selected disabled>Pilih kategori</option>{% for c in categories if c.is_active and not c.parent_category_id %}<option value="{{ c.id }}" data-direction="{{ c.direction }}" data-other="{{ 'true' if c.name in ('Lainnya','Pendapatan Lain','Pengeluaran Lain') else 'false' }}">{{ 'Lainnya' if c.name in ('Pendapatan Lain','Pengeluaran Lain') else c.name }}</option>{% endfor %}</select>
 <label class="finance-subcategory-field" data-subcategory-field hidden>Subkategori
-  <select name="subcategory_id" data-subcategory-select>
-    <option value="">Pilih subkategori</option>
+  <select name="subcategory_id" data-subcategory-select aria-label="Subkategori">
     {% for c in categories if c.is_active and c.parent_category_id %}
     <option value="{{ c.id }}" data-parent-id="{{ c.parent_category_id }}" data-direction="{{ c.direction }}">{{ c.name }}</option>
     {% endfor %}
@@ -585,5 +584,5 @@
 <div class="finance-record-list" data-category-record-list>{% for c in categories if c.is_active %}<div class="finance-record-row" data-finance-category-record="{{ c.id }}" data-category-direction="{{ c.direction }}" data-category-parent-id="{{ c.parent_category_id or '' }}" data-category-parent-name="{{ c.parent_name or '' }}"><div class="finance-record-main"><strong>{{ c.name }}</strong><div class="finance-record-sub">{{ 'Pemasukan' if c.direction == 'INCOME' else 'Pengeluaran' }}{% if c.parent_name %} · Subkategori {{ c.parent_name }}{% endif %}{{ ' · Nonaktif' if not c.is_active }}</div></div>{% with kind='category',item=c %}{% include '_finance_record_actions.html' %}{% endwith %}</div>{% endfor %}</div>
 </div></dialog>
 {% endif %}
-</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-category-select-first-3') }}" defer></script>
+</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260922-subcategory-no-placeholder-4') }}" defer></script>
 {% endblock %}
