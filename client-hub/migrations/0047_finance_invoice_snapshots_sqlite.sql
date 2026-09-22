@@ -1,12 +1,12 @@
 -- Invoice-only identity snapshots, branch defaults and private revision history.
 ALTER TABLE finance_invoices ADD COLUMN document_snapshot TEXT;
 ALTER TABLE finance_invoices ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
-CREATE TABLE finance_invoice_settings (
+CREATE TABLE IF NOT EXISTS finance_invoice_settings (
  business_id INTEGER NOT NULL, branch_id INTEGER NOT NULL, defaults_json TEXT NOT NULL,
  updated_at TEXT NOT NULL, PRIMARY KEY(business_id,branch_id),
  FOREIGN KEY(business_id,branch_id) REFERENCES finance_branches(business_id,id) ON DELETE CASCADE
 );
-CREATE TABLE finance_invoice_revisions (
+CREATE TABLE IF NOT EXISTS finance_invoice_revisions (
  id INTEGER PRIMARY KEY AUTOINCREMENT, business_id INTEGER NOT NULL, invoice_id INTEGER NOT NULL,
  revision INTEGER NOT NULL, actor_user_id INTEGER REFERENCES users(id), created_at TEXT NOT NULL,
  fields_changed TEXT NOT NULL, before_json TEXT NOT NULL, after_json TEXT NOT NULL,
