@@ -664,23 +664,35 @@ def update_category_workspace_setting(business_id, category_id, name=None, deact
             (business_id, scope['scope_key'], current['direction'], clean, category_id))
         if duplicate:
             raise FinanceError('category_exists')
+        cascade_children = []
         if deactivate and current['is_active']:
-            active = db.query_one(
-                'SELECT COUNT(*) AS n FROM finance_category_workspace_settings s '
-                'JOIN finance_categories c ON c.business_id=s.business_id AND c.id=s.category_id '
-                'WHERE s.business_id=? AND s.scope_key=? AND c.direction=? AND s.is_active=TRUE',
-                (business_id, scope['scope_key'], current['direction']))
-            if active['n'] <= 1:
+            active_roots = list_categories(
+                business_id, current['direction'], include_children=False,
+                actor_user_id=actor_user_id)
+            deleting_root = any(row['id'] == category_id for row in active_roots)
+            if deleting_root and len(active_roots) <= 1:
                 raise FinanceError('category_last_active')
-            if list_category_children(
-                    business_id, category_id, actor_user_id=actor_user_id):
-                raise FinanceError('category_has_children')
-            if db.query_one(
-                ('SELECT 1 FROM finance_recurring_expenses r '
-                 'WHERE r.business_id=?' + branches.predicate('r') +
-                 ' AND r.category_id=? AND r.is_active=TRUE LIMIT 1'),
-                (business_id, category_id)):
-                raise FinanceError('category_in_use')
+
+            cascade_children = list_category_children(
+                business_id, category_id, actor_user_id=actor_user_id)
+            target_ids = [category_id] + [row['id'] for row in cascade_children]
+            for target_id in target_ids:
+                if db.query_one(
+                    ('SELECT 1 FROM finance_recurring_expenses r '
+                     'WHERE r.business_id=?' + branches.predicate('r') +
+                     ' AND r.category_id=? AND r.is_active=TRUE LIMIT 1'),
+                    (business_id, target_id)):
+                    raise FinanceError('category_in_use')
+
+            for child in cascade_children:
+                db.execute(
+                    'UPDATE finance_category_workspace_settings '
+                    'SET is_active=FALSE,updated_at=? '
+                    'WHERE business_id=? AND category_id=? AND scope_key=?',
+                    (repo._now(), business_id, child['id'], scope['scope_key']))
+                _audit(
+                    business_id, actor_user_id,
+                    'FINANCE_CATEGORY_DEACTIVATED', child['id'])
         db.execute(
             'UPDATE finance_category_workspace_settings '
             'SET display_name=?,is_active=?,updated_at=? '
