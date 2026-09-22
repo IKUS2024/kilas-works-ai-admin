@@ -739,13 +739,40 @@ def dashboard(business_id, user, business):
     transaction_account = next(
         (item for item in account_balance_rows if item['id'] == transaction_account_id), None)
 
+    # Direction pages are category-first. Clicking a top-level category drills into
+    # that category plus its subcategories without changing the overall period total.
+    selected_category_id = None
+    selected_ledger_category = None
+    selected_category_ids = None
+    if show_transactions and direction:
+        raw_category_id = request.args.get('category_id')
+        if raw_category_id:
+            try:
+                candidate_category_id = record_id(raw_category_id)
+            except finance.FinanceError:
+                candidate_category_id = None
+            category_lookup = {item['id']: item for item in all_categories}
+            candidate = category_lookup.get(candidate_category_id)
+            if candidate and candidate['direction'] == direction:
+                parent_id = candidate.get('parent_category_id') or candidate['id']
+                parent = category_lookup.get(parent_id)
+                if parent and parent['direction'] == direction:
+                    selected_category_id = parent_id
+                    selected_ledger_category = parent
+                    selected_category_ids = [parent_id] + [
+                        item['id'] for item in all_categories
+                        if item.get('parent_category_id') == parent_id
+                        and item['direction'] == direction
+                    ]
+
     transaction_page_size = 10
     transaction_page = 1
     transaction_total = 0
     transaction_page_count = 1
     transaction_page_items = [1]
     transactions = []
-    if show_transactions:
+    load_transactions = show_transactions and (not direction or selected_category_id is not None)
+    if load_transactions:
         try:
             transaction_page = int(request.args.get('page', '1'))
             if transaction_page < 1 or transaction_page > 100000:
@@ -754,7 +781,8 @@ def dashboard(business_id, user, business):
             transaction_page = 1
         transaction_total = finance.count_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
-            status='POSTED', account_id=transaction_account_id, **actor)
+            status='POSTED', account_id=transaction_account_id,
+            category_ids=selected_category_ids, **actor)
         transaction_page_count = max(1, (transaction_total + transaction_page_size - 1) // transaction_page_size)
         if transaction_page > transaction_page_count:
             target = transaction_page_count
@@ -763,10 +791,13 @@ def dashboard(business_id, user, business):
                 args['direction'] = direction
             if transaction_account_id:
                 args['account_id'] = transaction_account_id
+            if selected_category_id:
+                args['category_id'] = selected_category_id
             return redirect(url_for('finance.dashboard', business_id=business_id, **args))
         transactions = [dict(row) for row in finance.list_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
-            status='POSTED', account_id=transaction_account_id, limit=transaction_page_size,
+            status='POSTED', account_id=transaction_account_id,
+            category_ids=selected_category_ids, limit=transaction_page_size,
             offset=(transaction_page - 1) * transaction_page_size, **actor)]
         for row in transactions:
             converted = finance_fx.convert_total(
@@ -793,6 +824,13 @@ def dashboard(business_id, user, business):
         transaction_query['direction'] = direction
     if transaction_account_id:
         transaction_query['account_id'] = transaction_account_id
+    if selected_category_id:
+        transaction_query['category_id'] = selected_category_id
+    ledger_category_query = dict(period_query, branch_id=branch_value, view='transactions')
+    if direction:
+        ledger_category_query['direction'] = direction
+    if transaction_account_id:
+        ledger_category_query['account_id'] = transaction_account_id
 
     # Direction pages are intentionally category-first: every active main category is
     # visible (including Rp0), while posted subcategory transactions roll up into the
@@ -929,7 +967,9 @@ def dashboard(business_id, user, business):
         transaction_limit=transaction_page_size, transaction_page_size=transaction_page_size,
         transaction_page=transaction_page, transaction_total=transaction_total,
         transaction_page_count=transaction_page_count, transaction_page_items=transaction_page_items,
-        transaction_query=transaction_query, ledger_category_rows=ledger_category_rows,
+        transaction_query=transaction_query, ledger_category_query=ledger_category_query,
+        ledger_category_rows=ledger_category_rows, selected_category_id=selected_category_id,
+        selected_ledger_category=selected_ledger_category,
         balances=balances, balance_totals=balance_totals, balance_total=balance_total,
         estimated_balance_idr=estimated_balance_idr, fx=fx, balance_displays=balance_displays,
         balance_total_display=balance_total_display, period_income_display=period_income_display,
