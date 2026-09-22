@@ -1947,7 +1947,7 @@ def process_recurring(business_id,user,business):
 def report_error(error):
     if str(error) in ('report_limit','forecast_limit'):
         return 'Data laporan terlalu banyak. Persempit rentang tanggal atau komitmen biaya rutin.'
-    return 'Filter laporan belum valid. Gunakan tanggal yang benar, maksimal 366 hari dan 12 bulan.'
+    return 'Filter laporan belum valid. Gunakan rentang tanggal yang benar dan tidak melewati hari ini.'
 
 
 @finance_bp.route('/business/<int:business_id>/finance/reports')
@@ -1960,7 +1960,9 @@ def reports(business_id,user,business):
     if personal and section in ('receivables','analysis','customers','projects'):
         section = 'summary'
     try:
-        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
+        filters=finance_reports.parse_filters(
+            request.args,today=finance.business_today(business_id),
+            business_id=business_id,actor_user_id=user['id'])
         actor={'actor_user_id':user['id']}
         allowed = (
             ('category_breakdown','accounts','recurring_commitments')
@@ -1987,7 +1989,9 @@ def reports(business_id,user,business):
 def report_pdf(business_id,user,business):
     personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
     try:
-        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
+        filters=finance_reports.parse_filters(
+            request.args,today=finance.business_today(business_id),
+            business_id=business_id,actor_user_id=user['id'])
         actor={'actor_user_id':user['id']}
         allowed = (
             ('category_breakdown','accounts','recurring_commitments')
@@ -2018,7 +2022,9 @@ def report_csv(business_id,user,business,report_name):
             and report_name in ('invoices','customers','projects','receivables_aging')):
         abort(404)
     try:
-        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
+        filters=finance_reports.parse_filters(
+            request.args,today=finance.business_today(business_id),
+            business_id=business_id,actor_user_id=user['id'])
         data=finance_reports.export_csv(report_name,business_id,filters,user['id'])
     except finance.FinanceError as error:
         return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
@@ -2031,7 +2037,9 @@ def report_csv(business_id,user,business,report_name):
 @finance_access
 def report_zip(business_id,user,business):
     try:
-        filters=finance_reports.parse_filters(request.args,today=finance.business_today(business_id))
+        filters=finance_reports.parse_filters(
+            request.args,today=finance.business_today(business_id),
+            business_id=business_id,actor_user_id=user['id'])
         data=finance_reports.export_zip(business_id,filters,user['id'])
     except finance.FinanceError as error:
         return Response(report_error(error),status=400,mimetype='text/plain',headers={'Cache-Control':'no-store'})
