@@ -168,6 +168,7 @@ ERRORS = {
     'category_parent_mismatch': 'Hubungan kategori dan subkategori belum valid.',
     'subcategory_required': 'Pilih subkategori untuk kategori ini.',
     'subcategory_unavailable': 'Subkategori tidak tersedia untuk kategori yang dipilih.',
+    'category_has_children': 'Hapus subkategori aktif di bawah kategori ini terlebih dahulu.',
     'project_unavailable': 'Proyek tidak tersedia untuk bisnis ini.',
     'payee_unavailable': 'Penerima tidak tersedia.',
     'payee_exists': 'Nama penerima tersebut sudah ada.',
@@ -1328,19 +1329,43 @@ def create_category(business_id, user, business):
 
     def active_options():
         return [
-            {'id': row['id'], 'name': row['name'], 'direction': row['direction']}
+            {
+                'id': row['id'],
+                'name': row['name'],
+                'direction': row['direction'],
+                'parent_category_id': row.get('parent_category_id'),
+                'parent_name': row.get('parent_name'),
+            }
             for row in finance.list_categories(
-                business_id, direction, actor_user_id=user['id'])
+                business_id, direction, include_children=True,
+                actor_user_id=user['id'])
         ]
 
     try:
         if action == 'create':
+            parent_value = request.form.get('parent_category_id')
+            parent_category_id = record_id(parent_value) if parent_value else None
             category_id = finance.create_category(
                 business_id, direction, request.form.get('name'),
+                parent_category_id=parent_category_id,
                 actor_user_id=user['id'])
             category = next((
                 row for row in finance.list_categories(
-                    business_id, direction, actor_user_id=user['id'])
+                    business_id, direction, include_children=True,
+                    actor_user_id=user['id'])
+                if row['id'] == category_id
+            ), None)
+            if category is None:
+                raise finance.FinanceError('category_unavailable')
+        elif action == 'edit':
+            category_id = record_id(request.form.get('category_id'))
+            finance.update_category_workspace_setting(
+                business_id, category_id, name=request.form.get('name'),
+                actor_user_id=user['id'])
+            category = next((
+                row for row in finance.list_categories(
+                    business_id, direction, include_children=True,
+                    actor_user_id=user['id'])
                 if row['id'] == category_id
             ), None)
             if category is None:
@@ -1350,7 +1375,7 @@ def create_category(business_id, user, business):
             category = next((
                 row for row in finance.list_categories(
                     business_id, direction, include_inactive=True,
-                    actor_user_id=user['id'])
+                    include_children=True, actor_user_id=user['id'])
                 if row['id'] == category_id
             ), None)
             if category is None:
@@ -1361,31 +1386,40 @@ def create_category(business_id, user, business):
         else:
             abort(400)
     except finance.FinanceError as error:
+        message = ERRORS.get(
+            str(error), 'Kategori belum valid. Periksa pilihan dan coba lagi.')
         if ajax:
-            return jsonify(error=ERRORS.get(
-                str(error), 'Kategori belum valid. Periksa pilihan dan coba lagi.')), 400
-        flash(ERRORS.get(str(error), 'Kategori belum valid. Periksa pilihan dan coba lagi.'), 'error')
+            return jsonify(error=message), 400
+        flash(message, 'error')
         return redirect(url_for(
             'finance.dashboard', business_id=business_id,
             branch_id=g.finance_branch_id or 'all'), code=303)
 
     if ajax:
         payload = {'options': active_options()}
-        if action == 'create':
+        if action in ('create', 'edit'):
             payload['category'] = {
                 'id': category['id'],
                 'name': category['name'],
                 'direction': category['direction'],
+                'parent_category_id': category.get('parent_category_id'),
+                'parent_name': category.get('parent_name'),
             }
-            payload['message'] = 'Kategori ditambahkan dan langsung dipilih.'
-            return jsonify(payload), 201
+            payload['message'] = (
+                'Kategori ditambahkan dan langsung dipilih.'
+                if action == 'create' else
+                'Nama kategori diperbarui.'
+            )
+            return jsonify(payload), 201 if action == 'create' else 200
         payload['message'] = 'Kategori dihapus dari daftar aktif. Riwayat lama tetap aman.'
         return jsonify(payload)
 
     return mutate(
         business_id,
         lambda: None,
-        'Kategori siap digunakan.' if action == 'create' else 'Kategori dihapus dari daftar aktif.')
+        'Kategori siap digunakan.' if action == 'create' else
+        ('Perubahan kategori disimpan.' if action == 'edit'
+         else 'Kategori dihapus dari daftar aktif.'))
 
 
 INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dibayar sebagian','PAID':'Lunas','VOID':'Dibatalkan'}
