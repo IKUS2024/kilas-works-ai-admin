@@ -80,12 +80,46 @@ def logout_page():
     return redirect(url_for("auth.login_page"))
 
 
+def _account_businesses(user):
+    """Account-page projection only; never creates Finance businesses/branches or touches ledgers."""
+    if user["role"] == "KILAS_ADMIN":
+        return []
+    import finance_branches as branches
+    import finance_invoice_editor as invoice_editor
+
+    result = []
+    for raw in repo.list_businesses_for_user(user["id"]):
+        business = dict(raw)
+        business["business_email"] = repo.get_business_owner_email(business["id"]) or user["email"]
+        business["profile"] = dict(repo.get_business_profile(business["id"]) or {})
+        finance_rows = []
+        for raw_branch in branches.list_branches(
+                business["id"], user["id"], workspace_type="BUSINESS"):
+            if not raw_branch["is_active"]:
+                continue
+            branch = dict(raw_branch)
+            with branches.scope(business["id"], branch["id"], user["id"]):
+                defaults = invoice_editor.defaults(business["id"], user["id"])
+            sender = dict(defaults.get("sender") or {})
+            sender["email"] = business["business_email"]
+            branch["invoice_sender"] = sender
+            branch["invoice_payment"] = dict(defaults.get("payment") or {})
+            finance_rows.append(branch)
+        business["finance_branches"] = finance_rows
+        result.append(business)
+    return result
+
+
+def _account_business_redirect():
+    return redirect(url_for("auth.account_page") + "#business", code=303)
+
+
 @auth_bp.route("/account", methods=["GET", "POST"])
 @security.login_required
 def account_page():
     """Simple self-service account page: profile name, password, and logout entrypoint."""
     user = security.current_user()
-    businesses = repo.list_businesses_for_user(user["id"]) if user["role"] != "KILAS_ADMIN" else []
+    businesses = _account_businesses(user)
     if request.method == "GET":
         return render_template("account.html", user=user, businesses=businesses, password_open=False)
 
@@ -99,6 +133,108 @@ def account_page():
         repo.write_audit_no_business(user["id"], "ACCOUNT_PROFILE_UPDATED", "self-service profile name updated")
         flash("Nama akun berhasil diperbarui.", "success")
         return redirect(url_for("auth.account_page"))
+
+    if action == "business_identity":
+        try:
+            business_id = int(request.form.get("business_id") or "")
+        except (TypeError, ValueError):
+            flash("Bisnis tidak valid.", "error")
+            return _account_business_redirect()
+        business = security.require_business_access(business_id, user=user)
+        name = (request.form.get("business_name") or "").strip()
+        if not name or len(name) > 160:
+            flash("Nama bisnis wajib diisi dan maksimal 160 karakter.", "error")
+            return _account_business_redirect()
+        repo.update_business_identity(business_id, name, user["id"])
+        import finance_invoice_editor as invoice_editor
+        invoice_editor.sync_sender_identity(business_id, name, user["id"])
+        if business.get("package") != "NONE":
+            repo.set_business_stale_if_done(business_id)
+        flash("Nama bisnis diperbarui. Invoice lama tetap memakai data saat diterbitkan.", "success")
+        return _account_business_redirect()
+
+    if action == "business_branch":
+        try:
+            business_id = int(request.form.get("business_id") or "")
+            branch_id = int(request.form.get("branch_id") or "")
+        except (TypeError, ValueError):
+            flash("Bisnis atau cabang tidak valid.", "error")
+            return _account_business_redirect()
+        business = security.require_business_access(business_id, user=user)
+
+        import finance_branches as branches
+        import finance_invoice_editor as invoice_editor
+        import finance_service as finance
+
+        try:
+            branch = branches.get(business_id, branch_id, active=True, actor_user_id=user["id"])
+        except finance.FinanceError:
+            flash("Cabang Finance tidak tersedia.", "error")
+            return _account_business_redirect()
+        if branch.get("workspace_type") != "BUSINESS":
+            flash("Data bisnis hanya dapat diubah pada cabang bisnis.", "error")
+            return _account_business_redirect()
+
+        branch_name = (request.form.get("branch_name") or "").strip()
+        if not branch_name or len(branch_name) > 160:
+            flash("Nama cabang wajib diisi dan maksimal 160 karakter.", "error")
+            return _account_business_redirect()
+
+        sender = {
+            "name": business["business_name"],
+            "address": (request.form.get("address") or "").strip(),
+            "phone": (request.form.get("business_phone") or "").strip(),
+            # Never trust a submitted email: business owner login email is canonical.
+            "email": repo.get_business_owner_email(business_id) or user["email"],
+            "tax_id": (request.form.get("tax_id") or "").strip(),
+            "website": (request.form.get("website") or "").strip(),
+        }
+        payment = {
+            "method": (request.form.get("payment_method") or "").strip(),
+            "bank": (request.form.get("payment_bank_name") or "").strip(),
+            "account_number": (request.form.get("payment_account_number") or "").strip(),
+            "account_holder": (request.form.get("payment_account_name") or "").strip(),
+            "instructions": (request.form.get("payment_instructions") or "").strip(),
+        }
+        if not sender["address"] or not sender["phone"]:
+            flash("Alamat dan nomor telepon bisnis wajib diisi untuk data invoice.", "error")
+            return _account_business_redirect()
+        try:
+            # Validate all lengths/shape before the first write.
+            invoice_editor.clean_document(dict(
+                sender=sender, payment=payment, recipient={"name": "-"}))
+            with branches.scope(business_id, branch_id, user["id"]):
+                branches.update_record(
+                    business_id, "branch", branch_id, name=branch_name,
+                    actor_user_id=user["id"])
+                invoice_editor.save_defaults(
+                    business_id, {"sender": sender, "payment": payment}, user["id"])
+        except finance.FinanceError as error:
+            message = {
+                "branch_exists": "Nama cabang sudah digunakan.",
+                "invoice_sender_required": "Alamat dan nomor telepon bisnis wajib diisi.",
+            }.get(str(error), "Data bisnis belum valid. Periksa isian dan coba lagi.")
+            flash(message, "error")
+            return _account_business_redirect()
+
+        # Preserve the legacy business-profile fallback from the default Finance branch.
+        if branch["is_default"]:
+            repo.upsert_business_profile(business_id, {
+                "address": sender["address"],
+                "business_phone": sender["phone"],
+                "payment_bank_name": payment["bank"],
+                "payment_account_number": payment["account_number"],
+                "payment_account_name": payment["account_holder"],
+                "payment_instructions": payment["instructions"],
+            })
+            if business.get("package") != "NONE":
+                repo.set_business_stale_if_done(business_id)
+
+        repo.write_audit(
+            user["id"], business_id, "FINANCE_BUSINESS_PROFILE_UPDATED",
+            "customer account business/invoice profile updated; ledger unchanged")
+        flash("Data cabang dan invoice diperbarui. Invoice lama tidak berubah.", "success")
+        return _account_business_redirect()
 
     if action == "password":
         current_password = request.form.get("current_password") or ""
