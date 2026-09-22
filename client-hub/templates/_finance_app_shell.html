@@ -13,7 +13,7 @@
 ('payees','Penerima','people','payees',{}),
 ('reports','Laporan','chart','reports',{}),
 ('assistant','AI Finance','chat','assistant',{})] %}
-{% if not finance_workspace_personal or area not in ('invoices','assistant') %}<a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,**params) }}">{{ icon(symbol) }}{{ label }}</a>{% endif %}
+<a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,**params) }}">{{ icon(symbol) }}{{ label }}</a>
 {% endfor %}</nav>
 <nav class="finance-app-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-finance-ui-open="finance-help-dialog">{{ icon('help') }}Bantuan</button><a href="{{ url_for('client.dashboard') }}">← Keluar Finance</a></nav>
 </aside>
