@@ -3,7 +3,8 @@
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <div class="fin-page">
-<a class="no-print" href="{{ url_for('finance.receivables',business_id=business.id) }}">← Pelanggan &amp; Piutang</a>
+{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
+<a class="no-print" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice.css') }}">
 {% include '_finance_invoice_document.html' %}
 <div class="card no-print">
