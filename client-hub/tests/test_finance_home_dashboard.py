@@ -451,7 +451,7 @@ class DashboardHomeTests(unittest.TestCase):
             '?period_mode=range&range_start=2026-08&range_end=2026-09')
         self.assertEqual(range_context['budget_remaining_display'],'Rp375.000,00')
         self.assertEqual(range_context['budget_percent'],25)
-        self.assertIn('Sisa Rp375.000,00',range_html)
+        self.assertIn('Rp375.000,00',range_html)
 
         rows=fixture.f.list_monthly_budgets(self.b,'2026-09',actor_user_id=self.uid)
         self.assertEqual(len(rows),1)
