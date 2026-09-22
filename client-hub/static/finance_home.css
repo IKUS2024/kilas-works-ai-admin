@@ -164,3 +164,13 @@
   .finance-account-hb-group-summary-right>strong{font-size:13px}
   .finance-account-hb-group-accounts{padding-left:8px}
 }
+
+
+.finance-account-negative{display:block;color:var(--red,#ef6262);font-size:9px!important;font-style:normal;font-weight:800;line-height:1.2;white-space:nowrap}
+.finance-account-hb-group-summary-right .finance-account-negative{margin-left:-3px}
+.finance-account-hb-row-balance .finance-account-negative{margin-top:2px;text-align:right}
+.finance-account-detail-balance .finance-account-negative{max-width:240px;white-space:normal;text-align:right}
+@media(max-width:700px){
+  .finance-account-hb-group-summary-right .finance-account-negative{display:none}
+  .finance-account-detail-balance .finance-account-negative{max-width:180px;font-size:8.5px!important}
+}
