@@ -66,7 +66,7 @@ class FinalFlowTests(unittest.TestCase):
     def test_not_activated_read_only(self):
         self.assertFalse(e.state(self.b)['active']);self.assertEqual(self.client.get(self.url).status_code,200)
         with self.assertRaises(f.FinanceError):self.tx()
-    def test_finance_workspace_chooser_keeps_legacy_data_in_business_and_personal_separate(self):
+    def test_finance_workspace_entry_skips_chooser_keeps_legacy_data_in_business_and_personal_separate(self):
         import finance_branches as branches
         self.trial()
         business_branch=branches.list_branches(
@@ -80,11 +80,10 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(mapping['workspace_type'],'BUSINESS')
         self.assertIsNone(mapping['owner_user_id'])
 
-        chooser=self.client.get(f'/business/{self.b}/finance/workspaces')
-        self.assertEqual(chooser.status_code,200)
-        self.assertIn('Buka Finance Bisnis',chooser.text)
-        self.assertIn('Buka Finance Pribadi',chooser.text)
-        self.assertIn('Data lama aman di sini',chooser.text)
+        entry=self.client.get(f'/business/{self.b}/finance/workspaces')
+        self.assertEqual(entry.status_code,303)
+        self.assertIn(f'/business/{self.b}/finance',entry.location)
+        self.assertIn(f'branch_id={business_branch["id"]}',entry.location)
 
         entered=self.client.post(
             f'/business/{self.b}/finance/workspaces/PERSONAL')
@@ -177,6 +176,33 @@ class FinalFlowTests(unittest.TestCase):
                 f'/business/{self.b}/finance/{path}?branch_id={personal[0]["id"]}')
             self.assertEqual(blocked.status_code,303)
             self.assertIn('/finance',blocked.location)
+
+    def test_first_finance_onboarding_only_asks_owner_name_and_locked_email(self):
+        email='finance-first@example.test';password='password123'
+        repo.create_user(email,security.hash_password(password),role='CLIENT_OWNER',full_name='Finance First')
+        client=app.test_client()
+        self.assertEqual(client.post('/login',data={'email':email,'password':password}).status_code,302)
+        self.assertEqual(client.post('/products/select',data={'product':'finance'}).status_code,303)
+        page=client.get('/products/continue')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('Mulai Kilas Finance',page.text)
+        self.assertIn('name="owner_name"',page.text)
+        self.assertIn(email,page.text)
+        self.assertIn('readonly',page.text)
+        self.assertNotIn('Pilih ruang Finance',page.text)
+        import re
+        match=re.search(r'name="setup_identity" value="([a-f0-9]{32})"',page.text)
+        self.assertIsNotNone(match)
+        started=client.post('/products/continue',data={
+            'create':'yes','setup_identity':match.group(1),'owner_name':'Nama Finance Baru'
+        })
+        self.assertEqual(started.status_code,303)
+        opened=client.get(started.location)
+        self.assertEqual(opened.status_code,303)
+        self.assertIn('/finance',opened.location)
+        self.assertNotIn('/finance/workspaces',opened.location)
+        saved=repo.get_user_by_email(email)
+        self.assertEqual(saved['full_name'],'Nama Finance Baru')
 
     def test_trial_exact_seven_days(self):
         self.trial();self.assertEqual(e.parse(e.state(self.b)['until'])-self.time.return_value,timedelta(days=7))
