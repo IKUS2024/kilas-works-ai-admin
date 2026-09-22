@@ -691,6 +691,11 @@ def dashboard(business_id, user, business):
         budget_expense_minor = finance_fx.convert_total(
             budget_summaries, display_currency, fx, field='total_expense_minor'
         ) if budget_summaries else 0
+    budget_used_display = ('Rp0,00' if display_currency == 'IDR' else finance_fx.format_money(0, display_currency))
+    if budget_expense_minor is None:
+        budget_used_display = 'Kurs belum lengkap'
+    else:
+        budget_used_display = finance_fx.format_money(budget_expense_minor, display_currency)
     budget_remaining_minor = (None if not budget_rows or budget_total_minor is None or budget_expense_minor is None
                               else budget_total_minor - budget_expense_minor)
     budget_remaining_display = ('Belum diatur' if not budget_rows else
@@ -969,6 +974,7 @@ def dashboard(business_id, user, business):
         period_expense_display_fraction=period_expense_display_fraction,
         fx_status_label=fx_status_label,
         budget_rows=budget_rows, budget_total_display=budget_total_display,
+        budget_used_display=budget_used_display,
         budget_remaining_display=budget_remaining_display, budget_percent=budget_percent,
         display_currency=display_currency, display_options=display_options,
         exchanges=finance.list_currency_exchanges(business_id,user['id'],50),
