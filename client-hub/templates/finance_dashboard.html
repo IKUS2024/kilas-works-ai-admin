@@ -331,16 +331,11 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 {% for type_label in account_type_group_labels %}
   {% set type_rows = account_balance_rows|selectattr('account_type_label','equalto',type_label)|list %}
   {% if type_rows %}
-  {% set group = namespace(total=0,complete=true) %}
-  {% for a in type_rows %}
-    {% if a.display_balance_minor is none %}{% set group.complete = false %}{% else %}{% set group.total = group.total + a.display_balance_minor %}{% endif %}
-  {% endfor %}
   <details class="finance-account-hb-group">
     <summary class="finance-account-hb-group-head">
       <span>{{ type_label }}</span>
       <span class="finance-account-hb-group-summary-right">
-        <strong>{{ (group.total|finance_money(display_currency)) if group.complete else 'Kurs belum lengkap' }}</strong>
-        {% if group.complete and group.total < 0 %}<em class="finance-account-negative">Saldo negatif</em>{% endif %}
+        <strong>{{ type_rows|length }} akun</strong>
         <i class="finance-account-hb-group-chevron" aria-hidden="true">⌄</i>
       </span>
     </summary>
@@ -355,7 +350,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
         {% endif %}
       </div>
       <div class="finance-account-hb-row-balance">
-        <strong>{{ a.display_balance_value }}</strong>
+        <strong class="{{ 'finance-account-balance-negative' if a.display_balance_minor is not none and a.display_balance_minor < 0 else '' }}">{{ a.display_balance_value }}</strong>
         {% if a.display_balance_minor is not none and a.display_balance_minor < 0 %}<small class="finance-account-negative">Saldo negatif</small>{% endif %}
         <span aria-hidden="true">›</span>
       </div>
