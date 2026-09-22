@@ -13,7 +13,7 @@
 <section class="card finance-available" aria-label="Saldo tersedia">
 <div class="finance-section-heading"><h2>Saldo tersedia</h2>
 {% if display_options|length > 1 %}<form method="get" class="finance-display-currency" data-finance-live-form><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="period_mode" value="month"><label>Mata uang<select name="display_currency" data-finance-live-currency>{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></label></form>{% else %}<span class="finance-display-chip">{{ display_currency }}</span>{% endif %}</div>
-<strong class="finance-combined-balance">{{ balance_total_display }}</strong>
+<strong class="finance-combined-balance">{{ budget_total_display }}</strong>
 <div class="finance-available-gauge" aria-label="Pengeluaran {{ budget_percent }} persen dari anggaran">
   <span class="finance-available-gauge-label">Pengeluaran dari Anggaran</span>
   <svg viewBox="0 0 200 108" role="img" aria-hidden="true">
