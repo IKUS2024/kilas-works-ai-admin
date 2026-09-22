@@ -1035,9 +1035,19 @@ def _transaction_category_ids(category_ids):
     return tuple(dict.fromkeys(_id(value) for value in category_ids))
 
 
+def _transaction_search(search):
+    """One parameterized literal-text filter shared by the list and its count."""
+    term = str(search or '').strip()[:160].lower()
+    if not term:
+        return '', []
+    term = '%' + term.replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+    columns = ('description', 'counterparty_name')
+    return ' AND (' + ' OR '.join("LOWER(COALESCE(" + column + ", '')) LIKE ? ESCAPE '!'" for column in columns) + ')', [term] * len(columns)
+
+
 def list_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
                       account_id=None, customer_id=None, project_id=None, category_id=None,
-                      category_ids=None, currency=None, limit=100, offset=0, actor_user_id=None):
+                      category_ids=None, currency=None, search=None, limit=100, offset=0, actor_user_id=None):
     _scope(business_id, actor_user_id)
     if type(limit) is not int or not 1 <= limit <= 1000 or type(offset) is not int or offset < 0:
         raise FinanceError('invalid_pagination')
@@ -1064,12 +1074,15 @@ def list_transactions(business_id, *, start_date=None, end_date=None, direction=
         sql += ' AND category_id IN (' + ','.join('?' for _ in normalized_category_ids) + ')'
         params.extend(normalized_category_ids)
     if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
+    search_sql, search_params = _transaction_search(search)
+    sql += search_sql
+    params.extend(search_params)
     return db.query_all(sql + ' ORDER BY occurred_on DESC,id DESC LIMIT ? OFFSET ?', params + [limit, offset])
 
 
 def count_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
                        account_id=None, customer_id=None, project_id=None, category_id=None,
-                       category_ids=None, currency=None, actor_user_id=None):
+                       category_ids=None, currency=None, search=None, actor_user_id=None):
     """Count the same scoped transaction set used by list_transactions without materializing rows."""
     _scope(business_id, actor_user_id)
     sql, params = ('SELECT COUNT(*) AS n FROM finance_transactions WHERE business_id=?' + branches.predicate()), [business_id]
@@ -1095,6 +1108,9 @@ def count_transactions(business_id, *, start_date=None, end_date=None, direction
         sql += ' AND category_id IN (' + ','.join('?' for _ in normalized_category_ids) + ')'
         params.extend(normalized_category_ids)
     if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
+    search_sql, search_params = _transaction_search(search)
+    sql += search_sql
+    params.extend(search_params)
     row = db.query_one(sql, params)
     return int(row['n']) if row else 0
 

@@ -93,7 +93,7 @@
       if (!incoming.querySelector(homeSelector)) throw new Error('finance_live_fragment_missing');
 
       syncMonthNav(incoming);
-      for (const selector of ['.finance-dashboard-data', '.finance-dashboard-currency', '.finance-dashboard-search-results', '.finance-dashboard-sidebar']) swap(selector, incoming);
+      for (const selector of ['.finance-dashboard-data', '.finance-dashboard-search-results', '.finance-app-sidebar', '.finance-context-toolbar']) swap(selector, incoming);
       // Keep the live dialog's existing change listeners; update values, not script-bearing HTML.
       const currentPeriod = document.querySelector('#period-dialog form');
       const nextPeriod = incoming.querySelector('#period-dialog form');
@@ -104,20 +104,22 @@
         }
         currentPeriod.querySelector('[name="period_mode"]')?.dispatchEvent(new Event('change', {bubbles:true}));
       }
-      const search = document.querySelector('.finance-dashboard-search');
-      const nextSearch = incoming.querySelector('.finance-dashboard-search');
+      const search = document.querySelector('.finance-app-search');
+      const nextSearch = incoming.querySelector('.finance-app-search');
       if (search && nextSearch) for (const field of search.elements) {
         const next = nextSearch.elements.namedItem(field.name);
         if (next && field.name) field.value = next.value;
       }
-      for (const field of document.querySelectorAll('.finance-dashboard-context input[type="hidden"]')) {
-        const next = incoming.querySelector(`.finance-dashboard-context input[name="${field.name}"]`);
+      for (const field of document.querySelectorAll('.finance-context-toolbar input[type="hidden"]')) {
+        const next = incoming.querySelector(`.finance-context-toolbar input[name="${field.name}"]`);
         if (next) field.value = next.value;
       }
       const periodDialog = document.getElementById('period-dialog');
       if (periodDialog?.open && typeof periodDialog.close === 'function') periodDialog.close();
 
       if (push) history.pushState({financeLive:true}, '', url);
+      document.body.dataset.financeMonth = incoming.body.dataset.financeMonth;
+      document.body.dataset.financeCurrency = incoming.body.dataset.financeCurrency;
       renderChart();
     } catch (error) {
       if (error?.name === 'AbortError') return;

@@ -338,7 +338,11 @@ def init_schema():
                 # statement-by-statement so repeat init_schema() calls can skip the two
                 # already-added columns while still repairing/creating the remaining
                 # invoice tables and applying the NULL-only legacy snapshot backfill.
-                for statement in script.split(';'):
+                # Full-line comments may contain semicolons and may precede ALTER.
+                # Strip only comment lines so repeat migrations recognize existing columns.
+                invoice_sql = '\n'.join(line for line in script.splitlines()
+                                        if not line.lstrip().startswith('--'))
+                for statement in invoice_sql.split(';'):
                     if not statement.strip():
                         continue
                     try:

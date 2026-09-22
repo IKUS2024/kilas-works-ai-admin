@@ -1,4 +1,5 @@
 """Read-only export/presentation builders. Standard library, no files or DB mutations."""
+import calendar
 import csv
 from datetime import date, timedelta
 import io
@@ -25,6 +26,13 @@ def parse_filters(args, today=None, business_id=None, actor_user_id=None):
 
     start=today.replace(day=1)
     end=today
+    # Dashboard/sidebar links carry a month. Explicit report ranges still win.
+    if args.get('month') and not any(args.get(key) for key in ('preset','start','end')):
+        try:
+            start=date.fromisoformat(args['month']+'-01')
+            end=min(date(start.year,start.month,calendar.monthrange(start.year,start.month)[1]),today)
+        except (ValueError, TypeError):
+            raise finance.FinanceError('report_range') from None
     if preset=='today':
         start=end=today
     elif preset=='last_month':

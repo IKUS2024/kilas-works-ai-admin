@@ -1,0 +1,196 @@
+/* Finance-only presentation tokens. No Client Hub, public invoice or PDF styling. */
+body.finance-app{--bg:#0c1115;--bg-soft:#151e24;--card:#11191e;--border:#253038;--text:#eef1f4;--text-dim:#a5afb8;--muted:#a5afb8;--orange:#ff7a1a;--green:#3ecf8e;--red:#f16565;background:var(--bg);font-size:13px;line-height:1.45}
+.finance-app>.wrap.finance-app-main{width:calc(100% - 192px);max-width:1280px;padding:22px 26px 36px;margin:0 0 0 192px;min-width:0}
+.finance-app>footer{display:none}
+.finance-app-sidebar{position:fixed;inset:0 auto 0 0;z-index:40;width:192px;padding:25px 13px 18px;background:#090f13;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.finance-app-brand{padding:0 13px 24px;color:var(--text);font-size:24px;font-weight:800;line-height:1.08;letter-spacing:.6px}
+.finance-app-brand span{display:block;color:var(--orange);font-size:20px}
+.finance-app-sidebar nav{display:grid;gap:5px}
+.finance-app-sidebar nav a,.finance-app-sidebar nav button{display:flex;align-items:center;gap:12px;min-height:43px;padding:10px 12px;border:1px solid transparent;border-radius:8px;background:none;color:var(--text-dim);font:inherit;text-align:left;text-decoration:none;cursor:pointer}
+.finance-app-sidebar nav :is(a,button):hover{color:var(--text);background:#151e24;text-decoration:none}
+.finance-app-sidebar nav a.active{color:var(--orange);background:#251b14;border-color:#3c291c}
+.finance-app-sidebar .finance-app-sidebar-bottom{margin-top:auto;padding-top:30px}
+.finance-app .fd-icon{flex-shrink:0;vertical-align:middle}
+.finance-app-topbar{display:flex;align-items:center;gap:18px;margin-bottom:20px}
+.finance-app-search{display:flex;align-items:center;gap:10px;height:40px;flex:1;max-width:760px;padding:0 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text-dim)}
+.finance-app-search input{flex:1;width:100%;min-width:0;height:38px;padding:0!important;margin:0!important;background:none!important;border:0!important;box-shadow:none!important;font-size:12px!important;color:var(--text)}
+.finance-app-search button{border:0;background:none;color:var(--text-dim);padding:6px;cursor:pointer}
+.finance-app-bell{margin-left:auto;color:var(--text)}
+.finance-app-avatar{display:grid;place-items:center;width:39px;height:39px;flex-shrink:0;border-radius:50%;background:#21303a;color:var(--text);font-size:15px;font-weight:750}
+.finance-app-greeting h1{font-size:34px!important;line-height:1.12;letter-spacing:-.03em;margin:0 0 7px!important}
+.finance-app-greeting p{font-size:14px;color:var(--text-dim);margin:0 0 16px}
+.finance-context-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 22px}
+.finance-context-toolbar form{margin:0}
+.finance-app-mode{display:flex;align-items:center;padding:2px;border:1px solid var(--border);border-radius:7px;min-width:195px}
+.finance-app-mode>span,.finance-app-mode>form{flex:1}
+.finance-app-mode :is(span,button){display:flex;align-items:center;justify-content:center;width:100%;height:33px;min-height:33px!important;padding:5px 13px;border:0;border-radius:5px;background:none;color:var(--text-dim);font:inherit;font-size:12px;cursor:pointer}
+.finance-app-mode .active{background:var(--orange);color:#201208;font-weight:650}
+.finance-app-business{margin-left:auto!important;max-width:220px;min-width:125px}
+.finance-app-branch{max-width:180px;min-width:115px}
+.finance-app .finance-context-toolbar select,.finance-app .finance-context-toolbar input{margin:0!important;height:38px;min-height:38px;padding:6px 10px;font-size:12px;border-radius:7px;background:var(--card);border:1px solid var(--border)}
+.finance-app-context-filter{display:flex;gap:7px;align-items:center}
+.finance-app-context-filter input[type=month]{width:142px;color-scheme:dark}
+.finance-app-context-filter select{width:73px}
+.finance-app-more{height:38px;min-width:38px;border:1px solid var(--border);border-radius:7px;background:var(--card);color:var(--text);cursor:pointer}
+.finance-app .finance-page,.finance-app .fin-page,.finance-app .report-page,.finance-app .finance-assistant{max-width:none;width:100%;margin:0;min-width:0}
+.finance-app .fin-area-nav{display:none}
+.finance-app .finance-workspace-title-row h1,.finance-app :is(.finance-ledger-header,.finance-account-hb-title-row,.finance-bills-header,.fin-page-header,.fin-hero,.report-hero,.assistant-title-copy) h1{font-size:28px!important;line-height:1.15;letter-spacing:-.035em}
+.finance-app :is(.fin-page,.finance-ledger-page,.finance-account-page,.finance-bills-page,.report-page)>h1{font-size:28px;margin:0 0 15px;letter-spacing:-.03em}
+.finance-app h2{font-size:17px;letter-spacing:-.015em}
+.finance-app .muted{font-size:12px;color:var(--text-dim);line-height:1.5}
+.finance-app .card{padding:16px;border:1px solid var(--border);border-radius:9px!important;box-shadow:0 3px 10px #0000000d;background:var(--card);margin-bottom:12px}
+.finance-app :is(.fin-kpi,.finance-budget-summary>div,.report-kpi-stat,.finance-account-hb-detail,.finance-ledger-category-card,.fin-panel){border-radius:8px!important;border-color:var(--border);background:var(--card)}
+.finance-app :is(.fin-kpi,.finance-budget-summary>div,.report-kpi-stat){padding:13px}
+.finance-app :is(.fin-kpi-value,.finance-budget-summary strong,.report-kpi-stat strong,.finance-account-hb-total>strong,.finance-account-detail-balance>strong){font-size:clamp(19px,2vw,26px)!important;font-weight:750;letter-spacing:-.025em;line-height:1.25;font-variant-numeric:tabular-nums}
+.finance-app .finance-ledger-summary-values strong{font-size:28px!important}
+.finance-app .finance-account-hb-title-row{margin-bottom:16px}
+.finance-app .finance-account-hb-group-head{padding:10px 12px;background:#172128;border-radius:7px 7px 0 0;margin:0}
+.finance-app .finance-account-hb-row{padding:13px 12px;border-bottom:1px solid #ffffff05}
+.finance-app .finance-account-hb-row-main>strong{font-size:14px}
+.finance-app .finance-account-hb-row-balance>strong{font-size:16px;font-weight:700}
+.finance-app .finance-account-hb-group{margin-bottom:12px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.finance-app .finance-account-hb-breakdown>div{padding:10px 1px}
+.finance-app .finance-account-hb-breakdown :is(span,strong){font-size:12px}
+.finance-app .finance-account-hb-toolbar{padding:5px;border-radius:8px}
+.finance-app .finance-ledger-category-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px}
+.finance-app .finance-ledger-category-row{padding:13px 2px;border-bottom:1px solid var(--border);min-width:0}
+.finance-app .finance-ledger-category-row>span{font-size:13px;font-weight:500}
+.finance-app .finance-ledger-category-row>strong{font-size:14px;font-variant-numeric:tabular-nums}
+.finance-app .finance-ledger-category-row.active{background:#2b2119;color:var(--orange);padding-inline:9px;border-radius:6px}
+.finance-app .finance-ledger-page{max-width:none;margin:0}
+.finance-app .finance-tx-row{padding:12px 0;border-bottom:1px solid #ffffff08}
+.finance-app .finance-tx-amount{font-size:16px!important;font-variant-numeric:tabular-nums}
+.finance-app .finance-tx-amount.expense{color:var(--red)}
+.finance-app .finance-tx-date{padding:9px 0 4px;font-size:11px;color:var(--text-dim)}
+.finance-app .finance-tx-meta{font-size:11px;line-height:1.5}
+.finance-app .finance-tx-actions[open]{z-index:5}
+.finance-app .finance-transaction-search{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin:12px 0}
+.finance-app .finance-transaction-search label{margin:0;min-width:130px;flex:1}
+.finance-app .finance-transaction-search label:first-of-type{flex:2}
+.finance-app :is(.btn,.finance-mini-action,.fin-btn,.report-tool-btn,.report-export>summary,.finance-ledger-add){min-height:35px;padding:8px 12px;border-radius:7px!important;font-size:12px;font-weight:650;line-height:1.25;box-shadow:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;white-space:normal}
+.finance-app .btn{border:1px solid var(--orange);background:var(--orange);color:#201309}
+.finance-app .btn.secondary,.finance-app .finance-mini-action,.finance-app .report-tool-btn{border:1px solid var(--border);background:#141e24;color:var(--text)}
+.finance-app .btn.danger{border-color:#663636;background:#27191a;color:var(--red)}
+.finance-app :is(a,button,input,select,textarea,summary):focus-visible{outline:2px solid var(--orange);outline-offset:3px}
+.finance-app :is(input,select,textarea){font:inherit;font-size:13px;padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:#0d151a;color:var(--text);max-width:100%;min-width:0;box-sizing:border-box}
+.finance-app input[type=date],.finance-app input[type=month]{color-scheme:dark}
+.finance-app label{font-size:12px;font-weight:500;margin-top:12px;color:var(--text-dim)}
+.finance-app textarea{min-height:82px;resize:vertical}
+.finance-app input[type=checkbox],.finance-app input[type=radio]{width:auto;accent-color:var(--orange)}
+.finance-app :is(.fin-filter,.finance-filter,.report-toolbar){gap:10px;border-radius:8px;padding:12px;background:var(--card);border-color:var(--border)}
+.finance-app table{font-size:12px;font-variant-numeric:tabular-nums}
+.finance-app th{padding:10px 11px;font-size:11px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text-dim);background:#172127}
+.finance-app td{padding:11px;border-bottom:1px solid #ffffff08;vertical-align:middle}
+.finance-app tr:hover td{background:#ffffff02}
+.finance-app td :is(strong,.money),.finance-app td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.finance-app :is(.fin-status,.pill,.report-chip,.finance-display-chip){border-radius:5px;font-size:10px;padding:4px 7px;font-weight:600}
+.finance-app :is(.fin-tabs,.finance-history-tabs,.finance-bills-tabs,.report-tabs){gap:6px;padding:4px 0;margin-bottom:12px;border-bottom:1px solid var(--border);overflow-x:auto;flex-wrap:nowrap}
+.finance-app :is(.fin-tabs,.finance-history-tabs,.finance-bills-tabs,.report-tabs)>a{border-radius:6px!important;padding:8px 12px;font-size:12px;min-height:34px;white-space:nowrap;flex-shrink:0}
+.finance-app :is(.fin-tabs,.finance-history-tabs,.finance-bills-tabs,.report-tabs)>a.active{background:#2d2118;color:var(--orange);border-color:#59351d}
+.finance-app :is(.finance-pagination,.fin-pagination){gap:6px;margin-top:15px}
+.finance-app :is(.finance-pagination,.fin-pagination) a{min-width:32px;height:32px;min-height:32px;padding:5px 9px;border-radius:6px;font-size:11px}
+.finance-app dialog{color:var(--text);background:var(--card);border:1px solid #35434c;border-radius:12px!important;box-shadow:0 24px 80px #0009;max-width:calc(100vw - 28px);max-height:88dvh;overflow:auto}
+.finance-app dialog::backdrop{background:#000a;backdrop-filter:blur(2px)}
+.finance-app :is(.finance-sheet-head,.fin-payee-dialog-head,.finance-ui-dialog-head){display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:#151f25}
+.finance-app :is(.finance-sheet-head,.fin-payee-dialog-head,.finance-ui-dialog-head) h2{font-size:18px;margin:0}
+.finance-app :is(.finance-sheet-body,.finance-ui-dialog-body){padding:18px}
+.finance-ui-dialog{width:min(500px,calc(100vw - 28px));padding:0}
+.finance-ui-dialog-head button{border:0;background:transparent;color:var(--text-dim);font-size:25px;cursor:pointer}
+.finance-app .finance-sheet{width:min(560px,calc(100vw - 28px))}
+.finance-app .finance-bills-page{max-width:none}
+.finance-app .finance-bill-row{padding:12px;border-radius:8px;margin:7px 0;border:1px solid var(--border);background:var(--card)}
+.finance-app .finance-bill-title{font-size:14px}
+.finance-app .finance-bill-amount{font-size:16px;font-variant-numeric:tabular-nums}
+.finance-app .finance-bill-payment-note{font-size:11px;background:#182127;border-radius:7px;padding:10px}
+.finance-app .finance-budget-row{padding:14px;border-radius:8px;margin-bottom:8px}
+.finance-app .finance-budget-row.over-budget{border-color:#6e3636;background:#211719}
+.finance-app :is(progress,.finance-budget-progress){accent-color:var(--orange)}
+.finance-app .fin-payee-row{padding:14px 16px}
+.finance-app .fin-payee-name{font-size:14px;font-weight:650}
+.finance-app .fin-payee-total{font-size:15px}
+.finance-app .fin-page .fin-invoice-row{border-radius:8px;margin:7px 0}
+.finance-app .fin-invoice-amounts strong{font-size:21px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.finance-app .invoice-editor{max-width:1000px!important;margin:0 auto}
+.finance-app .invoice-editor>h1{margin-bottom:16px}
+.finance-app .invoice-editor #invoice-editor-form{padding:22px}
+.finance-app .invoice-editor h2{margin:22px 0 12px;padding-bottom:9px;border-bottom:1px solid var(--border);font-size:15px}
+.finance-app .invoice-editor h2:first-of-type{margin-top:0}
+.finance-app .invoice-item{border-radius:8px;background:#0d151a;padding:13px;margin:9px 0}
+.finance-app .invoice-live-total{border-radius:8px;background:#1b252c;padding:15px}
+.finance-app .invoice-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.finance-app .invoice-controls>p,.finance-app .invoice-controls>label{flex-basis:100%}
+.finance-app .invoice-controls form{margin:0}
+.finance-app .report-page .report-hero{padding:0 0 15px;background:none;border:0}
+.finance-app .report-page .report-shell{padding:12px!important}
+.finance-app .report-section-head h2{font-size:18px}
+.finance-app .report-kpi-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr))}
+.finance-app .report-table-wrap{border:1px solid var(--border);border-radius:8px;overflow-x:auto}
+.finance-app .report-table{margin:0}
+.finance-app :is(.report-empty,.fin-empty){padding:24px 16px;border:1px dashed var(--border);border-radius:8px;color:var(--text-dim);font-size:12px}
+.finance-app .finance-assistant{max-width:1000px;margin:0 auto}
+.finance-app .assistant-page-head{padding:0 0 14px}
+.finance-app .assistant-back{display:none}
+.finance-app .assistant-brandmark{width:39px;height:39px;border-radius:9px}
+.finance-app .assistant-ready{color:var(--green);background:#15291f;border:1px solid #284b38;border-radius:5px}
+.finance-app .assistant-thread{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:18px;min-height:320px}
+.finance-app .assistant-bubble{border-radius:9px;font-size:13px;line-height:1.6}
+.finance-app .assistant-composer-shell{background:#152027;border:1px solid #34424b;border-radius:10px;padding:12px}
+.finance-app .assistant-composer textarea{background:transparent;border:0}
+.finance-app .assistant-suggestions button{font-size:11px;padding:7px 10px;border-radius:6px}
+.finance-app .finance-dashboard-page .finance-month-nav{margin-top:0}
+.finance-app .finance-dashboard-page .finance-hero{margin-bottom:12px}
+.finance-app .finance-dashboard-page .finance-chart-legend{margin-top:14px}
+.finance-app .finance-live-loading .finance-dashboard-data{opacity:.35;pointer-events:none}
+.fd-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:1500px){.finance-app-sidebar{width:210px}.finance-app>.wrap.finance-app-main{width:calc(100% - 210px);margin-left:210px;padding-left:28px}}
+@media(max-width:1100px){.finance-app>.wrap.finance-app-main{padding:18px 16px 30px}.finance-context-toolbar{gap:7px}.finance-app-mode{min-width:160px}.finance-app-business{max-width:165px}.finance-app-context-filter{margin-left:auto}}
+@media(max-width:760px){
+ .finance-app>.wrap.finance-app-main{width:100%;margin:0;padding:14px}
+ .finance-app-sidebar{position:static;width:auto;max-width:100%;padding:0 0 14px;border:0;background:none;overflow:visible}
+ .finance-app-brand{font-size:19px;padding:0 0 12px}.finance-app-brand span{display:inline;font-size:19px;margin-left:6px}
+ .finance-app-sidebar nav{display:flex;overflow-x:auto;max-width:100%;gap:4px;padding-bottom:3px}
+ .finance-app-sidebar nav a{flex-shrink:0;min-height:35px;padding:7px 9px;font-size:11px;gap:6px}
+ .finance-app-sidebar .fd-icon{width:18px;height:18px}.finance-app-sidebar .finance-app-sidebar-bottom{display:none}
+ .finance-app-topbar{gap:11px;margin-bottom:16px}.finance-app-avatar{width:34px;height:34px;font-size:13px}.finance-app-search input{font-size:11px!important}
+ .finance-app-greeting h1{font-size:28px!important}.finance-app-greeting p{font-size:12px}
+ .finance-context-toolbar{margin-bottom:18px}.finance-app-mode{min-width:150px}.finance-app-business{flex:1;max-width:none;margin-left:0!important}.finance-app-branch{flex:1;max-width:none}
+ .finance-app-context-filter{margin-left:0;flex:1}.finance-app-context-filter input[type=month]{flex:1;width:130px}.finance-app-context-filter select{width:73px}
+ .finance-app .card{padding:13px}.finance-app :is(.fin-page,.finance-page,.report-page,.finance-assistant){min-width:0;overflow-wrap:anywhere}
+ .finance-app .finance-ledger-category-list{grid-template-columns:1fr}
+ .finance-app :is(.finance-budget-form,.finance-filter){flex-wrap:wrap}
+ .finance-app .invoice-editor #invoice-editor-form{padding:14px}
+ .finance-app .invoice-form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .finance-app .fin-invoice-amounts strong{font-size:17px}
+ .finance-app table{display:block;max-width:100%;overflow-x:auto;white-space:nowrap}
+ .finance-app .finance-flow-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .finance-app .finance-sheet{width:calc(100vw - 24px);max-height:90dvh}
+ .finance-app .assistant-thread{padding:12px;min-height:260px}
+}
+@media(max-width:400px){.finance-app .finance-flow-summary{grid-template-columns:1fr}.finance-app .invoice-form-grid{grid-template-columns:1fr}.finance-app .finance-transaction-search{display:grid;grid-template-columns:1fr}.finance-app .finance-transaction-search label{min-width:0}.finance-app .fin-invoice-amounts{gap:8px}.finance-app .fin-invoice-amounts strong{font-size:15px}}
+@media print{.finance-app-sidebar,.finance-app-topbar,.finance-context-toolbar,.finance-app-greeting,.finance-ui-dialog{display:none!important}.finance-app>.wrap.finance-app-main{padding:0!important;margin:0!important;max-width:none}.finance-app{background:white;color:black}}
+/* Existing page structures share the same density without changing their actions. */
+.finance-app :is(.finance-ledger-title-line,.finance-budget-header,.fin-section-head,.finance-account-hb-header) h1{font-size:28px;line-height:1.15;letter-spacing:-.025em}
+.finance-app .finance-ledger-total-value{font-size:28px;font-variant-numeric:tabular-nums}
+.finance-app .finance-bills-homebudget{max-width:none;margin:0}
+.finance-app .finance-bills-calendar{max-width:680px;margin:0 auto 14px}
+.finance-app .finance-bill-money>strong{font-size:16px;font-variant-numeric:tabular-nums}
+.finance-app .finance-bill-info>strong{font-size:14px}
+.finance-app .finance-bills-toolbar{position:static;background:var(--card);backdrop-filter:none;margin-top:14px}
+.finance-app .finance-bills-toolbar a>small{font-size:11px}
+.finance-app .finance-budget-category-row{padding:15px 4px}
+.finance-app .finance-budget-category-title{font-size:14px}
+.finance-app .finance-budget-category-title strong{font-size:17px;font-variant-numeric:tabular-nums}
+.finance-app .finance-budget-progress{height:5px;border-radius:4px;background:#29343b;margin:10px 0}
+.finance-app .finance-budget-progress i{background:var(--orange)}
+.finance-app .finance-budget-progress.over i{background:var(--red)}
+.finance-app .finance-budget-category-row.over{background:#25191a;border-radius:7px;padding-inline:10px}
+.finance-app .finance-budget-category-values{font-size:12px;font-variant-numeric:tabular-nums}
+.finance-app .finance-budget-footer{padding:16px;gap:16px}
+.finance-app .finance-budget-footer strong{font-size:20px;font-variant-numeric:tabular-nums}
+.finance-app .finance-budget-list-note{font-size:11px}
+.finance-app .report-kpi-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr))}
+.finance-app .report-kpi-stat strong{font-size:clamp(16px,1.6vw,21px)!important}
+.finance-app .report-scope-badge{border-radius:6px;background:#211c17;font-weight:600}
+.finance-app .finance-empty{padding:22px 14px;color:var(--text-dim);font-size:12px}
+@media(min-width:761px){.finance-app .finance-budget-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}.finance-app .finance-budget-list-note,.finance-app .finance-budget-add-category{grid-column:1/-1}}
+@media(max-width:760px){.finance-app .finance-ledger-title-line{grid-template-columns:1fr;gap:6px}.finance-app .finance-ledger-title-line h1{white-space:normal}.finance-app .finance-ledger-total-value{font-size:25px}.finance-app .report-kpi-stat{padding:10px 6px}}

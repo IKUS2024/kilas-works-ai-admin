@@ -33,6 +33,7 @@ import finance_ai_safety as ai_safety
 import finance_fx
 from flask import jsonify, current_app, g
 import security
+import finance_ui
 import repo
 
 finance_bp = Blueprint('finance', __name__)
@@ -138,6 +139,7 @@ def finance_access(view):
         if g.finance_branch_read_only and view.__name__ in ('operator', 'receipt_new', 'bank_new', 'new_invoice', 'edit_transaction'):
             flash('Pilih satu cabang aktif untuk mencatat atau mengubah transaksi.', 'error')
             return redirect(url_for('finance.dashboard', business_id=business_id))
+        g.finance_ui = finance_ui.context(business_id, user)
         with branches.scope(business_id, branch_id, user['id']):
             return view(business_id, user, business, **kwargs)
     return wrapped
@@ -359,7 +361,7 @@ def overview():
     except ValueError:
         flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.','error')
         return redirect(url_for('finance.overview',business_id=selected))
-    if business is not None:return redirect(url_for('finance.dashboard',business_id=business['id'],month=month))
+    if business is not None:return redirect(url_for('finance.dashboard',business_id=business['id'],month=month,display_currency=request.args.get('display_currency','IDR')))
     if split_period:return redirect(url_for('finance.overview',month=month))
     totals={}
     breakdown=[]
@@ -474,7 +476,7 @@ def enter_workspace(business_id,workspace_type):
         flash(ERRORS.get(str(error),'Workspace Finance belum dapat dibuka.'),'error')
         return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
     return redirect(
-        url_for('finance.dashboard',business_id=business_id,branch_id=active['id']),
+        url_for('finance.dashboard',business_id=business_id,branch_id=active['id'],month=request.form.get('month'),display_currency=request.form.get('display_currency','IDR')),
         code=303)
 
 
@@ -591,7 +593,7 @@ def dashboard(business_id, user, business):
     except (ValueError, finance.FinanceError):
         flash('Periode atau filter belum valid. Bulan masa depan belum dapat dipilih.', 'error')
         return redirect(url_for('finance.dashboard', business_id=business_id,
-                                branch_id=g.finance_branch_id or 'all'))
+                                branch_id=g.finance_branch_id or 'all', month=current_value))
     branch_value = g.finance_branch_id or 'all'
     if period_mode == 'month' and split_period:
         return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=branch_value,
@@ -640,6 +642,7 @@ def dashboard(business_id, user, business):
     if display_currency not in display_options:
         display_currency = 'IDR'
         period_query['display_currency'] = display_currency
+    g.finance_ui.update(month=month, currency=display_currency, currencies=tuple(display_options))
     fx = finance_fx.snapshot(display_options)
     balance_displays = finance_fx.balance_displays(balance_totals, fx, display_options)
     estimated_balance_idr = finance_fx.convert_total(balance_totals, 'IDR', fx)
@@ -770,7 +773,8 @@ def dashboard(business_id, user, business):
     transaction_page_count = 1
     transaction_page_items = [1]
     transactions = []
-    load_transactions = show_transactions and (not direction or selected_category_id is not None)
+    transaction_search = request.args.get('search', '').strip()[:160]
+    load_transactions = show_transactions
     if load_transactions:
         try:
             transaction_page = int(request.args.get('page', '1'))
@@ -781,11 +785,11 @@ def dashboard(business_id, user, business):
         transaction_total = finance.count_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
             status='POSTED', account_id=transaction_account_id,
-            category_ids=selected_category_ids, **actor)
+            category_ids=selected_category_ids, search=transaction_search, **actor)
         transaction_page_count = max(1, (transaction_total + transaction_page_size - 1) // transaction_page_size)
         if transaction_page > transaction_page_count:
             target = transaction_page_count
-            args = dict(period_query, branch_id=branch_value, view='transactions', page=target)
+            args = dict(period_query, branch_id=branch_value, view='transactions', page=target, search=transaction_search)
             if direction:
                 args['direction'] = direction
             if transaction_account_id:
@@ -796,7 +800,7 @@ def dashboard(business_id, user, business):
         transactions = [dict(row) for row in finance.list_transactions(
             business_id, start_date=start, end_date=end, direction=direction,
             status='POSTED', account_id=transaction_account_id,
-            category_ids=selected_category_ids, limit=transaction_page_size,
+            category_ids=selected_category_ids, search=transaction_search, limit=transaction_page_size,
             offset=(transaction_page - 1) * transaction_page_size, **actor)]
         for row in transactions:
             converted = finance_fx.convert_total(
@@ -819,6 +823,8 @@ def dashboard(business_id, user, business):
                 transaction_page_items.append(page)
                 previous = page
     transaction_query = dict(period_query, branch_id=branch_value, view='transactions')
+    if transaction_search:
+        transaction_query['search'] = transaction_search
     if direction:
         transaction_query['direction'] = direction
     if transaction_account_id:
@@ -950,7 +956,7 @@ def dashboard(business_id, user, business):
         transaction_limit=transaction_page_size, transaction_page_size=transaction_page_size,
         transaction_page=transaction_page, transaction_total=transaction_total,
         transaction_page_count=transaction_page_count, transaction_page_items=transaction_page_items,
-        transaction_query=transaction_query, ledger_category_query=ledger_category_query,
+        transaction_query=transaction_query, transaction_search=transaction_search, ledger_category_query=ledger_category_query,
         ledger_category_rows=ledger_category_rows, selected_category_id=selected_category_id,
         selected_ledger_category=selected_ledger_category,
         balances=balances, balance_totals=balance_totals, balance_total=balance_total,
@@ -2027,9 +2033,9 @@ def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_use
                 rule_id=rule['id'],
                 branch_name=rule['branch_name'],
                 name=rule['name'],
-                currency=rule['currency'],
+                currency=transaction['currency'] if transaction else rule['currency'],
                 scheduled_on=scheduled,
-                amount_minor=rule['amount_minor'],
+                amount_minor=transaction['amount_minor'] if transaction else rule['amount_minor'],
                 project_name=None,
                 account_name=payment_account_name,
                 category_name=None,
@@ -2971,7 +2977,7 @@ def bank_decide(business_id,user,business,import_id,row_id,action):
 @finance_access
 def assistant(business_id, user, business):
     # Do not accept prompts, tokens or workflow state in URL parameters.
-    if set(request.args) - {'branch_id'}:
+    if set(request.args) - {'branch_id', 'month', 'display_currency'}:
         return redirect(url_for('finance.assistant', business_id=business_id))
     actor = {'actor_user_id': user['id']}
     operator_enabled = finance_operator.enabled(business_id)
@@ -2991,7 +2997,7 @@ def assistant(business_id, user, business):
 @finance_access
 def assistant_route(business_id, user, business):
     # No model calls, staging, financial execution, tokens or prompt storage here.
-    if set(request.args) - {'branch_id'}:
+    if set(request.args) - {'branch_id', 'month', 'display_currency'}:
         return jsonify(error='Gunakan formulir Assistant tanpa parameter URL.'), 400
     if request.content_length is None or request.content_length > 16 * 1024:
         return jsonify(error='Permintaan terlalu besar.'), 413
@@ -3090,13 +3096,18 @@ def finance_branch_urls(endpoint, values):
     if endpoint.startswith('finance.') and values.get('business_id') == getattr(g, 'finance_business_id', None) and values.get('business_id'):
         if getattr(g, 'finance_branch_id', None):
             values.setdefault('branch_id', g.finance_branch_id)
+        ui = getattr(g, 'finance_ui', {})
+        if ui:
+            values.setdefault('month', ui['month'])
+            values.setdefault('display_currency', ui['currency'])
+
 
 
 @finance_bp.context_processor
 def finance_branch_context():
     if not getattr(g, 'finance_business_id', None):
         return {}
-    return dict(finance_branch_business_id=g.finance_business_id, finance_branches=g.finance_branches,
+    return dict(finance_ui=getattr(g,'finance_ui',{}), finance_branch_business_id=g.finance_business_id, finance_branches=g.finance_branches,
         selected_branch=g.finance_branch, selected_branch_id=g.finance_branch_id,
         all_branches=g.finance_branch_id is None, branch_read_only=g.finance_branch_read_only,
         finance_workspace_type=getattr(g,'finance_workspace_type','BUSINESS'),

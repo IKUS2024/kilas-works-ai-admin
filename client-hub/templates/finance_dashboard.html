@@ -159,32 +159,17 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-groups-1') }}">
-<script src="{{ url_for('static',filename='finance_home.js',v='20260922-dashboard-1') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_home.js',v='20260922-unified-2') }}" defer></script>
 {% if not show_transactions and not show_accounts %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_dashboard.css',v='20260922-1') }}">{% endif %}
 <div class="finance-page {{ 'finance-dashboard-page' if not show_transactions and not show_accounts }}">
 {% if not show_transactions and not show_accounts %}
-{% include '_finance_dashboard_shell.html' %}
+<div class="finance-dashboard-search-results" aria-live="polite">{% include '_finance_dashboard_search.html' %}</div>
 <header class="finance-hero">
-<h1>{{ user.full_name or user.email.split('@')[0] }}</h1>
-<p class="finance-dashboard-subtitle">Kelola semua keuanganmu dalam satu tempat.</p>
-<div class="finance-dashboard-context">
-<div class="finance-workspace-segmented" role="group" aria-label="Pilih ruang Finance">
-{% for workspace,label in [('PERSONAL','Pribadi'),('BUSINESS','Bisnis')] %}
-{% if (workspace=='PERSONAL') == finance_workspace_personal %}<span class="finance-workspace-segment active" aria-current="page">{{ label }}</span>
-{% else %}<form method="post" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type=workspace) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="finance-workspace-segment" type="submit">{{ label }}</button></form>{% endif %}
-{% endfor %}</div>
-{% if not finance_workspace_personal %}
-<form method="get" action="{{ url_for('finance.overview') }}" class="finance-dashboard-business"><input type="hidden" name="month" value="{{ month }}"><label class="fd-sr-only" for="finance-business">Bisnis</label><select id="finance-business" name="business_id" onchange="this.form.submit()">{% for item in businesses %}<option value="{{ item.id }}" {{ 'selected' if item.id==business.id }}>{{ item.business_name }}</option>{% endfor %}</select><noscript><button>Tampilkan</button></noscript></form>
-<form method="get" class="finance-branch-inline"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="display_currency" value="{{ display_currency }}"><select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">{% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id==selected_branch_id }}>{{ branch.name }}</option>{% endfor %}</select><noscript><button>Gunakan</button></noscript></form>
-{% if not branch_read_only %}<button type="button" class="finance-branch-manage" data-finance-open="branch-dialog" aria-label="Kelola cabang">•••</button>{% endif %}
-{% endif %}
-</div>
 <nav class="finance-month-nav" aria-label="Navigasi bulan">
 <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,display_currency=display_currency,trend_months=dashboard_view.trend_months) }}">‹</a>
 <button class="finance-period-button" type="button" data-finance-open="period-dialog">{{ period_label }} <small>⌄</small></button>
 {% if next_month %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,display_currency=display_currency,trend_months=dashboard_view.trend_months) }}">›</a>{% else %}<span aria-disabled="true">›</span>{% endif %}
 </nav>
-<form method="get" class="finance-dashboard-currency" data-finance-live-form><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="trend_months" value="{{ dashboard_view.trend_months }}"><label for="dashboard-currency">Mata uang</label><select id="dashboard-currency" name="display_currency" data-finance-live-currency>{% for code in display_options %}<option value="{{ code }}" {{ 'selected' if code==display_currency }}>{{ code }}</option>{% endfor %}</select></form>
 </header>
 {% include '_finance_home_dashboard.html' %}
 {% if not initialized and not finance_branches %}<form method="post" class="card" action="{{ url_for('finance.start',business_id=business.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><p>Mulai dengan {{ 'Kas pribadi' if finance_workspace_personal else 'cabang Utama, Kas' }} dan kategori dasar.</p><button class="btn">Mulai Kilas Finance</button></form>{% endif %}
@@ -408,6 +393,15 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
     {% if direction and not branch_read_only %}<div class="finance-ledger-actions"><button type="button" class="btn finance-ledger-add" data-finance-open="add-transaction-dialog" data-transaction-direction="{{ direction }}">＋ Tambah {{ 'Pemasukan' if direction == 'INCOME' else 'Pengeluaran' }}</button></div>{% endif %}
   </div>
 </header>
+<form class="finance-transaction-search" method="get">
+<input type="hidden" name="view" value="transactions"><input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
+{% for key,value in period_query.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+{% if selected_category_id %}<input type="hidden" name="category_id" value="{{ selected_category_id }}">{% endif %}
+<label>Cari transaksi<input type="search" name="search" value="{{ transaction_search }}" placeholder="Deskripsi atau penerima" maxlength="160"></label>
+<label>Jenis<select name="direction"><option value="">Semua</option><option value="INCOME" {{ 'selected' if direction=='INCOME' }}>Pemasukan</option><option value="EXPENSE" {{ 'selected' if direction=='EXPENSE' }}>Pengeluaran</option></select></label>
+<label>Akun<select name="account_id"><option value="">Semua akun</option>{% for a in account_balance_rows %}<option value="{{ a.id }}" {{ 'selected' if transaction_account_id==a.id }}>{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label><button class="btn secondary" type="submit">Terapkan</button>
+{% if not direction and not branch_read_only %}<button type="button" class="btn" data-finance-open="add-transaction-dialog">＋ Catat</button>{% endif %}
+</form>
 {% if direction and period_mode == 'month' %}
 <nav class="finance-month-nav finance-ledger-month" aria-label="Navigasi bulan">
   {% if selected_category_id %}
@@ -444,7 +438,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </nav>
 {% endif %}
 
-{% if not direction or selected_ledger_category %}
+{% if show_transactions %}
 <section class="card finance-ledger-list finance-compact-ledger">
 <div class="finance-section-heading">
   <h2>{% if selected_ledger_category %}Transaksi {{ selected_ledger_category.name }}{% else %}Riwayat Transaksi{% endif %}</h2>

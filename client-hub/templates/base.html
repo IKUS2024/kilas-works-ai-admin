@@ -225,7 +225,7 @@
 
 </style>
 </head>
-<body class="{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
+<body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 {% if request.blueprint != 'finance' %}
 <div class="topbar">
   <div class="brand">Kilas<span>Works</span> Client Hub</div>
@@ -265,8 +265,9 @@
   </nav>
 </div>
 {% endif %}
-<div class="wrap">
-  {% if request.blueprint == 'finance' and session.get('user_id') %}
+<div class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}">
+{% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}
+  {% if request.blueprint == 'finance' and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
   {% set finance_nav_business_id = request.view_args.get('business_id') if request.view_args else none %}
   {% set finance_nav_branch_id = g.get('finance_branch_id') %}
   <nav class="finance-exit-bar no-print" aria-label="Navigasi Finance">
@@ -283,6 +284,7 @@
   {% endwith %}
   {% if finance_read_only %}<section class="card" role="status"><h2>Finance hanya-baca</h2><p>Data dan laporan tetap tersedia. Aktifkan trial atau perpanjang langganan untuk mencatat dan memakai AI.</p><a class="btn" href="{{ url_for('products.finance_setup',business_id=finance_access_business_id) }}">Trial &amp; Langganan Finance</a></section>{% endif %}
   {% block content %}{% endblock %}
+  {% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_ui.css',v='20260922-unified-1') }}"><script src="{{ url_for('static',filename='finance_ui.js',v='20260922-unified-1') }}" defer></script>{% endif %}
   {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
   {% if finance_read_only or (branch_read_only and finance_branches and request.endpoint != 'finance.assistant') %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>
