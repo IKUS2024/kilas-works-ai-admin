@@ -46,7 +46,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual({r['currency'] for r in context['dashboard_trend']},{'IDR'})
         self.assertTrue(all(r['income_minor']==0 for r in context['dashboard_trend']))
         self.assertIn('Total Keuangan Akun',html)
-        self.assertIn('finance-budget-progress',html)
+        self.assertIn('finance-budget-ring',html)
         self.assertNotIn('Semua akun dikonversi otomatis',html)
         self.assertNotIn('Test FX',html)
 
@@ -436,8 +436,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(context['budget_percent'],25)
         self.assertIn('Sisa Rp375.000,00',html)
         self.assertIn('Rp500.000,00',html)
+        self.assertIn('aria-label="Penggunaan anggaran 25 persen"',html)
+        self.assertIn('>25%</span>',html)
         self.assertEqual(context['dashboard_trend'][-1]['expense_minor'],12500000)
-        self.assertIn('finance-budget-progress',html)
+        self.assertIn('finance-budget-ring',html)
         self.assertIn('<th>Arus Bersih</th>',html)
 
         # Range filters may change cash-flow totals, but one month's budget must
@@ -697,6 +699,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Pengaturan Finance',html)
         self.assertNotIn('Customer</span>',html)
         self.assertNotIn('Pengeluaran dari anggaran',html)
+        self.assertLess(html.index('>Invoice</span>'),html.index('>Penerima</span>'))
+        invoice_card=html[html.index('>Invoice</span>')-220:html.index('>Penerima</span>')]
+        penerima_card=html[html.index('>Penerima</span>')-220:html.index('>Penerima</span>')+260]
+        self.assertIn('finance-metric compact',invoice_card)
+        self.assertIn('finance-metric compact',penerima_card)
+        self.assertIn('finance-budget-ring',html)
         self.assertIn('Bantu kelola keuanganmu lebih cepat.',html)
 
     def test_finance_pages_hide_client_hub_topbar_and_offer_dashboard_back(self):
