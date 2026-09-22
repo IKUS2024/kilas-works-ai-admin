@@ -129,7 +129,7 @@
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-detail-1') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-account-groups-1') }}">
 <script src="{{ url_for('static',filename='finance_home.js',v='20260922-budget-trend-1') }}" defer></script>
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
@@ -322,7 +322,6 @@
       {% if not branch_read_only %}<button type="button" class="finance-account-hb-add" data-finance-open="account-dialog" aria-label="Tambah akun">＋</button>{% endif %}
     </div>
   </div>
-  <p class="finance-account-hb-fx">{{ fx_status_label }} · saldo lintas mata uang dikonversi ke {{ display_currency }}. Nilai asli akun tetap disimpan.</p>
 </header>
 
 <section class="card finance-account-hb-list" aria-label="Daftar Akun">
@@ -333,17 +332,23 @@
   {% for a in type_rows %}
     {% if a.display_balance_minor is none %}{% set group.complete = false %}{% else %}{% set group.total = group.total + a.display_balance_minor %}{% endif %}
   {% endfor %}
-  <div class="finance-account-hb-group">
-    <div class="finance-account-hb-group-head">
+  <details class="finance-account-hb-group">
+    <summary class="finance-account-hb-group-head">
       <span>{{ type_label }}</span>
-      <strong>{{ (group.total|finance_money(display_currency)) if group.complete else 'Kurs belum lengkap' }}</strong>
-    </div>
+      <span class="finance-account-hb-group-summary-right">
+        <strong>{{ (group.total|finance_money(display_currency)) if group.complete else 'Kurs belum lengkap' }}</strong>
+        <i class="finance-account-hb-group-chevron" aria-hidden="true">⌄</i>
+      </span>
+    </summary>
+    <div class="finance-account-hb-group-accounts">
     {% for a in type_rows %}
     <a class="finance-account-hb-row"
        href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',account_id=a.id,display_currency=display_currency) }}">
       <div class="finance-account-hb-row-main">
         <strong>{{ a.name }}</strong>
-        <small>{{ a.currency }}{% if all_branches %} · {{ a.branch_name }}{% endif %}{% if a.currency != display_currency %} · asli {{ a.balance_minor|finance_money(a.currency) }}{% endif %}</small>
+        {% if all_branches or a.currency != display_currency %}
+        <small>{% if all_branches %}{{ a.branch_name }}{% endif %}{% if all_branches and a.currency != display_currency %} · {% endif %}{% if a.currency != display_currency %}{{ a.currency }} · asli {{ a.balance_minor|finance_money(a.currency) }}{% endif %}</small>
+        {% endif %}
       </div>
       <div class="finance-account-hb-row-balance">
         <strong>{{ a.display_balance_value }}</strong>
@@ -351,7 +356,8 @@
       </div>
     </a>
     {% endfor %}
-  </div>
+    </div>
+  </details>
   {% endif %}
 {% else %}
 <div class="finance-empty">Belum ada akun aktif. Tambahkan akun untuk mulai mencatat saldo.</div>
