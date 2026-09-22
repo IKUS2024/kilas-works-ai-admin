@@ -734,8 +734,7 @@ def dashboard(business_id, user, business):
                 selected_account = candidate_account
             elif show_transactions:
                 transaction_account_id = candidate_account['id']
-    if show_accounts and selected_account is None:
-        selected_account = account_balance_rows[0] if account_balance_rows else None
+    account_detail_mode = bool(show_accounts and raw_account_id and selected_account is not None)
     transaction_account = next(
         (item for item in account_balance_rows if item['id'] == transaction_account_id), None)
 
@@ -986,6 +985,7 @@ def dashboard(business_id, user, business):
         supported_currencies=finance.SUPPORTED_CURRENCIES, branch_breakdown=breakdown,
         businesses=repo.list_businesses_for_user(user['id']),
         accounts=accounts, account_balance_rows=account_balance_rows, selected_account=selected_account,
+        account_detail_mode=account_detail_mode,
         transaction_account=transaction_account, transaction_account_id=transaction_account_id,
         categories=categories, summary=summary, summaries=summaries,
         transactions=transactions, dashboard_trend=dashboard_trend, recent_activity=recent_activity,
