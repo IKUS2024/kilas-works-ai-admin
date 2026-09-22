@@ -4,7 +4,7 @@
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
-<div class="fin-page invoice-editor"><a href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}">← Invoice</a>
+<div class="fin-page invoice-editor">{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
 <h1>Pengaturan Invoice</h1><p class="muted">Detail pengirim untuk invoice baru di cabang ini. Perubahan tidak mengubah invoice yang sudah dibuat.</p>
 <form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <h2>Detail Pengirim</h2>{{ sender(data.sender,['name','address','phone']) }}
