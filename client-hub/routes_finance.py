@@ -783,8 +783,7 @@ def dashboard(business_id, user, business):
                 category_id=item['id'], name=item['name'],
                 amount_minor=0, transaction_count=0)
         for row in finance.get_category_totals(
-                business_id, start, end, direction,
-                account_id=transaction_account_id, **actor):
+                business_id, start, end, direction, **actor):
             category = category_lookup.get(row['category_id'], {})
             parent_id = category.get('parent_category_id')
             group_id = parent_id or row['category_id']
@@ -803,8 +802,14 @@ def dashboard(business_id, user, business):
             elif item['amount_minor'] is not None:
                 item['amount_minor'] += converted
             item['transaction_count'] += int(row['transaction_count'])
+        preferred_order = {
+            name: index for index, name in enumerate(finance.DEFAULT_CATEGORIES.get(direction, ()))
+        }
         ledger_category_rows = sorted(
-            grouped.values(), key=lambda item: (item['name'].casefold(), item['category_id']))
+            grouped.values(),
+            key=lambda item: (
+                preferred_order.get(item['name'], len(preferred_order)),
+                item['name'].casefold(), item['category_id']))
         for item in ledger_category_rows:
             item['display_amount'] = (
                 'Kurs belum lengkap' if item['amount_minor'] is None
