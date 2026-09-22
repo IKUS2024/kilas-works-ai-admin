@@ -8,7 +8,7 @@
 {{ metric('Pemasukan', period_income_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='INCOME',**period_query), 'income', 'income', change=dashboard_view.changes.income if period_mode=='month' else none) }}
 {{ metric('Pengeluaran', period_expense_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',**period_query), 'expense', 'expense', change=dashboard_view.changes.expense if period_mode=='month' else none) }}
 {{ metric('Total Keuangan Akun', balance_total_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',display_currency=display_currency), 'account') }}
-{{ metric('Tagihan', dashboard_view.bills_display, url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,payment_status='unpaid',view='list',display_currency=display_currency), 'bill') }}
+{{ metric('Tagihan', dashboard_view.bills_display, url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,payment_status='unpaid',view='list',display_currency=display_currency), 'bill', 'half') }}
 <a class="finance-metric finance-budget-metric" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}">
   <div class="finance-budget-metric-copy">
     <span class="finance-metric-label">{{ icon('budget') }}Anggaran</span>
