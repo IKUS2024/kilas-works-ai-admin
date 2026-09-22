@@ -11,7 +11,7 @@ path, so there is nothing here for a path-traversal attack to reach.
 """
 import db
 
-ASSET_KINDS = ("TALENT_PHOTO",)
+ASSET_KINDS = ("TALENT_PHOTO", "USER_PROFILE_PHOTO", "BUSINESS_PROFILE_PHOTO")
 
 
 def save_asset(kind, filename, mime_type, size_bytes, content_bytes, uploaded_by_user_id):
