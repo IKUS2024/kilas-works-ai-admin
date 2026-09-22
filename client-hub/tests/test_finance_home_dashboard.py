@@ -338,12 +338,29 @@ class DashboardHomeTests(unittest.TestCase):
     def test_monthly_budget_is_branch_scoped_and_updates_dashboard(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.set_monthly_budget(self.b,'2026-09',expense_cat,50000000,'IDR',actor_user_id=self.uid)
+        fixture.f.create_transaction(self.b,'EXPENSE',12500000,self.a,expense_cat,
+            '2026-09-06',description='September budget spend',actor_user_id=self.uid)
+        fixture.f.create_transaction(self.b,'EXPENSE',30000000,self.a,expense_cat,
+            '2026-08-06',description='August expense',actor_user_id=self.uid)
+
         html,context=self.page('?month=2026-09')
         self.assertEqual(context['budget_total_display'],'Rp500.000,00')
+        self.assertEqual(context['budget_remaining_display'],'Rp375.000,00')
+        self.assertEqual(context['budget_percent'],25)
+        self.assertIn('<strong class="finance-combined-balance">Rp375.000,00</strong>',html)
         self.assertIn('Rp500.000,00',html)
         self.assertEqual(context['dashboard_trend'][-1]['budget_minor'],50000000)
         self.assertIn('<span>Anggaran</span>',html)
         self.assertIn('<th>Anggaran</th>',html)
+
+        # Range filters may change cash-flow totals, but one month's budget must
+        # still subtract only that same month's expenses.
+        range_html,range_context=self.page(
+            '?period_mode=range&range_start=2026-08&range_end=2026-09')
+        self.assertEqual(range_context['budget_remaining_display'],'Rp375.000,00')
+        self.assertEqual(range_context['budget_percent'],25)
+        self.assertIn('<strong class="finance-combined-balance">Rp375.000,00</strong>',range_html)
+
         rows=fixture.f.list_monthly_budgets(self.b,'2026-09',actor_user_id=self.uid)
         self.assertEqual(len(rows),1)
         self.assertEqual(rows[0]['category_id'],expense_cat)
