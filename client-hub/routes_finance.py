@@ -176,6 +176,7 @@ ERRORS = {
     'payee_in_use': 'Penerima ini masih dipakai tagihan aktif. Edit atau hapus tagihan tersebut terlebih dahulu.',
     'account_exists': 'Akun dengan nama dan jenis tersebut sudah ada.',
     'category_exists': 'Kategori tersebut sudah ada.',
+    'category_retired': 'Kategori Lainnya tidak digunakan lagi. Buat kategori yang lebih spesifik.',
     'invalid_date': 'Tanggal belum valid.',
     'future_date': 'Tanggal tidak boleh melebihi hari ini.',
     'invalid_text': 'Isian terlalu panjang atau tidak valid.',
