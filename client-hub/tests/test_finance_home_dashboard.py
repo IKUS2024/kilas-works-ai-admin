@@ -691,6 +691,9 @@ class DashboardHomeTests(unittest.TestCase):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
             self.assertIn(label,html)
+        self.assertNotIn('>Pembayaran</span>',html)
+        self.assertNotIn('Tagihan Mendatang',html)
+        self.assertNotIn('dashboard-upcoming',html)
         self.assertNotIn('Pengaturan Finance',html)
         self.assertNotIn('Customer</span>',html)
         self.assertNotIn('Pengeluaran dari anggaran',html)
@@ -1144,9 +1147,18 @@ class DashboardHomeTests(unittest.TestCase):
         for token in ('finance-bills-calendar','September 2026','Tambah Tagihan','Kalender','Daftar','Rutin','Internet','Provider Net'):
             self.assertIn(token,html)
         self.assertIn('name="paid_on"',html)
+        self.assertIn('>Edit</button>',html)
+        self.assertIn('/deactivate',html)
+        self.assertIn('>Hapus</button>',html)
         self.assertIn('Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.',html)
         self.assertNotIn('Tagihan &amp; Rutin',html)
         self.assertNotIn('fin-tool-grid',html)
+
+        listed=self.client.get(f'/business/{self.b}/finance/operations?month=2026-09&view=list')
+        self.assertEqual(listed.status_code,200)
+        self.assertIn('>Edit</button>',listed.text)
+        self.assertIn('/deactivate',listed.text)
+        self.assertIn('>Hapus</button>',listed.text)
 
         future=self.client.get(f'/business/{self.b}/finance/operations?month=2026-10')
         self.assertEqual(future.status_code,200)
