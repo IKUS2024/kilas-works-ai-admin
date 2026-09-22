@@ -3,6 +3,7 @@ import json
 import db
 import repo
 import finance_service as f
+import account_profile_service as account_profiles
 
 SENDER = ('name','address','phone','email','tax_id','website')
 RECIPIENT = ('name','pic','address','phone','email','tax_id')
@@ -51,16 +52,39 @@ def defaults(business_id, actor_user_id=None):
         business_id, actor_user_id)
     row = db.query_one('SELECT defaults_json FROM finance_invoice_settings WHERE business_id=? AND branch_id=?',
                        (business_id, branch_id))
+    if workspace_type == 'PERSONAL':
+        # Account → Pribadi is the canonical profile for future personal invoices.
+        # Legacy per-branch defaults are still used as a fallback until the customer
+        # saves the new personal profile once, so no old contact/payment data disappears.
+        profile = account_profiles.get_personal_profile(actor_user_id)
+        canonical = account_profiles.has_personal_profile(actor_user_id)
+        if row and not canonical:
+            values = json.loads(row['defaults_json'])
+            sender = values.setdefault('sender', {})
+            sender['name'] = sender_name
+            sender['email'] = sender_email
+            return values
+        return {
+            'sender': dict(
+                name=sender_name,
+                address=profile.get('address') or '',
+                phone=profile.get('phone') or '',
+                email=sender_email,
+                tax_id=profile.get('tax_id') or '',
+                website=profile.get('website') or '',
+            ),
+            'payment': dict(
+                method=profile.get('payment_method') or '',
+                bank=profile.get('payment_bank_name') or '',
+                account_number=profile.get('payment_account_number') or '',
+                account_holder=profile.get('payment_account_name') or '',
+                instructions=profile.get('payment_instructions') or '',
+            ),
+        }
     if row:
         values = json.loads(row['defaults_json'])
-        sender = values.setdefault('sender', {})
-        sender['email'] = sender_email
-        if workspace_type == 'PERSONAL':
-            sender['name'] = sender_name
+        values.setdefault('sender', {})['email'] = sender_email
         return values
-    if workspace_type == 'PERSONAL':
-        return {'sender':dict(name=sender_name,address='',phone='',email=sender_email,tax_id='',website=''),
-                'payment':dict(method='',bank='',account_number='',account_holder='',instructions='')}
     p = db.query_one('SELECT * FROM business_profiles WHERE business_id=?',(business_id,)) or {}
     return {'sender':dict(name=sender_name,address=p.get('address') or '',
                          phone=p.get('business_phone') or '',email=sender_email,tax_id='',website=''),
@@ -76,6 +100,17 @@ def save_defaults(business_id, data, actor_user_id=None):
     values['sender']['email'] = sender_email
     if workspace_type == 'PERSONAL':
         values['sender']['name'] = sender_name
+        account_profiles.save_personal_profile(actor_user_id, {
+            'phone': values['sender']['phone'],
+            'address': values['sender']['address'],
+            'tax_id': values['sender']['tax_id'],
+            'website': values['sender']['website'],
+            'payment_method': values['payment']['method'],
+            'payment_bank_name': values['payment']['bank'],
+            'payment_account_number': values['payment']['account_number'],
+            'payment_account_name': values['payment']['account_holder'],
+            'payment_instructions': values['payment']['instructions'],
+        })
     elif not values['sender']['address'] or not values['sender']['phone']:
         raise f.FinanceError('invoice_sender_required')
     values = {k:values[k] for k in ('sender','payment')}
