@@ -144,3 +144,23 @@
   .finance-account-detail-balance>strong{font-size:18px}
   .finance-account-detail-top-actions{justify-content:flex-start}
 }
+
+
+/* Collapsible Finance account-type overview. */
+.finance-account-hb-group{margin:0}
+.finance-account-hb-group-head{min-height:54px;padding:12px 2px;list-style:none;cursor:pointer;user-select:none}
+.finance-account-hb-group-head::-webkit-details-marker{display:none}
+.finance-account-hb-group-head>span:first-child{font-size:13px;font-weight:850}
+.finance-account-hb-group-summary-right{display:flex;align-items:center;justify-content:flex-end;gap:9px;min-width:0}
+.finance-account-hb-group-summary-right>strong{font-size:14px;font-weight:850;white-space:nowrap}
+.finance-account-hb-group-chevron{display:inline-block;color:var(--text-dim);font-style:normal;font-size:19px;line-height:1;transition:transform .16s ease}
+.finance-account-hb-group[open] .finance-account-hb-group-chevron{transform:rotate(180deg)}
+.finance-account-hb-group-accounts{padding:0 0 4px 10px;border-top:1px solid color-mix(in srgb,var(--border) 72%,transparent)}
+.finance-account-hb-group-accounts .finance-account-hb-row:first-child{border-top:0}
+.finance-account-hb-group-accounts .finance-account-hb-row{padding-left:2px}
+@media(max-width:640px){
+  .finance-account-hb-group-head{min-height:51px;padding:11px 1px}
+  .finance-account-hb-group-head>span:first-child{font-size:12.5px}
+  .finance-account-hb-group-summary-right>strong{font-size:13px}
+  .finance-account-hb-group-accounts{padding-left:8px}
+}
