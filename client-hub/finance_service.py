@@ -599,7 +599,7 @@ def _category_setting_by_id(business_id, category_id, actor_user_id=None, *, inc
     )
     params = [business_id, _id(category_id), scope['scope_key']]
     if not include_inactive:
-        sql += ' AND s.is_active=TRUE AND (h.child_category_id IS NULL OR ps.category_id IS NOT NULL)'
+        sql += ' AND s.is_active=TRUE'
     row = db.query_one(sql, params)
     return dict(row) if row else None
 
