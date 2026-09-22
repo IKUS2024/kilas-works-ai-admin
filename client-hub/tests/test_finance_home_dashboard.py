@@ -373,12 +373,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Pengeluaran dari anggaran',html)
         self.assertIn('Tanya Kilas Finance',html)
 
-    def test_finance_pages_have_distinct_global_header_context(self):
+    def test_finance_pages_hide_client_hub_topbar_and_offer_dashboard_back(self):
         html,_=self.page('?month=2026-09')
-        self.assertIn('finance-context-bar',html)
-        self.assertIn('finance-brand-label">Finance</strong>',html)
-        self.assertIn('class="topbar-active" aria-current="page"',html)
-        self.assertIn('>Finance</a>',html)
+        self.assertNotIn('Kilas<span>Works</span> Client Hub',html)
+        self.assertNotIn('finance-context-bar',html)
+        self.assertNotIn('class="topbar-active" aria-current="page"',html)
+        self.assertIn('← Dashboard',html)
 
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
         html,_=self.page('?month=2026-09')
