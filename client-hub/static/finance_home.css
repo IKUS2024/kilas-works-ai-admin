@@ -95,9 +95,9 @@
 .finance-ledger-category-empty{padding:18px 0;color:var(--text-dim);font-size:13px}
 @media(max-width:700px){
   .finance-ledger-title-line{width:100%;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end}
-  .finance-ledger-title-line h1{font-size:clamp(24px,7vw,27px);letter-spacing:-.045em}
+  .finance-ledger-title-line h1{font-size:clamp(22px,6.2vw,24px);letter-spacing:-.04em}
   .finance-ledger-inline-total>span{font-size:10px}
-  .finance-ledger-inline-total strong{font-size:clamp(15px,4.4vw,18px)}
+  .finance-ledger-inline-total strong{font-size:clamp(17px,4.8vw,20px)}
   .finance-ledger-total-value>small{font-size:.62em!important}
   .finance-ledger-category-card{padding:3px 14px}
   .finance-ledger-category-row{min-height:50px;padding:11px 0;gap:12px}
