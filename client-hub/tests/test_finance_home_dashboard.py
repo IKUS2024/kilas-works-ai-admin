@@ -552,25 +552,22 @@ class DashboardHomeTests(unittest.TestCase):
 
     def test_category_manager_can_add_edit_and_delete_subcategories(self):
         html,_=self.page('?month=2026-09')
-        self.assertIn('data-category-level',html)
-        self.assertIn('Kategori utama',html)
-        self.assertIn('Subkategori',html)
-        self.assertIn('bisa ditambah, diedit, atau dihapus',html)
-        self.assertIn('data-category-manager-form',html)
         self.assertIn('data-category-manager-root',html)
         self.assertIn('data-category-direction-tab="INCOME"',html)
         self.assertIn('data-category-direction-tab="EXPENSE"',html)
-        self.assertIn('data-category-expand',html)
-        self.assertIn('finance-category-children',html)
+        self.assertIn('data-category-create-popup',html)
+        self.assertIn('data-category-editor',html)
+        self.assertIn('data-category-edit-popup',html)
+        self.assertIn('finance-category-tree',html)
         self.assertIn('＋ Tambah Kategori / Subkategori',html)
+        self.assertIn('Edit kategori',html)
+        self.assertIn('Hapus kategori',html)
+        self.assertNotIn('>Lainnya</strong>',html)
+        self.assertNotIn('Pendapatan Lain',html)
         for direction in ('INCOME','EXPENSE'):
             rows=fixture.f.list_categories(
                 self.b,direction,include_children=True,actor_user_id=self.uid)
             self.assertTrue(rows)
-            for row in rows:
-                self.assertIn(
-                    f'data-finance-category-record="{row["id"]}" data-category-direction="{direction}"',
-                    html)
 
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         endpoint=f'/business/{self.b}/finance/categories'
@@ -617,6 +614,30 @@ class DashboardHomeTests(unittest.TestCase):
             self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)
         self.assertNotIn('Operasional Khusus',[row['name'] for row in active])
         self.assertNotIn('BBM Genset',[row['name'] for row in active])
+
+    def test_retired_lainnya_categories_cannot_return_to_active_ui(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        endpoint=f'/business/{self.b}/finance/categories'
+        headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
+        for direction,name in (
+            ('INCOME','Pendapatan Lain'),
+            ('EXPENSE','Pengeluaran Lain'),
+            ('EXPENSE','Lainnya'),
+        ):
+            response=self.client.post(endpoint,data={
+                'branch_id':str(branch_id),'direction':direction,
+                'action':'create','name':name,
+            },headers=headers)
+            self.assertEqual(response.status_code,400)
+            self.assertIn('tidak digunakan lagi',response.get_json()['error'])
+
+        for direction in ('INCOME','EXPENSE'):
+            active=fixture.f.list_categories(
+                self.b,direction,include_children=True,actor_user_id=self.uid)
+            self.assertFalse(any(
+                row['name'] in ('Pendapatan Lain','Pengeluaran Lain','Lainnya')
+                or row.get('parent_name') in ('Pendapatan Lain','Pengeluaran Lain','Lainnya')
+                for row in active))
 
     def test_penerima_is_derived_from_expense_counterparty(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
