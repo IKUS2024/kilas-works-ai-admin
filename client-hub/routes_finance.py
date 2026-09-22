@@ -1355,8 +1355,8 @@ def create_category(business_id, user, business):
             ), None)
             if category is None:
                 raise finance.FinanceError('category_unavailable')
-            branches.update_record(
-                business_id, 'category', category_id, deactivate=True,
+            finance.update_category_workspace_setting(
+                business_id, category_id, deactivate=True,
                 actor_user_id=user['id'])
         else:
             abort(400)
