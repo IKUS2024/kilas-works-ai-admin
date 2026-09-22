@@ -120,14 +120,47 @@ class FinalFlowTests(unittest.TestCase):
                 '2026-09-17',actor_user_id=self.uid)
 
         with branches.scope(self.b,business_branch['id'],self.uid):
+            f.ensure_finance_defaults(self.b,actor_user_id=self.uid)
             business_ids={row['id'] for row in f.list_transactions(
                 self.b,actor_user_id=self.uid)}
             self.assertIn(legacy,business_ids)
             self.assertNotIn(personal_tx,business_ids)
             business_categories={row['name'] for row in f.list_categories(
                 self.b,'EXPENSE',actor_user_id=self.uid)}
+            for name in (
+                'Produksi / HPP','Gaji & Tenaga Kerja','Marketing & Promosi',
+                'Software & Langganan','Transportasi & Pengiriman',
+                'Bank & Pembayaran','Pajak & Asuransi','Makan & Operasional Tim'):
+                self.assertIn(name,business_categories)
             self.assertNotIn('Hobi Pribadi',business_categories)
             self.assertNotIn('Belanja Pribadi',business_categories)
+
+            marketing=next(row for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)
+                if row['name']=='Marketing & Promosi')
+            marketing_children={row['name'] for row in f.list_category_children(
+                self.b,marketing['id'],actor_user_id=self.uid)}
+            self.assertEqual(
+                marketing_children,
+                {'Meta Ads','Google Ads','TikTok Ads','Influencer / KOL',
+                 'Produksi Konten','Promo / Diskon'})
+
+            # Default categories remain fully user-manageable. Re-opening Finance
+            # must not recreate a renamed or deleted default.
+            f.update_category_workspace_setting(
+                self.b,marketing['id'],name='Promosi Bisnis',
+                actor_user_id=self.uid)
+            bank=next(row for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)
+                if row['name']=='Bank & Pembayaran')
+            f.update_category_workspace_setting(
+                self.b,bank['id'],deactivate=True,actor_user_id=self.uid)
+            f.ensure_finance_defaults(self.b,actor_user_id=self.uid)
+            after={row['name'] for row in f.list_categories(
+                self.b,'EXPENSE',actor_user_id=self.uid)}
+            self.assertIn('Promosi Bisnis',after)
+            self.assertNotIn('Marketing & Promosi',after)
+            self.assertNotIn('Bank & Pembayaran',after)
 
         personal_page=self.client.get(
             f'/business/{self.b}/finance?branch_id={personal[0]["id"]}')
