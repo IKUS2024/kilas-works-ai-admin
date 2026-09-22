@@ -133,7 +133,7 @@
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
 <header class="finance-hero">
-<a class="finance-back-link" href="{{ url_for('finance.workspace_choice',business_id=business.id) }}">← Pilih Finance</a>
+<a class="finance-back-link" href="{{ url_for('client.dashboard') }}">← Dashboard</a>
 <div class="finance-hero-row"><div><span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span><h1>Kilas Finance</h1><p>{% if finance_workspace_personal %}Pribadi · data terpisah dari Bisnis{% else %}{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua cabang' }}{% endif %}</p></div></div>
 {% if not finance_workspace_personal %}
 <details class="finance-context-compact"><summary>Ganti ruang / cabang</summary><div class="finance-context-grid">
