@@ -102,6 +102,38 @@ class DashboardHomeTests(unittest.TestCase):
                          if row['name']==expense_category['name'])
         self.assertEqual(expense_row['amount_minor'],99000)
 
+    def test_direction_category_rows_drill_into_parent_and_subcategory_transactions(self):
+        utility=next(row for row in fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid) if row['name']=='Utilitas')
+        electricity=next(row for row in fixture.f.list_category_children(
+            self.b,utility['id'],actor_user_id=self.uid) if row['name']=='Listrik')
+        other=next(row for row in fixture.f.list_categories(
+            self.b,'EXPENSE',actor_user_id=self.uid) if row['name']=='Konsumsi')
+
+        fixture.f.create_transaction(
+            self.b,'EXPENSE',12500000,self.a,electricity['id'],'2026-09-12',
+            description='Tagihan listrik kategori',actor_user_id=self.uid)
+        fixture.f.create_transaction(
+            self.b,'EXPENSE',5000000,self.a,other['id'],'2026-09-13',
+            description='Makan tim kategori lain',actor_user_id=self.uid)
+
+        overview_html,overview_context=self.page(
+            '?month=2026-09&view=transactions&direction=EXPENSE')
+        self.assertIsNone(overview_context['selected_category_id'])
+        self.assertNotIn('Tagihan listrik kategori',overview_html)
+        self.assertIn(f'category_id={utility["id"]}',overview_html)
+
+        detail_html,detail_context=self.page(
+            f'?month=2026-09&view=transactions&direction=EXPENSE&category_id={utility["id"]}')
+        self.assertEqual(detail_context['selected_category_id'],utility['id'])
+        self.assertEqual(detail_context['selected_ledger_category']['id'],utility['id'])
+        self.assertEqual(detail_context['transaction_total'],1)
+        self.assertIn('Transaksi Utilitas',detail_html)
+        self.assertIn('Tagihan listrik kategori',detail_html)
+        self.assertIn('Listrik',detail_html)
+        self.assertNotIn('Makan tim kategori lain',detail_html)
+        self.assertIn('finance-ledger-category-row active',detail_html)
+
     def test_accounts_view_uses_homebudget_overview_and_live_balance_report(self):
         account=fixture.f.get_account(self.b,self.a,actor_user_id=self.uid)
         html,context=self.page('?month=2026-09&view=accounts')
