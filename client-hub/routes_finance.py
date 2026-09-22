@@ -653,6 +653,11 @@ def dashboard(business_id, user, business):
                               else finance_fx.format_money(period_expense_minor, display_currency))
     period_net_display = ('Kurs belum lengkap' if period_net_minor is None
                           else finance_fx.format_money(period_net_minor, display_currency))
+    compact_money = lambda value: (
+        value[:-3] if display_currency == 'IDR' and isinstance(value, str) and value.endswith(',00')
+        else value)
+    period_income_compact_display = compact_money(period_income_display)
+    period_expense_compact_display = compact_money(period_expense_display)
     fx_status_label = ('Kurs belum tersedia' if fx.get('source') == 'unavailable'
                        else f"Kurs terbaru {fx.get('source')} · {fx.get('date') or 'tanggal tidak tersedia'}"
                             + (' · data tertunda' if fx.get('stale') else ''))
@@ -811,7 +816,7 @@ def dashboard(business_id, user, business):
                 preferred_order.get(item['name'], len(preferred_order)),
                 item['name'].casefold(), item['category_id']))
         for item in ledger_category_rows:
-            item['display_amount'] = (
+            item['display_amount'] = compact_money(
                 'Kurs belum lengkap' if item['amount_minor'] is None
                 else finance_fx.format_money(item['amount_minor'], display_currency))
 
@@ -889,6 +894,8 @@ def dashboard(business_id, user, business):
         estimated_balance_idr=estimated_balance_idr, fx=fx, balance_displays=balance_displays,
         balance_total_display=balance_total_display, period_income_display=period_income_display,
         period_expense_display=period_expense_display, period_net_display=period_net_display,
+        period_income_compact_display=period_income_compact_display,
+        period_expense_compact_display=period_expense_compact_display,
         fx_status_label=fx_status_label,
         budget_rows=budget_rows, budget_total_display=budget_total_display,
         budget_remaining_display=budget_remaining_display, budget_percent=budget_percent,
