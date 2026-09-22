@@ -481,7 +481,8 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Kilas<span>Works</span> Client Hub',html)
         self.assertNotIn('finance-context-bar',html)
         self.assertNotIn('class="topbar-active" aria-current="page"',html)
-        self.assertIn('← Dashboard',html)
+        self.assertIn('Keluar Finance',html)
+        self.assertIn('finance-exit-bar',html)
 
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
         html,_=self.page('?month=2026-09')
