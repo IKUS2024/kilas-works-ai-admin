@@ -758,7 +758,7 @@ def list_categories(business_id, direction=None, include_inactive=False, include
     if direction is not None:
         sql += ' AND c.direction=?'; params.append(_enum(direction, DIRECTIONS))
     if not include_inactive:
-        sql += ' AND s.is_active=TRUE'
+        sql += ' AND s.is_active=TRUE AND (h.child_category_id IS NULL OR ps.category_id IS NOT NULL)'
     rows = [dict(row) for row in db.query_all(
         sql + ' ORDER BY c.direction,s.display_name,c.id', params)]
 
