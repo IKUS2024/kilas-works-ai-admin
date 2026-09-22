@@ -325,6 +325,70 @@ class DashboardHomeTests(unittest.TestCase):
             self.assertEqual(deleted.status_code,200)
             self.assertNotIn(name,[row['name'] for row in deleted.get_json()['options']])
 
+    def test_category_manager_can_add_edit_and_delete_subcategories(self):
+        html,_=self.page('?month=2026-09')
+        self.assertIn('data-category-level',html)
+        self.assertIn('Kategori utama',html)
+        self.assertIn('Subkategori',html)
+        self.assertIn('bisa ditambah, diedit, atau dihapus',html)
+
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        endpoint=f'/business/{self.b}/finance/categories'
+        headers={'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
+
+        parent_response=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'direction':'EXPENSE',
+            'action':'create','name':'Operasional Khusus',
+        },headers=headers)
+        self.assertEqual(parent_response.status_code,201)
+        parent=parent_response.get_json()['category']
+        self.assertIsNone(parent['parent_category_id'])
+
+        child_response=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'direction':'EXPENSE',
+            'action':'create','name':'Bensin Genset',
+            'parent_category_id':str(parent['id']),
+        },headers=headers)
+        self.assertEqual(child_response.status_code,201)
+        child=child_response.get_json()['category']
+        self.assertEqual(child['parent_category_id'],parent['id'])
+        self.assertEqual(child['parent_name'],'Operasional Khusus')
+
+        edited=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'direction':'EXPENSE',
+            'action':'edit','category_id':str(child['id']),
+            'name':'BBM Genset',
+        },headers=headers)
+        self.assertEqual(edited.status_code,200)
+        edited_payload=edited.get_json()
+        self.assertEqual(edited_payload['category']['name'],'BBM Genset')
+        self.assertEqual(edited_payload['category']['parent_category_id'],parent['id'])
+
+        blocked=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'direction':'EXPENSE',
+            'action':'delete','category_id':str(parent['id']),
+        },headers=headers)
+        self.assertEqual(blocked.status_code,400)
+        self.assertIn('subkategori',blocked.get_json()['error'].lower())
+
+        deleted_child=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'direction':'EXPENSE',
+            'action':'delete','category_id':str(child['id']),
+        },headers=headers)
+        self.assertEqual(deleted_child.status_code,200)
+        self.assertNotIn('BBM Genset',[
+            row['name'] for row in deleted_child.get_json()['options']
+        ])
+
+        deleted_parent=self.client.post(endpoint,data={
+            'branch_id':str(branch_id),'direction':'EXPENSE',
+            'action':'delete','category_id':str(parent['id']),
+        },headers=headers)
+        self.assertEqual(deleted_parent.status_code,200)
+        self.assertNotIn('Operasional Khusus',[
+            row['name'] for row in deleted_parent.get_json()['options']
+        ])
+
     def test_penerima_is_derived_from_expense_counterparty(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
         fixture.f.create_transaction(self.b,'EXPENSE',125000,self.a,expense_cat,
