@@ -364,6 +364,39 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Listrik',budget.text)
         self.assertIn('Rp50.000,00',budget.text)
 
+    def test_reports_support_all_time_and_custom_date_ranges(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        fixture.f.create_transaction(
+            self.b,'INCOME',10000000,self.a,self.cat,'2025-01-15',
+            description='Old all-time income',actor_user_id=self.uid)
+        fixture.f.create_transaction(
+            self.b,'INCOME',20000000,self.a,self.cat,'2026-09-10',
+            description='Current income',actor_user_id=self.uid)
+
+        all_time=self.client.get(
+            f'/business/{self.b}/finance/reports?branch_id={branch_id}'
+            '&section=summary&preset=all')
+        self.assertEqual(all_time.status_code,200)
+        self.assertIn('Semua waktu',all_time.text)
+        self.assertIn('2025-01-15',all_time.text)
+        self.assertIn('2026-09-22',all_time.text)
+        self.assertIn('Rp300.000,00',all_time.text)
+
+        custom=self.client.get(
+            f'/business/{self.b}/finance/reports?branch_id={branch_id}'
+            '&section=summary&preset=custom&start=2026-09-01&end=2026-09-22'
+            '&as_of=2026-09-22')
+        self.assertEqual(custom.status_code,200)
+        self.assertIn('Tanggal khusus',custom.text)
+        self.assertIn('2026-09-01',custom.text)
+        self.assertIn('2026-09-22',custom.text)
+        self.assertIn('Rp200.000,00',custom.text)
+        self.assertNotIn('Rp300.000,00',custom.text)
+
+        for label in ('Hari ini','Bulan ini','Bulan lalu','3 bulan','6 bulan',
+                      'Tahun ini','Semua waktu','Tanggal khusus'):
+            self.assertIn(label,custom.text)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
