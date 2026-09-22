@@ -160,6 +160,7 @@ ERRORS = {
     'account_unavailable': 'Akun tidak tersedia.',
     'account_currency_mismatch': 'Mata uang transaksi harus sama dengan mata uang akun yang dipilih.',
     'account_type_unavailable': 'Tipe tempat uang tidak tersedia. Pilih atau tambahkan tipe lain.',
+    'account_type_in_use': 'Tipe ini masih dipakai akun aktif. Pindahkan tipe akun tersebut dulu sebelum menghapus kategori ini.',
     'unsupported_currency': 'Mata uang belum didukung Kilas Finance.',
     'fx_same_currency': 'Pilih dua akun dengan mata uang berbeda.',
     'fx_exchange_unavailable': 'Penukaran mata uang tidak tersedia.',
