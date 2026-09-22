@@ -22,7 +22,7 @@ def build(business_id, user_id, month, today, currency, fx, bill_projection,
         business_id, trend_start, month, end_date=end, **actor)
     rules = finance.list_recurring_expenses(business_id, include_inactive=True, **actor)
     bills = bill_projection(business_id, rules, start, last.isoformat(), today.isoformat(), user_id)
-    invoices = [] if personal else finance.get_report_invoices(
+    invoices = finance.get_report_invoices(
         business_id, end, start_date=start, end_date=end, open_only=True, **actor)
     horizon = max((r['next_due_on'] for r in rules if r['is_active']), default=end)
     upcoming = finance.preview_due_recurring_expenses(business_id, horizon, **actor) if rules else []
