@@ -9,9 +9,18 @@
 {{ metric('Pengeluaran', period_expense_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',**period_query), 'expense', 'expense', change=dashboard_view.changes.expense if period_mode=='month' else none) }}
 {{ metric('Total Keuangan Akun', balance_total_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',display_currency=display_currency), 'account') }}
 {{ metric('Tagihan', dashboard_view.bills_display, url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,payment_status='unpaid',view='list',display_currency=display_currency), 'bill') }}
-<a class="finance-metric" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}"><span class="finance-metric-label">{{ icon('budget') }}Anggaran</span><strong>{{ budget_total_display }}</strong><div class="finance-budget-progress"><progress value="{{ [budget_percent,100]|min }}" max="100" aria-label="Penggunaan anggaran">{{ budget_percent }}%</progress><span>{{ budget_percent }}%</span></div><small>{{ 'Sisa ' ~ budget_remaining_display if budget_rows else 'Belum diatur' }}</small></a>
-{{ metric('Penerima', payee_count|string ~ ' penerima', url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,display_currency=display_currency), 'people') }}
+<a class="finance-metric finance-budget-metric" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}">
+  <div class="finance-budget-metric-copy">
+    <span class="finance-metric-label">{{ icon('budget') }}Anggaran</span>
+    <strong>{{ budget_total_display }}</strong>
+    <small>{{ 'Sisa ' ~ budget_remaining_display if budget_rows else 'Belum diatur' }}</small>
+  </div>
+  <div class="finance-budget-ring {{ 'over' if budget_percent > 100 else '' }}" style="--budget-percent: {{ [budget_percent,100]|min }};" role="img" aria-label="Penggunaan anggaran {{ budget_percent }} persen">
+    <span>{{ budget_percent }}%</span>
+  </div>
+</a>
 {{ metric('Invoice', dashboard_view.invoice_display, url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='invoices'), 'invoice', compact=true) }}
+{{ metric('Penerima', payee_count|string ~ ' penerima', url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,display_currency=display_currency), 'people', compact=true) }}
 </section>
 
 <section class="finance-ai-strip" aria-label="AI Finance">
