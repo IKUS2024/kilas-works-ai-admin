@@ -428,6 +428,20 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Rp150.000,00',html)
         self.assertIn('Rp25.000,00',html)
 
+    def test_finance_subpages_do_not_repeat_branch_selector_card(self):
+        branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
+        reports=self.client.get(
+            f'/business/{self.b}/finance/reports?branch_id={branch_id}&preset=month')
+        self.assertEqual(reports.status_code,200)
+        self.assertNotIn('finance-scope-card',reports.text)
+        self.assertNotIn('Cabang aktif:',reports.text)
+
+        operations=self.client.get(
+            f'/business/{self.b}/finance/operations?branch_id={branch_id}')
+        self.assertEqual(operations.status_code,200)
+        self.assertNotIn('finance-scope-card',operations.text)
+        self.assertNotIn('Cabang aktif:',operations.text)
+
     def test_home_uses_translated_homebudget_primary_sections(self):
         html,context=self.page('?month=2026-09')
         for label in ('Pengeluaran','Tagihan','Pemasukan','Anggaran','Akun','Penerima'):
