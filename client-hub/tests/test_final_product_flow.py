@@ -457,6 +457,31 @@ class FinalFlowTests(unittest.TestCase):
         self.assertEqual(e.state(self.b)['status'],'TRIAL_ACTIVE')
         self.assertEqual(before,len(repo.list_businesses_for_user(self.uid)))
 
+    def test_dashboard_focuses_one_owned_product_lane_at_a_time(self):
+        finance=self.client.get('/dashboard')
+        self.assertEqual(finance.status_code,200)
+        self.assertIn('class="product-switcher"',finance.text)
+        self.assertIn('<h2>Kilas Finance</h2>',finance.text)
+        self.assertNotIn('<h2>AI Admin</h2>',finance.text)
+
+        brain=self.client.get('/dashboard?product=brain')
+        self.assertEqual(brain.status_code,200)
+        self.assertIn('<h2>AI Admin</h2>',brain.text)
+        self.assertNotIn('<h2>Kilas Finance</h2>',brain.text)
+
+    def test_finance_only_customer_never_sees_ai_admin_lane_on_dashboard(self):
+        email='finance-only-dashboard@example.test';password='password123'
+        uid=repo.create_user(email,security.hash_password(password),role='CLIENT_OWNER',full_name='Finance Only')
+        biz=repo.create_business(uid,'Finance Only Biz',package='NONE')
+        f.ensure_finance_defaults(biz,actor_user_id=uid)
+        client=app.test_client()
+        self.assertEqual(client.post('/login',data={'email':email,'password':password}).status_code,302)
+        page=client.get('/dashboard')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('<h2>Kilas Finance</h2>',page.text)
+        self.assertNotIn('<h2>AI Admin</h2>',page.text)
+        self.assertNotIn('class="product-switcher"',page.text)
+
     def test_dashboard_trial_is_one_click_and_bootstraps_defaults(self):
         biz=repo.create_business(self.uid,'Quick Trial',package='NONE')
         self.assertEqual(f.list_accounts(biz,actor_user_id=self.uid),[])
