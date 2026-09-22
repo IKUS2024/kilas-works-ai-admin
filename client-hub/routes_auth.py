@@ -25,6 +25,12 @@ def register_page():
     password = request.form.get("password") or ""
     full_name = (request.form.get("full_name") or "").strip()
 
+    if not full_name:
+        flash("Nama pemilik wajib diisi.", "error")
+        return render_template("register.html", email=email, full_name=full_name)
+    if len(full_name) > 100:
+        flash("Nama pemilik terlalu panjang.", "error")
+        return render_template("register.html", email=email, full_name=full_name)
     if not EMAIL_RE.match(email):
         flash("Email tidak valid.", "error")
         return render_template("register.html", email=email, full_name=full_name)
@@ -36,7 +42,7 @@ def register_page():
         return render_template("register.html", email=email, full_name=full_name)
 
     password_hash = security.hash_password(password)
-    user_id = repo.create_user(email, password_hash, role="CLIENT_OWNER", full_name=full_name or None)
+    user_id = repo.create_user(email, password_hash, role="CLIENT_OWNER", full_name=full_name)
     user = repo.get_user_by_email(email)
     security.login_user(user)
     return redirect(url_for("products.continue_product") if __import__("product_flow").intent(session.get("product_intent")) else url_for("client.dashboard"))
