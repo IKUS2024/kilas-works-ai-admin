@@ -4,7 +4,7 @@
 {% block content %}
 {% include '_finance_receivables_style.html' %}
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
-<div class="fin-page invoice-editor"><a href="{{ url_for('finance.receivables',business_id=business.id,section='invoices') }}">← Invoice</a>
+<div class="fin-page invoice-editor">{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
 <h1>{{ 'Edit Invoice' if invoice else 'Buat Invoice' }}</h1>
 {% if invoice %}<p class="muted">{{ invoice.invoice_number }}</p>{% endif %}
 {% if locked %}<p class="card" role="note">Invoice sudah memiliki pembayaran. Anda dapat memperbaiki teks dan kontak. Jumlah, harga, mata uang, tanggal dan customer terkait dikunci untuk menjaga riwayat pembayaran.</p>{% endif %}
