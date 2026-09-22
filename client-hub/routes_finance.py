@@ -184,6 +184,7 @@ ERRORS = {
     'branch_last_active': 'Sisakan minimal satu cabang aktif. Tambahkan cabang baru sebelum menghapus cabang terakhir.',
     'account_last_active': 'Sisakan minimal satu akun aktif di cabang ini.',
     'account_currency_required': 'Rekening ini masih diperlukan karena mata uang tersebut masih memiliki saldo. Pindahkan atau nolkan saldonya dulu.',
+    'account_balance_required': 'Saldo akun ini belum Rp0. Pindahkan atau nolkan saldo akun terlebih dahulu sebelum menghapusnya.',
     'account_in_use': 'Akun ini masih dipakai biaya rutin aktif. Ubah biaya rutinnya dulu sebelum menghapus.',
     'category_last_active': 'Sisakan minimal satu kategori Pemasukan dan satu kategori Pengeluaran.',
     'category_in_use': 'Kategori ini masih dipakai biaya rutin aktif. Ubah atau hentikan biaya rutinnya dulu sebelum menghapus.',
