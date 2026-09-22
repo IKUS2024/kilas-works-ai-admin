@@ -15,26 +15,57 @@ SOURCES={'FINANCE_INVOICE_PAYMENT':'Pembayaran Invoice','FINANCE_RECURRING_EXPEN
 ACCOUNT_TYPES={'CASH':'Kas','BANK':'Bank','EWALLET':'E-Wallet','OTHER':'Lainnya'}
 
 
-def parse_filters(args, today=None):
+def parse_filters(args, today=None, business_id=None, actor_user_id=None):
     today=today or date.today()
+    today_iso=today.isoformat()
     preset=args.get('preset','month')
-    if preset not in ('month','three','year'):raise finance.FinanceError('report_range')
+    allowed=('today','month','last_month','three','six','year','all','custom')
+    if preset not in allowed:
+        raise finance.FinanceError('report_range')
+
     start=today.replace(day=1)
-    if preset=='year':start=today.replace(month=1,day=1)
-    if preset=='three':
-        ordinal=today.year*12+today.month-1-2
+    end=today
+    if preset=='today':
+        start=end=today
+    elif preset=='last_month':
+        first_this=today.replace(day=1)
+        end=first_this-timedelta(days=1)
+        start=end.replace(day=1)
+    elif preset in ('three','six'):
+        months_back=2 if preset=='three' else 5
+        ordinal=today.year*12+today.month-1-months_back
         start=date(ordinal//12,ordinal%12+1,1)
-    first,last=finance.report_period(args.get('start',start.isoformat()),args.get('end',today.isoformat()))
+    elif preset=='year':
+        start=today.replace(month=1,day=1)
+    elif preset=='all':
+        if business_id is None:
+            raise finance.FinanceError('report_range')
+        bounds=finance.get_report_date_bounds(
+            business_id,actor_user_id=actor_user_id)
+        start=date.fromisoformat(bounds['first_on']) if bounds['first_on'] else today
+        end=today
+    elif preset=='custom':
+        # Custom dates are validated below; defaults keep the form usable if
+        # one field is omitted by a stale/bookmarked URL.
+        start=today.replace(day=1)
+        end=today
+
+    first,last=finance.report_period(
+        args.get('start',start.isoformat()),
+        args.get('end',end.isoformat()))
     finance.report_months(first[:7],last[:7])
     as_of=finance._date(args.get('as_of',last))
-    if last > today.isoformat() or as_of > today.isoformat():
+    if last > today_iso or as_of > today_iso:
         raise finance.FinanceError('report_range')
     try:
-        future_start=args.get('commitment_start',today.isoformat())
+        future_start=args.get('commitment_start',today_iso)
         future_end=args.get('commitment_end',(today+timedelta(days=29)).isoformat())
         future_start,future_end=finance.report_period(future_start,future_end)
-    except (ValueError,OverflowError):raise finance.FinanceError('report_range') from None
-    return dict(start=first,end=last,as_of=as_of,commitment_start=future_start,commitment_end=future_end)
+    except (ValueError,OverflowError):
+        raise finance.FinanceError('report_range') from None
+    return dict(
+        preset=preset,start=first,end=last,as_of=as_of,
+        commitment_start=future_start,commitment_end=future_end)
 
 
 def money_csv(value,currency):
