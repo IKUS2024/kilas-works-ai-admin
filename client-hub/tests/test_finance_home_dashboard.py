@@ -525,8 +525,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('data-category-quick-add',html)
         self.assertIn('data-category-placeholder selected disabled>Pilih kategori</option>',html)
         self.assertIn('data-subcategory-field hidden',html)
+        self.assertIn('data-finance-open="category-dialog"',html)
+        self.assertIn('data-category-manager-launch',html)
         self.assertIn('＋ Tambah / kelola kategori',html)
-        self.assertIn('Tambah &amp; pilih',html)
+        self.assertNotIn('data-category-add-panel',html)
 
         branch_id=__import__('finance_branches').list_branches(self.b)[0]['id']
         endpoint=f'/business/{self.b}/finance/categories'
@@ -556,7 +558,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('bisa ditambah, diedit, atau dihapus',html)
         self.assertIn('data-category-manager-form',html)
         self.assertIn('data-category-manager-root',html)
-        self.assertIn('data-category-record-list',html)
+        self.assertIn('data-category-direction-tab="INCOME"',html)
+        self.assertIn('data-category-direction-tab="EXPENSE"',html)
+        self.assertIn('data-category-expand',html)
+        self.assertIn('finance-category-children',html)
         self.assertIn('＋ Tambah Kategori / Subkategori',html)
         for direction in ('INCOME','EXPENSE'):
             rows=fixture.f.list_categories(
@@ -599,30 +604,19 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(edited_payload['category']['name'],'BBM Genset')
         self.assertEqual(edited_payload['category']['parent_category_id'],parent['id'])
 
-        blocked=self.client.post(endpoint,data={
-            'branch_id':str(branch_id),'direction':'EXPENSE',
-            'action':'delete','category_id':str(parent['id']),
-        },headers=headers)
-        self.assertEqual(blocked.status_code,400)
-        self.assertIn('subkategori',blocked.get_json()['error'].lower())
-
-        deleted_child=self.client.post(endpoint,data={
-            'branch_id':str(branch_id),'direction':'EXPENSE',
-            'action':'delete','category_id':str(child['id']),
-        },headers=headers)
-        self.assertEqual(deleted_child.status_code,200)
-        self.assertNotIn('BBM Genset',[
-            row['name'] for row in deleted_child.get_json()['options']
-        ])
-
         deleted_parent=self.client.post(endpoint,data={
             'branch_id':str(branch_id),'direction':'EXPENSE',
             'action':'delete','category_id':str(parent['id']),
         },headers=headers)
         self.assertEqual(deleted_parent.status_code,200)
-        self.assertNotIn('Operasional Khusus',[
-            row['name'] for row in deleted_parent.get_json()['options']
-        ])
+        remaining=deleted_parent.get_json()['options']
+        self.assertNotIn('Operasional Khusus',[row['name'] for row in remaining])
+        self.assertNotIn('BBM Genset',[row['name'] for row in remaining])
+
+        active=fixture.f.list_categories(
+            self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)
+        self.assertNotIn('Operasional Khusus',[row['name'] for row in active])
+        self.assertNotIn('BBM Genset',[row['name'] for row in active])
 
     def test_penerima_is_derived_from_expense_counterparty(self):
         expense_cat=fixture.f.list_categories(self.b,'EXPENSE')[0]['id']
