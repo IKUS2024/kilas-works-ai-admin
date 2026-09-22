@@ -16,6 +16,31 @@ from pricing_config import BRAIN_PLAN,FINANCE_PLAN
 products_bp=Blueprint('products',__name__)
 
 
+def _finance_business_claimed(business_id):
+    """True when this business already belongs to the Finance product lane.
+
+    Existing production rows are never rewritten. Old businesses with Finance master data count
+    as Finance even if they predate self-service entitlements; new businesses become Finance when
+    a trial/subscription row is created.
+    """
+    state = entitlement.state(business_id)
+    if state['status'] != 'NOT_ACTIVATED':
+        return True
+    return bool(db.query_one(
+        'SELECT 1 FROM finance_accounts WHERE business_id=? LIMIT 1',
+        (business_id,)
+    ))
+
+
+def _product_businesses(user_id, key):
+    rows = repo.list_businesses_for_user(user_id)
+    if key == 'finance':
+        return [row for row in rows if _finance_business_claimed(row['id'])]
+    if key == 'brain':
+        return [row for row in rows if row['package'] != 'NONE']
+    return rows
+
+
 def _start_finance_trial_now(business_id, user):
     """One-click trial entry used by dashboard/product flows; never creates ledger activity."""
     security.require_business_access(business_id, user)
@@ -115,7 +140,14 @@ def continue_product():
             except ValueError:abort(400)
         else:
             business_id=request.form.get('business_id',type=int)
-            if business_id:security.require_business_access(business_id,user)
+            if business_id:
+                selected_business=security.require_business_access(business_id,user)
+                # Do not let a new Finance setup silently become an AI Admin business (or vice
+                # versa). Legacy businesses that already contain both remain valid in both lanes.
+                if key=='finance' and not _finance_business_claimed(business_id):
+                    abort(400)
+                if key=='brain' and selected_business['package']=='NONE':
+                    abort(400)
             elif key in ('brain','finance'):abort(400)
         if key=='finance':
             return redirect(_start_finance_trial_now(business_id, user), code=303)
@@ -128,7 +160,11 @@ def continue_product():
         item=catalog_service.get_catalog_item(key)
         if not item or not item['is_active']:abort(404)
         return render_template('product_continue.html',item=item,chosen_business_id=business_id,ready=True)
-    return render_template('product_continue.html',product=key,businesses=repo.list_businesses_for_user(user['id']),setup_identity=uuid.uuid4().hex,ready=False)
+    return render_template(
+        'product_continue.html',product=key,
+        businesses=_product_businesses(user['id'],key),
+        setup_identity=uuid.uuid4().hex,ready=False
+    )
 
 
 @products_bp.route('/business/<int:business_id>/finance-trial/start',methods=['POST'])
