@@ -16,6 +16,7 @@ import finance_service as finance
 import finance_reports
 import finance_report_pdf
 import finance_invoice_view
+import finance_invoice_pdf
 import finance_collections
 import finance_receipts
 import file_utils
@@ -759,6 +760,15 @@ def dashboard(business_id, user, business):
 
     balance_total = next((row['balance_minor'] for row in balance_totals if row['currency']=='IDR'), 0)
     finance_workspace_personal = getattr(g,'finance_workspace_type','BUSINESS') == 'PERSONAL'
+    invoice_open_count = invoice_paid_count = invoice_draft_count = 0
+    if not finance_workspace_personal:
+        invoice_summary = finance.get_receivables_summary(
+            business_id, actor_user_id=user['id'])
+        invoice_open_count = int(invoice_summary['open_invoice_count'])
+        invoice_rows = finance.list_finance_invoices(
+            business_id, actor_user_id=user['id'])
+        invoice_paid_count = sum(row['status'] == 'PAID' for row in invoice_rows)
+        invoice_draft_count = sum(row['status'] == 'DRAFT' for row in invoice_rows)
     return render_template('finance_dashboard.html', user=user, business=business,
         period_start=start, period_end=end, period_mode=period_mode, period_label=period_label,
         period_query=period_query, range_start_value=range_start_value, range_end_value=range_end_value,
@@ -781,7 +791,9 @@ def dashboard(business_id, user, business):
         transaction_account=transaction_account, transaction_account_id=transaction_account_id,
         categories=categories, summary=summary, summaries=summaries,
         transactions=transactions, dashboard_trend=dashboard_trend, recent_activity=recent_activity,
-        recurring_items=recurring_items, payee_count=payee_count, previous_month=previous_month,
+        recurring_items=recurring_items, payee_count=payee_count,
+        invoice_open_count=invoice_open_count, invoice_paid_count=invoice_paid_count,
+        invoice_draft_count=invoice_draft_count, previous_month=previous_month,
         next_month=next_month if next_month <= current_value else None,
         collection_summary=finance_collections.position(business_id,user['id'])['aging'],
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in categories},
@@ -2205,9 +2217,15 @@ def invoice_privacy(response):
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/print')
 @finance_access
 def invoice_print(business_id,user,business,invoice_id):
-    try: doc=finance_invoice_view.document(business_id,invoice_id,user['id'])
-    except ValueError: abort(404)
-    return render_template('finance_invoice_public.html',doc=doc)
+    try:
+        doc=finance_invoice_view.document(business_id,invoice_id,user['id'])
+        pdf=finance_invoice_pdf.build(doc)
+    except ValueError:
+        abort(404)
+    filename=doc['invoice']['invoice_number']+'.pdf'
+    return Response(pdf,content_type='application/pdf',headers={
+        'Content-Disposition':f'attachment; filename="{filename}"',
+        'Cache-Control':'private, no-store'})
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/share',methods=['POST'])
@@ -2234,7 +2252,26 @@ def customer_invoice(token):
     except Exception:
         current_app.logger.warning('FINANCE_INVOICE_SHARE: unavailable')
         return 'Invoice belum dapat ditampilkan. Coba lagi nanti.',503
-    return render_template('finance_invoice_public.html',doc=doc)
+    return render_template(
+        'finance_invoice_public.html',doc=doc,
+        pdf_url=url_for('finance.customer_invoice_pdf',token=token))
+
+
+@finance_bp.route('/finance/invoice-share/<token>.pdf')
+def customer_invoice_pdf(token):
+    try:
+        business_id,invoice_id=finance_invoice_view.resolve_token(token)
+        doc=finance_invoice_view.document(business_id,invoice_id,public=True)
+        pdf=finance_invoice_pdf.build(doc)
+    except (ValueError,TypeError):
+        return 'Tautan invoice tidak tersedia atau sudah kedaluwarsa.',404
+    except Exception:
+        current_app.logger.warning('FINANCE_INVOICE_PDF_SHARE: unavailable')
+        return 'PDF invoice belum dapat dibuat. Coba lagi nanti.',503
+    filename=doc['invoice']['invoice_number']+'.pdf'
+    return Response(pdf,content_type='application/pdf',headers={
+        'Content-Disposition':f'attachment; filename="{filename}"',
+        'Cache-Control':'private, no-store'})
 
 
 @finance_bp.route('/business/<int:business_id>/finance/collections')
