@@ -619,12 +619,14 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('>Dashboard</a>',html)
         self.assertIn('>Keluar Finance</a>',html)
 
-    def test_workspace_chooser_has_no_dashboard_action(self):
+    def test_workspace_entry_redirects_directly_to_business_finance(self):
+        import finance_branches
+        branch=finance_branches.list_branches(
+            self.b,self.uid,workspace_type='BUSINESS')[0]
         response=self.client.get(f'/business/{self.b}/finance/workspaces')
-        self.assertEqual(response.status_code,200)
-        self.assertNotIn('finance-dashboard-link',response.text)
-        self.assertNotIn('>Dashboard</a>',response.text)
-        self.assertIn('>Keluar Finance</a>',response.text)
+        self.assertEqual(response.status_code,303)
+        self.assertIn(f'/business/{self.b}/finance',response.location)
+        self.assertIn(f'branch_id={branch["id"]}',response.location)
 
     def test_dashboard_action_stays_inside_current_business_or_personal_workspace(self):
         import finance_branches
