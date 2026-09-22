@@ -1,50 +1,109 @@
 {% extends 'base.html' %}
-{% block title %}Lanjutkan Pilihan · Kilas Works{% endblock %}
+{% block title %}Lanjutkan · Kilas Works{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
-<div class="client-page">
-  <header class="client-head"><div><h1>Lanjutkan</h1><p>Pilih bisnis atau lanjut ke brief.</p></div></header>
-  {% if ready %}
-    <section class="card">
-      <div class="client-item-title">{{ item.name }}</div>
-      <div class="client-item-meta">{{ item.description or '' }}</div>
-      <p class="client-note">Lengkapi brief dan tinjau scope sebelum checkout. Harga custom menunggu penawaran.</p>
-      <form method="post" action="{{ url_for('projects.request_generic_quote' if item.pricing_mode=='CUSTOM_QUOTE' else 'projects.start_fixed_checkout',catalog_key=item.catalog_key) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if chosen_business_id %}<input type="hidden" name="business_id" value="{{ chosen_business_id }}">{% endif %}
-        <div class="client-actions"><button class="btn" type="submit">Lanjut Isi Brief</button></div>
+<style>
+.product-setup-page{max-width:720px;margin:0 auto}
+.product-setup-hero{margin-bottom:12px}.product-setup-kicker{display:block;color:var(--orange);font-size:10px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}.product-setup-hero h1{margin:5px 0 5px;font-size:clamp(27px,6vw,35px);letter-spacing:-.04em}.product-setup-hero p{margin:0;color:var(--text-dim);font-size:12px;line-height:1.5}
+.product-setup-note{display:flex;gap:9px;align-items:flex-start;padding:11px 12px;margin-bottom:11px;border:1px solid color-mix(in srgb,var(--orange) 30%,var(--border));border-radius:14px;background:color-mix(in srgb,var(--orange) 6%,transparent);font-size:11px;line-height:1.5;color:var(--text-dim)}.product-setup-note strong{color:var(--text)}.product-setup-note-icon{flex:0 0 auto;color:var(--orange);font-weight:900}
+.product-business-list{display:grid;gap:8px;margin:10px 0}.product-business-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.012)}.product-business-row strong{display:block;font-size:14px}.product-business-row small{display:block;margin-top:3px;color:var(--text-dim);font-size:10.5px}.product-business-row form{margin:0}.product-business-row .btn{margin:0}
+.product-create-card{padding:16px;border-radius:18px}.product-create-card h2{margin:0 0 4px;font-size:18px}.product-create-card>p{margin:0 0 12px;color:var(--text-dim);font-size:11.5px;line-height:1.5}.product-create-card label{margin:0}.product-create-card input{margin-top:5px;min-height:45px}.product-create-card .btn{width:100%;margin-top:12px;min-height:44px}
+.product-add-more{margin-top:10px}.product-add-more>summary{padding:11px 12px;border:1px solid var(--border);border-radius:13px;list-style:none;font-size:12px;font-weight:850;cursor:pointer}.product-add-more>summary::-webkit-details-marker{display:none}.product-add-more[open]>summary{border-color:var(--orange)}.product-add-more-body{padding-top:9px}
+@media(max-width:520px){.product-business-row{grid-template-columns:1fr}.product-business-row .btn{width:100%}.product-create-card{padding:14px}}
+</style>
+
+<div class="product-setup-page">
+{% if ready %}
+  <header class="product-setup-hero">
+    <span class="product-setup-kicker">KILAS WORKS</span>
+    <h1>{{ item.name }}</h1>
+    <p>{{ item.description or '' }}</p>
+  </header>
+  <section class="card product-create-card">
+    <p>Lengkapi brief dan tinjau scope sebelum checkout. Harga custom menunggu penawaran.</p>
+    <form method="post" action="{{ url_for('projects.request_generic_quote' if item.pricing_mode=='CUSTOM_QUOTE' else 'projects.start_fixed_checkout',catalog_key=item.catalog_key) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if chosen_business_id %}<input type="hidden" name="business_id" value="{{ chosen_business_id }}">{% endif %}
+      <button class="btn" type="submit">Lanjut Isi Brief</button>
+    </form>
+  </section>
+{% else %}
+  {% set is_product_business = product in ('brain','finance') %}
+  {% set product_name = 'Kilas Finance' if product=='finance' else ('AI Admin' if product=='brain' else 'Layanan Kilas Works') %}
+  {% set business_label = 'Finance' if product=='finance' else ('AI Admin' if product=='brain' else 'layanan ini') %}
+
+  <header class="product-setup-hero">
+    <span class="product-setup-kicker">{{ product_name }}</span>
+    <h1>{{ 'Pilih bisnis ' ~ business_label if businesses else 'Tambah bisnis ' ~ business_label }}</h1>
+    <p>{% if is_product_business %}Nama bisnis baru diisi di sini, setelah akun pemilik dibuat.{% else %}Pilih bisnis terkait atau lanjut sebagai pesanan pribadi.{% endif %}</p>
+  </header>
+
+  {% if is_product_business %}
+  <div class="product-setup-note">
+    <span class="product-setup-note-icon">↔</span>
+    <div><strong>Bisnis {{ business_label }} berdiri sendiri.</strong> Bisnis dari {{ 'AI Admin' if product=='finance' else 'Finance' }} tidak dipakai otomatis di sini. Nama boleh sama, tetapi data produk tetap terpisah. Data lama yang sudah ada tetap aman.</div>
+  </div>
+  {% endif %}
+
+  {% if businesses %}
+    <section class="card product-create-card">
+      <h2>Bisnis {{ business_label }} yang sudah ada</h2>
+      <p>Pilih hanya jika ingin melanjutkan produk yang memang sudah terhubung ke bisnis ini.</p>
+      <div class="product-business-list">
+        {% for b in businesses %}
+        <div class="product-business-row">
+          <div><strong>{{ b.business_name }}</strong><small>{{ product_name }}</small></div>
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="business_id" value="{{ b.id }}">
+            <button class="btn small" type="submit">{{ 'Buka Finance' if product=='finance' else ('Lanjut AI Admin' if product=='brain' else 'Gunakan') }}</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if is_product_business %}
+    {% if businesses %}<details class="product-add-more"><summary>＋ Tambah bisnis {{ business_label }} baru</summary><div class="product-add-more-body">{% endif %}
+    <section class="card product-create-card">
+      <h2>{{ 'Bisnis Finance baru' if product=='finance' else 'Bisnis AI Admin baru' }}</h2>
+      <p>{{ 'Bisnis ini hanya menjadi awal untuk Kilas Finance. Kamu dapat memakai nama yang sama dengan bisnis AI Admin tanpa menggabungkan datanya.' if product=='finance' else 'Bisnis ini khusus setup AI Admin / Kilas Brain. Finance tidak diaktifkan otomatis.' }}</p>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="create" value="yes">
+        <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+        <label>Nama bisnis
+          <input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required {% if not businesses %}autofocus{% endif %}>
+        </label>
+        <button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Finance 7 Hari' if product=='finance' else 'Tambah Bisnis & Setup AI Admin' }}</button>
       </form>
     </section>
+    {% if businesses %}</div></details>{% endif %}
   {% else %}
-    {% if not businesses and product in ('brain','finance') %}
-      <section class="card">
-        <div class="client-item-title">Tambah Bisnis</div>
-        <p class="client-note">{{ 'Buat bisnis dulu. Setelah disimpan, trial Finance 7 hari langsung aktif tanpa kartu dan tanpa auto-renew.' if product=='finance' else 'Buat bisnis dulu untuk melanjutkan setup Kilas Brain.' }}</p>
+    <section class="card product-create-card">
+      <h2>Lanjutkan Pesanan</h2>
+      <p>Layanan ini boleh terkait bisnis yang sudah ada atau menjadi pesanan pribadi.</p>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>Bisnis (opsional)
+          <select name="business_id"><option value="">Pesanan pribadi, tanpa bisnis</option>{% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}</select>
+        </label>
+        <button class="btn" type="submit">Gunakan Pilihan Ini</button>
+      </form>
+    </section>
+    <details class="product-add-more"><summary>＋ Tambah bisnis baru</summary><div class="product-add-more-body">
+      <section class="card product-create-card">
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="create" value="yes">
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-          <label>Nama bisnis<input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required autofocus></label>
-          <div class="client-actions"><button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Gratis' if product=='finance' else 'Tambah Bisnis & Lanjut' }}</button></div>
+          <label>Nama bisnis<input name="business_name" maxlength="160" required></label>
+          <button class="btn" type="submit">Tambah Bisnis &amp; Lanjut</button>
         </form>
       </section>
-    {% else %}
-      <section class="card">
-        <div class="client-item-title">{{ 'Pilih Bisnis' if product in ('brain','finance') else 'Lanjutkan Pesanan' }}</div>
-        <p class="client-note">Produk: {{ product }}{% if product not in ('brain','finance') %} · bisa sebagai pesanan pribadi tanpa bisnis.{% endif %}</p>
-        <form method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <select name="business_id" {% if product in ('brain','finance') %}required{% endif %}><option value="">{{ 'Pilih bisnis' if product in ('brain','finance') else 'Pesanan pribadi, tanpa bisnis' }}</option>{% for b in businesses %}<option value="{{ b.id }}">{{ b.business_name }}</option>{% endfor %}</select>
-          <div class="client-actions"><button class="btn" type="submit">{{ 'Coba Gratis 7 Hari' if product=='finance' else 'Gunakan Pilihan Ini' }}</button></div>
-        </form>
-      </section>
-
-      <details class="card client-collapsible">
-        <summary>＋ Tambah bisnis baru</summary>
-        <div class="client-collapsible-body">
-          <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="create" value="yes"><input type="hidden" name="setup_identity" value="{{ setup_identity }}"><label>Nama bisnis<input name="business_name" maxlength="160" required></label><p class="client-note">Nama yang sama tidak digabung otomatis.</p><button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Gratis' if product=='finance' else 'Tambah Bisnis & Lanjut' }}</button></form>
-        </div>
-      </details>
-    {% endif %}
+    </div></details>
   {% endif %}
+{% endif %}
 </div>
 {% endblock %}
