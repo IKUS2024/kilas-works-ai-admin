@@ -385,19 +385,27 @@
 </header>
 {% if direction and period_mode == 'month' %}
 <nav class="finance-month-nav finance-ledger-month" aria-label="Navigasi bulan">
-  <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view='transactions',direction=direction) }}">‹</a>
+  {% if selected_category_id %}
+  <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view='transactions',direction=direction,category_id=selected_category_id,display_currency=display_currency) }}">‹</a>
+  {% else %}
+  <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month,view='transactions',direction=direction,display_currency=display_currency) }}">‹</a>
+  {% endif %}
   <button class="finance-period-button" type="button" data-finance-open="period-dialog">{{ period_label }} <small>⌄</small></button>
-  {% if next_month %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,view='transactions',direction=direction) }}">›</a>{% else %}<span aria-disabled="true">›</span>{% endif %}
+  {% if next_month %}
+    {% if selected_category_id %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,view='transactions',direction=direction,category_id=selected_category_id,display_currency=display_currency) }}">›</a>
+    {% else %}<a aria-label="Bulan berikutnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=next_month,view='transactions',direction=direction,display_currency=display_currency) }}">›</a>{% endif %}
+  {% else %}<span aria-disabled="true">›</span>{% endif %}
 </nav>
 {% endif %}
 {% if direction %}
 <section class="card finance-ledger-category-card" aria-label="Kategori {{ 'pemasukan' if direction == 'INCOME' else 'pengeluaran' }}">
   <div class="finance-ledger-category-list">
     {% for row in ledger_category_rows %}
-    <div class="finance-ledger-category-row">
+    <a class="finance-ledger-category-row{{ ' active' if selected_category_id == row.category_id else '' }}" href="{{ url_for('finance.dashboard',business_id=business.id,page=1,category_id=row.category_id,**ledger_category_query) }}" {% if selected_category_id == row.category_id %}aria-current="page"{% endif %}>
       <span>{{ row.name }}</span>
       <strong>{{ row.display_amount }}</strong>
-    </div>
+      <i aria-hidden="true">›</i>
+    </a>
     {% else %}
     <div class="finance-ledger-category-empty">Belum ada kategori.</div>
     {% endfor %}
@@ -409,8 +417,16 @@
   <a class="{{ 'active' if direction == 'INCOME' }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,direction='INCOME',view='transactions',page=1,**period_query) }}">↑ Pemasukan</a>
   <a class="{{ 'active' if direction == 'EXPENSE' }}" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,direction='EXPENSE',view='transactions',page=1,**period_query) }}">↓ Pengeluaran</a>
 </nav>
+{% endif %}
+
+{% if not direction or selected_ledger_category %}
 <section class="card finance-ledger-list finance-compact-ledger">
-<div class="finance-section-heading"><h2>Transaksi {{ 'pemasukan' if direction == 'INCOME' else ('pengeluaran' if direction == 'EXPENSE' else '') }}</h2><span class="finance-subtle">{{ transaction_page_size }} per halaman</span></div>
+<div class="finance-section-heading">
+  <h2>{% if selected_ledger_category %}Transaksi {{ selected_ledger_category.name }}{% else %}Riwayat Transaksi{% endif %}</h2>
+  {% if selected_ledger_category %}
+  <a class="finance-ledger-category-close" href="{{ url_for('finance.dashboard',business_id=business.id,page=1,**ledger_category_query) }}">Tutup</a>
+  {% else %}<span class="finance-subtle">{{ transaction_page_size }} per halaman</span>{% endif %}
+</div>
 {% set tx_group = namespace(date='') %}
 {% for t in transactions %}
   {% if tx_group.date != t.occurred_on %}
@@ -462,7 +478,7 @@
       </div>
     </div>
   </article>
-{% else %}<p class="finance-empty">Belum ada transaksi pada periode ini.</p>{% endfor %}
+{% else %}<p class="finance-empty">{{ 'Belum ada transaksi di kategori ini pada periode ini.' if selected_ledger_category else 'Belum ada transaksi pada periode ini.' }}</p>{% endfor %}
 </section>
 {% if transaction_page_count > 1 %}
 <nav class="finance-pagination" aria-label="Halaman riwayat transaksi">
