@@ -733,8 +733,7 @@ def list_categories(business_id, direction=None, include_inactive=False, include
             if row['name'].casefold() in RETIRED_CATEGORY_NAMES:
                 continue
             if row.get('parent_name') and row['parent_name'].casefold() in RETIRED_CATEGORY_NAMES:
-                row['parent_category_id'] = None
-                row['parent_name'] = None
+                continue
             cleaned.append(row)
         rows = cleaned
 
