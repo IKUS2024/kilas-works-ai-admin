@@ -7,7 +7,7 @@
 
 <main class="finance-assistant" id="finance-assistant">
 <header class="assistant-page-head">
-  <a class="assistant-back" href="{{ url_for('finance.dashboard',business_id=business.id) }}">← Finance</a>
+  <a class="assistant-back" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=g.finance_branch_id) }}">← Finance</a>
   <div class="assistant-title-row">
     <div class="assistant-brandmark" aria-hidden="true">✦</div>
     <div class="assistant-title-copy">
@@ -37,12 +37,12 @@
 </section>
 
 <form id="assistant-composer" class="assistant-composer" method="post" enctype="multipart/form-data" data-finance-document-upload autocomplete="off"
-      action="{{ url_for('finance.assistant_route',business_id=business.id) }}"
-      data-message="{{ url_for('finance.assistant_message',business_id=business.id) }}"
-      data-review="{{ url_for('finance.assistant_review',business_id=business.id) }}"
-      data-confirm="{{ url_for('finance.assistant_confirm',business_id=business.id) }}"
-      data-document="{{ url_for('finance.assistant_document',business_id=business.id) }}"
-      data-recognize="{{ url_for('finance.assistant_recognize',business_id=business.id) }}"
+      action="{{ url_for('finance.assistant_route',business_id=business.id,branch_id=g.finance_branch_id) }}"
+      data-message="{{ url_for('finance.assistant_message',business_id=business.id,branch_id=g.finance_branch_id) }}"
+      data-review="{{ url_for('finance.assistant_review',business_id=business.id,branch_id=g.finance_branch_id) }}"
+      data-confirm="{{ url_for('finance.assistant_confirm',business_id=business.id,branch_id=g.finance_branch_id) }}"
+      data-document="{{ url_for('finance.assistant_document',business_id=business.id,branch_id=g.finance_branch_id) }}"
+      data-recognize="{{ url_for('finance.assistant_recognize',business_id=business.id,branch_id=g.finance_branch_id) }}"
       data-csrf="{{ csrf_token() }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="assistant-composer-shell">
