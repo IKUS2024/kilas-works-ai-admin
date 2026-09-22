@@ -1027,9 +1027,17 @@ def _period(start_date, end_date):
     return start, end
 
 
+def _transaction_category_ids(category_ids):
+    if category_ids is None:
+        return None
+    if not isinstance(category_ids, (list, tuple, set, frozenset)):
+        raise FinanceError('invalid_category_filter')
+    return tuple(dict.fromkeys(_id(value) for value in category_ids))
+
+
 def list_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
-                      account_id=None, customer_id=None, project_id=None, category_id=None, currency=None,
-                      limit=100, offset=0, actor_user_id=None):
+                      account_id=None, customer_id=None, project_id=None, category_id=None,
+                      category_ids=None, currency=None, limit=100, offset=0, actor_user_id=None):
     _scope(business_id, actor_user_id)
     if type(limit) is not int or not 1 <= limit <= 1000 or type(offset) is not int or offset < 0:
         raise FinanceError('invalid_pagination')
@@ -1045,14 +1053,23 @@ def list_transactions(business_id, *, start_date=None, end_date=None, direction=
         sql += ' AND status=?'; params.append(_enum(status, ('POSTED', 'VOID')))
     if account_id is not None:
         sql += ' AND account_id=?'; params.append(_id(account_id))
+    if category_id is not None and category_ids is not None:
+        raise FinanceError('invalid_category_filter')
+    normalized_category_ids = _transaction_category_ids(category_ids)
     for key,value in (('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
         if value is not None:sql+=' AND '+key+'=?';params.append(_id(value))
+    if normalized_category_ids is not None:
+        if not normalized_category_ids:
+            return []
+        sql += ' AND category_id IN (' + ','.join('?' for _ in normalized_category_ids) + ')'
+        params.extend(normalized_category_ids)
     if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
     return db.query_all(sql + ' ORDER BY occurred_on DESC,id DESC LIMIT ? OFFSET ?', params + [limit, offset])
 
 
 def count_transactions(business_id, *, start_date=None, end_date=None, direction=None, status=None,
-                       account_id=None, customer_id=None, project_id=None, category_id=None, currency=None,actor_user_id=None):
+                       account_id=None, customer_id=None, project_id=None, category_id=None,
+                       category_ids=None, currency=None, actor_user_id=None):
     """Count the same scoped transaction set used by list_transactions without materializing rows."""
     _scope(business_id, actor_user_id)
     sql, params = ('SELECT COUNT(*) AS n FROM finance_transactions WHERE business_id=?' + branches.predicate()), [business_id]
@@ -1067,8 +1084,16 @@ def count_transactions(business_id, *, start_date=None, end_date=None, direction
         sql += ' AND status=?'; params.append(_enum(status, ('POSTED', 'VOID')))
     if account_id is not None:
         sql += ' AND account_id=?'; params.append(_id(account_id))
+    if category_id is not None and category_ids is not None:
+        raise FinanceError('invalid_category_filter')
+    normalized_category_ids = _transaction_category_ids(category_ids)
     for key,value in (('customer_id',customer_id),('project_id',project_id),('category_id',category_id)):
         if value is not None:sql+=' AND '+key+'=?';params.append(_id(value))
+    if normalized_category_ids is not None:
+        if not normalized_category_ids:
+            return 0
+        sql += ' AND category_id IN (' + ','.join('?' for _ in normalized_category_ids) + ')'
+        params.extend(normalized_category_ids)
     if currency is not None:sql+=' AND currency=?';params.append(_currency(currency))
     row = db.query_one(sql, params)
     return int(row['n']) if row else 0
