@@ -333,6 +333,21 @@ def init_schema():
                                 and 'duplicate column name' in str(error)):
                             raise
                 continue
+            if sqlite_name == "0047_finance_invoice_snapshots_sqlite.sql":
+                # SQLite has no ADD COLUMN IF NOT EXISTS. Run this invoice migration
+                # statement-by-statement so repeat init_schema() calls can skip the two
+                # already-added columns while still repairing/creating the remaining
+                # invoice tables and applying the NULL-only legacy snapshot backfill.
+                for statement in script.split(';'):
+                    if not statement.strip():
+                        continue
+                    try:
+                        conn.execute(statement)
+                    except sqlite3.OperationalError as error:
+                        if not (statement.strip().startswith('ALTER TABLE finance_invoices ADD COLUMN')
+                                and 'duplicate column name' in str(error)):
+                            raise
+                continue
             try:
                 conn.executescript(script)
             except sqlite3.OperationalError as e:
