@@ -22,6 +22,7 @@
   .finance-context-bar .finance-brand-label { color:var(--text); font-weight:800; }
   .topbar nav a.topbar-active { display:inline-flex; align-items:center; min-height:32px; padding:6px 10px; border:1px solid color-mix(in srgb,var(--orange) 56%,var(--border)); border-radius:9px; background:color-mix(in srgb,var(--orange) 9%,transparent); color:var(--orange); font-weight:800; box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--orange) 72%,transparent); }
   .topbar nav a.topbar-active:hover,.topbar nav a.topbar-active:focus { color:var(--orange); border-color:var(--orange); text-decoration:none; }
+  .customer-ui .topbar nav a.topbar-active { color:var(--orange); border-color:color-mix(in srgb,var(--orange) 66%,var(--border)); background:color-mix(in srgb,var(--orange) 12%,transparent); font-weight:850; box-shadow:inset 0 -2px 0 var(--orange); }
   .wrap { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
   .finance-exit-bar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 12px;min-height:34px}
   .finance-exit-link{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 11px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02);color:var(--text-dim);font-size:12px;font-weight:750;text-decoration:none}
@@ -240,14 +241,21 @@
         <a href="{{ url_for('admin.talent_admin') }}">Talent</a>
         <a href="{{ url_for('admin.admin_search') }}">Search</a>
       {% else %}
-        <a href="{{ url_for('client.dashboard') }}">Beranda</a>
+        {% set customer_endpoint = request.endpoint or '' %}
+        {% set customer_blueprint = request.blueprint or '' %}
+        {% set nav_home_active = customer_blueprint == 'client' %}
+        {% set nav_bills_active = customer_endpoint == 'products.account_bills' %}
+        {% set nav_products_active = (customer_blueprint == 'products' and not nav_bills_active) or customer_endpoint == 'projects.service_catalog_page' %}
+        {% set nav_orders_active = customer_blueprint == 'projects' and customer_endpoint != 'projects.service_catalog_page' %}
+        {% set nav_account_active = customer_endpoint == 'auth.account_page' %}
+        <a class="{{ 'topbar-active' if nav_home_active else '' }}" {% if nav_home_active %}aria-current="page"{% endif %} href="{{ url_for('client.dashboard') }}">Beranda</a>
         {% if request.blueprint == 'finance' %}
           <a class="topbar-active" aria-current="page" href="{{ url_for('finance.workspace_choice',business_id=request.view_args.get('business_id')) if request.view_args and request.view_args.get('business_id') else request.path }}">Finance</a>
         {% endif %}
-        <a href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
-        <a href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
-        <a href="{{ url_for('products.account_bills') }}">Tagihan</a>
-        <a href="{{ url_for('auth.account_page') }}">Akun</a>
+        <a class="{{ 'topbar-active' if nav_products_active else '' }}" {% if nav_products_active %}aria-current="page"{% endif %} href="{{ url_for('products.index') }}">Produk &amp; Layanan</a>
+        <a class="{{ 'topbar-active' if nav_orders_active else '' }}" {% if nav_orders_active %}aria-current="page"{% endif %} href="{{ url_for('projects.my_project_list') }}">Pesanan</a>
+        <a class="{{ 'topbar-active' if nav_bills_active else '' }}" {% if nav_bills_active %}aria-current="page"{% endif %} href="{{ url_for('products.account_bills') }}">Tagihan</a>
+        <a class="{{ 'topbar-active' if nav_account_active else '' }}" {% if nav_account_active %}aria-current="page"{% endif %} href="{{ url_for('auth.account_page') }}">Akun</a>
       {% endif %}
       {% if session.get('role')=='KILAS_ADMIN' %}<a href="{{ url_for('products.admin_bills') }}">Verifikasi Finance</a><a href="{{ url_for('auth.logout_page') }}">Logout</a>{% endif %}
     {% else %}
