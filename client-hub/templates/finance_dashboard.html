@@ -590,7 +590,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <dialog id="reset-dialog" class="finance-sheet">
 <div class="finance-sheet-head"><h2>↺ Reset Finance</h2><button type="button" class="finance-sheet-close" data-finance-close="reset-dialog" aria-label="Tutup">×</button></div>
 <div class="finance-sheet-body">
-<div class="finance-reset-warning"><strong>{{ 'Ruang Pribadi' if finance_workspace_personal else 'Cabang ' ~ selected_branch.name }} akan kembali ke saldo 0.</strong><p class="muted">Saldo awal semua rekening menjadi 0, semua transaksi aktif tidak dihitung lagi, dan biaya rutin dinonaktifkan.{% if not finance_workspace_personal %} Invoice dibatalkan.{% endif %} Akun, kategori, serta riwayat audit tetap tersimpan.</p></div>
+<div class="finance-reset-warning"><strong>{{ 'Ruang Pribadi' if finance_workspace_personal else 'Cabang ' ~ selected_branch.name }} akan kembali ke saldo 0.</strong><p class="muted">Saldo awal semua rekening menjadi 0, semua transaksi aktif tidak dihitung lagi, biaya rutin dinonaktifkan, dan invoice pada ruang ini dibatalkan. Akun, kategori, serta riwayat audit tetap tersimpan.</p></div>
 <form method="post" action="{{ url_for('finance.reset_finance',business_id=business.id) }}" onsubmit="return confirm('{{ 'Reset Finance Pribadi' if finance_workspace_personal else 'Reset Finance cabang ' ~ selected_branch.name }} ke Rp0? Tindakan ini tidak bisa dibatalkan dari halaman ini.');">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 <label>Ketik <strong>RESET</strong> untuk melanjutkan<input name="confirmation" autocomplete="off" autocapitalize="characters" pattern="RESET" placeholder="RESET" required></label>
@@ -623,7 +623,7 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <label>Penerima / sumber<input name="counterparty_name" list="finance-payee-options" maxlength="160" placeholder="Contoh: Vendor A atau Client B"></label>
 <datalist id="finance-payee-options">{% for name in payee_names %}<option value="{{ name }}">{% endfor %}</datalist>
 <label for="transaction-note">Catatan</label><textarea id="transaction-note" name="description" maxlength="4000"></textarea>
-{% if not finance_workspace_personal %}<details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>{% endif %}
+<details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>
 <button class="btn">Simpan Transaksi</button>
 </form></div></dialog>
 
