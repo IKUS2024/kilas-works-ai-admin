@@ -22,17 +22,14 @@ body.customer-ui>footer{display:none}
 .kh-brand-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .kh-wordmark{font-size:25px;font-weight:900;letter-spacing:-.035em;line-height:1}.kh-wordmark span{color:var(--kh-orange)}
 .kh-tagline{margin-top:4px;color:#b0b5bc;font-size:11px}
-.kh-header-actions{display:flex;align-items:center;gap:9px}
-.kh-icon-btn,.kh-avatar{
+.kh-header-actions{display:flex;align-items:center}
+.kh-avatar{
   position:relative;width:42px;height:42px;border:1px solid var(--kh-border);border-radius:50%;
-  display:grid;place-items:center;background:#1c2026;color:#e9eaec
+  display:grid;place-items:center;background:#242933;color:#e9eaec;font-size:15px;font-weight:850
 }
-.kh-icon-btn svg{width:19px;height:19px}.kh-alert-dot{position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--kh-orange);box-shadow:0 0 0 2px #1c2026}
-.kh-avatar{font-size:15px;font-weight:850;background:#242933}
 
-.kh-hello-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:28px}
-.kh-greeting{min-width:0}.kh-greeting h1{margin:0 0 6px;font-size:30px;line-height:1.06;letter-spacing:-.045em}
-.kh-greeting p{max-width:430px;margin:0;color:var(--kh-muted);font-size:12px;line-height:1.45}
+.kh-hello-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:28px}
+.kh-greeting{min-width:0}.kh-greeting h1{margin:0;font-size:30px;line-height:1.06;letter-spacing:-.045em}
 .kh-date{
   flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:8px 10px;
   border:1px solid var(--kh-border);border-radius:11px;background:#111419;color:#c8ccd2;font-size:10px;font-weight:750
@@ -131,7 +128,7 @@ body.customer-ui>footer{display:none}
 @media(max-width:560px){
   .customer-ui .wrap>.flash{margin:8px 12px 0}
   .kilas-home-v3{padding:18px 12px 112px}
-  .kh-wordmark{font-size:23px}.kh-icon-btn,.kh-avatar{width:39px;height:39px}
+  .kh-wordmark{font-size:23px}.kh-avatar{width:39px;height:39px}
   .kh-hello-row{margin-top:23px}.kh-greeting h1{font-size:27px}.kh-date{min-height:35px;padding:7px 8px}
   .kh-primary-nav{gap:5px;margin-top:14px}.kh-nav-item{min-height:72px;border-radius:12px;padding:7px 2px;font-size:8.8px}.kh-nav-item svg{width:20px;height:20px}
 }
@@ -153,10 +150,6 @@ body.customer-ui>footer{display:none}
         <div class="kh-tagline">Solusi Digital untuk Bisnis Anda</div>
       </div>
       <div class="kh-header-actions">
-        <a class="kh-icon-btn" href="{{ url_for('products.account_bills') }}" aria-label="Tagihan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
-          <span class="kh-alert-dot" aria-hidden="true"></span>
-        </a>
         <a class="kh-avatar" href="{{ url_for('auth.account_page') }}" aria-label="Akun">{{ (user.full_name or user.email or 'I')[:1]|upper }}</a>
       </div>
     </div>
@@ -164,7 +157,6 @@ body.customer-ui>footer{display:none}
     <div class="kh-hello-row">
       <div class="kh-greeting">
         <h1>Halo, {{ user.full_name or 'Pemilik' }} 👋</h1>
-        <p>Kelola satu produk dalam satu waktu.<br>Data Finance dan AI Admin tetap terpisah.</p>
       </div>
       <div class="kh-date" id="kilas-current-date">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
