@@ -191,11 +191,21 @@ def dashboard():
         row for row in enriched
         if row not in finance_businesses and row not in brain_businesses
     ]
+    requested_product = (request.args.get("product") or "").strip().lower()
+    owned_products = []
+    if finance_businesses:
+        owned_products.append("finance")
+    if brain_businesses:
+        owned_products.append("brain")
+    active_product = requested_product if requested_product in owned_products else (
+        "finance" if finance_businesses else ("brain" if brain_businesses else None)
+    )
     return render_template(
         "product_dashboard.html" if finance_self_service else "client_dashboard.html",
         user=user, businesses=enriched, my_projects=my_projects, recent_projects=recent_projects,
         all_businesses=all_businesses, finance_businesses=finance_businesses,
         brain_businesses=brain_businesses, unassigned_businesses=unassigned_businesses,
+        owned_products=owned_products, active_product=active_product,
         finance_beta_enabled=__import__("routes_finance").beta_enabled()
     )
 
