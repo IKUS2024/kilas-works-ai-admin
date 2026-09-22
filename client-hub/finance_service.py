@@ -672,6 +672,9 @@ def update_category_workspace_setting(business_id, category_id, name=None, deact
                 (business_id, scope['scope_key'], current['direction']))
             if active['n'] <= 1:
                 raise FinanceError('category_last_active')
+            if list_category_children(
+                    business_id, category_id, actor_user_id=actor_user_id):
+                raise FinanceError('category_has_children')
             if db.query_one(
                 ('SELECT 1 FROM finance_recurring_expenses r '
                  'WHERE r.business_id=?' + branches.predicate('r') +
