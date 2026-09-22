@@ -2,7 +2,7 @@
 {% block title %}Tagihan · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-3') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-4') }}">
 <style>
 /* Keep bill form selects readable on Android Chrome even when the browser applies native select styling. */
 .finance-bill-add-form select,
@@ -64,8 +64,8 @@
   <div>
     <span class="finance-eyebrow">KILAS FINANCE</span>
     <h1>Tagihan</h1>
-    <strong>{{ unpaid_bills_display }}</strong>
-    <small>Belum dibayar · {{ unpaid_count }} tagihan · Total bulan {{ total_bills_display }}</small>
+    <strong>{{ total_bills_display }}</strong>
+    <small>Total {{ all_count }} tagihan · Belum dibayar {{ unpaid_bills_display }} ({{ unpaid_count }})</small>
   </div>
   <div class="finance-bills-header-actions">
     <button type="button" class="finance-bills-add" data-finance-open="bill-add-dialog" aria-label="Tambah tagihan">＋</button>
@@ -131,12 +131,12 @@
     <span class="finance-bill-status-dot" aria-hidden="true"></span>
     <div class="finance-bill-main">
       <strong>{{ r.name }}</strong>
-      <small>{{ r.counterparty_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}</small>
+      <small>{{ r.counterparty_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}{% if r.status=='paid' and r.account_name %} · {{ r.account_name }}{% endif %}</small>
     </div>
     <div class="finance-bill-money">
       <strong>{{ r.display_amount }}</strong>
       {% if r.show_native %}<small>Asli {{ r.native_amount }}</small>{% endif %}
-      <span class="finance-bill-status-label">{% if r.status=='paid' %}Dibayar{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
+      <span class="finance-bill-status-label">{% if r.status=='paid' %}Sudah dibayar{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
     </div>
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
@@ -179,12 +179,12 @@
     <span class="finance-bill-status-dot" aria-hidden="true"></span>
     <div class="finance-bill-main">
       <strong>{{ r.name }}</strong>
-      <small>{{ r.scheduled_on }} · {{ r.counterparty_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}</small>
+      <small>{{ r.scheduled_on }} · {{ r.counterparty_name or 'Tagihan' }}{% if r.category_name %} · {{ r.category_name }}{% endif %}{% if r.status=='paid' and r.account_name %} · {{ r.account_name }}{% endif %}</small>
     </div>
     <div class="finance-bill-money">
       <strong>{{ r.display_amount }}</strong>
       {% if r.show_native %}<small>Asli {{ r.native_amount }}</small>{% endif %}
-      <span class="finance-bill-status-label">{% if r.status=='paid' %}Dibayar{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
+      <span class="finance-bill-status-label">{% if r.status=='paid' %}Sudah dibayar{% if r.paid_on %} · {{ r.paid_on }}{% endif %}{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
     </div>
     {% if r.can_mark_paid %}
     <div class="finance-bill-row-actions">
