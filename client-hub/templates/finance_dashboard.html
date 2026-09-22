@@ -274,14 +274,14 @@
       <span>＋ Dana masuk</span>
       <div class="finance-account-value-control">
         <strong>{{ selected_account.income_minor|finance_money(selected_account.currency) }}</strong>
-        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='INCOME',display_currency=display_currency,page=1) }}">Edit</a>{% endif %}
+        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='INCOME',display_currency=display_currency,page=1) }}">Kelola transaksi</a>{% endif %}
       </div>
     </div>
     <div class="finance-account-value-row">
       <span>− Dana keluar</span>
       <div class="finance-account-value-control">
         <strong>{{ selected_account.expense_minor|finance_money(selected_account.currency) }}</strong>
-        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='EXPENSE',display_currency=display_currency,page=1) }}">Edit</a>{% endif %}
+        {% if not branch_read_only %}<a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,period_mode='all',view='transactions',account_id=selected_account.id,direction='EXPENSE',display_currency=display_currency,page=1) }}">Kelola transaksi</a>{% endif %}
       </div>
     </div>
     {% if selected_account.exchange_in_minor %}
@@ -306,22 +306,7 @@
       <span>Saldo sekarang</span>
       <div class="finance-account-value-control">
         <strong>{{ selected_account.balance_minor|finance_money(selected_account.currency) }}</strong>
-        {% if not branch_read_only %}
-        <details class="finance-account-value-edit">
-          <summary>Edit</summary>
-          <form method="post" action="{{ url_for('finance.update_account_balance',business_id=business.id,account_id=selected_account.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
-            <input type="hidden" name="display_currency" value="{{ display_currency }}">
-            <input type="hidden" name="action" value="current">
-            <label>Saldo sekarang {{ selected_account.currency }}
-              <input name="amount" inputmode="decimal" maxlength="25" value="{{ selected_account.balance_minor|finance_input_money(selected_account.currency) }}" required>
-            </label>
-            <p>Transaksi tidak diubah. Kilas menyesuaikan saldo awal agar saldo sekarang cocok.</p>
-            <button class="finance-mini-action" type="submit">Sesuaikan saldo</button>
-          </form>
-        </details>
-        {% endif %}
+        <small class="finance-derived-value">Dihitung otomatis</small>
       </div>
     </div>
   </div>
