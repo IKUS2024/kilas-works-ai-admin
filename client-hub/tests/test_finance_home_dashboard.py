@@ -550,6 +550,31 @@ class DashboardHomeTests(unittest.TestCase):
             self.assertEqual(deleted.status_code,200)
             self.assertNotIn(name,[row['name'] for row in deleted.get_json()['options']])
 
+    def test_business_income_catalog_is_clean_and_has_useful_top_level_choices(self):
+        html,_=self.page('?month=2026-09')
+        for name in (
+            'Penjualan / Jasa',
+            'Langganan / Retainer',
+            'Komisi &amp; Affiliate',
+            'Sponsor / Kerja Sama',
+            'Sewa / Rental',
+            'Royalti / Lisensi',
+            'Bunga / Cashback',
+        ):
+            self.assertIn(name,html)
+        self.assertNotIn('>Lainnya</option>',html)
+        self.assertNotIn('>Pendapatan Lain</option>',html)
+
+        rows=fixture.f.list_categories(
+            self.b,'INCOME',include_children=True,actor_user_id=self.uid)
+        names={row['name'] for row in rows if not row.get('parent_category_id')}
+        for name in (
+            'Penjualan / Jasa','Langganan / Retainer','Komisi & Affiliate',
+            'Sponsor / Kerja Sama','Sewa / Rental','Royalti / Lisensi',
+            'Bunga / Cashback',
+        ):
+            self.assertIn(name,names)
+
     def test_category_manager_can_add_edit_and_delete_subcategories(self):
         html,_=self.page('?month=2026-09')
         self.assertIn('data-category-manager-root',html)
@@ -558,10 +583,12 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('data-category-create-popup',html)
         self.assertIn('data-category-editor',html)
         self.assertIn('data-category-edit-popup',html)
+        self.assertIn('data-category-add-child-popup',html)
         self.assertIn('finance-category-tree',html)
         self.assertIn('＋ Tambah Kategori / Subkategori',html)
-        self.assertIn('Edit kategori',html)
-        self.assertIn('Hapus kategori',html)
+        self.assertIn('＋ Subkategori',html)
+        self.assertIn('>Edit</button>',html)
+        self.assertIn('>Hapus</button>',html)
         self.assertNotIn('>Lainnya</strong>',html)
         self.assertNotIn('Pendapatan Lain',html)
         for direction in ('INCOME','EXPENSE'):
