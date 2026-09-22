@@ -622,7 +622,9 @@ def dashboard(business_id, user, business):
     # HomeBudget-style account view only shows active accounts. Archived/deactivated
     # accounts remain in the ledger and totals for audit/accounting, but disappear
     # from the normal account manager as requested.
-    account_balance_rows = active_balances
+    # Use the enriched balance rows here (display_balance_minor/value were added
+    # above). The totals are still computed from active-only raw rows.
+    account_balance_rows = [item for item in balances if item['is_active']]
     account_type_options = finance.list_account_type_options(business_id, **actor)
     account_type_group_labels = [item['name'] for item in account_type_options]
     for item in account_balance_rows:
