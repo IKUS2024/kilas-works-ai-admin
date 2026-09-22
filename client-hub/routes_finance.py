@@ -2314,13 +2314,26 @@ def update_recurring(business_id,user,business,recurring_id):
 @finance_access
 def deactivate_recurring(business_id,user,business,recurring_id):
     month = request.form.get('month') or finance.business_today(business_id).strftime('%Y-%m')
+    display_currency = request.form.get('display_currency') or 'IDR'
+    if display_currency not in finance.SUPPORTED_CURRENCIES:
+        display_currency = 'IDR'
+    return_view = request.form.get('view')
+    if return_view not in ('calendar', 'list', 'recurring'):
+        return_view = 'recurring'
+    return_day = request.form.get('day') or None
+    payment_status = request.form.get('payment_status') or 'unpaid'
+    if payment_status not in ('all', 'unpaid', 'paid'):
+        payment_status = 'unpaid'
+    destination = url_for(
+        'finance.operations', business_id=business_id, branch_id=g.finance_branch_id,
+        month=month, day=return_day, view=return_view,
+        display_currency=display_currency, payment_status=payment_status)
     return mutate(
         business_id,
         lambda: finance.deactivate_recurring_expense(
             business_id, recurring_id, actor_user_id=user['id']),
         'Jadwal tagihan dihapus dari daftar aktif. Riwayat tetap tersimpan.',
-        url_for('finance.operations', business_id=business_id,
-                branch_id=g.finance_branch_id, month=month, view='recurring'))
+        destination)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/recurring/process',methods=['POST'])
