@@ -2,7 +2,7 @@
 {% block title %}Tagihan · Kilas Finance{% endblock %}
 {% block content %}
 {% include '_finance_receivables_style.html' %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-2') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_home.css',v='20260922-bills-payment-3') }}">
 <style>
 /* Keep bill form selects readable on Android Chrome even when the browser applies native select styling. */
 .finance-bill-add-form select,
@@ -33,7 +33,11 @@
 .finance-bill-rule-actions .finance-mini-action{padding:6px 8px;font-size:10px}
 .finance-bill-edit-sheet .finance-sheet-head>div small{display:block;color:var(--text-dim);font-size:10px}
 .finance-bill-edit-sheet .finance-sheet-head h2{margin:2px 0 0;font-size:18px}
-@media(max-width:560px){.finance-bill-rule-actions .finance-mini-action{padding:6px 7px;font-size:9.5px}}
+.finance-bill-row-actions{grid-column:2/4;display:flex;align-items:center;justify-content:flex-end;gap:7px;margin-top:-1px}
+.finance-bill-row-actions .finance-mini-action{min-width:72px;min-height:34px;padding:6px 10px;font-size:10px;text-align:center}
+.finance-bill-row-actions .finance-bill-pay-action{border-color:color-mix(in srgb,var(--orange) 65%,var(--border));color:var(--orange)}
+.finance-bill-payment-note{margin:8px 0 0;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02);font-size:10.5px;line-height:1.45;color:var(--text-dim)}
+@media(max-width:560px){.finance-bill-rule-actions .finance-mini-action{padding:6px 7px;font-size:9.5px}.finance-bill-row-actions{gap:6px}.finance-bill-row-actions .finance-mini-action{flex:1;min-width:0}}
 </style>
 <div class="fin-page finance-bills-homebudget">
 {% set active_finance_area='operations' %}{% include '_finance_area_nav.html' %}
@@ -135,7 +139,10 @@
       <span class="finance-bill-status-label">{% if r.status=='paid' %}Dibayar{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
     </div>
     {% if r.can_mark_paid %}
-    <button class="finance-mini-action" type="button" data-finance-open="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
+    <div class="finance-bill-row-actions">
+      {% if r.can_edit %}<button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>{% endif %}
+      <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
+    </div>
     <dialog id="bill-pay-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
       <div class="finance-sheet-head">
         <div><small>Tagihan</small><h2>Catat Pembayaran</h2></div>
@@ -150,10 +157,11 @@
           <input type="hidden" name="day" value="{{ selected_day }}">
           <input type="hidden" name="view" value="calendar">
           <input type="hidden" name="payment_status" value="{{ payment_status }}">
+          <input type="hidden" name="display_currency" value="{{ display_currency }}">
           <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
-          <label>Dibayar dari<select name="account_id" required><option value="" selected disabled>Pilih akun pembayaran</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+          <label>Metode / akun pembayaran<select name="account_id" required><option value="" selected disabled>Pilih BCA, SeaBank, Kas, atau akun lain</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
           <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
-          <p class="muted">Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.</p>
+          <p class="finance-bill-payment-note">Tagihan tetap <strong>Belum dibayar</strong> sampai tombol Catat Dibayar berhasil. Setelah berhasil, tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.</p>
           <button class="btn" type="submit">Catat Dibayar</button>
         </form>
       </div>
@@ -179,7 +187,10 @@
       <span class="finance-bill-status-label">{% if r.status=='paid' %}Dibayar{% elif r.status=='void' %}Dibatalkan{% else %}Belum dibayar · {{ r.status_label }}{% endif %}</span>
     </div>
     {% if r.can_mark_paid %}
-    <button class="finance-mini-action" type="button" data-finance-open="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
+    <div class="finance-bill-row-actions">
+      {% if r.can_edit %}<button class="finance-mini-action" type="button" data-finance-open="bill-edit-{{ r.rule_id }}">Edit</button>{% endif %}
+      <button class="finance-mini-action finance-bill-pay-action" type="button" data-finance-open="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}">Bayar</button>
+    </div>
     <dialog id="bill-pay-list-{{ r.rule_id }}-{{ r.scheduled_on }}" class="finance-sheet finance-bill-pay-sheet">
       <div class="finance-sheet-head">
         <div><small>Tagihan</small><h2>Catat Pembayaran</h2></div>
@@ -194,10 +205,11 @@
           <input type="hidden" name="day" value="{{ r.scheduled_on }}">
           <input type="hidden" name="view" value="list">
           <input type="hidden" name="payment_status" value="{{ payment_status }}">
+          <input type="hidden" name="display_currency" value="{{ display_currency }}">
           <input type="hidden" name="occurrence" value="{{ r.rule_id }}:{{ r.scheduled_on }}">
-          <label>Dibayar dari<select name="account_id" required><option value="" selected disabled>Pilih akun pembayaran</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
+          <label>Metode / akun pembayaran<select name="account_id" required><option value="" selected disabled>Pilih BCA, SeaBank, Kas, atau akun lain</option>{% for a in accounts if a.is_active and a.currency == r.currency %}<option value="{{ a.id }}">{{ a.name }} · {{ a.currency }}</option>{% endfor %}</select></label>
           <label>Tanggal pembayaran<input type="date" name="paid_on" value="{{ today }}" max="{{ today }}" required></label>
-          <p class="muted">Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.</p>
+          <p class="finance-bill-payment-note">Tagihan tetap <strong>Belum dibayar</strong> sampai tombol Catat Dibayar berhasil. Setelah berhasil, tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.</p>
           <button class="btn" type="submit">Catat Dibayar</button>
         </form>
       </div>
@@ -237,6 +249,8 @@
   {% else %}<div class="fin-empty finance-bills-empty">Belum ada jadwal tagihan.</div>{% endfor %}
 </section>
 
+{% endif %}
+
 {% for r in rules if r.is_active %}
 <dialog id="bill-edit-{{ r.id }}" class="finance-sheet finance-bill-add-sheet finance-bill-edit-sheet">
   <div class="finance-sheet-head">
@@ -249,6 +263,9 @@
       <input type="hidden" name="branch_id" value="{{ selected_branch_id }}">
       <input type="hidden" name="month" value="{{ month }}">
       <input type="hidden" name="display_currency" value="{{ display_currency }}">
+      <input type="hidden" name="view" value="{{ view }}">
+      <input type="hidden" name="day" value="{{ selected_day if view=='calendar' else '' }}">
+      <input type="hidden" name="payment_status" value="{{ payment_status }}">
       <label>Nama Tagihan<input name="name" value="{{ r.name }}" maxlength="160" required></label>
       <div class="finance-bill-form-grid">
         <input type="hidden" name="account_id" value="{{ r.account_id }}">
@@ -276,7 +293,6 @@
   </div>
 </dialog>
 {% endfor %}
-{% endif %}
 
 <nav class="card finance-bills-toolbar" aria-label="Tampilan tagihan">
   <a class="{{ 'active' if view=='recurring' else '' }}" href="{{ url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,view='recurring',display_currency=display_currency,payment_status=payment_status) }}"><span>↻</span><small>Rutin</small></a>
@@ -322,5 +338,5 @@
 </dialog>
 {% endif %}
 </div>
-<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-bills-payment-3') }}" defer></script>
+<script src="{{ url_for('static',filename='finance_branches.js',v='20260922-bills-payment-4') }}" defer></script>
 {% endblock %}
