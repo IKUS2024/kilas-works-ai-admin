@@ -126,6 +126,25 @@
   .finance-history-amount{font-size:15px}
 }
 
+/* Finance workspace header: one clear Business/Personal switch + inline branch picker. */
+.finance-workspace-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.finance-workspace-head-main{min-width:0;flex:1}
+.finance-workspace-head-main h1{margin-bottom:5px}
+.finance-workspace-switch-form{margin:0;flex:0 0 auto}
+.finance-workspace-switch{min-height:40px;padding:8px 12px;border:1px solid color-mix(in srgb,var(--orange) 48%,var(--border));border-radius:12px;background:color-mix(in srgb,var(--orange) 8%,transparent);color:var(--orange);font:inherit;font-size:12px;font-weight:850;cursor:pointer;white-space:nowrap}
+.finance-workspace-switch:hover,.finance-workspace-switch:focus{border-color:var(--orange);background:color-mix(in srgb,var(--orange) 13%,transparent)}
+.finance-branch-inline{display:flex;align-items:center;gap:7px;margin:0;max-width:330px}
+.finance-branch-inline select{width:auto;max-width:260px;height:38px;margin:0;padding:6px 31px 6px 10px;border:1px solid var(--border);border-radius:10px;background:#181a1e;color:var(--text);font-size:12px;font-weight:800;cursor:pointer}
+.finance-branch-inline select:hover,.finance-branch-inline select:focus{border-color:var(--orange)}
+.finance-branch-manage{width:38px;height:38px;min-height:38px;padding:0;display:grid;place-items:center;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--text-dim);font-size:17px;line-height:1}
+.finance-personal-scope{display:inline-flex;align-items:center;min-height:34px;color:var(--text-dim);font-size:12px;font-weight:700}
+@media(max-width:520px){
+  .finance-workspace-head-row{gap:9px}
+  .finance-workspace-switch{min-height:36px;padding:7px 9px;font-size:11px}
+  .finance-branch-inline{max-width:100%}
+  .finance-branch-inline select{max-width:calc(100vw - 120px)}
+}
+
 </style>
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_cash_summary.css',v='20260920-2') }}">
 <script src="{{ url_for('static',filename='finance_cashflow_switcher.js',v='20260920-1') }}" defer></script>
@@ -134,42 +153,28 @@
 <div class="finance-page">
 {% if not show_transactions and not show_accounts %}
 <header class="finance-hero">
-<div class="finance-hero-row"><div><span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span><h1>Kilas Finance</h1><p>{% if finance_workspace_personal %}Pribadi · data terpisah dari Bisnis{% else %}{{ business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua cabang' }}{% endif %}</p></div></div>
-{% if not finance_workspace_personal %}
-<details class="finance-context-compact"><summary>Ganti ruang / cabang</summary><div class="finance-context-grid">
-<div class="finance-context-field">
-<label><span>Ruang Finance</span><small>Pribadi / Bisnis</small></label>
-<a class="finance-mini-action finance-context-apply" href="{{ url_for('finance.workspace_choice',business_id=business.id) }}">{{ finance_workspace_label }} · Ganti</a>
+<div class="finance-workspace-head-row">
+  <div class="finance-workspace-head-main">
+    <span class="finance-eyebrow">KILAS FINANCE · {{ finance_workspace_label|upper }}</span>
+    <h1>{{ finance_workspace_label }}</h1>
+    {% if finance_workspace_personal %}
+      <span class="finance-personal-scope">Keuangan pribadi</span>
+    {% else %}
+      <form method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" class="finance-branch-inline">
+        {% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
+        <select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">
+          {% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}</option>{% endfor %}
+        </select>
+        {% if not branch_read_only %}<button type="button" class="finance-branch-manage" data-finance-open="branch-dialog" aria-label="Kelola cabang">•••</button>{% endif %}
+        <noscript><button class="btn secondary">Gunakan</button></noscript>
+      </form>
+    {% endif %}
+  </div>
+  <form method="post" class="finance-workspace-switch-form" action="{{ url_for('finance.enter_workspace',business_id=business.id,workspace_type=('BUSINESS' if finance_workspace_personal else 'PERSONAL')) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="finance-workspace-switch" type="submit">⇄ {{ 'Bisnis' if finance_workspace_personal else 'Pribadi' }}</button>
+  </form>
 </div>
-{% if not finance_workspace_personal %}
-<form method="get" action="{{ url_for('finance.overview') }}" class="finance-context-field">
-<input type="hidden" name="month" value="{{ month }}">
-<label for="finance-business"><span>Bisnis</span><small>Brand / usaha</small></label>
-<select id="finance-business" name="business_id" onchange="this.form.submit()" aria-label="Pilih bisnis">
-{% if business and business.id not in businesses|map(attribute='id')|list %}<option disabled selected>{{ business.business_name }}</option>{% endif %}
-<option value="all" {% if not business %}selected{% endif %}>Semua Bisnis</option>
-{% for item in businesses %}<option value="{{ item.id }}" {% if business and item.id == business.id %}selected{% endif %}>{{ item.business_name }}</option>{% endfor %}
-</select>
-<noscript><button class="btn secondary finance-context-apply">Gunakan</button></noscript>
-</form>
-<form method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" class="finance-context-field">
-{% for key in ('month','period_mode','range_start','range_end','display_currency','direction','start','end','as_of','preset','commitment_start','commitment_end','sort','view') %}{% if request.args.get(key) %}<input type="hidden" name="{{ key }}" value="{{ request.args.get(key) }}">{% endif %}{% endfor %}
-<label for="finance-branch"><span>Cabang</span><small>Lokasi / outlet</small></label>
-<select id="finance-branch" name="branch_id" onchange="this.form.submit()" aria-label="Pilih cabang">
-{% for branch in finance_branches if branch.is_active %}<option value="{{ branch.id }}" {{ 'selected' if branch.id == selected_branch_id }}>{{ branch.name }}</option>{% endfor %}
-</select>
-<noscript><button class="btn secondary finance-context-apply">Gunakan</button></noscript>
-</form>
-{% else %}
-<div class="finance-context-field">
-<label><span>Ruang pribadi</span><small>Khusus akunmu</small></label>
-<div class="finance-context-notice">Pribadi</div>
-</div>
-{% endif %}
-</div>
-{% if not branch_read_only and not finance_workspace_personal %}<button type="button" class="finance-mini-action finance-context-manage" data-finance-open="branch-dialog">Kelola cabang</button>{% endif %}
-</details>
-{% endif %}
 
 <nav class="finance-month-nav" aria-label="Navigasi bulan">
 <a aria-label="Bulan sebelumnya" href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,month=previous_month) }}">‹</a>
