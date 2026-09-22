@@ -282,8 +282,11 @@ JOIN finance_categories parent
 JOIN finance_categories child
  ON child.business_id=parent.business_id
  AND child.direction=l.direction AND child.name=l.child_name
-JOIN finance_branch_workspaces w
- ON w.business_id=parent.business_id AND w.workspace_type='BUSINESS';
+JOIN (
+ SELECT DISTINCT business_id
+ FROM finance_branch_workspaces
+ WHERE workspace_type='BUSINESS'
+) w ON w.business_id=parent.business_id;
 
 -- Superseded legacy defaults disappear only when they have never been used in Business.
 UPDATE finance_category_workspace_settings
