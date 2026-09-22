@@ -223,6 +223,71 @@
     .admin-ui footer { display:none; }
   }
 
+  /* Shared customer navigation shell — keeps Produk/Layanan, Pesanan, Tagihan and Akun
+     visually identical to the selected customer dashboard navigation. UI only. */
+  .customer-ui .topbar { display:none; }
+  .customer-global-shell{
+    --cnav-bg:#0b0d10;--cnav-border:#2b3037;--cnav-text:#f4f5f6;--cnav-muted:#a8adb4;--cnav-orange:#ff7a1a;
+    max-width:760px;margin:0 auto;padding:20px 18px 10px;background:var(--cnav-bg);color:var(--cnav-text);
+  }
+  .customer-global-brand{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}
+  .customer-global-wordmark{font-size:25px;font-weight:900;letter-spacing:-.035em;line-height:1}
+  .customer-global-wordmark span{color:var(--cnav-orange)}
+  .customer-global-tagline{margin-top:4px;color:#b0b5bc;font-size:11px}
+  .customer-global-account{
+    width:42px;height:42px;border:1px solid var(--cnav-border);border-radius:50%;display:grid;place-items:center;
+    background:#242933;color:#e9eaec;text-decoration:none
+  }
+  .customer-global-account svg{width:19px;height:19px}
+  .customer-global-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+  .customer-global-nav a{
+    min-width:0;min-height:76px;border:1px solid var(--cnav-border);border-radius:13px;background:#15181d;color:#d4d6da;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:8px 4px;
+    font-size:9.5px;font-weight:750;text-align:center;line-height:1.15;text-decoration:none
+  }
+  .customer-global-nav a:hover{color:#f4f5f6;text-decoration:none}
+  .customer-global-nav a svg{width:22px;height:22px;stroke-width:1.8}
+  .customer-global-nav a.active{
+    border-color:#a94c10;background:linear-gradient(180deg,rgba(255,122,26,.13),rgba(255,122,26,.06));
+    color:var(--cnav-orange);box-shadow:inset 0 0 0 1px rgba(255,122,26,.13)
+  }
+  .customer-global-bottom{
+    display:none;position:fixed;z-index:90;left:50%;bottom:0;transform:translateX(-50%);width:min(760px,100%);
+    min-height:78px;padding:8px 16px calc(7px + env(safe-area-inset-bottom));background:rgba(12,15,18,.96);
+    border-top:1px solid #2a2f35;backdrop-filter:blur(14px);grid-template-columns:repeat(5,minmax(0,1fr));align-items:end
+  }
+  .customer-global-bottom a{
+    color:#a8adb4;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;
+    font-size:9px;font-weight:750;min-height:52px;text-decoration:none
+  }
+  .customer-global-bottom a:hover{text-decoration:none}
+  .customer-global-bottom a svg{width:19px;height:19px}
+  .customer-global-bottom a.active{color:var(--cnav-orange)}
+  .customer-global-bottom .customer-bottom-plus{position:relative;top:-10px}
+  .customer-global-bottom .customer-plus-circle{
+    width:48px;height:48px;border-radius:50%;background:var(--cnav-orange);color:#17110d;display:grid;place-items:center;
+    box-shadow:0 8px 22px rgba(255,122,26,.22)
+  }
+  .customer-global-bottom .customer-plus-circle svg{width:22px;height:22px}
+  .customer-global-bottom .customer-bottom-plus>span:last-child{margin-top:-7px}
+  @media(max-width:760px){
+    .customer-global-bottom{display:grid}
+    .customer-ui .wrap{padding-bottom:112px}
+  }
+  @media(max-width:560px){
+    .customer-global-shell{padding:18px 12px 10px}
+    .customer-global-wordmark{font-size:23px}
+    .customer-global-account{width:39px;height:39px}
+    .customer-global-nav{gap:5px}
+    .customer-global-nav a{min-height:72px;border-radius:12px;padding:7px 2px;font-size:8.8px}
+    .customer-global-nav a svg{width:20px;height:20px}
+  }
+  @media(max-width:410px){
+    .customer-global-shell{padding-left:10px;padding-right:10px}
+    .customer-global-nav{gap:4px}
+    .customer-global-nav a{font-size:8px}
+  }
+
 </style>
 {# Load all Finance styles before any shell/content can paint. Keep shared overrides last. #}
 {% block finance_styles %}{% endblock %}
@@ -268,6 +333,44 @@
   </nav>
 </div>
 {% endif %}
+
+{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' and request.blueprint != 'finance' and request.endpoint != 'client.dashboard' %}
+  {% set customer_endpoint = request.endpoint or '' %}
+  {% set customer_blueprint = request.blueprint or '' %}
+  {% set cnav_bills = customer_endpoint == 'products.account_bills' %}
+  {% set cnav_products = ((customer_blueprint == 'products' and not cnav_bills) or customer_endpoint == 'projects.service_catalog_page' or customer_blueprint == 'talent') %}
+  {% set cnav_orders = customer_blueprint == 'projects' and customer_endpoint != 'projects.service_catalog_page' %}
+  {% set cnav_account = customer_endpoint == 'auth.account_page' %}
+  {% set cnav_home = customer_blueprint == 'client' %}
+  <header class="customer-global-shell">
+    <div class="customer-global-brand">
+      <div>
+        <div class="customer-global-wordmark">Kilas<span>Works</span></div>
+        <div class="customer-global-tagline">Solusi Digital untuk Bisnis Anda</div>
+      </div>
+      <a class="customer-global-account" href="{{ url_for('auth.account_page') }}" aria-label="Akun">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg>
+      </a>
+    </div>
+    <nav class="customer-global-nav" aria-label="Navigasi utama">
+      <a class="{{ 'active' if cnav_home else '' }}" href="{{ url_for('client.dashboard') }}" {% if cnav_home %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Beranda</span>
+      </a>
+      <a class="{{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}" {% if cnav_products %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk &amp; Layanan</span>
+      </a>
+      <a class="{{ 'active' if cnav_orders else '' }}" href="{{ url_for('projects.my_project_list') }}" {% if cnav_orders %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg><span>Pesanan</span>
+      </a>
+      <a class="{{ 'active' if cnav_bills else '' }}" href="{{ url_for('products.account_bills') }}" {% if cnav_bills %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M7 15h4"/></svg><span>Tagihan</span>
+      </a>
+      <a class="{{ 'active' if cnav_account else '' }}" href="{{ url_for('auth.account_page') }}" {% if cnav_account %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg><span>Akun</span>
+      </a>
+    </nav>
+  </header>
+{% endif %}
 <div class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}">
 {% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}
   {% if request.blueprint == 'finance' and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
@@ -291,6 +394,26 @@
   {% if request.blueprint=='products' %}<script src="{{ url_for('static',filename='product_forms.js') }}" defer></script>{% endif %}
   {% if finance_read_only or (branch_read_only and finance_branches and request.endpoint != 'finance.assistant') %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>
+
+{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' and request.blueprint != 'finance' and request.endpoint != 'client.dashboard' %}
+<nav class="customer-global-bottom" aria-label="Navigasi bawah">
+  <a class="{{ 'active' if cnav_home else '' }}" href="{{ url_for('client.dashboard') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Beranda</span>
+  </a>
+  <a class="{{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk</span>
+  </a>
+  <a class="customer-bottom-plus {{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}">
+    <span class="customer-plus-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span><span>Layanan</span>
+  </a>
+  <a class="{{ 'active' if cnav_orders else '' }}" href="{{ url_for('projects.my_project_list') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg><span>Pesanan</span>
+  </a>
+  <a class="{{ 'active' if cnav_account else '' }}" href="{{ url_for('auth.account_page') }}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg><span>Akun</span>
+  </a>
+</nav>
+{% endif %}
 <footer>Kilas Works Client Hub — V1</footer>
 <script>
 // Reusable "Bantu dengan AI" writing helper (UX pass, Section A/D) — ONE module driving EVERY
