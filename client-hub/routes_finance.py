@@ -428,22 +428,34 @@ def overview():
 @finance_bp.route('/business/<int:business_id>/finance/workspaces')
 @security.login_required
 def workspace_choice(business_id):
+    """Legacy entry URL: open Business Finance directly instead of showing a chooser."""
     user=security.current_user()
     import finance_entitlements as entitlement
     if not (beta_enabled() or entitlement.self_service()) and user['role']!='KILAS_ADMIN':
         abort(404)
-    business=security.require_business_access(business_id,user=user)
+    security.require_business_access(business_id,user=user)
     business_branches=branches.list_branches(
         business_id,user['id'],workspace_type='BUSINESS')
-    personal_branches=branches.list_branches(
-        business_id,user['id'],workspace_type='PERSONAL')
+    active=next((row for row in business_branches if row['is_active'] and row['is_default']),None)
+    active=active or next((row for row in business_branches if row['is_active']),None)
     state=entitlement.state(business_id)
-    return render_template(
-        'finance_workspace_choice.html',business=business,user=user,
-        entitlement=state,
-        business_ready=any(row['is_active'] for row in business_branches),
-        personal_ready=any(row['is_active'] for row in personal_branches),
-    )
+    if active is None:
+        if not state['active']:
+            return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
+        try:
+            entitlement.require_write(business_id,user['id'])
+            branch_id=branches.default(business_id,user['id'])
+            active=branches.get(
+                business_id,branch_id,active=True,actor_user_id=user['id'])
+            with branches.scope(business_id,active['id'],user['id']):
+                finance.ensure_finance_defaults(
+                    business_id,actor_user_id=user['id'])
+        except finance.FinanceError:
+            flash('Finance Bisnis belum dapat dibuka. Periksa status Finance lalu coba lagi.','error')
+            return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
+    return redirect(
+        url_for('finance.dashboard',business_id=business_id,branch_id=active['id']),
+        code=303)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/workspaces/<workspace_type>',methods=['POST'])
