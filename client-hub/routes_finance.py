@@ -127,7 +127,7 @@ def finance_access(view):
             abort(403)
         if g.finance_branch_read_only and view.__name__ in ('operator', 'receipt_new', 'bank_new', 'new_invoice', 'edit_transaction'):
             flash('Pilih satu cabang aktif untuk mencatat atau mengubah transaksi.', 'error')
-            return redirect(url_for('finance.dashboard', business_id=business_id))
+            return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id))
         g.finance_ui = finance_ui.context(business_id, user)
         with branches.scope(business_id, branch_id, user['id']):
             return view(business_id, user, business, **kwargs)
@@ -142,7 +142,7 @@ ERRORS = {
     'recurring_occurrence_void': 'Pembayaran tagihan ini sudah dibatalkan dan tidak dapat dibuat ulang otomatis.',
     'workspace_move_target': 'Tujuan harus berada di ruang Finance yang berbeda: Bisnis ↔ Pribadi.',
     'workspace_move_managed': 'Data ini terhubung ke pembukuan khusus dan tidak aman dipindahkan sendiri.',
-    'workspace_move_invoice_linked': 'Akun ini memiliki pembayaran invoice. Pindahkan transaksi manual satu per satu; pembayaran invoice tetap di Finance Bisnis.',
+    'workspace_move_invoice_linked': 'Akun ini memiliki pembayaran invoice. Pindahkan transaksi manual satu per satu; pembayaran invoice tetap di ruang asal.',
     'workspace_move_fx_linked': 'Akun ini terhubung ke transfer / penukaran mata uang. Selesaikan atau pindahkan struktur valasnya terlebih dahulu.',
     'invalid_recurring_limit': 'Batas pemrosesan belum valid.',
     'customer_unavailable': 'Customer tidak tersedia untuk bisnis ini.',
@@ -1340,7 +1340,7 @@ def mutate(business_id, action, success, destination=None):
         flash(ERRORS.get(str(error), 'Data belum valid. Periksa isian dan coba lagi.'), 'error')
     else:
         flash(success, 'success')
-    return redirect(destination or url_for('finance.dashboard', business_id=business_id), code=303)
+    return redirect(destination or url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id), code=303)
 
 
 @finance_bp.route('/business/<int:business_id>/finance/start', methods=['POST'])
@@ -1782,7 +1782,7 @@ def receivables(business_id, user, business):
 def create_customer(business_id, user, business):
     return mutate(business_id, lambda: finance.create_customer(business_id,request.form.get('name'),
         phone=request.form.get('phone'), email=request.form.get('email'), notes=request.form.get('notes'),
-        actor_user_id=user['id']), 'Customer ditambahkan.', url_for('finance.receivables',business_id=business_id))
+        actor_user_id=user['id']), 'Customer ditambahkan.', url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/edit', methods=['POST'])
@@ -1793,7 +1793,7 @@ def update_customer(business_id, user, business, customer_id):
         phone=request.form.get('phone'),email=request.form.get('email'),notes=request.form.get('notes'),
         actor_user_id=user['id']),
         'Customer diperbarui.',
-        url_for('finance.receivables',business_id=business_id,section='customers'))
+        url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='customers'))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/delete', methods=['POST'])
@@ -1802,7 +1802,7 @@ def delete_customer(business_id, user, business, customer_id):
     return mutate(business_id, lambda: finance.delete_customer(
         business_id,customer_id,actor_user_id=user['id']),
         'Customer dihapus dari daftar aktif. Riwayat invoice dan pembayaran tetap aman.',
-        url_for('finance.receivables',business_id=business_id,section='customers'))
+        url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='customers'))
 
 
 def nonnegative_idr(value):
@@ -1848,7 +1848,7 @@ def invoice_settings(business_id,user,business):
             flash(INVOICE_EDIT_ERRORS.get(str(error),'Periksa detail pengirim dan pembayaran.'),'error');error_status=400
         else:
             flash('Pengaturan invoice cabang disimpan. Invoice yang sudah ada tetap memakai datanya sendiri.','success')
-            return redirect(url_for('finance.receivables',business_id=business_id,section='invoices'),code=303)
+            return redirect(url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='invoices'),code=303)
     return render_template('finance_invoice_settings.html',user=user,business=business,data=data),error_status
 
 
@@ -1893,7 +1893,7 @@ def new_invoice(business_id, user, business, invoice_id=None):
             flash(INVOICE_EDIT_ERRORS.get(str(error),ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.')),'error')
             error_status=400
         else:
-            return redirect(url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id),code=303)
+            return redirect(url_for('finance.invoice_detail',business_id=business_id,branch_id=g.finance_branch_id,invoice_id=invoice_id),code=303)
     return render_template('finance_invoice_form.html',user=user,business=business,invoice=invoice,
         customers=finance.list_customers(business_id,include_inactive=bool(invoice),actor_user_id=actor),today=today,
         supported_currencies=finance.SUPPORTED_CURRENCIES,data=data,values=values,form_items=form_items,
@@ -1923,14 +1923,14 @@ def render_invoice_detail(business_id,user,business,invoice_id,share_url=None):
 @finance_access
 def issue_invoice(business_id,user,business,invoice_id):
     return mutate(business_id,lambda: finance.issue_finance_invoice(business_id,invoice_id,actor_user_id=user['id']),
-        'Invoice diterbitkan.',url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+        'Invoice diterbitkan.',url_for('finance.invoice_detail',business_id=business_id,branch_id=g.finance_branch_id,invoice_id=invoice_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/void',methods=['POST'])
 @finance_access
 def void_invoice(business_id,user,business,invoice_id):
     return mutate(business_id,lambda: finance.void_finance_invoice(business_id,invoice_id,actor_user_id=user['id']),
-        'Invoice dibatalkan. Riwayat tetap tersimpan.',url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+        'Invoice dibatalkan. Riwayat tetap tersimpan.',url_for('finance.invoice_detail',business_id=business_id,branch_id=g.finance_branch_id,invoice_id=invoice_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/notes',methods=['POST'])
@@ -1939,7 +1939,7 @@ def update_invoice_notes(business_id,user,business,invoice_id):
     return mutate(business_id,lambda: finance.update_finance_invoice_notes(
         business_id,invoice_id,request.form.get('notes'),actor_user_id=user['id']),
         'Catatan invoice diperbarui. Nominal, item dan histori pembayaran tidak berubah.',
-        url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+        url_for('finance.invoice_detail',business_id=business_id,branch_id=g.finance_branch_id,invoice_id=invoice_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/archive',methods=['POST'])
@@ -1948,7 +1948,7 @@ def archive_invoice(business_id,user,business,invoice_id):
     return mutate(business_id,lambda: finance.archive_finance_invoice(
         business_id,invoice_id,actor_user_id=user['id']),
         'Invoice lunas diarsipkan dari daftar kerja. Pemasukan, pembayaran dan laporan tetap utuh.',
-        url_for('finance.receivables',business_id=business_id,section='invoices'))
+        url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='invoices'))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/restore',methods=['POST'])
@@ -1957,7 +1957,7 @@ def restore_invoice(business_id,user,business,invoice_id):
     return mutate(business_id,lambda: finance.restore_finance_invoice(
         business_id,invoice_id,actor_user_id=user['id']),
         'Invoice dikembalikan ke daftar kerja. Tidak ada angka Finance yang berubah.',
-        url_for('finance.receivables',business_id=business_id,section='invoices',archived=1))
+        url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='invoices',archived=1))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/payments',methods=['POST'])
@@ -1969,7 +1969,7 @@ def record_payment(business_id,user,business,invoice_id):
         currency_amount(request.form.get('amount'),invoice['currency']),request.form.get('paid_on'),record_id(request.form.get('account_id')),
         record_id(request.form.get('category_id')),note=request.form.get('note'),actor_user_id=user['id'],
         idempotency_key=request.form.get('payment_key')), 'Pembayaran dicatat.',
-        url_for('finance.invoice_detail',business_id=business_id,invoice_id=invoice_id))
+        url_for('finance.invoice_detail',business_id=business_id,branch_id=g.finance_branch_id,invoice_id=invoice_id))
 
 
 def _bill_month_occurrences(business_id, rules, start, end, today_iso, actor_user_id):
@@ -2070,7 +2070,7 @@ def operations(business_id,user,business):
         start, end = period(month)
     except (ValueError, finance.FinanceError):
         flash('Bulan tagihan belum valid.', 'error')
-        return redirect(url_for('finance.operations', business_id=business_id), code=303)
+        return redirect(url_for('finance.operations', business_id=business_id, branch_id=g.finance_branch_id), code=303)
 
     actor = {'actor_user_id': user['id']}
     rules = finance.list_recurring_expenses(business_id, include_inactive=True, **actor)
@@ -2827,7 +2827,7 @@ def receipt_confirm(business_id, user, business):
                             error='Konfirmasi belum dapat diproses. Periksa catatan sebelum mencoba lagi.', status=503)
     ai_safety.event('confirmation_accepted')
     flash('Pengeluaran struk sudah tercatat. Konfirmasi ulang yang sama tidak menambah catatan.', 'success')
-    return redirect(url_for('finance.dashboard', business_id=business_id, month=fields['occurred_on'][:7]))
+    return redirect(url_for('finance.dashboard', business_id=business_id, branch_id=g.finance_branch_id, month=fields['occurred_on'][:7]))
 
 
 # Bank imports have staging writes, but only explicit row POST can write ledger money.
@@ -2897,7 +2897,7 @@ def bank_analyze(business_id,user,business):
         import_id,fallback=bank.analyze(business_id,account_id,files,user['id'],
                                       document_kind=request.form.get('document_kind','bank'))
         if fallback:flash('Ekstraksi belum dapat diandalkan. Tambahkan baris secara manual; belum ada transaksi Finance dibuat.','warning')
-        return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+        return redirect(url_for('finance.bank_detail',business_id=business_id,branch_id=g.finance_branch_id,import_id=import_id))
     finally:
         for upload in uploads:upload.close()
 
@@ -2933,7 +2933,7 @@ def bank_review(business_id,user,business,import_id):
         direction=request.form.get('direction'),amount_minor=currency_amount(request.form.get('amount'),
             bank.account(business_id,bank.get_import(business_id,import_id,user['id'])['account_id'],user['id'])['currency']),
         reference=request.form.get('reference') or None),user['id'])
-    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+    return redirect(url_for('finance.bank_detail',business_id=business_id,branch_id=g.finance_branch_id,import_id=import_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/open',methods=['POST'])
@@ -2942,7 +2942,7 @@ def bank_review(business_id,user,business,import_id):
 def bank_open(business_id,user,business,import_id):
     if request.form.get('confirmed')!='yes':raise ValueError('confirmation')
     bank.open_import(business_id,import_id,int(request.form.get('revision','-1')),user['id'])
-    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+    return redirect(url_for('finance.bank_detail',business_id=business_id,branch_id=g.finance_branch_id,import_id=import_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/cancel',methods=['POST'])
@@ -2951,7 +2951,7 @@ def bank_open(business_id,user,business,import_id):
 def bank_cancel(business_id,user,business,import_id):
     if request.form.get('confirmed')!='yes':raise ValueError('confirmation')
     bank.cancel(business_id,import_id,user['id'])
-    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+    return redirect(url_for('finance.bank_detail',business_id=business_id,branch_id=g.finance_branch_id,import_id=import_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/bank-imports/<int:import_id>/rows/<int:row_id>/<action>',methods=['POST'])
@@ -2968,7 +2968,7 @@ def bank_decide(business_id,user,business,import_id,row_id,action):
         description=request.form.get('description',''),counterparty_name=request.form.get('counterparty_name') or None)
     transaction_id=record_id(request.form.get('transaction_id')) if action=='match' else None
     bank.decide(business_id,import_id,row_id,action,user['id'],transaction_id=transaction_id,fields=fields)
-    return redirect(url_for('finance.bank_detail',business_id=business_id,import_id=import_id))
+    return redirect(url_for('finance.bank_detail',business_id=business_id,branch_id=g.finance_branch_id,import_id=import_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/assistant')
@@ -2977,7 +2977,7 @@ def bank_decide(business_id,user,business,import_id,row_id,action):
 def assistant(business_id, user, business):
     # Do not accept prompts, tokens or workflow state in URL parameters.
     if set(request.args) - {'branch_id', 'month', 'display_currency'}:
-        return redirect(url_for('finance.assistant', business_id=business_id))
+        return redirect(url_for('finance.assistant', business_id=business_id, branch_id=g.finance_branch_id))
     actor = {'actor_user_id': user['id']}
     operator_enabled = finance_operator.enabled(business_id)
     local_today=finance.business_today(business_id)
