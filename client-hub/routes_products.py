@@ -178,9 +178,17 @@ def continue_product():
         item=catalog_service.get_catalog_item(key)
         if not item or not item['is_active']:abort(404)
         return render_template('product_continue.html',item=item,chosen_business_id=business_id,ready=True)
+    businesses=_product_businesses(user['id'],key)
+    # Returning customers with one already-active Finance business should not
+    # see onboarding or a workspace chooser again.
+    if key=='finance' and len(businesses)==1 and entitlement.state(businesses[0]['id'])['active']:
+        business_id=businesses[0]['id']
+        session['dashboard_business_id']=business_id
+        session.pop('product_intent',None)
+        return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
     return render_template(
         'product_continue.html',product=key,user=user,
-        businesses=_product_businesses(user['id'],key),
+        businesses=businesses,
         setup_identity=uuid.uuid4().hex,ready=False
     )
 
