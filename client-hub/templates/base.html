@@ -261,7 +261,7 @@
   {% if request.blueprint == 'finance' and session.get('user_id') %}
   {% set finance_nav_business_id = request.view_args.get('business_id') if request.view_args else none %}
   <nav class="finance-exit-bar no-print" aria-label="Navigasi Finance">
-    {% if finance_nav_business_id %}
+    {% if finance_nav_business_id and request.endpoint != 'finance.workspace_choice' %}
     <a class="finance-exit-link finance-dashboard-link" href="{{ url_for('finance.dashboard',business_id=finance_nav_business_id,branch_id=g.get('finance_branch_id')) }}">Dashboard</a>
     {% endif %}
     <a class="finance-exit-link" href="{{ url_for('client.dashboard') }}">Keluar Finance</a>
