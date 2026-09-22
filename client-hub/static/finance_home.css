@@ -131,3 +131,16 @@
   .finance-available-gauge-label{font-size:12px}
   .finance-available-gauge svg{width:min(230px,76vw)}
 }
+
+/* Account drilldown: account rows open a dedicated page instead of appending detail below the list. */
+.finance-account-detail-page-head{margin-bottom:10px}
+.finance-account-detail-balance{display:block;text-align:right}
+.finance-account-detail-balance>span,.finance-account-detail-balance>small{display:block;color:var(--text-dim);font-size:9.5px}
+.finance-account-detail-balance>strong{display:block;margin-top:2px;font-size:21px;line-height:1.08;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+.finance-account-hb-detail-page{margin-top:0}
+.finance-account-detail-top-actions{display:flex;justify-content:flex-end;margin-top:10px}
+.finance-account-detail-move-only{padding-top:10px;border-top:1px solid var(--border)}
+@media(max-width:640px){
+  .finance-account-detail-balance>strong{font-size:18px}
+  .finance-account-detail-top-actions{justify-content:flex-start}
+}
