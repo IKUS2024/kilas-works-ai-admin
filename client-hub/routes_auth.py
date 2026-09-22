@@ -147,10 +147,21 @@ def account_page():
             return _account_business_redirect()
         repo.update_business_identity(business_id, name, user["id"])
         import finance_invoice_editor as invoice_editor
-        invoice_editor.sync_sender_identity(business_id, name, user["id"])
+        import finance_service as finance
+        invoice_sync_ok = True
+        try:
+            invoice_editor.sync_sender_identity(business_id, name, user["id"])
+        except finance.FinanceError:
+            # Renaming the account identity is still valid while Finance is read-only.
+            # Existing issued invoices are snapshots and are intentionally untouched.
+            invoice_sync_ok = False
         if business.get("package") != "NONE":
             repo.set_business_stale_if_done(business_id)
-        flash("Nama bisnis diperbarui. Invoice lama tetap memakai data saat diterbitkan.", "success")
+        flash(
+            "Nama bisnis diperbarui. Invoice lama tetap memakai data saat diterbitkan."
+            if invoice_sync_ok else
+            "Nama bisnis diperbarui. Default invoice belum diubah karena Finance sedang read-only.",
+            "success" if invoice_sync_ok else "info")
         return _account_business_redirect()
 
     if action == "business_branch":
