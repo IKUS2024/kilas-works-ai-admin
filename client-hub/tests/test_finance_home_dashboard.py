@@ -523,6 +523,8 @@ class DashboardHomeTests(unittest.TestCase):
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
         html,_=self.page('?month=2026-09')
         self.assertIn('data-category-quick-add',html)
+        self.assertIn('data-category-placeholder selected disabled>Pilih kategori</option>',html)
+        self.assertIn('data-subcategory-field hidden',html)
         self.assertIn('＋ Tambah / kelola kategori',html)
         self.assertIn('Tambah &amp; pilih',html)
 
