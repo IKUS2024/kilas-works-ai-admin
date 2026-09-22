@@ -167,15 +167,16 @@ class FinalFlowTests(unittest.TestCase):
         self.assertIn('KILAS FINANCE · PRIBADI',personal_page.text)
         self.assertIn('data terpisah dari Bisnis',personal_page.text)
         self.assertNotIn('Ganti ruang / cabang',personal_page.text)
-        self.assertNotIn('AI FINANCE',personal_page.text)
-        self.assertNotIn('Tanya Kilas Finance',personal_page.text)
-        self.assertNotIn('Buat invoice',personal_page.text)
+        self.assertIn('AI Finance',personal_page.text)
+        self.assertIn('Buat Invoice',personal_page.text)
+        self.assertIn('>Invoice<',personal_page.text)
 
+        # Personal and Business share the same paid/trial entitlement and feature
+        # set, while the branch-scoped ledger remains isolated.
         for path in ('assistant','analyst','invoices/new'):
-            blocked=self.client.get(
+            allowed=self.client.get(
                 f'/business/{self.b}/finance/{path}?branch_id={personal[0]["id"]}')
-            self.assertEqual(blocked.status_code,303)
-            self.assertIn('/finance',blocked.location)
+            self.assertEqual(allowed.status_code,200)
 
     def test_returning_active_finance_customer_skips_setup_and_chooser(self):
         self.trial()
@@ -215,6 +216,28 @@ class FinalFlowTests(unittest.TestCase):
         self.assertNotIn('/finance/workspaces',opened.location)
         saved=repo.get_user_by_email(email)
         self.assertEqual(saved['full_name'],'Nama Finance Baru')
+
+    def test_personal_invoice_defaults_use_owner_identity_and_need_no_business_address(self):
+        import finance_branches as branches
+        import finance_invoice_editor as editor
+        self.trial()
+        personal_id=branches.ensure_personal(self.b,self.uid)
+        with branches.scope(self.b,personal_id,self.uid):
+            defaults=editor.defaults(self.b,self.uid)
+            owner=repo.get_user_by_id(self.uid)
+            self.assertEqual(defaults['sender']['name'],owner['full_name'])
+            self.assertEqual(defaults['sender']['email'],owner['email'])
+            self.assertEqual(defaults['sender']['address'],'')
+            self.assertEqual(defaults['sender']['phone'],'')
+            customer=f.create_customer(self.b,'Personal Client',actor_user_id=self.uid)
+            invoice=editor.create(
+                self.b,customer,
+                dict(sender=defaults['sender'],recipient={'name':'Personal Client'},payment=defaults['payment'],reference=''),
+                actor_user_id=self.uid,submission_key=uuid.uuid4().hex,
+                issue_date='2026-09-17',due_date='2026-09-17',currency='IDR',
+                notes='',items=[dict(description='Jasa pribadi',quantity=1,unit_price_minor=100000)])
+            self.assertIsNotNone(invoice)
+            self.assertEqual(f.get_finance_invoice(self.b,invoice,self.uid)['branch_id'],personal_id)
 
     def test_trial_exact_seven_days(self):
         self.trial();self.assertEqual(e.parse(e.state(self.b)['until'])-self.time.return_value,timedelta(days=7))
