@@ -371,6 +371,14 @@
 
         <div class="business-form-grid">
           <label>
+            <span class="account-label">Nama lengkap</span>
+            <input type="text" name="full_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama kamu" required>
+          </label>
+          <label>
+            <span class="account-label">Email</span>
+            <span class="business-locked-email"><span>{{ user.email }}</span><small>Terkunci</small></span>
+          </label>
+          <label>
             <span class="account-label">Nomor telepon</span>
             <input name="phone" type="tel" maxlength="254" value="{{ personal_profile.phone or '' }}" placeholder="Opsional">
           </label>
