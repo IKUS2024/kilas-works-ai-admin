@@ -10,13 +10,21 @@
 {{ metric('Total Keuangan Akun', balance_total_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts',display_currency=display_currency), 'account') }}
 {{ metric('Tagihan', dashboard_view.bills_display, url_for('finance.operations',business_id=business.id,branch_id=selected_branch_id,month=month,payment_status='unpaid',view='list',display_currency=display_currency), 'bill', 'half') }}
 <a class="finance-metric finance-budget-metric" href="{{ url_for('finance.budget',business_id=business.id,branch_id=selected_branch_id,month=month,display_currency=display_currency) }}">
-  <div class="finance-budget-metric-copy">
+  <div class="finance-budget-metric-head">
     <span class="finance-metric-label">{{ icon('budget') }}Anggaran</span>
     <strong>{{ budget_total_display }}</strong>
-    <small>{{ 'Sisa ' ~ budget_remaining_display if budget_rows else 'Belum diatur' }}</small>
   </div>
-  <div class="finance-budget-ring {{ 'over' if budget_percent > 100 else '' }}" style="--budget-percent: {{ [budget_percent,100]|min }};" role="img" aria-label="Penggunaan anggaran {{ budget_percent }} persen">
-    <span>{{ budget_percent }}%</span>
+  <div class="finance-budget-chart-wrap">
+    <div class="finance-budget-ring {{ 'over' if budget_percent > 100 else '' }}" style="--budget-percent: {{ [budget_percent,100]|min }};" role="img" aria-label="Penggunaan anggaran {{ budget_percent }} persen">
+      <div class="finance-budget-ring-center">
+        <strong>{{ budget_percent }}%</strong>
+        <small>terpakai</small>
+      </div>
+    </div>
+    <div class="finance-budget-chart-meta">
+      <span><i class="used"></i>Terpakai<strong>{{ period_expense_display }}</strong></span>
+      <span><i class="remaining"></i>Sisa<strong>{{ budget_remaining_display if budget_rows else 'Belum diatur' }}</strong></span>
+    </div>
   </div>
 </a>
 {{ metric('Invoice', dashboard_view.invoice_display, url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='invoices'), 'invoice', compact=true) }}
