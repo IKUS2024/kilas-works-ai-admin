@@ -172,6 +172,49 @@ def create_app():
             # Only text and filename metadata. Raw attachments go to existing engines.
             request.max_content_length = 16 * 1024
 
+    def _finance_session_destination():
+        user = security.current_user()
+        business_id = session.get("dashboard_business_id")
+        if user and business_id:
+            import repo
+            rows = repo.list_businesses_for_user(user["id"])
+            if any(row["id"] == business_id for row in rows):
+                return url_for("finance.workspace_choice", business_id=business_id)
+        return url_for("products.finance_entry")
+
+    @app.before_request
+    def _lock_customer_to_selected_finance():
+        """Once a customer chooses Finance, keep this login session inside Finance.
+
+        Logout clears the Flask session, so the next login starts from the product picker again.
+        Account/profile pages remain reachable because they are part of the Finance experience.
+        """
+        if not session.get("user_id") or session.get("role") == "KILAS_ADMIN":
+            return None
+        if (session.get("active_product") or "").strip().lower() != "finance":
+            return None
+
+        endpoint = request.endpoint or ""
+        allowed = (
+            endpoint == "static"
+            or endpoint.startswith("finance.")
+            or endpoint in {
+                "products.finance_entry",
+                "products.finance_setup",
+                "auth.account_page",
+                "auth.account_personal_photo",
+                "auth.account_business_photo",
+                "auth.logout_page",
+                "healthz",
+                "privacy",
+                "terms",
+            }
+        )
+        if allowed:
+            return None
+
+        return redirect(_finance_session_destination(), code=303)
+
     @app.before_request
     def _csrf_protect():
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
@@ -196,6 +239,11 @@ def create_app():
         if session.get("user_id"):
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
+            if (session.get("active_product") or "").strip().lower() == "finance":
+                business_id = session.get("dashboard_business_id")
+                if business_id:
+                    return redirect(url_for("finance.workspace_choice", business_id=business_id))
+                return redirect(url_for("products.finance_entry"))
             return redirect(url_for("products.product_start"))
         return redirect(url_for("auth.login_page"))
 
