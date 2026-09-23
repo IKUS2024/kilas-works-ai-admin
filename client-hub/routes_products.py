@@ -148,6 +148,32 @@ def order_entry():
     return render_template('order_entry.html',user=security.current_user())
 
 
+@products_bp.route('/products/order/request',methods=['GET','POST'])
+@security.login_required
+def order_request():
+    if request.method=='POST':
+        request_text=(request.form.get('request_text') or '').strip()
+        if len(request_text)<3:
+            flash('Ceritakan barang yang sedang kamu cari.','error')
+            return redirect(url_for('products.order_entry'),code=303)
+        location_source=(request.form.get('location_source') or '').strip()
+        location_label=(request.form.get('location_label') or '').strip()
+        latitude=(request.form.get('latitude') or '').strip()
+        longitude=(request.form.get('longitude') or '').strip()
+        session['kilas_order_draft']={
+            'request_text':request_text[:800],
+            'location_source':location_source if location_source in ('gps','manual') else '',
+            'location_label':location_label[:120],
+            'latitude':latitude[:32],
+            'longitude':longitude[:32],
+        }
+        return redirect(url_for('products.order_request'),code=303)
+    draft=session.get('kilas_order_draft') or {}
+    if not draft.get('request_text'):
+        return redirect(url_for('products.order_entry'),code=303)
+    return render_template('order_request.html',user=security.current_user(),draft=draft)
+
+
 @products_bp.route('/products/finance',methods=['GET','POST'])
 @security.login_required
 def finance_entry():
