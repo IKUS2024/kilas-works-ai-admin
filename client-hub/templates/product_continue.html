@@ -29,14 +29,14 @@
   </section>
 {% else %}
   {% set is_product_business = product in ('brain','finance') %}
-  {% set product_name = 'Kilas Finance' if product=='finance' else ('AI Admin' if product=='brain' else 'Layanan Kilas Works') %}
-  {% set business_label = 'Finance' if product=='finance' else ('AI Admin' if product=='brain' else 'layanan ini') %}
+  {% set product_name = 'Kilas Finance' if product=='finance' else ('Kilas Assist' if product=='brain' else 'Layanan Kilas Works') %}
+  {% set business_label = 'Finance' if product=='finance' else ('Kilas Assist' if product=='brain' else 'layanan ini') %}
 
   <header class="product-setup-hero">
     <span class="product-setup-kicker">{{ product_name }}</span>
     {% if product=='finance' and not businesses %}
-      <h1>Mulai Kilas Finance</h1>
-      <p>Isi nama pemilik dan konfirmasi email akun. Detail bisnis atau pribadi bisa dilengkapi nanti dari menu Akun.</p>
+      <h1>Tambahkan bisnis Finance</h1>
+      <p>Isi nama bisnis dulu. Setelah itu Kilas Finance akan dibuat sebagai ruang bisnis yang terpisah.</p>
     {% else %}
       <h1>{{ 'Pilih bisnis ' ~ business_label if businesses else 'Tambah bisnis ' ~ business_label }}</h1>
       <p>{% if is_product_business %}Nama bisnis baru diisi di sini, setelah akun pemilik dibuat.{% else %}Pilih bisnis terkait atau lanjut sebagai pesanan pribadi.{% endif %}</p>
@@ -46,7 +46,7 @@
   {% if is_product_business and not (product=='finance' and not businesses) %}
   <div class="product-setup-note">
     <span class="product-setup-note-icon">↔</span>
-    <div><strong>Bisnis {{ business_label }} berdiri sendiri.</strong> Bisnis dari {{ 'AI Admin' if product=='finance' else 'Finance' }} tidak dipakai otomatis di sini. Nama boleh sama, tetapi data produk tetap terpisah. Data lama yang sudah ada tetap aman.</div>
+    <div><strong>Bisnis {{ business_label }} berdiri sendiri.</strong> Bisnis dari {{ 'Kilas Assist' if product=='finance' else 'Finance' }} tidak dipakai otomatis di sini. Nama boleh sama, tetapi data produk tetap terpisah. Data lama yang sudah ada tetap aman.</div>
   </div>
   {% endif %}
 
@@ -61,7 +61,7 @@
           <form method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="business_id" value="{{ b.id }}">
-            <button class="btn small" type="submit">{{ 'Buka Finance' if product=='finance' else ('Lanjut AI Admin' if product=='brain' else 'Gunakan') }}</button>
+            <button class="btn small" type="submit">{{ 'Buka Finance' if product=='finance' else ('Buka Kilas Assist' if product=='brain' else 'Gunakan') }}</button>
           </form>
         </div>
         {% endfor %}
@@ -72,27 +72,24 @@
   {% if is_product_business %}
     {% if product=='finance' and not businesses %}
     <section class="card product-create-card">
-      <h2>Mulai Kilas Finance</h2>
-      <p>Isi data akun dasar dulu. Nama bisnis, cabang, alamat, nomor telepon, dan metode pembayaran bisa dilengkapi nanti di Akun → Bisnis.</p>
+      <h2>Bisnis Finance baru</h2>
+      <p>Masukkan nama bisnis. Cabang, alamat, nomor telepon, akun keuangan, dan detail lain bisa dilengkapi setelah masuk Finance.</p>
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="create" value="yes">
         <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-        <label>Nama pemilik
-          <input name="owner_name" maxlength="100" value="{{ user.full_name or '' }}" placeholder="Nama lengkap" autocomplete="name" required autofocus>
+        <label>Nama bisnis
+          <input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required autofocus>
         </label>
-        <label style="display:block;margin-top:10px;">Email
-          <input value="{{ user.email }}" type="email" autocomplete="email" readonly aria-readonly="true">
-        </label>
-        <p class="muted" style="margin-top:8px;">Email mengikuti akun login dan tidak dapat diubah dari setup Finance.</p>
-        <button class="btn" type="submit">Mulai Finance 7 Hari</button>
+        <p class="muted" style="margin-top:8px;">Finance untuk bisnis ini akan berdiri sendiri dari Kilas Assist.</p>
+        <button class="btn" type="submit">Buat Bisnis &amp; Mulai Finance</button>
       </form>
     </section>
     {% else %}
       {% if businesses %}<details class="product-add-more"><summary>＋ Tambah bisnis {{ business_label }} baru</summary><div class="product-add-more-body">{% endif %}
       <section class="card product-create-card">
-        <h2>{{ 'Bisnis Finance baru' if product=='finance' else 'Bisnis AI Admin baru' }}</h2>
-        <p>{{ 'Tambahkan bisnis Finance lain. Profil bisnis lengkap dan data invoice tetap dapat dikelola dari Akun → Bisnis.' if product=='finance' else 'Bisnis ini khusus setup AI Admin / Kilas Brain. Finance tidak diaktifkan otomatis.' }}</p>
+        <h2>{{ 'Bisnis Finance baru' if product=='finance' else 'Bisnis Kilas Assist baru' }}</h2>
+        <p>{{ 'Tambahkan bisnis Finance lain. Profil bisnis lengkap dan data invoice tetap dapat dikelola dari Akun → Bisnis.' if product=='finance' else 'Bisnis ini khusus Kilas Assist. Finance tidak diaktifkan otomatis dan datanya tetap terpisah.' }}</p>
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="create" value="yes">
@@ -100,7 +97,7 @@
           <label>Nama bisnis
             <input name="business_name" maxlength="160" placeholder="Contoh: Kopi Maju" autocomplete="organization" required>
           </label>
-          <button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Finance 7 Hari' if product=='finance' else 'Tambah Bisnis & Setup AI Admin' }}</button>
+          <button class="btn" type="submit">{{ 'Tambah Bisnis & Coba Finance 7 Hari' if product=='finance' else 'Tambah Bisnis & Setup Kilas Assist' }}</button>
         </form>
       </section>
       {% if businesses %}</div></details>{% endif %}
