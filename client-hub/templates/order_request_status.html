@@ -149,6 +149,12 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
   function startProgress(){
     card.classList.remove('is-hidden');
     if(issueAction) issueAction.style.display='none';
+    var pageTitle=document.querySelector('.ko-status-head h1');
+    var pageSub=document.querySelector('.ko-status-head p');
+    var statusPill=document.querySelector('.ko-status-pill');
+    if(pageTitle) pageTitle.textContent='AI Kilas sedang mencari.';
+    if(pageSub) pageSub.textContent='Kilas sedang mencari dan menyaring kandidat yang sesuai. Kamu bisa tetap di halaman ini.';
+    if(statusPill) statusPill.textContent='Sedang mencari';
     title.textContent='AI sedang mencari barang…';
     sub.textContent='Kilas lagi cek beberapa sumber dan menyaring hasil yang kurang meyakinkan.';
     errorBox.classList.remove('show');
@@ -182,6 +188,12 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
     sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
     errorBox.textContent=failureMessages[code]||'Pencarian belum menghasilkan kandidat yang cukup valid.';
     errorBox.classList.add('show');
+    var pageTitle=document.querySelector('.ko-status-head h1');
+    var pageSub=document.querySelector('.ko-status-head p');
+    var statusPill=document.querySelector('.ko-status-pill');
+    if(pageTitle) pageTitle.textContent='Pencarian belum berhasil.';
+    if(pageSub) pageSub.textContent='Request tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang penjelasan dari awal.';
+    if(statusPill) statusPill.textContent='Perlu bantuan';
     if(issueAction) issueAction.style.display='block';
     if(retryButton) retryButton.disabled=false;
   }
@@ -211,7 +223,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
           showFailure(data.error_code||'unknown');
           return;
         }
-        if(Date.now()-startedAt>105000){
+        if(Date.now()-startedAt>185000){
           showFailure('network_failure');
           return;
         }
