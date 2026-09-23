@@ -278,6 +278,7 @@ def order_request_search_run(request_code):
         'status_label': refreshed.get('status_label') if refreshed else 'Perlu bantuan',
         'candidate_count': len(candidates),
         'retryable': bool(error),
+        'error_code': error or '',
     })
 
 
