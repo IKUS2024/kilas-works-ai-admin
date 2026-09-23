@@ -110,7 +110,9 @@ def generate(question, context, *, business_id=None, user_id=None):
             json={'model':model,'max_tokens':700,'system':SYSTEM,'messages':[{'role':'user','content':json.dumps({'question':question,'finance_data':context},ensure_ascii=False)}]},
             timeout=(5,25), allow_redirects=False)
         if response.status_code != 200: return None, 'upstream_failure'
-        result = safety.json_object(safety.response_text(response.json(),8000))
+        body=response.json()
+        safety.record_usage(model,body,business_id,'normal')
+        result = safety.json_object(safety.response_text(body,8000))
         if not isinstance(result,dict) or set(result)!={'observations','suggestions'}: raise ValueError('schema')
         ids = {f['id'] for f in context['facts']}
         for items in result.values():
