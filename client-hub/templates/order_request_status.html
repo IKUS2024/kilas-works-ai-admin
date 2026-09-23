@@ -186,12 +186,29 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         setTimeout(function(){window.location.reload();},650);
         return;
       }
-      throw new Error('no_results');
-    }).catch(function(){
-      stop();
+      var code=(data && data.error_code)||'unknown';
       title.textContent='Pencarian belum berhasil';
       sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
-      errorBox.textContent='Belum ada kandidat yang cukup valid dari pencarian ini.';
+      var messages={
+        provider_invalid_request:'Mesin pencarian web dari provider belum bisa dipakai untuk request ini.',
+        provider_access_denied:'Akses mesin pencarian web belum aktif pada provider Kilas.',
+        provider_rate_limited:'Mesin pencarian sedang kena batas penggunaan. Coba lagi sebentar.',
+        network_failure:'Koneksi ke mesin pencarian terputus.',
+        no_search_results:'Belum ada hasil web yang cukup relevan.',
+        no_valid_candidates:'Ada hasil pencarian, tapi belum ada kandidat yang cukup aman dan cocok.',
+        invalid_schema:'Hasil pencarian belum bisa dibaca dengan aman oleh Kilas.'
+      };
+      errorBox.textContent=messages[code]||'Pencarian belum menghasilkan kandidat yang cukup valid.';
+      errorBox.classList.add('show');
+      if(issueAction){
+        issueAction.style.display='block';
+        if(retryButton) retryButton.disabled=false;
+      }
+    }).catch(function(){
+      stop();
+      title.textContent='Pencarian terputus';
+      sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
+      errorBox.textContent='Koneksi ke Kilas sempat terputus. Coba lagi.';
       errorBox.classList.add('show');
       if(issueAction){
         issueAction.style.display='block';
