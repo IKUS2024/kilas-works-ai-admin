@@ -618,9 +618,9 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </div>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
 <label data-counterparty-field>
-  <span data-counterparty-label>{{ 'Sumber / Customer' if direction == 'INCOME' else 'Penerima / Vendor' }}</span>
+  <span data-counterparty-label>{{ 'Sumber / Pelanggan' if direction == 'INCOME' else 'Penerima / Vendor' }}</span>
   <select data-counterparty-select>
-    <option value="" data-counterparty-placeholder>{{ 'Pilih Customer' if direction == 'INCOME' else 'Pilih Penerima / Vendor' }}</option>
+    <option value="" data-counterparty-placeholder>{{ 'Pilih Pelanggan' if direction == 'INCOME' else 'Pilih Penerima / Vendor' }}</option>
     {% for p in payees if p.is_active %}<option value="{{ p.name }}" data-direction="EXPENSE" data-payee-id="{{ p.id }}">{{ p.name }}</option>{% endfor %}
     {% for c in customers if c.is_active %}<option value="{{ c.name }}" data-direction="INCOME" data-customer-id="{{ c.id }}">{{ c.name }}</option>{% endfor %}
   </select>
@@ -665,18 +665,18 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </dialog>
 
 <dialog id="customer-quick-dialog" class="finance-sheet finance-counterparty-quick-dialog">
-  <div class="finance-sheet-head"><h2>Tambah Customer</h2><button type="button" class="finance-sheet-close" data-finance-close="customer-quick-dialog" aria-label="Tutup">×</button></div>
+  <div class="finance-sheet-head"><h2>Tambah Pelanggan</h2><button type="button" class="finance-sheet-close" data-finance-close="customer-quick-dialog" aria-label="Tutup">×</button></div>
   <div class="finance-sheet-body">
     <form method="post" action="{{ url_for('finance.create_customer',business_id=business.id,branch_id=g.finance_branch_id) }}" data-counterparty-add-form data-kind="customer">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="branch_id" value="{{ selected_branch_id or '' }}">
       <input type="hidden" name="inline" value="1">
-      <label>Nama customer<input name="name" maxlength="160" placeholder="Contoh: Wilson, Client A" autocomplete="off" required></label>
+      <label>Nama pelanggan<input name="name" maxlength="160" placeholder="Contoh: Wilson, Client A" autocomplete="off" required></label>
       <label>Nomor telepon (opsional)<input name="phone" type="tel" maxlength="64"></label>
       <label>Email (opsional)<input name="email" type="email" maxlength="254"></label>
       <p class="finance-counterparty-status" data-counterparty-status aria-live="polite"></p>
-      <button class="btn" type="submit">Simpan Customer</button>
-      <a class="finance-category-add-toggle" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Kelola semua Customer</a>
+      <button class="btn" type="submit">Simpan Pelanggan</button>
+      <a class="finance-category-add-toggle" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Kelola semua Pelanggan</a>
     </form>
   </div>
 </dialog>
@@ -791,5 +791,5 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </form>
 </div></dialog>
 {% endif %}
-</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260923-counterparty-master-2') }}" defer></script>
+</div><script src="{{ url_for('static',filename='finance_branches.js',v='20260923-pelanggan-2') }}" defer></script>
 {% endblock %}
