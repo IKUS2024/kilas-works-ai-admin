@@ -26,7 +26,7 @@ import functools
 import hmac
 import secrets
 import time
-from flask import session, redirect, url_for, request, abort
+from flask import session, redirect, url_for, request, abort, current_app
 
 import db
 
@@ -111,7 +111,26 @@ RESET_TOKEN_TTL_SECONDS = 30 * 60  # 30 minutes
 RESET_REQUEST_MAX_ATTEMPTS = 5
 RESET_REQUEST_WINDOW_SECONDS = 3600  # 1 hour
 
+EMAIL_CHANGE_OTP_TTL_SECONDS = 10 * 60
+EMAIL_CHANGE_OTP_MAX_ATTEMPTS = 5
+EMAIL_CHANGE_OTP_RESEND_SECONDS = 30
+
 _RESET_REQUEST_ATTEMPTS = {}  # key -> [timestamps]
+
+
+def hash_email_change_otp(email, code):
+    secret = current_app.config.get("SECRET_KEY")
+    if isinstance(secret, str):
+        secret = secret.encode("utf-8")
+    elif not isinstance(secret, (bytes, bytearray)):
+        secret = str(secret or "").encode("utf-8")
+    message = f"{session.get('user_id') or ''}|{(email or '').strip().lower()}|{(code or '').strip()}".encode("utf-8")
+    return hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+
+def generate_email_change_otp(email):
+    code = f"{secrets.randbelow(1000000):06d}"
+    return code, hash_email_change_otp(email, code)
 
 
 def generate_reset_token():
