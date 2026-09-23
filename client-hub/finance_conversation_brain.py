@@ -36,6 +36,9 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'for a previous operation target use target_reference. Never copy context values into slots; only current-message spans. '
       'Unpaid debt is not income or a payment. When the user wants to record a new unpaid amount for a customer, choose invoice '
       'and leave item_description missing if its purpose is unknown. Asking who owes money is receivables. '
+      'In the Kilas Finance product UI, a bare business "tagihan" means a recurring/scheduled bill. '
+      'Requests such as "tambah tagihan", "buat tagihan", or "tambah tagihan baru" choose recurring, NOT invoice. '
+      'Choose invoice only when the user explicitly says invoice or clearly means a bill/receivable sent to a customer. '
       'Projects can be listed or linked to a transaction; project creation is unsupported. FX records an exchange, never sends money. '
       'edit_customer changes an existing customer name/phone/email/notes; deactivate_customer is the reviewed safe delete for a customer. '
       'For edit/delete/void/rename operations, target is the existing record being changed; resource-specific names may identify that target. '
@@ -136,6 +139,12 @@ def safe_context(b,u,previous,context=None,current=None):
 
 
 def classify(b,u,message,previous,context=None,current=None):
+    # Product-language invariant: the dashboard card named "Tagihan" is the recurring-bill
+    # feature. A bare create command must never be hijacked by the invoice/customer flow.
+    normalized_direct=semantics.normalize(message).casefold().strip()
+    normalized_direct=re.sub(r'\s+',' ',normalized_direct)
+    if re.fullmatch(r'(?:(?:tolong|coba)\s+)?(?:tambah|buat|catat)\s+tagihan(?:\s+baru)?',normalized_direct):
+        return {'intent':'recurring','slots':{}}
     if not safety.allow_attempt(u,b,'ai'):return None
     try:
         slots=SLOTS
