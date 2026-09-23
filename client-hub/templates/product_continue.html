@@ -3,6 +3,10 @@
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
+body.customer-ui>.topbar{display:none!important}
+body.customer-ui>.customer-global-shell{display:none!important}
+body.customer-ui>.customer-global-bottom{display:none!important}
+body.customer-ui>footer{display:none!important}
 .product-setup-page{max-width:720px;margin:0 auto}
 .product-setup-hero{margin-bottom:12px}.product-setup-kicker{display:block;color:var(--orange);font-size:10px;font-weight:900;letter-spacing:.11em;text-transform:uppercase}.product-setup-hero h1{margin:5px 0 5px;font-size:clamp(27px,6vw,35px);letter-spacing:-.04em}.product-setup-hero p{margin:0;color:var(--text-dim);font-size:12px;line-height:1.5}
 .product-setup-note{display:flex;gap:9px;align-items:flex-start;padding:11px 12px;margin-bottom:11px;border:1px solid color-mix(in srgb,var(--orange) 30%,var(--border));border-radius:14px;background:color-mix(in srgb,var(--orange) 6%,transparent);font-size:11px;line-height:1.5;color:var(--text-dim)}.product-setup-note strong{color:var(--text)}.product-setup-note-icon{flex:0 0 auto;color:var(--orange);font-weight:900}
