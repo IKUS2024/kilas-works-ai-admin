@@ -290,7 +290,7 @@
 </style>
 {# Load all Finance styles before any shell/content can paint. Keep shared overrides last. #}
 {% block finance_styles %}{% endblock %}
-{% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_ui.css',v='20260923-counterparty-popup-1') }}">{% endif %}
+{% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_ui.css',v='20260923-dashboard-context-1') }}">{% endif %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 {% if request.blueprint != 'finance' and (not session.get('user_id') or session.get('role') == 'KILAS_ADMIN') %}
