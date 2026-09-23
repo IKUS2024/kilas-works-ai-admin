@@ -165,9 +165,72 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
   function stop(){if(timer){clearInterval(timer);timer=null;}}
 
+  var failureMessages={
+    provider_invalid_request:'Mesin pencarian web dari provider belum bisa dipakai untuk request ini.',
+    provider_access_denied:'Akses mesin pencarian web belum aktif pada provider Kilas.',
+    provider_rate_limited:'Mesin pencarian sedang kena batas penggunaan. Coba lagi sebentar.',
+    network_failure:'Provider pencarian terlalu lama merespons. Request kamu tetap aman.',
+    no_search_results:'Belum ada hasil web yang cukup relevan.',
+    no_valid_candidates:'Ada hasil pencarian, tapi belum ada kandidat yang cukup aman dan cocok.',
+    invalid_schema:'Hasil pencarian belum bisa dibaca dengan aman oleh Kilas.',
+    internal_error:'Mesin pencarian mengalami kendala internal. Coba lagi sebentar.'
+  };
+
+  function showFailure(code){
+    stop();
+    title.textContent='Pencarian belum berhasil';
+    sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
+    errorBox.textContent=failureMessages[code]||'Pencarian belum menghasilkan kandidat yang cukup valid.';
+    errorBox.classList.add('show');
+    if(issueAction) issueAction.style.display='block';
+    if(retryButton) retryButton.disabled=false;
+  }
+
+  function showSuccess(){
+    stop();
+    title.textContent='Kandidat ditemukan ✓';
+    sub.textContent='Sekarang Kilas lanjut memverifikasi kandidat sebelum ditampilkan.';
+    setTimeout(function(){window.location.reload();},650);
+  }
+
+  function pollStatus(startedAt,networkMisses){
+    setTimeout(function(){
+      fetch(card.getAttribute('data-search-url'),{
+        method:'GET',
+        headers:{'Accept':'application/json'},
+        credentials:'same-origin'
+      }).then(function(response){
+        if(!response.ok) throw new Error('poll_failed');
+        return response.json();
+      }).then(function(data){
+        if(data && data.status==='RESULTS_READY'){
+          showSuccess();
+          return;
+        }
+        if(data && data.status==='ISSUE'){
+          showFailure(data.error_code||'unknown');
+          return;
+        }
+        if(Date.now()-startedAt>105000){
+          showFailure('network_failure');
+          return;
+        }
+        pollStatus(startedAt,0);
+      }).catch(function(){
+        var misses=(networkMisses||0)+1;
+        if(misses<=8){
+          pollStatus(startedAt,misses);
+          return;
+        }
+        showFailure('network_failure');
+      });
+    },2400);
+  }
+
   function runSearch(attempt){
     attempt=attempt||0;
     if(retryButton) retryButton.disabled=true;
+    stop();
     startProgress();
     fetch(card.getAttribute('data-search-url'),{
       method:'POST',
@@ -179,51 +242,28 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       body:'{}',
       credentials:'same-origin'
     }).then(function(response){
-      if(!response.ok) throw new Error('search_failed');
+      if(!response.ok) throw new Error('search_start_failed');
       return response.json();
     }).then(function(data){
-      stop();
-      if(data && (data.status==='RESULTS_READY' || data.ok)){
-        title.textContent='Kandidat ditemukan ✓';
-        sub.textContent='Sekarang Kilas lanjut memverifikasi kandidat sebelum ditampilkan.';
-        setTimeout(function(){window.location.reload();},650);
+      if(data && data.status==='RESULTS_READY'){
+        showSuccess();
         return;
       }
-      var code=(data && data.error_code)||'unknown';
-      title.textContent='Pencarian belum berhasil';
-      sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
-      var messages={
-        provider_invalid_request:'Mesin pencarian web dari provider belum bisa dipakai untuk request ini.',
-        provider_access_denied:'Akses mesin pencarian web belum aktif pada provider Kilas.',
-        provider_rate_limited:'Mesin pencarian sedang kena batas penggunaan. Coba lagi sebentar.',
-        network_failure:'Koneksi ke mesin pencarian terputus.',
-        no_search_results:'Belum ada hasil web yang cukup relevan.',
-        no_valid_candidates:'Ada hasil pencarian, tapi belum ada kandidat yang cukup aman dan cocok.',
-        invalid_schema:'Hasil pencarian belum bisa dibaca dengan aman oleh Kilas.'
-      };
-      errorBox.textContent=messages[code]||'Pencarian belum menghasilkan kandidat yang cukup valid.';
-      errorBox.classList.add('show');
-      if(issueAction){
-        issueAction.style.display='block';
-        if(retryButton) retryButton.disabled=false;
+      if(data && data.status==='ISSUE' && !data.active){
+        showFailure(data.error_code||'unknown');
+        return;
       }
+      pollStatus(Date.now(),0);
     }).catch(function(){
       stop();
       if(attempt<1){
         title.textContent='Koneksi sempat putus, mencoba lagi…';
-        sub.textContent='Request kamu aman. Kilas akan mencoba satu kali lagi secara otomatis.';
+        sub.textContent='Request kamu aman. Kilas akan mencoba memulai pencarian satu kali lagi.';
         errorBox.classList.remove('show');
-        setTimeout(function(){runSearch(attempt+1);},3500);
+        setTimeout(function(){runSearch(attempt+1);},2500);
         return;
       }
-      title.textContent='Pencarian terputus';
-      sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
-      errorBox.textContent='Koneksi ke Kilas sempat terputus dua kali. Coba lagi sebentar.';
-      errorBox.classList.add('show');
-      if(issueAction){
-        issueAction.style.display='block';
-        if(retryButton) retryButton.disabled=false;
-      }
+      showFailure('network_failure');
     });
   }
 
