@@ -6,12 +6,34 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">
 {% endblock %}
 {% block content %}
+<div class="fin-page invoice-editor">
+{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
 
+<header class="invoice-page-head">
+  <div class="invoice-page-head-copy">
+    <h1>Pengaturan Invoice</h1>
+    <p>Atur identitas pengirim dan metode pembayaran default untuk invoice baru.</p>
+  </div>
+  <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Selesai</a>
+</header>
+{% set invoice_tab='settings' %}{% include '_finance_invoice_hub_nav.html' %}
 
-<div class="fin-page invoice-editor">{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
-<h1>Pengaturan Invoice</h1><p class="muted">Detail pengirim untuk invoice baru di ruang ini. Perubahan tidak mengubah invoice yang sudah dibuat.</p>
-<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<h2>Detail Pengirim</h2>{{ sender(data.sender,['name'] if g.finance_workspace_type=='PERSONAL' else ['name','address','phone']) }}
-<h2>Pembayaran</h2>{{ payment(data.payment) }}
-<button class="btn" data-finance-write>Simpan Pengaturan</button></form></div>
+<form method="post" class="card invoice-settings-card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <section class="invoice-editor-section">
+    <h2><span class="invoice-step-number">1</span>Detail Pengirim</h2>
+    <p class="muted">Dipakai otomatis untuk invoice baru. Invoice lama tidak ikut berubah.</p>
+    {{ sender(data.sender,['name'] if g.finance_workspace_type=='PERSONAL' else ['name','address','phone']) }}
+  </section>
+  <section class="invoice-editor-section">
+    <h2><span class="invoice-step-number">2</span>Metode Pembayaran</h2>
+    <p class="muted">Informasi pembayaran yang ditampilkan kepada pelanggan pada invoice baru.</p>
+    {{ payment(data.payment) }}
+  </section>
+  <div class="invoice-editor-actions-sticky">
+    <button class="btn" data-finance-write>Simpan Pengaturan</button>
+    <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Batal</a>
+  </div>
+</form>
+</div>
 {% endblock %}
