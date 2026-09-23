@@ -66,6 +66,19 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .order-entry-prompt strong{display:block;margin-bottom:8px;font-size:12px;color:#fff}
 .order-entry-examples{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
 .order-entry-example{padding:7px 9px;border:1px solid #303741;border-radius:999px;color:#9fa8b2;font-size:10.5px;background:rgba(255,255,255,.015)}
+.order-search-box{margin-top:16px;padding:14px;border:1px solid #343b44;border-radius:16px;background:#0d1216}
+.order-search-box label{display:block;margin:0 0 8px;color:#f5f6f8;font-size:12px;font-weight:850}
+.order-search-compose{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:end}
+.order-search-compose textarea{width:100%;min-height:84px;max-height:180px;resize:vertical;margin:0!important;padding:12px 13px;border:1px solid #3a414a;border-radius:12px;background:#171b20;color:#f5f6f8;font:inherit;font-size:13px;line-height:1.45;box-sizing:border-box}
+.order-search-compose textarea:focus{outline:none;border-color:rgba(255,122,26,.72);box-shadow:0 0 0 3px rgba(255,122,26,.08)}
+.order-search-submit{min-width:108px;height:44px;padding:0 15px;border:0;border-radius:12px;background:var(--ko-orange);color:#1c1008;font:inherit;font-size:11.5px;font-weight:900;cursor:pointer}
+.order-search-submit:disabled{opacity:.45;cursor:not-allowed}
+.order-search-hint{margin:8px 1px 0;color:#838c96;font-size:9.5px;line-height:1.4}
+.order-search-draft{display:none;margin-top:10px;padding:11px 12px;border:1px solid rgba(255,122,26,.28);border-radius:12px;background:rgba(255,122,26,.055)}
+.order-search-draft.show{display:block}
+.order-search-draft small{display:block;color:var(--ko-orange);font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}
+.order-search-draft strong{display:block;margin-top:4px;color:#f0f2f4;font-size:11.5px;line-height:1.45}
+.order-search-draft span{display:block;margin-top:4px;color:#929ba5;font-size:9.5px}
 .order-entry-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
 .order-entry-step{padding:11px;border:1px solid #2b323a;border-radius:13px;background:rgba(255,255,255,.012)}
 .order-entry-step span{display:grid;place-items:center;width:22px;height:22px;margin-bottom:7px;border-radius:7px;background:rgba(255,122,26,.10);color:var(--ko-orange);font-size:10px;font-weight:900}
@@ -81,6 +94,8 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
   .order-location-btn{width:100%}
   .order-location-manual-row{grid-template-columns:1fr}
   .order-location-manual button{width:100%}
+  .order-search-compose{grid-template-columns:1fr}
+  .order-search-submit{width:100%}
   .order-entry-main{padding:15px;border-radius:18px}
   .order-entry-flow{grid-template-columns:1fr}
   .order-entry-step{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:9px;align-items:start}
@@ -155,6 +170,20 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         </div>
       </div>
 
+      <div class="order-search-box">
+        <label for="order-search-text">Kamu lagi cari apa?</label>
+        <div class="order-search-compose">
+          <textarea id="order-search-text" maxlength="800" placeholder="Contoh: Cari Sony A6700 second kondisi bagus, maksimal 15 juta. Kalau bisa yang dekat dan cepat sampai."></textarea>
+          <button class="order-search-submit" type="button" id="order-search-start">Lanjut →</button>
+        </div>
+        <p class="order-search-hint">Tulis senatural mungkin. Nama barang, budget, kondisi, warna, ukuran, negara asal, atau kebutuhan lain boleh langsung disebut.</p>
+        <div class="order-search-draft" id="order-search-draft" aria-live="polite">
+          <small>Permintaan siap</small>
+          <strong id="order-search-draft-text"></strong>
+          <span id="order-search-draft-location"></span>
+        </div>
+      </div>
+
       <div class="order-entry-flow">
         <div class="order-entry-step"><span>1</span><strong>Ceritakan</strong><small>Sebut barang, budget, kondisi, atau detail yang penting.</small></div>
         <div class="order-entry-step"><span>2</span><strong>Kilas mencari</strong><small>Pilihan disaring sebelum ditampilkan kepadamu.</small></div>
@@ -224,6 +253,56 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
   input.addEventListener('keydown',function(event){
     if(event.key==='Enter'){event.preventDefault();saveManual.click();}
+  });
+
+  var searchKey='kilasOrderSearchDraft.v1';
+  var searchText=document.getElementById('order-search-text');
+  var searchStart=document.getElementById('order-search-start');
+  var draftBox=document.getElementById('order-search-draft');
+  var draftText=document.getElementById('order-search-draft-text');
+  var draftLocation=document.getElementById('order-search-draft-location');
+
+  function currentLocation(){
+    try{return JSON.parse(localStorage.getItem(storageKey)||'null');}catch(_){return null;}
+  }
+
+  function renderSearchDraft(draft){
+    if(!draft || !draft.text) return;
+    draftText.textContent=draft.text;
+    if(draft.location){
+      draftLocation.textContent=draft.location.source==='manual'
+        ? 'Area: '+draft.location.label
+        : 'Lokasi GPS akan dipakai sebagai konteks pencarian.';
+    }else{
+      draftLocation.textContent='Lokasi belum dipilih — kamu masih bisa menentukannya sebelum pencarian.';
+    }
+    draftBox.classList.add('show');
+  }
+
+  try{
+    var savedDraft=JSON.parse(localStorage.getItem(searchKey)||'null');
+    if(savedDraft && savedDraft.text){
+      searchText.value=savedDraft.text;
+      renderSearchDraft(savedDraft);
+    }
+  }catch(_){}
+
+  searchStart.addEventListener('click',function(){
+    var value=(searchText.value||'').trim();
+    if(value.length<3){
+      searchText.focus();
+      searchText.setAttribute('aria-invalid','true');
+      return;
+    }
+    searchText.removeAttribute('aria-invalid');
+    var draft={text:value,location:currentLocation(),updatedAt:new Date().toISOString()};
+    try{localStorage.setItem(searchKey,JSON.stringify(draft));}catch(_){}
+    renderSearchDraft(draft);
+    draftBox.scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+
+  searchText.addEventListener('input',function(){
+    if((searchText.value||'').trim().length>=3) searchText.removeAttribute('aria-invalid');
   });
 
   gpsButton.addEventListener('click',function(){
