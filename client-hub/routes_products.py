@@ -191,11 +191,6 @@ def order_request():
                 session['kilas_order_draft']=draft
             saved=order_service.create_request(security.current_user()['id'],draft)
             session['kilas_order_last_request']=saved['request_code']
-            if saved.get('status') in ('SEARCH_REQUESTED','ISSUE'):
-                import order_search
-                _,search_error=order_search.search_request(saved)
-                if search_error:
-                    flash('Pencarian belum berhasil. Request tetap tersimpan dan bisa dicoba lagi.','info')
             return redirect(url_for('products.order_request_detail',request_code=saved['request_code']),code=303)
 
         if action in ('answer','retry'):
@@ -258,6 +253,32 @@ def order_requests():
         user=user,
         requests_list=order_service.list_user_requests(user['id'],limit=50),
     )
+
+
+@products_bp.route('/products/order/requests/<request_code>/search-run',methods=['POST'])
+@security.login_required
+def order_request_search_run(request_code):
+    import order_service
+    user=security.current_user()
+    item=order_service.get_user_request(user['id'],request_code)
+    if not item:
+        abort(404)
+    if item.get('status') not in ('SEARCH_REQUESTED','ISSUE'):
+        return jsonify({
+            'ok': item.get('status')=='RESULTS_READY',
+            'status': item.get('status'),
+            'status_label': item.get('status_label'),
+        })
+    import order_search
+    candidates,error=order_search.search_request(item)
+    refreshed=order_service.get_user_request(user['id'],request_code)
+    return jsonify({
+        'ok': not bool(error),
+        'status': refreshed.get('status') if refreshed else 'ISSUE',
+        'status_label': refreshed.get('status_label') if refreshed else 'Perlu bantuan',
+        'candidate_count': len(candidates),
+        'retryable': bool(error),
+    })
 
 
 @products_bp.route('/products/order/requests/<request_code>',methods=['GET','POST'])
