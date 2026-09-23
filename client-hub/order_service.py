@@ -6,6 +6,7 @@ import uuid
 import db
 
 STATUS_LABELS = {
+    'WHATSAPP_HANDOFF': 'Menunggu tim Kilas di WhatsApp',
     'SEARCH_REQUESTED': 'Menunggu pencarian',
     'SEARCHING': 'Sedang mencari',
     'RESULTS_READY': 'Sedang diverifikasi Kilas',
@@ -118,6 +119,30 @@ def create_request(user_id, draft):
     raise RuntimeError('order_request_create_failed')
 
 
+def create_whatsapp_request(user_id, draft):
+    """Persist a raw Kilas Order request for asynchronous human follow-up on WhatsApp."""
+    if not isinstance(draft, dict):
+        raise ValueError('invalid_draft')
+    text = str(draft.get('request_text') or '').strip()
+    if len(text) < 3:
+        raise ValueError('request_not_ready')
+
+    prepared = dict(draft)
+    prepared['ai_error'] = False
+    prepared['ai_state'] = {
+        'ready': True,
+        'summary': {
+            'item': text[:160],
+            'priority': 'Dibantu tim Kilas via WhatsApp',
+        },
+    }
+    saved = create_request(user_id, prepared)
+    if saved.get('status') == 'SEARCH_REQUESTED':
+        update_request_status(saved['id'], 'WHATSAPP_HANDOFF')
+        saved = get_request_by_code(saved['request_code']) or saved
+    return saved
+
+
 def get_user_request(user_id, request_code):
     if type(user_id) is not int or user_id <= 0:
         return None
@@ -171,8 +196,8 @@ def list_admin_requests(limit=100):
         "SELECT r.*,u.full_name AS customer_name,u.email AS customer_email "
         "FROM kilas_order_requests r JOIN users u ON u.id=r.user_id "
         "ORDER BY CASE r.status "
-        "WHEN 'SEARCH_REQUESTED' THEN 0 WHEN 'SEARCHING' THEN 1 "
-        "WHEN 'RESULTS_READY' THEN 2 WHEN 'ISSUE' THEN 3 ELSE 4 END, "
+        "WHEN 'WHATSAPP_HANDOFF' THEN 0 WHEN 'SEARCH_REQUESTED' THEN 1 WHEN 'SEARCHING' THEN 2 "
+        "WHEN 'RESULTS_READY' THEN 3 WHEN 'ISSUE' THEN 4 ELSE 5 END, "
         "r.created_at DESC,r.id DESC LIMIT ?",
         (limit,),
     )
