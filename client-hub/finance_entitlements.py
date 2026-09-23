@@ -41,13 +41,14 @@ def state(business_id):
     current = now()
     paid = parse(row['paid_until']) if row else None
     trial = parse(row['trial_until']) if row else None
-    unlimited = bool(row and row['trial_started_at'] and unlimited_trial_mode())
+    unlimited = bool(row and unlimited_trial_mode())
     status = (
-        'PAID_ACTIVE' if paid and current < paid
-        else 'TRIAL_ACTIVE' if unlimited or (trial and current < trial)
+        'TRIAL_ACTIVE' if unlimited
+        else 'PAID_ACTIVE' if paid and current < paid
+        else 'TRIAL_ACTIVE' if trial and current < trial
         else ('EXPIRED' if row else 'NOT_ACTIVATED')
     )
-    end = paid if status == 'PAID_ACTIVE' else (None if unlimited and status == 'TRIAL_ACTIVE' else trial if status == 'TRIAL_ACTIVE' else max([x for x in (paid,trial) if x], default=None))
+    end = None if unlimited else (paid if status == 'PAID_ACTIVE' else trial if status == 'TRIAL_ACTIVE' else max([x for x in (paid,trial) if x], default=None))
     return dict(
         status=status,
         active=status in ('PAID_ACTIVE','TRIAL_ACTIVE'),
