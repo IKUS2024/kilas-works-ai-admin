@@ -125,7 +125,7 @@ def plan(b,u,message,previous=None):
 
 def ask(p,key,rows,label='name'):
     p['awaiting']=key
-    name={'customer':'Customer','account':'Rekening','project':'Proyek','branch':'Cabang','category':'Kategori'}[key]
+    name={'customer':'Pelanggan','account':'Rekening','project':'Proyek','branch':'Cabang','category':'Kategori'}[key]
     choices=[str(r[label]) for r in rows[:8]]
     return result(name,[],name+' belum jelas. '+('Maksudnya yang mana?' if choices else 'Sebut nama yang tersedia.'))|{'choices':choices}
 
@@ -156,7 +156,7 @@ def execute(b,u,p,scoped=False):
             found=[r for r in rows if r['id']==ref] if ref else entity_options(rows,p[key],label)
             if ref and not found:
                 from finance_conversation_live import unavailable
-                return unavailable({'customer':'Customer','account':'Rekening','category':'Kategori','project':'Proyek'}[key])
+                return unavailable({'customer':'Pelanggan','account':'Rekening','category':'Kategori','project':'Proyek'}[key])
             if len(found)!=1:return ask(p,key,found,label)
             ids[key+'_id']=found[0]['id']
             p.setdefault('entity_refs',{})[key]=found[0]['id']
@@ -183,7 +183,7 @@ def execute(b,u,p,scoped=False):
             info='Telepon: '+(r['phone'] or '—')+' · Email: '+(r['email'] or '—')+' · '+(r['notes'] or '') if resource=='customers' else (
                 r['currency']+' · '+r['account_type'] if resource=='accounts' else r['direction'] if resource=='categories' else 'Aktif')
             preview.append([r[label],info])
-        return result({'customers':'Data customer','projects':'Proyek','accounts':'Rekening','categories':'Kategori','branches':'Cabang'}[resource],preview,
+        return result({'customers':'Data pelanggan','projects':'Proyek','accounts':'Rekening','categories':'Kategori','branches':'Cabang'}[resource],preview,
                       'Berikut data yang tersedia.' if count else 'Belum ada data yang sesuai di konteks ini.')|{'choices':['Berikutnya'] if count>(page+1)*50 else []}
     if resource=='transactions':
         period=p['period'];start,end=(None,None) if period['mode']=='all' else period['ranges'][0]
