@@ -12,8 +12,8 @@ import finance_entitlements as entitlements
 import finance_fx
 
 TTL = 600
-REQUIRED_FIELDS = {'name', 'amount_text', 'cadence', 'next_due_on', 'end_on', 'account_id', 'category_id'}
-OPTIONAL_FIELDS = {'project_id', 'counterparty_name', 'description'}
+REQUIRED_FIELDS = {'name', 'amount_text', 'currency', 'cadence', 'next_due_on', 'end_on', 'category_id'}
+OPTIONAL_FIELDS = {'account_id', 'project_id', 'counterparty_name', 'description'}
 FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 EVENT = 'FINANCE_ASSISTANT_RECURRING_CONFIRMED'
 
@@ -22,6 +22,7 @@ def suggest(text):
     # Suggestions only. Missing/ambiguous values stay blank for the user's review.
     amounts = re.findall(r'(?<![\w.,+−-])(?:[Rr][Pp]\.?\s*)?\d+(?:\.\d{3})*(?:,\d{1,3})?\s*(?:rb|ribu|jt|juta)\b|\b[Rr][Pp]\.?\s*\d+(?:\.\d{3})*(?:,\d{1,3})?', text)
     cadence = []
+    if re.search(r'\b(sekali|satu kali|one[ -]?time)\b', text, re.I):cadence.append('ONCE')
     if re.search(r'\b(bulanan|tiap bulan|setiap bulan)\b', text, re.I):cadence.append('MONTHLY')
     if re.search(r'\b(mingguan|tiap minggu|setiap minggu)\b', text, re.I):cadence.append('WEEKLY')
     return dict(name=text[:160], amount_text=amounts[0].strip() if len(amounts)==1 else '',
@@ -39,6 +40,7 @@ def normalize_fields(fields):
             or any(key not in FIELDS for key in fields)):
         raise ValueError('invalid_fields')
     result=dict(fields)
+    result.setdefault('account_id',None)
     result.setdefault('project_id',None)
     result.setdefault('counterparty_name',None)
     result.setdefault('description',None)
@@ -51,17 +53,35 @@ def validate(business_id, user_id, fields):
     branches.token_branch(business_id)
     fields=normalize_fields(fields)
     name=finance._text(fields['name'],160,True)
-    cadence=finance._enum(fields['cadence'],('WEEKLY','MONTHLY'))
+    requested_cadence=finance._enum(fields['cadence'],('ONCE','WEEKLY','MONTHLY'))
     start=finance._date(fields['next_due_on'])
-    end=fields['end_on']
-    if end in ('',None):end=None
-    if end is not None:end=finance._period(start,end)[1]
-    account_id=finance._id(fields['account_id']);category_id=finance._id(fields['category_id'])
-    accounts=finance.list_accounts(business_id,actor_user_id=user_id)
+    if requested_cadence=='ONCE':
+        cadence='MONTHLY'
+        end=start
+    else:
+        cadence=requested_cadence
+        end=fields['end_on']
+        if end in ('',None):end=None
+        if end is not None:end=finance._period(start,end)[1]
+
+    currency=finance._currency(fields['currency'])
+    accounts=[
+        a for a in finance.list_accounts(business_id,actor_user_id=user_id)
+        if a['is_active'] and a['currency']==currency
+    ]
+    account=None
+    if fields.get('account_id') not in (None,''):
+        account_id=finance._id(int(fields['account_id']) if isinstance(fields['account_id'],str) else fields['account_id'])
+        account=next((a for a in accounts if a['id']==account_id),None)
+    elif accounts:
+        # Tagihan is a commitment, not a cash movement. Keep one compatible account only
+        # as an internal schema placeholder; the real account is selected when marking paid.
+        account=accounts[0]
+    category_id=finance._id(int(fields['category_id']) if isinstance(fields['category_id'],str) else fields['category_id'])
     categories=finance.list_categories(business_id,'EXPENSE',include_children=True,actor_user_id=user_id)
-    account=next((a for a in accounts if a['id']==account_id),None)
     category=next((c for c in categories if c['id']==category_id),None)
     if not account or not category:raise ValueError('reference_unavailable')
+    account_id=account['id']
 
     project_id=None
     project=None
@@ -72,7 +92,6 @@ def validate(business_id, user_id, fields):
     counterparty_name=finance._text(fields['counterparty_name'],160)
     description=finance._text(fields['description'],4000)
 
-    currency=account['currency']
     if currency=='IDR':amount=operator.rupiah(fields['amount_text'])
     else:
         from routes_finance import currency_amount
@@ -84,14 +103,15 @@ def validate(business_id, user_id, fields):
     values=dict(name=name,amount_minor=amount,account_id=account_id,category_id=category_id,
                 cadence=cadence,next_due_on=start,end_on=end,project_id=project_id,
                 counterparty_name=counterparty_name,description=description,expected_currency=currency)
+    cadence_label='Sekali' if requested_cadence=='ONCE' else ('Bulanan' if requested_cadence=='MONTHLY' else 'Mingguan')
     preview=[
-        ['Nama',name],['Nominal',finance_fx.format_money(amount,currency)],
-        ['Kas / Rekening',account['name']],['Kategori',category['name']],
-        ['Frekuensi','Bulanan' if cadence=='MONTHLY' else 'Mingguan'],
-        ['Jatuh tempo pertama',start],['Berakhir',end or 'Sampai dinonaktifkan'],
+        ['Nama Tagihan',name],['Mata uang',currency],
+        ['Nominal',finance_fx.format_money(amount,currency)],['Kategori',category['name']],
+        ['Jatuh Tempo',start],['Frekuensi',cadence_label],
+        ['Berakhir','—' if requested_cadence=='ONCE' else (end or 'Sampai dinonaktifkan')],
+        ['Penerima / Vendor',counterparty_name or '—'],
         ['Proyek',project['title'] if project else '—'],
-        ['Vendor / penerima',counterparty_name or '—'],
-        ['Deskripsi',description or '—']
+        ['Detail',description or '—']
     ]
     return values,preview
 
@@ -120,4 +140,4 @@ def confirm(business_id,user_id,token):
     if values['expected_currency']!=data['currency']:raise ValueError('currency_changed')
     record_id=finance.create_recurring_expense(business_id,**values,actor_user_id=user_id,
         idempotency_key=hashlib.sha256(data['nonce'].encode()).hexdigest())
-    return dict(record_id=record_id,message='Jadwal biaya rutin tersimpan. Belum ada pengeluaran dicatat. Tandai biaya yang sudah dibayar melalui Biaya Rutin.')
+    return dict(record_id=record_id,message='Tagihan tersimpan. Belum ada pengeluaran dicatat. Tandai tagihan sebagai dibayar saat pembayarannya benar-benar dilakukan.')
