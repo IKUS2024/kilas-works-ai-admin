@@ -121,7 +121,7 @@ def extract(raw, mime, pdf_text, category_names, business_id=None):
     try:
         body=response.json()
         classification='vision' if any(part.get('type') in ('image','document') for part in content if isinstance(part,dict)) else 'normal'
-        safety.record_usage(model,body,business_id,classification)
+        safety.record_usage(model,body,business_id,classification,context='finance_receipt')
         return validate_result(safety.json_object(safety.response_text(body, 6000)), category_names)
     except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
         raise ReceiptError('invalid_result') from None
