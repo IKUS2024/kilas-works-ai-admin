@@ -390,7 +390,7 @@ def account_page():
         repo.write_audit_no_business(
             user["id"], "ACCOUNT_PERSONAL_INVOICE_PROFILE_UPDATED",
             "personal invoice profile updated; existing invoice snapshots unchanged")
-        flash("Data invoice Pribadi diperbarui. Invoice baru akan memakai data terbaru.", "success")
+        flash("Data Pribadi diperbarui. Invoice Pribadi baru akan memakai data terbaru.", "success")
         return _account_personal_redirect()
 
     if action in ("personal_photo", "business_photo"):
