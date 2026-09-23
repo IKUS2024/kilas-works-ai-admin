@@ -145,7 +145,7 @@ ERRORS = {
     'workspace_move_invoice_linked': 'Akun ini memiliki pembayaran invoice. Pindahkan transaksi manual satu per satu; pembayaran invoice tetap di ruang asal.',
     'workspace_move_fx_linked': 'Akun ini terhubung ke transfer / penukaran mata uang. Selesaikan atau pindahkan struktur valasnya terlebih dahulu.',
     'invalid_recurring_limit': 'Batas pemrosesan belum valid.',
-    'customer_unavailable': 'Customer tidak tersedia untuk bisnis ini.',
+    'customer_unavailable': 'Pelanggan tidak tersedia untuk bisnis ini.',
     'invalid_items': 'Isi 1–100 baris dengan deskripsi, jumlah, dan harga yang valid.',
     'invalid_period': 'Tanggal jatuh tempo tidak boleh sebelum tanggal terbit.',
     'invalid_invoice_state': 'Status invoice tidak mengizinkan tindakan ini. Muat ulang halaman.',
@@ -1813,7 +1813,7 @@ def create_customer(business_id, user, business):
             return jsonify(error=ERRORS.get(str(error), 'Customer belum valid.')), 400
     return mutate(business_id, lambda: finance.create_customer(business_id,request.form.get('name'),
         phone=request.form.get('phone'), email=request.form.get('email'), notes=request.form.get('notes'),
-        actor_user_id=user['id']), 'Customer ditambahkan.', url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id))
+        actor_user_id=user['id']), 'Pelanggan ditambahkan.', url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/edit', methods=['POST'])
@@ -1823,7 +1823,7 @@ def update_customer(business_id, user, business, customer_id):
         business_id,customer_id,request.form.get('name'),
         phone=request.form.get('phone'),email=request.form.get('email'),notes=request.form.get('notes'),
         actor_user_id=user['id']),
-        'Customer diperbarui.',
+        'Pelanggan diperbarui.',
         url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='customers'))
 
 
@@ -1832,7 +1832,7 @@ def update_customer(business_id, user, business, customer_id):
 def delete_customer(business_id, user, business, customer_id):
     return mutate(business_id, lambda: finance.delete_customer(
         business_id,customer_id,actor_user_id=user['id']),
-        'Customer dihapus dari daftar aktif. Riwayat invoice dan pembayaran tetap aman.',
+        'Pelanggan dihapus dari daftar aktif. Riwayat invoice dan pembayaran tetap aman.',
         url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section='customers'))
 
 
@@ -1861,7 +1861,7 @@ INVOICE_EDIT_ERRORS = {
     'invoice_financial_locked':'Invoice sudah memiliki pembayaran. Jumlah, harga, mata uang, tanggal dan customer terkait dikunci. Anda tetap dapat memperbaiki teks dan informasi kontak.',
     'invoice_revision_conflict':'Invoice telah diubah. Muat ulang halaman edit sebelum menyimpan agar perubahan terbaru tidak tertimpa.',
     'invoice_sender_required':'Lengkapi nama pengirim, alamat dan nomor telepon.',
-    'invoice_select_customer':'Ada beberapa customer dengan nama yang sama. Pilih customer yang sesuai.',
+    'invoice_select_customer':'Ada beberapa pelanggan dengan nama yang sama. Pilih pelanggan yang sesuai.',
 }
 
 
@@ -3279,7 +3279,7 @@ def assistant_error(error):
               'invoice_unavailable':'Invoice tidak tersedia pada bisnis/cabang ini. Pilih invoice yang benar.',
               'invalid_invoice_payment':'Nominal pembayaran melebihi sisa tagihan atau invoice sudah ditutup.',
               'invalid_amount':'Nominal belum jelas. Gunakan satu nominal dan mata uang yang sesuai.',
-              'invalid_email':'Periksa alamat email customer.', 'future_date':'Tanggal transaksi tidak boleh di masa depan.',
+              'invalid_email':'Periksa alamat email pelanggan.', 'future_date':'Tanggal transaksi tidak boleh di masa depan.',
               'unsupported_file':'Tipe file belum didukung. Gunakan JPG, PNG, WEBP, PDF atau CSV.',
               'invalid_csv':'CSV rusak atau susunan kolom tidak valid.',
               'source_count':'Gunakan satu PDF/CSV atau maksimal 10 foto.',
