@@ -72,7 +72,7 @@ def deterministic(message, context, fields, anchored=False):
         import finance_service
         if message.strip().upper() in finance_service.SUPPORTED_CURRENCIES:updates['currency']=message.strip().upper()
     if 'cadence' in values:
-        if re.search(r'\b(?:tiap|setiap|per)\s+(bulan|minggu)\b|\b(bulanan|mingguan)\b',message,re.I):updates['cadence']=message
+        if re.search(r'\b(?:sekali|satu kali|one[ -]?time)\b|\b(?:tiap|setiap|per)\s+(bulan|minggu)\b|\b(bulanan|mingguan)\b',message,re.I):updates['cadence']=message
     if 'date' in values and re.search(r'\b(tanggal(?:nya)?|kemarin|hari ini|besok)\b',message,re.I):
         updates['date']=re.sub(r'tanggalnya','tanggal',message,flags=re.I)
     for key,label in [('due_date',r'jatuh tempo'),('issue_date',r'(?:terbit|tanggal terbit)')]:
@@ -156,7 +156,8 @@ def resolve(updates,context,fields):
                 if not period or len(period['ranges'])!=1 or period['ranges'][0][0][:7]!=period['ranges'][0][1][:7]:raise ValueError('invalid_period')
                 result[key]=period['ranges'][0][0][:7]
         elif key in ('cadence','direction','account_type'):
-            vocabulary={'cadence':{'weekly':'WEEKLY','mingguan':'WEEKLY','bulanan':'MONTHLY','monthly':'MONTHLY'},
+            vocabulary={'cadence':{'once':'ONCE','one-time':'ONCE','one time':'ONCE','sekali':'ONCE','satu kali':'ONCE',
+                                      'weekly':'WEEKLY','mingguan':'WEEKLY','bulanan':'MONTHLY','monthly':'MONTHLY'},
                         'direction':{'income':'INCOME','pemasukan':'INCOME','pendapatan':'INCOME','expense':'EXPENSE','pengeluaran':'EXPENSE'},
                         'account_type':{'bank':'BANK','cash':'CASH','tunai':'CASH','dompet digital':'EWALLET','ewallet':'EWALLET','lainnya':'OTHER','other':'OTHER'}}
             value=vocabulary[key].get(raw.lower())
