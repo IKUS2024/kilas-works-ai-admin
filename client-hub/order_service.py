@@ -8,7 +8,7 @@ import db
 STATUS_LABELS = {
     'SEARCH_REQUESTED': 'Menunggu pencarian',
     'SEARCHING': 'Sedang mencari',
-    'RESULTS_READY': 'Pilihan siap',
+    'RESULTS_READY': 'Sedang diverifikasi Kilas',
     'SELECTED': 'Pilihan dipilih',
     'VERIFYING': 'Sedang diverifikasi',
     'AWAITING_PAYMENT': 'Menunggu pembayaran',
