@@ -115,9 +115,14 @@ class UpgradeTests(unittest.TestCase):
         self.assertLess(period['ranges'][1][0],period['ranges'][0][0])
 
     def test_recurring_short_day_and_unclear_field_preserve_other_slots(self):
-        category=next(c for c in f.list_categories(self.b,'EXPENSE') if c['name']=='Internet') if any(c['name']=='Internet' for c in f.list_categories(self.b,'EXPENSE')) else f.list_categories(self.b,'EXPENSE')[0]
+        category=next(c for c in f.list_categories(self.b,'EXPENSE',include_children=True) if c['name']=='Internet')
+        self.assertTrue(category['parent_category_id'])
         slots={'name':'internet','cadence':'tiap tanggal 10','date':'10','amount':'500 ribu','account':'Kas','category':category['name']}
         draft=self.propose('buat biaya internet tiap tanggal 10 sebesar 500 ribu dari Kas kategori '+category['name'],'recurring',slots)
+        self.assertEqual(self.fields(draft)['category_id'],str(category['id']))
+        reviewed=self.client.post(self.path+'/review',json={'context':draft['context'],'values':self.fields(draft)})
+        self.assertEqual(reviewed.status_code,200)
+        self.assertTrue(reviewed.json['ready'],reviewed.json)
         self.assertEqual(self.fields(draft)['cadence'],'MONTHLY')
         self.assertEqual(self.fields(draft)['date'][-2:],'10')
         self.assertEqual(self.fields(draft)['amount'],'500 ribu')

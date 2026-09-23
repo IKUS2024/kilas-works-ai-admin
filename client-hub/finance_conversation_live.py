@@ -53,7 +53,7 @@ def refresh_values(b,u,values):
     """Clear unavailable draft choices, never select a replacement silently."""
     pools={'customer_id':f.list_customers(b,actor_user_id=u),
            'account_id':f.list_accounts(b,actor_user_id=u),
-           'category_id':f.list_categories(b,actor_user_id=u),
+           'category_id':f.list_categories(b,include_children=True,actor_user_id=u),
            'project_id':f.list_finance_projects(b,actor_user_id=u)}
     changed=[]
     for key,rows in pools.items():
