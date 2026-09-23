@@ -269,9 +269,14 @@ def _account_businesses(user):
     import finance_branches as branches
     import finance_invoice_editor as invoice_editor
 
+    import finance_entitlements as entitlement
+
     result = []
     for raw in repo.list_businesses_for_user(user["id"]):
         business = dict(raw)
+        finance_state = entitlement.state(business["id"])
+        if finance_state.get("customer_hidden"):
+            continue
         business["business_email"] = repo.get_business_owner_email(business["id"]) or user["email"]
         business["profile"] = dict(repo.get_business_profile(business["id"]) or {})
         business["profile_photo"] = account_profiles.profile_asset_meta("BUSINESS", business["id"])
@@ -289,6 +294,9 @@ def _account_businesses(user):
             branch["invoice_payment"] = dict(defaults.get("payment") or {})
             finance_rows.append(branch)
         business["finance_branches"] = finance_rows
+        # This tab is Finance-only. Kilas Assist businesses stay on the Kilas Assist surface.
+        if finance_state["status"] == "NOT_ACTIVATED" and not finance_rows:
+            continue
         result.append(business)
     return result
 
