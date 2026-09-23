@@ -356,6 +356,112 @@ def account_page():
         return render_template("account.html", **context, password_open=False)
 
     action = (request.form.get("action") or "").strip()
+
+    if action == "email_change_request":
+        new_email = (request.form.get("new_email") or "").strip().lower()
+        if not EMAIL_RE.match(new_email):
+            flash("Email baru tidak valid.", "error")
+            return _account_personal_redirect()
+        if new_email == user["email"].strip().lower():
+            flash("Email tersebut sudah menjadi email akun kamu.", "info")
+            session.pop("_email_change", None)
+            return _account_personal_redirect()
+        existing = repo.get_user_by_email(new_email)
+        if existing and existing["id"] != user["id"]:
+            flash("Email tersebut sudah terdaftar di akun lain.", "error")
+            return _account_personal_redirect()
+
+        pending = session.get("_email_change") or {}
+        issued_at = int(pending.get("issued_at") or 0)
+        if pending.get("email") == new_email and time.time() - issued_at < security.EMAIL_CHANGE_OTP_RESEND_SECONDS:
+            wait = max(1, security.EMAIL_CHANGE_OTP_RESEND_SECONDS - int(time.time() - issued_at))
+            flash(f"Tunggu {wait} detik sebelum mengirim ulang kode.", "info")
+            return _account_personal_redirect()
+
+        code, digest = security.generate_email_change_otp(new_email)
+        if not email_utils.send_email_change_otp(new_email, code):
+            session.pop("_email_change", None)
+            flash("Kode verifikasi belum dapat dikirim. Coba lagi sebentar.", "error")
+            return _account_personal_redirect()
+
+        session["_email_change"] = {
+            "email": new_email,
+            "digest": digest,
+            "issued_at": int(time.time()),
+            "attempts": 0,
+        }
+        session.modified = True
+        repo.write_audit_no_business(user["id"], "ACCOUNT_EMAIL_CHANGE_OTP_REQUESTED", "verification code requested")
+        flash("Kode OTP 6 digit sudah dikirim ke email baru.", "success")
+        return _account_personal_redirect()
+
+    if action == "email_change_cancel":
+        session.pop("_email_change", None)
+        flash("Perubahan email dibatalkan.", "info")
+        return _account_personal_redirect()
+
+    if action == "email_change_verify":
+        pending = session.get("_email_change") or {}
+        new_email = (pending.get("email") or "").strip().lower()
+        issued_at = int(pending.get("issued_at") or 0)
+        attempts = int(pending.get("attempts") or 0)
+        code = (request.form.get("otp_code") or "").strip()
+
+        if not new_email or not pending.get("digest"):
+            flash("Minta kode OTP baru dulu.", "error")
+            return _account_personal_redirect()
+        if time.time() - issued_at > security.EMAIL_CHANGE_OTP_TTL_SECONDS:
+            session.pop("_email_change", None)
+            flash("Kode OTP sudah kedaluwarsa. Kirim kode baru.", "error")
+            return _account_personal_redirect()
+        if attempts >= security.EMAIL_CHANGE_OTP_MAX_ATTEMPTS:
+            session.pop("_email_change", None)
+            flash("Terlalu banyak percobaan OTP. Kirim kode baru.", "error")
+            return _account_personal_redirect()
+
+        pending["attempts"] = attempts + 1
+        session["_email_change"] = pending
+        session.modified = True
+
+        expected = security.hash_email_change_otp(new_email, code)
+        if not re.fullmatch(r"\d{6}", code) or not secrets.compare_digest(str(pending["digest"]), expected):
+            left = security.EMAIL_CHANGE_OTP_MAX_ATTEMPTS - pending["attempts"]
+            if left <= 0:
+                session.pop("_email_change", None)
+                flash("Kode OTP salah terlalu banyak kali. Kirim kode baru.", "error")
+            else:
+                flash(f"Kode OTP salah. Sisa {left} percobaan.", "error")
+            return _account_personal_redirect()
+
+        existing = repo.get_user_by_email(new_email)
+        if existing and existing["id"] != user["id"]:
+            session.pop("_email_change", None)
+            flash("Email tersebut sudah terdaftar di akun lain.", "error")
+            return _account_personal_redirect()
+
+        old_email = user["email"]
+        repo.update_user_email(user["id"], new_email)
+        repo.invalidate_all_reset_tokens_for_user(user["id"], _now_iso())
+        session.pop("_email_change", None)
+        repo.write_audit_no_business(user["id"], "ACCOUNT_EMAIL_UPDATED", "primary email changed after OTP verification")
+
+        # Future Finance invoice defaults always resolve sender email from the account owner.
+        # Existing issued invoice snapshots intentionally remain unchanged.
+        try:
+            import finance_invoice_editor as invoice_editor
+            import finance_service as finance
+            for business in repo.list_businesses_for_user(user["id"]):
+                try:
+                    invoice_editor.sync_sender_identity(
+                        business["id"], business["business_name"], user["id"])
+                except finance.FinanceError:
+                    pass
+        except Exception:
+            pass
+
+        flash("Email akun berhasil diganti dan sudah terverifikasi.", "success")
+        return _account_personal_redirect()
+
     if action == "profile":
         full_name = (request.form.get("full_name") or "").strip()
         if len(full_name) > 100:
