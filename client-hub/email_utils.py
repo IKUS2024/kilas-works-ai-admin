@@ -149,3 +149,74 @@ def send_password_reset_email(to_email, reset_url):
         print('EMAIL: password reset delivery unavailable; queue full')
     # Queuing is never represented as successful delivery.
     return False
+
+
+def _send_resend_email_change_otp(to_email, code, api_key):
+    sender = (os.environ.get("RESET_EMAIL_FROM") or "").strip()
+    if not sender:
+        print("EMAIL: Resend unavailable; sender_not_configured")
+        return False
+    response = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
+        json={
+            "from": sender,
+            "to": [to_email],
+            "subject": "Kode Verifikasi Email — Kilas Works",
+            "text": (
+                "Halo,\n\n"
+                "Gunakan kode berikut untuk memverifikasi email baru akun Kilas Works kamu:\n\n"
+                f"{code}\n\n"
+                "Kode berlaku selama 10 menit dan maksimal 5 kali percobaan.\n"
+                "Jika kamu tidak meminta perubahan email, abaikan pesan ini.\n\n"
+                "Salam,\nTim Kilas Works"
+            ),
+        },
+        timeout=(5, 10),
+        allow_redirects=False,
+    )
+    if not 200 <= response.status_code < 300:
+        print(f"EMAIL: email-change OTP delivery failed; http_status={response.status_code}")
+        return False
+    payload = response.json()
+    return bool(isinstance(payload, dict) and isinstance(payload.get("id"), str) and payload["id"].strip())
+
+
+def _send_email_change_otp(to_email, code):
+    api_key = (os.environ.get("RESEND_API_KEY") or "").strip()
+    if api_key:
+        return _send_resend_email_change_otp(to_email, code, api_key)
+
+    host = os.environ.get("SMTP_HOST")
+    username = os.environ.get("SMTP_USERNAME")
+    password = os.environ.get("SMTP_PASSWORD")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    sender = os.environ.get("RESET_EMAIL_FROM") or username
+    if host and username and password:
+        msg = EmailMessage()
+        msg["Subject"] = "Kode Verifikasi Email — Kilas Works"
+        msg["From"] = sender
+        msg["To"] = to_email
+        msg.set_content(
+            "Halo,\n\n"
+            "Gunakan kode berikut untuk memverifikasi email baru akun Kilas Works kamu:\n\n"
+            f"{code}\n\n"
+            "Kode berlaku selama 10 menit dan maksimal 5 kali percobaan.\n"
+            "Jika kamu tidak meminta perubahan email, abaikan pesan ini.\n\n"
+            "Salam,\nTim Kilas Works"
+        )
+        with smtplib.SMTP(host, port, timeout=10) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(username, password)
+            server.send_message(msg)
+        return True
+    print("EMAIL: email-change OTP delivery unavailable; provider_not_configured")
+    return False
+
+
+def send_email_change_otp(to_email, code):
+    try:
+        return _send_email_change_otp(to_email, code)
+    except Exception as exc:
+        print("EMAIL: email-change OTP delivery failed; exception_type=" + type(exc).__name__)
+        return False
