@@ -7,6 +7,7 @@ Customer-facing pages never receive these source URLs.
 import json
 import os
 import re
+import logging
 from urllib.parse import urlparse, urlunparse
 
 import requests
@@ -15,6 +16,7 @@ import ai_usage
 import order_service
 
 MAX_CANDIDATES = 12
+log = logging.getLogger(__name__)
 
 _SYSTEM = """Kamu adalah procurement research engine internal Kilas Order.
 Cari listing BARANG FISIK yang benar-benar tampak bisa dibeli sekarang berdasarkan kebutuhan customer.
@@ -240,11 +242,30 @@ def search_request(item):
             allow_redirects=False,
         )
         if not 200 <= response.status_code < 300:
+            safe_error_type = "unknown"
+            try:
+                payload = response.json()
+                if isinstance(payload, dict):
+                    error_obj = payload.get("error")
+                    if isinstance(error_obj, dict):
+                        candidate = error_obj.get("type")
+                        if isinstance(candidate, str) and re.fullmatch(r"[a-z0-9_]{1,80}", candidate):
+                            safe_error_type = candidate
+            except (ValueError, TypeError):
+                pass
+            log.warning("[KILAS_ORDER_SEARCH] provider_http status=%s type=%s", response.status_code, safe_error_type)
             order_service.update_request_status(item["id"], "ISSUE")
-            return [], "upstream_http_" + str(response.status_code)
+            if response.status_code == 400:
+                return [], "provider_invalid_request"
+            if response.status_code in (401, 403):
+                return [], "provider_access_denied"
+            if response.status_code == 429:
+                return [], "provider_rate_limited"
+            return [], "provider_http_" + str(response.status_code)
         result = response.json()
         ai_usage.record(model, result, tenant_id=None, context="platform_customer", classification="complex")
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        log.warning("[KILAS_ORDER_SEARCH] network_failure kind=%s", type(exc).__name__)
         order_service.update_request_status(item["id"], "ISSUE")
         return [], "network_failure"
     except (ValueError, TypeError):
@@ -254,15 +275,18 @@ def search_request(item):
     content = result.get("content") if isinstance(result, dict) else None
     observed = _search_urls(content)
     if not observed:
+        log.warning("[KILAS_ORDER_SEARCH] no_search_results")
         order_service.update_request_status(item["id"], "ISSUE")
         return [], "no_search_results"
     try:
         value = _final_json(content)
         candidates = _validate_candidates(value, observed)
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        log.warning("[KILAS_ORDER_SEARCH] invalid_schema kind=%s", type(exc).__name__)
         order_service.update_request_status(item["id"], "ISSUE")
         return [], "invalid_schema"
     if not candidates:
+        log.warning("[KILAS_ORDER_SEARCH] no_valid_candidates observed=%s", len(observed))
         order_service.update_request_status(item["id"], "ISSUE")
         return [], "no_valid_candidates"
 
