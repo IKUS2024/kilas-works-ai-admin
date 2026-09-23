@@ -6,7 +6,6 @@ import uuid
 import db
 
 STATUS_LABELS = {
-    'WHATSAPP_HANDOFF': 'Menunggu tim Kilas di WhatsApp',
     'SEARCH_REQUESTED': 'Menunggu pencarian',
     'SEARCHING': 'Sedang mencari',
     'RESULTS_READY': 'Sedang diverifikasi Kilas',
@@ -57,7 +56,12 @@ def _row(row):
     item = dict(row)
     item['ai_summary'] = _decode(item.pop('ai_summary_json', None), {})
     item['conversation'] = _decode(item.pop('conversation_json', None), [])
-    item['status_label'] = STATUS_LABELS.get(item.get('status'), item.get('status') or 'Menunggu')
+    item['is_whatsapp_handoff'] = item['ai_summary'].get('handoff') == 'WHATSAPP'
+    item['status_label'] = (
+        'Menunggu tim Kilas di WhatsApp'
+        if item['is_whatsapp_handoff']
+        else STATUS_LABELS.get(item.get('status'), item.get('status') or 'Menunggu')
+    )
     return item
 
 
@@ -134,13 +138,10 @@ def create_whatsapp_request(user_id, draft):
         'summary': {
             'item': text[:160],
             'priority': 'Dibantu tim Kilas via WhatsApp',
+            'handoff': 'WHATSAPP',
         },
     }
-    saved = create_request(user_id, prepared)
-    if saved.get('status') == 'SEARCH_REQUESTED':
-        update_request_status(saved['id'], 'WHATSAPP_HANDOFF')
-        saved = get_request_by_code(saved['request_code']) or saved
-    return saved
+    return create_request(user_id, prepared)
 
 
 def get_user_request(user_id, request_code):
@@ -196,8 +197,8 @@ def list_admin_requests(limit=100):
         "SELECT r.*,u.full_name AS customer_name,u.email AS customer_email "
         "FROM kilas_order_requests r JOIN users u ON u.id=r.user_id "
         "ORDER BY CASE r.status "
-        "WHEN 'WHATSAPP_HANDOFF' THEN 0 WHEN 'SEARCH_REQUESTED' THEN 1 WHEN 'SEARCHING' THEN 2 "
-        "WHEN 'RESULTS_READY' THEN 3 WHEN 'ISSUE' THEN 4 ELSE 5 END, "
+        "WHEN 'SEARCH_REQUESTED' THEN 0 WHEN 'SEARCHING' THEN 1 "
+        "WHEN 'RESULTS_READY' THEN 2 WHEN 'ISSUE' THEN 3 ELSE 4 END, "
         "r.created_at DESC,r.id DESC LIMIT ?",
         (limit,),
     )
