@@ -118,7 +118,7 @@ body.customer-ui>footer{display:none}
 }
 .kh-bottom-item{color:#a8adb4;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;font-size:9px;font-weight:750;min-height:52px}
 .kh-bottom-item svg{width:19px;height:19px}.kh-bottom-item.active{color:var(--kh-orange)}
-.kh-bottom-plus{position:relative;top:-10px}.kh-plus-circle{width:48px;height:48px;border-radius:50%;background:var(--kh-orange);color:#17110d;display:grid;place-items:center;box-shadow:0 8px 22px rgba(255,122,26,.22)}.kh-plus-circle svg{width:22px;height:22px}.kh-bottom-plus span:last-child{margin-top:-7px}
+.kh-bottom-plus{position:relative;top:-10px}.kh-plus-circle{width:48px;height:48px;border-radius:50%;background:#ff7a1a!important;color:#17110d!important;display:grid;place-items:center;box-shadow:0 0 0 1px rgba(255,122,26,.72),0 8px 22px rgba(255,122,26,.28);font-size:32px;font-weight:300;line-height:1}.kh-bottom-plus span:last-child{margin-top:-7px}
 
 .kh-legacy{margin-top:10px;color:var(--kh-muted);font-size:9px;text-align:center}
 
@@ -400,7 +400,7 @@ body.customer-ui>footer{display:none}
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk</span>
   </a>
   <a class="kh-bottom-item kh-bottom-plus" href="{{ url_for('products.index') }}">
-    <span class="kh-plus-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span><span>Layanan</span>
+    <span class="kh-plus-circle" aria-hidden="true">+</span><span>Layanan</span>
   </a>
   <a class="kh-bottom-item" href="{{ url_for('projects.my_project_list') }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg><span>Pesanan</span>
