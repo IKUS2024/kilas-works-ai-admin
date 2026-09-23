@@ -54,6 +54,7 @@ def state(business_id):
         active=status in ('PAID_ACTIVE','TRIAL_ACTIVE'),
         trial_used=bool(row and row['trial_started_at']),
         unlimited_trial=bool(unlimited and status == 'TRIAL_ACTIVE'),
+        customer_hidden=bool(row and row.get('customer_hidden')),
         until=end.isoformat() if end else None,
         until_local=end.astimezone(ZoneInfo('Asia/Jakarta')).strftime('%d/%m/%Y %H:%M WIB') if end else None
     )
