@@ -120,13 +120,24 @@ def product_start():
     if request.method=='POST':
         choice=(request.form.get('product') or '').strip().lower()
         if choice=='finance':
+            finance_businesses=_product_businesses(user['id'],'finance')
+            session['active_product']='finance'
+            session.pop('product_intent',None)
+            if finance_businesses:
+                return redirect(url_for('client.dashboard',product='finance'),code=303)
             session['product_intent']='finance'
             return redirect(url_for('products.continue_product'),code=303)
         if choice=='assist':
+            assist_businesses=_product_businesses(user['id'],'brain')
+            session['active_product']='brain'
+            session.pop('product_intent',None)
+            if assist_businesses:
+                return redirect(url_for('client.dashboard',product='brain'),code=303)
             session['product_intent']='brain'
             return redirect(url_for('products.continue_product'),code=303)
         if choice=='services':
             session.pop('product_intent',None)
+            session.pop('active_product',None)
             return redirect(url_for('projects.service_catalog_page'),code=303)
         abort(400)
     return render_template('product_start.html',user=user)
@@ -177,8 +188,13 @@ def continue_product():
                     abort(400)
             elif key in ('brain','finance'):abort(400)
         if key=='finance':
-            return redirect(_start_finance_trial_now(business_id, user), code=303)
+            target=_start_finance_trial_now(business_id, user)
+            if request.form.get('create')=='yes' and entitlement.state(business_id)['active']:
+                session['active_product']='finance'
+                return redirect(url_for('client.dashboard',product='finance'),code=303)
+            return redirect(target, code=303)
         if key=='brain':
+            session['active_product']='brain'
             with db.app_purchase_transaction(business_id,None):
                 security.require_business_access(business_id,user)
                 if repo.get_business(business_id)['package']=='NONE':repo.upgrade_business_package(business_id,'AI_ADMIN',user['id'])
@@ -188,13 +204,12 @@ def continue_product():
         if not item or not item['is_active']:abort(404)
         return render_template('product_continue.html',item=item,chosen_business_id=business_id,ready=True)
     businesses=_product_businesses(user['id'],key)
-    # Returning customers with one already-active Finance business should not
-    # see onboarding or a workspace chooser again.
-    if key=='finance' and len(businesses)==1 and entitlement.state(businesses[0]['id'])['active']:
-        business_id=businesses[0]['id']
-        session['dashboard_business_id']=business_id
-        session.pop('product_intent',None)
-        return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
+    # Returning customers enter the selected product home first. Product switching belongs
+    # on the initial picker, not inside the product dashboard.
+    if key=='finance' and businesses:
+        session['active_product']='finance'
+    if key=='brain' and businesses:
+        session['active_product']='brain'
     return render_template(
         'product_continue.html',product=key,user=user,
         businesses=businesses,
