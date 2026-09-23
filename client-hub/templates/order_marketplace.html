@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Kilas Order · Belanja Dibantu AI{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#090b0e;color:#f5f6f8}
+body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}
+body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.ko-market{--o:#ff7a1a;--card:#11161b;--border:#2a323a;min-height:100svh;background:radial-gradient(720px 340px at 100% 0%,rgba(255,122,26,.10),transparent 70%),#090b0e;padding:18px 16px 42px}
+.ko-inner{width:min(100%,1120px);margin:auto}.ko-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:26px}
+.ko-brand{color:#fff;text-decoration:none;font-size:23px;font-weight:950;letter-spacing:-.04em}.ko-brand span{color:var(--o)}.ko-topnav{display:flex;gap:7px}
+.ko-topnav a{padding:8px 10px;border:1px solid #353e47;border-radius:10px;color:#c9d0d6;text-decoration:none;font-size:10px;font-weight:850;background:#11161b}
+.ko-hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr);gap:16px;align-items:stretch;margin-bottom:25px}
+.ko-hero-main{padding:28px;border:1px solid var(--border);border-radius:24px;background:linear-gradient(150deg,#171d22,#0f1317)}
+.ko-kicker{color:var(--o);font-size:10px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}.ko-hero h1{margin:9px 0 10px;font-size:clamp(32px,5vw,52px);line-height:1;letter-spacing:-.055em}
+.ko-hero p{margin:0;color:#99a2ab;font-size:13px;line-height:1.6;max-width:650px}.ko-points{display:flex;gap:7px;flex-wrap:wrap;margin-top:16px}
+.ko-points span{padding:7px 9px;border:1px solid #303941;border-radius:999px;background:#101519;color:#aeb6bd;font-size:9.5px;font-weight:750}
+.ko-request{padding:18px;border:1px solid rgba(255,122,26,.28);border-radius:24px;background:rgba(255,122,26,.045)}
+.ko-request h2{margin:0 0 5px;font-size:18px}.ko-request>p{margin:0 0 12px;color:#9099a3;font-size:10px;line-height:1.45}
+.ko-location{display:flex;gap:6px;margin-bottom:8px}.ko-location button{flex:1;min-height:34px;border:1px solid #39424b;border-radius:9px;background:#151a1f;color:#d8dde1;font:inherit;font-size:9.5px;font-weight:850;cursor:pointer}
+.ko-location button.primary{border-color:rgba(255,122,26,.5);color:#ffb17a;background:rgba(255,122,26,.08)}
+.ko-manual{display:none;grid-template-columns:1fr auto;gap:6px;margin-bottom:8px}.ko-manual.show{display:grid}.ko-manual input,.ko-request textarea{width:100%;box-sizing:border-box;border:1px solid #37414a;background:#11161b;color:#f6f7f8;border-radius:10px;font:inherit}
+.ko-manual input{height:36px;padding:0 9px;font-size:10px}.ko-manual button{border:0;border-radius:9px;background:var(--o);font-weight:900;padding:0 10px}
+.ko-request textarea{min-height:84px;padding:11px;resize:vertical;font-size:11.5px;line-height:1.45}.ko-request textarea:focus,.ko-manual input:focus{outline:none;border-color:var(--o)}
+.ko-request-submit{width:100%;min-height:40px;margin-top:8px;border:0;border-radius:10px;background:var(--o);color:#1c1008;font:inherit;font-size:10.5px;font-weight:950;cursor:pointer}
+.ko-location-label{margin:0 0 8px;color:#818b95;font-size:9px}
+.ko-section-head{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:0 2px 13px}.ko-section-head h2{margin:0;font-size:24px;letter-spacing:-.035em}.ko-section-head p{margin:5px 0 0;color:#858f99;font-size:10.5px}
+.ko-price-note{max-width:360px;text-align:right;color:#7f8992;font-size:9px;line-height:1.4}
+.ko-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.ko-product{display:flex;flex-direction:column;min-width:0;border:1px solid var(--border);border-radius:17px;background:var(--card);overflow:hidden;text-decoration:none;color:inherit;transition:.18s ease}
+.ko-product:hover{transform:translateY(-2px);border-color:#46515b}.ko-img{aspect-ratio:1/1;background:#f1f2f3;overflow:hidden}.ko-img img{width:100%;height:100%;object-fit:cover;display:block}
+.ko-body{display:flex;flex-direction:column;flex:1;padding:11px}.ko-cat{color:#78828b;font-size:7.8px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.ko-name{margin:5px 0 5px;font-size:11.5px;font-weight:900;line-height:1.35}
+.ko-desc{color:#8f98a2;font-size:8.8px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.ko-bottom{margin-top:auto;padding-top:11px}.ko-price{font-size:16px;font-weight:950;letter-spacing:-.03em}
+.ko-check{display:flex;align-items:center;gap:5px;margin-top:5px;color:#7f8992;font-size:8px}.ko-check i{width:6px;height:6px;border-radius:50%;background:#e8a34a}.ko-code{margin-top:7px;color:#68727b;font-size:7.5px;font-weight:850;letter-spacing:.04em}
+.ko-empty{padding:24px;border:1px dashed #37414a;border-radius:16px;color:#8c959e;text-align:center}
+@media(max-width:920px){.ko-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ko-hero{grid-template-columns:1fr}.ko-request{padding:15px}}
+@media(max-width:560px){.ko-market{padding:15px 12px 30px}.ko-top{margin-bottom:20px}.ko-brand{font-size:20px}.ko-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ko-hero-main{padding:20px}.ko-hero h1{font-size:34px}.ko-section-head{align-items:start;flex-direction:column}.ko-price-note{text-align:left}.ko-name{font-size:11px}.ko-price{font-size:15px}}
+</style>
+<div class="ko-market">
+ <div class="ko-inner">
+  <header class="ko-top">
+   <a class="ko-brand" href="{{ url_for('products.order_entry') }}">Kilas<span>Order</span></a>
+   <nav class="ko-topnav">
+    {% if recent_order_requests %}<a href="{{ url_for('products.order_requests') }}">Pesanan Saya</a>{% endif %}
+    <a href="{{ url_for('products.product_start') }}">Produk Kilas</a>
+   </nav>
+  </header>
+
+  <section class="ko-hero">
+   <div class="ko-hero-main">
+    <span class="ko-kicker">Curated by Kilas</span>
+    <h1>Barang pilihan, harga sudah beres.</h1>
+    <p>Lihat pilihan yang sudah dikurasi Kilas. Harga yang tampil adalah harga Kilas untuk customer — tidak ada link marketplace atau seller yang perlu kamu urus sendiri.</p>
+    <div class="ko-points"><span>Foto produk</span><span>Harga final Kilas</span><span>Ketersediaan dicek sebelum bayar</span><span>Bisa minta barang lain via WhatsApp</span></div>
+   </div>
+   <form class="ko-request" id="ko-request-form" method="post" action="{{ url_for('products.order_whatsapp_handoff') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="location_source" id="ko-loc-source">
+    <input type="hidden" name="location_label" id="ko-loc-label-field">
+    <input type="hidden" name="latitude" id="ko-lat">
+    <input type="hidden" name="longitude" id="ko-lng">
+    <h2>Nggak nemu barangnya?</h2>
+    <p>Tulis aja kebutuhanmu. Kilas AI akan lanjut ngobrol di WhatsApp.</p>
+    <div class="ko-location">
+     <button type="button" class="primary" id="ko-gps">📍 Lokasi saya</button>
+     <button type="button" id="ko-manual-btn">Pilih area</button>
+    </div>
+    <div class="ko-manual" id="ko-manual"><input id="ko-manual-input" maxlength="120" placeholder="Contoh: Tangerang"><button type="button" id="ko-manual-save">Simpan</button></div>
+    <p class="ko-location-label" id="ko-location-label">Lokasi belum dipilih</p>
+    <textarea name="request_text" required minlength="3" maxlength="800" placeholder="Contoh: Cari tas ransel traveling budget 200 ribuan, warna bebas."></textarea>
+    <button class="ko-request-submit" type="submit">Lanjutkan di WhatsApp →</button>
+   </form>
+  </section>
+
+  <div class="ko-section-head">
+   <div><h2>Pilihan minggu ini</h2><p>10 barang awal yang sudah dikurasi untuk Kilas Order.</p></div>
+   <div class="ko-price-note">Harga sudah memasukkan estimasi biaya layanan dan pengiriman standar. Ketersediaan serta alamat akhir dikonfirmasi sebelum pembayaran.</div>
+  </div>
+
+  {% if catalog_products %}
+  <section class="ko-grid">
+   {% for product in catalog_products %}
+   <a class="ko-product" href="{{ url_for('products.order_catalog_product',product_code=product.product_code) }}">
+    <div class="ko-img"><img loading="lazy" src="{{ url_for('products.order_product_image',product_code=product.product_code) }}" alt="{{ product.name }}"></div>
+    <div class="ko-body">
+     <span class="ko-cat">{{ product.category }}</span>
+     <div class="ko-name">{{ product.name }}</div>
+     <div class="ko-desc">{{ product.short_description }}</div>
+     <div class="ko-bottom">
+      <div class="ko-price">{{ product.price_text }}</div>
+      <div class="ko-check"><i></i>Ketersediaan dicek sebelum pembayaran</div>
+      <div class="ko-code">{{ product.product_code }}</div>
+     </div>
+    </div>
+   </a>
+   {% endfor %}
+  </section>
+  {% else %}<div class="ko-empty">Katalog sedang diperbarui. Kamu tetap bisa minta Kilas carikan barang lewat WhatsApp.</div>{% endif %}
+ </div>
+</div>
+<script>
+(function(){
+ const key='kilasOrderLocation.v1',gps=document.getElementById('ko-gps'),manualBtn=document.getElementById('ko-manual-btn'),manual=document.getElementById('ko-manual'),input=document.getElementById('ko-manual-input'),save=document.getElementById('ko-manual-save'),label=document.getElementById('ko-location-label');
+ const source=document.getElementById('ko-loc-source'),labelField=document.getElementById('ko-loc-label-field'),lat=document.getElementById('ko-lat'),lng=document.getElementById('ko-lng');
+ function persist(v){try{localStorage.setItem(key,JSON.stringify(v))}catch(_){} render(v)}
+ function render(v){if(!v)return;if(v.source==='gps'){label.textContent='GPS aktif';gps.textContent='✓ GPS aktif'}else{label.textContent=v.label||'Area tersimpan';gps.textContent='📍 Lokasi saya'}}
+ function current(){try{return JSON.parse(localStorage.getItem(key)||'null')}catch(_){return null}}
+ render(current());
+ manualBtn.onclick=()=>manual.classList.toggle('show');
+ save.onclick=()=>{const v=(input.value||'').trim();if(v.length<2){input.focus();return}persist({source:'manual',label:v});manual.classList.remove('show')};
+ gps.onclick=()=>{if(!navigator.geolocation){manual.classList.add('show');return}gps.disabled=true;gps.textContent='Mencari…';navigator.geolocation.getCurrentPosition(p=>{persist({source:'gps',latitude:Number(p.coords.latitude.toFixed(6)),longitude:Number(p.coords.longitude.toFixed(6))});gps.disabled=false},()=>{gps.disabled=false;gps.textContent='📍 Lokasi saya';manual.classList.add('show')},{enableHighAccuracy:true,timeout:10000,maximumAge:300000})};
+ document.getElementById('ko-request-form').addEventListener('submit',()=>{const v=current();source.value=v&&v.source?v.source:'';labelField.value=v&&v.label?v.label:'';lat.value=v&&v.latitude?String(v.latitude):'';lng.value=v&&v.longitude?String(v.longitude):''});
+})();
+</script>
+{% endblock %}
