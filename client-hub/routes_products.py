@@ -145,7 +145,13 @@ def product_start():
 @products_bp.route('/products/order')
 @security.login_required
 def order_entry():
-    return render_template('order_entry.html',user=security.current_user())
+    import order_service
+    user=security.current_user()
+    return render_template(
+        'order_entry.html',
+        user=user,
+        recent_order_requests=order_service.list_user_requests(user['id'],limit=3),
+    )
 
 
 @products_bp.route('/products/order/request',methods=['GET','POST'])
@@ -172,6 +178,20 @@ def order_request():
 
     if request.method=='POST':
         action=(request.form.get('action') or 'start').strip().lower()
+
+        if action=='start_search':
+            import order_service
+            draft=session.get('kilas_order_draft') or {}
+            state=draft.get('ai_state') or {}
+            if not draft.get('request_text') or draft.get('ai_error') or not state.get('ready'):
+                flash('Permintaan belum siap dicari. Lengkapi dulu bersama Kilas Buyer.','error')
+                return redirect(url_for('products.order_request'),code=303)
+            if not draft.get('draft_token'):
+                draft['draft_token']=uuid.uuid4().hex
+                session['kilas_order_draft']=draft
+            saved=order_service.create_request(security.current_user()['id'],draft)
+            session['kilas_order_last_request']=saved['request_code']
+            return redirect(url_for('products.order_request_detail',request_code=saved['request_code']),code=303)
 
         if action in ('answer','retry'):
             draft=session.get('kilas_order_draft') or {}
@@ -208,6 +228,7 @@ def order_request():
             'latitude':latitude[:32],
             'longitude':longitude[:32],
             'conversation':[],
+            'draft_token':uuid.uuid4().hex,
         }
         draft=run_intake(draft)
         session['kilas_order_draft']=draft
@@ -216,7 +237,33 @@ def order_request():
     draft=session.get('kilas_order_draft') or {}
     if not draft.get('request_text'):
         return redirect(url_for('products.order_entry'),code=303)
+    if not draft.get('draft_token'):
+        draft['draft_token']=uuid.uuid4().hex
+        session['kilas_order_draft']=draft
     return render_template('order_request.html',user=security.current_user(),draft=draft)
+
+
+@products_bp.route('/products/order/requests')
+@security.login_required
+def order_requests():
+    import order_service
+    user=security.current_user()
+    return render_template(
+        'order_requests.html',
+        user=user,
+        requests_list=order_service.list_user_requests(user['id'],limit=50),
+    )
+
+
+@products_bp.route('/products/order/requests/<request_code>')
+@security.login_required
+def order_request_detail(request_code):
+    import order_service
+    user=security.current_user()
+    item=order_service.get_user_request(user['id'],request_code)
+    if not item:
+        abort(404)
+    return render_template('order_request_status.html',user=user,item=item)
 
 
 @products_bp.route('/products/finance',methods=['GET','POST'])
