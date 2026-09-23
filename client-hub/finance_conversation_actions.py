@@ -16,7 +16,7 @@ import finance_fx as fx
 import finance_assistant_tools as tools
 from finance_semantics import entity_options
 
-TITLES={'create_account':'Rekening baru','create_category':'Kategori baru','create_branch':'Cabang baru',
+TITLES={'create_account':'Rekening baru','create_category':'Kategori baru','create_subcategory':'Subkategori baru','create_branch':'Cabang baru',
         'rename_account':'Ubah nama rekening','rename_category':'Ubah nama kategori','rename_branch':'Ubah nama cabang',
         'edit_customer':'Ubah customer','deactivate_customer':'Hapus customer',
         'deactivate_account':'Nonaktifkan rekening','deactivate_category':'Nonaktifkan kategori','deactivate_branch':'Nonaktifkan cabang',
@@ -27,10 +27,10 @@ LABELS={'name':'Nama','phone':'Nomor telepon','email':'Email','notes':'Catatan c
         'account_type':'Jenis rekening','currency':'Mata uang','opening_balance':'Saldo awal',
         'direction':'Jenis','from_account_id':'Rekening asal','to_account_id':'Rekening tujuan',
         'from_amount':'Nominal keluar','to_amount':'Nominal diterima','date':'Tanggal','note':'Catatan',
-        'amount':'Nominal','account_id':'Kas / Rekening','category_id':'Kategori','description':'Catatan',
+        'amount':'Nominal','account_id':'Kas / Rekening','category_id':'Kategori','parent_category_id':'Kategori induk','description':'Catatan',
         'project_id':'Proyek','customer_id':'Pelanggan','counterparty_name':'Pihak terkait'}
 OPTIONAL={'note','description','project_id','customer_id','counterparty_name','phone','email','notes'}
-REFS={'account_id':'account','from_account_id':'account','to_account_id':'account','category_id':'category','project_id':'project','customer_id':'customer'}
+REFS={'account_id':'account','from_account_id':'account','to_account_id':'account','category_id':'category','parent_category_id':'parent_category','project_id':'project','customer_id':'customer'}
 TITLES.update(tools.TITLES)
 
 
@@ -71,6 +71,7 @@ def start(b,u,operation,values=None,row=None):
     if operation in tools.TITLES:v={**tools.initial(b,u,operation,row),**v}
     elif operation=='create_account':v={'name':'','account_type':'','currency':'','opening_balance':'0',**v}
     elif operation=='create_category':v={'name':'','direction':'',**v}
+    elif operation=='create_subcategory':v={'name':'','parent_category_id':'',**v}
     elif operation in ('create_branch','rename_account','rename_category','rename_branch'):v={'name':'',**v}
     elif operation=='edit_customer':
         if not row:raise ValueError('invalid_draft')
@@ -94,6 +95,7 @@ def options(b,u,key,values):
     kind=REFS.get(key)
     if kind=='account':rows=f.list_accounts(b,actor_user_id=u)
     elif kind=='category':rows=f.list_categories(b,values.get('direction') or ('EXPENSE' if 'cadence' in values or 'month' in values else None),include_children=True,actor_user_id=u)
+    elif kind=='parent_category':rows=f.list_categories(b,include_children=False,actor_user_id=u)
     elif kind=='project':rows=f.list_finance_projects(b,actor_user_id=u)
     elif kind=='customer':rows=f.list_customers(b,actor_user_id=u)
     else:return None
@@ -113,6 +115,10 @@ def prepared(b,u,c):
         balance=0 if v['opening_balance']=='0' else minor(v['opening_balance'].lstrip('-'),v['currency'])*(-1 if v['opening_balance'].startswith('-') else 1)
         data=dict(name=f._text(v['name'],160,True),account_type=f._enum(v['account_type'],f.ACCOUNT_TYPES),currency=f._currency(v['currency']),opening_balance_minor=f._money(balance))
     elif op=='create_category':data=dict(name=f._text(v['name'],160,True),direction=f._enum(v['direction'],f.DIRECTIONS))
+    elif op=='create_subcategory':
+        parent=next((r for r in f.list_categories(b,include_children=False,actor_user_id=u) if str(r['id'])==v['parent_category_id']),None)
+        if not parent:raise ValueError('category_unavailable')
+        data=dict(direction=parent['direction'],name=f._text(v['name'],160,True),parent_category_id=parent['id'])
     elif op=='create_branch' or op.startswith('rename_'):data=dict(name=f._text(v['name'],160,True))
     elif op=='exchange':
         a=f.get_account(b,int(v['from_account_id']),actor_user_id=u,active=True);z=f.get_account(b,int(v['to_account_id']),actor_user_id=u,active=True)
@@ -214,6 +220,7 @@ def confirm(b,u,c):
             if op in tools.TITLES:ident=tools.execute(b,u,c,data,row)
             elif op=='create_account':ident=f.create_account(b,**data,actor_user_id=u)
             elif op=='create_category':ident=f.create_category(b,**data,actor_user_id=u)
+            elif op=='create_subcategory':ident=f.create_category(b,**data,actor_user_id=u)
             elif op=='create_branch':ident=branches.create_branch(b,**data,actor_user_id=u)
             elif op.startswith('rename_') or op in ('deactivate_account','deactivate_category','deactivate_branch'):
                 branches.update_record(b,op.split('_')[1],ident,name=data.get('name'),deactivate=op.startswith('deactivate_'),actor_user_id=u)
@@ -249,7 +256,86 @@ def route(b,u,text,query_context='',classify_only=False):
             op='void_transaction' if re.search(r'\bbatalkan\b',text,re.I) else 'edit_transaction';raw='yang tadi'
         issue=re.search(r'\bterbitkan\s+(?:invoice\s+)?(.+)',text,re.I)
         if issue:op='issue_invoice';raw=issue[1]
-        create=re.search(r'\b(?:buat|bikin|tambah(?:kan)?)\s+(rekening|akun|kategori|cabang)\s*(.*)',text,re.I)
+        subcategory=re.search(r'\b(?:buat|bikin|tambah(?:kan)?)\s+sub\s*kategori\s+(.+?)\s+(?:di\s+bawah|dalam|pada|ke)\s+(?:kategori\s+)?(.+)                direction=next((k for k,pattern in [('INCOME','pemasukan|pendapatan'),('EXPENSE','pengeluaran|biaya')] if re.search(pattern,name,re.I)),None)
+                if direction:values['direction']=direction;values['name']=re.sub(r'\b(pemasukan|pendapatan|pengeluaran|biaya)\b','',name,flags=re.I).strip()
+            if kind=='account':
+                code=flow.currency_hint(name)
+                if code:values['currency']=code;name=re.sub(r'\b'+code+r'\b','',name,flags=re.I)
+                opening=re.search(r'saldo awal\s+(.+)',name,re.I)
+                if opening:values['opening_balance']=opening[1];name=name[:opening.start()]
+                typ=re.search(r'\b(bank|cash|tunai|ewallet)\b',name,re.I)
+                if typ:values['account_type']={'bank':'BANK','cash':'CASH','tunai':'CASH','ewallet':'EWALLET'}[typ[1].lower()];name=name[:typ.start()]+name[typ.end():]
+                values['name']=name.strip()
+        if not op:
+            action=re.search(r'\b(nonaktifkan|hentikan|stop|hapus|delete|batalkan|void|koreksi|edit|ubah|ganti nama|bayar|posting|proses)\s+(?:biaya\s+)?(rutin|transaksi|invoice|rekening|akun|kategori|cabang|customer|pelanggan|fx)\s*(.*)',text,re.I)
+            if action:
+                verb,kind,raw=action.groups();kind={'rutin':'recurring','rekening':'account','akun':'account','kategori':'category','cabang':'branch','pelanggan':'customer','transaksi':'transaction'}.get(kind.lower(),kind.lower())
+                verb=verb.lower()
+                if verb in ('bayar','posting','proses') and kind=='recurring':op='post_recurring'
+                elif verb in ('nonaktifkan','hentikan','stop','hapus','delete') and kind in ('recurring','account','category','branch','customer'):op='deactivate_'+kind
+                elif verb in ('batalkan','void','hapus','delete') and kind in ('transaction','invoice','fx'):op='void_'+kind
+                elif verb in ('ubah','koreksi','edit') and kind=='transaction':op='edit_transaction'
+                elif verb in ('ubah','edit') and kind=='customer':op='edit_customer'
+                elif verb in ('ubah','ganti nama') and kind in ('account','category','branch'):
+                    op='rename_'+kind
+                    pieces=re.split(r'\s+(?:jadi|menjadi)\s+',raw,maxsplit=1,flags=re.I);raw=pieces[0]
+                    if len(pieces)==2:values['name']=pieces[1]
+        if not op and re.search(r'\b(catat|tambah|buat)\b.*\b(fx|penukaran|konversi)\b|^tukar\b',text,re.I):op='exchange'
+    if not op:return None
+    if classify_only:return op
+    try:flow.authorize(b,u,'OPERATOR')
+    except f.FinanceError as exc:
+        if str(exc) not in ('all_branches_read_only','branch_required'):raise
+        return dict(kind='branch_choice',message='Perubahan ini untuk cabang mana?',text=text,branches=[dict(id=r['id'],name=r['name']) for r in branches.list_branches(b,u) if r['is_active']])
+    if op.startswith('create_'):return start(b,u,op,values)
+    if op=='exchange':
+        accounts=f.list_accounts(b,actor_user_id=u)
+        for key,pattern in [('from_account_id',r'\bdari\s+(.+?)(?=\s+(?:ke|jadi|menjadi|sebesar|tanggal)\b|$)'),('to_account_id',r'\bke\s+(.+?)(?=\s+(?:jadi|menjadi|sebesar|tanggal)\b|$)')]:
+            matched=re.search(pattern,text,re.I)
+            if matched:
+                found=entity_options(accounts,matched[1].strip())
+                if len(found)==1:values[key]=str(found[0]['id'])
+        amounts=list(flow.AMOUNT.finditer(text))
+        if len(amounts)==2:
+            values['from_amount']=amounts[0][0];values['to_amount']=amounts[1][0]
+        return start(b,u,op,values)
+    kind=op.split('_',1)[1];rows=targets(b,u,kind)
+    last=remembered.get('last_record',{})
+    if re.search(r'\b(tadi|itu)\b',raw) and last.get('kind')==kind:
+        row=get_target(b,u,kind,last['id']);found=[row] if row else []
+    else:
+        number=re.fullmatch(r'(?:transaksi\s+)?#?(\d+)',raw.strip(),re.I)
+        if kind=='transaction' and number:
+            row=get_target(b,u,kind,int(number[1]));found=[row] if row else []
+        else:
+            if kind=='fx' and re.fullmatch(r'#?\d+',raw.strip()):raw='FX '+raw.strip().lstrip('#')
+            found=entity_options(rows,raw.strip())
+    if len(found)!=1:
+        choices=found or rows
+        return dict(kind='clarification',message='Yang mana? Pilih data yang ingin diubah; belum ada perubahan.',
+                    choices=[r['name'] for r in choices[:8]],preview=[[r['name'],r.get('next_due_on',r.get('occurred_on',''))] for r in choices[:8]],
+                    query_context=flow.seal_query(b,u,{'command':{'operation':op,'values':values}}))
+    if op=='issue_invoice':
+        from finance_assistant_invoice import review_invoice,issue_fingerprint
+        row=f.get_finance_invoice(b,found[0]['id'],u)
+        return review_invoice(b,u,dict(action='issue_invoice',values={'invoice_id':row['id'],'fingerprint':issue_fingerprint(b,u,row)},nonce=uuid.uuid4().hex))
+    if kind=='transaction':found[0]=get_target(b,u,kind,found[0]['id'])
+    initial=start(b,u,op,values,found[0])
+    if op=='edit_transaction':
+        import finance_draft_interpreter as interpreter
+        c=flow.unseal(b,u,initial['context'],'review')
+        updates=interpreter.deterministic(text,c,initial['fields'])
+        if updates:
+            try:return review(b,u,c,interpreter.resolve(updates,c,initial['fields']))
+            except ValueError:initial['message']='Data yang ingin diganti belum jelas. Sebut kolom dan nilainya; belum ada perubahan.'
+    return initial
+,text,re.I)
+        if subcategory:
+            op='create_subcategory';values={'name':subcategory[1].strip()}
+            parents=f.list_categories(b,include_children=False,actor_user_id=u)
+            found=entity_options(parents,subcategory[2].strip())
+            if len(found)==1:values['parent_category_id']=str(found[0]['id'])
+        create=re.search(r'\b(?:buat|bikin|tambah(?:kan)?)\s+(rekening|akun|kategori|cabang)\s*(.*)',text,re.I) if not op else None
         if create:
             kind={'rekening':'account','akun':'account','kategori':'category','cabang':'branch'}[create[1].lower()];op='create_'+kind
             name=create[2].strip();values={'name':name}
