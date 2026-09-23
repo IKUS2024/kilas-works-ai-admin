@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ item.request_code }} · Admin Kilas Order{% endblock %}
+{% block content %}
+<style>
+.admin-order-detail{max-width:1080px;margin:0 auto}.aod-back{display:inline-flex;margin-bottom:12px;color:var(--muted);font-size:11px;text-decoration:none}.aod-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.aod-head h1{margin:3px 0 5px;font-size:25px}.aod-head p{margin:0;color:var(--muted);font-size:11px}.aod-code{color:var(--orange);font-size:10px;font-weight:900}.aod-status{padding:7px 10px;border:1px solid var(--border);border-radius:999px;font-size:10px;font-weight:850}
+.aod-summary{padding:14px;margin-bottom:12px}.aod-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:11px}.aod-summary-grid div{padding:9px 10px;border:1px solid var(--border);border-radius:11px}.aod-summary-grid small{display:block;color:var(--muted);font-size:8px;text-transform:uppercase;font-weight:850}.aod-summary-grid strong{display:block;margin-top:3px;font-size:10.5px;overflow-wrap:anywhere}.aod-request{font-size:13px;font-weight:700;line-height:1.5}
+.aod-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 10px}.aod-toolbar h2{margin:0;font-size:18px}.aod-toolbar form{margin:0}.aod-toolbar button{min-height:36px;padding:7px 10px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:10px;font-weight:850;cursor:pointer}
+.aod-candidates{display:grid;gap:9px}.aod-candidate{padding:13px 14px;border:1px solid var(--border);border-radius:14px;background:var(--card)}.aod-candidate.verified{border-color:rgba(61,213,138,.45)}.aod-candidate.rejected{opacity:.55}.aod-candidate-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.aod-candidate h3{margin:0;font-size:14px}.aod-source{display:block;margin-top:4px;color:var(--orange);font-size:9.5px;text-decoration:none;word-break:break-all}.aod-price{font-size:14px;font-weight:900;white-space:nowrap}.aod-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}.aod-meta div{padding:8px;border:1px solid var(--border);border-radius:10px}.aod-meta small{display:block;color:var(--muted);font-size:7.5px;text-transform:uppercase;font-weight:850}.aod-meta strong{display:block;margin-top:3px;font-size:9.5px}.aod-copy{margin-top:9px;color:var(--muted);font-size:10px;line-height:1.45}.aod-copy b{color:var(--text)}.aod-risks{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.aod-risk{padding:4px 6px;border-radius:999px;background:rgba(232,91,91,.08);color:#e9a3a3;font-size:8.5px}.aod-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.aod-actions form{margin:0}.aod-actions button{min-height:34px;padding:6px 9px;border:1px solid var(--border);border-radius:9px;background:#171b20;color:var(--text);font:inherit;font-size:9.5px;font-weight:850;cursor:pointer}.aod-actions .verify{border-color:rgba(61,213,138,.4);color:#66dda5}.aod-actions .reject{border-color:rgba(232,91,91,.35);color:#e89a9a}
+.aod-empty{padding:20px;border:1px dashed var(--border);border-radius:13px;color:var(--muted);text-align:center;font-size:11px}
+@media(max-width:760px){.aod-summary-grid,.aod-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.aod-head{flex-direction:column}}
+</style>
+{% set s=item.ai_summary or {} %}
+<div class="admin-order-detail">
+  <a class="aod-back" href="{{ url_for('admin.order_requests_admin') }}">← Semua Kilas Order</a>
+  <header class="aod-head">
+    <div><span class="aod-code">{{ item.request_code }}</span><h1>{{ s.brand_model or s.item or 'Request barang' }}</h1><p>Internal procurement view. Source/link ini tidak ditampilkan ke customer.</p></div>
+    <span class="aod-status">{{ item.status_label }}</span>
+  </header>
+
+  <section class="card aod-summary">
+    <div class="aod-request">{{ item.request_text }}</div>
+    <div class="aod-summary-grid">
+      <div><small>Budget</small><strong>{{ s.budget or 'Tidak dibatasi' }}</strong></div>
+      <div><small>Kondisi</small><strong>{{ s.condition or 'UNKNOWN' }}</strong></div>
+      <div><small>Prioritas</small><strong>{{ s.priority or 'Paling relevan' }}</strong></div>
+      <div><small>Lokasi</small><strong>{{ item.location_label or ('GPS' if item.location_source=='gps' else 'Belum dipilih') }}</strong></div>
+    </div>
+  </section>
+
+  <div class="aod-toolbar">
+    <h2>Kandidat ditemukan · {{ candidates|length }}</h2>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="retry_search">
+      <button type="submit">↻ Cari ulang</button>
+    </form>
+  </div>
+
+  {% if candidates %}
+  <div class="aod-candidates">
+    {% for c in candidates %}
+    <article class="aod-candidate {{ 'verified' if c.status=='VERIFIED' else ('rejected' if c.status=='REJECTED' else '') }}">
+      <div class="aod-candidate-head">
+        <div>
+          <h3>#{{ c.rank_no }} · {{ c.product_name }}</h3>
+          <a class="aod-source" href="{{ c.source_url }}" target="_blank" rel="noopener noreferrer">{{ c.source_domain }} · buka sumber asli ↗</a>
+        </div>
+        <div class="aod-price">{{ c.price_text or 'Harga belum jelas' }}</div>
+      </div>
+      <div class="aod-meta">
+        <div><small>Seller</small><strong>{{ c.seller_name or 'Belum jelas' }}</strong></div>
+        <div><small>Kondisi</small><strong>{{ c.condition_text or 'Belum jelas' }}</strong></div>
+        <div><small>Availability</small><strong>{{ c.availability or 'Perlu cek' }}</strong></div>
+        <div><small>Trust</small><strong>{{ c.trust_level }} · {{ c.trust_score }}/100</strong></div>
+      </div>
+      {% if c.match_reason %}<div class="aod-copy"><b>Kecocokan:</b> {{ c.match_reason }}</div>{% endif %}
+      {% if c.trust_reason %}<div class="aod-copy"><b>Trust:</b> {{ c.trust_reason }}</div>{% endif %}
+      {% if c.evidence_text %}<div class="aod-copy"><b>Evidence:</b> {{ c.evidence_text }}</div>{% endif %}
+      {% if c.risk_flags %}<div class="aod-risks">{% for risk in c.risk_flags %}<span class="aod-risk">{{ risk }}</span>{% endfor %}</div>{% endif %}
+      <div class="aod-actions">
+        {% if c.status!='VERIFIED' %}
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="verify_candidate"><input type="hidden" name="candidate_id" value="{{ c.id }}"><button class="verify" type="submit">✓ Verifikasi kandidat</button></form>
+        {% endif %}
+        {% if c.status!='REJECTED' %}
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reject_candidate"><input type="hidden" name="candidate_id" value="{{ c.id }}"><button class="reject" type="submit">Tolak</button></form>
+        {% endif %}
+        {% if c.status!='DISCOVERED' %}
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reset_candidate"><input type="hidden" name="candidate_id" value="{{ c.id }}"><button type="submit">Reset</button></form>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="aod-empty">Belum ada kandidat valid. Gunakan “Cari ulang” untuk menjalankan discovery lagi.</div>
+  {% endif %}
+</div>
+{% endblock %}
