@@ -32,6 +32,9 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .ko-issue-action{margin:0 0 10px;padding:13px;border:1px solid rgba(255,122,26,.32);border-radius:14px;background:rgba(255,122,26,.045)}
 .ko-issue-action strong{display:block;font-size:12px}.ko-issue-action span{display:block;margin-top:4px;color:#8f99a3;font-size:9.5px;line-height:1.45}
 .ko-issue-action button{width:100%;min-height:42px;margin-top:9px;border:1px solid rgba(255,122,26,.55);border-radius:11px;background:rgba(255,122,26,.10);color:#ffae73;font:inherit;font-size:10.5px;font-weight:900;cursor:pointer}
+.ko-whatsapp-action{margin:0 0 10px;padding:13px;border:1px solid rgba(37,211,102,.28);border-radius:14px;background:rgba(37,211,102,.045)}
+.ko-whatsapp-action strong{display:block;font-size:12px}.ko-whatsapp-action span{display:block;margin-top:4px;color:#8f99a3;font-size:9.5px;line-height:1.45}
+.ko-whatsapp-action a{width:100%;min-height:42px;margin-top:9px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border:1px solid rgba(37,211,102,.45);border-radius:11px;background:rgba(37,211,102,.10);color:#8eeab0;text-decoration:none;font-size:10.5px;font-weight:900}
 .ko-searching-row{display:flex;align-items:center;gap:12px}.ko-searching-spinner{width:34px;height:34px;flex:0 0 34px;border:3px solid #313a43;border-top-color:var(--o);border-radius:50%;animation:ko-spin .85s linear infinite}
 .ko-searching-copy strong{display:block;font-size:14px}.ko-searching-copy span{display:block;margin-top:4px;color:#919aa4;font-size:10px;line-height:1.45}
 .ko-searching-steps{display:grid;gap:6px;margin-top:13px}.ko-searching-steps div{display:flex;align-items:center;gap:8px;color:#858f99;font-size:9.5px}.ko-searching-steps i{width:7px;height:7px;border-radius:50%;background:#37424a}.ko-searching-steps div.active{color:#ffad72}.ko-searching-steps div.active i{background:var(--o);box-shadow:0 0 0 4px rgba(255,122,26,.09)}
@@ -53,7 +56,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
     <header class="ko-status-head">
       <span class="ko-status-code">{{ item.request_code }}</span>
-      {% if item.status in ('SEARCH_REQUESTED','SEARCHING') %}
+      {% if item.status == 'WHATSAPP_HANDOFF' %}
+      <h1>Permintaan sudah masuk ke WhatsApp.</h1>
+      <p>Request kamu sudah tersimpan di Kilas. Tim Kilas akan melanjutkan pencarian dan mengabari kamu lewat WhatsApp.</p>
+      {% elif item.status in ('SEARCH_REQUESTED','SEARCHING') %}
       <h1>AI Kilas sedang mencari.</h1>
       <p>Kilas sedang mencari dan menyaring kandidat yang sesuai. Kamu tetap di halaman ini sampai proses selesai.</p>
       {% elif item.status == 'RESULTS_READY' %}
@@ -67,6 +73,14 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       <p>Detail yang sudah dipahami Kilas aman tersimpan dan siap diproses.</p>
       {% endif %}
     </header>
+
+    {% if item.status == 'WHATSAPP_HANDOFF' %}
+    <section class="ko-whatsapp-action">
+      <strong>Lanjutkan lewat WhatsApp Kilas</strong>
+      <span>Kalau tim sedang offline, pesan tetap masuk. Kamu tidak perlu menunggu di halaman ini.</span>
+      <a href="{{ whatsapp_url }}" rel="noopener">Buka WhatsApp Kilas →</a>
+    </section>
+    {% endif %}
 
     {% if item.status in ('SEARCH_REQUESTED','SEARCHING','ISSUE') %}
     {% if item.status == 'ISSUE' %}
@@ -113,7 +127,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Permintaan dipahami</strong><span>AI Buyer sudah merapikan kebutuhan barangmu.</span></div></div>
         <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Request tersimpan</strong><span>Nomor request {{ item.request_code }} sudah dibuat.</span></div></div>
 
-        {% if item.status == 'RESULTS_READY' %}
+        {% if item.status == 'WHATSAPP_HANDOFF' %}
+        <div class="ko-status-step active"><span class="ko-status-dot">3</span><div><strong>Menunggu tim Kilas</strong><span>Request sudah masuk dan komunikasi lanjut dilakukan lewat WhatsApp.</span></div></div>
+        <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Kilas mencari &amp; verifikasi</strong><span>Pilihan barang akan dikabarkan lewat chat WhatsApp kamu.</span></div></div>
+        {% elif item.status == 'RESULTS_READY' %}
         <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Kandidat ditemukan</strong><span>Kilas sudah menemukan kandidat dari pencarian web.</span></div></div>
         <div class="ko-status-step active"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Source, seller, harga, dan risiko sedang diperiksa sebelum ditampilkan.</span></div></div>
         {% elif item.status in ('SEARCH_REQUESTED','SEARCHING') %}
@@ -127,7 +144,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Kandidat akan diperiksa sebelum tampil ke kamu.</span></div></div>
         {% endif %}
       </div>
-      <div class="ko-status-note">Belum ada barang yang dibeli dan belum ada pembayaran pada tahap ini. Link seller, sumber pembelian, dan harga modal hanya tersedia di sisi internal Kilas.</div>
+      <div class="ko-status-note">Belum ada barang yang dibeli dan belum ada pembayaran pada tahap ini. {% if item.status == 'WHATSAPP_HANDOFF' %}Tim Kilas akan mengirim pilihan dan update melalui WhatsApp.{% else %}Link seller, sumber pembelian, dan harga modal hanya tersedia di sisi internal Kilas.{% endif %}</div>
 
     </section>
   </div>
