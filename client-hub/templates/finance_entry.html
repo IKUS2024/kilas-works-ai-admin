@@ -134,9 +134,9 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <img class="finance-entry-logo" src="{{ url_for('static', filename='kilas-logo-login.jpg') }}" alt="Kilas Works">
         <div><strong>Kilas<span>Works</span></strong><small>Kilas Finance</small></div>
       </div>
-      <a class="finance-entry-back" href="{{ url_for('products.product_start') }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        <span>Pilih Produk</span>
+      <a class="finance-entry-back" href="{{ url_for('auth.logout_page') }}" aria-label="Keluar dari Kilas Finance">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg>
+        <span>Keluar</span>
       </a>
     </div>
 
