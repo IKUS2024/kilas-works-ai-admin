@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Kilas Assist · Bisnis{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#0b0d10;color:#f5f6f8}
+body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}
+body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.assist-shell{
+  --as-bg:#0b0d10;--as-panel:#15191f;--as-border:#30363f;--as-muted:#9da4ae;--as-orange:#ff7a1a;
+  --as-green:#38d58a;--as-yellow:#e0b93b;--as-red:#f26d6d;
+  min-height:100svh;box-sizing:border-box;padding:20px 16px 30px;background:
+    radial-gradient(520px 330px at 90% 0%,rgba(255,122,26,.10),transparent 70%),
+    radial-gradient(420px 300px at 0% 100%,rgba(255,122,26,.045),transparent 75%),
+    var(--as-bg)
+}
+.assist-inner{width:min(100%,660px);margin:0 auto}
+.assist-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+.assist-brand{display:flex;align-items:center;gap:11px;min-width:0}
+.assist-logo{width:48px;height:48px;border-radius:14px;display:block;box-shadow:0 10px 28px rgba(255,122,26,.12)}
+.assist-brand strong{display:block;font-size:23px;line-height:1;letter-spacing:-.035em}
+.assist-brand strong span{color:var(--as-orange)}
+.assist-brand small{display:block;margin-top:4px;color:#9ca3ad;font-size:12px}
+.assist-back{
+  flex:0 0 auto;min-height:36px;padding:7px 10px;border:1px solid #3a414a;border-radius:10px;
+  display:inline-flex;align-items:center;gap:6px;color:#d3d7dc;background:#11151a;text-decoration:none;font-size:11px;font-weight:850
+}
+.assist-back:hover{color:#fff;text-decoration:none;border-color:#59616c}
+.assist-back svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+
+.assist-hero{margin:0 2px 20px}
+.assist-kicker{display:inline-flex;align-items:center;gap:7px;color:var(--as-orange);font-size:10px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.assist-kicker-dot{width:7px;height:7px;border-radius:50%;background:var(--as-orange);box-shadow:0 0 0 4px rgba(255,122,26,.09)}
+.assist-hero h1{margin:8px 0 9px;font-size:clamp(30px,7vw,39px);line-height:1.04;letter-spacing:-.05em}
+.assist-hero p{margin:0;color:#aeb4bd;font-size:14px;line-height:1.55}
+
+.assist-list{display:grid;gap:12px}
+.assist-card{
+  border:1px solid var(--as-border);border-radius:20px;padding:17px;background:
+  radial-gradient(200px 140px at 96% 0%,rgba(255,122,26,.08),transparent 72%),
+  linear-gradient(158deg,#181d23,#11151a)
+}
+.assist-card-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:center}
+.assist-icon{
+  width:46px;height:46px;border-radius:14px;display:grid;place-items:center;
+  background:rgba(255,122,26,.11);border:1px solid rgba(255,122,26,.14);color:var(--as-orange)
+}
+.assist-icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.assist-info{min-width:0}
+.assist-name{font-size:18px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.assist-meta{margin-top:4px;color:#8f97a2;font-size:11px}
+.assist-status{
+  flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;
+  background:#252a31;color:#bfc4ca;font-size:9.5px;font-weight:900;white-space:nowrap
+}
+.assist-status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.assist-status.active{background:rgba(56,213,138,.12);color:var(--as-green)}
+.assist-status.warn{background:rgba(224,185,59,.12);color:var(--as-yellow)}
+.assist-status.danger{background:rgba(242,109,109,.10);color:var(--as-red)}
+
+.assist-note{margin:14px 0 0;padding:12px 13px;border:1px solid #2e343c;border-radius:13px;background:#101419;color:#a7aeb7;font-size:11.5px;line-height:1.5}
+.assist-note strong{color:#f0f2f4}
+.assist-actions{display:grid;grid-template-columns:1.15fr .85fr;gap:7px;margin-top:12px}
+.assist-action{
+  min-height:46px;border:1px solid #373e47;border-radius:12px;background:#14181d;color:#eceef0;
+  display:flex;align-items:center;justify-content:center;padding:9px 11px;text-decoration:none;font-size:11.5px;font-weight:900
+}
+.assist-action:hover{text-decoration:none;color:#fff;border-color:#555e69}
+.assist-action.primary{
+  background:linear-gradient(180deg,#ff8229,#ff7415);border-color:#ff8128;color:#17110d;
+  box-shadow:0 8px 20px rgba(255,122,26,.16)
+}
+.assist-sub-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px}
+.assist-sub-actions a{min-height:38px;font-size:10.5px}
+
+.assist-add{
+  min-height:50px;margin-top:13px;border:1px dashed #555d67;border-radius:14px;color:#e6e8eb;
+  display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-size:12px;font-weight:900;background:rgba(255,255,255,.01)
+}
+.assist-add:hover{border-color:var(--as-orange);color:var(--as-orange);text-decoration:none}
+
+.assist-form-card{
+  border:1px solid rgba(255,122,26,.55);border-radius:21px;padding:19px;background:
+  radial-gradient(220px 150px at 95% 0%,rgba(255,122,26,.10),transparent 72%),
+  linear-gradient(155deg,#181d24,#11151a)
+}
+.assist-form-icon{
+  width:50px;height:50px;border-radius:15px;display:grid;place-items:center;margin-bottom:15px;
+  background:rgba(255,122,26,.11);border:1px solid rgba(255,122,26,.16);color:var(--as-orange)
+}
+.assist-form-icon svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.9}
+.assist-form-card h2{margin:0 0 8px;font-size:23px;letter-spacing:-.04em}
+.assist-form-card p{margin:0 0 17px;color:#aeb4bd;font-size:12.5px;line-height:1.55}
+.assist-form label{display:block;margin:0 0 8px;color:#f1f3f5;font-size:13px;font-weight:850}
+.assist-form input{
+  min-height:54px;border-radius:14px!important;background:#0e1217!important;border:1px solid #3a414b!important;
+  color:#fff!important;font-size:15px;padding:0 15px!important
+}
+.assist-form input:focus{border-color:rgba(255,122,26,.78)!important;box-shadow:0 0 0 3px rgba(255,122,26,.09)}
+.assist-submit{
+  width:100%;min-height:52px!important;margin-top:16px;border-radius:14px!important;
+  background:linear-gradient(180deg,#ff8229,#ff7415)!important;color:#17110d!important;font-size:14px!important;font-weight:900!important
+}
+.assist-form-foot{margin:11px 0 0;color:#858e98;font-size:10.5px;line-height:1.45}
+
+@media(max-width:520px){
+  .assist-shell{padding:18px 14px 24px}
+  .assist-logo{width:45px;height:45px}.assist-brand strong{font-size:22px}.assist-brand small{font-size:11.5px}
+  .assist-back{padding:7px 9px;font-size:10.5px}
+  .assist-hero h1{font-size:30px}.assist-hero p{font-size:13px}
+  .assist-card{padding:15px;border-radius:18px}
+  .assist-card-head{grid-template-columns:auto minmax(0,1fr)}.assist-status{grid-column:2;justify-self:start}
+  .assist-name{font-size:17px}
+}
+</style>
+
+<div class="assist-shell">
+  <div class="assist-inner">
+    <div class="assist-top">
+      <div class="assist-brand">
+        <img class="assist-logo" src="{{ url_for('static', filename='kilas-logo-login.jpg') }}" alt="Kilas Works">
+        <div><strong>Kilas<span>Works</span></strong><small>Kilas Assist</small></div>
+      </div>
+      <a class="assist-back" href="{{ url_for('products.product_start') }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        <span>Pilih Produk</span>
+      </a>
+    </div>
+
+    {% if show_business_form %}
+      <header class="assist-hero">
+        <span class="assist-kicker"><span class="assist-kicker-dot"></span>Kilas Assist</span>
+        <h1>Buat bisnis Kilas Assist</h1>
+        <p>Bisnis ini khusus untuk AI Admin WhatsApp, customer, leads, follow-up, booking, dan alur sales. Data Finance tidak dipakai di sini.</p>
+      </header>
+
+      <section class="assist-form-card">
+        <div class="assist-form-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>
+        </div>
+        <h2>Nama bisnis</h2>
+        <p>Setelah bisnis dibuat, kamu lanjut mengisi data yang dibutuhkan Kilas Assist. Finance tetap menjadi produk terpisah.</p>
+        <form method="post" class="assist-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="create">
+          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+          <label for="assist-business-name">Nama bisnis</label>
+          <input id="assist-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
+          <button class="btn assist-submit" type="submit">Buat Bisnis &amp; Setup Kilas Assist →</button>
+        </form>
+        <p class="assist-form-foot">Membuat bisnis Kilas Assist tidak membuat bisnis Finance dan tidak menggabungkan data keduanya.</p>
+      </section>
+
+      {% if businesses %}
+        <a class="assist-add" href="{{ url_for('products.assist_entry') }}">← Kembali ke Bisnis Kilas Assist</a>
+      {% endif %}
+
+    {% else %}
+      <header class="assist-hero">
+        <span class="assist-kicker"><span class="assist-kicker-dot"></span>Kilas Assist</span>
+        <h1>Bisnis Kilas Assist kamu</h1>
+        <p>Semua data di halaman ini khusus Kilas Assist. Bisnis dan data Kilas Finance tidak ditampilkan atau dipakai di sini.</p>
+      </header>
+
+      <div class="assist-list">
+        {% for b in businesses %}
+          <article class="assist-card">
+            <div class="assist-card-head">
+              <div class="assist-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>
+              </div>
+              <div class="assist-info">
+                <div class="assist-name">{{ b.business_name }}</div>
+                <div class="assist-meta">Kilas Assist{% if b.assist_missing and b.status!='ACTIVE' %} · {{ b.assist_missing|length }} data perlu dilengkapi{% endif %}</div>
+              </div>
+              {% if b.assist_missing and b.status!='ACTIVE' %}
+                <span class="assist-status warn">Data belum lengkap</span>
+              {% elif b.assist_review_pending %}
+                <span class="assist-status warn">Menunggu review</span>
+              {% elif b.status=='ACTIVE' %}
+                <span class="assist-status active">Aktif</span>
+              {% elif b.status in ('NEEDS_REVISION','SUSPENDED') %}
+                <span class="assist-status danger">{{ b.status|humanize_status('business') }}</span>
+              {% else %}
+                <span class="assist-status">{{ 'Sedang ditinjau' if b.status=='READY_FOR_REVIEW' else ('Review disetujui' if b.status=='APPROVED' else (b.status|humanize_status('business'))) }}</span>
+              {% endif %}
+            </div>
+
+            {% if b.assist_missing and b.status!='ACTIVE' %}
+              <div class="assist-note"><strong>Lengkapi:</strong> {{ b.assist_missing_labels|join(', ') }}.</div>
+            {% elif b.status=='ACTIVE' %}
+              <div class="assist-note">Kilas Assist aktif dan siap dipakai untuk WhatsApp dan customer flow bisnis ini.</div>
+            {% elif b.status=='READY_FOR_REVIEW' %}
+              <div class="assist-note">Setup sudah dikirim dan sedang direview oleh tim Kilas Works.</div>
+            {% elif b.status=='APPROVED' and not b.assist_payment_verified %}
+              <div class="assist-note">Setup sudah disetujui. Lanjutkan pembayaran sebelum menghubungkan WhatsApp.</div>
+            {% endif %}
+
+            <div class="assist-actions">
+              {% if b.assist_missing and b.status!='ACTIVE' %}
+                <a class="assist-action primary" href="{{ url_for('client.wizard_step',business_id=b.id,step=b.assist_fix_step or 'basics') }}">Lengkapi Data</a>
+                <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
+              {% elif b.status=='ACTIVE' %}
+                <a class="assist-action primary" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Kilas Assist</a>
+                <a class="assist-action" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Edit Data</a>
+              {% elif b.status=='APPROVED' and b.assist_payment_verified %}
+                <a class="assist-action primary" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">Hubungkan WhatsApp</a>
+                <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
+              {% elif b.status=='APPROVED' %}
+                <a class="assist-action primary" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">Pembayaran</a>
+                <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
+              {% elif b.status=='READY_FOR_REVIEW' %}
+                <a class="assist-action primary" href="{{ url_for('client.review_page',business_id=b.id) }}">Status Review</a>
+                <a class="assist-action" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Edit Data</a>
+              {% else %}
+                <a class="assist-action primary" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Lanjut Setup</a>
+                <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
+              {% endif %}
+            </div>
+
+            {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
+              <div class="assist-sub-actions">
+                <a class="assist-action" href="{{ url_for('client.business_memory',business_id=b.id) }}">Pengetahuan</a>
+                <a class="assist-action" href="{{ url_for('client.simulate_page',business_id=b.id) }}">Simulasi</a>
+              </div>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+
+      <a class="assist-add" href="{{ url_for('products.assist_entry',step='business') }}">＋ Tambah Bisnis Kilas Assist</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
