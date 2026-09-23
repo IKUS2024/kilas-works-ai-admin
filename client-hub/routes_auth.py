@@ -54,15 +54,35 @@ def _oauth_callback_url(provider):
     return base + path if base else url_for("auth.oauth_callback", provider=provider, _external=True)
 
 
-def _oauth_finish_login(email, full_name, provider):
-    """Login/create a CLIENT_OWNER by provider-verified email without touching tenant/business data."""
+def _oauth_finish_login(email, full_name, provider, provider_subject=None):
+    """Login/create a CLIENT_OWNER from a provider-verified identity.
+
+    Provider subject is the durable login key. Email remains the account's editable primary email.
+    """
     email = (email or "").strip().lower()
     full_name = (full_name or "").strip()[:100]
+    provider = (provider or "").strip().lower()
+    provider_subject = (provider_subject or "").strip()
     if not EMAIL_RE.match(email):
         raise ValueError("oauth_email_missing")
 
-    user = repo.get_user_by_email(email)
+    user = None
+    if provider_subject:
+        identity = repo.get_oauth_identity(provider, provider_subject)
+        if identity:
+            user = repo.get_user_by_id(identity["user_id"])
+
     created = False
+    alias_used = False
+    if user is None:
+        user = repo.get_user_by_email(email)
+
+    if user is None:
+        alias = repo.get_valid_oauth_email_alias(provider, email, _now_iso())
+        if alias:
+            user = repo.get_user_by_id(alias["user_id"])
+            alias_used = bool(user)
+
     if user is None:
         # Social-login accounts still receive a random unusable password hash so the legacy
         # NOT-NULL users.password_hash contract remains untouched. The owner can later use the
@@ -80,6 +100,11 @@ def _oauth_finish_login(email, full_name, provider):
     # Keep admin access on the stricter password-only path. Social OAuth is customer-facing.
     if user["role"] == "KILAS_ADMIN":
         raise PermissionError("admin_oauth_disabled")
+
+    if provider_subject:
+        repo.link_oauth_identity(provider, provider_subject, user["id"], email)
+        if alias_used:
+            repo.delete_oauth_email_alias(provider, email)
 
     security.login_user(user)
     repo.write_audit_no_business(
@@ -182,8 +207,9 @@ def oauth_callback(provider):
             raise ValueError("google_email_not_verified")
         email = profile.get("email")
         name = profile.get("name")
+        provider_subject = profile.get("sub")
 
-        return _oauth_finish_login(email, name, provider)
+        return _oauth_finish_login(email, name, provider, provider_subject)
     except PermissionError:
         flash("Akun admin Kilas tetap harus login menggunakan email & password.", "error")
     except Exception as exc:
@@ -440,6 +466,13 @@ def account_page():
             return _account_personal_redirect()
 
         old_email = user["email"]
+        # Existing Google-login users created before durable OAuth identities were added get a
+        # short-lived bridge alias. Their next successful Google login binds the provider subject
+        # permanently and removes this alias.
+        repo.preserve_oauth_email_alias_if_needed(
+            user["id"], "google", old_email,
+            (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        )
         repo.update_user_email(user["id"], new_email)
         repo.invalidate_all_reset_tokens_for_user(user["id"], _now_iso())
         session.pop("_email_change", None)
