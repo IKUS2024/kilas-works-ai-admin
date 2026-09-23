@@ -80,14 +80,18 @@ def configuration():
 
 
 
-def record_usage(model, response_body, business_id, classification='normal'):
+def record_usage(model, response_body, business_id, classification='normal', context='finance_ai'):
     """Best-effort Finance AI usage accounting; never changes Finance behavior."""
     if type(business_id) is not int or business_id <= 0:
         return False
+    allowed = frozenset(('finance_ai','finance_chat','finance_receipt','finance_bank',
+                         'finance_document','finance_analyst','finance_operator'))
+    if context not in allowed:
+        context = 'finance_ai'
     try:
         import ai_usage
         return ai_usage.record(model, response_body, tenant_id=business_id,
-                               context='finance_ai', classification=classification)
+                               context=context, classification=classification)
     except Exception:
         _LOG.warning('FINANCE_AI usage_accounting_failed')
         return False
