@@ -143,7 +143,7 @@ def resolve(business_id, user_id, action, fields, *, draft):
     return preview
 
 
-def interpret(action, question, currency):
+def interpret(action, question, currency, business_id=None):
     try: key,model=safety.configuration()
     except ValueError: raise OperatorError('not_configured') from None
     try:
@@ -153,7 +153,9 @@ def interpret(action, question, currency):
                   'messages':[{'role':'user','content':json.dumps({'selected_action':action,'request':question},ensure_ascii=False)}]},
             timeout=(5,25),allow_redirects=False)
         if response.status_code!=200: raise OperatorError('upstream_failure')
-        result=safety.json_object(safety.response_text(response.json(),4000))
+        body=response.json()
+        safety.record_usage(model,body,business_id,'normal')
+        result=safety.json_object(safety.response_text(body,4000))
         if not isinstance(result,dict) or set(result)!={'action','amount_text','description'} or result['action']!=action:
             raise OperatorError('unsupported_or_missing')
         amount=text(result['amount_text'],60);description=text(result['description'],500)
@@ -197,7 +199,7 @@ def prepare(business_id,user_id,payload):
     # Validate scope/references BEFORE sending any user text to the model.
     resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)
     __import__("finance_entitlements").require_ai(business_id,user_id,"OPERATOR")
-    fields.update(interpret(action,question,fields['currency']))
+    fields.update(interpret(action,question,fields['currency'],business_id))
     return prepare_fields(business_id, user_id, action, fields)
 
 
