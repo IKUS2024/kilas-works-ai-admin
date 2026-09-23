@@ -24,7 +24,7 @@ QUERY_TTL = 7200
 AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)\b|(?:US\$|S\$|A\$|HK\$|€|£|¥|฿)\s*\d+(?:[.,]\d+)*|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
 BARE_AMOUNT = re.compile(r'(?<![\w.,+−-])\d{4,}(?![\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
-          'customer':'Customer baru','recurring':'Tagihan rutin','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
+          'customer':'Customer baru','recurring':'Tagihan','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
 
 
 def authorize(b, u, capability=None, write=True):
