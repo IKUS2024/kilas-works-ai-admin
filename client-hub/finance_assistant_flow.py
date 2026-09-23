@@ -368,6 +368,8 @@ def review(b,u,context,edits=None):
         if result['ready']:result['token']=seal(b,u,'confirm',context)
     else:
         currency=values['currency']
+        if action=='recurring' and not currency:
+            currency=values['currency']='IDR'
         if currency and currency not in f.SUPPORTED_CURRENCIES:raise ValueError('currency')
         if action=='record_invoice_payment' and not values.get('invoice_id'):
             available=f.operator_invoice_choices(b,actor_user_id=u)
@@ -380,11 +382,24 @@ def review(b,u,context,edits=None):
             if len(matched)==1:
                 values['invoice_id']=str(matched[0]['id'])
                 if not currency:currency=values['currency']=matched[0]['currency']
-        accounts,chosen=account_options(b,u,text,currency)
-        if not values['account_id'] and chosen and 'account_id' not in stale and context.get('awaiting')!='account_id':values['account_id']=str(chosen['id'])
-        account=next((a for a in accounts if str(a['id'])==values['account_id']),None)
-        if values['account_id'] and not account:raise ValueError('account_unavailable')
-        if not currency and account:currency=values['currency']=account['currency']
+
+        if action=='recurring':
+            # Tagihan is a payable commitment. Match the visible Tagihan form: users choose
+            # currency now, while the real payment account is chosen only when marking it paid.
+            accounts=[
+                a for a in f.list_accounts(b,actor_user_id=u)
+                if a['is_active'] and a['currency']==currency
+            ]
+            account=accounts[0] if accounts else None
+            values['account_id']=str(account['id']) if account else ''
+            stale=[key for key in stale if key!='account_id']
+            if context.get('awaiting')=='account_id':context.pop('awaiting',None)
+        else:
+            accounts,chosen=account_options(b,u,text,currency)
+            if not values['account_id'] and chosen and 'account_id' not in stale and context.get('awaiting')!='account_id':values['account_id']=str(chosen['id'])
+            account=next((a for a in accounts if str(a['id'])==values['account_id']),None)
+            if values['account_id'] and not account:raise ValueError('account_unavailable')
+            if not currency and account:currency=values['currency']=account['currency']
         direction='INCOME' if action in ('create_income','record_invoice_payment') else 'EXPENSE'
         categories=f.list_categories(b,direction,include_children=True,actor_user_id=u)
         if not values['category_id'] and edits is None and 'category_id' not in stale and context.get('awaiting')!='category_id':values['category_id']=str(category_choice(categories,text or values.get('description','')) or '')
@@ -424,17 +439,22 @@ def review(b,u,context,edits=None):
 
         if action=='recurring':
             form.extend([
-                field('name','Nama',values['name']),
-                field('account_id','Kas / Rekening',values['account_id'],[dict(value=str(a['id']),label=a['name']+' · '+a['currency']) for a in accounts]),
+                field('name','Nama Tagihan',values['name']),
+                field('currency','Mata uang',currency,[dict(value=code,label=code) for code in f.SUPPORTED_CURRENCIES]),
                 field('amount','Nominal',values['amount']),
-                field('currency','Mata uang',currency,[dict(value=code,label=code) for code in f.SUPPORTED_CURRENCIES],required=False),
-                field('category_id','Kategori pengeluaran',values['category_id'],pick_options(categories)),
-                field('cadence','Frekuensi',values['cadence'],[dict(value='MONTHLY',label='Bulanan'),dict(value='WEEKLY',label='Mingguan')]),
-                field('date','Jatuh tempo pertama',values['date'],kind='date'),
+                field('category_id','Kategori',values['category_id'],pick_options(categories)),
+                field('date','Jatuh Tempo',values['date'],kind='date'),
+                field('cadence','Frekuensi',values['cadence'],[
+                    dict(value='ONCE',label='Sekali'),
+                    dict(value='WEEKLY',label='Mingguan'),
+                    dict(value='MONTHLY',label='Bulanan')
+                ]),
                 field('end_on','Berakhir',values['end_on'],kind='date',required=False),
+                field('counterparty_name','Penerima / Vendor',values.get('counterparty_name',''),required=False),
+                field('description','Detail tambahan',values['description'],required=False),
                 field('project_id','Proyek',values.get('project_id',''),[dict(value=str(p['id']),label=p['title']) for p in projects],required=False),
-                field('counterparty_name','Vendor / penerima',values.get('counterparty_name',''),required=False),
-                field('description','Deskripsi',values['description'],required=False)
+                # Internal schema placeholder only; not shown as a user decision.
+                field('account_id','Akun internal',values['account_id'],required=False)
             ])
         else:
             form.extend([
@@ -454,22 +474,28 @@ def review(b,u,context,edits=None):
             if action=='receipt':
                 form.append(field('merchant_name','Merchant',values['merchant_name'],required=False))
 
-        if not account:result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
-        elif not category:result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
-        elif action=='recurring' and not values.get('cadence'):
-            result['message']='Tagihan ini mau berulang seberapa sering? Pilih Bulanan atau Mingguan.'
-        elif not values['date']:
-            result['message']='Mulai kapan tagihan ini berlaku? Tulis misalnya “hari ini”, “tanggal 25”, atau tanggal lengkap.'
+        if action=='recurring' and not account:
+            result['message']='Belum ada akun aktif untuk mata uang '+currency+'. Tambahkan akun '+currency+' dulu agar Tagihan bisa disimpan.'
+        elif not account:result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif action=='recurring' and not values.get('name','').strip():
             result['message']='Nama tagihannya apa?'
+        elif not values['amount']:
+            result['message']='Nominal tagihannya berapa?'
+        elif not category:
+            result['message']='Tagihan ini masuk kategori apa?'
+        elif not values['date']:
+            result['message']='Jatuh temponya kapan?'
+        elif action=='recurring' and not values.get('cadence'):
+            result['message']='Frekuensinya sekali, mingguan, atau bulanan?'
         elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
         elif not values['amount']:result['message']='Nominal belum jelas. Lengkapi nominal pada review.'
         else:
             amount=minor(values['amount'],currency)
             f._date(values['date'])
             if action=='recurring':
-                prepared=recurring.prepare(b,u,dict(name=values['name'],amount_text=values['amount'],cadence=values['cadence'],
-                    next_due_on=values['date'],end_on=values['end_on'] or None,account_id=account['id'],category_id=category['id'],
+                prepared=recurring.prepare(b,u,dict(name=values['name'],amount_text=values['amount'],currency=currency,
+                    cadence=values['cadence'],next_due_on=values['date'],end_on=values['end_on'] or None,
+                    account_id=account['id'],category_id=category['id'],
                     project_id=values.get('project_id') or None,counterparty_name=values.get('counterparty_name') or None,
                     description=values.get('description') or None))
             elif action=='receipt':
@@ -494,15 +520,16 @@ def review(b,u,context,edits=None):
         result['hint']='Mau koreksi? Tulis bagian yang perlu diubah di chat. Balas “oke” untuk menyimpan atau “batal” untuk membatalkan.'
     else:
         order=(['amount','account_id','category_id','date'] if action in ('create_income','create_expense') else
-               ['cadence','date','account_id','category_id','amount','name'] if action=='recurring' else
+               ['name','amount','category_id','date','cadence'] if action=='recurring' else
                ['invoice_id','account_id','category_id','amount','date'])
         missing=next((r for key in order for r in form if r['key']==key and r['required'] and not r['value']),None)
         if missing:
             result['next_field']=missing['key']
-            questions={'cadence':'Tagihan ini mau berulang seberapa sering? Bulanan atau Mingguan?',
-                       'date':'Mulai kapan tagihan ini berlaku?' if action=='recurring' else 'Tanggal transaksinya kapan?',
+            questions={'cadence':'Frekuensinya sekali, mingguan, atau bulanan?',
+                       'date':'Jatuh temponya kapan?' if action=='recurring' else 'Tanggal transaksinya kapan?',
                        'account_id':result['message'] if 'rekening mana' in result['message'] else 'Mau dicatat ke rekening mana?',
-                       'category_id':'Kategori apa yang sesuai?', 'amount':'Nominalnya berapa?',
+                       'category_id':'Tagihan ini masuk kategori apa?' if action=='recurring' else 'Kategori apa yang sesuai?',
+                       'amount':'Nominal tagihannya berapa?' if action=='recurring' else 'Nominalnya berapa?',
                        'invoice_id':'Invoice mana yang dibayar?','name':'Nama tagihannya apa?'}
             result['message']=questions[missing['key']]
     if action=='customer':
