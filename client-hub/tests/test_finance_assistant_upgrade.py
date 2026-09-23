@@ -147,6 +147,11 @@ class UpgradeTests(unittest.TestCase):
         draft=self.propose('buat biaya internet 500 ribu dari Kas kategori Internet bulanan mulai tanggal 10','recurring',slots)
         self.assertTrue(draft['ready'],draft)
         self.assertEqual(self.fields(draft)['name'],'internet')
+        self.http.reset_mock()
+        draft=self.edit(draft,'ubah jadi 550 ribu',{'amount':'550 ribu'},intent='edit_recurring')
+        self.assertEqual(self.fields(draft)['amount'],'550 ribu')
+        self.assertTrue(draft['ready'],draft)
+        self.http.assert_not_called()
 
     def test_recurring_edit_uses_existing_rule_without_posting(self):
         rid=f.create_recurring_expense(self.b,'Internet',50000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)

@@ -498,6 +498,12 @@ def exact_updates(message,context,current):
     # Free text may be a question, a labelled name, or a compound item/price.
     # Leave it to the semantic boundary instead of copying the whole sentence.
     if re.search(r'[?]|\b(berapa|brp|siapa|apa|bisa|tolong|nama(?:nya)?|customernya)\b',raw,re.I):return {}
+    # A unit-bearing correction without a named target belongs to the active
+    # single-amount draft. Never reinterpret it as editing a persisted record.
+    if 'amount' in context['values'] and not any(k!='amount' and k.endswith('_amount') for k in context['values']):
+        correction=re.fullmatch(r'(?:(?:ubah|ganti|koreksi)(?:\s+nominal(?:nya)?)?\s+(?:(?:jadi|ke)\s+)?|(?:eh|maksudnya)\s+)?(.+)',raw,re.I)
+        amount=correction[1].strip() if correction else ''
+        if flow.AMOUNT.fullmatch(amount):return {'amount':amount}
     matches=[]
     for field in current['fields']:
         for option in field.get('options',[]):
