@@ -51,7 +51,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
   box-shadow:0 8px 20px rgba(255,122,26,.18)
 }
 @media(min-width:760px){
-  .product-start-stack{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .product-start-stack{grid-template-columns:repeat(2,minmax(0,1fr))}
   .product-tile{min-height:250px;grid-template-columns:1fr;grid-template-rows:128px auto 46px;gap:12px;text-align:center}
   .product-tile-art{width:100%;height:128px}
   .product-tile-arrow{justify-self:center}
@@ -112,6 +112,29 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <button class="product-tile" type="submit">
           <span class="product-tile-art"><img src="data:image/webp;base64,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" alt=""></span>
           <span class="product-tile-copy"><h2>Kilas Assist</h2><p>AI untuk customer, leads, dan follow-up.</p></span>
+          <span class="product-tile-arrow" aria-hidden="true">→</span>
+        </button>
+      </form>
+
+      <form class="product-tile-form" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="product" value="order">
+        <button class="product-tile order" type="submit">
+          <span class="product-tile-art" aria-hidden="true" style="background:radial-gradient(circle at 68% 28%,rgba(255,122,26,.26),transparent 34%),linear-gradient(150deg,#25190f,#11151a)">
+            <svg viewBox="0 0 160 120" width="100%" height="100%" role="img" aria-label="">
+              <defs>
+                <linearGradient id="orderBox" x1="0" x2="1"><stop stop-color="#ff9a4d"/><stop offset="1" stop-color="#ff7415"/></linearGradient>
+                <linearGradient id="orderDark" x1="0" x2="1"><stop stop-color="#3a2b21"/><stop offset="1" stop-color="#171a1f"/></linearGradient>
+              </defs>
+              <rect x="24" y="25" width="91" height="70" rx="15" fill="url(#orderDark)" stroke="#5c4431"/>
+              <path d="M36 47 70 31l34 16-34 17-34-17Z" fill="url(#orderBox)"/>
+              <path d="M36 47v30l34 17V64L36 47Zm68 0v30L70 94V64l34-17Z" fill="#d95d0b" opacity=".92"/>
+              <circle cx="112" cy="78" r="22" fill="#11161b" stroke="#ff7a1a" stroke-width="4"/>
+              <path d="m128 94 14 14" stroke="#ff7a1a" stroke-width="7" stroke-linecap="round"/>
+              <circle cx="112" cy="78" r="9" fill="none" stroke="#f5f6f8" stroke-width="3"/>
+            </svg>
+          </span>
+          <span class="product-tile-copy"><h2>Kilas Order</h2><p>Cari barang. Kilas bantu sampai tiba.</p></span>
           <span class="product-tile-arrow" aria-hidden="true">→</span>
         </button>
       </form>
