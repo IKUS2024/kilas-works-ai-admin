@@ -156,3 +156,69 @@ body:has(.finance-dashboard-page) .finance-exit-bar,body:has(.finance-dashboard-
   .finance-budget-chart-meta>span{min-width:0}
   .finance-budget-chart-meta strong{overflow-wrap:anywhere}
 }
+
+
+/* KPI card polish: consistent spacing and visual weight for Pemasukan/Pengeluaran
+   and the neighboring summary cards. */
+.finance-dashboard-page .finance-metric:not(.finance-budget-metric){
+  justify-content:space-between;
+  min-height:118px;
+  padding:14px 15px 15px;
+  border-radius:12px;
+  box-shadow:none
+}
+.finance-dashboard-page .finance-metric:not(.finance-budget-metric) .finance-metric-label{
+  align-items:center;
+  gap:9px;
+  min-height:34px;
+  font-size:11.5px;
+  font-weight:650
+}
+.finance-dashboard-page .finance-metric:not(.finance-budget-metric) .finance-metric-label .fd-icon{
+  width:22px;
+  height:22px;
+  padding:5px;
+  border-radius:10px;
+  box-sizing:content-box;
+  background:rgba(127,127,127,.06)
+}
+.finance-dashboard-page .finance-metric.income .finance-metric-label .fd-icon{
+  background:color-mix(in srgb,var(--green) 10%,transparent)
+}
+.finance-dashboard-page .finance-metric.expense .finance-metric-label .fd-icon{
+  background:color-mix(in srgb,var(--red) 10%,transparent)
+}
+.finance-dashboard-page .finance-metric:not(.finance-budget-metric)>strong{
+  margin-top:16px;
+  font-size:clamp(20px,4.8vw,26px)!important;
+  line-height:1.05;
+  letter-spacing:-.045em;
+  white-space:nowrap
+}
+.finance-dashboard-page .finance-metric:not(.finance-budget-metric) .finance-kpi-change{
+  position:absolute;
+  right:12px;
+  bottom:11px;
+  margin:0;
+  font-size:9px
+}
+@media(max-width:760px){
+  .finance-dashboard-page .finance-metric:not(.finance-budget-metric){
+    min-height:112px;
+    padding:12px 13px 13px
+  }
+  .finance-dashboard-page .finance-metric:not(.finance-budget-metric) .finance-metric-label{
+    min-height:32px;
+    font-size:11px
+  }
+  .finance-dashboard-page .finance-metric:not(.finance-budget-metric)>strong{
+    margin-top:14px;
+    font-size:clamp(18px,4.7vw,22px)!important
+  }
+}
+@media(max-width:390px){
+  .finance-dashboard-page .finance-metric:not(.finance-budget-metric)>strong{
+    font-size:17px!important;
+    letter-spacing:-.055em
+  }
+}
