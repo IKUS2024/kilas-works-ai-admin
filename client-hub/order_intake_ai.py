@@ -88,7 +88,7 @@ def _validate(value):
     expected = {"item", "category", "brand_model", "budget", "condition", "variant", "priority", "notes"}
     if not isinstance(summary, dict) or set(summary) != expected:
         raise ValueError("invalid_summary")
-    clean = {k: _clean(summary.get(k), 300 if k == "notes" else 160) for k in expected}
+    clean = {k: _clean(summary.get(k), 180 if k == "notes" else 120) for k in expected}
     if clean["condition"] not in ("NEW", "USED", "FLEXIBLE", "UNKNOWN"):
         raise ValueError("invalid_condition")
     ready = value.get("ready")
@@ -96,7 +96,7 @@ def _validate(value):
         raise ValueError("invalid_ready")
     question = value.get("question")
     if question is not None:
-        question = _clean(question, 300)
+        question = _clean(question, 240)
         if not question:
             question = None
     key = value.get("question_key")
