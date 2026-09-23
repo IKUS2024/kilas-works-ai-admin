@@ -113,6 +113,25 @@ def unavailable(error):
     return render_template('product_error.html'),503
 
 
+@products_bp.route('/products/start',methods=['GET','POST'])
+@security.login_required
+def product_start():
+    user=security.current_user()
+    if request.method=='POST':
+        choice=(request.form.get('product') or '').strip().lower()
+        if choice=='finance':
+            session['product_intent']='finance'
+            return redirect(url_for('products.continue_product'),code=303)
+        if choice=='assist':
+            session['product_intent']='brain'
+            return redirect(url_for('products.continue_product'),code=303)
+        if choice=='services':
+            session.pop('product_intent',None)
+            return redirect(url_for('products.index'),code=303)
+        abort(400)
+    return render_template('product_start.html',user=user)
+
+
 @products_bp.route('/products')
 def index():
     return render_template('products.html',brain=BRAIN_PLAN,finance_plan=FINANCE_PLAN,items=catalog_service.list_active_catalog(),
