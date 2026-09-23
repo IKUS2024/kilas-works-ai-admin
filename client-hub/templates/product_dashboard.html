@@ -183,28 +183,6 @@ body.customer-ui>footer{display:none}
     </nav>
   </header>
 
-  {% if owned_products %}
-  <section class="kh-owner-box">
-    <div class="kh-section-kicker">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg>
-      <span>Akun Pemilik</span>
-    </div>
-
-    {% if owned_products|length > 1 %}
-    <nav class="product-switcher" aria-label="Produk aktif">
-      <a class="{{ 'active' if active_product=='finance' else '' }}" href="{{ url_for('client.dashboard',product='finance') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 20V10M12 20V4M19 20v-7"/><path d="M3 20h18"/></svg>
-        Kilas Finance
-      </a>
-      <a class="{{ 'active' if active_product=='brain' else '' }}" href="{{ url_for('client.dashboard',product='brain') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9.5 4A3.5 3.5 0 0 0 6 7.5c0 .5.1 1 .3 1.4A4 4 0 0 0 7 16.8V18a2 2 0 0 0 2 2h2V4z"/><path d="M14.5 4A3.5 3.5 0 0 1 18 7.5c0 .5-.1 1-.3 1.4A4 4 0 0 1 17 16.8V18a2 2 0 0 1-2 2h-2V4z"/></svg>
-        AI Admin
-      </a>
-    </nav>
-    {% endif %}
-  </section>
-  {% endif %}
-
   {% if active_product == 'finance' %}
   <section class="kh-product-panel">
     <div class="kh-product-heading">
@@ -267,7 +245,7 @@ body.customer-ui>footer{display:none}
       <div class="kh-product-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9.5 4A3.5 3.5 0 0 0 6 7.5c0 .5.1 1 .3 1.4A4 4 0 0 0 7 16.8V18a2 2 0 0 0 2 2h2V4z"/><path d="M14.5 4A3.5 3.5 0 0 1 18 7.5c0 .5-.1 1-.3 1.4A4 4 0 0 1 17 16.8V18a2 2 0 0 1-2 2h-2V4z"/></svg>
       </div>
-      <div class="kh-product-title"><h2>AI Admin</h2><p>Kilas Brain · customer service AI</p></div>
+      <div class="kh-product-title"><h2>Kilas Assist</h2><p>AI Admin WhatsApp · customer &amp; sales</p></div>
       <div class="kh-product-count"><span>{{ brain_businesses|length }} bisnis</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg></div>
     </div>
 
@@ -300,7 +278,7 @@ body.customer-ui>footer{display:none}
         {% if b.brain_required_missing and b.status!='ACTIVE' %}
           <p class="kh-brain-note">Lengkapi {{ b.brain_required_missing_labels|join(', ') }} sebelum aktivasi dilanjutkan.</p>
         {% elif b.status=='ACTIVE' %}
-          <p class="kh-brain-note">AI Admin aktif dan siap membantu customer melalui WhatsApp.</p>
+          <p class="kh-brain-note">Kilas Assist aktif dan siap membantu customer melalui WhatsApp.</p>
         {% elif b.status=='READY_FOR_REVIEW' %}
           <p class="kh-brain-note">Setup sudah dikirim dan sedang direview.</p>
         {% endif %}
@@ -344,7 +322,7 @@ body.customer-ui>footer{display:none}
     <form method="post" action="{{ url_for('products.select') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="product" value="brain">
-      <button class="kh-add-business" type="submit">＋&nbsp; Tambah Bisnis AI Admin</button>
+      <button class="kh-add-business" type="submit">＋&nbsp; Tambah Bisnis Kilas Assist</button>
     </form>
   </section>
 
