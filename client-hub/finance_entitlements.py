@@ -14,6 +14,13 @@ def self_service():
     return os.environ.get('KILAS_FINANCE_ACCESS_MODE', 'internal_beta') == 'self_service'
 
 
+def unlimited_trial_mode():
+    """Temporary testing mode: every Finance trial stays active with no expiry.
+    Controlled by Render env so production billing can be restored without a code change.
+    """
+    return flag('KILAS_FINANCE_UNLIMITED_TRIAL')
+
+
 def now():
     return datetime.now(timezone.utc)
 
@@ -34,10 +41,21 @@ def state(business_id):
     current = now()
     paid = parse(row['paid_until']) if row else None
     trial = parse(row['trial_until']) if row else None
-    status = 'PAID_ACTIVE' if paid and current < paid else ('TRIAL_ACTIVE' if trial and current < trial else ('EXPIRED' if row else 'NOT_ACTIVATED'))
-    end = paid if status == 'PAID_ACTIVE' else trial if status == 'TRIAL_ACTIVE' else max([x for x in (paid,trial) if x], default=None)
-    return dict(status=status, active=status in ('PAID_ACTIVE','TRIAL_ACTIVE'), trial_used=bool(row and row['trial_started_at']),
-                until=end.isoformat() if end else None, until_local=end.astimezone(ZoneInfo('Asia/Jakarta')).strftime('%d/%m/%Y %H:%M WIB') if end else None)
+    unlimited = bool(row and row['trial_started_at'] and unlimited_trial_mode())
+    status = (
+        'PAID_ACTIVE' if paid and current < paid
+        else 'TRIAL_ACTIVE' if unlimited or (trial and current < trial)
+        else ('EXPIRED' if row else 'NOT_ACTIVATED')
+    )
+    end = paid if status == 'PAID_ACTIVE' else (None if unlimited and status == 'TRIAL_ACTIVE' else trial if status == 'TRIAL_ACTIVE' else max([x for x in (paid,trial) if x], default=None))
+    return dict(
+        status=status,
+        active=status in ('PAID_ACTIVE','TRIAL_ACTIVE'),
+        trial_used=bool(row and row['trial_started_at']),
+        unlimited_trial=bool(unlimited and status == 'TRIAL_ACTIVE'),
+        until=end.isoformat() if end else None,
+        until_local=end.astimezone(ZoneInfo('Asia/Jakarta')).strftime('%d/%m/%Y %H:%M WIB') if end else None
+    )
 
 
 def require_write(business_id, actor_user_id=None):
@@ -74,10 +92,11 @@ def start_trial(business_id, actor_user_id):
         if row and (row['trial_started_at'] or row['paid_until']): return state(business_id)
         if not db.query_one("SELECT id FROM finance_accounts WHERE business_id=? AND is_active=TRUE AND currency='IDR'",(business_id,)):
             raise finance.FinanceError('account_unavailable')
-        current=now();end=current+timedelta(days=7)
+        current=now()
+        end=None if unlimited_trial_mode() else current+timedelta(days=7)
         db.execute('INSERT INTO finance_entitlements (business_id,trial_started_at,trial_until,updated_at) VALUES (?,?,?,?)',
-                   (business_id,current.isoformat(),end.isoformat(),current.isoformat()))
-        repo.write_audit(actor_user_id,business_id,'FINANCE_TRIAL_STARTED','')
+                   (business_id,current.isoformat(),end.isoformat() if end else None,current.isoformat()))
+        repo.write_audit(actor_user_id,business_id,'FINANCE_TRIAL_STARTED','unlimited_testing' if unlimited_trial_mode() else '')
     return state(business_id)
 
 
