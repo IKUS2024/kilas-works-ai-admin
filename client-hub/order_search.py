@@ -63,7 +63,7 @@ def _clean(value, maximum=500):
         return ""
     if not isinstance(value, str):
         value = str(value)
-    value = re.sub(r"\\s+", " ", value).strip()
+    value = re.sub(r"\s+", " ", value).strip()
     return value[:maximum]
 
 
@@ -93,7 +93,7 @@ def _parse_json_text(text):
     raw = (text or "").strip()
     fence = chr(96) * 3
     if raw.startswith(fence):
-        match = re.fullmatch(re.escape(fence) + r"(?:json)?\\s*\\n(.*?)\\n" + re.escape(fence), raw, re.DOTALL)
+        match = re.fullmatch(re.escape(fence) + r"(?:json)?\s*\n(.*?)\n" + re.escape(fence), raw, re.DOTALL)
         if not match:
             raise ValueError("invalid_fence")
         raw = match.group(1).strip()
