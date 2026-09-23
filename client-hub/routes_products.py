@@ -255,30 +255,46 @@ def order_requests():
     )
 
 
-@products_bp.route('/products/order/requests/<request_code>/search-run',methods=['POST'])
+@products_bp.route('/products/order/requests/<request_code>/search-run',methods=['GET','POST'])
 @security.login_required
 def order_request_search_run(request_code):
     import order_service
+    import order_search
     user=security.current_user()
     item=order_service.get_user_request(user['id'],request_code)
     if not item:
         abort(404)
-    if item.get('status') not in ('SEARCH_REQUESTED','SEARCHING','ISSUE'):
+
+    if request.method=='POST':
+        if item.get('status') not in ('SEARCH_REQUESTED','SEARCHING','ISSUE'):
+            return jsonify({
+                'ok': item.get('status')=='RESULTS_READY',
+                'status': item.get('status'),
+                'status_label': item.get('status_label'),
+                'candidate_count': len(order_service.list_candidates(item['id'])),
+                'active': False,
+                'error_code': '',
+            })
+        started=order_search.start_background_search(item)
+        refreshed=order_service.get_user_request(user['id'],request_code) or item
         return jsonify({
-            'ok': item.get('status')=='RESULTS_READY',
-            'status': item.get('status'),
-            'status_label': item.get('status_label'),
+            'ok': True,
+            'started': started,
+            'status': refreshed.get('status'),
+            'status_label': refreshed.get('status_label'),
+            'candidate_count': len(order_service.list_candidates(item['id'])),
+            'active': order_search.is_background_search_active(item['id']),
+            'error_code': order_search.get_background_search_error(item['id']),
         })
-    import order_search
-    candidates,error=order_search.search_request(item)
-    refreshed=order_service.get_user_request(user['id'],request_code)
+
+    refreshed=order_service.get_user_request(user['id'],request_code) or item
     return jsonify({
-        'ok': not bool(error),
-        'status': refreshed.get('status') if refreshed else 'ISSUE',
-        'status_label': refreshed.get('status_label') if refreshed else 'Perlu bantuan',
-        'candidate_count': len(candidates),
-        'retryable': bool(error),
-        'error_code': error or '',
+        'ok': refreshed.get('status')!='ISSUE',
+        'status': refreshed.get('status'),
+        'status_label': refreshed.get('status_label'),
+        'candidate_count': len(order_service.list_candidates(item['id'])),
+        'active': order_search.is_background_search_active(item['id']),
+        'error_code': order_search.get_background_search_error(item['id']),
     })
 
 
@@ -293,11 +309,11 @@ def order_request_detail(request_code):
     if request.method=='POST':
         action=(request.form.get('action') or '').strip().lower()
         if action=='retry_search':
-            if item.get('status') not in ('SEARCH_REQUESTED','ISSUE'):
+            if item.get('status') not in ('SEARCH_REQUESTED','SEARCHING','ISSUE'):
                 return redirect(url_for('products.order_request_detail',request_code=item['request_code']),code=303)
             import order_search
-            _,error=order_search.search_request(item)
-            flash('Kilas sudah mencoba mencari lagi.' if not error else 'Pencarian belum berhasil. Coba lagi sebentar.','success' if not error else 'info')
+            order_search.start_background_search(item)
+            flash('AI Kilas mulai mencari. Kamu bisa tetap di halaman status ini.','info')
             return redirect(url_for('products.order_request_detail',request_code=item['request_code']),code=303)
         abort(400)
     return render_template('order_request_status.html',user=user,item=item)
