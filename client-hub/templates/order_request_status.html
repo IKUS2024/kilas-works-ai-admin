@@ -173,8 +173,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       method:'POST',
       headers:{
         'X-CSRF-Token':'{{ csrf_token() }}',
+        'Content-Type':'application/json',
         'Accept':'application/json'
       },
+      body:'{}',
       credentials:'same-origin'
     }).then(function(response){
       if(!response.ok) throw new Error('search_failed');
