@@ -278,6 +278,7 @@ MIGRATIONS = [
     ("0048_account_profiles_sqlite.sql", "0048_account_profiles_postgres.sql"),
     ("0049_finance_customer_hidden_sqlite.sql", "0049_finance_customer_hidden_postgres.sql"),
     ("0050_oauth_identities_sqlite.sql", "0050_oauth_identities_postgres.sql"),
+    ("0051_kilas_order_requests_sqlite.sql", "0051_kilas_order_requests_postgres.sql"),
 ]
 
 
