@@ -202,7 +202,7 @@ def list_businesses_for_user(user_id):
     return db.query_all(
         """SELECT b.* FROM businesses b
            JOIN business_memberships m ON m.business_id = b.id
-           WHERE m.user_id = ? ORDER BY b.created_at DESC""",
+           WHERE m.user_id = ? AND b.status != 'ARCHIVED' ORDER BY b.created_at DESC""",
         (user_id,),
     )
 
