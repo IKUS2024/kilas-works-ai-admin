@@ -306,6 +306,7 @@
         <a href="{{ url_for('admin.projects_admin') }}">Projects</a>
         <a href="{{ url_for('admin.payments_admin') }}">Payments</a>
         <a href="{{ url_for('admin.talent_admin') }}">Talent</a>
+        <a href="{{ url_for('admin.order_requests_admin') }}">Kilas Order</a>
         <a href="{{ url_for('admin.admin_search') }}">Search</a>
       {% else %}
         {% set customer_endpoint = request.endpoint or '' %}
