@@ -239,6 +239,8 @@ def require_business_access(business_id, user=None):
 
     if user["role"] == "KILAS_ADMIN":
         return business
+    if business.get("status") == "ARCHIVED":
+        abort(404)
 
     membership = db.query_one(
         "SELECT * FROM business_memberships WHERE business_id = ? AND user_id = ?",
