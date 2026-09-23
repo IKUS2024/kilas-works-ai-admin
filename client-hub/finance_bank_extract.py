@@ -327,7 +327,7 @@ def ai_rows(source,currency,business_id=None):
     if response.status_code!=200:raise BankError('upstream_failure')
     body=response.json()
     classification='vision' if any(part.get('type') in ('image','document') for part in content if isinstance(part,dict)) else 'normal'
-    safety.record_usage(model,body,business_id,classification)
+    safety.record_usage(model,body,business_id,classification,context='finance_bank')
     result=safety.json_object(safety.response_text(body,800000))
     if (set(result)!={'rows','readable'} or type(result['readable']) is not bool or not isinstance(result['rows'],list)
             or len(result['rows'])>MAX_ROWS):
