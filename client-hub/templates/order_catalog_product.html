@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name }} · Kilas Order{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#090b0e;color:#f5f6f8}body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.kop-shell{--o:#ff7a1a;min-height:100svh;padding:18px 14px 36px;background:radial-gradient(620px 300px at 95% 0%,rgba(255,122,26,.09),transparent 70%),#090b0e}.kop-inner{width:min(100%,920px);margin:auto}
+.kop-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}.kop-brand{color:#fff;text-decoration:none;font-size:20px;font-weight:950}.kop-brand span{color:var(--o)}.kop-back{color:#c8ced4;text-decoration:none;font-size:10px;font-weight:850;border:1px solid #35404a;padding:8px 10px;border-radius:10px;background:#11161b}
+.kop-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.85fr);gap:18px;border:1px solid #2b343c;border-radius:24px;background:#11161b;padding:18px}.kop-image{aspect-ratio:1/1;border-radius:18px;overflow:hidden;background:#f3f4f5}.kop-image img{width:100%;height:100%;object-fit:cover;display:block}
+.kop-copy{display:flex;flex-direction:column;padding:8px 4px}.kop-cat{color:#ff9d59;font-size:9px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}.kop-copy h1{margin:8px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.kop-desc{margin:0;color:#9aa3ad;font-size:12px;line-height:1.6}.kop-price{margin-top:22px;font-size:32px;font-weight:950;letter-spacing:-.04em}
+.kop-note{margin-top:8px;color:#808a93;font-size:9.5px;line-height:1.5}.kop-status{display:flex;align-items:center;gap:7px;margin-top:16px;padding:10px 11px;border:1px solid #303a43;border-radius:12px;color:#abb3ba;font-size:9.5px}.kop-status i{width:7px;height:7px;border-radius:50%;background:#e7a34b}
+.kop-cta{display:flex;gap:8px;margin-top:auto;padding-top:18px}.kop-cta a{flex:1;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:11px;text-decoration:none;font-size:10.5px;font-weight:950}.kop-wa{background:var(--o);color:#1b1008}.kop-more{border:1px solid #39434c;color:#d6dce1;background:#151a1f}
+.kop-code{margin-top:10px;color:#67717a;font-size:8px;font-weight:850}.kop-trust{margin-top:13px;padding:12px;border:1px dashed #36414a;border-radius:12px;color:#858f98;font-size:9px;line-height:1.5}
+@media(max-width:700px){.kop-card{grid-template-columns:1fr;padding:13px}.kop-copy h1{font-size:25px}.kop-price{font-size:28px}.kop-cta{position:sticky;bottom:10px;background:#11161b;padding:10px 0 0}}
+</style>
+<div class="kop-shell">
+ <div class="kop-inner">
+  <div class="kop-top"><a class="kop-brand" href="{{ url_for('products.order_entry') }}">Kilas<span>Order</span></a><a class="kop-back" href="{{ url_for('products.order_entry') }}">← Katalog</a></div>
+  <article class="kop-card">
+   <div class="kop-image"><img src="{{ url_for('products.order_product_image',product_code=product.product_code) }}" alt="{{ product.name }}"></div>
+   <div class="kop-copy">
+    <span class="kop-cat">{{ product.category }}</span>
+    <h1>{{ product.name }}</h1>
+    <p class="kop-desc">{{ product.short_description }}</p>
+    <div class="kop-price">{{ product.price_text }}</div>
+    <div class="kop-note">Harga Kilas sudah termasuk estimasi biaya layanan dan pengiriman standar. Tidak ada biaya marketplace yang perlu kamu urus sendiri.</div>
+    <div class="kop-status"><i></i>Ketersediaan akan dicek ulang sebelum pembayaran diproses.</div>
+    <div class="kop-trust">Kilas membantu mencarikan dan memproses barang dari jaringan sumber pihak ketiga. Detail sumber pembelian dikelola internal oleh Kilas.</div>
+    <div class="kop-cta"><a class="kop-wa" href="{{ whatsapp_url }}" rel="noopener">Saya Mau Ini →</a><a class="kop-more" href="{{ url_for('products.order_entry') }}">Lihat Lainnya</a></div>
+    <div class="kop-code">{{ product.product_code }}</div>
+   </div>
+  </article>
+ </div>
+</div>
+{% endblock %}
