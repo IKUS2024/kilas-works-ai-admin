@@ -40,7 +40,10 @@ def _oauth_config(provider):
             "token_url": "https://oauth2.googleapis.com/token",
             "userinfo_url": "https://openidconnect.googleapis.com/v1/userinfo",
         }
-    return None\n\n\ndef _oauth_ready(provider):
+    return None
+
+
+def _oauth_ready(provider):
     config = _oauth_config(provider)
     return bool(config and config["client_id"] and config["client_secret"])
 
