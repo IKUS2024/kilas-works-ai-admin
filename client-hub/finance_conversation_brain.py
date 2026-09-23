@@ -147,14 +147,14 @@ def classify(b,u,message,previous,context=None,current=None):
         if normalized.casefold()!=message.casefold():
             state['vocabulary_hint']=normalized
             state['vocabulary_hint_rule']='Understanding only. Slots must still copy literal text from the original message.'
-        try:return semantics.interpret(message,INTENTS,slots,state)
+        try:return semantics.interpret(message,INTENTS,slots,state,business_id=b)
         except ValueError as exc:
             if str(exc)!='invalid_result' or not safety.allow_attempt(u,b,'ai'):raise
             safety.event('invalid_result')
             # One bounded repair consumes the same existing user/business quota.
             # The repaired output must pass the unchanged literal-span validator.
             state['validation_feedback']='The previous interpretation was rejected. Return only allowed keys, string values copied verbatim from the CURRENT message, and an allowed intent. Omit inferred currency and normalized dates/enums. Do not copy values from context.'
-            return semantics.interpret(message,INTENTS,slots,state)
+            return semantics.interpret(message,INTENTS,slots,state,business_id=b)
     except (ValueError,requests.RequestException,TypeError,KeyError):return None
 
 
