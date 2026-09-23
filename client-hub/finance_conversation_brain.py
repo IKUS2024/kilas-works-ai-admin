@@ -57,6 +57,7 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'Debt questions (utang Putri berapa) ALWAYS use receivables, never customer notes. '
       'sisanya berapa, utang dia berapa, kalau yang belum lunas continue the previous customer receivables query; '
       'use continue_query or customer_reference with the literal pronoun. '
+      'For recurring schedules like tiap tanggal 10, cadence MUST copy the full literal phrase tiap tanggal 10, and date copies tanggal 10. Never shorten cadence to tiap. '
       'edit_recurring edits an existing recurring rule, including a short correction after creating it. '
       'edit_invoice edits an existing invoice; amount is unit price, quantity and item_description refer to one item. '
       'For multi-item invoices ask which item; item_number is the literal row number the user selects. '
@@ -306,17 +307,17 @@ def apply_slots(b,u,initial,slots,previous):
     allowed={draft.REFERENCES.get(k,k) for k in slots}
     if not allowed.issubset(context['values']):return uncertain()
     try:values=draft.resolve(slots,context,initial['fields'])
-    except draft.ReferenceAmbiguous as exc:
-        context['awaiting']=exc.key
-        initial=flow.review(b,u,context)
-        initial['message']='Nama yang dimaksud belum jelas. Pilih data yang tersedia; belum ada perubahan.'
-        return initial
     except ValueError:
-        for key in ('date','issue_date','due_date'):
-            if key in slots and key in context['values']:context['values'][key]=''
-        result=flow.review(b,u,context)
-        result['message']='Nilainya belum jelas. Lengkapi draft ini; belum ada perubahan data.'
-        return result
+        # One unclear field must not discard the other grounded fields in the message.
+        # Keep every failed field empty and require it before confirmation.
+        values=dict(context['values']);missing=[]
+        for semantic,raw in slots.items():
+            key=draft.REFERENCES.get(semantic,semantic)
+            try:values=draft.resolve({semantic:raw},dict(context,values=values),initial['fields'])
+            except ValueError:
+                values[key]='';missing.append(key)
+        if missing:context['awaiting']=missing[0]
+        return flow.review(b,u,context,values)
     return flow.review(b,u,context,values)
 
 

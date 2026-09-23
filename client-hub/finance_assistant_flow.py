@@ -489,7 +489,7 @@ def review(b,u,context,edits=None):
             result['token']=seal(b,u,'confirm',dict(context,service_token=prepared.get('token')))
     if result.get('ready'):
         result['message']='Oke, saya sudah rangkum '+LABELS[action].lower()+' ini. Kalau sudah benar, balas “oke”.'
-        result['hint']='Kalau ada yang perlu diubah, cukup tulis di chat, misalnya “WhatsApp 0822…”, “pakai BCA”, “vendor Telkom”, atau “ubah jadi 300 ribu”. Ketik “batal” untuk membatalkan.'
+        result['hint']='Mau koreksi? Tulis bagian yang perlu diubah di chat. Balas “oke” untuk menyimpan atau “batal” untuk membatalkan.'
     else:
         order=(['amount','account_id','category_id','date'] if action in ('create_income','create_expense') else
                ['cadence','date','account_id','category_id','amount','name'] if action=='recurring' else
@@ -507,7 +507,7 @@ def review(b,u,context,edits=None):
         if not values['name'].strip():
             result.update(next_field='name',message='Siapa nama customernya?')
         elif result.get('ready'):
-            result['message']='Oke, customer '+values['name']+'. Mau isi nomor telepon atau langsung simpan? Balas “oke” untuk menyimpan.'
+            result['message']=('Customer '+values['name']+' siap disimpan. Periksa detailnya, lalu balas “oke”.' if values.get('phone') else 'Oke, customer '+values['name']+'. Mau isi nomor telepon atau langsung simpan? Balas “oke” untuk menyimpan.')
     if context.get('awaiting'):
         if values.get(context['awaiting']):context.pop('awaiting')
         else:
@@ -603,7 +603,8 @@ def document(b,u,files,text,workflow,account_id='',document_context=''):
             matches=[c for c in f.list_categories(b,'EXPENSE',include_children=True,actor_user_id=u) if c['name']==data['suggested_category_name']]
             if len(matches)==1:values['category_id']=str(matches[0]['id'])
         review_result=review(b,u,dict(action='receipt',text=text,values=values,receipt_token=result['token'],nonce=uuid.uuid4().hex))
-        if result['fallback']:review_result['message']='Struk belum terbaca dengan yakin. Lengkapi data yang belum jelas sebelum review dan konfirmasi.'
+        if result['fallback']:
+            review_result['message']=('Ada bagian struk yang perlu kamu periksa. '+review_result['message'] if not review_result.get('ready') else 'Periksa hasil pembacaan struk ini, terutama nominal dan tanggal. Kalau sudah sesuai, balas “oke”.')
         return review_result
     if workflow not in ('BANK_STATEMENT','HANDWRITTEN_NOTE'):raise ValueError('document_kind')
     detected_currency=''

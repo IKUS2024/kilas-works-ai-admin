@@ -143,7 +143,10 @@ def resolve(updates,context,fields):
                     if explicit and explicit!=code:raise ValueError('currency')
                     result['currency']=code
         elif key in ('date','issue_date','due_date','end_on'):
-            result[key]=proposed_date(raw,scheduled=context['action'] in ('recurring','invoice') or context.get('operation') in ('edit_recurring','edit_invoice'),default_today=False)
+            scheduled=context['action'] in ('recurring','invoice') or context.get('operation') in ('edit_recurring','edit_invoice')
+            # A literal day selected by semantic routing retains the existing next-due-date rule.
+            date_text='tanggal '+raw.strip() if scheduled and re.fullmatch(r'\d{1,2}',raw.strip()) else raw
+            result[key]=proposed_date(date_text,scheduled=scheduled,default_today=False)
             if not result[key]:raise ValueError('date_unclear')
         elif key=='month':
             from finance_semantics import period_patch
@@ -159,7 +162,7 @@ def resolve(updates,context,fields):
             value=vocabulary[key].get(raw.lower())
             if key=='cadence' and not value:
                 if re.fullmatch(r'(?:tiap|setiap|per)\s+(?:bulan|minggu)',raw,re.I):value='WEEKLY' if 'minggu' in raw.lower() else 'MONTHLY'
-            if key=='cadence' and not value and re.fullmatch(r'(?:tiap|setiap) tanggal \d{1,2}',raw,re.I):value='MONTHLY'
+            if key=='cadence' and not value and re.fullmatch(r'(?:tiap|setiap)\s+(?:tanggal|tgl)\s*\d{1,2}',raw,re.I):value='MONTHLY'
             if not value:raise ValueError('invalid_enum')
             result[key]=value
         elif key=='currency':

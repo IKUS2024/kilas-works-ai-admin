@@ -67,6 +67,9 @@ class UpgradeTests(unittest.TestCase):
         invoice=self.edit(invoice,'beli bensin 25 ribu',{'item_description':'beli bensin','amount':'25 ribu'})
         self.assertEqual(self.fields(invoice)['item_description'],'beli bensin')
         self.assertEqual(self.fields(invoice)['amount'],'25 ribu')
+        invoice=self.edit(invoice,'jatuh tempo hari ini',{'due_date':'hari ini'})
+        saved=self.save(invoice)
+        self.assertEqual(f.get_invoice_totals(self.b,saved['record_id'])['total_minor'],2500000)
 
     def test_interruption_resume_cancel_and_amount_units(self):
         draft=self.propose('catat pemgeluaran 300 ribu','create_expense',{'amount':'300 ribu'})
@@ -80,11 +83,40 @@ class UpgradeTests(unittest.TestCase):
         self.assertEqual(self.follow(draft,'batal').json['state'],'CANCELLED')
         self.assertEqual(f.list_transactions(self.b),[])
 
+    def test_transaction_create_correction_and_void_use_live_ledger(self):
+        category=next(c['name'] for c in f.list_categories(self.b,'EXPENSE') if c['id']==self.meal)
+        draft=self.propose('catat beli susu 300 ribu dari Kas kategori '+category+' hari ini','create_expense',{'amount':'300 ribu','account':'Kas','category':category,'date':'hari ini','description':'beli susu'})
+        saved=self.save(draft)
+        self.assertEqual(f.list_transactions(self.b)[0]['amount_minor'],30000000)
+        draft=self.propose('ubah yang tadi jadi 250 ribu','edit_transaction',{'target_reference':'yang tadi','amount':'250 ribu'},saved)
+        self.save(draft)
+        self.assertEqual(f.list_transactions(self.b)[0]['amount_minor'],25000000)
+        draft=self.propose('hapus yang tadi','void_transaction',{'target_reference':'yang tadi'},saved)
+        self.save(draft)
+        self.assertEqual(sum(r['transaction_count'] for r in f.get_cash_totals(self.b,actor_user_id=self.uid)),0)
+
     def test_comparison_keeps_both_relative_months(self):
         period=semantics.period_patch('bulan ini sama bulan lalu')
         self.assertEqual(len(period['ranges']),2)
         self.assertEqual(period['ranges'][0][0][:7],date.today().strftime('%Y-%m'))
         self.assertLess(period['ranges'][1][0],period['ranges'][0][0])
+
+    def test_recurring_short_day_and_unclear_field_preserve_other_slots(self):
+        category=next(c for c in f.list_categories(self.b,'EXPENSE') if c['name']=='Internet') if any(c['name']=='Internet' for c in f.list_categories(self.b,'EXPENSE')) else f.list_categories(self.b,'EXPENSE')[0]
+        slots={'name':'internet','cadence':'tiap tanggal 10','date':'10','amount':'500 ribu','account':'Kas','category':category['name']}
+        draft=self.propose('buat biaya internet tiap tanggal 10 sebesar 500 ribu dari Kas kategori '+category['name'],'recurring',slots)
+        self.assertEqual(self.fields(draft)['cadence'],'MONTHLY')
+        self.assertEqual(self.fields(draft)['date'][-2:],'10')
+        self.assertEqual(self.fields(draft)['amount'],'500 ribu')
+        self.save(draft)
+        self.assertEqual(f.list_recurring_expenses(self.b)[0]['amount_minor'],50000000)
+        self.assertEqual(f.list_transactions(self.b),[])
+        slots['cadence']='tiap'
+        draft=self.propose('buat biaya internet tiap tanggal 10 sebesar 500 ribu dari Kas kategori '+category['name'],'recurring',slots)
+        self.assertFalse(draft['ready'])
+        self.assertEqual(self.fields(draft)['amount'],'500 ribu')
+        self.assertEqual(self.fields(draft)['date'][-2:],'10')
+        self.assertEqual(draft['next_field'],'cadence')
 
     def test_recurring_edit_uses_existing_rule_without_posting(self):
         rid=f.create_recurring_expense(self.b,'Internet',50000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
