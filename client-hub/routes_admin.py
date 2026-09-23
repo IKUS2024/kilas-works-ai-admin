@@ -439,6 +439,9 @@ def order_request_admin_detail(request_code):
     if request.method=="POST":
         action=(request.form.get("action") or "").strip().lower()
         if action=="retry_search":
+            if item.get("is_whatsapp_handoff"):
+                flash("Request ini diproses manual lewat WhatsApp Kilas.", "info")
+                return redirect(url_for("admin.order_request_admin_detail",request_code=item["request_code"]),code=303)
             import order_search
             _,error=order_search.search_request(item)
             flash("Pencarian ulang selesai." if not error else "Pencarian ulang belum berhasil.", "success" if not error else "error")
