@@ -29,16 +29,27 @@ Cari listing BARANG FISIK yang benar-benar tampak bisa dibeli sekarang berdasark
 ATURAN:
 1. Wajib gunakan web search. Jangan menjawab dari ingatan.
 2. Prioritaskan retailer resmi, official store, toko spesialis bereputasi, dan marketplace dengan seller yang punya sinyal reputasi jelas.
-3. Jangan memasukkan artikel review, forum, halaman kategori umum, berita, atau halaman yang bukan listing/halaman produk yang bisa dibeli.
+3. Fokus pada halaman produk/listing yang bisa dibeli, bukan artikel review, forum, berita, atau halaman kategori umum.
 4. Jangan memasukkan produk yang jelas salah model/varian.
-5. Jangan menganggap harga termurah sebagai terbaik. Harga yang terlalu murah dibanding kandidat lain harus diberi risk flag.
-6. Kalau kondisi customer fleksibel, kandidat baru dan second boleh, tetapi condition harus dijelaskan.
-7. Jangan menyatakan seller 100% aman. Nilai hanya dari sinyal yang terlihat di sumber.
-8. source_url HARUS URL sumber yang benar-benar kamu buka/temukan lewat web search pada turn ini. Jangan membuat URL.
-9. Maksimal 12 kandidat. Lebih baik 3-8 kandidat kuat daripada banyak hasil lemah.
-10. Jangan menghitung markup Kilas, pajak, fee, atau harga jual customer. Ini hanya discovery harga sumber.
-11. Tolak kategori berbahaya/terlarang: senjata, amunisi, bahan peledak, narkotika, obat resep, nikotin, alkohol, spyware, barang curian/palsu, dan produk ilegal.
-12. Final response harus SATU JSON object valid, tanpa markdown atau kalimat lain.
+5. Jangan menganggap harga termurah sebagai terbaik. Tandai secara naratif jika harga terlihat tidak wajar.
+6. Kalau kondisi customer fleksibel, kandidat baru dan second boleh.
+7. Jangan menyatakan seller 100% aman.
+8. Tolak kategori berbahaya/terlarang: senjata, amunisi, bahan peledak, narkotika, obat resep, nikotin, alkohol, spyware, barang curian/palsu, dan produk ilegal.
+9. Cari 3-8 kandidat kuat bila memungkinkan. Maksimal 4 kali web search.
+10. Jawaban akhir cukup ringkas: sebut kandidat, harga/kondisi/availability/seller bila terlihat, dan alasan relevan. Selalu gunakan citation dari hasil web search. Jangan keluarkan JSON.
+"""
+
+_STRUCTURE_SYSTEM = """Kamu menyusun hasil riset web Kilas Order menjadi data kandidat internal.
+Gunakan HANYA source yang diberikan dalam payload. Jangan membuat URL, seller, harga, availability, atau fakta lain yang tidak terlihat di payload.
+
+ATURAN:
+1. Hanya pilih halaman yang tampak sebagai listing/halaman produk yang bisa dibeli.
+2. Abaikan artikel, forum, berita, halaman kategori umum, dan hasil yang salah produk.
+3. Jika harga/seller/kondisi/availability tidak cukup jelas, kosongkan field tersebut dan turunkan trust.
+4. trust_score adalah kualitas sinyal internal, bukan jaminan keamanan.
+5. HIGH hanya jika source dan listing punya sinyal kuat; MEDIUM jika cukup; REVIEW jika informasi penting kurang jelas.
+6. Maksimal 12 kandidat.
+7. Output HANYA JSON object valid tanpa markdown.
 
 Schema:
 {
@@ -60,8 +71,6 @@ Schema:
     }
   ]
 }
-
-trust_score adalah kualitas sinyal pembelian internal, bukan jaminan. HIGH hanya jika seller/retailer dan listing punya sinyal kuat. REVIEW jika data seller, stok, harga, atau kondisi kurang jelas.
 """
 
 
@@ -123,6 +132,8 @@ def _search_urls(content):
                             urls[key] = {
                                 "url": url,
                                 "title": _clean(result.get("title"), 300),
+                                "page_age": _clean(result.get("page_age"), 80),
+                                "cited_text": "",
                             }
         if block.get("type") == "text":
             for citation in block.get("citations") or []:
@@ -130,10 +141,16 @@ def _search_urls(content):
                     url = citation.get("url")
                     key = _url_key(url)
                     if key:
-                        urls.setdefault(key, {
+                        entry = urls.setdefault(key, {
                             "url": url,
                             "title": _clean(citation.get("title"), 300),
+                            "page_age": "",
+                            "cited_text": "",
                         })
+                        cited = _clean(citation.get("cited_text"), 500)
+                        if cited and cited not in entry.get("cited_text", ""):
+                            existing = entry.get("cited_text", "")
+                            entry["cited_text"] = _clean((existing + " " + cited).strip(), 900)
     return urls
 
 
@@ -151,6 +168,58 @@ def _final_json(content):
         if isinstance(value, dict) and isinstance(value.get("candidates"), list):
             return value
     raise ValueError("json_not_found")
+
+
+def _narrative_text(content):
+    parts = []
+    for block in content or []:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text = _clean(block.get("text"), 3000)
+            if text:
+                parts.append(text)
+    return _clean("\n".join(parts), 7000)
+
+
+def _structure_candidates(model, item, observed, narrative):
+    evidence = []
+    for source in list(observed.values())[:24]:
+        evidence.append({
+            "url": source.get("url"),
+            "title": source.get("title") or "",
+            "page_age": source.get("page_age") or "",
+            "cited_text": source.get("cited_text") or "",
+        })
+    payload = {
+        "request": {
+            "request_text": item.get("request_text"),
+            "ai_summary": item.get("ai_summary") or {},
+        },
+        "research_summary": narrative,
+        "sources": evidence,
+    }
+    response = requests.post(
+        ai_onboarding.ANTHROPIC_API_URL,
+        headers={
+            "x-api-key": ai_onboarding.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": 900,
+            "temperature": 0,
+            "system": _STRUCTURE_SYSTEM,
+            "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+        },
+        timeout=(5, 35),
+        allow_redirects=False,
+    )
+    if not 200 <= response.status_code < 300:
+        raise ValueError("structure_http_" + str(response.status_code))
+    result = response.json()
+    ai_usage.record(model, result, tenant_id=None, context="platform_customer", classification="complex")
+    blocks = result.get("content") if isinstance(result, dict) else None
+    return _final_json(blocks)
 
 
 def _validate_candidates(value, observed):
@@ -284,8 +353,13 @@ def search_request(item):
         order_service.update_request_status(item["id"], "ISSUE")
         return [], "no_search_results"
     try:
-        value = _final_json(content)
+        narrative = _narrative_text(content)
+        value = _structure_candidates(model, item, observed, narrative)
         candidates = _validate_candidates(value, observed)
+    except requests.RequestException as exc:
+        log.warning("[KILAS_ORDER_SEARCH] structure_network kind=%s", type(exc).__name__)
+        order_service.update_request_status(item["id"], "ISSUE")
+        return [], "network_failure"
     except (ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
         log.warning("[KILAS_ORDER_SEARCH] invalid_schema kind=%s", type(exc).__name__)
         order_service.update_request_status(item["id"], "ISSUE")
