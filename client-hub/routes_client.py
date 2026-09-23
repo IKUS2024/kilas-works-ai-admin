@@ -107,6 +107,11 @@ def _human_missing_labels(missing):
 @security.login_required
 def dashboard():
     user = security.current_user()
+    requested_product = (request.args.get("product") or "").strip().lower()
+    if requested_product == "brain" or (
+        not requested_product and (session.get("active_product") or "").strip().lower() == "brain"
+    ):
+        return redirect(url_for("products.assist_entry"))
     businesses = repo.list_businesses_for_user(user["id"])
     # Product ownership is intentionally separated on the customer home screen.
     # A Finance business and an AI Admin business are different records for new setup flows.
