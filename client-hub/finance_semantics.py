@@ -120,7 +120,7 @@ def period_patch(text):
     return {'mode':'range','ranges':ranges}
 
 
-def interpret(message, intents, slots, context=None):
+def interpret(message, intents, slots, context=None, business_id=None):
     """Constrained semantic fallback, shared by new intents and active drafts."""
     import requests
     import finance_ai_safety as safety
@@ -140,7 +140,9 @@ def interpret(message, intents, slots, context=None):
         json={'model':model,'max_tokens':700,'system':system,'messages':[{'role':'user','content':json.dumps(
             {'message':message,'context':context or {}},ensure_ascii=False)}]},timeout=(5,20),allow_redirects=False)
     if response.status_code!=200:raise ValueError('provider_failure')
-    data=safety.json_object(safety.response_text(response.json(),5000))
+    body=response.json()
+    safety.record_usage(model,body,business_id,'normal')
+    data=safety.json_object(safety.response_text(body,5000))
     if set(data)!={'intent','slots'} or data['intent'] not in intents or not isinstance(data['slots'],dict):raise ValueError('invalid_result')
     if set(data['slots'])-set(slots) or any(not isinstance(v,str) or len(v)>2000 or not v or v.casefold() not in message.casefold() for v in data['slots'].values()):raise ValueError('invalid_result')
     return data
