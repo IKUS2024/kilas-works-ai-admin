@@ -141,3 +141,99 @@ def list_user_requests(user_id, limit=30):
         'SELECT * FROM kilas_order_requests WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT ?',
         (user_id, limit),
     )]
+
+
+def update_request_status(request_id, status):
+    if status not in STATUS_LABELS:
+        raise ValueError('invalid_status')
+    db.execute(
+        "UPDATE kilas_order_requests SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+        (status, request_id),
+    )
+
+
+def get_request_by_code(request_code):
+    code = str(request_code or '').strip().upper()
+    if not code:
+        return None
+    return _row(db.query_one(
+        'SELECT * FROM kilas_order_requests WHERE request_code=? LIMIT 1',
+        (code,),
+    ))
+
+
+def list_admin_requests(limit=100):
+    try:
+        limit = max(1, min(int(limit), 200))
+    except (TypeError, ValueError):
+        limit = 100
+    rows = db.query_all(
+        "SELECT r.*,u.full_name AS customer_name,u.email AS customer_email "
+        "FROM kilas_order_requests r JOIN users u ON u.id=r.user_id "
+        "ORDER BY CASE r.status "
+        "WHEN 'SEARCH_REQUESTED' THEN 0 WHEN 'SEARCHING' THEN 1 "
+        "WHEN 'RESULTS_READY' THEN 2 WHEN 'ISSUE' THEN 3 ELSE 4 END, "
+        "r.created_at DESC,r.id DESC LIMIT ?",
+        (limit,),
+    )
+    return [_row(row) for row in rows]
+
+
+def _candidate_row(row):
+    if not row:
+        return None
+    item = dict(row)
+    item['risk_flags'] = _decode(item.pop('risk_flags_json', None), [])
+    return item
+
+
+def replace_candidates(request_id, candidates):
+    if type(request_id) is not int or request_id <= 0:
+        raise ValueError('invalid_request')
+    if not isinstance(candidates, list):
+        raise ValueError('invalid_candidates')
+    db.execute('DELETE FROM kilas_order_candidates WHERE request_id=?', (request_id,))
+    for index, candidate in enumerate(candidates[:20], start=1):
+        db.execute(
+            'INSERT INTO kilas_order_candidates '
+            '(request_id,rank_no,product_name,price_text,currency,condition_text,seller_name,'
+            'source_url,source_domain,source_title,availability,trust_score,trust_level,trust_reason,'
+            'match_reason,risk_flags_json,evidence_text,status) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+            (
+                request_id, index, candidate.get('product_name') or 'Produk',
+                candidate.get('price_text') or None, candidate.get('currency') or None,
+                candidate.get('condition') or None, candidate.get('seller_name') or None,
+                candidate['source_url'], candidate['source_domain'],
+                candidate.get('source_title') or None, candidate.get('availability') or None,
+                int(candidate.get('trust_score') or 0), candidate.get('trust_level') or 'REVIEW',
+                candidate.get('trust_reason') or None, candidate.get('match_reason') or None,
+                _json(candidate.get('risk_flags') or []), candidate.get('evidence_text') or None,
+                'DISCOVERED',
+            ),
+        )
+
+
+def list_candidates(request_id):
+    return [_candidate_row(row) for row in db.query_all(
+        'SELECT * FROM kilas_order_candidates WHERE request_id=? '
+        'ORDER BY CASE status WHEN \'VERIFIED\' THEN 0 WHEN \'DISCOVERED\' THEN 1 ELSE 2 END, '
+        'rank_no ASC,id ASC',
+        (request_id,),
+    )]
+
+
+def update_candidate_status(candidate_id, status):
+    if status not in ('VERIFIED','REJECTED','DISCOVERED'):
+        raise ValueError('invalid_candidate_status')
+    db.execute(
+        'UPDATE kilas_order_candidates SET status=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        (status, candidate_id),
+    )
+
+
+def get_candidate(request_id, candidate_id):
+    return _candidate_row(db.query_one(
+        'SELECT * FROM kilas_order_candidates WHERE request_id=? AND id=? LIMIT 1',
+        (request_id, candidate_id),
+    ))
