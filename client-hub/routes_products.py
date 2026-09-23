@@ -191,6 +191,11 @@ def order_request():
                 session['kilas_order_draft']=draft
             saved=order_service.create_request(security.current_user()['id'],draft)
             session['kilas_order_last_request']=saved['request_code']
+            if saved.get('status') in ('SEARCH_REQUESTED','ISSUE'):
+                import order_search
+                _,search_error=order_search.search_request(saved)
+                if search_error:
+                    flash('Pencarian belum berhasil. Request tetap tersimpan dan bisa dicoba lagi.','info')
             return redirect(url_for('products.order_request_detail',request_code=saved['request_code']),code=303)
 
         if action in ('answer','retry'):
