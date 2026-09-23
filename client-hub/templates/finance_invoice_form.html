@@ -11,15 +11,15 @@
 <div class="fin-page invoice-editor">{% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
 <h1>{{ 'Edit Invoice' if invoice else 'Buat Invoice' }}</h1>
 {% if invoice %}<p class="muted">{{ invoice.invoice_number }}</p>{% endif %}
-{% if locked %}<p class="card" role="note">Invoice sudah memiliki pembayaran. Anda dapat memperbaiki teks dan kontak. Jumlah, harga, mata uang, tanggal dan customer terkait dikunci untuk menjaga riwayat pembayaran.</p>{% endif %}
+{% if locked %}<p class="card" role="note">Invoice sudah memiliki pembayaran. Anda dapat memperbaiki teks dan kontak. Jumlah, harga, mata uang, tanggal dan pelanggan terkait dikunci untuk menjaga riwayat pembayaran.</p>{% endif %}
 <form method="post" class="card" id="invoice-editor-form">
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="submission_key" value="{{ submission_key }}"><input type="hidden" name="revision" value="{{ values.revision }}">
-<h2>1. Penerima</h2>
-<label for="customer">Pilih customer</label><select id="customer" name="customer_id" {% if locked %}disabled{% endif %}>
-<option value="">+ Penerima baru</option>{% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}</select>
-{% if locked %}<input type="hidden" name="customer_id" value="{{ values.customer_id }}">{% else %}<button class="btn small secondary" type="button" id="new-recipient">+ Penerima baru</button>{% endif %}
-{{ fields('recipient',data.recipient,[('name','Nama penerima / perusahaan'),('pic','Nama PIC (opsional)'),('address','Alamat penagihan (opsional)'),('phone','Nomor telepon (opsional)'),('email','Email (opsional)'),('tax_id','NPWP / Tax ID (opsional)')],['name']) }}
-<p class="muted">Detail ini disimpan khusus untuk invoice ini.</p>
+<h2>1. Pelanggan</h2>
+<label for="customer">Pilih pelanggan</label><select id="customer" name="customer_id" {% if locked %}disabled{% endif %}>
+<option value="" disabled {{ 'selected' if not values.customer_id }}>Pilih pelanggan</option>{% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}</select>
+{% if locked %}<input type="hidden" name="customer_id" value="{{ values.customer_id }}">{% else %}<button class="btn small secondary" type="button" id="new-recipient">＋ Tambah pelanggan baru</button>{% endif %}
+{{ fields('recipient',data.recipient,[('name','Nama pelanggan / perusahaan'),('pic','Nama kontak / PIC (opsional)'),('address','Alamat penagihan (opsional)'),('phone','Nomor telepon (opsional)'),('email','Email (opsional)'),('tax_id','NPWP / Tax ID (opsional)')],['name']) }}
+<p class="muted">Data kontak ini dipakai pada invoice ini.</p>
 <h2>2. Detail Invoice</h2>
 <div class="invoice-form-grid"><label>Tanggal terbit<input name="issue_date" type="date" value="{{ values.issue_date }}" max="{{ today }}" required {{ 'readonly' if locked }}></label><label>Jatuh tempo<input name="due_date" type="date" value="{{ values.due_date }}" required {{ 'readonly' if locked }}></label>
 <label>Mata uang<select name="currency" id="currency" {{ 'disabled' if locked }}>{% for code in supported_currencies %}<option {{ 'selected' if values.currency==code }}>{{ code }}</option>{% endfor %}</select></label><label>Referensi / PO (opsional)<input name="reference" value="{{ data.reference }}" maxlength="254"></label></div>
@@ -38,5 +38,5 @@
 <h2>5. Catatan</h2><textarea name="notes" maxlength="4000" aria-label="Catatan invoice">{{ values.notes or '' }}</textarea>
 <p class="muted">{{ 'Perubahan tersimpan dalam riwayat revisi invoice.' if invoice else 'Simpan draft untuk meninjau dokumen sebelum diterbitkan.' }}</p>
 <div class="invoice-form-actions"><button class="btn" data-finance-write>{{ 'Simpan Perubahan' if invoice else 'Simpan Draft & Lihat Preview' }}</button><a class="btn secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">Batal</a></div>
-</form></div><script src="{{ url_for('static',filename='finance_invoice_editor.js') }}" defer></script>
+</form></div><script src="{{ url_for('static',filename='finance_invoice_editor.js',v='20260923-pelanggan-1') }}" defer></script>
 {% endblock %}
