@@ -134,6 +134,7 @@
     {% endif %}
 
     <div class="owner-info-row">
+      <a class="owner-info" href="{{ url_for('admin.order_catalog_admin') }}"><strong>Kilas Order</strong><span>Internal Catalog →</span></a>
       <a class="owner-info" href="{{ url_for('admin.dashboard', finance='trial') }}"><strong>Finance trial aktif</strong><span>{{ action_center.finance_trials_active }}</span></a>
       <a class="owner-info" href="{{ url_for('admin.projects_admin') }}"><strong>Project perlu tindakan</strong><span>{{ action_center.projects_waiting_admin_action }}</span></a>
       <a class="owner-info" href="{{ url_for('meta_direct.launcher') }}"><strong>WhatsApp utama</strong><span>Direct Meta Coexistence</span></a>
