@@ -164,23 +164,6 @@ body.customer-ui>footer{display:none}
       </div>
     </div>
 
-    <nav class="kh-primary-nav" aria-label="Navigasi utama">
-      <a class="kh-nav-item active" href="{{ url_for('client.dashboard') }}" aria-current="page">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Beranda</span>
-      </a>
-      <a class="kh-nav-item" href="{{ url_for('products.index') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk &amp; Layanan</span>
-      </a>
-      <a class="kh-nav-item" href="{{ url_for('projects.my_project_list') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg><span>Pesanan</span>
-      </a>
-      <a class="kh-nav-item" href="{{ url_for('products.account_bills') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M7 15h4"/></svg><span>Tagihan</span>
-      </a>
-      <a class="kh-nav-item" href="{{ url_for('auth.account_page') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg><span>Akun</span>
-      </a>
-    </nav>
   </header>
 
   {% if active_product == 'finance' %}
@@ -369,24 +352,6 @@ body.customer-ui>footer{display:none}
     <div class="kh-legacy">{{ unassigned_businesses|length }} bisnis lama tetap tersimpan dan tidak diubah.</div>
   {% endif %}
 </div>
-
-<nav class="kh-bottom-nav" aria-label="Navigasi bawah">
-  <a class="kh-bottom-item active" href="{{ url_for('client.dashboard') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Beranda</span>
-  </a>
-  <a class="kh-bottom-item" href="{{ url_for('products.index') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk</span>
-  </a>
-  <a class="kh-bottom-item kh-bottom-plus" href="{{ url_for('products.index') }}">
-    <span class="kh-plus-circle" aria-hidden="true">+</span><span>Layanan</span>
-  </a>
-  <a class="kh-bottom-item" href="{{ url_for('projects.my_project_list') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg><span>Pesanan</span>
-  </a>
-  <a class="kh-bottom-item" href="{{ url_for('auth.account_page') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg><span>Akun</span>
-  </a>
-</nav>
 
 <script>
 (function(){
