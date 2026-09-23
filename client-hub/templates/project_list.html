@@ -1,57 +1,207 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Proyek — ' ~ business.business_name if business else 'Proyek Saya' }}{% endblock %}
+{% block title %}{{ 'Proyek — ' ~ business.business_name if business else 'Pesanan Saya' }}{% endblock %}
 {% block content %}
-{% include "_client_compact_style.html" %}
-<div class="client-page">
-  <header class="client-head">
-    <div><h1>{{ 'Proyek — ' ~ business.business_name if business else ('Riwayat Proyek' if view == 'history' else 'Pesanan Saya') }}</h1><p>Pantau status tanpa tabel panjang.</p></div>
-    <span class="client-count">{{ projects_total }} proyek</span>
+<style>
+/* Orders V3 — UI-only redesign. Existing filtering, search, pagination and project routes stay intact. */
+.orders-page{
+  --op-panel:#15191e;--op-card:#171b20;--op-card-2:#1b1f24;--op-border:#30363e;--op-border-soft:#262c33;
+  --op-text:#f4f5f6;--op-muted:#9da4ad;--op-orange:#ff7a1a;--op-green:#3ed18c;--op-blue:#a8c4ff;--op-red:#f07b7b;
+  max-width:900px;margin:0 auto;padding:4px 0 12px;color:var(--op-text)
+}
+.orders-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin:14px 0 16px}
+.orders-title h1{margin:0 0 6px;font-size:34px;line-height:1.04;letter-spacing:-.045em}
+.orders-title p{margin:0;color:var(--op-muted);font-size:14px;line-height:1.45}
+.orders-count{margin-top:6px;color:#b5bbc3;font-size:13px}
+.orders-hero-art{display:flex;align-items:center;gap:9px}
+.orders-mini-card{
+  width:74px;height:100px;border:1px solid var(--op-border);border-radius:18px;background:
+  radial-gradient(70px 70px at 100% 0,rgba(255,122,26,.13),transparent 70%),#171b20;
+  display:flex;flex-direction:column;justify-content:center;gap:7px;padding:16px;box-shadow:0 14px 34px rgba(0,0,0,.18)
+}
+.orders-mini-card span{height:6px;border-radius:999px;background:#343a43}.orders-mini-card span:first-child{width:100%;background:var(--op-orange)}.orders-mini-card span:nth-child(2){width:78%}.orders-mini-card span:nth-child(3){width:60%}
+.orders-mini-copy{width:125px;padding:12px;border:1px solid var(--op-border);border-radius:16px;background:#14181d;color:#bdc3cb;font-size:11px;line-height:1.35;transform:rotate(-3deg)}
+
+.orders-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.orders-tabs a{
+  min-height:42px;padding:9px 18px;border:1px solid var(--op-border);border-radius:999px;color:#f0f1f3;
+  display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:850;text-decoration:none;background:#11151a
+}
+.orders-tabs a:hover{text-decoration:none;border-color:#48505a}
+.orders-tabs a.active{background:linear-gradient(180deg,#ff8229,#ff7415);border-color:#ff8229;color:#17110d;box-shadow:0 8px 20px rgba(255,122,26,.12)}
+
+.orders-search{
+  margin:0 0 14px!important;padding:10px!important;border:1px solid var(--op-border)!important;border-radius:17px!important;
+  background:#181c21!important
+}
+.orders-search-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center}
+.orders-search-field{position:relative}
+.orders-search-field svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:#8f97a2;pointer-events:none}
+.orders-search input{
+  width:100%;min-height:50px;padding:11px 14px 11px 46px;border:1px solid #343a42;border-radius:12px;
+  background:#11151a;color:#f2f3f4;font-size:14px
+}
+.orders-search input::placeholder{color:#777f8a}
+.orders-search .btn{min-height:50px;padding:10px 18px;border-radius:12px;font-size:12px;font-weight:900;margin:0}
+
+.orders-list{display:grid;gap:12px}
+.order-card{
+  position:relative;overflow:hidden;border:1px solid var(--op-border);border-radius:20px;padding:15px;background:
+  radial-gradient(170px 110px at 104% -10%,rgba(255,122,26,.055),transparent 74%),
+  linear-gradient(180deg,#181c21,#12161a)
+}
+.order-card-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:start}
+.order-icon{
+  width:54px;height:54px;border:1px solid rgba(255,122,26,.16);border-radius:15px;background:rgba(255,122,26,.085);
+  color:var(--op-orange);display:grid;place-items:center;flex:0 0 auto
+}
+.order-icon svg{width:26px;height:26px;stroke-width:1.8}
+.order-icon.brain{background:rgba(131,164,224,.09);border-color:rgba(131,164,224,.15);color:#b8cbef}
+.order-main{min-width:0}.order-title{font-size:17px;font-weight:900;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.order-sub{margin-top:4px;color:#aab0b8;font-size:11.5px;line-height:1.35}
+.order-status{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;background:#2c3139;color:#d6dae0;
+  font-size:10px;font-weight:850;white-space:nowrap
+}
+.order-status::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.order-status.warn{background:rgba(224,174,62,.13);color:#e6bb52}.order-status.ok{background:rgba(62,209,140,.12);color:var(--op-green)}
+.order-status.info{background:rgba(126,159,217,.13);color:var(--op-blue)}.order-status.danger{background:rgba(240,123,123,.12);color:var(--op-red)}
+
+.order-meta-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:13px;padding:12px 0;border-top:1px solid var(--op-border-soft);border-bottom:1px solid var(--op-border-soft)
+}
+.order-meta-item{display:flex;align-items:center;gap:9px;min-width:0}
+.order-meta-icon{
+  width:32px;height:32px;border-radius:50%;background:#242a32;color:#c4c9d0;display:grid;place-items:center;flex:0 0 auto
+}
+.order-meta-icon svg{width:16px;height:16px}
+.order-meta-copy{min-width:0}.order-meta-label{color:#8e96a1;font-size:9.5px;line-height:1.2}.order-meta-value{margin-top:2px;color:#cdd1d7;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.order-detail{
+  margin-top:11px;min-height:44px;border:1px solid #343a42;border-radius:12px;color:#f0f2f4;display:flex;align-items:center;
+  justify-content:space-between;gap:10px;padding:9px 12px;font-size:12px;font-weight:900;text-decoration:none;background:rgba(255,255,255,.012)
+}
+.order-detail:hover{text-decoration:none;border-color:rgba(255,122,26,.55);color:#fff}
+.order-detail strong{display:flex;align-items:center;gap:7px}.order-detail svg{width:16px;height:16px}.order-detail-note{color:#89919c;font-size:9.5px;font-weight:650;text-align:right;line-height:1.3;max-width:180px}
+
+.orders-empty{border:1px dashed #454c55;border-radius:18px;padding:28px 16px;text-align:center;color:var(--op-muted);font-size:12px;background:#12161a}
+.orders-list-meta{text-align:center;color:var(--op-muted);font-size:10px;margin:13px 0 8px}
+.orders-pagination{display:flex;justify-content:center;gap:6px;overflow-x:auto;padding:3px 0 8px;scrollbar-width:none}.orders-pagination::-webkit-scrollbar{display:none}
+.orders-page-btn{
+  flex:0 0 auto;min-width:35px;height:35px;padding:0 9px;border:1px solid var(--op-border);border-radius:10px;display:inline-flex;
+  align-items:center;justify-content:center;color:#b9bec5;font-size:11px;font-weight:850;text-decoration:none;background:#13171c
+}
+.orders-page-btn:hover{text-decoration:none;border-color:#4d5560;color:#fff}.orders-page-btn.active{background:var(--op-orange);border-color:var(--op-orange);color:#17110d}.orders-page-btn.disabled{opacity:.35;pointer-events:none}
+
+@media(max-width:700px){
+  .orders-page{padding-top:0}.orders-hero{grid-template-columns:1fr;margin:11px 0 14px}.orders-hero-art{display:none}
+  .orders-title h1{font-size:28px}.orders-title p{font-size:12px}.orders-count{font-size:11px}
+  .orders-tabs{gap:6px}.orders-tabs a{min-height:38px;padding:8px 16px;font-size:11px}
+  .orders-search{padding:8px!important}.orders-search-row{grid-template-columns:minmax(0,1fr) auto}.orders-search-row .reset{grid-column:1/-1;width:max-content}
+  .orders-search input{min-height:46px;font-size:12.5px}.orders-search .btn{min-height:46px;padding:9px 15px;font-size:11px}
+  .order-card{padding:12px;border-radius:17px}.order-card-top{grid-template-columns:auto minmax(0,1fr) auto;gap:9px}
+  .order-icon{width:46px;height:46px;border-radius:13px}.order-icon svg{width:22px;height:22px}.order-title{font-size:15px}.order-sub{font-size:10px}
+  .order-status{font-size:8.5px;padding:6px 8px}.order-meta-grid{gap:6px;padding:10px 0}.order-meta-icon{width:29px;height:29px}.order-meta-value{font-size:9.5px}
+  .order-detail{min-height:42px;font-size:11px;padding:8px 10px}.order-detail-note{font-size:8.5px;max-width:145px}
+}
+@media(max-width:430px){
+  .order-card-top{grid-template-columns:auto minmax(0,1fr)}.order-status{grid-column:2;justify-self:start;margin-top:-3px}
+  .order-meta-grid{grid-template-columns:1fr}.order-detail-note{display:none}
+}
+</style>
+
+<div class="orders-page">
+  <header class="orders-hero">
+    <div class="orders-title">
+      <h1>{{ 'Proyek — ' ~ business.business_name if business else ('Riwayat Pesanan' if view == 'history' else 'Pesanan Saya') }}</h1>
+      <p>Pantau status pesanan tanpa tabel panjang.</p>
+      <div class="orders-count">{{ projects_total }} proyek</div>
+    </div>
+    <div class="orders-hero-art" aria-hidden="true">
+      <div class="orders-mini-card"><span></span><span></span><span></span></div>
+      <div class="orders-mini-copy">Semua pesanan Anda dalam satu tempat</div>
+    </div>
   </header>
 
-  <nav class="client-toolbar">
-    <a class="btn small {{ 'secondary' if view != 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active', q=search) if business else url_for('projects.my_project_list',view='active',q=search) }}">Aktif</a>
-    <a class="btn small {{ 'secondary' if view != 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history', q=search) if business else url_for('projects.my_project_list',view='history',q=search) }}">Riwayat</a>
-    <a class="btn small {{ 'secondary' if view != 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all', q=search) if business else url_for('projects.my_project_list',view='all',q=search) }}">Semua</a>
+  <nav class="orders-tabs" aria-label="Filter pesanan">
+    <a class="{{ 'active' if view == 'active' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='active', q=search) if business else url_for('projects.my_project_list',view='active',q=search) }}">Aktif</a>
+    <a class="{{ 'active' if view == 'history' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='history', q=search) if business else url_for('projects.my_project_list',view='history',q=search) }}">Riwayat</a>
+    <a class="{{ 'active' if view == 'all' else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view='all', q=search) if business else url_for('projects.my_project_list',view='all',q=search) }}">Semua</a>
   </nav>
 
-  <form method="get" class="card client-search-card" action="{{ url_for('projects.project_list', business_id=business.id) if business else url_for('projects.my_project_list') }}">
+  <form method="get" class="orders-search" action="{{ url_for('projects.project_list', business_id=business.id) if business else url_for('projects.my_project_list') }}">
     <input type="hidden" name="view" value="{{ view }}">
-    <div class="client-search-row">
-      <input type="search" name="q" value="{{ search }}" placeholder="Cari pesanan, tipe, status..." aria-label="Cari pesanan">
-      <button class="btn small" type="submit">Cari</button>
-      {% if search %}<a class="btn small secondary" href="{{ url_for('projects.project_list', business_id=business.id, view=view) if business else url_for('projects.my_project_list', view=view) }}">Reset</a>{% endif %}
+    <div class="orders-search-row">
+      <div class="orders-search-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+        <input type="search" name="q" value="{{ search }}" placeholder="Cari pesanan, tipe, status..." aria-label="Cari pesanan">
+      </div>
+      <button class="btn" type="submit">Cari</button>
+      {% if search %}<a class="btn secondary reset" href="{{ url_for('projects.project_list', business_id=business.id, view=view) if business else url_for('projects.my_project_list', view=view) }}">Reset</a>{% endif %}
     </div>
   </form>
 
-  <section class="card">
-    <div class="client-list">
-      {% for p in projects %}
-      <article class="client-item">
-        <div class="client-item-head">
-          <div class="client-item-main">
-            <div class="client-item-title">{{ p.title }}</div>
-            <div class="client-item-meta">{{ p.project_type }} · {{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Harga belum ditetapkan' }}</div>
+  <section class="orders-list">
+    {% for p in projects %}
+      {% set is_brain = p.catalog_key == 'ai_admin' or p.title|lower == 'kilas brain' %}
+      {% set detail_url = url_for('talent.talent_list') if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else url_for('projects.project_view', project_id=p.id) %}
+      {% set status_class = 'ok' if p.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAYMENT_PENDING') else ('danger' if p.status in ('CANCELLED','REJECTED','NEEDS_REVISION') else 'info')) %}
+      <article class="order-card">
+        <div class="order-card-top">
+          <div class="order-icon {{ 'brain' if is_brain else '' }}" aria-hidden="true">
+            {% if is_brain %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9.5 4A3.5 3.5 0 0 0 6 7.5c0 .5.1 1 .3 1.4A4 4 0 0 0 7 16.8V18a2 2 0 0 0 2 2h2V4z"/><path d="M14.5 4A3.5 3.5 0 0 1 18 7.5c0 .5-.1 1-.3 1.4A4 4 0 0 1 17 16.8V18a2 2 0 0 1-2 2h-2V4z"/></svg>
+            {% else %}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>
+            {% endif %}
           </div>
-          <div class="client-item-side"><span class="client-status {{ 'ok' if p.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAYMENT_PENDING') else '') }}">{% if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') %}Pilih talent{% else %}{{ p.status|humanize_status('project') }}{% endif %}</span></div>
+
+          <div class="order-main">
+            <div class="order-title">{{ p.title }}</div>
+            <div class="order-sub">{{ p.project_type }} · {{ 'Rp{:,}'.format(p.final_price).replace(',', '.') if p.final_price else 'Harga belum ditetapkan' }}</div>
+          </div>
+
+          <span class="order-status {{ status_class }}">{% if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') %}Pilih talent{% else %}{{ p.status|humanize_status('project') }}{% endif %}</span>
         </div>
-        <div class="client-actions"><a class="btn small secondary" href="{{ url_for('talent.talent_list') if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else url_for('projects.project_view', project_id=p.id) }}">{{ 'Pilih Talent →' if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else 'Lihat Detail →' }}</a></div>
+
+        <div class="order-meta-grid">
+          <div class="order-meta-item">
+            <span class="order-meta-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 3 8 21M16 3l-2 18M4 9h16M3 15h16"/></svg>
+            </span>
+            <span class="order-meta-copy"><span class="order-meta-label">ID Pesanan</span><span class="order-meta-value">KW-{{ '%06d'|format(p.id) }}</span></span>
+          </div>
+          <div class="order-meta-item">
+            <span class="order-meta-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+            </span>
+            <span class="order-meta-copy"><span class="order-meta-label">Terakhir diperbarui</span><span class="order-meta-value">{{ p.updated_at or p.created_at }}</span></span>
+          </div>
+        </div>
+
+        <a class="order-detail" href="{{ detail_url }}">
+          <strong>{{ 'Pilih Talent' if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else 'Lihat Detail' }}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M14 7l5 5-5 5"/></svg>
+          </strong>
+          <span class="order-detail-note">{% if p.status in ('COMPLETED','DELIVERED') %}Lihat hasil dan riwayat pesanan{% elif p.status in ('PAID','IN_PROGRESS') %}Lihat progres, detail layanan, dan komunikasi{% else %}Lihat status dan langkah berikutnya{% endif %}</span>
+        </a>
       </article>
-      {% else %}<div class="client-empty">{{ 'Tidak ada pesanan yang cocok dengan pencarian.' if search else 'Belum ada pesanan di bagian ini.' }}</div>{% endfor %}
-    </div>
+    {% else %}
+      <div class="orders-empty">{{ 'Tidak ada pesanan yang cocok dengan pencarian.' if search else 'Belum ada pesanan di bagian ini.' }}</div>
+    {% endfor %}
   </section>
 
   {% if total_pages > 1 %}
-    <div class="client-list-meta">Maksimal 10 pesanan per halaman · Halaman {{ page }} dari {{ total_pages }}</div>
-    <nav class="client-pagination" aria-label="Halaman pesanan">
+    <div class="orders-list-meta">Maksimal 10 pesanan per halaman · Halaman {{ page }} dari {{ total_pages }}</div>
+    <nav class="orders-pagination" aria-label="Halaman pesanan">
       {% if page > 1 %}
-        <a class="client-page-btn" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page-1) if business else url_for('projects.my_project_list', view=view, q=search, page=page-1) }}">←</a>
-      {% else %}<span class="client-page-btn disabled">←</span>{% endif %}
+        <a class="orders-page-btn" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page-1) if business else url_for('projects.my_project_list', view=view, q=search, page=page-1) }}">←</a>
+      {% else %}<span class="orders-page-btn disabled">←</span>{% endif %}
       {% for page_number in range(1,total_pages+1) %}
-        <a class="client-page-btn {{ 'active' if page_number==page else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page_number) if business else url_for('projects.my_project_list', view=view, q=search, page=page_number) }}" {% if page_number==page %}aria-current="page"{% endif %}>{{ page_number }}</a>
+        <a class="orders-page-btn {{ 'active' if page_number==page else '' }}" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page_number) if business else url_for('projects.my_project_list', view=view, q=search, page=page_number) }}" {% if page_number==page %}aria-current="page"{% endif %}>{{ page_number }}</a>
       {% endfor %}
       {% if page < total_pages %}
-        <a class="client-page-btn" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page+1) if business else url_for('projects.my_project_list', view=view, q=search, page=page+1) }}">→</a>
-      {% else %}<span class="client-page-btn disabled">→</span>{% endif %}
+        <a class="orders-page-btn" href="{{ url_for('projects.project_list', business_id=business.id, view=view, q=search, page=page+1) if business else url_for('projects.my_project_list', view=view, q=search, page=page+1) }}">→</a>
+      {% else %}<span class="orders-page-btn disabled">→</span>{% endif %}
     </nav>
   {% endif %}
 </div>
