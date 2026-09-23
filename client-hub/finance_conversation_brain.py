@@ -259,7 +259,7 @@ def read(b,u,intent,slots,previous):
         p[key]=row['invoice_number'] if kind=='invoice' else row['id']
     if 'customer_reference' in slots:
         row=live.customer(b,u,previous)
-        if not row:return live.unavailable('Customer')
+        if not row:return live.unavailable('Pelanggan')
         p['customer']=row['name']
         p.setdefault('entity_refs',{})['customer']=row['id']
     if 'period' in slots:
@@ -303,7 +303,7 @@ def apply_slots(b,u,initial,slots,previous):
         context['settle_half']=True;context['settle_full']=False
     if 'customer_reference' in slots:
         row=live.customer(b,u,previous)
-        if not row or 'customer_id' not in context['values']:return live.unavailable('Customer')
+        if not row or 'customer_id' not in context['values']:return live.unavailable('Pelanggan')
         context['values']['customer_id']=str(row['id']);slots.pop('customer_reference')
     issue=slots.pop('issue',None);settlement=slots.pop('settlement',None)
     if issue and context['action']!='invoice':return uncertain()
@@ -371,7 +371,7 @@ def start(b,u,intent,slots,previous):
             elif kind=='customer' and 'customer_reference' in slots:
                 row=live.customer(b,u,previous)
                 slots.pop('customer_reference')
-                if not row:return live.unavailable('Customer')
+                if not row:return live.unavailable('Pelanggan')
             else:
                 raw=slots.pop('target','')
                 if not raw and kind in slots:raw=slots.pop(kind)
@@ -595,7 +595,7 @@ def pending(b,u,message,context,current,query_context=''):
             return dict(kind='clarification',message='Maksudnya '+slots['amount']+' rupiah atau '+slots['amount']+' ribu? Tulis nominal lengkap supaya tidak salah.'),{},False
         if 'customer_reference' in slots:
             row=live.customer(b,u,previous)
-            if not row or 'customer_id' not in context['values']:return live.unavailable('Customer'),{},False
+            if not row or 'customer_id' not in context['values']:return live.unavailable('Pelanggan'),{},False
             slots.pop('customer_reference');slots['customer']=row['name']
         if context['action']=='invoice' and ('issue' in slots or 'settlement' in slots):
             result=apply_slots(b,u,current,slots,previous)
