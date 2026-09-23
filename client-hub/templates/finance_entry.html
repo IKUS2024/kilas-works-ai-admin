@@ -136,7 +136,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Langkah berikutnya</span>
         <h1>Buat bisnis Finance</h1>
-        <p>Kasih nama bisnis yang akan memakai Kilas Finance. Free trial dimulai setelah bisnis ini dibuat.</p>
+        <p>Tambahkan nama bisnis Finance. Selama masa testing, bisnis baru juga langsung mendapat free trial tanpa batas waktu.</p>
       </header>
 
       <section class="finance-entry-card accent">
@@ -152,9 +152,9 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
           <label for="finance-business-name">Nama bisnis</label>
           <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
-          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Mulai Free Trial <span aria-hidden="true">→</span></button>
+          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Langsung Pakai Finance <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-mini-note">Tidak ada penagihan otomatis saat trial dimulai.</p>
+        <p class="finance-entry-mini-note">Free trial testing aktif tanpa batas waktu dan tanpa penagihan otomatis.</p>
       </section>
 
     {% elif businesses %}
@@ -179,7 +179,11 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
             </div>
 
             <div class="finance-expiry-box">
-              {% if fs.status=='TRIAL_ACTIVE' %}
+              {% if fs.status=='TRIAL_ACTIVE' and fs.unlimited_trial %}
+                <span class="finance-expiry-label">Free trial testing</span>
+                <strong class="finance-expiry-value">Tanpa batas waktu</strong>
+                <span class="finance-expiry-remaining">Aktif selama Kilas Finance masih dalam masa testing.</span>
+              {% elif fs.status=='TRIAL_ACTIVE' %}
                 <span class="finance-expiry-label">Free trial aktif sampai</span>
                 <strong class="finance-expiry-value">{{ fs.until_local }}</strong>
                 {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} hari tersisa</span>{% endif %}
@@ -238,8 +242,8 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
     {% else %}
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
-        <h1>Coba gratis {{ trial_days }} hari</h1>
-        <p>Mulai kelola keuangan bisnis dengan fitur lengkap Kilas Finance. Kamu baru diminta membuat bisnis setelah menekan tombol mulai.</p>
+        <h1>Free Trial Kilas Finance</h1>
+        <p>Selama masa testing, Kilas Finance bisa dipakai gratis tanpa batas waktu. Cukup aktifkan sekali lalu langsung masuk dan pakai.</p>
       </header>
 
       <section class="finance-entry-card accent">
@@ -250,8 +254,8 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <p class="finance-entry-copy">Gunakan fitur utama Finance tanpa biaya selama masa trial.</p>
 
         <div class="finance-entry-trial">
-          <strong>{{ trial_days }} Hari</strong>
-          <span>gratis</span>
+          <strong>Tanpa Batas</strong>
+          <span>selama testing</span>
         </div>
 
         <ul class="finance-entry-list">
@@ -264,9 +268,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="begin_trial">
-          <button class="btn finance-entry-btn" type="submit">Mulai Free Trial {{ trial_days }} Hari <span aria-hidden="true">→</span></button>
+          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+          <button class="btn finance-entry-btn" type="submit">Aktifkan Free Trial &amp; Masuk <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-note">Trial belum dimulai sampai kamu membuat bisnis di langkah berikutnya.</p>
+        <p class="finance-entry-note">Untuk akun baru, Kilas membuat “Bisnis Utama” otomatis. Namanya bisa kamu edit kapan saja.</p>
       </section>
     {% endif %}
   </div>
