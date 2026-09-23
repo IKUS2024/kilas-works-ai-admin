@@ -95,6 +95,19 @@ class UpgradeTests(unittest.TestCase):
         self.save(draft)
         self.assertEqual(sum(r['transaction_count'] for r in f.get_cash_totals(self.b,actor_user_id=self.uid)),0)
 
+    def test_invalid_model_output_has_one_quota_limited_repair(self):
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            valid={'intent':'recurring','slots':{'cadence':'tiap tanggal 10'}}
+            with patch.object(semantics,'interpret',side_effect=[ValueError('invalid_result'),valid]) as model:
+                self.assertEqual(brain.classify(self.b,self.uid,'tiap tanggal 10',{}),valid)
+                self.assertEqual(model.call_count,2)
+            with patch.object(semantics,'interpret',side_effect=ValueError('invalid_result')) as model:
+                self.assertIsNone(brain.classify(self.b,self.uid,'tiap tanggal 10',{}))
+                self.assertEqual(model.call_count,2)
+            with patch.object(safety,'allow_attempt',side_effect=[True,False]),patch.object(semantics,'interpret',side_effect=ValueError('invalid_result')) as model:
+                self.assertIsNone(brain.classify(self.b,self.uid,'tiap tanggal 10',{}))
+                self.assertEqual(model.call_count,1)
+
     def test_comparison_keeps_both_relative_months(self):
         period=semantics.period_patch('bulan ini sama bulan lalu')
         self.assertEqual(len(period['ranges']),2)
