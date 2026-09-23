@@ -316,7 +316,7 @@ def provider_content(source):
     return content
 
 
-def ai_rows(source,currency):
+def ai_rows(source,currency,business_id=None):
     key,model=configuration()
     content=provider_content(source)
     response=requests.post('https://api.anthropic.com/v1/messages',
@@ -325,7 +325,10 @@ def ai_rows(source,currency):
         timeout=(5,45),allow_redirects=False)
     if response.status_code==429:raise BankError('rate_limited')
     if response.status_code!=200:raise BankError('upstream_failure')
-    result=safety.json_object(safety.response_text(response.json(),800000))
+    body=response.json()
+    classification='vision' if any(part.get('type') in ('image','document') for part in content if isinstance(part,dict)) else 'normal'
+    safety.record_usage(model,body,business_id,classification)
+    result=safety.json_object(safety.response_text(body,800000))
     if (set(result)!={'rows','readable'} or type(result['readable']) is not bool or not isinstance(result['rows'],list)
             or len(result['rows'])>MAX_ROWS):
         raise BankError('invalid_result')
@@ -335,7 +338,7 @@ def ai_rows(source,currency):
 
 def provider_attempt(source,user_id,business_id,currency):
     if not safety.allow_attempt(user_id,business_id,'ai'):raise extraction_error('rate_limited')
-    try:return ai_rows(source,currency)
+    try:return ai_rows(source,currency,business_id)
     except BankError as error:raise extraction_error(str(error)) from None
     except requests.Timeout:raise extraction_error('timeout') from None
     except requests.RequestException:raise extraction_error('network_failure') from None
