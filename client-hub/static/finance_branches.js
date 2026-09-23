@@ -1,4 +1,23 @@
 'use strict';
+
+// The same ledger field stores the counterparty on both sides of cash flow,
+// but the customer-facing meaning is different: income has a source/customer,
+// expense has a recipient/vendor.
+for (const form of document.querySelectorAll('form')) {
+  const direction=form.querySelector('[name="direction"]');
+  const input=form.querySelector('[data-counterparty-input]');
+  const label=form.querySelector('[data-counterparty-label]');
+  if(!direction||!input||!label)continue;
+  const syncCounterparty=()=>{
+    const income=direction.value==='INCOME';
+    label.textContent=income?'Sumber / Customer':'Penerima / Vendor';
+    input.placeholder=income?'Contoh: Wilson atau Client A':'Contoh: PLN atau Vendor A';
+    input.setAttribute('list',income?'finance-source-options':'finance-payee-options');
+  };
+  direction.addEventListener('change',syncCounterparty);
+  syncCounterparty();
+}
+
 for (const category of document.querySelectorAll('[data-other-category]')) {
   const form = category.closest('form');
   const kind = form.querySelector('[name="direction"]');
