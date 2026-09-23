@@ -25,6 +25,8 @@ def _finance_business_claimed(business_id):
     a trial/subscription row is created.
     """
     state = entitlement.state(business_id)
+    if state.get('customer_hidden'):
+        return False
     if state['status'] != 'NOT_ACTIVATED':
         return True
     return bool(db.query_one(
@@ -215,15 +217,17 @@ def finance_entry():
             allowed={row['id'] for row in businesses}
             if not business_id or business_id not in allowed:
                 abort(404)
-            business=security.require_business_access(business_id,user)
-            if business.get('package')!='NONE':
-                flash('Bisnis ini juga dipakai Kilas Assist, jadi tidak dapat dihapus dari sini.','error')
-                return redirect(url_for('products.finance_entry'),code=303)
-            repo.write_audit(user['id'],business_id,'FINANCE_BUSINESS_ARCHIVED','customer archived finance business')
-            db.execute("UPDATE businesses SET status='ARCHIVED', updated_at=CURRENT_TIMESTAMP WHERE id=?",(business_id,))
+            security.require_business_access(business_id,user)
+            # Hide only the Finance lane. Never delete ledger rows and never hide the same
+            # business from Kilas Assist, which is a separate product surface.
+            db.execute(
+                "UPDATE finance_entitlements SET customer_hidden=TRUE, updated_at=? WHERE business_id=?",
+                (entitlement.now().isoformat(),business_id)
+            )
+            repo.write_audit(user['id'],business_id,'FINANCE_BUSINESS_HIDDEN','customer hid finance business from finance list')
             if session.get('dashboard_business_id')==business_id:
                 session.pop('dashboard_business_id',None)
-            flash('Bisnis Finance dihapus dari daftar.','success')
+            flash('Bisnis Finance dihapus dari daftar Finance. Data Finance lama tetap tersimpan.','success')
             return redirect(url_for('products.finance_entry'),code=303)
         abort(400)
 
