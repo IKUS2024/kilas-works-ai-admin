@@ -35,7 +35,7 @@ ATURAN:
 6. Kalau kondisi customer fleksibel, kandidat baru dan second boleh.
 7. Jangan menyatakan seller 100% aman.
 8. Tolak kategori berbahaya/terlarang: senjata, amunisi, bahan peledak, narkotika, obat resep, nikotin, alkohol, spyware, barang curian/palsu, dan produk ilegal.
-9. Cari 3-8 kandidat kuat bila memungkinkan. Maksimal 4 kali web search.
+9. Cari 3-8 kandidat kuat bila memungkinkan. Maksimal 2 kali web search.
 10. Jawaban akhir cukup ringkas: sebut kandidat, harga/kondisi/availability/seller bila terlihat, dan alasan relevan. Selalu gunakan citation dari hasil web search. Jangan keluarkan JSON.
 """
 
@@ -211,7 +211,7 @@ def _structure_candidates(model, item, observed, narrative):
             "system": _STRUCTURE_SYSTEM,
             "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
         },
-        timeout=(5, 35),
+        timeout=(5, 40),
         allow_redirects=False,
     )
     if not 200 <= response.status_code < 300:
@@ -310,9 +310,9 @@ def search_request(item):
                 "temperature": 0,
                 "system": _SYSTEM,
                 "messages": [{"role": "user", "content": _request_prompt(item)}],
-                "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 4}],
+                "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 2}],
             },
-            timeout=(5, 80),
+            timeout=(5, 120),
             allow_redirects=False,
         )
         if not 200 <= response.status_code < 300:
