@@ -14,9 +14,9 @@ for (const form of document.querySelectorAll('form')) {
 
   const refreshOptions=()=>{
     const income=direction.value==='INCOME';
-    label.textContent=income?'Sumber / Customer':'Penerima / Vendor';
+    label.textContent=income?'Sumber / Pelanggan':'Penerima / Vendor';
     const placeholder=select.querySelector('[data-counterparty-placeholder]');
-    if(placeholder)placeholder.textContent=income?'Pilih Customer':'Pilih Penerima / Vendor';
+    if(placeholder)placeholder.textContent=income?'Pilih Pelanggan':'Pilih Penerima / Vendor';
 
     for(const option of select.options){
       if(!option.value)continue;
@@ -33,7 +33,7 @@ for (const form of document.querySelectorAll('form')) {
       hiddenName.value=selected.value;
       customerId.value=income?String(selected.dataset.customerId||''):'';
     }
-    if(addButton)addButton.textContent=income?'＋ Tambah / kelola Customer':'＋ Tambah / kelola Penerima';
+    if(addButton)addButton.textContent=income?'＋ Tambah / kelola Pelanggan':'＋ Tambah / kelola Penerima';
   };
 
   const syncSelection=()=>{
@@ -103,7 +103,7 @@ for(const masterForm of document.querySelectorAll('[data-counterparty-add-form]'
           if(customerId)customerId.value=kind==='INCOME'?String(data.id||''):'';
         }
       }
-      if(status){status.textContent=(masterForm.dataset.kind==='customer'?'Customer':'Penerima')+' ditambahkan.';status.classList.add('success');}
+      if(status){status.textContent=(masterForm.dataset.kind==='customer'?'Pelanggan':'Penerima')+' ditambahkan.';status.classList.add('success');}
       masterForm.reset();
       const dialog=masterForm.closest('dialog');
       if(dialog)setTimeout(()=>dialog.close(),350);
