@@ -1,7 +1,12 @@
 import io
+import os
 import re
+import secrets
+import time
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 
+import requests
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, abort
 
 import repo
@@ -17,6 +22,235 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+
+_OAUTH_STATE_TTL_SECONDS = 10 * 60
+_OAUTH_PROVIDERS = ("google", "facebook")
+
+
+def _oauth_config(provider):
+    """Return public OAuth metadata without ever exposing provider secrets to templates/logs."""
+    if provider == "google":
+        return {
+            "label": "Google",
+            "client_id": (os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
+            "client_secret": (os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip(),
+            "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_url": "https://oauth2.googleapis.com/token",
+            "userinfo_url": "https://openidconnect.googleapis.com/v1/userinfo",
+        }
+    if provider == "facebook":
+        # Reuse the existing Kilas Meta app by default. Dedicated FACEBOOK_OAUTH_* values can
+        # override it later without changing the WhatsApp configuration.
+        version = (os.environ.get("META_GRAPH_API_VERSION") or "v21.0").strip()
+        app_id = (
+            os.environ.get("FACEBOOK_OAUTH_APP_ID")
+            or os.environ.get("META_APP_ID")
+            or ""
+        ).strip()
+        app_secret = (
+            os.environ.get("FACEBOOK_OAUTH_APP_SECRET")
+            or os.environ.get("WHATSAPP_APP_SECRET")
+            or ""
+        ).strip()
+        return {
+            "label": "Facebook",
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "version": version,
+            "authorize_url": f"https://www.facebook.com/{version}/dialog/oauth",
+            "token_url": f"https://graph.facebook.com/{version}/oauth/access_token",
+            "userinfo_url": f"https://graph.facebook.com/{version}/me",
+        }
+    return None
+
+
+def _oauth_ready(provider):
+    config = _oauth_config(provider)
+    return bool(config and config["client_id"] and config["client_secret"])
+
+
+def _oauth_callback_url(provider):
+    path = url_for("auth.oauth_callback", provider=provider)
+    base = (os.environ.get("PUBLIC_APP_BASE_URL") or "").strip().rstrip("/")
+    return base + path if base else url_for("auth.oauth_callback", provider=provider, _external=True)
+
+
+def _oauth_finish_login(email, full_name, provider):
+    """Login/create a CLIENT_OWNER by provider-verified email without touching tenant/business data."""
+    email = (email or "").strip().lower()
+    full_name = (full_name or "").strip()[:100]
+    if not EMAIL_RE.match(email):
+        raise ValueError("oauth_email_missing")
+
+    user = repo.get_user_by_email(email)
+    created = False
+    if user is None:
+        # Social-login accounts still receive a random unusable password hash so the legacy
+        # NOT-NULL users.password_hash contract remains untouched. The owner can later use the
+        # existing Forgot Password flow to set a password if they want one.
+        random_password = secrets.token_urlsafe(48)
+        repo.create_user(
+            email,
+            security.hash_password(random_password),
+            role="CLIENT_OWNER",
+            full_name=full_name or email.split("@", 1)[0],
+        )
+        user = repo.get_user_by_email(email)
+        created = True
+
+    # Keep admin access on the stricter password-only path. Social OAuth is customer-facing.
+    if user["role"] == "KILAS_ADMIN":
+        raise PermissionError("admin_oauth_disabled")
+
+    security.login_user(user)
+    repo.write_audit_no_business(
+        user["id"],
+        "OAUTH_ACCOUNT_CREATED" if created else "OAUTH_LOGIN",
+        f"provider={provider}",
+    )
+    if __import__("product_flow").intent(session.get("product_intent")):
+        return redirect(url_for("products.continue_product"))
+    return redirect(url_for("client.dashboard"))
+
+
+@auth_bp.route("/oauth/<provider>")
+def oauth_start(provider):
+    provider = (provider or "").strip().lower()
+    if provider not in _OAUTH_PROVIDERS:
+        abort(404)
+    config = _oauth_config(provider)
+    if not _oauth_ready(provider):
+        flash(
+            f"Login dengan {config['label']} belum aktif. Gunakan email & password dulu.",
+            "info",
+        )
+        return redirect(url_for("auth.login_page"))
+
+    state = secrets.token_urlsafe(32)
+    session[f"oauth_state_{provider}"] = {
+        "value": state,
+        "issued_at": int(time.time()),
+    }
+    redirect_uri = _oauth_callback_url(provider)
+
+    if provider == "google":
+        query = urllib.parse.urlencode({
+            "client_id": config["client_id"],
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "state": state,
+            "prompt": "select_account",
+        })
+    else:
+        query = urllib.parse.urlencode({
+            "client_id": config["client_id"],
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "email,public_profile",
+            "state": state,
+        })
+    return redirect(config["authorize_url"] + "?" + query)
+
+
+@auth_bp.route("/oauth/<provider>/callback")
+def oauth_callback(provider):
+    provider = (provider or "").strip().lower()
+    if provider not in _OAUTH_PROVIDERS:
+        abort(404)
+    config = _oauth_config(provider)
+    saved = session.pop(f"oauth_state_{provider}", None) or {}
+    supplied_state = request.args.get("state") or ""
+    issued_at = int(saved.get("issued_at") or 0)
+    if (
+        not saved.get("value")
+        or not supplied_state
+        or not secrets.compare_digest(str(saved["value"]), supplied_state)
+        or time.time() - issued_at > _OAUTH_STATE_TTL_SECONDS
+    ):
+        flash("Sesi login sosial tidak valid atau sudah kedaluwarsa. Coba lagi.", "error")
+        return redirect(url_for("auth.login_page"))
+
+    if request.args.get("error"):
+        flash(f"Login dengan {config['label']} dibatalkan atau tidak disetujui.", "info")
+        return redirect(url_for("auth.login_page"))
+
+    code = request.args.get("code") or ""
+    if not code or not _oauth_ready(provider):
+        flash(f"Login dengan {config['label']} belum dapat diproses.", "error")
+        return redirect(url_for("auth.login_page"))
+
+    redirect_uri = _oauth_callback_url(provider)
+    try:
+        if provider == "google":
+            token_response = requests.post(
+                config["token_url"],
+                data={
+                    "code": code,
+                    "client_id": config["client_id"],
+                    "client_secret": config["client_secret"],
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+                timeout=(5, 12),
+                allow_redirects=False,
+            )
+        else:
+            token_response = requests.get(
+                config["token_url"],
+                params={
+                    "code": code,
+                    "client_id": config["client_id"],
+                    "client_secret": config["client_secret"],
+                    "redirect_uri": redirect_uri,
+                },
+                timeout=(5, 12),
+                allow_redirects=False,
+            )
+        token_response.raise_for_status()
+        token_payload = token_response.json()
+        access_token = (token_payload.get("access_token") or "").strip()
+        if not access_token:
+            raise ValueError("oauth_access_token_missing")
+
+        if provider == "google":
+            profile_response = requests.get(
+                config["userinfo_url"],
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=(5, 12),
+                allow_redirects=False,
+            )
+            profile_response.raise_for_status()
+            profile = profile_response.json()
+            if profile.get("email_verified") is not True:
+                raise ValueError("google_email_not_verified")
+            email = profile.get("email")
+            name = profile.get("name")
+        else:
+            profile_response = requests.get(
+                config["userinfo_url"],
+                params={"fields": "id,name,email", "access_token": access_token},
+                timeout=(5, 12),
+                allow_redirects=False,
+            )
+            profile_response.raise_for_status()
+            profile = profile_response.json()
+            email = profile.get("email")
+            name = profile.get("name")
+
+        return _oauth_finish_login(email, name, provider)
+    except PermissionError:
+        flash("Akun admin Kilas tetap harus login menggunakan email & password.", "error")
+    except Exception as exc:
+        # Never log auth code, access token, provider response body, email, or client secret.
+        print(f"OAUTH_LOGIN_FAILED provider={provider} error_type={type(exc).__name__}")
+        flash(
+            f"Login dengan {config['label']} belum berhasil. Coba lagi atau gunakan email & password.",
+            "error",
+        )
+    return redirect(url_for("auth.login_page"))
 
 
 @auth_bp.route("/register", methods=["GET", "POST"])
