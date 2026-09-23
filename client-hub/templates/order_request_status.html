@@ -151,7 +151,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
   fetch(card.getAttribute('data-search-url'),{
     method:'POST',
     headers:{
-      'X-CSRFToken':(document.querySelector('input[name="csrf_token"]')||{}).value||'',
+      'X-CSRF-Token':'{{ csrf_token() }}',
       'Accept':'application/json'
     },
     credentials:'same-origin'
