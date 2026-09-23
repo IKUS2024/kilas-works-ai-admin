@@ -241,15 +241,15 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
         <h1>Mulai Kilas Finance</h1>
-        <p>Kelola keuangan bisnis lebih rapi dari satu tempat.</p>
+        <p>Satu tempat untuk mengelola transaksi, invoice, akun, cabang, dan laporan bisnismu.</p>
       </header>
 
       <section class="finance-entry-card accent">
         <div class="finance-entry-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M5 20v-6M10 20V9M15 20V4M20 20v-9"/></svg>
         </div>
-        <h2>Akses Gratis</h2>
-        <p class="finance-entry-copy">Mulai sekarang tanpa biaya dan tanpa kartu pembayaran.</p>
+        <h2>Siap untuk bisnismu</h2>
+        <p class="finance-entry-copy">Atur keuangan harian dengan alur yang sederhana, rapi, dan mudah dipantau.</p>
 
         <ul class="finance-entry-list">
           <li><span class="finance-entry-check">✓</span><span>Pemasukan &amp; pengeluaran</span></li>
@@ -262,9 +262,9 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="begin_trial">
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-          <button class="btn finance-entry-btn" type="submit">Mulai Gratis <span aria-hidden="true">→</span></button>
+          <button class="btn finance-entry-btn" type="submit">Mulai Sekarang <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-note">Kamu bisa langsung mulai dan mengatur nama bisnis dari Finance.</p>
+        <p class="finance-entry-note">Setelah masuk, kamu bisa mengatur nama bisnis, cabang, akun, dan data Finance lainnya.</p>
       </section>
     {% endif %}
   </div>
