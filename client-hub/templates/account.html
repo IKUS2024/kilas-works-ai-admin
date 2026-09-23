@@ -438,14 +438,13 @@
       {% if businesses %}
         <div class="business-list">
           {% for business in businesses %}
-            {% set package_label = 'AI Admin Pro' if business.package == 'AI_ADMIN_PRO' else ('AI Admin' if business.package == 'AI_ADMIN' else 'Finance / tanpa AI Admin') %}
             <article class="business-item">
               <div class="business-top">
                 <div class="business-main">
                   <div class="business-icon" aria-hidden="true">{% if business.profile_photo %}<img src="{{ url_for('auth.account_business_photo', business_id=business.id, v=business.profile_photo.id) }}" alt="">{% else %}{{ business.business_name[:1]|upper }}{% endif %}</div>
                   <div>
                     <div class="business-name">{{ business.business_name }}</div>
-                    <div class="business-sub">{{ package_label }} · {{ business.finance_branches|length }} cabang Finance</div>
+                    <div class="business-sub">Kilas Finance · {{ business.finance_branches|length }} cabang</div>
                   </div>
                 </div>
                 <div class="business-top-side">
@@ -540,12 +539,6 @@
                 </div>
               {% endif %}
 
-              <div class="business-actions">
-                <a class="btn secondary small" href="{{ url_for('client.business_settings', business_id=business.id) }}">Pengaturan lain</a>
-                {% if business.package != 'NONE' %}
-                  <a class="btn secondary small" href="{{ url_for('client.business_memory', business_id=business.id) }}">Kilas Brain</a>
-                {% endif %}
-              </div>
             </article>
           {% endfor %}
         </div>
