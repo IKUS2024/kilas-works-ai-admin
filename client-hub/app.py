@@ -196,7 +196,7 @@ def create_app():
         if session.get("user_id"):
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
-            return redirect(url_for("client.dashboard"))
+            return redirect(url_for("products.product_start"))
         return redirect(url_for("auth.login_page"))
 
     @app.route("/healthz")
