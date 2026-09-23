@@ -29,7 +29,7 @@
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID','PAID') %}
 <form method="post" action="{{ url_for('finance.invoice_share',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Bagikan Invoice</button></form>
 <p class="muted">Invoice belum bayar, dibayar sebagian, maupun lunas dapat dibagikan. Tautan berlaku 7 hari dan penerima juga bisa mengunduh PDF.</p>
-{% if share_url %}<label for="invoice-link">Tautan customer</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Open Customer View</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
+{% if share_url %}<label for="invoice-link">Tautan pelanggan</label><input id="invoice-link" readonly value="{{ share_url }}"><button id="invoice-copy" type="button" class="btn secondary">Copy Link</button><a class="btn secondary" href="{{ share_url }}" target="_blank" rel="noopener noreferrer">Buka Tampilan Pelanggan</a><p id="invoice-copy-status" role="status">Salin dan kirim manual hanya ke penerima yang dituju.</p>{% endif %}
 {% endif %}
 
 {% if invoice.status!='VOID' %}
