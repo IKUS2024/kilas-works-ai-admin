@@ -163,16 +163,6 @@ def continue_product():
     if request.method=='POST':
         if request.form.get('create')=='yes':
             business_name=request.form.get('business_name')
-            if key=='finance' and request.form.get('owner_name') is not None:
-                owner_name=(request.form.get('owner_name') or '').strip()
-                if not owner_name or len(owner_name)>100:
-                    flash('Nama pemilik wajib diisi dan maksimal 100 karakter.','error')
-                    return redirect(url_for('products.continue_product'),code=303)
-                repo.update_user_profile(user['id'],owner_name)
-                # Finance needs a business container for ledger isolation. For first-time
-                # onboarding we seed its editable display name from the owner's name only;
-                # the real business identity is completed later in Akun → Bisnis.
-                business_name=owner_name
             try: business_id=product_flow.create_business(user['id'],business_name,request.form.get('setup_identity'))
             except ValueError:abort(400)
         else:
