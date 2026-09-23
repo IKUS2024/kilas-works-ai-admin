@@ -85,6 +85,29 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .finance-expiry-remaining{display:block;color:#aab0b8;font-size:11px;margin-top:4px}
 .finance-existing-card .finance-entry-btn{min-height:47px!important;font-size:13px!important}
 .finance-existing-card form{margin:0}
+.finance-existing-actions{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px;align-items:stretch}
+.finance-existing-actions .finance-entry-btn{min-height:46px!important}
+.finance-small-action{
+  min-width:74px;min-height:46px;border:1px solid #3a414a;border-radius:12px;background:#13171c;color:#e5e7ea;
+  display:flex;align-items:center;justify-content:center;padding:8px 11px;font-size:11px;font-weight:850;cursor:pointer
+}
+.finance-small-action:hover{border-color:#59616c;color:#fff}
+.finance-small-action.danger{border-color:rgba(242,109,109,.35);color:#f08b8b;background:rgba(242,109,109,.045)}
+.finance-edit-details{margin-top:9px}
+.finance-edit-details>summary{display:none}
+.finance-edit-box{padding:12px;border:1px solid #30363f;border-radius:13px;background:#101419}
+.finance-edit-box label{display:block;margin:0 0 7px;color:#dfe2e6;font-size:11px;font-weight:800}
+.finance-edit-box input{min-height:44px;border-radius:11px!important;background:#0d1116!important;border:1px solid #3a414b!important;color:#fff!important;padding:0 12px!important}
+.finance-edit-box .finance-edit-save{width:100%;min-height:40px;margin-top:9px;border-radius:10px;background:#ff7a1a;color:#17110d;border:0;font-size:11px;font-weight:900}
+.finance-add-business{
+  min-height:50px;margin-top:13px;border:1px dashed #555d67;border-radius:14px;color:#e6e8eb;
+  display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-size:12px;font-weight:900;background:rgba(255,255,255,.01)
+}
+.finance-add-business:hover{border-color:var(--fe-orange);color:var(--fe-orange);text-decoration:none}
+@media(max-width:430px){
+  .finance-existing-actions{grid-template-columns:minmax(0,1fr) 68px 68px;gap:5px}
+  .finance-small-action{min-width:0;padding:7px 6px;font-size:10px}
+}
 
 @media(max-width:520px){
   .finance-entry-shell{padding:18px 14px 24px}
@@ -109,7 +132,32 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       </a>
     </div>
 
-    {% if businesses %}
+    {% if show_business_form %}
+      <header class="finance-entry-hero">
+        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Langkah berikutnya</span>
+        <h1>Buat bisnis Finance</h1>
+        <p>Kasih nama bisnis yang akan memakai Kilas Finance. Free trial dimulai setelah bisnis ini dibuat.</p>
+      </header>
+
+      <section class="finance-entry-card accent">
+        <div class="finance-entry-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 10h16"/><path d="M5 10v10h14V10"/><path d="M3 10 5 4h14l2 6"/><path d="M8 20v-6h4v6"/></svg>
+        </div>
+        <h2>Nama bisnis</h2>
+        <p class="finance-entry-copy">Nama ini akan menjadi ruang Finance utama kamu. Cabang dan detail lainnya bisa ditambahkan setelah masuk.</p>
+
+        <form method="post" class="finance-business-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="create_trial">
+          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+          <label for="finance-business-name">Nama bisnis</label>
+          <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
+          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Mulai Free Trial <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="finance-entry-mini-note">Tidak ada penagihan otomatis saat trial dimulai.</p>
+      </section>
+
+    {% elif businesses %}
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
         <h1>Finance kamu</h1>
@@ -148,42 +196,44 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
               {% endif %}
             </div>
 
-            <form method="post">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="action" value="open">
-              <input type="hidden" name="business_id" value="{{ b.id }}">
-              <button class="btn finance-entry-btn" type="submit">
-                {{ 'Buka Finance' if fs.active else 'Lihat Trial & Langganan' }} <span aria-hidden="true">→</span>
-              </button>
-            </form>
+            <div class="finance-existing-actions">
+              <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="open">
+                <input type="hidden" name="business_id" value="{{ b.id }}">
+                <button class="btn finance-entry-btn" type="submit">
+                  {{ 'Buka Finance' if fs.active else 'Lihat Trial & Langganan' }} <span aria-hidden="true">→</span>
+                </button>
+              </form>
+              <button class="finance-small-action" type="button" data-edit-toggle="finance-edit-{{ b.id }}">Edit</button>
+              {% if b.package=='NONE' %}
+              <form method="post" onsubmit="return confirm('Hapus bisnis Finance {{ b.business_name|e }} dari daftar? Data lama tetap disimpan aman di sistem.');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="archive">
+                <input type="hidden" name="business_id" value="{{ b.id }}">
+                <button class="finance-small-action danger" type="submit">Hapus</button>
+              </form>
+              {% else %}
+              <button class="finance-small-action danger" type="button" disabled title="Bisnis ini juga dipakai Kilas Assist">Hapus</button>
+              {% endif %}
+            </div>
+
+            <div class="finance-edit-details" id="finance-edit-{{ b.id }}" hidden>
+              <div class="finance-edit-box">
+                <form method="post">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="rename">
+                  <input type="hidden" name="business_id" value="{{ b.id }}">
+                  <label for="rename-business-{{ b.id }}">Nama bisnis</label>
+                  <input id="rename-business-{{ b.id }}" name="business_name" maxlength="160" value="{{ b.business_name }}" required>
+                  <button class="finance-edit-save" type="submit">Simpan Nama</button>
+                </form>
+              </div>
+            </div>
           </article>
         {% endfor %}
       </div>
-
-    {% elif show_business_form %}
-      <header class="finance-entry-hero">
-        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Langkah berikutnya</span>
-        <h1>Buat bisnis Finance</h1>
-        <p>Kasih nama bisnis yang akan memakai Kilas Finance. Free trial dimulai setelah bisnis ini dibuat.</p>
-      </header>
-
-      <section class="finance-entry-card accent">
-        <div class="finance-entry-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M4 10h16"/><path d="M5 10v10h14V10"/><path d="M3 10 5 4h14l2 6"/><path d="M8 20v-6h4v6"/></svg>
-        </div>
-        <h2>Nama bisnis</h2>
-        <p class="finance-entry-copy">Nama ini akan menjadi ruang Finance utama kamu. Cabang dan detail lainnya bisa ditambahkan setelah masuk.</p>
-
-        <form method="post" class="finance-business-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="action" value="create_trial">
-          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-          <label for="finance-business-name">Nama bisnis</label>
-          <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
-          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Mulai Free Trial <span aria-hidden="true">→</span></button>
-        </form>
-        <p class="finance-entry-mini-note">Tidak ada penagihan otomatis saat trial dimulai.</p>
-      </section>
+      <a class="finance-add-business" href="{{ url_for('products.finance_entry',step='business') }}">＋ Tambah Bisnis Finance</a>
 
     {% else %}
       <header class="finance-entry-hero">
@@ -221,4 +271,21 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
     {% endif %}
   </div>
 </div>
+<script>
+(function(){
+  document.querySelectorAll('[data-edit-toggle]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var target=document.getElementById(btn.getAttribute('data-edit-toggle'));
+      if(!target)return;
+      var opening=target.hasAttribute('hidden');
+      document.querySelectorAll('.finance-edit-details').forEach(function(el){el.setAttribute('hidden','');});
+      if(opening){
+        target.removeAttribute('hidden');
+        var input=target.querySelector('input[name="business_name"]');
+        if(input){ input.focus(); input.select(); }
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}
