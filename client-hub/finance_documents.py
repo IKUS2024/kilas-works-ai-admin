@@ -52,7 +52,10 @@ def recognize(business_id, user_id, files, text, detailed=False):
             raise DocumentProviderError('rate_limited')
         if response.status_code != 200:
             raise DocumentProviderError('document_provider_failure')
-        result = safety.json_object(safety.response_text(response.json(), 1000))
+        body=response.json()
+        classification='vision' if any(part.get('type') in ('image','document') for part in content if isinstance(part,dict)) else 'normal'
+        safety.record_usage(model,body,business_id,classification)
+        result = safety.json_object(safety.response_text(body, 1000))
         if set(result) not in ({'workflow'}, {'workflow','currency'}) or result['workflow'] not in (
                 'RECEIPT', 'BANK_STATEMENT', 'HANDWRITTEN_NOTE', 'NEEDS_CLARIFICATION'):
             raise ValueError('invalid_result')
