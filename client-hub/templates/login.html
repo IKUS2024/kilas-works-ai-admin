@@ -40,7 +40,7 @@ body.public-ui>footer{display:none}
 .oauth-list{display:grid;gap:10px}
 .oauth-btn{min-height:54px;border:1px solid #404751;border-radius:14px;display:grid;grid-template-columns:34px 1fr 22px;align-items:center;gap:9px;padding:0 15px;color:#f3f4f6;background:rgba(255,255,255,.012);font-weight:850;text-decoration:none}
 .oauth-btn:hover{border-color:#59616c;background:rgba(255,255,255,.03);text-decoration:none;color:#fff}
-.oauth-icon{width:28px;height:28px;display:grid;place-items:center;font-weight:950;font-size:22px}.oauth-icon.gmail svg{width:27px;height:21px;display:block}.oauth-icon.facebook{border-radius:50%;background:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:23px;line-height:1}
+.oauth-icon{width:28px;height:28px;display:grid;place-items:center;font-weight:950;font-size:22px}.oauth-icon.google svg{width:27px;height:27px;display:block}.oauth-icon.facebook{border-radius:50%;background:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:23px;line-height:1}
 .oauth-arrow{font-size:25px;color:#d5d8dd;line-height:1}
 .auth-register{text-align:center;margin:22px 0 0!important;color:#aeb4bd!important;font-size:14px!important}.auth-register a{font-weight:850;color:var(--auth-orange)}
 .auth-footer{text-align:center;margin:88px 0 0;color:#747c87;font-size:11px;line-height:1.6}
@@ -93,14 +93,14 @@ body.public-ui>footer{display:none}
 
       <div class="oauth-list">
         <a class="oauth-btn" href="{{ url_for('auth.oauth_start', provider='google') }}">
-          <span class="oauth-icon gmail" aria-hidden="true">
+          <span class="oauth-icon google" aria-hidden="true">
             <svg viewBox="0 0 28 21" role="img" aria-label="Gmail">
               <path fill="#4285F4" d="M1.5 19.5h4V7.1L1.5 4.2z"/>
               <path fill="#34A853" d="M22.5 19.5h4V4.2l-4 2.9z"/>
               <path fill="#FBBC04" d="M22.5 4.2 14 10.6 5.5 4.2l2.1-3L14 6l6.4-4.8z"/>
               <path fill="#EA4335" d="M1.5 4.2V2.9C1.5.8 3.9-.4 5.5.8L14 7.2 22.5.8c1.6-1.2 4 .1 4 2.1v1.3L14 13.6z"/>
             </svg>
-          </span><span>Lanjut dengan Gmail</span><span class="oauth-arrow" aria-hidden="true">→</span>
+          </span><span>Lanjut dengan Google</span><span class="oauth-arrow" aria-hidden="true">→</span>
         </a>
         <a class="oauth-btn" href="{{ url_for('auth.oauth_start', provider='facebook') }}">
           <span class="oauth-icon facebook" aria-hidden="true">f</span><span>Lanjut dengan Facebook</span><span class="oauth-arrow" aria-hidden="true">→</span>
