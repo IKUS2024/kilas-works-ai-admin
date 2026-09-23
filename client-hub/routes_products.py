@@ -91,7 +91,7 @@ def _start_finance_trial_now(business_id, user):
 
     session['dashboard_business_id'] = business_id
     session.pop('product_intent', None)
-    flash('Trial Kilas Finance 7 hari aktif. Kamu bisa langsung mulai.', 'success')
+    flash('Free trial Kilas Finance aktif. Kamu bisa langsung mulai.', 'success')
     return url_for('finance.workspace_choice', business_id=business_id)
 
 
