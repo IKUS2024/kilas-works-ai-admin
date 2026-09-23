@@ -436,11 +436,19 @@ def order_catalog_admin():
     def money(value):
         return "Rp{:,.0f}".format(int(value or 0)).replace(",", ".")
     for product in products:
-        product["customer_price_text"]=money(product.get("customer_price_idr"))
-        product["source_price_text"]=money(product.get("source_price_idr"))
-        product["shipping_text"]=money(product.get("estimated_shipping_idr"))
-        product["fee_text"]=money(product.get("estimated_fee_idr"))
+        source=int(product.get("source_price_idr") or 0)
+        shipping=int(product.get("estimated_shipping_idr") or 0)
+        fee=int(product.get("estimated_fee_idr") or 0)
+        customer=int(product.get("customer_price_idr") or 0)
+        total_modal=source+shipping+fee
+        profit=max(0,customer-total_modal)
+        product["customer_price_text"]=money(customer)
+        product["source_price_text"]=money(source)
+        product["shipping_text"]=money(shipping)
+        product["fee_text"]=money(fee)
         product["service_fee_text"]=money(product.get("service_fee_idr"))
+        product["total_modal_text"]=money(total_modal)
+        product["profit_text"]=money(profit)
     return render_template("admin_order_catalog.html",products=products)
 
 
