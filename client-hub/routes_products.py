@@ -152,6 +152,27 @@ def order_entry():
 @security.login_required
 def order_request():
     if request.method=='POST':
+        action=(request.form.get('action') or 'start').strip().lower()
+        if action=='details':
+            draft=session.get('kilas_order_draft') or {}
+            if not draft.get('request_text'):
+                return redirect(url_for('products.order_entry'),code=303)
+            condition=(request.form.get('condition') or 'FLEXIBLE').strip().upper()
+            if condition not in ('FLEXIBLE','NEW','USED'):
+                condition='FLEXIBLE'
+            priority=(request.form.get('priority') or 'BEST').strip().upper()
+            if priority not in ('BEST','PRICE','FAST','QUALITY'):
+                priority='BEST'
+            draft.update({
+                'budget':(request.form.get('budget') or '').strip()[:80],
+                'condition':condition,
+                'priority':priority,
+                'extra_notes':(request.form.get('extra_notes') or '').strip()[:500],
+                'intake_ready':True,
+            })
+            session['kilas_order_draft']=draft
+            return redirect(url_for('products.order_request'),code=303)
+
         request_text=(request.form.get('request_text') or '').strip()
         if len(request_text)<3:
             flash('Ceritakan barang yang sedang kamu cari.','error')
@@ -166,6 +187,9 @@ def order_request():
             'location_label':location_label[:120],
             'latitude':latitude[:32],
             'longitude':longitude[:32],
+            'condition':'FLEXIBLE',
+            'priority':'BEST',
+            'intake_ready':False,
         }
         return redirect(url_for('products.order_request'),code=303)
     draft=session.get('kilas_order_draft') or {}
