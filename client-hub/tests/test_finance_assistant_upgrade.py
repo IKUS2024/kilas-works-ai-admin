@@ -7,6 +7,7 @@ import finance_service as f
 import finance_branches as branches
 import finance_assistant_flow as flow
 import finance_conversation_brain as brain
+import finance_conversation_actions as commands
 import finance_semantics as semantics
 import finance_ai_safety as safety
 
@@ -219,6 +220,24 @@ class UpgradeTests(unittest.TestCase):
         draft=self.propose('item 2','continue_command',{'item_number':'2'},choice)
         self.assertTrue(draft['ready'],draft);self.save(draft)
         self.assertEqual([i['unit_price_minor'] for i in f.list_invoice_items(self.b,ident)],[100000000,300000000])
+
+    def test_child_category_stays_reachable_in_ai_reads_and_actions(self):
+        category=next(r for r in f.list_categories(
+            self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)
+            if r['name']=='Internet')
+        self.assertTrue(category['parent_category_id'])
+        self.assertIn(category['id'],{r['id'] for r in commands.targets(self.b,self.uid,'category')})
+        f.create_transaction(
+            self.b,'EXPENSE',12500000,self.a,category['id'],date.today().isoformat(),
+            description='Internet kantor',actor_user_id=self.uid)
+        answer=self.propose(
+            'pengeluaran kategori Internet bulan ini','cashflow',
+            {'direction':'pengeluaran','category':'Internet','period':'bulan ini'})
+        self.assertEqual(answer['kind'],'answer',answer)
+        with app.app_context(),branches.scope(self.b,self.branch,self.uid):
+            plan=flow.unseal_query(self.b,self.uid,answer['query_context'])['plan']
+        self.assertEqual(plan['entity_refs']['category'],category['id'])
+        self.assertIn('125.000',str(answer.get('preview')))
 
     def test_budget_changed_after_preview_requires_new_review(self):
         category=next(c['name'] for c in f.list_categories(self.b,'EXPENSE') if c['id']==self.meal)
