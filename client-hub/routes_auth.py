@@ -33,7 +33,7 @@ def _oauth_config(provider):
     """Return public OAuth metadata without ever exposing provider secrets to templates/logs."""
     if provider == "google":
         return {
-            "label": "Google",
+            "label": "Gmail",
             "client_id": (os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
             "client_secret": (os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip(),
             "authorize_url": "https://accounts.google.com/o/oauth2/v2/auth",
