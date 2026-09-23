@@ -24,7 +24,7 @@ QUERY_TTL = 7200
 AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)\b|(?:US\$|S\$|A\$|HK\$|€|£|¥|฿)\s*\d+(?:[.,]\d+)*|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
 BARE_AMOUNT = re.compile(r'(?<![\w.,+−-])\d{4,}(?![\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
-          'customer':'Customer baru','recurring':'Tagihan','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
+          'customer':'Pelanggan baru','recurring':'Tagihan','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
 
 
 def authorize(b, u, capability=None, write=True):
@@ -211,16 +211,16 @@ def accounting_help(text):
     topics=[
         (('arus kas','cash flow','cashflow'),'Arus kas menunjukkan uang yang benar-benar masuk dan keluar pada suatu periode. Di Kilas Finance, saldo awal dan penukaran mata uang dipisahkan dari pemasukan/pengeluaran.'),
         (('laba rugi','profit loss'),'Laba rugi akuntansi berbeda dari arus kas. Kilas Finance saat ini berfokus pada pencatatan kas, invoice, piutang, rekening, tagihan, dan laporan operasional.'),
-        (('piutang',),'Piutang adalah tagihan kepada customer yang belum lunas. Kilas Finance bisa melacak invoice terbuka, pembayaran, dan keterlambatan.'),
+        (('piutang',),'Piutang adalah tagihan kepada pelanggan yang belum lunas. Kilas Finance bisa melacak invoice terbuka, pembayaran, dan keterlambatan.'),
         (('rekonsiliasi','mutasi bank'),'Rekonsiliasi mencocokkan mutasi bank dengan transaksi yang sudah tercatat agar tidak terjadi pencatatan ganda.'),
         (('saldo awal',),'Saldo awal adalah uang yang sudah ada di kas/rekening sebelum transaksi periode berjalan. Saldo awal bukan pemasukan.'),
         (('aset','liabilitas','utang'),'Aset adalah sumber daya yang dimiliki, sedangkan liabilitas/utang adalah kewajiban. Kilas Finance mencatat arus kas operasional dan tidak menggantikan pembukuan akuntansi penuh.'),
-        (('invoice',),'Invoice adalah tagihan ke customer. Pembayaran invoice dicatat sebagai penerimaan kas dan mengurangi sisa piutang.'),
+        (('invoice',),'Invoice adalah tagihan ke pelanggan. Pembayaran invoice dicatat sebagai penerimaan kas dan mengurangi sisa piutang.'),
         (('tagihan','biaya rutin','rutin','bulanan','mingguan'),'Tagihan di Kilas Finance adalah pengeluaran yang dijadwalkan atau berulang. Sebut nama tagihan, nominal, frekuensi, rekening, kategori, dan tanggal mulai; Assistant akan menyiapkannya untuk dikonfirmasi.'),
     ]
     for keys,message in topics:
         if any(key in lower for key in keys):return dict(kind='answer',title='Kilas Finance',message=message)
-    return dict(kind='answer',title='Kilas Finance',message='Saya fokus pada keuangan dan akuntansi di Kilas Finance. Kamu bisa menanyakan transaksi, kas/rekening, customer, invoice, piutang, tagihan, struk, mutasi bank, rekonsiliasi, atau laporan.')
+    return dict(kind='answer',title='Kilas Finance',message='Saya fokus pada keuangan dan akuntansi di Kilas Finance. Kamu bisa menanyakan transaksi, kas/rekening, pelanggan, invoice, piutang, tagihan, struk, mutasi bank, rekonsiliasi, atau laporan.')
 
 
 def _other_category(categories):
@@ -325,7 +325,7 @@ def is_read_query(b,u,text,query_context=''):
 
 def capabilities():
     return dict(kind='answer',title='Kilas Finance',message=(
-        'Saya bisa membantu pencatatan pemasukan dan pengeluaran, customer, kas/rekening, kategori, cabang, '
+        'Saya bisa membantu pencatatan pemasukan dan pengeluaran, pelanggan, kas/rekening, kategori, cabang, '
         'tagihan, invoice, pembayaran, piutang, saldo, laporan, anggaran, proyek, serta penukaran mata uang. '
         'Saya juga dapat membaca struk dan mutasi bank dari foto atau PDF yang didukung. '
         'Untuk perubahan data, saya selalu menampilkan ringkasan terlebih dahulu agar kamu bisa memeriksanya sebelum konfirmasi.'))
@@ -359,7 +359,7 @@ def review(b,u,context,edits=None):
     if action=='customer':
         from finance_draft_fields import CUSTOMER_LIMITS as limits, customer_values
         if values['name'].strip():customer_values(values)
-        labels={'name':'Nama customer','phone':'Nomor telepon','email':'Email','notes':'Catatan'}
+        labels={'name':'Nama pelanggan','phone':'Nomor telepon','email':'Email','notes':'Catatan'}
         for k in values:
             f._text(values[k],limits[k],k=='name' and bool(values[k].strip()))
             form.append(field(k,labels[k],values[k],required=k=='name'));preview.append([labels[k],values[k] or '—'])
@@ -541,9 +541,9 @@ def review(b,u,context,edits=None):
             result['message']=questions[missing['key']]
     if action=='customer':
         if not values['name'].strip():
-            result.update(next_field='name',message='Siapa nama customernya?')
+            result.update(next_field='name',message='Siapa nama pelanggannya?')
         elif result.get('ready'):
-            result['message']=('Customer '+values['name']+' siap disimpan. Periksa detailnya, lalu balas “oke”.' if values.get('phone') else 'Oke, customer '+values['name']+'. Mau isi nomor telepon atau langsung simpan? Balas “oke” untuk menyimpan.')
+            result['message']=('Pelanggan '+values['name']+' siap disimpan. Periksa detailnya, lalu balas “oke”.' if values.get('phone') else 'Oke, pelanggan '+values['name']+'.  Mau isi nomor telepon atau langsung simpan? Balas “oke” untuk menyimpan.')
     if context.get('awaiting'):
         if values.get(context['awaiting']):context.pop('awaiting')
         else:
@@ -614,7 +614,7 @@ def _confirm(b,u,token):
         return result
     if action=='customer':
         ident=f.create_customer(b,**values,actor_user_id=u,idempotency_key=context['nonce'])
-        return dict(record_id=ident,message='Sudah. Customer '+values['name']+' berhasil ditambahkan.')
+        return dict(record_id=ident,message='Sudah. Pelanggan '+values['name']+' berhasil ditambahkan.')
     if action=='receipt':
         amount=minor(values['amount'],values['currency'])
         ident=receipts.confirm(b,u,context['receipt_token'],dict(confirmed='yes',currency=values['currency'],amount=str(fx.major(amount,values['currency'])),occurred_on=values['date'],account_id=values['account_id'],category_id=values['category_id'],merchant_name=values['merchant_name'],description=values['description']))
