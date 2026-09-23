@@ -131,8 +131,15 @@ def create_user(email, password_hash, role="CLIENT_OWNER", full_name=None):
 
 
 def update_user_profile(user_id, full_name):
-    """Small customer-account profile update. Email/role remain immutable from self-service."""
+    """Small customer-account profile update."""
     db.execute("UPDATE users SET full_name = ? WHERE id = ?", ((full_name or "").strip() or None, user_id))
+
+
+def update_user_email(user_id, email):
+    email = (email or "").strip().lower()
+    if not email:
+        raise ValueError("invalid_email")
+    db.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
 
 
 # ---------------------------------------------------------------------------
