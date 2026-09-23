@@ -73,7 +73,7 @@ def _parse(raw):
     text = raw.strip()
     fence = chr(96) * 3
     if text.startswith(fence):
-        pattern = re.escape(fence) + r"(?:json)?\\s*\\n(.*?)\\n" + re.escape(fence)
+        pattern = re.escape(fence) + r"(?:json)?\s*\n(.*?)\n" + re.escape(fence)
         m = re.fullmatch(pattern, text, re.DOTALL)
         if not m:
             raise ValueError("invalid_fence")
