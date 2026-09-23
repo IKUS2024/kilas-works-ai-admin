@@ -6,7 +6,7 @@
 @media(max-width:680px){.customer-projects,.customer-projects tbody,.customer-projects tr,.customer-projects td{display:block;width:100%;box-sizing:border-box}.customer-projects thead{display:none}.customer-projects tr{border-bottom:1px solid var(--border);padding:12px 0}.customer-projects td{border:0;padding:5px 0}.customer-projects td[data-label]::before{content:attr(data-label) ": ";color:var(--text-dim);font-weight:600}}
 </style>
 <h1>Halo, {{ user.full_name or user.email }}</h1>
-<p class="muted">Kelola setup Kilas Brain dan proyek Kilas Works-mu di sini.</p>
+<p class="muted">Kelola setup Kilas Assist dan proyek Kilas Works-mu di sini.</p>
 
 <div class="card">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -61,7 +61,7 @@
     {% endif %}
     {% if b.package == 'NONE' %}
           <span class="pill">Pelanggan aktif</span>
-          <span class="muted">· Belum pakai Kilas Brain</span>
+          <span class="muted">· Belum pakai Kilas Assist</span>
         {% else %}
           <span class="pill {{ b.status }}">{{ b.status|humanize_status('business') }}</span>
           <span class="muted">· {{ b.package|humanize_package }} — Rp499.000/bulan</span>
@@ -85,7 +85,7 @@
     {% set review_primary = b.status in ('READY_FOR_REVIEW','NEEDS_REVISION') and b.package != 'NONE' %}
     {% set payment_primary = b.package != 'NONE' and (b.status == 'SUSPENDED' or (b.status == 'APPROVED' and not payment_state.verified)) %}
     {% if b.package == 'NONE' %}
-      <p class="muted" style="margin-top:10px;">Bisnis ini belum punya Kilas Brain. Kamu tetap bisa pakai layanan Kilas Works lainnya (Content, Foto, Video, Website, Ads, Event, Talent) dari menu Layanan di atas.</p>
+      <p class="muted" style="margin-top:10px;">Bisnis ini belum punya Kilas Assist. Kamu tetap bisa pakai layanan Kilas Works lainnya (Content, Foto, Video, Website, Ads, Event, Talent) dari menu Layanan di atas.</p>
     {% elif b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
       <p>Setup bisnis belum selesai.</p>
     {% elif b.status == 'READY_FOR_REVIEW' %}
@@ -94,21 +94,21 @@
       <p>Ada informasi bisnis yang perlu diperbaiki sebelum aktivasi.</p>
     {% elif b.status == 'APPROVED' %}
       {% if payment_state.verified %}
-        <p>Setup bisnis sudah disetujui dan pembayaran sudah diverifikasi. Hubungkan WhatsApp untuk mulai menggunakan Kilas Brain.</p>
+        <p>Setup bisnis sudah disetujui dan pembayaran sudah diverifikasi. Hubungkan WhatsApp untuk mulai menggunakan Kilas Assist.</p>
       {% else %}
         <p>Setup bisnis sudah disetujui. Periksa status pembayaran dan verifikasi Kilas Works di Invoice &amp; Pembayaran sebelum menghubungkan WhatsApp.</p>
       {% endif %}
     {% elif b.status == 'ACTIVE' %}
-      <p>Kilas Brain aktif dan siap membantu customer melalui WhatsApp.</p>
+      <p>Kilas Assist aktif dan siap membantu customer melalui WhatsApp.</p>
     {% elif b.status == 'SUSPENDED' %}
-      <p>Kilas Brain sedang dijeda. Periksa status langganan atau hubungi Kilas Works.</p>
+      <p>Kilas Assist sedang dijeda. Periksa status langganan atau hubungi Kilas Works.</p>
     {% endif %}
     <div class="business-actions business-primary" style="margin-top:14px;">
       {% if b.package == 'NONE' %}
         <form method="post" action="{{ url_for('client.upgrade_to_ai_admin', business_id=b.id) }}" class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="package" value="AI_ADMIN">
-          <button class="btn" type="submit">+ Tambah Kilas Brain</button>
+          <button class="btn" type="submit">+ Tambah Kilas Assist</button>
         </form>
       {% elif b.status in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
         <a class="btn" href="{{ url_for('client.wizard_step', business_id=b.id, step='basics') }}">Lanjutkan Setup</a>
@@ -128,9 +128,9 @@
       <div class="business-actions" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
         {% if not review_primary %}<a class="btn secondary" href="{{ url_for('client.review_page', business_id=b.id) }}">Lihat Data</a>{% endif %}
         {% if b.package != 'NONE' %}
-          {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}<a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Pengetahuan Kilas Brain</a>{% endif %}
+          {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}<a class="btn secondary" href="{{ url_for('client.business_memory', business_id=b.id) }}">Pengetahuan Kilas Assist</a>{% endif %}
           <a class="btn secondary" href="{{ url_for('client.business_settings', business_id=b.id) }}">Pengaturan Operasional</a>
-          <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Coba Kilas Brain</a>
+          <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=b.id) }}">Coba Kilas Assist</a>
         {% endif %}
         {% if not payment_primary %}<a class="btn secondary" href="{{ url_for('payments.invoice_list', business_id=b.id, view='all') }}">Invoice &amp; Pembayaran</a>{% endif %}
         <a class="btn secondary" href="{{ url_for('projects.project_list', business_id=b.id, view='all') }}">Semua Proyek</a>
@@ -138,7 +138,7 @@
     </details>
   </div>
 {% else %}
-  <p class="muted">Belum ada profil bisnis. Kamu tetap bisa memilih layanan; profil bisnis hanya wajib untuk Kilas Brain.</p>
+  <p class="muted">Belum ada profil bisnis. Kamu tetap bisa memilih layanan; profil bisnis hanya wajib untuk Kilas Assist.</p>
 {% endfor %}
 
 <div class="card">
@@ -148,12 +148,12 @@
     <label>Nama bisnis</label>
     <input type="text" name="business_name" required>
     {% include "_brain_plan_notice.html" %}
-    <label>Paket Kilas Brain (opsional)</label>
+    <label>Paket Kilas Assist (opsional)</label>
     <select name="package">
-      <option value="NONE" selected>Belum pakai Kilas Brain — jelajahi layanan lain dulu</option>
-      <option value="AI_ADMIN">Kilas Brain — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
+      <option value="NONE" selected>Belum pakai Kilas Assist — jelajahi layanan lain dulu</option>
+      <option value="AI_ADMIN">Kilas Assist — Rp{{ '{:,}'.format(brain_plan.harga).replace(',', '.') }}/bulan</option>
     </select>
-    <p class="muted" style="margin-top:4px;">Kilas Brain bersifat opsional. Kamu bisa langsung ke dashboard dan pakai layanan lain (Content/Foto/Video/Website/Ads/Event/Talent), lalu tambah Kilas Brain kapan saja.</p>
+    <p class="muted" style="margin-top:4px;">Kilas Assist bersifat opsional. Kamu bisa langsung ke dashboard dan pakai layanan lain (Content/Foto/Video/Website/Ads/Event/Talent), lalu tambah Kilas Assist kapan saja.</p>
     <div style="margin-top:16px;"><button class="btn" type="submit">Buat Bisnis</button></div>
   </form>
 </div>
