@@ -1,6 +1,8 @@
 """Customer product entry and independent Finance subscription UI."""
 import io
+import os
 import uuid
+from urllib.parse import quote
 from functools import wraps
 from flask import Blueprint, render_template, request, session, redirect, url_for, abort, flash, send_file
 import db
@@ -15,6 +17,29 @@ import payment_service
 from pricing_config import BRAIN_PLAN,FINANCE_PLAN
 
 products_bp=Blueprint('products',__name__)
+
+
+def _kilas_order_whatsapp_url(item):
+    raw_number=(os.environ.get('KILAS_ORDER_WHATSAPP_NUMBER') or '6282213039137').strip()
+    number=''.join(ch for ch in raw_number if ch.isdigit()) or '6282213039137'
+    request_code=str((item or {}).get('request_code') or '').strip()
+    request_text=str((item or {}).get('request_text') or '').strip()
+    if (item or {}).get('location_source')=='manual' and (item or {}).get('location_label'):
+        location=str(item.get('location_label')).strip()
+    elif (item or {}).get('location_source')=='gps':
+        location='Lokasi GPS tersimpan di request Kilas Order'
+    else:
+        location='Belum ditentukan'
+    lines=[
+        'Halo Kilas, saya mau minta bantuan Cari Order.',
+        '',
+        'Kode request: '+request_code,
+        'Permintaan: '+request_text,
+        'Lokasi: '+location,
+        '',
+        'Mohon dibantu carikan pilihan yang cocok dan kabari saya lewat WhatsApp ini.',
+    ]
+    return 'https://wa.me/'+number+'?text='+quote('\n'.join(lines))
 
 
 def _finance_business_claimed(business_id):
@@ -152,6 +177,35 @@ def order_entry():
         user=user,
         recent_order_requests=order_service.list_user_requests(user['id'],limit=3),
     )
+
+
+@products_bp.route('/products/order/whatsapp',methods=['POST'])
+@security.login_required
+def order_whatsapp_handoff():
+    import order_service
+    user=security.current_user()
+    request_text=(request.form.get('request_text') or '').strip()
+    if len(request_text)<3:
+        flash('Ceritakan barang yang sedang kamu cari.','error')
+        return redirect(url_for('products.order_entry'),code=303)
+
+    location_source=(request.form.get('location_source') or '').strip()
+    location_label=(request.form.get('location_label') or '').strip()
+    latitude=(request.form.get('latitude') or '').strip()
+    longitude=(request.form.get('longitude') or '').strip()
+    draft={
+        'request_text':request_text[:800],
+        'location_source':location_source if location_source in ('gps','manual') else '',
+        'location_label':location_label[:120],
+        'latitude':latitude[:32],
+        'longitude':longitude[:32],
+        'conversation':[],
+        'draft_token':uuid.uuid4().hex,
+    }
+    saved=order_service.create_whatsapp_request(user['id'],draft)
+    session['kilas_order_last_request']=saved['request_code']
+    session.pop('kilas_order_draft',None)
+    return redirect(_kilas_order_whatsapp_url(saved),code=303)
 
 
 @products_bp.route('/products/order/request',methods=['GET','POST'])
@@ -316,7 +370,7 @@ def order_request_detail(request_code):
             flash('AI Kilas mulai mencari. Kamu bisa tetap di halaman status ini.','info')
             return redirect(url_for('products.order_request_detail',request_code=item['request_code']),code=303)
         abort(400)
-    return render_template('order_request_status.html',user=user,item=item)
+    return render_template('order_request_status.html',user=user,item=item,whatsapp_url=_kilas_order_whatsapp_url(item))
 
 
 @products_bp.route('/products/finance',methods=['GET','POST'])
