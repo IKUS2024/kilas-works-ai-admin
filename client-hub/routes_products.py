@@ -263,7 +263,7 @@ def order_request_search_run(request_code):
     item=order_service.get_user_request(user['id'],request_code)
     if not item:
         abort(404)
-    if item.get('status') not in ('SEARCH_REQUESTED','ISSUE'):
+    if item.get('status') not in ('SEARCH_REQUESTED','SEARCHING','ISSUE'):
         return jsonify({
             'ok': item.get('status')=='RESULTS_READY',
             'status': item.get('status'),
