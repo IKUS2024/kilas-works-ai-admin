@@ -11,7 +11,11 @@
 .admin-pagination{display:flex;justify-content:center;gap:6px;overflow-x:auto;scrollbar-width:none;padding:3px 0 8px}.admin-pagination::-webkit-scrollbar{display:none}
 .admin-page-btn{flex:0 0 auto;min-width:34px;height:34px;padding:0 9px;border:1px solid var(--border);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:11px;font-weight:800;text-decoration:none;background:rgba(255,255,255,.01)}
 .admin-page-btn:hover{border-color:#4a4e56;color:var(--text);text-decoration:none}.admin-page-btn.active{background:var(--orange);border-color:var(--orange);color:#171717}.admin-page-btn.disabled{opacity:.38;pointer-events:none}
-@media(max-width:520px){.ai-usage-search-row{grid-template-columns:1fr auto}.ai-usage-search-row .secondary{grid-column:1/-1;width:max-content}.admin-page-btn{min-width:32px;height:32px;padding:0 8px}}
+.ai-usage-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:10px 0}
+.ai-usage-breakdown-item{border:1px solid var(--border);border-radius:10px;padding:8px 9px;background:rgba(255,255,255,.015);min-width:0}
+.ai-usage-breakdown-item strong{display:block;color:var(--text);font-size:14px;line-height:1.15}
+.ai-usage-breakdown-item span{display:block;color:var(--text-dim);font-size:9px;margin-top:3px;line-height:1.3}
+@media(max-width:520px){.ai-usage-search-row{grid-template-columns:1fr auto}.ai-usage-search-row .secondary{grid-column:1/-1;width:max-content}.admin-page-btn{min-width:32px;height:32px;padding:0 8px}.ai-usage-breakdown{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <div class="admin-page">
   <header class="admin-head"><div><h1>Biaya AI</h1><p>Ringkasan pemakaian bulan ini.</p></div><span class="admin-count">{{ usage_total }} tenant</span></header>
@@ -51,7 +55,19 @@
               <summary>Detail usage</summary>
               <div class="admin-collapsible-body">
                 <p class="admin-note">Input {{ row.input_tokens }} · Output {{ row.output_tokens }} · Cache read {{ row.cache_read_input_tokens }} · Cache write {{ row.cache_creation_input_tokens }} · Cache hit {{ '%.1f'|format(row.cache_hit_ratio*100) }}%</p>
-                <p class="admin-note">Haiku {{ row.haiku_calls }} · Sonnet {{ row.sonnet_calls }} · Finance AI {{ row.finance_calls }} panggilan{% if row.finance_vision_calls %} · Vision/dokumen {{ row.finance_vision_calls }}{% endif %}</p>
+                <p class="admin-note">Model: Haiku {{ row.haiku_calls }} · Sonnet {{ row.sonnet_calls }}</p>
+                <div class="ai-usage-breakdown" aria-label="Rincian panggilan AI">
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.calls - row.finance_calls }}</strong><span>AI Admin & lainnya</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_calls }}</strong><span>Finance AI total</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_chat_calls }}</strong><span>Finance Chat / semantic</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_receipt_calls }}</strong><span>Struk / receipt</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_bank_calls }}</strong><span>Mutasi bank / PDF</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_document_calls }}</strong><span>Deteksi dokumen</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_analyst_calls }}</strong><span>Analyst / laporan</span></div>
+                  <div class="ai-usage-breakdown-item"><strong>{{ row.finance_operator_calls }}</strong><span>Operator / aksi</span></div>
+                  {% if row.finance_other_calls %}<div class="ai-usage-breakdown-item"><strong>{{ row.finance_other_calls }}</strong><span>Finance lama / belum terklasifikasi</span></div>{% endif %}
+                  {% if row.finance_vision_calls %}<div class="ai-usage-breakdown-item"><strong>{{ row.finance_vision_calls }}</strong><span>Total vision / dokumen</span></div>{% endif %}
+                </div>
                 <p class="admin-note">USD {{ '%.6f'|format(row.cost_usd) if row.cost_usd is not none else 'unknown' }} · USD/respons {{ '%.6f'|format(row.cost_per_reply) if row.cost_per_reply is not none else 'unknown' }}</p>
                 <p class="admin-note">Pendapatan referensi IDR {{ row.reference_revenue_idr if row.reference_revenue_idr is not none else 'N/A' }} · Kontribusi referensi {{ '%.0f'|format(row.display_contribution_idr) if row.display_contribution_idr is not none else 'Tidak tersedia' }}</p>
                 {% for warning in row.warnings %}<p role="status">{{ warning }}</p>{% endfor %}
