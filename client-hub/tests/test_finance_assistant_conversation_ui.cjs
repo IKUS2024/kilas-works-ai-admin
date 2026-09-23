@@ -74,12 +74,13 @@ test('one incomplete draft survives multiple server revisions',async()=>{
 
 test('retained bank upload accepts typed account selection and resolves it on server',async()=>{
   const account={kind:'document_account',fields:[{key:'account_id',type:'select',required:true,value:'',options:[{value:'1',label:'BCA · IDR'}]}]};
-  const h=harness([{workflow:'BANK_STATEMENT',document_context:'signed-file-currency'},account,{kind:'bank_review',ready:true,token:'bank-token'}]);
+  const h=harness([{workflow:'BANK_STATEMENT',document_context:'signed-file-currency'},account,{kind:'document_selection',account_id:'1'},{kind:'bank_review',ready:true,token:'bank-token'}]);
   h.get('assistant-files').files=[{name:'bank.pdf',size:10}];
   await h.send('baca mutasi ini');await h.send('pakai BCA');
-  assert.equal(h.calls.length,3);assert.equal(h.calls[2].url,'/document');
-  assert.equal(h.calls[2].body.text,'pakai BCA');assert.equal(h.calls[2].body.document_context,'signed-file-currency');
-  assert.equal(h.calls[2].body.account_id,undefined);assert.equal(h.calls[2].body.sources.name,'bank.pdf');
+  assert.equal(h.calls.length,4);assert.equal(h.calls[2].url,'/message');
+  assert.equal(h.calls[2].body.document_pending,true);assert.equal(h.calls[3].url,'/document');
+  assert.equal(h.calls[3].body.document_context,'signed-file-currency');
+  assert.equal(h.calls[3].body.account_id,'1');assert.equal(h.calls[3].body.sources.name,'bank.pdf');
 });
 
 test('read-only interruption keeps the original draft and passes query context separately',async()=>{

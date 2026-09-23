@@ -326,7 +326,7 @@ def is_read_query(b,u,text,query_context=''):
 def capabilities():
     return dict(kind='answer',title='Kilas Finance',message=(
         'Saya bisa membantu pencatatan pemasukan dan pengeluaran, customer, kas/rekening, kategori, cabang, '
-        'biaya rutin, invoice, pembayaran, piutang, saldo, laporan, proyek, serta penukaran mata uang. '
+        'biaya rutin, invoice, pembayaran, piutang, saldo, laporan, anggaran, proyek, serta penukaran mata uang. '
         'Saya juga dapat membaca struk dan mutasi bank dari foto atau PDF yang didukung. '
         'Untuk perubahan data, saya selalu menampilkan ringkasan terlebih dahulu agar kamu bisa memeriksanya sebelum konfirmasi.'))
 
@@ -662,7 +662,7 @@ def follow_up(b,u,token,message,confirmation=None,query_context=''):
         if not confirmation:return review(b,u,context)
         confirmed=unseal(b,u,confirmation,'confirm')
         # The confirmation must be for exactly the active reviewed values, not an older revision.
-        if any(confirmed.get(k)!=context.get(k) for k in ('action','values','nonce','issue_after','pay_after','settle_full')):raise ValueError('invalid_draft')
+        if any(confirmed.get(k)!=context.get(k) for k in ('action','values','nonce','issue_after','pay_after','settle_full','settle_half')):raise ValueError('invalid_draft')
         result=confirm(b,u,confirmation)
         if result.get('kind') in ('review','answer','clarification'):return result
         return dict(kind='success',state='CONFIRMED',**result)

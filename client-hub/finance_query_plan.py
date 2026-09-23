@@ -11,7 +11,7 @@ import finance_fx as fx
 from finance_semantics import normalize,period_patch,entity_options
 from finance_assistant_queries import result,fuzzy_matches,money_groups
 
-RESOURCES=('cashflow','transactions','balances','customers','projects','accounts','categories','branches','invoices','receivables','reminder','recurring','exchanges')
+RESOURCES=('cashflow','transactions','balances','customers','projects','accounts','categories','branches','invoices','receivables','reminder','recurring','exchanges','budgets')
 
 
 def ambiguous_entity_scope(b,u,message,candidate,key='account'):
@@ -162,6 +162,16 @@ def execute(b,u,p,scoped=False):
             p.setdefault('entity_refs',{})[key]=found[0]['id']
             p[key]=found[0][label]
     currency=p.get('currency')
+    if resource=='budgets':
+        period=p['period']
+        if period['mode']=='all':return result('Anggaran',[],'Anggaran disusun per bulan. Bulan mana yang ingin dilihat?')
+        rows=[]
+        for start,end in period['ranges']:
+            rows.extend(f.get_budget_report_rows(b,start,end,u))
+        if ids.get('category_id'):rows=[r for r in rows if r['category_id']==ids['category_id']]
+        if currency:rows=[r for r in rows if r['currency']==currency]
+        return result('Anggaran',[[r['month']+' · '+r['category_name'],fx.format_money(r['amount_minor'],r['currency'])] for r in rows[:50]],
+                      'Berikut batas anggaran yang sudah diatur.' if rows else 'Belum ada anggaran pada periode dan kategori ini.')
     if resource in ('customers','projects','accounts','categories','branches'):
         key={'customers':'customer','projects':'project','accounts':'account','categories':'category','branches':'branch'}[resource]
         rows,label=pools[key] if key in pools else ([r for r in branches.list_branches(b,u) if r['is_active']],'name')
@@ -173,7 +183,8 @@ def execute(b,u,p,scoped=False):
             info='Telepon: '+(r['phone'] or '—')+' · Email: '+(r['email'] or '—')+' · '+(r['notes'] or '') if resource=='customers' else (
                 r['currency']+' · '+r['account_type'] if resource=='accounts' else r['direction'] if resource=='categories' else 'Aktif')
             preview.append([r[label],info])
-        return result({'customers':'Data customer','projects':'Proyek','accounts':'Rekening','categories':'Kategori','branches':'Cabang'}[resource],preview)|{'choices':['Berikutnya'] if count>(page+1)*50 else []}
+        return result({'customers':'Data customer','projects':'Proyek','accounts':'Rekening','categories':'Kategori','branches':'Cabang'}[resource],preview,
+                      'Berikut data yang tersedia.' if count else 'Belum ada data yang sesuai di konteks ini.')|{'choices':['Berikutnya'] if count>(page+1)*50 else []}
     if resource=='transactions':
         period=p['period'];start,end=(None,None) if period['mode']=='all' else period['ranges'][0]
         filters=dict(start_date=start,end_date=end,direction=p.get('direction') or None,status='POSTED',currency=currency,**ids)
@@ -190,7 +201,8 @@ def execute(b,u,p,scoped=False):
         if currency:rows=[r for r in rows if r['currency']==currency]
         preview=[[r['name']+' · '+r['branch_name'],fx.format_money(r['balance_minor'],r['currency'])] for r in rows]
         preview += [['Total '+r['currency'],fx.format_money(r['balance_minor'],r['currency'])] for r in f.aggregate_account_balances_by_currency(rows)]
-        return result('Saldo akun',preview,'Saldo saat ini mencakup saldo awal dan FX. Periode laporan tidak mengubah saldo tersedia; saldo awal dan FX bukan pendapatan operasional.')
+        message=('Saldo '+rows[0]['name']+' saat ini '+fx.format_money(rows[0]['balance_minor'],rows[0]['currency'])+'.' if len(rows)==1 else 'Berikut saldo rekening saat ini.' if rows else 'Belum ada rekening yang sesuai.')
+        return result('Saldo akun',preview,message)
     if resource in ('receivables','invoices','reminder'):
         rows=f.get_report_invoices(b,today,actor_user_id=u,customer_id=ids.get('customer_id'),open_only=resource!='invoices')
         if p.get('invoice'):

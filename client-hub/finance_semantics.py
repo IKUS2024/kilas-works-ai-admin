@@ -102,6 +102,9 @@ def period_patch(text):
             if ranked and ranked[0][0]>=0.84 and (len(ranked)==1 or ranked[0][0]-ranked[1][0]>=0.05):
                 months=[ranked[0][1]];break
     year=re.search(r'\b(20\d{2})\b',low)
+    if re.search(r'bulan ini',low) and re.search(r'bulan (?:lalu|sebelumnya)',low):
+        current=today.replace(day=1);previous=(current-timedelta(days=1)).replace(day=1)
+        return {'mode':'range','ranges':[[s.isoformat(),s.replace(day=calendar.monthrange(s.year,s.month)[1]).isoformat()] for s in (current,previous)]}
     if not months and not re.search(r'bulan (ini|lalu|sebelumnya|depan)',low) and not year:return None
     if year and not months and 'bulan' not in low:
         return {'mode':'range','ranges':[[year[1]+'-01-01',year[1]+'-12-31']]}

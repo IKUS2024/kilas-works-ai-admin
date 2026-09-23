@@ -81,7 +81,7 @@ def rupiah(value):
         raise OperatorError('invalid_amount') from None
 
 
-def validate_request(payload):
+def validate_request(payload, business_id=None):
     if not isinstance(payload,dict) or set(payload)!={'action','request','date','account_id','category_id','invoice_id'}:
         raise OperatorError('invalid_request')
     action=payload['action']
@@ -192,7 +192,7 @@ def prepare(business_id,user_id,payload):
     if not enabled(business_id): raise OperatorError('not_allowed')
     branches.token_branch(business_id)
     draft_signer=signer()  # Fail before a paid call if signing configuration is unsafe.
-    action,question,fields=validate_request(payload)
+    action,question,fields=validate_request(payload,business_id)
     account=finance.get_account(business_id,fields['account_id'],actor_user_id=user_id,active=True);fields['currency']=account['currency']
     # Validate scope/references BEFORE sending any user text to the model.
     resolve(business_id,user_id,action,dict(fields,amount_minor=1,description='Validasi referensi'),draft=True)

@@ -13,6 +13,7 @@ import repo
 import finance_service as f
 import finance_branches as branches
 import finance_fx as fx
+import finance_assistant_tools as tools
 from finance_semantics import entity_options
 
 TITLES={'create_account':'Rekening baru','create_category':'Kategori baru','create_branch':'Cabang baru',
@@ -30,6 +31,7 @@ LABELS={'name':'Nama','phone':'Nomor telepon','email':'Email','notes':'Catatan c
         'project_id':'Proyek','customer_id':'Pelanggan','counterparty_name':'Pihak terkait'}
 OPTIONAL={'note','description','project_id','customer_id','counterparty_name','phone','email','notes'}
 REFS={'account_id':'account','from_account_id':'account','to_account_id':'account','category_id':'category','project_id':'project','customer_id':'customer'}
+TITLES.update(tools.TITLES)
 
 
 def fingerprint(row):
@@ -66,7 +68,8 @@ def get_target(b,u,kind,ident):
 def start(b,u,operation,values=None,row=None):
     if operation not in TITLES:raise ValueError('invalid_draft')
     v=dict(values or {})
-    if operation=='create_account':v={'name':'','account_type':'','currency':'','opening_balance':'0',**v}
+    if operation in tools.TITLES:v={**tools.initial(b,u,operation,row),**v}
+    elif operation=='create_account':v={'name':'','account_type':'','currency':'','opening_balance':'0',**v}
     elif operation=='create_category':v={'name':'','direction':'',**v}
     elif operation in ('create_branch','rename_account','rename_category','rename_branch'):v={'name':'',**v}
     elif operation=='edit_customer':
@@ -84,12 +87,13 @@ def start(b,u,operation,values=None,row=None):
 
 
 def options(b,u,key,values):
+    if key=='cadence':return [dict(value='MONTHLY',label='Bulanan'),dict(value='WEEKLY',label='Mingguan')]
     if key=='currency':return [dict(value=c,label=c) for c in f.SUPPORTED_CURRENCIES]
     if key=='account_type':return [dict(value=k,label=v) for k,v in [('CASH','Tunai'),('BANK','Bank'),('EWALLET','Dompet digital'),('OTHER','Lainnya')]]
     if key=='direction':return [dict(value='INCOME',label='Pemasukan'),dict(value='EXPENSE',label='Pengeluaran')]
     kind=REFS.get(key)
     if kind=='account':rows=f.list_accounts(b,actor_user_id=u)
-    elif kind=='category':rows=f.list_categories(b,values.get('direction'),actor_user_id=u)
+    elif kind=='category':rows=f.list_categories(b,values.get('direction') or ('EXPENSE' if 'cadence' in values or 'month' in values else None),include_children=True,actor_user_id=u)
     elif kind=='project':rows=f.list_finance_projects(b,actor_user_id=u)
     elif kind=='customer':rows=f.list_customers(b,actor_user_id=u)
     else:return None
@@ -99,6 +103,12 @@ def options(b,u,key,values):
 def prepared(b,u,c):
     from finance_assistant_flow import minor
     op=c['operation'];v=c['values'];row=target(b,u,c) if 'target_id' in c else None
+    if op in tools.TITLES:
+        data=tools.prepared(b,u,c,row)
+        if op=='set_budget':
+            existing=next((r for r in f.list_monthly_budgets(b,data['month'],actor_user_id=u) if r['category_id']==data['category_id']),None)
+            if 'budget_snapshot' in c and c['budget_snapshot']!=fingerprint(existing):raise ValueError('invalid_draft')
+        return data,row
     if op=='create_account':
         balance=0 if v['opening_balance']=='0' else minor(v['opening_balance'].lstrip('-'),v['currency'])*(-1 if v['opening_balance'].startswith('-') else 1)
         data=dict(name=f._text(v['name'],160,True),account_type=f._enum(v['account_type'],f.ACCOUNT_TYPES),currency=f._currency(v['currency']),opening_balance_minor=f._money(balance))
@@ -143,16 +153,24 @@ def review(b,u,c,edits=None):
         if not isinstance(edits,dict) or set(edits)!=set(values) or any(not isinstance(v,str) or len(v)>4000 for v in edits.values()):raise ValueError('invalid_fields')
         values=edits.copy()
     c=dict(c,values=values);fields=[]
-    if edits is not None:c.pop('account_currencies',None)
+    if edits is not None:
+        c.pop('account_currencies',None)
+        if any(values.get(key)!=c.get('budget_scope',{}).get(key) for key in ('month','category_id')):
+            c.pop('budget_snapshot',None)
     if 'target_id' in c:target(b,u,c)
     for key,value in values.items():
         opts=options(b,u,key,values)
         if value and opts is not None and value not in {o['value'] for o in opts}:raise ValueError('reference_unavailable')
-        fields.append(flow.field(key,LABELS[key],value,opts,kind='date' if key=='date' else 'text',required=key not in OPTIONAL))
+        fields.append(flow.field(key,LABELS.get(key,tools.label(key)),value,opts,kind='date' if key in ('date','issue_date','due_date','end_on') else 'text',required=key not in OPTIONAL and not tools.optional(key)))
     missing=next((r for r in fields if r['required'] and not r['value']),None)
     preview=[]
     if not missing:
         data,row=prepared(b,u,c)
+        if c['operation']=='set_budget':
+            existing=next((r for r in f.list_monthly_budgets(b,data['month'],actor_user_id=u) if r['category_id']==data['category_id']),None)
+            c['budget_snapshot']=fingerprint(existing)
+            c['budget_scope']={key:values[key] for key in ('month','category_id')}
+            if existing:preview.append(['Anggaran sebelumnya',fx.format_money(existing['amount_minor'],existing['currency'])])
         if c['operation']=='exchange':
             c['account_currencies']={values[key]:f.get_account(b,int(values[key]),actor_user_id=u,active=True)['currency'] for key in ('from_account_id','to_account_id')}
         if row:
@@ -164,7 +182,10 @@ def review(b,u,c,edits=None):
                 preview.append(['Tanggal pembayaran',data['paid_on']])
         for field in fields:
             value=field['value'];opts=field.get('options',[])
+            if not value and not field.get('required',True):continue
             display=next((o['label'] for o in opts if o['value']==value),value)
+            if (field['key']=='amount' or re.fullmatch(r'item\d+_amount',field['key'])) and values.get('currency'):
+                display=fx.format_money(0 if value.strip()=='0' else flow.minor(value,values['currency']),values['currency'])
             preview.append([field['label'],display or '—'])
         if c['operation']=='create_branch':preview.append(['Rekening awal','Kas · IDR · saldo awal Rp0'])
     ready=missing is None
@@ -190,7 +211,8 @@ def confirm(b,u,c):
             ident=saved['id']
         else:
             data,row=prepared(b,u,c);ident=row['id'] if row else None
-            if op=='create_account':ident=f.create_account(b,**data,actor_user_id=u)
+            if op in tools.TITLES:ident=tools.execute(b,u,c,data,row)
+            elif op=='create_account':ident=f.create_account(b,**data,actor_user_id=u)
             elif op=='create_category':ident=f.create_category(b,**data,actor_user_id=u)
             elif op=='create_branch':ident=branches.create_branch(b,**data,actor_user_id=u)
             elif op.startswith('rename_') or op in ('deactivate_account','deactivate_category','deactivate_branch'):

@@ -58,6 +58,12 @@
 .finance-assistant .assistant-upload-actions .attachment-label:hover{border-color:var(--orange);color:var(--text);text-decoration:none}
 .assistant-send{min-width:86px;min-height:39px;margin:0!important;border-radius:12px!important;font-size:12px!important}
 .assistant-send:disabled{opacity:.43;cursor:not-allowed}
+.assistant-draft-status{margin:0 4px 8px!important;color:var(--orange);font-size:11px!important}
+.assistant-draft-status:empty{display:none}
+.assistant-quick-replies button:disabled{opacity:.42;cursor:default}
+.assistant-remove-files{border:0;background:none;color:var(--text-dim);font-size:11px;cursor:pointer;min-height:40px}
+.assistant-composer-shell:not(:has(.assistant-file-list li)) .assistant-remove-files{display:none}
+@media(prefers-reduced-motion:reduce){.finance-assistant *{scroll-behavior:auto!important}}
 .assistant-file-list{display:flex;flex-wrap:wrap;gap:5px;margin:7px 0 0;padding:0!important;list-style:none}
 .assistant-file-list:empty{display:none}
 .assistant-file-list li{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

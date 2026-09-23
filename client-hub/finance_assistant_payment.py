@@ -30,7 +30,7 @@ def review(b,u,context,edits=None):
     if edits is not None:
         if set(edits)!=set(values) or any(not isinstance(v,str) or len(v)>4000 for v in edits.values()):raise ValueError('invalid_fields')
         values=dict(edits)
-        if values.get('amount')!=context['values'].get('amount'):context=dict(context,settle_full=False)
+        if values.get('amount')!=context['values'].get('amount'):context=dict(context,settle_full=False,settle_half=False)
         if values.get('customer_id')!=context['values'].get('customer_id') and values.get('invoice_id')==context['values'].get('invoice_id'):values['invoice_id']=''
     values.setdefault('customer_id','')
     changed=live.refresh_values(b,u,values)
@@ -55,6 +55,10 @@ def review(b,u,context,edits=None):
         values['customer_id']=str(invoice['customer_id'])
         values['currency']=invoice['currency']
         if context.get('settle_full'):values['amount']=str(fx.major(invoice['outstanding_minor'],invoice['currency']))
+        elif context.get('settle_half'):
+            if invoice['outstanding_minor']%2:
+                values['amount']='';context['settle_half']=False
+            else:values['amount']=str(fx.major(invoice['outstanding_minor']//2,invoice['currency']))
     accounts=f.list_accounts(b,actor_user_id=u)
     if values['currency']:accounts=[r for r in accounts if r['currency']==values['currency']]
     if values['account_id'] and not any(str(r['id'])==values['account_id'] for r in accounts):

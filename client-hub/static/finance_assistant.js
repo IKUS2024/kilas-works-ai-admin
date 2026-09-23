@@ -42,6 +42,8 @@
     const button=node('button',primary?'primary':'',label);button.type='button';button.addEventListener('click',handler);return button;
   };
   const appendAssistant=(data,options={})=>{
+    // A button belongs to one response, never to whichever draft is active later.
+    document.querySelectorAll('.assistant-quick-replies button').forEach(button=>button.disabled=true);
     const turn=node('article','assistant-turn assistant-turn-ai'+(options.success?' assistant-turn-success':'')+(options.error?' assistant-turn-error':''));
     const avatar=node('div','assistant-avatar','K');avatar.setAttribute('aria-hidden','true');
     const bubble=node('div','assistant-bubble');bubble.append(node('div','assistant-speaker','Kilas AI'));
@@ -61,22 +63,17 @@
         actions.append(quickButton(option.label,()=>chooseField(select.key,String(option.value),option.label)));
       }
     }else if(data.ready&&data.token){
-      const confirmLabel=['Customer baru','Biaya rutin'].includes(data.title)?'Oke, simpan':'Oke, catat';
+      const confirmLabel='Konfirmasi';
       actions.append(quickButton(confirmLabel,()=>submitQuick('oke'),true),quickButton('Batal',()=>submitQuick('batal')));
     }
     if(data.kind==='branch_choice'){
       for(const branch of data.branches||[])actions.append(quickButton(branch.name,async()=>{
         if(busy)return;setBusy(true);
         try{
-          for(const key of ['message','review','confirm','document','recognize']){
-            const url=new URL(composer.dataset[key],location.href);url.searchParams.set('branch_id',branch.id);composer.dataset[key]=url.pathname+url.search;
-          }
-          appendUser(branch.name);
-          if(data.document){
-            const recognition=await send(composer.dataset.recognize,uploadBody());documentContext=recognition.document_context||'';
-            if(['RECEIPT','BANK_STATEMENT','HANDWRITTEN_NOTE'].includes(recognition.workflow))await processDocument(recognition.workflow);
-            else appendAssistant({kind:'needs_document_choice',message:'Jenis dokumen belum jelas. Pilih jenisnya.'});
-          }else appendAssistant(await send(composer.dataset.message,{text:data.text}));
+          // Navigate the real workspace so header, navigation and server scope
+          // agree. Never switch only the chat endpoints behind an aggregate UI.
+          const destination=new URL(location.href);destination.searchParams.set('branch_id',branch.id);
+          location.assign(destination.pathname+destination.search);
         }catch(error){appendError(error.message);}finally{setBusy(false);}
       }));
     }
@@ -94,6 +91,8 @@
     else if(data.state==='CANCELLED'){pending=null;queryContext='';}
     else if(data.kind==='success'){pending=null;if(!data.query_context)queryContext='';}
     else if(!options.keepPending&&!data.keep_pending)pending=null;
+    const draftStatus=el('assistant-draft-status');
+    if(draftStatus){draftStatus.textContent=pending?(pending.ready?'Draft siap dikonfirmasi':'Draft belum selesai')+' · '+(pending.title||'Dokumen'):'';}
   };
   const appendError=message=>appendAssistant({title:'Belum berhasil',message:message||'Coba lagi sebentar. Belum ada data yang diubah.'},{error:true,keepPending:true});
   const clearFiles=()=>{files.value='';try{files.files=[];}catch(_){}if(camera)camera.value='';el('assistant-file-list').replaceChildren();};
@@ -121,7 +120,8 @@
     const same=pending;setBusy(true);setStatus('Menyimpan setelah konfirmasi kamu…');
     try{
       const data=await send(composer.dataset.confirm,{token:same.token,confirm:true});
-      pending=null;appendAssistant({title:'Berhasil',message:data.message||'Sudah disimpan di Kilas Finance.'},{success:true});clearFiles();
+      if(['review','answer','clarification'].includes(data.kind)){appendAssistant(data);return;}
+      pending=null;appendAssistant({...data,kind:'success',title:'Berhasil',message:data.message||'Sudah disimpan di Kilas Finance.'},{success:true});clearFiles();
     }catch(error){pending=same;appendError(error.message+' Kamu bisa balas “oke” lagi dengan draft yang sama setelah koneksi normal.');}
     finally{setStatus('');setBusy(false);}
   };
@@ -135,9 +135,17 @@
     if(cancelWords.test(message)){pending=null;clearFiles();appendAssistant({message:'Oke, draft tadi dibatalkan. Mau catat atau cek apa lagi?'});return;}
     if(confirmWords.test(message)&&pending?.token){await confirmPending();return;}
     if(pending?.kind==='document_account'){
-      await processDocument(docWorkflow,'',message);return;
+      const payload={text:message,document_pending:true};if(queryContext)payload.query_context=queryContext;
+      const data=await send(composer.dataset.message,payload);
+      if(data.kind==='document_selection'){await processDocument(docWorkflow,data.account_id);return;}
+      if(data.kind==='review')clearFiles();
+      appendAssistant(data,{keepPending:data.kind!=='review'});return;
     }
-    appendAssistant({message:'Selesaikan draft ini dulu dengan “oke” atau “batal”.'},{keepPending:true});
+    // Bank review tokens stay pending while a separate question uses the same
+    // authenticated, scoped message endpoint.
+    const payload={text:message};if(queryContext)payload.query_context=queryContext;
+    const data=await send(composer.dataset.message,payload);
+    appendAssistant(data,{keepPending:!['review','success'].includes(data.kind)});
   };
   const processDocument=async(workflow,accountId='',accountMessage='')=>{
     docWorkflow=workflow;setStatus('Kilas AI sedang membaca dokumen…');
@@ -176,7 +184,7 @@
         appendAssistant({kind:'needs_document_choice',title:'Saya belum yakin jenis dokumennya',message:'File sudah diterima. Pilih apakah ini struk, mutasi bank, atau catatan keuangan. Belum ada data yang dicatat.'},{keepPending:true});return;
       }
       await processDocument(workflow);
-    }catch(error){appendError(error.message);clearFiles();}
+    }catch(error){appendError(error.message);}
     finally{setStatus('');setBusy(false);}
   };
   const submitQuick=value=>{if(busy)return;text.value=value;setBusy(false);composer.dispatchEvent(new Event('submit',{cancelable:true}));};
@@ -195,6 +203,8 @@
   document.querySelectorAll('[data-assistant-prompt]').forEach(button=>button.addEventListener('click',()=>{if(busy||pending)return;text.value=button.dataset.assistantPrompt||'';setBusy(false);text.focus();}));
   el('assistant-clear').addEventListener('click',()=>{
     if(busy)return;pending=null;docWorkflow=null;documentContext='';uploadInstruction='';queryContext='';text.value='';clearFiles();log.replaceChildren();setStatus('');mode.value='auto';setBusy(false);text.focus();
+    if(el('assistant-draft-status'))el('assistant-draft-status').textContent='';
   });
+  if(el('assistant-remove-files'))el('assistant-remove-files').addEventListener('click',()=>{if(!busy){if(pending?.kind==='document_account'){pending=null;if(el('assistant-draft-status'))el('assistant-draft-status').textContent='';}clearFiles();}});
   setBusy(false);
 })();

@@ -143,8 +143,15 @@ def resolve(updates,context,fields):
                     if explicit and explicit!=code:raise ValueError('currency')
                     result['currency']=code
         elif key in ('date','issue_date','due_date','end_on'):
-            result[key]=proposed_date(raw,scheduled=context['action'] in ('recurring','invoice'),default_today=False)
+            result[key]=proposed_date(raw,scheduled=context['action'] in ('recurring','invoice') or context.get('operation') in ('edit_recurring','edit_invoice'),default_today=False)
             if not result[key]:raise ValueError('date_unclear')
+        elif key=='month':
+            from finance_semantics import period_patch
+            if re.fullmatch(r'20\d{2}-\d{2}',raw):result[key]=raw
+            else:
+                period=period_patch(raw)
+                if not period or len(period['ranges'])!=1 or period['ranges'][0][0][:7]!=period['ranges'][0][1][:7]:raise ValueError('invalid_period')
+                result[key]=period['ranges'][0][0][:7]
         elif key in ('cadence','direction','account_type'):
             vocabulary={'cadence':{'weekly':'WEEKLY','mingguan':'WEEKLY','bulanan':'MONTHLY','monthly':'MONTHLY'},
                         'direction':{'income':'INCOME','pemasukan':'INCOME','pendapatan':'INCOME','expense':'EXPENSE','pengeluaran':'EXPENSE'},

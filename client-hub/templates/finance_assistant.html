@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Kilas Finance AI{% endblock %}
 {% block finance_styles %}
-<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260920-context-agent-4') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='finance_assistant.css',v='20260923-assistant-upgrade') }}">
 {% endblock %}
 {% block content %}
 
@@ -14,7 +14,7 @@
       <h1>Kilas Finance AI</h1>
       <p class="assistant-intro">{{ 'Pribadi' if g.finance_workspace_type=='PERSONAL' else business.business_name }} · {{ selected_branch.name if selected_branch else 'Semua Cabang' }} · Chat khusus keuangan &amp; akuntansi.</p>
     </div>
-    <span class="assistant-ready">Online</span>
+    <span class="assistant-ready">Finance AI</span>
   </div>
 </header>
 
@@ -23,11 +23,11 @@
     <div class="assistant-avatar" aria-hidden="true">K</div>
     <div class="assistant-bubble">
       <div class="assistant-speaker">Kilas AI</div>
-      <p>Halo! Saya siap membantu mengelola Finance kamu. Kamu bisa langsung menulis kebutuhan seperti biasa—mencatat pemasukan/pengeluaran, membuat invoice, mengecek piutang, mengatur biaya rutin, membaca struk atau mutasi bank, dan melihat laporan. Setiap perubahan data akan saya rangkum terlebih dahulu untuk kamu periksa sebelum konfirmasi.</p>
+      <p>Mau catat transaksi, buat invoice, atau cek keuangan? Tulis saja seperti biasa. Kamu juga bisa kirim foto struk, PDF, atau mutasi bank. Saya rangkum perubahan untuk kamu periksa sebelum disimpan.</p>
       <div class="assistant-suggestions" aria-label="Contoh perintah">
-        <button type="button" data-assistant-prompt="tambahin pengeluaran 200 ribu untuk transport hari ini">+ Pengeluaran</button>
-        <button type="button" data-assistant-prompt="tambahin pendapatan jasa foto 2,2 juta hari ini">+ Pemasukan</button>
-        <button type="button" data-assistant-prompt="setiap bulan bayar internet 500 ribu mulai hari ini">Biaya rutin</button>
+        <button type="button" data-assistant-prompt="catat pengeluaran">Catat pengeluaran</button>
+        <button type="button" data-assistant-prompt="catat pemasukan">Catat pemasukan</button>
+        <button type="button" data-assistant-prompt="buat invoice">Buat invoice</button>
         <button type="button" data-assistant-prompt="berapa pengeluaran saya bulan ini?">Cek laporan</button>
       </div>
     </div>
@@ -46,12 +46,14 @@
       data-csrf="{{ csrf_token() }}">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="assistant-composer-shell">
+    <p id="assistant-draft-status" class="assistant-draft-status" role="status"></p>
     <textarea id="assistant-text" maxlength="2000" rows="2" placeholder="Ketik pesan ke Kilas AI…" aria-label="Pesan ke Kilas AI"></textarea>
     <ul id="assistant-file-list" class="assistant-file-list" aria-live="polite"></ul>
     <div class="assistant-composer-row">
       <div class="assistant-upload-actions" aria-label="Tambah lampiran">
         <label class="attachment-label" for="assistant-camera" title="Ambil foto">📷 <span>Foto</span></label>
         <label class="attachment-label" for="assistant-files" title="Pilih file">📎 <span>File / PDF</span></label>
+        <button id="assistant-remove-files" class="assistant-remove-files" type="button" title="Lepas lampiran">Lepas file</button>
       </div>
       <button id="assistant-send" class="btn assistant-send" type="submit" disabled>Kirim</button>
     </div>

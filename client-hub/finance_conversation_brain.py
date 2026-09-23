@@ -17,11 +17,12 @@ from finance_query_plan import RESOURCES, execute
 
 READS=tuple('recurring_list' if r=='recurring' else r for r in RESOURCES)
 WRITES=('customer','create_income','create_expense','recurring','invoice','issue_invoice','record_invoice_payment')+tuple(commands.TITLES)
-INTENTS=('unknown','capabilities','continue_draft','continue_query','continue_command','new_command','add_invoice_item')+READS+WRITES
+INTENTS=('unknown','capabilities','continue_draft','continue_query','continue_command','new_command','add_invoice_item','select_document_account')+READS+WRITES
 SLOTS=('name','phone','email','notes','amount','currency','date','description','account','category','project','customer',
-       'invoice','counterparty_name','cadence','end_on','due_date','issue_date','item_description','quantity','note',
-       'period','count','direction','account_type','opening_balance','from_account','to_account','from_amount','to_amount',
-       'issue','settlement','target','customer_reference','target_reference','group_by','branch','overdue','aging','due_week','page')
+       'invoice','counterparty_name','cadence','end_on','due_date','issue_date','item_description','item_number','quantity','note',
+       'period','month','count','direction','account_type','opening_balance','from_account','to_account','from_amount','to_amount',
+       'issue','settlement','payment_fraction','target','customer_reference','target_reference','group_by','branch','overdue','aging','due_week','page')
+SLOTS+=tuple(group+'_'+key for group,keys in commands.tools.editor.GROUPS.items() for key in keys if (group,key)!=('sender','email'))
 TASK=('Understand this Finance conversation before extracting fields. customer creates a customer; customers lists them. '
       'A new/baru customer is an unnamed draft, not a customer named baru. Extract the actual name after conversational labels. '
       'create_income/create_expense record transactions, even with typos in nouns or verbs. A date alone does not make a report. '
@@ -56,6 +57,14 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'Debt questions (utang Putri berapa) ALWAYS use receivables, never customer notes. '
       'sisanya berapa, utang dia berapa, kalau yang belum lunas continue the previous customer receivables query; '
       'use continue_query or customer_reference with the literal pronoun. '
+      'edit_recurring edits an existing recurring rule, including a short correction after creating it. '
+      'edit_invoice edits an existing invoice; amount is unit price, quantity and item_description refer to one item. '
+      'For multi-item invoices ask which item; item_number is the literal row number the user selects. '
+      'Invoice sender_*, recipient_* and payment_* slots edit document details using literal values only. '
+      'set_budget creates or updates a monthly category budget using month, category, amount and currency; budgets reads budgets. '
+      'A comparison must include BOTH requested periods in the period span. '
+      'For a partial payment always use amount, NEVER settlement; setengah/separuh uses payment_fraction. '
+      'When correcting a bare amount like eh 250 after 300 ribu, ask for its unit; do not infer a multiplier. '
       'No guessed names, dates, contacts, categories, amounts, or payment status.')
 
 
@@ -86,6 +95,8 @@ def last_record(b,u,previous):
 
 def safe_context(b,u,previous,context=None,current=None):
     state={'task':TASK,'visible_options':visible_options(b,u)}
+    if previous.get('document_pending'):
+        state['document_pending']='An uploaded document is waiting for an account. select_document_account with the literal account span ONLY if the user selects its account. Balance/report questions still use read intents; a different action uses its own intent.'
     if previous.get('plan'):
         plan=previous['plan']
         state['previous_query']={k:v for k,v in plan.items() if k not in ('transaction','exchange','entity_refs')}
@@ -259,6 +270,10 @@ def apply_slots(b,u,initial,slots,previous):
     context=flow.unseal(b,u,initial['context'],'review')
     context['conversation']={k:previous[k] for k in ('last_record','plan','customer_ref') if k in previous}
     slots=dict(slots)
+    if 'payment_fraction' in slots:
+        fraction=slots.pop('payment_fraction').strip().casefold()
+        if context['action']!='record_invoice_payment' or fraction not in ('setengah','separuh','setengah dulu','separuh dulu'):return uncertain()
+        context['settle_half']=True;context['settle_full']=False
     if 'customer_reference' in slots:
         row=live.customer(b,u,previous)
         if not row or 'customer_id' not in context['values']:return live.unavailable('Customer')
@@ -270,7 +285,8 @@ def apply_slots(b,u,initial,slots,previous):
         from finance_assistant_invoice import requested_steps
         requested_steps(context,issue,settlement)
         initial=flow.review(b,u,context)
-    elif settlement:context['settle_full']=True
+    elif settlement and not slots.get('amount'):context['settle_full']=True
+    if context['action']=='record_invoice_payment' and slots.get('amount'):context['settle_full']=False;context['settle_half']=False
     if context['action']=='invoice' and not context['values'].get('customer_id') and 'customer' not in slots:
         row=live.customer(b,u,previous)
         if row:context['values']['customer_id']=str(row['id'])
@@ -319,7 +335,7 @@ def start(b,u,intent,slots,previous):
         row=None
         settle_after=bool(slots.pop('settlement',None)) if intent=='issue_invoice' else False
         slots.pop('issue',None) if intent=='issue_invoice' else None
-        if intent not in ('create_account','create_category','create_branch','exchange'):
+        if intent not in ('create_account','create_category','create_branch','exchange','set_budget'):
             kind=intent.split('_',1)[1]
             if 'target_reference' in slots:
                 last_kind,row=last_record(b,u,previous)
@@ -347,6 +363,20 @@ def start(b,u,intent,slots,previous):
             context=dict(action=intent,values={'invoice_id':row['id'],'fingerprint':issue_fingerprint(b,u,row)},nonce=uuid.uuid4().hex)
             if settle_after:context['settle_after']=True
             return review_invoice(b,u,context)
+        if intent=='edit_invoice':
+            items=flow.f.list_invoice_items(b,row['id'],u)
+            item_slots={key:slots[key] for key in ('item_description','quantity','amount') if key in slots}
+            index=slots.pop('item_number','')
+            if item_slots and len(items)>1 and not index:
+                remembered={'command':{'operation':intent,'slots':dict(slots,target=row['name'])}}
+                return dict(kind='clarification',message='Item invoice yang mana yang ingin diubah? Sebut nomor itemnya.',
+                            preview=[[str(i),item['description']] for i,item in enumerate(items,1)],
+                            query_context=flow.seal_query(b,u,remembered))
+            if index:
+                if not index.isdigit() or not 1<=int(index)<=len(items):return uncertain()
+                if int(index)>1:
+                    for key,value in item_slots.items():
+                        slots.pop(key);slots['item'+str(int(index))+'_'+('description' if key=='item_description' else key)]=value
         initial=commands.start(b,u,intent,row=row)
     elif intent=='customer':
         initial=flow.review(b,u,dict(action=intent,nonce=uuid.uuid4().hex,values=dict(name='',phone='',email='',notes='')))
@@ -382,10 +412,15 @@ def contextual_last_action(b,u,text,previous):
         return None
     words=low.split()
     paid=re.search(r'\b(?:sudah|udah|telah)?\s*(bayar|dibayar|lunas|lunasi|lunasin|pelunasan)\b',low)
-    if kind=='invoice' and len(words)<=10 and re.search(r'\b(terbitkan|issue)\b',low):
+    # Only exact protocol-like follow-ups may bypass semantic interpretation.
+    # A named customer, explicit amount, negation or partial payment must never
+    # settle the last invoice merely because it also contains "bayar".
+    exact_issue=re.fullmatch(r'(?:yang tadi |invoice tadi )?(?:terbitkan|issue)(?: sekalian| saja| aja)?',low)
+    exact_paid=re.fullmatch(r'(?:yang tadi |invoice tadi )?(?:(?:sudah|udah|telah) (?:bayar|dibayar)|lunas|lunasi|lunasin|pelunasan)(?: saja| aja)?',low)
+    if kind=='invoice' and exact_issue:
         slots={'settlement':paid[0]} if paid else {}
         return start(b,u,'issue_invoice',slots,previous)
-    if kind=='invoice' and paid and len(words)<=8:
+    if kind=='invoice' and exact_paid:
         if row.get('status')=='DRAFT':
             return start(b,u,'issue_invoice',{'settlement':paid[0]},previous)
         if row.get('status') in ('ISSUED','PARTIALLY_PAID'):
@@ -395,7 +430,7 @@ def contextual_last_action(b,u,text,previous):
             return dict(kind='answer',title='Invoice sudah lunas',
                         message='Invoice '+row['invoice_number']+' sudah berstatus PAID. Sisa tagihan: '+
                                 flow.fx.format_money(totals['outstanding_minor'],row['currency'])+'.')
-    if len(words)<=7 and 'semua' not in words and re.search(r'\b(hapus|delete|batalkan|void|nonaktifkan)\b',low):
+    if re.fullmatch(r'(?:hapus|delete|batalkan|void|nonaktifkan)(?: yang tadi| tadi| itu)(?: saja| aja)?',low):
         operation={'customer':'deactivate_customer','account':'deactivate_account','category':'deactivate_category',
                    'branch':'deactivate_branch','recurring':'deactivate_recurring','transaction':'void_transaction',
                    'invoice':'void_invoice','fx':'void_fx'}.get(kind)
@@ -424,6 +459,23 @@ def message(b,u,text,query_context=''):
     return result
 
 
+def document_message(b,u,text,query_context=''):
+    """Interpret interruptions before reading retained document bytes again."""
+    text=flow.operator.text(text,2000);flow.authorize(b,u,write=False)
+    previous=flow.unseal_query(b,u,query_context) if query_context else {}
+    data=classify(b,u,text,dict(previous,document_pending=True))
+    if data is None:return dict(manual_fallback(),keep_pending=True)
+    intent,slots=data['intent'],data['slots']
+    if intent=='select_document_account':
+        rows=semantics.entity_options(flow.f.list_accounts(b,actor_user_id=u),slots.get('account',''))
+        if len(rows)==1:return dict(kind='document_selection',account_id=str(rows[0]['id']))
+        return dict(kind='clarification',message='Rekening mana yang dimaksud? Pilih rekening yang tersedia.',keep_pending=True)
+    if intent in READS or intent=='continue_query':return dict(read(b,u,intent,slots,previous),keep_pending=True)
+    if intent=='capabilities':return dict(flow.capabilities(),keep_pending=True)
+    if intent in WRITES:return start(b,u,intent,slots,previous)
+    return dict(uncertain(),keep_pending=True)
+
+
 def exact_updates(message,context,current):
     """Resolve an unambiguous answer to the field the server just asked for.
 
@@ -432,6 +484,9 @@ def exact_updates(message,context,current):
     round-trip, including common spelling noise.
     """
     raw=message.strip();reverse={v:k for k,v in draft.REFERENCES.items()}
+    # Free text may be a question, a labelled name, or a compound item/price.
+    # Leave it to the semantic boundary instead of copying the whole sentence.
+    if re.search(r'[?]|\b(berapa|brp|siapa|apa|bisa|tolong|nama(?:nya)?|customernya)\b',raw,re.I):return {}
     matches=[]
     for field in current['fields']:
         for option in field.get('options',[]):
@@ -474,11 +529,7 @@ def exact_updates(message,context,current):
             gap=0.20 if short else 0.08
             if best_score>=threshold and (len(ranked)==1 or best_score-ranked[1][0]>=gap):
                 return {reverse.get(key,key):best_option['label'].split('·')[0].strip()}
-    switch_words=r'\b(?:buat|catat|tambah|hapus|ubah|cek|lihat|laporan|saldo|pemasukan|pendapatan|pengeluaran|invoice|customer|rekening|akun|kategori|piutang|utang|transaksi|cabang)\b'
-    if key=='name' and 1<=len(raw)<=160 and '?' not in raw and not re.search(switch_words,raw,re.I):
-        return {'name':raw}
-    if key=='item_description' and 1<=len(raw)<=500 and '?' not in raw and not re.search(switch_words,raw,re.I):
-        return {'item_description':raw}
+    # Names and descriptions are intentionally semantic, even when short.
     return {}
 
 def pending(b,u,message,context,current,query_context=''):
@@ -490,9 +541,11 @@ def pending(b,u,message,context,current,query_context=''):
         social['hint']='Draft sebelumnya tetap tersedia. Kamu bisa melanjutkannya kapan saja atau membatalkannya dengan “batal”.'
         return social,{},False
     if manual_only_request(message):return manual_fallback(pending=True),{},False
+    if re.fullmatch(r'\s*(?:yang tadi\s+)?lanjut(?:kan)?(?:\s+yang tadi)?[.! ]*',message,re.I):
+        return current,{},False
     updates=exact_updates(message,context,current)
     if updates:
-        if context['action']=='record_invoice_payment' and 'amount' in updates:context['settle_full']=False
+        if context['action']=='record_invoice_payment' and 'amount' in updates:context['settle_full']=False;context['settle_half']=False
         return None,updates,True
     data=classify(b,u,message,previous,context,current)
     if data is None:return manual_fallback(pending=True),{},False
@@ -502,6 +555,9 @@ def pending(b,u,message,context,current,query_context=''):
     if intent in READS or intent=='continue_query':return read(b,u,intent,slots,previous),{},False
     if intent=='continue_draft':
         slots=dict(slots)
+        if (slots.get('amount') and re.fullmatch(r'\d{1,3}(?:[.,]\d+)?',slots['amount'].strip())
+                and re.search(r'\b(ribu|rb|k|juta|jt|miliar)\b|\d(?:k|rb|jt)\b',context['values'].get('amount',''),re.I)):
+            return dict(kind='clarification',message='Maksudnya '+slots['amount']+' rupiah atau '+slots['amount']+' ribu? Tulis nominal lengkap supaya tidak salah.'),{},False
         if 'customer_reference' in slots:
             row=live.customer(b,u,previous)
             if not row or 'customer_id' not in context['values']:return live.unavailable('Customer'),{},False
@@ -510,9 +566,14 @@ def pending(b,u,message,context,current,query_context=''):
             result=apply_slots(b,u,current,slots,previous)
             return result,{},False
         if context['action']=='record_invoice_payment':
-            if 'settlement' in slots:context['settle_full']=True;slots.pop('settlement')
-            elif 'amount' in slots:context['settle_full']=False
+            if 'payment_fraction' in slots:
+                fraction=slots.pop('payment_fraction').strip().casefold()
+                if fraction not in ('setengah','separuh','setengah dulu','separuh dulu'):return uncertain(),{},False
+                context['settle_half']=True;context['settle_full']=False
+            if 'settlement' in slots:context['settle_full']=not bool(slots.get('amount'));slots.pop('settlement')
+            if 'amount' in slots:context['settle_full']=False;context['settle_half']=False
             if 'customer' in slots:context['values']['invoice_id']=''
+            if not slots:return flow.review(b,u,context),{},False
         if not {draft.REFERENCES.get(k,k) for k in slots}.issubset(context['values']):return uncertain(),{},False
         return None,slots,False
     if intent=='add_invoice_item' and context['action']=='invoice':
