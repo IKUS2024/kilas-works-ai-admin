@@ -11,6 +11,7 @@ import finance_entitlements as entitlement
 import finance_subscription as subscription
 import finance_service as finance
 import catalog_service
+import payment_service
 from pricing_config import BRAIN_PLAN,FINANCE_PLAN
 
 products_bp=Blueprint('products',__name__)
@@ -124,13 +125,9 @@ def product_start():
             session.pop('product_intent',None)
             return redirect(url_for('products.finance_entry'),code=303)
         if choice=='assist':
-            assist_businesses=_product_businesses(user['id'],'brain')
             session['active_product']='brain'
             session.pop('product_intent',None)
-            if assist_businesses:
-                return redirect(url_for('client.dashboard',product='brain'),code=303)
-            session['product_intent']='brain'
-            return redirect(url_for('products.continue_product'),code=303)
+            return redirect(url_for('products.assist_entry'),code=303)
         if choice=='services':
             session.pop('product_intent',None)
             session.pop('active_product',None)
@@ -227,6 +224,70 @@ def finance_entry():
         trial_days=FINANCE_PLAN['trial_days'],
         setup_identity=uuid.uuid4().hex,
         show_business_form=(request.args.get('step')=='business')
+    )
+
+
+def _assist_missing_labels(missing):
+    labels={
+        'business_name':'Nama bisnis','owner_name':'Nama owner','category':'Kategori bisnis',
+        'short_description':'Tentang bisnis','operating_hours':'Jam operasional',
+        'online_or_offline':'Model layanan','business_phone':'WhatsApp bisnis / nomor robot',
+        'trusted_owner_phone':'WhatsApp pengelola','primary_language':'Bahasa utama',
+        'customer_salutation':'Sapaan customer','core_product_or_service':'Produk / layanan utama',
+    }
+    return [labels.get(field,field) for field in (missing or [])]
+
+
+def _assist_fix_step(missing):
+    missing=set(missing or [])
+    if missing & {'business_name','owner_name','category','short_description'}: return 'basics'
+    if 'core_product_or_service' in missing: return 'services'
+    if missing & {'operating_hours','online_or_offline','business_phone','trusted_owner_phone'}: return 'operations'
+    if missing & {'primary_language','customer_salutation'}: return 'style'
+    return 'basics'
+
+
+@products_bp.route('/products/assist',methods=['GET','POST'])
+@security.login_required
+def assist_entry():
+    user=security.current_user()
+    raw_businesses=_product_businesses(user['id'],'brain')
+    businesses=[]
+    for business in raw_businesses:
+        missing=repo.required_fields_missing(business['id'])
+        ai_settings=repo.get_ai_settings(business['id']) or {}
+        businesses.append({
+            **business,
+            'assist_missing':missing,
+            'assist_missing_labels':_assist_missing_labels(missing),
+            'assist_fix_step':_assist_fix_step(missing),
+            'assist_review_pending':ai_settings.get('ai_status')=='STALE',
+            'assist_payment_verified':payment_service.has_verified_ai_admin_payment(business['id']),
+        })
+
+    if request.method=='POST':
+        action=(request.form.get('action') or '').strip()
+        if action=='create':
+            name=(request.form.get('business_name') or '').strip()
+            try:
+                business_id=product_flow.create_business(user['id'],name,request.form.get('setup_identity'))
+            except ValueError:
+                flash('Nama bisnis wajib diisi dengan benar.','error')
+                return redirect(url_for('products.assist_entry',step='business'),code=303)
+            with db.app_purchase_transaction(business_id,None):
+                security.require_business_access(business_id,user)
+                if repo.get_business(business_id)['package']=='NONE':
+                    repo.upgrade_business_package(business_id,'AI_ADMIN',user['id'])
+            session['active_product']='brain'
+            return redirect(url_for('client.wizard_step',business_id=business_id,step='basics'),code=303)
+        abort(400)
+
+    return render_template(
+        'assist_entry.html',
+        user=user,
+        businesses=businesses,
+        setup_identity=uuid.uuid4().hex,
+        show_business_form=(request.args.get('step')=='business' or not businesses)
     )
 
 
