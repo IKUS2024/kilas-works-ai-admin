@@ -28,6 +28,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .ko-status-note{margin-top:10px;padding:11px 12px;border:1px dashed #35404a;border-radius:12px;color:#89939d;font-size:9.5px;line-height:1.5}
 .ko-status-retry{margin-top:10px}.ko-status-retry form{margin:0}.ko-status-retry button{width:100%;min-height:42px;border:1px solid rgba(255,122,26,.5);border-radius:11px;background:rgba(255,122,26,.09);color:#ffae73;font:inherit;font-size:10.5px;font-weight:900;cursor:pointer}
 .ko-searching-card{margin-bottom:10px;padding:16px;border:1px solid rgba(255,122,26,.34);border-radius:18px;background:radial-gradient(260px 150px at 90% 10%,rgba(255,122,26,.09),transparent 72%),#11171b}
+.ko-searching-card.is-hidden{display:none}
+.ko-issue-action{margin:0 0 10px;padding:13px;border:1px solid rgba(255,122,26,.32);border-radius:14px;background:rgba(255,122,26,.045)}
+.ko-issue-action strong{display:block;font-size:12px}.ko-issue-action span{display:block;margin-top:4px;color:#8f99a3;font-size:9.5px;line-height:1.45}
+.ko-issue-action button{width:100%;min-height:42px;margin-top:9px;border:1px solid rgba(255,122,26,.55);border-radius:11px;background:rgba(255,122,26,.10);color:#ffae73;font:inherit;font-size:10.5px;font-weight:900;cursor:pointer}
 .ko-searching-row{display:flex;align-items:center;gap:12px}.ko-searching-spinner{width:34px;height:34px;flex:0 0 34px;border:3px solid #313a43;border-top-color:var(--o);border-radius:50%;animation:ko-spin .85s linear infinite}
 .ko-searching-copy strong{display:block;font-size:14px}.ko-searching-copy span{display:block;margin-top:4px;color:#919aa4;font-size:10px;line-height:1.45}
 .ko-searching-steps{display:grid;gap:6px;margin-top:13px}.ko-searching-steps div{display:flex;align-items:center;gap:8px;color:#858f99;font-size:9.5px}.ko-searching-steps i{width:7px;height:7px;border-radius:50%;background:#37424a}.ko-searching-steps div.active{color:#ffad72}.ko-searching-steps div.active i{background:var(--o);box-shadow:0 0 0 4px rgba(255,122,26,.09)}
@@ -64,8 +68,15 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       {% endif %}
     </header>
 
-    {% if item.status in ('SEARCH_REQUESTED','SEARCHING') %}
-    <section class="ko-searching-card" id="ko-searching-card" data-search-url="{{ url_for('products.order_request_search_run',request_code=item.request_code) }}">
+    {% if item.status in ('SEARCH_REQUESTED','SEARCHING','ISSUE') %}
+    {% if item.status == 'ISSUE' %}
+    <section class="ko-issue-action" id="ko-issue-action">
+      <strong>Pencarian tadi belum dapat kandidat yang cukup valid.</strong>
+      <span>Request kamu sudah aman. Coba lagi tanpa mengulang penjelasan barang dari awal.</span>
+      <button type="button" id="ko-retry-search-now">↻ Coba Cari Lagi</button>
+    </section>
+    {% endif %}
+    <section class="ko-searching-card {{ 'is-hidden' if item.status == 'ISSUE' else '' }}" id="ko-searching-card" data-search-url="{{ url_for('products.order_request_search_run',request_code=item.request_code) }}">
       <div class="ko-searching-row">
         <span class="ko-searching-spinner" aria-hidden="true"></span>
         <div class="ko-searching-copy">
@@ -117,64 +128,83 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         {% endif %}
       </div>
       <div class="ko-status-note">Belum ada barang yang dibeli dan belum ada pembayaran pada tahap ini. Link seller, sumber pembelian, dan harga modal hanya tersedia di sisi internal Kilas.</div>
-      {% if item.status == 'ISSUE' %}
-      <div class="ko-status-retry">
-        <form method="post">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="action" value="retry_search">
-          <button type="submit">↻ Coba Cari Lagi</button>
-        </form>
-      </div>
-      {% endif %}
+
     </section>
   </div>
 </div>
-{% if item.status in ('SEARCH_REQUESTED','SEARCHING') %}
+{% if item.status in ('SEARCH_REQUESTED','SEARCHING','ISSUE') %}
 <script>
 (function(){
   var card=document.getElementById('ko-searching-card');
   if(!card) return;
+  var issueAction=document.getElementById('ko-issue-action');
+  var retryButton=document.getElementById('ko-retry-search-now');
   var title=document.getElementById('ko-searching-title');
   var sub=document.getElementById('ko-searching-sub');
   var errorBox=document.getElementById('ko-searching-error');
   var steps=[].slice.call(document.querySelectorAll('[data-search-step]'));
   var step=0;
-  var timer=setInterval(function(){
-    step=Math.min(step+1,steps.length-1);
-    steps.forEach(function(el,index){el.classList.toggle('active',index===step);});
-    if(step===1) sub.textContent='AI lagi membandingkan kecocokan, harga, kondisi, dan source.';
-    if(step===2) sub.textContent='Listing yang terlalu meragukan atau tidak cocok sedang dibuang.';
-    if(step===3) sub.textContent='Kandidat yang lolos sedang disiapkan untuk pengecekan internal Kilas.';
-  },4200);
+  var timer=null;
 
-  function stop(){clearInterval(timer);}
-  fetch(card.getAttribute('data-search-url'),{
-    method:'POST',
-    headers:{
-      'X-CSRF-Token':'{{ csrf_token() }}',
-      'Accept':'application/json'
-    },
-    credentials:'same-origin'
-  }).then(function(response){
-    if(!response.ok) throw new Error('search_failed');
-    return response.json();
-  }).then(function(data){
-    stop();
-    if(data && (data.status==='RESULTS_READY' || data.ok)){
-      title.textContent='Kandidat ditemukan ✓';
-      sub.textContent='Sekarang Kilas lanjut memverifikasi kandidat sebelum ditampilkan.';
-      setTimeout(function(){window.location.reload();},650);
-      return;
-    }
-    throw new Error('no_results');
-  }).catch(function(){
-    stop();
-    title.textContent='Pencarian terputus';
-    sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
-    errorBox.textContent='Koneksi pencarian sempat terputus. Tekan “Coba Cari Lagi” di bawah.';
-    errorBox.classList.add('show');
-    setTimeout(function(){window.location.reload();},1200);
-  });
+  function startProgress(){
+    card.classList.remove('is-hidden');
+    if(issueAction) issueAction.style.display='none';
+    title.textContent='AI sedang mencari barang…';
+    sub.textContent='Kilas lagi cek beberapa sumber dan menyaring hasil yang kurang meyakinkan.';
+    errorBox.classList.remove('show');
+    step=0;
+    steps.forEach(function(el,index){el.classList.toggle('active',index===0);});
+    timer=setInterval(function(){
+      step=Math.min(step+1,steps.length-1);
+      steps.forEach(function(el,index){el.classList.toggle('active',index===step);});
+      if(step===1) sub.textContent='AI lagi membandingkan kecocokan, harga, kondisi, dan source.';
+      if(step===2) sub.textContent='Listing yang terlalu meragukan atau tidak cocok sedang dibuang.';
+      if(step===3) sub.textContent='Kandidat yang lolos sedang disiapkan untuk pengecekan internal Kilas.';
+    },4200);
+  }
+
+  function stop(){if(timer){clearInterval(timer);timer=null;}}
+
+  function runSearch(){
+    if(retryButton) retryButton.disabled=true;
+    startProgress();
+    fetch(card.getAttribute('data-search-url'),{
+      method:'POST',
+      headers:{
+        'X-CSRF-Token':'{{ csrf_token() }}',
+        'Accept':'application/json'
+      },
+      credentials:'same-origin'
+    }).then(function(response){
+      if(!response.ok) throw new Error('search_failed');
+      return response.json();
+    }).then(function(data){
+      stop();
+      if(data && (data.status==='RESULTS_READY' || data.ok)){
+        title.textContent='Kandidat ditemukan ✓';
+        sub.textContent='Sekarang Kilas lanjut memverifikasi kandidat sebelum ditampilkan.';
+        setTimeout(function(){window.location.reload();},650);
+        return;
+      }
+      throw new Error('no_results');
+    }).catch(function(){
+      stop();
+      title.textContent='Pencarian belum berhasil';
+      sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
+      errorBox.textContent='Belum ada kandidat yang cukup valid dari pencarian ini.';
+      errorBox.classList.add('show');
+      if(issueAction){
+        issueAction.style.display='block';
+        if(retryButton) retryButton.disabled=false;
+      }
+    });
+  }
+
+  if(retryButton){
+    retryButton.addEventListener('click',runSearch);
+  }else{
+    runSearch();
+  }
 })();
 </script>
 {% endif %}
