@@ -3,6 +3,19 @@
 {% block finance_styles %}
 {% include '_finance_receivables_style.html' %}
 {% if section=='invoices' %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_invoice_editor.css') }}">{% endif %}
+<style>
+.fin-tool-button{width:100%;font:inherit;text-align:left;cursor:pointer}
+.fin-customer-dialog{border:1px solid var(--border);border-radius:20px;background:var(--card);color:inherit;width:min(520px,calc(100vw - 28px));padding:0}
+.fin-customer-dialog::backdrop{background:rgba(0,0,0,.66);backdrop-filter:blur(2px)}
+.fin-customer-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.fin-customer-dialog-head h2{margin:0;font-size:20px}
+.fin-customer-dialog-close{width:38px;height:38px;border:1px solid var(--border);border-radius:50%;background:transparent;color:inherit;font:inherit;font-size:22px;cursor:pointer}
+.fin-customer-dialog-body{padding:16px 18px 18px}
+.fin-customer-dialog-body form{margin:0}
+.fin-customer-dialog-body .fin-form-grid{grid-template-columns:1fr}
+.fin-customer-dialog-body textarea{min-height:82px}
+.fin-customer-dialog-body .btn{width:100%;margin:12px 0 0}
+</style>
 {% endblock %}
 {% block content %}
 
@@ -18,11 +31,31 @@
 <div class="fin-tool-grid">
 <a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Piutang aktif</span></a>
 <a class="fin-tool {{ 'active' if section=='customers' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}"><span class="fin-icon">👥</span><span class="fin-label">Pelanggan</span><span class="fin-meta">{{ customer_count }} pelanggan</span></a>
-<a class="fin-tool {{ 'active' if section=='add_customer' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='add_customer') }}"><span class="fin-icon">➕</span><span class="fin-label">Tambah</span><span class="fin-meta">Pelanggan baru</span></a>
+<button class="fin-tool fin-tool-button" type="button" data-add-customer-open><span class="fin-icon">➕</span><span class="fin-label">Tambah</span><span class="fin-meta">Pelanggan baru</span></button>
 <a class="fin-tool {{ 'active' if section=='invoices' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}"><span class="fin-icon">🧾</span><span class="fin-label">Invoice</span><span class="fin-meta">{{ invoice_count }} aktif</span></a>
 <a class="fin-tool" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue') }}"><span class="fin-icon">⏰</span><span class="fin-label">Penagihan</span><span class="fin-meta">{{ summary.open_invoice_count }} belum lunas</span></a>
 </div>
 </div>
+
+<dialog id="add-customer-dialog" class="fin-customer-dialog">
+  <div class="fin-customer-dialog-head">
+    <h2>Tambah Pelanggan</h2>
+    <button class="fin-customer-dialog-close" type="button" data-add-customer-close aria-label="Tutup">×</button>
+  </div>
+  <div class="fin-customer-dialog-body">
+    <form method="post" action="{{ url_for('finance.create_customer',business_id=business.id,branch_id=g.finance_branch_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="return_section" value="{{ 'customers' if section=='customers' else 'summary' }}">
+      <div class="fin-form-grid">
+        <label>Nama pelanggan<input name="name" maxlength="160" autocomplete="off" required></label>
+        <label>Nomor telepon (opsional)<input name="phone" type="tel" maxlength="64"></label>
+        <label>Email (opsional)<input name="email" type="email" maxlength="254"></label>
+      </div>
+      <label>Catatan (opsional)<textarea name="notes" maxlength="4000"></textarea></label>
+      <button class="btn" type="submit">Simpan Pelanggan</button>
+    </form>
+  </div>
+</dialog>
 
 {% else %}
 
@@ -67,15 +100,9 @@
   {% else %}<div class="fin-empty">Belum ada invoice aktif.</div>{% endfor %}
 </div>
 
-{% elif section=='add_customer' %}
-<div class="card"><div class="fin-section-head"><h2>Tambah Pelanggan</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Daftar pelanggan</a></div>
-<form method="post" action="{{ url_for('finance.create_customer',business_id=business.id,branch_id=g.finance_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<div class="fin-form-grid"><label>Nama pelanggan<input name="name" maxlength="160" required></label><label>Nomor telepon (opsional)<input name="phone" type="tel" maxlength="64"></label><label>Email (opsional)<input name="email" type="email" maxlength="254"></label></div>
-<label>Catatan (opsional)<textarea name="notes" maxlength="4000"></textarea></label><button class="btn">Simpan Pelanggan</button></form></div>
-
 {% elif section=='customers' %}
 <div class="card">
-  <div class="fin-section-head"><div><h2>Daftar Pelanggan</h2><p class="muted">{{ customer_total }} hasil · 10 per halaman</p></div><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='add_customer') }}">＋ Tambah</a></div>
+  <div class="fin-section-head"><div><h2>Daftar Pelanggan</h2><p class="muted">{{ customer_total }} hasil · 10 per halaman</p></div><button class="btn secondary small" type="button" data-add-customer-open>＋ Tambah</button></div>
   <form method="get" class="fin-search-row"><input type="hidden" name="section" value="customers"><label class="fin-grow">Cari pelanggan<input name="q" value="{{ q }}" placeholder="Nama, telepon, atau email"></label><button class="btn secondary" type="submit">Cari</button></form>
   {% for c in customers %}
   <article class="fin-entry">
@@ -149,4 +176,21 @@
 </div>
 {% endif %}
 </div>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const dialog=document.getElementById('add-customer-dialog');
+  if(!dialog)return;
+  document.querySelectorAll('[data-add-customer-open]').forEach(button=>{
+    button.addEventListener('click',()=>{
+      if(typeof dialog.showModal==='function')dialog.showModal();
+      const input=dialog.querySelector('input[name="name"]');
+      if(input)setTimeout(()=>input.focus(),40);
+    });
+  });
+  dialog.querySelectorAll('[data-add-customer-close]').forEach(button=>{
+    button.addEventListener('click',()=>dialog.close());
+  });
+  dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+});
+</script>
 {% endblock %}
