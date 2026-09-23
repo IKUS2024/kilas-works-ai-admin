@@ -142,6 +142,83 @@ def update_user_email(user_id, email):
     db.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
 
 
+def get_oauth_identity(provider, provider_subject):
+    return db.query_one(
+        "SELECT * FROM oauth_identities WHERE provider=? AND provider_subject=?",
+        ((provider or "").strip().lower(), (provider_subject or "").strip()),
+    )
+
+
+def get_oauth_identity_for_user(user_id, provider):
+    return db.query_one(
+        "SELECT * FROM oauth_identities WHERE user_id=? AND provider=? ORDER BY id LIMIT 1",
+        (user_id, (provider or "").strip().lower()),
+    )
+
+
+def link_oauth_identity(provider, provider_subject, user_id, email_at_link=None):
+    provider = (provider or "").strip().lower()
+    subject = (provider_subject or "").strip()
+    email = (email_at_link or "").strip().lower() or None
+    if not provider or not subject:
+        raise ValueError("invalid_oauth_identity")
+    row = get_oauth_identity(provider, subject)
+    now = _now()
+    if row:
+        db.execute(
+            "UPDATE oauth_identities SET user_id=?, email_at_link=?, updated_at=? WHERE id=?",
+            (user_id, email, now, row["id"]),
+        )
+        return row["id"]
+    return db.insert_returning_id(
+        "INSERT INTO oauth_identities (provider,provider_subject,user_id,email_at_link,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+        (provider, subject, user_id, email, now, now),
+    )
+
+
+def get_valid_oauth_email_alias(provider, email, now_iso):
+    return db.query_one(
+        "SELECT * FROM oauth_email_aliases WHERE provider=? AND email=? AND expires_at>? ORDER BY id DESC LIMIT 1",
+        ((provider or "").strip().lower(), (email or "").strip().lower(), now_iso),
+    )
+
+
+def delete_oauth_email_alias(provider, email):
+    db.execute(
+        "DELETE FROM oauth_email_aliases WHERE provider=? AND email=?",
+        ((provider or "").strip().lower(), (email or "").strip().lower()),
+    )
+
+
+def preserve_oauth_email_alias_if_needed(user_id, provider, email, expires_at):
+    provider = (provider or "").strip().lower()
+    email = (email or "").strip().lower()
+    if not provider or not email or get_oauth_identity_for_user(user_id, provider):
+        return False
+    history = db.query_one(
+        "SELECT 1 FROM audit_log WHERE actor_user_id=? AND business_id IS NULL "
+        "AND action IN ('OAUTH_LOGIN','OAUTH_ACCOUNT_CREATED') AND detail=? LIMIT 1",
+        (user_id, f"provider={provider}"),
+    )
+    if not history:
+        return False
+    row = db.query_one(
+        "SELECT id FROM oauth_email_aliases WHERE provider=? AND email=?",
+        (provider, email),
+    )
+    if row:
+        db.execute(
+            "UPDATE oauth_email_aliases SET user_id=?, expires_at=? WHERE id=?",
+            (user_id, expires_at, row["id"]),
+        )
+    else:
+        db.execute(
+            "INSERT INTO oauth_email_aliases (provider,email,user_id,expires_at) VALUES (?,?,?,?)",
+            (provider, email, user_id, expires_at),
+        )
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Businesses (tenants)
 # ---------------------------------------------------------------------------
