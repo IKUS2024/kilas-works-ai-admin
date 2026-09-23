@@ -476,19 +476,26 @@ def review(b,u,context,edits=None):
 
         if action=='recurring' and not account:
             result['message']='Belum ada akun aktif untuk mata uang '+currency+'. Tambahkan akun '+currency+' dulu agar Tagihan bisa disimpan.'
-        elif not account:result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
+        elif action!='recurring' and not account:
+            result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif action=='recurring' and not values.get('name','').strip():
             result['message']='Nama tagihannya apa?'
-        elif not values['amount']:
+        elif action=='recurring' and not values['amount']:
             result['message']='Nominal tagihannya berapa?'
-        elif not category:
+        elif action=='recurring' and not category:
             result['message']='Tagihan ini masuk kategori apa?'
-        elif not values['date']:
+        elif action=='recurring' and not values['date']:
             result['message']='Jatuh temponya kapan?'
         elif action=='recurring' and not values.get('cadence'):
             result['message']='Frekuensinya sekali, mingguan, atau bulanan?'
-        elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
-        elif not values['amount']:result['message']='Nominal belum jelas. Lengkapi nominal pada review.'
+        elif action!='recurring' and not category:
+            result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
+        elif action=='record_invoice_payment' and not invoice:
+            result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
+        elif action!='recurring' and not values['amount']:
+            result['message']='Nominal belum jelas. Lengkapi nominal pada review.'
+        elif action!='recurring' and not values['date']:
+            result['message']='Tanggal transaksinya kapan?'
         else:
             amount=minor(values['amount'],currency)
             f._date(values['date'])
