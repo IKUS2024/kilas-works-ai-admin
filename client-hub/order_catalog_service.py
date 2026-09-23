@@ -22,7 +22,7 @@ def list_public_products(limit=24):
         limit=24
     rows=db.query_all(
         f"SELECT {PUBLIC_COLUMNS} FROM kilas_order_catalog "
-        "WHERE is_active=1 ORDER BY sort_order ASC,id ASC LIMIT ?",
+        "WHERE is_active=TRUE ORDER BY sort_order ASC,id ASC LIMIT ?",
         (limit,),
     )
     return [_row(row) for row in rows]
