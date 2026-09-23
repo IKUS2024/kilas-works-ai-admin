@@ -1,0 +1,8 @@
+{% set invoice_tab = invoice_tab or 'summary' %}
+<nav class="invoice-hub-nav" aria-label="Menu Invoice">
+  <a class="{{ 'active' if invoice_tab=='summary' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Ringkasan</a>
+  <a class="{{ 'active' if invoice_tab=='customers' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Pelanggan</a>
+  <a class="{{ 'active' if invoice_tab=='invoices' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">Invoice</a>
+  <a class="{{ 'active' if invoice_tab=='collections' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue') }}">Penagihan</a>
+  <a class="{{ 'active' if invoice_tab=='settings' else '' }}" data-finance-write href="{{ url_for('finance.invoice_settings',business_id=business.id,branch_id=g.finance_branch_id) }}">Pengaturan</a>
+</nav>
