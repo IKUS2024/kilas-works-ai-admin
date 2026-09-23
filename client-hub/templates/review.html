@@ -41,7 +41,7 @@
     </div>
     {% if business.package != "NONE" %}
       <details class="review-plan">
-        <summary>Detail paket Kilas Brain</summary>
+        <summary>Detail paket Kilas Assist</summary>
         {% include "_brain_plan_notice.html" %}
       </details>
     {% endif %}
@@ -59,7 +59,7 @@
         <div class="review-product-head">
           <div class="review-product-title">
             <span class="review-product-icon" aria-hidden="true">🧠</span>
-            <div><div class="review-product-name">Kilas Brain</div><div class="review-product-meta">{{ business.package|humanize_package if business.package != 'NONE' else 'Belum terdaftar' }}</div></div>
+            <div><div class="review-product-name">Kilas Assist</div><div class="review-product-meta">{{ business.package|humanize_package if business.package != 'NONE' else 'Belum terdaftar' }}</div></div>
           </div>
           {% if ai_settings and ai_settings.ai_status == 'STALE' %}
             <span class="review-product-status warn">Perubahan menunggu review</span>
@@ -81,7 +81,7 @@
               <span class="muted">WhatsApp: <strong>{{ 'Terhubung' if business.whatsapp_connected else 'Belum terhubung' }}</strong>{% if subscription %} · Langganan: <strong>{{ subscription.status|humanize_status('subscription') }}</strong>{% endif %}</span>
             {% endif %}
           {% else %}
-            <span class="muted">Client ini belum memakai Kilas Brain.</span>
+            <span class="muted">Client ini belum memakai Kilas Assist.</span>
           {% endif %}
         </div>
       </article>
@@ -127,7 +127,7 @@
     </section>
   {% endif %}
 
-  {# Missing business-profile fields are Kilas Brain onboarding requirements.
+  {# Missing business-profile fields are Kilas Assist onboarding requirements.
      A Finance-only client must not be shown as incomplete just because Brain is not enabled. #}
   {% if missing_required and business.package != 'NONE' %}
     <div class="review-alert">
