@@ -120,13 +120,9 @@ def product_start():
     if request.method=='POST':
         choice=(request.form.get('product') or '').strip().lower()
         if choice=='finance':
-            finance_businesses=_product_businesses(user['id'],'finance')
             session['active_product']='finance'
             session.pop('product_intent',None)
-            if finance_businesses:
-                return redirect(url_for('client.dashboard',product='finance'),code=303)
-            session['product_intent']='finance'
-            return redirect(url_for('products.continue_product'),code=303)
+            return redirect(url_for('products.finance_entry'),code=303)
         if choice=='assist':
             assist_businesses=_product_businesses(user['id'],'brain')
             session['active_product']='brain'
@@ -141,6 +137,67 @@ def product_start():
             return redirect(url_for('projects.service_catalog_page'),code=303)
         abort(400)
     return render_template('product_start.html',user=user)
+
+
+@products_bp.route('/products/finance',methods=['GET','POST'])
+@security.login_required
+def finance_entry():
+    user=security.current_user()
+    businesses=_product_businesses(user['id'],'finance')
+    cards=[]
+    import math
+    for business in businesses:
+        state=entitlement.state(business['id'])
+        remaining_days=None
+        if state.get('active') and state.get('until'):
+            seconds=(entitlement.parse(state['until'])-entitlement.now()).total_seconds()
+            remaining_days=max(0,math.ceil(seconds/86400))
+        cards.append({**business,'finance_state':state,'remaining_days':remaining_days})
+
+    if request.method=='POST':
+        action=(request.form.get('action') or '').strip()
+        if action=='begin_trial':
+            if businesses:
+                return redirect(url_for('products.finance_entry'),code=303)
+            return redirect(url_for('products.finance_entry',step='business'),code=303)
+        if action=='create_trial':
+            if businesses:
+                abort(400)
+            business_name=(request.form.get('business_name') or '').strip()
+            try:
+                business_id=product_flow.create_business(
+                    user['id'],business_name,request.form.get('setup_identity'))
+            except ValueError:
+                flash('Nama bisnis wajib diisi dengan benar.','error')
+                return redirect(url_for('products.finance_entry',step='business'),code=303)
+            target=_start_finance_trial_now(business_id,user)
+            if entitlement.state(business_id)['active']:
+                session['active_product']='finance'
+                return redirect(url_for('client.dashboard',product='finance'),code=303)
+            return redirect(target,code=303)
+        if action=='open':
+            business_id=request.form.get('business_id',type=int)
+            if not business_id:
+                abort(400)
+            allowed={row['id'] for row in businesses}
+            if business_id not in allowed:
+                abort(403)
+            state=entitlement.state(business_id)
+            if state['active']:
+                session['dashboard_business_id']=business_id
+                session['active_product']='finance'
+                return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
+            return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
+        abort(400)
+
+    return render_template(
+        'finance_entry.html',
+        user=user,
+        businesses=cards,
+        trial_days=FINANCE_PLAN['trial_days'],
+        setup_identity=uuid.uuid4().hex,
+        show_business_form=(request.args.get('step')=='business' and not businesses)
+    )
 
 
 @products_bp.route('/products')
