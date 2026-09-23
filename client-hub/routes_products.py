@@ -151,25 +151,45 @@ def order_entry():
 @products_bp.route('/products/order/request',methods=['GET','POST'])
 @security.login_required
 def order_request():
+    import order_intake_ai
+
+    def location_description(draft):
+        if draft.get('location_source')=='manual' and draft.get('location_label'):
+            return 'Area pilihan customer: ' + draft['location_label']
+        if draft.get('location_source')=='gps':
+            return 'GPS customer aktif dan tersedia untuk tahap pencarian.'
+        return 'Lokasi belum dipilih.'
+
+    def run_intake(draft):
+        result,error=order_intake_ai.analyze(
+            draft['request_text'],
+            conversation=draft.get('conversation') or [],
+            location_description=location_description(draft),
+        )
+        draft['ai_state']=result
+        draft['ai_error']=bool(error)
+        return draft
+
     if request.method=='POST':
         action=(request.form.get('action') or 'start').strip().lower()
-        if action=='details':
+
+        if action in ('answer','retry'):
             draft=session.get('kilas_order_draft') or {}
             if not draft.get('request_text'):
                 return redirect(url_for('products.order_entry'),code=303)
-            condition=(request.form.get('condition') or 'FLEXIBLE').strip().upper()
-            if condition not in ('FLEXIBLE','NEW','USED'):
-                condition='FLEXIBLE'
-            priority=(request.form.get('priority') or 'BEST').strip().upper()
-            if priority not in ('BEST','PRICE','FAST','QUALITY'):
-                priority='BEST'
-            draft.update({
-                'budget':(request.form.get('budget') or '').strip()[:80],
-                'condition':condition,
-                'priority':priority,
-                'extra_notes':(request.form.get('extra_notes') or '').strip()[:500],
-                'intake_ready':True,
-            })
+            if action=='answer':
+                answer=(request.form.get('answer') or '').strip()
+                if not answer or len(answer)>400:
+                    flash('Jawaban belum bisa diproses. Coba tulis lebih singkat.','error')
+                    return redirect(url_for('products.order_request'),code=303)
+                state=draft.get('ai_state') or {}
+                question=(state.get('question') or '').strip()
+                conversation=list(draft.get('conversation') or [])
+                if question:
+                    conversation.append({'role':'assistant','content':question[:300]})
+                conversation.append({'role':'user','content':answer[:400]})
+                draft['conversation']=conversation[-8:]
+            draft=run_intake(draft)
             session['kilas_order_draft']=draft
             return redirect(url_for('products.order_request'),code=303)
 
@@ -181,17 +201,18 @@ def order_request():
         location_label=(request.form.get('location_label') or '').strip()
         latitude=(request.form.get('latitude') or '').strip()
         longitude=(request.form.get('longitude') or '').strip()
-        session['kilas_order_draft']={
+        draft={
             'request_text':request_text[:800],
             'location_source':location_source if location_source in ('gps','manual') else '',
             'location_label':location_label[:120],
             'latitude':latitude[:32],
             'longitude':longitude[:32],
-            'condition':'FLEXIBLE',
-            'priority':'BEST',
-            'intake_ready':False,
+            'conversation':[],
         }
+        draft=run_intake(draft)
+        session['kilas_order_draft']=draft
         return redirect(url_for('products.order_request'),code=303)
+
     draft=session.get('kilas_order_draft') or {}
     if not draft.get('request_text'):
         return redirect(url_for('products.order_entry'),code=303)
