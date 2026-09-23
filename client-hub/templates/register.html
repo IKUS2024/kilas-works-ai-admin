@@ -27,11 +27,7 @@ body.public-ui>footer{display:none}
 .auth-tab.active{color:#fff;background:linear-gradient(135deg,#ff8128,#9e3e0c);box-shadow:0 0 0 1px rgba(255,137,55,.72),0 7px 20px rgba(255,122,26,.18)}
 .auth-card{border:1px solid var(--auth-border)!important;border-radius:24px!important;padding:25px!important;margin:0!important;background:linear-gradient(155deg,#181d24,#11151a)!important;box-shadow:0 24px 70px rgba(0,0,0,.28)}
 .auth-card h1{font-size:40px;line-height:1;margin:0 0 12px;letter-spacing:-.045em}
-.auth-card-lead{margin:0 0 22px;color:#aeb4bd;font-size:16px;line-height:1.5}
-.auth-step{display:flex;align-items:center;gap:12px;margin:0 0 22px;padding:13px 14px;border:1px solid #30363f;border-radius:16px;background:rgba(255,255,255,.012)}
-.auth-step-icon{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,122,26,.12);color:var(--auth-orange);font-size:20px;font-weight:900}
-.auth-step strong{display:block;color:#f2f3f5;font-size:14px;line-height:1.2}
-.auth-step span{display:block;color:#9da4ae;font-size:12.5px;line-height:1.35;margin-top:3px}
+.auth-card-lead{margin:0 0 24px;color:#aeb4bd;font-size:16px;line-height:1.5}
 .auth-form label{margin:0 0 8px;color:#f0f2f5;font-weight:800;font-size:14px}
 .auth-field{position:relative;margin-bottom:16px}
 .auth-field input{min-height:56px;padding:0 48px;border-radius:15px!important;background:#0e1217!important;border:1px solid #3a414b!important;color:#fff!important;font-size:15px}
@@ -56,9 +52,6 @@ body.public-ui>footer{display:none}
   .auth-card{padding:21px 17px!important;border-radius:21px!important}
   .auth-card h1{font-size:36px}
   .auth-card-lead{font-size:15px;margin-bottom:20px}
-  .auth-step{padding:12px;margin-bottom:19px}
-  .auth-step-icon{width:36px;height:36px;flex-basis:36px;font-size:18px}
-  .auth-step strong{font-size:13.5px}.auth-step span{font-size:12px}
   .auth-field input{min-height:54px}
   .auth-submit{min-height:54px!important}
 }
@@ -82,11 +75,6 @@ body.public-ui>footer{display:none}
     <section class="card auth-card">
       <h1>Buat akun</h1>
       <p class="auth-card-lead">Mulai dari identitas pemilik. Kamu belum perlu memasukkan data bisnis di tahap ini.</p>
-
-      <div class="auth-step">
-        <div class="auth-step-icon">1</div>
-        <div><strong>Akun pemilik</strong><span>Setelah masuk, Kilas Finance dan AI Admin dibuat sebagai bisnis yang terpisah.</span></div>
-      </div>
 
       <form method="post" class="auth-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
