@@ -28,7 +28,7 @@
   <details class="card admin-collapsible">
     <summary>Metodologi &amp; Kurs</summary>
     <div class="admin-collapsible-body">
-      <p class="admin-note">Estimasi tarif {{ pricing_date }}. Bukan tagihan provider. Estimasi Anthropic saja; biaya transkripsi voice note/provider lain belum dihitung. Pendapatan referensi Rp499.000; kontribusi sebelum infrastruktur, pajak, dan biaya Meta.</p>
+      <p class="admin-note">Estimasi tarif {{ pricing_date }}. Bukan tagihan provider. Estimasi Anthropic mencakup AI Admin dan Finance AI yang tercatat; pemakaian Finance sebelum tracking ini aktif tidak dapat dibackfill. Biaya transkripsi voice note/provider lain belum dihitung. Pendapatan referensi Rp499.000; kontribusi sebelum infrastruktur, pajak, dan biaya Meta.</p>
       {% if unavailable %}<p role="alert">Pemakaian belum tersedia. Periksa migrasi ledger dan koneksi database kedua layanan.</p>{% else %}<p class="admin-note">Kurs acuan USD/IDR: {% if fx %}1 USD = Rp{{ '%.2f'|format(fx.rate) }} · {{ fx.date }} · {{ fx.source }}{% else %}Tidak tersedia · Frankfurter v2{% endif %}</p>{% endif %}
     </div>
   </details>
