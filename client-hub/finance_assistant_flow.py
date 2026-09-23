@@ -24,7 +24,7 @@ QUERY_TTL = 7200
 AMOUNT = re.compile(r'(?<![\w.,+−-])(?:Rp\.?\s*\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)?|\d+(?:[.,]\d+)*\s*(?:ribu|rb|k|juta|jt|miliar|milyar)\b|(?:US\$|S\$|A\$|HK\$|€|£|¥|฿)\s*\d+(?:[.,]\d+)*|(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\s+\d+(?:[.,]\d+)*|\d+(?:[.,]\d+)*\s+(?:USD|IDR|SGD|MYR|EUR|GBP|AUD|JPY|CNY|HKD|THB)\b)', re.I)
 BARE_AMOUNT = re.compile(r'(?<![\w.,+−-])\d{4,}(?![\w.,])')
 LABELS = {'create_expense':'Pengeluaran','create_income':'Pemasukan','record_invoice_payment':'Pembayaran invoice',
-          'customer':'Customer baru','recurring':'Biaya rutin','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
+          'customer':'Customer baru','recurring':'Tagihan rutin','invoice':'Draft invoice','issue_invoice':'Terbitkan invoice','receipt':'Struk pengeluaran'}
 
 
 def authorize(b, u, capability=None, write=True):
@@ -215,8 +215,8 @@ def accounting_help(text):
         (('rekonsiliasi','mutasi bank'),'Rekonsiliasi mencocokkan mutasi bank dengan transaksi yang sudah tercatat agar tidak terjadi pencatatan ganda.'),
         (('saldo awal',),'Saldo awal adalah uang yang sudah ada di kas/rekening sebelum transaksi periode berjalan. Saldo awal bukan pemasukan.'),
         (('aset','liabilitas','utang'),'Aset adalah sumber daya yang dimiliki, sedangkan liabilitas/utang adalah kewajiban. Kilas Finance mencatat arus kas operasional dan tidak menggantikan pembukuan akuntansi penuh.'),
-        (('invoice','tagihan'),'Invoice adalah tagihan ke customer. Pembayaran invoice dicatat sebagai penerimaan kas dan mengurangi sisa piutang.'),
-        (('biaya rutin','rutin','bulanan','mingguan'),'Biaya rutin adalah pengeluaran berulang. Sebut nominal, frekuensi, rekening, kategori, dan tanggal mulai; Assistant akan menyiapkan jadwal untuk dikonfirmasi.'),
+        (('invoice',),'Invoice adalah tagihan ke customer. Pembayaran invoice dicatat sebagai penerimaan kas dan mengurangi sisa piutang.'),
+        (('tagihan','biaya rutin','rutin','bulanan','mingguan'),'Tagihan di Kilas Finance adalah pengeluaran yang dijadwalkan atau berulang. Sebut nama tagihan, nominal, frekuensi, rekening, kategori, dan tanggal mulai; Assistant akan menyiapkannya untuk dikonfirmasi.'),
     ]
     for keys,message in topics:
         if any(key in lower for key in keys):return dict(kind='answer',title='Kilas Finance',message=message)
@@ -457,11 +457,11 @@ def review(b,u,context,edits=None):
         if not account:result['message']='Nominal sudah terbaca. Mau dicatat ke rekening mana?' if values['amount'] else 'Mau dicatat ke rekening mana? Pilih akun sesuai mata uang sumber.'
         elif not category:result['message']='Kategori belum pasti. Pilih kategori yang sesuai saat review.'
         elif action=='recurring' and not values.get('cadence'):
-            result['message']='Biaya rutin ini mau berulang seberapa sering? Pilih Bulanan atau Mingguan.'
+            result['message']='Tagihan ini mau berulang seberapa sering? Pilih Bulanan atau Mingguan.'
         elif not values['date']:
-            result['message']='Mulai kapan biaya rutin ini berlaku? Tulis misalnya “hari ini”, “tanggal 25”, atau tanggal lengkap.'
+            result['message']='Mulai kapan tagihan ini berlaku? Tulis misalnya “hari ini”, “tanggal 25”, atau tanggal lengkap.'
         elif action=='recurring' and not values.get('name','').strip():
-            result['message']='Nama biaya rutinnya apa?'
+            result['message']='Nama tagihannya apa?'
         elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
         elif not values['amount']:result['message']='Nominal belum jelas. Lengkapi nominal pada review.'
         else:
@@ -499,11 +499,11 @@ def review(b,u,context,edits=None):
         missing=next((r for key in order for r in form if r['key']==key and r['required'] and not r['value']),None)
         if missing:
             result['next_field']=missing['key']
-            questions={'cadence':'Biaya rutin ini mau berulang seberapa sering? Bulanan atau Mingguan?',
-                       'date':'Mulai kapan biaya rutin ini berlaku?' if action=='recurring' else 'Tanggal transaksinya kapan?',
+            questions={'cadence':'Tagihan ini mau berulang seberapa sering? Bulanan atau Mingguan?',
+                       'date':'Mulai kapan tagihan ini berlaku?' if action=='recurring' else 'Tanggal transaksinya kapan?',
                        'account_id':result['message'] if 'rekening mana' in result['message'] else 'Mau dicatat ke rekening mana?',
                        'category_id':'Kategori apa yang sesuai?', 'amount':'Nominalnya berapa?',
-                       'invoice_id':'Invoice mana yang dibayar?','name':'Nama biaya rutinnya apa?'}
+                       'invoice_id':'Invoice mana yang dibayar?','name':'Nama tagihannya apa?'}
             result['message']=questions[missing['key']]
     if action=='customer':
         if not values['name'].strip():
@@ -576,7 +576,7 @@ def _confirm(b,u,token):
         return result
     if action=='recurring':
         result=recurring.confirm(b,u,context['service_token'])
-        result['message']=f'Sudah. Biaya rutin {values.get("name") or values.get("description") or ""} {amount_label} berhasil dijadwalkan. Belum ada pengeluaran aktual yang dibuat.'
+        result['message']=f'Sudah. Tagihan {values.get("name") or values.get("description") or ""} {amount_label} berhasil dijadwalkan. Belum ada pengeluaran aktual yang dibuat.'
         return result
     if action=='customer':
         ident=f.create_customer(b,**values,actor_user_id=u,idempotency_key=context['nonce'])
