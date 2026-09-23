@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Kilas Brain' }} — {{ business.business_name }}{% endblock %}
+{% block title %}{{ 'Edit Kilas Assist' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Kilas Assist' }} — {{ business.business_name }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
@@ -38,7 +38,7 @@
 <div class="wizard-page">
 <div class="wizard-head">
   <div class="wizard-head-main">
-    <h1>{{ 'Edit Kilas Brain' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Kilas Brain' }}</h1>
+    <h1>{{ 'Edit Kilas Assist' if business.status in ('APPROVED','ACTIVE','SUSPENDED') else 'Setup Kilas Assist' }}</h1>
     <p>{{ business.business_name }} · Pilih bagian yang ingin kamu isi atau edit.</p>
   </div>
   <span class="wizard-count">{{ steps.index(step) + 1 }}/{{ steps|length }}</span>
@@ -51,7 +51,7 @@
 {% endif %}
 <details class="card client-collapsible wizard-plan"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
 
-<nav class="wizard-steps" aria-label="Langkah setup Kilas Brain">
+<nav class="wizard-steps" aria-label="Langkah setup Kilas Assist">
   {% for s in steps %}
     <a class="wizard-step {{ 'active' if s == step else '' }}"
        href="{{ url_for('client.wizard_step', business_id=business.id, step=s) }}"
@@ -67,7 +67,7 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if step == 'basics' %}
     <h2>Kenali Bisnismu</h2>
-    <p class="wizard-intro">Isi yang benar-benar penting. Data ini jadi dasar Kilas Brain saat menjawab customer, jadi tulis sesuai kondisi bisnis sebenarnya.</p>
+    <p class="wizard-intro">Isi yang benar-benar penting. Data ini jadi dasar Kilas Assist saat menjawab customer, jadi tulis sesuai kondisi bisnis sebenarnya.</p>
     <div class="wizard-required-note">Kolom bertanda “Penting” wajib diisi sebelum lanjut.</div>
     <input type="hidden" name="country" value="{{ profile.country or 'Indonesia' }}">
     <input type="hidden" name="timezone" value="{{ profile.timezone or 'Asia/Jakarta' }}">
@@ -80,7 +80,7 @@
       </label>
       <label class="full">Nama penanggung jawab <span class="wizard-important">(Penting)</span>
         <input type="text" name="owner_name" value="{{ profile.owner_name or '' }}" placeholder="Nama owner / pengelola" required>
-        <span class="wizard-help">Untuk identitas internal bisnis. Kilas Brain tidak akan menyebut nama ini ke customer tanpa alasan yang relevan.</span>
+        <span class="wizard-help">Untuk identitas internal bisnis. Kilas Assist tidak akan menyebut nama ini ke customer tanpa alasan yang relevan.</span>
       </label>
     </div>
     <label>Tentang bisnis <span class="wizard-important">(Penting)</span></label>
@@ -102,7 +102,7 @@
 
   {% elif step == 'services' %}
     <h2>Produk / Layanan</h2>
-    <p class="wizard-intro">Satu baris untuk satu produk atau layanan. Tulis <strong>nama + harga/ketentuan harga + detail penting</strong>. Tidak perlu bahasa formal—Kilas Brain akan merapikannya.</p>
+    <p class="wizard-intro">Satu baris untuk satu produk atau layanan. Tulis <strong>nama + harga/ketentuan harga + detail penting</strong>. Tidak perlu bahasa formal—Kilas Assist akan merapikannya.</p>
     <label>Daftar layanan <span class="wizard-important">(Penting)</span></label>
     <textarea name="services_raw" rows="9" required placeholder="Contoh:
 DJ Wedding — mulai Rp5 jt — durasi 4 jam, belum termasuk transport luar kota
@@ -134,7 +134,7 @@ Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw
       </label>
       <label>Nomor WhatsApp bisnis / nomor robot <span class="wizard-important">(Penting)</span>
         <input type="text" name="business_phone" value="{{ profile.business_phone or '' }}" placeholder="Indonesia: 6285128018184 · US: 14048836437" inputmode="tel" required>
-        <span class="wizard-help">Ini nomor yang akan dihubungi customer dan dipakai Kilas Brain untuk membalas chat setelah WhatsApp Meta terhubung. Simpan nomor di sini belum langsung mengaktifkan robot; saat aktivasi Kilas Works akan menghubungkan nomor yang sama ke Meta.</span>
+        <span class="wizard-help">Ini nomor yang akan dihubungi customer dan dipakai Kilas Assist untuk membalas chat setelah WhatsApp Meta terhubung. Simpan nomor di sini belum langsung mengaktifkan robot; saat aktivasi Kilas Works akan menghubungkan nomor yang sama ke Meta.</span>
       </label>
       <label class="full">Alamat / area layanan <span class="muted">(Opsional)</span>
         <input type="text" name="address" value="{{ profile.address or '' }}" placeholder="Contoh: Gading Serpong, Tangerang — melayani Jabodetabek">
@@ -148,7 +148,7 @@ Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw
       <div class="client-collapsible-body">
         <label class="wizard-check">
           <input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }}>
-          <span>Izinkan Kilas Brain menerima permintaan booking dari customer.</span>
+          <span>Izinkan Kilas Assist menerima permintaan booking dari customer.</span>
         </label>
         <label>Aturan booking</label>
         <textarea name="appointment_rules_raw" id="field_appointment_rules_raw" placeholder="Contoh: Booking minimal H-1. Jadwal dianggap fix setelah dikonfirmasi tim. Reschedule maksimal 1x.">{{ profile.appointment_rules_raw or '' }}</textarea>
@@ -173,7 +173,7 @@ Private event — harga sesuai brief dan lokasi">{% for s in services %}{{ s.raw
     <details class="client-collapsible wizard-subdetails" {% if profile.payment_bank_name or profile.payment_account_number or profile.payment_instructions %}open{% endif %}>
       <summary>Pembayaran ke bisnis kamu <span class="muted">(Opsional)</span></summary>
       <div class="client-collapsible-body">
-        <p class="wizard-help">Isi hanya kalau Kilas Brain boleh memberikan rekening ini ke customer bisnis kamu. Ini bukan rekening untuk membayar Kilas Works.</p>
+        <p class="wizard-help">Isi hanya kalau Kilas Assist boleh memberikan rekening ini ke customer bisnis kamu. Ini bukan rekening untuk membayar Kilas Works.</p>
         <div class="client-form-grid">
           <label>Bank<input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="Contoh: BCA"></label>
           <label>Nomor rekening<input type="text" name="payment_account_number" value="{{ profile.payment_account_number or '' }}" inputmode="numeric"></label>
@@ -233,7 +233,7 @@ Bisa refund? | Tidak ada refund setelah jadwal dikonfirmasi.">{% for f in faqs %
     <details class="client-collapsible wizard-subdetails" id="faq-suggestions-panel" data-business-id="{{ business.id }}">
       <summary>Bingung harus isi FAQ apa?</summary>
       <div class="client-collapsible-body">
-        <p class="wizard-help">Kilas Brain bisa membaca data yang sudah kamu isi dan menyarankan pertanyaan yang masih kurang. Saran tidak akan tersimpan sebelum kamu pilih.</p>
+        <p class="wizard-help">Kilas Assist bisa membaca data yang sudah kamu isi dan menyarankan pertanyaan yang masih kurang. Saran tidak akan tersimpan sebelum kamu pilih.</p>
         <button type="button" class="btn secondary" id="faq-suggest-btn">Cari saran FAQ</button>
         <div class="ai-help-status" id="faq-suggest-status"></div>
         <div id="faq-suggest-list" style="margin-top:10px;"></div>
@@ -242,7 +242,7 @@ Bisa refund? | Tidak ada refund setelah jadwal dikonfirmasi.">{% for f in faqs %
 
   {% elif step == 'style' %}
     <h2>Gaya Balasan</h2>
-    <p class="wizard-intro">Atur cara Kilas Brain berbicara. Fakta bisnis tetap mengikuti data yang kamu isi, bukan gaya bahasa.</p>
+    <p class="wizard-intro">Atur cara Kilas Assist berbicara. Fakta bisnis tetap mengikuti data yang kamu isi, bukan gaya bahasa.</p>
     <div class="client-form-grid">
       <label>Gaya bahasa <span class="wizard-important">(Penting)</span>
         <select name="tone" required>
@@ -267,7 +267,7 @@ Bisa refund? | Tidak ada refund setelah jadwal dikonfirmasi.">{% for f in faqs %
       <label class="wizard-check"><input type="checkbox" name="additional_languages" value="id" {{ 'checked' if 'id' in (profile.additional_languages or []) else '' }}><span>Bahasa Indonesia</span></label>
       <label class="wizard-check"><input type="checkbox" name="additional_languages" value="en" {{ 'checked' if 'en' in (profile.additional_languages or []) else '' }}><span>English</span></label>
     </div>
-    <p class="wizard-help">Centang hanya bahasa tambahan yang memang boleh digunakan. Kilas Brain tetap menyesuaikan bahasa customer saat percakapan.</p>
+    <p class="wizard-help">Centang hanya bahasa tambahan yang memang boleh digunakan. Kilas Assist tetap menyesuaikan bahasa customer saat percakapan.</p>
 
   {% elif step == 'upload' %}
     <h2>Dokumen Pengetahuan <span class="muted">(Opsional)</span></h2>
