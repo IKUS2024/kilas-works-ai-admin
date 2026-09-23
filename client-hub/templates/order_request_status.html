@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ item.request_code }} · Kilas Order{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#0b0d10;color:#f5f6f8}
+body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}
+body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.ko-status-shell{--o:#ff7a1a;--b:#303840;min-height:100svh;padding:17px 14px 28px;box-sizing:border-box;background:radial-gradient(520px 300px at 92% 0%,rgba(255,122,26,.09),transparent 72%),#0b0d10}
+.ko-status-inner{width:min(100%,720px);margin:0 auto}
+.ko-status-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:24px}
+.ko-status-brand{color:#f5f6f8;text-decoration:none;font-size:18px;font-weight:900}.ko-status-brand span{color:var(--o)}
+.ko-status-nav{display:flex;gap:6px}.ko-status-nav a{min-height:34px;padding:7px 9px;display:inline-flex;align-items:center;border:1px solid #39424b;border-radius:10px;background:#11161a;color:#d6dbe0;text-decoration:none;font-size:9.5px;font-weight:850}
+.ko-status-head{margin:0 2px 14px}.ko-status-code{color:#8b949e;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.ko-status-head h1{margin:6px 0 5px;font-size:28px;letter-spacing:-.045em}.ko-status-head p{margin:0;color:#929ba5;font-size:11px;line-height:1.5}
+.ko-status-card{padding:15px;border:1px solid var(--b);border-radius:18px;background:#11171b;margin-bottom:10px}
+.ko-status-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:rgba(255,122,26,.10);color:#ffac70;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.ko-status-pill:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--o)}
+.ko-request-text{margin:11px 0 0;font-size:14px;font-weight:750;line-height:1.48}
+.ko-status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:12px}
+.ko-status-grid div{padding:9px 10px;border:1px solid #2b333a;border-radius:11px;background:#0f1519;min-width:0}
+.ko-status-grid small{display:block;color:#78828c;font-size:8px;font-weight:850;text-transform:uppercase}
+.ko-status-grid strong{display:block;margin-top:3px;font-size:10.5px;line-height:1.35;overflow-wrap:anywhere}
+.ko-status-timeline{display:grid;gap:0;margin-top:5px}
+.ko-status-step{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;padding:8px 0}
+.ko-status-dot{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1px solid #3b444c;color:#747f88;font-size:9px;font-weight:900}
+.ko-status-step.active .ko-status-dot{background:rgba(255,122,26,.12);border-color:rgba(255,122,26,.55);color:var(--o)}
+.ko-status-step.done .ko-status-dot{background:rgba(61,213,138,.10);border-color:rgba(61,213,138,.35);color:#5fdca1}
+.ko-status-step strong{display:block;font-size:11px}.ko-status-step span{display:block;margin-top:2px;color:#858f99;font-size:9px;line-height:1.4}
+.ko-status-note{margin-top:10px;padding:11px 12px;border:1px dashed #35404a;border-radius:12px;color:#89939d;font-size:9.5px;line-height:1.5}
+@media(max-width:420px){.ko-status-head h1{font-size:25px}.ko-status-grid{grid-template-columns:1fr 1fr}}
+</style>
+{% set s=item.ai_summary or {} %}
+{% set condition_label={'NEW':'Baru','USED':'Second','FLEXIBLE':'Bebas','UNKNOWN':'Belum ditentukan'}.get(s.condition,'Belum ditentukan') %}
+<div class="ko-status-shell">
+  <div class="ko-status-inner">
+    <div class="ko-status-top">
+      <a class="ko-status-brand" href="{{ url_for('products.order_entry') }}">Kilas<span>Order</span></a>
+      <nav class="ko-status-nav">
+        <a href="{{ url_for('products.order_requests') }}">Permintaan Saya</a>
+        <a href="{{ url_for('products.order_entry') }}">＋ Cari Lagi</a>
+      </nav>
+    </div>
+
+    <header class="ko-status-head">
+      <span class="ko-status-code">{{ item.request_code }}</span>
+      <h1>Permintaan sudah tersimpan.</h1>
+      <p>Detail yang sudah dipahami Kilas aman tersimpan dan bisa dilanjutkan ke tahap pencarian berikutnya.</p>
+    </header>
+
+    <section class="ko-status-card">
+      <span class="ko-status-pill">{{ item.status_label }}</span>
+      <p class="ko-request-text">{{ item.request_text }}</p>
+      <div class="ko-status-grid">
+        <div><small>Barang</small><strong>{{ s.brand_model or s.item or 'Sesuai permintaan' }}</strong></div>
+        <div><small>Budget</small><strong>{{ s.budget or 'Tidak dibatasi' }}</strong></div>
+        <div><small>Kondisi</small><strong>{{ condition_label }}</strong></div>
+        <div><small>Prioritas</small><strong>{{ s.priority or 'Paling relevan' }}</strong></div>
+        <div><small>Varian</small><strong>{{ s.variant or 'Belum spesifik' }}</strong></div>
+        <div><small>Lokasi</small><strong>{% if item.location_source == 'manual' %}{{ item.location_label }}{% elif item.location_source == 'gps' %}GPS tersimpan untuk pencarian{% else %}Belum dipilih{% endif %}</strong></div>
+      </div>
+    </section>
+
+    <section class="ko-status-card">
+      <span class="ko-status-code">Progres</span>
+      <div class="ko-status-timeline">
+        <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Permintaan dipahami</strong><span>AI Buyer sudah merapikan kebutuhan barangmu.</span></div></div>
+        <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Request tersimpan</strong><span>Nomor request {{ item.request_code }} sudah dibuat.</span></div></div>
+        <div class="ko-status-step active"><span class="ko-status-dot">3</span><div><strong>Menunggu pencarian</strong><span>Mesin pencarian dan verifikasi kandidat akan menjadi tahap berikutnya.</span></div></div>
+        <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Pilihan barang</strong><span>Nanti customer hanya melihat kandidat yang sudah disaring Kilas.</span></div></div>
+      </div>
+      <div class="ko-status-note">Belum ada barang yang dibeli dan belum ada pembayaran pada tahap ini. Link seller, sumber pembelian, dan harga modal nantinya hanya tersedia di sisi internal Kilas.</div>
+    </section>
+  </div>
+</div>
+{% endblock %}
