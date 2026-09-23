@@ -27,6 +27,12 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .ko-status-step strong{display:block;font-size:11px}.ko-status-step span{display:block;margin-top:2px;color:#858f99;font-size:9px;line-height:1.4}
 .ko-status-note{margin-top:10px;padding:11px 12px;border:1px dashed #35404a;border-radius:12px;color:#89939d;font-size:9.5px;line-height:1.5}
 .ko-status-retry{margin-top:10px}.ko-status-retry form{margin:0}.ko-status-retry button{width:100%;min-height:42px;border:1px solid rgba(255,122,26,.5);border-radius:11px;background:rgba(255,122,26,.09);color:#ffae73;font:inherit;font-size:10.5px;font-weight:900;cursor:pointer}
+.ko-searching-card{margin-bottom:10px;padding:16px;border:1px solid rgba(255,122,26,.34);border-radius:18px;background:radial-gradient(260px 150px at 90% 10%,rgba(255,122,26,.09),transparent 72%),#11171b}
+.ko-searching-row{display:flex;align-items:center;gap:12px}.ko-searching-spinner{width:34px;height:34px;flex:0 0 34px;border:3px solid #313a43;border-top-color:var(--o);border-radius:50%;animation:ko-spin .85s linear infinite}
+.ko-searching-copy strong{display:block;font-size:14px}.ko-searching-copy span{display:block;margin-top:4px;color:#919aa4;font-size:10px;line-height:1.45}
+.ko-searching-steps{display:grid;gap:6px;margin-top:13px}.ko-searching-steps div{display:flex;align-items:center;gap:8px;color:#858f99;font-size:9.5px}.ko-searching-steps i{width:7px;height:7px;border-radius:50%;background:#37424a}.ko-searching-steps div.active{color:#ffad72}.ko-searching-steps div.active i{background:var(--o);box-shadow:0 0 0 4px rgba(255,122,26,.09)}
+.ko-searching-error{display:none;margin-top:12px;padding:10px 11px;border:1px solid rgba(232,91,91,.3);border-radius:11px;background:rgba(232,91,91,.05);color:#dca7a7;font-size:9.5px;line-height:1.45}.ko-searching-error.show{display:block}
+@keyframes ko-spin{to{transform:rotate(360deg)}}
 @media(max-width:420px){.ko-status-head h1{font-size:25px}.ko-status-grid{grid-template-columns:1fr 1fr}}
 </style>
 {% set s=item.ai_summary or {} %}
@@ -43,9 +49,9 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
     <header class="ko-status-head">
       <span class="ko-status-code">{{ item.request_code }}</span>
-      {% if item.status == 'SEARCHING' %}
-      <h1>Kilas sedang mencari.</h1>
-      <p>Mesin pencarian sedang mencari kandidat yang sesuai. Belum ada pembelian atau pembayaran.</p>
+      {% if item.status in ('SEARCH_REQUESTED','SEARCHING') %}
+      <h1>AI Kilas sedang mencari.</h1>
+      <p>Kilas sedang mencari dan menyaring kandidat yang sesuai. Kamu tetap di halaman ini sampai proses selesai.</p>
       {% elif item.status == 'RESULTS_READY' %}
       <h1>Kandidat sudah ditemukan.</h1>
       <p>Kilas sedang memeriksa source, seller, harga, dan kecocokan sebelum pilihan ditampilkan ke kamu.</p>
@@ -58,8 +64,27 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       {% endif %}
     </header>
 
+    {% if item.status in ('SEARCH_REQUESTED','SEARCHING') %}
+    <section class="ko-searching-card" id="ko-searching-card" data-search-url="{{ url_for('products.order_request_search_run',request_code=item.request_code) }}">
+      <div class="ko-searching-row">
+        <span class="ko-searching-spinner" aria-hidden="true"></span>
+        <div class="ko-searching-copy">
+          <strong id="ko-searching-title">AI sedang mencari barang…</strong>
+          <span id="ko-searching-sub">Kilas lagi cek beberapa sumber dan menyaring hasil yang kurang meyakinkan.</span>
+        </div>
+      </div>
+      <div class="ko-searching-steps">
+        <div class="active" data-search-step="0"><i></i>Mencari source yang relevan</div>
+        <div data-search-step="1"><i></i>Membandingkan listing dan harga</div>
+        <div data-search-step="2"><i></i>Menyaring kandidat mencurigakan</div>
+        <div data-search-step="3"><i></i>Menyiapkan kandidat untuk verifikasi Kilas</div>
+      </div>
+      <div class="ko-searching-error" id="ko-searching-error"></div>
+    </section>
+    {% endif %}
+
     <section class="ko-status-card">
-      <span class="ko-status-pill">{{ item.status_label }}</span>
+      <span class="ko-status-pill">{{ 'Sedang mencari' if item.status == 'SEARCH_REQUESTED' else item.status_label }}</span>
       <p class="ko-request-text">{{ item.request_text }}</p>
       <div class="ko-status-grid">
         <div><small>Barang</small><strong>{{ s.brand_model or s.item or 'Sesuai permintaan' }}</strong></div>
@@ -80,7 +105,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         {% if item.status == 'RESULTS_READY' %}
         <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Kandidat ditemukan</strong><span>Kilas sudah menemukan kandidat dari pencarian web.</span></div></div>
         <div class="ko-status-step active"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Source, seller, harga, dan risiko sedang diperiksa sebelum ditampilkan.</span></div></div>
-        {% elif item.status == 'SEARCHING' %}
+        {% elif item.status in ('SEARCH_REQUESTED','SEARCHING') %}
         <div class="ko-status-step active"><span class="ko-status-dot">3</span><div><strong>Sedang mencari</strong><span>Kilas sedang menjalankan pencarian dari beberapa sumber.</span></div></div>
         <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Kandidat akan diperiksa sebelum tampil ke kamu.</span></div></div>
         {% elif item.status == 'ISSUE' %}
@@ -104,4 +129,53 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
     </section>
   </div>
 </div>
+{% if item.status in ('SEARCH_REQUESTED','SEARCHING') %}
+<script>
+(function(){
+  var card=document.getElementById('ko-searching-card');
+  if(!card) return;
+  var title=document.getElementById('ko-searching-title');
+  var sub=document.getElementById('ko-searching-sub');
+  var errorBox=document.getElementById('ko-searching-error');
+  var steps=[].slice.call(document.querySelectorAll('[data-search-step]'));
+  var step=0;
+  var timer=setInterval(function(){
+    step=Math.min(step+1,steps.length-1);
+    steps.forEach(function(el,index){el.classList.toggle('active',index===step);});
+    if(step===1) sub.textContent='AI lagi membandingkan kecocokan, harga, kondisi, dan source.';
+    if(step===2) sub.textContent='Listing yang terlalu meragukan atau tidak cocok sedang dibuang.';
+    if(step===3) sub.textContent='Kandidat yang lolos sedang disiapkan untuk pengecekan internal Kilas.';
+  },4200);
+
+  function stop(){clearInterval(timer);}
+  fetch(card.getAttribute('data-search-url'),{
+    method:'POST',
+    headers:{
+      'X-CSRFToken':(document.querySelector('input[name="csrf_token"]')||{}).value||'',
+      'Accept':'application/json'
+    },
+    credentials:'same-origin'
+  }).then(function(response){
+    if(!response.ok) throw new Error('search_failed');
+    return response.json();
+  }).then(function(data){
+    stop();
+    if(data && (data.status==='RESULTS_READY' || data.ok)){
+      title.textContent='Kandidat ditemukan ✓';
+      sub.textContent='Sekarang Kilas lanjut memverifikasi kandidat sebelum ditampilkan.';
+      setTimeout(function(){window.location.reload();},650);
+      return;
+    }
+    throw new Error('no_results');
+  }).catch(function(){
+    stop();
+    title.textContent='Pencarian terputus';
+    sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
+    errorBox.textContent='Koneksi pencarian sempat terputus. Tekan “Coba Cari Lagi” di bawah.';
+    errorBox.classList.add('show');
+    setTimeout(function(){window.location.reload();},1200);
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
