@@ -993,6 +993,7 @@ def dashboard(business_id, user, business):
         account_map={a['id']: a for a in accounts}, category_map={c['id']: c for c in all_categories},
         customers=finance.list_customers(business_id, **actor),
         projects=finance.list_finance_projects(business_id, **actor),
+        payees=finance.list_payees(business_id, **actor),
         payee_names=[row['name'] for row in finance.list_payees(business_id, **actor)],
         initialized=bool(accounts and categories), month=month, month_label=period_label,
         direction=direction, view=view, show_transactions=show_transactions, show_accounts=show_accounts,
@@ -1017,6 +1018,17 @@ def payees(business_id, user, business):
     if display_currency not in finance.SUPPORTED_CURRENCIES:
         display_currency = 'IDR'
     if request.method == 'POST':
+        if request.form.get('inline') == '1':
+            try:
+                payee_id = finance.create_payee(
+                    business_id, request.form.get('name'), actor_user_id=user['id'])
+                row = next((item for item in finance.list_payees(
+                    business_id, actor_user_id=user['id']) if item['id'] == payee_id), None)
+                if not row:
+                    raise finance.FinanceError('payee_unavailable')
+                return jsonify(id=row['id'], name=row['name'])
+            except finance.FinanceError as error:
+                return jsonify(error=ERRORS.get(str(error), 'Penerima belum valid.')), 400
         destination = url_for(
             'finance.payees', business_id=business_id,
             branch_id=g.finance_branch_id, display_currency=display_currency)
@@ -1787,6 +1799,18 @@ def receivables(business_id, user, business):
 @finance_bp.route('/business/<int:business_id>/finance/customers', methods=['POST'])
 @finance_access
 def create_customer(business_id, user, business):
+    if request.form.get('inline') == '1':
+        try:
+            customer_id = finance.create_customer(
+                business_id, request.form.get('name'),
+                phone=request.form.get('phone'), email=request.form.get('email'),
+                notes=request.form.get('notes'), actor_user_id=user['id'])
+            row = finance.get_customer(business_id, customer_id, actor_user_id=user['id'])
+            if not row:
+                raise finance.FinanceError('customer_unavailable')
+            return jsonify(id=row['id'], name=row['name'], phone=row['phone'] or '', email=row['email'] or '')
+        except finance.FinanceError as error:
+            return jsonify(error=ERRORS.get(str(error), 'Customer belum valid.')), 400
     return mutate(business_id, lambda: finance.create_customer(business_id,request.form.get('name'),
         phone=request.form.get('phone'), email=request.form.get('email'), notes=request.form.get('notes'),
         actor_user_id=user['id']), 'Customer ditambahkan.', url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id))
