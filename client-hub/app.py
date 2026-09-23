@@ -27,7 +27,6 @@ import security
 import catalog_service
 import talent_service
 import display_labels
-import account_repair_once
 from routes_auth import auth_bp
 from routes_client import client_bp
 from routes_admin import admin_bp
@@ -117,10 +116,6 @@ def create_app():
                 "already-migrated schema; set RUN_MIGRATIONS_ON_BOOT=true for one deploy after "
                 "adding a new migration file)"
             )
-
-        # Temporary, environment-gated repair hook for an explicitly authorized duplicate-account
-        # identity correction. The helper is strict/idempotent and is a no-op unless enabled.
-        account_repair_once.run_from_env()
 
         import ai_usage
         ai_usage.startup_schema_check()
