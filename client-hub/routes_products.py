@@ -145,9 +145,9 @@ def product_start():
 
 @products_bp.route('/products')
 def index():
-    return render_template('products.html',brain=BRAIN_PLAN,finance_plan=FINANCE_PLAN,items=catalog_service.list_active_catalog(),
-        service_description=catalog_service.service_description,display_price=catalog_service.display_price,
-        transport_policy=__import__('pricing_config').TRANSPORT_POLICY)
+    if security.current_user():
+        return redirect(url_for('products.product_start'),code=303)
+    return redirect(url_for('auth.login_page'),code=303)
 
 
 @products_bp.route('/products/select',methods=['POST'])
