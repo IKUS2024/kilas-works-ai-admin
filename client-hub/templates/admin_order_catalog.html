@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Internal Catalog · Kilas Order{% endblock %}
+{% block content %}
+<style>
+.koc{max-width:1180px;margin:0 auto}.koc-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:14px}.koc-head h1{margin:0;font-size:25px}.koc-head p{margin:4px 0 0;color:var(--muted);font-size:10px}.koc-head a{color:var(--orange);text-decoration:none;font-size:10px;font-weight:850}
+.koc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.koc-item{padding:13px;border:1px solid var(--border);border-radius:14px;background:var(--card)}.koc-top{display:flex;justify-content:space-between;gap:10px}.koc-code{color:var(--orange);font-size:9px;font-weight:900}.koc-item h2{margin:4px 0 0;font-size:14px}.koc-final{font-size:17px;font-weight:950;white-space:nowrap}.koc-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}.koc-meta div{padding:8px;border:1px solid var(--border);border-radius:9px}.koc-meta small{display:block;color:var(--muted);font-size:7px;text-transform:uppercase;font-weight:850}.koc-meta strong{display:block;margin-top:3px;font-size:9.5px;overflow-wrap:anywhere}.koc-source{margin-top:9px;padding:9px;border-radius:9px;background:rgba(255,122,26,.04);font-size:9px;line-height:1.45}.koc-source a{color:var(--orange);word-break:break-all}.koc-note{margin-top:8px;color:var(--muted);font-size:8.5px}
+@media(max-width:780px){.koc-grid{grid-template-columns:1fr}.koc-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<div class="koc">
+ <header class="koc-head"><div><h1>Internal Catalog</h1><p>Source procurement. Data di halaman ini tidak pernah dikirim ke customer.</p></div><a href="{{ url_for('admin.order_requests_admin') }}">← Kilas Order</a></header>
+ <div class="koc-grid">
+ {% for p in products %}
+  <article class="koc-item">
+   <div class="koc-top"><div><span class="koc-code">{{ p.product_code }}</span><h2>{{ p.name }}</h2></div><div class="koc-final">{{ p.customer_price_text }}</div></div>
+   <div class="koc-meta">
+    <div><small>Harga sumber</small><strong>{{ p.source_price_text }}</strong></div>
+    <div><small>Ongkir est.</small><strong>{{ p.shipping_text }}</strong></div>
+    <div><small>Fee/buffer</small><strong>{{ p.fee_text }}</strong></div>
+    <div><small>Jasa Kilas</small><strong>{{ p.service_fee_text }}</strong></div>
+   </div>
+   <div class="koc-source"><b>{{ p.source_platform }}</b> · {{ p.source_seller or '-' }}<br><a href="{{ p.source_url }}" target="_blank" rel="noopener noreferrer">Buka sumber pembelian ↗</a></div>
+   <div class="koc-note">Status: {{ p.availability_status }} · terakhir dicatat {{ p.source_checked_at or '-' }}</div>
+  </article>
+ {% endfor %}
+ </div>
+</div>
+{% endblock %}
