@@ -142,13 +142,6 @@
 }
 .business-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .business-main{display:flex;gap:10px;min-width:0}
-.business-top-side{display:flex;align-items:flex-end;gap:7px;flex-direction:column}
-.business-profile-editor{margin-top:10px;border:1px solid var(--border);border-radius:12px;background:#1a1c1f;overflow:hidden}
-.business-profile-editor>summary{list-style:none;cursor:pointer;padding:10px 12px;color:#ff9c55;font-weight:800;font-size:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.business-profile-editor>summary::-webkit-details-marker{display:none}
-.business-profile-editor>summary::after{content:'⌄';color:#9ba0a8}
-.business-profile-editor[open]>summary::after{content:'⌃'}
-.business-profile-editor-body{padding:0 12px 12px;border-top:1px solid var(--border)}
 .business-icon{
   width:46px;height:46px;border-radius:13px;display:grid;place-items:center;flex:0 0 auto;overflow:hidden;
   background:#1b1d20;border:1px solid var(--border);font-weight:900;color:#ff9449;
@@ -465,34 +458,6 @@
                 </div>
               </div>
 
-              <details class="business-profile-editor">
-                <summary>✎ Edit profil bisnis</summary>
-                <div class="business-profile-editor-body">
-                  <form method="post" enctype="multipart/form-data" class="business-photo-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="business_photo">
-                    <input type="hidden" name="business_id" value="{{ business.id }}">
-                    <input type="file" name="photo" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" required>
-                    <button class="btn secondary small" type="submit">Ganti Foto Bisnis</button>
-                  </form>
-
-                  <form method="post" class="business-identity-form">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="action" value="business_identity">
-                    <input type="hidden" name="business_id" value="{{ business.id }}">
-                    <label>
-                      <span class="account-label">Nama bisnis</span>
-                      <input name="business_name" maxlength="160" value="{{ business.business_name }}" required>
-                    </label>
-                    <label>
-                      <span class="account-label">Email bisnis</span>
-                      <span class="business-locked-email"><span>{{ business.business_email }}</span><small>Terkunci</small></span>
-                    </label>
-                    <button class="btn secondary small" type="submit">Simpan Nama</button>
-                  </form>
-                </div>
-              </details>
-
               {% if business.finance_branches %}
                 <div class="business-branch-list">
                   {% for branch in business.finance_branches %}
@@ -576,7 +541,7 @@
                 </div>
               {% else %}
                 <div class="account-help">
-                  Bisnis ini belum memiliki cabang Finance. Profil bisnis tetap dapat diedit dari tombol di atas; data invoice tersedia setelah Finance diaktifkan.
+                  Bisnis ini belum memiliki cabang Finance. Data invoice tersedia setelah Finance diaktifkan.
                 </div>
               {% endif %}
 
