@@ -127,7 +127,7 @@ def product_start():
             return redirect(url_for('products.continue_product'),code=303)
         if choice=='services':
             session.pop('product_intent',None)
-            return redirect(url_for('products.index'),code=303)
+            return redirect(url_for('projects.service_catalog_page'),code=303)
         abort(400)
     return render_template('product_start.html',user=user)
 
