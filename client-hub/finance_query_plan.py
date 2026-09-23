@@ -235,9 +235,17 @@ def execute(b,u,p,scoped=False):
     if resource=='recurring' and not p.get('forecast'):
         rows=f.list_recurring_expenses(b,actor_user_id=u)
         if currency:rows=[r for r in rows if r['currency']==currency]
-        if not rows:return result('Biaya rutin',[],'Belum ada biaya rutin aktif pada cabang yang dipilih.')
-        return result('Biaya rutin',[[r['name']+' · '+r['cadence'],fx.format_money(r['amount_minor'],r['currency'])+' · jatuh tempo berikutnya '+r['next_due_on']] for r in rows[:100]],
-                      'Daftar biaya rutin aktif. Jadwal adalah komitmen; belum menjadi pengeluaran sampai kejadiannya dicatat.')
+        if not rows:return result('Tagihan',[],'Belum ada tagihan aktif pada cabang yang dipilih.')
+        preview=[]
+        for r in rows[:100]:
+            cadence=('Sekali' if r['cadence']=='MONTHLY' and r.get('end_on')==r['next_due_on']
+                     else 'Bulanan' if r['cadence']=='MONTHLY' else 'Mingguan')
+            preview.append([
+                r['name']+' · '+cadence,
+                fx.format_money(r['amount_minor'],r['currency'])+' · jatuh tempo '+r['next_due_on']
+            ])
+        return result('Tagihan',preview,
+                      'Daftar tagihan aktif. Tagihan belum menjadi pengeluaran sampai ditandai sudah dibayar.')
     preview=[];period=p['period'];ranges=[(None,None)] if period['mode']=='all' else period['ranges']
     for start,end in ranges:
         label='Semua waktu' if start is None else start[:7] if start.endswith('-01') and start[:7]==end[:7] else start+' – '+end
@@ -245,7 +253,7 @@ def execute(b,u,p,scoped=False):
             rows=f.get_upcoming_recurring_commitments(b,start,end,u)
             if currency:rows=[r for r in rows if r['currency']==currency]
             preview.extend([[r['name']+' · '+r['scheduled_on'],fx.format_money(r['amount_minor'],r['currency'])] for r in rows[:100]])
-            if not rows:preview.append([label,'Belum ada biaya rutin terjadwal.'])
+            if not rows:preview.append([label,'Belum ada tagihan terjadwal.'])
             continue
         rows=f.get_cash_totals(b,start,end,actor_user_id=u,**ids,currency=currency,direction=p.get('direction'),group_by=p.get('group_by'))
         if not rows:preview.append([label,'Belum ada transaksi.'])
@@ -259,5 +267,5 @@ def execute(b,u,p,scoped=False):
                 for direction,key,title in [('INCOME','total_income_minor','Pemasukan'),('EXPENSE','total_expense_minor','Pengeluaran'),('','net_cashflow_minor','Arus kas bersih')]:
                     if not p.get('direction') or p.get('direction')==direction:preview.append([label+' · '+title,fx.format_money(r[key],r['currency'])])
             if p.get('count'):preview.append(['Jumlah transaksi',str(sum(r['transaction_count'] for r in rows))])
-    return result('Biaya rutin' if resource=='recurring' else 'Laporan Finance',preview,
-                  'Komitmen terjadwal, belum merupakan pengeluaran aktual.' if resource=='recurring' else 'Transaksi aktual sesuai tanggal kejadian. Saldo awal, FX, draft invoice, dan jadwal belum dibayar tidak menjadi arus kas.')
+    return result('Tagihan' if resource=='recurring' else 'Laporan Finance',preview,
+                  'Tagihan terjadwal belum menjadi pengeluaran sampai ditandai sudah dibayar.' if resource=='recurring' else 'Transaksi aktual sesuai tanggal kejadian. Saldo awal, FX, draft invoice, dan jadwal belum dibayar tidak menjadi arus kas.')
