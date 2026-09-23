@@ -64,7 +64,7 @@ def review(b,u,context,edits=None):
     if values['account_id'] and not any(str(r['id'])==values['account_id'] for r in accounts):
         values['account_id']='';changed.append('account_id')
     if not values['account_id'] and len(accounts)==1 and 'account_id' not in changed and context.get('awaiting')!='account_id':values['account_id']=str(accounts[0]['id'])
-    categories=f.list_categories(b,'INCOME',actor_user_id=u)
+    categories=f.list_categories(b,'INCOME',include_children=True,actor_user_id=u)
     if values['category_id'] and not any(str(r['id'])==values['category_id'] for r in categories):values['category_id']=''
     if not values['category_id'] and len(categories)==1 and 'category_id' not in changed and context.get('awaiting')!='category_id':values['category_id']=str(categories[0]['id'])
     names={r['id']:r['name'] for r in customers}
