@@ -7,15 +7,17 @@
 
 <div class="fin-page">
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
-<h1 class="fin-page-title">Penagihan</h1>
-<p class="muted fin-page-subtitle">{{ business.business_name }} · Hanya invoice yang masih memiliki sisa tagihan · Per {{ data.as_of }}</p>
-
-<div class="card fin-menu-card">
-  <div class="fin-tool-grid compact">
-    <a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Piutang &amp; umur</span></a>
-    <a class="fin-tool {{ 'active' if section=='queue' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view) }}"><span class="fin-icon">📋</span><span class="fin-label">Antrean</span><span class="fin-meta">{{ queue.count }} belum lunas</span></a>
-    <a class="fin-tool" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}"><span class="fin-icon">🧾</span><span class="fin-label">Invoice</span><span class="fin-meta">Semua status</span></a>
+<header class="invoice-page-head">
+  <div class="invoice-page-head-copy">
+    <h1>Penagihan</h1>
+    <p>Fokus ke invoice yang masih memiliki sisa tagihan · per {{ data.as_of }}.</p>
   </div>
+  <a class="btn secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">Invoice</a>
+</header>
+{% set invoice_tab='collections' %}{% include '_finance_invoice_hub_nav.html' %}
+<div class="invoice-hub-actions">
+  <a class="btn {{ 'secondary' if section!='queue' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue',sort=sort,view=view) }}">Antrean {{ queue.count }}</a>
+  <a class="btn {{ 'secondary' if section!='summary' else '' }}" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Umur Piutang</a>
 </div>
 
 {% if section=='summary' %}
@@ -51,7 +53,7 @@
   {% if finance_branch_business_id %}<input type="hidden" name="branch_id" value="{{ selected_branch_id or 'all' }}">{% endif %}
   <div class="fin-form-grid">
     <label>Tampilkan<select name="view">{% for value,label in [('all','Semua belum lunas'),('overdue','Terlambat'),('soon','Jatuh tempo 0–7 hari')] %}<option value="{{ value }}" {{ 'selected' if view==value }}>{{ label }}</option>{% endfor %}</select></label>
-    <label>Urutkan<select name="sort">{% for value,label in [('overdue','Paling lama terlambat'),('balance','Sisa terbesar'),('due','Tanggal jatuh tempo'),('customer','Nama customer')] %}<option value="{{ value }}" {{ 'selected' if sort==value }}>{{ label }}</option>{% endfor %}</select></label>
+    <label>Urutkan<select name="sort">{% for value,label in [('overdue','Paling lama terlambat'),('balance','Sisa terbesar'),('due','Tanggal jatuh tempo'),('customer','Nama pelanggan')] %}<option value="{{ value }}" {{ 'selected' if sort==value }}>{{ label }}</option>{% endfor %}</select></label>
   </div>
   <button class="btn secondary">Terapkan</button>
 </form>
