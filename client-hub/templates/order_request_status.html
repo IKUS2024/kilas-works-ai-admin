@@ -26,6 +26,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .ko-status-step.done .ko-status-dot{background:rgba(61,213,138,.10);border-color:rgba(61,213,138,.35);color:#5fdca1}
 .ko-status-step strong{display:block;font-size:11px}.ko-status-step span{display:block;margin-top:2px;color:#858f99;font-size:9px;line-height:1.4}
 .ko-status-note{margin-top:10px;padding:11px 12px;border:1px dashed #35404a;border-radius:12px;color:#89939d;font-size:9.5px;line-height:1.5}
+.ko-status-retry{margin-top:10px}.ko-status-retry form{margin:0}.ko-status-retry button{width:100%;min-height:42px;border:1px solid rgba(255,122,26,.5);border-radius:11px;background:rgba(255,122,26,.09);color:#ffae73;font:inherit;font-size:10.5px;font-weight:900;cursor:pointer}
 @media(max-width:420px){.ko-status-head h1{font-size:25px}.ko-status-grid{grid-template-columns:1fr 1fr}}
 </style>
 {% set s=item.ai_summary or {} %}
@@ -42,8 +43,19 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
     <header class="ko-status-head">
       <span class="ko-status-code">{{ item.request_code }}</span>
+      {% if item.status == 'SEARCHING' %}
+      <h1>Kilas sedang mencari.</h1>
+      <p>Mesin pencarian sedang mencari kandidat yang sesuai. Belum ada pembelian atau pembayaran.</p>
+      {% elif item.status == 'RESULTS_READY' %}
+      <h1>Kandidat sudah ditemukan.</h1>
+      <p>Kilas sedang memeriksa source, seller, harga, dan kecocokan sebelum pilihan ditampilkan ke kamu.</p>
+      {% elif item.status == 'ISSUE' %}
+      <h1>Pencarian belum berhasil.</h1>
+      <p>Request tetap tersimpan. Kamu bisa mencoba pencarian lagi tanpa mengulang penjelasan dari awal.</p>
+      {% else %}
       <h1>Permintaan sudah tersimpan.</h1>
-      <p>Detail yang sudah dipahami Kilas aman tersimpan dan bisa dilanjutkan ke tahap pencarian berikutnya.</p>
+      <p>Detail yang sudah dipahami Kilas aman tersimpan dan siap diproses.</p>
+      {% endif %}
     </header>
 
     <section class="ko-status-card">
@@ -64,10 +76,31 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       <div class="ko-status-timeline">
         <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Permintaan dipahami</strong><span>AI Buyer sudah merapikan kebutuhan barangmu.</span></div></div>
         <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Request tersimpan</strong><span>Nomor request {{ item.request_code }} sudah dibuat.</span></div></div>
-        <div class="ko-status-step active"><span class="ko-status-dot">3</span><div><strong>Menunggu pencarian</strong><span>Mesin pencarian dan verifikasi kandidat akan menjadi tahap berikutnya.</span></div></div>
-        <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Pilihan barang</strong><span>Nanti customer hanya melihat kandidat yang sudah disaring Kilas.</span></div></div>
+
+        {% if item.status == 'RESULTS_READY' %}
+        <div class="ko-status-step done"><span class="ko-status-dot">✓</span><div><strong>Kandidat ditemukan</strong><span>Kilas sudah menemukan kandidat dari pencarian web.</span></div></div>
+        <div class="ko-status-step active"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Source, seller, harga, dan risiko sedang diperiksa sebelum ditampilkan.</span></div></div>
+        {% elif item.status == 'SEARCHING' %}
+        <div class="ko-status-step active"><span class="ko-status-dot">3</span><div><strong>Sedang mencari</strong><span>Kilas sedang menjalankan pencarian dari beberapa sumber.</span></div></div>
+        <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Kandidat akan diperiksa sebelum tampil ke kamu.</span></div></div>
+        {% elif item.status == 'ISSUE' %}
+        <div class="ko-status-step active"><span class="ko-status-dot">!</span><div><strong>Perlu coba lagi</strong><span>Pencarian belum menghasilkan kandidat yang cukup valid.</span></div></div>
+        <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Berlanjut setelah pencarian berhasil.</span></div></div>
+        {% else %}
+        <div class="ko-status-step active"><span class="ko-status-dot">3</span><div><strong>Menunggu pencarian</strong><span>Request sudah siap untuk mesin pencarian Kilas.</span></div></div>
+        <div class="ko-status-step"><span class="ko-status-dot">4</span><div><strong>Verifikasi Kilas</strong><span>Kandidat akan diperiksa sebelum tampil ke kamu.</span></div></div>
+        {% endif %}
       </div>
-      <div class="ko-status-note">Belum ada barang yang dibeli dan belum ada pembayaran pada tahap ini. Link seller, sumber pembelian, dan harga modal nantinya hanya tersedia di sisi internal Kilas.</div>
+      <div class="ko-status-note">Belum ada barang yang dibeli dan belum ada pembayaran pada tahap ini. Link seller, sumber pembelian, dan harga modal hanya tersedia di sisi internal Kilas.</div>
+      {% if item.status == 'ISSUE' %}
+      <div class="ko-status-retry">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="retry_search">
+          <button type="submit">↻ Coba Cari Lagi</button>
+        </form>
+      </div>
+      {% endif %}
     </section>
   </div>
 </div>
