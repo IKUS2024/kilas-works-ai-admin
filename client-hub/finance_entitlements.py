@@ -95,15 +95,18 @@ def start_trial(business_id, actor_user_id):
         if not db.query_one("SELECT id FROM finance_accounts WHERE business_id=? AND is_active=TRUE AND currency='IDR'",(business_id,)):
             raise finance.FinanceError('account_unavailable')
         current=now()
-        end=None if unlimited_trial_mode() else current+timedelta(days=7)
+        # Keep a valid trial_until in storage even while temporary unlimited-testing mode
+        # ignores the date. Production has a DB integrity constraint requiring trial_started_at
+        # and trial_until to be both NULL or both populated.
+        end=current+timedelta(days=7)
         if row:
             db.execute(
                 'UPDATE finance_entitlements SET trial_started_at=?, trial_until=?, updated_at=? WHERE business_id=?',
-                (current.isoformat(),end.isoformat() if end else None,current.isoformat(),business_id)
+                (current.isoformat(),end.isoformat(),current.isoformat(),business_id)
             )
         else:
             db.execute('INSERT INTO finance_entitlements (business_id,trial_started_at,trial_until,updated_at) VALUES (?,?,?,?)',
-                       (business_id,current.isoformat(),end.isoformat() if end else None,current.isoformat()))
+                       (business_id,current.isoformat(),end.isoformat(),current.isoformat()))
         repo.write_audit(actor_user_id,business_id,'FINANCE_TRIAL_STARTED','unlimited_testing' if unlimited_trial_mode() else '')
     return state(business_id)
 
