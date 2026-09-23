@@ -111,7 +111,7 @@ def generate(question, context, *, business_id=None, user_id=None):
             timeout=(5,25), allow_redirects=False)
         if response.status_code != 200: return None, 'upstream_failure'
         body=response.json()
-        safety.record_usage(model,body,business_id,'normal')
+        safety.record_usage(model,body,business_id,'normal',context='finance_analyst')
         result = safety.json_object(safety.response_text(body,8000))
         if not isinstance(result,dict) or set(result)!={'observations','suggestions'}: raise ValueError('schema')
         ids = {f['id'] for f in context['facts']}
