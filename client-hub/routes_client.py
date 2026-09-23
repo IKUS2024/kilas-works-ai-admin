@@ -197,8 +197,13 @@ def dashboard():
         owned_products.append("finance")
     if brain_businesses:
         owned_products.append("brain")
+    if requested_product in ("finance","brain"):
+        session["active_product"] = requested_product
+    session_product = (session.get("active_product") or "").strip().lower()
     active_product = requested_product if requested_product in owned_products else (
-        "finance" if finance_businesses else ("brain" if brain_businesses else None)
+        session_product if session_product in owned_products else (
+            "finance" if finance_businesses else ("brain" if brain_businesses else None)
+        )
     )
     return render_template(
         "product_dashboard.html" if finance_self_service else "client_dashboard.html",
