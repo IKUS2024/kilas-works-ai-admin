@@ -1,54 +1,118 @@
 'use strict';
 
 // Counterparty master-data connection.
-// EXPENSE -> Penerima/Vendor master. Typing a new name is auto-added by the server.
-// INCOME -> Customer master used by Invoice/Piutang. Exact customer names also set customer_id.
+// EXPENSE selects from Penerima/Vendor. INCOME selects from the same Customer master
+// used by Invoice/Piutang. Quick-add stays inside the transaction sheet.
 for (const form of document.querySelectorAll('form')) {
   const direction=form.querySelector('[name="direction"]');
-  const input=form.querySelector('[data-counterparty-input]');
+  const select=form.querySelector('[data-counterparty-select]');
+  const hiddenName=form.querySelector('[data-counterparty-input]');
+  const customerId=form.querySelector('[data-customer-id-input]');
   const label=form.querySelector('[data-counterparty-label]');
-  const manage=form.querySelector('[data-counterparty-manage]');
-  const customerSelect=form.querySelector('[data-customer-select]');
-  const customerDetail=form.querySelector('[data-customer-detail]');
-  if(!direction||!input||!label)continue;
+  const addButton=form.querySelector('[data-counterparty-add]');
+  if(!direction||!select||!hiddenName||!customerId||!label)continue;
 
-  const matchCustomer=()=>{
-    if(direction.value!=='INCOME'||!customerSelect)return;
-    const value=String(input.value||'').trim().toLocaleLowerCase();
-    const matches=[...document.querySelectorAll('#finance-source-options option')]
-      .filter(option=>String(option.value||'').trim().toLocaleLowerCase()===value);
-    customerSelect.value=matches.length===1?String(matches[0].dataset.customerId||''):'';
-  };
-
-  const syncCounterparty=()=>{
+  const refreshOptions=()=>{
     const income=direction.value==='INCOME';
     label.textContent=income?'Sumber / Customer':'Penerima / Vendor';
-    input.placeholder=income?'Contoh: Wilson atau Client A':'Contoh: PLN atau Vendor A';
-    input.setAttribute('list',income?'finance-source-options':'finance-payee-options');
+    const placeholder=select.querySelector('[data-counterparty-placeholder]');
+    if(placeholder)placeholder.textContent=income?'Pilih Customer':'Pilih Penerima / Vendor';
 
-    if(manage){
-      manage.href=income?manage.dataset.customerUrl:manage.dataset.payeeUrl;
-      manage.textContent=income?'＋ Tambah / kelola Customer':'＋ Tambah / kelola Penerima';
+    for(const option of select.options){
+      if(!option.value)continue;
+      const visible=option.dataset.direction===(income?'INCOME':'EXPENSE');
+      option.disabled=!visible;
+      option.hidden=!visible;
     }
-    if(customerDetail){
-      customerDetail.hidden=!income;
-      if(customerDetail.style)customerDetail.style.display=income?'':'none';
+    const selected=select.selectedOptions[0];
+    if(!selected||selected.disabled){
+      select.value='';
+      hiddenName.value='';
+      customerId.value='';
+    }else{
+      hiddenName.value=selected.value;
+      customerId.value=income?String(selected.dataset.customerId||''):'';
     }
-    if(!income&&customerSelect)customerSelect.value='';
-    if(income)matchCustomer();
+    if(addButton)addButton.textContent=income?'＋ Tambah / kelola Customer':'＋ Tambah / kelola Penerima';
   };
 
-  input.addEventListener('input',matchCustomer);
-  input.addEventListener('change',matchCustomer);
-  if(customerSelect){
-    customerSelect.addEventListener('change',()=>{
-      if(direction.value!=='INCOME'||!customerSelect.value)return;
-      const selected=customerSelect.selectedOptions[0];
-      if(selected)input.value=String(selected.textContent||'').trim();
-    });
-  }
-  direction.addEventListener('change',syncCounterparty);
-  syncCounterparty();
+  const syncSelection=()=>{
+    const option=select.selectedOptions[0];
+    hiddenName.value=option&&option.value?option.value:'';
+    customerId.value=(direction.value==='INCOME'&&option)?String(option.dataset.customerId||''):'';
+  };
+
+  select.addEventListener('change',syncSelection);
+  direction.addEventListener('change',refreshOptions);
+  if(addButton)addButton.addEventListener('click',()=>{
+    const id=direction.value==='INCOME'?'customer-quick-dialog':'payee-quick-dialog';
+    const dialog=document.getElementById(id);
+    if(dialog&&typeof dialog.showModal==='function'){
+      dialog.showModal();
+      const input=dialog.querySelector('input[name="name"]');
+      if(input)setTimeout(()=>input.focus(),40);
+    }
+  });
+  refreshOptions();
+}
+
+// Inline add Payee/Customer, then immediately make the new record selectable
+// in the currently open transaction form without navigating away.
+for(const masterForm of document.querySelectorAll('[data-counterparty-add-form]')){
+  masterForm.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const status=masterForm.querySelector('[data-counterparty-status]');
+    const button=masterForm.querySelector('button[type="submit"]');
+    if(button?.disabled)return;
+    if(status){status.textContent='';status.classList.remove('error','success');}
+    if(button)button.disabled=true;
+    try{
+      const response=await fetch(masterForm.action,{
+        method:'POST',
+        body:new FormData(masterForm),
+        headers:{'Accept':'application/json'}
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Data belum dapat disimpan.');
+
+      const transactionForm=document.getElementById('add-transaction');
+      const direction=transactionForm?.querySelector('[name="direction"]');
+      const select=transactionForm?.querySelector('[data-counterparty-select]');
+      const hiddenName=transactionForm?.querySelector('[data-counterparty-input]');
+      const customerId=transactionForm?.querySelector('[data-customer-id-input]');
+      if(select&&data.name){
+        const kind=masterForm.dataset.kind==='customer'?'INCOME':'EXPENSE';
+        let option=[...select.options].find(item=>
+          item.dataset.direction===kind&&String(item.value||'').toLocaleLowerCase()===String(data.name).toLocaleLowerCase()
+        );
+        if(!option){
+          option=document.createElement('option');
+          option.value=data.name;option.textContent=data.name;option.dataset.direction=kind;
+          if(kind==='INCOME')option.dataset.customerId=String(data.id||'');
+          else option.dataset.payeeId=String(data.id||'');
+          select.append(option);
+        }
+        if(direction?.value===kind){
+          for(const item of select.options){
+            if(!item.value)continue;
+            const visible=item.dataset.direction===kind;
+            item.disabled=!visible;item.hidden=!visible;
+          }
+          select.value=option.value;
+          if(hiddenName)hiddenName.value=option.value;
+          if(customerId)customerId.value=kind==='INCOME'?String(data.id||''):'';
+        }
+      }
+      if(status){status.textContent=(masterForm.dataset.kind==='customer'?'Customer':'Penerima')+' ditambahkan.';status.classList.add('success');}
+      masterForm.reset();
+      const dialog=masterForm.closest('dialog');
+      if(dialog)setTimeout(()=>dialog.close(),350);
+    }catch(error){
+      if(status){status.textContent=error.message||'Data belum dapat disimpan.';status.classList.add('error');}
+    }finally{
+      if(button)button.disabled=false;
+    }
+  });
 }
 
 for (const category of document.querySelectorAll('[data-other-category]')) {
