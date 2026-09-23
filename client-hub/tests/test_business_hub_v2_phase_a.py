@@ -53,6 +53,38 @@ def _register(client, email, password="password123"):
                         follow_redirects=True)
 
 
+def _snapshot_non_password_business_data():
+    """Regression guard for forgot/reset-password.
+
+    The ONLY persisted application data allowed to change during a successful password reset is:
+    - users.password_hash
+    - password_reset_tokens (created/consumed/invalidated)
+    - audit_log (security audit event)
+
+    Everything else — email, full_name, role, memberships, businesses, profiles, onboarding,
+    Finance data, projects, etc. — must remain byte-for-byte equivalent. Keeping this snapshot
+    generic means a future migration/table is automatically protected too.
+    """
+    tables = [
+        row["name"]
+        for row in db.query_all(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+        )
+    ]
+    snapshot = {}
+    for table in tables:
+        if table in ("password_reset_tokens", "audit_log"):
+            continue
+        rows = [dict(row) for row in db.query_all(f'SELECT * FROM "{table}"')]
+        if table == "users":
+            for row in rows:
+                # Password hash is the one users-column a reset is explicitly allowed to change.
+                row["password_hash"] = "<allowed-password-hash-change>"
+        snapshot[table] = sorted(rows, key=lambda row: repr(sorted(row.items())))
+    return snapshot
+
+
 # ---------------------------------------------------------------------------
 # Migration / schema
 # ---------------------------------------------------------------------------
@@ -148,6 +180,56 @@ def test_reset_password_valid_token_changes_password_and_old_password_stops_work
                              follow_redirects=True)
     assert "dashboard" in new_login.request.path or new_login.status_code == 200
     print("test_reset_password_valid_token_changes_password_and_old_password_stops_working OK")
+
+
+def test_reset_password_never_changes_customer_business_data():
+    """Forgot/reset must never swap identity or roll a customer back to another user's data."""
+    reset_db()
+    client = fresh_client()
+    _register(client, "integrity-owner@test.com", password="oldpassword123")
+    user = repo.get_user_by_email("integrity-owner@test.com")
+
+    # Seed real tenant-owned rows so this catches the class of production regression where a
+    # password reset accidentally changes account identity/membership/business context.
+    business_id = repo.create_business(user["id"], "Integrity Business", package="AI_ADMIN_BASIC")
+    repo.upsert_business_profile(business_id, {
+        "owner_name": "Original Owner",
+        "category": "Jasa",
+        "short_description": "Data ini harus tetap sama setelah reset password.",
+        "business_phone": "628111111111",
+        "primary_language": "id",
+        "tone": "friendly",
+        "customer_salutation": "Kak",
+        "operating_hours": "Senin-Jumat 09:00-17:00",
+        "online_or_offline": "online",
+    })
+
+    before = _snapshot_non_password_business_data()
+    raw_token, _token_id, _ = _issue_raw_token_for("integrity-owner@test.com")
+
+    resp = client.post(
+        f"/reset-password/{raw_token}",
+        data={"password": "newpassword456", "confirm_password": "newpassword456"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert "berhasil diubah" in resp.get_data(as_text=True).lower()
+
+    after = _snapshot_non_password_business_data()
+    assert after == before, (
+        "password reset mutated non-password customer data; identity/business/profile/Finance/"
+        "project data must never be rewritten by forgot/reset-password"
+    )
+
+    saved = repo.get_user_by_email("integrity-owner@test.com")
+    assert saved["id"] == user["id"]
+    assert saved["full_name"] == user["full_name"]
+    membership = db.query_one(
+        "SELECT user_id FROM business_memberships WHERE business_id=?",
+        (business_id,),
+    )
+    assert membership and membership["user_id"] == user["id"]
+    print("test_reset_password_never_changes_customer_business_data OK")
 
 
 def test_reset_password_token_is_single_use():
