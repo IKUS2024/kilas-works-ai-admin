@@ -554,14 +554,9 @@
     if (invalid) { event.preventDefault(); invalid.reportValidity(); return; }
     if (form.dataset.submitting === 'true') { event.preventDefault(); return; }
     form.dataset.submitting = 'true'; form.setAttribute('aria-busy', 'true');
-    if (event.submitter && event.submitter.tagName === 'BUTTON') {
-      event.submitter.dataset.originalText = event.submitter.textContent;
-      event.submitter.textContent = form.enctype === 'multipart/form-data' ? 'Mengunggah…' : 'Memproses…';
-    }
   });
   window.addEventListener('pageshow', function () {
     document.querySelectorAll('form[data-submitting]').forEach(function (form) { delete form.dataset.submitting; form.removeAttribute('aria-busy'); });
-    document.querySelectorAll('button[data-original-text]').forEach(function (button) { button.textContent = button.dataset.originalText; delete button.dataset.originalText; });
   });
 }());
 </script>
