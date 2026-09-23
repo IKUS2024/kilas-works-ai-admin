@@ -113,7 +113,8 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
             raise ValueError('invalid_scope')
         # Context/model come from code/config, never customer text.
         allowed = {'platform_customer','tenant_customer','owner','tenant_owner','demo','demo_fallback',
-                   'normalization','simulation','writing','faq','knowledge_assist','payment_review','platform_helper','finance_ai'}
+                   'normalization','simulation','writing','faq','knowledge_assist','payment_review','platform_helper',
+                   'finance_ai','finance_chat','finance_receipt','finance_bank','finance_document','finance_analyst','finance_operator'}
         if context not in allowed or classification not in ('normal','vision','complex'):
             raise ValueError('invalid_classification')
         if not isinstance(model,str) or len(model)>100 or not all(c.isalnum() or c in '-_.' for c in model):
@@ -299,8 +300,15 @@ def monthly(tenant_id=None, *, admin=False, now=None):
             "SUM(CASE WHEN cache_read_input_tokens>0 THEN 1 ELSE 0 END) AS cache_hits, "
             "SUM(CASE WHEN model LIKE ? THEN 1 ELSE 0 END) AS haiku_calls, "
             "SUM(CASE WHEN model LIKE ? THEN 1 ELSE 0 END) AS sonnet_calls, "
-            "SUM(CASE WHEN context_type='finance_ai' THEN 1 ELSE 0 END) AS finance_calls, "
-            "SUM(CASE WHEN context_type='finance_ai' AND classification='vision' THEN 1 ELSE 0 END) AS finance_vision_calls, "
+            "SUM(CASE WHEN context_type IN ('finance_ai','finance_chat','finance_receipt','finance_bank','finance_document','finance_analyst','finance_operator') THEN 1 ELSE 0 END) AS finance_calls, "
+            "SUM(CASE WHEN context_type IN ('finance_ai','finance_chat','finance_receipt','finance_bank','finance_document','finance_analyst','finance_operator') AND classification='vision' THEN 1 ELSE 0 END) AS finance_vision_calls, "
+            "SUM(CASE WHEN context_type='finance_chat' THEN 1 ELSE 0 END) AS finance_chat_calls, "
+            "SUM(CASE WHEN context_type='finance_receipt' THEN 1 ELSE 0 END) AS finance_receipt_calls, "
+            "SUM(CASE WHEN context_type='finance_bank' THEN 1 ELSE 0 END) AS finance_bank_calls, "
+            "SUM(CASE WHEN context_type='finance_document' THEN 1 ELSE 0 END) AS finance_document_calls, "
+            "SUM(CASE WHEN context_type='finance_analyst' THEN 1 ELSE 0 END) AS finance_analyst_calls, "
+            "SUM(CASE WHEN context_type='finance_operator' THEN 1 ELSE 0 END) AS finance_operator_calls, "
+            "SUM(CASE WHEN context_type='finance_ai' THEN 1 ELSE 0 END) AS finance_other_calls, "
             "SUM(estimated_cost_usd) AS cost_usd,SUM(estimated_cost_idr) AS cost_idr, "
             "SUM(CASE WHEN estimated_cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_usd, "
             "SUM(CASE WHEN estimated_cost_idr IS NULL THEN 1 ELSE 0 END) AS unknown_idr, "
@@ -316,7 +324,7 @@ def monthly(tenant_id=None, *, admin=False, now=None):
         result=[]
         for row in rows:
             row=dict(row)
-            for k in ('calls','replies','input_tokens','output_tokens','cache_read_input_tokens','cache_creation_input_tokens','cache_hits','haiku_calls','sonnet_calls','finance_calls','finance_vision_calls'):
+            for k in ('calls','replies','input_tokens','output_tokens','cache_read_input_tokens','cache_creation_input_tokens','cache_hits','haiku_calls','sonnet_calls','finance_calls','finance_vision_calls','finance_chat_calls','finance_receipt_calls','finance_bank_calls','finance_document_calls','finance_analyst_calls','finance_operator_calls','finance_other_calls'):
                 row[k]=int(row.get(k) or 0)
             if row.get('unknown_usd'): row['cost_usd']=None
             if row.get('unknown_idr'): row['cost_idr']=None
