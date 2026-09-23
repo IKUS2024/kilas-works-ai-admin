@@ -40,7 +40,7 @@ body.public-ui>footer{display:none}
 .oauth-list{display:grid;gap:10px}
 .oauth-btn{min-height:54px;border:1px solid #404751;border-radius:14px;display:grid;grid-template-columns:34px 1fr 22px;align-items:center;gap:9px;padding:0 15px;color:#f3f4f6;background:rgba(255,255,255,.012);font-weight:850;text-decoration:none}
 .oauth-btn:hover{border-color:#59616c;background:rgba(255,255,255,.03);text-decoration:none;color:#fff}
-.oauth-icon{width:28px;height:28px;display:grid;place-items:center;font-weight:950;font-size:22px}.oauth-icon.google svg{width:27px;height:27px;display:block}.oauth-icon.facebook{border-radius:50%;background:#1877f2;color:#fff;font-family:Arial,sans-serif;font-size:23px;line-height:1}
+.oauth-icon{width:28px;height:28px;display:grid;place-items:center;font-weight:950;font-size:22px}.oauth-icon.google svg{width:27px;height:27px;display:block}
 .oauth-arrow{font-size:25px;color:#d5d8dd;line-height:1}
 .auth-register{text-align:center;margin:22px 0 0!important;color:#aeb4bd!important;font-size:14px!important}.auth-register a{font-weight:850;color:var(--auth-orange)}
 .auth-footer{text-align:center;margin:88px 0 0;color:#747c87;font-size:11px;line-height:1.6}
@@ -94,16 +94,13 @@ body.public-ui>footer{display:none}
       <div class="oauth-list">
         <a class="oauth-btn" href="{{ url_for('auth.oauth_start', provider='google') }}">
           <span class="oauth-icon google" aria-hidden="true">
-            <svg viewBox="0 0 28 21" role="img" aria-label="Gmail">
-              <path fill="#4285F4" d="M1.5 19.5h4V7.1L1.5 4.2z"/>
-              <path fill="#34A853" d="M22.5 19.5h4V4.2l-4 2.9z"/>
-              <path fill="#FBBC04" d="M22.5 4.2 14 10.6 5.5 4.2l2.1-3L14 6l6.4-4.8z"/>
-              <path fill="#EA4335" d="M1.5 4.2V2.9C1.5.8 3.9-.4 5.5.8L14 7.2 22.5.8c1.6-1.2 4 .1 4 2.1v1.3L14 13.6z"/>
+            <svg viewBox="0 0 24 24" role="img" aria-label="Google">
+              <path fill="#4285F4" d="M21.35 12.18c0-.73-.07-1.43-.19-2.11H12v3.99h5.24a4.48 4.48 0 0 1-1.94 2.94v2.44h3.14c1.84-1.69 2.91-4.19 2.91-7.26Z"/>
+              <path fill="#34A853" d="M12 21.68c2.62 0 4.82-.87 6.43-2.35l-3.14-2.44c-.87.58-1.98.93-3.29.93-2.53 0-4.67-1.71-5.44-4.01H3.31v2.52A9.72 9.72 0 0 0 12 21.68Z"/>
+              <path fill="#FBBC05" d="M6.56 13.81a5.84 5.84 0 0 1 0-3.73V7.56H3.31a9.72 9.72 0 0 0 0 8.77l3.25-2.52Z"/>
+              <path fill="#EA4335" d="M12 6.07c1.42 0 2.69.49 3.69 1.45l2.77-2.77C16.82 3.22 14.62 2.3 12 2.3a9.72 9.72 0 0 0-8.69 5.26l3.25 2.52C7.33 7.78 9.47 6.07 12 6.07Z"/>
             </svg>
-          </span><span>Lanjut dengan Google</span><span class="oauth-arrow" aria-hidden="true">→</span>
-        </a>
-        <a class="oauth-btn" href="{{ url_for('auth.oauth_start', provider='facebook') }}">
-          <span class="oauth-icon facebook" aria-hidden="true">f</span><span>Lanjut dengan Facebook</span><span class="oauth-arrow" aria-hidden="true">→</span>
+          </span><span>Masuk dengan Google</span><span class="oauth-arrow" aria-hidden="true">→</span>
         </a>
       </div>
 

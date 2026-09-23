@@ -26,7 +26,7 @@ def _now_iso():
 
 
 _OAUTH_STATE_TTL_SECONDS = 10 * 60
-_OAUTH_PROVIDERS = ("google", "facebook")
+_OAUTH_PROVIDERS = ("google",)
 
 
 def _oauth_config(provider):
@@ -40,33 +40,7 @@ def _oauth_config(provider):
             "token_url": "https://oauth2.googleapis.com/token",
             "userinfo_url": "https://openidconnect.googleapis.com/v1/userinfo",
         }
-    if provider == "facebook":
-        # Reuse the existing Kilas Meta app by default. Dedicated FACEBOOK_OAUTH_* values can
-        # override it later without changing the WhatsApp configuration.
-        version = (os.environ.get("META_GRAPH_API_VERSION") or "v21.0").strip()
-        app_id = (
-            os.environ.get("FACEBOOK_OAUTH_APP_ID")
-            or os.environ.get("META_APP_ID")
-            or ""
-        ).strip()
-        app_secret = (
-            os.environ.get("FACEBOOK_OAUTH_APP_SECRET")
-            or os.environ.get("WHATSAPP_APP_SECRET")
-            or ""
-        ).strip()
-        return {
-            "label": "Facebook",
-            "client_id": app_id,
-            "client_secret": app_secret,
-            "version": version,
-            "authorize_url": f"https://www.facebook.com/{version}/dialog/oauth",
-            "token_url": f"https://graph.facebook.com/{version}/oauth/access_token",
-            "userinfo_url": f"https://graph.facebook.com/{version}/me",
-        }
-    return None
-
-
-def _oauth_ready(provider):
+    return None\n\n\ndef _oauth_ready(provider):
     config = _oauth_config(provider)
     return bool(config and config["client_id"] and config["client_secret"])
 
@@ -135,23 +109,15 @@ def oauth_start(provider):
     }
     redirect_uri = _oauth_callback_url(provider)
 
-    if provider == "google":
-        query = urllib.parse.urlencode({
-            "client_id": config["client_id"],
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "scope": "openid email profile",
-            "state": state,
-            "prompt": "select_account",
-        })
-    else:
-        query = urllib.parse.urlencode({
-            "client_id": config["client_id"],
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "scope": "email,public_profile",
-            "state": state,
-        })
+    query = urllib.parse.urlencode({
+        "client_id": config["client_id"],
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        # Always show the Google account chooser, matching the expected mobile app flow.
+        "prompt": "select_account",
+    })
     return redirect(config["authorize_url"] + "?" + query)
 
 
@@ -184,61 +150,36 @@ def oauth_callback(provider):
 
     redirect_uri = _oauth_callback_url(provider)
     try:
-        if provider == "google":
-            token_response = requests.post(
-                config["token_url"],
-                data={
-                    "code": code,
-                    "client_id": config["client_id"],
-                    "client_secret": config["client_secret"],
-                    "redirect_uri": redirect_uri,
-                    "grant_type": "authorization_code",
-                },
-                timeout=(5, 12),
-                allow_redirects=False,
-            )
-        else:
-            token_response = requests.get(
-                config["token_url"],
-                params={
-                    "code": code,
-                    "client_id": config["client_id"],
-                    "client_secret": config["client_secret"],
-                    "redirect_uri": redirect_uri,
-                },
-                timeout=(5, 12),
-                allow_redirects=False,
-            )
+        token_response = requests.post(
+            config["token_url"],
+            data={
+                "code": code,
+                "client_id": config["client_id"],
+                "client_secret": config["client_secret"],
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+            timeout=(5, 12),
+            allow_redirects=False,
+        )
         token_response.raise_for_status()
         token_payload = token_response.json()
         access_token = (token_payload.get("access_token") or "").strip()
         if not access_token:
             raise ValueError("oauth_access_token_missing")
 
-        if provider == "google":
-            profile_response = requests.get(
-                config["userinfo_url"],
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=(5, 12),
-                allow_redirects=False,
-            )
-            profile_response.raise_for_status()
-            profile = profile_response.json()
-            if profile.get("email_verified") is not True:
-                raise ValueError("google_email_not_verified")
-            email = profile.get("email")
-            name = profile.get("name")
-        else:
-            profile_response = requests.get(
-                config["userinfo_url"],
-                params={"fields": "id,name,email", "access_token": access_token},
-                timeout=(5, 12),
-                allow_redirects=False,
-            )
-            profile_response.raise_for_status()
-            profile = profile_response.json()
-            email = profile.get("email")
-            name = profile.get("name")
+        profile_response = requests.get(
+            config["userinfo_url"],
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=(5, 12),
+            allow_redirects=False,
+        )
+        profile_response.raise_for_status()
+        profile = profile_response.json()
+        if profile.get("email_verified") is not True:
+            raise ValueError("google_email_not_verified")
+        email = profile.get("email")
+        name = profile.get("name")
 
         return _oauth_finish_login(email, name, provider)
     except PermissionError:
