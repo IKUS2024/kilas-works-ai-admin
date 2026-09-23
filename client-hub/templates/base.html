@@ -265,10 +265,9 @@
   .customer-global-bottom a.active{color:var(--cnav-orange)}
   .customer-global-bottom .customer-bottom-plus{position:relative;top:-10px}
   .customer-global-bottom .customer-plus-circle{
-    width:48px;height:48px;border-radius:50%;background:var(--cnav-orange);color:#17110d;display:grid;place-items:center;
-    box-shadow:0 8px 22px rgba(255,122,26,.22)
+    width:48px;height:48px;border-radius:50%;background:#ff7a1a!important;color:#17110d!important;display:grid;place-items:center;
+    box-shadow:0 0 0 1px rgba(255,122,26,.72),0 8px 22px rgba(255,122,26,.28);font-size:32px;font-weight:300;line-height:1
   }
-  .customer-global-bottom .customer-plus-circle svg{width:22px;height:22px}
   .customer-global-bottom .customer-bottom-plus>span:last-child{margin-top:-7px}
   @media(max-width:760px){
     .customer-global-bottom{display:grid}
@@ -404,7 +403,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk</span>
   </a>
   <a class="customer-bottom-plus {{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}">
-    <span class="customer-plus-circle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></span><span>Layanan</span>
+    <span class="customer-plus-circle" aria-hidden="true">+</span><span>Layanan</span>
   </a>
   <a class="{{ 'active' if cnav_orders else '' }}" href="{{ url_for('projects.my_project_list') }}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg><span>Pesanan</span>
