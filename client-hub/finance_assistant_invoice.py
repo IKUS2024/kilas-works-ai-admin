@@ -39,7 +39,7 @@ def requested_steps(context,issue=None,settlement=None):
 def payment_data(b,u,values):
     account=f.get_account(b,int(values['account_id']),actor_user_id=u,active=True)
     if account['currency']!=values['currency']:raise ValueError('account_currency_mismatch')
-    category=next((r for r in f.list_categories(b,'INCOME',actor_user_id=u) if str(r['id'])==values['category_id']),None)
+    category=next((r for r in f.list_categories(b,'INCOME',include_children=True,actor_user_id=u) if str(r['id'])==values['category_id']),None)
     if not category:raise ValueError('category_unavailable')
     when=f._date(values['date'])
     if when>f.business_today(b).isoformat():raise ValueError('future_date')
@@ -102,7 +102,7 @@ def review_invoice(b,u,context,edits=None):
     customers=f.list_customers(b,actor_user_id=u)
     accounts=f.list_accounts(b,actor_user_id=u)
     accounts=[r for r in accounts if r['currency']==values['currency']]
-    categories=f.list_categories(b,'INCOME',actor_user_id=u)
+    categories=f.list_categories(b,'INCOME',include_children=True,actor_user_id=u)
     if context.get('pay_after'):
         if values['account_id'] and not any(str(r['id'])==values['account_id'] for r in accounts):
             values['account_id']='';stale.append('account_id')
