@@ -3086,10 +3086,10 @@ def assistant_recurring_action(business_id,user,business,stage):
         ai_safety.event('draft_generated' if stage=='draft' else 'confirmation_accepted')
         return jsonify(result)
     except ValueError:
-        return jsonify(error='Periksa nominal, jadwal, kas/rekening, dan kategori. Draft harus valid dan belum kedaluwarsa.'),400
+        return jsonify(error='Periksa nama tagihan, nominal, mata uang, kategori, jatuh tempo, dan frekuensi. Draft harus valid dan belum kedaluwarsa.'),400
     except Exception:
         ai_safety.event('request_failed')
-        return jsonify(error='Konfirmasi belum dapat dipastikan. Ulangi draft yang sama atau periksa Biaya Rutin sebelum membuat draft baru.'),503
+        return jsonify(error='Konfirmasi belum dapat dipastikan. Ulangi draft yang sama atau periksa menu Tagihan sebelum membuat draft baru.'),503
 
 
 @finance_bp.context_processor
