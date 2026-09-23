@@ -18,9 +18,14 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .order-entry-wordmark strong{display:block;font-size:23px;line-height:1;letter-spacing:-.04em}
 .order-entry-wordmark strong span{color:var(--ko-orange)}
 .order-entry-wordmark small{display:block;margin-top:4px;color:#9ea6b0;font-size:11.5px}
+.order-entry-top-actions{display:flex;align-items:center;gap:6px}
 .order-entry-back{
   min-height:36px;padding:7px 10px;border:1px solid #3b424c;border-radius:10px;display:inline-flex;align-items:center;gap:7px;
   background:#11151a;color:#d9dde2;text-decoration:none;font-size:11px;font-weight:850
+}
+.order-entry-history{
+  min-height:36px;padding:7px 10px;border:1px solid rgba(255,122,26,.36);border-radius:10px;display:inline-flex;align-items:center;
+  background:rgba(255,122,26,.055);color:#ffab70;text-decoration:none;font-size:10.5px;font-weight:850
 }
 .order-entry-back svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .order-entry-hero{padding:10px 2px 24px}
@@ -107,10 +112,15 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
         </span>
         <span class="order-entry-wordmark"><strong>Kilas<span>Order</span></strong><small>by KilasWorks</small></span>
       </a>
-      <a class="order-entry-back" href="{{ url_for('products.product_start') }}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-        <span>Produk</span>
-      </a>
+      <div class="order-entry-top-actions">
+        {% if recent_order_requests %}
+        <a class="order-entry-history" href="{{ url_for('products.order_requests') }}">Permintaan</a>
+        {% endif %}
+        <a class="order-entry-back" href="{{ url_for('products.product_start') }}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+          <span>Produk</span>
+        </a>
+      </div>
     </div>
 
     <header class="order-entry-hero">
