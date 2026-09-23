@@ -163,6 +163,10 @@ def resolve(updates,context,fields):
             if key=='cadence' and not value:
                 if re.fullmatch(r'(?:tiap|setiap|per)\s+(?:bulan|minggu)',raw,re.I):value='WEEKLY' if 'minggu' in raw.lower() else 'MONTHLY'
             if key=='cadence' and not value and re.fullmatch(r'(?:tiap|setiap)\s+(?:tanggal|tgl)\s*\d{1,2}',raw,re.I):value='MONTHLY'
+            if key=='cadence' and not value:
+                monthly=bool(re.search(r'\b(?:bulanan|monthly)\b|\b(?:tiap|setiap|per)\s+bulan\b|\b(?:tiap|setiap)\s+(?:tanggal|tgl)\s*\d{1,2}\b',raw,re.I))
+                weekly=bool(re.search(r'\b(?:mingguan|weekly)\b|\b(?:tiap|setiap|per)\s+minggu\b',raw,re.I))
+                if monthly!=weekly:value='MONTHLY' if monthly else 'WEEKLY'
             if not value:raise ValueError('invalid_enum')
             result[key]=value
         elif key=='currency':

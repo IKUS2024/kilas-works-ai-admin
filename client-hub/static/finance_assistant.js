@@ -205,6 +205,6 @@
     if(busy)return;pending=null;docWorkflow=null;documentContext='';uploadInstruction='';queryContext='';text.value='';clearFiles();log.replaceChildren();setStatus('');mode.value='auto';setBusy(false);text.focus();
     if(el('assistant-draft-status'))el('assistant-draft-status').textContent='';
   });
-  if(el('assistant-remove-files'))el('assistant-remove-files').addEventListener('click',()=>{if(!busy){if(pending?.kind==='document_account'){pending=null;if(el('assistant-draft-status'))el('assistant-draft-status').textContent='';}clearFiles();}});
+  if(el('assistant-remove-files'))el('assistant-remove-files').addEventListener('click',()=>{if(!busy){if(pending?.kind==='document_account'){pending=null;if(el('assistant-draft-status'))el('assistant-draft-status').textContent='';}clearFiles();setBusy(false);}});
   setBusy(false);
 })();

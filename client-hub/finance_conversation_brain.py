@@ -57,6 +57,7 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'Debt questions (utang Putri berapa) ALWAYS use receivables, never customer notes. '
       'sisanya berapa, utang dia berapa, kalau yang belum lunas continue the previous customer receivables query; '
       'use continue_query or customer_reference with the literal pronoun. '
+      'For recurring creation, name is the literal bill label (internet in biaya internet); do not omit name when it is given. '
       'For recurring schedules like tiap tanggal 10, cadence MUST copy the full literal phrase tiap tanggal 10, and date copies tanggal 10. Never shorten cadence to tiap. '
       'edit_recurring edits an existing recurring rule, including a short correction after creating it. '
       'edit_invoice edits an existing invoice; amount is unit price, quantity and item_description refer to one item. '
@@ -392,6 +393,8 @@ def start(b,u,intent,slots,previous):
         from finance_assistant_invoice import start as invoice_start
         initial=invoice_start(b,u,'buat invoice')
     elif intent in ('create_income','create_expense','recurring','record_invoice_payment'):
+        if intent=='recurring' and not slots.get('name') and slots.get('description'):
+            slots['name']=slots['description'][:160]
         values=dict(amount='',currency='',date='' if intent=='recurring' else flow.proposed_date('hari ini'),
                     account_id='',category_id='',description='')
         if intent=='recurring':values.update(name='',cadence='',end_on='',project_id='',counterparty_name='')

@@ -460,6 +460,8 @@ def review(b,u,context,edits=None):
             result['message']='Biaya rutin ini mau berulang seberapa sering? Pilih Bulanan atau Mingguan.'
         elif not values['date']:
             result['message']='Mulai kapan biaya rutin ini berlaku? Tulis misalnya “hari ini”, “tanggal 25”, atau tanggal lengkap.'
+        elif action=='recurring' and not values.get('name','').strip():
+            result['message']='Nama biaya rutinnya apa?'
         elif action=='record_invoice_payment' and not invoice:result['message']='Invoice belum teridentifikasi secara unik. Pilih invoice yang dibayar.'
         elif not values['amount']:result['message']='Nominal belum jelas. Lengkapi nominal pada review.'
         else:

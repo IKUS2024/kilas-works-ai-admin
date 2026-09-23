@@ -136,6 +136,18 @@ class UpgradeTests(unittest.TestCase):
         self.assertEqual(self.fields(draft)['date'][-2:],'10')
         self.assertEqual(draft['next_field'],'cadence')
 
+    def test_recurring_missing_name_asks_instead_of_failing_review(self):
+        category=next(c['name'] for c in f.list_categories(self.b,'EXPENSE',include_children=True) if c['name']=='Internet')
+        slots={'amount':'500 ribu','account':'Kas','category':category,'cadence':'bulanan mulai tanggal 10','date':'tanggal 10'}
+        draft=self.propose('buat biaya 500 ribu dari Kas kategori Internet bulanan mulai tanggal 10','recurring',slots)
+        self.assertFalse(draft['ready'])
+        self.assertEqual(draft['next_field'],'name')
+        self.assertEqual(self.fields(draft)['amount'],'500 ribu')
+        slots['description']='internet'
+        draft=self.propose('buat biaya internet 500 ribu dari Kas kategori Internet bulanan mulai tanggal 10','recurring',slots)
+        self.assertTrue(draft['ready'],draft)
+        self.assertEqual(self.fields(draft)['name'],'internet')
+
     def test_recurring_edit_uses_existing_rule_without_posting(self):
         rid=f.create_recurring_expense(self.b,'Internet',50000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
         draft=self.propose('ubah biaya rutin Internet jadi 550 ribu','edit_recurring',{'target':'Internet','amount':'550 ribu'})
