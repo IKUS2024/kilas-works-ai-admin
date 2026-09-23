@@ -18,7 +18,7 @@ from finance_query_plan import RESOURCES, execute
 READS=tuple('recurring_list' if r=='recurring' else r for r in RESOURCES)
 WRITES=('customer','create_income','create_expense','recurring','invoice','issue_invoice','record_invoice_payment')+tuple(commands.TITLES)
 INTENTS=('unknown','capabilities','continue_draft','continue_query','continue_command','new_command','add_invoice_item','select_document_account')+READS+WRITES
-SLOTS=('name','phone','email','notes','amount','currency','date','description','account','category','project','customer',
+SLOTS=('name','phone','email','notes','amount','currency','date','description','account','category','parent_category','project','customer',
        'invoice','counterparty_name','cadence','end_on','due_date','issue_date','item_description','item_number','quantity','note',
        'period','month','count','direction','account_type','opening_balance','from_account','to_account','from_amount','to_amount',
        'issue','settlement','payment_fraction','target','customer_reference','target_reference','group_by','branch','overdue','aging','due_week','page')
@@ -344,7 +344,7 @@ def start(b,u,intent,slots,previous):
         row=None
         settle_after=bool(slots.pop('settlement',None)) if intent=='issue_invoice' else False
         slots.pop('issue',None) if intent=='issue_invoice' else None
-        if intent not in ('create_account','create_category','create_branch','exchange','set_budget'):
+        if intent not in ('create_account','create_category','create_subcategory','create_branch','exchange','set_budget'):
             kind=intent.split('_',1)[1]
             if 'target_reference' in slots:
                 last_kind,row=last_record(b,u,previous)
