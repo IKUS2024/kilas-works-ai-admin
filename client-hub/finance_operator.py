@@ -154,7 +154,7 @@ def interpret(action, question, currency, business_id=None):
             timeout=(5,25),allow_redirects=False)
         if response.status_code!=200: raise OperatorError('upstream_failure')
         body=response.json()
-        safety.record_usage(model,body,business_id,'normal')
+        safety.record_usage(model,body,business_id,'normal',context='finance_operator')
         result=safety.json_object(safety.response_text(body,4000))
         if not isinstance(result,dict) or set(result)!={'action','amount_text','description'} or result['action']!=action:
             raise OperatorError('unsupported_or_missing')
