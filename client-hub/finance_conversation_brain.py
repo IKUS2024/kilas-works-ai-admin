@@ -60,7 +60,8 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'Debt questions (utang Putri berapa) ALWAYS use receivables, never customer notes. '
       'sisanya berapa, utang dia berapa, kalau yang belum lunas continue the previous customer receivables query; '
       'use continue_query or customer_reference with the literal pronoun. '
-      'For recurring creation, name is the literal bill label (internet in biaya internet); do not omit name when it is given. '
+      'For recurring/Tagihan creation, name is the literal bill label (internet in tagihan internet); do not omit name when it is given. '
+      'Tagihan supports Sekali, Mingguan, and Bulanan. A bare new Tagihan uses the UI defaults IDR and Sekali unless the user explicitly says another currency/frequency. '
       'For recurring schedules like tiap tanggal 10, cadence MUST copy the full literal phrase tiap tanggal 10, and date copies tanggal 10. Never shorten cadence to tiap. '
       'create_subcategory adds a new child category under an existing parent category. Use name for the new child and parent_category for the existing parent. '
       'edit_recurring edits an existing recurring rule, including a short correction after creating it. '
@@ -405,9 +406,9 @@ def start(b,u,intent,slots,previous):
     elif intent in ('create_income','create_expense','recurring','record_invoice_payment'):
         if intent=='recurring' and not slots.get('name') and slots.get('description'):
             slots['name']=slots['description'][:160]
-        values=dict(amount='',currency='',date='' if intent=='recurring' else flow.proposed_date('hari ini'),
+        values=dict(amount='',currency='IDR' if intent=='recurring' else '',date='' if intent=='recurring' else flow.proposed_date('hari ini'),
                     account_id='',category_id='',description='')
-        if intent=='recurring':values.update(name='',cadence='',end_on='',project_id='',counterparty_name='')
+        if intent=='recurring':values.update(name='',cadence='ONCE',end_on='',project_id='',counterparty_name='')
         elif intent=='record_invoice_payment':
             values.update(invoice_id='',customer_id='',date='')
             if not any(k in slots for k in ('invoice','customer','target','target_reference')):
