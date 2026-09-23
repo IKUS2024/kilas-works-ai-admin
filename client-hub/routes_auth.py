@@ -89,6 +89,8 @@ def _oauth_finish_login(email, full_name, provider):
     )
     if __import__("product_flow").intent(session.get("product_intent")):
         return redirect(url_for("products.continue_product"))
+    if created:
+        return redirect(url_for("products.product_start"))
     return redirect(url_for("client.dashboard"))
 
 
@@ -226,7 +228,7 @@ def register_page():
     user_id = repo.create_user(email, password_hash, role="CLIENT_OWNER", full_name=full_name)
     user = repo.get_user_by_email(email)
     security.login_user(user)
-    return redirect(url_for("products.continue_product") if __import__("product_flow").intent(session.get("product_intent")) else url_for("client.dashboard"))
+    return redirect(url_for("products.continue_product") if __import__("product_flow").intent(session.get("product_intent")) else url_for("products.product_start"))
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
@@ -252,7 +254,11 @@ def login_page():
     security.login_user(user)
     if user["role"] == "KILAS_ADMIN":
         return redirect(url_for("admin.dashboard"))
-    return redirect(url_for("products.continue_product") if __import__("product_flow").intent(session.get("product_intent")) else url_for("client.dashboard"))
+    if __import__("product_flow").intent(session.get("product_intent")):
+        return redirect(url_for("products.continue_product"))
+    if not repo.list_businesses_for_user(user["id"]):
+        return redirect(url_for("products.product_start"))
+    return redirect(url_for("client.dashboard"))
 
 
 @auth_bp.route("/logout")
