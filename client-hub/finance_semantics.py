@@ -141,7 +141,7 @@ def interpret(message, intents, slots, context=None, business_id=None):
             {'message':message,'context':context or {}},ensure_ascii=False)}]},timeout=(5,20),allow_redirects=False)
     if response.status_code!=200:raise ValueError('provider_failure')
     body=response.json()
-    safety.record_usage(model,body,business_id,'normal')
+    safety.record_usage(model,body,business_id,'normal',context='finance_chat')
     data=safety.json_object(safety.response_text(body,5000))
     if set(data)!={'intent','slots'} or data['intent'] not in intents or not isinstance(data['slots'],dict):raise ValueError('invalid_result')
     if set(data['slots'])-set(slots) or any(not isinstance(v,str) or len(v)>2000 or not v or v.casefold() not in message.casefold() for v in data['slots'].values()):raise ValueError('invalid_result')
