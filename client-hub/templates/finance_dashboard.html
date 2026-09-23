@@ -617,7 +617,8 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 <button type="button" class="finance-category-add-toggle" data-finance-open="category-dialog" data-category-manager-launch>＋ Tambah / kelola kategori</button>
 </div>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
-<label>Penerima / sumber<input name="counterparty_name" list="finance-payee-options" maxlength="160" placeholder="Contoh: Vendor A atau Client B"></label>
+<label data-counterparty-field><span data-counterparty-label>{{ 'Sumber / Customer' if direction == 'INCOME' else 'Penerima / Vendor' }}</span><input name="counterparty_name" maxlength="160" data-counterparty-input list="{{ 'finance-source-options' if direction == 'INCOME' else 'finance-payee-options' }}" placeholder="{{ 'Contoh: Wilson atau Client A' if direction == 'INCOME' else 'Contoh: PLN atau Vendor A' }}"></label>
+<datalist id="finance-source-options">{% for c in customers if c.is_active %}<option value="{{ c.name }}">{% endfor %}</datalist>
 <datalist id="finance-payee-options">{% for name in payee_names %}<option value="{{ name }}">{% endfor %}</datalist>
 <label for="transaction-note">Catatan</label><textarea id="transaction-note" name="description" maxlength="4000"></textarea>
 <details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>
