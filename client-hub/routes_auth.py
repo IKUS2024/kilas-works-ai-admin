@@ -335,6 +335,11 @@ def _account_personal_redirect():
     return redirect(url_for("auth.account_page") + "#personal", code=303)
 
 
+def _account_email_redirect(tab=None):
+    tab = (tab or "").strip().lower()
+    return _account_business_redirect() if tab == "business" else _account_personal_redirect()
+
+
 def _account_context(user):
     return {
         "user": user,
@@ -384,50 +389,57 @@ def account_page():
     action = (request.form.get("action") or "").strip()
 
     if action == "email_change_request":
+        return_tab = "business" if (request.form.get("return_tab") or "").strip().lower() == "business" else "personal"
         new_email = (request.form.get("new_email") or "").strip().lower()
         if not EMAIL_RE.match(new_email):
             flash("Email baru tidak valid.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
         if new_email == user["email"].strip().lower():
             flash("Email tersebut sudah menjadi email akun kamu.", "info")
             session.pop("_email_change", None)
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
         existing = repo.get_user_by_email(new_email)
         if existing and existing["id"] != user["id"]:
             flash("Email tersebut sudah terdaftar di akun lain.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
 
         pending = session.get("_email_change") or {}
+        if pending.get("email") == new_email and pending.get("return_tab") in ("personal","business"):
+            return_tab = pending["return_tab"]
         issued_at = int(pending.get("issued_at") or 0)
         if pending.get("email") == new_email and time.time() - issued_at < security.EMAIL_CHANGE_OTP_RESEND_SECONDS:
             wait = max(1, security.EMAIL_CHANGE_OTP_RESEND_SECONDS - int(time.time() - issued_at))
             flash(f"Tunggu {wait} detik sebelum mengirim ulang kode.", "info")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
 
         code, digest = security.generate_email_change_otp(new_email)
         if not email_utils.send_email_change_otp(new_email, code):
             session.pop("_email_change", None)
             flash("Kode verifikasi belum dapat dikirim. Coba lagi sebentar.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
 
         session["_email_change"] = {
             "email": new_email,
             "digest": digest,
             "issued_at": int(time.time()),
             "attempts": 0,
+            "return_tab": return_tab,
         }
         session.modified = True
         repo.write_audit_no_business(user["id"], "ACCOUNT_EMAIL_CHANGE_OTP_REQUESTED", "verification code requested")
         flash("Kode OTP 6 digit sudah dikirim ke email baru.", "success")
-        return _account_personal_redirect()
+        return _account_email_redirect(return_tab)
 
     if action == "email_change_cancel":
+        pending = session.get("_email_change") or {}
+        return_tab = "business" if pending.get("return_tab") == "business" else "personal"
         session.pop("_email_change", None)
         flash("Perubahan email dibatalkan.", "info")
-        return _account_personal_redirect()
+        return _account_email_redirect(return_tab)
 
     if action == "email_change_verify":
         pending = session.get("_email_change") or {}
+        return_tab = "business" if pending.get("return_tab") == "business" else "personal"
         new_email = (pending.get("email") or "").strip().lower()
         issued_at = int(pending.get("issued_at") or 0)
         attempts = int(pending.get("attempts") or 0)
@@ -435,15 +447,15 @@ def account_page():
 
         if not new_email or not pending.get("digest"):
             flash("Minta kode OTP baru dulu.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
         if time.time() - issued_at > security.EMAIL_CHANGE_OTP_TTL_SECONDS:
             session.pop("_email_change", None)
             flash("Kode OTP sudah kedaluwarsa. Kirim kode baru.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
         if attempts >= security.EMAIL_CHANGE_OTP_MAX_ATTEMPTS:
             session.pop("_email_change", None)
             flash("Terlalu banyak percobaan OTP. Kirim kode baru.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
 
         pending["attempts"] = attempts + 1
         session["_email_change"] = pending
@@ -457,13 +469,13 @@ def account_page():
                 flash("Kode OTP salah terlalu banyak kali. Kirim kode baru.", "error")
             else:
                 flash(f"Kode OTP salah. Sisa {left} percobaan.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
 
         existing = repo.get_user_by_email(new_email)
         if existing and existing["id"] != user["id"]:
             session.pop("_email_change", None)
             flash("Email tersebut sudah terdaftar di akun lain.", "error")
-            return _account_personal_redirect()
+            return _account_email_redirect(return_tab)
 
         old_email = user["email"]
         # Existing Google-login users created before durable OAuth identities were added get a
@@ -493,7 +505,7 @@ def account_page():
             pass
 
         flash("Email akun berhasil diganti dan sudah terverifikasi.", "success")
-        return _account_personal_redirect()
+        return _account_email_redirect(return_tab)
 
     if action == "profile":
         full_name = (request.form.get("full_name") or "").strip()
