@@ -79,6 +79,19 @@ def configuration():
     return key,model
 
 
+
+def record_usage(model, response_body, business_id, classification='normal'):
+    """Best-effort Finance AI usage accounting; never changes Finance behavior."""
+    if type(business_id) is not int or business_id <= 0:
+        return False
+    try:
+        import ai_usage
+        return ai_usage.record(model, response_body, tenant_id=business_id,
+                               context='finance_ai', classification=classification)
+    except Exception:
+        _LOG.warning('FINANCE_AI usage_accounting_failed')
+        return False
+
 def allow_attempt(user_id, business_id=None, kind='ai'):
     """Shared across analyst/draft endpoints in ONE process, never a DB write.
 
