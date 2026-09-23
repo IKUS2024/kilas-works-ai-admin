@@ -161,8 +161,6 @@ def finance_entry():
                 return redirect(url_for('products.finance_entry'),code=303)
             return redirect(url_for('products.finance_entry',step='business'),code=303)
         if action=='create_trial':
-            if businesses:
-                abort(400)
             business_name=(request.form.get('business_name') or '').strip()
             try:
                 business_id=product_flow.create_business(
@@ -188,6 +186,38 @@ def finance_entry():
                 session['active_product']='finance'
                 return redirect(url_for('finance.workspace_choice',business_id=business_id),code=303)
             return redirect(url_for('products.finance_setup',business_id=business_id),code=303)
+        if action=='rename':
+            business_id=request.form.get('business_id',type=int)
+            name=(request.form.get('business_name') or '').strip()
+            allowed={row['id'] for row in businesses}
+            if not business_id or business_id not in allowed:
+                abort(404)
+            if not name or len(name)>160:
+                flash('Nama bisnis wajib diisi dan maksimal 160 karakter.','error')
+                return redirect(url_for('products.finance_entry'),code=303)
+            repo.update_business_identity(business_id,name,user['id'])
+            try:
+                import finance_invoice_editor as invoice_editor
+                invoice_editor.sync_sender_identity(business_id,name,user['id'])
+            except Exception:
+                pass
+            flash('Nama bisnis Finance diperbarui.','success')
+            return redirect(url_for('products.finance_entry'),code=303)
+        if action=='archive':
+            business_id=request.form.get('business_id',type=int)
+            allowed={row['id'] for row in businesses}
+            if not business_id or business_id not in allowed:
+                abort(404)
+            business=security.require_business_access(business_id,user)
+            if business.get('package')!='NONE':
+                flash('Bisnis ini juga dipakai Kilas Assist, jadi tidak dapat dihapus dari sini.','error')
+                return redirect(url_for('products.finance_entry'),code=303)
+            repo.write_audit(user['id'],business_id,'FINANCE_BUSINESS_ARCHIVED','customer archived finance business')
+            db.execute("UPDATE businesses SET status='ARCHIVED', updated_at=CURRENT_TIMESTAMP WHERE id=?",(business_id,))
+            if session.get('dashboard_business_id')==business_id:
+                session.pop('dashboard_business_id',None)
+            flash('Bisnis Finance dihapus dari daftar.','success')
+            return redirect(url_for('products.finance_entry'),code=303)
         abort(400)
 
     return render_template(
@@ -196,7 +226,7 @@ def finance_entry():
         businesses=cards,
         trial_days=FINANCE_PLAN['trial_days'],
         setup_identity=uuid.uuid4().hex,
-        show_business_form=(request.args.get('step')=='business' and not businesses)
+        show_business_form=(request.args.get('step')=='business')
     )
 
 
