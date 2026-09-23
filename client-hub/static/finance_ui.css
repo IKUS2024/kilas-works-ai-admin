@@ -338,13 +338,13 @@ body.finance-app{--bg:#0c1115;--bg-soft:#151e24;--card:#11191e;--border:#253038;
 }
 
 @media(max-width:760px){
-  .finance-context-home .finance-app-branch{grid-column:1 / 8}
-  .finance-context-home .finance-app-more{grid-column:8 / 9;width:42px;min-width:42px;justify-self:center}
-  .finance-context-home .finance-app-context-filter{grid-column:9 / 13}
+  .finance-context-home .finance-app-branch{grid-column:1 / 8;grid-row:2}
+  .finance-context-home .finance-app-more{grid-column:8 / 9;grid-row:2;width:42px;min-width:42px;justify-self:center}
+  .finance-context-home .finance-app-context-filter{grid-column:9 / 13;grid-row:2}
   .finance-context-home .finance-app-context-filter select{text-align:center;padding-left:6px;padding-right:20px}
 }
 @media(max-width:390px){
-  .finance-context-home .finance-app-branch{grid-column:1 / 7}
-  .finance-context-home .finance-app-more{grid-column:7 / 8;width:40px;min-width:40px;justify-self:center}
-  .finance-context-home .finance-app-context-filter{grid-column:8 / 13}
+  .finance-context-home .finance-app-branch{grid-column:1 / 7;grid-row:2}
+  .finance-context-home .finance-app-more{grid-column:7 / 8;grid-row:2;width:40px;min-width:40px;justify-self:center}
+  .finance-context-home .finance-app-context-filter{grid-column:8 / 13;grid-row:2}
 }
