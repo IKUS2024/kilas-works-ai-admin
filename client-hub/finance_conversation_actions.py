@@ -40,7 +40,7 @@ def fingerprint(row):
 
 def targets(b,u,kind):
     if kind=='account':return f.list_accounts(b,actor_user_id=u)
-    if kind=='category':return f.list_categories(b,actor_user_id=u)
+    if kind=='category':return f.list_categories(b,include_children=True,actor_user_id=u)
     if kind=='customer':return f.list_customers(b,actor_user_id=u)
     if kind=='branch':return branches.list_branches(b,u)
     if kind=='recurring':return f.list_recurring_expenses(b,actor_user_id=u)
