@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Kilas Order · Kilas Works{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#0b0d10;color:#f5f6f8}
+body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}
+body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.order-entry-shell{
+  --ko-orange:#ff7a1a;--ko-border:#30363f;--ko-card:#12171c;
+  min-height:100svh;box-sizing:border-box;padding:20px 16px 30px;
+  background:radial-gradient(560px 320px at 92% 2%,rgba(255,122,26,.10),transparent 72%),#0b0d10
+}
+.order-entry-inner{width:min(100%,720px);margin:0 auto}
+.order-entry-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:30px}
+.order-entry-brand{display:flex;align-items:center;gap:11px;min-width:0;text-decoration:none;color:#f5f6f8}
+.order-entry-logo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(145deg,#29190f,#11151a);border:1px solid rgba(255,122,26,.42);box-shadow:0 10px 28px rgba(255,122,26,.10)}
+.order-entry-logo svg{width:27px;height:27px}
+.order-entry-wordmark strong{display:block;font-size:23px;line-height:1;letter-spacing:-.04em}
+.order-entry-wordmark strong span{color:var(--ko-orange)}
+.order-entry-wordmark small{display:block;margin-top:4px;color:#9ea6b0;font-size:11.5px}
+.order-entry-back{
+  min-height:36px;padding:7px 10px;border:1px solid #3b424c;border-radius:10px;display:inline-flex;align-items:center;gap:7px;
+  background:#11151a;color:#d9dde2;text-decoration:none;font-size:11px;font-weight:850
+}
+.order-entry-back svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.order-entry-hero{padding:10px 2px 24px}
+.order-entry-kicker{display:inline-flex;align-items:center;gap:7px;color:var(--ko-orange);font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.order-entry-kicker:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ko-orange);box-shadow:0 0 0 4px rgba(255,122,26,.10)}
+.order-entry-hero h1{margin:10px 0 10px;max-width:600px;font-size:clamp(34px,8vw,48px);line-height:1.02;letter-spacing:-.055em}
+.order-entry-hero p{margin:0;max-width:560px;color:#aeb4bd;font-size:14px;line-height:1.6}
+.order-entry-main{
+  border:1px solid var(--ko-border);border-radius:22px;padding:20px;
+  background:radial-gradient(320px 170px at 90% 0%,rgba(255,122,26,.08),transparent 72%),linear-gradient(155deg,#171c22,#101419)
+}
+.order-entry-main-head{display:flex;align-items:center;gap:12px;margin-bottom:17px}
+.order-entry-main-icon{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:rgba(255,122,26,.10);color:var(--ko-orange)}
+.order-entry-main-icon svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.order-entry-main h2{margin:0;font-size:21px;letter-spacing:-.035em}
+.order-entry-main p{margin:4px 0 0;color:#9fa7b1;font-size:12px;line-height:1.5}
+.order-entry-prompt{
+  border:1px solid #3a414a;border-radius:16px;padding:15px 16px;background:#0e1317;color:#e9edf0;
+  font-size:14px;line-height:1.45
+}
+.order-entry-prompt strong{display:block;margin-bottom:8px;font-size:12px;color:#fff}
+.order-entry-examples{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.order-entry-example{padding:7px 9px;border:1px solid #303741;border-radius:999px;color:#9fa8b2;font-size:10.5px;background:rgba(255,255,255,.015)}
+.order-entry-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.order-entry-step{padding:11px;border:1px solid #2b323a;border-radius:13px;background:rgba(255,255,255,.012)}
+.order-entry-step span{display:grid;place-items:center;width:22px;height:22px;margin-bottom:7px;border-radius:7px;background:rgba(255,122,26,.10);color:var(--ko-orange);font-size:10px;font-weight:900}
+.order-entry-step strong{display:block;font-size:11px}
+.order-entry-step small{display:block;margin-top:4px;color:#8f98a3;font-size:9.5px;line-height:1.35}
+.order-entry-note{margin:13px 2px 0;color:#7f8994;font-size:10px;line-height:1.45}
+@media(max-width:520px){
+  .order-entry-shell{padding:18px 14px 24px}
+  .order-entry-top{margin-bottom:23px}.order-entry-logo{width:43px;height:43px}.order-entry-wordmark strong{font-size:21px}
+  .order-entry-hero{padding-top:4px}.order-entry-hero h1{font-size:34px}.order-entry-hero p{font-size:13px}
+  .order-entry-main{padding:15px;border-radius:18px}
+  .order-entry-flow{grid-template-columns:1fr}
+  .order-entry-step{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:9px;align-items:start}
+  .order-entry-step span{grid-row:1/3;margin:0}.order-entry-step strong{align-self:end}.order-entry-step small{margin-top:2px}
+}
+</style>
+
+<div class="order-entry-shell">
+  <div class="order-entry-inner">
+    <div class="order-entry-top">
+      <a class="order-entry-brand" href="{{ url_for('products.product_start') }}">
+        <span class="order-entry-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path fill="#ff7a1a" d="M3 5.8 12 2l9 3.8v12.4L12 22l-9-3.8V5.8Zm9 6.1 6.5-2.75V7.2L12 9.95 5.5 7.2v1.95L12 11.9Z"/></svg>
+        </span>
+        <span class="order-entry-wordmark"><strong>Kilas<span>Order</span></strong><small>by KilasWorks</small></span>
+      </a>
+      <a class="order-entry-back" href="{{ url_for('products.product_start') }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        <span>Produk</span>
+      </a>
+    </div>
+
+    <header class="order-entry-hero">
+      <span class="order-entry-kicker">Kilas Order</span>
+      <h1>Cari barang tanpa capek cari sendiri.</h1>
+      <p>Kamu cukup kasih tahu barang yang dibutuhkan. Kilas akan membantu menyaring pilihan yang relevan, aman, dan layak dibeli.</p>
+    </header>
+
+    <section class="order-entry-main" aria-label="Cara kerja Kilas Order">
+      <div class="order-entry-main-head">
+        <span class="order-entry-main-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+        </span>
+        <div><h2>Cari Barang</h2><p>Mulai dari kebutuhanmu, bukan dari marketplace.</p></div>
+      </div>
+
+      <div class="order-entry-prompt">
+        <strong>Contoh yang bisa kamu minta</strong>
+        “Carikan kamera Sony buat video, budget maksimal 15 juta.”
+        <div class="order-entry-examples">
+          <span class="order-entry-example">Elektronik</span>
+          <span class="order-entry-example">Fashion</span>
+          <span class="order-entry-example">Hadiah</span>
+          <span class="order-entry-example">Hobi</span>
+          <span class="order-entry-example">Barang luar negeri</span>
+        </div>
+      </div>
+
+      <div class="order-entry-flow">
+        <div class="order-entry-step"><span>1</span><strong>Ceritakan</strong><small>Sebut barang, budget, kondisi, atau detail yang penting.</small></div>
+        <div class="order-entry-step"><span>2</span><strong>Kilas mencari</strong><small>Pilihan disaring sebelum ditampilkan kepadamu.</small></div>
+        <div class="order-entry-step"><span>3</span><strong>Kamu pilih</strong><small>Setelah setuju, Kilas lanjut membantu proses pembelian.</small></div>
+      </div>
+      <p class="order-entry-note">Sumber pembelian dan proses verifikasi dikelola oleh Kilas. Detail pencarian dan order akan dibangun pada tahap berikutnya.</p>
+    </section>
+  </div>
+</div>
+{% endblock %}
