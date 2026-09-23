@@ -428,6 +428,22 @@ def order_requests_admin():
     )
 
 
+@admin_bp.route("/order/catalog")
+@security.admin_required
+def order_catalog_admin():
+    import order_catalog_service
+    products=order_catalog_service.list_internal_products(limit=100)
+    def money(value):
+        return "Rp{:,.0f}".format(int(value or 0)).replace(",", ".")
+    for product in products:
+        product["customer_price_text"]=money(product.get("customer_price_idr"))
+        product["source_price_text"]=money(product.get("source_price_idr"))
+        product["shipping_text"]=money(product.get("estimated_shipping_idr"))
+        product["fee_text"]=money(product.get("estimated_fee_idr"))
+        product["service_fee_text"]=money(product.get("service_fee_idr"))
+    return render_template("admin_order_catalog.html",products=products)
+
+
 @admin_bp.route("/order/<request_code>", methods=["GET", "POST"])
 @security.admin_required
 def order_request_admin_detail(request_code):
