@@ -8,6 +8,7 @@ import json
 import os
 import re
 import logging
+import threading
 from urllib.parse import urlparse, urlunparse
 
 import requests
@@ -17,6 +18,10 @@ import order_service
 
 MAX_CANDIDATES = 12
 log = logging.getLogger(__name__)
+
+_ACTIVE_SEARCHES = set()
+_ACTIVE_LOCK = threading.Lock()
+_LAST_ERRORS = {}
 
 _SYSTEM = """Kamu adalah procurement research engine internal Kilas Order.
 Cari listing BARANG FISIK yang benar-benar tampak bisa dibeli sekarang berdasarkan kebutuhan customer.
@@ -232,13 +237,13 @@ def search_request(item):
             },
             json={
                 "model": model,
-                "max_tokens": 2200,
+                "max_tokens": 1800,
                 "temperature": 0,
                 "system": _SYSTEM,
                 "messages": [{"role": "user", "content": _request_prompt(item)}],
-                "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 5}],
+                "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": 4}],
             },
-            timeout=(5, 45),
+            timeout=(5, 80),
             allow_redirects=False,
         )
         if not 200 <= response.status_code < 300:
@@ -293,3 +298,69 @@ def search_request(item):
     order_service.replace_candidates(item["id"], candidates)
     order_service.update_request_status(item["id"], "RESULTS_READY")
     return candidates, None
+
+
+def is_background_search_active(request_id):
+    try:
+        request_id = int(request_id)
+    except (TypeError, ValueError):
+        return False
+    with _ACTIVE_LOCK:
+        return request_id in _ACTIVE_SEARCHES
+
+
+def get_background_search_error(request_id):
+    try:
+        request_id = int(request_id)
+    except (TypeError, ValueError):
+        return ""
+    with _ACTIVE_LOCK:
+        return _LAST_ERRORS.get(request_id, "")
+
+
+def start_background_search(item):
+    """Start one in-process search job and return immediately.
+
+    Render currently runs one web-service instance. The database status is the source of truth;
+    the in-memory set only prevents duplicate concurrent runs inside the live worker. If a deploy
+    restarts the worker, a later retry can safely start the persisted request again.
+    """
+    if not item or type(item.get("id")) is not int:
+        return False
+    request_id = item["id"]
+    with _ACTIVE_LOCK:
+        if request_id in _ACTIVE_SEARCHES:
+            return False
+        _ACTIVE_SEARCHES.add(request_id)
+        _LAST_ERRORS.pop(request_id, None)
+
+    # Persist SEARCHING before the HTTP response returns so polling immediately sees progress.
+    order_service.update_request_status(request_id, "SEARCHING")
+    snapshot = dict(item)
+
+    def runner():
+        error = ""
+        try:
+            _, error = search_request(snapshot)
+        except Exception as exc:
+            error = "internal_error"
+            log.warning("[KILAS_ORDER_SEARCH] background_unhandled kind=%s", type(exc).__name__)
+            try:
+                order_service.update_request_status(request_id, "ISSUE")
+            except Exception:
+                pass
+        finally:
+            with _ACTIVE_LOCK:
+                if error:
+                    _LAST_ERRORS[request_id] = error
+                else:
+                    _LAST_ERRORS.pop(request_id, None)
+                _ACTIVE_SEARCHES.discard(request_id)
+
+    thread = threading.Thread(
+        target=runner,
+        name="kilas-order-search-%s" % request_id,
+        daemon=True,
+    )
+    thread.start()
+    return True
