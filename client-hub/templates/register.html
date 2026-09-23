@@ -2,47 +2,136 @@
 {% block title %}Daftar · Kilas Works{% endblock %}
 {% block content %}
 <style>
-.register-shell{max-width:470px;margin:28px auto 0}
-.register-kicker{display:inline-flex;align-items:center;gap:7px;color:var(--orange);font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-.register-card{margin-top:10px;padding:22px;border-radius:22px;background:linear-gradient(145deg,color-mix(in srgb,var(--card) 96%,var(--orange) 4%),var(--card))}
-.register-card h1{font-size:clamp(28px,7vw,36px);margin:0 0 7px;letter-spacing:-.04em}
-.register-card>p{margin:0 0 18px;color:var(--text-dim);font-size:13px;line-height:1.5}
-.register-step{display:flex;align-items:center;gap:9px;margin-bottom:15px;padding:10px 11px;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.012)}
-.register-step strong{font-size:12px}.register-step span{display:block;color:var(--text-dim);font-size:10.5px;margin-top:2px}
-.register-step-icon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--orange) 12%,transparent);color:var(--orange);font-weight:900}
-.register-form{display:grid;gap:11px}.register-form label{margin:0}.register-form input{margin-top:5px;min-height:46px;border-radius:12px}
-.register-submit{width:100%;min-height:48px;margin-top:4px;border-radius:12px}
-.register-after{margin-top:13px;padding-top:12px;border-top:1px solid var(--border);color:var(--text-dim);font-size:11px;line-height:1.45}
-.register-login{text-align:center;margin:14px 0 0!important}
-@media(max-width:520px){.register-shell{margin-top:12px}.register-card{padding:18px}.register-card h1{font-size:30px}}
+body.public-ui{background:#0b0d10;color:#f5f6f8}
+body.public-ui>.topbar{display:none}
+body.public-ui>footer{display:none}
+.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.auth-shell{
+  --auth-bg:#0b0d10;--auth-border:#30363f;--auth-orange:#ff7a1a;
+  min-height:100svh;box-sizing:border-box;background:
+    radial-gradient(480px 330px at 82% 8%,rgba(255,122,26,.10),transparent 66%),
+    radial-gradient(380px 280px at 3% 96%,rgba(255,122,26,.055),transparent 72%),
+    var(--auth-bg);padding:26px 16px 24px;color:#f5f6f8
+}
+.auth-inner{width:min(100%,500px);margin:0 auto}
+.auth-brand{display:flex;align-items:center;gap:12px;margin:2px 4px 12px}
+.auth-logo-link{display:block;flex:0 0 auto;border-radius:16px;outline-offset:4px}
+.auth-logo{width:56px;height:56px;display:block;border-radius:16px;box-shadow:0 10px 30px rgba(255,122,26,.11)}
+.auth-wordmark strong{display:block;font-size:27px;line-height:1;letter-spacing:-.04em}
+.auth-wordmark strong span{color:var(--auth-orange)}
+.auth-wordmark small{display:block;margin-top:4px;color:#aeb4bd;font-size:14px}
+.auth-tagline{margin:0 4px 18px;color:#aeb4bd;font-size:15px;line-height:1.45;max-width:330px}
+.auth-tabs{width:min(100%,390px);display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:3px;border:1px solid #383e47;border-radius:999px;margin:0 auto 20px;background:#101318}
+.auth-tab{min-height:42px;display:flex;align-items:center;justify-content:center;border-radius:999px;color:#b6bbc3;font-size:14px;font-weight:850;text-decoration:none}
+.auth-tab:hover{text-decoration:none;color:#f5f6f8}
+.auth-tab.active{color:#fff;background:linear-gradient(135deg,#ff8128,#9e3e0c);box-shadow:0 0 0 1px rgba(255,137,55,.72),0 7px 20px rgba(255,122,26,.18)}
+.auth-card{border:1px solid var(--auth-border)!important;border-radius:24px!important;padding:25px!important;margin:0!important;background:linear-gradient(155deg,#181d24,#11151a)!important;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+.auth-card h1{font-size:40px;line-height:1;margin:0 0 12px;letter-spacing:-.045em}
+.auth-card-lead{margin:0 0 22px;color:#aeb4bd;font-size:16px;line-height:1.5}
+.auth-step{display:flex;align-items:center;gap:12px;margin:0 0 22px;padding:13px 14px;border:1px solid #30363f;border-radius:16px;background:rgba(255,255,255,.012)}
+.auth-step-icon{width:40px;height:40px;flex:0 0 40px;border-radius:12px;display:grid;place-items:center;background:rgba(255,122,26,.12);color:var(--auth-orange);font-size:20px;font-weight:900}
+.auth-step strong{display:block;color:#f2f3f5;font-size:14px;line-height:1.2}
+.auth-step span{display:block;color:#9da4ae;font-size:12.5px;line-height:1.35;margin-top:3px}
+.auth-form label{margin:0 0 8px;color:#f0f2f5;font-weight:800;font-size:14px}
+.auth-field{position:relative;margin-bottom:16px}
+.auth-field input{min-height:56px;padding:0 48px;border-radius:15px!important;background:#0e1217!important;border:1px solid #3a414b!important;color:#fff!important;font-size:15px}
+.auth-field input::placeholder{color:#747c87;opacity:1}
+.auth-field input:focus{border-color:rgba(255,122,26,.78)!important;box-shadow:0 0 0 3px rgba(255,122,26,.09);outline:none}
+.auth-field-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:21px;height:21px;color:#8f97a3;pointer-events:none}
+.auth-field-icon svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8}
+.password-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:36px;height:36px!important;min-height:36px!important;padding:0!important;border:0!important;background:transparent!important;color:#aeb4bd!important;display:grid;place-items:center}
+.password-toggle svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8}
+.auth-submit{width:100%;min-height:56px!important;border-radius:14px!important;font-size:16px!important;font-weight:900!important;display:flex!important;align-items:center;justify-content:center;gap:10px;background:linear-gradient(180deg,#ff8229,#ff7415)!important;color:#16110d!important;box-shadow:0 12px 28px rgba(255,122,26,.20)}
+.auth-note{margin-top:18px;padding-top:16px;border-top:1px solid #30363f;color:#8f97a3;font-size:12px;line-height:1.55}
+.auth-register{text-align:center;margin:20px 0 0!important;color:#aeb4bd!important;font-size:14px!important}
+.auth-register a{font-weight:850;color:var(--auth-orange)}
+.auth-footer{text-align:center;margin:70px 0 0;color:#747c87;font-size:11px;line-height:1.6}
+@media(max-width:520px){
+  .auth-shell{padding:18px 14px 18px}
+  .auth-logo{width:50px;height:50px;border-radius:15px}
+  .auth-wordmark strong{font-size:25px}.auth-wordmark small{font-size:13px}
+  .auth-tagline{font-size:14px;margin-bottom:15px}
+  .auth-tabs{width:min(100%,340px);margin-bottom:18px}
+  .auth-tab{min-height:40px;font-size:13.5px}
+  .auth-card{padding:21px 17px!important;border-radius:21px!important}
+  .auth-card h1{font-size:36px}
+  .auth-card-lead{font-size:15px;margin-bottom:20px}
+  .auth-step{padding:12px;margin-bottom:19px}
+  .auth-step-icon{width:36px;height:36px;flex-basis:36px;font-size:18px}
+  .auth-step strong{font-size:13.5px}.auth-step span{font-size:12px}
+  .auth-field input{min-height:54px}
+  .auth-submit{min-height:54px!important}
+}
 </style>
-<div class="register-shell">
-  <span class="register-kicker">KILAS WORKS</span>
-  <section class="card register-card">
-    <h1>Buat akun</h1>
-    <p>Mulai dari identitas pemilik. Kamu belum perlu memasukkan data bisnis di tahap ini.</p>
 
-    <div class="register-step">
-      <div class="register-step-icon">1</div>
-      <div><strong>Akun pemilik</strong><span>Setelah masuk, Kilas Finance dan AI Admin dibuat sebagai bisnis yang terpisah.</span></div>
+<div class="auth-shell">
+  <div class="auth-inner">
+    <div class="auth-brand">
+      <a class="auth-logo-link" href="{{ url_for('products.index') }}" aria-label="Kilas Works">
+        <img class="auth-logo" src="{{ url_for('static', filename='kilas-logo-login.jpg') }}" alt="Kilas Works">
+      </a>
+      <div class="auth-wordmark"><strong>Kilas<span>Works</span></strong><small>Client Hub</small></div>
     </div>
+    <p class="auth-tagline">Satu platform untuk semua produk bisnismu.</p>
 
-    <form method="post" class="register-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Nama pemilik / nama kamu
-        <input type="text" name="full_name" value="{{ full_name or '' }}" maxlength="100" autocomplete="name" placeholder="Contoh: Irvan Karnawi" required autofocus>
-      </label>
-      <label>Email
-        <input type="email" name="email" value="{{ email or '' }}" autocomplete="email" required>
-      </label>
-      <label>Password
-        <input type="password" name="password" minlength="8" autocomplete="new-password" placeholder="Minimal 8 karakter" required>
-      </label>
-      <button class="btn register-submit" type="submit">Buat Akun &amp; Lanjut</button>
-    </form>
+    <nav class="auth-tabs" aria-label="Login atau daftar">
+      <a class="auth-tab" href="{{ url_for('auth.login_page') }}">Login</a>
+      <a class="auth-tab active" href="{{ url_for('auth.register_page') }}" aria-current="page">Daftar</a>
+    </nav>
 
-    <div class="register-after">Sesudah daftar, pilih produk yang mau dipakai. Nama bisnis untuk Finance baru diisi saat mulai Finance; nama bisnis untuk AI Admin baru diisi saat mulai AI Admin. Keduanya tidak digabung otomatis.</div>
-    <p class="muted register-login">Sudah punya akun? <a href="{{ url_for('auth.login_page') }}">Login</a></p>
-  </section>
+    <section class="card auth-card">
+      <h1>Buat akun</h1>
+      <p class="auth-card-lead">Mulai dari identitas pemilik. Kamu belum perlu memasukkan data bisnis di tahap ini.</p>
+
+      <div class="auth-step">
+        <div class="auth-step-icon">1</div>
+        <div><strong>Akun pemilik</strong><span>Setelah masuk, Kilas Finance dan AI Admin dibuat sebagai bisnis yang terpisah.</span></div>
+      </div>
+
+      <form method="post" class="auth-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label for="register-name">Nama pemilik / nama kamu</label>
+        <div class="auth-field">
+          <span class="auth-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-5 3-8 8-8s8 3 8 8"/></svg></span>
+          <input id="register-name" type="text" name="full_name" value="{{ full_name or '' }}" maxlength="100" autocomplete="name" placeholder="Contoh: Irvan Karnawi" required autofocus>
+        </div>
+
+        <label for="register-email">Email</label>
+        <div class="auth-field">
+          <span class="auth-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg></span>
+          <input id="register-email" type="email" name="email" value="{{ email or '' }}" autocomplete="email" placeholder="Masukkan email kamu" required>
+        </div>
+
+        <label for="register-password">Password</label>
+        <div class="auth-field">
+          <span class="auth-field-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>
+          <input id="register-password" type="password" name="password" minlength="8" autocomplete="new-password" placeholder="Minimal 8 karakter" required>
+          <button class="password-toggle" type="button" aria-label="Tampilkan password" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+        </div>
+
+        <button class="btn auth-submit" type="submit">Buat Akun &amp; Lanjut <span aria-hidden="true">→</span></button>
+      </form>
+
+      <div class="auth-note">Sesudah daftar, pilih produk yang mau dipakai. Nama bisnis Finance dan AI Admin tetap dibuat terpisah.</div>
+      <p class="muted auth-register">Sudah punya akun? <a href="{{ url_for('auth.login_page') }}">Login</a></p>
+    </section>
+
+    <div class="auth-footer">KilasWorks Client Hub — V1<br>Bersama, bisnis lebih maju.</div>
+  </div>
 </div>
+
+<script>
+(function(){
+  var btn=document.querySelector('.password-toggle');
+  var input=document.getElementById('register-password');
+  if(!btn||!input)return;
+  btn.addEventListener('click',function(){
+    var show=input.type==='password';
+    input.type=show?'text':'password';
+    btn.setAttribute('aria-pressed',show?'true':'false');
+    btn.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password');
+  });
+})();
+</script>
 {% endblock %}
