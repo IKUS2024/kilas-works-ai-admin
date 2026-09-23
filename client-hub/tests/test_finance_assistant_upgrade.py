@@ -221,6 +221,25 @@ class UpgradeTests(unittest.TestCase):
         self.assertTrue(draft['ready'],draft);self.save(draft)
         self.assertEqual([i['unit_price_minor'] for i in f.list_invoice_items(self.b,ident)],[100000000,300000000])
 
+    def test_chat_can_create_subcategory_under_existing_parent(self):
+        parent=next(r for r in f.list_categories(
+            self.b,'EXPENSE',include_children=False,actor_user_id=self.uid)
+            if r['name']=='Utilitas')
+        draft=self.propose(
+            'tambah subkategori Kebersihan di bawah Utilitas',
+            'create_subcategory',
+            {'name':'Kebersihan','parent_category':'Utilitas'})
+        self.assertTrue(draft['ready'],draft)
+        values=self.fields(draft)
+        self.assertEqual(values['name'],'Kebersihan')
+        self.assertEqual(values['parent_category_id'],str(parent['id']))
+        saved=self.save(draft)
+        children=f.list_category_children(
+            self.b,parent['id'],actor_user_id=self.uid)
+        created=next(r for r in children if r['name']=='Kebersihan')
+        self.assertEqual(created['id'],saved['record_id'])
+        self.assertEqual(created['direction'],'EXPENSE')
+
     def test_child_category_stays_reachable_in_ai_reads_and_actions(self):
         category=next(r for r in f.list_categories(
             self.b,'EXPENSE',include_children=True,actor_user_id=self.uid)
