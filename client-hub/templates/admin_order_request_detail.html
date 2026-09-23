@@ -29,11 +29,15 @@
 
   <div class="aod-toolbar">
     <h2>Kandidat ditemukan · {{ candidates|length }}</h2>
+    {% if item.is_whatsapp_handoff %}
+    <span class="aod-status">Manual · lanjut lewat WhatsApp</span>
+    {% else %}
     <form method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="retry_search">
       <button type="submit">↻ Cari ulang</button>
     </form>
+    {% endif %}
   </div>
 
   {% if candidates %}
@@ -72,7 +76,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="aod-empty">Belum ada kandidat valid. Gunakan “Cari ulang” untuk menjalankan discovery lagi.</div>
+  <div class="aod-empty">{% if item.is_whatsapp_handoff %}Request ini diproses manual. Cari pilihan yang cocok lalu kabari customer melalui WhatsApp Kilas.{% else %}Belum ada kandidat valid. Gunakan “Cari ulang” untuk menjalankan discovery lagi.{% endif %}</div>
   {% endif %}
 </div>
 {% endblock %}
