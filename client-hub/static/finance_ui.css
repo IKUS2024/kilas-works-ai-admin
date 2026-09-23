@@ -98,6 +98,14 @@ body.finance-app{--bg:#0c1115;--bg-soft:#151e24;--card:#11191e;--border:#253038;
 .finance-ui-dialog{width:min(500px,calc(100vw - 28px));padding:0}
 .finance-ui-dialog-head button{border:0;background:transparent;color:var(--text-dim);font-size:25px;cursor:pointer}
 .finance-app .finance-sheet{width:min(560px,calc(100vw - 28px))}
+.finance-app .finance-counterparty-quick-dialog{width:min(520px,calc(100vw - 28px))}
+.finance-app .finance-counterparty-quick-dialog form{display:grid;gap:10px;margin:0}
+.finance-app .finance-counterparty-quick-dialog form label{margin:0}
+.finance-app .finance-counterparty-quick-dialog form .btn{width:100%;margin:0}
+.finance-app .finance-counterparty-status{min-height:0;margin:0;font-size:10.5px;line-height:1.4;color:var(--text-dim)}
+.finance-app .finance-counterparty-status:empty{display:none}
+.finance-app .finance-counterparty-status.success{color:var(--green)}
+.finance-app .finance-counterparty-status.error{color:var(--red)}
 .finance-app .finance-bills-page{max-width:none}
 .finance-app .finance-bill-row{padding:12px;border-radius:8px;margin:7px 0;border:1px solid var(--border);background:var(--card)}
 .finance-app .finance-bill-title{font-size:14px}
