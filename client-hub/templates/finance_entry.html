@@ -178,16 +178,9 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
               </span>
             </div>
 
+            {% if fs.status!='TRIAL_ACTIVE' %}
             <div class="finance-expiry-box">
-              {% if fs.status=='TRIAL_ACTIVE' and fs.unlimited_trial %}
-                <span class="finance-expiry-label">Free trial testing</span>
-                <strong class="finance-expiry-value">Tanpa batas waktu</strong>
-                <span class="finance-expiry-remaining">Aktif selama Kilas Finance masih dalam masa testing.</span>
-              {% elif fs.status=='TRIAL_ACTIVE' %}
-                <span class="finance-expiry-label">Free trial aktif sampai</span>
-                <strong class="finance-expiry-value">{{ fs.until_local }}</strong>
-                {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} hari tersisa</span>{% endif %}
-              {% elif fs.status=='PAID_ACTIVE' %}
+              {% if fs.status=='PAID_ACTIVE' %}
                 <span class="finance-expiry-label">Langganan aktif sampai</span>
                 <strong class="finance-expiry-value">{{ fs.until_local }}</strong>
                 {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} hari tersisa</span>{% endif %}
@@ -199,6 +192,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
                 <strong class="finance-expiry-value">Belum diaktifkan</strong>
               {% endif %}
             </div>
+            {% endif %}
 
             <div class="finance-existing-actions">
               <form method="post">
