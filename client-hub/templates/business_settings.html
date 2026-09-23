@@ -4,7 +4,7 @@
 {% include "_client_compact_style.html" %}
 <div class="client-page">
   <header class="client-head">
-    <div><h1>Booking &amp; Pembayaran</h1><p>{{ business.business_name }} · pengaturan Kilas Brain.</p></div>
+    <div><h1>Booking &amp; Pembayaran</h1><p>{{ business.business_name }} · pengaturan Kilas Assist.</p></div>
   </header>
 
   {% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
@@ -15,7 +15,7 @@
   {% endif %}
 
   {% if business.package in ('AI_ADMIN_BASIC','AI_ADMIN_PRO') and business.status == 'ACTIVE' %}
-    <div class="client-empty"><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN') }}">Pilih paket Kilas Brain saat ini →</a></div>
+    <div class="client-empty"><a href="{{ url_for('client.ai_admin_checkout', business_id=business.id, package='AI_ADMIN') }}">Pilih paket Kilas Assist saat ini →</a></div>
   {% endif %}
 
   <form method="post">
@@ -26,7 +26,7 @@
       <div class="client-collapsible-body">
         {% if tenant_features and tenant_features.appointment %}
           <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" name="appointment_enabled" value="on" {{ 'checked' if profile.appointment_enabled or profile.appointment_enabled is none else '' }} style="width:auto;"> Aktifkan booking lewat chat</label>
-        {% else %}<p class="client-note">Booking otomatis mengikuti akses paket Kilas Brain.</p>{% endif %}
+        {% else %}<p class="client-note">Booking otomatis mengikuti akses paket Kilas Assist.</p>{% endif %}
         <div class="client-form-grid">
           <label>Jam operasional<input type="text" name="operating_hours" value="{{ profile.operating_hours or '' }}" placeholder="Senin-Sabtu 09.00-18.00"></label>
           <label>Hari libur / tutup<input type="text" name="closed_days" value="{{ profile.closed_days or '' }}" placeholder="Minggu, hari raya"></label>
@@ -46,7 +46,7 @@
             <label>Nama pemilik rekening<input type="text" name="payment_account_name" value="{{ profile.payment_account_name or '' }}"></label>
             <label class="full">Instruksi tambahan<textarea name="payment_instructions" rows="3" placeholder="mis. kirim bukti transfer ke chat ini">{{ profile.payment_instructions or '' }}</textarea></label>
           </div>
-        {% else %}<p class="client-note">Instruksi pembayaran otomatis mengikuti akses paket Kilas Brain.</p>{% endif %}
+        {% else %}<p class="client-note">Instruksi pembayaran otomatis mengikuti akses paket Kilas Assist.</p>{% endif %}
       </div>
     </details>
 
