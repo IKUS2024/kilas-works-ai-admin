@@ -42,6 +42,25 @@ def _kilas_order_whatsapp_url(item):
     return 'https://wa.me/'+number+'?text='+quote('\n'.join(lines))
 
 
+def _kilas_catalog_whatsapp_url(product):
+    import order_catalog_service
+    raw_number=(os.environ.get('KILAS_ORDER_WHATSAPP_NUMBER') or '6282213039137').strip()
+    number=''.join(ch for ch in raw_number if ch.isdigit()) or '6282213039137'
+    code=str((product or {}).get('product_code') or '').strip().upper()
+    name=str((product or {}).get('name') or 'Produk Kilas').strip()
+    price=order_catalog_service.customer_price_text(product)
+    message='\n'.join([
+        'Halo Kilas, saya tertarik dengan produk ini.',
+        '',
+        'Kode produk: '+code,
+        'Produk: '+name,
+        'Harga Kilas: '+price,
+        '',
+        'Tolong cek ketersediaannya ya.',
+    ])
+    return 'https://wa.me/'+number+'?text='+quote(message)
+
+
 def _finance_business_claimed(business_id):
     """True when this business already belongs to the Finance product lane.
 
@@ -122,7 +141,10 @@ def _start_finance_trial_now(business_id, user):
 
 @products_bp.after_request
 def privacy(response):
-    response.headers['Cache-Control']='private, no-store'
+    if request.endpoint=='products.order_product_image':
+        response.headers['Cache-Control']='public, max-age=21600'
+    else:
+        response.headers['Cache-Control']='private, no-store'
     response.headers['Referrer-Policy']='no-referrer'
     response.headers['X-Robots-Tag']='noindex, noarchive'
     return response
@@ -171,12 +193,61 @@ def product_start():
 @security.login_required
 def order_entry():
     import order_service
+    import order_catalog_service
     user=security.current_user()
+    catalog=order_catalog_service.list_public_products(limit=10)
+    for product in catalog:
+        product['price_text']=order_catalog_service.customer_price_text(product)
     return render_template(
-        'order_entry.html',
+        'order_marketplace.html',
         user=user,
         recent_order_requests=order_service.list_user_requests(user['id'],limit=3),
+        catalog_products=catalog,
     )
+
+
+@products_bp.route('/products/order/catalog/<product_code>')
+@security.login_required
+def order_catalog_product(product_code):
+    import order_catalog_service
+    product=order_catalog_service.get_public_product(product_code)
+    if not product:
+        abort(404)
+    product['price_text']=order_catalog_service.customer_price_text(product)
+    return render_template(
+        'order_catalog_product.html',
+        user=security.current_user(),
+        product=product,
+        whatsapp_url=_kilas_catalog_whatsapp_url(product),
+    )
+
+
+@products_bp.route('/products/order/catalog/<product_code>/image')
+@security.login_required
+def order_product_image(product_code):
+    import requests
+    import order_catalog_service
+    product=order_catalog_service.get_internal_product(product_code)
+    if not product or not product.get('is_active'):
+        abort(404)
+    source=str(product.get('image_source_url') or '').strip()
+    if not source.startswith('https://'):
+        abort(404)
+    try:
+        upstream=requests.get(
+            source,
+            headers={'User-Agent':'Mozilla/5.0 (compatible; KilasOrder/1.0)'},
+            timeout=(3,10),
+            allow_redirects=True,
+        )
+        upstream.raise_for_status()
+    except requests.RequestException:
+        abort(404)
+    body=upstream.content
+    content_type=(upstream.headers.get('Content-Type') or 'image/jpeg').split(';',1)[0].strip().lower()
+    if not content_type.startswith('image/') or len(body)>8*1024*1024:
+        abort(404)
+    return send_file(io.BytesIO(body),mimetype=content_type,max_age=21600)
 
 
 @products_bp.route('/products/order/whatsapp',methods=['POST'])
