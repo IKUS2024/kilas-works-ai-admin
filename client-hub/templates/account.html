@@ -374,6 +374,7 @@
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="email_change_verify">
+          <input type="hidden" name="return_tab" value="{{ pending_email_change.return_tab or 'personal' }}">
           <label for="email-otp">Kode OTP
             <input id="email-otp" name="otp_code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required autofocus>
           </label>
@@ -386,12 +387,14 @@
           <form method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="email_change_request">
+            <input type="hidden" name="return_tab" value="{{ pending_email_change.return_tab or 'personal' }}">
             <input type="hidden" name="new_email" value="{{ pending_email_change.email }}">
             <button class="btn secondary small" type="submit">Kirim Ulang OTP</button>
           </form>
           <form method="post">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="email_change_cancel">
+            <input type="hidden" name="return_tab" value="{{ pending_email_change.return_tab or 'personal' }}">
             <button class="btn secondary small" type="submit">Batal</button>
           </form>
         </div>
@@ -400,6 +403,7 @@
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="email_change_request">
+          <input type="hidden" name="return_tab" id="email-change-return-tab" value="personal">
           <label for="new-account-email">Email baru
             <input id="new-account-email" type="email" name="new_email" value="{{ user.email }}" autocomplete="email" required>
           </label>
@@ -439,7 +443,7 @@
             <span class="account-label">Email</span>
             <span class="account-email-row">
               <span class="account-email-value">{{ user.email }}</span>
-              <button class="account-email-change-btn" type="button" data-email-change-open>Ganti</button>
+              <button class="account-email-change-btn" type="button" data-email-change-open data-email-tab="personal">Ganti</button>
             </span>
           </label>
           <label>
@@ -551,7 +555,10 @@
                           </label>
                           <label>
                             <span class="account-label">Email bisnis</span>
-                            <span class="business-locked-email"><span>{{ business.business_email }}</span><small>Terkunci</small></span>
+                            <span class="account-email-row">
+                              <span class="account-email-value">{{ user.email }}</span>
+                              <button class="account-email-change-btn" type="button" data-email-change-open data-email-tab="business">Ganti</button>
+                            </span>
                           </label>
                           <label>
                             <span class="account-label">Website</span>
@@ -724,6 +731,8 @@
   const emailDialog = document.getElementById('account-email-dialog');
   document.querySelectorAll('[data-email-change-open]').forEach(function(button){
     button.addEventListener('click', function(){
+      const returnInput = document.getElementById('email-change-return-tab');
+      if (returnInput) returnInput.value = button.dataset.emailTab === 'business' ? 'business' : 'personal';
       if (emailDialog && typeof emailDialog.showModal === 'function') emailDialog.showModal();
     });
   });
