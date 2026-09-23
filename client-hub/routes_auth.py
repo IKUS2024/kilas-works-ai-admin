@@ -341,9 +341,16 @@ def _account_email_redirect(tab=None):
 
 
 def _account_context(user):
+    businesses = _account_businesses(user)
+    active_id = session.get("dashboard_business_id")
+    finance_return_business_id = next(
+        (business["id"] for business in businesses if business["id"] == active_id),
+        businesses[0]["id"] if businesses else None,
+    )
     return {
         "user": user,
-        "businesses": _account_businesses(user),
+        "businesses": businesses,
+        "finance_return_business_id": finance_return_business_id,
         "personal_profile": account_profiles.get_personal_profile(user["id"]),
         "personal_photo": account_profiles.profile_asset_meta("USER", user["id"]),
     }
