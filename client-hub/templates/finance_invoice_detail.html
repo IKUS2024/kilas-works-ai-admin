@@ -6,9 +6,17 @@
 {% endblock %}
 {% block content %}
 
-<div class="fin-page">
+<div class="fin-page invoice-detail-page">
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
-<a class="no-print" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Invoice</a>
+<header class="invoice-page-head no-print">
+  <div class="invoice-page-head-copy">
+    <a class="invoice-editor-back" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Daftar Invoice</a>
+    <h1>{{ invoice.invoice_number }}</h1>
+    <p>Buka dokumen, bagikan, edit, atau catat pembayaran dari halaman ini.</p>
+  </div>
+  <span class="fin-status {{ 'fin-status-paid' if invoice.status=='PAID' else 'fin-status-partial' if invoice.status=='PARTIALLY_PAID' else 'fin-status-issued' if invoice.status=='ISSUED' else 'fin-status-draft' }}">{{ labels[invoice.status] }}</span>
+</header>
+{% set invoice_tab='invoices' %}{% include '_finance_invoice_hub_nav.html' %}
 
 {% include '_finance_invoice_document.html' %}
 <div class="card no-print">
@@ -23,7 +31,7 @@
   </div>
   {% if invoice.status=='PAID' %}<p class="muted" style="margin:10px 0 0">✅ Invoice ini sudah lunas. Pembayaran dan transaksi pemasukan terkait tetap tersimpan sebagai riwayat Finance.</p>{% endif %}
 </div>
-<div class="card no-print invoice-controls invoice-share">
+<div class="card no-print invoice-controls invoice-share invoice-section-card"><div class="fin-section-head"><div><h2>Aksi Invoice</h2><p class="muted">Pilih tindakan yang dibutuhkan untuk invoice ini.</p></div></div>
 <button class="btn secondary" type="button" onclick="window.print()">Cetak halaman</button>
 <a class="btn secondary" href="{{ url_for('finance.invoice_print',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) }}">⬇️ Unduh PDF</a>
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID','PAID') %}
@@ -50,7 +58,7 @@
 {% endif %}
 </div>
 {% if invoice.status in ('ISSUED','PARTIALLY_PAID') and totals.outstanding_minor>0 %}
-<form class="card no-print" method="post" action="{{ url_for('finance.record_payment',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) }}">
+<form class="card no-print invoice-section-card" method="post" action="{{ url_for('finance.record_payment',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) }}">
 <h2>Catat Pembayaran</h2><p class="muted">Catat hanya uang yang benar-benar sudah diterima. Pembayaran otomatis masuk sebagai pemasukan dan tidak dapat dibatalkan langsung pada fase ini.</p>
 {% if not accounts or not categories %}<p class="muted">Siapkan Kas / Rekening {{ invoice.currency }} dan kategori pemasukan di dashboard Kilas Finance terlebih dahulu.</p>{% endif %}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="payment_key" value="{{ payment_key }}">
@@ -60,7 +68,7 @@
 <label for="category">Kategori pemasukan</label><select id="category" name="category_id" required><option value="">Pilih kategori</option>{% for c in categories %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
 <label for="note">Catatan (opsional)</label><textarea id="note" name="note" maxlength="1000"></textarea><button class="btn">Simpan Pembayaran</button>
 </form>{% endif %}
-<div class="card no-print invoice-controls"><h2>Riwayat pembayaran</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_money(invoice.currency) }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">Belum ada pembayaran.</p>{% endfor %}</div>
+<div class="card no-print invoice-controls invoice-section-card"><h2>Riwayat pembayaran</h2>{% for p in payments %}<div class="fin-entry">{{ p.paid_on }} · {{ p.amount_minor|finance_money(invoice.currency) }}{% if p.note %}<p>{{ p.note }}</p>{% endif %}</div>{% else %}<p class="muted">Belum ada pembayaran.</p>{% endfor %}</div>
 </div>
 <script src="{{ url_for('static',filename='finance_invoice.js') }}" defer></script>
 {% endblock %}
