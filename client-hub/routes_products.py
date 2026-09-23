@@ -4,7 +4,7 @@ import os
 import uuid
 from urllib.parse import quote
 from functools import wraps
-from flask import Blueprint, render_template, request, session, redirect, url_for, abort, flash, send_file
+from flask import Blueprint, render_template, request, session, redirect, url_for, abort, flash, send_file, jsonify
 import db
 import repo
 import security
@@ -318,6 +318,15 @@ def order_request_search_run(request_code):
     item=order_service.get_user_request(user['id'],request_code)
     if not item:
         abort(404)
+    if item.get('is_whatsapp_handoff'):
+        return jsonify({
+            'ok': False,
+            'status': 'WHATSAPP_HANDOFF',
+            'status_label': item.get('status_label'),
+            'candidate_count': len(order_service.list_candidates(item['id'])),
+            'active': False,
+            'error_code': '',
+        }), 409
 
     if request.method=='POST':
         if item.get('status') not in ('SEARCH_REQUESTED','SEARCHING','ISSUE'):
@@ -363,6 +372,8 @@ def order_request_detail(request_code):
     if request.method=='POST':
         action=(request.form.get('action') or '').strip().lower()
         if action=='retry_search':
+            if item.get('is_whatsapp_handoff'):
+                return redirect(_kilas_order_whatsapp_url(item),code=303)
             if item.get('status') not in ('SEARCH_REQUESTED','SEARCHING','ISSUE'):
                 return redirect(url_for('products.order_request_detail',request_code=item['request_code']),code=303)
             import order_search
