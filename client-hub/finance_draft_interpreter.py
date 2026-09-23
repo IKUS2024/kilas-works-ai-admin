@@ -7,7 +7,7 @@ import finance_bank_extract as extraction
 
 YES = re.compile(r'\s*((?:oke|ok|iya|ya|yes|benar|betul|sip|lanjut|catat|simpan|gas)(?:\s+(?:ya|aja|saja|deh|dong|simpan|catat|lanjut))?|(?:sudah|udah)\s+(?:benar|betul))[.! ]*', re.I)
 NO = re.compile(r'\s*((?:batal|cancel|ga jadi|gak jadi|nggak jadi|tidak jadi|skip|stop)(?:\s+(?:ya|aja|saja|deh|dong))?|jangan(?:\s+(?:simpan|disimpan|catat|dicatat))?(?:\s+(?:ya|aja|saja|deh|dong))?)[.! ]*', re.I)
-REFERENCES = {'account':'account_id','category':'category_id','customer':'customer_id','project':'project_id','invoice':'invoice_id',
+REFERENCES = {'account':'account_id','category':'category_id','parent_category':'parent_category_id','customer':'customer_id','project':'project_id','invoice':'invoice_id',
               'from_account':'from_account_id','to_account':'to_account_id'}
 
 
