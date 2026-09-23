@@ -210,7 +210,7 @@ def accounting_help(text):
     lower=text.lower()
     topics=[
         (('arus kas','cash flow','cashflow'),'Arus kas menunjukkan uang yang benar-benar masuk dan keluar pada suatu periode. Di Kilas Finance, saldo awal dan penukaran mata uang dipisahkan dari pemasukan/pengeluaran.'),
-        (('laba rugi','profit loss'),'Laba rugi akuntansi berbeda dari arus kas. Kilas Finance saat ini berfokus pada pencatatan kas, invoice, piutang, rekening, biaya rutin, dan laporan operasional.'),
+        (('laba rugi','profit loss'),'Laba rugi akuntansi berbeda dari arus kas. Kilas Finance saat ini berfokus pada pencatatan kas, invoice, piutang, rekening, tagihan, dan laporan operasional.'),
         (('piutang',),'Piutang adalah tagihan kepada customer yang belum lunas. Kilas Finance bisa melacak invoice terbuka, pembayaran, dan keterlambatan.'),
         (('rekonsiliasi','mutasi bank'),'Rekonsiliasi mencocokkan mutasi bank dengan transaksi yang sudah tercatat agar tidak terjadi pencatatan ganda.'),
         (('saldo awal',),'Saldo awal adalah uang yang sudah ada di kas/rekening sebelum transaksi periode berjalan. Saldo awal bukan pemasukan.'),
@@ -220,7 +220,7 @@ def accounting_help(text):
     ]
     for keys,message in topics:
         if any(key in lower for key in keys):return dict(kind='answer',title='Kilas Finance',message=message)
-    return dict(kind='answer',title='Kilas Finance',message='Saya fokus pada keuangan dan akuntansi di Kilas Finance. Kamu bisa menanyakan transaksi, kas/rekening, customer, invoice, piutang, biaya rutin, struk, mutasi bank, rekonsiliasi, atau laporan.')
+    return dict(kind='answer',title='Kilas Finance',message='Saya fokus pada keuangan dan akuntansi di Kilas Finance. Kamu bisa menanyakan transaksi, kas/rekening, customer, invoice, piutang, tagihan, struk, mutasi bank, rekonsiliasi, atau laporan.')
 
 
 def _other_category(categories):
@@ -326,7 +326,7 @@ def is_read_query(b,u,text,query_context=''):
 def capabilities():
     return dict(kind='answer',title='Kilas Finance',message=(
         'Saya bisa membantu pencatatan pemasukan dan pengeluaran, customer, kas/rekening, kategori, cabang, '
-        'biaya rutin, invoice, pembayaran, piutang, saldo, laporan, anggaran, proyek, serta penukaran mata uang. '
+        'tagihan, invoice, pembayaran, piutang, saldo, laporan, anggaran, proyek, serta penukaran mata uang. '
         'Saya juga dapat membaca struk dan mutasi bank dari foto atau PDF yang didukung. '
         'Untuk perubahan data, saya selalu menampilkan ringkasan terlebih dahulu agar kamu bisa memeriksanya sebelum konfirmasi.'))
 
