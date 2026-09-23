@@ -293,7 +293,7 @@
 {% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_ui.css',v='20260922-paint-2') }}">{% endif %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
-{% if request.blueprint != 'finance' %}
+{% if request.blueprint != 'finance' and (not session.get('user_id') or session.get('role') == 'KILAS_ADMIN') %}
 <div class="topbar">
   <div class="brand">Kilas<span>Works</span> Client Hub</div>
   <nav>
@@ -333,43 +333,6 @@
 </div>
 {% endif %}
 
-{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' and request.blueprint != 'finance' and request.endpoint != 'client.dashboard' %}
-  {% set customer_endpoint = request.endpoint or '' %}
-  {% set customer_blueprint = request.blueprint or '' %}
-  {% set cnav_bills = customer_endpoint == 'products.account_bills' %}
-  {% set cnav_products = ((customer_blueprint == 'products' and not cnav_bills) or customer_endpoint == 'projects.service_catalog_page' or customer_blueprint == 'talent') %}
-  {% set cnav_orders = customer_blueprint == 'projects' and customer_endpoint != 'projects.service_catalog_page' %}
-  {% set cnav_account = customer_endpoint == 'auth.account_page' %}
-  {% set cnav_home = customer_blueprint == 'client' %}
-  <header class="customer-global-shell">
-    <div class="customer-global-brand">
-      <div>
-        <div class="customer-global-wordmark">Kilas<span>Works</span></div>
-        <div class="customer-global-tagline">Solusi Digital untuk Bisnis Anda</div>
-      </div>
-      <a class="customer-global-account" href="{{ url_for('auth.account_page') }}" aria-label="Akun">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg>
-      </a>
-    </div>
-    <nav class="customer-global-nav" aria-label="Navigasi utama">
-      <a class="{{ 'active' if cnav_home else '' }}" href="{{ url_for('client.dashboard') }}" {% if cnav_home %}aria-current="page"{% endif %}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span>Beranda</span>
-      </a>
-      <a class="{{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}" {% if cnav_products %}aria-current="page"{% endif %}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk &amp; Layanan</span>
-      </a>
-      <a class="{{ 'active' if cnav_orders else '' }}" href="{{ url_for('projects.my_project_list') }}" {% if cnav_orders %}aria-current="page"{% endif %}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg><span>Pesanan</span>
-      </a>
-      <a class="{{ 'active' if cnav_bills else '' }}" href="{{ url_for('products.account_bills') }}" {% if cnav_bills %}aria-current="page"{% endif %}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M7 15h4"/></svg><span>Tagihan</span>
-      </a>
-      <a class="{{ 'active' if cnav_account else '' }}" href="{{ url_for('auth.account_page') }}" {% if cnav_account %}aria-current="page"{% endif %}>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg><span>Akun</span>
-      </a>
-    </nav>
-  </header>
-{% endif %}
 <div class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}">
 {% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}
   {% if request.blueprint == 'finance' and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}
@@ -394,25 +357,6 @@
   {% if finance_read_only or (branch_read_only and finance_branches and request.endpoint != 'finance.assistant') %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>
 
-{% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' and request.blueprint != 'finance' and request.endpoint != 'client.dashboard' %}
-<nav class="customer-global-bottom" aria-label="Navigasi bawah">
-  <a class="{{ 'active' if cnav_home else '' }}" href="{{ url_for('client.dashboard') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Beranda</span>
-  </a>
-  <a class="{{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Produk</span>
-  </a>
-  <a class="customer-bottom-plus {{ 'active' if cnav_products else '' }}" href="{{ url_for('products.index') }}">
-    <span class="customer-plus-circle" aria-hidden="true">+</span><span>Layanan</span>
-  </a>
-  <a class="{{ 'active' if cnav_orders else '' }}" href="{{ url_for('projects.my_project_list') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg><span>Pesanan</span>
-  </a>
-  <a class="{{ 'active' if cnav_account else '' }}" href="{{ url_for('auth.account_page') }}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 22c0-5 3-8 8-8s8 3 8 8"/></svg><span>Akun</span>
-  </a>
-</nav>
-{% endif %}
 <footer>Kilas Works Client Hub — V1</footer>
 <script>
 // Reusable "Bantu dengan AI" writing helper (UX pass, Section A/D) — ONE module driving EVERY
