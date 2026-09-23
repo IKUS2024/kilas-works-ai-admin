@@ -8,6 +8,16 @@
 .account-head-copy{min-width:0}
 .account-head h1{font-size:26px;margin:0 0 4px;letter-spacing:-.03em}
 .account-head p{margin:0}
+.account-head-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+.account-back-finance{
+  min-height:37px;padding:8px 11px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border:1px solid rgba(255,122,26,.36);background:rgba(255,122,26,.055);color:#ff9c55;
+  font-size:11px;font-weight:850;line-height:1;text-decoration:none;white-space:nowrap
+}
+.account-back-finance:hover,.account-back-finance:focus{
+  text-decoration:none;border-color:rgba(255,122,26,.68);background:rgba(255,122,26,.1);color:#ffc08b
+}
+.account-back-finance svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .account-quick-logout{
   flex:0 0 auto;min-height:37px;padding:8px 11px;border-radius:11px;
   display:inline-flex;align-items:center;justify-content:center;gap:7px;
@@ -245,7 +255,7 @@
   .account-page{max-width:none}
   .account-head{gap:10px}
   .account-head h1{font-size:23px}
-  .account-quick-logout{min-height:35px;padding:7px 10px}
+  .account-back-finance,.account-quick-logout{min-height:35px;padding:7px 9px}
   .account-hero{padding:14px!important}
   .account-avatar{width:50px;height:50px;border-radius:15px;font-size:20px}
   .account-hero-copy h2{font-size:17px}
@@ -302,14 +312,20 @@
       <h1>Akun</h1>
       <p class="muted">Kelola profil Pribadi, Bisnis, keamanan, dan data invoice Kilas Works.</p>
     </div>
-    <a class="account-quick-logout" href="{{ url_for('auth.logout_page') }}" aria-label="Keluar dari akun">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M10 17l5-5-5-5"></path>
-        <path d="M15 12H3"></path>
-        <path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
-      </svg>
-      <span>Keluar</span>
-    </a>
+    <div class="account-head-actions">
+      <a class="account-back-finance" href="{{ url_for('finance.workspace_choice', business_id=finance_return_business_id) if finance_return_business_id else url_for('products.finance_entry') }}" aria-label="Kembali ke dashboard Finance">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+        <span>Finance</span>
+      </a>
+      <a class="account-quick-logout" href="{{ url_for('auth.logout_page') }}" aria-label="Keluar dari akun">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 17l5-5-5-5"></path>
+          <path d="M15 12H3"></path>
+          <path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+        </svg>
+        <span>Keluar</span>
+      </a>
+    </div>
   </header>
 
   <section class="card account-hero">
