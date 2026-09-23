@@ -89,9 +89,7 @@ def _oauth_finish_login(email, full_name, provider):
     )
     if __import__("product_flow").intent(session.get("product_intent")):
         return redirect(url_for("products.continue_product"))
-    if created:
-        return redirect(url_for("products.product_start"))
-    return redirect(url_for("client.dashboard"))
+    return redirect(url_for("products.product_start"))
 
 
 @auth_bp.route("/oauth/<provider>")
@@ -256,9 +254,7 @@ def login_page():
         return redirect(url_for("admin.dashboard"))
     if __import__("product_flow").intent(session.get("product_intent")):
         return redirect(url_for("products.continue_product"))
-    if not repo.list_businesses_for_user(user["id"]):
-        return redirect(url_for("products.product_start"))
-    return redirect(url_for("client.dashboard"))
+    return redirect(url_for("products.product_start"))
 
 
 @auth_bp.route("/logout")
