@@ -165,7 +165,8 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
   function stop(){if(timer){clearInterval(timer);timer=null;}}
 
-  function runSearch(){
+  function runSearch(attempt){
+    attempt=attempt||0;
     if(retryButton) retryButton.disabled=true;
     startProgress();
     fetch(card.getAttribute('data-search-url'),{
@@ -206,9 +207,16 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       }
     }).catch(function(){
       stop();
+      if(attempt<1){
+        title.textContent='Koneksi sempat putus, mencoba lagi…';
+        sub.textContent='Request kamu aman. Kilas akan mencoba satu kali lagi secara otomatis.';
+        errorBox.classList.remove('show');
+        setTimeout(function(){runSearch(attempt+1);},3500);
+        return;
+      }
       title.textContent='Pencarian terputus';
       sub.textContent='Request kamu tetap tersimpan. Kamu bisa mencoba lagi tanpa mengulang dari awal.';
-      errorBox.textContent='Koneksi ke Kilas sempat terputus. Coba lagi.';
+      errorBox.textContent='Koneksi ke Kilas sempat terputus dua kali. Coba lagi sebentar.';
       errorBox.classList.add('show');
       if(issueAction){
         issueAction.style.display='block';
