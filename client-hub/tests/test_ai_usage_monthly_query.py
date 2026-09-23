@@ -46,6 +46,8 @@ class MonthlyQueryTests(unittest.TestCase):
         response={'content':[{'type':'text','text':'fixture'}], 'usage':{'input_tokens':10,'output_tokens':5}}
         for model in ('claude-haiku-4-5-20251001','claude-haiku-future','claude-sonnet-4-6','unrecognized-model'):
             self.assertTrue(usage.record(model,response,tenant_id=self.bid,context='tenant_customer'))
+        self.assertTrue(usage.record('claude-haiku-4-5-20251001',response,tenant_id=self.bid,context='finance_ai'))
+        self.assertTrue(usage.record('claude-sonnet-4-6',response,tenant_id=self.bid,context='finance_ai',classification='vision'))
         self.assertTrue(usage.record('claude-sonnet-4-6',response,tenant_id=self.other,context='tenant_customer'))
         before=db.query_one('SELECT COUNT(*) n FROM ai_usage_ledger')['n']
         start,end=usage.month_bounds()
@@ -54,7 +56,8 @@ class MonthlyQueryTests(unittest.TestCase):
             "WHERE created_at >= ? AND created_at < ? AND tenant_id = ?",(start,end,self.bid))
         row=usage.monthly(self.bid)[0]
         self.assertEqual((row['haiku_calls'],row['sonnet_calls']),(expected['h'],expected['s']))
-        self.assertEqual((row['calls'],row['haiku_calls'],row['sonnet_calls']),(4,2,1))
+        self.assertEqual((row['calls'],row['haiku_calls'],row['sonnet_calls']),(6,3,2))
+        self.assertEqual((row['finance_calls'],row['finance_vision_calls']),(2,1))
         other=usage.monthly(self.other)[0]
         self.assertEqual((other['calls'],other['sonnet_calls']),(1,1))
         self.assertEqual(len(usage.monthly(admin=True)),2)
