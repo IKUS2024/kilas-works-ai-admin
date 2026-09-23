@@ -17,8 +17,8 @@
 <a data-finance-write class="btn" href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=g.finance_branch_id) }}">＋ Buat Invoice</a></div>
 <div class="fin-tool-grid">
 <a class="fin-tool {{ 'active' if section=='summary' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}"><span class="fin-icon">📊</span><span class="fin-label">Ringkasan</span><span class="fin-meta">Piutang aktif</span></a>
-<a class="fin-tool {{ 'active' if section=='customers' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}"><span class="fin-icon">👥</span><span class="fin-label">Customer</span><span class="fin-meta">{{ customer_count }} customer</span></a>
-<a class="fin-tool {{ 'active' if section=='add_customer' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='add_customer') }}"><span class="fin-icon">➕</span><span class="fin-label">Tambah</span><span class="fin-meta">Customer baru</span></a>
+<a class="fin-tool {{ 'active' if section=='customers' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}"><span class="fin-icon">👥</span><span class="fin-label">Pelanggan</span><span class="fin-meta">{{ customer_count }} pelanggan</span></a>
+<a class="fin-tool {{ 'active' if section=='add_customer' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='add_customer') }}"><span class="fin-icon">➕</span><span class="fin-label">Tambah</span><span class="fin-meta">Pelanggan baru</span></a>
 <a class="fin-tool {{ 'active' if section=='invoices' else '' }}" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}"><span class="fin-icon">🧾</span><span class="fin-label">Invoice</span><span class="fin-meta">{{ invoice_count }} aktif</span></a>
 <a class="fin-tool" href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue') }}"><span class="fin-icon">⏰</span><span class="fin-label">Penagihan</span><span class="fin-meta">{{ summary.open_invoice_count }} belum lunas</span></a>
 </div>
@@ -28,7 +28,7 @@
 
 <div class="fin-section-head"><h1>Invoice</h1><a data-finance-write class="btn" href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=g.finance_branch_id) }}">+ Buat Invoice</a></div>
 <div class="invoice-counts"><span>Aktif {{ invoice_count }}</span><span>Terlambat {{ summary.overdue_invoice_count }}</span><span>Lunas {{ paid_invoice_count }}</span></div>
-<nav class="invoice-compact-nav"><a href="{{ url_for('finance.invoice_settings',business_id=business.id,branch_id=g.finance_branch_id) }}" data-finance-write>Pengaturan Invoice</a><a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Ringkasan</a><a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Customer</a><a href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue') }}">Penagihan</a></nav>
+<nav class="invoice-compact-nav"><a href="{{ url_for('finance.invoice_settings',business_id=business.id,branch_id=g.finance_branch_id) }}" data-finance-write>Pengaturan Invoice</a><a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='summary') }}">Ringkasan</a><a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Pelanggan</a><a href="{{ url_for('finance.collections',business_id=business.id,branch_id=g.finance_branch_id,section='queue') }}">Penagihan</a></nav>
 {% endif %}
 
 {% if section=='summary' %}
@@ -53,7 +53,7 @@
   {% for i in recent_invoices %}{% set t=totals[i.id] %}
   <article class="fin-entry fin-invoice-row fin-invoice-compact">
     <div class="fin-invoice-head">
-      <div><span class="fin-invoice-number">{{ i.invoice_number }}</span><div class="fin-invoice-meta"><span>{{ customer_map.get(i.customer_id,{}).get('name','Customer tidak tersedia') }}</span><span>{{ i.currency }}</span><span>{{ i.branch_name }}</span></div></div>
+      <div><span class="fin-invoice-number">{{ i.invoice_number }}</span><div class="fin-invoice-meta"><span>{{ customer_map.get(i.customer_id,{}).get('name','Pelanggan tidak tersedia') }}</span><span>{{ i.currency }}</span><span>{{ i.branch_name }}</span></div></div>
       <span class="fin-status {{ 'fin-status-paid' if i.status=='PAID' else 'fin-status-partial' if i.status=='PARTIALLY_PAID' else 'fin-status-issued' if i.status=='ISSUED' else 'fin-status-draft' }}">{{ labels[i.status] }}</span>
     </div>
     <div class="fin-compact-money"><span>Total <b>{{ t.total_minor|finance_money(i.currency) }}</b></span><span>Dibayar <b>{{ t.paid_minor|finance_money(i.currency) }}</b></span><span>Sisa <b>{{ t.outstanding_minor|finance_money(i.currency) }}</b></span></div>
@@ -68,15 +68,15 @@
 </div>
 
 {% elif section=='add_customer' %}
-<div class="card"><div class="fin-section-head"><h2>Tambah Customer</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Daftar customer</a></div>
+<div class="card"><div class="fin-section-head"><h2>Tambah Pelanggan</h2><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}">Daftar pelanggan</a></div>
 <form method="post" action="{{ url_for('finance.create_customer',business_id=business.id,branch_id=g.finance_branch_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<div class="fin-form-grid"><label>Nama customer<input name="name" maxlength="160" required></label><label>Nomor telepon (opsional)<input name="phone" type="tel" maxlength="64"></label><label>Email (opsional)<input name="email" type="email" maxlength="254"></label></div>
-<label>Catatan (opsional)<textarea name="notes" maxlength="4000"></textarea></label><button class="btn">Simpan Customer</button></form></div>
+<div class="fin-form-grid"><label>Nama pelanggan<input name="name" maxlength="160" required></label><label>Nomor telepon (opsional)<input name="phone" type="tel" maxlength="64"></label><label>Email (opsional)<input name="email" type="email" maxlength="254"></label></div>
+<label>Catatan (opsional)<textarea name="notes" maxlength="4000"></textarea></label><button class="btn">Simpan Pelanggan</button></form></div>
 
 {% elif section=='customers' %}
 <div class="card">
-  <div class="fin-section-head"><div><h2>Daftar Customer</h2><p class="muted">{{ customer_total }} hasil · 10 per halaman</p></div><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='add_customer') }}">＋ Tambah</a></div>
-  <form method="get" class="fin-search-row"><input type="hidden" name="section" value="customers"><label class="fin-grow">Cari customer<input name="q" value="{{ q }}" placeholder="Nama, telepon, atau email"></label><button class="btn secondary" type="submit">Cari</button></form>
+  <div class="fin-section-head"><div><h2>Daftar Pelanggan</h2><p class="muted">{{ customer_total }} hasil · 10 per halaman</p></div><a class="btn secondary small" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='add_customer') }}">＋ Tambah</a></div>
+  <form method="get" class="fin-search-row"><input type="hidden" name="section" value="customers"><label class="fin-grow">Cari pelanggan<input name="q" value="{{ q }}" placeholder="Nama, telepon, atau email"></label><button class="btn secondary" type="submit">Cari</button></form>
   {% for c in customers %}
   <article class="fin-entry">
     <strong>{{ c.name }}</strong>
@@ -92,10 +92,10 @@
           <label>Catatan<textarea name="notes" maxlength="4000">{{ c.notes or '' }}</textarea></label><button class="btn small">Simpan</button>
         </form>
       </details>
-      <form method="post" action="{{ url_for('finance.delete_customer',business_id=business.id,branch_id=g.finance_branch_id,customer_id=c.id) }}" onsubmit="return confirm('Hapus customer {{ c.name }} dari daftar aktif? Riwayat invoice dan pembayaran lama tetap disimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary finance-danger" type="submit">🗑️ Hapus</button></form>
+      <form method="post" action="{{ url_for('finance.delete_customer',business_id=business.id,branch_id=g.finance_branch_id,customer_id=c.id) }}" onsubmit="return confirm('Hapus pelanggan {{ c.name }} dari daftar aktif? Riwayat invoice dan pembayaran lama tetap disimpan.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary finance-danger" type="submit">🗑️ Hapus</button></form>
     </div>
   </article>
-  {% else %}<div class="fin-empty">Customer tidak ditemukan.</div>{% endfor %}
+  {% else %}<div class="fin-empty">Pelanggan tidak ditemukan.</div>{% endfor %}
   {% if customer_pages>1 %}<nav class="fin-pagination">{% if page>1 %}<a class="btn small secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers',q=q,page=page-1) }}">‹</a>{% endif %}<span>Halaman {{ page }} / {{ customer_pages }}</span>{% if page<customer_pages %}<a class="btn small secondary" href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers',q=q,page=page+1) }}">›</a>{% endif %}</nav>{% endif %}
 </div>
 
@@ -108,7 +108,7 @@
 
   <form method="get" class="fin-filter-bar">
     <input type="hidden" name="section" value="invoices">
-    <label class="fin-grow">Cari<input name="q" value="{{ q }}" placeholder="Nomor invoice atau customer"></label>
+    <label class="fin-grow">Cari<input name="q" value="{{ q }}" placeholder="Nomor invoice atau pelanggan"></label>
     <label>Status<select name="status"><option value="ALL" {{ 'selected' if status_filter=='ALL' }}>Semua</option>{% for value,label in [('DRAFT','Draft'),('ISSUED','Belum dibayar'),('PARTIALLY_PAID','Dibayar sebagian'),('PAID','Lunas')] %}<option value="{{ value }}" {{ 'selected' if status_filter==value }}>{{ label }}</option>{% endfor %}</select></label>
     <label>Daftar<select name="archived"><option value="0" {{ 'selected' if not archived_view }}>Aktif</option><option value="1" {{ 'selected' if archived_view }}>Arsip lunas ({{ archived_invoice_count }})</option></select></label>
     <button class="btn secondary" type="submit">Terapkan</button>
