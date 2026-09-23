@@ -93,7 +93,7 @@ def plan(b,u,message,previous=None):
     p['count']=bool('transaksi' in low) or p.get('count',False)
     # Names are re-resolved against current scoped records at execution time.
     pools={'customer':(customers,'name'), 'project':(f.list_finance_projects(b,actor_user_id=u),'title'),
-           'account':(f.list_accounts(b,actor_user_id=u),'name'), 'category':(f.list_categories(b,actor_user_id=u),'name'),
+           'account':(f.list_accounts(b,actor_user_id=u),'name'), 'category':(f.list_categories(b,include_children=True,actor_user_id=u),'name'),
            'branch':(branches.list_branches(b,u),'name')}
     labels={'customer':'customer|pelanggan|piutang','project':'proyek','account':'rekening|akun|saldo','category':'kategori','branch':'cabang'}
     awaiting=previous.get('awaiting') if follow else None
@@ -149,7 +149,7 @@ def execute(b,u,p,scoped=False):
     pools={'customer':(f.list_customers(b,actor_user_id=u),'name'),
            'project':(f.list_finance_projects(b,actor_user_id=u),'title'),
            'account':(f.list_accounts(b,actor_user_id=u),'name'),
-           'category':(f.list_categories(b,actor_user_id=u),'name')}
+           'category':(f.list_categories(b,include_children=True,actor_user_id=u),'name')}
     for key,(rows,label) in pools.items():
         if p.get(key):
             ref=p.get('entity_refs',{}).get(key)
