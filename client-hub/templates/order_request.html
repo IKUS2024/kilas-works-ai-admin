@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Permintaan Barang · Kilas Order{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#0b0d10;color:#f5f6f8}
+body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}
+body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.order-intake-shell{
+  --ko-orange:#ff7a1a;--ko-border:#30363f;min-height:100svh;box-sizing:border-box;padding:18px 14px 30px;
+  background:radial-gradient(520px 300px at 90% 0%,rgba(255,122,26,.09),transparent 72%),#0b0d10
+}
+.order-intake-inner{width:min(100%,720px);margin:0 auto}
+.order-intake-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.order-intake-brand{display:flex;align-items:center;gap:9px;color:#f4f5f7;text-decoration:none;font-weight:900;font-size:18px}
+.order-intake-brand span{color:var(--ko-orange)}
+.order-intake-back{min-height:36px;padding:7px 10px;border:1px solid #3a424b;border-radius:10px;background:#11161a;color:#d9dde2;text-decoration:none;font-size:10.5px;font-weight:850}
+.order-intake-head{margin:0 2px 15px}
+.order-intake-kicker{color:var(--ko-orange);font-size:9.5px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.order-intake-head h1{margin:6px 0 6px;font-size:30px;line-height:1.04;letter-spacing:-.045em}
+.order-intake-head p{margin:0;color:#9fa7b1;font-size:12px;line-height:1.5}
+.order-intake-card{border:1px solid var(--ko-border);border-radius:18px;background:#11171b;padding:15px;margin-bottom:10px}
+.order-intake-label{display:block;color:#838d98;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.order-intake-request{margin:7px 0 0;font-size:15px;font-weight:750;line-height:1.5}
+.order-intake-location{display:flex;align-items:center;gap:7px;margin-top:9px;color:#9fa8b2;font-size:10px}
+.order-intake-location b{color:#d9dde1}
+.order-intake-status{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #273039;color:#9fa8b2;font-size:10px}
+.order-intake-status i{width:8px;height:8px;border-radius:50%;background:#e2a649}
+.order-intake-status.ready i{background:#3dd58a}
+.order-intake-form h2{margin:0 0 5px;font-size:18px}
+.order-intake-form>p{margin:0 0 14px;color:#969faa;font-size:11px;line-height:1.5}
+.order-intake-field{display:block;margin:0 0 13px;color:#e7e9ec;font-size:11px;font-weight:850}
+.order-intake-field small{color:#818b96;font-weight:650}
+.order-intake-field input,.order-intake-field textarea{
+  width:100%;box-sizing:border-box;margin-top:7px;padding:11px 12px;border:1px solid #39414a;border-radius:11px;
+  background:#181d22;color:#f4f5f7;font:inherit;font-size:12px
+}
+.order-intake-field textarea{min-height:78px;resize:vertical;line-height:1.45}
+.order-intake-field input:focus,.order-intake-field textarea:focus{outline:none;border-color:rgba(255,122,26,.72);box-shadow:0 0 0 3px rgba(255,122,26,.08)}
+.order-choice-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:7px}
+.order-priority-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.order-choice{position:relative}
+.order-choice input{position:absolute;opacity:0;pointer-events:none}
+.order-choice span{min-height:42px;display:flex;align-items:center;justify-content:center;padding:8px;border:1px solid #343c45;border-radius:11px;background:#151a1f;color:#9fa8b2;font-size:10.5px;font-weight:800;text-align:center;cursor:pointer}
+.order-choice input:checked+span{border-color:rgba(255,122,26,.75);background:rgba(255,122,26,.10);color:#ffb37c}
+.order-intake-submit{width:100%;min-height:46px;margin-top:4px;border:0;border-radius:12px;background:var(--ko-orange);color:#1b1008;font:inherit;font-size:13px;font-weight:900;cursor:pointer}
+.order-ready{
+  border:1px solid rgba(61,213,138,.28);border-radius:18px;padding:16px;background:rgba(61,213,138,.045);margin-bottom:10px
+}
+.order-ready-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;background:rgba(61,213,138,.10);color:#68dea7;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.order-ready h2{margin:11px 0 6px;font-size:20px}
+.order-ready p{margin:0;color:#a4acb5;font-size:11px;line-height:1.55}
+.order-ready-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:12px}
+.order-ready-summary div{padding:9px 10px;border:1px solid #2d3837;border-radius:11px;background:#101615}
+.order-ready-summary small{display:block;color:#7f8b91;font-size:8.5px;text-transform:uppercase;font-weight:850}
+.order-ready-summary strong{display:block;margin-top:3px;font-size:10.5px;line-height:1.3}
+.order-ready-next{margin-top:12px;padding:10px 11px;border-radius:11px;background:#101519;color:#8d97a1;font-size:10px;line-height:1.45}
+@media(max-width:420px){
+  .order-choice-grid{grid-template-columns:1fr 1fr 1fr}
+  .order-priority-grid{grid-template-columns:1fr 1fr}
+  .order-choice span{font-size:9.5px;padding:7px 5px}
+}
+</style>
+
+<div class="order-intake-shell">
+  <div class="order-intake-inner">
+    <div class="order-intake-top">
+      <a class="order-intake-brand" href="{{ url_for('products.order_entry') }}">Kilas<span>Order</span></a>
+      <a class="order-intake-back" href="{{ url_for('products.order_entry') }}">← Ubah permintaan</a>
+    </div>
+
+    <header class="order-intake-head">
+      <span class="order-intake-kicker">Permintaan barang</span>
+      <h1>Kilas sudah menangkap kebutuhanmu.</h1>
+      <p>Sekarang lengkapi preferensi penting supaya pencarian nanti tidak asal murah atau asal muncul.</p>
+    </header>
+
+    <section class="order-intake-card">
+      <span class="order-intake-label">Yang kamu cari</span>
+      <p class="order-intake-request">{{ draft.request_text }}</p>
+      <div class="order-intake-location">
+        <span>📍</span>
+        {% if draft.location_source == 'manual' %}
+          <span>Area pencarian: <b>{{ draft.location_label }}</b></span>
+        {% elif draft.location_source == 'gps' %}
+          <span><b>GPS aktif</b> · lokasi saat ini dipakai sebagai konteks</span>
+        {% else %}
+          <span>Lokasi belum dipilih</span>
+        {% endif %}
+      </div>
+      <div class="order-intake-status {{ 'ready' if draft.intake_ready else '' }}"><i></i>{{ 'Detail dasar siap' if draft.intake_ready else 'Lengkapi detail dasar sebelum tahap pencarian' }}</div>
+    </section>
+
+    {% if not draft.intake_ready %}
+    <form class="order-intake-card order-intake-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="details">
+      <h2>Detail pencarian</h2>
+      <p>Nggak harus semuanya diisi. Kilas nanti tetap akan membaca kalimatmu dan hanya menanyakan yang benar-benar kurang.</p>
+
+      <label class="order-intake-field">Budget maksimal <small>(opsional)</small>
+        <input name="budget" maxlength="80" inputmode="text" placeholder="Contoh: Rp1.000.000 / US$200 / fleksibel">
+      </label>
+
+      <div class="order-intake-field">Kondisi barang
+        <div class="order-choice-grid">
+          <label class="order-choice"><input type="radio" name="condition" value="FLEXIBLE" checked><span>Bebas</span></label>
+          <label class="order-choice"><input type="radio" name="condition" value="NEW"><span>Baru</span></label>
+          <label class="order-choice"><input type="radio" name="condition" value="USED"><span>Second</span></label>
+        </div>
+      </div>
+
+      <div class="order-intake-field">Yang paling penting
+        <div class="order-choice-grid order-priority-grid">
+          <label class="order-choice"><input type="radio" name="priority" value="BEST" checked><span>Paling seimbang</span></label>
+          <label class="order-choice"><input type="radio" name="priority" value="PRICE"><span>Harga terbaik</span></label>
+          <label class="order-choice"><input type="radio" name="priority" value="FAST"><span>Cepat sampai</span></label>
+          <label class="order-choice"><input type="radio" name="priority" value="QUALITY"><span>Kualitas terbaik</span></label>
+        </div>
+      </div>
+
+      <label class="order-intake-field">Catatan tambahan <small>(opsional)</small>
+        <textarea name="extra_notes" maxlength="500" placeholder="Contoh: jangan refurbished, warna hitam, size 42, seller harus meyakinkan."></textarea>
+      </label>
+
+      <button class="order-intake-submit" type="submit">Simpan &amp; Siapkan Pencarian →</button>
+    </form>
+    {% else %}
+    {% set condition_label={'FLEXIBLE':'Bebas','NEW':'Baru','USED':'Second'}.get(draft.condition,'Bebas') %}
+    {% set priority_label={'BEST':'Paling seimbang','PRICE':'Harga terbaik','FAST':'Cepat sampai','QUALITY':'Kualitas terbaik'}.get(draft.priority,'Paling seimbang') %}
+    <section class="order-ready">
+      <span class="order-ready-badge">✓ Siap untuk tahap AI</span>
+      <h2>Request sudah rapi.</h2>
+      <p>Berikutnya AI Kilas akan membaca kebutuhan ini, mendeteksi detail yang masih kurang, lalu baru masuk ke mesin pencarian barang.</p>
+      <div class="order-ready-summary">
+        <div><small>Budget</small><strong>{{ draft.budget or 'Fleksibel / belum ditentukan' }}</strong></div>
+        <div><small>Kondisi</small><strong>{{ condition_label }}</strong></div>
+        <div><small>Prioritas</small><strong>{{ priority_label }}</strong></div>
+        <div><small>Lokasi</small><strong>{{ draft.location_label if draft.location_source == 'manual' else ('GPS aktif' if draft.location_source == 'gps' else 'Belum dipilih') }}</strong></div>
+      </div>
+      {% if draft.extra_notes %}<div class="order-ready-next"><strong>Catatan:</strong> {{ draft.extra_notes }}</div>{% endif %}
+      <div class="order-ready-next">Tahap berikutnya belum menjalankan pembelian. Kita akan sambungkan AI intake lebih dulu agar Kilas bisa bertanya seperti “size berapa?”, “baru atau second?”, atau “budgetnya fleksibel?” hanya saat memang dibutuhkan.</div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
