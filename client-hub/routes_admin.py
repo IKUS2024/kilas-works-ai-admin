@@ -418,6 +418,56 @@ def platform_whatsapp_coexistence_complete():
         )), 400
 
 
+@admin_bp.route("/order")
+@security.admin_required
+def order_requests_admin():
+    import order_service
+    return render_template(
+        "admin_order_requests.html",
+        requests_list=order_service.list_admin_requests(limit=150),
+    )
+
+
+@admin_bp.route("/order/<request_code>", methods=["GET", "POST"])
+@security.admin_required
+def order_request_admin_detail(request_code):
+    import order_service
+    item=order_service.get_request_by_code(request_code)
+    if not item:
+        abort(404)
+
+    if request.method=="POST":
+        action=(request.form.get("action") or "").strip().lower()
+        if action=="retry_search":
+            import order_search
+            _,error=order_search.search_request(item)
+            flash("Pencarian ulang selesai." if not error else "Pencarian ulang belum berhasil.", "success" if not error else "error")
+            return redirect(url_for("admin.order_request_admin_detail",request_code=item["request_code"]),code=303)
+        if action in ("verify_candidate","reject_candidate","reset_candidate"):
+            try:
+                candidate_id=int(request.form.get("candidate_id") or "0")
+            except ValueError:
+                candidate_id=0
+            candidate=order_service.get_candidate(item["id"],candidate_id)
+            if not candidate:
+                abort(404)
+            new_status={
+                "verify_candidate":"VERIFIED",
+                "reject_candidate":"REJECTED",
+                "reset_candidate":"DISCOVERED",
+            }[action]
+            order_service.update_candidate_status(candidate_id,new_status)
+            flash("Status kandidat diperbarui.","success")
+            return redirect(url_for("admin.order_request_admin_detail",request_code=item["request_code"]),code=303)
+        abort(400)
+
+    return render_template(
+        "admin_order_request_detail.html",
+        item=item,
+        candidates=order_service.list_candidates(item["id"]),
+    )
+
+
 @admin_bp.route("/search")
 @security.admin_required
 def admin_search():
