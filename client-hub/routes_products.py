@@ -260,7 +260,7 @@ def order_requests():
     )
 
 
-@products_bp.route('/products/order/requests/<request_code>')
+@products_bp.route('/products/order/requests/<request_code>',methods=['GET','POST'])
 @security.login_required
 def order_request_detail(request_code):
     import order_service
@@ -268,6 +268,16 @@ def order_request_detail(request_code):
     item=order_service.get_user_request(user['id'],request_code)
     if not item:
         abort(404)
+    if request.method=='POST':
+        action=(request.form.get('action') or '').strip().lower()
+        if action=='retry_search':
+            if item.get('status') not in ('SEARCH_REQUESTED','ISSUE'):
+                return redirect(url_for('products.order_request_detail',request_code=item['request_code']),code=303)
+            import order_search
+            _,error=order_search.search_request(item)
+            flash('Kilas sudah mencoba mencari lagi.' if not error else 'Pencarian belum berhasil. Coba lagi sebentar.','success' if not error else 'info')
+            return redirect(url_for('products.order_request_detail',request_code=item['request_code']),code=303)
+        abort(400)
     return render_template('order_request_status.html',user=user,item=item)
 
 
