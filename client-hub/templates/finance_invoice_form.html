@@ -16,7 +16,7 @@
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="submission_key" value="{{ submission_key }}"><input type="hidden" name="revision" value="{{ values.revision }}">
 <h2>1. Pelanggan</h2>
 <label for="customer">Pilih pelanggan</label><select id="customer" name="customer_id" {% if locked %}disabled{% endif %}>
-<option value="" disabled {{ 'selected' if not values.customer_id }}>Pilih pelanggan</option>{% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}</select>
+<option value="" disabled hidden {{ 'selected' if not values.customer_id }}>Pilih pelanggan</option>{% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}</select>
 {% if locked %}<input type="hidden" name="customer_id" value="{{ values.customer_id }}">{% else %}<button class="btn small secondary" type="button" id="new-recipient">＋ Tambah pelanggan baru</button>{% endif %}
 {{ fields('recipient',data.recipient,[('name','Nama pelanggan / perusahaan'),('pic','Nama kontak / PIC (opsional)'),('address','Alamat penagihan (opsional)'),('phone','Nomor telepon (opsional)'),('email','Email (opsional)'),('tax_id','NPWP / Tax ID (opsional)')],['name']) }}
 <p class="muted">Data kontak ini dipakai pada invoice ini.</p>
