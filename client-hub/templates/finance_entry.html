@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Kilas Finance · Mulai{% endblock %}
+{% block content %}
+<style>
+body.customer-ui{background:#0b0d10;color:#f5f6f8}
+body.customer-ui>.topbar,body.customer-ui>.customer-global-shell,body.customer-ui>.customer-global-bottom,body.customer-ui>footer{display:none!important}
+body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!important}
+.finance-entry-shell{
+  --fe-bg:#0b0d10;--fe-panel:#15191f;--fe-border:#30363f;--fe-muted:#9da4ae;--fe-orange:#ff7a1a;--fe-green:#38d58a;
+  min-height:100svh;box-sizing:border-box;padding:20px 16px 30px;background:
+    radial-gradient(520px 330px at 90% 0%,rgba(255,122,26,.11),transparent 70%),
+    radial-gradient(400px 300px at 0% 100%,rgba(255,122,26,.05),transparent 75%),
+    var(--fe-bg)
+}
+.finance-entry-inner{width:min(100%,620px);margin:0 auto}
+.finance-entry-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+.finance-entry-brand{display:flex;align-items:center;gap:11px;min-width:0}
+.finance-entry-logo{width:48px;height:48px;border-radius:14px;display:block;box-shadow:0 10px 28px rgba(255,122,26,.12)}
+.finance-entry-brand strong{display:block;font-size:23px;line-height:1;letter-spacing:-.035em}
+.finance-entry-brand strong span{color:var(--fe-orange)}
+.finance-entry-brand small{display:block;margin-top:4px;color:#9ca3ad;font-size:12px}
+.finance-entry-back{
+  flex:0 0 auto;min-height:36px;padding:7px 10px;border:1px solid #3a414a;border-radius:10px;
+  display:inline-flex;align-items:center;gap:6px;color:#d3d7dc;background:#11151a;text-decoration:none;font-size:11px;font-weight:850
+}
+.finance-entry-back:hover{color:#fff;text-decoration:none;border-color:#59616c}
+.finance-entry-back svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2}
+.finance-entry-hero{margin:0 2px 20px}
+.finance-entry-kicker{display:inline-flex;align-items:center;gap:7px;color:var(--fe-orange);font-size:10px;font-weight:900;letter-spacing:.09em;text-transform:uppercase}
+.finance-entry-kicker-dot{width:7px;height:7px;border-radius:50%;background:var(--fe-orange);box-shadow:0 0 0 4px rgba(255,122,26,.09)}
+.finance-entry-hero h1{margin:8px 0 9px;font-size:clamp(30px,7vw,39px);line-height:1.04;letter-spacing:-.05em}
+.finance-entry-hero p{margin:0;color:#aeb4bd;font-size:14px;line-height:1.55}
+.finance-entry-card{
+  border:1px solid var(--fe-border);border-radius:22px;padding:20px;background:
+  radial-gradient(220px 150px at 95% 0%,rgba(255,122,26,.10),transparent 72%),
+  linear-gradient(155deg,#181d24,#11151a);box-shadow:0 22px 60px rgba(0,0,0,.22)
+}
+.finance-entry-card.accent{border-color:rgba(255,122,26,.62)}
+.finance-entry-icon{
+  width:52px;height:52px;border-radius:15px;display:grid;place-items:center;margin-bottom:15px;
+  background:rgba(255,122,26,.11);border:1px solid rgba(255,122,26,.16);color:var(--fe-orange)
+}
+.finance-entry-icon svg{width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.finance-entry-card h2{margin:0 0 8px;font-size:24px;letter-spacing:-.04em}
+.finance-entry-copy{margin:0;color:#aeb4bd;font-size:13px;line-height:1.55}
+.finance-entry-trial{
+  display:flex;align-items:flex-end;gap:8px;margin:20px 0 17px;padding:15px;border:1px solid rgba(255,122,26,.22);
+  border-radius:15px;background:rgba(255,122,26,.055)
+}
+.finance-entry-trial strong{font-size:36px;line-height:.95;letter-spacing:-.045em;color:#fff}
+.finance-entry-trial span{padding-bottom:2px;color:#b4bac2;font-size:12px;font-weight:750}
+.finance-entry-list{display:grid;gap:9px;margin:0 0 20px;padding:0;list-style:none}
+.finance-entry-list li{display:flex;align-items:flex-start;gap:9px;color:#c8cdd3;font-size:12.5px;line-height:1.4}
+.finance-entry-check{width:18px;height:18px;flex:0 0 18px;border-radius:50%;display:grid;place-items:center;background:rgba(255,122,26,.12);color:var(--fe-orange);font-size:10px;font-weight:900}
+.finance-entry-btn{
+  width:100%;min-height:52px!important;border-radius:14px!important;display:flex!important;align-items:center;justify-content:center;gap:9px;
+  background:linear-gradient(180deg,#ff8229,#ff7415)!important;color:#17110d!important;font-size:15px!important;font-weight:900!important;
+  box-shadow:0 11px 26px rgba(255,122,26,.19)
+}
+.finance-entry-btn.secondary{background:#12161b!important;color:#f0f2f4!important;border-color:#3b424b!important;box-shadow:none!important}
+.finance-entry-note{margin:11px 0 0;text-align:center;color:#7f8791;font-size:10.5px;line-height:1.45}
+
+.finance-business-form label{margin:0 0 8px;color:#f1f3f5;font-size:13px;font-weight:850}
+.finance-business-form input{
+  min-height:54px;border-radius:14px!important;background:#0e1217!important;border:1px solid #3a414b!important;
+  color:#fff!important;font-size:15px;padding:0 15px!important
+}
+.finance-business-form input:focus{border-color:rgba(255,122,26,.78)!important;box-shadow:0 0 0 3px rgba(255,122,26,.09)}
+.finance-business-form .finance-entry-btn{margin-top:16px}
+.finance-entry-mini-note{margin:12px 0 0;color:#89919b;font-size:11px;line-height:1.5}
+
+.finance-existing-list{display:grid;gap:11px}
+.finance-existing-card{border:1px solid var(--fe-border);border-radius:18px;padding:16px;background:linear-gradient(160deg,#171b20,#11151a)}
+.finance-existing-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.finance-existing-main{min-width:0}
+.finance-existing-main h2{margin:0;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.finance-existing-main p{margin:4px 0 0;color:#929aa4;font-size:11px}
+.finance-status{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;font-size:9.5px;font-weight:900;white-space:nowrap;background:#252a31;color:#bcc2c9}
+.finance-status::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.finance-status.active{background:rgba(56,213,138,.12);color:var(--fe-green)}
+.finance-status.expired{background:rgba(242,109,109,.10);color:#f26d6d}
+.finance-expiry-box{padding:13px 14px;border:1px solid #2f363e;border-radius:14px;background:#101419;margin-bottom:13px}
+.finance-expiry-label{display:block;color:#858e99;font-size:10px;font-weight:750;margin-bottom:5px}
+.finance-expiry-value{display:block;color:#f4f5f6;font-size:15px;font-weight:900;line-height:1.25}
+.finance-expiry-remaining{display:block;color:#aab0b8;font-size:11px;margin-top:4px}
+.finance-existing-card .finance-entry-btn{min-height:47px!important;font-size:13px!important}
+.finance-existing-card form{margin:0}
+
+@media(max-width:520px){
+  .finance-entry-shell{padding:18px 14px 24px}
+  .finance-entry-logo{width:45px;height:45px}.finance-entry-brand strong{font-size:22px}.finance-entry-brand small{font-size:11.5px}
+  .finance-entry-back{padding:7px 9px;font-size:10.5px}
+  .finance-entry-hero h1{font-size:30px}.finance-entry-hero p{font-size:13px}
+  .finance-entry-card{padding:18px;border-radius:20px}.finance-entry-card h2{font-size:22px}
+  .finance-entry-trial strong{font-size:33px}
+}
+</style>
+
+<div class="finance-entry-shell">
+  <div class="finance-entry-inner">
+    <div class="finance-entry-top">
+      <div class="finance-entry-brand">
+        <img class="finance-entry-logo" src="{{ url_for('static', filename='kilas-logo-login.jpg') }}" alt="Kilas Works">
+        <div><strong>Kilas<span>Works</span></strong><small>Kilas Finance</small></div>
+      </div>
+      <a class="finance-entry-back" href="{{ url_for('products.product_start') }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+        <span>Pilih Produk</span>
+      </a>
+    </div>
+
+    {% if businesses %}
+      <header class="finance-entry-hero">
+        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
+        <h1>Finance kamu</h1>
+        <p>Lihat masa aktif trial atau langganan sebelum masuk ke Finance.</p>
+      </header>
+
+      <div class="finance-existing-list">
+        {% for b in businesses %}
+          {% set fs = b.finance_state %}
+          <article class="finance-existing-card">
+            <div class="finance-existing-head">
+              <div class="finance-existing-main">
+                <h2>{{ b.business_name }}</h2>
+                <p>Kilas Finance</p>
+              </div>
+              <span class="finance-status {{ 'active' if fs.active else ('expired' if fs.status=='EXPIRED' else '') }}">
+                {{ 'Trial aktif' if fs.status=='TRIAL_ACTIVE' else ('Langganan aktif' if fs.status=='PAID_ACTIVE' else ('Masa aktif habis' if fs.status=='EXPIRED' else 'Belum aktif')) }}
+              </span>
+            </div>
+
+            <div class="finance-expiry-box">
+              {% if fs.status=='TRIAL_ACTIVE' %}
+                <span class="finance-expiry-label">Free trial aktif sampai</span>
+                <strong class="finance-expiry-value">{{ fs.until_local }}</strong>
+                {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} hari tersisa</span>{% endif %}
+              {% elif fs.status=='PAID_ACTIVE' %}
+                <span class="finance-expiry-label">Langganan aktif sampai</span>
+                <strong class="finance-expiry-value">{{ fs.until_local }}</strong>
+                {% if b.remaining_days is not none %}<span class="finance-expiry-remaining">{{ b.remaining_days }} hari tersisa</span>{% endif %}
+              {% elif fs.status=='EXPIRED' %}
+                <span class="finance-expiry-label">Masa aktif terakhir</span>
+                <strong class="finance-expiry-value">{{ fs.until_local or 'Sudah berakhir' }}</strong>
+              {% else %}
+                <span class="finance-expiry-label">Status Finance</span>
+                <strong class="finance-expiry-value">Belum diaktifkan</strong>
+              {% endif %}
+            </div>
+
+            <form method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="open">
+              <input type="hidden" name="business_id" value="{{ b.id }}">
+              <button class="btn finance-entry-btn" type="submit">
+                {{ 'Buka Finance' if fs.active else 'Lihat Trial & Langganan' }} <span aria-hidden="true">→</span>
+              </button>
+            </form>
+          </article>
+        {% endfor %}
+      </div>
+
+    {% elif show_business_form %}
+      <header class="finance-entry-hero">
+        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Langkah berikutnya</span>
+        <h1>Buat bisnis Finance</h1>
+        <p>Kasih nama bisnis yang akan memakai Kilas Finance. Free trial dimulai setelah bisnis ini dibuat.</p>
+      </header>
+
+      <section class="finance-entry-card accent">
+        <div class="finance-entry-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 10h16"/><path d="M5 10v10h14V10"/><path d="M3 10 5 4h14l2 6"/><path d="M8 20v-6h4v6"/></svg>
+        </div>
+        <h2>Nama bisnis</h2>
+        <p class="finance-entry-copy">Nama ini akan menjadi ruang Finance utama kamu. Cabang dan detail lainnya bisa ditambahkan setelah masuk.</p>
+
+        <form method="post" class="finance-business-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="create_trial">
+          <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
+          <label for="finance-business-name">Nama bisnis</label>
+          <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
+          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Mulai Free Trial <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="finance-entry-mini-note">Tidak ada penagihan otomatis saat trial dimulai.</p>
+      </section>
+
+    {% else %}
+      <header class="finance-entry-hero">
+        <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
+        <h1>Coba gratis {{ trial_days }} hari</h1>
+        <p>Mulai kelola keuangan bisnis dengan fitur lengkap Kilas Finance. Kamu baru diminta membuat bisnis setelah menekan tombol mulai.</p>
+      </header>
+
+      <section class="finance-entry-card accent">
+        <div class="finance-entry-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 20v-6M10 20V9M15 20V4M20 20v-9"/></svg>
+        </div>
+        <h2>Free Trial Kilas Finance</h2>
+        <p class="finance-entry-copy">Gunakan fitur utama Finance tanpa biaya selama masa trial.</p>
+
+        <div class="finance-entry-trial">
+          <strong>{{ trial_days }} Hari</strong>
+          <span>gratis</span>
+        </div>
+
+        <ul class="finance-entry-list">
+          <li><span class="finance-entry-check">✓</span><span>Pemasukan, pengeluaran, akun &amp; cabang</span></li>
+          <li><span class="finance-entry-check">✓</span><span>Invoice, piutang &amp; recurring</span></li>
+          <li><span class="finance-entry-check">✓</span><span>Anggaran, arus kas &amp; laporan</span></li>
+          <li><span class="finance-entry-check">✓</span><span>AI Assistant Finance</span></li>
+        </ul>
+
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="begin_trial">
+          <button class="btn finance-entry-btn" type="submit">Mulai Free Trial {{ trial_days }} Hari <span aria-hidden="true">→</span></button>
+        </form>
+        <p class="finance-entry-note">Trial belum dimulai sampai kamu membuat bisnis di langkah berikutnya.</p>
+      </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
