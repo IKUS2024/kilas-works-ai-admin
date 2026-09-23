@@ -128,7 +128,7 @@ def extract(raw, mime, pdf_text, category_names, business_id=None):
 
 
 def analyze(business_id, user_id, filename, raw):
-    """No Finance writes, usage logging or persistent upload storage in this path."""
+    """No Finance writes or persistent upload storage; provider usage is metered separately."""
     finance._scope(business_id, user_id)
     __import__("finance_entitlements").require_ai(business_id,user_id)
     branches.token_branch(business_id)
