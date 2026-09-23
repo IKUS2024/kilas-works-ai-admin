@@ -1,19 +1,52 @@
 'use strict';
 
-// The same ledger field stores the counterparty on both sides of cash flow,
-// but the customer-facing meaning is different: income has a source/customer,
-// expense has a recipient/vendor.
+// Counterparty master-data connection.
+// EXPENSE -> Penerima/Vendor master. Typing a new name is auto-added by the server.
+// INCOME -> Customer master used by Invoice/Piutang. Exact customer names also set customer_id.
 for (const form of document.querySelectorAll('form')) {
   const direction=form.querySelector('[name="direction"]');
   const input=form.querySelector('[data-counterparty-input]');
   const label=form.querySelector('[data-counterparty-label]');
+  const manage=form.querySelector('[data-counterparty-manage]');
+  const customerSelect=form.querySelector('[data-customer-select]');
+  const customerDetail=form.querySelector('[data-customer-detail]');
   if(!direction||!input||!label)continue;
+
+  const matchCustomer=()=>{
+    if(direction.value!=='INCOME'||!customerSelect)return;
+    const value=String(input.value||'').trim().toLocaleLowerCase();
+    const matches=[...document.querySelectorAll('#finance-source-options option')]
+      .filter(option=>String(option.value||'').trim().toLocaleLowerCase()===value);
+    customerSelect.value=matches.length===1?String(matches[0].dataset.customerId||''):'';
+  };
+
   const syncCounterparty=()=>{
     const income=direction.value==='INCOME';
     label.textContent=income?'Sumber / Customer':'Penerima / Vendor';
     input.placeholder=income?'Contoh: Wilson atau Client A':'Contoh: PLN atau Vendor A';
     input.setAttribute('list',income?'finance-source-options':'finance-payee-options');
+
+    if(manage){
+      manage.href=income?manage.dataset.customerUrl:manage.dataset.payeeUrl;
+      manage.textContent=income?'＋ Tambah / kelola Customer':'＋ Tambah / kelola Penerima';
+    }
+    if(customerDetail){
+      customerDetail.hidden=!income;
+      if(customerDetail.style)customerDetail.style.display=income?'':'none';
+    }
+    if(!income&&customerSelect)customerSelect.value='';
+    if(income)matchCustomer();
   };
+
+  input.addEventListener('input',matchCustomer);
+  input.addEventListener('change',matchCustomer);
+  if(customerSelect){
+    customerSelect.addEventListener('change',()=>{
+      if(direction.value!=='INCOME'||!customerSelect.value)return;
+      const selected=customerSelect.selectedOptions[0];
+      if(selected)input.value=String(selected.textContent||'').trim();
+    });
+  }
   direction.addEventListener('change',syncCounterparty);
   syncCounterparty();
 }
