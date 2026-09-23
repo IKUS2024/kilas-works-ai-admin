@@ -53,7 +53,7 @@ def plan(b,u,message,previous=None):
     resource=None
     for name,pattern in (
         ('reminder',r'reminder|pengingat'),('receivables',r'piutang|belum (bayar|lunas)|overdue|aging|outstanding|invoice telat|sisa invoice'),
-        ('balances',r'\bsaldo\b'),('recurring',r'\brutin\b'),('exchanges',r'\bfx\b|penukaran|konversi mata uang'),
+        ('balances',r'\bsaldo\b'),('recurring',r'\b(?:tagihan|rutin)\b'),('exchanges',r'\bfx\b|penukaran|konversi mata uang'),
         ('transactions',r'(?:lihat|daftar|tampilkan|detail|riwayat)\s+transaksi|transaksi\s+#?\d+'),
         ('invoices',r'\binvoice\b'),('cashflow',r'pemasukan|pendapatan|pengeluaran|arus kas|laporan|transaksi|paling banyak|terbesar')):
         if re.search(pattern,low):resource=name;break
