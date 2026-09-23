@@ -206,7 +206,7 @@ def _structure_candidates(model, item, observed, narrative):
         },
         json={
             "model": model,
-            "max_tokens": 900,
+            "max_tokens": 2200,
             "temperature": 0,
             "system": _STRUCTURE_SYSTEM,
             "messages": [{"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
@@ -306,7 +306,7 @@ def search_request(item):
             },
             json={
                 "model": model,
-                "max_tokens": 1800,
+                "max_tokens": 1000,
                 "temperature": 0,
                 "system": _SYSTEM,
                 "messages": [{"role": "user", "content": _request_prompt(item)}],
