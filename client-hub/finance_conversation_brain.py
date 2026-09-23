@@ -59,6 +59,7 @@ TASK=('Understand this Finance conversation before extracting fields. customer c
       'use continue_query or customer_reference with the literal pronoun. '
       'For recurring creation, name is the literal bill label (internet in biaya internet); do not omit name when it is given. '
       'For recurring schedules like tiap tanggal 10, cadence MUST copy the full literal phrase tiap tanggal 10, and date copies tanggal 10. Never shorten cadence to tiap. '
+      'create_subcategory adds a new child category under an existing parent category. Use name for the new child and parent_category for the existing parent. '
       'edit_recurring edits an existing recurring rule, including a short correction after creating it. '
       'edit_invoice edits an existing invoice; amount is unit price, quantity and item_description refer to one item. '
       'For multi-item invoices ask which item; item_number is the literal row number the user selects. '
