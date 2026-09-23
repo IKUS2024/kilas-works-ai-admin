@@ -51,7 +51,7 @@
               <summary>Detail usage</summary>
               <div class="admin-collapsible-body">
                 <p class="admin-note">Input {{ row.input_tokens }} · Output {{ row.output_tokens }} · Cache read {{ row.cache_read_input_tokens }} · Cache write {{ row.cache_creation_input_tokens }} · Cache hit {{ '%.1f'|format(row.cache_hit_ratio*100) }}%</p>
-                <p class="admin-note">Haiku {{ row.haiku_calls }} · Sonnet {{ row.sonnet_calls }}</p>
+                <p class="admin-note">Haiku {{ row.haiku_calls }} · Sonnet {{ row.sonnet_calls }} · Finance AI {{ row.finance_calls }} panggilan{% if row.finance_vision_calls %} · Vision/dokumen {{ row.finance_vision_calls }}{% endif %}</p>
                 <p class="admin-note">USD {{ '%.6f'|format(row.cost_usd) if row.cost_usd is not none else 'unknown' }} · USD/respons {{ '%.6f'|format(row.cost_per_reply) if row.cost_per_reply is not none else 'unknown' }}</p>
                 <p class="admin-note">Pendapatan referensi IDR {{ row.reference_revenue_idr if row.reference_revenue_idr is not none else 'N/A' }} · Kontribusi referensi {{ '%.0f'|format(row.display_contribution_idr) if row.display_contribution_idr is not none else 'Tidak tersedia' }}</p>
                 {% for warning in row.warnings %}<p role="status">{{ warning }}</p>{% endfor %}
