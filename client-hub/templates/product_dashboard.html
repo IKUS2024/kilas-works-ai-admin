@@ -69,8 +69,8 @@ body.customer-ui>footer{display:none}
 .kh-business-list{display:grid;gap:8px}
 .kh-business-card{position:relative;border:1px solid var(--kh-border);border-radius:14px;background:#191d22;padding:10px}
 .kh-business-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:9px;align-items:center}
-.kh-business-avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#65442f,#2d2622);color:#fff;font-size:17px;border:1px solid #5a4030}
-.kh-business-avatar.store{background:linear-gradient(145deg,#6d3825,#2c2522)}
+.kh-business-avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#4b3124,#241f1c);color:#ff9a52;border:1px solid #5a4030}
+.kh-business-avatar svg{width:20px;height:20px;stroke-width:1.9}
 .kh-business-info{min-width:0}.kh-business-name{font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kh-business-meta{margin-top:3px;color:var(--kh-muted);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kh-status{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;background:#24282e;color:#c8cbd0;font-size:9px;font-weight:850;white-space:nowrap}
@@ -222,7 +222,15 @@ body.customer-ui>footer{display:none}
       {% set finance_label = {'NOT_ACTIVATED':'Data lama','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis'}.get(finance_status,'Finance') %}
       <article class="kh-business-card">
         <div class="kh-business-top">
-          <div class="kh-business-avatar {{ 'store' if loop.index is even else '' }}" aria-hidden="true">{{ '▥' if loop.index is even else '☕' }}</div>
+          <div class="kh-business-avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M4 10h16"/>
+              <path d="M5 10V20h14V10"/>
+              <path d="M3 10 5 4h14l2 6"/>
+              <path d="M8 20v-6h4v6"/>
+              <path d="M15 14h2"/>
+            </svg>
+          </div>
           <div class="kh-business-info">
             <div class="kh-business-name">{{ b.business_name }}</div>
             <div class="kh-business-meta">{% if fs and fs.until_local %}Aktif s/d {{ fs.until_local }}{% elif b.finance_has_data and finance_status=='NOT_ACTIVATED' %}Data Finance lama tersimpan{% else %}Kilas Finance{% endif %}</div>
