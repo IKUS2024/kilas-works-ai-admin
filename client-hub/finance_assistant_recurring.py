@@ -12,8 +12,8 @@ import finance_entitlements as entitlements
 import finance_fx
 
 TTL = 600
-REQUIRED_FIELDS = {'name', 'amount_text', 'currency', 'cadence', 'next_due_on', 'end_on', 'category_id'}
-OPTIONAL_FIELDS = {'account_id', 'project_id', 'counterparty_name', 'description'}
+REQUIRED_FIELDS = {'name', 'amount_text', 'cadence', 'next_due_on', 'end_on', 'category_id'}
+OPTIONAL_FIELDS = {'currency', 'account_id', 'project_id', 'counterparty_name', 'description'}
 FIELDS = REQUIRED_FIELDS | OPTIONAL_FIELDS
 EVENT = 'FINANCE_ASSISTANT_RECURRING_CONFIRMED'
 
@@ -40,6 +40,7 @@ def normalize_fields(fields):
             or any(key not in FIELDS for key in fields)):
         raise ValueError('invalid_fields')
     result=dict(fields)
+    result.setdefault('currency',None)
     result.setdefault('account_id',None)
     result.setdefault('project_id',None)
     result.setdefault('counterparty_name',None)
@@ -64,16 +65,21 @@ def validate(business_id, user_id, fields):
         if end in ('',None):end=None
         if end is not None:end=finance._period(start,end)[1]
 
-    currency=finance._currency(fields['currency'])
-    accounts=[
+    all_accounts=[
         a for a in finance.list_accounts(business_id,actor_user_id=user_id)
-        if a['is_active'] and a['currency']==currency
+        if a['is_active']
     ]
-    account=None
+    requested_account=None
     if fields.get('account_id') not in (None,''):
         account_id=finance._id(int(fields['account_id']) if isinstance(fields['account_id'],str) else fields['account_id'])
-        account=next((a for a in accounts if a['id']==account_id),None)
-    elif accounts:
+        requested_account=next((a for a in all_accounts if a['id']==account_id),None)
+        if not requested_account:raise ValueError('reference_unavailable')
+    currency=finance._currency(fields.get('currency') or (requested_account['currency'] if requested_account else 'IDR'))
+    accounts=[a for a in all_accounts if a['currency']==currency]
+    account=requested_account if requested_account and requested_account['currency']==currency else None
+    if fields.get('account_id') not in (None,'') and account is None:
+        raise ValueError('reference_unavailable')
+    if account is None and accounts:
         # Tagihan is a commitment, not a cash movement. Keep one compatible account only
         # as an internal schema placeholder; the real account is selected when marking paid.
         account=accounts[0]
