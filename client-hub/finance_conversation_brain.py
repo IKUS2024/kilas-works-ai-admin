@@ -146,6 +146,13 @@ def classify(b,u,message,previous,context=None,current=None):
     normalized_direct=re.sub(r'\s+',' ',normalized_direct)
     if re.fullmatch(r'(?:(?:tolong|coba)\s+)?(?:tambah|buat|catat)\s+tagihan(?:\s+baru)?',normalized_direct):
         return {'intent':'recurring','slots':{}}
+    # In this product, "Tagihan" names the bills module. A bare/read request for
+    # tagihan must therefore read Tagihan, not customer receivables/invoices.
+    # Invoice/piutang remain available when the user explicitly says so.
+    if (re.search(r'\btagihan\b',normalized_direct)
+            and not re.search(r'\b(invoice|piutang|customer|pelanggan|belum\s+(?:bayar|lunas)|outstanding|aging|overdue)\b',normalized_direct)
+            and not re.search(r'\b(?:tambah|buat|catat|ubah|edit|hapus|bayar|lunasi|lunas)\b',normalized_direct)):
+        return {'intent':'recurring_list','slots':{}}
     if not safety.allow_attempt(u,b,'ai'):return None
     try:
         slots=SLOTS
