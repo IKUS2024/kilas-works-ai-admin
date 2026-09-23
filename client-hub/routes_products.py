@@ -134,8 +134,18 @@ def product_start():
             session.pop('product_intent',None)
             session.pop('active_product',None)
             return redirect(url_for('projects.service_catalog_page'),code=303)
+        if choice=='order':
+            session['active_product']='order'
+            session.pop('product_intent',None)
+            return redirect(url_for('products.order_entry'),code=303)
         abort(400)
     return render_template('product_start.html',user=user)
+
+
+@products_bp.route('/products/order')
+@security.login_required
+def order_entry():
+    return render_template('order_entry.html',user=security.current_user())
 
 
 @products_bp.route('/products/finance',methods=['GET','POST'])
