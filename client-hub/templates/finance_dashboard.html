@@ -618,10 +618,21 @@ button.finance-workspace-segment:hover,button.finance-workspace-segment:focus{co
 </div>
 <label data-other-field hidden>Keterangan lainnya<input name="other_description" placeholder="Contoh: Servis mesin kopi" maxlength="1000"></label>
 <label data-counterparty-field><span data-counterparty-label>{{ 'Sumber / Customer' if direction == 'INCOME' else 'Penerima / Vendor' }}</span><input name="counterparty_name" maxlength="160" data-counterparty-input list="{{ 'finance-source-options' if direction == 'INCOME' else 'finance-payee-options' }}" placeholder="{{ 'Contoh: Wilson atau Client A' if direction == 'INCOME' else 'Contoh: PLN atau Vendor A' }}"></label>
-<datalist id="finance-source-options">{% for c in customers if c.is_active %}<option value="{{ c.name }}">{% endfor %}</datalist>
+<div class="finance-counterparty-tools">
+  <a class="finance-category-add-toggle" data-counterparty-manage
+     data-customer-url="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') }}"
+     data-payee-url="{{ url_for('finance.payees',business_id=business.id,branch_id=g.finance_branch_id) }}"
+     href="{{ url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='customers') if direction == 'INCOME' else url_for('finance.payees',business_id=business.id,branch_id=g.finance_branch_id) }}">
+    ＋ Tambah / kelola {{ 'Customer' if direction == 'INCOME' else 'Penerima' }}
+  </a>
+</div>
+<datalist id="finance-source-options">{% for c in customers if c.is_active %}<option value="{{ c.name }}" data-customer-id="{{ c.id }}">{% endfor %}</datalist>
 <datalist id="finance-payee-options">{% for name in payee_names %}<option value="{{ name }}">{% endfor %}</datalist>
 <label for="transaction-note">Catatan</label><textarea id="transaction-note" name="description" maxlength="4000"></textarea>
-<details><summary>Detail tambahan (opsional)</summary><label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label><label>Pelanggan<select name="customer_id"><option value="">Tanpa pelanggan</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label></details>
+<details><summary>Detail tambahan (opsional)</summary>
+  <label>Proyek<select name="project_id"><option value="">Tanpa proyek</option>{% for p in projects %}<option value="{{ p.id }}">{{ p.title }}</option>{% endfor %}</select></label>
+  <label data-customer-detail>Customer terhubung<select name="customer_id" data-customer-select><option value="">Tanpa customer</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+</details>
 <button class="btn">Simpan Transaksi</button>
 </form></div></dialog>
 
