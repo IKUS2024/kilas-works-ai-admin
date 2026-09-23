@@ -1734,7 +1734,9 @@ INVOICE_LABELS = {'DRAFT':'Draft','ISSUED':'Belum dibayar','PARTIALLY_PAID':'Dib
 def receivables(business_id, user, business):
     actor = {'actor_user_id': user['id']}
     section = request.args.get('section', 'summary')
-    if section not in ('summary', 'customers', 'add_customer', 'invoices'):
+    if section == 'add_customer':
+        section = 'customers'
+    if section not in ('summary', 'customers', 'invoices'):
         section = 'summary'
 
     active_customers = finance.list_customers(business_id, **actor)
@@ -1811,9 +1813,13 @@ def create_customer(business_id, user, business):
             return jsonify(id=row['id'], name=row['name'], phone=row['phone'] or '', email=row['email'] or '')
         except finance.FinanceError as error:
             return jsonify(error=ERRORS.get(str(error), 'Customer belum valid.')), 400
+    return_section = (request.form.get('return_section') or 'summary').strip()
+    if return_section not in ('summary','customers'):
+        return_section = 'summary'
     return mutate(business_id, lambda: finance.create_customer(business_id,request.form.get('name'),
         phone=request.form.get('phone'), email=request.form.get('email'), notes=request.form.get('notes'),
-        actor_user_id=user['id']), 'Pelanggan ditambahkan.', url_for('finance.receivables',business_id=business_id,branch_id=g.finance_branch_id))
+        actor_user_id=user['id']), 'Pelanggan ditambahkan.', url_for(
+            'finance.receivables',business_id=business_id,branch_id=g.finance_branch_id,section=return_section))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/customers/<int:customer_id>/edit', methods=['POST'])
