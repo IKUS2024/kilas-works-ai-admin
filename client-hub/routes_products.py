@@ -145,6 +145,8 @@ def finance_entry():
     import math
     for business in businesses:
         state=entitlement.state(business['id'])
+        if entitlement.unlimited_trial_mode() and state['status']=='NOT_ACTIVATED':
+            state=entitlement.start_trial(business['id'],user['id'])
         remaining_days=None
         if state.get('active') and state.get('until'):
             seconds=(entitlement.parse(state['until'])-entitlement.now()).total_seconds()
@@ -156,7 +158,15 @@ def finance_entry():
         if action=='begin_trial':
             if businesses:
                 return redirect(url_for('products.finance_entry'),code=303)
-            return redirect(url_for('products.finance_entry',step='business'),code=303)
+            setup_identity=request.form.get('setup_identity')
+            try:
+                business_id=product_flow.create_business(
+                    user['id'],'Bisnis Utama',setup_identity)
+            except ValueError:
+                abort(400)
+            target=_start_finance_trial_now(business_id,user)
+            session['active_product']='finance'
+            return redirect(target,code=303)
         if action=='create_trial':
             business_name=(request.form.get('business_name') or '').strip()
             try:
