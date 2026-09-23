@@ -43,12 +43,6 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 .finance-entry-icon svg{width:27px;height:27px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .finance-entry-card h2{margin:0 0 8px;font-size:24px;letter-spacing:-.04em}
 .finance-entry-copy{margin:0;color:#aeb4bd;font-size:13px;line-height:1.55}
-.finance-entry-trial{
-  display:flex;align-items:flex-end;gap:8px;margin:20px 0 17px;padding:15px;border:1px solid rgba(255,122,26,.22);
-  border-radius:15px;background:rgba(255,122,26,.055)
-}
-.finance-entry-trial strong{font-size:36px;line-height:.95;letter-spacing:-.045em;color:#fff}
-.finance-entry-trial span{padding-bottom:2px;color:#b4bac2;font-size:12px;font-weight:750}
 .finance-entry-list{display:grid;gap:9px;margin:0 0 20px;padding:0;list-style:none}
 .finance-entry-list li{display:flex;align-items:flex-start;gap:9px;color:#c8cdd3;font-size:12.5px;line-height:1.4}
 .finance-entry-check{width:18px;height:18px;flex:0 0 18px;border-radius:50%;display:grid;place-items:center;background:rgba(255,122,26,.12);color:var(--fe-orange);font-size:10px;font-weight:900}
@@ -123,7 +117,6 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
   .finance-entry-back{padding:7px 9px;font-size:10.5px}
   .finance-entry-hero h1{font-size:30px}.finance-entry-hero p{font-size:13px}
   .finance-entry-card{padding:18px;border-radius:20px}.finance-entry-card h2{font-size:22px}
-  .finance-entry-trial strong{font-size:33px}
 }
 </style>
 
@@ -144,7 +137,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Langkah berikutnya</span>
         <h1>Buat bisnis Finance</h1>
-        <p>Tambahkan nama bisnis Finance. Selama masa testing, bisnis baru juga langsung mendapat free trial tanpa batas waktu.</p>
+        <p>Tambahkan nama bisnis untuk mulai menggunakan Kilas Finance.</p>
       </header>
 
       <section class="finance-entry-card accent">
@@ -160,16 +153,16 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
           <label for="finance-business-name">Nama bisnis</label>
           <input id="finance-business-name" name="business_name" maxlength="160" autocomplete="organization" placeholder="Contoh: Kopi Maju" required autofocus>
-          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Langsung Pakai Finance <span aria-hidden="true">→</span></button>
+          <button class="btn finance-entry-btn" type="submit">Buat Bisnis &amp; Masuk Finance <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-mini-note">Free trial testing aktif tanpa batas waktu dan tanpa penagihan otomatis.</p>
+        <p class="finance-entry-mini-note">Tidak perlu kartu pembayaran untuk mulai.</p>
       </section>
 
     {% elif businesses %}
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
         <h1>Finance kamu</h1>
-        <p>Lihat masa aktif trial atau langganan sebelum masuk ke Finance.</p>
+        <p>Pilih bisnis yang mau kamu buka di Kilas Finance.</p>
       </header>
 
       <div class="finance-existing-list">
@@ -183,7 +176,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
               </div>
               <div class="finance-card-tools">
                 <span class="finance-status {{ 'active' if fs.active else ('expired' if fs.status=='EXPIRED' else '') }}">
-                  {{ 'Trial aktif' if fs.status=='TRIAL_ACTIVE' else ('Langganan aktif' if fs.status=='PAID_ACTIVE' else ('Masa aktif habis' if fs.status=='EXPIRED' else 'Belum aktif')) }}
+                  {{ 'Aktif' if fs.status in ('TRIAL_ACTIVE','PAID_ACTIVE') else ('Tidak aktif' if fs.status=='EXPIRED' else 'Belum aktif') }}
                 </span>
                 <div class="finance-menu">
                   <button class="finance-menu-toggle" type="button" aria-label="Menu bisnis {{ b.business_name }}" aria-expanded="false" data-finance-menu="finance-menu-{{ b.id }}">⋮</button>
@@ -222,7 +215,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
                 <input type="hidden" name="action" value="open">
                 <input type="hidden" name="business_id" value="{{ b.id }}">
                 <button class="btn finance-entry-btn" type="submit">
-                  {{ 'Buka Finance' if fs.active else 'Lihat Trial & Langganan' }} <span aria-hidden="true">→</span>
+                  {{ 'Buka Finance' if fs.active else 'Aktifkan Finance' }} <span aria-hidden="true">→</span>
                 </button>
               </form>
             </div>
@@ -247,36 +240,31 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
     {% else %}
       <header class="finance-entry-hero">
         <span class="finance-entry-kicker"><span class="finance-entry-kicker-dot"></span>Kilas Finance</span>
-        <h1>Free Trial Kilas Finance</h1>
-        <p>Selama masa testing, Kilas Finance bisa dipakai gratis tanpa batas waktu. Cukup aktifkan sekali lalu langsung masuk dan pakai.</p>
+        <h1>Mulai Kilas Finance</h1>
+        <p>Kelola keuangan bisnis lebih rapi dari satu tempat.</p>
       </header>
 
       <section class="finance-entry-card accent">
         <div class="finance-entry-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M5 20v-6M10 20V9M15 20V4M20 20v-9"/></svg>
         </div>
-        <h2>Free Trial Kilas Finance</h2>
-        <p class="finance-entry-copy">Gunakan fitur utama Finance tanpa biaya selama masa trial.</p>
-
-        <div class="finance-entry-trial">
-          <strong>Tanpa Batas</strong>
-          <span>selama testing</span>
-        </div>
+        <h2>Akses Gratis</h2>
+        <p class="finance-entry-copy">Mulai sekarang tanpa biaya dan tanpa kartu pembayaran.</p>
 
         <ul class="finance-entry-list">
-          <li><span class="finance-entry-check">✓</span><span>Pemasukan, pengeluaran, akun &amp; cabang</span></li>
-          <li><span class="finance-entry-check">✓</span><span>Invoice, piutang &amp; recurring</span></li>
-          <li><span class="finance-entry-check">✓</span><span>Anggaran, arus kas &amp; laporan</span></li>
-          <li><span class="finance-entry-check">✓</span><span>AI Assistant Finance</span></li>
+          <li><span class="finance-entry-check">✓</span><span>Pemasukan &amp; pengeluaran</span></li>
+          <li><span class="finance-entry-check">✓</span><span>Akun keuangan &amp; cabang</span></li>
+          <li><span class="finance-entry-check">✓</span><span>Invoice, piutang &amp; anggaran</span></li>
+          <li><span class="finance-entry-check">✓</span><span>Laporan &amp; AI Assistant Finance</span></li>
         </ul>
 
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="action" value="begin_trial">
           <input type="hidden" name="setup_identity" value="{{ setup_identity }}">
-          <button class="btn finance-entry-btn" type="submit">Aktifkan Free Trial &amp; Masuk <span aria-hidden="true">→</span></button>
+          <button class="btn finance-entry-btn" type="submit">Mulai Gratis <span aria-hidden="true">→</span></button>
         </form>
-        <p class="finance-entry-note">Untuk akun baru, Kilas membuat “Bisnis Utama” otomatis. Namanya bisa kamu edit kapan saja.</p>
+        <p class="finance-entry-note">Kamu bisa langsung mulai dan mengatur nama bisnis dari Finance.</p>
       </section>
     {% endif %}
   </div>
