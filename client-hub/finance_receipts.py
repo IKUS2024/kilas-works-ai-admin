@@ -90,7 +90,7 @@ def options(business_id, user_id):
     return accounts, categories
 
 
-def extract(raw, mime, pdf_text, category_names):
+def extract(raw, mime, pdf_text, category_names, business_id=None):
     key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
     model = os.environ.get('CLIENT_HUB_MODEL', '').strip() or 'claude-sonnet-4-6'
     if not key or len(key) > 512 or any(c.isspace() for c in key) or not re.fullmatch('[A-Za-z0-9._-]{1,128}', model):
@@ -119,7 +119,10 @@ def extract(raw, mime, pdf_text, category_names):
     if response.status_code != 200:
         raise ReceiptError('upstream_failure')
     try:
-        return validate_result(safety.json_object(safety.response_text(response.json(), 6000)), category_names)
+        body=response.json()
+        classification='vision' if any(part.get('type') in ('image','document') for part in content if isinstance(part,dict)) else 'normal'
+        safety.record_usage(model,body,business_id,classification)
+        return validate_result(safety.json_object(safety.response_text(body, 6000)), category_names)
     except (ValueError, TypeError, KeyError, AttributeError, RecursionError):
         raise ReceiptError('invalid_result') from None
 
@@ -145,15 +148,15 @@ def analyze(business_id, user_id, filename, raw):
         try:
             __import__("finance_entitlements").require_ai(business_id,user_id)
             try:
-                result = extract(raw, mime, pdf_text, names)
+                result = extract(raw, mime, pdf_text, names, business_id)
             except ReceiptError:
                 if not (mime == 'application/pdf' and pdf_text and safety.allow_attempt(user_id,business_id,'ai')):
                     raise
-                result = extract(raw, mime, None, names)
+                result = extract(raw, mime, None, names, business_id)
             else:
                 if (not result['readable'] and mime == 'application/pdf' and pdf_text
                         and safety.allow_attempt(user_id,business_id,'ai')):
-                    result = extract(raw, mime, None, names)
+                    result = extract(raw, mime, None, names, business_id)
             fallback = not result['readable'] or all(result[key] is None for key in
                 ('merchant_name', 'transaction_date', 'total_minor', 'description', 'suggested_category_name'))
             reason = 'unreadable' if fallback else 'success'
