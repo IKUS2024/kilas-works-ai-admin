@@ -71,12 +71,11 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
    </form>
   </section>
 
+  {% if catalog_products %}
   <div class="ko-section-head">
-   <div><h2>Pilihan minggu ini</h2><p>10 barang awal yang sudah dikurasi untuk Kilas Order.</p></div>
+   <div><h2>Pilihan Kilas</h2><p>Barang pilihan yang sedang tersedia.</p></div>
    <div class="ko-price-note">Harga sudah memasukkan estimasi biaya layanan dan pengiriman standar. Ketersediaan serta alamat akhir dikonfirmasi sebelum pembayaran.</div>
   </div>
-
-  {% if catalog_products %}
   <section class="ko-grid">
    {% for product in catalog_products %}
    <a class="ko-product" href="{{ url_for('products.order_catalog_product',product_code=product.product_code) }}">
@@ -94,7 +93,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
    </a>
    {% endfor %}
   </section>
-  {% else %}<div class="ko-empty">Katalog sedang diperbarui. Kamu tetap bisa minta Kilas carikan barang lewat WhatsApp.</div>{% endif %}
+  {% endif %}
  </div>
 </div>
 <script>
