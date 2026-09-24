@@ -6,6 +6,7 @@ Branch: feature/kilas-core-v2
 READ FIRST, IN ORDER:
 1. docs/KILAS_V2_MASTER.md
 2. docs/KILAS_V2_AUDIT.md
+3. docs/KILAS_V2_EXECUTION_ROADMAP.md
 
 GOAL:
 Implement ONLY Phase 1 from the audit: a small, reusable, injected Kilas Conversation Core and route the authenticated owner simulator through it behind a default-off gate.
@@ -31,6 +32,7 @@ ALLOWED NEW FILES:
 - client-hub/kilas_core/adapters/simulator.py
 - client-hub/tests/test_kilas_core_contract.py
 - client-hub/tests/test_kilas_core_simulator.py
+- docs/KILAS_V2_PHASE1_STATUS.md (checkpoint/status only)
 
 Everything else is read-only unless a genuinely blocking issue is found. If blocked by something outside this allowlist, STOP and explain rather than expanding scope.
 
@@ -128,6 +130,36 @@ Do not deploy production.
 Do not modify Render settings.
 Do not touch production DB.
 
+CHECKPOINT / RESUME PROTOCOL:
+This task must be resilient if the agent session or usage stops unexpectedly.
+
+Before any substantial edit:
+- inspect current branch and git status
+- never discard existing uncommitted work
+
+After each logical milestone (contracts, service, adapter, route wiring, tests):
+- run the smallest relevant test(s)
+- make a clean commit with a descriptive message if the milestone is valid
+- update docs/KILAS_V2_PHASE1_STATUS.md with:
+  - completed milestones
+  - current commit SHA
+  - tests run/results
+  - remaining work
+  - any blockers
+  - exact next command/action
+
+If the run must stop for quota/time/tool reasons:
+- do NOT leave ambiguous partial work
+- save a coherent checkpoint if tests for that milestone pass
+- update docs/KILAS_V2_PHASE1_STATUS.md
+- report "RESUME FROM STATUS FILE"
+- do not restart completed milestones on the next run
+
+If resuming:
+- read docs/KILAS_V2_PHASE1_STATUS.md first
+- inspect git log/diff
+- continue only remaining work
+
 OUTPUT / COMPLETION:
 - Implement the bounded Phase 1.
 - Run relevant tests.
@@ -138,4 +170,7 @@ OUTPUT / COMPLETION:
 - Confirm no production deployment occurred.
 - Before finishing, inspect git diff and ensure all changes are inside the allowlist above.
 
-If Phase 1 is successful, STOP. Do not continue to Public Web Chat / Phase 2 in the same run.
+If Phase 1 is successful:
+- mark docs/KILAS_V2_PHASE1_STATUS.md COMPLETE
+- STOP.
+Do not continue to Public Web Chat / Phase 2 in the same run.
