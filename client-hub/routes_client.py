@@ -1022,6 +1022,16 @@ def simulate_message(business_id):
     if not token:
         return jsonify({"error": "no_session"}), 400
 
+    from kilas_core.flags import enabled_for_business
+    if enabled_for_business(business_id):
+        from kilas_core.adapters.simulator import simulate_message as simulate_with_core
+        body, status = simulate_with_core(
+            business=business, session_token=token, actor_id=security.current_user()["id"],
+            payload=request.get_json(silent=True), repository=repo,
+            reply_provider=ai_onboarding.simulate_customer_reply,
+        )
+        return jsonify(body), status
+
     user_message = (request.json or {}).get("message", "").strip()
     if not user_message:
         return jsonify({"error": "empty_message"}), 400
