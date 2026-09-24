@@ -78,3 +78,11 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - Added post-message terminal failure rollback, missing WEB review fallback, disabled channel/session expiry, human-mode suppression/system audit identity. SQL authorizer permits only Core/WEB/audit writes; Finance API, legacy send and model spies remain untouched during real runner delivery/retry.
 - Phase 1–5 isolated regression PASS: Core 30, WEB routes 18/store 9, Customers 9, Jobs schema 1/store 15/routes 8, Playbooks 12/actions 9/routes 11. Every test file ran in a fresh process.
 - No PG/browser pass claimed yet. Next: dedicated loopback PG test runner and synthetic browser harness, publish QA-only workflow, inspect CI and screenshots. No production deployment or scheduling.
+
+## Milestone 7 QA preparation checkpoint
+- Milestone 6 local commit: `465b3d5`.
+- Files: new `.github/workflows/kilas-v2-phase6-qa.yml`, `client-hub/tests/test_kilas_operations_postgres.py`, `kilas_operations_browser_qa.py`; test-only changes to `public_chat_dev.py`, `playbook_qa_provider.py`; this status.
+- QA scripts compile; Phase 6 routes remain 7 PASS; `git diff --check` PASS. Runtime PostgreSQL/browser results pending, not claimed.
+- PG runner refuses non-loopback/non-disposable database; validates paired 0058 twice, tenant FKs, legacy row preservation and all shared atomic runner cases.
+- Separate loopback-only Phase 6 browser fixture exposes a CSRF/owner-protected synthetic clock, never imported by production. Existing Phase 2–5 harness modes unchanged. New QA workflow also reruns every prior SQLite/PG/mobile gate.
+- Next: publish these feature-only checkpoints and inspect Phase 6 Actions execution; fix only demonstrated Phase 6 defects, then inspect screenshots and exact baseline diff.

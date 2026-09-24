@@ -13,6 +13,6 @@ def reply(prompt, messages, **kwargs):
             {'service':'potong rambut','preferred_date':'besok','preferred_time':'14.00'},
     }
     fields = examples.get(text,{})
-    data = dict(intent='REQUEST' if fields else 'UNRELATED', fields=fields,
+    data = dict(intent='HUMAN' if text=='Saya mau bicara dengan manusia' else ('REQUEST' if fields else 'UNRELATED'), fields=fields,
                 evidence={key:text for key in fields}, corrections=['origin'] if text.startswith('Koreksi') else [], ambiguous=[])
     return json.dumps(data,ensure_ascii=False),'end_turn',None

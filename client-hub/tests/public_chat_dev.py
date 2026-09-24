@@ -62,6 +62,23 @@ if __name__ == '__main__':
         os.environ['KILAS_PLAYBOOKS_V2_ENABLED'] = 'true'
         fixture.db.execute("UPDATE business_profiles SET category='Logistics' WHERE business_id=7")
         stubs[-1] = patch.object(fixture.ai,'_call_claude',side_effect=playbook_reply)
+    if os.environ.get('KILAS_OPERATIONS_QA') == 'true':
+        if public_staging or not jobs_qa or os.environ.get('KILAS_PLAYBOOKS_QA') != 'true':
+            raise RuntimeError('Phase 6 requires disposable loopback Jobs + Playbooks harness')
+        import time
+        from kilas_core import operation_schema, automations
+        operation_schema.apply_schema()
+        os.environ['KILAS_OPERATIONS_V2_ENABLED']='true'
+        qa_clock={'offset':0}
+        stubs.append(patch.object(automations,'clock',side_effect=lambda now=None:
+            int(time.time())+qa_clock['offset'] if now is None else now))
+
+        @app.post('/dev/operations/advance')
+        def dev_advance():
+            # Test-only synthetic clock; normal app CSRF still applies.
+            if session.get('user_id') != 1 or session.get('active_product') != 'brain': abort(404)
+            qa_clock['offset']+=3601
+            return {'offset':qa_clock['offset']}
     for stub in stubs: stub.start()
 
     @app.get('/dev/owner/<int:bid>')
