@@ -555,12 +555,13 @@ def dashboard(business_id, user, business):
                    'Juli','Agustus','September','Oktober','November','Desember')
     label_for = lambda value: month_names[int(value[5:7])-1] + ' ' + value[:4]
     actor = {'actor_user_id': user['id']}
-    try:
-        finance.sync_business_category_catalog(
-            business_id, actor_user_id=user['id'])
-    except finance.FinanceError as catalog_error:
-        if str(catalog_error) != 'finance_read_only':
-            raise
+    if g.finance_branch_id is not None:
+        try:
+            finance.sync_business_category_catalog(
+                business_id, actor_user_id=user['id'])
+        except finance.FinanceError as catalog_error:
+            if str(catalog_error) != 'finance_read_only':
+                raise
     try:
         if direction not in (None, 'INCOME', 'EXPENSE'):
             raise ValueError('direction')
@@ -1179,8 +1180,8 @@ def budget(business_id, user, business):
                     actor_user_id=user['id'])
                 if not any(category['id'] == category_id for category in categories):
                     raise finance.FinanceError('category_unavailable')
-                branches.update_record(
-                    business_id, 'category', category_id,
+                finance.update_category_workspace_setting(
+                    business_id, category_id,
                     name=request.form.get('name'),
                     actor_user_id=user['id'])
 
@@ -1198,8 +1199,8 @@ def budget(business_id, user, business):
                     actor_user_id=user['id'])
                 if not any(category['id'] == category_id for category in categories):
                     raise finance.FinanceError('category_unavailable')
-                branches.update_record(
-                    business_id, 'category', category_id, deactivate=True,
+                finance.update_category_workspace_setting(
+                    business_id, category_id, deactivate=True,
                     actor_user_id=user['id'])
 
             return mutate(

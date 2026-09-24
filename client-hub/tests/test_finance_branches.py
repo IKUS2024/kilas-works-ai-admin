@@ -1,5 +1,6 @@
 """Branch/outlet contract tests. Disposable SQLite and mocked providers only."""
 import csv
+from decimal import Decimal
 import io
 import json
 import os
@@ -132,7 +133,7 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(context['summary']['total_expense_minor'], 70)
         self.assertIn('Utama', response.text)
         self.assertNotIn('Semua Cabang', response.text)
-        self.assertIn('Saldo tersedia', response.text)
+        self.assertIn('Total Keuangan Akun', response.text)
 
     def test_opening_foreign_balance_is_not_period_income_and_is_explained(self):
         with self.scope(self.ba):
@@ -151,7 +152,9 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(usd_balance['balance_minor'], 10000)
         self.assertEqual(context['balance_total'], 1000000)
         self.assertNotIn('Arus kas USD', response.text)
-        for text in ('Arus kas', 'US$100.00'):
+        with patch.object(fx, 'snapshot', return_value=rates):
+            response, _ = self.page(self.ba, period_mode='all', display_currency='USD')
+        for text in ('Total Keuangan Akun', 'US$100.00'):
             self.assertIn(text, response.text)
 
     def test_missing_fx_rate_never_returns_partial_combined_balance(self):
@@ -166,7 +169,9 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(context['estimated_balance_idr'])
         self.assertNotIn('≈', response.text)
-        self.assertIn('<span>USD</span>', response.text)
+        self.assertIn('value="USD"', response.text)
+        with patch.object(fx, 'snapshot', return_value=missing):
+            response, _ = self.page(self.ba, period_mode='all', display_currency='USD')
         self.assertIn('US$100.00', response.text)
 
     def test_dashboard_range_and_all_period_modes(self):
@@ -204,34 +209,41 @@ class BranchTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertEqual(context['selected_branch_id'], self.ba)
         self.assertIn('id="add-transaction"', page.text)
-        self.assertIn('Tanya Kilas Finance', page.text)
+        self.assertIn('AI Finance', page.text)
         self.assertNotIn('Semua Cabang', page.text)
         self.http.assert_not_called()
 
     def test_unscoped_multibranch_post_and_conflicting_selector_rejected(self):
-        self.assertEqual(self.client.post(self.url+'/accounts', data=dict(name='Wrong',account_type='CASH')).status_code, 403)
+        # Legacy unscoped URLs resolve to the default Business branch, never an aggregate.
+        self.assertEqual(self.client.post(self.url+'/accounts', data=dict(name='Default only',account_type='CASH')).status_code, 303)
+        account=next(a for a in f.list_accounts(self.b) if a['name']=='Default only')
+        self.assertEqual(account['branch_id'],self.ba)
+        self.assertEqual(self.client.post(self.url+'/accounts?branch_id=all', data=dict(name='Wrong',account_type='CASH')).status_code,403)
         self.assertEqual(self.client.post(self.url+'/accounts?branch_id='+str(self.ba), data=dict(branch_id=self.bb)).status_code, 400)
         self.assertEqual(self.client.get(self.url+'?branch_id=all&branch_id='+str(self.ba)).status_code, 400)
 
     def test_transaction_edit_revision_cancel_and_lainnya(self):
-        category = next(c for c in f.list_categories(self.b, 'EXPENSE') if c['name']=='Pengeluaran Lain')
+        # Retired catch-all categories are no longer valid entry choices.
+        with self.assertRaisesRegex(f.FinanceError,'category_retired'):
+            f.create_category(self.b,'EXPENSE','Pengeluaran Lain')
+        category = next(c for c in f.list_categories(self.b, 'EXPENSE') if c['name']=='Biaya Tak Terduga')
         fields = dict(direction='EXPENSE',amount='75',occurred_on='2026-09-17',account_id=self.a,
-                      category_id=category['id'],description='Selesai',other_description='Servis mesin kopi')
+                      category_id=category['id'],description='Servis mesin kopi\nSelesai')
         response = self.client.post(self.url+'/transactions?branch_id='+str(self.ba), data=fields)
         self.assertEqual(response.status_code, 303)
         tx = f.list_transactions(self.b)[0]
         self.assertEqual(tx['description'], 'Servis mesin kopi\nSelesai')
         edit_page = self.client.get(self.url+f'/transactions/{tx["id"]}/edit?branch_id={self.ba}')
         self.assertEqual(edit_page.status_code,200)
-        self.assertIn('value="Servis mesin kopi"',edit_page.text)
-        self.assertEqual(len(f.list_categories(self.b)), 10)
-        fields.update(amount='80',other_description='Servis ulang')
+        self.assertIn('Servis mesin kopi',edit_page.text)
+        self.assertEqual(len(f.list_categories(self.b)), 9)
+        fields.update(amount='80',description='Servis ulang')
         response = self.client.post(self.url+f'/transactions/{tx["id"]}/edit?branch_id={self.ba}', data=fields)
         self.assertEqual(response.status_code,303)
         history = db.query_all('SELECT * FROM finance_transaction_revisions')
         self.assertEqual(len(history),1)
-        self.assertEqual(json.loads(history[0]['before_json'])['amount_minor'],75)
-        self.assertEqual(json.loads(history[0]['after_json'])['amount_minor'],80)
+        self.assertEqual(json.loads(history[0]['before_json'])['amount_minor'],7500)
+        self.assertEqual(json.loads(history[0]['after_json'])['amount_minor'],8000)
         self.client.post(self.url+f'/transactions/{tx["id"]}/void?branch_id={self.ba}')
         self.assertEqual(f.get_transaction(self.b,tx['id'])['status'],'VOID')
         self.assertNotIn('Servis ulang',self.page(self.ba)[0].text)
@@ -241,13 +253,17 @@ class BranchTests(unittest.TestCase):
         with self.scope(self.ba):
             f.create_account(self.b,'Kas cadangan',actor_user_id=self.uid)
             for kind, ident, name in (('account',self.a,'Tunai'),('category',self.cat,'Penjualan kopi'),('branch',self.ba,'Karawaci')):
-                branches.update_record(self.b,kind,ident,name=name,actor_user_id=self.uid)
-            branches.update_record(self.b,'category',self.cat,deactivate=True,actor_user_id=self.uid)
+                if kind=='category': f.update_category_workspace_setting(self.b,ident,name=name,actor_user_id=self.uid)
+                else: branches.update_record(self.b,kind,ident,name=name,actor_user_id=self.uid)
+            f.update_category_workspace_setting(self.b,self.cat,deactivate=True,actor_user_id=self.uid)
+            with self.assertRaisesRegex(f.FinanceError,'account_balance_required'):
+                branches.update_record(self.b,'account',self.a,deactivate=True,actor_user_id=self.uid)
+            self.tx(self.ba,100,'EXPENSE')
             branches.update_record(self.b,'account',self.a,deactivate=True,actor_user_id=self.uid)
             branches.update_record(self.b,'branch',self.ba,deactivate=True,actor_user_id=self.uid)
         response,_=self.page(self.ba)
-        self.assertEqual(response.status_code,303)
-        self.assertIn('branch_id=',response.headers['Location'])
+        self.assertEqual(response.status_code,200)
+        self.assertIn('value="'+str(self.bb)+'" selected',response.text)
         self.assertEqual(f.get_transaction(self.b,tx)['amount_minor'],100)
         self.assertEqual(self.client.post(self.url+f'/transactions/{tx}/void?branch_id={self.ba}').status_code,403)
 
@@ -352,7 +368,7 @@ class BranchTests(unittest.TestCase):
             with self.scope(branch):
                 rows=list(csv.DictReader(io.StringIO(reports.export_csv('transactions',self.b,filters,self.uid).decode('utf-8-sig'))))
                 self.assertEqual(len(rows),n)
-                self.assertEqual(sum(int(r['nominal']) for r in rows),total)
+                self.assertEqual(sum(Decimal(r['nominal'])*100 for r in rows),total)
                 self.assertTrue(all(r['Branch'] in ('Utama','Serpong') for r in rows))
             page=self.client.get(self.url+f'/reports?branch_id={branch}&start=2026-09-01&end=2026-09-20&as_of=2026-09-20')
             self.assertEqual(page.status_code,200)
@@ -381,8 +397,8 @@ class BranchTests(unittest.TestCase):
         page=self.client.get(response.location)
         self.assertEqual(page.status_code,200)
         self.assertIn('value="02" selected',page.text)
-        self.assertIn('start=2024-02-01',page.text)
-        self.assertIn('end=2024-02-29',page.text)
+        self.assertIn('month=2024-02',page.text)
+        self.assertIn('branch_id='+str(self.bb),page.text)
         report = self.client.get(self.url+f'/reports?branch_id={self.bb}&start=2024-02-01&end=2024-02-29&as_of=2024-02-29')
         self.assertEqual(report.status_code,200)
         self.assertIn('name="start" value="2024-02-01"',report.text)
@@ -429,8 +445,8 @@ class BranchTests(unittest.TestCase):
         with self.scope(self.ba):
             branches.update_record(self.b,'branch',self.bb,deactivate=True,actor_user_id=self.uid)
         response=self.client.get(self.url+f'?branch_id={self.bb}')
-        self.assertEqual(response.status_code,303)
-        self.assertIn('branch_id='+str(self.ba),response.location)
+        self.assertEqual(response.status_code,200)
+        self.assertIn('value="'+str(self.ba)+'" selected',response.text)
 
     def test_delete_empty_branch_removes_it_instead_of_leaving_nonactive_choice(self):
         with self.scope(self.ba):
@@ -455,16 +471,16 @@ class BranchTests(unittest.TestCase):
             for direction in ('INCOME','EXPENSE'):
                 categories=f.list_categories(self.b,direction)
                 for category in categories[1:]:
-                    branches.update_record(self.b,'category',category['id'],deactivate=True,actor_user_id=self.uid)
+                    f.update_category_workspace_setting(self.b,category['id'],deactivate=True,actor_user_id=self.uid)
                 with self.assertRaisesRegex(f.FinanceError,'category_last_active'):
-                    branches.update_record(self.b,'category',categories[0]['id'],deactivate=True,actor_user_id=self.uid)
+                    f.update_category_workspace_setting(self.b,categories[0]['id'],deactivate=True,actor_user_id=self.uid)
 
     def test_last_account_for_currency_with_balance_is_protected(self):
         with self.scope(self.ba):
             usd=f.create_account(self.b,'USD Bank','BANK','USD',10000,actor_user_id=self.uid)
             other=f.create_account(self.b,'Spare IDR','BANK','IDR',0,actor_user_id=self.uid)
             self.assertTrue(other)
-            with self.assertRaisesRegex(f.FinanceError,'account_currency_required'):
+            with self.assertRaisesRegex(f.FinanceError,'account_balance_required'):
                 branches.update_record(self.b,'account',usd,deactivate=True,actor_user_id=self.uid)
 
     def test_new_finance_setup_has_working_defaults(self):
@@ -481,7 +497,7 @@ class BranchTests(unittest.TestCase):
             self.assertGreaterEqual(len(f.list_categories(empty,'EXPENSE')),1)
         page=self.client.get(url+f'?branch_id={branch["id"]}')
         self.assertEqual(page.status_code,200)
-        for value in ('data-finance-open="add-transaction-dialog"','Customer','Piutang','Biaya Rutin','Lihat laporan','Tanya Kilas Finance'):
+        for value in ('data-dashboard-open="add-transaction-dialog"','Penerima','Invoice','Tagihan','Laporan','AI Finance'):
             self.assertIn(value,page.text)
 
     def test_readding_hidden_branch_reactivates_same_record(self):
@@ -644,15 +660,17 @@ class BranchMigrationTests(unittest.TestCase):
                 rows=branches.list_branches(bid)
                 self.assertEqual(len(rows),1);self.assertEqual(rows[0]['name'],'Utama')
                 after=db.query_one('SELECT * FROM finance_transactions WHERE id=?',(tx,))
-                self.assertEqual({k:after[k] for k in before},before)
+                expected=dict(before,amount_minor=before['amount_minor']*100)
+                self.assertEqual({k:after[k] for k in before},expected)
                 self.assertEqual(after['branch_id'],rows[0]['id'])
                 for table, old_rows in legacy.items():
                     new_rows=db.query_all('SELECT * FROM '+table)
                     self.assertEqual(len(old_rows),len(new_rows))
                     for old,new in zip(old_rows,new_rows):
-                        self.assertEqual({k:new[k] for k in old},old)
+                        expected={k:(v*100 if k in ('amount_minor','opening_balance_minor') else v) for k,v in old.items()}
+                        self.assertEqual({k:new[k] for k in old},expected)
                         self.assertEqual(new['branch_id'],rows[0]['id'])
-                self.assertEqual(f.get_account_balance_report(bid,'2026-09-17')[0]['balance_minor'],173)
+                self.assertEqual(f.get_account_balance_report(bid,'2026-09-17')[0]['balance_minor'],17300)
                 branches.create_branch(bid,'Serpong',uid)
                 db.init_schema()
                 self.assertEqual(len(branches.list_branches(bid)),2)
