@@ -5,8 +5,18 @@ from playwright.sync_api import sync_playwright,expect
 BASE='http://127.0.0.1:8768'
 OUT=Path('/tmp/kilas-phase7-browser-qa');OUT.mkdir(parents=True,exist_ok=True)
 
+LAYOUT_ISSUES=[]
+
 def fits(page):
-    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),page.url
+    details=page.evaluate("""() => ({width:innerWidth,scroll:document.documentElement.scrollWidth,
+        elements:[...document.querySelectorAll('body *')].filter(e => {
+            const r=e.getBoundingClientRect();return r.width>0 && (r.right>innerWidth || r.left<0);
+        }).slice(0,30).map(e=>({tag:e.tagName,cls:e.className,id:e.id,
+            left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right,
+            width:e.getBoundingClientRect().width,overflow:getComputedStyle(e).overflowX}))})""")
+    if details['scroll']>details['width']:
+        LAYOUT_ISSUES.append(dict(url=page.url,**details))
+        (OUT/'layout-issues.json').write_text(json.dumps(LAYOUT_ISSUES,indent=2))
 
 def shot(page,name):
     fits(page);page.screenshot(path=str(OUT/name),full_page=True)
@@ -84,6 +94,7 @@ def main():
         expect(owner.get_by_text('Aksi belum selesai',exact=True)).to_be_visible()
         shot(owner,'09_expired_write_blocked.png')
         assert not errors,errors
+        assert not LAYOUT_ISSUES,json.dumps(LAYOUT_ISSUES)
         (OUT/'results.json').write_text(json.dumps(dict(passed=True,viewport='390x844',
             checks=['standalone zero bridge','Finance-only pages','explicit mapping','explicit customer',
                     'owner reviewed draft','Finance detail','authoritative partial payment','foreign tenant',

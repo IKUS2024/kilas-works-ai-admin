@@ -1,5 +1,20 @@
 # Phase 7 status — BRIDGE IMPLEMENTED / FINAL QA IN PROGRESS
 
+## Current mobile QA blocker
+
+- Runtime checkpoint `98ea4d85caad32aad1cbdabc330dc3728c782646` is committed.
+- CI `36039212956` on prior `e4579f4`: complete Finance baseline **1018 PASS**;
+  SQLite Bridge 14 PASS; PostgreSQL corrections 4 PASS and Bridge 10 PASS, including
+  real migrations, repeat installers, concurrency and rollback. No PG error remains.
+- Mobile found horizontal overflow on the existing standalone Finance dashboard at
+  390×844. This is a real sellability QA finding, not a green gate. No CSS workaround
+  or assertion relaxation has been applied. Browser certification remains BLOCKED.
+- Exact next action: diagnostic mobile run records screenshot and DOM geometry of
+  overflowing elements, continues functional flows, then fails if any overflow remains.
+  Fix the actual layout narrowly with coverage, rerun full final gates.
+- Diagnostic checkpoint files: `client-hub/tests/kilas_finance_bridge_browser_qa.py`
+  and this status. Product and accounting code unchanged in this checkpoint.
+
 ## QA refinement checkpoint
 
 - Bridge implementation checkpoint: `e4579f4cd5120d711f9a18ade22c0ac38428ba0e`.
