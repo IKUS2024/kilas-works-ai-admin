@@ -1,4 +1,4 @@
-"""Headless mobile browser QA for the disposable Public Web Chat harness.
+"""Headless mobile browser QA for the disposable Public Web Chat harness.\n\nCI synchronization marker: Phase 2 QA.
 
 Run the harness first on 127.0.0.1:8765. This script uses only synthetic fixture data.
 """
