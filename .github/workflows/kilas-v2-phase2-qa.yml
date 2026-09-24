@@ -90,6 +90,15 @@ jobs:
           python scripts/run_offline_tests.py --only test_public_chat_routes.py
           python scripts/run_offline_tests.py --only test_public_chat_store.py
 
+      - name: Existing Inbox and tenant regressions (ephemeral SQLite only)
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_inbox_unification.py
+          python scripts/run_offline_tests.py --only test_inbox_media_webhook.py
+          python scripts/run_offline_tests.py --only test_multi_tenant_runtime_safety.py
+          python scripts/run_offline_tests.py --only test_tenant_owner_media_and_isolation.py
+
       - name: Phase 2 PostgreSQL 0055 runtime validation
         env:
           PYTHONPATH: client-hub
