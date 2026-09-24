@@ -13,7 +13,7 @@
 2. Pure merge/missing-field engine: PASS (checkpoint commit records this milestone).
 3. Safe actions through existing Customer/Job services: PASS in isolated SQLite (not yet exposed to WEB).
 4. Public WEB integration: PASS in isolated SQLite; default-off.
-5. Inbox/Job context: pending.
+5. Inbox/Job context: PASS in SQLite route tests.
 6. Security/idempotency/provider failure/concurrency: pending.
 7. Disposable PostgreSQL + mobile browser QA: pending.
 8. Exact scope review + COMPLETE: pending.
@@ -31,7 +31,7 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Implement milestone 5 owner Inbox/Job context and metadata-safe manual forms, then expand security/concurrency tests (milestone 6).
+Expand security, duplicate-worker/lease/takeover concurrency tests (milestone 6). Then run disposable PostgreSQL and real Chromium mobile QA; neither Phase 5 gate is yet certified.
 
 ## Blockers
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
@@ -63,3 +63,10 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Default-off `KILAS_PLAYBOOKS_V2_ENABLED=true` also requires Customers/Jobs and existing Core/WEB tenant entitlement/channel gates. Exactly one bounded extraction provider call, no hidden retries.
 - Completion locks business then conversation; the existing claim-token/mode/version fence runs before safe action. Job writes + audit + assistant reply + event completion share one transaction; expired leases cannot write. A concurrent owner edit causes clarification, not overwrite.
 - Disabled flag retains legacy WEB provider behavior. Provider/action failures produce no Job or success reply. No schema/deployment/WhatsApp/Finance changes.
+
+## Milestone 5 checkpoint
+- Milestone 4 local commit: `22cba8e` (published SHA recorded after sync).
+- Files: `client-hub/kilas_core/jobs.py`, `client-hub/kilas_core/job_routes.py`, `client-hub/templates/_jobs_panel.html`, `client-hub/templates/job_form.html`, `client-hub/tests/test_kilas_playbook_routes.py`, this status file.
+- Phase 5 routes: 7 PASS; action tests 7 PASS; Phase 4 routes 8 PASS.
+- Owner context shows linked Job/workflow, operational facts, missing details and status alongside existing Customer and AI/Human mode. Job form exposes relevant workflow fields only; existing non-playbook forms retain their Phase 4 fields.
+- Manual edits preserve server-owned workflow metadata and recompute missing details; human-mode manual editing remains available. Forged workflow form key rejected. Templates escape facts; no raw model output/prompt is rendered.

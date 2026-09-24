@@ -13,6 +13,12 @@
   <div class="client-list">
     {% for row in linked_jobs.rows %}<a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
       <strong>{{ row.title }}</strong><span class="client-item-meta"> · {{ row.status_label }}</span>
+      {% if row.workflow_label %}<div data-playbook-context>
+        <p>{{ row.workflow_label }}</p>
+        <dl>{% for label,value in row.known_details %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+        {% if row.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ row.fields.missing_information }}</p>
+        {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
+      </div>{% endif %}
     </a>{% else %}<p class="client-note">Belum ada {{ linked_jobs.labels.singular|lower }} terkait.</p>{% endfor %}
   </div>
 </div>

@@ -11,6 +11,10 @@
   <div class="card">
     <a data-job-customer href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=customer.id) }}">Customer: {{ customer.display_name }}</a>
     {% if conversation_id %}<p><a data-job-conversation href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=conversation_id) }}">Buka percakapan WEB</a></p>{% endif %}
+    {% if workflow %}<div data-playbook-context><p>Alur: {{ workflow.label }}</p>
+      {% if job.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ job.fields.missing_information }}</p>
+      {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
+      <p class="client-note">Harga dan ketersediaan perlu konfirmasi tim.</p></div>{% endif %}
     {% if job %}<p><span class="client-status info">{{ job.status_label }}</span></p>
     <p class="client-note">Dibuat {{ job.created_at|job_time }}<br>Diperbarui {{ job.updated_at|job_time }}</p>{% endif %}
   </div>
@@ -30,7 +34,10 @@
     <details class="client-collapsible" {% if fields %}open{% endif %}><summary>Rincian tambahan</summary>
       <div class="client-form-grid client-collapsible-body">
       {% for key,label in field_labels.items() %}<div><label for="field-{{ key }}">{{ label }}</label>
-        <input id="field-{{ key }}" name="field_{{ key }}" value="{{ fields.get(key,'') }}" maxlength="1000" {% if key=='quantity' %}type="number" min="0.000001" max="1000000000" step="any"{% endif %}>
+        {% if key=='fulfillment' %}<select id="field-{{ key }}" name="field_{{ key }}"><option value="">Belum ditentukan</option>
+          <option value="pickup" {% if fields.get(key)=='pickup' %}selected{% endif %}>Ambil sendiri</option>
+          <option value="delivery" {% if fields.get(key)=='delivery' %}selected{% endif %}>Diantar</option></select>
+        {% else %}<input id="field-{{ key }}" name="field_{{ key }}" value="{{ fields.get(key,'') }}" maxlength="1000" {% if key=='quantity' %}type="number" min="0.000001" max="1000000000" step="any"{% endif %}>{% endif %}
       </div>{% endfor %}
       </div>
     </details>

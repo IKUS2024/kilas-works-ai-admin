@@ -8,6 +8,7 @@ import security
 import subscription_service
 from kilas_core import customers, jobs
 from kilas_core.flags import enabled_for_business
+from kilas_core.playbook_definitions import PLAYBOOKS
 
 jobs_bp = Blueprint('core_jobs', __name__)
 
@@ -79,8 +80,15 @@ def _fields(form):
 
 
 def _context(business, **extra):
+    job = extra.get('job')
+    book = PLAYBOOKS.get(job['fields'].get('playbook')) if job else None
+    field_labels = ({key: jobs.FIELD_LABELS[key] for key in book.fields}
+                    if book else jobs.LEGACY_FIELD_LABELS)
+    if book:
+        field_labels.update({key: jobs.FIELD_LABELS[key] for key in jobs.LEGACY_FIELD_LABELS
+                             if key in job['fields'] and key != 'missing_information'})
     return dict(business=business, labels=labels(business), status_labels=jobs.STATUS_LABELS,
-                field_labels=jobs.FIELD_LABELS, operation_key=uuid.uuid4().hex, **extra)
+                field_labels=field_labels, workflow=book, operation_key=uuid.uuid4().hex, **extra)
 
 
 def _source(bid, customer_id, conversation_id):
@@ -162,4 +170,8 @@ def linked_context(business, customer_id, conversation_id=None):
     if not available(business):
         return None
     rows, total, _, _ = jobs.list_jobs(business['id'],customer_id=customer_id,conversation_id=conversation_id)
+    for row in rows:
+        book = PLAYBOOKS.get(row['fields'].get('playbook'))
+        row['workflow_label'] = book.label if book else None
+        row['known_details'] = [(jobs.FIELD_LABELS[key], row['fields'][key]) for key in book.fields if key in row['fields']] if book else []
     return dict(rows=rows,total=total,labels=labels(business),customer_id=customer_id,conversation_id=conversation_id)

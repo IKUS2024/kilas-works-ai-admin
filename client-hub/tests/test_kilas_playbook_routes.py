@@ -105,5 +105,29 @@ class PlaybookRoutesTests(unittest.TestCase):
         self.assertEqual(jobs.list_jobs(7)[1],0)
         self.assertEqual(store.thread(7,self.cid)[-1]['content'],'Jawaban bisnis lama')
 
+    def test_owner_context_manual_edit_and_metadata_protection(self):
+        self.assertEqual(self.deliver()[0].status_code,200)
+        row = jobs.list_jobs(7)[0][0]
+        for path in ('/business/7/inbox?channel=web&conversation='+self.cid, '/business/7/jobs/'+row['id']):
+            page = self.client.get(path)
+            self.assertEqual(page.status_code,200)
+            self.assertIn(b'data-playbook-context',page.data)
+            for text in ('Guangzhou','Tangerang','20 kg','volume','Masih dibutuhkan'):
+                self.assertIn(text.encode(),page.data)
+            self.assertNotIn(b'field_uncertain_fields',page.data)
+            self.assertNotIn(b'field_playbook',page.data)
+        store.set_mode(7,self.cid,'HUMAN_TAKEOVER',1)
+        data = dict(csrf_token='csrf-test',title='Pengiriman revisi pemilik',summary='',status=row['status'],
+                    version=row['version'],operation_key='manual-phase5-0001',field_item='baju',field_weight='20 kg',
+                    field_origin='Shanghai',field_destination='Tangerang',field_volume_cbm='0.3 m3')
+        response = self.client.post('/business/7/jobs/'+row['id'],data=data)
+        self.assertEqual(response.status_code,303)
+        current = jobs.get_job(7,row['id'])
+        self.assertEqual(current['fields']['playbook'],'LOGISTICS')
+        self.assertEqual(current['fields']['missing_information'],'')
+        self.assertEqual(current['fields']['origin'],'Shanghai')
+        rejected = self.client.post('/business/7/jobs/'+row['id'],data={**data,'field_playbook':'BOOKING_SERVICE'})
+        self.assertEqual(rejected.status_code,400)
+
 
 if __name__ == '__main__': unittest.main()

@@ -41,7 +41,8 @@ FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
 
 # Server-only workflow metadata is not accepted by owner form routes.
 WORKFLOW_METADATA = {'playbook', 'uncertain_fields'}
-FIELD_LABELS.update(PLAYBOOK_FIELDS)
+LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
+FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
 
 
@@ -87,12 +88,14 @@ def _text(value, maximum, required=False):
 def validate_fields(fields):
     if not isinstance(fields, dict) or set(fields) - (FIELD_LABELS.keys() | WORKFLOW_METADATA):
         raise JobError('invalid_fields')
-    if 'playbook' in fields and fields['playbook'] not in PLAYBOOKS:
+    if 'playbook' in fields and (not isinstance(fields['playbook'], str) or fields['playbook'] not in PLAYBOOKS):
         raise JobError('invalid_fields')
     if 'uncertain_fields' in fields:
         pending = fields['uncertain_fields']
         if not isinstance(pending, str) or set(filter(None, pending.split(','))) - PLAYBOOK_FIELDS.keys():
             raise JobError('invalid_fields')
+    if 'fulfillment' in fields and fields['fulfillment'] not in ('pickup', 'delivery'):
+        raise JobError('invalid_fields')
     clean = {}
     for key, value in fields.items():
         if key == 'quantity':
@@ -231,6 +234,18 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
     target = current['status'] if status is None else status
     if target != current['status'] and target not in TRANSITIONS[current['status']]:
         raise JobError('invalid_transition',409)
+    if fields is not None and actor_id is not _WEB_PLAYBOOK_ACTOR:
+        previous = json.loads(current['fields_json'])
+        if previous.get('playbook') in PLAYBOOKS:
+            from .playbooks import missing_fields, labels
+            book = PLAYBOOKS[previous['playbook']]
+            # Manual form cannot erase or replace trusted workflow metadata.
+            preserved = dict(fields, playbook=book.code)
+            uncertain = tuple(k for k in previous.get('uncertain_fields', '').split(',')
+                              if k and k in fields and fields[k] == previous.get(k))
+            preserved['uncertain_fields'] = ','.join(uncertain)
+            preserved['missing_information'] = labels(missing_fields(book, preserved) + uncertain)
+            encoded = validate_fields(preserved)
     now = int(time.time())
     result = tx.one('UPDATE kw_core_jobs SET title=?,summary=?,fields_json=?,status=?,version=version+1,updated_at=? '
                     'WHERE business_id=? AND id=? AND version=? RETURNING *',
