@@ -115,5 +115,36 @@ class OperationsRoutesTests(unittest.TestCase):
             self.assertEqual(response.status_code,303)
             self.assertIn('finance',response.location)
 
+    def test_runner_protected_writes_and_no_model_or_external_send(self):
+        import sqlite3
+        from contextlib import ExitStack
+        from kilas_core.operation_contracts import DEFAULT_CONFIG
+        self.assertEqual(self.deliver()[0].status_code,200)
+        auto.set_config(7,{**DEFAULT_CONFIG,'followup_enabled':True,'delay_hours':1},actor_id=1,expected_version=0)
+        with jobs.transaction() as tx: tx.execute('UPDATE kw_web_messages SET created_at=1000')
+        denied=[]
+        def authorize(action,table,*args):
+            if action in (sqlite3.SQLITE_INSERT,sqlite3.SQLITE_UPDATE,sqlite3.SQLITE_DELETE):
+                if not (table.startswith(('kw_web_','kw_core_')) or table in ('audit_log','sqlite_sequence')):
+                    denied.append(table);return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        original=sqlite3.connect
+        def connect(*args,**kwargs):
+            connection=original(*args,**kwargs);connection.set_authorizer(authorize);return connection
+        self.db.get_connection().set_authorizer(authorize)
+        try:
+            with ExitStack() as stack:
+                stack.enter_context(patch('sqlite3.connect',side_effect=connect))
+                spies=[stack.enter_context(patch.object(self.finance,name)) for name in
+                       ('create_transaction','create_finance_invoice','record_invoice_payment','create_customer')]
+                spies += [stack.enter_context(patch('inbox_service.send_manual_reply')),
+                          stack.enter_context(patch.object(self.ai,'_call_claude'))]
+                self.assertEqual(auto.run(7,now=4600)['results'],['DELIVERED'])
+                self.assertEqual(auto.run(7,now=4600)['results'],[])
+                for spy in spies: spy.assert_not_called()
+            self.assertEqual(denied,[])
+        finally:
+            self.db.get_connection().set_authorizer(None)
+
 
 if __name__=='__main__': unittest.main()

@@ -24,13 +24,13 @@
 2. Attention state/service: PASS on SQLite.
 3. Automation rules/due runner: PASS on SQLite.
 4. Phase 5 handover integration: PASS on SQLite.
-5. Home Attention UI: pending.
-6. Security/idempotency/concurrency/regressions: pending.
+5. Home Attention UI: PASS on SQLite.
+6. Security/idempotency/concurrency/regressions: PASS on SQLite.
 7. PostgreSQL/mobile browser QA: pending.
 8. Exact scope / COMPLETE: pending.
 
 ## Verification / next action
-Implement closed reasons/rules and config validation, run focused tests and commit milestone 1. Then implement additive state and Attention service. No Phase 6 runtime pass claimed yet.
+Milestones 1–6 implemented and verified on isolated SQLite. Continue milestone 7 only: paired 0058 PostgreSQL runtime/concurrency and real 390px browser A–E, then final scope review. Phase 6 is NOT COMPLETE until these gates pass.
 
 ## Blockers
 None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previous phases; never production data/services.
@@ -70,3 +70,11 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - Home reads only, shows count/top 3/direct links. Full list has 10-row pagination and resolved history. Owner resolution does not switch mode or change Job/Finance state. Settings default disabled; manual runner is authenticated/CSRF-protected with bounded pagination cursors.
 - A real 404 error-handler issue found by tests was fixed to return a 404 response (no assertions weakened).
 - Next: remaining protected-write/failure/security cases, Phase 1–5 regression rerun, then PG/mobile gates.
+
+## Milestone 6 checkpoint
+- Milestone 5 local commit: `634a1af`.
+- Files: `client-hub/tests/kilas_operations_cases.py`, `client-hub/tests/test_kilas_operations_routes.py`, this status.
+- Phase 6 contracts 2, SQLite store 14, owner/WEB routes 7 PASS.
+- Added post-message terminal failure rollback, missing WEB review fallback, disabled channel/session expiry, human-mode suppression/system audit identity. SQL authorizer permits only Core/WEB/audit writes; Finance API, legacy send and model spies remain untouched during real runner delivery/retry.
+- Phase 1–5 isolated regression PASS: Core 30, WEB routes 18/store 9, Customers 9, Jobs schema 1/store 15/routes 8, Playbooks 12/actions 9/routes 11. Every test file ran in a fresh process.
+- No PG/browser pass claimed yet. Next: dedicated loopback PG test runner and synthetic browser harness, publish QA-only workflow, inspect CI and screenshots. No production deployment or scheduling.
