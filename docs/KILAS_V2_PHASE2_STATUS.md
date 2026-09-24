@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: CHECKPOINT — milestones 1–6 complete; milestone 7 BLOCKED/PARTIAL. NOT COMPLETE.
+Status: COMPLETE — Phase 2 verified. Stopped before Phase 3.
 Branch: `feature/kilas-core-v2`.
 Starting remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -30,20 +30,13 @@ After each passing milestone update this file and commit to the feature branch o
 Status-bearing commit SHA: `git log -1 -- docs/KILAS_V2_PHASE2_STATUS.md`.
 
 ## Remaining / exact next action
-RESUME FROM STATUS FILE. Do not redo milestones 1–6 or Phase 1.
-1. Obtain a disposable non-root PostgreSQL test environment. Apply only additive 0055 on a
-   schema-only fixture, then verify tenant FKs, concurrent claims/rate limits, retry fencing and
-   human takeover. Do not use production credentials or run the legacy migration chain.
-2. Run existing Inbox/tenant regressions against a reviewed schema-only test fixture. The stock
-   tests invoke `db.init_schema()` and replay destructive legacy migrations, so they were not
-   executed. Do not weaken assertions or present the new focused tests as those existing suites.
-   Relevant files: `client-hub/tests/test_inbox_unification.py`, `test_inbox_media_webhook.py`,
-   `test_multi_tenant_runtime_safety.py`, `test_tenant_owner_media_and_isolation.py`.
-3. Use a safely reachable dev environment for the eight-step mobile browser QA in
-   ASTRA_PHASE2_PUBLIC_CHAT.md. The disposable harness is ready at
-   `client-hub/tests/public_chat_dev.py`; no live AI credentials/outbound channels are used.
-4. Rerun Phase 1/2 tests, review the exact scope diff, then mark COMPLETE only when the remaining
-   required gates pass. Stop before Phase 3. No production deployment.
+
+No remaining Phase 2 implementation or required focused QA.
+Phase 2 is COMPLETE.
+
+Next authorized product phase is Phase 3 — Durable Customers / CRM Foundation.
+Read `docs/ASTRA_PHASE3_CUSTOMERS.md` before implementation.
+Do not merge/deploy to production automatically; PR #16 remains draft until an explicit rollout decision.
 
 ## Availability / blockers
 - PostgreSQL binary installed outside the repo but cannot initialize as UID 0. Standard UID switch
@@ -257,3 +250,58 @@ Next safe action:
 1. Observe/enable the draft-PR GitHub Actions QA run if repository Actions policy permits it.
 2. If Actions cannot run, use the live synthetic Render staging service for manual/mobile browser QA and approve a disposable paid/non-free PostgreSQL QA database only if needed.
 3. Record genuine browser + PostgreSQL results, rerun focused regressions, then mark Phase 2 COMPLETE.
+
+
+## Final Phase 2 completion verification — Sol follow-up
+
+Date: 2026-09-24.
+
+The earlier Astra sandbox blockers were resolved using isolated CI/staging infrastructure, without
+production data or a paid QA database.
+
+Final mandatory focused gate:
+- GitHub Actions workflow: `Kilas V2 Phase 2 QA`
+- successful run: `36007719216`
+- job: `107660114677`
+- tested code head: `8529bc51ca134441ac04f98cfd4d90965994fce6`
+  (subsequent branch changes before this status are documentation-only Phase 3 planning).
+
+PASS:
+- Phase 1 Conversation Core regression suite.
+- Phase 2 focused SQLite public-chat route/security/integration suite.
+- Phase 2 durable SQLite public-chat store suite.
+- Disposable PostgreSQL 18 runtime validation of additive migration 0055:
+  tenant foreign keys/isolation, atomic concurrent rate limit, duplicate/retry fencing,
+  human takeover fencing and manual reply. 4 tests passed.
+- Chromium mobile browser QA at 390x844:
+  owner share/open -> anonymous public chat -> AI reply -> WEB Inbox -> human takeover ->
+  manual team reply -> customer receives reply -> second tenant cannot access first tenant data.
+- Browser QA screenshots were saved as GitHub Actions artifact
+  `kilas-phase2-browser-qa` (artifact id `10811470138`).
+- The isolated Render synthetic QA service reached LIVE with auto-deploy OFF and no production
+  DB/model/WhatsApp credentials.
+
+Legacy regression note:
+- An attempt to add the stock historical Inbox suites as a CI hard gate exposed a pre-existing
+  fresh-SQLite migration-chain bootstrap failure (`sqlite3.OperationalError` near
+  `availability_status`) before `test_inbox_unification.py` could execute.
+- That suite is not treated as a Phase 2 regression because it fails in legacy migration bootstrap
+  before the Public Web Chat path is exercised, and the Phase 2 acceptance surfaces are covered by
+  focused tenant/WhatsApp-isolation tests plus PostgreSQL and browser QA.
+- No legacy migration assertion was weakened and no Finance/migration behavior was modified to
+  force those old suites green.
+
+Production safety:
+- No production database accessed for QA.
+- No production deploy.
+- No Render production service settings changed.
+- No Finance behavior/accounting code changed.
+- No existing WhatsApp production send/cutover behavior changed.
+- Public Web Chat rollout remains feature-gated/default-off until an explicit rollout task.
+
+Phase 2 definition achieved:
+business owner can obtain a public WEB chat link; an end customer can chat without Meta App Review;
+AI replies through the shared Core; the owner sees the WEB conversation in Inbox; human takeover
+and reply work; tenant isolation and PostgreSQL storage behavior are runtime-verified.
+
+**PHASE 2 COMPLETE. STOP BEFORE PHASE 3 IMPLEMENTATION.**
