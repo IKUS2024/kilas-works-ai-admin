@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: COMPLETE — Phase 2 verified. Stopped before Phase 3.
+Status: CHECKPOINT — current-branch verification BLOCKED. Historical Phase 2 CI passed; current head is not certified COMPLETE.
 Branch: `feature/kilas-core-v2`.
 Starting remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -326,3 +326,122 @@ Product-owner authorization: Phase 3 implementation may proceed in parallel now 
 implementation milestones 1–6 and focused regressions are passing. This is an implementation-order
 exception only; it does NOT authorize production rollout and does NOT waive the remaining Phase 2
 release gates.
+
+## Current-branch verification review — 2026-09-24 (supersedes completion summaries above)
+
+Latest user instruction requires all Phase 2 gates to pass before continuing Phase 3.
+The earlier implementation-order exception does not override that instruction.
+Seven requested documents read completely. No milestone 1–6 implementation was redone.
+Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
+Reviewed/tested feature head: `df37aa2036f83d8a8f4a2f84905ade7ed4cd9b61`.
+Upstream already contains Phase 3 implementation and a Phase 3 checkpoint; it was preserved.
+No new Phase 3 work was performed by this verification resume.
+
+### Verified evidence
+- GitHub Actions run `36007719216`, job `107660114677`: API reports success for Phase 1,
+  Phase 2 SQLite, PostgreSQL 0055 and mobile browser QA. Job head is
+  `b02bb9b13c9e0cd457953c3b7dc90549eee1f6d2` (the earlier 8529... status attribution was imprecise).
+- GitHub Actions run `36008092809`, job `107661387351`: API reports success for Phase 1,
+  Phase 2 SQLite, existing Inbox/tenant regressions, PostgreSQL 0055 and mobile browser QA,
+  at head `8ee4c7002581c4569018da857decc4f15371f345`.
+  These are genuine historical CI results, not certification of subsequent Customers changes.
+- Current local rerun command prefix: `PYTHONPATH=/tmp/kilas-phase1-deps python scripts/run_offline_tests.py`.
+  `--only test_kilas_core`: 29/30 tests PASS, 1 FAIL. Failure is
+  `AdapterTests.test_no_whatsapp_jobs_finance_search_or_checkout_capability` at simulator test line 156:
+  the static Core dependency boundary rejects newly added `kilas_core/customers.py` imports.
+  Do not silently weaken/remove this safety assertion to claim a pass.
+  CI run `36008652408`, job `107663310664`, independently reports Phase 1 failure;
+  all following regression/PostgreSQL/browser steps were skipped for that run.
+- `--only test_public_chat_routes.py`: PASS, 18 tests.
+- `--only test_public_chat_store.py`: PASS, 9 tests.
+- `git diff --check` against Phase 2 baseline: PASS.
+- Existing Finance files, root WhatsApp app, WhatsApp services, Inbox service and db.py unchanged
+  against the Phase 2 baseline. No production configuration, deployment or customer DB was touched.
+- An upstream change to legacy `0053_kilas_order_catalog_sqlite.sql` moves its table CHECK below
+  column declarations. This resume did not make/revert that change or replay the legacy chain.
+  The older claim that every legacy migration is unchanged no longer describes current HEAD.
+
+### Exact remaining access/verification blockers
+1. Render list_services and list_postgres_instances return INVALID_ARGUMENT: no workspace selected.
+   The connector explicitly requires the user's workspace confirmation before proceeding.
+   list_workspaces exposes `My Workspace`, ID `tea-da34t2gu01pc73ft7uf0`.
+   Await confirmation of that workspace; do not select it implicitly or query a production DB.
+   Then inspect only `kilas-v2-phase2-qa` and `kilas-v2-staging-db` and confirm their synthetic scope.
+   The exposed Postgres query tool is read-only; write/runtime validation still needs an authorized
+   test process/CI connection, not an attempted DDL write through that tool.
+2. Browser navigation to `https://kilas-v2-phase2-qa.onrender.com` succeeded and rendered the
+   normal Hub login page. Navigation to `/dev/health` returned `net::ERR_BLOCKED_BY_CLIENT`.
+   No staging login credentials or QA token were available in this session. No owner/customer
+   staging interaction, mobile-width verification or screenshot evidence claimed in this resume.
+3. The initial Phase 1 failure above was resolved by an upstream commit during verification;
+   see the final rerun below. Staging access/current-head runtime certification remain pending.
+4. Existing Inbox/tenant suites were not replayed locally: their init_schema bootstrap runs the
+   historical migration chain. Historical CI results are recorded separately and honestly above.
+
+### Exact scope diff at final reviewed head
+Application/test head: `94bd0d91ca70d4972d9532571ec2d129f09dc9e2`.
+Compared with `2849db26b184763d2f5404dbd0758e88b857c4b0`, the following files differ:
+- `.github/workflows/kilas-v2-phase2-qa.yml`
+- `.github/workflows/kilas-v2-phase3-qa.yml`
+- `client-hub/app.py`
+- `client-hub/kilas_core/contracts.py`
+- `client-hub/kilas_core/customer_routes.py`
+- `client-hub/kilas_core/customer_schema.py`
+- `client-hub/kilas_core/customers.py`
+- `client-hub/migrations/0053_kilas_order_catalog_sqlite.sql`
+- `client-hub/migrations/0055_public_web_chat_postgres.sql`
+- `client-hub/migrations/0055_public_web_chat_sqlite.sql`
+- `client-hub/migrations/0056_kilas_core_customers_postgres.sql`
+- `client-hub/migrations/0056_kilas_core_customers_sqlite.sql`
+- `client-hub/public_chat/__init__.py`
+- `client-hub/public_chat/adapter.py`
+- `client-hub/public_chat/owner.py`
+- `client-hub/public_chat/routes.py`
+- `client-hub/public_chat/schema.py`
+- `client-hub/public_chat/security.py`
+- `client-hub/public_chat/store.py`
+- `client-hub/routes_client.py`
+- `client-hub/static/public_web_chat.js`
+- `client-hub/static/web_chat.css`
+- `client-hub/static/web_inbox.js`
+- `client-hub/static/web_share.js`
+- `client-hub/templates/_web_share.html`
+- `client-hub/templates/assist_entry.html`
+- `client-hub/templates/client_dashboard.html`
+- `client-hub/templates/customer_detail.html`
+- `client-hub/templates/customers.html`
+- `client-hub/templates/inbox.html`
+- `client-hub/templates/product_dashboard.html`
+- `client-hub/templates/public_web_chat.html`
+- `client-hub/templates/web_inbox.html`
+- `client-hub/tests/public_chat_browser_qa.py`
+- `client-hub/tests/public_chat_dev.py`
+- `client-hub/tests/test_kilas_core_simulator.py`
+- `client-hub/tests/test_kilas_customers.py`
+- `client-hub/tests/test_kilas_customers_postgres.py`
+- `client-hub/tests/test_public_chat_postgres.py`
+- `client-hub/tests/test_public_chat_routes.py`
+- `client-hub/tests/test_public_chat_store.py`
+- `docs/ASTRA_PHASE2_PUBLIC_CHAT.md`
+- `docs/ASTRA_PHASE3_CUSTOMERS.md`
+- `docs/KILAS_V2_EXECUTION_ROADMAP.md`
+- `docs/KILAS_V2_MASTER.md`
+- `docs/KILAS_V2_PHASE2_STATUS.md`
+- `docs/KILAS_V2_PHASE3_STATUS.md`
+
+This verification checkpoint edits only this status file. No Finance/WhatsApp behavior changes,
+production deployment, media/creative feature or Jobs/Phase 4 work. Phase 3 continuation is gated
+by the latest user's Phase 2 completion requirement, despite its pre-existing upstream code.
+
+Exact next action: confirm Render workspace, verify staging access and applicable current-head
+CI/test evidence, then close Phase 2 only after its
+required gates genuinely pass. RESUME FROM STATUS FILE.
+
+### Final rerun after concurrent upstream fix
+Before publishing this checkpoint, remote advanced to
+`94bd0d91ca70d4972d9532571ec2d129f09dc9e2` (Phase 1 import guard now scopes its exact simulator
+execution modules). This existing upstream change was preserved, not reimplemented here.
+Reran the same three commands: Phase 1 PASS 30/30; Phase 2 routes PASS 18/18;
+Phase 2 store PASS 9/9. The earlier failing result describes the earlier reviewed head only.
+No existing legacy suite was replayed locally. Remaining blockers are Render workspace confirmation
+and authenticated/mobile staging access plus applicable current-head PostgreSQL/regression evidence.
