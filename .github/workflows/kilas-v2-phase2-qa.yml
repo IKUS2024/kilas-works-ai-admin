@@ -72,10 +72,14 @@ jobs:
           python scripts/run_offline_tests.py --only test_public_chat_routes.py
           python scripts/run_offline_tests.py --only test_public_chat_store.py
 
-      # The stock legacy Inbox suites replay the entire historical SQLite migration chain.
-      # That baseline chain currently fails before tests start (syntax error near availability_status),
-      # including outside Phase 2. Phase 2 instead gates the touched paths with focused tenant/
-      # WhatsApp-isolation assertions plus PostgreSQL 0055 and real browser QA below.
+      - name: Existing Inbox and tenant regressions on disposable SQLite
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_inbox_unification.py
+          python scripts/run_offline_tests.py --only test_inbox_media.py
+          python scripts/run_offline_tests.py --only test_inbox_responsive_parity.py
+          python scripts/run_offline_tests.py --only test_tenant_persistence_repos.py
 
       - name: Phase 2 PostgreSQL 0055 runtime validation
         env:
