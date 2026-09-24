@@ -81,6 +81,18 @@ class BridgeRoutesTests(unittest.TestCase):
         for table in ('connections','customer_links','invoice_links','operations'):
             self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kw_core_finance_'+table)['n'],0)
 
+    def test_revoked_finance_access_keeps_core_job_readable_without_leaking_invoice(self):
+        self.login()
+        fixture.BridgeTests.connect(self)
+        fixture.BridgeTests.customer(self)
+        result=fixture.BridgeTests.draft(self)
+        db.execute('DELETE FROM business_memberships WHERE business_id=? AND user_id=?',(self.target,self.actor))
+        page=self.client.get(f'/business/{self.source}/jobs/{self.jid}')
+        self.assertEqual(page.status_code,200)
+        self.assertIn('Akses Finance tidak tersedia',page.text)
+        self.assertNotIn(result['invoice']['invoice_number'],page.text)
+        self.assertEqual(self.client.get(self.base+'/jobs/'+self.jid).status_code,404)
+
     def test_protected_boundary_no_direct_finance_writes_or_payment_actions(self):
         root=Path(__file__).resolve().parents[1]/'kilas_core'
         for name in ('finance_bridge.py','finance_bridge_routes.py','finance_bridge_schema.py'):

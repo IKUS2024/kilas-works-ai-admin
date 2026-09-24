@@ -169,6 +169,10 @@ def panel(business, customer_id=None, job_id=None):
     if not available(business):
         return None
     actor=security.current_user()['id']
-    return dict(mapping=bridge.connection(business['id'],actor),
-                result=bridge.read_invoice(business['id'],actor,job_id) if job_id else None,
-                links=bridge.customer_links(business['id'],actor,customer_id) if customer_id else [])
+    try:
+        return dict(mapping=bridge.connection(business['id'],actor),
+                    result=bridge.read_invoice(business['id'],actor,job_id) if job_id else None,
+                    links=bridge.customer_links(business['id'],actor,customer_id) if customer_id else [])
+    except (bridge.BridgeError, finance.FinanceError):
+        # Lost Finance access must neither leak its data nor break the Core Job.
+        return dict(unavailable=True,mapping=None,result=None,links=[])

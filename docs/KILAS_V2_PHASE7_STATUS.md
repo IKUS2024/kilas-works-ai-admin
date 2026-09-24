@@ -1,5 +1,22 @@
 # Phase 7 status — BRIDGE IMPLEMENTED / FINAL QA IN PROGRESS
 
+## Final access-state refinement
+
+- Mobile layout fix checkpoint: `2a85d26c0e816e0d202abb468b5b042c4ffbd2e0`;
+  final QA run `36040648090` is in progress.
+- Narrow final product fix: a revoked target Finance membership now produces a safe
+  unavailable card on Core Job/Customer pages. Core records remain usable; invoice
+  details are not leaked and dedicated Bridge reads still reject access.
+- Exact files: `client-hub/kilas_core/finance_bridge_routes.py`,
+  `client-hub/templates/_finance_bridge_panel.html`,
+  `client-hub/tests/test_kilas_finance_bridge_routes.py`, this status.
+- **5 real Flask tests PASS**, including genuine Finance-only user with one NONE
+  business, zero Bridge rows, no AI Admin ownership, CSRF, explicit reviewed forms,
+  retries, private cache headers and revoked-access isolation. Service suite remains
+  13 SQLite/13 PostgreSQL cases; no financial engine change in this refinement.
+- Exact next action: inspect final mobile artifact, final Finance baseline and all
+  Phase 1–6 checks; record complete evidence and stop before Phase 8.
+
 ## Mobile blocker fixed, final certification running
 
 - Diagnostic checkpoint: `4a940632bf1a3af2b210a518c932cff9f74aff8d`.
