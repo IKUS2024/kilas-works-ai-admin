@@ -1,4 +1,4 @@
-# Phase 5 status — IN PROGRESS
+# Phase 5 status — COMPLETE
 
 ## Baseline and scope
 - Branch: `feature/kilas-core-v2`.
@@ -11,12 +11,12 @@
 ## Milestones
 1. Understanding contracts + five playbook definitions: PASS (checkpoint commit records this milestone).
 2. Pure merge/missing-field engine: PASS (checkpoint commit records this milestone).
-3. Safe actions through existing Customer/Job services: PASS in isolated SQLite (not yet exposed to WEB).
+3. Safe actions through existing Customer/Job services: PASS (SQLite/PostgreSQL + WEB integration).
 4. Public WEB integration: PASS in isolated SQLite; default-off.
 5. Inbox/Job context: PASS in SQLite route tests.
-6. Security/idempotency/provider failure/concurrency: PASS on SQLite; PostgreSQL pending.
-7. Disposable PostgreSQL + mobile browser QA: pending.
-8. Exact scope review + COMPLETE: pending.
+6. Security/idempotency/provider failure/concurrency: PASS on SQLite and PostgreSQL.
+7. Disposable PostgreSQL + mobile browser QA: PASS — final code CI `36018690757`.
+8. Exact scope review + COMPLETE: PASS — 21 scoped files; protected behavior unchanged.
 
 ## Architecture decisions / resume notes
 - Strict bounded model interpretation, deterministic playbooks, deterministic actions, grounded response formatting are separate responsibilities.
@@ -31,10 +31,10 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Implement and run milestone 7 disposable PostgreSQL runtime/concurrency and real Chromium mobile A–D flows; inspect CI/artifacts. Do not mark COMPLETE until these and exact diff review pass.
+STOP. Phase 5 complete. Do not start Phase 6 without explicit authorization.
 
 ## Blockers
-None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
+None outstanding. PostgreSQL and browser gates passed in disposable GitHub Actions environments; no production credentials/data were needed.
 
 ## Milestone 1 checkpoint
 - Initialization commit: `303c307` (published).
@@ -92,3 +92,38 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Phase 5 browser artifact: `10815218878`; Phase 4 regression artifact: `10815138403`. Screenshot review and exact scope sign-off still pending; not yet COMPLETE.
 - Final input review added explicit positive/bounded weight, volume and complete dimensions validation, plus dine-in fulfillment for restaurant requests. Files: `client-hub/kilas_core/understanding.py`, `client-hub/kilas_core/playbook_definitions.py`, `client-hub/kilas_core/jobs.py`, `client-hub/templates/job_form.html`, `test_kilas_playbooks.py`.
 - Local Phase 5 now 12 pure + 9 action + 11 route tests PASS. Rerun CI on this final code refinement before completion.
+
+## Exact Phase 5 scope review
+Compared with baseline `a013954956c5aecac4a803a1cb68371abad460a6`:
+
+- Core implementation: `client-hub/kilas_core/playbook_definitions.py`, `understanding.py`, `playbooks.py`, `actions.py`, `jobs.py`, `job_routes.py`.
+- WEB integration: `client-hub/public_chat/adapter.py`, `playbook_adapter.py`, `store.py`.
+- Owner context: `client-hub/templates/_jobs_panel.html`, `job_form.html`.
+- Tests: `test_kilas_playbooks.py`; `client-hub/tests/kilas_playbook_cases.py`, `test_kilas_playbook_actions.py`, `test_kilas_playbook_routes.py`, `test_kilas_playbooks_postgres.py`, `kilas_playbooks_browser_qa.py`, `playbook_qa_provider.py`, `public_chat_dev.py`.
+- CI/docs: `.github/workflows/kilas-v2-phase5-qa.yml`, this status file.
+- Exactly 21 changed files. No Finance/WhatsApp production files, migrations, legacy Order storage, deployment configuration, or previous phase status files changed. No production deployment command/action used. Finance negative-write tests, preserved PostgreSQL legacy row and browser Finance pixel parity pass.
+- Phase 4 Job public API validation, tenant references, versioning, lifecycle and audit retained; only private transaction helpers added. Existing WEB finish behavior retained; action callback runs after the original fence plus lease expiry check.
+- Five workflows only. No model IDs/actions/status/tools; no Finance/payment/stock/price/availability state is accepted. All successful-action wording is persisted atomically with the action.
+- Ambiguous/new separate/advanced/finished/multiple Job requests defer to owner. No automatic handover orchestration or Phase 6 work.
+
+## Required-test coverage map
+- Requirements 1–9, 23–28: pure understanding/playbook tests (12), including known/missing, five workflows, typo interpretation contract, corrections, ambiguity, strict output, category mapping and business redirect.
+- Requirements 10–16, 20–22, 29, 31–32: shared action tests (9 SQLite / same 9 PostgreSQL) plus WEB route tests; same-Job update, references, actor, retry/concurrent completion, claim/mode/version/lease fencing, audit and rollback.
+- Requirements 17–19, 30, 37–38: strict contract rejection, route SQL write authorizer + Finance/WA spies, owner context/manual form tests and exact protected-file diff.
+- Requirements 33–36: dedicated Phase 1–4 offline suites and PostgreSQL/browser regressions in the Phase 5 workflow.
+- Requirement 39: no new migration required; existing 0055/0056/0057 runtime remains exercised, including idempotent installer and legacy row preservation.
+- Requirements 40–41: disposable PG18 (10 Phase 5 tests) and mobile Chromium A–D at 390px, no horizontal overflow, tenant GET/POST denial, unchanged Finance pixels.
+
+## QA limits and rollout
+- QA uses synthetic data and deterministic provider transport; no production DB/customer data, live WhatsApp send or live paid model call. This certifies application contracts/state/transactions/UI, not live model semantic accuracy for arbitrary Indonesian messages.
+- Model interpretation remains untrusted: malformed/unsupported output fails closed. Uncertain or conflicting facts require clarification. Business FAQs without an authoritative deterministic answer defer to business confirmation; no price/stock/availability/payment claims are invented.
+- `KILAS_PLAYBOOKS_V2_ENABLED` defaults off and was not enabled on any production service. Enabling also requires existing Core/WEB/Customers/Jobs flags and tenant/channel/subscription eligibility. No schema installation or cutover is part of this phase.
+- Screenshots from run `36018279210` inspected: customer logistics question, Inbox known/missing details, same Job ready, human manual edit, and booking date/time. Readable at 390px, no clipping/overflow.
+- Latest code refinement: `85cc45362e77f6b190a760b9c39180164310893b`. Final current-code CI rerun: `36018690757`: inspected COMPLETED / SUCCESS, including all required SQLite/PostgreSQL/mobile steps.
+
+## Final completion evidence
+- Final code head: `85cc45362e77f6b190a760b9c39180164310893b`. All current-code workflows SUCCESS: Phase 2 `36018690609`, Phase 3 `36018690813`, Phase 4 `36018690891`, Phase 5 `36018690757`.
+- Phase 5 workflow reran Phase 1–5 offline regressions, PostgreSQL 0055/0056/0057 regressions plus 10 Phase 5 action/concurrency tests, existing Customers/Jobs mobile regression and Phase 5 logistics/booking/human/tenant browser QA. Phase 5 SQLite: 32 tests (12 pure, 9 actions, 11 routes).
+- `git diff --check` and baseline-to-final-code scope review PASS. Remote main rechecked unchanged at `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
+- Finance behavior and production WhatsApp unchanged; no production deployment or database access. No new migration, no legacy Order rewrite, no media AI, no Finance Bridge, no Phase 6.
+- This final checkpoint changes documentation only after passing code verification. The commit containing this COMPLETE marker is the final Phase 5 verification checkpoint.
