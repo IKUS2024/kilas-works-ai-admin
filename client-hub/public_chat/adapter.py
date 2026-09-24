@@ -43,6 +43,11 @@ def send(business, cid, payload, ip_key):
         raise store.ChatError(str(error)) from error
     event, history = store.claim(business['id'],cid,event_id,message.text,ip_key)
     if history is not None:
+        from . import playbook_adapter
+        if playbook_adapter.enabled():
+            event = playbook_adapter.process(business, message, event, history)
+            status = 202 if event['status']=='processing' else (502 if event['status']=='failed' else 200)
+            return {'channel':'WEB','event_id':event_id,'status':event['status'],'error':event.get('error')},status
         def reply_provider(inbound, scoped_history):
             settings=repo.get_ai_settings(business['id']) or {}
             return provider(business,settings.get('normalized_config'),inbound,scoped_history)

@@ -12,7 +12,7 @@
 1. Understanding contracts + five playbook definitions: PASS (checkpoint commit records this milestone).
 2. Pure merge/missing-field engine: PASS (checkpoint commit records this milestone).
 3. Safe actions through existing Customer/Job services: PASS in isolated SQLite (not yet exposed to WEB).
-4. Public WEB integration: pending.
+4. Public WEB integration: PASS in isolated SQLite; default-off.
 5. Inbox/Job context: pending.
 6. Security/idempotency/provider failure/concurrency: pending.
 7. Disposable PostgreSQL + mobile browser QA: pending.
@@ -31,7 +31,7 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Wire milestone 4 WEB completion so the event fence, safe Job action and assistant message share one transaction. Add route-level failure/takeover/retry tests before enabling in QA.
+Implement milestone 5 owner Inbox/Job context and metadata-safe manual forms, then expand security/concurrency tests (milestone 6).
 
 ## Blockers
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
@@ -55,3 +55,11 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Existing Job service extracted transaction-bound private helpers; public real-user actor validation retained. System audit has NULL user plus explicit WEB_PLAYBOOK origin. Tenant references, version checks, operation records and lifecycle still enforced by Jobs.
 - Existing bounded JSON holds workflow, facts, missing/uncertain details. No migration added. Snapshot comparison protects owner edits. Ambiguous/multiple/finished requests defer to owner. Create+transition rolls back together on failure.
 - Runtime integration still pending; these private helpers are not a new public endpoint.
+
+## Milestone 4 checkpoint
+- Milestone 3 local commit: `e484d6d` (published SHA recorded after sync).
+- Files: `client-hub/public_chat/adapter.py`, `client-hub/public_chat/playbook_adapter.py`, `client-hub/public_chat/store.py`, `client-hub/tests/test_kilas_playbook_routes.py`, this status file.
+- Offline Phase 5 route tests: 6 PASS; Phase 2 store: 9 PASS.
+- Default-off `KILAS_PLAYBOOKS_V2_ENABLED=true` also requires Customers/Jobs and existing Core/WEB tenant entitlement/channel gates. Exactly one bounded extraction provider call, no hidden retries.
+- Completion locks business then conversation; the existing claim-token/mode/version fence runs before safe action. Job writes + audit + assistant reply + event completion share one transaction; expired leases cannot write. A concurrent owner edit causes clarification, not overwrite.
+- Disabled flag retains legacy WEB provider behavior. Provider/action failures produce no Job or success reply. No schema/deployment/WhatsApp/Finance changes.

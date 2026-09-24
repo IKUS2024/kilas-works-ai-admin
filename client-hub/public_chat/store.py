@@ -186,22 +186,30 @@ def claim(bid, cid, event_id, text, ip_key):
 
 
 def finish(event, reply=None, error=None):
-    bid, cid, eid = event["business_id"], event["conversation_id"], event["event_id"]
     with transaction() as tx:
-        conv = _locked(tx, bid, cid)
-        current = tx.one("SELECT * FROM kw_web_events WHERE business_id=? AND conversation_id=? AND event_id=?",
-                         (bid, cid, eid))
-        if current["claim_token"] != event["claim_token"] or current["status"] != "processing":
-            return current
-        if conv["mode"] != "AI_ACTIVE" or conv["version"] != event["version"]:
-            error, reply = None, None  # human takeover fences in-flight model responses
-        if reply is not None and error is None:
-            _message(tx, bid, cid, eid, "assistant", reply)
-        status = "failed" if error else "done"
-        tx.execute("UPDATE kw_web_events SET status=?,error=? WHERE business_id=? AND conversation_id=? AND event_id=?",
-                   (status, error, bid, cid, eid))
-        return dict(current, status=status, error=error)
+        return _finish(tx, event, reply=reply, error=error)
 
+
+def _finish(tx, event, reply=None, error=None, before_reply=None):
+    bid, cid, eid = event["business_id"], event["conversation_id"], event["event_id"]
+    conv = _locked(tx, bid, cid)
+    current = tx.one("SELECT * FROM kw_web_events WHERE business_id=? AND conversation_id=? AND event_id=?",
+                     (bid, cid, eid))
+    if current["claim_token"] != event["claim_token"] or current["status"] != "processing":
+        return current
+    if conv["mode"] != "AI_ACTIVE" or conv["version"] != event["version"]:
+        error, reply = None, None  # human takeover fences in-flight model responses
+    elif before_reply is not None and error is None:
+        if current['lease_until'] <= int(time.time()):
+            error, reply = 'interrupted', None
+        else:
+            reply = before_reply(tx)
+    if reply is not None and error is None:
+        _message(tx, bid, cid, eid, "assistant", reply)
+    status = "failed" if error else "done"
+    tx.execute("UPDATE kw_web_events SET status=?,error=? WHERE business_id=? AND conversation_id=? AND event_id=?",
+               (status, error, bid, cid, eid))
+    return dict(current, status=status, error=error)
 
 def inbox(bid, page=1):
     with transaction() as tx:
