@@ -192,7 +192,7 @@ class HardeningTests(unittest.TestCase):
                 except (f.FinanceError,op.OperatorError):return None
         with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(run,tokens))
         self.assertEqual(sum(r is not None for r in results),1)
-        self.assertEqual(f.get_invoice_totals(self.b,invoice)['paid_minor'],500000)
+        self.assertEqual(f.get_invoice_totals(self.b,invoice)['paid_minor'],50000000)
 
     def test_picker_bounded_query_not_entire_invoice_history(self):
         with patch.object(db,'query_all',wraps=db.query_all) as query:

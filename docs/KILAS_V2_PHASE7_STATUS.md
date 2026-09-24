@@ -127,3 +127,9 @@ The checkpoint commit is identified by `git log -1 -- docs/KILAS_V2_PHASE7_STATU
 - Changed only `test_finance_fx_precision.py`, `test_finance_phase1a.py`, and this status. Production contracts unchanged.
 - Verification: FX 4, Phase 1A 18, nearby invoice/payment Phase 2A 25, Standalone boundary 4 — all PASS (51 tests).
 - Remaining: other root-cause clusters require diagnosis. Bridge remains unstarted. This recovery run stops at a trustworthy green Finance baseline; it does not proceed to Bridge.
+
+## Recovery pass — checkpoint 2
+- Cluster: stale minor-unit payment fixtures and translated UI selectors. Operator/payment invoices now use 50,000,000 minor units for Rp500,000 requests; live conversation fixtures similarly use the current IDR scale. Overpayment, concurrent/replayed confirmation, audit rollback, stale invoice re-review, partial/full settlement and exact cash assertions remain intact. Decimal-input coverage explicitly tests supported fractions/rounding and rejects invalid precision/nonpositive amounts.
+- UI assertions follow the verified current AI Finance navigation, invoice-create URL, and Buka Tampilan Pelanggan label, retaining pagination/search/archive and no-AI-on-GET invariants.
+- Files: `test_finance_phase4a.py`, `test_finance_phase4b.py`, `test_finance_phase4c.py`, `test_finance_phase5ab.py`, `test_finance_invoice_editor.py`, `test_finance_live_conversation.py`.
+- Isolated full-file verification: 15 + 35 + 25 + 24 + 18 + 23 = 140 tests PASS. No production code changes in this checkpoint. Other assistant fixture repairs are in progress and are not certified green yet.

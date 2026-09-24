@@ -43,7 +43,7 @@ class OperatorTests(unittest.TestCase):
         return self.client.post(self.url+'/confirm',json=dict(token=token,confirm=True,**extra))
 
     def invoice(self):
-        i=f.create_finance_invoice(self.b,self.c,'2026-09-01','2026-09-20',[dict(description='Work',quantity=1,unit_price_minor=500000)])
+        i=f.create_finance_invoice(self.b,self.c,'2026-09-01','2026-09-20',[dict(description='Work',quantity=1,unit_price_minor=50000000)])
         f.issue_finance_invoice(self.b,i)
         return i
 
@@ -55,7 +55,7 @@ class OperatorTests(unittest.TestCase):
         with patch.object(op,'interpret',side_effect=AssertionError('No AI on GET')):
             self.assertEqual(self.client.get(self.url).status_code,200)
             dashboard=self.client.get(self.url.rsplit('/operator',1)[0])
-            self.assertIn(b'Tanya Kilas Finance',dashboard.data);self.assertNotIn(b'AI Operator',dashboard.data)
+            self.assertIn(b'AI Finance',dashboard.data);self.assertNotIn(b'AI Operator',dashboard.data)
 
     def test_disabled_by_default_ui_and_all_endpoints(self):
         with patch.dict(os.environ,{'KILAS_FINANCE_OPERATOR_BUSINESS_IDS':''}),patch.object(op,'interpret') as call:
@@ -98,7 +98,7 @@ class OperatorTests(unittest.TestCase):
     def test_confirm_expense(self):
         result=self.confirm(self.draft()['token']);self.assertEqual(result.status_code,200,result.data)
         row=f.get_transaction(self.b,result.json['record_id'])
-        self.assertEqual(row['amount_minor'],500000);self.assertEqual(row['direction'],'EXPENSE')
+        self.assertEqual(row['amount_minor'],50000000);self.assertEqual(row['direction'],'EXPENSE')
         self.assertEqual(row['created_by_user_id'],self.uid);self.assertEqual(row['source_type'],'FINANCE_OPERATOR')
 
     def test_confirm_income(self):
@@ -165,8 +165,8 @@ class OperatorTests(unittest.TestCase):
                 self.assertEqual(self.client.post(self.url+'/draft',json=payload).status_code,400);call.assert_not_called()
 
     def test_money_exact_and_no_float(self):
-        for value,expected in [('Rp500.000',500000),('500rb',500000),('1,5 juta',1500000),('1500',1500)]:self.assertEqual(op.rupiah(value),expected)
-        for value in ('-500','0','1.5','0,1','1+2','1e6',str(2**63),500.0,True):
+        for value,expected in [('Rp500.000',50000000),('500rb',50000000),('1,5 juta',150000000),('1500',150000),('1.5',150),('0,1',10),('1.2345',123)]:self.assertEqual(op.rupiah(value),expected)
+        for value in ('-500','0','1.2345678','0.000001','1+2','1e6',str(2**63),500.0,True):
             with self.subTest(value=value),self.assertRaises((op.OperatorError,f.FinanceError)):op.rupiah(value)
 
     def test_unsupported_injected_action_and_ungrounded_money(self):
