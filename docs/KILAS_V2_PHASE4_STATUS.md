@@ -37,3 +37,11 @@ remain protected. No production database/deployment or live model/WhatsApp crede
 
 Next: implement additive schema and contracts with minimal synthetic SQLite validation.
 No blockers. Status commit SHA: `git log -1 -- docs/KILAS_V2_PHASE4_STATUS.md`.
+
+## Milestone 1 — schema (PASS)
+Created paired additive 0057, explicit installer, and isolated SQLite schema test.
+Triple tenant/conversation/customer FK, idempotent installer, rejected foreign/mismatched
+links and preservation of synthetic legacy Order row verified. Offline
+`--only test_kilas_jobs_schema.py`: PASS (1 test). No old migration chain executed.
+Files: migrations/0057 pair, kilas_core/job_schema.py, tests/test_kilas_jobs_schema.py.
+Prior checkpoint: `8feb318`. Next: deterministic service/lifecycle and retry tests.
