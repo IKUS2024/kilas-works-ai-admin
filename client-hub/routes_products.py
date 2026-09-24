@@ -175,10 +175,12 @@ def product_start():
             session.pop('product_intent',None)
             return redirect(url_for('products.assist_entry'),code=303)
         if choice=='finance':
+            session['onboarding_goal']='finance'
             session['active_product']='finance'
             session.pop('product_intent',None)
             return redirect(url_for('products.finance_entry'),code=303)
         if choice=='assist':
+            session['onboarding_goal']='ai'
             session['active_product']='brain'
             session.pop('product_intent',None)
             return redirect(url_for('products.assist_entry'),code=303)

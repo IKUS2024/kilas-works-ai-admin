@@ -5,7 +5,11 @@ import repo
 def setup(business):
     from routes_client import _human_missing_labels, _step_for_missing_fields
     missing = repo.required_fields_missing(business['id'])
-    return dict(missing=_human_missing_labels(missing), step=_step_for_missing_fields(missing))
+    import subscription_service
+    import ai_usage
+    return dict(missing=_human_missing_labels(missing), step=_step_for_missing_fields(missing),
+                subscription=subscription_service.get_subscription_banner(business['id']),
+                usage=ai_usage.client_summary(business['id']))
 
 
 def finance_attention(business, actor):

@@ -49,7 +49,13 @@ if __name__ == '__main__':
         if jobs_qa and product == 'finance':
             return []  # Existing Finance entry UI, synthetic account with no Finance businesses.
         return [fixture.repo.get_business(7 if uid==1 else 8)]
+    # This harness deliberately has no Finance schema or business created_at column.
+    # Workspace presentation reads use the same synthetic membership identity as its
+    # pre-Phase-9 product entry. Core conversations/actions still use real storage.
     stubs=[patch('routes_products._product_businesses',side_effect=own_businesses),
+           patch.object(fixture.repo,'list_businesses_for_user',side_effect=lambda uid: own_businesses(uid,'brain')),
+           patch('routes_products._finance_business_claimed',return_value=False),
+           patch('subscription_service.get_subscription_banner',return_value=None),
            patch.object(fixture.repo,'required_fields_missing',return_value=[]),
            patch('payment_service.has_verified_ai_admin_payment',return_value=True),
            patch('inbox_service.list_conversations',return_value=[]),
@@ -76,7 +82,7 @@ if __name__ == '__main__':
         @app.post('/dev/operations/advance')
         def dev_advance():
             # Test-only synthetic clock; normal app CSRF still applies.
-            if session.get('user_id') != 1 or session.get('active_product') != 'brain': abort(404)
+            if session.get('user_id') != 1 or session.get('active_product') == 'finance': abort(404)
             qa_clock['offset']+=3601
             return {'offset':qa_clock['offset']}
     for stub in stubs: stub.start()

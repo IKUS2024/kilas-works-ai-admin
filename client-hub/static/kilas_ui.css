@@ -36,3 +36,4 @@ body.admin-ui>.topbar{display:none}.kw-operator-nav{position:fixed;inset:0 auto 
  .kw-app .finance-context-home .finance-app-context-filter{grid-column:4/6;grid-row:2}
  .kw-app .finance-context-home .finance-app-more{grid-column:6/7;grid-row:2;justify-self:end}
 }
+.kw-subscription-note{padding:12px;border-radius:8px;border:1px solid #765626;background:#2e271b;color:#f4d39a!important;font-size:13px}.kw-subscription-note.danger{border-color:#743b3b;background:#302020;color:#ffc1bd!important}

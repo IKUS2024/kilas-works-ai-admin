@@ -195,3 +195,30 @@ Required Phase 1–8 and full Finance gates remain the authoritative regression 
 
 Next: run the final candidate through Phase 2–9 CI, inspect full desktop/tablet/mobile
 artifacts, verify real onboarding journeys, and review exact diff before completion.
+
+## Checkpoint 4 — preserved subscription and usage visibility
+
+Published checkpoint 3: `0c4e662568d980f96663c04fbeac1ff4c246043a`.
+Phase 9 `36070949966` PASS, including five viewport sizes and real AI-only / Finance-only
+onboarding journeys. Artifact `10837982249` downloaded; tablet Finance and desktop Home
+visually inspected, with the previous overflow resolved. Checkpoint 2 Phase 7
+`36070335057` also passed both complete Finance baseline and SQLite/PostgreSQL runtime.
+
+Checkpoint 3 Phase 8 `36070949995` caught missing grace-period subscription copy on the
+consolidated Home. Restored the existing subscription service banner without changing
+entitlements; unchanged `test_subscription_lifecycle.py` passes locally. Capability
+review also retains monthly AI reply usage, package/business status and review prompts
+in the Home setup disclosure. No meaningless zero metrics added to primary Home.
+
+Phase 3 `36070950026` passed unit/PostgreSQL gates but its old minimal browser fixture
+failed Home reads (missing full business/Finance/subscription schema). Updated only
+that harness's existing membership/subscription stubs and session-preference assumption;
+Core conversation/action/security paths remain real. Local harness Home smoke passes.
+Product-intent switching now clears a stale 'both' choice when explicitly choosing one.
+Local seven workspace regression cases pass after these changes.
+
+Exact checkpoint files: `client-hub/routes_products.py`, `client-hub/static/kilas_ui.css`,
+`client-hub/templates/workspace_home.html`, `client-hub/tests/public_chat_dev.py`,
+`client-hub/workspace_presenter.py`, this status file.
+Next: publish checkpoint, rerun all Phase 2–9 workflows including Phase 1/Finance
+baseline, inspect remaining screenshots, review exact diff, and certify only if green.
