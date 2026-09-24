@@ -305,3 +305,24 @@ AI replies through the shared Core; the owner sees the WEB conversation in Inbox
 and reply work; tenant isolation and PostgreSQL storage behavior are runtime-verified.
 
 **PHASE 2 COMPLETE. STOP BEFORE PHASE 3 IMPLEMENTATION.**
+
+
+## External staging checkpoint — 2026-09-24
+A dedicated isolated Render QA service is now live:
+- service: `kilas-v2-phase2-qa`
+- branch: `feature/kilas-core-v2`
+- auto-deploy: OFF
+- public QA harness only; synthetic data; no production customer data
+- Render deploy `dep-daqib2pi4cuc73bs6ue0`: LIVE
+- service bound successfully on `0.0.0.0:10000`
+- dedicated disposable Render PostgreSQL `kilas-v2-staging-db` exists and is AVAILABLE
+- production services/database were not modified by this staging setup
+
+The dedicated QA service removes the prior localhost reachability blocker. Formal browser/mobile
+interaction evidence and PostgreSQL migration/runtime certification are still pending and must not
+be invented. Phase 2 therefore remains CHECKPOINT/PARTIAL, not COMPLETE.
+
+Product-owner authorization: Phase 3 implementation may proceed in parallel now because Phase 2
+implementation milestones 1–6 and focused regressions are passing. This is an implementation-order
+exception only; it does NOT authorize production rollout and does NOT waive the remaining Phase 2
+release gates.
