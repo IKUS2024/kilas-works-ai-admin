@@ -4,10 +4,12 @@ import unittest
 from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from kilas_core.contracts import ContractError, ConversationResult, HistoryMessage, InboundMessage
 from kilas_core.flags import enabled_for_business
+from kilas_core.service import process_message
 
 
 def envelope(**changes):
@@ -77,6 +79,55 @@ class FlagTests(unittest.TestCase):
                 "KILAS_CORE_V2_ENABLED": "true", "KILAS_CORE_V2_TEST_BUSINESS_IDS": ids}))
         self.assertFalse(enabled_for_business(7, {
             "KILAS_CORE_V2_ENABLED": "false", "KILAS_CORE_V2_TEST_BUSINESS_IDS": "7"}))
+
+
+class ServiceTests(unittest.TestCase):
+    def test_single_injected_call_and_bounded_history(self):
+        message = envelope(external_message_id="external-1")
+        history = tuple(HistoryMessage("user", str(n)) for n in range(12))
+        provider = Mock(return_value=("Jawaban", None))
+        result = process_message(message, history=history, reply_provider=provider)
+        provider.assert_called_once_with(message, history[-10:])
+        self.assertEqual((result.business_id, result.conversation_id, result.external_message_id),
+                         (7, message.conversation_id, "external-1"))
+        self.assertEqual(result.reply, "Jawaban")
+
+    def test_errors_are_bounded_sanitized_and_not_retried(self):
+        for provider in (Mock(side_effect=RuntimeError("SECRET")),
+                         Mock(return_value=(None, "SECRET")),
+                         Mock(return_value=("bad success", "error"))):
+            result = process_message(envelope(), history=(), reply_provider=provider)
+            provider.assert_called_once()
+            self.assertEqual(result.error, "provider_error")
+            self.assertIsNone(result.reply)
+            self.assertNotIn("SECRET", repr(result))
+
+    def test_malformed_provider_results(self):
+        for output in (None, {}, ["reply", None], ("reply",), (None, None), ("", None),
+                       (123, None), ("x" * 16001, None)):
+            with self.subTest(output=str(output)[:30]):
+                provider = Mock(return_value=output)
+                result = process_message(envelope(), history=(), reply_provider=provider)
+                self.assertEqual(result.error, "invalid_provider_result")
+                provider.assert_called_once()
+
+    def test_bad_input_never_calls_provider(self):
+        provider = Mock()
+        for message, history in (({}, ()), (envelope(), []), (envelope(), ({"role": "user"},))):
+            with self.assertRaises(ContractError):
+                process_message(message, history=history, reply_provider=provider)
+        provider.assert_not_called()
+
+    def test_stateless_correlation_is_not_durable_replay(self):
+        provider = Mock(return_value=("Reply", None))
+        message = envelope(external_message_id="same-event")
+        a = process_message(message, history=(), reply_provider=provider)
+        b = process_message(message, history=(), reply_provider=provider)
+        other = process_message(envelope(business_id=8, external_message_id="same-event"),
+                                history=(), reply_provider=provider)
+        self.assertEqual(a, b)
+        self.assertEqual(other.business_id, 8)
+        self.assertEqual(provider.call_count, 3)
 
 
 if __name__ == "__main__":

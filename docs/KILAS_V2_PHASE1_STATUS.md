@@ -1,9 +1,10 @@
 # Kilas V2 Phase 1 status
 
-Status: IN PROGRESS — contracts and rollout gate checkpoint.
+Status: IN PROGRESS — injectable service checkpoint.
 
 Branch: `feature/kilas-core-v2`.
-Starting feature SHA / current commit before this checkpoint: `387aa9d9a182111d12a6096969071e49d76a7e7d`.
+Starting feature SHA: `387aa9d9a182111d12a6096969071e49d76a7e7d`.
+Current commit before this checkpoint (contracts/gate): `8ca74276bd7fda91cecba4d19a23f18a2bd231ed`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
 The status-bearing commit is identified by `git log -1 -- docs/KILAS_V2_PHASE1_STATUS.md`;
 its own SHA cannot be embedded in its contents. Subsequent checkpoints record the preceding milestone SHA.
@@ -16,14 +17,19 @@ its own SHA cannot be embedded in its contents. Subsequent checkpoints record th
 - Immutable validated inbound/history/result contracts, text-only simulator scope.
 - Default-off `KILAS_CORE_V2_ENABLED` plus strict comma-separated positive integer
   `KILAS_CORE_V2_TEST_BUSINESS_IDS` environment allowlist. Both required; no wildcard.
+- Injectable stateless `process_message`, ten-message history bound, one provider call,
+  validated normalized result, sanitized provider failure, no automatic retry or live capabilities.
+- External message IDs are correlation only in the core. The simulator adapter must reject supplied
+  IDs explicitly until durable replay storage is implemented in a later authorized phase.
 
 ## Tests
-- PASS (7 tests): `python scripts/run_offline_tests.py --only test_kilas_core_contract.py`.
+- PASS contracts/gate (7 tests). Service checkpoint command (12 tests):
+  `python scripts/run_offline_tests.py --only test_kilas_core_contract.py`.
 - Existing `test_ai_onboarding_features_enabled_fix.py` is empty at the base SHA; do not claim coverage from it.
 
 ## Remaining / exact next action
-1. Contracts/gate test passed; checkpoint ready. Continue with service implementation.
-2. Implement injectable service and tests; checkpoint.
+1. Contracts/gate committed; service implemented. Run the 12-test command and checkpoint if passing.
+2. Next implementation action: add `client-hub/kilas_core/adapters/simulator.py` and adapter tests.
 3. Implement safe simulator adapter and tests; checkpoint.
 4. Wire only the existing simulator handler behind the gate; checkpoint.
 5. Run focused offline regressions, inspect full Phase 1 diff against starting SHA, mark COMPLETE.
