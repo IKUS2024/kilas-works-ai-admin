@@ -156,6 +156,11 @@ def claim(bid, cid, event_id, text, ip_key):
         limit(tx, "send-ip:" + ip_key, 60, 30)
         limit(tx, "send-visitor:" + cid, 60, 10)
         limit(tx, "send-business:" + str(bid), 86400, 500)
+        # A newer message can recover an abandoned conversation, but must fence every
+        # expired older worker before starting another provider request.
+        tx.execute("UPDATE kw_web_events SET status='failed',error='interrupted' "
+                   "WHERE business_id=? AND conversation_id=? AND event_id<>? "
+                   "AND status='processing' AND lease_until<=?", (bid,cid,event_id,now))
         if not event:
             _message(tx, bid, cid, event_id, "user", text)
         token = secrets.token_hex(16)

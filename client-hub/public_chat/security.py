@@ -4,15 +4,26 @@ import hmac
 import os
 from flask import abort, current_app, request
 import repo
+import subscription_service
 from kilas_core.flags import enabled_for_business
 from . import store
 
 
 def available(business):
-    return bool(business and os.environ.get('KILAS_WEB_CHAT_ENABLED', '').lower() == 'true'
-                and enabled_for_business(business['id'])
-                and business.get('package') in ('AI_ADMIN', 'AI_ADMIN_BASIC', 'AI_ADMIN_PRO')
-                and business.get('status') not in ('ARCHIVED', 'SUSPENDED', 'CANCELLED'))
+    eligible = bool(business and os.environ.get('KILAS_WEB_CHAT_ENABLED', '').lower() == 'true'
+                    and enabled_for_business(business['id'])
+                    and business.get('package') in ('AI_ADMIN', 'AI_ADMIN_BASIC', 'AI_ADMIN_PRO')
+                    and business.get('status') not in ('ARCHIVED', 'SUSPENDED', 'CANCELLED'))
+    if not eligible:
+        return False
+    # Same existing paid-runtime rule as WhatsApp, without importing its app/adapter.
+    # Rollout permission is never a substitute for a paid AI Admin entitlement.
+    try:
+        subscription = subscription_service.get_subscription(business['id'])
+        return bool(subscription and subscription['status'] in ('ACTIVE', 'GRACE'))
+    except Exception:
+        return False
+
 
 
 def resolve(slug):

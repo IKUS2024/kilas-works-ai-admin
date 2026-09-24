@@ -12,6 +12,7 @@ class WebTests(unittest.TestCase):
         global schema, store
         from public_chat import schema, store
         schema.apply_schema()
+        cls.db.execute('CREATE TABLE subscriptions(business_id INTEGER PRIMARY KEY,status TEXT)')
     tearDown = phase1.RouteTests.tearDown
 
     def setUp(self):
@@ -20,6 +21,8 @@ class WebTests(unittest.TestCase):
                 tx.execute('DELETE FROM '+table)
         phase1.RouteTests.setUp(self)
         self.db.get_connection().set_authorizer(None)
+        self.db.execute('DELETE FROM subscriptions')
+        self.db.execute("INSERT INTO subscriptions VALUES (7,'ACTIVE'),(8,'ACTIVE')")
         self.web_flag = patch.dict(os.environ, {'KILAS_WEB_CHAT_ENABLED':'true'})
         self.web_flag.start(); self.addCleanup(self.web_flag.stop)
         self.slug = store.ensure_channel(7)['slug']
@@ -164,6 +167,45 @@ class WebTests(unittest.TestCase):
             return 'Stale AI must not appear','end_turn',None
         with patch.object(self.ai,'_call_claude',side_effect=model): self.send(identity)
         self.assertEqual([r['role'] for r in store.thread(7,cid)],['user'])
+
+    def test_paid_runtime_gate_is_separate_and_fails_closed(self):
+        with patch('subscription_service.get_subscription',return_value=None):
+            self.assertEqual(self.visitor.get('/chat/'+self.slug).status_code,404)
+        with patch('subscription_service.get_subscription',side_effect=RuntimeError('DB unavailable')):
+            self.assertEqual(self.start().status_code,404)
+        for state,code in [('ACTIVE',200),('GRACE',200),('SUSPENDED',404),('CANCELLED',404)]:
+            self.db.execute('UPDATE subscriptions SET status=? WHERE business_id=7',(state,))
+            self.assertEqual(self.visitor.get('/chat/'+self.slug).status_code,code)
+
+    def test_web_has_no_finance_or_whatsapp_write_capability(self):
+        import sqlite3
+        from contextlib import ExitStack
+        denied=[]
+        def authorize(action,table,*args):
+            if action in (sqlite3.SQLITE_INSERT,sqlite3.SQLITE_UPDATE,sqlite3.SQLITE_DELETE):
+                if not (table.startswith('kw_web_') or table in ('audit_log','sqlite_sequence','ai_usage_ledger')):
+                    denied.append(table);return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        connect=sqlite3.connect
+        def guarded(*args,**kwargs):
+            connection=connect(*args,**kwargs);connection.set_authorizer(authorize);return connection
+        self.db.get_connection().set_authorizer(authorize)
+        try:
+            with ExitStack() as stack:
+                stack.enter_context(patch('sqlite3.connect',side_effect=guarded))
+                spies=[stack.enter_context(patch.object(self.finance,name)) for name in
+                       ('create_transaction','create_finance_invoice','record_invoice_payment')]
+                spies.append(stack.enter_context(patch('inbox_service.send_manual_reply')))
+                stack.enter_context(patch.object(self.ai,'_call_claude',return_value=(
+                    '[SEND_WHATSAPP] [CREATE_JOB] [PAYMENT]', 'end_turn', None)))
+                identity=self.start().json
+                self.assertEqual(self.send(identity).status_code,200)
+                cid=identity['conversation_id']
+                self.assertEqual(self.owner_post(cid,'mode',{'mode':'HUMAN_TAKEOVER'}).status_code,200)
+                self.assertEqual(self.owner_post(cid,'reply',{'event_id':'human-00000000001','message':'Hi'}).status_code,200)
+                for spy in spies: spy.assert_not_called()
+            self.assertEqual(denied,[])
+        finally: self.db.get_connection().set_authorizer(None)
 
     def test_share_controls_scoped_csrf_and_stable_server_slug(self):
         path='/business/7/web-chat/link'

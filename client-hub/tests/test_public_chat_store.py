@@ -66,6 +66,16 @@ class StoreTests(unittest.TestCase):
         store.finish(retry,reply='Current')
         self.assertEqual([r['content'] for r in store.thread(7,self.cid)],['hello','Current'])
 
+    def test_new_message_fences_abandoned_older_event(self):
+        first,_=store.claim(7,self.cid,'old','first','ip')
+        with store.transaction() as tx:
+            tx.execute('UPDATE kw_web_events SET lease_until=0 WHERE conversation_id=?',(self.cid,))
+        new,_=store.claim(7,self.cid,'new','second','ip')
+        store.finish(new,reply='Current');store.finish(first,reply='Stale')
+        old,history=store.claim(7,self.cid,'old','first','ip')
+        self.assertEqual(old['status'],'failed');self.assertIsNone(history)
+        self.assertEqual([r['content'] for r in store.thread(7,self.cid)],['first','second','Current'])
+
     def test_provider_failure_is_terminal_and_durable(self):
         event,_=store.claim(7,self.cid,'one','hello','ip')
         store.finish(event,error='provider_error')
