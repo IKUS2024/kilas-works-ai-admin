@@ -136,6 +136,10 @@ def create_app():
     app.register_blueprint(owner_bp)
     from public_chat.security import available as web_chat_available
     app.jinja_env.globals['web_chat_available'] = web_chat_available
+    from kilas_core.customer_routes import customers_bp
+    from kilas_core import customers as core_customers
+    app.register_blueprint(customers_bp)
+    app.jinja_env.globals['kilas_customers_enabled'] = core_customers.enabled
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from routes_finance import finance_bp
