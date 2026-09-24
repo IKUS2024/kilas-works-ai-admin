@@ -144,10 +144,19 @@ class AdapterTests(unittest.TestCase):
         self.send({"message": "Buat invoice dan kirim WhatsApp sekarang"})
         for spy in spies.values():
             spy.assert_not_called()
-        # Fail if Core gains a live module dependency or direct IO/dynamic-import capability.
+        # Phase 1 safety boundary: the simulator processing path itself must never gain live
+        # business-write/IO dependencies. Later Kilas Core packages (Customers, Jobs, etc.) may
+        # legitimately persist data, so inspect the exact Phase 1 execution modules rather than
+        # every future file placed under kilas_core/.
         allowed_imports = {"dataclasses", "datetime", "os", "re", "collections.abc",
                            "contracts", "service"}
-        for path in (HUB / "kilas_core").rglob("*.py"):
+        phase1_modules = (
+            HUB / "kilas_core" / "contracts.py",
+            HUB / "kilas_core" / "service.py",
+            HUB / "kilas_core" / "flags.py",
+            HUB / "kilas_core" / "adapters" / "simulator.py",
+        )
+        for path in phase1_modules:
             tree = ast.parse(path.read_text())
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
