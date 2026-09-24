@@ -128,7 +128,7 @@ class Cases:
         self.assertEqual(self.create()['version'],1)
 
     def test_label_mapping_and_fallback(self):
-        for category,kind in [('Restaurant','ORDER'),('Retail','ORDER'),('Salon','BOOKING'),
+        for category,kind in [('Restaurant','ORDER'),('Coffee shop','ORDER'),('Makanan & Minuman','ORDER'),('Retail','ORDER'),('Salon','BOOKING'),
                               ('Logistics / freight','SHIPMENT'),('Agency Videography','PROJECT'),
                               ('Workshop repair','SERVICE'),('', 'GENERIC'),('unknown','GENERIC')]:
             result=jobs.presentation(category)

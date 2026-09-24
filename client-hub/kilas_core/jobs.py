@@ -52,7 +52,7 @@ def enabled():
 def presentation(category):
     words = set(re.findall(r'[a-z]+', str(category or '').lower()))
     groups = (
-        ('ORDER', {'restaurant', 'restoran', 'retail', 'toko', 'warung', 'cafe', 'kafe', 'kuliner', 'food'}),
+        ('ORDER', {'restaurant', 'restoran', 'retail', 'toko', 'warung', 'cafe', 'kafe', 'kuliner', 'food', 'coffee', 'makanan', 'minuman'}),
         ('BOOKING', {'salon', 'appointment', 'spa', 'barbershop', 'klinik'}),
         ('SHIPMENT', {'logistics', 'logistik', 'freight', 'ekspedisi', 'pengiriman'}),
         ('PROJECT', {'agency', 'agensi', 'videography', 'videografi', 'fotografi'}),

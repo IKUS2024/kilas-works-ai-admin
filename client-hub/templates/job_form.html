@@ -2,6 +2,7 @@
 {% block title %}{{ job.title if job else 'Buat ' ~ labels.singular }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
+<style>[data-jobs-page] h1,[data-jobs-page] a{overflow-wrap:anywhere}</style>
 <section class="client-page" data-jobs-page>
   <div class="client-head"><div><h1>{{ job.title if job else 'Buat ' ~ labels.singular }}</h1><p>{{ business.business_name }}</p></div>
     <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id) }}">← {{ labels.plural }}</a>

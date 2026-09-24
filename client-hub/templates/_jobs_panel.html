@@ -1,4 +1,9 @@
 {% if linked_jobs %}
+<style>
+[data-linked-jobs] .client-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+[data-linked-jobs] .client-list{display:grid;gap:8px}
+[data-linked-jobs] .client-item{display:block;overflow-wrap:anywhere;padding:8px;border:1px solid var(--border);border-radius:8px}
+</style>
 <div class="card" data-linked-jobs>
   <h2>{{ linked_jobs.labels.plural }}</h2>
   <div class="client-actions">

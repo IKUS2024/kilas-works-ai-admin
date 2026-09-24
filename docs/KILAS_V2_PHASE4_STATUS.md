@@ -97,3 +97,12 @@ Finance visual scope is the real unchanged entry page with a synthetic no-Financ
 no accounting data or production Finance QA is implied. No Finance form is submitted.
 Compile checks and git diff --check PASS. PostgreSQL/browser remain PENDING until CI evidence.
 Exact next action: publish checkpoints, observe Phase 4 CI and resolve only actual failures.
+
+## Milestone 6 progress / mobile review
+CI `36014047791` at `6aa646f` has passed Phase 1–4 SQLite and PostgreSQL 0055/0056/0057,
+including Jobs concurrency. Browser was still running when recorded; no browser pass yet.
+Code review found fourth Inbox tab needs wrapping at mobile width; scoped Jobs-only wrapping
+and linked-panel styles added, with long-title wrapping. Actual onboarding category placeholder
+is free text (Coffee shop / Klinik / Influencer); added Coffee shop and Makanan/Minuman aliases.
+Focused service 15 + route 8 tests PASS again. Next: final-head CI/browser results/screenshots.
+Published owner/link/security/QA commits: `e2aadd2`, `e832f02`, `c361f0b`, `6aa646f`.
