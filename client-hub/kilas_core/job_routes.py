@@ -153,3 +153,11 @@ def update(bid,job_id):
                     status=form.get('status'),fields=_fields(form),actor_id=security.current_user()['id'],
                     operation_key=form.get('operation_key'))
     return redirect(url_for('core_jobs.detail_page',bid=bid,job_id=job_id,saved=1),code=303)
+
+
+def linked_context(business, customer_id, conversation_id=None):
+    """Bounded owner-only panel; never read Jobs tables when the rollout is off."""
+    if not available(business):
+        return None
+    rows, total, _, _ = jobs.list_jobs(business['id'],customer_id=customer_id,conversation_id=conversation_id)
+    return dict(rows=rows,total=total,labels=labels(business),customer_id=customer_id,conversation_id=conversation_id)

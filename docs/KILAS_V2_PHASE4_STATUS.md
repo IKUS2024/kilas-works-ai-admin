@@ -68,3 +68,12 @@ choices only; operation keys and optimistic versions travel with explicit owner 
 Published prior milestones: planning `298f528`, schema `9c4dc62`, service `6cd48da`.
 (Local pre-publication hashes above are historical; GitHub Git-data publishing preserves trees.)
 Next: add Customer/WEB Inbox links and verify them with focused route tests.
+
+## Milestone 4 — Customer / WEB Inbox linkage (PASS)
+Customer detail and selected WEB conversation now expose gated manual creation and linked records.
+Job detail links back to both; server resolves/validates conversation+customer, never trusts scope
+payloads. AI product and WEB navigation use one category mapping helper. Default-off paths do not
+query Jobs storage. Offline route suite PASS (5 tests), including create/open/back links and flag-off
+preservation. Files: job_routes, customer_routes, public_chat/owner, Customer/WEB/product templates,
+_jobs_panel template and route tests. Prior local owner checkpoint `5cd6c86`.
+Next: complete protected-write/security cases; rerun prior phases; add PostgreSQL/mobile CI.

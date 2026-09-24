@@ -1,0 +1,14 @@
+{% if linked_jobs %}
+<div class="card" data-linked-jobs>
+  <h2>{{ linked_jobs.labels.plural }}</h2>
+  <div class="client-actions">
+    <a class="btn" data-create-job href="{{ url_for('core_jobs.new_page',bid=business.id,customer_id=linked_jobs.customer_id,conversation_id=linked_jobs.conversation_id) }}">Buat {{ linked_jobs.labels.singular }}</a>
+    <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id,customer_id=linked_jobs.customer_id) }}">Lihat semua</a>
+  </div>
+  <div class="client-list">
+    {% for row in linked_jobs.rows %}<a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
+      <strong>{{ row.title }}</strong><span class="client-item-meta"> · {{ row.status_label }}</span>
+    </a>{% else %}<p class="client-note">Belum ada {{ linked_jobs.labels.singular|lower }} terkait.</p>{% endfor %}
+  </div>
+</div>
+{% endif %}

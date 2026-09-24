@@ -2,6 +2,7 @@
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
 from kilas_core import customers
+from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
 
@@ -34,7 +35,8 @@ def detail_page(bid, customer_id):
     except customers.CustomerError as error:
         abort(error.status)
     return render_template("customer_detail.html", business=business, customer=customer,
-                           conversations=conversations, saved=request.args.get("saved") == "1")
+                           conversations=conversations, saved=request.args.get("saved") == "1",
+                           linked_jobs=linked_context(business,customer_id))
 
 
 @customers_bp.post("/business/<int:bid>/customers/<customer_id>")
@@ -59,5 +61,6 @@ def update_profile(bid, customer_id):
         conversations = customers.customer_conversations(bid, customer_id)
         return render_template("customer_detail.html", business=business, customer=customer,
                                conversations=conversations, saved=False,
-                               form_error="Periksa kembali data customer."), 400
+                               form_error="Periksa kembali data customer.",
+                               linked_jobs=linked_context(business,customer_id)), 400
     return redirect(url_for("core_customers.detail_page", bid=bid, customer_id=customer_id, saved=1))

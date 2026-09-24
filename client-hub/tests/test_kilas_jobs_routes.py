@@ -90,4 +90,31 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(jobs.list_jobs(7)[1],0)
 
 
+    def test_customer_and_inbox_manual_job_linkage(self):
+        with patch.object(self.ai,'_call_claude',return_value=('Jawaban bisnis','end_turn',None)):
+            self.assertEqual(self.send(self.identity).status_code,200)
+        detail='/business/7/customers/'+self.customer['id']
+        inbox='/business/7/inbox?channel=web&conversation='+self.cid
+        for path in (detail,inbox):
+            page=self.client.get(path)
+            self.assertEqual(page.status_code,200)
+            self.assertIn(b'data-create-job',page.data)
+        # Server resolves the customer from the selected conversation.
+        new=self.client.get('/business/7/jobs/new?conversation_id='+self.cid)
+        self.assertEqual(new.status_code,200)
+        self.assertIn(self.customer['id'].encode(),new.data)
+        self.assertEqual(self.create().status_code,303)
+        job=jobs.list_jobs(7)[0][0]
+        for path in (detail,inbox):
+            page=self.client.get(path)
+            self.assertIn(('/business/7/jobs/'+job['id']).encode(),page.data)
+            self.assertIn(b'Pesanan makan siang',page.data)
+        page=self.client.get('/business/7/jobs/'+job['id'])
+        self.assertIn(detail.encode(),page.data)
+        self.assertIn(b'data-job-conversation',page.data)
+        with patch.dict(os.environ,{'KILAS_JOBS_V2_ENABLED':'false'}):
+            self.assertNotIn(b'data-linked-jobs',self.client.get(detail).data)
+            self.assertNotIn(b'data-linked-jobs',self.client.get(inbox).data)
+
+
 if __name__=='__main__': unittest.main()
