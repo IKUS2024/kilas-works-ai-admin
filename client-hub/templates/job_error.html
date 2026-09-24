@@ -1,0 +1,4 @@
+{% extends "base.html" %}
+{% block title %}Periksa data{% endblock %}
+{% block content %}<section class="card"><h1>Data belum tersimpan</h1><p>{{ message }}</p>
+<a class="btn" href="{{ url_for('core_jobs.list_page',bid=bid) }}">Kembali ke daftar</a></section>{% endblock %}

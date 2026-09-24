@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ labels.plural }} — {{ business.business_name }}{% endblock %}
+{% block content %}
+{% include "_client_compact_style.html" %}
+<section class="client-page">
+  <div class="client-head"><div><h1>{{ labels.plural }}</h1><p>{{ business.business_name }}</p></div>
+    <a class="btn" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Pilih customer untuk membuat {{ labels.singular|lower }}</a>
+  </div>
+  <form class="card" method="get">
+    {% if customer_id %}<input type="hidden" name="customer_id" value="{{ customer_id }}">{% endif %}
+    <label for="job-search">Cari {{ labels.singular|lower }}</label>
+    <input id="job-search" type="search" name="q" maxlength="120" value="{{ search }}" placeholder="Judul atau ringkasan">
+    <label for="job-filter">Status</label><select id="job-filter" name="status"><option value="">Semua status</option>
+      {% for key,value in status_labels.items() %}<option value="{{ key }}" {{ 'selected' if status==key else '' }}>{{ value }}</option>{% endfor %}
+    </select><button class="btn" type="submit">Cari</button>
+  </form>
+  <div class="client-list">
+    {% for row in rows %}
+    <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
+      <div class="client-item-title">{{ row.title }}</div>
+      <div class="client-item-meta">{{ row.label }} · {{ row.status_label }} · {{ row.updated_at|job_time }}</div>
+    </a>
+    {% else %}<div class="client-empty">Belum ada {{ labels.singular|lower }} yang sesuai. Buka Customer untuk membuatnya.</div>{% endfor %}
+  </div>
+  {% if pages>1 %}<nav class="client-pagination" aria-label="Halaman {{ labels.plural }}">
+    {% if page>1 %}<a class="client-page-btn" href="{{ url_for('core_jobs.list_page',bid=business.id,q=search,status=status,customer_id=customer_id,page=page-1) }}">← Sebelumnya</a>{% endif %}
+    <span>{{ page }} / {{ pages }}</span>
+    {% if page<pages %}<a class="client-page-btn" href="{{ url_for('core_jobs.list_page',bid=business.id,q=search,status=status,customer_id=customer_id,page=page+1) }}">Berikutnya →</a>{% endif %}
+  </nav>{% endif %}
+</section>
+{% endblock %}

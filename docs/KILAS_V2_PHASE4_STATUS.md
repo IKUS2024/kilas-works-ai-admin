@@ -58,3 +58,13 @@ positive finite numeric quantity, <=8192 UTF-8 bytes; unknown keys rejected. No 
 metadata. UI will expose plain fields, not raw JSON. Service callers must authenticate actor;
 owner routes will enforce existing membership/package/subscription/CSRF guards.
 Prior schema checkpoint: `11672ea`. Next: owner routes/UI and linkage.
+
+## Milestone 3 — owner routes/UI (PASS)
+New job_routes.py, jobs/job_form/job_error templates, hub blueprint registration.
+Offline `--only test_kilas_jobs_routes.py`: PASS (4 tests): real authenticated create/edit,
+CSRF, foreign references/owners, forged payload, flag/package/subscription and Finance-session gates.
+Normal Indonesian fields and errors; no JSON editor, AI action or external sends. Forward status
+choices only; operation keys and optimistic versions travel with explicit owner forms.
+Published prior milestones: planning `298f528`, schema `9c4dc62`, service `6cd48da`.
+(Local pre-publication hashes above are historical; GitHub Git-data publishing preserves trees.)
+Next: add Customer/WEB Inbox links and verify them with focused route tests.

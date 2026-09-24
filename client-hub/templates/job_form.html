@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title if job else 'Buat ' ~ labels.singular }}{% endblock %}
+{% block content %}
+{% include "_client_compact_style.html" %}
+<section class="client-page" data-jobs-page>
+  <div class="client-head"><div><h1>{{ job.title if job else 'Buat ' ~ labels.singular }}</h1><p>{{ business.business_name }}</p></div>
+    <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id) }}">← {{ labels.plural }}</a>
+  </div>
+  {% if saved %}<div class="flash success">Data tersimpan.</div>{% endif %}
+  <div class="card">
+    <a data-job-customer href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=customer.id) }}">Customer: {{ customer.display_name }}</a>
+    {% if conversation_id %}<p><a data-job-conversation href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=conversation_id) }}">Buka percakapan WEB</a></p>{% endif %}
+    {% if job %}<p><span class="client-status info">{{ job.status_label }}</span></p>
+    <p class="client-note">Dibuat {{ job.created_at|job_time }}<br>Diperbarui {{ job.updated_at|job_time }}</p>{% endif %}
+  </div>
+  <form class="card" method="post" action="{{ url_for('core_jobs.update',bid=business.id,job_id=job.id) if job else url_for('core_jobs.create',bid=business.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="operation_key" value="{{ operation_key }}">
+    {% if job %}<input type="hidden" name="version" value="{{ job.version }}">
+    {% else %}<input type="hidden" name="customer_id" value="{{ customer.id }}">
+      {% if conversation_id %}<input type="hidden" name="conversation_id" value="{{ conversation_id }}">{% endif %}
+    {% endif %}
+    <label for="job-title">Judul</label><input id="job-title" name="title" maxlength="160" required value="{{ job.title if job else '' }}">
+    <label for="job-summary">Ringkasan</label><textarea id="job-summary" name="summary" maxlength="2000">{{ job.summary if job else '' }}</textarea>
+    {% if job %}<label for="job-status">Status</label><select id="job-status" name="status">
+      <option value="{{ job.status }}">{{ job.status_label }}</option>
+      {% for value in transitions %}<option value="{{ value }}">{{ status_labels[value] }}</option>{% endfor %}
+    </select>{% else %}<p class="client-note">Status awal: Baru</p>{% endif %}
+    <details class="client-collapsible" {% if fields %}open{% endif %}><summary>Rincian tambahan</summary>
+      <div class="client-form-grid client-collapsible-body">
+      {% for key,label in field_labels.items() %}<div><label for="field-{{ key }}">{{ label }}</label>
+        <input id="field-{{ key }}" name="field_{{ key }}" value="{{ fields.get(key,'') }}" maxlength="1000" {% if key=='quantity' %}type="number" min="0.000001" max="1000000000" step="any"{% endif %}>
+      </div>{% endfor %}
+      </div>
+    </details>
+    <button class="btn" type="submit">{{ 'Simpan perubahan' if job else 'Buat ' ~ labels.singular }}</button>
+  </form>
+</section>
+{% endblock %}
