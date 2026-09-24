@@ -33,5 +33,6 @@
     </div>
   </div>
   {% include "_jobs_panel.html" %}
+{% if job is not defined or job %}{% include "_finance_bridge_panel.html" %}{% endif %}
 </section>
 {% endblock %}

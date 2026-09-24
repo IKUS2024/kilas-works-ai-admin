@@ -1,4 +1,43 @@
-# Phase 7 status — FINANCE BASELINE GREEN / BRIDGE IMPLEMENTATION STARTING
+# Phase 7 status — BRIDGE IMPLEMENTED / FINAL QA IN PROGRESS
+
+## Current Bridge checkpoint (supersedes recovery sections below)
+
+- Passing Finance recovery commit: `1b616f2c5b869a3a8738ab2eb804fdafb9042d69`.
+  **FINANCE BASELINE GREEN — BRIDGE IMPLEMENTATION STARTING** gate was met before
+  any Bridge implementation. Both original positive move tests remain unchanged.
+- Completed milestones 2–6: explicit versioned owner mapping, explicit customer link
+  or creation, reviewed Job → Finance DRAFT, immutable historical links, Finance
+  authoritative status/totals/payment readback, additive owner forms and cards,
+  idempotency, concurrency and atomic failure coverage. Default-off explicit installer.
+- Full Finance rerun after Bridge: **1018 PASS, 39 executed files, zero failures,
+  errors, skips or zero-test passes** (`/tmp/kilas-phase7-bridge-baseline/results.json`).
+- Bridge SQLite: **10 service + 4 real Flask/security/standalone tests PASS**.
+  Phase 1–6 local regression selectors all PASS again after the UI integration.
+- Exact files in this milestone: `client-hub/app.py`, `finance_service.py`;
+  `client-hub/kilas_core/finance_bridge.py`, `finance_bridge_schema.py`,
+  `finance_bridge_routes.py`; paired 0060 Bridge migrations; templates
+  `customer_detail.html`, `job_form.html`, `_finance_bridge_panel.html`,
+  `finance_bridge.html`, `finance_bridge_error.html`; tests
+  `kilas_finance_bridge_cases.py`, `test_kilas_finance_bridge.py`,
+  `test_kilas_finance_bridge_routes.py`, `kilas_finance_bridge_postgres_qa.py`,
+  `kilas_finance_bridge_dev.py`, `kilas_finance_bridge_browser_qa.py`;
+  Phase 7 workflow; this status, `KILAS_V2_FINANCE_BRIDGE.md`,
+  `KILAS_V2_FINANCE_SELLABILITY.md`.
+- Recovery head Phase 2–6 remote CI all PASS. Initial new Phase 7 CI `36036790413`
+  failed before product tests because its Python 3.11 could not parse existing Finance
+  multiline f-strings. Workflow now uses Python 3.12, matching Phase 2–6. No test or
+  product assertion was weakened to fix the interpreter mismatch.
+- PostgreSQL and mobile browser certification **PENDING**, not claimed complete.
+  Cloud browser cannot open loopback (`ERR_BLOCKED_BY_CLIENT`); dedicated synthetic
+  CI fixture/script follows existing Phase 2–6 browser QA pattern. No production data.
+- Standalone feature audit documented, including honestly unsupported same-currency
+  general transfers and accountant-grade capabilities deferred for Phase 9 assessment.
+  Existing supported FX movement and cash meaning are unchanged.
+- `git diff --check` PASS. No production deploy/WhatsApp change/Phase 8.
+- Current checkpoint SHA: commit containing this section; previous exact SHA above.
+- Exact next action: inspect Phase 7 PostgreSQL/mobile CI, fix real defects narrowly,
+  inspect screenshots and final diff, record final exact evidence; COMPLETE only if
+  every required gate passes.
 
 ## Current continuation checkpoint
 

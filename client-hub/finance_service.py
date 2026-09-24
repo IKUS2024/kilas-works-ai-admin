@@ -167,11 +167,13 @@ def _scope(business_id, actor_user_id=None):
 
 
 @contextmanager
-def _write(business_id, actor_user_id):
+def _write(business_id, actor_user_id, *, related_business_ids=()):
     _id(business_id)
     # A reviewed compound command may reuse Finance services under ONE existing
     # business lock. Never adopt an unrelated commerce transaction or another actor.
     if _finance_write.get() == (business_id, actor_user_id):
+        if related_business_ids:
+            raise FinanceError('nested_lock_expansion')
         _scope(business_id, actor_user_id)
         import finance_entitlements
         finance_entitlements.require_write(business_id, actor_user_id)
@@ -180,7 +182,19 @@ def _write(business_id, actor_user_id):
         return
     # Existing abstraction holds a business row lock and keeps nested DB/audit writes atomic.
     # No new transaction framework, no payment/project operation is called.
-    with db.app_purchase_transaction(business_id, None):
+    # Optional reviewed compound commands lock all involved businesses in ID order.
+    # This prevents inverse Core->Finance mappings from deadlocking. Nested service
+    # calls reuse these locks; the monetary service/entitlement contract is unchanged.
+    lock_ids = sorted({_id(business_id), *(_id(bid) for bid in related_business_ids)})
+    if related_business_ids:
+        for bid in lock_ids:
+            if actor_user_id is None or not db.query_one(
+                    "SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=? "
+                    "AND role_in_business='OWNER'", (bid, actor_user_id)):
+                raise FinanceError('business_unavailable')
+    with db.app_purchase_transaction(lock_ids[0], None):
+        for bid in lock_ids[1:]:
+            db.execute('UPDATE businesses SET id=id WHERE id=?', (bid,))
         _scope(business_id, actor_user_id)
         import finance_entitlements
         finance_entitlements.require_write(business_id, actor_user_id)
@@ -2020,10 +2034,10 @@ def list_invoice_payments(business_id, invoice_id, actor_user_id=None):
                         (business_id, invoice_id))
 
 
-def get_invoice_totals(business_id, invoice_id, actor_user_id=None, today=None):
+def get_invoice_totals(business_id, invoice_id, actor_user_id=None, today=None, *, include_identity=False):
     # One statement gives a consistent read snapshot while another request posts a payment.
     _scope(business_id, actor_user_id)
-    row = db.query_one(('''SELECT i.status,i.due_date,
+    row = db.query_one(('''SELECT i.status,i.due_date,i.id,i.invoice_number,i.currency,i.branch_id,i.customer_id,
         COALESCE((SELECT SUM(x.quantity*x.unit_price_minor) FROM finance_invoice_items x
                   WHERE x.business_id=i.business_id AND x.invoice_id=i.id),0) AS total_minor,
         COALESCE((SELECT SUM(p.amount_minor) FROM finance_invoice_payments p
@@ -2033,9 +2047,13 @@ def get_invoice_totals(business_id, invoice_id, actor_user_id=None, today=None):
         raise FinanceError('invoice_unavailable')
     total, paid = int(row['total_minor']), int(row['paid_minor'])
     outstanding = total-paid
-    return dict(total_minor=total, paid_minor=paid, outstanding_minor=outstanding,
+    result = dict(total_minor=total, paid_minor=paid, outstanding_minor=outstanding,
         overdue=row['status'] in ('ISSUED','PARTIALLY_PAID') and outstanding > 0 and
                 row['due_date'] < _date(today or business_today(business_id)))
+    if include_identity:
+        result.update({key: row[key] for key in
+            ('id','invoice_number','currency','branch_id','customer_id','status','due_date')})
+    return result
 
 
 def list_finance_invoices(business_id, status=None, customer_id=None, actor_user_id=None):

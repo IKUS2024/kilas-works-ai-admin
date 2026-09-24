@@ -147,6 +147,9 @@ def create_app():
     app.jinja_env.globals['attention_summary'] = attention_summary
     app.jinja_env.globals['jobs_available'] = jobs_available
     app.jinja_env.globals['job_labels'] = job_labels
+    from kilas_core.finance_bridge_routes import bridge_bp, panel as finance_bridge_panel
+    app.register_blueprint(bridge_bp)
+    app.jinja_env.globals['finance_bridge_panel'] = finance_bridge_panel
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from routes_finance import finance_bp
