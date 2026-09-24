@@ -21,9 +21,9 @@ Phase order:
 4. Generic Jobs engine with business-specific labels
 5. Playbooks + safe AI Action Engine
 6. Human handover + simple Automations
-7. Finance Bridge only, using existing Finance services
+7. Finance Bridge only, using existing Finance services; preserve full Standalone Finance and add optional Connected Finance links
 8. Official WhatsApp adapter into the tested Core
-9. UX polish / onboarding simplification / package visibility / owner + admin dashboard refresh
+9. UX polish / onboarding simplification / package visibility / owner + admin dashboard refresh / Finance UX and accountant-readiness polish
 10. Production hardening, browser QA, staged rollout
 
 Business-first scope:
