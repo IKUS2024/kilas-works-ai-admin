@@ -130,6 +130,8 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
+    from public_chat.routes import public_bp
+    app.register_blueprint(public_bp)
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from routes_finance import finance_bp
@@ -189,6 +191,8 @@ def create_app():
         Logout clears the Flask session, so the next login starts from the product picker again.
         Account/profile pages remain reachable because they are part of the Finance experience.
         """
+        if (request.endpoint or "").startswith("public_web."):
+            return None  # Independent anonymous channel; never uses the owner product session.
         if not session.get("user_id") or session.get("role") == "KILAS_ADMIN":
             return None
         if (session.get("active_product") or "").strip().lower() != "finance":
@@ -217,6 +221,8 @@ def create_app():
 
     @app.before_request
     def _csrf_protect():
+        if (request.endpoint or "").startswith("public_web."):
+            return None  # Public blueprint enforces exact Origin + visitor-specific WEB CSRF.
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return None
         if current_app.config.get("TESTING") and not current_app.config.get("CLIENT_HUB_FORCE_CSRF_IN_TESTS"):

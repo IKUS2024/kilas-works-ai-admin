@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: IN PROGRESS — milestone 1 storage complete; public routes next.
+Status: IN PROGRESS — milestone 2 public visitor routes complete; core AI path next.
 Branch: `feature/kilas-core-v2`.
 Starting/current remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -53,3 +53,12 @@ PASS: `PYTHONPATH=/tmp/kilas-phase1-deps python scripts/run_offline_tests.py --o
 No old migrations executed. Next: implement public visitor routes and security.
 PostgreSQL packaged binaries installed under /tmp/kilas-phase2-pg for later isolated validation.
 Browser execution tool became available on a later discovery; QA setup remains pending.
+
+## Milestone 2 checkpoint
+Current preceding commit: `164bfbd74654724feb4ecc17cbacc93b83871a8a`.
+Added public routes, strict Origin/custom-header protection, scoped HttpOnly/SameSite cookie,
+visitor CSRF secret, no-store/CSP headers, rollout and per-business channel checks.
+Hub exceptions affect only new public_web endpoints; existing Finance owner-session redirect still tested.
+Files: public_chat/{security,routes}.py, templates/public_web_chat.html, app.py, test_public_chat_routes.py.
+PASS: offline `--only test_public_chat_routes` (6 tests); Phase 1 `--only test_kilas_core` (30 tests).
+Next: wire WEB events to the shared processing entry point and actual business knowledge provider.
