@@ -11,8 +11,8 @@ accounting meaning is introduced. Exact final certification is in Phase 7 status
 | Business/Personal workspaces, branches, accounts, opening balances | `home_dashboard`, `branches`, `branch_delete_recovery`, `workspace_corrections`; both original positive move cases preserved |
 | Income/expense, categories/subcategories, safe edits/archives | `phase1a`, `branches`, `phase3`, `home_dashboard`; immutable ledger identity and revision protections remain |
 | Customer/invoice draft, edit, issue, partial/full payment, receivables/overdue | `phase2a`, `invoice_editor`, `phase5ab`, `phase5c`; Bridge shares the same services |
-| Recurring bills/expenses, budgets, cashflow | `phase2b`, `phase3`, `phase4c`, `dashboard_design`, `home_dashboard` |
-| Supported FX movement between different-currency accounts | `phase4c`, `fx_precision`; explicit source/received amounts, per-currency balances; excluded from operating income/expense |
+| Recurring bills/expenses, budgets, cashflow | `phase2b`, `phase3`, `assistant_upgrade`, `dashboard_design`, `home_dashboard` |
+| Supported FX movement between different-currency accounts | `ui_integrity`, `home_dashboard`, `fx_precision`; explicit source/received amounts, per-currency balances; excluded from operating income/expense |
 | Reports/export/PDF | `phase3`, `branches`, `invoice_pdf`, `phase5ab`, `phase5c`, `pdf_recovery` |
 | Finance AI under its own confirmation/entitlement gates | Complete assistant/operator/conversation/semantic/pending-intent tests in baseline; no Core shortcut |
 | Import/reconciliation assistance | `phase6b`, `phase6c`, `bank_sections`; manual review and precision/FX holds remain |

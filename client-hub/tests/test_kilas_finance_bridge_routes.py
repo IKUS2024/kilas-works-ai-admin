@@ -22,6 +22,7 @@ class BridgeRoutesTests(unittest.TestCase):
     def form(self,path):
         page=self.client.get(path)
         self.assertEqual(page.status_code,200,page.data[:400])
+        self.assertEqual(page.headers['Cache-Control'],'private, no-store')
         return dict(re.findall(r'name="(csrf_token|operation_key|version)" value="([^"]*)"',page.text))
 
     def test_owner_forms_explicit_mapping_customer_draft_and_readback(self):

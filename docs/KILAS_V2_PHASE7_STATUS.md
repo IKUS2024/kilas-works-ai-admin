@@ -1,5 +1,26 @@
 # Phase 7 status — BRIDGE IMPLEMENTED / FINAL QA IN PROGRESS
 
+## QA refinement checkpoint
+
+- Bridge implementation checkpoint: `e4579f4cd5120d711f9a18ade22c0ac38428ba0e`.
+- Remote Phase 2–6 CI on that exact head SUCCESS: `36039212932`, `36039213105`,
+  `36039212870`, `36039213104`, `36039212885`; includes their PostgreSQL and mobile
+  suites plus Phase 1 regression. Phase 7 `36039212956` is still running.
+- Exact refinement files: Bridge service/routes; shared Bridge cases; Flask route
+  tests; synthetic browser harness; Phase 7 workflow; sellability audit and this status.
+- Review closed a real boundary gap: Bridge refuses Personal branches because current
+  Finance invoice UI is Business-only; honors existing Finance product visibility.
+  Private financial form responses use `private, no-store`.
+- **13 service + 4 Flask tests PASS**. Added distinct-key concurrent invoice attempts
+  (exactly one winner), inverse-business connection lock ordering, Personal/hidden
+  Finance rejection. Existing 1018-test baseline pass remains recorded below.
+- Synthetic harness persona switching now precedes the real Finance-session routing
+  hook, without changing app behavior. Local real Flask harness smoke PASS.
+- Baseline and PostgreSQL/mobile CI jobs now run independently for faster feedback;
+  both must pass. No pending check is called successful.
+- Exact next action: inspect PostgreSQL/mobile results, fix only proven defects,
+  inspect screenshots and final baseline, then record COMPLETE if all gates pass.
+
 ## Current Bridge checkpoint (supersedes recovery sections below)
 
 - Passing Finance recovery commit: `1b616f2c5b869a3a8738ab2eb804fdafb9042d69`.

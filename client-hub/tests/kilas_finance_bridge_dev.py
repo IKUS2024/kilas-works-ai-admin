@@ -13,6 +13,14 @@ case=BridgeTests();case.setUp()
 app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
 base=f'/business/{case.source}/finance-bridge'
 
+# Synthetic persona switch precedes the real product-session routing hook. It is
+# confined to this unimported QA module and never changes production session rules.
+def synthetic_persona_switch():
+    from flask import request
+    if request.endpoint in ('owner','foreign'):
+        session.pop('active_product',None)
+app.before_request_funcs[None].insert(0,synthetic_persona_switch)
+
 @app.get('/dev/health')
 def health():
     return jsonify(source=case.source,target=case.target,branch=case.branch,cid=case.cid,jid=case.jid)

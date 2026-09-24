@@ -6,7 +6,23 @@ on:
 permissions:
   contents: read
 jobs:
-  finance:
+  finance-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Complete isolated Finance baseline
+        run: python scripts/run_finance_baseline.py --logs /tmp/phase7-finance-baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-phase7-finance-baseline
+          path: /tmp/phase7-finance-baseline
+  finance-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -26,8 +42,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt
-      - name: Complete isolated Finance baseline
-        run: python scripts/run_finance_baseline.py --logs /tmp/phase7-finance-baseline
       - name: Bridge SQLite services routes and standalone independence
         run: python scripts/run_offline_tests.py --only test_kilas_finance_bridge
       - name: PostgreSQL migration and workspace corrections
@@ -66,8 +80,3 @@ jobs:
           name: kilas-phase7-mobile
           path: /tmp/kilas-phase7-browser-qa
           if-no-files-found: ignore
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: kilas-phase7-finance-baseline
-          path: /tmp/phase7-finance-baseline

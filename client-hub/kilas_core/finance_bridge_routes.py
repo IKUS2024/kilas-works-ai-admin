@@ -10,6 +10,12 @@ from . import finance_bridge as bridge
 bridge_bp = Blueprint('core_finance_bridge', __name__)
 
 
+@bridge_bp.after_request
+def private_response(response):
+    response.headers['Cache-Control'] = 'private, no-store'
+    return response
+
+
 def available(business):
     if not bridge.enabled() or session.get('active_product') == 'finance':
         return False
@@ -112,7 +118,7 @@ def customer_page(bid,cid):
     mapping = bridge.connection(bid,actor)
     choices = []
     if mapping and mapping['enabled']:
-        bridge._owner(mapping['finance_business_id'],actor)
+        bridge._finance_owner(mapping['finance_business_id'],actor)
         with branches.scope(mapping['finance_business_id'],mapping['finance_branch_id'],actor):
             choices = finance.list_customers(mapping['finance_business_id'],actor_user_id=actor)
     return _render(business,actor,mode='customer',customer=customer,choices=choices,

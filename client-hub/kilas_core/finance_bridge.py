@@ -12,6 +12,7 @@ import db
 import repo
 import finance_service as finance
 import finance_branches as branches
+import finance_entitlements as entitlements
 from . import customers, jobs
 from .flags import enabled_for_business
 
@@ -32,6 +33,14 @@ def _owner(bid, actor):
     if not db.query_one("SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=? "
                         "AND role_in_business='OWNER'", (bid, actor)):
         raise BridgeError('not_found', 404)
+
+
+def _finance_owner(bid, actor):
+    _owner(bid, actor)
+    # Match existing Finance product visibility as well as service entitlement.
+    if not (entitlements.self_service() or entitlements.flag('KILAS_FINANCE_BETA')
+            or db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'",(actor,))):
+        raise BridgeError('unavailable',404)
 
 
 def _source(bid, actor):
@@ -114,12 +123,14 @@ def _version(value, initial=False):
 @contextmanager
 def _command(bid, actor, mapping):
     target, branch = mapping['finance_business_id'], mapping['finance_branch_id']
-    _owner(target, actor)
+    _finance_owner(target, actor)
     with branches.scope(target, branch, actor):
         with finance._write(target, actor, related_business_ids=(bid,)):
             # Recheck both sides after lock acquisition, before any link/write.
             _source(bid, actor)
-            _owner(target, actor)
+            _finance_owner(target, actor)
+            if branches.get(target,branch,active=True,actor_user_id=actor)['workspace_type'] != 'BUSINESS':
+                raise BridgeError('business_branch_required')
             yield
 
 
@@ -134,7 +145,7 @@ def configure(bid, actor, *, finance_business_id, finance_branch_id, expected_ve
     digest = _request(bid,actor,operation_key,'connection',payload,confirmed)
     prior = _replay(bid,actor,operation_key,digest)
     if prior:
-        _owner(prior['finance_business_id'],actor)
+        _finance_owner(prior['finance_business_id'],actor)
         return db.query_one('SELECT * FROM kw_core_finance_connections WHERE source_business_id=? AND version=?',
                             (bid,prior['connection_version']))
     mapping = dict(finance_business_id=finance_business_id,finance_branch_id=finance_branch_id)
@@ -170,7 +181,7 @@ def _finance_key(bid, key, kind):
 
 
 def _customer_result(bid, cid, target, actor):
-    _owner(target,actor)
+    _finance_owner(target,actor)
     link = db.query_one('SELECT * FROM kw_core_finance_customer_links WHERE '
                         'source_business_id=? AND core_customer_id=? AND finance_business_id=?', (bid,cid,target))
     if not link:
@@ -226,7 +237,7 @@ def _invoice_result(bid, jid, actor):
     if not link:
         return None
     target = link['finance_business_id']
-    _owner(target,actor)
+    _finance_owner(target,actor)
     with branches.scope(target,link['finance_branch_id'],actor):
         # Status and all amounts come from one Finance-authoritative SQL snapshot.
         invoice = finance.get_invoice_totals(target,link['finance_invoice_id'],actor,include_identity=True)

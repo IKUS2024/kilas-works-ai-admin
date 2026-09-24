@@ -29,7 +29,7 @@ class BridgeCases:
                    (self.source,self.jid,self.cid,'PROJECT','Photo work','READY_FOR_QUOTE',1,1))
         self.flags=patch.dict(os.environ,{'KILAS_FINANCE_BRIDGE_ENABLED':'true','KILAS_CORE_V2_ENABLED':'true',
             'KILAS_CORE_V2_TEST_BUSINESS_IDS':str(self.source),'KILAS_CUSTOMERS_V2_ENABLED':'true','KILAS_JOBS_V2_ENABLED':'true',
-            'KILAS_FINANCE_ACCESS_MODE':'internal_beta','KILAS_FINANCE_EMERGENCY_DISABLE':'false'})
+            'KILAS_FINANCE_ACCESS_MODE':'internal_beta','KILAS_FINANCE_EMERGENCY_DISABLE':'false','KILAS_FINANCE_BETA':'on'})
         self.flags.start();self.addCleanup(self.flags.stop)
         self.invoice=dict(items=[dict(description='Photo',quantity=2,unit_price_minor=50000)],
                           currency='IDR',issue_date='2026-09-01',due_date='2026-09-30')
@@ -159,3 +159,45 @@ class BridgeCases:
         with self.assertRaises(bridge.BridgeError):bridge.read_invoice(self.source,self.foreign_actor,self.jid)
         with self.assertRaises(bridge.BridgeError):bridge.read_invoice(self.source,self.actor,'unknown')
         self.assertEqual(self.draft()['invoice']['status'],'DRAFT')
+
+    def test_distinct_parallel_requests_cannot_create_two_job_invoices(self):
+        self.connect();self.customer()
+        barrier=threading.Barrier(2)
+        def worker(key):
+            try:
+                barrier.wait()
+                try:self.draft(operation_key=key);return 'created'
+                except bridge.BridgeError as error:return error.code
+            finally:
+                if getattr(db._local,'conn',None):db._local.conn.close();db._local.conn=None
+        with ThreadPoolExecutor(max_workers=2) as pool:results=list(pool.map(worker,('a'*32,'b'*32)))
+        self.assertEqual(sorted(results),['created','invoice_already_linked'])
+        self.assertEqual(len(f.list_finance_invoices(self.target,actor_user_id=self.actor)),1)
+
+    def test_inverse_business_connections_lock_in_consistent_order(self):
+        db.execute("UPDATE businesses SET package='AI_ADMIN' WHERE id=?",(self.target,))
+        subscription_service.create_subscription(self.target,'ai_admin',self.actor)
+        f.ensure_finance_defaults(self.source,actor_user_id=self.actor)
+        source_branch=branches.list_branches(self.source,self.actor)[0]['id']
+        barrier=threading.Barrier(2)
+        def worker(args):
+            try:
+                barrier.wait()
+                source,target,branch=args
+                return bridge.configure(source,self.actor,finance_business_id=target,finance_branch_id=branch,
+                    expected_version=0,enabled_value=True,operation_key='a'*32,confirmed=True)
+            finally:
+                if getattr(db._local,'conn',None):db._local.conn.close();db._local.conn=None
+        with patch.dict(os.environ,{'KILAS_CORE_V2_TEST_BUSINESS_IDS':f'{self.source},{self.target}'}):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results=list(pool.map(worker,((self.source,self.target,self.branch),(self.target,self.source,source_branch))))
+        self.assertEqual(len(results),2)
+        self.assertTrue(all(row['version']==1 for row in results))
+
+    def test_personal_branch_and_unavailable_finance_product_fail_closed(self):
+        personal=branches.ensure_personal(self.target,self.actor)
+        with self.assertRaises(bridge.BridgeError):self.connect(finance_branch_id=personal)
+        self.assertIsNone(bridge.connection(self.source,self.actor))
+        with patch.dict(os.environ,{'KILAS_FINANCE_BETA':'off'}):
+            with self.assertRaises(bridge.BridgeError):self.connect()
+        self.assertIsNone(bridge.connection(self.source,self.actor))
