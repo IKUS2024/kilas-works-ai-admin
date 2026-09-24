@@ -57,16 +57,16 @@ class FinanceTests(unittest.TestCase):
         for b in self.biz * 3:
             f.ensure_finance_defaults(b)
             self.assertEqual(len(f.list_accounts(b)), 1)
-            self.assertEqual(len(f.list_categories(b)), 10)
+            self.assertEqual(len(f.list_categories(b)), 9)
         self.assertEqual(before, db.query_all('SELECT * FROM audit_log ORDER BY id'))
         self.assertEqual(
             [row['name'] for row in f.list_categories(self.b,'EXPENSE')],
-            list(f.DEFAULT_CATEGORIES['EXPENSE']))
+            sorted(f.DEFAULT_CATEGORIES['EXPENSE']))
         utility=next(row for row in f.list_categories(self.b,'EXPENSE') if row['name']=='Utilitas')
         children=f.list_category_children(self.b,utility['id'])
         self.assertEqual(
             [row['name'] for row in children],
-            list(f.DEFAULT_CATEGORY_CHILDREN['EXPENSE']['Utilitas']))
+            sorted(f.DEFAULT_CATEGORY_CHILDREN['EXPENSE']['Utilitas']))
         self.assertTrue(all(row['parent_category_id']==utility['id'] for row in children))
         all_expense=f.list_categories(self.b,'EXPENSE',include_children=True)
         self.assertEqual(len(all_expense),len(f.DEFAULT_CATEGORIES['EXPENSE'])+len(children))
@@ -76,15 +76,18 @@ class FinanceTests(unittest.TestCase):
         self.assertEqual(f.list_accounts(self.b, True)[0]['opening_balance_minor'], 123)
 
     def test_default_category_migration_hides_unused_legacy_defaults_without_rewriting_history(self):
-        legacy=f.create_category(self.b,'EXPENSE','Transport')
+        legacy=f.create_category(self.b,'EXPENSE','Produksi / HPP')
         tx=f.create_transaction(self.b,'EXPENSE',100,self.a,legacy,'2026-09-01')
-        db.init_schema()
+        # Reproduce a workspace that has not yet received the compact catalog sync.
+        db.execute('DELETE FROM audit_log WHERE business_id=? AND action=?',
+                   (self.b, f.BUSINESS_COMPACT_CATEGORY_SYNC_ACTION))
+        f.sync_business_category_catalog(self.b)
         all_rows=f.list_categories(self.b,'EXPENSE',True)
         legacy_row=next(row for row in all_rows if row['id']==legacy)
         self.assertFalse(legacy_row['is_active'])
         self.assertEqual(f.get_transaction(self.b,tx)['category_id'],legacy)
         active=[row['name'] for row in f.list_categories(self.b,'EXPENSE')]
-        self.assertEqual(active,list(f.DEFAULT_CATEGORIES['EXPENSE']))
+        self.assertEqual(active,sorted(f.DEFAULT_CATEGORIES['EXPENSE']))
 
     def test_utility_subcategory_selection_is_required_and_resolves_to_child(self):
         utility=next(row for row in f.list_categories(self.b,'EXPENSE') if row['name']=='Utilitas')
@@ -114,7 +117,7 @@ class FinanceTests(unittest.TestCase):
         account = f.create_account(self.b, 'BCA', 'BANK', 'IDR', 123)
         category = f.create_category(self.b, 'EXPENSE', 'Office')
         db.execute('UPDATE finance_accounts SET is_active=FALSE WHERE business_id=? AND id=?', (self.b, account))
-        db.execute('UPDATE finance_categories SET is_active=FALSE WHERE business_id=? AND id=?', (self.b, category))
+        f.update_category_workspace_setting(self.b, category, deactivate=True)
         self.assertEqual(f.create_account(self.b, 'BCA', 'BANK', 'IDR', 999), account)
         self.assertEqual(f.create_category(self.b, 'EXPENSE', 'Office'), category)
         restored = next(a for a in f.list_accounts(self.b) if a['id'] == account)
@@ -166,7 +169,7 @@ class FinanceTests(unittest.TestCase):
 
     def test_direction_and_inactive_references(self):
         with self.assertRaises(f.FinanceError): self.create(category_id=self.e)
-        db.execute('UPDATE finance_categories SET is_active=FALSE WHERE business_id=? AND id=?', (self.b, self.c))
+        f.update_category_workspace_setting(self.b, self.c, deactivate=True)
         with self.assertRaises(f.FinanceError): self.create()
 
     def test_amount_rejects_nonpositive_float_bool_string_overflow(self):

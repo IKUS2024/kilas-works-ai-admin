@@ -118,3 +118,12 @@ Command (from repo root; fresh subprocess):
 Only `docs/KILAS_V2_PHASE7_STATUS.md` and `client-hub/tests/test_kilas_finance_baseline.py` are changed from baseline `967181a2e6ad27f8535aea89c24082acc125d47e`.
 No Finance production code/accounting semantics/data/schema, existing assertions, prior phase implementation/status, WhatsApp behavior, deployment settings or production service changed. No second ledger, payment automation, invoice auto-issue, media AI or Phase 8 work.
 The checkpoint commit is identified by `git log -1 -- docs/KILAS_V2_PHASE7_STATUS.md`; no self-referential SHA is fabricated.
+
+## Recovery pass — checkpoint 1 (2026-09-24)
+- Resumed exact remote feature `8f33dd8de8bb14bb68dae2b64c3a12365ab166cb`; remote main unchanged at `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
+- Current feature CI verified SUCCESS: Phase 2 `36027001196`, Phase 3 `36027001207`, Phase 4 `36027001279`, Phase 5 `36027001178`, Phase 6 `36027001321`. These are prior-phase gates, not evidence of a green Finance baseline.
+- Re-executed all 36 existing Finance files and the four boundary tests with full installed requirements, offline network denial, synthetic SQLite, and fresh per-file unittest discovery processes. All counts match the preceding inventory; reproduced 9 passing / 27 failing existing files. No zero-test passes.
+- Cluster: stale FX scale and category fixture contracts. FX once-at-end rounding now uses two 0.25-IDR-minor-unit contributions (individual rounding 0, combined 1), retaining every precision assertion. Category defaults assert the current nine sorted roots and seven utility children. Legacy catalog test now reproduces a pre-sync workspace with a genuinely retired system category; inactive/re-add tests use the authoritative workspace category service instead of the obsolete raw category flag.
+- Changed only `test_finance_fx_precision.py`, `test_finance_phase1a.py`, and this status. Production contracts unchanged.
+- Verification: FX 4, Phase 1A 18, nearby invoice/payment Phase 2A 25, Standalone boundary 4 — all PASS (51 tests).
+- Remaining: other root-cause clusters require diagnosis. Bridge remains unstarted. This recovery run stops at a trustworthy green Finance baseline; it does not proceed to Bridge.
