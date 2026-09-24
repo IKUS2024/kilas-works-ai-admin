@@ -21,9 +21,9 @@
 
 ## Milestones
 1. Existing patterns + contracts: PASS.
-2. Attention state/service: pending.
-3. Automation rules/due runner: pending.
-4. Phase 5 handover integration: pending.
+2. Attention state/service: PASS on SQLite.
+3. Automation rules/due runner: PASS on SQLite.
+4. Phase 5 handover integration: PASS on SQLite.
 5. Home Attention UI: pending.
 6. Security/idempotency/concurrency/regressions: pending.
 7. PostgreSQL/mobile browser QA: pending.
@@ -54,3 +54,11 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - Runner scans 100 conversations/100 Jobs per page and returns explicit cursors; executes at most 100 pending deliveries. Repeated calls drain pending work. CLI accepts explicit business + scan cursors; no cron route or deployment.
 - Delivery rechecks entitlement/config/channel/expiry/mode/version/current customer event and foreground processing; terminal message/state/audit are atomic. Failed writes become FAILED + Attention, with no unbounded retries. Defaults send nothing.
 - Next: wire closed Phase 5 HUMAN/UNSUPPORTED signals, existing takeover transaction helper, and Job state observer; test before owner UI.
+
+## Milestone 4 checkpoint
+- Milestone 3 local commit: `891ed3a`.
+- Files: `client-hub/kilas_core/handover.py`, `jobs.py`; `client-hub/public_chat/store.py`, `playbook_adapter.py`; `client-hub/tests/test_kilas_operations_routes.py`, `test_kilas_operations_store.py`; this status.
+- Phase 6 store 10 + real routes 3 PASS; Phase 2 store 9 + Phase 5 routes 11 PASS.
+- Closed HUMAN/UNSUPPORTED signal creates one Attention request and invokes the original takeover/version/event invalidation logic in the already-fenced completion transaction. No model-generated reply/Job write accompanies takeover. Manual owner reply and explicit return remain functional; return resolves related human Attention only.
+- Job state observer runs in the existing Job transaction for immediate ready/completed attention. Phase 5 unresolved field conflicts surface operational Attention without reimplementing extraction.
+- Next: compact Home panel, paginated owner list/resolve, and bounded automation settings/run controls.

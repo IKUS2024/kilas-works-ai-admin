@@ -240,17 +240,26 @@ def conversation(bid,cid):
 
 
 def set_mode(bid,cid,mode,actor):
+    from kilas_core import operation_access, jobs
+    with transaction() as tx:
+        if operation_access.enabled(): jobs._lock(tx,bid)
+        result = _set_mode(tx,bid,cid,mode,actor)
+        if mode == 'AI_ACTIVE' and operation_access.enabled() and operation_access.eligible(tx,bid):
+            from kilas_core.handover import resolve_human_attention
+            resolve_human_attention(tx,bid,cid)
+        return result
+
+
+def _set_mode(tx,bid,cid,mode,actor,origin=None):
     if mode not in ('AI_ACTIVE','HUMAN_TAKEOVER'):
         raise ChatError('invalid_mode')
-    with transaction() as tx:
-        conv=_locked(tx,bid,cid)
-        if conv['mode']!=mode:
-            tx.execute('UPDATE kw_web_conversations SET mode=?,version=version+1 WHERE business_id=? AND id=?',(mode,bid,cid))
-            tx.execute("UPDATE kw_web_events SET status='done' WHERE business_id=? AND conversation_id=? AND status='processing'",(bid,cid))
-            tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
-                       (actor,bid,'WEB_MODE_CHANGED',cid+':'+mode))
-        return mode
-
+    conv=_locked(tx,bid,cid)
+    if conv['mode']!=mode:
+        tx.execute('UPDATE kw_web_conversations SET mode=?,version=version+1 WHERE business_id=? AND id=?',(mode,bid,cid))
+        tx.execute("UPDATE kw_web_events SET status='done' WHERE business_id=? AND conversation_id=? AND status='processing'",(bid,cid))
+        tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
+                   (actor,bid,'WEB_MODE_CHANGED',cid+':'+mode+(':'+origin if origin else '')))
+    return mode
 
 def human_reply(bid,cid,event_id,text,actor):
     with transaction() as tx:

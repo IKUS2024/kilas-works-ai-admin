@@ -256,6 +256,10 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
     if not result:
         raise JobError('stale_version',409)
     _record(tx,business_id,job_id,actor_id,operation_key,digest,result['version'],'JOB_UPDATED',now)
+    from . import operation_access
+    if operation_access.enabled():
+        from .automations import observe_job
+        observe_job(tx,result)
     return _row(result)
 
 def transition_job(business_id, job_id, status, **kwargs):

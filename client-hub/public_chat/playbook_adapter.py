@@ -3,7 +3,7 @@ import os
 import ai_onboarding
 import ai_usage
 import repo
-from kilas_core import actions, customers, jobs, service, understanding
+from kilas_core import actions, customers, jobs, service, understanding, operation_access
 from kilas_core.contracts import HistoryMessage
 from kilas_core.playbook_definitions import select
 from . import store, security
@@ -58,8 +58,16 @@ def process(business, message, event, history):
             # Fixed lock order. Phase 4 manual edits also lock the business first.
             jobs._lock(tx, bid)
             def commit_action(transaction):
-                _, reply = actions.apply(transaction,bid,cid,expected=expected,book=book,
+                operations = operation_access.enabled() and operation_access.eligible(transaction,bid)
+                if operations and interpretation.intent in ('HUMAN','UNSUPPORTED'):
+                    from kilas_core.handover import request_human
+                    request_human(transaction,bid,cid,interpretation.intent)
+                    return None
+                row, reply = actions.apply(transaction,bid,cid,expected=expected,book=book,
                                          interpretation=interpretation,event_id=message.external_message_id)
+                if operations and row:
+                    from kilas_core.handover import observe_uncertainty
+                    observe_uncertainty(transaction,row)
                 return reply
             return store._finish(tx,event,before_reply=commit_action)
     except jobs.JobError as error:

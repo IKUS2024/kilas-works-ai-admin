@@ -24,6 +24,8 @@ class OperationsTests(kilas_operations_cases.Cases,unittest.TestCase):
             'KILAS_CUSTOMERS_V2_ENABLED':'true','KILAS_WEB_CHAT_ENABLED':'true','KILAS_CORE_V2_ENABLED':'true',
             'KILAS_CORE_V2_TEST_BUSINESS_IDS':'7,8'})
         flag.start();self.addCleanup(flag.stop)
+        timer=patch('kilas_core.automations.clock',side_effect=lambda now=None:1000 if now is None else now)
+        timer.start();self.addCleanup(timer.stop)
         self.operational_seed()
 
     def test_attention_dedupe_resolution_and_references(self):
