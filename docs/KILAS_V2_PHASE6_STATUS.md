@@ -46,3 +46,11 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - 2 isolated SQLite tests PASS: explicit installer twice preserves Attention; tenant FK rejection; linked Customer resolution; dedupe; owner resolution history; cross-tenant resolution denied; disabled/suspended gates.
 - Attention resolution changes only Attention + audit. System writes have NULL actor and WEB_AUTOMATION origin. No automatic schema install. PostgreSQL not yet claimed.
 - Next: implement deterministic due scan + atomic WEB delivery runner and bounded config updates.
+
+## Milestone 3 checkpoint
+- Milestone 2 local commit: `6b97412`.
+- Files: `client-hub/kilas_core/automations.py`, `client-hub/tests/kilas_operations_cases.py`, `client-hub/tests/test_kilas_operations_store.py`, this status.
+- 10 SQLite tests PASS (2 Attention/schema + 8 shared automation cases): due delay, cooldown/max attempts, new-customer-message reset/cancel, stale mode generation, four concurrent runners, review once, human fallback, failed-write rollback, READY_FOR_QUOTE dedupe/resolution, tenant/config gates.
+- Runner scans 100 conversations/100 Jobs per page and returns explicit cursors; executes at most 100 pending deliveries. Repeated calls drain pending work. CLI accepts explicit business + scan cursors; no cron route or deployment.
+- Delivery rechecks entitlement/config/channel/expiry/mode/version/current customer event and foreground processing; terminal message/state/audit are atomic. Failed writes become FAILED + Attention, with no unbounded retries. Defaults send nothing.
+- Next: wire closed Phase 5 HUMAN/UNSUPPORTED signals, existing takeover transaction helper, and Job state observer; test before owner UI.

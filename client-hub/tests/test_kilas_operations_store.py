@@ -6,9 +6,10 @@ import test_kilas_jobs_store as phase4
 import kilas_jobs_cases
 from kilas_core import jobs, attention, operation_schema
 from kilas_core.operation_contracts import OperationError
+import kilas_operations_cases
 
 
-class OperationsTests(unittest.TestCase):
+class OperationsTests(kilas_operations_cases.Cases,unittest.TestCase):
     seed=kilas_jobs_cases.Cases.seed
 
     def setUp(self):
@@ -23,6 +24,7 @@ class OperationsTests(unittest.TestCase):
             'KILAS_CUSTOMERS_V2_ENABLED':'true','KILAS_WEB_CHAT_ENABLED':'true','KILAS_CORE_V2_ENABLED':'true',
             'KILAS_CORE_V2_TEST_BUSINESS_IDS':'7,8'})
         flag.start();self.addCleanup(flag.stop)
+        self.operational_seed()
 
     def test_attention_dedupe_resolution_and_references(self):
         with jobs.transaction() as tx:
