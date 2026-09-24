@@ -9,7 +9,7 @@
 - Phase 5 only, WEB only, business/text first. No Finance/payment/accounting writes, WhatsApp cutover, production deployment, media AI, or Phase 6.
 
 ## Milestones
-1. Understanding contracts + five playbook definitions: pending.
+1. Understanding contracts + five playbook definitions: PASS (checkpoint commit records this milestone).
 2. Pure merge/missing-field engine: pending.
 3. Safe actions through existing Customer/Job services: pending.
 4. Public WEB integration: pending.
@@ -31,7 +31,13 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Implement and test milestone 1 strict understanding schema and five deterministic playbook definitions; commit its passing checkpoint before progressing.
+Implement milestone 2 pure merge/missing-field decisions and grounded response decisions; then test and commit. No runtime integration exists yet.
 
 ## Blockers
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
+
+## Milestone 1 checkpoint
+- Initialization commit: `d701c27` (local; published SHA recorded after sync).
+- Files: `client-hub/kilas_core/playbook_definitions.py`, `client-hub/kilas_core/understanding.py`, `test_kilas_playbooks.py`, this status file.
+- Offline `test_kilas_playbooks.py`: 5 tests PASS. Closed enums/keys, duplicate JSON keys, malformed/oversized output, evidence presence, prohibited fields/actions, quantity validation, immutable result, category mapping covered.
+- These are synthetic extraction-contract tests, not a claim of live model semantic accuracy. No provider, application route or database behavior changed.
