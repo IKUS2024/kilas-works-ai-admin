@@ -331,19 +331,44 @@ While approval is pending:
 
 When official WhatsApp is available, connect it to the same core instead of duplicating business logic.
 
-## 17. Finance Bridge
+## 17. Finance product modes + Bridge
+
+Kilas Finance is ONE Finance engine with TWO commercial/use modes, not two duplicated accounting systems.
+
+### Standalone Finance
+For customers who only want Finance.
+- Finance can be purchased and used without AI Admin.
+- Full Finance capabilities remain available.
+- No Customer/Job/Inbox dependency is required.
+- Finance data, accounting semantics, entitlements and UI remain independently usable.
+
+### Connected Finance
+For customers who use AI Admin + Finance together.
+- Uses the SAME Finance engine and the SAME Finance data model as Standalone Finance.
+- Adds an optional Finance Bridge from Core Customer/Job into Finance.
+- The bridge must not fork, copy or create a second Finance ledger.
+- AI Admin can reference/link Finance objects only through reviewed Finance service APIs.
+- Finance remains the authoritative source for financial truth.
+
+Commercially, the user may buy Finance-only, AI Admin-only, or both. Buying both unlocks bridge features; it must not change the underlying Finance feature set or degrade Standalone Finance.
 
 Only begin Finance Bridge implementation after Customers + Jobs + core message flow are stable.
 
-Principles:
+Bridge principles:
 - additive integration;
-- explicit references;
+- explicit Customer/Job <-> Finance object links;
+- explicit business/branch mapping;
 - idempotent writes;
 - audit trail;
 - Finance remains authoritative;
-- no silent auto-posting of uncertain AI interpretations.
+- no silent auto-posting of uncertain AI interpretations;
+- no automatic customer merge by name;
+- no duplicate Finance data;
+- no direct SQL from Kilas Core into protected Finance tables.
 
-A first safe version may require confirmation before creating a Finance-side transaction/invoice where appropriate.
+A first safe version requires explicit owner confirmation before creating Finance-side customers/invoices/transactions where appropriate. AI may prepare context, but deterministic Finance services execute authoritative writes.
+
+Finance UX/accountant-facing polish belongs to the later UX/hardening phases. UI may be improved substantially while preserving accounting semantics and existing customer data.
 
 ## 18. UX language
 
