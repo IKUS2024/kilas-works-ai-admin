@@ -11,7 +11,7 @@
 ## Milestones
 1. Understanding contracts + five playbook definitions: PASS (checkpoint commit records this milestone).
 2. Pure merge/missing-field engine: PASS (checkpoint commit records this milestone).
-3. Safe actions through existing Customer/Job services: pending.
+3. Safe actions through existing Customer/Job services: PASS in isolated SQLite (not yet exposed to WEB).
 4. Public WEB integration: pending.
 5. Inbox/Job context: pending.
 6. Security/idempotency/provider failure/concurrency: pending.
@@ -31,7 +31,7 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Implement milestone 3 transactional safe actions, preserving Phase 4 validation and manual actors. Then wire the WEB event fence in milestone 4. No runtime integration exists yet.
+Wire milestone 4 WEB completion so the event fence, safe Job action and assistant message share one transaction. Add route-level failure/takeover/retry tests before enabling in QA.
 
 ## Blockers
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
@@ -47,3 +47,11 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Files: `client-hub/kilas_core/playbooks.py`, `test_kilas_playbooks.py`, this status file.
 - Offline `test_kilas_playbooks.py`: 11 tests PASS. Five workflows, conditional delivery location, logistics alternative volume/dimensions, known facts, correction/conflict/ambiguity, durable uncertainty, separate-request deferral, lifecycle restrictions, business redirect covered.
 - Missing details are deterministic. Unresolved contradictions retain the previous fact and a clarification marker. No automatic lifecycle reversal or owner-state advancement. No runtime routes/DB/Finance/WhatsApp changes.
+
+## Milestone 3 checkpoint
+- Milestone 2 local commit: `64d93a6` (published SHA recorded after sync).
+- Files: `client-hub/kilas_core/jobs.py`, `client-hub/kilas_core/actions.py`, `client-hub/tests/kilas_playbook_cases.py`, `client-hub/tests/test_kilas_playbook_actions.py`, this status file.
+- Offline action tests: 7 PASS; existing Phase 4 store 15 and routes 8 PASS.
+- Existing Job service extracted transaction-bound private helpers; public real-user actor validation retained. System audit has NULL user plus explicit WEB_PLAYBOOK origin. Tenant references, version checks, operation records and lifecycle still enforced by Jobs.
+- Existing bounded JSON holds workflow, facts, missing/uncertain details. No migration added. Snapshot comparison protects owner edits. Ambiguous/multiple/finished requests defer to owner. Create+transition rolls back together on failure.
+- Runtime integration still pending; these private helpers are not a new public endpoint.

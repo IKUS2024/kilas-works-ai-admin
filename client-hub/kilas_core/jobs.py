@@ -14,6 +14,7 @@ import uuid
 
 import db
 from kilas_core.customers import transaction
+from kilas_core.playbook_definitions import FIELD_LABELS as PLAYBOOK_FIELDS, PLAYBOOKS
 
 STATUS_LABELS = {
     'NEW': 'Baru', 'NEEDS_INFORMATION': 'Butuh informasi',
@@ -37,6 +38,11 @@ FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
                 'origin': 'Asal', 'destination': 'Tujuan',
                 'scheduled_at': 'Jadwal', 'reference': 'Referensi',
                 'missing_information': 'Informasi yang masih dibutuhkan'}
+
+# Server-only workflow metadata is not accepted by owner form routes.
+WORKFLOW_METADATA = {'playbook', 'uncertain_fields'}
+FIELD_LABELS.update(PLAYBOOK_FIELDS)
+_WEB_PLAYBOOK_ACTOR = object()
 
 
 class JobError(ValueError):
@@ -79,8 +85,14 @@ def _text(value, maximum, required=False):
 
 
 def validate_fields(fields):
-    if not isinstance(fields, dict) or set(fields) - FIELD_LABELS.keys():
+    if not isinstance(fields, dict) or set(fields) - (FIELD_LABELS.keys() | WORKFLOW_METADATA):
         raise JobError('invalid_fields')
+    if 'playbook' in fields and fields['playbook'] not in PLAYBOOKS:
+        raise JobError('invalid_fields')
+    if 'uncertain_fields' in fields:
+        pending = fields['uncertain_fields']
+        if not isinstance(pending, str) or set(filter(None, pending.split(','))) - PLAYBOOK_FIELDS.keys():
+            raise JobError('invalid_fields')
     clean = {}
     for key, value in fields.items():
         if key == 'quantity':
@@ -126,7 +138,10 @@ def _lock(tx, bid):
 
 def _operation(bid, actor_id, operation_key, payload):
     _positive(bid)
-    _positive(actor_id)
+    if actor_id is _WEB_PLAYBOOK_ACTOR:
+        actor_id = 'WEB_PLAYBOOK'
+    else:
+        _positive(actor_id)
     if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', operation_key):
         raise JobError('invalid_operation')
     data = json.dumps([actor_id, payload], ensure_ascii=False, sort_keys=True, separators=(',', ':'))
@@ -147,10 +162,27 @@ def _record(tx, bid, jid, actor_id, operation_key, request_hash, version, action
     tx.execute('INSERT INTO kw_core_job_operations(business_id,operation_key,request_hash,job_id,result_version,created_at) '
                'VALUES (?,?,?,?,?,?)', (bid, operation_key, request_hash, jid, version, now))
     tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
-               (actor_id, bid, action, json.dumps({'job_id': jid, 'version': version})))
+               (None if actor_id is _WEB_PLAYBOOK_ACTOR else actor_id, bid, action,
+                json.dumps({'job_id': jid, 'version': version, **({'origin': 'WEB_PLAYBOOK'} if actor_id is _WEB_PLAYBOOK_ACTOR else {})})))
 
 
 def create_job(business_id, customer_id, *, title, actor_id, operation_key,
+               conversation_id=None, kind='GENERIC', summary='', fields=None):
+    _positive(actor_id)
+    with transaction() as tx:
+        return _create_job(tx,business_id,customer_id,title=title,actor_id=actor_id,operation_key=operation_key,
+                           conversation_id=conversation_id,kind=kind,summary=summary,fields=fields)
+
+
+def update_job(business_id, job_id, *, expected_version, actor_id, operation_key,
+               title=None, summary=None, fields=None, status=None):
+    _positive(actor_id)
+    with transaction() as tx:
+        return _update_job(tx,business_id,job_id,expected_version=expected_version,actor_id=actor_id,
+                           operation_key=operation_key,title=title,summary=summary,fields=fields,status=status)
+
+
+def _create_job(tx, business_id, customer_id, *, title, actor_id, operation_key,
                conversation_id=None, kind='GENERIC', summary='', fields=None):
     title = _text(title, 160, True)
     summary = _text(summary, 2000)
@@ -162,21 +194,20 @@ def create_job(business_id, customer_id, *, title, actor_id, operation_key,
         conversation_id = _text(conversation_id, 128, True)
     digest = _operation(business_id, actor_id, operation_key,
                         ['create', customer_id, conversation_id, kind, title, summary, encoded])
-    with transaction() as tx:
-        _lock(tx, business_id)
-        _references(tx, business_id, customer_id, conversation_id)
-        replay = _replay(tx, business_id, operation_key, digest)
-        if replay:
-            return replay
-        jid, now = uuid.uuid4().hex, int(time.time())
-        tx.execute('INSERT INTO kw_core_jobs(business_id,id,customer_id,conversation_id,kind,title,summary,fields_json,created_at,updated_at) '
-                   'VALUES (?,?,?,?,?,?,?,?,?,?)',
-                   (business_id,jid,customer_id,conversation_id,kind,title,summary,encoded,now,now))
-        _record(tx,business_id,jid,actor_id,operation_key,digest,1,'JOB_CREATED',now)
-        return _row(_get(tx,business_id,jid))
+    _lock(tx, business_id)
+    _references(tx, business_id, customer_id, conversation_id)
+    replay = _replay(tx, business_id, operation_key, digest)
+    if replay:
+        return replay
+    jid, now = uuid.uuid4().hex, int(time.time())
+    tx.execute('INSERT INTO kw_core_jobs(business_id,id,customer_id,conversation_id,kind,title,summary,fields_json,created_at,updated_at) '
+               'VALUES (?,?,?,?,?,?,?,?,?,?)',
+               (business_id,jid,customer_id,conversation_id,kind,title,summary,encoded,now,now))
+    _record(tx,business_id,jid,actor_id,operation_key,digest,1,'JOB_CREATED',now)
+    return _row(_get(tx,business_id,jid))
 
 
-def update_job(business_id, job_id, *, expected_version, actor_id, operation_key,
+def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operation_key,
                title=None, summary=None, fields=None, status=None):
     _positive(expected_version)
     if title is not None:
@@ -188,31 +219,29 @@ def update_job(business_id, job_id, *, expected_version, actor_id, operation_key
         raise JobError('invalid_status')
     digest = _operation(business_id,actor_id,operation_key,
                         ['update',job_id,expected_version,title,summary,encoded,status])
-    with transaction() as tx:
-        _lock(tx,business_id)
-        current = _get(tx,business_id,job_id)
-        _row(current)  # Fail closed before replay lookup for a forged job.
-        _references(tx,business_id,current['customer_id'],current['conversation_id'])
-        replay = _replay(tx,business_id,operation_key,digest)
-        if replay:
-            return replay
-        if current['version'] != expected_version:
-            raise JobError('stale_version',409)
-        target = current['status'] if status is None else status
-        if target != current['status'] and target not in TRANSITIONS[current['status']]:
-            raise JobError('invalid_transition',409)
-        now = int(time.time())
-        result = tx.one('UPDATE kw_core_jobs SET title=?,summary=?,fields_json=?,status=?,version=version+1,updated_at=? '
-                        'WHERE business_id=? AND id=? AND version=? RETURNING *',
-                        (current['title'] if title is None else title,
-                         current['summary'] if summary is None else summary,
-                         current['fields_json'] if encoded is None else encoded,
-                         target,now,business_id,job_id,expected_version))
-        if not result:
-            raise JobError('stale_version',409)
-        _record(tx,business_id,job_id,actor_id,operation_key,digest,result['version'],'JOB_UPDATED',now)
-        return _row(result)
-
+    _lock(tx,business_id)
+    current = _get(tx,business_id,job_id)
+    _row(current)  # Fail closed before replay lookup for a forged job.
+    _references(tx,business_id,current['customer_id'],current['conversation_id'])
+    replay = _replay(tx,business_id,operation_key,digest)
+    if replay:
+        return replay
+    if current['version'] != expected_version:
+        raise JobError('stale_version',409)
+    target = current['status'] if status is None else status
+    if target != current['status'] and target not in TRANSITIONS[current['status']]:
+        raise JobError('invalid_transition',409)
+    now = int(time.time())
+    result = tx.one('UPDATE kw_core_jobs SET title=?,summary=?,fields_json=?,status=?,version=version+1,updated_at=? '
+                    'WHERE business_id=? AND id=? AND version=? RETURNING *',
+                    (current['title'] if title is None else title,
+                     current['summary'] if summary is None else summary,
+                     current['fields_json'] if encoded is None else encoded,
+                     target,now,business_id,job_id,expected_version))
+    if not result:
+        raise JobError('stale_version',409)
+    _record(tx,business_id,job_id,actor_id,operation_key,digest,result['version'],'JOB_UPDATED',now)
+    return _row(result)
 
 def transition_job(business_id, job_id, status, **kwargs):
     return update_job(business_id,job_id,status=status,**kwargs)
