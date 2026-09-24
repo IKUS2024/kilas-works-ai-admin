@@ -4,12 +4,17 @@ Never point this test at production. It creates and drops a minimal schema fixtu
 ONLY the additive 0055 public-web-chat migration.
 """
 import os
+import sys
 import threading
 import unittest
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 if os.environ.get("KILAS_PHASE2_POSTGRES_QA") != "1":
     raise SystemExit("KILAS_PHASE2_POSTGRES_QA=1 is required")
+
+HUB = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(HUB))
 
 import db
 from public_chat import schema, store
