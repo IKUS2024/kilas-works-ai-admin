@@ -1,10 +1,10 @@
 # Kilas V2 Phase 1 status
 
-Status: IN PROGRESS — injectable service checkpoint.
+Status: IN PROGRESS — simulator adapter checkpoint.
 
 Branch: `feature/kilas-core-v2`.
 Starting feature SHA: `387aa9d9a182111d12a6096969071e49d76a7e7d`.
-Current commit before this checkpoint (contracts/gate): `8ca74276bd7fda91cecba4d19a23f18a2bd231ed`.
+Current commit before this checkpoint (service): `735420749ab28e89309093e87acf6a8ec3fd3202`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
 The status-bearing commit is identified by `git log -1 -- docs/KILAS_V2_PHASE1_STATUS.md`;
 its own SHA cannot be embedded in its contents. Subsequent checkpoints record the preceding milestone SHA.
@@ -22,17 +22,20 @@ its own SHA cannot be embedded in its contents. Subsequent checkpoints record th
 - External message IDs are correlation only in the core. The simulator adapter must reject supplied
   IDs explicitly until durable replay storage is implemented in a later authorized phase.
 
+- Adapter preserves quota/history/progress/UI response using only existing simulation repository methods.
+  Text/media/scope validation precedes reservation. Supplied external IDs are rejected; identical
+  legacy text remains a new attempt. Errors preserve the reserved user row and generic assistant reply.
+
 ## Tests
-- PASS contracts/gate (7 tests). Service checkpoint command (12 tests):
+- PASS contracts/gate (7 tests). PASS service (12 tests):
   `python scripts/run_offline_tests.py --only test_kilas_core_contract.py`.
+- PASS adapter (7 tests): `python scripts/run_offline_tests.py --only test_kilas_core_simulator.py`.
 - Existing `test_ai_onboarding_features_enabled_fix.py` is empty at the base SHA; do not claim coverage from it.
 
 ## Remaining / exact next action
-1. Contracts/gate committed; service implemented. Run the 12-test command and checkpoint if passing.
-2. Next implementation action: add `client-hub/kilas_core/adapters/simulator.py` and adapter tests.
-3. Implement safe simulator adapter and tests; checkpoint.
-4. Wire only the existing simulator handler behind the gate; checkpoint.
-5. Run focused offline regressions, inspect full Phase 1 diff against starting SHA, mark COMPLETE.
+1. Contracts, service, adapter complete. Next: wire only `routes_client.simulate_message` behind the gate.
+2. Add real route/auth and isolated SQLite repository tests (no migration runner).
+3. Run focused offline regressions, inspect full Phase 1 diff against starting SHA, mark COMPLETE.
 
 ## Boundaries / blockers
 No code outside the allowlist will change. No Finance, schema/migrations, UI, WhatsApp
