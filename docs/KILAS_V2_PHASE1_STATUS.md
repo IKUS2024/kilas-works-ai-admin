@@ -1,10 +1,10 @@
 # Kilas V2 Phase 1 status
 
-Status: IN PROGRESS — route wiring and integration tests checkpoint.
+Status: COMPLETE — Phase 1 only. Stopped before Phase 2.
 
 Branch: `feature/kilas-core-v2`.
 Starting feature SHA: `387aa9d9a182111d12a6096969071e49d76a7e7d`.
-Current commit before this checkpoint (adapter): `a8f8279f352c1debfbd32c018fa3fb37f3e3cb2d`.
+Current implementation commit: `2247ba877f15ea1319bf359803bced06b6bfc645`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
 The status-bearing commit is identified by `git log -1 -- docs/KILAS_V2_PHASE1_STATUS.md`;
 its own SHA cannot be embedded in its contents. Subsequent checkpoints record the preceding milestone SHA.
@@ -67,13 +67,42 @@ Additional existing regression:
 - `python -m compileall -q client-hub/kilas_core client-hub/tests/test_kilas_core_simulator.py`: PASS.
 - `git diff --check`: PASS.
 
+## Final scope verification
+`git diff --name-only 387aa9d9a182111d12a6096969071e49d76a7e7d HEAD` was checked
+against the exact allowlist. Exactly these ten files changed:
+
+- `client-hub/routes_client.py` — ten lines inside the existing simulator handler only.
+- `client-hub/kilas_core/__init__.py`
+- `client-hub/kilas_core/contracts.py`
+- `client-hub/kilas_core/service.py`
+- `client-hub/kilas_core/flags.py`
+- `client-hub/kilas_core/adapters/__init__.py`
+- `client-hub/kilas_core/adapters/simulator.py`
+- `client-hub/tests/test_kilas_core_contract.py`
+- `client-hub/tests/test_kilas_core_simulator.py`
+- `docs/KILAS_V2_PHASE1_STATUS.md`
+
+Every other tracked file is unchanged, including all Finance code/tests/assets, migrations,
+DB helpers, root WhatsApp app, hub app, paid entitlements, and UI. No uncommitted implementation
+work remains. Milestones were committed and published only to `feature/kilas-core-v2`:
+
+| Milestone | Commit |
+|---|---|
+| Contracts and rollout gate | `8ca74276bd7fda91cecba4d19a23f18a2bd231ed` |
+| Injectable processing service | `735420749ab28e89309093e87acf6a8ec3fd3202` |
+| Safe simulator adapter | `a8f8279f352c1debfbd32c018fa3fb37f3e3cb2d` |
+| Route wiring and integration tests | `2247ba877f15ea1319bf359803bced06b6bfc645` |
+| COMPLETE status | Obtain with `git log -1 -- docs/KILAS_V2_PHASE1_STATUS.md` |
+
 ## Remaining / exact next action
-1. Route wiring and integration suite complete; checkpoint this valid milestone.
-2. Inspect `git diff --name-only 387aa9d9a182111d12a6096969071e49d76a7e7d HEAD` against the exact allowlist.
-3. Verify final test run and clean tree; mark COMPLETE with baseline FX caveat. STOP; do not begin Phase 2.
+No remaining Phase 1 implementation. **STOP. Do not start Phase 2.**
+For verification after resuming, read this status and run the documented `--only test_kilas_core`
+command; do not restart completed milestones. The pre-existing Finance FX failure requires
+separate authorization/scope and is not fixed here. This completion is not production certification:
+no live model/WhatsApp/PostgreSQL or public customer chat QA was claimed.
 
 ## Boundaries / blockers
-No code outside the allowlist will change. No Finance, schema/migrations, UI, WhatsApp
+No code outside the allowlist changed. No Finance, schema/migrations, UI, WhatsApp
 production path, deployment, or Render changes. No production database access.
 No Phase 1 blockers. Pre-existing Finance FX failure is recorded above and remains outside scope. Use GitHub Git-data API for remote milestone commits if Git transport remains unavailable.
 Tests must not invoke existing migration chains; use isolated test fixtures and network denial.
