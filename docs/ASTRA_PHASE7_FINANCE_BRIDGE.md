@@ -51,9 +51,55 @@ Core Job -> Finance Invoice
 
 and then view linked invoice/payment/receivable status back from the Job/Customer side.
 
+Also complete a FINANCE SELLABILITY GATE for the existing Standalone Finance product.
+Phase 7 must leave Standalone Finance functionally sellable to normal small-business users even if they never buy AI Admin.
+
 DO NOT REDESIGN FINANCE IN PHASE 7.
 Finance UX/accountant-facing polish is Phase 9.
 Do not alter accounting semantics.
+
+FINANCE SELLABILITY GATE — REQUIRED:
+Audit and verify the existing Finance product as a standalone paid product.
+
+At minimum, a normal owner must be able to:
+- start/use Finance without AI Admin;
+- create/select a Finance business/workspace;
+- use Business and Personal modes where currently supported;
+- create/manage branches;
+- create/manage financial accounts;
+- record income and expenses;
+- move money between supported accounts without treating transfers as operating income/expense;
+- preserve opening-balance semantics;
+- use categories/subcategories;
+- create/edit/issue invoices through existing safe flows;
+- record partial/full invoice payments through existing Finance flows;
+- see receivables/outstanding/overdue status;
+- use recurring bills/expenses;
+- use budgets;
+- use cash-flow/reporting views;
+- use supported multi-currency accounts/conversion flows according to current product rules;
+- export/report through existing supported outputs;
+- use existing Finance AI/assistant capabilities under their current entitlement/safety gates;
+- safely edit/archive/delete only where existing accounting rules permit;
+- use the product on mobile without critical blockers;
+- understand empty/error/read-only states without dead ends.
+
+Phase 7 MAY fix critical functional blockers, broken navigation, validation gaps, entitlement mistakes,
+or sellability defects discovered by these flows, provided the fix:
+- preserves existing accounting semantics and customer data;
+- does not introduce a broad visual redesign;
+- has regression coverage;
+- remains inside Finance's reviewed service boundaries.
+
+Phase 7 must NOT invent missing professional-accounting semantics merely to satisfy this gate.
+Features such as double-entry general ledger, chart of accounts, trial balance, P&L, balance sheet,
+bank reconciliation, journal adjustments and period close belong to a separate Professional Readiness
+assessment/workstream in Phase 9 if they are not already implemented.
+
+Completion must distinguish:
+1. "sellable operational Finance for normal business owners" from
+2. "full accountant-grade accounting suite".
+Do not claim the second unless the repo actually supports it.
 
 FINANCE PROTECTED BOUNDARY:
 Finance business logic is authoritative and protected.
