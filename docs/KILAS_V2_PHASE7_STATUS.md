@@ -133,3 +133,8 @@ The checkpoint commit is identified by `git log -1 -- docs/KILAS_V2_PHASE7_STATU
 - UI assertions follow the verified current AI Finance navigation, invoice-create URL, and Buka Tampilan Pelanggan label, retaining pagination/search/archive and no-AI-on-GET invariants.
 - Files: `test_finance_phase4a.py`, `test_finance_phase4b.py`, `test_finance_phase4c.py`, `test_finance_phase5ab.py`, `test_finance_invoice_editor.py`, `test_finance_live_conversation.py`.
 - Isolated full-file verification: 15 + 35 + 25 + 24 + 18 + 23 = 140 tests PASS. No production code changes in this checkpoint. Other assistant fixture repairs are in progress and are not certified green yet.
+
+## Recovery pass — checkpoint 3
+- Genuine production defect: deleting an unused branch failed its workspace foreign key. `finance_branches.update_record` now removes only its workspace metadata inside the existing atomic delete transaction. Budget/payee records also count as branch history, so those branches archive and retain all records instead of attempting deletion.
+- Added `test_finance_branch_delete_recovery.py`: empty deletion, final-active-branch protection, budget/payee preservation, and audit-failure rollback of the account/workspace/branch deletion. No schema changes or production data access.
+- Isolated verification: new recovery 4, Phase 1A 18, Phase 2A 25, Standalone boundary 4 — 51 tests PASS. The original branch file still has separate stale contracts to resolve; it is not marked green.

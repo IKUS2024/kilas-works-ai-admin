@@ -285,7 +285,8 @@ def update_record(business_id, kind, record_id, name=None, deactivate=False, act
             # Historical branches stay archived internally so ledger/audit references remain valid,
             # but the UI hides archived branches from normal selectors.
             history_tables = ('finance_transactions','finance_invoices','finance_recurring_expenses',
-                              'finance_bank_imports','finance_fx_exchanges')
+                              'finance_bank_imports','finance_fx_exchanges',
+                              'finance_budgets','finance_payees')
             has_history = any(db.query_one(
                 'SELECT 1 FROM ' + table + ' WHERE business_id=? AND branch_id=? LIMIT 1',
                 (business_id, row['id'])) for table in history_tables)
@@ -294,6 +295,8 @@ def update_record(business_id, kind, record_id, name=None, deactivate=False, act
                 (business_id, row['id']))
             if not has_history and not opening and not row['is_default']:
                 db.execute('DELETE FROM finance_accounts WHERE business_id=? AND branch_id=?',
+                           (business_id, row['id']))
+                db.execute('DELETE FROM finance_branch_workspaces WHERE business_id=? AND branch_id=?',
                            (business_id, row['id']))
                 db.execute('DELETE FROM finance_branches WHERE business_id=? AND id=?',
                            (business_id, row['id']))
