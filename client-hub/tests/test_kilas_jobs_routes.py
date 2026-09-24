@@ -117,4 +117,60 @@ class JobRoutesTests(unittest.TestCase):
             self.assertNotIn(b'data-linked-jobs',self.client.get(inbox).data)
 
 
+    def test_stale_version_retry_conflict_and_rendered_text_escaping(self):
+        self.assertEqual(self.create(title='<script>alert(1)</script>').status_code,303)
+        self.assertEqual(self.create(title='<script>alert(1)</script>').status_code,303)
+        job=jobs.list_jobs(7)[0][0];path='/business/7/jobs/'+job['id']
+        self.assertIn(b'&lt;script&gt;',self.client.get(path).data)
+        self.assertNotIn(b'<script>alert(1)</script>',self.client.get(path).data)
+        data=dict(csrf_token='csrf-test',title='Updated',summary='',status='NEEDS_INFORMATION',version=1,operation_key='retry-update-0001')
+        for _ in range(2): self.assertEqual(self.client.post(path,data=data).status_code,303)
+        self.assertEqual(self.client.post(path,data={**data,'operation_key':'stale-update-0001'}).status_code,409)
+        self.assertEqual(self.client.post(path,data={**data,'version':2,'status':'COMPLETED','operation_key':'bad-status-00001'}).status_code,409)
+        self.assertEqual(jobs.get_job(7,job['id'])['version'],2)
+        self.assertEqual(self.client.get('/business/7/jobs?status=BAD').status_code,400)
+        self.assertEqual(self.client.get('/business/7/jobs?customer_id=foreign').status_code,404)
+        self.assertEqual(self.client.get('/business/7/jobs?q=Updated&status=NEEDS_INFORMATION').status_code,200)
+        self.assertEqual(self.app.test_client().get('/business/7/jobs').status_code,302)
+
+    def test_jobs_have_no_finance_legacy_order_whatsapp_or_model_writes(self):
+        import sqlite3
+        from contextlib import ExitStack
+        denied=[]
+        def authorize(action,table,*args):
+            if action in (sqlite3.SQLITE_INSERT,sqlite3.SQLITE_UPDATE,sqlite3.SQLITE_DELETE):
+                if table not in ('kw_core_jobs','kw_core_job_operations','audit_log','sqlite_sequence'):
+                    denied.append(table);return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        original=sqlite3.connect
+        def guarded(*args,**kwargs):
+            conn=original(*args,**kwargs);conn.set_authorizer(authorize);return conn
+        self.db.get_connection().set_authorizer(authorize)
+        try:
+            with ExitStack() as stack:
+                stack.enter_context(patch('sqlite3.connect',side_effect=guarded))
+                spies=[stack.enter_context(patch.object(self.finance,name)) for name in
+                       ('create_transaction','create_finance_invoice','record_invoice_payment','create_customer')]
+                spies.append(stack.enter_context(patch('inbox_service.send_manual_reply')))
+                spies.append(stack.enter_context(patch.object(self.ai,'_call_claude')))
+                self.assertEqual(self.create().status_code,303)
+                row=jobs.list_jobs(7)[0][0]
+                response=self.client.post('/business/7/jobs/'+row['id'],data=dict(csrf_token='csrf-test',
+                         title='Approved manual details',summary='',status='READY_FOR_QUOTE',version=1,operation_key='safe-update-0001'))
+                self.assertEqual(response.status_code,303)
+                for spy in spies: spy.assert_not_called()
+            self.assertEqual(denied,[])
+        finally: self.db.get_connection().set_authorizer(None)
+
+    def test_chat_and_simulator_never_create_jobs_automatically(self):
+        with patch.object(self.ai,'_call_claude',return_value=('Kami bantu pesanan Anda','end_turn',None)):
+            self.assertEqual(self.send(self.identity,text='Buat pesanan 20 kopi').status_code,200)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        with patch.object(self.ai,'simulate_customer_reply',return_value=('Siap',None)):
+            response=self.client.post('/business/7/simulate/message',json={'message':'Buat job sekarang'},
+                                      headers={'X-CSRF-Token':'csrf-test'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+
+
 if __name__=='__main__': unittest.main()

@@ -83,8 +83,8 @@ def validate_fields(fields):
         raise JobError('invalid_fields')
     clean = {}
     for key, value in fields.items():
-        if key == 'quantity' and type(value) in (int, float):
-            if not math.isfinite(value) or not 0 < value <= 1_000_000_000:
+        if key == 'quantity':
+            if type(value) not in (int,float) or not 0 < value <= 1_000_000_000 or not math.isfinite(value):
                 raise JobError('invalid_fields')
             clean[key] = value
         else:
@@ -155,7 +155,7 @@ def create_job(business_id, customer_id, *, title, actor_id, operation_key,
     title = _text(title, 160, True)
     summary = _text(summary, 2000)
     encoded = validate_fields({} if fields is None else fields)
-    if kind not in KINDS:
+    if not isinstance(kind,str) or kind not in KINDS:
         raise JobError('invalid_kind')
     customer_id = _text(customer_id, 128, True)
     if conversation_id is not None:
@@ -184,7 +184,7 @@ def update_job(business_id, job_id, *, expected_version, actor_id, operation_key
     if summary is not None:
         summary = _text(summary,2000)
     encoded = validate_fields(fields) if fields is not None else None
-    if status is not None and status not in STATUS_LABELS:
+    if status is not None and (not isinstance(status,str) or status not in STATUS_LABELS):
         raise JobError('invalid_status')
     digest = _operation(business_id,actor_id,operation_key,
                         ['update',job_id,expected_version,title,summary,encoded,status])

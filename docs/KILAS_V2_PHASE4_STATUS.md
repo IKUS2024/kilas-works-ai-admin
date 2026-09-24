@@ -77,3 +77,12 @@ query Jobs storage. Offline route suite PASS (5 tests), including create/open/ba
 preservation. Files: job_routes, customer_routes, public_chat/owner, Customer/WEB/product templates,
 _jobs_panel template and route tests. Prior local owner checkpoint `5cd6c86`.
 Next: complete protected-write/security cases; rerun prior phases; add PostgreSQL/mobile CI.
+
+## Milestone 5 — security/concurrency (PASS locally)
+SQLite Jobs: schema 1 + service 15 + owner routes 8 tests PASS. Strict quantity types hardened.
+SQL authorizers on all connections allow only Jobs/operation/audit writes during owner flows;
+Finance write APIs, WhatsApp send and model-call spies stay unused. WEB chat and simulator do
+not create Jobs automatically. CSRF, payload tampering, escaped text, replay, stale update,
+terminal transitions and separate tenant owners verified. Phase 1 PASS 30, Phase 2 PASS 27,
+Phase 3 PASS 9 using the offline subprocess runner; completed implementations not redone.
+Next: execute new disposable PostgreSQL and mobile CI harness; no runtime pass claimed yet.
