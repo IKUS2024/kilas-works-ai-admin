@@ -6,6 +6,7 @@ import sqlite3
 import time
 import uuid
 import db
+from kilas_core import customers
 
 
 class ChatError(ValueError):
@@ -100,12 +101,17 @@ def visitor(bid, token, ip_key):
             row = tx.one("SELECT * FROM kw_web_conversations WHERE business_id=? AND visitor_hash=? AND expires_at>?",
                          (bid, digest(token), now))
             if row:
+                if customers.enabled():
+                    customers.ensure_web_customer(tx, bid, row["id"], row["visitor_hash"], now=now)
                 return row, token
         limit(tx, "new:" + str(bid), 86400, 1000)
         token, cid = secrets.token_urlsafe(32), uuid.uuid4().hex
         tx.execute("INSERT INTO kw_web_conversations(id,business_id,visitor_hash,expires_at,created_at,updated_at) "
                    "VALUES (?,?,?,?,?,?)", (cid, bid, digest(token), now + 7 * 86400, now, now))
-        return tx.one("SELECT * FROM kw_web_conversations WHERE business_id=? AND id=?", (bid, cid)), token
+        row = tx.one("SELECT * FROM kw_web_conversations WHERE business_id=? AND id=?", (bid, cid))
+        if customers.enabled():
+            customers.ensure_web_customer(tx, bid, cid, row["visitor_hash"], now=now)
+        return row, token
 
 
 def authorized(bid, cid, token):
@@ -130,8 +136,10 @@ def thread(bid, cid, after=0):
 def _message(tx, bid, cid, event_id, role, text):
     tx.execute("INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
                "VALUES (?,?,?,?,?,?)", (bid, cid, event_id, role, text, int(time.time())))
+    now = int(time.time())
     tx.execute("UPDATE kw_web_conversations SET updated_at=? WHERE business_id=? AND id=?",
-               (int(time.time()), bid, cid))
+               (now, bid, cid))
+    customers.touch_from_conversation(tx, bid, cid, now=now)
 
 
 def claim(bid, cid, event_id, text, ip_key):
@@ -200,10 +208,21 @@ def inbox(bid, page=1):
         where = "c.business_id=? AND EXISTS(SELECT 1 FROM kw_web_messages m WHERE m.business_id=c.business_id AND m.conversation_id=c.id)"
         total = tx.one("SELECT COUNT(*) AS n FROM kw_web_conversations c WHERE " + where,(bid,))['n']
         pages=max(1,(total+9)//10);page=min(max(1,page),pages)
-        rows=tx.execute("SELECT c.*, (SELECT content FROM kw_web_messages m WHERE m.business_id=c.business_id "
-                        "AND m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS preview "
-                        "FROM kw_web_conversations c WHERE " + where + " ORDER BY c.updated_at DESC,c.id LIMIT 10 OFFSET ?",
-                        (bid,(page-1)*10))
+        if customers.enabled():
+            rows=tx.execute(
+                "SELECT c.*, customer.display_name AS customer_display_name, "
+                "(SELECT content FROM kw_web_messages m WHERE m.business_id=c.business_id "
+                "AND m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS preview "
+                "FROM kw_web_conversations c "
+                "LEFT JOIN kw_web_customer_links link ON link.business_id=c.business_id AND link.conversation_id=c.id "
+                "LEFT JOIN kw_core_customers customer ON customer.business_id=link.business_id AND customer.id=link.customer_id "
+                "WHERE " + where + " ORDER BY c.updated_at DESC,c.id LIMIT 10 OFFSET ?",
+                (bid,(page-1)*10))
+        else:
+            rows=tx.execute("SELECT c.*, (SELECT content FROM kw_web_messages m WHERE m.business_id=c.business_id "
+                            "AND m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS preview "
+                            "FROM kw_web_conversations c WHERE " + where + " ORDER BY c.updated_at DESC,c.id LIMIT 10 OFFSET ?",
+                            (bid,(page-1)*10))
         return rows,total,page,pages
 
 
