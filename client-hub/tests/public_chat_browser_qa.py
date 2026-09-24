@@ -42,7 +42,20 @@ def main():
         expect(customer.get_by_text("Halo! Kedai Demo buka pukul 09.00–17.00. Ada yang bisa kami bantu?")).to_be_visible(timeout=10_000)
         customer.screenshot(path=str(OUT / "02_customer_ai_reply.png"), full_page=True)
 
+        owner.goto(BASE + "/business/7/customers", wait_until="networkidle")
+        expect(owner.get_by_role("heading", name="Customers")).to_be_visible()
+        first_customer = owner.locator("a.client-item").first
+        expect(first_customer).to_be_visible()
+        first_customer.click()
+        name = owner.locator('input[name="display_name"]')
+        expect(name).to_be_visible()
+        name.fill("Nadia QA")
+        owner.get_by_role("button", name="Simpan").click()
+        expect(owner.get_by_text("Data customer tersimpan.")).to_be_visible()
+        owner.screenshot(path=str(OUT / "03_customer_profile.png"), full_page=True)
+
         owner.goto(BASE + "/business/7/inbox?channel=web", wait_until="networkidle")
+        expect(owner.get_by_text("Nadia QA")).to_be_visible()
         expect(owner.get_by_text("Percakapan web")).to_be_visible()
         conversation = owner.locator("a.web-conversation").first
         expect(conversation).to_be_visible()
@@ -54,10 +67,10 @@ def main():
         reply.fill("Kami bantu langsung ya.")
         owner.get_by_role("button", name="Kirim balasan").click()
         expect(owner.get_by_text("Kami bantu langsung ya.")).to_be_visible(timeout=10_000)
-        owner.screenshot(path=str(OUT / "03_owner_takeover.png"), full_page=True)
+        owner.screenshot(path=str(OUT / "04_owner_takeover.png"), full_page=True)
 
         expect(customer.get_by_text("Kami bantu langsung ya.")).to_be_visible(timeout=10_000)
-        customer.screenshot(path=str(OUT / "04_customer_human_reply.png"), full_page=True)
+        customer.screenshot(path=str(OUT / "05_customer_human_reply.png"), full_page=True)
 
         other_ctx = browser.new_context(viewport={"width": 390, "height": 844})
         other = other_ctx.new_page()
@@ -70,7 +83,7 @@ def main():
         other_ctx.close()
         browser.close()
 
-    print("PASS: mobile browser QA — public chat, AI reply, Inbox, takeover, human reply, tenant isolation")
+    print("PASS: mobile browser QA — public chat, AI reply, Customers profile, Inbox naming, takeover, human reply, tenant isolation")
     print(f"Screenshots: {OUT}")
 
 
