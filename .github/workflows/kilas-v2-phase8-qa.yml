@@ -32,6 +32,7 @@ jobs:
         env:
           PYTHONPATH: client-hub
         run: |
+          python scripts/run_offline_tests.py --only test_subscription_lifecycle.py
           python scripts/run_offline_tests.py --only test_whatsapp_self_service.py
           python scripts/run_offline_tests.py --only test_multi_tenant_runtime_safety.py
           python scripts/run_offline_tests.py --only test_inbox_media_webhook.py

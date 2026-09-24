@@ -155,6 +155,7 @@ SHA, inspect final mobile screenshots, then mark COMPLETE. No production activat
 - `client-hub/tests/kilas_whatsapp_runtime_cases.py`
 - `client-hub/tests/test_kilas_whatsapp.py`
 - `client-hub/tests/test_kilas_whatsapp_runtime.py`
+- `client-hub/tests/test_subscription_lifecycle.py`
 - `client-hub/tests/test_whatsapp_self_service.py`
 - `client-hub/wa_takeover_service.py`
 - `client-hub/whatsapp_signup.py`
@@ -172,3 +173,22 @@ manual reply/template acceptance and resumed Job update correct, no horizontal o
 Visual review found inherited owner button CSS overriding the HTML hidden attribute.
 Minimal owner-scoped CSS correction plus mobile hidden/disabled assertions added;
 next action is revalidate CI on that final correction before certification.
+
+## Final application checkpoint
+Application/CSS implementation: `ce917d94dde2fa2255767b92798e085689de5b49`.
+Phase 2–6 and 8 all SUCCESS: 36065483715 / 36065483725 / 36065483709 /
+36065483741 / 36065483728 / 36065483727. Phase 7 36065483753 still running.
+Final mobile artifact 10836480249 inspected at 390x844: correct mode-specific controls,
+disabled owner actions in AI mode, manual text + template history, resumed Job update.
+
+Extra expired-entitlement evidence: original `test_subscription_lifecycle.py` failed on
+unmodified base due to missing newly-required onboarding fixture fields. Restored synthetic
+profile/trusted owner inputs, updated the obsolete card-title assertion to actual subscription
+label + plan, and supplied the existing CSRF token for the renewal form. No runtime code or
+security checks changed. All 31 original lifecycle tests now PASS locally, including elapsed
+period -> GRACE -> SUSPENDED, non-destructive suspension and owner renewal. Added this suite
+to Phase 8 CI. The authoritative subscription lifecycle retains its existing grace policy;
+Core rejects SUSPENDED/CANCELLED or missing entitlement and does not invent a second policy.
+
+Next: require this test/CI-only checkpoint's Phase 8 gate plus final Finance baseline green,
+then certify. Application code has no changes after ce917d9.
