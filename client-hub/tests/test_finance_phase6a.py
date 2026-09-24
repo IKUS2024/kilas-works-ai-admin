@@ -186,7 +186,7 @@ class ReceiptTests(unittest.TestCase):
         income=f.list_categories(self.b,'INCOME')[0]['name']
         for name in ('invented',income):
             with self.assertRaises(ValueError):r.validate_result(dict(self.result,suggested_category_name=name),[self.expense['name']])
-        db.execute('UPDATE finance_categories SET is_active=FALSE WHERE id=?',(self.expense['id'],))
+        f.update_category_workspace_setting(self.b,self.expense['id'],deactivate=True)
         self.assertIn(b'secara manual',self.upload().data)
 
     def test_injection_is_data_not_system_or_tools(self):
@@ -223,7 +223,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(self.confirm(token).status_code,302)
         row=self.rows()[0]
         for k,v in dict(direction='EXPENSE',currency='IDR',source_type='FINANCE_RECEIPT',source_ref=self.hash,
-            amount_minor=130000,occurred_on='2026-09-16',counterparty_name='Reviewed merchant',description='Reviewed description',
+            amount_minor=13000000,occurred_on='2026-09-16',counterparty_name='Reviewed merchant',description='Reviewed description',
             account_id=self.a,category_id=self.expense['id'],created_by_user_id=self.uid).items():self.assertEqual(row[k],v)
         self.http.assert_not_called()
         audit=db.query_all("SELECT * FROM audit_log WHERE action='FINANCE_TRANSACTION_CREATED'")
@@ -231,7 +231,7 @@ class ReceiptTests(unittest.TestCase):
 
     def test_explicit_checkbox_currency_and_amount_required(self):
         token=self.token()
-        for fields in ({'confirmed':''},{'currency':'USD'},{'amount':'1.5'},{'amount':'0'}, {'occurred_on':'2026-02-30'}):
+        for fields in ({'confirmed':''},{'currency':'USD'},{'amount':'0.000001'},{'amount':'0'}, {'occurred_on':'2026-02-30'}):
             with self.subTest(fields=fields):self.assertEqual(self.confirm(token,**fields).status_code,400)
         self.assertEqual(self.rows(),[])
 
@@ -240,7 +240,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(self.confirm(token).status_code,400);self.assertEqual(self.rows(),[])
 
     def test_stale_category_rejected(self):
-        token=self.token();db.execute('UPDATE finance_categories SET is_active=FALSE WHERE id=?',(self.expense['id'],))
+        token=self.token();f.update_category_workspace_setting(self.b,self.expense['id'],deactivate=True)
         self.assertEqual(self.confirm(token).status_code,400);self.assertEqual(self.rows(),[])
 
     def test_wrong_tenant_account_category_and_income_rejected(self):

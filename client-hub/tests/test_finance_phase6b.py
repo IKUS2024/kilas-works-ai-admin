@@ -28,7 +28,7 @@ class BankTests(unittest.TestCase):
     def setUp(self):
         previous.ReceiptTests.setUp(self)
         self.base=self.url+'/bank-imports'
-        self.row=dict(transaction_date='2026-09-17',description='Bank purchase',direction='EXPENSE',amount_minor=100000,reference='R-1')
+        self.row=dict(transaction_date='2026-09-17',description='Bank purchase',direction='EXPENSE',amount_minor=10000000,reference='R-1')
         self.csv=b'date,description,debit,credit,reference\n2026-09-17,Bank purchase,100000,0,R-1\n'
         self.result=dict(rows=[dict(self.row,currency='IDR',amount='100000')],readable=True)
         self.response.json.return_value={'stop_reason':'end_turn','content':[{'type':'text','text':json.dumps(self.result)}]}
@@ -59,7 +59,7 @@ class BankTests(unittest.TestCase):
         data=dict(category_id=self.expense['id'],occurred_on='2026-09-17',description='Reviewed',counterparty_name='Shop');data.update(kw);return data
     def post(self,i,row=None,**kw):return b.decide(self.b,i,row or self.rows(i)[0]['id'],'post',self.uid,fields=self.fields(**kw))
     def tx(self,**kw):
-        data=dict(business_id=self.b,direction='EXPENSE',amount_minor=100000,account_id=self.a,category_id=self.expense['id'],occurred_on='2026-09-17',actor_user_id=self.uid)
+        data=dict(business_id=self.b,direction='EXPENSE',amount_minor=10000000,account_id=self.a,category_id=self.expense['id'],occurred_on='2026-09-17',actor_user_id=self.uid)
         data.update(kw);return f.create_transaction(**data)
     def snapshot(self):return '\n'.join(db.get_connection().iterdump())
     def assert_upload_bad(self,files):
@@ -78,9 +78,11 @@ class BankTests(unittest.TestCase):
         for value in ('09/17/2026','2026-02-30','20260917','1/9/2026'):
             with self.assertRaises(ValueError):x.parse_date(value)
     def test_csv_integer_money_formats(self):
-        for value in ('100000','100000.00','100000,00'):self.assertEqual(x.parse_amount(value),100000)
-        for value in ('1,000,000','1.000.000','1,000,000.00','1.000.000,00'):self.assertEqual(x.parse_amount(value),1000000)
-        for value in ('100000.50','100000,50','-1','1e5','1,00,000','1.000,50'):
+        for value in ('100000','100000.00','100000,00'):self.assertEqual(x.parse_amount(value),10000000)
+        for value in ('1,000,000','1.000.000','1,000,000.00','1.000.000,00'):self.assertEqual(x.parse_amount(value),100000000)
+        for value in ('100000.50','100000,50'):self.assertEqual(x.parse_amount(value),10000050)
+        self.assertEqual(x.parse_amount('1.000,50'),100050)
+        for value in ('-1','1e5','1,00,000','1.2345678'):
             with self.assertRaises(ValueError):x.parse_amount(value)
     def test_csv_sides_ambiguous_and_zero(self):
         for sides in ('1,1','0,0',','):
@@ -259,14 +261,14 @@ class BankTests(unittest.TestCase):
         with self.assertRaises(ValueError):b.decide(self.b,i,self.rows(i)[0]['id'],'match',self.uid,transaction_id=tx)
     def test_expense_post_row_authority_and_origin(self):
         i=self.create();tx=self.post(i);record=f.get_transaction(self.b,tx)
-        for key,value in dict(direction='EXPENSE',amount_minor=100000,account_id=self.a,source_type='FINANCE_BANK_IMPORT',source_ref=self.rows(i)[0]['row_hash']).items():self.assertEqual(record[key],value)
+        for key,value in dict(direction='EXPENSE',amount_minor=10000000,account_id=self.a,source_type='FINANCE_BANK_IMPORT',source_ref=self.rows(i)[0]['row_hash']).items():self.assertEqual(record[key],value)
         self.assertRegex(record['source_ref'],r'^[a-f0-9]{64}$');self.assertEqual(self.rows(i)[0]['created_transaction_id'],tx)
     def test_income_post(self):
         i=self.create([dict(self.row,direction='INCOME')]);tx=self.post(i,category_id=self.cat)
         self.assertEqual(f.get_transaction(self.b,tx)['direction'],'INCOME')
     def test_post_category_active_direction_tenant(self):
         i=self.create();bad=f.create_category(self.b,'EXPENSE','Inactive')
-        db.execute('UPDATE finance_categories SET is_active=FALSE WHERE id=?',(bad,))
+        f.update_category_workspace_setting(self.b,bad,deactivate=True)
         for category in (bad,self.cat,f.list_categories(self.other,'EXPENSE')[0]['id']):
             with self.assertRaises(ValueError):self.post(i,category_id=category)
         self.assertEqual(self.ledger(),[])
@@ -464,7 +466,7 @@ class BankTests(unittest.TestCase):
         raw=b'date,description,amount,direction\r\n2026-09-17,"Shop ""A"", Jakarta","1,000,000.00",INCOME\r\n'
         row=x.parse_csv(raw)[0]
         self.assertEqual(row['description'],'Shop "A", Jakarta')
-        self.assertEqual(row['amount_minor'],1000000)
+        self.assertEqual(row['amount_minor'],100000000)
 
     def test_pdf_mixed_scan_text_uses_document(self):
         from pypdf import PdfReader, PdfWriter
@@ -550,6 +552,32 @@ class BankTests(unittest.TestCase):
         response=self.upload([('a.png',self.raw)]);self.assertEqual(response.status_code,429)
         self.assertEqual(self.http.call_count,1);self.assertNotIn(b'PRIVATE PROVIDER BODY',response.data)
 
+    def test_review_amount_round_trip_preserves_minor_units(self):
+        from html.parser import HTMLParser
+        class Amounts(HTMLParser):
+            def __init__(self, html):
+                super().__init__(); self.values=[]; self.feed(html)
+            def handle_starttag(self, tag, attrs):
+                attrs=dict(attrs)
+                if tag=='input' and attrs.get('name')=='amount':
+                    self.values.append(attrs.get('value',''))
+        for currency in ('IDR','JPY','USD'):
+            with self.subTest(currency=currency):
+                account=f.create_account(self.b,'Round trip '+currency,currency=currency,actor_user_id=self.uid)
+                ident=self.create(rows=[dict(self.row,amount_minor=1234)],opened=False,account=account)
+                response=self.client.get(f'{self.base}/{ident}')
+                self.assertEqual(response.status_code,200)
+                amount=Amounts(response.text).values[0]
+                self.assertEqual(amount,'12.34')
+                row=self.rows(ident)[0]
+                saved=self.client.post(f'{self.base}/{ident}/review',data=dict(
+                    row_id=row['id'],revision=0,transaction_date=row['occurred_on'],
+                    direction=row['direction'],description=row['description'],
+                    reference=row['reference'],amount=amount))
+                self.assertEqual(saved.status_code,302)
+                self.assertEqual(self.rows(ident)[0]['amount_minor'],1234)
+                self.assertEqual(self.ledger(),[])
+
     def test_review_http_correction_all_fields(self):
         i=self.create(opened=False);rid=self.rows(i)[0]['id']
         response=self.client.post(f'{self.base}/{i}/review',data=dict(row_id=rid,revision=0,
@@ -557,7 +585,7 @@ class BankTests(unittest.TestCase):
         self.assertEqual(response.status_code,302)
         row=self.rows(i)[0]
         self.assertEqual((row['occurred_on'],row['description'],row['direction'],row['amount_minor'],row['reference']),
-                         ('2026-09-18','Corrected','INCOME',321,'R-2'))
+                         ('2026-09-18','Corrected','INCOME',32100,'R-2'))
         self.assertEqual(self.ledger(),[])
 
     def test_review_http_account_override_rejected(self):
@@ -591,7 +619,7 @@ class BankTests(unittest.TestCase):
                           lambda:b.edit_row(self.b,i,rid,0,dict(self.row,amount_minor=42),self.uid)])
         self.assertEqual(sorted(r[0] for r in result),['conflict','ok'])
         imp=self.imp(i);row=self.rows(i)[0]
-        self.assertEqual(row['amount_minor'],100000 if imp['status']=='OPEN' else 42)
+        self.assertEqual(row['amount_minor'],10000000 if imp['status']=='OPEN' else 42)
         self.assertEqual(self.ledger(),[])
 
     def test_completion_audit_failure_rolls_back_ledger_and_decision(self):
