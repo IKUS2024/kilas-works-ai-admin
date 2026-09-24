@@ -1,6 +1,11 @@
 # Phase 9 — product UX refresh
 
-Status: IN PROGRESS. No production deployment or Phase 10 work.
+Status: COMPLETE. No production deployment, Meta cutover, or Phase 10 work.
+
+Certified implementation: `b37d44db36a4fd5263d303ae4d8ea3fc94e3ed47`; fresh CI on
+documentation checkpoint `b319e4f59f7b220529d701d42caa3b2e768f1728` (identical code).
+See Final certification below for all passing runs, limitations and exact changed files.
+Earlier checkpoint sections preserve the chronological audit trail.
 
 ## Baseline and required reading
 
@@ -66,7 +71,7 @@ schema is proposed. Public static catalog PDF must not be regenerated incidental
   documented separately, never simulated with UI.
 - No general-purpose chatbot or creative generation.
 
-## Validation / next action
+## Initial validation / next action (historical)
 
 Phase 9 tests, PostgreSQL, responsive screenshots (360/390/430/tablet/desktop),
 keyboard/focus, security and full Finance baseline are NOT yet run for new work.
@@ -244,3 +249,118 @@ This documentation-only checkpoint preserves the evidence and also launches a fr
 CI attempt against unchanged implementation while the older Finance runner finishes.
 Next: inspect complete Finance CI result; if green, publish completion certification.
 No production deployment, Meta activation, Phase 10 or change to financial semantics.
+
+## Final certification — 2026-09-24
+
+Tested implementation SHA: `b37d44db36a4fd5263d303ae4d8ea3fc94e3ed47`.
+Documentation checkpoint `b319e4f59f7b220529d701d42caa3b2e768f1728` has identical implementation
+and receives the fresh CI certification below. The completion commit changes only this status document. The four implementation
+checkpoints above are persisted on `feature/kilas-core-v2`; remote main remains
+`05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
+
+| Required gate | CI run | Result |
+| --- | --- | --- |
+| Phase 1 contracts/simulator | Included in Phase 2–6 workflows below | PASS |
+| Phase 2 WEB, Inbox, tenancy, SQLite/PostgreSQL, mobile | 36073072221 | PASS |
+| Phase 3 Customers, identities, SQLite/PostgreSQL, mobile | 36073072254 | PASS |
+| Phase 4 Jobs, lifecycle, concurrency, PostgreSQL, mobile | 36073072265 | PASS |
+| Phase 5 Playbooks/actions, channel parity, concurrency, PostgreSQL | 36073072289 | PASS |
+| Phase 6 Attention, handover, automations, PostgreSQL, mobile | 36073072270 | PASS |
+| Phase 7 full Finance baseline and protected Bridge runtime | 36073072274 | PASS |
+| Phase 8 official WhatsApp adapter, tenant/dedupe/takeover/template, PostgreSQL, mobile | 36073072266 | PASS |
+| Phase 9 package/retirement/CSRF and responsive/onboarding QA | 36073072318 | PASS |
+
+Final local complete Finance baseline also PASS: **39 files / 1,018 tests, zero skipped**,
+`/tmp/phase9-finance-certified`, on the tested implementation. Older run 36071652182
+remained in progress unusually long; the fresh unchanged-code run above supersedes it
+for certification without weakening tests or asserting an unverified root cause.
+
+Phase 9: seven isolated route/security cases; **155 responsive page visits and
+157 screenshots**, at 360 / 390 / 430 / 820 / 1440. No horizontal overflow or
+JavaScript errors. Four package personas and operator routes checked; keyboard skip
+focus checked; real AI-only business creation/continue-later and Finance-only trial
+forms verified with authoritative fixture database assertions. Finance-only creates
+no AI package. Finance context/Bridge, currencies, invoices/partial payments,
+reports/export, AI, read-only and concurrency are additionally covered by the complete
+Finance baseline and Phase 7 runtime gate. Core business labels, Web Chat share/open,
+Human Takeover and Automations use the Phase 2–8 existing behavioral gates.
+
+Artifacts: final responsive `10838057967` (run 36071652179), final WhatsApp Inbox
+`10838028141` (run 36071652195). Both downloaded. Visually inspected mobile/tablet/
+desktop Home, onboarding, Customers, customer detail, Jobs, Inbox, Finance dashboard,
+reports, bank import, More and operator dashboard, plus WhatsApp AI/manual/template
+states. Earlier screenshots exposed Finance tablet overflow and mobile monetary/ring
+layout defects; corrected and rechecked, not hidden with overflow suppression.
+The remote interactive browser could not reach loopback; screenshots were generated
+by the repository CI Chromium harness. No live Meta capability is claimed.
+
+Exact feature inventory was reconciled against the final routes/navigation. Services
+briefs/quotes/payments/cancellation/history remain under More → Kilas Services.
+Business setup/knowledge/review/channel/automation settings remain discoverable under
+More; monthly AI usage/package/status and subscription grace/suspension remain on
+Home. Finance modules retain existing forms and services. Legacy Kilas Order's eleven
+endpoint handlers stop with intentional 410 before searches/handoffs/writes; historical
+records/migrations retained. Business-specific Jobs/Pesanan and service orders remain.
+
+Exact diff reviewed from `2d6d6fe` to tested SHA; `git diff --check` PASS. No changes
+to authoritative Finance services/models, Core actions, provider transport, entitlement
+rules, production flags, or migration files. Presentation assertion changes reflect
+new navigation/labels/style ordering, without weakening accounting/security assertions.
+Known pre-existing exploratory legacy-suite failures are recorded under checkpoint 3;
+this certification covers all required phase gates, not a claim that every old test
+in the repository passes. Finance professional accounting gaps are explicitly recorded
+in `KILAS_V2_FINANCE_PROFESSIONAL_READINESS.md`.
+
+### External boundary and exact next action
+
+General-customer WhatsApp activation remains **EXTERNALLY BLOCKED / NOT VERIFIED**:
+no legitimate live credentials/assets with verified App Review/Advanced Access,
+provider/System User grants, WABA/number binding and Coexistence access were supplied
+or used. This is not an assertion of Meta rejection or a current dashboard inspection.
+WhatsApp remains optional; Web Chat and package-authorized workspace/Finance remain
+commercially usable. No production deployment, data reset, Meta activation or cutover.
+
+**Next action: STOP. Phase 9 is complete. Await a separately authorized next task;
+do not start Phase 10 or deploy production.**
+
+### Exact Phase 9 changed files
+
+- `.github/workflows/kilas-v2-phase9-qa.yml`
+- `client-hub/app.py`
+- `client-hub/finance_ui.py`
+- `client-hub/legacy_order_retirement.py`
+- `client-hub/routes_auth.py`
+- `client-hub/routes_client.py`
+- `client-hub/routes_products.py`
+- `client-hub/routes_workspace.py`
+- `client-hub/static/kilas_ui.css`
+- `client-hub/static/kilas_ui.js`
+- `client-hub/templates/_finance_app_shell.html`
+- `client-hub/templates/_finance_home_dashboard.html`
+- `client-hub/templates/_operator_nav.html`
+- `client-hub/templates/_workspace_nav.html`
+- `client-hub/templates/admin_dashboard.html`
+- `client-hub/templates/assist_entry.html`
+- `client-hub/templates/base.html`
+- `client-hub/templates/customer_detail.html`
+- `client-hub/templates/customers.html`
+- `client-hub/templates/finance_dashboard.html`
+- `client-hub/templates/finance_entry.html`
+- `client-hub/templates/order_retired.html`
+- `client-hub/templates/product_start.html`
+- `client-hub/templates/wizard.html`
+- `client-hub/templates/workspace_home.html`
+- `client-hub/templates/workspace_more.html`
+- `client-hub/templates/workspace_unavailable.html`
+- `client-hub/tests/kilas_workspace_browser_qa.py`
+- `client-hub/tests/kilas_workspace_dev.py`
+- `client-hub/tests/public_chat_dev.py`
+- `client-hub/tests/test_final_product_flow.py`
+- `client-hub/tests/test_finance_dashboard_design.py`
+- `client-hub/tests/test_finance_home_dashboard.py`
+- `client-hub/tests/test_finance_phase1b.py`
+- `client-hub/tests/test_finance_style_loading.py`
+- `client-hub/tests/test_kilas_workspace.py`
+- `client-hub/workspace_presenter.py`
+- `docs/KILAS_V2_FINANCE_PROFESSIONAL_READINESS.md`
+- `docs/KILAS_V2_PHASE9_STATUS.md`
