@@ -163,6 +163,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
       <div class="assist-list">
         {% for b in businesses %}
+          {% with business=b %}{% include '_attention_home.html' %}{% endwith %}
           <article class="assist-card">
             <div class="assist-card-head">
               <div class="assist-icon" aria-hidden="true">

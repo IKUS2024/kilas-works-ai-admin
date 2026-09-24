@@ -142,6 +142,9 @@ def create_app():
     app.jinja_env.globals['kilas_customers_enabled'] = core_customers.enabled
     from kilas_core.job_routes import jobs_bp, available as jobs_available, labels as job_labels
     app.register_blueprint(jobs_bp)
+    from kilas_core.operation_routes import operations_bp, summary as attention_summary
+    app.register_blueprint(operations_bp)
+    app.jinja_env.globals['attention_summary'] = attention_summary
     app.jinja_env.globals['jobs_available'] = jobs_available
     app.jinja_env.globals['job_labels'] = job_labels
     from routes_products import products_bp

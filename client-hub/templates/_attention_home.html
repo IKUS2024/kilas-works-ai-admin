@@ -1,0 +1,12 @@
+{% set attention_data=attention_summary(business) %}
+{% if attention_data is not none %}
+<section data-attention-home style="margin:16px 0;padding:14px;border:1px solid #39414b;border-radius:14px;overflow-wrap:anywhere">
+  <h2 style="margin-top:0;font-size:18px">{{ attention_data.total }} hal perlu perhatian</h2>
+  {% include '_attention_items.html' %}
+  {% if not attention_data.total %}<p>Belum ada hal yang perlu ditindaklanjuti.</p>{% endif %}
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Lihat semua</a>
+    <a href="{{ url_for('core_operations.settings',bid=business.id) }}">Otomatisasi WEB</a>
+  </div>
+</section>
+{% endif %}

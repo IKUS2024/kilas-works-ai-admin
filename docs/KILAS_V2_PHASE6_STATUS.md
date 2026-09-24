@@ -62,3 +62,11 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - Closed HUMAN/UNSUPPORTED signal creates one Attention request and invokes the original takeover/version/event invalidation logic in the already-fenced completion transaction. No model-generated reply/Job write accompanies takeover. Manual owner reply and explicit return remain functional; return resolves related human Attention only.
 - Job state observer runs in the existing Job transaction for immediate ready/completed attention. Phase 5 unresolved field conflicts surface operational Attention without reimplementing extraction.
 - Next: compact Home panel, paginated owner list/resolve, and bounded automation settings/run controls.
+
+## Milestone 5 checkpoint
+- Milestone 4 local commit: `79b07aa`.
+- Files: `client-hub/kilas_core/operation_routes.py`; `client-hub/app.py`; new templates `_attention_home.html`, `_attention_items.html`, `attention.html`, `automations.html`; tiny include additions to `assist_entry.html` and AI-only branch of `product_dashboard.html`; `client-hub/tests/test_kilas_operations_routes.py`; this status.
+- Phase 6 routes 6 PASS: Home count/links, owner resolution, cross-tenant GET/POST, CSRF, strict config payload, stale/replayed config, flags/package/subscription and Finance-session isolation. Phase 5 route regression 11 PASS.
+- Home reads only, shows count/top 3/direct links. Full list has 10-row pagination and resolved history. Owner resolution does not switch mode or change Job/Finance state. Settings default disabled; manual runner is authenticated/CSRF-protected with bounded pagination cursors.
+- A real 404 error-handler issue found by tests was fixed to return a 404 response (no assertions weakened).
+- Next: remaining protected-write/failure/security cases, Phase 1–5 regression rerun, then PG/mobile gates.

@@ -61,5 +61,59 @@ class OperationsRoutesTests(unittest.TestCase):
         phase5.PlaybookRoutesTests.test_human_takeover_during_inference_and_after(self)
         self.assertEqual(attention.listing(7)['total'],0)
 
+    def test_home_count_links_resolution_and_tenant(self):
+        self.assertEqual(self.deliver(text='manusia',raw=phase5.output('manusia',intent='HUMAN'))[0].status_code,200)
+        item=attention.listing(7)['rows'][0]
+        with patch('routes_products._product_businesses',return_value=[self.repo.get_business(7)]), \
+             patch.object(self.repo,'required_fields_missing',return_value=[]), \
+             patch('payment_service.has_verified_ai_admin_payment',return_value=True):
+            home=self.client.get('/products/assist')
+        self.assertEqual(home.status_code,200)
+        self.assertIn(b'1 hal perlu perhatian',home.data)
+        self.assertIn(b'data-attention-inbox',home.data)
+        page=self.client.get('/business/7/attention')
+        self.assertIn(self.cid.encode(),page.data)
+        self.assertIn(self.customer['id'].encode(),page.data)
+        self.assertEqual(self.client.post('/business/7/attention/'+item['id']+'/resolve',data={'csrf_token':'bad'}).status_code,400)
+        self.assertEqual(self.client.post('/business/7/attention/'+item['id']+'/resolve',data={'csrf_token':'csrf-test'}).status_code,303)
+        self.assertEqual(store.conversation(7,self.cid)['mode'],'HUMAN_TAKEOVER')
+        self.assertEqual(attention.listing(7)['total'],0)
+        with self.client.session_transaction() as session: session['user_id']=2
+        for path in ('/business/7/attention','/business/7/automations'):
+            self.assertEqual(self.client.get(path).status_code,404)
+        self.assertEqual(self.client.post('/business/8/attention/'+item['id']+'/resolve',data={'csrf_token':'csrf-test'}).status_code,404)
+        self.assertEqual(self.client.post('/business/7/automations/run',data={'csrf_token':'csrf-test'}).status_code,404)
+        self.assertNotIn(self.cid.encode(),self.client.get('/business/8/attention').data)
+
+    def test_config_owner_forms_and_closed_payload(self):
+        page=self.client.get('/business/7/automations');self.assertEqual(page.status_code,200)
+        data=dict(csrf_token='csrf-test',version=0,followup_enabled='true',review_enabled='true',delay_hours=1,max_attempts=2)
+        for change in ({'action':'SEND_WHATSAPP'},{'delay_hours':0},{'max_attempts':10},{'csrf_token':'bad'},{'review_enabled':'yes'}):
+            self.assertEqual(self.client.post('/business/7/automations',data={**data,**change}).status_code,400)
+        self.assertEqual(auto.get_config(7)['version'],0)
+        self.assertEqual(self.client.post('/business/7/automations',data=data).status_code,303)
+        self.assertEqual(self.client.post('/business/7/automations',data=data).status_code,303)
+        self.assertEqual(self.client.post('/business/7/automations',data={**data,'delay_hours':3}).status_code,409)
+        self.assertEqual(self.client.post('/business/7/automations/run',data={'csrf_token':'csrf-test'}).status_code,200)
+        self.assertEqual(self.client.post('/business/7/automations/run',data={'csrf_token':'csrf-test','channel':'whatsapp'}).status_code,400)
+        self.assertEqual(self.client.post('/business/7/automations',json=data,headers={'X-CSRF-Token':'csrf-test'}).status_code,400)
+
+    def test_flags_package_subscription_and_finance_session(self):
+        for flag in ('KILAS_OPERATIONS_V2_ENABLED','KILAS_JOBS_V2_ENABLED','KILAS_CUSTOMERS_V2_ENABLED','KILAS_CORE_V2_ENABLED','KILAS_WEB_CHAT_ENABLED'):
+            with patch.dict(os.environ,{flag:'false'}):
+                self.assertEqual(self.client.get('/business/7/attention').status_code,404)
+                self.assertEqual(self.client.post('/business/7/automations/run',data={'csrf_token':'csrf-test'}).status_code,404)
+        self.db.execute("UPDATE subscriptions SET status='SUSPENDED' WHERE business_id=7")
+        self.assertEqual(self.client.get('/business/7/automations').status_code,404)
+        self.db.execute("UPDATE subscriptions SET status='ACTIVE' WHERE business_id=7")
+        self.db.execute("UPDATE businesses SET package='FINANCE' WHERE id=7")
+        self.assertEqual(self.client.get('/business/7/attention').status_code,404)
+        self.db.execute("UPDATE businesses SET package='AI_ADMIN' WHERE id=7")
+        with self.client.session_transaction() as session: session['active_product']='finance'
+        for path in ('/business/7/attention','/business/7/automations'):
+            response=self.client.get(path)
+            self.assertEqual(response.status_code,303)
+            self.assertIn('finance',response.location)
+
 
 if __name__=='__main__': unittest.main()
