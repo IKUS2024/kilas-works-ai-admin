@@ -165,5 +165,43 @@ class WebTests(unittest.TestCase):
         with patch.object(self.ai,'_call_claude',side_effect=model): self.send(identity)
         self.assertEqual([r['role'] for r in store.thread(7,cid)],['user'])
 
+    def test_share_controls_scoped_csrf_and_stable_server_slug(self):
+        path='/business/7/web-chat/link'
+        headers={'X-CSRF-Token':'csrf-test'}
+        self.assertEqual(self.client.post(path,json={}).status_code,400)
+        first=self.client.post(path,json={'business_id':8},headers=headers)
+        self.assertEqual(first.status_code,200)
+        self.assertEqual(first.json,{'channel':'WEB','path':'/chat/'+self.slug})
+        self.assertEqual(self.client.post(path,json={},headers=headers).json,first.json)
+        page=self.client.get('/business/7/inbox?channel=web')
+        self.assertIn(b'Copy public chat link',page.data)
+        self.assertIn(b'Open as customer',page.data)
+        with self.client.session_transaction() as session: session['user_id']=2
+        self.assertEqual(self.client.post(path,json={},headers=headers).status_code,404)
+        self.assertIn(self.visitor.post(path,json={},headers=headers).status_code,(302,400))
+
+    def test_share_disabled_unconfigured_and_flag_off(self):
+        path='/business/7/web-chat/link';headers={'X-CSRF-Token':'csrf-test'}
+        with store.transaction() as tx:
+            tx.execute('UPDATE kw_web_channels SET enabled=0 WHERE business_id=7')
+        self.assertEqual(self.client.post(path,json={},headers=headers).status_code,409)
+        self.db.execute("UPDATE ai_settings SET normalized_config_json='{}' WHERE business_id=7")
+        self.assertEqual(self.client.post(path,json={},headers=headers).json['error'],'business_setup_required')
+        with patch.dict(os.environ,{'KILAS_WEB_CHAT_ENABLED':'false'}):
+            self.assertEqual(self.client.post(path,json={},headers=headers).status_code,404)
+            with patch('inbox_service.list_conversations',return_value=[]):
+                self.assertNotIn(b'Copy public chat link',self.client.get('/business/7/inbox').data)
+
+    def test_public_page_mobile_safe_and_separate_from_owner(self):
+        self.db.execute("UPDATE businesses SET business_name='<script>unsafe</script>' WHERE id=7")
+        response=self.visitor.get('/chat/'+self.slug)
+        self.assertEqual(response.status_code,200)
+        self.assertIn(b'width=device-width',response.data)
+        self.assertIn(b'public_web_chat.js',response.data)
+        self.assertIn(b'&lt;script&gt;unsafe&lt;/script&gt;',response.data)
+        self.assertNotIn(b'<script>unsafe</script>',response.data)
+        self.assertNotIn(b'Logout',response.data)
+        self.assertIn("frame-ancestors 'none'",response.headers['Content-Security-Policy'])
+
 
 if __name__=='__main__': unittest.main()

@@ -1,6 +1,7 @@
 """Owner WEB inbox. Authenticated business scope, independent from all WhatsApp handlers."""
-from flask import Blueprint, abort, jsonify, render_template, request
+from flask import Blueprint, abort, jsonify, render_template, request, url_for
 import re
+import repo
 import security as owner_security
 from . import security, store
 
@@ -65,3 +66,15 @@ def reply(bid,cid):
     if not isinstance(event,str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',event): raise store.ChatError('invalid_event_id')
     mid=store.human_reply(bid,cid,event,text.strip(),owner_security.current_user()['id'])
     return jsonify(channel='WEB',message_id=mid)
+
+
+@owner_bp.post('/business/<int:bid>/web-chat/link')
+@owner_security.login_required
+def share(bid):
+    business_for_owner(bid)
+    if not (repo.get_ai_settings(bid) or {}).get('normalized_config'):
+        raise store.ChatError('business_setup_required',409)
+    channel=store.ensure_channel(bid)
+    if not channel['enabled']:
+        raise store.ChatError('channel_disabled',409)
+    return jsonify(path=url_for('public_web.page',slug=channel['slug']),channel='WEB')

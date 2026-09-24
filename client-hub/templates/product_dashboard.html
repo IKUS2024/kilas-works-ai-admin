@@ -293,6 +293,7 @@ body.customer-ui>footer{display:none}
         </div>
 
         {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
+        {% with business=b %}{% include '_web_share.html' %}{% endwith %}
         <div class="kh-brain-links">
           <a href="{{ url_for('client.business_memory',business_id=b.id) }}">Pengetahuan</a>
           <a href="{{ url_for('client.simulate_page',business_id=b.id) }}">Simulasi</a>

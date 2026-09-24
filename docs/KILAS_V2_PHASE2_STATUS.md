@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: IN PROGRESS — milestone 5 human takeover/reply complete; share controls and final UI next.
+Status: IN PROGRESS — milestones 1–6 complete; final regression/QA gates pending.
 Branch: `feature/kilas-core-v2`.
 Starting/current remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -16,7 +16,7 @@ Phase 1 status is COMPLETE; its 30 tests passed before Phase 2 edits.
 - Existing `client-hub/app.py`: blueprint registration, anonymous WEB CSRF/session hook exception
   restricted to public endpoints with their own independent visitor authorization and same-origin checks.
 - Existing `client-hub/routes_client.py`: WEB inbox branch only; default WhatsApp handler unchanged.
-- Existing `client-hub/templates/inbox.html`, `product_dashboard.html`: additive WEB tab/share controls only.
+- Existing `client-hub/templates/inbox.html`, `product_dashboard.html`, `assist_entry.html`, `client_dashboard.html`: additive WEB tab/share controls only.
 - New public/owner WEB templates, scoped CSS/JS, and tests `client-hub/tests/test_public_chat_*.py`.
 - Update `client-hub/tests/test_kilas_core_contract.py` only to reflect additive WEB channel support,
   retaining invalid-channel/actor cases and simulator protection. Phase 1 implementation not redone.
@@ -29,7 +29,7 @@ Use the existing offline subprocess runner. Dependencies are already at `/tmp/ki
 After each passing milestone update this file and commit to the feature branch only.
 Status-bearing commit SHA: `git log -1 -- docs/KILAS_V2_PHASE2_STATUS.md`.
 
-## Remaining / exact next action
+## Milestone plan (1–6 completed; exact next action: step 7)
 1. Implement paired additive schema and scoped durable store; run storage tests and checkpoint.
 2. Add public routes/opaque visitor credentials and same-origin security; checkpoint.
 3. Add injected WEB adapter with durable event claims, safe failures/retry and bounded AI cost; checkpoint.
@@ -89,3 +89,17 @@ version fencing, and duplicate-safe human reply IDs. Taking over closes pending 
 returning to AI cannot resurrect an old reply. UI enables replies only during human handling.
 Files: public_chat/{store,owner}.py, web_inbox.html, web_inbox.js, test_public_chat_routes.py.
 PASS offline `--only test_public_chat` (21 tests). Next: owner share/open controls and public UI.
+
+## Milestone 6 checkpoint
+Current preceding commit: `8cf04cebde51155320450d0e1ac3bdc9529aa914`.
+Added owner-authorized, CSRF-protected stable public-link generation and minimal open/copy controls
+in existing AI product areas/Inbox. Added standalone responsive customer chat with polling,
+safe text rendering, session continuity and persisted pending event IDs for transport retries.
+Files: public_chat/owner.py; templates/{_web_share,public_web_chat,web_inbox,inbox,
+product_dashboard,assist_entry,client_dashboard}.html; static/{public_web_chat,web_share}.js,
+web_chat.css; test_public_chat_routes.py.
+PASS offline `--only test_public_chat` (24 tests); Node syntax checks for both new scripts.
+Next: final Phase 1/2 regression runs, isolated dev/browser QA and scope review.
+PostgreSQL validation blocker: packaged PostgreSQL refuses UID 0; the sandbox cannot change
+UID (`setpriv: setresuid failed: Invalid argument`). No PostgreSQL concurrency pass claimed.
+No production database, deployment, root bot, Finance or WhatsApp handler modifications.

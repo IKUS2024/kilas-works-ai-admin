@@ -1,0 +1,9 @@
+{% if web_chat_available(business) %}
+<div data-web-share data-url="{{ url_for('owner_web.share',bid=business.id) }}" data-csrf="{{ csrf_token() }}">
+  <button type="button" class="btn small secondary" data-share-open>Open as customer</button>
+  <button type="button" class="btn small secondary" data-share-copy>Copy public chat link</button>
+  <p data-share-status role="status"></p>
+  <input data-share-link aria-label="Public chat link" readonly hidden>
+</div>
+<script src="{{ url_for('static',filename='web_share.js') }}" defer></script>
+{% endif %}

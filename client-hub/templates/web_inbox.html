@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='web_chat.css') }}">
 <section class="web-owner">
   <h1>Inbox — {{ business.business_name }}</h1>
+  {% include '_web_share.html' %}
   <nav class="web-tabs" aria-label="Channel">
     <a href="{{ url_for('client.inbox_page',business_id=business.id) }}">WhatsApp</a>
     <a aria-current="page" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">WEB · {{ total }}</a>
