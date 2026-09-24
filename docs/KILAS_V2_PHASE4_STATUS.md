@@ -45,3 +45,16 @@ links and preservation of synthetic legacy Order row verified. Offline
 `--only test_kilas_jobs_schema.py`: PASS (1 test). No old migration chain executed.
 Files: migrations/0057 pair, kilas_core/job_schema.py, tests/test_kilas_jobs_schema.py.
 Prior checkpoint: `8feb318`. Next: deterministic service/lifecycle and retry tests.
+
+## Milestone 2 — deterministic service (PASS)
+Added jobs.py and shared backend test cases + SQLite runner. Offline
+`--only test_kilas_jobs_store.py`: PASS (15 tests), including threaded duplicate create,
+competing version updates and same-key concurrent retry. Scope checked again inside service;
+PostgreSQL tenant-row lock / SQLite immediate transaction serializes short writes. Operations
+and audit commit atomically. Same key/different payload or actor conflicts; valid replay returns
+current authoritative state without rewriting it. Forward-only transitions, no back-transitions.
+Structured data accepts only documented operational keys in FIELD_LABELS, flat bounded text or
+positive finite numeric quantity, <=8192 UTF-8 bytes; unknown keys rejected. No arbitrary secrets
+metadata. UI will expose plain fields, not raw JSON. Service callers must authenticate actor;
+owner routes will enforce existing membership/package/subscription/CSRF guards.
+Prior schema checkpoint: `11672ea`. Next: owner routes/UI and linkage.
