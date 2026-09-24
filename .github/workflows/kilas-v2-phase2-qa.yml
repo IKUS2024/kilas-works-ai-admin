@@ -98,7 +98,7 @@ jobs:
           CLIENT_HUB_ENV: development
           RUN_MIGRATIONS_ON_BOOT: "false"
           SECRET_KEY: phase2-postgres-qa-only
-        run: python scripts/run_offline_tests.py --only test_public_chat_postgres.py
+        run: python client-hub/tests/test_public_chat_postgres.py
 
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
