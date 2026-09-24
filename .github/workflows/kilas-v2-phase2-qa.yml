@@ -7,6 +7,7 @@ on:
     paths:
       - "client-hub/public_chat/**"
       - "client-hub/kilas_core/**"
+      - "client-hub/migrations/0053_kilas_order_catalog_sqlite.sql"
       - "client-hub/migrations/0055_public_web_chat_*"
       - "client-hub/templates/*web*"
       - "client-hub/templates/inbox.html"
