@@ -1081,6 +1081,10 @@ def inbox_page(business_id):
         flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))
 
+    if request.args.get('channel') == 'web':
+        from public_chat.owner import inbox_page as web_inbox_page
+        return web_inbox_page(business)
+
     search = (request.args.get('q') or '').strip()
     mode_filter = (request.args.get('mode') or '').strip()
     if mode_filter not in ('', 'AI_ACTIVE', 'HUMAN_TAKEOVER'):

@@ -188,3 +188,20 @@ def finish(event, reply=None, error=None):
         tx.execute("UPDATE kw_web_events SET status=?,error=? WHERE business_id=? AND conversation_id=? AND event_id=?",
                    (status, error, bid, cid, eid))
         return dict(current, status=status, error=error)
+
+
+def inbox(bid, page=1):
+    with transaction() as tx:
+        where = "c.business_id=? AND EXISTS(SELECT 1 FROM kw_web_messages m WHERE m.business_id=c.business_id AND m.conversation_id=c.id)"
+        total = tx.one("SELECT COUNT(*) AS n FROM kw_web_conversations c WHERE " + where,(bid,))['n']
+        pages=max(1,(total+9)//10);page=min(max(1,page),pages)
+        rows=tx.execute("SELECT c.*, (SELECT content FROM kw_web_messages m WHERE m.business_id=c.business_id "
+                        "AND m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS preview "
+                        "FROM kw_web_conversations c WHERE " + where + " ORDER BY c.updated_at DESC,c.id LIMIT 10 OFFSET ?",
+                        (bid,(page-1)*10))
+        return rows,total,page,pages
+
+
+def conversation(bid,cid):
+    with transaction() as tx:
+        return _locked(tx,bid,cid)

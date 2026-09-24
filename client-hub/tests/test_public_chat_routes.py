@@ -116,5 +116,24 @@ class WebTests(unittest.TestCase):
         model.assert_not_called()
         self.assertEqual(store.thread(7,identity['conversation_id']),[])
 
+    def test_owner_inbox_scoping_and_no_whatsapp_handler(self):
+        identity=self.start().json;cid=identity['conversation_id']
+        with patch.object(self.ai,'_call_claude',return_value=('Reply','end_turn',None)):
+            self.send(identity)
+        with patch('inbox_service.list_conversations',side_effect=AssertionError('No WhatsApp reads')) as wa:
+            page=self.client.get(f'/business/7/inbox?channel=web&conversation={cid}')
+        self.assertEqual(page.status_code,200);self.assertIn(b'WEB',page.data);wa.assert_not_called()
+        self.assertEqual(self.client.get(f'/business/8/inbox?channel=web&conversation={cid}').status_code,404)
+        self.assertEqual(self.client.get(f'/business/8/web-inbox/{cid}/messages').status_code,404)
+        with self.client.session_transaction() as session: session['user_id']=2
+        self.assertEqual(self.client.get('/business/7/inbox?channel=web').status_code,404)
+        self.assertEqual(self.client.get(f'/business/7/web-inbox/{cid}/messages').status_code,404)
+
+    def test_legacy_whatsapp_view_still_uses_original_service(self):
+        with patch('inbox_service.list_conversations',return_value=[]) as wa:
+            response=self.client.get('/business/7/inbox')
+        self.assertEqual(response.status_code,200)
+        wa.assert_called_once_with(7,search='',mode_filter=None)
+
 
 if __name__=='__main__': unittest.main()

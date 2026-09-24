@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: IN PROGRESS — milestone 3 shared Core WEB response path complete; Inbox next.
+Status: IN PROGRESS — milestone 4 WEB Inbox read integration complete; takeover/reply next.
 Branch: `feature/kilas-core-v2`.
 Starting/current remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -72,3 +72,12 @@ spend another call on retry. Forged payload scope and media rejected before mode
 Files: contracts.py, public_chat/{adapter,routes}.py, test_public_chat_routes.py.
 PASS offline `--only test_public_chat` (17 tests) and `--only test_kilas_core` (30 tests).
 Next: WEB Inbox read view; then human replies and share controls.
+
+## Milestone 4 checkpoint
+Current preceding commit: `29d6ad151bcba395a394ba980437193437ace984`.
+WEB tab and paginated WEB conversation view added to existing Inbox. Default WhatsApp route/service
+remains unchanged. Owner read APIs require existing membership and never read WhatsApp storage.
+Files: public_chat/{owner,store}.py, app.py, routes_client.py, templates/{inbox,web_inbox}.html,
+static/{web_chat.css,web_inbox.js}, tests/test_public_chat_routes.py.
+PASS offline `--only test_public_chat_routes` (11 tests), including foreign-business rejection
+and default WhatsApp service routing. Next: WEB-only takeover/reply and in-flight race tests.

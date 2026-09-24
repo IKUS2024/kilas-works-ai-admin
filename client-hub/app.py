@@ -132,6 +132,10 @@ def create_app():
     app.register_blueprint(client_bp)
     from public_chat.routes import public_bp
     app.register_blueprint(public_bp)
+    from public_chat.owner import owner_bp
+    app.register_blueprint(owner_bp)
+    from public_chat.security import available as web_chat_available
+    app.jinja_env.globals['web_chat_available'] = web_chat_available
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from routes_finance import finance_bp
