@@ -296,6 +296,7 @@ body.customer-ui>footer{display:none}
         {% with business=b %}{% include '_web_share.html' %}{% endwith %}
         <div class="kh-brain-links">
           <a href="{{ url_for('client.business_memory',business_id=b.id) }}">Pengetahuan</a>
+          {% if kilas_customers_enabled() %}<a href="{{ url_for('core_customers.list_page',bid=b.id) }}">Customers</a>{% endif %}
           <a href="{{ url_for('client.simulate_page',business_id=b.id) }}">Simulasi</a>
         </div>
         {% endif %}
