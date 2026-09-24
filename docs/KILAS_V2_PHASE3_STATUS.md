@@ -39,3 +39,16 @@ A pre-existing syntax bug in `0053_kilas_order_catalog_sqlite.sql` was corrected
 6. Mark this file COMPLETE and STOP before Phase 4.
 
 Do not start Jobs/Phase 4 automatically.
+
+## Resume — fixture verification
+Starting head: `0b6d1fe688d710a096cff1338e24e1ddb8488dbd`.
+Phase 2 is accepted as passed per user confirmation and successful CI run `36009442066`.
+Read all four requested documents completely. Phase 3 CI run `36009442153`, job `107666042108`,
+failed at SQLite fixture setup and the incorrectly shared owner membership; later gates were skipped.
+Planned narrow changes: test_kilas_customers.py (import module instead of exposing unittest class;
+separate test owners; retain/add read/edit isolation assertions), test_kilas_customers_postgres.py
+(seed required WEB channel parents), and this status. Existing Customers implementation retained.
+Next: pass SQLite, checkpoint, execute existing isolated CI PostgreSQL/browser gates; review coverage
+and exact scope before COMPLETE. No production data, Finance/WhatsApp modifications or deployment.
+
+Fixture milestone: offline `--only test_kilas_customers.py` PASS, exactly 7 Customers tests; no imported Phase 2 unittest class rediscovered. PostgreSQL/browser validation pending CI.

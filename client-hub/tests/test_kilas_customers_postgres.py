@@ -66,6 +66,8 @@ class CustomerPostgresTests(unittest.TestCase):
             for table in ("kw_web_customer_links","kw_core_customer_identities","kw_core_customers",
                           "kw_web_messages","kw_web_events","kw_web_conversations","kw_web_channels","kw_web_limits"):
                 tx.execute("DELETE FROM " + table)
+        store.ensure_channel(7)
+        store.ensure_channel(8)
 
     def test_web_identity_reuse_and_tenant_isolation(self):
         with customers.transaction() as tx:

@@ -6,34 +6,37 @@ import os
 import unittest
 from unittest.mock import patch
 
-from test_public_chat_routes import WebTests
+import test_public_chat_routes as phase2
 
 
 class CustomerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        WebTests.setUpClass.__func__(cls)
+        phase2.WebTests.setUpClass.__func__(cls)
         global store, customer_schema, customers
         from public_chat import store
         from kilas_core import customer_schema, customers
         customer_schema.apply_schema()
 
-    tearDown = WebTests.tearDown
+    tearDown = phase2.WebTests.tearDown
 
     def setUp(self):
         with store.transaction() as tx:
             for table in ("kw_web_customer_links", "kw_core_customer_identities", "kw_core_customers"):
                 tx.execute("DELETE FROM " + table)
-        WebTests.setUp(self)
+        phase2.WebTests.setUp(self)
+        # The simulator fixture deliberately shares one owner across both businesses.
+        # CRM isolation needs two real, independent owners; do not change the parent fixture.
+        self.db.execute('UPDATE business_memberships SET user_id=2 WHERE business_id=8')
         self.customer_flag = patch.dict(os.environ, {"KILAS_CUSTOMERS_V2_ENABLED": "true"})
         self.customer_flag.start()
         self.addCleanup(self.customer_flag.stop)
 
     def start(self, slug=None, client=None):
-        return WebTests.start(self, slug=slug, client=client)
+        return phase2.WebTests.start(self, slug=slug, client=client)
 
     def send(self, identity, text="Halo", event="event-00000000001", slug=None, extra=None):
-        return WebTests.send(self, identity, text=text, event=event, slug=slug, extra=extra)
+        return phase2.WebTests.send(self, identity, text=text, event=event, slug=slug, extra=extra)
 
     def test_first_web_visitor_creates_customer_and_same_visitor_reuses_it(self):
         first = self.start().json
@@ -69,9 +72,18 @@ class CustomerTests(unittest.TestCase):
         self.assertNotEqual(customer["id"], other_customer["id"])
         self.assertEqual(self.client.get(f"/business/8/customers/{other_customer['id']}").status_code, 404)
         self.assertEqual(self.client.get(f"/business/7/customers/{other_customer['id']}").status_code, 404)
+        self.assertEqual(self.client.post(
+            f"/business/8/customers/{other_customer['id']}",
+            data={"csrf_token":"csrf-test","display_name":"Forged"}).status_code,404)
         with self.client.session_transaction() as session:
             session["user_id"] = 2
         self.assertEqual(self.client.get(f"/business/7/customers/{customer['id']}").status_code, 404)
+        self.assertEqual(self.client.get(f"/business/8/customers/{other_customer['id']}").status_code,200)
+        self.assertEqual(self.client.post(
+            f"/business/7/customers/{customer['id']}",
+            data={"csrf_token":"csrf-test","display_name":"Forged"}).status_code,404)
+        self.assertEqual(customers.get_customer(7,customer['id'])["display_name"],customer["display_name"])
+        self.assertEqual(customers.get_customer(8,other_customer['id'])["display_name"],other_customer["display_name"])
 
     def test_owner_can_update_profile_without_creating_unverified_identity(self):
         identity = self.start().json
