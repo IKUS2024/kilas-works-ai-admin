@@ -46,7 +46,11 @@ class DashboardDesignTests(unittest.TestCase):
         self.assertEqual(c['dashboard_view']['bills_display'], 'Rp1.700,00')
         self.assertEqual(c['dashboard_view']['payments_display'], 'Rp0,00')
         self.assertEqual(c['dashboard_view']['upcoming'][0]['id'], rule)
-        self.assertIn(f'#bill-pay-{rule}-2026-09-22', html)
+        self.assertIn('/operations?',html)
+        bills=self.client.get(f'/business/{self.b}/finance/operations?branch_id={self.branch}&month=2026-09&day=2026-09-22')
+        self.assertEqual(bills.status_code,200)
+        self.assertIn(f'id="bill-pay-{rule}-2026-09-22"',bills.text)
+        self.assertIn('name="paid_on"',bills.text)
         response = self.client.post(f'/business/{self.b}/finance/recurring/process', data={
             'branch_id': self.branch, 'month':'2026-09', 'occurrence':f'{rule}:2026-09-22',
             'paid_on':'2026-09-22', 'account_id':self.a})
@@ -152,4 +156,5 @@ class DashboardDesignTests(unittest.TestCase):
             html,c=self.page()
         self.assertEqual(c['dashboard_view']['income_display'],'Tidak tersedia')
         self.assertIn('Data terlalu banyak',html)
-        self.assertIn('Tagihan belum dapat ditampilkan.',html)
+        self.assertEqual(c['dashboard_view']['bills_display'],'Tidak tersedia')
+        self.assertIn('Tidak tersedia',html)

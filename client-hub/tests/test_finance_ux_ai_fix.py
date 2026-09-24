@@ -41,6 +41,15 @@ class ProviderJSONTests(unittest.TestCase):
 
 
 class FinanceUXTests(unittest.TestCase):
+    def page_context(self, url):
+        from flask import template_rendered
+        contexts=[]
+        def capture(sender, template, context, **extra): contexts.append(context)
+        with template_rendered.connected_to(capture, prior.app):
+            response=self.client.get(url)
+        self.assertEqual(response.status_code,200)
+        return response.text,contexts[-1]
+
     setUp = prior.FinalFlowTests.setUp
     trial = prior.FinalFlowTests.trial
     snapshot = prior.FinalFlowTests.snapshot
@@ -62,10 +71,10 @@ class FinanceUXTests(unittest.TestCase):
         self.trial()
         html = self.client.get(self.url).text
         links = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', html)]
-        self.assertEqual(sum(link.path == self.url + '/assistant' for link in links), 1)
+        self.assertEqual(sum(link.path == self.url + '/assistant' for link in links), 2)
         for text in ('AI Analyst', 'AI Operator', 'Upload File', 'Beta'):
             self.assertNotIn(text, html)
-        self.assertIn('Pengaturan Finance', html)
+        self.assertIn('/settings', html)
         for suffix in ('reports', 'operations', 'receivables'):
             link = next(link for link in links if link.path == self.url + '/' + suffix)
             self.assertEqual(parse_qs(link.query)['branch_id'], [str(__import__('finance_branches').list_branches(self.b)[0]['id'])])
@@ -85,14 +94,15 @@ class FinanceUXTests(unittest.TestCase):
 
     def test_period_dropdown_canonical_query_and_persistence(self):
         for year, month in (('2024', '02'), ('2025', '12'), ('1999', '01')):
-            response = self.client.get(self.url, query_string={'period_year': year, 'period_month': month, 'direction': 'EXPENSE'})
+            response = self.client.get(self.url, query_string={'period_year': year, 'period_month': month, 'direction': 'EXPENSE', 'view':'transactions'})
             self.assertEqual(response.status_code, 302)
             self.assertIn('month=' + year + '-' + month, response.location)
             self.assertIn('direction=EXPENSE', response.location)
             html = self.client.get(response.location).text
             self.assertIn('value="' + month + '" selected', html)
             self.assertIn('value="' + year + '" selected', html)
-            self.assertNotIn('type="month"', html)
+            self.assertIn('name="period_month"', html)
+            self.assertIn('name="period_year"', html)
             self.assertIn('Februari', html)
         html = self.client.get(self.url + '?month=1980-03').text
         self.assertIn('value="1980" selected', html)
@@ -123,10 +133,10 @@ class FinanceUXTests(unittest.TestCase):
         finance.create_transaction(self.b, 'INCOME', 1500, usd_account, income['id'], '2026-09-17',
             currency='USD', description='USD client payment', actor_user_id=self.uid)
         html = self.client.get(self.url + '?month=2026-09').text
-        self.assertIn('finance-trend-currency', html)
-        self.assertIn('Lihat semua', html)
-        self.assertIn('Jasa foto', html)
-        self.assertIn('USD client payment', html)
+        self.assertIn('name="display_currency"', html)
+        history=self.client.get(self.url+'?month=2026-09&view=transactions').text
+        self.assertIn('Jasa foto', history)
+        self.assertIn('USD client payment', history)
         self.assertIn('finance-trend-data', html)
         self.assertLessEqual(html.count('class="finance-history-row"'), 5)
 
@@ -137,14 +147,16 @@ class FinanceUXTests(unittest.TestCase):
         for index in range(23):
             finance.create_transaction(self.b, 'INCOME', 100000 + index, self.a, income['id'], '2026-09-17',
                 description=f'PAGED-{index:02d}', actor_user_id=self.uid)
-        summary = self.client.get(self.url + '?month=2026-09').text
+        summary = self.client.get(self.url + '?view=transactions&period_mode=all').text
         full_links = [urlsplit(unescape(link)) for link in re.findall(r'href="([^"]+)"', summary)]
         history = next(link for link in full_links if parse_qs(link.query).get('view') == ['transactions']
                        and parse_qs(link.query).get('period_mode') == ['all'])
         self.assertEqual(parse_qs(history.query).get('page'), ['1'])
 
-        page1 = self.client.get(history.geturl()).text
-        self.assertIn('23 transaksi', page1)
+        page1,context = self.page_context(history.geturl())
+        self.assertEqual(context['transaction_total'],23)
+        self.assertEqual(context['transaction_page_size'],10)
+        self.assertEqual(len(context['transactions']),10)
         self.assertIn('10 per halaman', page1)
         self.assertNotIn('Kilas Finance</h1>', page1)
         self.assertNotIn('Arus Kas Periode', page1)
@@ -274,7 +286,7 @@ class FinanceUXTests(unittest.TestCase):
     def test_operator_fenced_response_preserves_grounding(self):
         self.response.json.return_value = {'stop_reason': 'end_turn', 'content': [{'type': 'text', 'text': '```json\n' + json.dumps({'action': 'create_expense', 'amount_text': '300 ribu', 'description': 'bensin'}) + '\n```'}]}
         result = operator.interpret('create_expense', 'catat bensin 300 ribu','IDR')
-        self.assertEqual(result, {'amount_minor': 300000, 'description': 'bensin'})
+        self.assertEqual(result, {'amount_minor': 30000000, 'description': 'bensin'})
 
 
 if __name__ == '__main__':

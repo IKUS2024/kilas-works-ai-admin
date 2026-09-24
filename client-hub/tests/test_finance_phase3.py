@@ -122,7 +122,9 @@ class ReportsTests(unittest.TestCase):
         self.assertEqual([r['net_cashflow_minor'] for r in trend],[0,100,150])
         part=f.get_monthly_cashflow_trend(self.b,'2026-09','2026-09',start_date='2026-09-10',end_date='2026-09-30')
         self.assertEqual(part[0]['net_cashflow_minor'],-50)
-        with self.assertRaises(f.FinanceError):f.get_monthly_cashflow_trend(self.b,'2025-09','2026-09')
+        self.assertEqual(len(f.get_monthly_cashflow_trend(self.b,'2025-09','2026-09')),13)
+        self.assertEqual(len(f.get_monthly_cashflow_trend(self.b,'2006-10','2026-09')),240)
+        with self.assertRaises(f.FinanceError):f.get_monthly_cashflow_trend(self.b,'2006-09','2026-09')
 
     def test_integer_money_beyond_float_precision(self):
         value=2**63-1;self.tx(value);self.tx(value)
@@ -141,7 +143,7 @@ class ReportsTests(unittest.TestCase):
         data=reports.export_csv('transactions',self.b,self.filters,self.uid)
         self.assertTrue(data.startswith(b'\xef\xbb\xbf'))
         rows=self.parse_csv(data);self.assertEqual(len(rows),2)
-        self.assertEqual(rows[0]['nominal'],'1500000')
+        self.assertEqual(rows[0]['nominal'],'15000.00')
         self.assertEqual(rows[0]['deskripsi'],"'=SUM(A1:A2)")
         self.assertEqual(rows[0]['pihak_lawan'],'Vendor, "A"\nB');self.assertEqual(rows[1]['status'],'Dibatalkan')
         self.assertEqual(f.list_transactions(self.b)[-1]['description'],'=SUM(A1:A2)')
@@ -198,8 +200,8 @@ class ReportsTests(unittest.TestCase):
 
     def test_invalid_filters_and_presets(self):
         for args in ({'start':'wrong'},{'start':'2026-02-30'},{'start':'2026-10-01','end':'2026-09-01'},
-                     {'start':'2025-01-01','end':'2026-01-02'},{'start':'2025-01-01','end':'2026-01-01'},
-                     {'preset':'evil'},{'as_of':'secret-value'},{'commitment_start':'2025-01-01','commitment_end':'2026-01-02'}):
+                     {'start':'2005-01-01','end':'2026-01-02'},
+                     {'preset':'evil'},{'as_of':'secret-value'},{'commitment_start':'2005-01-01','commitment_end':'2026-01-02'}):
             with self.assertRaises(f.FinanceError):reports.parse_filters(args,today=date(2026,9,15))
         self.assertEqual(reports.parse_filters({'preset':'three'},date(2026,1,15))['start'],'2025-11-01')
         self.assertEqual(reports.parse_filters({'preset':'year'},date(2026,9,15))['start'],'2026-01-01')
@@ -221,7 +223,7 @@ class ReportsTests(unittest.TestCase):
         result=self.client.get(self.url+'/reports?branch_id='+str(__import__('finance_branches').list_branches(self.b)[0]['id']))
         self.assertEqual(result.status_code,200)
         html=result.get_data(as_text=True)
-        for text in ('Laporan Finance','report-tabs','data-report-filter-open','Export ▾','Download Semua CSV','Ringkasan Arus Kas'):
+        for text in ('Laporan Finance','report-content','data-report-filter-open','Unduh PDF','/reports/export/report.pdf','Ringkasan'):
             self.assertIn(text,html)
         self.assertNotIn('fin-tool-grid compact',html)
 
@@ -230,7 +232,7 @@ class ReportsTests(unittest.TestCase):
         result=self.client.get(self.url+'/reports'+self.query)
         self.assertEqual(result.status_code,200)
         html=result.get_data(as_text=True)
-        for text in ('window.print()','Cetak / Simpan PDF','@media print','0 transaksi','bukan laporan laba rugi akuntansi','belum tentu sama dengan saldo bank aktual'):
+        for text in ('Unduh PDF','/reports/export/report.pdf','@media print','0 transaksi','berbasis kas','bukan laporan laba rugi akrual','Mata uang tetap disajikan sesuai pencatatannya'):
             self.assertIn(text,html)
         self.assertEqual(before,{t:db.query_all('SELECT * FROM '+t) for t in before})
         self.assertIn('no-store',result.headers['Cache-Control'])
