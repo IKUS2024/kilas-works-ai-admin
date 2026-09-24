@@ -174,9 +174,12 @@ Baseline: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 - `client-hub/tests/public_chat_dev.py`
 - `client-hub/tests/test_public_chat_routes.py`
 - `client-hub/tests/test_public_chat_store.py`
+- `docs/ASTRA_PHASE2_PUBLIC_CHAT.md`
+- `docs/KILAS_V2_EXECUTION_ROADMAP.md`
+- `docs/KILAS_V2_MASTER.md`
 - `docs/KILAS_V2_PHASE2_STATUS.md`
 
-Scope review: only the listed 27 files changed. Existing Finance files, accounting services,
+Scope review: the listed 30 files changed, including three upstream business-first documentation updates. Existing Finance files, accounting services,
 DB helpers, legacy migrations, root bot and WhatsApp services remain byte-for-byte unchanged.
 Default Inbox still dispatches to the original WhatsApp handler (tested). The only existing
 Finance-session hook addition exempts public_web endpoints; the original simulator Finance lock
@@ -190,3 +193,37 @@ Milestones committed/published only on `feature/kilas-core-v2`:
 5. Human replies: `8cf04cebde51155320450d0e1ac3bdc9529aa914`
 6. Owner share/UI: `f13e3b04793a11ffbc84bd04d14c26e4d7a49591`
 7. Passing partial QA checkpoint: `git log -1 -- docs/KILAS_V2_PHASE2_STATUS.md`.
+
+## Milestone 7 resume verification — 2026-09-24
+Resumed from implementation checkpoint `a1a40991f2ba3beae44c9d684c6ad0c19758f75a`.
+Remote feature head inspected and synchronized exactly:
+`2e4bddf1a826a1b8030d78f0bb1df133be8bb23f`.
+Remote main remains `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
+The three intervening remote commits modify only MASTER, EXECUTION_ROADMAP and
+ASTRA_PHASE2_PUBLIC_CHAT documentation. Their business-first/text-first requirements were read
+and retained. Application code is identical to the previous passing checkpoint.
+
+Work performed in this resume:
+- Read all five requested documents; reviewed upstream additions before updating this status.
+- Reran offline Phase 1 suite: PASS, 30 tests in 2 subprocesses.
+- Reran offline Phase 2 suite: PASS, 27 tests in 2 subprocesses.
+  Commands remain `PYTHONPATH=/tmp/kilas-phase1-deps python scripts/run_offline_tests.py
+  --only test_kilas_core` and the same command with `--only test_public_chat`.
+- Verified exact baseline diff: 30 documented files, including the 3 upstream docs.
+  No additional application, test, schema, Finance or WhatsApp code changed in this resume.
+- Rechecked PostgreSQL prerequisite: `id` reports UID/GID 0;
+  `setpriv --reuid=65534 --regid=65534 --clear-groups id` exits 127 with
+  `setpriv: setresuid failed: Invalid argument`. The installed native PostgreSQL requires a
+  non-root process. No separately provisioned disposable PostgreSQL target was supplied.
+  Therefore isolated PostgreSQL validation remains impossible in this execution environment.
+
+STOPPED at that confirmed environment blocker as instructed. Browser QA was not retried in this
+resume; the previous `ERR_BLOCKED_BY_CLIENT` result remains unresolved, not a new pass/failure.
+Legacy tenant/Inbox regression suites remain pending the safe schema-only fixture described above;
+no destructive migration chain was replayed. No live provider, production database or customer data
+was used. No deployment, Finance/WhatsApp behavior change, creative/media feature, or Phase 3 work.
+Only this status file is changed by the resume commit. Milestones 1–6 were not redone.
+
+Status remains BLOCKED/PARTIAL, NOT COMPLETE. Exact next action is the existing remaining-work
+list: first run PostgreSQL validation in an authorized disposable non-root environment, then
+complete legacy regressions and mobile browser QA. RESUME FROM STATUS FILE.
