@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: IN PROGRESS — milestone 4 WEB Inbox read integration complete; takeover/reply next.
+Status: IN PROGRESS — milestone 5 human takeover/reply complete; share controls and final UI next.
 Branch: `feature/kilas-core-v2`.
 Starting/current remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -81,3 +81,11 @@ Files: public_chat/{owner,store}.py, app.py, routes_client.py, templates/{inbox,
 static/{web_chat.css,web_inbox.js}, tests/test_public_chat_routes.py.
 PASS offline `--only test_public_chat_routes` (11 tests), including foreign-business rejection
 and default WhatsApp service routing. Next: WEB-only takeover/reply and in-flight race tests.
+
+## Milestone 5 checkpoint
+Current preceding commit: `9dba0ed348de4dc2a18e40f40c1360653a3dbe49`.
+WEB takeover/return and manual replies use scoped short transactions, existing audit_log,
+version fencing, and duplicate-safe human reply IDs. Taking over closes pending AI events;
+returning to AI cannot resurrect an old reply. UI enables replies only during human handling.
+Files: public_chat/{store,owner}.py, web_inbox.html, web_inbox.js, test_public_chat_routes.py.
+PASS offline `--only test_public_chat` (21 tests). Next: owner share/open controls and public UI.

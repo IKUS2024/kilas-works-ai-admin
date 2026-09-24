@@ -135,5 +135,35 @@ class WebTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         wa.assert_called_once_with(7,search='',mode_filter=None)
 
+    def owner_post(self,cid,action,payload,bid=7):
+        return self.client.post(f'/business/{bid}/web-inbox/{cid}/{action}',json=payload,headers={'X-CSRF-Token':'csrf-test'})
+
+    def test_human_takeover_reply_return_and_customer_delivery(self):
+        identity=self.start().json;cid=identity['conversation_id']
+        self.assertEqual(self.owner_post(cid,'reply',{'event_id':'human-00000000001','message':'Hello'}).status_code,409)
+        self.assertEqual(self.owner_post(cid,'mode',{'mode':'HUMAN_TAKEOVER'}).status_code,200)
+        with patch.object(self.ai,'_call_claude') as model, patch('inbox_service.send_manual_reply') as wa:
+            self.assertEqual(self.send(identity).status_code,200)
+            first=self.owner_post(cid,'reply',{'event_id':'human-00000000001','message':'Balasan tim'})
+            second=self.owner_post(cid,'reply',{'event_id':'human-00000000001','message':'Balasan tim'})
+        self.assertEqual(first.status_code,200);self.assertEqual(first.json,second.json)
+        model.assert_not_called();wa.assert_not_called()
+        delivered=self.visitor.get(f'/chat/{self.slug}/{cid}/messages').json
+        self.assertEqual([r['role'] for r in delivered['messages']],['user','human'])
+        self.assertEqual(self.owner_post(cid,'reply',{'event_id':'human-00000000001','message':'x'},bid=8).status_code,404)
+        self.assertEqual(self.owner_post(cid,'mode',{'mode':'AI_ACTIVE'}).status_code,200)
+        with patch.object(self.ai,'_call_claude',return_value=('AI lagi','end_turn',None)) as model:
+            self.assertEqual(self.send(identity,event='event-00000000002').status_code,200)
+        model.assert_called_once()
+
+    def test_inflight_takeover_fences_ai_even_after_return(self):
+        identity=self.start().json;cid=identity['conversation_id']
+        def model(*args,**kwargs):
+            self.owner_post(cid,'mode',{'mode':'HUMAN_TAKEOVER'})
+            self.owner_post(cid,'mode',{'mode':'AI_ACTIVE'})
+            return 'Stale AI must not appear','end_turn',None
+        with patch.object(self.ai,'_call_claude',side_effect=model): self.send(identity)
+        self.assertEqual([r['role'] for r in store.thread(7,cid)],['user'])
+
 
 if __name__=='__main__': unittest.main()

@@ -1,5 +1,6 @@
 """Owner WEB inbox. Authenticated business scope, independent from all WhatsApp handlers."""
 from flask import Blueprint, abort, jsonify, render_template, request
+import re
 import security as owner_security
 from . import security, store
 
@@ -41,3 +42,26 @@ def messages(bid,cid):
     if after is None or after<0:
         raise store.ChatError('invalid_cursor')
     return jsonify(channel='WEB',mode=selected['mode'],messages=store.thread(bid,cid,after))
+
+
+@owner_bp.post('/business/<int:bid>/web-inbox/<cid>/mode')
+@owner_security.login_required
+def mode(bid,cid):
+    business_for_owner(bid)
+    payload=request.get_json(silent=True)
+    if not isinstance(payload,dict): raise store.ChatError('invalid_mode')
+    mode=store.set_mode(bid,cid,payload.get('mode'),owner_security.current_user()['id'])
+    return jsonify(channel='WEB',mode=mode)
+
+
+@owner_bp.post('/business/<int:bid>/web-inbox/<cid>/reply')
+@owner_security.login_required
+def reply(bid,cid):
+    business_for_owner(bid)
+    payload=request.get_json(silent=True)
+    if not isinstance(payload,dict): raise store.ChatError('invalid_message')
+    text,event=payload.get('message'),payload.get('event_id')
+    if not isinstance(text,str) or not text.strip() or len(text)>4000: raise store.ChatError('invalid_message')
+    if not isinstance(event,str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',event): raise store.ChatError('invalid_event_id')
+    mid=store.human_reply(bid,cid,event,text.strip(),owner_security.current_user()['id'])
+    return jsonify(channel='WEB',message_id=mid)

@@ -205,3 +205,31 @@ def inbox(bid, page=1):
 def conversation(bid,cid):
     with transaction() as tx:
         return _locked(tx,bid,cid)
+
+
+def set_mode(bid,cid,mode,actor):
+    if mode not in ('AI_ACTIVE','HUMAN_TAKEOVER'):
+        raise ChatError('invalid_mode')
+    with transaction() as tx:
+        conv=_locked(tx,bid,cid)
+        if conv['mode']!=mode:
+            tx.execute('UPDATE kw_web_conversations SET mode=?,version=version+1 WHERE business_id=? AND id=?',(mode,bid,cid))
+            tx.execute("UPDATE kw_web_events SET status='done' WHERE business_id=? AND conversation_id=? AND status='processing'",(bid,cid))
+            tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
+                       (actor,bid,'WEB_MODE_CHANGED',cid+':'+mode))
+        return mode
+
+
+def human_reply(bid,cid,event_id,text,actor):
+    with transaction() as tx:
+        conv=_locked(tx,bid,cid)
+        existing=tx.one("SELECT id,content FROM kw_web_messages WHERE business_id=? AND conversation_id=? AND event_id=? AND role='human'",(bid,cid,event_id))
+        if existing:
+            if existing['content']!=text: raise ChatError('event_conflict',409)
+            return existing['id']
+        if conv['mode']!='HUMAN_TAKEOVER': raise ChatError('human_takeover_required',409)
+        limit(tx,'owner-send:'+str(bid),60,60)
+        _message(tx,bid,cid,event_id,'human',text)
+        tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
+                   (actor,bid,'WEB_MANUAL_REPLY',cid+':'+event_id))
+        return tx.one("SELECT id FROM kw_web_messages WHERE business_id=? AND conversation_id=? AND event_id=? AND role='human'",(bid,cid,event_id))['id']

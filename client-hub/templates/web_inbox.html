@@ -25,12 +25,18 @@
       </nav>
     </aside>
     {% if selected %}
-    <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-csrf="{{ csrf_token() }}">
+    <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-mode-url="{{ url_for('owner_web.mode',bid=business.id,cid=selected.id) }}" data-reply-url="{{ url_for('owner_web.reply',bid=business.id,cid=selected.id) }}" data-csrf="{{ csrf_token() }}">
       <header><a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">← Percakapan</a>
         <h2>Pengunjung {{ selected.id[:6] }} · WEB</h2><p data-mode>{{ 'Ditangani tim' if selected.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</p>
+        <button type="button" class="btn" data-takeover>Ambil alih</button>
+        <button type="button" class="btn secondary" data-return>Kembalikan ke AI</button>
       </header>
       <div class="web-thread" data-thread role="log" aria-live="polite"></div>
       <p data-status role="status"></p>
+      <form data-reply><label for="web-owner-message">Balasan tim</label>
+        <textarea id="web-owner-message" maxlength="4000" required disabled placeholder="Ambil alih untuk membalas"></textarea>
+        <button class="btn" type="submit" disabled>Kirim balasan</button>
+      </form><p data-send-status role="status"></p>
     </section>
     {% else %}<section class="web-panel web-empty"><p>Pilih percakapan untuk membaca pesan.</p></section>{% endif %}
   </div>
