@@ -364,7 +364,31 @@ Avoid customer-facing technical labels:
 - pipeline entity
 - LLM state machine
 
-## 19. Engineering guardrails
+## 19. Business-first AI scope
+
+Kilas V2 AI must prioritize business operations, not creative media generation.
+
+Near-term AI priorities:
+- understand customer intent in natural Indonesian;
+- collect only missing business information;
+- use business knowledge, products/services, pricing rules and policies;
+- create/update customer and operational state through deterministic actions in later phases;
+- support Order / Booking / Shipment / Project / Service workflows;
+- summarize conversations and surface next actions;
+- hand over to a human when uncertain or outside business scope.
+
+Deferred until after the business operating system is stable:
+- AI image generation;
+- AI video generation;
+- creative-content studio features;
+- image/video editing workflows;
+- rich media understanding unless a specific business workflow truly requires it.
+
+Public Web Chat and early Kilas Core should be text-first. Attachments/media may be added later as bounded business inputs (for example a receipt, product photo or shipping-item photo), but media must not expand the product into a creative AI platform.
+
+The AI should politely keep customer conversations relevant to the connected business. It should not behave as an unrestricted general-purpose chatbot.
+
+## 20. Engineering guardrails
 
 1. Inspect current remote main before every substantial task.
 2. Never assume an old SHA.
@@ -385,7 +409,7 @@ Avoid customer-facing technical labels:
 17. Do not create fake businesses or reset production data for QA.
 18. Roll out new core features behind safe feature flags when appropriate.
 
-## 20. Implementation sequence
+## 21. Implementation sequence
 
 ### Phase 0 — Audit only
 No production behavior changes.
@@ -430,7 +454,7 @@ Narrow integration only. Finance remains protected.
 ### Phase 8 — Official WhatsApp Adapter
 Plug official channel into tested core after approval.
 
-## 21. Release definition for first sellable Kilas Core
+## 22. Release definition for first sellable Kilas Core
 
 A business owner can:
 1. create/setup a business;
@@ -444,7 +468,7 @@ A business owner can:
 9. continue using existing Finance unchanged;
 10. later connect official WhatsApp without replacing the core.
 
-## 22. What NOT to do next
+## 23. What NOT to do next
 
 Do not:
 - redesign Finance;
@@ -456,7 +480,7 @@ Do not:
 - duplicate existing Inbox/order/customer logic without auditing first;
 - deploy a broad refactor directly to main.
 
-## 23. Immediate next task
+## 24. Immediate next task
 
 Perform **Phase 0 Audit only** against the current real repository.
 
