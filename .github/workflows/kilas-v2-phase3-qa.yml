@@ -1,0 +1,123 @@
+name: Kilas V2 Phase 3 QA
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "client-hub/kilas_core/**"
+      - "client-hub/public_chat/**"
+      - "client-hub/migrations/0056_kilas_core_customers_*"
+      - "client-hub/templates/customers.html"
+      - "client-hub/templates/customer_detail.html"
+      - "client-hub/templates/web_inbox.html"
+      - "client-hub/templates/product_dashboard.html"
+      - "client-hub/tests/test_kilas_customers*"
+      - "client-hub/tests/public_chat_*"
+      - ".github/workflows/kilas-v2-phase3-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase3-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_phase3
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_phase3"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r client-hub/requirements.txt
+          pip install playwright
+
+      - name: Phase 1 regression
+        env:
+          PYTHONPATH: client-hub
+        run: python scripts/run_offline_tests.py --only test_kilas_core
+
+      - name: Phase 2 focused regression
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_public_chat_routes.py
+          python scripts/run_offline_tests.py --only test_public_chat_store.py
+
+      - name: Phase 3 Customers SQLite regression
+        env:
+          PYTHONPATH: client-hub
+        run: python scripts/run_offline_tests.py --only test_kilas_customers.py
+
+      - name: Phase 2 PostgreSQL 0055 regression
+        env:
+          PYTHONPATH: client-hub
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase3
+          KILAS_PHASE2_POSTGRES_QA: "1"
+          CLIENT_HUB_ENV: development
+          RUN_MIGRATIONS_ON_BOOT: "false"
+          SECRET_KEY: phase3-postgres-qa-only
+        run: python client-hub/tests/test_public_chat_postgres.py
+
+      - name: Phase 3 PostgreSQL 0056 validation
+        env:
+          PYTHONPATH: client-hub
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase3
+          KILAS_PHASE3_POSTGRES_QA: "1"
+          CLIENT_HUB_ENV: development
+          RUN_MIGRATIONS_ON_BOOT: "false"
+          SECRET_KEY: phase3-postgres-qa-only
+        run: python client-hub/tests/test_kilas_customers_postgres.py
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Start disposable QA harness
+        env:
+          PYTHONPATH: client-hub:client-hub/tests
+        run: |
+          python client-hub/tests/public_chat_dev.py >/tmp/kilas-phase3-harness.log 2>&1 &
+          ready=0
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8765/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then cat /tmp/kilas-phase3-harness.log; exit 1; fi
+
+      - name: Mobile browser QA including Customers
+        env:
+          KILAS_PUBLIC_CHAT_QA_BASE: http://127.0.0.1:8765
+          KILAS_PUBLIC_CHAT_QA_OUT: /tmp/kilas-phase3-browser-qa
+        run: python client-hub/tests/public_chat_browser_qa.py
+
+      - name: Show harness log
+        if: always()
+        run: cat /tmp/kilas-phase3-harness.log || true
+
+      - name: Upload Phase 3 browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kilas-phase3-browser-qa
+          path: /tmp/kilas-phase3-browser-qa
+          if-no-files-found: ignore
