@@ -222,3 +222,25 @@ Exact checkpoint files: `client-hub/routes_products.py`, `client-hub/static/kila
 `client-hub/workspace_presenter.py`, this status file.
 Next: publish checkpoint, rerun all Phase 2–9 workflows including Phase 1/Finance
 baseline, inspect remaining screenshots, review exact diff, and certify only if green.
+
+## Checkpoint 5 — final candidate verification, CI baseline pending
+
+Implementation SHA `b37d44db36a4fd5263d303ae4d8ea3fc94e3ed47` is code-complete.
+Current CI PASS: Phase 2 `36071652180`, Phase 3 `36071652272`, Phase 4
+`36071652187`, Phase 5 `36071652190`, Phase 6 `36071652168`, Phase 8
+`36071652195`, Phase 9 `36071652179`. Phase 1 is included in these gates.
+Phase 7 `36071652182` runtime job passed SQLite/PostgreSQL/Bridge/mobile; its
+complete Finance baseline job remains running unusually long at this checkpoint.
+No failure result or infrastructure cause has yet been established.
+
+Re-ran the identical complete Finance gate locally on this final implementation:
+**PASS 39 files / 1,018 tests, zero skipped**, `/tmp/phase9-finance-certified`.
+Phase 9 produced 155 responsive visits / 157 screenshots at 360, 390, 430, 820,
+1440 with no overflow or JavaScript errors, plus real independent onboarding journeys.
+Final artifacts `10838057967` (responsive) and `10838028141` (WhatsApp Inbox) downloaded
+and visually inspected. Exact code diff reviewed; `git diff --check` passes.
+
+This documentation-only checkpoint preserves the evidence and also launches a fresh
+CI attempt against unchanged implementation while the older Finance runner finishes.
+Next: inspect complete Finance CI result; if green, publish completion certification.
+No production deployment, Meta activation, Phase 10 or change to financial semantics.
