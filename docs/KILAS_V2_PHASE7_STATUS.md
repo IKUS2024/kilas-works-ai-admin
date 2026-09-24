@@ -1,4 +1,41 @@
-# Phase 7 status — FINANCE BASELINE RECOVERY BLOCKED / BRIDGE NOT STARTED
+# Phase 7 status — FINANCE BASELINE GREEN / BRIDGE IMPLEMENTATION STARTING
+
+## Current continuation checkpoint
+
+**FINANCE BASELINE GREEN — BRIDGE IMPLEMENTATION STARTING**
+
+- Resumed remote feature `2c82f9ea131862605d41206f6546a55a33f00b93`; remote main
+  `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`. Head CI Phase 2–6 all SUCCESS:
+  `36032254129`, `36032254008`, `36032254273`, `36032254003`, `36032253987`.
+- Final complete `PYTHONPATH=/tmp/kilas-phase7-deps python scripts/run_finance_baseline.py
+  --logs /tmp/kilas-phase7-relocation-final`: **1018 PASS, 39 executed files,
+  0 failures, 0 errors, 0 skips, 0 zero-test passes**. Both original positive move
+  tests are unchanged and pass. 12 additional correction regressions pass.
+- Design: immutable database correction commands with monotonic versions, strict
+  same-business ownership, owner-private workspace authorization, unchanged economics,
+  retained row IDs, opening history, repeated/reverse move and concurrency protection.
+  Full rationale and safe exclusions: `KILAS_V2_WORKSPACE_CORRECTIONS.md`.
+- HTTP destination initialization now shares the Finance move transaction. Late
+  failure restores the entire request including newly created workspace/defaults.
+- Raw UPDATE/tenant changes/replayed permission/history edits remain rejected.
+  Invoice/FX/import/reconciled/posted-recurring/project/customer-linked records
+  cannot be partially relocated. Eligible unposted rules preserve identity/schedules.
+- Exact files: `client-hub/db.py`, `finance_service.py`, `routes_finance.py`;
+  paired `client-hub/migrations/0059_finance_workspace_corrections_{sqlite,postgres}.sql`;
+  `client-hub/tests/test_finance_workspace_corrections.py`,
+  `client-hub/tests/finance_workspace_postgres_qa.py`;
+  `.github/workflows/kilas-v2-phase7-qa.yml`; this status and the design document.
+- `git diff --check` PASS. Phase 1 regressions PASS (30 tests); remaining prior-phase
+  regression rerun is in progress. PostgreSQL runtime is **pending CI**, not claimed:
+  local `setpriv` cannot create a non-root PostgreSQL process. The new workflow uses
+  a disposable loopback PostgreSQL 18 service, never production data.
+- Checkpoint SHA: the commit containing this section (`git log -1 --
+  docs/KILAS_V2_PHASE7_STATUS.md`); the following milestone will record its exact SHA.
+- Exact next action: implement explicit, default-off connection/customer/draft-invoice
+  Bridge using existing Finance `_write` and service APIs; inspect PostgreSQL CI;
+  complete standalone/mobile/security gates. Do not start Phase 8 or deploy.
+
+All earlier blocked/recovery sections below are historical and superseded by this checkpoint.
 
 ## Current recovery result (2026-09-24)
 - Branch: `feature/kilas-core-v2`. Resumed existing audit checkpoint `8f33dd8de8bb14bb68dae2b64c3a12365ab166cb`; did not restart Phase 7. Phase 1–6 remain complete.

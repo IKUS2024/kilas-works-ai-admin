@@ -1415,46 +1415,29 @@ def void_transaction(business_id, user, business, transaction_id):
 @finance_bp.route('/business/<int:business_id>/finance/transactions/<int:transaction_id>/move-workspace', methods=['POST'])
 @finance_access
 def move_transaction_workspace(business_id, user, business, transaction_id):
-    try:
-        target = _workspace_move_target(business_id, user['id'])
-    except finance.FinanceError as error:
-        flash(ERRORS.get(str(error), 'Tujuan pemindahan belum valid.'), 'error')
-        return redirect(url_for(
-            'finance.dashboard', business_id=business_id,
-            branch_id=g.finance_branch_id, view='transactions'), code=303)
-    destination = url_for(
-        'finance.dashboard', business_id=business_id,
-        branch_id=g.finance_branch_id, period_mode='all',
-        view='transactions', page=1)
-    return mutate(
-        business_id,
-        lambda: finance.move_transaction_workspace(
-            business_id, transaction_id, target['id'],
-            actor_user_id=user['id']),
-        f"Transaksi dipindahkan ke Finance {'Pribadi' if target['workspace_type']=='PERSONAL' else 'Bisnis'}. Nilai sumber dan tujuan dihitung ulang otomatis.",
-        destination)
+    def action():
+        with finance._write(business_id, user['id']):
+            finance._workspace_move_owner(business_id, user['id'])
+            target = _workspace_move_target(business_id, user['id'])
+            finance.move_transaction_workspace(
+                business_id, transaction_id, target['id'], actor_user_id=user['id'])
+    return mutate(business_id, action, 'Transaksi dipindahkan. Riwayat koreksi tersimpan.',
+                  url_for('finance.dashboard', business_id=business_id,
+                          branch_id=g.finance_branch_id, period_mode='all', view='transactions'))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/accounts/<int:account_id>/move-workspace', methods=['POST'])
 @finance_access
 def move_account_workspace(business_id, user, business, account_id):
-    try:
-        target = _workspace_move_target(business_id, user['id'])
-    except finance.FinanceError as error:
-        flash(ERRORS.get(str(error), 'Tujuan pemindahan belum valid.'), 'error')
-        return redirect(url_for(
-            'finance.dashboard', business_id=business_id,
-            branch_id=g.finance_branch_id, view='accounts'), code=303)
-    destination = url_for(
-        'finance.dashboard', business_id=business_id,
-        branch_id=g.finance_branch_id, view='accounts')
-    return mutate(
-        business_id,
-        lambda: finance.move_account_workspace(
-            business_id, account_id, target['id'],
-            actor_user_id=user['id']),
-        f"Akun dan seluruh isi yang aman dipindahkan ke Finance {'Pribadi' if target['workspace_type']=='PERSONAL' else 'Bisnis'}. Saldo kedua ruang dihitung ulang otomatis.",
-        destination)
+    def action():
+        with finance._write(business_id, user['id']):
+            finance._workspace_move_owner(business_id, user['id'])
+            target = _workspace_move_target(business_id, user['id'])
+            finance.move_account_workspace(
+                business_id, account_id, target['id'], actor_user_id=user['id'])
+    return mutate(business_id, action, 'Akun dipindahkan. Riwayat koreksi tersimpan.',
+                  url_for('finance.dashboard', business_id=business_id,
+                          branch_id=g.finance_branch_id, view='accounts'))
 
 
 @finance_bp.route('/business/<int:business_id>/finance/reset', methods=['POST'])

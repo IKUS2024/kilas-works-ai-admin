@@ -1191,10 +1191,51 @@ def update_transaction(business_id, transaction_id, *, actor_user_id=None, **cha
 
 
 
+def _workspace_move_owner(business_id, actor_user_id):
+    # A workspace correction requires a real OWNER, including when called directly.
+    if actor_user_id is None or not db.query_one(
+            "SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=? "
+            "AND role_in_business='OWNER'", (business_id, actor_user_id)):
+        raise FinanceError('business_unavailable')
+
+
+def _workspace_correction(business_id, kind, record, target_branch_id,
+                          target_account_id, target_category_id, actor_user_id):
+    # Inserting the immutable command applies exactly one validated transition in
+    # the database. Plain UPDATE cannot acquire/reuse a branch-change permission.
+    db.insert_returning_id(
+        'INSERT INTO finance_workspace_corrections '
+        '(business_id,kind,record_id,transaction_id,recurring_id,version,source_branch_id,target_branch_id,'
+        'source_account_id,target_account_id,source_category_id,target_category_id,'
+        'actor_user_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        (business_id, kind, record['id'], record['id'] if kind == 'transaction' else None,
+         record['id'] if kind == 'recurring' else None, record['relocation_version'] + 1,
+         record['branch_id'], target_branch_id, record['account_id'], target_account_id,
+         record['category_id'], target_category_id, actor_user_id, repo._now()))
+
+
+def _workspace_transaction_safe(business_id, row):
+    if (row['source_type'] not in WORKSPACE_MOVABLE_TRANSACTION_SOURCES
+            or row.get('project_id') is not None or row.get('customer_id') is not None
+            or db.query_one('SELECT 1 FROM finance_invoice_payments '
+                            'WHERE business_id=? AND ledger_transaction_id=?',
+                            (business_id, row['id']))
+            or db.query_one('SELECT 1 FROM finance_recurring_postings '
+                            'WHERE business_id=? AND ledger_transaction_id=?',
+                            (business_id, row['id']))
+            or db.query_one('SELECT 1 FROM finance_bank_rows WHERE business_id=? '
+                            'AND (matched_transaction_id=? OR created_transaction_id=?)',
+                            (business_id, row['id'], row['id']))):
+        raise FinanceError('workspace_move_managed')
+
+
 def _workspace_move_pair(business_id, target_branch_id, actor_user_id):
+    _workspace_move_owner(business_id, actor_user_id)
     context = branches._current.get()
     if not context or context[0] != business_id or context[1] is None:
         raise FinanceError('branch_required')
+    if context[2] != actor_user_id:
+        raise FinanceError('business_unavailable')
     source = branches.get(
         business_id, context[1], active=True,
         actor_user_id=context[2] if context[2] is not None else actor_user_id)
@@ -1262,6 +1303,16 @@ def _workspace_move_target_account(business_id, source_account, actor_user_id):
     ), None)
     if exact:
         return exact
+    # A reverse correction may return to the original archived, empty account.
+    archived = next((row for row in accounts if not row['is_active']
+        and row['currency'] == source_account['currency']
+        and row['account_type'] == source_account['account_type']
+        and row['name'].strip().casefold() == source_account['name'].strip().casefold()), None)
+    if archived:
+        db.execute('UPDATE finance_accounts SET is_active=TRUE,updated_at=? '
+                   'WHERE business_id=? AND id=?', (repo._now(), business_id, archived['id']))
+        _audit(business_id, actor_user_id, 'FINANCE_ACCOUNT_REACTIVATED', archived['id'])
+        return get_account(business_id, archived['id'], actor_user_id=actor_user_id, active=True)
     compatible = next((
         row for row in active
         if row['currency'] == source_account['currency']
@@ -1292,11 +1343,8 @@ def _workspace_move_revision(business_id, transaction, target_branch_id,
          json.dumps(before, sort_keys=True),
          json.dumps(after, sort_keys=True),
          actor_user_id, repo._now()))
-    db.execute(
-        'UPDATE finance_transactions SET branch_id=?,account_id=?,category_id=?,updated_at=? '
-        'WHERE business_id=? AND id=?',
-        (target_branch_id, target_account_id, target_category_id, repo._now(),
-         business_id, transaction['id']))
+    _workspace_correction(business_id, 'transaction', transaction, target_branch_id,
+                          target_account_id, target_category_id, actor_user_id)
 
 
 def move_transaction_workspace(business_id, transaction_id, target_branch_id,
@@ -1309,8 +1357,7 @@ def move_transaction_workspace(business_id, transaction_id, target_branch_id,
             business_id, _id(transaction_id), actor_user_id=actor_user_id)
         if not transaction or transaction['status'] != 'POSTED':
             raise FinanceError('transaction_unavailable')
-        if transaction['source_type'] not in WORKSPACE_MOVABLE_TRANSACTION_SOURCES:
-            raise FinanceError('workspace_move_managed')
+        _workspace_transaction_safe(business_id, transaction)
 
         source_account = get_account(
             business_id, transaction['account_id'], actor_user_id=actor_user_id)
@@ -1352,9 +1399,9 @@ def move_account_workspace(business_id, account_id, target_branch_id,
                            *, actor_user_id=None):
     """Move one account's full movable history and opening balance to the opposite workspace.
 
-    Invoice-payment ledgers and FX pairs are intentionally blocked because moving only one
-    side would corrupt linked accounting. Recurring rules and bank-import history move with
-    the account so their ledger links remain internally consistent.
+    Invoice/FX/import/reconciliation and posted recurring history are blocked.
+    Unposted rules retain their IDs/schedules, with immutable correction history.
+    Opening amounts are reclassified once, never posted as operating cash flow.
     """
     with _write(business_id, actor_user_id):
         source_branch, target_branch = _workspace_move_pair(
@@ -1379,9 +1426,8 @@ def move_account_workspace(business_id, account_id, target_branch_id,
             'SELECT * FROM finance_transactions '
             'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
             (business_id, source_branch['id'], source_account['id']))]
-        if any(row['source_type'] not in WORKSPACE_ACCOUNT_MOVABLE_SOURCES
-               for row in transactions):
-            raise FinanceError('workspace_move_managed')
+        for row in transactions:
+            _workspace_transaction_safe(business_id, row)
         recurring = [dict(row) for row in db.query_all(
             'SELECT * FROM finance_recurring_expenses '
             'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
@@ -1390,6 +1436,15 @@ def move_account_workspace(business_id, account_id, target_branch_id,
             'SELECT * FROM finance_bank_imports '
             'WHERE business_id=? AND branch_id=? AND account_id=? ORDER BY id',
             (business_id, source_branch['id'], source_account['id']))]
+
+        # Reconciliation/import batches and already posted schedules have external
+        # historical links. They stay in their original workspace until a dedicated
+        # whole-batch correction design exists; never detach them partially.
+        if imports or any(row.get('project_id') is not None or db.query_one(
+                'SELECT 1 FROM finance_recurring_postings '
+                'WHERE business_id=? AND recurring_expense_id=?',
+                (business_id, row['id'])) for row in recurring):
+            raise FinanceError('workspace_move_managed')
 
         category_ids = {
             row['category_id'] for row in transactions
@@ -1428,25 +1483,19 @@ def move_account_workspace(business_id, account_id, target_branch_id,
                 business_id, row, target_branch['id'],
                 target_account['id'], target_category_id, actor_user_id)
         for row in recurring:
-            db.execute(
-                'UPDATE finance_recurring_expenses '
-                'SET branch_id=?,account_id=?,category_id=?,updated_at=? '
-                'WHERE business_id=? AND id=?',
-                (target_branch['id'], target_account['id'],
-                 category_map[row['category_id']], repo._now(),
-                 business_id, row['id']))
+            _workspace_correction(
+                business_id, 'recurring', row, target_branch['id'],
+                target_account['id'], category_map[row['category_id']], actor_user_id)
             _audit(
                 business_id, actor_user_id,
                 'FINANCE_RECURRING_WORKSPACE_MOVED', row['id'])
-        for row in imports:
-            db.execute(
-                'UPDATE finance_bank_imports SET branch_id=?,account_id=?,updated_at=? '
-                'WHERE business_id=? AND id=?',
-                (target_branch['id'], target_account['id'], repo._now(),
-                 business_id, row['id']))
-            _audit(
-                business_id, actor_user_id,
-                'FINANCE_BANK_IMPORT_WORKSPACE_MOVED', row['id'])
+        db.insert_returning_id(
+            'INSERT INTO finance_workspace_opening_history '
+            '(business_id,source_account_id,target_account_id,source_opening_minor,'
+            'target_opening_before_minor,actor_user_id,created_at) VALUES (?,?,?,?,?,?,?)',
+            (business_id, source_account['id'], target_account['id'],
+             source_account['opening_balance_minor'], target_account['opening_balance_minor'],
+             actor_user_id, repo._now()))
 
         db.execute(
             'UPDATE finance_accounts SET opening_balance_minor=?,updated_at=? '

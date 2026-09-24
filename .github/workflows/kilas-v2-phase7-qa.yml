@@ -1,0 +1,42 @@
+name: Kilas V2 Phase 7 QA
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  finance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_phase7
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_phase7"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Complete isolated Finance baseline
+        run: python scripts/run_finance_baseline.py --logs /tmp/phase7-finance-baseline
+      - name: PostgreSQL migration and workspace corrections
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase7
+          KILAS_PHASE7_POSTGRES_QA: '1'
+          KILAS_FINANCE_ACCESS_MODE: internal_beta
+          SECRET_KEY: synthetic-phase7-only
+        run: python client-hub/tests/finance_workspace_postgres_qa.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-phase7-finance-baseline
+          path: /tmp/phase7-finance-baseline

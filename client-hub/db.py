@@ -282,6 +282,7 @@ MIGRATIONS = [
     ("0052_kilas_order_candidates_sqlite.sql", "0052_kilas_order_candidates_postgres.sql"),
     ("0053_kilas_order_catalog_sqlite.sql", "0053_kilas_order_catalog_postgres.sql"),
     ("0054_remove_initial_kilas_order_products_sqlite.sql", "0054_remove_initial_kilas_order_products_postgres.sql"),
+    ("0059_finance_workspace_corrections_sqlite.sql", "0059_finance_workspace_corrections_postgres.sql"),
 ]
 
 
@@ -323,6 +324,28 @@ def init_schema():
         with open(path, "r", encoding="utf-8") as f:
             script = f.read()
         if BACKEND == "sqlite":
+            if sqlite_name == "0059_finance_workspace_corrections_sqlite.sql":
+                # Atomic paired migration; duplicate columns must not skip guards.
+                conn.commit()
+                try:
+                    conn.execute('BEGIN IMMEDIATE')
+                    statement = ''
+                    for line in script.splitlines(True):
+                        statement += line
+                        if not sqlite3.complete_statement(statement):
+                            continue
+                        try:
+                            conn.execute(statement)
+                        except sqlite3.OperationalError as error:
+                            if not (statement.lstrip().startswith('ALTER TABLE')
+                                    and 'duplicate column name' in str(error)):
+                                raise
+                        statement = ''
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                continue
             if sqlite_name == "0033_finance_branches_sqlite.sql":
                 from finance_branch_migration import migrate_sqlite
                 migrate_sqlite(conn, script)

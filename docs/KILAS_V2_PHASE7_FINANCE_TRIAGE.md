@@ -24,7 +24,7 @@ Classification: **S** stale fixture / old expected contract; **U** UI selector/l
 | branchdelete | P | Fixed workspace metadata FK deletion; history archives and audit-failure rollback retained. |
 | budget | P | Fixed obsolete category mutation route by using audited workspace category service. |
 | bankinput | P | Fixed raw minor-unit review input; exact decimal HTTP round-trip covered for IDR/JPY/USD. |
-| move | P | OPEN BLOCKER: move service mutates branch identity forbidden by SQLite/PostgreSQL immutable guards. |
+| move | P | RESOLVED: audited monotonic correction command; raw branch/business guards retained, 12 new regressions and both original positive move tests pass. See workspace correction design/status. |
 
 ## test_finance_assistant_inline.py
 
