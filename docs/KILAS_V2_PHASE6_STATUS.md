@@ -1,4 +1,4 @@
-# Phase 6 status — IN PROGRESS
+# Phase 6 status — COMPLETE
 
 ## Baseline / prerequisites
 - Branch `feature/kilas-core-v2`; baseline `3b870393a11d14705ad7b8630f3b674efee363a8`.
@@ -26,14 +26,14 @@
 4. Phase 5 handover integration: PASS on SQLite.
 5. Home Attention UI: PASS on SQLite.
 6. Security/idempotency/concurrency/regressions: PASS on SQLite.
-7. PostgreSQL/mobile browser QA: pending.
-8. Exact scope / COMPLETE: pending.
+7. PostgreSQL/mobile browser QA: PASS — Actions `36023599262`.
+8. Exact scope / COMPLETE: PASS.
 
 ## Verification / next action
-Milestones 1–6 implemented and verified on isolated SQLite. Continue milestone 7 only: paired 0058 PostgreSQL runtime/concurrency and real 390px browser A–E, then final scope review. Phase 6 is NOT COMPLETE until these gates pass.
+Phase 6 COMPLETE. Final tested implementation/QA head: `df6d7fd5f6b5b2f813510e6fccb5ad6f420d85e9`. All required gates PASS in Actions `36023599262`; final commit changes only this completion record. STOP. Do not start Phase 7 without new authorization.
 
 ## Blockers
-None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previous phases; never production data/services.
+None outstanding. Disposable GitHub Actions PostgreSQL/Chromium gates passed; no production data/services used.
 
 ## Milestone 1 checkpoint
 - Files: `client-hub/kilas_core/operation_contracts.py`, `test_kilas_operations_contract.py`, this status.
@@ -92,3 +92,24 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - Actions Phase 1–6 SQLite regression steps and Phase 2–6 PostgreSQL steps PASS. Phase 6 PG: 13 tests, including paired 0058 idempotence, tenant references, legacy row preservation, concurrent runner delivery and atomic failure rollback.
 - Phase 6 browser initially failed at its exact-text selector for the human reply. The captured accessibility tree proves the reply was durably shown, but the bubble includes its Tim author label. Corrected the QA locator to the human bubble containing the full expected reply (and corresponding assistant message locators). No production behavior/assertion weakened. Prior Phase 2–5 mobile gates PASS; rerun Phase 6 required.
 - Exact baseline diff currently 29 files, `git diff --check` PASS; no Finance/WhatsApp/payment/deployment files changed. Production main remains outside this work.
+
+## Required gate traceability / scope review
+- Handover requirements 1–10: real Phase 6 route tests exercise closed HUMAN signal, duplicate request, mode, no AI/Job write, owner reply/explicit return, existing in-flight inference fence; shared runner cases fence stale automation generations and human mode. Mode/audit/message writes are one transaction.
+- Attention 11–16: READY observer and repeated scans, owner-only CSRF resolution/history, foreign tenant rejection and Home links/count tested in routes; mobile A/B/E checks actual navigation.
+- Automations 17–27: shared SQLite/PG cases cover delay, cooldown/max, retry, customer reset/cancellation, review once/fallback, failure rollback including failure after insertion, concurrent runners. Closed config tests and SQL-authorizer/model/send spies enforce deterministic protected writes.
+- Regression/security 28–40: dedicated workflow runs Phase 1–6 SQLite, Phase 2–6 PG, previous browser flows and Phase 6 A–E. No production DB/customer data or services used. Remote main rechecked unchanged at `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
+- Exact 29-file diff reviewed against `3b870393a11d14705ad7b8630f3b674efee363a8`: 7 new operational modules; tiny hooks in Jobs/WEB store/playbook adapter/app; 0058 additive pair; 4 new Attention/settings templates + 2 AI-only Home includes; 5 new Phase 6 test files + 2 test-harness changes + root contract test; one QA-only workflow; this status.
+- Finance implementation/templates/storage/legacy migrations unchanged. Home includes are confined to AI branches; Finance session guards and write-denial spies pass. Browser pixel parity is a required gate, not a design change.
+- WhatsApp/root bot/legacy follow-up/notifications unchanged. New runner imports no sender, performs no network/model call and stores only deterministic WEB messages. Existing Kilas Order data remains untouched; PG fixture preservation asserted.
+- No production deployment, cron registration, runtime feature/config enablement, or production schema application. Operations are default-off with explicit 0058 installer and bounded callable/CLI/owner runner. No Phase 7 work.
+
+## Final passing checkpoint — COMPLETE
+- Tested code/QA commit: `df6d7fd5f6b5b2f813510e6fccb5ad6f420d85e9` (selector-only correction after the first browser attempt).
+- Phase 6 run **36023599262 SUCCESS**, job **107714349012**. Phase 1–6 isolated SQLite, PostgreSQL 0055/0056/0057/0058 and runtime/concurrency gates all PASS. PG suite counts: 4 + 2 + 17 + 10 + 13.
+- Same-head prior workflows also SUCCESS: Phase 2 `36023599306`, Phase 3 `36023599224`, Phase 4 `36023599330`, Phase 5 `36023599316`.
+- Real Chromium 390px Phase 6 A–E PASS: customer human request -> Home -> Inbox -> owner reply visible -> explicit AI return; one ready Job attention; synthetic-clock follow-up once and human suppression; completed Job review once; foreign tenant GET/POST denied. Existing Phase 2–5 mobile flows also PASS.
+- Artifact `10818586601` (`kilas-phase6-browser-qa`): eight screenshots downloaded. Home/human reply/ready Job/settings/follow-up+review/resolved list visually inspected. No horizontal overflow. Finance before/after PNGs independently verified byte-identical.
+- Exact 29-file scope reviewed; `git diff --check` PASS. Final completion commit modifies this status only, preserving the passing code/QA tree.
+- Finance behavior and production WhatsApp untouched. No invoice/payment/accounting writes, Finance Bridge, media AI, creative studio, production deployment, or cron setup. Existing Order data preserved. Main unchanged.
+- Limits: QA uses synthetic businesses/customer data and deterministic model transport, not production credentials or live model accuracy claims. Automations remain default-off and WEB-only; enabling/scheduling/deploying production is outside this phase.
+- All Phase 6 milestones complete. STOP — Phase 7 not started.
