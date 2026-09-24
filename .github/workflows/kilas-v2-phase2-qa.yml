@@ -1,25 +1,6 @@
 name: Kilas V2 Phase 2 QA
 
 on:
-  push:
-    branches:
-      - feature/kilas-core-v2
-    paths:
-      - "client-hub/public_chat/**"
-      - "client-hub/kilas_core/**"
-      - "client-hub/migrations/0055_public_web_chat_*"
-      - "client-hub/templates/*web*"
-      - "client-hub/templates/inbox.html"
-      - "client-hub/templates/product_dashboard.html"
-      - "client-hub/templates/assist_entry.html"
-      - "client-hub/templates/client_dashboard.html"
-      - "client-hub/static/public_web_chat.js"
-      - "client-hub/static/web_chat.css"
-      - "client-hub/static/web_inbox.js"
-      - "client-hub/static/web_share.js"
-      - "client-hub/tests/test_public_chat_*"
-      - "client-hub/tests/public_chat_*"
-      - ".github/workflows/kilas-v2-phase2-qa.yml"
   pull_request:
     branches:
       - main
