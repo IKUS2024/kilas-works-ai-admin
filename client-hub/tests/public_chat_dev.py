@@ -26,6 +26,9 @@ if __name__ == '__main__':
         raise RuntimeError('KILAS_PUBLIC_CHAT_QA_TOKEN must be at least 24 characters for public staging QA')
 
     WebTests.setUpClass()
+    from kilas_core import customer_schema
+    customer_schema.apply_schema()
+    os.environ['KILAS_CUSTOMERS_V2_ENABLED']='true'
     fixture=WebTests(); fixture.setUp()
     app=fixture.app
     fixture.db.execute("UPDATE businesses SET business_name='Kedai Demo' WHERE id=7")
