@@ -103,3 +103,56 @@ OUTPUT:
 
 STOP after Phase 2.
 Do not implement Customers, Jobs, Playbooks, Finance Bridge, or WhatsApp cutover in this same run.
+
+
+CHECKPOINT / RESUME PROTOCOL:
+This phase may touch more surfaces than Phase 1, so checkpoint discipline is mandatory.
+
+Before editing:
+- inspect current branch head and git status
+- read docs/KILAS_V2_PHASE1_STATUS.md and verify Phase 1 COMPLETE
+- run the Phase 1 core tests once
+- create docs/KILAS_V2_PHASE2_STATUS.md
+- write a short proposed file-impact list before the first code edit
+- if the required scope unexpectedly includes protected Finance or root WhatsApp behavior, STOP instead of expanding scope
+
+After each valid milestone:
+1. public-chat schema/storage (if needed)
+2. public route + visitor identity/session
+3. core adapter + AI response path
+4. Inbox read integration
+5. human takeover/reply for WEB
+6. owner share/open controls
+7. tests + browser QA
+
+For each milestone:
+- run the smallest relevant tests
+- commit a coherent passing milestone
+- update docs/KILAS_V2_PHASE2_STATUS.md with:
+  - completed milestone
+  - current commit SHA
+  - files changed
+  - tests/results
+  - remaining work
+  - exact next action
+  - blockers
+
+If interrupted by usage/time/tool failure:
+- do not leave an ambiguous half-finished change
+- keep only a coherent checkpoint where possible
+- update the status file
+- state RESUME FROM STATUS FILE
+
+When resuming:
+- read docs/KILAS_V2_PHASE2_STATUS.md first
+- inspect git log/diff
+- do not restart completed milestones
+
+FINAL COMPLETION:
+- mark docs/KILAS_V2_PHASE2_STATUS.md COMPLETE
+- verify Phase 1 tests still pass
+- verify all Phase 2 targeted tests
+- verify Finance files/behavior untouched
+- verify existing WhatsApp production behavior untouched
+- verify no production deployment happened
+- STOP. Do not start Phase 3 automatically.
