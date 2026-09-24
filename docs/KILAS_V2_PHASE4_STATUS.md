@@ -106,3 +106,10 @@ and linked-panel styles added, with long-title wrapping. Actual onboarding categ
 is free text (Coffee shop / Klinik / Influencer); added Coffee shop and Makanan/Minuman aliases.
 Focused service 15 + route 8 tests PASS again. Next: final-head CI/browser results/screenshots.
 Published owner/link/security/QA commits: `e2aadd2`, `e832f02`, `c361f0b`, `6aa646f`.
+
+## Final verification hardening
+Initial browser failure was precisely horizontal overflow on selected WEB Inbox (run 36014047791,
+job 107681850787); the scoped wrapping fix is `f8b8cd1`. No security assertion was weakened.
+Request-body limit now runs before existing CSRF form parsing, restricted to core_jobs endpoints;
+route suite PASS 8 tests including oversized form HTTP 413. This does not alter other blueprints.
+Next: confirm final-head CI, inspect screenshots, complete exact scope documentation.

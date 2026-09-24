@@ -54,6 +54,7 @@ class JobRoutesTests(unittest.TestCase):
                         {'status':'COMPLETED'},{'field_token':'secret'},{'field_quantity':'oops'}):
             self.assertEqual(self.create(**changes).status_code,400)
         self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(self.create(summary='x'*25000).status_code,413)
         self.assertEqual(self.client.post('/business/7/jobs',json=self.form,headers={'X-CSRF-Token':'csrf-test'}).status_code,400)
 
     def test_foreign_customer_conversation_job_and_owner(self):

@@ -53,9 +53,11 @@ def error_response(error):
     return render_template('job_error.html', message=message, bid=request.view_args['bid']), error.status
 
 
-@jobs_bp.before_request
+@jobs_bp.before_app_request
 def limit_body():
-    request.max_content_length = 24 * 1024
+    # Register before the hub CSRF hook reads form data; scope strictly to this blueprint.
+    if (request.endpoint or '').startswith('core_jobs.'):
+        request.max_content_length = 24 * 1024
 
 
 def _form(allowed):
