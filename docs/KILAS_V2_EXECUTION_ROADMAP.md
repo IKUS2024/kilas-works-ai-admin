@@ -23,7 +23,7 @@ Phase order:
 6. Human handover + simple Automations
 7. Finance Bridge only, using existing Finance services
 8. Official WhatsApp adapter into the tested Core
-9. UX polish / onboarding simplification / package visibility
+9. UX polish / onboarding simplification / package visibility / owner + admin dashboard refresh
 10. Production hardening, browser QA, staged rollout
 
 Business-first scope:
