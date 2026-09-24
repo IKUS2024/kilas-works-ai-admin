@@ -142,6 +142,64 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertNotEqual(customers.get_customer(7, customer["id"])["display_name"], "")
 
+    def test_invalid_visitor_and_duplicate_identity_fail_closed(self):
+        import sqlite3
+        identity=self.start().json
+        cid=identity['conversation_id']
+        customer=customers.customer_for_conversation(7,cid)
+        stranger=self.app.test_client()
+        self.assertEqual(stranger.get(f'/chat/{self.slug}/{cid}/messages').status_code,404)
+        self.assertEqual(self.send(identity,slug=self.other_slug).status_code,404)
+        with customers.transaction() as tx:
+            row=tx.one("SELECT * FROM kw_core_customer_identities WHERE business_id=7")
+        with self.assertRaises(sqlite3.IntegrityError):
+            with customers.transaction() as tx:
+                tx.execute("INSERT INTO kw_core_customer_identities "
+                           "(business_id,customer_id,identity_type,identity_hash,verified,created_at) "
+                           "VALUES (7,?,'WEB_VISITOR',?,1,1)",(customer['id'],row['identity_hash']))
+        self.assertEqual(customers.list_customers(7)[1],1)
+        self.assertEqual(store.thread(7,cid),[])
+
+    def test_customer_flow_human_reply_has_no_finance_or_whatsapp_writes(self):
+        import sqlite3
+        from contextlib import ExitStack
+        denied=[]
+        def authorize(action,table,*args):
+            if action in (sqlite3.SQLITE_INSERT,sqlite3.SQLITE_UPDATE,sqlite3.SQLITE_DELETE):
+                if not (table.startswith(('kw_web_','kw_core_')) or
+                        table in ('audit_log','sqlite_sequence','ai_usage_ledger')):
+                    denied.append(table);return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        original_connect=sqlite3.connect
+        def guarded(*args,**kwargs):
+            connection=original_connect(*args,**kwargs)
+            connection.set_authorizer(authorize)
+            return connection
+        self.db.get_connection().set_authorizer(authorize)
+        try:
+            with ExitStack() as stack:
+                stack.enter_context(patch('sqlite3.connect',side_effect=guarded))
+                spies=[stack.enter_context(patch.object(self.finance,name)) for name in
+                       ('create_transaction','create_finance_invoice','record_invoice_payment')]
+                spies.append(stack.enter_context(patch('inbox_service.send_manual_reply')))
+                stack.enter_context(patch.object(self.ai,'_call_claude',return_value=('Jawaban bisnis','end_turn',None)))
+                identity=self.start().json;cid=identity['conversation_id']
+                self.assertEqual(self.send(identity).status_code,200)
+                customer=customers.customer_for_conversation(7,cid)
+                headers={'X-CSRF-Token':'csrf-test'}
+                self.assertEqual(self.client.post(f'/business/7/customers/{customer["id"]}',
+                    data={'display_name':'Customer Aman','csrf_token':'csrf-test'},headers=headers).status_code,302)
+                self.assertEqual(self.client.post(f'/business/7/web-inbox/{cid}/mode',
+                    json={'mode':'HUMAN_TAKEOVER'},headers=headers).status_code,200)
+                self.assertEqual(self.client.post(f'/business/7/web-inbox/{cid}/reply',
+                    json={'event_id':'human-customer-0001','message':'Tim membantu'},headers=headers).status_code,200)
+                delivered=self.visitor.get(f'/chat/{self.slug}/{cid}/messages').json
+                self.assertEqual([r['role'] for r in delivered['messages']],['user','assistant','human'])
+                self.assertEqual(customers.customer_conversations(7,customer['id'])[0]['id'],cid)
+                for spy in spies: spy.assert_not_called()
+            self.assertEqual(denied,[])
+        finally: self.db.get_connection().set_authorizer(None)
+
 
 if __name__ == "__main__":
     unittest.main()

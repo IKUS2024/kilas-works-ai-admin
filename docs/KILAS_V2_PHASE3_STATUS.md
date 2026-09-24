@@ -52,3 +52,14 @@ Next: pass SQLite, checkpoint, execute existing isolated CI PostgreSQL/browser g
 and exact scope before COMPLETE. No production data, Finance/WhatsApp modifications or deployment.
 
 Fixture milestone: offline `--only test_kilas_customers.py` PASS, exactly 7 Customers tests; no imported Phase 2 unittest class rediscovered. PostgreSQL/browser validation pending CI.
+
+## Coverage checkpoint
+Fixture fix commit: `155e8d3bc2f8f7380b62679c277b64d9b8261eb3`.
+Phase 1 local rerun PASS 30 tests; Phase 2 local rerun PASS 27 tests.
+Phase 3 SQLite now PASS 9 tests, including additional invalid/duplicate identity rejection and
+full customer -> AI -> owner profile edit -> human takeover/reply/customer delivery with SQL
+write authorizers on all SQLite connections plus Finance and WhatsApp send spies.
+CI run `36010350025`, job `107669129210`, has reported success for all test steps including
+PostgreSQL 0055/0056 and mobile Customers QA; final run/artifact completion still to be verified.
+Only tests/status changed in this resume. No application implementation or security assertions weakened.
+Next: verify final checkpoint CI and screenshots, exact diff, then COMPLETE and STOP.
