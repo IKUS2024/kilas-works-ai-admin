@@ -3,9 +3,19 @@
 Repo: IKUS2024/kilas-works-ai-admin
 Branch: feature/kilas-core-v2
 
-PRECONDITION:
-Phase 2 must be marked COMPLETE in docs/KILAS_V2_PHASE2_STATUS.md.
-If Phase 2 is not COMPLETE, STOP. Do not implement Phase 3.
+PRECONDITION / AUTHORIZED ORDER EXCEPTION:
+Phase 1 is COMPLETE.
+Phase 2 implementation milestones 1–6 and focused regressions are complete and passing, while final
+PostgreSQL/browser certification remains recorded as pending in docs/KILAS_V2_PHASE2_STATUS.md.
+The product owner explicitly authorizes Phase 3 implementation to proceed now in parallel.
+
+This does NOT waive Phase 2 release gates:
+- do not mark Phase 2 COMPLETE unless its documented remaining verification genuinely passes;
+- do not deploy production;
+- do not use production customer data for Phase 3 QA;
+- do not modify Phase 2 behavior merely to make Phase 3 easier.
+
+Before editing, verify the current Phase 2 status and current feature-branch head.
 
 READ FIRST:
 1. docs/KILAS_V2_MASTER.md
