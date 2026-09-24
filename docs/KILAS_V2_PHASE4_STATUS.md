@@ -86,3 +86,14 @@ not create Jobs automatically. CSRF, payload tampering, escaped text, replay, st
 terminal transitions and separate tenant owners verified. Phase 1 PASS 30, Phase 2 PASS 27,
 Phase 3 PASS 9 using the offline subprocess runner; completed implementations not redone.
 Next: execute new disposable PostgreSQL and mobile CI harness; no runtime pass claimed yet.
+
+## Milestone 6 — verification infrastructure checkpoint (runtime pending)
+Added Phase 4 CI workflow, PostgreSQL runner reusing 15 service/concurrency cases plus legacy
+preservation and parallel-tenant checks, mobile Jobs flow and conditional Jobs synthetic harness.
+PostgreSQL runner requires an explicit flag AND loopback database named kilas_phase4.
+Browser tests will create/edit from Customer, create/open from WEB conversation, filter/search,
+reject foreign owner and compare existing Finance entry screenshots before/after Jobs activity.
+Finance visual scope is the real unchanged entry page with a synthetic no-Finance-business account;
+no accounting data or production Finance QA is implied. No Finance form is submitted.
+Compile checks and git diff --check PASS. PostgreSQL/browser remain PENDING until CI evidence.
+Exact next action: publish checkpoints, observe Phase 4 CI and resolve only actual failures.

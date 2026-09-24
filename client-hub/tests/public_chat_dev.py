@@ -31,6 +31,13 @@ if __name__ == '__main__':
     os.environ['KILAS_CUSTOMERS_V2_ENABLED']='true'
     fixture=WebTests(); fixture.setUp()
     app=fixture.app
+    jobs_qa = os.environ.get('KILAS_JOBS_QA') == 'true'
+    if jobs_qa:
+        from kilas_core import job_schema
+        job_schema.apply_schema()
+        os.environ['KILAS_JOBS_V2_ENABLED']='true'
+        fixture.db.execute('CREATE TABLE business_profiles(business_id INTEGER PRIMARY KEY,category TEXT)')
+        fixture.db.execute("INSERT INTO business_profiles VALUES (7,'Restaurant'),(8,'Salon')")
     fixture.db.execute("UPDATE businesses SET business_name='Kedai Demo' WHERE id=7")
     fixture.db.execute("UPDATE businesses SET business_name='Bisnis Kedua' WHERE id=8")
     # Each synthetic owner has one business; no production memberships or credentials.
@@ -39,6 +46,8 @@ if __name__ == '__main__':
                        ('{"business_name":"Kedai Demo","hours":"09.00–17.00"}',))
 
     def own_businesses(uid, product):
+        if jobs_qa and product == 'finance':
+            return []  # Existing Finance entry UI, synthetic account with no Finance businesses.
         return [fixture.repo.get_business(7 if uid==1 else 8)]
     stubs=[patch('routes_products._product_businesses',side_effect=own_businesses),
            patch.object(fixture.repo,'required_fields_missing',return_value=[]),
@@ -60,6 +69,15 @@ if __name__ == '__main__':
         session.update(user_id=1 if bid==7 else 2,role='CLIENT_OWNER',
                        active_product='brain',_csrf_token='csrf-test')
         return redirect('/dashboard?product=brain')
+
+    if jobs_qa:
+        @app.get('/dev/finance')
+        def dev_finance():
+            if public_staging:
+                abort(404)  # Local disposable CI only; never a public Finance test entry.
+            session.clear()
+            session.update(user_id=1,role='CLIENT_OWNER',active_product='finance',_csrf_token='csrf-test')
+            return redirect('/products/finance')
 
     @app.get('/dev/health')
     def dev_health():
