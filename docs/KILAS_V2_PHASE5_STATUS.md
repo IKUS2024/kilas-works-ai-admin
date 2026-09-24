@@ -79,3 +79,10 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Four concurrent completion workers create exactly one Job and one assistant reply. Stale/reclaimed/expired events and takeover->AI toggles cannot invoke action callbacks.
 - Real route tests cover retry no extra provider, later same-Job update, stale owner edit, flag revocation, unknown model action tags, provider/action rollback, tenant forged references, human suppression, owner form compatibility, booking date/time reuse and business-only redirect.
 - SQLite authorizer permits only WEB/Core/audit/usage writes; Finance methods and WhatsApp send spies remain unused. No production data/service touched.
+
+## Milestone 7 in progress — QA runner checkpoint
+- Milestone 6 local commit: `4a35969` (published SHA recorded after sync).
+- Added `.github/workflows/kilas-v2-phase5-qa.yml`, `client-hub/tests/test_kilas_playbooks_postgres.py`, `client-hub/tests/playbook_qa_provider.py`, `client-hub/tests/kilas_playbooks_browser_qa.py`; extended `client-hub/tests/public_chat_dev.py` behind loopback-only `KILAS_PLAYBOOKS_QA`.
+- Python QA scripts compile and Phase 5 route suite remains 11 PASS. PostgreSQL/browser execution NOT yet claimed.
+- Workflow runs Phase 1–5 SQLite, existing Phase 2/3/4 PostgreSQL plus Phase 5 action/concurrency tests in disposable PG18, existing mobile regression/Finance parity and separate Phase 5 390px logistics/booking/human/tenant flows. Deterministic synthetic model transport; not live provider accuracy certification.
+- Next action: publish checkpoints, inspect the Phase 5 CI run, fix real failures without weakening assertions, inspect screenshots, and review exact scope.

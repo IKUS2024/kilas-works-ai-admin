@@ -55,6 +55,13 @@ if __name__ == '__main__':
            patch('inbox_service.list_conversations',return_value=[]),
            patch.object(fixture.ai,'_call_claude',return_value=(
                'Halo! Kedai Demo buka pukul 09.00–17.00. Ada yang bisa kami bantu?', 'end_turn', None))]
+    if os.environ.get('KILAS_PLAYBOOKS_QA') == 'true':
+        if public_staging or not jobs_qa:
+            raise RuntimeError('Phase 5 browser QA requires disposable loopback Jobs harness')
+        from playbook_qa_provider import reply as playbook_reply
+        os.environ['KILAS_PLAYBOOKS_V2_ENABLED'] = 'true'
+        fixture.db.execute("UPDATE business_profiles SET category='Logistics' WHERE business_id=7")
+        stubs[-1] = patch.object(fixture.ai,'_call_claude',side_effect=playbook_reply)
     for stub in stubs: stub.start()
 
     @app.get('/dev/owner/<int:bid>')
