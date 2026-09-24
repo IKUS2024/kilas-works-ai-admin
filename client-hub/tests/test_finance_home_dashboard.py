@@ -86,7 +86,9 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('Anggaran',html)
         self.assertEqual(context['budget_total_display'],'Rp0,00')
         self.assertNotIn('Perlu perhatian',html)
-        self.assertIn('Belum ada transaksi.',html)
+        self.assertEqual(context['transaction_total'],0)
+        ledger,_=self.page('?month=2026-09&view=transactions')
+        self.assertIn('Belum ada transaksi pada periode ini.',ledger)
         self.assertEqual(context['recurring_items'],[])
 
     def test_direction_views_are_category_first_with_inline_totals(self):
@@ -106,9 +108,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertNotIn('Total pemasukan',income_html)
         self.assertIn('Rp2.500,00',income_html)
         self.assertEqual(income_context['ledger_category_rows'][0]['display_amount'][-3:], ',00')
-        self.assertNotIn('Retainer September',income_html)
+        self.assertIn('Retainer September',income_html)
+        self.assertNotIn('Office expense',income_html)
         self.assertNotIn('Transaksi pemasukan',income_html)
-        self.assertNotIn('finance-history-page-tabs',income_html)
+        self.assertNotIn('class="finance-history-tabs finance-history-page-tabs"',income_html)
         self.assertIn('name="return_direction" value="INCOME"',income_html)
         income_row=next(row for row in income_context['ledger_category_rows']
                         if row['name']==income_category['name'])
@@ -116,10 +119,12 @@ class DashboardHomeTests(unittest.TestCase):
 
         expense_html,expense_context=self.page('?month=2026-09&view=transactions&direction=EXPENSE')
         self.assertIn('＋ Tambah Pengeluaran',expense_html)
-        self.assertIn('Total pengeluaran',expense_html)
-        self.assertNotIn('Office expense',expense_html)
+        self.assertEqual(expense_context['period_expense_display'],'Rp990,00')
+        self.assertIn('Rp990,00',expense_html)
+        self.assertIn('Office expense',expense_html)
+        self.assertNotIn('Retainer September',expense_html)
         self.assertNotIn('Transaksi pengeluaran',expense_html)
-        self.assertNotIn('finance-history-page-tabs',expense_html)
+        self.assertNotIn('class="finance-history-tabs finance-history-page-tabs"',expense_html)
         expense_row=next(row for row in expense_context['ledger_category_rows']
                          if row['name']==expense_category['name'])
         self.assertEqual(expense_row['amount_minor'],99000)
@@ -142,7 +147,8 @@ class DashboardHomeTests(unittest.TestCase):
         overview_html,overview_context=self.page(
             '?month=2026-09&view=transactions&direction=EXPENSE')
         self.assertIsNone(overview_context['selected_category_id'])
-        self.assertNotIn('Tagihan listrik kategori',overview_html)
+        self.assertIn('Tagihan listrik kategori',overview_html)
+        self.assertIn('Makan tim kategori lain',overview_html)
         self.assertIn(f'category_id={utility["id"]}',overview_html)
 
         detail_html,detail_context=self.page(
@@ -171,7 +177,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertRegex(html,r'finance-account-hb-group-summary-right[^>]*>\s*<strong>\d+ akun</strong>')
         self.assertNotIn('finance-account-hb-fx',html)
         self.assertNotIn('finance-account-hb-detail-page',html)
-        self.assertNotIn('Saldo awal',html)
+        # Opening-balance input belongs to the add-account dialog, not the list.
+        list_html=html.split('<section class="card finance-account-hb-list"',1)[1].split('</section>',1)[0]
+        self.assertIn(account['name'],list_html)
+        self.assertNotIn('Saldo awal',list_html)
         self.assertNotIn('Dana masuk',html)
         self.assertNotIn('Dana keluar',html)
         self.assertNotIn('Lihat Transaksi',html)
@@ -566,7 +575,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(all_time.status_code,200)
         self.assertIn('Semua waktu',all_time.text)
         self.assertIn('2025-01-15',all_time.text)
-        self.assertIn('2026-09-22',all_time.text)
+        self.assertIn(__import__('datetime').date.today().isoformat(),all_time.text)
         self.assertIn('Rp300.000,00',all_time.text)
 
         custom=self.client.get(
@@ -578,7 +587,10 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('2026-09-01',custom.text)
         self.assertIn('2026-09-22',custom.text)
         self.assertIn('Rp200.000,00',custom.text)
-        self.assertNotIn('Rp300.000,00',custom.text)
+        # Account balance includes earlier cash; only period income is 200,000.
+        income_section=custom.text.split('<div class="report-kpi-grid">',1)[-1].split('</section>',1)[0]
+        self.assertNotIn('Rp300.000,00',income_section)
+        self.assertIn('Rp200.000,00',income_section)
 
         for label in ('Hari ini','Bulan ini','Bulan lalu','3 bulan','6 bulan',
                       'Tahun ini','Semua waktu','Tanggal khusus'):
@@ -648,9 +660,8 @@ class DashboardHomeTests(unittest.TestCase):
 
         html,context=self.page('?month=2026-09')
         self.assertIn('>Invoice</span>',html)
-        self.assertIn('1 <em>belum bayar</em>',html)
-        self.assertIn('1 lunas',html)
-        self.assertIn('otomatis masuk Piutang',html)
+        self.assertIn('Rp2.000.000,00',html)
+        self.assertIn('section=invoices',html)
         self.assertEqual(context['invoice_open_count'],1)
         self.assertEqual(context['invoice_paid_count'],1)
 
@@ -658,7 +669,7 @@ class DashboardHomeTests(unittest.TestCase):
         html,_=self.page('?month=2026-09')
         self.assertIn('finance-dashboard-link',html)
         self.assertIn('>Dashboard</a>',html)
-        self.assertIn('>Keluar Finance</a>',html)
+        self.assertIn('← Keluar Finance</a>',html)
 
     def test_workspace_entry_redirects_directly_to_business_finance(self):
         import finance_branches
@@ -707,10 +718,11 @@ class DashboardHomeTests(unittest.TestCase):
         penerima_index=html.index('>Penerima</span>')
         self.assertLess(budget_index,invoice_index)
         self.assertLess(invoice_index,penerima_index)
-        invoice_card=html[invoice_index-220:penerima_index]
-        penerima_card=html[penerima_index-220:penerima_index+260]
-        self.assertIn('finance-metric compact',invoice_card)
-        self.assertIn('finance-metric compact',penerima_card)
+        cards=re.findall(r'<a class="([^"]*)"[^>]*>(.*?)</a>',html,re.S)
+        for label in ('Invoice','Penerima'):
+            classes=next(classes.split() for classes,body in cards if f'>{label}</span>' in body)
+            self.assertIn('finance-metric',classes)
+            self.assertIn('compact',classes)
         self.assertIn('finance-budget-chart-wrap',html)
         self.assertIn('finance-budget-ring',html)
         self.assertIn('Bantu kelola keuanganmu lebih cepat.',html)
@@ -718,7 +730,7 @@ class DashboardHomeTests(unittest.TestCase):
     def test_finance_pages_hide_client_hub_topbar_and_offer_dashboard_back(self):
         html,_=self.page('?month=2026-09')
         self.assertNotIn('Kilas<span>Works</span> Client Hub',html)
-        self.assertNotIn('finance-context-bar',html)
+        self.assertNotIn('class="finance-context-bar"',html)
         self.assertNotIn('class="topbar-active" aria-current="page"',html)
         self.assertIn('Keluar Finance',html)
         self.assertIn('finance-exit-bar',html)
@@ -726,7 +738,7 @@ class DashboardHomeTests(unittest.TestCase):
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
         html,_=self.page('?month=2026-09')
         self.assertIn('data-category-quick-add',html)
-        self.assertIn('data-category-placeholder selected disabled>Pilih kategori</option>',html)
+        self.assertIn('data-category-placeholder selected disabled hidden>Pilih kategori</option>',html)
         self.assertIn('data-subcategory-field hidden',html)
         self.assertIn('data-finance-open="category-dialog"',html)
         self.assertIn('data-category-manager-launch',html)
@@ -755,15 +767,7 @@ class DashboardHomeTests(unittest.TestCase):
 
     def test_business_income_catalog_is_clean_and_has_useful_top_level_choices(self):
         html,_=self.page('?month=2026-09')
-        for name in (
-            'Penjualan / Jasa',
-            'Langganan / Retainer',
-            'Komisi &amp; Affiliate',
-            'Sponsor / Kerja Sama',
-            'Sewa / Rental',
-            'Royalti / Lisensi',
-            'Bunga / Cashback',
-        ):
+        for name in ('Produk / Jasa','Bunga Bank'):
             self.assertIn(name,html)
         self.assertNotIn('>Lainnya</option>',html)
         self.assertNotIn('>Pendapatan Lain</option>',html)
@@ -771,12 +775,7 @@ class DashboardHomeTests(unittest.TestCase):
         rows=fixture.f.list_categories(
             self.b,'INCOME',include_children=True,actor_user_id=self.uid)
         names={row['name'] for row in rows if not row.get('parent_category_id')}
-        for name in (
-            'Penjualan / Jasa','Langganan / Retainer','Komisi & Affiliate',
-            'Sponsor / Kerja Sama','Sewa / Rental','Royalti / Lisensi',
-            'Bunga / Cashback',
-        ):
-            self.assertIn(name,names)
+        self.assertEqual(names,{'Produk / Jasa','Bunga Bank'})
 
     def test_category_manager_can_add_edit_and_delete_subcategories(self):
         html,_=self.page('?month=2026-09')
@@ -1157,7 +1156,7 @@ class DashboardHomeTests(unittest.TestCase):
         fixture.f.create_recurring_expense(
             self.b,'Internet',275000,self.a,expense_cat,'MONTHLY','2026-09-10',
             counterparty_name='Provider Net',actor_user_id=self.uid)
-        response=self.client.get(f'/business/{self.b}/finance/operations?month=2026-09')
+        response=self.client.get(f'/business/{self.b}/finance/operations?month=2026-09&day=2026-09-10')
         self.assertEqual(response.status_code,200)
         html=response.text
         for token in ('finance-bills-calendar','September 2026','Tambah Tagihan','Kalender','Daftar','Rutin','Internet','Provider Net'):
@@ -1166,9 +1165,9 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertIn('>Edit</button>',html)
         self.assertIn('/deactivate',html)
         self.assertIn('>Hapus</button>',html)
-        self.assertIn('Tanggal ini yang dipakai untuk Pengeluaran, saldo akun, laporan, dan pemakaian Anggaran.',html)
+        self.assertIn('tanggal ini masuk ke Pengeluaran dan saldo akun yang dipilih berkurang.',html)
         self.assertNotIn('Tagihan &amp; Rutin',html)
-        self.assertNotIn('fin-tool-grid',html)
+        self.assertNotIn('class="fin-tool-grid"',html)
 
         listed=self.client.get(f'/business/{self.b}/finance/operations?month=2026-09&view=list')
         self.assertEqual(listed.status_code,200)
@@ -1211,7 +1210,7 @@ class DashboardHomeTests(unittest.TestCase):
         payment_account=fixture.f.create_account(
             self.b,'BCA Bayar',account_type='BANK',actor_user_id=self.uid)
         fixture.f.set_monthly_budget(
-            self.b,'2026-09',utility['id'],1000000,'IDR',actor_user_id=self.uid)
+            self.b,'2026-09',utility['id'],100000000,'IDR',actor_user_id=self.uid)
         self.assertEqual(
             fixture.f.get_finance_summary(self.b,'2026-08-01','2026-08-31')['total_expense_minor'],0)
 
@@ -1233,13 +1232,13 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(
             fixture.f.get_finance_summary(self.b,'2026-08-01','2026-08-31')['total_expense_minor'],0)
         self.assertEqual(
-            fixture.f.get_finance_summary(self.b,'2026-09-01','2026-09-30')['total_expense_minor'],500000)
+            fixture.f.get_finance_summary(self.b,'2026-09-01','2026-09-30')['total_expense_minor'],50000000)
 
         balances=fixture.f.get_account_balance_report(self.b,'2026-09-22',self.uid)
         planned_account=next(row for row in balances if row['id']==self.a)
         actual_account=next(row for row in balances if row['id']==payment_account)
         self.assertEqual(planned_account['balance_minor'],0)
-        self.assertEqual(actual_account['balance_minor'],-500000)
+        self.assertEqual(actual_account['balance_minor'],-50000000)
 
         budget=self.client.get(
             f'/business/{self.b}/finance/budget?branch_id={branch_id}&month=2026-09')
@@ -1271,7 +1270,7 @@ class DashboardHomeTests(unittest.TestCase):
         self.assertEqual(edited.status_code,303)
         rule=fixture.f.get_recurring_expense(self.b,rule_id,self.uid)
         self.assertEqual(rule['name'],'Internet Baru')
-        self.assertEqual(rule['amount_minor'],325000)
+        self.assertEqual(rule['amount_minor'],32500000)
         self.assertEqual(rule['cadence'],'WEEKLY')
         self.assertEqual(rule['next_due_on'],'2026-09-17')
         self.assertEqual(rule['counterparty_name'],'Provider Baru')

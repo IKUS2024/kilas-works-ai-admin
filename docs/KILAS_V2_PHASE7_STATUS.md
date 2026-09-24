@@ -1,41 +1,105 @@
-# Phase 7 status — CHECKPOINT / NOT COMPLETE
+# Phase 7 status — FINANCE BASELINE RECOVERY BLOCKED / BRIDGE NOT STARTED
 
-## Baseline / prerequisites
-- Branch `feature/kilas-core-v2`; exact current remote baseline `967181a2e6ad27f8535aea89c24082acc125d47e`.
-- Remote main `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`, unchanged. Upstream since Phase 6 changes only MASTER/ROADMAP/Phase 7 instructions; exact objects/tree restored locally without discarding work.
-- All ten requested documents read completely. Phase 1–6 implementation retained; historical Phase 2 checkpoint prose is superseded by accepted Phase 3 prerequisite and current CI.
-- Baseline CI all SUCCESS: Phase 2 `36025367120`, Phase 3 `36025367154`, Phase 4 `36025367262`, Phase 5 `36025367183`, Phase 6 `36025367315`. Phase 6 runs prior regressions, PG and mobile QA.
+## Current recovery result (2026-09-24)
+- Branch: `feature/kilas-core-v2`. Resumed existing audit checkpoint `8f33dd8de8bb14bb68dae2b64c3a12365ab166cb`; did not restart Phase 7. Phase 1–6 remain complete.
+- **Baseline NOT green: 1004 passing tests, 2 errors, 0 skips, 0 zero-test passes across 38 independently executed files (1006 tests).** All 36 original Finance files ran: 35 pass; `test_finance_home_dashboard.py` has 43 passes and the two genuine workspace-move errors below. The added branch-delete file passes 4 tests and all 4 original Standalone boundary tests still pass.
+- Four narrow production defects fixed: unused branch deletion FK/history handling; first Finance GET before branch setup; budget category rename/archive using workspace settings; bank-review input multiplying IDR/JPY amounts by 100 on resubmission. Money scale, reporting currency groups, isolation guards and audit semantics were preserved.
+- Full original failure classification: [KILAS_V2_PHASE7_FINANCE_TRIAGE.md](KILAS_V2_PHASE7_FINANCE_TRIAGE.md) — 183 distinct failing methods / 186 failure entries including repeated subtest variants, grouped by verified root cause.
+- No Bridge implementation, production deployment, production database/customer data, schema migration, WhatsApp change, or UI redesign. Synthetic test databases initialized their own schemas only.
 
-## Scope / decisions
-- One existing Finance engine: Standalone remains independent; Connected adds optional Core-side mapping/customer/invoice references only.
-- Explicit owner-authorized business + branch mapping, no name/contact merge. Draft creation only after owner-entered items/prices/currency/dates and confirmation. Issue/payment stay in existing Finance flows; Bridge reads authoritative totals/status.
-- Review existing Finance `_write`, `db.app_purchase_transaction`, branch context and idempotency boundaries before implementation. No direct protected Finance SQL writes from Core.
-- Default-off Bridge; no production DB/data, deployment, WhatsApp sends/cutover, media AI, redesign or Phase 8.
-- Standalone sellability gate covers current operational Finance features, not a claim of double-entry/accountant-grade accounting. Professional readiness remains Phase 9.
+## Exact remaining blocker — immutable branch identity versus workspace relocation
+Classification: **genuine production bug / service-schema conflict**, not a stale assertion.
 
-## Milestones
-1. Finance boundary audit: completed; Standalone regression baseline recorded, NOT green.
-2. Connection schema/service: pending.
-3. Customer link: pending.
-4. Job invoice draft link: pending.
-5. Authoritative read-back UI: pending.
-6. Security/idempotency/concurrency: pending.
-7. PostgreSQL/mobile QA: pending.
-8. Exact scope/COMPLETE: pending.
+Both original tests remain enabled and unchanged in their positive move invariants:
+1. `test_finance_home_dashboard.DashboardHomeTests.test_transaction_workspace_move_is_real_reversible_and_never_double_counts`
+2. `test_finance_home_dashboard.DashboardHomeTests.test_account_workspace_move_moves_opening_balance_transactions_and_recurring_rule`
 
-## Current checkpoint / exact next action
-Resume milestone 1 from this status, not from Phase 1. No Bridge implementation has started. The safe compound Finance boundary has been verified by 4 new passing tests, but the mandatory full existing Finance regression/sellability gate remains unfulfilled.
+Reproduction: full-dependency fresh unittest discovery of `test_finance_home_dashboard.py` produces two `sqlite3.IntegrityError: finance branch mismatch` errors. Both routes reach `finance_service._workspace_move_revision`, which inserts a revision then attempts `UPDATE finance_transactions SET branch_id=?,account_id=?,category_id=?...`. SQLite UPDATE guards in `finance_branch_migration.migrate_sqlite` reject changing branch or business identity. PostgreSQL migration `0033_finance_branches_postgres.sql` installs the same `finance_branch_immutable()` policy for accounts, transactions, invoices, recurring rules and bank imports. PostgreSQL failure is established by the schema definition, not claimed as a new live PG reproduction.
 
-1. Triage the exact baseline failures listed below using isolated per-file processes and the full current Finance dependencies. Distinguish stale fixtures/labels/contracts from actual product defects; do not change stored-money semantics or remove assertions merely to obtain a green run.
-2. Complete Standalone sellability coverage for existing accounts/transfers/opening balances/categories/invoices/payments/recurring/budgets/reports/FX/AI/edit/archive/mobile flows. A passing draft/payment boundary is not the whole sellability gate.
-3. After that baseline is coherent, implement milestones 2–6 through the reviewed existing service boundary below; use explicit owner mappings and draft-only invoice creation.
-4. Run disposable PostgreSQL and real mobile browser gates, all prior regressions, exact scope review. Only then mark COMPLETE. Do not start Phase 8.
+Safety evidence from disposable SQLite probes:
+- With both workspaces initialized, each failing service call restores the complete database dump exactly: opening balances, transactions, revisions, recurring schedules, destination records and audit rows all roll back. No double-counted cash or partial transaction revision remains.
+- The HTTP route initializes a missing Personal workspace **before** the move transaction. A failed first move leaves that empty workspace/defaults initialized, while the original ledger row remains byte-for-byte unchanged and no move revision survives. This route-level side effect also needs resolution; service rollback is not a claim of whole-request rollback.
 
-## Exact remaining blockers / limits
-- Existing Finance regression baseline is NOT green: 27 of 36 Python test files fail with the full current dependencies and actual unittest execution. Nine files pass. These failures precede any Phase 7 production change; no production code has been edited.
-- Some confirmed failures are stale currency/category/UI expectations. Others still need diagnosis; it would be inaccurate to label every failure harmless test drift or certify Standalone sellability yet.
-- This is a verification/triage backlog, not a credential/permission/production-data blocker. GitHub Actions remains available for later PG/mobile gates. No Phase 7 PG or browser pass is claimed.
-- Preserve this passing audit-test checkpoint when execution time is exhausted. RESUME FROM STATUS FILE.
+Why unresolved in this recovery pass: successful relocation requires reconciling an existing financial-identity guarantee with a supported move operation across both database engines and every linked record. Removing/disabling the immutable guard, deleting/reinserting historical ledger rows, or changing the test to accept failed moves would weaken isolation/history or conceal the defect. A narrow assertion/template fix cannot safely resolve it. No guard, schema or history was changed to force a pass.
+
+Exact next action: resolve the accounting design for an audited authorized relocation versus an append-only correction, including target-workspace initialization inside the atomic boundary, paired SQLite/PostgreSQL protection, personal-owner/business authorization, immutable tenant identity, invoice/FX prohibitions, recurring/import/reconciliation links, repeat/reverse moves and concurrent rollback. Keep the two positive tests and raw-SQL isolation checks. Then rerun the complete baseline. **Do not start Bridge while this blocker remains.** This recovery pass stops at the user's documented genuine-blocker condition.
+
+## Reproducible gate and CI limits
+Install unchanged `client-hub/requirements.txt` in an isolated environment, then run from repository root:
+
+```sh
+python scripts/run_finance_baseline.py
+```
+
+For the external dependency directory used in this run:
+
+```sh
+PYTHONPATH=/tmp/kilas-phase7-deps python scripts/run_finance_baseline.py
+```
+
+The runner discovers every `test_finance_*.py` plus `test_kilas_finance_baseline.py`, uses one new unittest process per file, injects the existing offline/credential-cleanup harness, records full logs and counts, continues after failures, and exits nonzero on failures/timeouts/skips/zero tests. Final full run returned exit 1 for exactly the two blocker errors. The final strengthened Phase 1B rejection assertion and home-list selector were independently rerun afterward: Phase 1B 16 PASS; home 43 PASS / 2 unchanged errors.
+
+Existing Phase 2–6 CI was green before recovery. At production-fix checkpoint `d151d1f7b730a0583e0b20ac5c1b3d5a31e23a03`, CI again completed SUCCESS: Phase 2 `36031203536`, Phase 3 `36031203482`, Phase 4 `36031203520`, Phase 5 `36031203473`, Phase 6 `36031203594`. Those prior-phase workflows are not the full Finance gate; they do not override the two local baseline errors. No Phase 7 Bridge PostgreSQL/mobile completion is claimed.
+
+## Mandatory coverage actually exercised
+| Area | Executed coverage |
+| --- | --- |
+| Accounts, opening balances, income/expense | Phase 1A/1B, branches, home, dashboard design |
+| Transfers / FX / currency precision | FX precision, branches, semantic agent; FX-linked move protection in home |
+| Categories/subcategories, business/branch/tenant isolation | Phase 1A, branches, home category manager, multi-business, assistant suites |
+| Invoices, partial/full payments, receivables/overdue | Phase 2A, Phase 4B/4C, Phase 5A/B/C, invoice editor, live conversation |
+| Recurring/bills, budgets, reports/cash flow | Phase 2B, Phase 3, home, dashboard design, semantic agent |
+| Finance AI / conversation assistant | Inline, upgrade, conversation, boundaries, pending intents, semantic agent/brain, unified |
+| Documents/PDF | Phase 6A/B/C, bank sections, document upgrade, invoice PDF, PDF recovery/routing |
+| Edit/archive/delete and audit | Branch-delete recovery, branches, invoice editor, home, live conversation, Phase 4C |
+| Entitlements/read-only, trial-backed flows | Inline expiration, multi-business expiry/emergency, UX receipt entitlement; trial fixtures used throughout |
+| UI/navigation | Style loading, UI integrity, UX/AI, dashboard design, home, invoice editor |
+| Standalone independence | All four `test_kilas_finance_baseline.py` tests |
+
+## Final per-file execution inventory
+| File | Tests | Result |
+| --- | ---: | --- |
+| `test_finance_assistant_inline.py` | 47 | PASS |
+| `test_finance_assistant_upgrade.py` | 20 | PASS |
+| `test_finance_bank_sections.py` | 22 | PASS |
+| `test_finance_branch_delete_recovery.py` | 4 | PASS |
+| `test_finance_branches.py` | 39 | PASS |
+| `test_finance_conversation_agent.py` | 34 | PASS |
+| `test_finance_conversational_boundaries.py` | 16 | PASS |
+| `test_finance_dashboard_design.py` | 10 | PASS |
+| `test_finance_documents_upgrade.py` | 5 | PASS |
+| `test_finance_fx_precision.py` | 4 | PASS |
+| `test_finance_home_dashboard.py` | 45 | 43 PASS / 2 workspace-move errors |
+| `test_finance_invoice_editor.py` | 18 | PASS |
+| `test_finance_invoice_pdf.py` | 1 | PASS |
+| `test_finance_live_conversation.py` | 23 | PASS |
+| `test_finance_multibusiness.py` | 13 | PASS |
+| `test_finance_pdf_recovery.py` | 8 | PASS |
+| `test_finance_pdf_routing.py` | 13 | PASS |
+| `test_finance_pending_intents.py` | 26 | PASS |
+| `test_finance_phase1a.py` | 18 | PASS |
+| `test_finance_phase1b.py` | 16 | PASS |
+| `test_finance_phase2a.py` | 25 | PASS |
+| `test_finance_phase2b.py` | 25 | PASS |
+| `test_finance_phase3.py` | 20 | PASS |
+| `test_finance_phase4a.py` | 15 | PASS |
+| `test_finance_phase4b.py` | 35 | PASS |
+| `test_finance_phase4c.py` | 25 | PASS |
+| `test_finance_phase5ab.py` | 24 | PASS |
+| `test_finance_phase5c.py` | 33 | PASS |
+| `test_finance_phase6a.py` | 53 | PASS |
+| `test_finance_phase6b.py` | 115 | PASS |
+| `test_finance_phase6c.py` | 103 | PASS |
+| `test_finance_semantic_agent.py` | 44 | PASS |
+| `test_finance_semantic_brain.py` | 36 | PASS |
+| `test_finance_style_loading.py` | 3 | PASS |
+| `test_finance_ui_integrity.py` | 10 | PASS |
+| `test_finance_unified_assistant.py` | 36 | PASS |
+| `test_finance_ux_ai_fix.py` | 18 | PASS |
+| `test_kilas_finance_baseline.py` | 4 | PASS |
+
+## Historical audit and recovery checkpoints
+The original audit inventory below is retained for traceability; it is superseded by the current result above. Original-checkpoint statements about unchanged production code apply only to that checkpoint.
 
 ## Reviewed Finance architecture and safe reuse boundary
 - `finance_service` is the sole tenant-scoped cash-ledger/invoice engine, with integer minor units. `finance_fx.minor_scale` currently returns 100 for every supported currency, including IDR. Do NOT revert this production contract to satisfy historical whole-rupiah fixtures.
@@ -114,7 +178,7 @@ Command (from repo root; fresh subprocess):
 - `test_finance_multibusiness` errors include `total_outstanding_minor` expectations that need review against the current grouped-currency report contract. Do not manufacture a cross-currency financial total.
 - Other semantic/bank/branch/recurring/UI failures remain unclassified. Full test names are reproducible with the commands above; do not silently skip these files in a Phase 7 completion claim.
 
-## Exact checkpoint scope / protection
+## Original audit checkpoint scope / protection (historical)
 Only `docs/KILAS_V2_PHASE7_STATUS.md` and `client-hub/tests/test_kilas_finance_baseline.py` are changed from baseline `967181a2e6ad27f8535aea89c24082acc125d47e`.
 No Finance production code/accounting semantics/data/schema, existing assertions, prior phase implementation/status, WhatsApp behavior, deployment settings or production service changed. No second ledger, payment automation, invoice auto-issue, media AI or Phase 8 work.
 The checkpoint commit is identified by `git log -1 -- docs/KILAS_V2_PHASE7_STATUS.md`; no self-referential SHA is fabricated.
