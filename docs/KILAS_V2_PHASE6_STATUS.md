@@ -39,3 +39,10 @@ None outstanding. Use disposable GitHub Actions PostgreSQL/Chromium as in previo
 - Files: `client-hub/kilas_core/operation_contracts.py`, `test_kilas_operations_contract.py`, this status.
 - 2 offline contract tests PASS: closed config, exact booleans, delay 1–168 hours, max 1–3 attempts, closed messages/reasons, unknown actions/URLs rejected.
 - Next: implement minimal 0058 pair and tenant-scoped Attention resolution/history.
+
+## Milestone 2 checkpoint
+- Milestone 1 local commit: `8dd15e3` (published IDs recorded after synchronization).
+- Files: paired `client-hub/migrations/0058_kilas_operations_{sqlite,postgres}.sql`; `client-hub/kilas_core/operation_schema.py`, `operation_access.py`, `attention.py`; `client-hub/tests/test_kilas_operations_store.py`; this status.
+- 2 isolated SQLite tests PASS: explicit installer twice preserves Attention; tenant FK rejection; linked Customer resolution; dedupe; owner resolution history; cross-tenant resolution denied; disabled/suspended gates.
+- Attention resolution changes only Attention + audit. System writes have NULL actor and WEB_AUTOMATION origin. No automatic schema install. PostgreSQL not yet claimed.
+- Next: implement deterministic due scan + atomic WEB delivery runner and bounded config updates.
