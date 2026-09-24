@@ -281,6 +281,7 @@ MIGRATIONS = [
     ("0051_kilas_order_requests_sqlite.sql", "0051_kilas_order_requests_postgres.sql"),
     ("0052_kilas_order_candidates_sqlite.sql", "0052_kilas_order_candidates_postgres.sql"),
     ("0053_kilas_order_catalog_sqlite.sql", "0053_kilas_order_catalog_postgres.sql"),
+    ("0054_remove_initial_kilas_order_products_sqlite.sql", "0054_remove_initial_kilas_order_products_postgres.sql"),
 ]
 
 
