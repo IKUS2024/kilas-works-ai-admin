@@ -5,6 +5,7 @@ import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'client-hub'))
 from kilas_core import understanding as u
+from kilas_core import playbooks as engine
 from kilas_core.playbook_definitions import PLAYBOOKS, select
 
 
@@ -53,6 +54,84 @@ class ContractTests(unittest.TestCase):
         for kwargs in ({'corrections': ['origin']}, {'ambiguous': ['sql']}, {'ambiguous': ['origin', 'origin']}):
             with self.assertRaises(u.UnderstandingError):
                 interpretation(**kwargs)
+
+
+class StateTests(unittest.TestCase):
+    def test_logistics_known_missing_followup(self):
+        book = PLAYBOOKS['LOGISTICS']
+        facts = {'item': 'baju', 'weight': '20 kg', 'origin': 'Guangzhou', 'destination': 'Tangerang'}
+        first = engine.decide(book, interpretation(facts))
+        self.assertEqual(first.missing, ('volume_cbm|dimensions',))
+        self.assertEqual(first.target_status, 'NEEDS_INFORMATION')
+        reply = engine.response(first, committed=True)
+        for known in ('berat', 'asal', 'tujuan', 'jenis barang'):
+            self.assertNotIn(known, reply)
+        second = engine.decide(book, interpretation({'volume_cbm': '0.2 m³'}), known=first.fields,
+                               current_status=first.target_status, has_job=True)
+        self.assertEqual(second.fields['origin'], 'Guangzhou')
+        self.assertEqual(second.missing, ())
+        self.assertEqual(second.target_status, 'READY_FOR_QUOTE')
+
+    def test_correction_conflict_and_durable_uncertainty(self):
+        book = PLAYBOOKS['LOGISTICS']
+        known = {'origin': 'Guangzhou'}
+        conflict = engine.decide(book, interpretation({'origin': 'Shanghai'}), known=known, has_job=True, current_status='NEW')
+        self.assertEqual(conflict.fields['origin'], 'Guangzhou')
+        self.assertEqual(conflict.uncertain, ('origin',))
+        later = engine.decide(book, interpretation({'item': 'baju'}), known=conflict.fields, uncertain=conflict.uncertain,
+                              has_job=True, current_status='NEEDS_INFORMATION')
+        self.assertEqual(later.uncertain, ('origin',))
+        corrected = engine.decide(book, interpretation({'origin': 'Shanghai'}, corrections=['origin']), known=later.fields,
+                                  uncertain=later.uncertain, has_job=True, current_status='NEEDS_INFORMATION')
+        self.assertEqual(corrected.fields['origin'], 'Shanghai')
+        self.assertEqual(corrected.uncertain, ())
+
+    def test_ambiguous_value_not_stored(self):
+        result = engine.decide(PLAYBOOKS['LOGISTICS'], interpretation({'weight': '20 kg'}, ambiguous=['weight']))
+        self.assertNotIn('weight', result.fields)
+        self.assertIn('weight', result.missing)
+        self.assertFalse(result.write)
+        self.assertIn('pastikan berat', engine.response(result))
+
+    def test_all_playbooks(self):
+        examples = {
+            'GENERIC_SERVICE': {'service': 'perbaikan AC', 'need': 'tidak dingin'},
+            'LOGISTICS': {'item': 'baju', 'weight': '20 kg', 'dimensions': '50x40x30 cm', 'origin': 'Guangzhou', 'destination': 'Tangerang'},
+            'SIMPLE_ORDER': {'items': 'nasi goreng', 'quantity': 2, 'fulfillment': 'pickup'},
+            'BOOKING_SERVICE': {'service': 'potong rambut', 'preferred_date': 'besok', 'preferred_time': '14.00'},
+            'AGENCY_PROJECT': {'requested_service': 'video perusahaan', 'brief': 'profil usaha'},
+        }
+        for code, fields in examples.items():
+            with self.subTest(code=code):
+                decision = engine.decide(PLAYBOOKS[code], interpretation(fields))
+                self.assertEqual(decision.missing, ())
+                self.assertEqual(decision.target_status, 'READY_FOR_QUOTE')
+                self.assertTrue(decision.write)
+                self.assertNotIn('tercatat', engine.response(decision))
+                self.assertIn('tercatat', engine.response(decision, committed=True))
+        delivery = engine.decide(PLAYBOOKS['SIMPLE_ORDER'], interpretation(dict(examples['SIMPLE_ORDER'], fulfillment='delivery')))
+        self.assertEqual(delivery.missing, ('location',))
+        window = engine.decide(PLAYBOOKS['BOOKING_SERVICE'], interpretation({'service': 'salon', 'preferred_date': 'besok', 'time_window': 'sore'}))
+        self.assertEqual(window.missing, ())
+
+    def test_no_lifecycle_bypass_or_separate_request_split(self):
+        for status in ('QUOTED', 'APPROVED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'):
+            d = engine.decide(PLAYBOOKS['GENERIC_SERVICE'], interpretation({'service': 'AC'}), has_job=True, current_status=status)
+            self.assertFalse(d.write)
+            self.assertEqual(d.reason, 'needs_owner')
+        d = engine.decide(PLAYBOOKS['GENERIC_SERVICE'], interpretation({'service': 'AC'}, intent='NEW_REQUEST'), has_job=True, current_status='NEW')
+        self.assertFalse(d.write)
+        d = engine.decide(PLAYBOOKS['GENERIC_SERVICE'], interpretation({'need': 'lain'}, ambiguous=['need']),
+                          known={'service': 'AC', 'need': 'rusak'}, has_job=True, current_status='READY_FOR_QUOTE')
+        self.assertEqual(d.target_status, 'READY_FOR_QUOTE')
+        self.assertIn('pastikan', engine.response(d))
+
+    def test_unrelated_and_wrong_workflow(self):
+        d = engine.decide(PLAYBOOKS['LOGISTICS'], interpretation(intent='UNRELATED'))
+        self.assertFalse(d.write)
+        self.assertIn('bisnis ini', engine.response(d))
+        with self.assertRaises(u.UnderstandingError):
+            engine.decide(PLAYBOOKS['LOGISTICS'], interpretation({'preferred_time': '14.00'}))
 
 
 if __name__ == '__main__':

@@ -10,7 +10,7 @@
 
 ## Milestones
 1. Understanding contracts + five playbook definitions: PASS (checkpoint commit records this milestone).
-2. Pure merge/missing-field engine: pending.
+2. Pure merge/missing-field engine: PASS (checkpoint commit records this milestone).
 3. Safe actions through existing Customer/Job services: pending.
 4. Public WEB integration: pending.
 5. Inbox/Job context: pending.
@@ -31,7 +31,7 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Implement milestone 2 pure merge/missing-field decisions and grounded response decisions; then test and commit. No runtime integration exists yet.
+Implement milestone 3 transactional safe actions, preserving Phase 4 validation and manual actors. Then wire the WEB event fence in milestone 4. No runtime integration exists yet.
 
 ## Blockers
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
@@ -41,3 +41,9 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Files: `client-hub/kilas_core/playbook_definitions.py`, `client-hub/kilas_core/understanding.py`, `test_kilas_playbooks.py`, this status file.
 - Offline `test_kilas_playbooks.py`: 5 tests PASS. Closed enums/keys, duplicate JSON keys, malformed/oversized output, evidence presence, prohibited fields/actions, quantity validation, immutable result, category mapping covered.
 - These are synthetic extraction-contract tests, not a claim of live model semantic accuracy. No provider, application route or database behavior changed.
+
+## Milestone 2 checkpoint
+- Milestone 1 local commit: `f828201` (published SHA recorded after sync).
+- Files: `client-hub/kilas_core/playbooks.py`, `test_kilas_playbooks.py`, this status file.
+- Offline `test_kilas_playbooks.py`: 11 tests PASS. Five workflows, conditional delivery location, logistics alternative volume/dimensions, known facts, correction/conflict/ambiguity, durable uncertainty, separate-request deferral, lifecycle restrictions, business redirect covered.
+- Missing details are deterministic. Unresolved contradictions retain the previous fact and a clarification marker. No automatic lifecycle reversal or owner-state advancement. No runtime routes/DB/Finance/WhatsApp changes.
