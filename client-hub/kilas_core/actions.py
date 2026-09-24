@@ -32,12 +32,14 @@ def state(book, snap):
     return {k: v for k, v in fields.items() if k in book.fields}, tuple(filter(None, fields.get('uncertain_fields', '').split(',')))
 
 
-def apply(tx, business_id, conversation_id, *, expected, book, interpretation, event_id):
+def apply(tx, business_id, conversation_id, *, expected, book, interpretation, event_id, channel='web'):
     """Called after acquiring business then conversation lock and verifying WEB lease/mode.
 
     The snapshot is from before inference; any intervening owner edit, relink or
     new Job causes a safe conflict, not a model-based overwrite.
     """
+    if channel not in ('web','whatsapp'): raise jobs.JobError('invalid_channel')
+    actor = jobs._WEB_PLAYBOOK_ACTOR if channel=='web' else jobs._WHATSAPP_PLAYBOOK_ACTOR
     jobs._lock(tx, business_id)
     current = snapshot(tx, business_id, conversation_id)
     if (current['customer_id'], current['versions']) != (expected['customer_id'], expected['versions']):
@@ -56,12 +58,12 @@ def apply(tx, business_id, conversation_id, *, expected, book, interpretation, e
     fields.update(decision.fields)
     fields.update(playbook=book.code, uncertain_fields=','.join(decision.uncertain),
                   missing_information=playbooks.labels(decision.missing + decision.uncertain))
-    key = 'web_playbook_' + hashlib.sha256((conversation_id + ':' + event_id).encode()).hexdigest()
+    key = channel + '_playbook_' + hashlib.sha256((conversation_id + ':' + event_id).encode()).hexdigest()
     if row is None:
         title = book.label + ': ' + str(next(iter(decision.fields.values())))[:120]
         row = jobs._create_job(tx,business_id,current['customer_id'],conversation_id=conversation_id,
-                               title=title,kind=book.kind,fields=fields,actor_id=jobs._WEB_PLAYBOOK_ACTOR,
+                               title=title,kind=book.kind,fields=fields,actor_id=actor,
                                operation_key=key+'_create')
     row = jobs._update_job(tx,business_id,row['id'],expected_version=row['version'],fields=fields,
-                           status=decision.target_status,actor_id=jobs._WEB_PLAYBOOK_ACTOR,operation_key=key+'_update')
+                           status=decision.target_status,actor_id=actor,operation_key=key+'_update')
     return row, playbooks.response(decision, committed=True)

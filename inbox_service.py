@@ -188,6 +188,8 @@ def send_manual_reply(business_id, customer_phone, message_text):
     Returns (ok, reason). It never logs or returns an access token and never falls back to Kilas
     Works' own phone-number-id if this tenant channel cannot be resolved.
     """
+    from kilas_core.whatsapp_access import selected
+    if selected(business_id): return False, 'core_inbox_required'
     phone = normalize_customer_phone(customer_phone)
     text = (message_text or "").strip()
     if not phone:
@@ -278,6 +280,8 @@ def send_template_reply(business_id, customer_phone, params=None):
     Uses the SAME direct-Graph-API transport as send_manual_reply() (Client Hub already holds this
     tenant's own token) — only the payload shape differs (built by
     wa_inbox_shared.build_template_message_payload() instead of a free-text body)."""
+    from kilas_core.whatsapp_access import selected
+    if selected(business_id): return False, 'core_inbox_required'
     phone = normalize_customer_phone(customer_phone)
     if not phone:
         return False, "invalid_customer_phone"

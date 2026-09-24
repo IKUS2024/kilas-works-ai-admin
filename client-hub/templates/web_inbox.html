@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Inbox WEB — {{ business.business_name }}{% endblock %}
+{% block title %}Inbox — {{ business.business_name }}{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='web_chat.css') }}">
 {% if jobs_available(business) %}<style>.web-owner .jobs-tabs{flex-wrap:wrap}</style>{% endif %}
@@ -8,16 +8,16 @@
   {% include '_web_share.html' %}
   <nav class="web-tabs {{ 'jobs-tabs' if jobs_available(business) else '' }}" aria-label="Channel">
     <a href="{{ url_for('client.inbox_page',business_id=business.id) }}">WhatsApp</a>
-    <a aria-current="page" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">WEB · {{ total }}</a>
+    <a aria-current="page" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Percakapan · {{ total }}</a>
     {% if kilas_customers_enabled() %}<a href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>{% endif %}
     {% if jobs_available(business) %}<a href="{{ url_for('core_jobs.list_page',bid=business.id) }}">{{ job_labels(business).plural }}</a>{% endif %}
   </nav>
   <div class="web-columns {{ 'web-selected' if selected else '' }}">
     <aside class="web-list">
-      <h2>Percakapan web</h2>
+      <h2>Percakapan</h2>
       {% for row in conversations %}
       <a class="web-conversation" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
-        <strong>{{ row.customer_display_name or ('Pengunjung ' ~ row.id[:6]) }} <small>WEB</small></strong>
+        <strong>{{ row.customer_display_name or ('Pengunjung ' ~ row.id[:6]) }} <small>{{ 'WhatsApp' if row.id.startswith('wa_') else 'WEB' }}</small></strong>
         <span>{{ 'Ditangani tim' if row.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</span>
         <p>{{ row.preview[:100] }}</p>
       </a>
@@ -32,7 +32,7 @@
     <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-mode-url="{{ url_for('owner_web.mode',bid=business.id,cid=selected.id) }}" data-reply-url="{{ url_for('owner_web.reply',bid=business.id,cid=selected.id) }}" data-csrf="{{ csrf_token() }}">
       {% include "_jobs_panel.html" %}
       <header><a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">← Percakapan</a>
-        <h2>{{ selected_customer.display_name if selected_customer else ('Pengunjung ' ~ selected.id[:6]) }} · WEB</h2><p data-mode>{{ 'Ditangani tim' if selected.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</p>
+        <h2>{{ selected_customer.display_name if selected_customer else ('Pengunjung ' ~ selected.id[:6]) }} · {{ 'WhatsApp' if selected.id.startswith('wa_') else 'WEB' }}</h2><p data-mode>{{ 'Ditangani tim' if selected.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</p>
         <button type="button" class="btn" data-takeover>Ambil alih</button>
         <button type="button" class="btn secondary" data-return>Kembalikan ke AI</button>
       </header>

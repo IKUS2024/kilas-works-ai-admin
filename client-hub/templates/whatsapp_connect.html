@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card" style="max-width:680px;margin:20px auto;overflow-wrap:anywhere;">
-  <h1>Hubungkan WhatsApp</h1>
+  <h1>Hubungkan WhatsApp · opsional</h1>
+  <p>Public Web Chat, Inbox, Customers, dan pekerjaan bisnis dapat digunakan tanpa WhatsApp sesuai paket aktif.</p>
+  <p>Akses WhatsApp mengikuti izin resmi Meta untuk aplikasi dan nomor Anda. Jika App Review atau Advanced Access belum tersedia, koneksi masih menunggu persetujuan Meta. Aset test/reviewer bukan akses umum untuk customer.</p>
+  <p><a class="btn" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Lewati, lanjut ke Web Chat</a></p>
   {% if business.status == 'ACTIVE' %}
     <p>Kilas Brain aktif.</p>
   {% else %}

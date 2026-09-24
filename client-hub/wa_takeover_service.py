@@ -44,6 +44,15 @@ def return_to_ai(business_id, customer_phone, actor_user_id):
 
 
 def _upsert(business_id, customer_phone, mode, actor_user_id):
+    from kilas_core import whatsapp_access
+    if whatsapp_access.selected(business_id):
+        from public_chat import store
+        from kilas_core.adapters import whatsapp
+        with store.transaction() as tx:
+            link=tx.one('SELECT conversation_id FROM kw_core_wa_conversations WHERE business_id=? AND customer_phone=?',(business_id,customer_phone))
+        if link:
+            whatsapp.mode(business_id,link['conversation_id'],mode,actor_user_id)
+            return
     existing = db.query_one(
         "SELECT id FROM wa_conversation_state WHERE business_id = ? AND customer_phone = ?",
         (business_id, customer_phone),
@@ -70,3 +79,13 @@ def list_takeover_conversations_for_business(business_id):
         "SELECT * FROM wa_conversation_state WHERE business_id = ? ORDER BY updated_at DESC",
         (business_id,),
     )
+
+
+def set_state_in_transaction(tx, business_id, customer_phone, mode, actor_user_id):
+    """Core adapter uses the same takeover state inside its conversation-fenced transaction."""
+    if mode not in MODES:
+        raise ValueError('invalid_mode')
+    tx.execute('INSERT INTO wa_conversation_state(business_id,customer_phone,mode,updated_by_user_id) '
+               'VALUES (?,?,?,?) ON CONFLICT(business_id,customer_phone) DO UPDATE SET '
+               'mode=excluded.mode,updated_by_user_id=excluded.updated_by_user_id',
+               (business_id,customer_phone,mode,actor_user_id))

@@ -44,6 +44,8 @@ WORKFLOW_METADATA = {'playbook', 'uncertain_fields'}
 LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
+_WHATSAPP_PLAYBOOK_ACTOR = object()
+_PLAYBOOK_ACTORS = (_WEB_PLAYBOOK_ACTOR, _WHATSAPP_PLAYBOOK_ACTOR)
 
 
 class JobError(ValueError):
@@ -141,8 +143,8 @@ def _lock(tx, bid):
 
 def _operation(bid, actor_id, operation_key, payload):
     _positive(bid)
-    if actor_id is _WEB_PLAYBOOK_ACTOR:
-        actor_id = 'WEB_PLAYBOOK'
+    if actor_id in _PLAYBOOK_ACTORS:
+        actor_id = 'WEB_PLAYBOOK' if actor_id is _WEB_PLAYBOOK_ACTOR else 'WHATSAPP_PLAYBOOK'
     else:
         _positive(actor_id)
     if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', operation_key):
@@ -165,8 +167,8 @@ def _record(tx, bid, jid, actor_id, operation_key, request_hash, version, action
     tx.execute('INSERT INTO kw_core_job_operations(business_id,operation_key,request_hash,job_id,result_version,created_at) '
                'VALUES (?,?,?,?,?,?)', (bid, operation_key, request_hash, jid, version, now))
     tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
-               (None if actor_id is _WEB_PLAYBOOK_ACTOR else actor_id, bid, action,
-                json.dumps({'job_id': jid, 'version': version, **({'origin': 'WEB_PLAYBOOK'} if actor_id is _WEB_PLAYBOOK_ACTOR else {})})))
+               (None if actor_id in _PLAYBOOK_ACTORS else actor_id, bid, action,
+                json.dumps({'job_id': jid, 'version': version, **({'origin': 'WEB_PLAYBOOK' if actor_id is _WEB_PLAYBOOK_ACTOR else 'WHATSAPP_PLAYBOOK'} if actor_id in _PLAYBOOK_ACTORS else {})})))
 
 
 def create_job(business_id, customer_id, *, title, actor_id, operation_key,
@@ -234,7 +236,7 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
     target = current['status'] if status is None else status
     if target != current['status'] and target not in TRANSITIONS[current['status']]:
         raise JobError('invalid_transition',409)
-    if fields is not None and actor_id is not _WEB_PLAYBOOK_ACTOR:
+    if fields is not None and actor_id not in _PLAYBOOK_ACTORS:
         previous = json.loads(current['fields_json'])
         if previous.get('playbook') in PLAYBOOKS:
             from .playbooks import missing_fields, labels

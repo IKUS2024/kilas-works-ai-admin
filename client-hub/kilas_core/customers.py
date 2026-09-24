@@ -86,6 +86,13 @@ def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None
 
     Accepts the caller transaction so conversation creation + identity/linking stay atomic.
     """
+    return ensure_channel_customer(tx, business_id, conversation_id, "WEB_VISITOR", visitor_hash, "WEB", now=now)
+
+
+def ensure_channel_customer(tx, business_id, conversation_id, identity_type, identity_hash, channel, *, now=None):
+    """Trusted adapters only; verified identities never match editable profile fields."""
+    if (identity_type, channel) not in (("WEB_VISITOR", "WEB"), ("WHATSAPP_PHONE", "WHATSAPP")):
+        raise CustomerError("invalid_identity")
     now = int(time.time()) if now is None else int(now)
     linked = tx.one(
         "SELECT c.* FROM kw_web_customer_links l "
@@ -98,8 +105,8 @@ def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None
 
     identity = tx.one(
         "SELECT customer_id FROM kw_core_customer_identities "
-        "WHERE business_id=? AND identity_type='WEB_VISITOR' AND identity_hash=?",
-        (business_id, visitor_hash),
+        "WHERE business_id=? AND identity_type=? AND identity_hash=?",
+        (business_id, identity_type, identity_hash),
     )
     if identity:
         customer_id = identity["customer_id"]
@@ -109,13 +116,13 @@ def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None
             "INSERT INTO kw_core_customers"
             "(business_id,id,display_name,source_channel,created_at,updated_at,last_activity_at) "
             "VALUES (?,?,?,?,?,?,?)",
-            (business_id, customer_id, _placeholder(customer_id), "WEB", now, now, now),
+            (business_id, customer_id, _placeholder(customer_id), channel, now, now, now),
         )
         tx.execute(
             "INSERT INTO kw_core_customer_identities"
             "(business_id,customer_id,identity_type,identity_hash,verified,created_at) "
             "VALUES (?,?,?,?,1,?)",
-            (business_id, customer_id, "WEB_VISITOR", visitor_hash, now),
+            (business_id, customer_id, identity_type, identity_hash, now),
         )
 
     tx.execute(

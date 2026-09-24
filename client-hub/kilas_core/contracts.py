@@ -15,8 +15,8 @@ def _identifier(value, code):
 def _scope(business_id, channel, conversation_id, external_message_id):
     if type(business_id) is not int or business_id <= 0:
         raise ContractError("invalid_business_id")
-    # WEB is additive; WhatsApp cutover and other channels remain unsupported.
-    if channel not in ("simulator", "web"):
+    # Provider authentication and readiness are enforced by the channel adapter.
+    if channel not in ("simulator", "web", "whatsapp"):
         raise ContractError("unsupported_channel")
     _identifier(conversation_id, "invalid_conversation_id")
     if external_message_id is not None:

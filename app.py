@@ -6790,6 +6790,17 @@ def _webhook_body_impl(data):
             tenant_id = None
 
         _webhook_field = changes.get("field")
+        if tenant_id is not None:
+            from kilas_core import whatsapp_access as _core_wa_access
+            if _core_wa_access.selected(tenant_id):
+                # Verified ingress only. Never fall back to legacy reasoning on Core failure.
+                if not os.environ.get("WHATSAPP_APP_SECRET"):
+                    return jsonify({"status": "webhook_secret_missing"}), 503
+                from kilas_core.adapters import whatsapp as _core_wa
+                for _media_event in value.get("messages") or []:
+                    if _media_event.get("type") in _inbox_media.TYPES:
+                        _inbox_media.record(tenant_id, _media_event.get("from"), _media_event)
+                return jsonify(_core_wa.handle(tenant_id, _incoming_phone_number_id, value, _webhook_field)), 200
         if _webhook_field == "smb_message_echoes":
             # WhatsApp Coexistence: a human sent this from WhatsApp Business App / linked device.
             # Mirror it into the same history and automatically take over that ONE conversation;
@@ -9197,6 +9208,10 @@ def run_tenant_followups():
         tenant_id = business["id"]
         _clear_active_whatsapp_channel()  # never inherit the previous tenant's channel
         try:
+            from kilas_core import whatsapp_access as _core_wa_access
+            if _core_wa_access.selected(tenant_id):
+                results.append({"tenant_id": tenant_id, "status": "skipped", "reason": "core_owner_followup_required"})
+                continue
             eligible, reason = _tenant_followup.is_tenant_followup_eligible(tenant_id)
             if not eligible:
                 results.append({"tenant_id": tenant_id, "status": "skipped", "reason": reason})

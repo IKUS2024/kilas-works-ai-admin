@@ -1081,7 +1081,8 @@ def inbox_page(business_id):
         flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Brain.", "error")
         return redirect(url_for("client.dashboard"))
 
-    if request.args.get('channel') == 'web':
+    from kilas_core.whatsapp_access import selected as core_whatsapp_selected
+    if request.args.get('channel') == 'web' or (core_whatsapp_selected(business_id) and request.args.get('channel') != 'legacy'):
         from public_chat.owner import inbox_page as web_inbox_page
         return web_inbox_page(business)
 

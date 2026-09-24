@@ -13,6 +13,12 @@ def request_human(tx,bid,cid,signal):
     item=attention.ensure(tx,bid,f'human:{cid}:{generation}','HUMAN_REPLY_NEEDED',conversation_id=cid)
     # Same mode/version/event fence as manual Phase 2 takeover, within this transaction.
     store._set_mode(tx,bid,cid,'HUMAN_TAKEOVER',None,origin='WEB_AUTOMATION')
+    if cid.startswith('wa_'):
+        from .adapters.whatsapp import binding
+        import wa_takeover_service
+        link=binding(tx,bid,cid)
+        if link:
+            wa_takeover_service.set_state_in_transaction(tx,bid,link['customer_phone'],'HUMAN_TAKEOVER',None)
     return item
 
 

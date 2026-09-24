@@ -47,7 +47,14 @@ def messages(bid,cid):
     after=request.args.get('after',0,type=int)
     if after is None or after<0:
         raise store.ChatError('invalid_cursor')
-    return jsonify(channel='WEB',mode=selected['mode'],messages=store.thread(bid,cid,after))
+    is_wa=cid.startswith('wa_')
+    messages=store.thread(bid,cid,after)
+    if is_wa:
+        with store.transaction() as tx:
+            states=tx.execute('SELECT m.id,o.status FROM kw_web_messages m LEFT JOIN kw_core_wa_outbound o ON o.business_id=m.business_id AND o.conversation_id=m.conversation_id AND o.event_id=m.event_id WHERE m.business_id=? AND m.conversation_id=?',(bid,cid))
+        delivery={r['id']:r['status'] for r in states}
+        for message in messages: message['delivery_status']=delivery.get(message['id'])
+    return jsonify(channel='WHATSAPP' if is_wa else 'WEB',mode=selected['mode'],messages=messages)
 
 
 @owner_bp.post('/business/<int:bid>/web-inbox/<cid>/mode')
@@ -56,7 +63,9 @@ def mode(bid,cid):
     business_for_owner(bid)
     payload=request.get_json(silent=True)
     if not isinstance(payload,dict): raise store.ChatError('invalid_mode')
-    mode=store.set_mode(bid,cid,payload.get('mode'),owner_security.current_user()['id'])
+    from kilas_core.adapters import whatsapp
+    setter = whatsapp.mode if whatsapp.mapped(bid,cid) else store.set_mode
+    mode=setter(bid,cid,payload.get('mode'),owner_security.current_user()['id'])
     return jsonify(channel='WEB',mode=mode)
 
 
@@ -69,6 +78,11 @@ def reply(bid,cid):
     text,event=payload.get('message'),payload.get('event_id')
     if not isinstance(text,str) or not text.strip() or len(text)>4000: raise store.ChatError('invalid_message')
     if not isinstance(event,str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',event): raise store.ChatError('invalid_event_id')
+    from kilas_core.adapters import whatsapp
+    if whatsapp.mapped(bid,cid):
+        from kilas_core.whatsapp_transport import manual
+        result=manual(bid,cid,event,text.strip(),owner_security.current_user()['id'])
+        return jsonify(channel='WHATSAPP',status=result['status'])
     mid=store.human_reply(bid,cid,event,text.strip(),owner_security.current_user()['id'])
     return jsonify(channel='WEB',message_id=mid)
 
@@ -83,3 +97,18 @@ def share(bid):
     if not channel['enabled']:
         raise store.ChatError('channel_disabled',409)
     return jsonify(path=url_for('public_web.page',slug=channel['slug']),channel='WEB')
+
+
+@owner_bp.post('/business/<int:bid>/web-inbox/<cid>/template')
+@owner_security.login_required
+def template(bid,cid):
+    business_for_owner(bid)
+    from kilas_core.adapters import whatsapp
+    from kilas_core.whatsapp_transport import manual
+    if not whatsapp.mapped(bid,cid): abort(404)
+    payload=request.get_json(silent=True)
+    event=payload.get('event_id') if isinstance(payload,dict) else None
+    if not isinstance(event,str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',event):
+        raise store.ChatError('invalid_event_id')
+    result=manual(bid,cid,event,'',owner_security.current_user()['id'],template=True)
+    return jsonify(channel='WHATSAPP',status=result['status'])
