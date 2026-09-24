@@ -33,7 +33,7 @@ class ConversationalBoundaryTests(unittest.TestCase):
         before=self.snapshot()
         self.model({'intent':'customers','slots':{}})
         answer=self.ask('jita punya customer namanya siapa aja')
-        self.assertEqual(answer['title'],'Data customer')
+        self.assertEqual(answer['title'],'Data pelanggan')
         self.assertIn('Daniel',str(answer['preview']))
         self.assertIn('Putri',str(answer['preview']))
         self.assertNotIn('Hidden',str(answer['preview']))
@@ -45,12 +45,12 @@ class ConversationalBoundaryTests(unittest.TestCase):
         for text in ('customer kita siapa aja','pelanggan siapa aja','customers kita siapa aja'):
             with self.subTest(text=text):
                 answer=self.ask(text)
-                self.assertEqual(answer['title'],'Data customer')
+                self.assertEqual(answer['title'],'Data pelanggan')
                 self.assertIn('Daniel',str(answer['preview']))
         self.http.assert_called()
 
     def test_semantic_list_scope_applies_across_entity_types(self):
-        for noun,title in (('customer','Data customer'),('proyek','Proyek'),('rekening','Rekening'),
+        for noun,title in (('customer','Data pelanggan'),('proyek','Proyek'),('rekening','Rekening'),
                            ('kategori','Kategori'),('cabang','Cabang')):
             with self.subTest(noun=noun):
                 safety._RATE.clear()
@@ -117,7 +117,7 @@ class ConversationalBoundaryTests(unittest.TestCase):
         self.save(draft);self.save(draft)
         rows=f.list_transactions(self.b)
         self.assertEqual(len(rows),1)
-        self.assertEqual(rows[0]['amount_minor'],200000)
+        self.assertEqual(rows[0]['amount_minor'],20000000)
         self.assertEqual(rows[0]['account_id'],self.a)
         self.assertEqual(rows[0]['occurred_on'],date.today().isoformat())
 
@@ -159,7 +159,7 @@ class ConversationalBoundaryTests(unittest.TestCase):
 
     def test_payment_issue_correction_and_void_keep_review_boundary(self):
         invoice=self.invoice();draft_invoice=self.invoice(issued=False)
-        transaction=self.tx(50000)
+        transaction=self.tx(5000000)
         before=self.snapshot()
         for text,title in (('tambahkan payment invoice '+invoice['invoice_number'],'Pembayaran invoice'),
                            ('issue invoice '+draft_invoice['invoice_number'],'Terbitkan invoice'),
@@ -207,9 +207,9 @@ class ConversationalBoundaryTests(unittest.TestCase):
         before=self.snapshot()
         answer=self.ask('kamu bisa apa aja')
         self.assertEqual(answer['kind'],'answer')
-        for capability in ('pemasukan','pengeluaran','customer','rekening','kategori','cabang','rutin',
-                           'invoice','terbitkan','pembayaran','piutang','laporan','proyek','FX',
-                           'koreksi','void','struk','mutasi bank','konfirmasi'):
+        for capability in ('pemasukan','pengeluaran','pelanggan','rekening','kategori','cabang','tagihan',
+                           'invoice','pembayaran','piutang','laporan','proyek','penukaran mata uang',
+                           'struk','mutasi bank','ringkasan','sebelum konfirmasi'):
             self.assertIn(capability,answer['message'])
         self.assertNotIn('transfer uang',answer['message'])
         self.assertEqual(before,self.snapshot())

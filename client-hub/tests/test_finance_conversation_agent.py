@@ -87,7 +87,7 @@ class ConversationTests(unittest.TestCase):
         for _ in range(2):self.assertEqual(self.follow(r.json,'oke').status_code,200)
         rows=f.list_transactions(self.b);self.assertEqual(len(rows),1)
         self.assertEqual((rows[0]['account_id'],rows[0]['amount_minor'],rows[0]['counterparty_name'],rows[0]['description']),
-                         (bca,2200000,'Putri','shooting produk'))
+                         (bca,220000000,'Putri','shooting produk'))
     def test_followup_amount_date_category_combined_account(self):
         bca=f.create_account(self.b,'BCA',actor_user_id=self.uid)
         r=self.message('pengeluaran makan 200 ribu')
@@ -126,7 +126,7 @@ class ConversationTests(unittest.TestCase):
         rows=f.list_finance_invoices(self.b)
         self.assertEqual(len(rows),before+1);self.assertEqual(rows[0]['status'],'DRAFT')
         items=f.list_invoice_items(self.b,rows[0]['id'])
-        self.assertEqual((items[0]['description'],items[0]['quantity'],items[0]['unit_price_minor']),('jasa foto',1,2000000))
+        self.assertEqual((items[0]['description'],items[0]['quantity'],items[0]['unit_price_minor']),('jasa foto',1,200000000))
         self.assertEqual(f.list_transactions(self.b),[])
     def test_invoice_concurrent_confirmation_and_conflict(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
@@ -149,7 +149,7 @@ class ConversationTests(unittest.TestCase):
     def test_scoped_piutang_and_customer_search(self):
         customer=f.create_customer(self.b,'Wilson',phone='082213039137',actor_user_id=self.uid)
         other=f.create_customer(self.b,'Other Customer',actor_user_id=self.uid)
-        for ident,amount in [(customer,2000000),(other,3000000)]:
+        for ident,amount in [(customer,200000000),(other,300000000)]:
             invoice=f.create_finance_invoice(self.b,ident,date.today().isoformat(),date.today().isoformat(),[dict(description='Jasa',quantity=1,unit_price_minor=amount)],actor_user_id=self.uid)
             f.issue_finance_invoice(self.b,invoice,self.uid)
         before=self.snapshot()
@@ -162,14 +162,15 @@ class ConversationTests(unittest.TestCase):
         path=self.path+'?branch_id=all'
         self.assertEqual(self.client.get(path).status_code,200)
         read=self.client.post(self.path+'/message?branch_id=all',json={'text':'saldo berapa?'})
-        self.assertEqual(read.status_code,200,read.text)
+        self.assertEqual(read.status_code,403,read.text)
         r=self.client.post(self.path+'/message?branch_id=all',json={'text':'tambah pengeluaran 200 ribu'})
-        self.assertEqual(r.json['kind'],'branch_choice');self.assertIn(other,[r['id'] for r in r.json['branches']])
+        self.assertEqual(r.status_code,403)
+        self.assertIn('Pilih satu cabang aktif',r.json['error'])
         self.assertEqual(f.list_transactions(self.b),[])
     def test_all_branch_dashboard_offers_readonly_assistant(self):
         page=self.client.get(f'/business/{self.b}/finance?branch_id=all')
         self.assertEqual(page.status_code,200)
-        self.assertIn(f'/business/{self.b}/finance/assistant?branch_id=all',page.text)
+        self.assertIn(f'/business/{self.b}/finance/assistant?branch_id={self.branch}',page.text)
     def test_unknown_invoice_number_does_not_return_other_invoices(self):
         response=self.message('status invoice KFIN-2099-999999?')
         self.assertEqual(response.json['kind'],'answer')
@@ -187,17 +188,21 @@ class ConversationTests(unittest.TestCase):
         self.model({'workflow':'BANK_STATEMENT','currency':'USD'})
         recognized=self.client.post(self.path+'/recognize',data={'sources':(io.BytesIO(self.raw),'a.png'),'text':''})
         token=recognized.json['document_context']
-        self.model(self.result)
+        self.model(dict(self.result,rows=[dict(row,currency='USD',amount='10.00',amount_minor=1000) for row in self.result['rows']]))
         r=self.document('BANK_STATEMENT',document_context=token)
         self.assertEqual(r.status_code,200,r.text);self.assertIn('BOFA',r.text)
         self.assertEqual(f.list_transactions(self.b),[])
+        before=self.snapshot()
         r=self.document('BANK_STATEMENT',document_context=token,account_id=str(self.a))
-        self.assertEqual(r.status_code,400)
+        self.assertEqual(r.status_code,422,r.text)
+        self.assertEqual(before,self.snapshot())
     def test_model_patch_accepts_raw_values_never_ids_or_action(self):
         draft=self.message('tambah customer Wilson').json
         for malicious in ({'intent':'continue_draft','slots':{'customer_id':'123'}},{'intent':'continue_draft','slots':{'action':'create_income'}},{'intent':'continue_draft','slots':{'phone':'999'}}):
             self.model(malicious);r=self.follow(draft,'tolong isi kontaknya dong 082213039137')
             self.assertTrue(r.json['keep_pending']);self.assertNotIn('context',r.json)
+        # Negative schema cases exhaust the shared provider quota; isolate the valid case.
+        safety._RATE.clear()
         self.model({'intent':'continue_draft','slots':{'phone':'082213039137'}})
         r=self.follow(draft,'tolong isi kontaknya dong 082213039137')
         self.assertEqual(self.values(r)['phone'],'082213039137')
@@ -209,7 +214,7 @@ class ConversationTests(unittest.TestCase):
     def test_payment_partial_then_full_retry_no_duplicates(self):
         customer=f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
         ident=f.create_finance_invoice(self.b,customer,date.today().isoformat(),date.today().isoformat(),
-                                      [dict(description='Jasa',quantity=1,unit_price_minor=2000000)],actor_user_id=self.uid)
+                                      [dict(description='Jasa',quantity=1,unit_price_minor=200000000)],actor_user_id=self.uid)
         f.issue_finance_invoice(self.b,ident,self.uid)
         number=f.get_finance_invoice(self.b,ident)['invoice_number']
         for _ in range(2):
@@ -238,7 +243,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(response.status_code,400)
         self.assertEqual(f.list_transactions(self.b),[])
     def test_finance_domain_refusal(self):
-        r=self.message('cuaca hari ini bagaimana?');self.assertEqual(r.json['kind'],'clarification');self.assertIn('khusus',r.text)
+        r=self.message('cuaca hari ini bagaimana?');self.assertEqual(r.json['kind'],'clarification');self.assertIn('Finance',r.text)
     def test_manual_contracts(self):
         root=Path(__file__).resolve().parents[1]/'templates'
         mappings=[('finance_receivables.html',contracts.CUSTOMER),('finance_dashboard.html',contracts.TRANSACTION),
@@ -264,8 +269,8 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('082200001111',customer.text)
 
     def test_all_time_report_and_readonly_followup_context(self):
-        f.create_transaction(self.b,'INCOME',600000,self.a,self.cat,'2026-06-01',actor_user_id=self.uid)
-        f.create_transaction(self.b,'INCOME',400000,self.a,self.cat,date.today().isoformat(),actor_user_id=self.uid)
+        f.create_transaction(self.b,'INCOME',60000000,self.a,self.cat,'2026-06-01',actor_user_id=self.uid)
+        f.create_transaction(self.b,'INCOME',40000000,self.a,self.cat,date.today().isoformat(),actor_user_id=self.uid)
         first=self.message('laproan pemasukan keseluruhan')
         self.assertEqual(first.status_code,200,first.text)
         self.assertIn('1.000.000',first.text)
@@ -276,11 +281,11 @@ class ConversationTests(unittest.TestCase):
         self.assertIn('1.000.000',follow.text)
         unrelated=self.client.post(self.path+'/message',json={'text':'cuaca gimana?','query_context':follow.json['query_context']})
         self.assertEqual(unrelated.status_code,200,unrelated.text)
-        self.assertIn('khusus',unrelated.text)
+        self.assertIn('Finance',unrelated.text)
 
     def test_readonly_followup_can_change_metric_without_losing_period(self):
-        f.create_transaction(self.b,'INCOME',900000,self.a,self.cat,'2026-06-01',actor_user_id=self.uid)
-        f.create_transaction(self.b,'EXPENSE',200000,self.a,self.meal,'2026-06-02',actor_user_id=self.uid)
+        f.create_transaction(self.b,'INCOME',90000000,self.a,self.cat,'2026-06-01',actor_user_id=self.uid)
+        f.create_transaction(self.b,'EXPENSE',20000000,self.a,self.meal,'2026-06-02',actor_user_id=self.uid)
         first=self.message('laporan pemasukan keseluruhan')
         follow=self.client.post(self.path+'/message',json={'text':'kalau pengeluarannya?','query_context':first.json['query_context']})
         self.assertEqual(follow.status_code,200,follow.text)
@@ -298,7 +303,7 @@ class ConversationTests(unittest.TestCase):
 
 
     def test_english_july_and_month_aliases_are_understood(self):
-        f.create_transaction(self.b,'INCOME',61108839,self.a,self.cat,'2026-07-31',actor_user_id=self.uid)
+        f.create_transaction(self.b,'INCOME',6110883900,self.a,self.cat,'2026-07-31',actor_user_id=self.uid)
         for wording in ('pendapatan kita berapa bulan july','pemasukan bulan jul','laporan pendapatan Juli 2026'):
             response=self.message(wording)
             self.assertEqual(response.status_code,200,response.text)
@@ -308,9 +313,9 @@ class ConversationTests(unittest.TestCase):
     def test_recurring_inventory_question_is_not_generic_empty_report(self):
         empty=self.message('biaya rutin kita ada?')
         self.assertEqual(empty.status_code,200,empty.text)
-        self.assertEqual(empty.json['title'],'Biaya rutin')
-        self.assertIn('Belum ada biaya rutin aktif',empty.json['message'])
-        f.create_recurring_expense(self.b,'Internet',500000,self.a,self.meal,'MONTHLY',
+        self.assertEqual(empty.json['title'],'Tagihan')
+        self.assertIn('Belum ada tagihan aktif',empty.json['message'])
+        f.create_recurring_expense(self.b,'Internet',50000000,self.a,self.meal,'MONTHLY',
                                    date.today().isoformat(),actor_user_id=self.uid)
         found=self.message('biaya rutin kita ada?')
         self.assertEqual(found.status_code,200,found.text)
@@ -322,9 +327,9 @@ class ConversationTests(unittest.TestCase):
         response=self.message('tambah biaya rutin 2 juta untuk ai')
         self.assertEqual(response.status_code,200,response.text)
         values=self.values(response)
-        self.assertEqual(values['cadence'],'')
+        self.assertEqual(values['cadence'],'ONCE')
         self.assertEqual(values['name'].lower(),'ai')
-        self.assertIn('seberapa sering',response.json['message'])
+        self.assertEqual(response.json['next_field'],'category_id')
         categories={c['id']:c['name'] for c in f.list_categories(self.b,'EXPENSE',actor_user_id=self.uid)}
         if 'Software / API' in categories.values():
             self.assertEqual(categories[int(values['category_id'])],'Software / API')
@@ -339,10 +344,10 @@ class ConversationTests(unittest.TestCase):
         if not values['category_id']:
             response=self.revise(response.json,category_id=str(self.meal))
         values=self.values(response)
-        self.assertEqual(values['cadence'],'')
+        self.assertEqual(values['cadence'],'ONCE')
         response=self.follow(response.json,'bulanan')
         self.assertEqual(self.values(response)['cadence'],'MONTHLY')
-        self.assertIn('Mulai kapan',response.json['message'])
+        self.assertEqual(response.json['next_field'],'date')
         response=self.follow(response.json,'tanggal 25')
         self.assertTrue(self.values(response)['date'])
         self.assertTrue(response.json['ready'],response.json)

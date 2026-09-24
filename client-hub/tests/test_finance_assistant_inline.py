@@ -48,7 +48,7 @@ class InlineTests(unittest.TestCase):
         fields={v['key']:v['value'] for v in r.json['fields']}
         self.assertEqual(fields['account_id'],str(self.a));self.assertEqual(fields['category_id'],str(self.meal));self.assertEqual(fields['date'],date.today().isoformat())
         for _ in range(2):self.assertEqual(self.confirm(r.json['token']).status_code,200)
-        rows=f.list_transactions(self.b);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['amount_minor'],120000)
+        rows=f.list_transactions(self.b);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['amount_minor'],12000000)
     def test_income_default_today_and_review(self):
         r=self.message('pemasukan 2 juta dari Andi');self.assertEqual(r.status_code,200,r.text)
         if not r.json['ready']:r=self.revise(r.json,category_id=str(self.cat))
@@ -91,7 +91,7 @@ class InlineTests(unittest.TestCase):
         self.assertEqual(second.status_code,200,second.text);self.assertTrue(second.json['ready'],second.json)
         self.assertEqual(self.confirm(second.json['token']).status_code,200)
         amounts=sorted(r['amount_minor'] for r in f.list_transactions(self.b))
-        self.assertEqual(amounts,[250000,2500000])
+        self.assertEqual(amounts,[25000000,250000000])
 
     def test_natural_cancel_filler_cancels_without_provider_guessing(self):
         draft=self.message('pengeluaran makan 250k hari ini').json
@@ -113,10 +113,10 @@ class InlineTests(unittest.TestCase):
     def test_chat_is_finance_only_and_monthly_language_becomes_recurring(self):
         outside=self.message('siapa presiden sekarang?')
         self.assertEqual(outside.status_code,200);self.assertEqual(outside.json['kind'],'clarification')
-        self.assertIn('khusus',outside.json['message'].lower())
+        self.assertIn('Finance',outside.json['message'])
         recurring=self.message('setiap bulan bayar internet 500 ribu')
         self.assertEqual(recurring.status_code,200,recurring.text)
-        self.assertEqual(recurring.json['title'],'Biaya rutin')
+        self.assertEqual(recurring.json['title'],'Tagihan')
 
     def test_read_only_questions_immediate(self):
         before=self.snapshot()
@@ -262,6 +262,8 @@ class InlineTests(unittest.TestCase):
         second=self.document('BANK_STATEMENT',self.csv,'bank.csv').json
         self.assertEqual(first['count'],second['count']);self.assertIn('token',first);self.assertIn('token',second);self.assertEqual(len(bank.list_imports(self.b,self.uid)),1)
     def test_bank_chat_confirmation_posts_safe_rows_without_redirect(self):
+        # Explicit matching category; unknown bank descriptions remain held for review.
+        f.create_category(self.b,'EXPENSE','Bank purchase',actor_user_id=self.uid)
         r=self.document('BANK_STATEMENT',self.csv,'bank.csv')
         self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'bank_review')
         self.assertEqual(f.list_transactions(self.b),[])
@@ -279,7 +281,7 @@ class InlineTests(unittest.TestCase):
         self.http.reset_mock();r=self.client.post(self.path+'/recognize',data={'sources':(io.BytesIO(self.csv),'bank.csv')});self.assertEqual(r.json['workflow'],'BANK_STATEMENT');self.http.assert_not_called()
     def test_exact_invoice_payment_reuses_service_once(self):
         customer=f.create_customer(self.b,'Budi',actor_user_id=self.uid)
-        ident=f.create_finance_invoice(self.b,customer,date.today().isoformat(),date.today().isoformat(),[dict(description='Desain',quantity=1,unit_price_minor=2000000)],actor_user_id=self.uid)
+        ident=f.create_finance_invoice(self.b,customer,date.today().isoformat(),date.today().isoformat(),[dict(description='Desain',quantity=1,unit_price_minor=200000000)],actor_user_id=self.uid)
         f.issue_finance_invoice(self.b,ident,self.uid)
         number=f.get_finance_invoice(self.b,ident,self.uid)['invoice_number']
         r=self.message('Budi bayar invoice '+number+' sebesar 1 juta')
@@ -288,7 +290,7 @@ class InlineTests(unittest.TestCase):
         self.assertTrue(r.json['ready'],r.json)
         for _ in range(2):self.assertEqual(self.confirm(r.json['token']).status_code,200)
         self.assertEqual(len(f.list_invoice_payments(self.b,ident)),1)
-        self.assertEqual(f.get_invoice_totals(self.b,ident)['outstanding_minor'],1000000)
+        self.assertEqual(f.get_invoice_totals(self.b,ident)['outstanding_minor'],100000000)
     def test_customer_audit_failure_rolls_back_then_retries(self):
         token=self.message('tambah customer Rollback').json['token']
         original=repo.write_audit
