@@ -76,5 +76,45 @@ class WebTests(unittest.TestCase):
         self.assertEqual(blocked.headers['Cache-Control'],'no-store')
         self.assertEqual(blocked.headers['Retry-After'],'60')
 
+    def send(self, identity, text='Halo', event='event-00000000001', slug=None, extra=None):
+        payload=dict(message=text,event_id=event)
+        payload.update(extra or {})
+        return self.visitor.post(f"/chat/{slug or self.slug}/{identity['conversation_id']}/messages",json=payload,
+                                 headers={**self.headers,'X-Web-CSRF':identity['csrf']})
+
+    def test_shared_core_actual_provider_and_duplicate(self):
+        from kilas_core import service
+        identity=self.start().json
+        with patch.object(self.ai,'_call_claude',return_value=('Halo dari bisnis 7','end_turn',None)) as model, \
+                patch.object(service,'process_message',wraps=service.process_message) as core:
+            first=self.send(identity)
+            second=self.send(identity)
+        self.assertEqual(first.status_code,200);self.assertEqual(first.json,second.json)
+        model.assert_called_once();core.assert_called_once()
+        self.assertEqual(core.call_args.args[0].channel,'web')
+        self.assertIn('Tenant 7',model.call_args.args[0])
+        rows=store.thread(7,identity['conversation_id'])
+        self.assertEqual([r['content'] for r in rows],['Halo','Halo dari bisnis 7'])
+        self.assertEqual(self.send(identity,text='Changed').status_code,409)
+
+    def test_provider_failure_and_retry_do_not_duplicate_or_spend_again(self):
+        identity=self.start().json
+        with patch.object(self.ai,'_call_claude',side_effect=RuntimeError('SECRET')) as model:
+            first=self.send(identity);second=self.send(identity)
+        self.assertEqual(first.status_code,502);self.assertEqual(first.json,second.json)
+        model.assert_called_once()
+        self.assertEqual(len(store.thread(7,identity['conversation_id'])),1)
+        self.assertNotIn('SECRET',str(first.json))
+
+    def test_write_csrf_and_forged_scope_rejected(self):
+        identity=self.start().json
+        with patch.object(self.ai,'_call_claude') as model:
+            self.assertEqual(self.send(dict(identity,csrf='wrong')).status_code,403)
+            self.assertEqual(self.send(identity,slug=self.other_slug).status_code,404)
+            self.assertEqual(self.send(identity,extra={'business_id':8}).status_code,400)
+            self.assertEqual(self.send(identity,extra={'media':['a.jpg']}).status_code,400)
+        model.assert_not_called()
+        self.assertEqual(store.thread(7,identity['conversation_id']),[])
+
 
 if __name__=='__main__': unittest.main()

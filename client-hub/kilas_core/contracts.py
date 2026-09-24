@@ -15,8 +15,8 @@ def _identifier(value, code):
 def _scope(business_id, channel, conversation_id, external_message_id):
     if type(business_id) is not int or business_id <= 0:
         raise ContractError("invalid_business_id")
-    # Phase 1 intentionally supports only the authenticated simulator adapter.
-    if channel != "simulator":
+    # WEB is additive; WhatsApp cutover and other channels remain unsupported.
+    if channel not in ("simulator", "web"):
         raise ContractError("unsupported_channel")
     _identifier(conversation_id, "invalid_conversation_id")
     if external_message_id is not None:
@@ -36,7 +36,7 @@ class InboundMessage:
 
     def __post_init__(self):
         _scope(self.business_id, self.channel, self.conversation_id, self.external_message_id)
-        if self.actor_type != "owner":
+        if self.actor_type != ("owner" if self.channel == "simulator" else "visitor"):
             raise ContractError("invalid_actor_type")
         if not isinstance(self.text, str) or not self.text.strip():
             raise ContractError("empty_message")

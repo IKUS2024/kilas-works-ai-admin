@@ -57,3 +57,14 @@ def messages(slug, cid):
     if after is None or after < 0:
         raise store.ChatError('invalid_cursor')
     return jsonify(channel='WEB', mode=conversation['mode'], messages=store.thread(business['id'], cid, after))
+
+
+@public_bp.post('/chat/<slug>/<cid>/messages')
+def send_message(slug, cid):
+    from .adapter import send
+    business = security.resolve(slug)
+    security.identity(business['id'], cid, write=True)
+    with store.transaction() as tx:
+        store.limit(tx, 'request:' + cid, 60, 40)
+    body, status = send(business, cid, request.get_json(silent=True), security.ip_key())
+    return jsonify(body), status

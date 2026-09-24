@@ -1,6 +1,6 @@
 # Kilas V2 Phase 2 status
 
-Status: IN PROGRESS — milestone 2 public visitor routes complete; core AI path next.
+Status: IN PROGRESS — milestone 3 shared Core WEB response path complete; Inbox next.
 Branch: `feature/kilas-core-v2`.
 Starting/current remote SHA: `2849db26b184763d2f5404dbd0758e88b857c4b0`.
 Remote main inspected: `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c`.
@@ -62,3 +62,13 @@ Hub exceptions affect only new public_web endpoints; existing Finance owner-sess
 Files: public_chat/{security,routes}.py, templates/public_web_chat.html, app.py, test_public_chat_routes.py.
 PASS: offline `--only test_public_chat_routes` (6 tests); Phase 1 `--only test_kilas_core` (30 tests).
 Next: wire WEB events to the shared processing entry point and actual business knowledge provider.
+
+## Milestone 3 checkpoint
+Current preceding commit: `7eb786a935638aadb362c14b7a2b687727da0239`.
+Added WEB/visitor contract support without loosening simulator actors; public_chat/adapter.py
+uses the same process_message and existing bounded model transport with business-scoped knowledge.
+Durable duplicate delivery returns stored terminal state; provider failures are sanitized and do not
+spend another call on retry. Forged payload scope and media rejected before model calls.
+Files: contracts.py, public_chat/{adapter,routes}.py, test_public_chat_routes.py.
+PASS offline `--only test_public_chat` (17 tests) and `--only test_kilas_core` (30 tests).
+Next: WEB Inbox read view; then human replies and share controls.
