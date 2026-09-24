@@ -1,6 +1,27 @@
 # Phase 7 status — BRIDGE IMPLEMENTED / FINAL QA IN PROGRESS
 
-## Current mobile QA blocker
+## Mobile blocker fixed, final certification running
+
+- Diagnostic checkpoint: `4a940632bf1a3af2b210a518c932cff9f74aff8d`.
+- Diagnostic runtime `36040238492` proves all mobile functional flows completed:
+  standalone routes, explicit mapping/customer, owner-reviewed DRAFT, Finance detail,
+  partial-payment readback, foreign tenant denial, expired read and blocked write.
+  Final assertion correctly failed for one dashboard overflow (471 px on 390 px).
+- Screenshot artifact `10825922912` and DOM evidence identify the real cause:
+  unbroken email-derived owner display name in `.finance-app-greeting h1`.
+  Narrow fix: `overflow-wrap:anywhere` on that heading, with CSS cache version bump.
+  No hidden overflow, content clipping or accounting/UI redesign.
+- Finance-only browser persona now owns exactly one package-NONE business and no
+  AI Admin business. Deliberately long email retains the actual layout regression.
+- Exact files: `client-hub/static/finance_ui.css`, `client-hub/templates/base.html`,
+  `client-hub/tests/kilas_finance_bridge_dev.py`,
+  `kilas_finance_bridge_browser_qa.py`, `test_kilas_finance_bridge_routes.py`, this status.
+- Local Bridge route/standalone tests PASS. PostgreSQL latest certification:
+  4 workspace + 13 Bridge tests PASS (run `36039987081`, runtime job `107769462043`).
+- Exact next action: certify corrected mobile screenshot/no-overflow assertion and
+  final complete Finance baseline + Phase 1–6 CI, then exact diff review and COMPLETE.
+
+## Earlier mobile QA blocker (diagnosed above)
 
 - Runtime checkpoint `98ea4d85caad32aad1cbdabc330dc3728c782646` is committed.
 - CI `36039212956` on prior `e4579f4`: complete Finance baseline **1018 PASS**;

@@ -7,9 +7,12 @@ if os.environ.get('KILAS_PHASE7_BROWSER_QA') != '1':
 from test_kilas_finance_bridge import BridgeTests
 from test_finance_phase2a import app
 from flask import jsonify,session,redirect,abort
-import db,finance_service as f,finance_branches as branches
+import db,repo,finance_service as f,finance_branches as branches
 from kilas_core import finance_bridge as bridge
 case=BridgeTests();case.setUp()
+standalone_actor=repo.create_user('financeonlylongemailaddresswithoutspaces@example.test','unused')
+standalone_business=repo.create_business(standalone_actor,'Finance only',package='NONE')
+f.ensure_finance_defaults(standalone_business,actor_user_id=standalone_actor)
 app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
 base=f'/business/{case.source}/finance-bridge'
 
@@ -23,7 +26,7 @@ app.before_request_funcs[None].insert(0,synthetic_persona_switch)
 
 @app.get('/dev/health')
 def health():
-    return jsonify(source=case.source,target=case.target,branch=case.branch,cid=case.cid,jid=case.jid)
+    return jsonify(source=case.source,target=case.target,branch=case.branch,cid=case.cid,jid=case.jid,standalone=standalone_business)
 
 @app.get('/dev/owner')
 def owner():
@@ -32,8 +35,8 @@ def owner():
 
 @app.get('/dev/standalone')
 def standalone():
-    session.clear();session['user_id']=case.actor;session['active_product']='finance'
-    return redirect(f'/business/{case.target}/finance')
+    session.clear();session['user_id']=standalone_actor;session['active_product']='finance'
+    return redirect(f'/business/{standalone_business}/finance')
 
 @app.get('/dev/foreign')
 def foreign():

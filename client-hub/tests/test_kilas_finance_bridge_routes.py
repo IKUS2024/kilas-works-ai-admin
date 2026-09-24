@@ -5,7 +5,7 @@ from unittest.mock import patch
 from pathlib import Path
 import os
 import test_kilas_finance_bridge as fixture
-import db, finance_service as f
+import db, repo, finance_service as f
 from kilas_core import finance_bridge as bridge
 
 class BridgeRoutesTests(unittest.TestCase):
@@ -58,7 +58,14 @@ class BridgeRoutesTests(unittest.TestCase):
 
     def test_standalone_zero_bridge_rows_no_ai_product_or_flags(self):
         self.login()
-        with self.client.session_transaction() as session:session['active_product']='finance'
+        standalone_actor=repo.create_user('finance-only@example.test','unused')
+        self.target=repo.create_business(standalone_actor,'Finance only',package='NONE')
+        f.ensure_finance_defaults(self.target,actor_user_id=standalone_actor)
+        self.actor=standalone_actor
+        with self.client.session_transaction() as session:
+            session['user_id']=standalone_actor
+            session['active_product']='finance'
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM business_memberships WHERE user_id=?',(standalone_actor,))['n'],1)
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM kw_core_finance_connections')['n'],0)
         self.assertEqual(db.query_one('SELECT package FROM businesses WHERE id=?',(self.target,))['package'],'NONE')
         with patch.dict(os.environ,{'KILAS_FINANCE_BRIDGE_ENABLED':'false','KILAS_CORE_V2_ENABLED':'false'}):

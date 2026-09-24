@@ -18,7 +18,7 @@ body.finance-app{--bg:#0c1115;--bg-soft:#151e24;--card:#11191e;--border:#253038;
 .finance-app-search button{border:0;background:none;color:var(--text-dim);padding:6px;cursor:pointer}
 .finance-app-bell{margin-left:auto;color:var(--text)}
 .finance-app-avatar{display:grid;place-items:center;width:39px;height:39px;flex-shrink:0;border-radius:50%;background:#21303a;color:var(--text);font-size:15px;font-weight:750}
-.finance-app-greeting h1{font-size:34px!important;line-height:1.12;letter-spacing:-.03em;margin:0 0 7px!important}
+.finance-app-greeting h1{font-size:34px!important;line-height:1.12;letter-spacing:-.03em;margin:0 0 7px!important;overflow-wrap:anywhere}
 .finance-app-greeting p{font-size:14px;color:var(--text-dim);margin:0 0 16px}
 .finance-context-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 22px}
 .finance-context-toolbar form{margin:0}
