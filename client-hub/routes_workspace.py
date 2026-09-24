@@ -15,7 +15,7 @@ def context():
         return result
     # Public customer links/documents never acquire owner navigation.
     if request.blueprint == 'public_web' or request.endpoint in (
-        'finance.public_invoice', 'finance.public_invoice_pdf', 'finance.public_statement'):
+        'finance.customer_invoice', 'finance.customer_invoice_pdf', 'finance.public_statement'):
         return result
     result['enabled'] = True
     try:
@@ -27,6 +27,12 @@ def context():
     except Exception:
         # Presentation failure never grants access or asserts there are no records.
         result['unavailable'] = True
+    requested = (request.view_args or {}).get('bid', (request.view_args or {}).get('business_id'))
+    for lane in ('ai', 'finance'):
+        rows = result[lane]
+        preferred = requested if any(r['id'] == requested for r in rows) else session.get('workspace_'+lane+'_business')
+        selected = next((r for r in rows if str(r['id']) == str(preferred)), rows[0] if rows else None)
+        result['selected_'+lane] = selected['id'] if selected else None
     ep = request.endpoint or ''
     result['active'] = ('home' if ep == 'workspace.home' else
                         'inbox' if ep.startswith('owner_web.') or ep == 'client.inbox_page' else
@@ -47,7 +53,12 @@ def home():
     if session.get('role') == 'KILAS_ADMIN':
         return redirect(url_for('admin.dashboard'), code=303)
     session.pop('active_product', None)
-    return render_template('workspace_home.html', user=security.current_user()), (503 if context()['unavailable'] else 200)
+    import workspace_presenter
+    ui = context()
+    if not ui['unavailable']:
+        ui['setup'] = {b['id']: workspace_presenter.setup(b) for b in ui['ai']}
+        ui['attention'] = {b['id']: workspace_presenter.finance_attention(b, session['user_id']) for b in ui['finance']}
+    return render_template('workspace_home.html', user=security.current_user()), (503 if ui['unavailable'] else 200)
 
 
 @workspace_bp.get('/workspace/more')
@@ -91,11 +102,12 @@ def go(area):
         return redirect(url_for('finance.workspace_choice', business_id=business['id']), code=303)
     from kilas_core import customers
     from kilas_core.job_routes import available
-    if (area == 'customers' and not customers.enabled()) or (area in ('jobs', 'automations') and not available(business)):
+    from kilas_core import operation_access
+    from public_chat.security import available as web_available
+    if (area == 'automations' and (not operation_access.enabled() or not web_available(business))) or (area == 'customers' and not customers.enabled()) or (area in ('jobs', 'automations') and not available(business)):
         return render_template('workspace_unavailable.html', business=business), 200
     params = {'bid' if area in ('customers', 'jobs', 'automations') else 'business_id': business['id']}
     if area == 'inbox':
-        from public_chat.security import available as web_available
         if web_available(business):
             params['channel'] = 'web'
     return redirect(url_for(core[area], **params), code=303)

@@ -66,6 +66,7 @@
     <p class="client-note" style="margin:3px 0 0;">Kamu boleh mengubah semua data. Versi Brain yang sudah disetujui tetap dipakai sampai Kilas Works menyetujui perubahan terbaru.</p>
   </div>
 {% endif %}
+<section class="card kw-setup-preview"><h2>Coba alur customer Anda</h2><p>Isi dasar bisnis, lalu coba sebagai customer. WhatsApp tidak diperlukan untuk simulasi ini. Lengkapi pengetahuan dan pengaturan saat dibutuhkan.</p><a class="btn secondary" href="{{ url_for('client.simulate_page',business_id=business.id) }}">Coba sebagai customer</a><a class="btn secondary" href="{{ url_for('workspace.home') }}">Lanjut nanti ke Home</a></section>
 <details class="card client-collapsible wizard-plan"><summary>Detail Paket Brain</summary><div class="client-collapsible-body">{% include "_brain_plan_notice.html" %}</div></details>
 
 <nav class="wizard-steps" aria-label="Langkah setup Kilas Assist">

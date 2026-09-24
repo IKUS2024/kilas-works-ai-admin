@@ -10,13 +10,22 @@
 {% if session.get('onboarding_goal')=='both' and (not workspace_ui.ai or not workspace_ui.finance) %}<section class="card"><h2>Lengkapi ruang kerja Anda</h2><p>AI Admin dan Finance dapat disiapkan secara terpisah. Pilihan ini tidak mengaktifkan langganan otomatis.</p><a class="btn" href="{{ url_for('workspace.go',area='finance_setup' if not workspace_ui.finance else 'ai_setup') }}">Siapkan {{ 'Finance' if not workspace_ui.finance else 'AI Admin' }}</a></section>{% endif %}
 <div class="kw-grid">
 {% for business in workspace_ui.ai %}<section class="card kw-business-card"><p class="kw-eyebrow">AI ADMIN</p><h2>{{ business.business_name }}</h2>
-{% include '_attention_home.html' %}
+{% set attention_data=attention_summary(business) %}{% if attention_data and attention_data.total %}<section data-attention-home><h3>{{ attention_data.total }} hal perlu perhatian</h3>{% include '_attention_items.html' %}<a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Lihat semua perhatian →</a></section>{% endif %}
+{% set setup=workspace_ui.setup.get(business.id) if workspace_ui.setup else none %}
+{% if setup and setup.missing %}<div class="kw-setup-note"><h3>Lengkapi dasar bisnis</h3><p>{{ setup.missing|join(', ') }}.</p><a href="{{ url_for('client.wizard_step',business_id=business.id,step=setup.step) }}">Lanjutkan setup →</a></div>{% endif %}
 <p>Customer, percakapan, dan pekerjaan bisnis Anda dalam satu alur.</p>
 <div class="kw-actions"><a class="btn" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a><a class="btn secondary" href="{{ url_for('workspace.go',area='simulate',business_id=business.id) }}">Coba sebagai customer</a></div>
 {% include '_web_share.html' %}
 <details class="kw-details"><summary>Setup &amp; channel</summary><p>WhatsApp opsional. Koneksi resmi bergantung pada akses Meta untuk akun dan aset Anda. Web Chat tersedia sesuai aktivasi paket.</p><div class="kw-actions"><a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Tinjau setup &amp; aktivasi</a><a href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Pengetahuan bisnis</a></div></details>
 </section>{% endfor %}
-{% for business in workspace_ui.finance %}<section class="card kw-business-card"><p class="kw-eyebrow">FINANCE</p><h2>{{ business.business_name }}</h2><p>Periksa tagihan, invoice, dan arus kas pada ruang Pribadi atau Bisnis yang Anda pilih.</p><a class="btn" href="{{ url_for('workspace.go',area='finance',business_id=business.id) }}">Buka Finance</a><p class="kw-note">Data keuangan tetap terpisah per bisnis dan cabang. Perubahan keuangan memerlukan konfirmasi.</p></section>{% endfor %}
+{% for business in workspace_ui.finance %}<section class="card kw-business-card"><p class="kw-eyebrow">FINANCE</p><h2>{{ business.business_name }}</h2>{% set attention=workspace_ui.attention.get(business.id) if workspace_ui.attention else none %}
+{% if attention and attention.read_only %}<p role="status">Finance hanya-baca. Riwayat tetap tersedia; aktifkan paket untuk mencatat perubahan.</p>{% endif %}
+{% if attention and attention.unavailable %}<p role="status">Ringkasan perhatian belum dapat dimuat. Buka Finance untuk memeriksa konteks bisnis.</p>
+{% elif attention %}<p class="kw-note">Bisnis · {{ attention.scope_name }}</p><div class="kw-link-list">
+{% if attention.invoices %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=attention.branch_id,section='invoices') }}">{{ attention.invoices }} invoice belum lunas →</a>{% endif %}
+{% if attention.bills %}<a href="{{ url_for('finance.operations',business_id=business.id,branch_id=attention.branch_id,payment_status='unpaid') }}">{{ attention.bills }} tagihan jatuh tempo →</a>{% endif %}</div>
+{% if not attention.invoices and not attention.bills %}<p>Tidak ada invoice terbuka atau tagihan jatuh tempo di cabang ini. Siap mencatat transaksi berikutnya?</p>{% endif %}
+{% else %}<p>Periksa tagihan, invoice, dan arus kas pada ruang Pribadi atau Bisnis yang Anda pilih.</p>{% endif %}<a class="btn" href="{{ url_for('workspace.go',area='finance',business_id=business.id) }}">Buka Finance</a><p class="kw-note">Data keuangan tetap terpisah per bisnis dan cabang. Perubahan keuangan memerlukan konfirmasi.</p></section>{% endfor %}
 </div>
 </section>
 {% endblock %}

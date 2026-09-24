@@ -15,8 +15,12 @@ with sync_playwright() as p:
         def visit(path,name):
             response=page.goto(BASE+path,wait_until='networkidle')
             assert response.status==200,(path,response.status)
-            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),(width,path)
             page.screenshot(path=str(OUT/f'{width}-{name}.png'),full_page=True)
+            layout=page.evaluate('''() => ({width:innerWidth,scroll:document.documentElement.scrollWidth,
+                overflowing:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width})).slice(0,30)})''')
+            if layout['scroll']>layout['width']:
+                (OUT/f'{width}-{name}-overflow.json').write_text(json.dumps(layout,indent=2))
+            assert layout['scroll']<=layout['width'],(width,path,layout)
             results.append(dict(width=width,page=name,status=response.status))
         for persona,expected in [('new',['Home','More']),('ai',['Home','Inbox','Customers','Jobs','More']),
                                  ('finance',['Home','Finance','More']),('full',['Home','Inbox','Customers','Jobs','Finance','More'])]:

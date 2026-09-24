@@ -138,3 +138,30 @@ Exact checkpoint file manifest:
 - `client-hub/tests/test_kilas_workspace.py`
 - `docs/KILAS_V2_FINANCE_PROFESSIONAL_READINESS.md`
 - `docs/KILAS_V2_PHASE9_STATUS.md`
+
+## Checkpoint 2 — attention and responsive corrections
+
+Published checkpoint 1: `c08a1c5436c843a8b07873a3c30f1083151fb5f1`.
+CI Phase 2 `36069807778`, Phase 3 `36069807779`, Phase 4 `36069807811`,
+Phase 5 `36069807774`, Phase 6 `36069807784`, Phase 8 `36069807836` successful;
+Phase 7 `36069807819` running at inspection. This includes the existing PostgreSQL
+and mobile gates in those completed workflows.
+Phase 9 `36069807822` failed at Finance tablet width 820 after 104 screenshots;
+artifact `10837677465` downloaded and mobile Home/Finance/operator inspected visually.
+Identified tablet overflow, cramped Finance monetary text, elliptical budget ring,
+and excessive operator/mobile module navigation height. Corrective CSS and native
+collapsible menu changes are in checkpoint 2. No visual completion claim yet.
+
+Home now reads real setup gaps and default Business branch invoice/bill attention
+through existing scoped services; unavailable/expired states are explicit. No amount,
+currency or cross-branch aggregation is invented. Empty Core attention count removed
+from Home. Simulator / continue-later exposed in setup. Existing customer login goes
+to Home; new accounts still see product intent. AI setup copy no longer promises
+WhatsApp general availability. Selected owned business is retained in primary links.
+
+Local workspace security tests pass after these changes. Exact additional files:
+`workspace_presenter.py`, `static/kilas_ui.js` under client-hub; modifications to
+routes_auth, routes_workspace, kilas_ui.css, _finance_app_shell, _operator_nav,
+_workspace_nav, assist_entry, base, wizard, workspace_home and browser QA script.
+Next: checkpoint these fixes, rerun Phase 9 screenshots and full required CI, inspect
+all viewport results and finish flow polish. No production or Meta cutover.
