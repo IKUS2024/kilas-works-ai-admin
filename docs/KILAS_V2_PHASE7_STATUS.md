@@ -1,4 +1,60 @@
-# Phase 7 status — BRIDGE IMPLEMENTED / FINAL QA IN PROGRESS
+# Phase 7 status — COMPLETE
+
+## Final certified checkpoint — 2026-09-24
+
+**PHASE 7 COMPLETE. FINANCE BASELINE GREEN. STOP — DO NOT START PHASE 8.**
+
+- Branch: `feature/kilas-core-v2`.
+- Exact tested implementation SHA: `df21158043f17c8660933278bd7de91f88ee745b`.
+  All Phase 2–7 remote workflows on that SHA are SUCCESS; Phase 6 includes Phase 1.
+- Finance recovery was committed FIRST at `1b616f2c5b869a3a8738ab2eb804fdafb9042d69`
+  with **FINANCE BASELINE GREEN — BRIDGE IMPLEMENTATION STARTING**, before Bridge work.
+- Final complete `python scripts/run_finance_baseline.py`: **1018 PASS across 39
+  actually executed files; 0 failures, 0 errors, 0 skips, 0 zero-test passes**.
+  Both original positive workspace-move tests remain enabled and unchanged.
+- Final Bridge SQLite: **13 service + 5 real Flask/security/Standalone tests PASS**.
+  Final PostgreSQL 18: **4 workspace + 13 Bridge tests PASS**, real migration/runtime,
+  repeated installers, concurrency, idempotency and rollback. Tenant/security gates PASS.
+- Mobile Chromium **390×844 PASS**: genuine Finance-only owner (one NONE business,
+  no AI Admin ownership), zero Bridge rows, existing Finance pages, explicit mapping,
+  explicit customer, owner-reviewed DRAFT, authoritative Finance detail, partial-payment
+  readback, foreign tenant rejection, expired history read and blocked write; no page
+  overflow or JS errors. Final screenshots inspected. Long owner-name overflow fixed
+  narrowly with one CSS wrapping rule and cache version; no broad redesign.
+- Final workflows: Phase 2 `36040927750`; Phase 3 `36040927743`; Phase 4 `36040927664`;
+  Phase 5 `36040927815`; Phase 6/Phase 1 `36040927733`; Phase 7 `36040927797`.
+  Final artifacts: Finance baseline `10826439564`, mobile `10825639877`.
+- Durable exact test manifest, changed-file scope and run links:
+  [KILAS_V2_PHASE7_VALIDATION.md](KILAS_V2_PHASE7_VALIDATION.md).
+- Milestones 1–8 COMPLETE: Finance audit/recovery; optional explicit mapping schema
+  and service; customer linking; Job draft; authoritative readback/UI; security/races;
+  PostgreSQL/mobile; Standalone sellability and final exact-scope review.
+- Finance remains ONE engine. Standalone has no Core/Bridge prerequisite; Connected
+  adds default-off owner-confirmed links using reviewed existing Finance services.
+  No second ledger, invoice engine or copied financial model. Explicit installer/runbook:
+  [KILAS_V2_FINANCE_BRIDGE.md](KILAS_V2_FINANCE_BRIDGE.md).
+- Accounting semantics preserved: same minor-unit scale and monetary calculations,
+  immutable tenant/business ownership, audited monotonic relocation history, original
+  ledger IDs, atomic opening reclassification, protected unsafe invoice/FX/import/posted
+  recurring history, whole-request rollback including destination initialization.
+- Bridge never directly writes protected Finance accounting tables, auto-issues from
+  chat, posts claimed payments, or invents amounts/dates/currency. Retries and concurrent
+  requests do not duplicate customers/invoices. Historical links survive mapping changes.
+  Finance access revocation does not leak data or break Core Job/Customer pages.
+- Standalone operational Finance sellability gate PASS for existing supported features.
+  Honest limits and Phase 9 Professional Readiness handoff:
+  [KILAS_V2_FINANCE_SELLABILITY.md](KILAS_V2_FINANCE_SELLABILITY.md). No claim of a full
+  double-entry/accountant suite or unsupported general same-currency transfers.
+- Exact diff review and `git diff --check` PASS; no WhatsApp/transport, payment-posting
+  implementation or Finance AI implementation edits. Production WhatsApp untouched.
+  **No production deployment, production/customer QA data, destructive reset, or Phase 8.**
+- Completion checkpoint changes only this status and the validation document. Its
+  runtime tree is the exact tested SHA above; resolve the documentation commit via
+  `git log -1 -- docs/KILAS_V2_PHASE7_STATUS.md`.
+- Remaining Phase 7 work: **none**. Blockers: **none**.
+- Exact next action: **STOP. Phase 8 requires a separate user instruction.**
+
+All sections below are historical checkpoints, superseded by this COMPLETE certification.
 
 ## Final access-state refinement
 
