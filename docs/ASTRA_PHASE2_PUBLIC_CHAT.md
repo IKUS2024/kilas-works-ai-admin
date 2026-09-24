@@ -17,6 +17,13 @@ GOAL:
 Implement the first SELLABLE Kilas V2 channel without waiting for Meta App Review:
 a real public customer web chat per business that routes through the same Conversation Core and appears in the owner Inbox.
 
+BUSINESS-FIRST / TEXT-FIRST SCOPE:
+- Kilas AI in this phase is for business conversations and operations only.
+- Do not add AI image generation, video generation, creative studio, photo/video editing, or general-purpose assistant behavior.
+- Public chat remains text-first.
+- Keep responses relevant to the connected business, its knowledge, products/services, policies and customer workflow.
+- Media/attachments are deferred unless explicitly authorized in a later phase for a concrete business use case.
+
 NON-NEGOTIABLE:
 - Finance remains protected. No Finance redesign, migration, accounting changes, or direct SQL.
 - Do not change WhatsApp production behavior.
