@@ -14,7 +14,7 @@
 3. Safe actions through existing Customer/Job services: PASS in isolated SQLite (not yet exposed to WEB).
 4. Public WEB integration: PASS in isolated SQLite; default-off.
 5. Inbox/Job context: PASS in SQLite route tests.
-6. Security/idempotency/provider failure/concurrency: pending.
+6. Security/idempotency/provider failure/concurrency: PASS on SQLite; PostgreSQL pending.
 7. Disposable PostgreSQL + mobile browser QA: pending.
 8. Exact scope review + COMPLETE: pending.
 
@@ -31,7 +31,7 @@
 - PostgreSQL/browser validation will use disposable synthetic fixtures only.
 
 ## Exact next action
-Expand security, duplicate-worker/lease/takeover concurrency tests (milestone 6). Then run disposable PostgreSQL and real Chromium mobile QA; neither Phase 5 gate is yet certified.
+Implement and run milestone 7 disposable PostgreSQL runtime/concurrency and real Chromium mobile A–D flows; inspect CI/artifacts. Do not mark COMPLETE until these and exact diff review pass.
 
 ## Blockers
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
@@ -70,3 +70,12 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Phase 5 routes: 7 PASS; action tests 7 PASS; Phase 4 routes 8 PASS.
 - Owner context shows linked Job/workflow, operational facts, missing details and status alongside existing Customer and AI/Human mode. Job form exposes relevant workflow fields only; existing non-playbook forms retain their Phase 4 fields.
 - Manual edits preserve server-owned workflow metadata and recompute missing details; human-mode manual editing remains available. Forged workflow form key rejected. Templates escape facts; no raw model output/prompt is rendered.
+
+## Milestone 6 checkpoint
+- Milestone 5 local commit: `60667fb` (published SHA recorded after sync).
+- Files: `client-hub/tests/kilas_playbook_cases.py`, `client-hub/tests/test_kilas_playbook_actions.py`, `client-hub/tests/test_kilas_playbook_routes.py`, this status file.
+- Phase 5 SQLite: pure 11 + actions 9 + routes 11 PASS.
+- Current implementation regressions: Phase 1 30, Phase 2 routes 18/store 9, Phase 3 9, Phase 4 schema 1/store 15/routes 8 PASS (isolated offline processes).
+- Four concurrent completion workers create exactly one Job and one assistant reply. Stale/reclaimed/expired events and takeover->AI toggles cannot invoke action callbacks.
+- Real route tests cover retry no extra provider, later same-Job update, stale owner edit, flag revocation, unknown model action tags, provider/action rollback, tenant forged references, human suppression, owner form compatibility, booking date/time reuse and business-only redirect.
+- SQLite authorizer permits only WEB/Core/audit/usage writes; Finance methods and WhatsApp send spies remain unused. No production data/service touched.

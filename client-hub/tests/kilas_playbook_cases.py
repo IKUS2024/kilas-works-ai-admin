@@ -94,3 +94,62 @@ class ActionCases:
         for actor in (None, jobs._WEB_PLAYBOOK_ACTOR):
             with self.assertRaises(jobs.JobError):
                 jobs.create_job(7,'alice',title='Forged actor',actor_id=actor,operation_key='forged-actor-0001')
+
+    def reset_web(self):
+        with jobs.transaction() as tx:
+            for table in ('kw_web_events','kw_web_messages','kw_web_limits'):
+                tx.execute('DELETE FROM '+table)
+            tx.execute("UPDATE kw_web_conversations SET mode='AI_ACTIVE',version=1")
+
+    def test_concurrent_event_completion_creates_once(self):
+        from public_chat import store
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        event, _ = store.claim(7,'conv','concurrent-event-01','pesan','test-ip')
+        expected = self.snapshot()
+        barrier = Barrier(4)
+        def finish(_):
+            barrier.wait()
+            with store.transaction() as tx:
+                jobs._lock(tx,7)
+                def action(t):
+                    return actions.apply(t,7,'conv',expected=expected,book=PLAYBOOKS['LOGISTICS'],
+                                         interpretation=interpret({'item':'baju'}),event_id=event['event_id'])[1]
+                return store._finish(tx,event,before_reply=action)
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(finish,range(4)))
+        self.assertTrue(all(r['status']=='done' for r in results))
+        self.assertEqual(jobs.list_jobs(7)[1],1)
+        self.assertEqual(len([r for r in store.thread(7,'conv') if r['role']=='assistant']),1)
+        with jobs.transaction() as tx:
+            self.assertEqual(tx.one('SELECT COUNT(*) AS n FROM kw_core_job_operations')['n'],2)
+
+    def test_stale_claim_expiry_and_takeover_fence_action_callback(self):
+        from public_chat import store
+        callback = unittest_mock()
+        event, _ = store.claim(7,'conv','expired-event-0001','pesan','ip')
+        with store.transaction() as tx:
+            tx.execute('UPDATE kw_web_events SET lease_until=0')
+            result = store._finish(tx,event,before_reply=callback)
+        self.assertEqual(result['error'],'interrupted')
+        callback.assert_not_called()
+        event, _ = store.claim(7,'conv','takeover-event-001','pesan','ip')
+        store.set_mode(7,'conv','HUMAN_TAKEOVER',1)
+        store.set_mode(7,'conv','AI_ACTIVE',1)
+        with store.transaction() as tx:
+            store._finish(tx,event,before_reply=callback)
+        callback.assert_not_called()
+        event, _ = store.claim(7,'conv','reclaimed-event-01','pesan','ip')
+        with store.transaction() as tx:
+            tx.execute("UPDATE kw_web_events SET lease_until=0 WHERE event_id='reclaimed-event-01'")
+        replacement, _ = store.claim(7,'conv','reclaimed-event-01','pesan','ip')
+        self.assertNotEqual(event['claim_token'],replacement['claim_token'])
+        with store.transaction() as tx:
+            store._finish(tx,event,before_reply=callback)
+        callback.assert_not_called()
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+
+
+def unittest_mock():
+    from unittest.mock import Mock
+    return Mock(side_effect=AssertionError('fenced callback must not run'))

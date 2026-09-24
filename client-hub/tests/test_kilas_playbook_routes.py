@@ -129,5 +129,69 @@ class PlaybookRoutesTests(unittest.TestCase):
         rejected = self.client.post('/business/7/jobs/'+row['id'],data={**data,'field_playbook':'BOOKING_SERVICE'})
         self.assertEqual(rejected.status_code,400)
 
+    def test_no_finance_legacy_or_whatsapp_writes(self):
+        import sqlite3
+        from contextlib import ExitStack
+        denied=[]
+        def authorize(action,table,*args):
+            if action in (sqlite3.SQLITE_INSERT,sqlite3.SQLITE_UPDATE,sqlite3.SQLITE_DELETE):
+                if not (table.startswith(('kw_web_','kw_core_')) or table in ('audit_log','sqlite_sequence','ai_usage_ledger')):
+                    denied.append(table)
+                    return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        original=sqlite3.connect
+        def connect(*args,**kwargs):
+            connection=original(*args,**kwargs);connection.set_authorizer(authorize);return connection
+        self.db.get_connection().set_authorizer(authorize)
+        try:
+            with ExitStack() as stack:
+                stack.enter_context(patch('sqlite3.connect',side_effect=connect))
+                spies=[stack.enter_context(patch.object(self.finance,name)) for name in
+                       ('create_transaction','create_finance_invoice','record_invoice_payment','create_customer')]
+                spies.append(stack.enter_context(patch('inbox_service.send_manual_reply')))
+                self.assertEqual(self.deliver()[0].status_code,200)
+                self.assertEqual(self.deliver(text='0.2 m3',fields={'volume_cbm':'0.2 m³'},event='protected-event-02')[0].status_code,200)
+                for spy in spies: spy.assert_not_called()
+            self.assertEqual(denied,[])
+        finally:
+            self.db.get_connection().set_authorizer(None)
+
+    def test_tenant_web_and_owner_cannot_forge_references(self):
+        self.assertEqual(self.deliver()[0].status_code,200)
+        row=jobs.list_jobs(7)[0][0]
+        with patch.object(self.ai,'_call_claude') as model:
+            self.assertEqual(self.send(self.identity,text='baju',event='forged-refs-00001',extra={'job_id':row['id']}).status_code,400)
+            self.assertEqual(self.send(self.identity,text='baju',event='forged-refs-00002',slug=self.other_slug).status_code,404)
+            model.assert_not_called()
+        with self.client.session_transaction() as session: session['user_id']=2
+        for path in ('/business/7/jobs/'+row['id'],'/business/8/jobs/'+row['id'],
+                     '/business/7/customers/'+row['customer_id'],'/business/7/inbox?channel=web&conversation='+self.cid):
+            self.assertEqual(self.client.get(path).status_code,404)
+        self.assertEqual(self.client.post('/business/8/jobs/'+row['id'],data={'csrf_token':'csrf-test'}).status_code,404)
+        self.assertEqual(jobs.get_job(7,row['id'])['version'],row['version'])
+
+    def test_business_redirect_and_booking_no_known_reask(self):
+        result, _ = self.deliver(text='Tulis puisi tentang planet',raw=output('Tulis puisi tentang planet',intent='UNRELATED'))
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertIn('bisnis ini',store.thread(7,self.cid)[-1]['content'])
+        self.db.execute("UPDATE business_profiles SET category='Salon' WHERE business_id=7")
+        fields={'service':'potong rambut','preferred_date':'besok','preferred_time':'14.00'}
+        self.assertEqual(self.deliver(text='potong rambut besok jam 14',fields=fields,event='booking-event-001')[0].status_code,200)
+        row=jobs.list_jobs(7)[0][0]
+        self.assertEqual(row['kind'],'BOOKING')
+        self.assertEqual(row['fields']['missing_information'],'')
+        reply=store.thread(7,self.cid)[-1]['content']
+        self.assertNotIn('Boleh informasikan',reply)
+        self.assertIn('belum ada pesanan atau booking yang dikonfirmasi',reply)
+
+    def test_revoked_flag_during_provider_no_job(self):
+        def inference(*args,**kwargs):
+            os.environ['KILAS_PLAYBOOKS_V2_ENABLED']='false'
+            return output('baju',{'item':'baju'}),'end_turn',None
+        with patch.object(self.ai,'_call_claude',side_effect=inference):
+            self.assertEqual(self.send(self.identity,text='baju',event='revoked-event-001').status_code,502)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+
 
 if __name__ == '__main__': unittest.main()

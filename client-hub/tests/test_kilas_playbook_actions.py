@@ -6,7 +6,9 @@ import kilas_playbook_cases
 
 
 class PlaybookActionsTests(kilas_playbook_cases.ActionCases, unittest.TestCase):
-    setUp = phase4.JobsTests.setUp
+    def setUp(self):
+        phase4.JobsTests.setUp(self)
+        self.reset_web()
     seed = kilas_jobs_cases.Cases.seed
 
 
