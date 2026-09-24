@@ -28,6 +28,15 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - name: Signed webhook and shared Core SQLite
         run: python scripts/run_offline_tests.py --only test_kilas_whatsapp
+      - name: Existing official signup coexistence media and isolation
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_whatsapp_self_service.py
+          python scripts/run_offline_tests.py --only test_multi_tenant_runtime_safety.py
+          python scripts/run_offline_tests.py --only test_inbox_media_webhook.py
+          python scripts/run_offline_tests.py --only test_inbox_unification.py
+          python scripts/run_offline_tests.py --only test_platform_takeover.py
       - name: PostgreSQL identities actions concurrency rollback and outbound
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase8

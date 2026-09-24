@@ -207,8 +207,12 @@ def eligible(business_id, user):
     business = security.require_business_access(business_id, user=user)
     if business['package'] not in ('AI_ADMIN', 'AI_ADMIN_BASIC', 'AI_ADMIN_PRO'):
         raise SignupError('package_ineligible')
-    if business['status'] != 'APPROVED':
+    from public_chat.security import available as web_available
+    web_active = business['status']=='ACTIVE' and web_available(business)
+    if business['status'] != 'APPROVED' and not web_active:
         raise SignupError('approval_required')
+    if web_active and (repo.get_whatsapp_config(business_id) or {}).get('connection_status')=='CONNECTED':
+        raise SignupError('channel_already_connected')
     if not payment_service.has_verified_ai_admin_payment(business_id):
         raise SignupError('payment_verification_required')
     if not repo.get_tenant_config_row(business_id):

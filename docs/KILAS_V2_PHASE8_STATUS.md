@@ -53,10 +53,15 @@ General self-service requires Meta App Review/Advanced Access and relevant provi
 WABA and number capabilities. Test/reviewer access is not general availability.
 Adapter remains default-off. Public WEB remains independent of optional WhatsApp.
 
-## Next action
-Implement bounded channel boundary, shared Core orchestration, durable outbound
-at-most-once attempt records, explicit optional readiness and regression coverage.
-All Phase 8 test/PG/mobile completion gates currently PENDING.
+## Current checkpoint / next action
+Remote implementation checkpoint: `fc5dcb0ebaafaaa52cdd6bee34bea30d6dab77e5`.
+Its Phase 8 run **36064123810 SUCCESS** includes PostgreSQL 18 and mobile owner Inbox.
+Phase 7 **36064123684 SUCCESS**. Phase 2–6 caught one shared browser heading regression
+("Percakapan web" changed). Fixed by retaining that heading for WEB-only Inbox; all
+existing assertions retained. The next checkpoint includes this fix, optional signup
+for active WEB businesses, live delivery-state polling and template owner UI.
+Next: push verified refinements, require Phase 2–8 CI SUCCESS on the new implementation
+SHA, inspect final mobile screenshots, then mark COMPLETE. No production activation.
 
 ## Implementation checkpoint (not completion)
 - Shared orchestration moved without a second business brain to `kilas_core/conversation.py`;
@@ -81,10 +86,78 @@ All Phase 8 test/PG/mobile completion gates currently PENDING.
   Five playbooks compare WEB/WA Job fields, lifecycle and response, including missing logistics.
 - Full Finance baseline on this implementation: 1018 PASS / 39 files / no skips/errors.
   Phase 1–7 focused local regressions passed. Legacy media, Inbox unification, platform takeover
-  passed. Existing multi-tenant legacy test fails missing_whatsapp_business_phone; identical
-  failure reproduced at unmodified base. Existing signup suite has 7 failures/3 errors on
-  both base and current (39 tests); not hidden or certified green, requires triage.
-- PostgreSQL/mobile CI added; not yet certified. Remote browser loopback blocked with
+  passed. Legacy multi-tenant/signup suites initially failed identically on the unmodified
+  base: missing declared business-phone fixture and obsolete validator stub signature.
+  Corrected test fixture inputs only, retained all assertions; both suites now PASS.
+  Added two optional-onboarding assertions (signup suite now 41 tests).
+- PostgreSQL/mobile CI passed at the checkpoint above; refinements require revalidation. Remote browser loopback blocked with
   ERR_BLOCKED_BY_CLIENT; repository CI mobile test uses synthetic local Chromium only.
 - Next: run dedicated Phase 8 CI + all prior phase gates, inspect mobile artifact, close
   remaining readiness/status/retry review findings and legacy baseline triage; then certify.
+
+## Operational boundary (documentation only; no activation performed)
+- Apply existing Phase 2–7 schema prerequisites and the existing official WhatsApp/takeover
+  migrations before explicitly running `python -m kilas_core.whatsapp_schema --apply`
+  from `client-hub`. The 0061 installer is additive/idempotent; never runs on app startup.
+- Production remains default-off: `KILAS_WHATSAPP_CORE_ENABLED` is absent/false. Selection
+  additionally needs server-controlled `KILAS_WHATSAPP_CORE_CHANNELS` with each business's
+  exact `phone_number_id` and `official_access_verified: true`. This flag records an
+  externally reviewed grant; it does not obtain Meta approval or prove live capability.
+- Each selected channel needs its own `WHATSAPP_TOKEN__TENANT_<business_id>` credential
+  reference, CONNECTED binding, matching business phone ID and active Core entitlement.
+  Platform tokens, blank reference fallback and duplicate tenant token values are rejected.
+  Existing provider-shared signup is preserved, but does not by itself satisfy this
+  stricter Core credential boundary. Separate authorization is required for any rollout.
+- Cloud API version remains the existing configurable `META_GRAPH_API_VERSION` (fallback
+  v21.0); no new provider endpoint or capability invented. Production operators must verify
+  currently supported version, app permissions and asset grants before any live activation.
+- Free-text sends use a conservative 23-hour inbound window. Outside it, the owner can use
+  the existing configured, Meta-approved template under takeover. This does not resume AI.
+  Legacy autonomous AI follow-up is skipped for Core-selected tenants; no second business
+  brain sends independently. Existing nonselected follow-up/media paths remain intact.
+- Outbound attempts are at-most-once, not a claim of exactly-once provider delivery.
+  Timeout/crash/ambiguous provider response remains unknown/attempting, requiring owner
+  inspection; webhook or browser retries never automatically send that event again.
+  Business/conversation locks serialize the bounded network send with takeover and status
+  callbacks. This can delay same-business operations for the provider timeout interval.
+- Provider acceptance is distinct from delivered/read. Status callbacks update scoped
+  records; owner polling refreshes them without labeling inbound customer messages sent.
+- Finance services and Phase 7 Bridge production code are unchanged. Customer claims have
+  no invoice/payment authority; existing owner confirmation and entitlements remain required.
+
+## Exact changed-file manifest against initial feature head
+- `.github/workflows/kilas-v2-phase8-qa.yml`
+- `app.py`
+- `client-hub/inbox_service.py`
+- `client-hub/kilas_core/actions.py`
+- `client-hub/kilas_core/adapters/whatsapp.py`
+- `client-hub/kilas_core/contracts.py`
+- `client-hub/kilas_core/conversation.py`
+- `client-hub/kilas_core/customers.py`
+- `client-hub/kilas_core/handover.py`
+- `client-hub/kilas_core/jobs.py`
+- `client-hub/kilas_core/whatsapp_access.py`
+- `client-hub/kilas_core/whatsapp_schema.py`
+- `client-hub/kilas_core/whatsapp_transport.py`
+- `client-hub/migrations/0061_kilas_whatsapp_postgres.sql`
+- `client-hub/migrations/0061_kilas_whatsapp_sqlite.sql`
+- `client-hub/public_chat/owner.py`
+- `client-hub/public_chat/playbook_adapter.py`
+- `client-hub/routes_client.py`
+- `client-hub/routes_whatsapp.py`
+- `client-hub/static/web_inbox.js`
+- `client-hub/templates/web_inbox.html`
+- `client-hub/templates/whatsapp_connect.html`
+- `client-hub/tests/kilas_whatsapp_browser_qa.py`
+- `client-hub/tests/kilas_whatsapp_dev.py`
+- `client-hub/tests/kilas_whatsapp_postgres_qa.py`
+- `client-hub/tests/kilas_whatsapp_runtime_cases.py`
+- `client-hub/tests/test_kilas_whatsapp.py`
+- `client-hub/tests/test_kilas_whatsapp_runtime.py`
+- `client-hub/tests/test_whatsapp_self_service.py`
+- `client-hub/wa_takeover_service.py`
+- `client-hub/whatsapp_signup.py`
+- `docs/KILAS_V2_PHASE8_STATUS.md`
+- `inbox_service.py`
+- `test_kilas_whatsapp_webhook.py`
+- `test_multi_tenant_runtime_safety.py`

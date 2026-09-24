@@ -7,14 +7,14 @@
   <h1>Inbox — {{ business.business_name }}</h1>
   {% include '_web_share.html' %}
   <nav class="web-tabs {{ 'jobs-tabs' if jobs_available(business) else '' }}" aria-label="Channel">
-    <a href="{{ url_for('client.inbox_page',business_id=business.id) }}">WhatsApp</a>
-    <a aria-current="page" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Percakapan · {{ total }}</a>
+    <a href="{{ url_for('client.inbox_page',business_id=business.id,channel='legacy') }}">Riwayat WhatsApp</a>
+    <a aria-current="page" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">{{ 'Percakapan' if mixed_channels else 'WEB' }} · {{ total }}</a>
     {% if kilas_customers_enabled() %}<a href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>{% endif %}
     {% if jobs_available(business) %}<a href="{{ url_for('core_jobs.list_page',bid=business.id) }}">{{ job_labels(business).plural }}</a>{% endif %}
   </nav>
   <div class="web-columns {{ 'web-selected' if selected else '' }}">
     <aside class="web-list">
-      <h2>Percakapan</h2>
+      <h2>{{ 'Percakapan' if mixed_channels else 'Percakapan web' }}</h2>
       {% for row in conversations %}
       <a class="web-conversation" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
         <strong>{{ row.customer_display_name or ('Pengunjung ' ~ row.id[:6]) }} <small>{{ 'WhatsApp' if row.id.startswith('wa_') else 'WEB' }}</small></strong>
@@ -42,6 +42,10 @@
         <textarea id="web-owner-message" maxlength="4000" required disabled placeholder="Ambil alih untuk membalas"></textarea>
         <button class="btn" type="submit" disabled>Kirim balasan</button>
       </form><p data-send-status role="status"></p>
+      {% if selected.id.startswith('wa_') %}
+      <button class="btn secondary" type="button" disabled data-template-url="{{ url_for('owner_web.template',bid=business.id,cid=selected.id) }}">Kirim template yang disetujui</button>
+      <p>Di luar jendela balasan, gunakan template yang telah disetujui Meta. Pengiriman tidak otomatis mengaktifkan AI.</p>
+      {% endif %}
     </section>
     {% else %}<section class="web-panel web-empty"><p>Pilih percakapan untuk membaca pesan.</p></section>{% endif %}
   </div>

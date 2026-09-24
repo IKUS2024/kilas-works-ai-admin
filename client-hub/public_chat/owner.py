@@ -1,4 +1,4 @@
-"""Owner WEB inbox. Authenticated business scope, independent from all WhatsApp handlers."""
+"""Shared owner Inbox. Authenticated business scope; channel-specific delivery adapters."""
 from flask import Blueprint, abort, jsonify, render_template, request, url_for
 import re
 import repo
@@ -35,6 +35,7 @@ def inbox_page(business):
     selected_customer = core_customers.customer_for_conversation(bid, cid) if selected and core_customers.enabled() else None
     return render_template('web_inbox.html',business=business,conversations=conversations,
                            total=total,page=page,pages=pages,selected=selected,
+                           mixed_channels=any(row['id'].startswith('wa_') for row in conversations),
                            selected_customer=selected_customer,
                            linked_jobs=linked_context(business,selected_customer["id"],cid) if selected_customer else None)
 
@@ -49,12 +50,14 @@ def messages(bid,cid):
         raise store.ChatError('invalid_cursor')
     is_wa=cid.startswith('wa_')
     messages=store.thread(bid,cid,after)
+    delivery={}
     if is_wa:
         with store.transaction() as tx:
-            states=tx.execute('SELECT m.id,o.status FROM kw_web_messages m LEFT JOIN kw_core_wa_outbound o ON o.business_id=m.business_id AND o.conversation_id=m.conversation_id AND o.event_id=m.event_id WHERE m.business_id=? AND m.conversation_id=?',(bid,cid))
+            states=tx.execute('SELECT m.id,o.status FROM kw_web_messages m LEFT JOIN kw_core_wa_outbound o ON o.business_id=m.business_id AND o.conversation_id=m.conversation_id AND o.event_id=m.event_id WHERE m.business_id=? AND m.conversation_id=? AND m.role!=?',(bid,cid,'user'))
         delivery={r['id']:r['status'] for r in states}
-        for message in messages: message['delivery_status']=delivery.get(message['id'])
-    return jsonify(channel='WHATSAPP' if is_wa else 'WEB',mode=selected['mode'],messages=messages)
+        for message in messages:
+            message['delivery_status']=delivery.get(message['id']) if message['role']!='user' else None
+    return jsonify(channel='WHATSAPP' if is_wa else 'WEB',mode=selected['mode'],messages=messages,delivery=delivery)
 
 
 @owner_bp.post('/business/<int:bid>/web-inbox/<cid>/mode')
@@ -66,7 +69,7 @@ def mode(bid,cid):
     from kilas_core.adapters import whatsapp
     setter = whatsapp.mode if whatsapp.mapped(bid,cid) else store.set_mode
     mode=setter(bid,cid,payload.get('mode'),owner_security.current_user()['id'])
-    return jsonify(channel='WEB',mode=mode)
+    return jsonify(channel='WHATSAPP' if cid.startswith('wa_') else 'WEB',mode=mode)
 
 
 @owner_bp.post('/business/<int:bid>/web-inbox/<cid>/reply')

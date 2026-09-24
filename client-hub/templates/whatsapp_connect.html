@@ -5,8 +5,8 @@
   <p>Public Web Chat, Inbox, Customers, dan pekerjaan bisnis dapat digunakan tanpa WhatsApp sesuai paket aktif.</p>
   <p>Akses WhatsApp mengikuti izin resmi Meta untuk aplikasi dan nomor Anda. Jika App Review atau Advanced Access belum tersedia, koneksi masih menunggu persetujuan Meta. Aset test/reviewer bukan akses umum untuk customer.</p>
   <p><a class="btn" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Lewati, lanjut ke Web Chat</a></p>
-  {% if business.status == 'ACTIVE' %}
-    <p>Kilas Brain aktif.</p>
+  {% if whatsapp_connected %}
+    <p>WhatsApp terhubung. Otomatisasi mengikuti kesiapan channel dan paket bisnis.</p>
   {% else %}
     {% if review_test_asset %}
       <p><strong>Mode Meta App Review.</strong> Bisnis demo ini memakai aset test resmi Meta yang sudah disiapkan untuk aplikasi KILAS WORKS AI ADMIN.</p>

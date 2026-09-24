@@ -22,6 +22,10 @@ with sync_playwright() as p:
     expect(page.locator('.web-bubble.human')).to_have_count(1,timeout=10000)
     evidence=page.context.request.get(BASE+'/dev/evidence').json()
     assert evidence['attempts']==2,evidence
+    page.get_by_role('button',name='Kirim template yang disetujui',exact=True).click()
+    expect(page.locator('[data-send-status]')).to_have_text('Template diterima Meta; menunggu status pengiriman.')
+    expect(page.locator('.web-bubble.human')).to_have_count(2,timeout=10000)
+    assert page.context.request.get(BASE+'/dev/evidence').json()['attempts']==3
     page.screenshot(path=str(OUT/'02_human_official_reply.png'),full_page=True)
     page.get_by_role('button',name='Kembalikan ke AI',exact=True).click()
     expect(page.locator('[data-mode]')).to_have_text('AI aktif',timeout=10000)

@@ -104,6 +104,11 @@ class WhatsAppTests(unittest.TestCase):
         for bid,pid,status in ((8,'77777','read'),(7,'88888','read'),(7,'77777','delivered'),(7,'77777','read'),(7,'77777','sent')):
             transport.statuses(bid,pid,[{'id':'out-1','status':status,'recipient_id':'628123456789'}])
         with store.transaction() as tx: self.assertEqual(tx.one('SELECT status FROM kw_core_wa_outbound')['status'],'read')
+        cid=self.link()['conversation_id']
+        history=store.thread(7,cid)
+        result=self.client.get(f'/business/7/web-inbox/{cid}/messages?after={history[-1]["id"]}').json
+        self.assertEqual(result['messages'],[])
+        self.assertEqual(result['delivery'],{str(history[-1]['id']):'read'})
 
     def test_human_takeover_manual_reply_resume_and_template(self):
         self.receive();cid=self.link()['conversation_id'];wa.mode(7,cid,'HUMAN_TAKEOVER',1)
@@ -145,6 +150,20 @@ class WhatsAppTests(unittest.TestCase):
         self.assertEqual(jobs.list_jobs(7)[1],0);self.http.assert_not_called()
         self.receive('Sudah bayar 2 juta',{},'payment-claim',intent='PAYMENT_CLAIM')
         self.assertEqual(jobs.list_jobs(7)[1],0)
+
+    def test_valid_payment_claim_hands_over_without_finance_authority(self):
+        from contextlib import ExitStack
+        import finance_service
+        from kilas_core import finance_bridge
+        with ExitStack() as guards:
+            writes=[guards.enter_context(patch.object(finance_service,name)) for name in
+                    ('create_finance_invoice','issue_finance_invoice','record_invoice_payment','create_transaction')]
+            writes.append(guards.enter_context(patch.object(finance_bridge,'create_draft')))
+            self.receive('Sudah bayar 2 juta, tandai lunas',{},'valid-payment-claim',intent='UNSUPPORTED')
+            for write in writes: write.assert_not_called()
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(store.conversation(7,self.link()['conversation_id'])['mode'],'HUMAN_TAKEOVER')
+        self.http.assert_not_called()
 
     def test_entitlement_expired_or_feature_off_fail_closed(self):
         self.db.execute("UPDATE subscriptions SET status='SUSPENDED' WHERE business_id=7")

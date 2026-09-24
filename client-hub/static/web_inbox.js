@@ -1,7 +1,7 @@
 (() => {
   const panel=document.querySelector('[data-owner-chat]'); if(!panel) return;
   const thread=panel.querySelector('[data-thread]'), status=panel.querySelector('[data-status]');
-  let after=0;
+  let after=0;const labels=new Map();
   const form=panel.querySelector('[data-reply]'), input=form.querySelector('textarea'), sendStatus=panel.querySelector('[data-send-status]');
   let pending=null,sending=false;
   async function post(url,payload){
@@ -22,6 +22,13 @@
     try{const result=await post(panel.dataset.replyUrl,pending);pending=null;input.value='';sendStatus.textContent=result.channel==='WHATSAPP'?'Diterima Meta; menunggu status pengiriman.':'Balasan terkirim.';}
     catch(error){sendStatus.textContent=error.message;}finally{sending=false;}
   });
+  const templateButton=panel.querySelector('[data-template-url]');let templatePending=null;
+  templateButton?.addEventListener('click',async()=>{
+    if(sending)return;sending=true;
+    templatePending ||= {event_id:crypto.randomUUID()};
+    try{await post(templateButton.dataset.templateUrl,templatePending);templatePending=null;sendStatus.textContent='Template diterima Meta; menunggu status pengiriman.';}
+    catch(error){sendStatus.textContent=error.message;}finally{sending=false;}
+  });
   async function refresh(){
     try {
       const response=await fetch(panel.dataset.base+'?after='+after,{cache:'no-store'});
@@ -31,10 +38,15 @@
         const bubble=document.createElement('div'); bubble.className='web-bubble '+message.role;
         const label=document.createElement('small');label.textContent=message.role==='user'?'Pengunjung':(message.role==='human'?'Tim':'AI');
         if(message.delivery_status)label.textContent+=' · '+message.delivery_status;
+        labels.set(String(message.id),{label,role:message.role});
         bubble.append(label,document.createTextNode(message.content));thread.append(bubble);after=message.id;
+      }
+      for(const [id,delivery] of Object.entries(data.delivery||{})){
+        const entry=labels.get(id);if(entry&&delivery)entry.label.textContent=(entry.role==='human'?'Tim':'AI')+' · '+delivery;
       }
       if(data.messages.length) thread.scrollTop=thread.scrollHeight;
       panel.querySelector('[data-mode]').textContent=data.mode==='HUMAN_TAKEOVER'?'Ditangani tim':'AI aktif';
+      if(templateButton)templateButton.disabled=data.mode!=='HUMAN_TAKEOVER';
       input.disabled=data.mode!=='HUMAN_TAKEOVER';form.querySelector('button').disabled=input.disabled;
       panel.querySelector('[data-takeover]').hidden=data.mode==='HUMAN_TAKEOVER';
       panel.querySelector('[data-return]').hidden=data.mode!=='HUMAN_TAKEOVER';

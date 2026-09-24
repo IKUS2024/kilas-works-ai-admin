@@ -73,6 +73,7 @@ def deliver(bid,cid,eid,*,role,template=False):
 def statuses(bid,pid,events):
     ranking={'accepted':0,'sent':1,'delivered':2,'read':3}
     with store.transaction() as tx:
+        jobs._lock(tx,bid)
         for event in events:
             if not isinstance(event,dict) or event.get('status') not in (*ranking,'failed'): continue
             rows=tx.execute('SELECT o.* FROM kw_core_wa_outbound o JOIN kw_core_wa_conversations c '

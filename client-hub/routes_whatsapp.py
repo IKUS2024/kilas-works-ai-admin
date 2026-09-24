@@ -1,7 +1,7 @@
 """Authenticated, CSRF-protected Embedded Signup. No credentials in customer responses."""
 import logging
 import os
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from werkzeug.exceptions import HTTPException
 import security
 import repo
@@ -50,7 +50,9 @@ def embedded_signup_start(business_id):
     config = None
     state = None
     review_test_asset = _meta_review_test_asset(business_id)
-    if business['status'] != 'ACTIVE':
+    channel = repo.get_whatsapp_config(business_id) or {}
+    connected = channel.get('connection_status') == 'CONNECTED'
+    if not connected:
         try:
             signup.eligible(business_id, user)
             # Dedicated Meta App Review demo uses the app's existing Meta test WABA/phone.
@@ -75,6 +77,7 @@ def embedded_signup_start(business_id):
         error=error,
         retry_activation=retry_activation,
         review_test_asset=review_test_asset,
+        whatsapp_connected=connected,
     )
     return response, 200, {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'}
 

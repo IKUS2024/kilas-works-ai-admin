@@ -24,6 +24,9 @@ class SignupTests(unittest.TestCase):
         fixture = f.SinglePlanTests(); fixture.setUp()
         self.client, self.uid, self.bid, self.other = fixture.client, fixture.uid, fixture.bid, fixture.other
         self.user = f.repo.get_user_by_id(self.uid)
+        # Current validator requires the owner's declared business number before binding.
+        for bid in (self.bid,self.other):
+            f.repo.upsert_business_profile(bid, {'business_phone':'628123456789'})
         f.db.execute("UPDATE businesses SET status='APPROVED' WHERE id=?", (self.bid,))
         f.repo.save_tenant_config(self.bid, {'business_id': self.bid, 'preserved': 'knowledge', 'whatsapp': {}})
         self.env = patch.dict(os.environ, ENV); self.env.start(); self.addCleanup(self.env.stop)
@@ -106,6 +109,22 @@ class SignupTests(unittest.TestCase):
         self.assertEqual(config['phone_number_id'], '600')
         stored = f.repo.get_tenant_config_row(self.bid)['config']
         self.assertEqual(stored['whatsapp']['connection_mode'], 'COEXISTENCE')
+
+    def test_active_web_business_can_connect_optional_whatsapp(self):
+        f.db.execute("UPDATE businesses SET status='ACTIVE' WHERE id=?",(self.bid,))
+        with patch('public_chat.security.available',return_value=True):
+            result=self.post()
+        self.assertEqual(result.status_code,200,result.data)
+        self.assertEqual(result.json['status'],'active')
+        self.assertEqual(f.repo.get_whatsapp_config(self.bid)['phone_number_id'],'600')
+
+    def test_pending_whatsapp_page_exposes_web_skip_without_meta_claim(self):
+        with patch.object(signup,'settings',side_effect=signup.SignupError('configuration_missing')):
+            page=self.client.get(f'/business/{self.bid}/whatsapp/connect')
+        self.assertEqual(page.status_code,200)
+        self.assertIn(b'Lewati, lanjut ke Web Chat',page.data)
+        self.assertIn(b'App Review',page.data)
+        self.assertNotIn(b'id="wa-config"',page.data)
 
     def test_register_when_required(self):
         self.phone_status = 'PENDING'

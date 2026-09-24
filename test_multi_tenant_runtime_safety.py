@@ -115,6 +115,7 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
             os.environ[credentials_reference] = credentials_env_value
         else:
             os.environ.pop(credentials_reference, None)
+    chrepo.upsert_business_profile(business_id, {'business_phone':trusted_owner_phone})
     return business_id
 
 
@@ -577,7 +578,7 @@ def test_whatsapp_validation_succeeds_and_marks_connected_when_meta_check_passes
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-reachable", "628700000004", configure_channel=False)
     original_check = provisioning._check_whatsapp_phone_number_reachable
-    provisioning._check_whatsapp_phone_number_reachable = lambda phone_number_id, credentials_reference: (True, "ok")
+    provisioning._check_whatsapp_phone_number_reachable = lambda phone_number_id, credentials_reference, expected_business_phone=None: (True, "ok")
     try:
         result = provisioning.validate_and_connect_whatsapp(bid, admin, "pnid-reachable", None, "TOK_REACHABLE_TEST")
     finally:
