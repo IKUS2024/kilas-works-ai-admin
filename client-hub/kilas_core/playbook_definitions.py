@@ -8,7 +8,7 @@ FIELD_LABELS = {
     'volume_cbm': 'volume (m³)', 'dimensions': 'ukuran panjang × lebar × tinggi',
     'origin': 'asal', 'destination': 'tujuan', 'transport_preference': 'pilihan pengiriman',
     'items': 'barang/menu', 'quantity': 'jumlah', 'notes': 'catatan',
-    'fulfillment': 'cara penerimaan (ambil atau antar)', 'preferred_date': 'tanggal yang diinginkan',
+    'fulfillment': 'cara penerimaan (ambil, antar, atau di tempat)', 'preferred_date': 'tanggal yang diinginkan',
     'preferred_time': 'jam yang diinginkan', 'time_window': 'rentang waktu',
     'requested_service': 'layanan yang dibutuhkan', 'brief': 'kebutuhan proyek',
     'deadline': 'tenggat yang diinginkan', 'budget': 'anggaran yang disampaikan pelanggan',

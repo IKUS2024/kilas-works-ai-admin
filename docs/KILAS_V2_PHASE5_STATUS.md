@@ -37,19 +37,19 @@ Implement and run milestone 7 disposable PostgreSQL runtime/concurrency and real
 None identified at initialization. Native local PostgreSQL was unavailable in the preceding phase; disposable GitHub Actions PostgreSQL remains the verified alternative.
 
 ## Milestone 1 checkpoint
-- Initialization commit: `d701c27` (local; published SHA recorded after sync).
+- Initialization commit: `303c307` (published).
 - Files: `client-hub/kilas_core/playbook_definitions.py`, `client-hub/kilas_core/understanding.py`, `test_kilas_playbooks.py`, this status file.
 - Offline `test_kilas_playbooks.py`: 5 tests PASS. Closed enums/keys, duplicate JSON keys, malformed/oversized output, evidence presence, prohibited fields/actions, quantity validation, immutable result, category mapping covered.
 - These are synthetic extraction-contract tests, not a claim of live model semantic accuracy. No provider, application route or database behavior changed.
 
 ## Milestone 2 checkpoint
-- Milestone 1 local commit: `f828201` (published SHA recorded after sync).
+- Milestone 1 commit: `fffa1f5` (published).
 - Files: `client-hub/kilas_core/playbooks.py`, `test_kilas_playbooks.py`, this status file.
 - Offline `test_kilas_playbooks.py`: 11 tests PASS. Five workflows, conditional delivery location, logistics alternative volume/dimensions, known facts, correction/conflict/ambiguity, durable uncertainty, separate-request deferral, lifecycle restrictions, business redirect covered.
 - Missing details are deterministic. Unresolved contradictions retain the previous fact and a clarification marker. No automatic lifecycle reversal or owner-state advancement. No runtime routes/DB/Finance/WhatsApp changes.
 
 ## Milestone 3 checkpoint
-- Milestone 2 local commit: `64d93a6` (published SHA recorded after sync).
+- Milestone 2 commit: `89ff98e` (published).
 - Files: `client-hub/kilas_core/jobs.py`, `client-hub/kilas_core/actions.py`, `client-hub/tests/kilas_playbook_cases.py`, `client-hub/tests/test_kilas_playbook_actions.py`, this status file.
 - Offline action tests: 7 PASS; existing Phase 4 store 15 and routes 8 PASS.
 - Existing Job service extracted transaction-bound private helpers; public real-user actor validation retained. System audit has NULL user plus explicit WEB_PLAYBOOK origin. Tenant references, version checks, operation records and lifecycle still enforced by Jobs.
@@ -57,7 +57,7 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Runtime integration still pending; these private helpers are not a new public endpoint.
 
 ## Milestone 4 checkpoint
-- Milestone 3 local commit: `e484d6d` (published SHA recorded after sync).
+- Milestone 3 commit: `0ea74b8` (published).
 - Files: `client-hub/public_chat/adapter.py`, `client-hub/public_chat/playbook_adapter.py`, `client-hub/public_chat/store.py`, `client-hub/tests/test_kilas_playbook_routes.py`, this status file.
 - Offline Phase 5 route tests: 6 PASS; Phase 2 store: 9 PASS.
 - Default-off `KILAS_PLAYBOOKS_V2_ENABLED=true` also requires Customers/Jobs and existing Core/WEB tenant entitlement/channel gates. Exactly one bounded extraction provider call, no hidden retries.
@@ -65,14 +65,14 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - Disabled flag retains legacy WEB provider behavior. Provider/action failures produce no Job or success reply. No schema/deployment/WhatsApp/Finance changes.
 
 ## Milestone 5 checkpoint
-- Milestone 4 local commit: `22cba8e` (published SHA recorded after sync).
+- Milestone 4 commit: `d10736e` (published).
 - Files: `client-hub/kilas_core/jobs.py`, `client-hub/kilas_core/job_routes.py`, `client-hub/templates/_jobs_panel.html`, `client-hub/templates/job_form.html`, `client-hub/tests/test_kilas_playbook_routes.py`, this status file.
 - Phase 5 routes: 7 PASS; action tests 7 PASS; Phase 4 routes 8 PASS.
 - Owner context shows linked Job/workflow, operational facts, missing details and status alongside existing Customer and AI/Human mode. Job form exposes relevant workflow fields only; existing non-playbook forms retain their Phase 4 fields.
 - Manual edits preserve server-owned workflow metadata and recompute missing details; human-mode manual editing remains available. Forged workflow form key rejected. Templates escape facts; no raw model output/prompt is rendered.
 
 ## Milestone 6 checkpoint
-- Milestone 5 local commit: `60667fb` (published SHA recorded after sync).
+- Milestone 5 commit: `fb44b83` (published).
 - Files: `client-hub/tests/kilas_playbook_cases.py`, `client-hub/tests/test_kilas_playbook_actions.py`, `client-hub/tests/test_kilas_playbook_routes.py`, this status file.
 - Phase 5 SQLite: pure 11 + actions 9 + routes 11 PASS.
 - Current implementation regressions: Phase 1 30, Phase 2 routes 18/store 9, Phase 3 9, Phase 4 schema 1/store 15/routes 8 PASS (isolated offline processes).
@@ -81,8 +81,14 @@ None identified at initialization. Native local PostgreSQL was unavailable in th
 - SQLite authorizer permits only WEB/Core/audit/usage writes; Finance methods and WhatsApp send spies remain unused. No production data/service touched.
 
 ## Milestone 7 in progress — QA runner checkpoint
-- Milestone 6 local commit: `4a35969` (published SHA recorded after sync).
+- Milestone 6 commit: `c6a2662` (published).
 - Added `.github/workflows/kilas-v2-phase5-qa.yml`, `client-hub/tests/test_kilas_playbooks_postgres.py`, `client-hub/tests/playbook_qa_provider.py`, `client-hub/tests/kilas_playbooks_browser_qa.py`; extended `client-hub/tests/public_chat_dev.py` behind loopback-only `KILAS_PLAYBOOKS_QA`.
 - Python QA scripts compile and Phase 5 route suite remains 11 PASS. PostgreSQL/browser execution NOT yet claimed.
 - Workflow runs Phase 1–5 SQLite, existing Phase 2/3/4 PostgreSQL plus Phase 5 action/concurrency tests in disposable PG18, existing mobile regression/Finance parity and separate Phase 5 390px logistics/booking/human/tenant flows. Deterministic synthetic model transport; not live provider accuracy certification.
 - Next action: publish checkpoints, inspect the Phase 5 CI run, fix real failures without weakening assertions, inspect screenshots, and review exact scope.
+
+## First complete CI verification and final validation refinement
+- Published implementation/QA head: `ccf793e2fe18067694653e39095d2701abea1e65`. Phase 5 CI `36018279210`: SUCCESS, including all Phase 1–5 SQLite, Phase 2/3/4/5 PostgreSQL and all mobile browser steps.
+- Phase 5 browser artifact: `10815218878`; Phase 4 regression artifact: `10815138403`. Screenshot review and exact scope sign-off still pending; not yet COMPLETE.
+- Final input review added explicit positive/bounded weight, volume and complete dimensions validation, plus dine-in fulfillment for restaurant requests. Files: `client-hub/kilas_core/understanding.py`, `client-hub/kilas_core/playbook_definitions.py`, `client-hub/kilas_core/jobs.py`, `client-hub/templates/job_form.html`, `test_kilas_playbooks.py`.
+- Local Phase 5 now 12 pure + 9 action + 11 route tests PASS. Rerun CI on this final code refinement before completion.

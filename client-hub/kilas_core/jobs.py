@@ -94,7 +94,7 @@ def validate_fields(fields):
         pending = fields['uncertain_fields']
         if not isinstance(pending, str) or set(filter(None, pending.split(','))) - PLAYBOOK_FIELDS.keys():
             raise JobError('invalid_fields')
-    if 'fulfillment' in fields and fields['fulfillment'] not in ('pickup', 'delivery'):
+    if 'fulfillment' in fields and fields['fulfillment'] not in ('pickup', 'delivery', 'dine_in'):
         raise JobError('invalid_fields')
     clean = {}
     for key, value in fields.items():

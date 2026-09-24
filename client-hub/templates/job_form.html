@@ -36,7 +36,8 @@
       {% for key,label in field_labels.items() %}<div><label for="field-{{ key }}">{{ label }}</label>
         {% if key=='fulfillment' %}<select id="field-{{ key }}" name="field_{{ key }}"><option value="">Belum ditentukan</option>
           <option value="pickup" {% if fields.get(key)=='pickup' %}selected{% endif %}>Ambil sendiri</option>
-          <option value="delivery" {% if fields.get(key)=='delivery' %}selected{% endif %}>Diantar</option></select>
+          <option value="delivery" {% if fields.get(key)=='delivery' %}selected{% endif %}>Diantar</option>
+          <option value="dine_in" {% if fields.get(key)=='dine_in' %}selected{% endif %}>Di tempat</option></select>
         {% else %}<input id="field-{{ key }}" name="field_{{ key }}" value="{{ fields.get(key,'') }}" maxlength="1000" {% if key=='quantity' %}type="number" min="0.000001" max="1000000000" step="any"{% endif %}>{% endif %}
       </div>{% endfor %}
       </div>

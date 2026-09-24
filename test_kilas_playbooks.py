@@ -49,6 +49,14 @@ class ContractTests(unittest.TestCase):
             with self.assertRaises(u.UnderstandingError):
                 interpretation({'item': 'baju'}, intent=intent)
 
+    def test_physical_measurements_are_positive_complete_and_bounded(self):
+        for field, value in [('weight','-20 kg'),('weight','gratis'),('weight','0 kg'),('volume_cbm','0'),
+                             ('volume_cbm','1e99'),('dimensions','50 x 20'),('dimensions','0x20x30 cm')]:
+            with self.subTest(field=field,value=value), self.assertRaises(u.UnderstandingError):
+                interpretation({field:value})
+        for field, value in [('weight','20 kilogram'),('volume_cbm','0,2 m3'),('dimensions','50 × 40 × 30 cm')]:
+            self.assertEqual(interpretation({field:value}).fields[field],value)
+
     def test_correction_and_ambiguity_validation(self):
         self.assertEqual(interpretation({'origin': 'Jakarta'}, corrections=['origin']).corrections, {'origin'})
         for kwargs in ({'corrections': ['origin']}, {'ambiguous': ['sql']}, {'ambiguous': ['origin', 'origin']}):
@@ -109,6 +117,8 @@ class StateTests(unittest.TestCase):
                 self.assertTrue(decision.write)
                 self.assertNotIn('tercatat', engine.response(decision))
                 self.assertIn('tercatat', engine.response(decision, committed=True))
+        dine_in = engine.decide(PLAYBOOKS['SIMPLE_ORDER'], interpretation(dict(examples['SIMPLE_ORDER'], fulfillment='dine_in')))
+        self.assertEqual(dine_in.missing, ())
         delivery = engine.decide(PLAYBOOKS['SIMPLE_ORDER'], interpretation(dict(examples['SIMPLE_ORDER'], fulfillment='delivery')))
         self.assertEqual(delivery.missing, ('location',))
         window = engine.decide(PLAYBOOKS['BOOKING_SERVICE'], interpretation({'service': 'salon', 'preferred_date': 'besok', 'time_window': 'sore'}))
