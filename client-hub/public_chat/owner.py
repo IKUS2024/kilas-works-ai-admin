@@ -3,6 +3,7 @@ from flask import Blueprint, abort, jsonify, render_template, request, url_for
 import re
 import repo
 import security as owner_security
+from kilas_core import customers as core_customers
 from . import security, store
 
 owner_bp=Blueprint('owner_web',__name__)
@@ -30,8 +31,10 @@ def inbox_page(business):
         selected=store.conversation(bid,cid) if cid else None
     except store.ChatError as error:
         abort(error.status)
+    selected_customer = core_customers.customer_for_conversation(bid, cid) if selected and core_customers.enabled() else None
     return render_template('web_inbox.html',business=business,conversations=conversations,
-                           total=total,page=page,pages=pages,selected=selected)
+                           total=total,page=page,pages=pages,selected=selected,
+                           selected_customer=selected_customer)
 
 
 @owner_bp.get('/business/<int:bid>/web-inbox/<cid>/messages')
