@@ -227,3 +227,33 @@ Only this status file is changed by the resume commit. Milestones 1–6 were not
 Status remains BLOCKED/PARTIAL, NOT COMPLETE. Exact next action is the existing remaining-work
 list: first run PostgreSQL validation in an authorized disposable non-root environment, then
 complete legacy regressions and mobile browser QA. RESUME FROM STATUS FILE.
+
+
+## Sol continuation after Astra checkpoint
+
+Date: 2026-09-24.
+
+Business/product scope was tightened in the master/roadmap and Phase 2 instructions:
+- Kilas AI is business-first and text-first.
+- No AI image/video generation, creative studio or general-purpose assistant work in the current roadmap.
+- Media stays deferred unless a concrete business workflow later requires a bounded attachment type.
+
+Additional verification infrastructure added without touching production:
+- Hardened `client-hub/tests/public_chat_dev.py` so it can run as an isolated synthetic public staging harness only when an explicit QA flag/token is present.
+- Created a free Render web service `kilas-v2-public-chat-qa` from `feature/kilas-core-v2`, auto-deploy OFF.
+- Render deploy `dep-daqi9eh42hec739prlug` reached LIVE at commit `6b56123db51a938a2d7026276f4c456ca0978df6`.
+- Render logs confirm synthetic SQLite QA booted, bound to port 10000, and the staging service is live. No production DB, Finance, WhatsApp or live model credentials are used by the harness.
+- Added `client-hub/tests/test_public_chat_postgres.py` for disposable PostgreSQL-only 0055 FK/concurrency/retry/takeover validation.
+- Added `client-hub/tests/public_chat_browser_qa.py` for real headless 390x844 browser flow: owner share -> public customer chat -> AI reply -> WEB Inbox -> human takeover/reply -> customer delivery -> cross-tenant 404.
+- Added `.github/workflows/kilas-v2-phase2-qa.yml` to run Phase 1 regressions, focused Phase 2 SQLite tests, disposable PostgreSQL 18 service validation, Chromium browser QA and screenshot artifacts.
+- Opened draft PR #16 for isolated review/QA only; it must NOT be merged yet.
+
+Remaining environment facts:
+- Attempt to create another Render free PostgreSQL instance was rejected because the account already has an active free-tier database allowance. No paid database was created and no chargeable resource was authorized.
+- The GitHub connector did not yet report a workflow run/check after creating the workflow/PR; do not claim CI passed until a run is observed.
+- Phase 2 therefore remains CHECKPOINT/PARTIAL. Do not mark COMPLETE and do not start Phase 3 implementation yet.
+
+Next safe action:
+1. Observe/enable the draft-PR GitHub Actions QA run if repository Actions policy permits it.
+2. If Actions cannot run, use the live synthetic Render staging service for manual/mobile browser QA and approve a disposable paid/non-free PostgreSQL QA database only if needed.
+3. Record genuine browser + PostgreSQL results, rerun focused regressions, then mark Phase 2 COMPLETE.
