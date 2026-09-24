@@ -4,6 +4,17 @@
 {% endmacro %}
 <div class="finance-dashboard-data">
 {% if dashboard_view.error %}<p role="alert" class="flash error">{{ dashboard_view.error }}</p>{% endif %}
+<section class="finance-ai-strip" aria-label="AI Finance">
+<div class="finance-ai-copy"><span aria-hidden="true">✦</span><div><h2>Apa yang ingin Anda kerjakan?</h2><p>Catat langsung atau minta bantuan Kilas untuk keuangan ini.</p></div></div>
+<div class="finance-quick-actions">
+{% if not branch_read_only and not finance_read_only %}
+<a href="{{ url_for('finance.receipt_new',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('scan') }}Scan Struk</a>
+<a href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('invoice') }}Buat Invoice</a>
+{% endif %}
+{% if not branch_read_only and not finance_read_only %}<button type="button" data-dashboard-open="add-transaction-dialog">{{ icon('plus') }}Catat</button>{% endif %}
+<a href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('chat') }}Tanya Kilas</a>
+</div></section>
+{% if dashboard_view.chart_empty and not dashboard_view.error %}<section class="card kw-finance-empty"><h2>Belum ada arus kas pada periode ini</h2><p>Mulai dengan saldo awal akun, lalu catat transaksi atau impor mutasi bank. Data dari periode lain tetap tersimpan.</p><a href="{{ url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='accounts') }}">Periksa akun &amp; saldo awal →</a></section>{% endif %}
 <section class="finance-metric-grid" aria-label="Ringkasan keuangan">
 {{ metric('Pemasukan', period_income_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='INCOME',**period_query), 'income', 'income', change=dashboard_view.changes.income if period_mode=='month' else none) }}
 {{ metric('Pengeluaran', period_expense_display, url_for('finance.dashboard',business_id=business.id,branch_id=selected_branch_id,view='transactions',direction='EXPENSE',**period_query), 'expense', 'expense', change=dashboard_view.changes.expense if period_mode=='month' else none) }}
@@ -31,16 +42,7 @@
 {{ metric('Penerima', payee_count|string ~ ' penerima', url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,display_currency=display_currency), 'people', compact=true) }}
 </section>
 
-<section class="finance-ai-strip" aria-label="AI Finance">
-<div class="finance-ai-copy"><span aria-hidden="true">✦</span><div><h2>AI Finance ✦</h2><p>Bantu kelola keuanganmu lebih cepat.</p></div></div>
-<div class="finance-quick-actions">
-{% if not branch_read_only and not finance_read_only %}
-<a href="{{ url_for('finance.receipt_new',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('scan') }}Scan Struk</a>
-<a href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('invoice') }}Buat Invoice</a>
-{% endif %}
-{% if not branch_read_only and not finance_read_only %}<button type="button" data-dashboard-open="add-transaction-dialog">{{ icon('plus') }}Catat</button>{% endif %}
-<a href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('chat') }}Tanya</a>
-</div></section>
 
-{% include '_finance_dashboard_cashflow.html' %}
+
+{% if not dashboard_view.chart_empty or dashboard_view.error %}{% include '_finance_dashboard_cashflow.html' %}{% else %}<details class="kw-details"><summary>Lihat rincian arus kas periode ini</summary>{% include '_finance_dashboard_cashflow.html' %}</details>{% endif %}
 </div>

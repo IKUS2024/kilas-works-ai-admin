@@ -25,7 +25,7 @@
       <div class="client-list">
       {% for row in conversations %}
         <a class="client-item" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
-          <div class="client-item-title">WEB · {{ row.id[:6] }}</div>
+          <div class="client-item-title">{{ 'WhatsApp' if row.id.startswith('wa_') else 'WEB' }} · {{ row.id[:6] }}</div>
           <div class="client-item-meta">{{ row.preview or 'Belum ada pesan' }}</div>
         </a>
       {% else %}<div class="client-empty">Belum ada percakapan terkait.</div>{% endfor %}

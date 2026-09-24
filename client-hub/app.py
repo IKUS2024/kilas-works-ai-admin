@@ -154,6 +154,8 @@ def create_app():
     app.register_blueprint(products_bp)
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
+    from routes_workspace import workspace_bp
+    app.register_blueprint(workspace_bp)
     app.jinja_env.globals["brain_plan"] = __import__("pricing_config").BRAIN_PLAN
     app.register_blueprint(admin_bp)
     app.register_blueprint(projects_bp)
@@ -203,6 +205,14 @@ def create_app():
         return url_for("products.finance_entry")
 
     @app.before_request
+    def _retired_order():
+        # Retired handlers include GETs that used to start a search / handoff.
+        # Stop before any old handler can read or mutate marketplace records.
+        from legacy_order_retirement import retired_endpoint
+        if retired_endpoint(request.endpoint):
+            return render_template('order_retired.html'), 410
+
+    @app.before_request
     def _lock_customer_to_selected_finance():
         """Once a customer chooses Finance, keep this login session inside Finance.
 
@@ -220,9 +230,11 @@ def create_app():
         allowed = (
             endpoint == "static"
             or endpoint.startswith("finance.")
+            or endpoint.startswith("workspace.")
             or endpoint in {
                 "products.finance_entry",
                 "products.finance_setup",
+                "index",
                 "auth.account_page",
                 "auth.account_personal_photo",
                 "auth.account_business_photo",
@@ -263,12 +275,7 @@ def create_app():
         if session.get("user_id"):
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
-            if (session.get("active_product") or "").strip().lower() == "finance":
-                business_id = session.get("dashboard_business_id")
-                if business_id:
-                    return redirect(url_for("finance.workspace_choice", business_id=business_id))
-                return redirect(url_for("products.finance_entry"))
-            return redirect(url_for("products.product_start"))
+            return redirect(url_for("workspace.home"))
         return redirect(url_for("auth.login_page"))
 
     @app.route("/healthz")

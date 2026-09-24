@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Home · Kilas Works{% endblock %}
+{% block content %}
+<section class="kw-page">
+<header class="kw-page-head"><div><p class="kw-eyebrow">RUANG KERJA</p><h1>Selamat datang, {{ user.full_name or 'Pemilik' }}.</h1><p>Mulai dari yang membutuhkan perhatian Anda.</p></div><a class="btn secondary" href="{{ url_for('workspace.more') }}">Kelola ruang kerja</a></header>
+{% if workspace_ui.unavailable %}<section class="card" role="alert"><h2>Ruang kerja belum dapat dimuat</h2><p>Data Anda belum dapat ditampilkan. Coba muat ulang halaman.</p><a class="btn" href="{{ url_for('workspace.home') }}">Coba lagi</a></section>
+{% elif not workspace_ui.ai and not workspace_ui.finance %}
+<section class="kw-welcome card"><p class="kw-eyebrow">MULAI DARI KEBUTUHAN ANDA</p><h2>Apa yang mau dibantu Kilas?</h2><p>Layani customer, kelola keuangan, atau gunakan keduanya. Anda bisa mulai tanpa menghubungkan WhatsApp.</p><a class="btn" href="{{ url_for('workspace.go',area='setup') }}">Siapkan ruang kerja</a><a class="btn secondary" href="{{ url_for('workspace.go',area='services') }}">Jelajahi Kilas Services</a></section>
+{% endif %}
+{% if session.get('onboarding_goal')=='both' and (not workspace_ui.ai or not workspace_ui.finance) %}<section class="card"><h2>Lengkapi ruang kerja Anda</h2><p>AI Admin dan Finance dapat disiapkan secara terpisah. Pilihan ini tidak mengaktifkan langganan otomatis.</p><a class="btn" href="{{ url_for('workspace.go',area='finance_setup' if not workspace_ui.finance else 'ai_setup') }}">Siapkan {{ 'Finance' if not workspace_ui.finance else 'AI Admin' }}</a></section>{% endif %}
+<div class="kw-grid">
+{% for business in workspace_ui.ai %}<section class="card kw-business-card"><p class="kw-eyebrow">AI ADMIN</p><h2>{{ business.business_name }}</h2>
+{% include '_attention_home.html' %}
+<p>Customer, percakapan, dan pekerjaan bisnis Anda dalam satu alur.</p>
+<div class="kw-actions"><a class="btn" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a><a class="btn secondary" href="{{ url_for('workspace.go',area='simulate',business_id=business.id) }}">Coba sebagai customer</a></div>
+{% include '_web_share.html' %}
+<details class="kw-details"><summary>Setup &amp; channel</summary><p>WhatsApp opsional. Koneksi resmi bergantung pada akses Meta untuk akun dan aset Anda. Web Chat tersedia sesuai aktivasi paket.</p><div class="kw-actions"><a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Tinjau setup &amp; aktivasi</a><a href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Pengetahuan bisnis</a></div></details>
+</section>{% endfor %}
+{% for business in workspace_ui.finance %}<section class="card kw-business-card"><p class="kw-eyebrow">FINANCE</p><h2>{{ business.business_name }}</h2><p>Periksa tagihan, invoice, dan arus kas pada ruang Pribadi atau Bisnis yang Anda pilih.</p><a class="btn" href="{{ url_for('workspace.go',area='finance',business_id=business.id) }}">Buka Finance</a><p class="kw-note">Data keuangan tetap terpisah per bisnis dan cabang. Perubahan keuangan memerlukan konfirmasi.</p></section>{% endfor %}
+</div>
+</section>
+{% endblock %}

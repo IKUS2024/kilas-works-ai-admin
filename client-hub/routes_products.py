@@ -169,6 +169,11 @@ def product_start():
     user=security.current_user()
     if request.method=='POST':
         choice=(request.form.get('product') or '').strip().lower()
+        if choice=='both':
+            session['onboarding_goal']='both'
+            session['active_product']='brain'
+            session.pop('product_intent',None)
+            return redirect(url_for('products.assist_entry'),code=303)
         if choice=='finance':
             session['active_product']='finance'
             session.pop('product_intent',None)
@@ -182,9 +187,7 @@ def product_start():
             session.pop('active_product',None)
             return redirect(url_for('projects.service_catalog_page'),code=303)
         if choice=='order':
-            session['active_product']='order'
-            session.pop('product_intent',None)
-            return redirect(url_for('products.order_entry'),code=303)
+            return render_template('order_retired.html'),410
         abort(400)
     return render_template('product_start.html',user=user)
 

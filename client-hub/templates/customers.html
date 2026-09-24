@@ -9,7 +9,7 @@
   </div>
   <form class="card client-search-card" method="get">
     <div class="client-search-row">
-      <input type="search" name="q" value="{{ search }}" placeholder="Cari nama, telepon, atau email">
+      <input type="search" name="q" value="{{ search }}" aria-label="Cari customer" placeholder="Cari nama, telepon, atau email">
       <button class="btn small" type="submit">Cari</button>
       {% if search %}<a class="btn small secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Reset</a>{% endif %}
     </div>
@@ -29,7 +29,7 @@
       </div>
     </a>
     {% else %}
-    <div class="client-empty">Belum ada customer. Customer dari Public Web Chat akan muncul otomatis.</div>
+    <div class="client-empty">Belum ada customer. Customer dari Web Chat atau WhatsApp resmi akan muncul setelah percakapan masuk.</div>
     {% endfor %}
   </div>
   {% if pages > 1 %}
