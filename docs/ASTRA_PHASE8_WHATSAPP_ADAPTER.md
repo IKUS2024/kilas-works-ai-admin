@@ -22,6 +22,33 @@ Meta WhatsApp webhook
 
 Public Web Chat and Simulator must continue to use the same Core and remain unchanged.
 
+## Commercial mode before Meta App Review
+
+Phase 8 must preserve a sellable path even when Meta App Review / Advanced Access is not yet approved.
+
+Do NOT claim that arbitrary paying customers can self-connect WhatsApp before Meta grants the
+required official permissions/capabilities. Development/test assets, app-role users or reviewer
+assets are not equivalent to general customer self-service.
+
+Before approval:
+- Kilas AI Admin remains commercially usable through Public Web Chat + Inbox + Customers + Jobs.
+- Signup/onboarding must not dead-end just because WhatsApp is unavailable.
+- "Connect WhatsApp" is optional and must expose a truthful readiness/pending state.
+- Existing official test/reviewer or legitimately permitted Meta assets may be used only within
+  their allowed scope.
+- No unofficial browser automation, QR scraping, reverse-engineered WhatsApp Web, token borrowing,
+  or cross-tenant credential reuse.
+- Do not migrate/deregister a real customer number to bypass approval.
+- If a user's account legitimately has the required official permissions, allow the supported
+  official connection path after all server-side checks pass.
+- Otherwise record the exact external Meta blocker and let the business continue with Web Chat.
+
+Commercial definition before review:
+A paying customer can create their business, use Public Web Chat, receive conversations in Inbox,
+create/reuse Customers, create/update Jobs, use Human Takeover, and use Finance/Bridge according to
+their package. WhatsApp becomes an additional official channel when Meta permits it; WhatsApp is
+not required for Kilas to be sellable.
+
 ## Existing implementation to reuse, not rewrite
 
 Audit these first:
