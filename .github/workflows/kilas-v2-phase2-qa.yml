@@ -99,6 +99,15 @@ jobs:
           python scripts/run_offline_tests.py --only test_multi_tenant_runtime_safety.py
           python scripts/run_offline_tests.py --only test_tenant_owner_media_and_isolation.py
 
+      - name: Existing Inbox and tenant regressions on disposable SQLite
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_inbox_unification.py
+          python scripts/run_offline_tests.py --only test_inbox_media.py
+          python scripts/run_offline_tests.py --only test_inbox_responsive_parity.py
+          python scripts/run_offline_tests.py --only test_tenant_persistence_repos.py
+
       - name: Phase 2 PostgreSQL 0055 runtime validation
         env:
           PYTHONPATH: client-hub
