@@ -149,8 +149,11 @@ class FinanceUITests(unittest.TestCase):
         os.environ['KILAS_FINANCE_BETA']='off'
         self.assertNotIn('Kilas Finance',self.client.get('/dashboard').get_data(as_text=True))
         os.environ['KILAS_FINANCE_BETA']='on'
+        self.start()  # Real Finance data gives this business an owned Finance lane.
         html=self.client.get('/dashboard').get_data(as_text=True)
-        self.assertIn(f'/business/{self.bid}/finance/workspaces',html)
+        self.assertIn(f'/workspace/go/finance?business_id={self.bid}',html)
+        response=self.client.get(f'/workspace/go/finance?business_id={self.bid}')
+        self.assertIn(f'/business/{self.bid}/finance/workspaces',response.location)
         self.assertNotIn(f'/business/{self.other}/finance',html)
 
     def test_accounts_categories_and_duplicate_errors(self):

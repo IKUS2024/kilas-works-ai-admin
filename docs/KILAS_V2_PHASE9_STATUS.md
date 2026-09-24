@@ -165,3 +165,33 @@ routes_auth, routes_workspace, kilas_ui.css, _finance_app_shell, _operator_nav,
 _workspace_nav, assist_entry, base, wizard, workspace_home and browser QA script.
 Next: checkpoint these fixes, rerun Phase 9 screenshots and full required CI, inspect
 all viewport results and finish flow polish. No production or Meta cutover.
+
+## Checkpoint 3 — route consolidation and expanded journeys
+
+Published checkpoint 2: `0b503bbb47aca39f762ed6cf880d0a275584b33e`.
+Its Phase 2 `36070335060`, 3 `36070335040`, 4 `36070335021`, 5 `36070335056`,
+6 `36070335031`, 8 `36070335059` passed. Phase 9 `36070335050` identified the
+remaining 820px overflow precisely: the old Finance context grid's fixed minimum
+columns. Fixed with an explicit two-row tablet grid; screenshot failures now collect
+all offending pages in one run rather than ending visual evidence early.
+
+Second complete local Finance run PASS: **39 files / 1,018 tests**, zero skipped,
+logs `/tmp/phase9-finance-final`. Later legacy dashboard consolidation changes only
+presentation: `/dashboard` now invokes shared Home, preserving old bookmarks; two
+old dashboard assertions updated to the new intent and owned Finance lane. Focused
+Finance Phase 1b and final product flow suites pass afterward. Workspace tests now
+7 cases, adding authoritative read-only Finance attention, retained delivered legacy
+Order history and owned-business selection. Browser journeys now exercise real AI
+business creation / continue later and Finance-only trial onboarding separately.
+
+Additional exploratory legacy tests (`test_client_hub_v1`,
+`test_production_foundation`, `test_ai_admin_single_purchase_path`,
+`test_astra_ui_production`) fail identically on untouched baseline `2d6d6fe` and the
+Phase 9 tree. Baseline reproduced in isolated `/tmp/kilas-phase9-baseline` worktree.
+These pre-existing stale fixtures expect obsolete approval requirements/catalog copy
+or omit project template context; no security/provisioning requirements were weakened.
+Required Phase 1–8 and full Finance gates remain the authoritative regression gates.
+`test_final_product_flow` and `test_whatsapp_self_service` also pass.
+
+Next: run the final candidate through Phase 2–9 CI, inspect full desktop/tablet/mobile
+artifacts, verify real onboarding journeys, and review exact diff before completion.

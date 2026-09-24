@@ -42,6 +42,7 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_marketplace_all_entry_methods_stopped_no_search_or_handoff(self):
         from legacy_order_retirement import ENDPOINTS
+        db.execute("INSERT INTO kilas_order_requests(request_code,draft_token,user_id,request_text,status) VALUES (?,?,?,?,?)", ('historical','history-token',self.uid,'Historical customer request','DELIVERED'))
         before = db.query_one('SELECT COUNT(*) AS n FROM kilas_order_requests')['n']
         for rule in fixture.app.url_map.iter_rules():
             if rule.endpoint not in ENDPOINTS:
@@ -75,6 +76,33 @@ class WorkspaceTests(unittest.TestCase):
             session.clear()
         self.assertEqual(self.client.get('/workspace').status_code, 302)
         self.assertEqual(self.client.get('/workspace/go/finance').status_code, 302)
+
+    def test_home_attention_is_authoritative_scoped_and_read_only(self):
+        invoice = fixture.f.create_finance_invoice(self.b, self.c, '2026-09-01', '2026-09-30',
+            [dict(description='Customer service', quantity=1, unit_price_minor=15000)], actor_user_id=self.uid)
+        fixture.f.issue_finance_invoice(self.b, invoice, actor_user_id=self.uid)
+        before = fixture.f.get_finance_invoice(self.b, invoice, actor_user_id=self.uid)
+        with patch.dict(__import__('os').environ, {'KILAS_FINANCE_ACCESS_MODE':'self_service', 'KILAS_FINANCE_UNLIMITED_TRIAL':'false'}):
+            response = self.client.get('/workspace')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('1 invoice belum lunas', response.text)
+        self.assertIn('Finance hanya-baca', response.text)
+        self.assertNotIn('PRIVATE CUSTOMER', response.text)
+        self.assertEqual(before, fixture.f.get_finance_invoice(self.b, invoice, actor_user_id=self.uid))
+        self.assertEqual(fixture.f.list_transactions(self.b, actor_user_id=self.uid), [])
+
+    def test_owned_direct_business_links_keep_selected_context(self):
+        first=repo.create_business(self.uid, 'First AI', package='AI_ADMIN')
+        second=repo.create_business(self.uid, 'Second AI', package='AI_ADMIN')
+        self.client.get('/workspace/go/review?business_id='+str(first))
+        with self.client.session_transaction() as session:
+            self.assertEqual(session['workspace_ai_business'], first)
+        with patch.dict(__import__('os').environ, {'KILAS_CUSTOMERS_V2_ENABLED':'false'}):
+            page=self.client.get('/workspace/go/customers?business_id='+str(second))
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('Fitur belum tersedia', page.text)
+        self.assertIn('Second AI', page.text)
+        self.assertNotIn('Other business',page.text)
 
 
 if __name__ == '__main__': unittest.main()

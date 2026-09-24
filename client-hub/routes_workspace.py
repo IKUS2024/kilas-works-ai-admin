@@ -34,7 +34,7 @@ def context():
         selected = next((r for r in rows if str(r['id']) == str(preferred)), rows[0] if rows else None)
         result['selected_'+lane] = selected['id'] if selected else None
     ep = request.endpoint or ''
-    result['active'] = ('home' if ep == 'workspace.home' else
+    result['active'] = ('home' if ep in ('workspace.home', 'client.dashboard') else
                         'inbox' if ep.startswith('owner_web.') or ep == 'client.inbox_page' else
                         'customers' if ep.startswith('core_customers.') else
                         'jobs' if ep.startswith('core_jobs.') else

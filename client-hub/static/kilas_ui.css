@@ -28,3 +28,11 @@ body.admin-ui>.topbar{display:none}.kw-operator-nav{position:fixed;inset:0 auto 
 .admin-ui .owner-type-note{flex-wrap:wrap;overflow:visible;margin-right:0;padding-right:0}.admin-ui .owner-type-pill{flex:1 1 230px}.kw-app .finance-app-search{min-width:0}.kw-app .finance-app-search input{min-width:0}
 @media(max-width:1050px){.kw-app .finance-dashboard-page .finance-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.kw-app .finance-dashboard-page .finance-metric,.kw-app .finance-dashboard-page .finance-metric.compact,.kw-app .finance-dashboard-page .finance-metric.half{grid-column:span 1}.kw-app .finance-dashboard-page .finance-budget-metric{grid-column:1/-1}.kw-app .finance-panel-heading{flex-wrap:wrap}.kw-app .finance-flow-summary{grid-template-columns:1fr}.kw-app .finance-quick-actions{justify-content:flex-start}.kw-app .finance-panel-actions{flex-wrap:wrap}}
 @media(max-width:760px){.kw-finance-menu>summary{display:list-item}.kw-finance-menu>nav{padding-top:10px!important}.kw-app .finance-app-sidebar{padding-bottom:12px}.kw-app .finance-budget-ring{flex:0 0 70px;width:70px;height:70px}.kw-app .finance-dashboard-page .finance-metric:not(.finance-budget-metric)>strong{font-size:16px!important}.kw-app .finance-dashboard-page .finance-metric.compact{grid-column:1/-1;min-height:75px}.kw-app .finance-dashboard-page .finance-metric.compact>strong{margin:0!important}.kw-app .finance-budget-chart-meta{width:auto;flex:1;min-width:140px}}
+@media(min-width:761px) and (max-width:1100px){
+ .kw-app .finance-context-home{grid-template-columns:repeat(6,minmax(0,1fr))}
+ .kw-app .finance-context-home .finance-app-mode{grid-column:1/4;min-width:0}
+ .kw-app .finance-context-home .finance-app-business{grid-column:4/7}
+ .kw-app .finance-context-home .finance-app-branch{grid-column:1/4;grid-row:2}
+ .kw-app .finance-context-home .finance-app-context-filter{grid-column:4/6;grid-row:2}
+ .kw-app .finance-context-home .finance-app-more{grid-column:6/7;grid-row:2;justify-self:end}
+}

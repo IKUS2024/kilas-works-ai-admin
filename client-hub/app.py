@@ -235,6 +235,7 @@ def create_app():
                 "products.finance_entry",
                 "products.finance_setup",
                 "index",
+                "client.dashboard",
                 "auth.account_page",
                 "auth.account_personal_photo",
                 "auth.account_business_photo",

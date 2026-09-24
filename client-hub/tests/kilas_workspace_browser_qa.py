@@ -5,6 +5,7 @@ from playwright.sync_api import sync_playwright, expect
 BASE='http://127.0.0.1:8770'
 OUT=Path('/tmp/kilas-phase9-browser-qa'); OUT.mkdir(exist_ok=True)
 results=[]
+layout_issues=[]
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
     for width,height in [(360,800),(390,844),(430,932),(820,1180),(1440,1000)]:
@@ -20,7 +21,7 @@ with sync_playwright() as p:
                 overflowing:[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width})).slice(0,30)})''')
             if layout['scroll']>layout['width']:
                 (OUT/f'{width}-{name}-overflow.json').write_text(json.dumps(layout,indent=2))
-            assert layout['scroll']<=layout['width'],(width,path,layout)
+            if layout['scroll']>layout['width']: layout_issues.append(dict(path=path,**layout))
             results.append(dict(width=width,page=name,status=response.status))
         for persona,expected in [('new',['Home','More']),('ai',['Home','Inbox','Customers','Jobs','More']),
                                  ('finance',['Home','Finance','More']),('full',['Home','Inbox','Customers','Jobs','Finance','More'])]:
@@ -59,6 +60,31 @@ with sync_playwright() as p:
             visit(path,name)
         assert not errors,errors
         context.close()
+    # Real forms: AI setup can be deferred; Finance intent never creates AI setup.
+    journey=browser.new_context(viewport={'width':390,'height':844})
+    page=journey.new_page()
+    page.goto(BASE+'/dev/persona/new-ai',wait_until='networkidle')
+    page.get_by_role('link',name='Siapkan ruang kerja',exact=True).click()
+    page.get_by_role('button',name='Pilih Layani Customer',exact=False).click()
+    page.get_by_label('Nama bisnis',exact=True).fill('Usaha Laras')
+    page.get_by_role('button',name='Buat Bisnis & Setup Kilas Assist',exact=False).click()
+    expect(page.get_by_role('link',name='Coba sebagai customer',exact=True)).to_be_visible()
+    page.get_by_role('link',name='Lanjut nanti ke Home',exact=True).click()
+    expect(page.get_by_role('heading',name='Usaha Laras',exact=True)).to_be_visible()
+    evidence=journey.request.get(BASE+'/dev/owner-evidence').json()
+    assert evidence['packages']==['AI_ADMIN'] and evidence['finance_accounts']==0,evidence
+    page.screenshot(path=str(OUT/'390-ai-continue-later.png'),full_page=True)
+    page.goto(BASE+'/dev/finance-onboarding',wait_until='networkidle')
+    page.get_by_role('button',name='Pilih Kelola Keuangan',exact=False).click()
+    expect(page.get_by_role('heading',name='Mulai Kilas Finance',exact=True)).to_be_visible()
+    page.get_by_role('button',name='Mulai Sekarang',exact=False).click()
+    expect(page.get_by_role('heading',name='Ringkasan keuangan',exact=True)).to_be_visible()
+    evidence=journey.request.get(BASE+'/dev/owner-evidence').json()
+    assert evidence['packages']==['NONE'] and evidence['finance_accounts']>0,evidence
+    assert page.locator('.kw-primary a>span:last-child').all_text_contents()==['Home','Finance','More']
+    page.screenshot(path=str(OUT/'390-finance-onboarded.png'),full_page=True)
+    journey.close()
     browser.close()
 (OUT/'results.json').write_text(json.dumps(results,indent=2))
+assert not layout_issues, layout_issues
 print(f'Phase 9 browser PASS: {len(results)} responsive page visits; package navigation, focus, no overflow or JS errors')
