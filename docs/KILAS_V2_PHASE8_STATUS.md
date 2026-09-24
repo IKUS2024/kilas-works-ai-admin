@@ -145,6 +145,7 @@ SHA, inspect final mobile screenshots, then mark COMPLETE. No production activat
 - `client-hub/public_chat/playbook_adapter.py`
 - `client-hub/routes_client.py`
 - `client-hub/routes_whatsapp.py`
+- `client-hub/static/web_chat.css`
 - `client-hub/static/web_inbox.js`
 - `client-hub/templates/web_inbox.html`
 - `client-hub/templates/whatsapp_connect.html`
@@ -161,3 +162,13 @@ SHA, inspect final mobile screenshots, then mark COMPLETE. No production activat
 - `inbox_service.py`
 - `test_kilas_whatsapp_webhook.py`
 - `test_multi_tenant_runtime_safety.py`
+
+## Mobile review checkpoint
+Implementation `468fceb9f785ab1245dfc66df23d60824e883e89`: Phase 2 (36065079073),
+3 (36065079169), 4 (36065079085), 5 (36065079089), 6 (36065079097),
+8 (36065079145) SUCCESS. Phase 7 (36065079094) still running at this checkpoint.
+Phase 8 artifact 10835089683 inspected: known logistics fields, only missing volume,
+manual reply/template acceptance and resumed Job update correct, no horizontal overflow.
+Visual review found inherited owner button CSS overriding the HTML hidden attribute.
+Minimal owner-scoped CSS correction plus mobile hidden/disabled assertions added;
+next action is revalidate CI on that final correction before certification.
