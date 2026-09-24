@@ -26,6 +26,12 @@ Phase order:
 9. UX polish / onboarding simplification / package visibility
 10. Production hardening, browser QA, staged rollout
 
+Business-first scope:
+- Kilas AI is a business operator/assistant, not a general chatbot.
+- Text-first customer operations come before media.
+- AI image/video generation and creative studio features are deferred until the business workflow is stable.
+- Media inputs are added later only when required by a concrete business workflow.
+
 Finance policy:
 Finance business logic, balances, invoices, payments, branches, multi-currency, reports and existing AI Finance behavior are protected. Integration is additive. UI/onboarding cleanup may happen only after regression coverage and must not change accounting semantics.
 
