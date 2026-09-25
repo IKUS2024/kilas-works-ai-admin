@@ -1,6 +1,8 @@
 """Release journeys against the synthetic loopback harness, without session injection."""
 import json
 import re
+import csv
+import io
 from datetime import date
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
@@ -101,6 +103,54 @@ def main():
             form.get_by_role('button', name='Simpan Transaksi', exact=True).click()
             expect(finance_only.locator('#add-transaction-dialog')).not_to_be_visible()
             shot(finance_only, 'finance-only-' + direction.lower())
+        def ledger():
+            response = finance_only.context.request.get(finance_base + '/reports/export/transactions.csv')
+            assert response.ok
+            return list(csv.DictReader(io.StringIO(response.text().lstrip('\ufeff'))))
+        before_drafts = ledger()
+        assert len(before_drafts) == 2, before_drafts
+        finance_only.goto(finance_base + '/operations')
+        finance_only.get_by_role('button', name='Tambah tagihan', exact=True).click()
+        bill = finance_only.locator('#bill-add-dialog form')
+        bill.locator('[name=name]').fill('Release Internet')
+        bill.locator('[name=amount]').fill('25')
+        bill.locator('[data-bill-category-summary]').click()
+        bill.locator('[data-bill-category-option]').first.click()
+        bill.locator('[name=cadence]').select_option('MONTHLY')
+        bill.get_by_role('button', name='Simpan Tagihan', exact=True).click()
+        expect(finance_only.get_by_text('Release Internet', exact=True).first).to_be_visible()
+        shot(finance_only, 'finance-only-recurring-created')
+        finance_only.goto(finance_base + '/budget')
+        finance_only.locator('.finance-budget-category-row').first.click()
+        budget = finance_only.locator('dialog[open] form.finance-budget-sheet-form')
+        budget.locator('[name=amount]').fill('300')
+        budget.locator('[name=currency]').select_option('IDR')
+        budget.get_by_role('button', name='Simpan Anggaran', exact=True).click()
+        shot(finance_only, 'finance-only-budget-created')
+        finance_only.goto(finance_base + '/assistant')
+        finance_only.locator('#assistant-text').fill('catat pengeluaran')
+        finance_only.locator('#assistant-send').click()
+        expect(finance_only.locator('#assistant-draft-status')).to_contain_text('Draft', timeout=15000)
+        finance_only.locator('#assistant-text').fill('batal')
+        finance_only.locator('#assistant-send').click()
+        expect(finance_only.locator('#assistant-draft-status')).to_have_text('')
+        assert ledger() == before_drafts, 'Budget, recurring rule or unconfirmed AI draft posted cash'
+        shot(finance_only, 'finance-ai-draft-cancel-no-write')
+        finance_only.goto(finance_base + '/invoices/new')
+        finance_only.locator('#new-recipient').click()
+        finance_only.locator('[name=recipient_name]').fill('Standalone release customer')
+        finance_only.locator('[name=item_description]').first.fill('Synthetic service')
+        finance_only.locator('[name=quantity]').first.fill('1')
+        finance_only.locator('[name=unit_price]').first.fill('1000')
+        finance_only.get_by_role('button', name='Simpan Draft & Preview', exact=True).click()
+        finance_only.get_by_role('button', name='Terbitkan Invoice', exact=True).click()
+        finance_only.locator('[name=amount]').fill('400')
+        finance_only.locator('[name=account_id]').select_option(label='Release Cash · IDR')
+        finance_only.locator('[name=category_id]').select_option(index=1)
+        finance_only.get_by_role('button', name='Simpan Pembayaran', exact=True).click()
+        expect(finance_only.locator('.fin-invoice-amounts')).to_contain_text('600')
+        assert len(ledger()) == 3
+        shot(finance_only, 'finance-only-invoice-partial-payment')
         for tail in ('operations','budget','reports','assistant'):
             assert finance_only.goto(finance_base + '/' + tail).status == 200
             shot(finance_only, 'finance-only-' + tail)
