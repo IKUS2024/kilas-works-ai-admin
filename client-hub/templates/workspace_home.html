@@ -1,6 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}Home · Kilas Assist{% endblock %}
 {% block content %}
+<style>
+.kw-business-switcher{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 0 12px;padding:2px 1px 3px}
+.kw-business-switcher::-webkit-scrollbar{display:none}
+.kw-business-switcher button{flex:0 0 auto;max-width:220px;min-height:36px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text-dim);font:inherit;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.kw-business-switcher button.is-active{border-color:var(--orange);background:color-mix(in srgb,var(--orange) 10%,transparent);color:var(--orange)}
+.kw-assist-card[hidden]{display:none!important}
+</style>
 <section class="kw-page kw-assist-home">
   <header class="kw-page-head kw-assist-head">
     <div>
@@ -29,12 +36,27 @@
   </section>
   {% endif %}
 
-  <div class="kw-business-stack">
+  {% if workspace_ui.ai|length > 1 %}
+  <div class="kw-business-switcher" role="tablist" aria-label="Pilih bisnis" data-workspace-business-switcher>
+    {% for business in workspace_ui.ai %}
+    <button type="button"
+            class="{{ 'is-active' if business.id == workspace_ui.selected_ai else '' }}"
+            data-workspace-business-target="{{ business.id }}"
+            aria-selected="{{ 'true' if business.id == workspace_ui.selected_ai else 'false' }}">
+      {{ business.business_name }}
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="kw-business-stack" data-workspace-business-stack>
   {% for business in workspace_ui.ai %}
     {% set setup = workspace_ui.setup.get(business.id) if workspace_ui.setup else none %}
     {% set attention_data = attention_summary(business) %}
 
-    <article class="card kw-assist-card">
+    <article class="card kw-assist-card"
+             data-workspace-business="{{ business.id }}"
+             {% if workspace_ui.ai|length > 1 and business.id != workspace_ui.selected_ai %}hidden{% endif %}>
       <header class="kw-assist-card-head">
         <div>
           <p class="kw-eyebrow">WORKSPACE</p>
@@ -143,4 +165,32 @@
   {% endfor %}
   </div>
 </section>
+
+<script>
+(function(){
+  var switcher=document.querySelector('[data-workspace-business-switcher]');
+  var stack=document.querySelector('[data-workspace-business-stack]');
+  if(!switcher||!stack)return;
+  var buttons=Array.prototype.slice.call(switcher.querySelectorAll('[data-workspace-business-target]'));
+  var cards=Array.prototype.slice.call(stack.querySelectorAll('[data-workspace-business]'));
+
+  function activate(id){
+    buttons.forEach(function(btn){
+      var active=btn.getAttribute('data-workspace-business-target')===String(id);
+      btn.classList.toggle('is-active',active);
+      btn.setAttribute('aria-selected',active?'true':'false');
+      if(active)btn.scrollIntoView({block:'nearest',inline:'nearest'});
+    });
+    cards.forEach(function(card){
+      card.hidden=card.getAttribute('data-workspace-business')!==String(id);
+    });
+  }
+
+  buttons.forEach(function(btn){
+    btn.addEventListener('click',function(){
+      activate(btn.getAttribute('data-workspace-business-target'));
+    });
+  });
+})();
+</script>
 {% endblock %}
