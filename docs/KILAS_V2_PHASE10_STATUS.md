@@ -3,6 +3,20 @@
 **PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
 **RESUME FROM STATUS FILE.**
 
+## Resumed checkpoint — boolean verified, remaining release QA in progress
+
+- User explicitly authorized ONLY the true/false migration flag read.
+- Hub `RUN_MIGRATIONS_ON_BOOT` is **false**, verified in its single Render UI row,
+  then hidden again. No credential values read, copied or logged; no flag changed.
+- Bot linked-environment-group section confirms no environment groups available.
+  Thus neither service has inherited V2 enablement from a linked group.
+- Current tested feature head: `f7b60657290e42c5b593b69a78030a94389b5051`.
+- Phase 2–10 workflows on that head all SUCCESS, including Phase 7 run
+  36086838228 and exact PostgreSQL 18 rehearsal run 36086838099.
+- Previous narrow approval blocker is resolved. Combined authenticated browser
+  release journeys, exact diff review and pilot identity remain pending.
+- PRE-MERGE GATE NOT PASSED. No production mutations, merge or deploy.
+
 ## Latest checkpoint — rehearsal PASS, release BLOCKED before production
 
 Implementation/test checkpoint: **7f4022abe660ff176b6f6acfcc16b94136708f9b**.
