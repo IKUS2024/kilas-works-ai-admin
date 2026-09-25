@@ -264,6 +264,15 @@ body.finance-app{--bg:#0c1115;--bg-soft:#151e24;--card:#11191e;--border:#253038;
   font-weight:850
 }
 
+@media(min-width:761px) and (max-width:1100px){
+  .finance-context-home{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .finance-context-home .finance-app-mode{grid-column:1 / 4;min-width:0}
+  .finance-context-home .finance-app-business{grid-column:4 / 7;min-width:0}
+  .finance-context-home .finance-app-branch{grid-column:1 / 4;grid-row:2;min-width:0}
+  .finance-context-home .finance-app-context-filter{grid-column:4 / 6;grid-row:2;min-width:0}
+  .finance-context-home .finance-app-more{grid-column:6 / 7;grid-row:2;justify-self:end}
+}
+
 @media(max-width:760px){
   .finance-context-home{
     grid-template-columns:repeat(12,minmax(0,1fr));
