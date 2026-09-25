@@ -139,6 +139,8 @@ def main():
         finance_only.goto(finance_base + '/invoices/new')
         finance_only.locator('#new-recipient').click()
         finance_only.locator('[name=recipient_name]').fill('Standalone release customer')
+        finance_only.locator('[name=sender_address]').fill('Synthetic QA address')
+        finance_only.locator('[name=sender_phone]').fill('080000000001')
         finance_only.locator('[name=item_description]').first.fill('Synthetic service')
         finance_only.locator('[name=quantity]').first.fill('1')
         finance_only.locator('[name=unit_price]').first.fill('1000')

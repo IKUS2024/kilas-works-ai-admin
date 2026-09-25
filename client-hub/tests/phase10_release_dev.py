@@ -43,7 +43,8 @@ def finance_provider(url, **kwargs):
 finance_config = patch('finance_bank_extract.configuration', return_value=('synthetic-only','qa-model'))
 finance_http = patch('requests.post', side_effect=finance_provider)
 finance_config.start(); finance_http.start()
-app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
+app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True,
+                  SECRET_KEY='phase10-disposable-signing-key-never-production')
 
 
 @app.get('/dev/health')
