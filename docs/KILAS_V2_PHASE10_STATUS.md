@@ -1,9 +1,56 @@
-# Phase 10 — IN PROGRESS; production untouched
+# Phase 10 — BLOCKED before release; production untouched
 
 **PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
 **RESUME FROM STATUS FILE.**
 
-## Release checkpoint
+## Latest checkpoint — rehearsal PASS, release BLOCKED before production
+
+Implementation/test checkpoint: **7f4022abe660ff176b6f6acfcc16b94136708f9b**.
+This later checkpoint supersedes the pending access/rehearsal statements below.
+
+- New Phase 10 workflow **36086483153 SUCCESS**, job **107919420144**.
+  Log verifies the exact seven-step sequence twice; every legacy row preserved;
+  both rollback-main and candidate Finance authoritative readback PASS.
+- On 7f4022a, Phase 2 36086483078, Phase 3 36086483210, Phase 4 36086483019,
+  Phase 5 36086483017, Phase 6 36086483031, Phase 8 36086483020 and
+  Phase 9 36086483097 SUCCESS. Phase 7 36086483080 runtime job
+  107919420096 SUCCESS; finance-baseline job 107919420433 still IN PROGRESS
+  at last inspection. Earlier 8091271 complete Finance baseline remains certified
+  1018/39, and no application or Finance code changed in 7f4022a.
+- Local py_compile and git diff --check PASS. Default invocation of the new
+  rehearsal correctly refuses execution without its explicit disposable QA target.
+- Render authentication succeeded through secure Google sign-in.
+- Complete visible service environment key inventories inspected for both services:
+  all ten listed V2 enablement/allowlist/channel variables are ABSENT at service level.
+  Hub has no linked environment groups. Bot linked-group section exists; inheritance
+  still requires final verification. No enablement or environment change performed.
+- Hub required DATABASE_URL, SECRET_KEY and ANTHROPIC_API_KEY names are present;
+  bot DATABASE_URL/ANTHROPIC_API_KEY/internal/WhatsApp credential names are present.
+  Secret values were not revealed or verified.
+- Hub RUN_MIGRATIONS_ON_BOOT exists but is masked.
+  **Automatic approval review rejected clicking Show secret and reading this value**,
+  interpreting it as disclosure contrary to the no-secret-values requirement.
+  No retry or indirect workaround was attempted. Its actual boolean remains unverified.
+  To proceed, obtain explicit user approval to read ONLY this non-credential migration
+  flag's boolean state; do not reveal DATABASE_URL, API keys, tokens or other secrets.
+- Render DB Recovery settled UI confirms **3-day point-in-time recovery**;
+  initial loading text briefly said 7 days, superseded by the settled Basic-plan page.
+  Restore database and Create export controls are available. No restore, export or
+  database mutation was invoked. Actual restore exercise is not claimed.
+- Authenticated Hub Web Shell is available. No shell command was executed.
+  Hub deploy history exposes rollback controls for prior deployments at rollback SHA.
+  Bot rollback UI and final recovery readiness remain pending.
+- Production is still at the exact LIVE deploys and rollback SHA in the table below.
+  DB/schema, flags, main, both service deploys and customer records are unchanged by this run.
+- Full Phase 10 combined browser journeys/login persistence, final exact diff review,
+  authorized pilot IDs and final pre-merge checkpoint are still pending.
+  Existing phase browser gates do not automatically certify those missing release checks.
+
+**State: BLOCKED before PRE-MERGE GATE PASS. No merge, production schema or deploy.**
+**RESUME FROM STATUS FILE.** Resolve the narrow approval block, finish the remaining
+pre-production gates, then follow the authorized controlled deployment sequence.
+
+## Initial release checkpoint
 - Repository: IKUS2024/kilas-works-ai-admin; branch: feature/kilas-core-v2.
 - Inspected remote feature: 809127129ccfa2b251814c3115c0353606fe8f15.
 - Current remote main and verified production rollback target:
