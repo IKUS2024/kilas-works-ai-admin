@@ -155,7 +155,7 @@ def upgrade_to_ai_admin(business_id):
     if finance_claimed:
         # New product setup must stay separated. Do not rewrite or migrate the Finance business.
         session['product_intent'] = 'brain'
-        flash("Kilas Assist memakai bisnis terpisah dari Kilas Finance. Tambahkan bisnis AI Admin untuk melanjutkan.", "info")
+        flash("Kilas Assist memakai bisnis terpisah dari Kilas Finance. Tambahkan bisnis Kilas Assist untuk melanjutkan.", "info")
         return redirect(url_for("products.continue_product"))
     package = "AI_ADMIN"
     repo.upgrade_business_package(business_id, package, user["id"])
@@ -745,7 +745,7 @@ def submit_for_review(business_id):
     repo.write_audit(user["id"], business_id, "submitted_for_review", None)
     provisioning.record_business_submitted(business_id, user["id"])
     flash(
-        "Data bisnis terkirim! Tim Kilas Works akan review setup AI Admin kamu — sekarang lanjut ke "
+        "Data bisnis terkirim! Tim Kilas Works akan review setup Kilas Assist kamu — sekarang lanjut ke "
         "pembayaran ya.",
         "success",
     )
