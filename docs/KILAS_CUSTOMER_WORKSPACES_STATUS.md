@@ -1,6 +1,6 @@
 # Customer product separation — 2026-09-25
 
-Implementation checkpoint; deployment and final CI pending.
+LIVE: customer workspace separation deployed. Production desktop smoke passed; see verification limits below.
 
 ## Inspected starting state
 
@@ -74,9 +74,54 @@ First Phase 9 browser gate PASS at all five widths. Release QA exposed a Finance
 redirect blocking the return to Bridge payment readback; fixed by recognizing Bridge as an AI
 workflow route while keeping every Bridge permission/confirmation gate. Old standalone Bridge
 route tests were reaching nonexistent GET URLs masked by redirects; now exercise canonical
-Finance routes and retain all zero-Bridge-row and accounting assertions. Final CI rerun pending.
+Finance routes and retain all zero-Bridge-row and accounting assertions. Final CI is green.
 Browser suite checks 360/390/430/820/1440 widths, both switching directions, no mixed menus,
 bottom-nav clearance, no horizontal overflow or JS errors. Authenticated release suite retains
 invoice partial payment, Bridge duplicate protection, takeover and Finance persistence checks.
-Next: certify PR, merge safely, deploy affected Hub, verify existing customer session and logs,
-then update this file with exact live revision and evidence. Do not claim production success yet.
+
+## Certified release and production verification
+
+PR #19 merged with expected-head guard. Certified head ecf39f89ca5689341f5e47231e472d90971763b6.
+Live Hub revision 99739c9ca21e3579e95680a747acf6f145817dd1, deployed through
+Render dep-dar1j5142hec73clh5gg, LIVE at 2026-09-25 06:50:34 UTC.
+URL: https://app.kilasworks.id
+Merge tree exactly matches certified tree 520dba35d67343d961df0d7661239cff110294bd.
+Only Hub changed; bot runtime did not change. Existing auto-deploy OFF setting preserved.
+
+All nine final CI workflows succeeded, including Phase 1 regressions inside the phase gates:
+- Phase 2: 36104084005
+- Phase 3: 36104084046
+- Phase 4: 36104084061
+- Phase 5: 36104084008
+- Phase 6: 36104083931
+- Phase 7: 36104084072 (39 Finance files / 1018 tests, no skips)
+- Phase 8: 36104084067
+- Phase 9: 36104084253 (responsive workspace browser QA)
+- Phase 10: 36104083944 (authenticated full journeys and PostgreSQL rehearsal)
+
+Post-deploy normal Putri customer session, not internal/admin dashboard:
+- Pm__bae AI Home, Inbox, Customers, Jobs and More all loaded. Navigation has exactly
+  Home/Inbox/Customers/Jobs/More; no Finance menu or Finance Home metrics.
+- Product switch tested Finance -> AI -> Finance, preserving business 2 / branch 1.
+- Finance Home, transactions, accounts, bills/recurring, budget, invoices, recipients,
+  reports and AI Assistant loaded without AI navigation or error pages.
+- Business selector switched existing Pm__bae to existing QA business 13 / branch 19 and back.
+  QA existing income 10,000, expense 2,500 and balance/net flow 7,500 IDR remained consistent.
+- Existing QA transaction modal and new-invoice form opened, then cancelled without saving.
+- Public chat screen remains available. No customer message was sent for this UX-only smoke.
+- All nine Finance table original-row counts and fingerprints match the pre-deploy baseline above.
+- Post-live Render error logs and HTTP 500/502/503 query returned no entries during smoke.
+
+## Verification limits / remaining work
+
+Direct production phone viewport QA was unavailable: authenticated browser exposes no viewport
+resizing capability. Responsive browser CI covered 360/390/430/820/1440 widths, nav clearance,
+product switching and overflow; this is not claimed as a physical/mobile production smoke.
+Single-product entitlement variants, multi-branch/all-branch writes, multi-currency accounting,
+invoice issuance/partial/full payment and Bridge replay were verified in disposable tests/CI.
+Production invoice/payment writes were not repeated; Pm__bae Finance ledger was not touched.
+Production Bridge rollout remains gated/OFF as previously configured; this UX change preserves
+and tests its integration but does not claim a live enabled Bridge payment smoke.
+No known new application regression found. Remaining Phase 10 rollout verification is not
+marked complete by this presentation release. RESUME FROM STATUS FILE for those remaining gates.
+
