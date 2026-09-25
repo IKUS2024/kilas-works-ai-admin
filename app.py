@@ -5304,6 +5304,21 @@ def build_focused_customer_prompt(scoped_number, query, tenant_context_block="",
     return _ctx.cache_blocks(stable, dynamic)
 
 
+_DEMO_BINDING_PATTERN = re.compile(
+    r"(?:KWDEMO-[0-9a-f]{24}|Demo\\s*ID:\\s*[0-9A-F]{4}-[0-9A-F]{4})",
+    re.IGNORECASE,
+)
+_DEMO_CONNECTED_REPLY = (
+    "Demo aktif ✅\n\n"
+    "Sekarang kirim pesan apa saja seperti customer biasa. "
+    "Chat ini akan muncul otomatis di Inbox Kilas Assist."
+)
+
+
+def _is_demo_binding_message(text):
+    return isinstance(text, str) and bool(_DEMO_BINDING_PATTERN.search(text))
+
+
 def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None,
                  is_voice_note=False, tenant_context_block="", tenant_id=None, defer_delivery=False):
     """Panggil Claude API buat generate balasan AI.
@@ -5372,6 +5387,13 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     history = list(history or [])
     history.append({"role": "user", "content": api_content})
     save_message_to_db(scoped_number, "customer", "user", memory_text)
+
+    if not image_b64 and memory_override is None and _is_demo_binding_message(user_message):
+        conversations[scoped_number] = history[-20:]
+        if not defer_delivery:
+            _record_delivered_reply(scoped_number, _DEMO_CONNECTED_REPLY)
+        print("[DEMO_BINDING] customer handshake accepted")
+        return _DEMO_CONNECTED_REPLY
 
     if not image_b64 and memory_override is None and tenant_id is None and not tenant_context_block:
         import wa_checkout
@@ -6977,6 +6999,19 @@ def _webhook_body_impl(data):
                 return jsonify({"status": "ok"}), 200
             else:
                 owner_text = normalize_owner_text_light(message["text"]["body"])
+                if _is_demo_binding_message(owner_text):
+                    save_message_to_db(from_number, "owner", "user", owner_text)
+                    sent, _ = send_whatsapp_message(from_number, _DEMO_CONNECTED_REPLY)
+                    if sent:
+                        owner_conversations[from_number] = (
+                            owner_conversations.get(from_number, [])
+                            + [{"role": "user", "content": owner_text},
+                               {"role": "assistant", "content": _DEMO_CONNECTED_REPLY}]
+                        )[-20:]
+                        save_message_to_db(from_number, "owner", "assistant", _DEMO_CONNECTED_REPLY)
+                    print("[DEMO_BINDING] owner handshake accepted")
+                    return jsonify({"status": "ok"}), 200
+
                 official_reply = _official_link_answer(owner_text, owner_conversations.get(from_number, []), owner=True)
                 if official_reply is not None:
                     save_message_to_db(from_number, "owner", "user", owner_text)
