@@ -141,10 +141,10 @@ def go(area):
             return redirect(url_for('finance.dashboard', business_id=business['id'], branch_id=branch_id), code=303)
         return redirect(url_for('finance.workspace_choice', business_id=business['id']), code=303)
     from kilas_core import customers
-    from kilas_core.job_routes import available
+    from kilas_core.job_routes import available, workspace_available
     from kilas_core import operation_access
     from public_chat.security import available as web_available
-    if (area == 'automations' and (not operation_access.enabled() or not web_available(business))) or (area == 'customers' and not customers.enabled()) or (area in ('jobs', 'automations') and not available(business)):
+    if (area == 'automations' and (not operation_access.enabled() or not web_available(business))) or (area == 'customers' and not customers.enabled()) or (area == 'jobs' and not workspace_available(business)) or (area == 'automations' and not available(business)):
         return render_template('workspace_unavailable.html', business=business), 200
     params = {'bid' if area in ('customers', 'jobs', 'automations') else 'business_id': business['id']}
     if area == 'inbox':
