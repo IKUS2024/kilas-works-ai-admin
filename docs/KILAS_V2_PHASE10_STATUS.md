@@ -35,6 +35,38 @@ intents with fields are correctly prohibited. This is a structured interpretatio
 contract failure, not demonstrated network/provider unavailability or Job validation failure.
 Category fallback to GENERIC_SERVICE is valid; no category remapping or STALE-config wipe.
 
+### Hotfix implementation gates PASS — c2455f8dcb68419e4661f4b4f7937c69b531ee9b
+
+PR #17 is mergeable against unchanged d2d8af6, with no unresolved review threads.
+Exact remote tree bf50757264540fd350ead634d2c44cc209f0e687 matches local reviewed code.
+Phase 1 runs inside the Phase 2–5 regression gates. Phase 2–10 implementation runs PASS:
+2=36097096240, 3=36097096264, 4=36097096269, 5=36097096306,
+6=36097096256, 7=36097096228, 8=36097096227, 9=36097096238, 10=36097096252.
+Finance baseline job 107951532996: 39 files / 1018 tests PASS, zero skipped.
+PostgreSQL rehearsal job 107951533313 PASS; authenticated browser job 107951533025
+PASS / 30 checks. Artifact 10847668876 downloaded and results/screenshots inspected;
+SHA256 a87a24d3a8acd8ea095d55049969eb3ac4969c502ab946ef1164f8c084c86a24.
+
+Pinned candidate understanding/prompt tested inference-only in the isolated diagnostic
+process against the same production config/input: REQUEST with service/need/location/
+preferred_date_or_time, no ambiguity, strict parse PASS, decision READY_FOR_QUOTE,
+Job field validation PASS. This did NOT create a production Job or replay a WEB event.
+
+Pre-deploy read-only verification: all nine Finance fingerprints below still match exactly
+(excluding business 13; ordered JSON text joined by newline, relocation_version excluded).
+Profile/services/FAQs match their recorded fingerprints; 22 additive tables still present;
+business 2 retains ACTIVE ai_admin_pro 2026-09-03 -> 2026-10-03 from verified payment 4;
+business 13 has no AI subscription. No reset, Finance write or new backfill was performed.
+
+Render saved next-deploy Hub config has Core/Customers/Jobs/Playbooks/Operations/Web=true,
+allowlist=2; Bridge and WhatsApp flags/channel list absent/default OFF. The running rollback
+process uses its historical snapshot (V2 flags absent); that is expected and differs from
+saved next-deploy configuration. No env changes are needed for the hotfix release.
+Both auto-deploys stay OFF. Both live deployments remain rollback 05d50a8.
+
+This documentation checkpoint changes no runtime/test content. Wait for its PR checks before
+merge/deploy. PRE-MERGE implementation GATE PASS; production verification still pending.
+
 ### Narrow candidate fix
 
 - Accept exactly one complete ```json or unlabelled Markdown envelope, bounded by the original
@@ -54,8 +86,8 @@ Category fallback to GENERIC_SERVICE is valid; no category remapping or STALE-co
 Local synthetic tests cover category/config shape, fenced JSON, deterministic create/update,
 Customer reuse, exact retry, no rejected facts, malformed/unsafe output, tenant-scoped handover,
 in-flight takeover, truncation/lease budget, and sanitized Job-error logging.
-Existing focused Phase 5 and 6 tests pass. Full Phase 1–10 CI, Finance 1018 baseline,
-PostgreSQL rehearsal and browser QA are still PENDING. No hotfix deploy or production smoke yet.
+Focused tests and all implementation gates above PASS. Documentation-head checks must finish
+before merge. No hotfix deploy or successful production smoke yet.
 
 Next: certify exact hotfix head in PR; update checkpoint; safely merge only after all gates
 PASS; keep auto-deploy OFF; manually deploy exact certified main revision; Pm__bae Web Chat
