@@ -96,7 +96,7 @@ def _start_finance_trial_now(business_id, user):
     # remain usable without creating any migration or duplicate ledger.
     if business['package'] != 'NONE' and not _finance_business_claimed(business_id):
         session['product_intent'] = 'finance'
-        flash('Kilas Finance memakai bisnis terpisah dari AI Admin. Tambahkan bisnis Finance untuk melanjutkan.', 'info')
+        flash('Kilas Finance memakai bisnis terpisah dari Kilas Assist. Tambahkan bisnis Finance untuk melanjutkan.', 'info')
         return url_for('products.continue_product')
     state = entitlement.state(business_id)
     if state['active']:
@@ -815,7 +815,7 @@ def account_bills():
             needle in str(b.get('business_name') or '').casefold()
             or needle in str(b.get('package') or '').casefold()
             or needle in str(b.get('status') or '').casefold()
-            or (b.get('package')!='NONE' and needle in 'kilas brain ai customer service')
+            or (b.get('package')!='NONE' and needle in 'kilas assist kilas brain ai admin ai customer service')
             or needle in 'kilas finance keuangan bisnis'
         )]
     businesses_total=len(businesses)
