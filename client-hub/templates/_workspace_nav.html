@@ -1,7 +1,7 @@
 {% if workspace_ui.enabled and workspace_ui.product == 'ai' %}
 <a class="kw-skip" href="#kw-main">Lewati navigasi</a>
 <aside class="kw-sidebar" aria-label="Ruang kerja Kilas">
-<a class="kw-brand" href="{{ url_for('workspace.ai_home') }}">Kilas<span>AI Admin</span><small>Layanan customer &amp; CRM</small></a>
+<a class="kw-brand" href="{{ url_for('workspace.ai_home') }}">Kilas<span>Assist</span><small>Layanan customer &amp; CRM</small></a>
 <nav class="kw-primary" aria-label="Navigasi utama">
 {% set items=[('home','Home','⌂')] %}
 {% if workspace_ui.ai %}{% set items=items+[('inbox','Inbox','▤'),('customers','Customers','◎'),('jobs','Jobs','▣')] %}{% endif %}
