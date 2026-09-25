@@ -1143,8 +1143,9 @@ def demo_kilas_whatsapp(business_id):
         },
     )
     text = (
-        "Halo Kilas Works, saya mau coba Demo Kilas. "
-        "Kode demo: KWDEMO-" + token
+        "KWDEMO-" + token + "\n"
+        "Halo Kilas Works, saya mau coba Demo Kilas.\n\n"
+        "Jangan hapus kode demo di baris pertama."
     )
     return redirect(
         "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),
