@@ -73,7 +73,10 @@ def main():
                 page.get_by_role('button', name='Mulai Sekarang', exact=False).click()
                 expect(page.get_by_role('heading', name='Release both', exact=True)).to_be_visible()
                 page.goto(BASE + '/workspace')
-                assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','Finance','More']
+                expect(page.locator('.finance-app-sidebar')).to_be_visible()
+                page.locator('.product-switcher summary').click()
+                page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas AI Admin',exact=True).click()
+                assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')
         finance_only.get_by_role('button', name='Pilih Kelola Keuangan', exact=False).click()
@@ -159,7 +162,9 @@ def main():
         export = finance_only.context.request.get(finance_base + '/reports/export/all.zip')
         assert export.ok and 'zip' in export.headers.get('content-type',''), export.status
         finance_only.goto(BASE + '/workspace')
-        assert [s.strip() for s in finance_only.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Finance','More']
+        expect(finance_only.locator('.finance-app-sidebar')).to_be_visible()
+        assert finance_only.locator('.kw-primary').count() == 0
+        assert finance_only.locator('.product-switcher').count() == 0
         finance_only.goto(BASE + '/logout'); login(finance_only, 'release-finance@example.test')
         shot(finance_only, 'finance-only-signup-activation-persistence')
         # Existing eligible full-package fixture: only entitlement/model are synthetic.

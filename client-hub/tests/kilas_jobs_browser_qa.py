@@ -78,8 +78,11 @@ def main():
         other=other_ctx.new_page();other.goto(BASE+'/dev/owner/8',wait_until='networkidle')
         for url in (first_job_url,second_job_url,first_job_url.replace('/business/7/','/business/8/')):
             assert other.goto(url,wait_until='domcontentloaded').status==404
-        # Existing Finance session guard redirects Jobs to the unchanged Finance entry surface.
-        finance.goto(first_job_url,wait_until='networkidle')
+        # A workspace preference cannot revoke this owner's entitled AI Job access.
+        assert finance.goto(first_job_url,wait_until='networkidle').status==200
+        expect(finance.locator('[data-job-customer]')).to_be_visible()
+        # Explicitly return to Finance and retain its independent, unchanged presentation.
+        finance.goto(BASE+'/products/finance',wait_until='networkidle')
         assert urlsplit(finance.url).path=='/products/finance'
         expect(finance.locator('.finance-entry-shell')).to_be_visible()
         assert finance.locator('.finance-entry-shell').inner_text()==before_text
@@ -88,7 +91,7 @@ def main():
         assert before==after, 'Finance entry visual changed'
         assert not errors, errors
         browser.close()
-    print('PASS: mobile Jobs create/edit/lifecycle, Customer/WEB linkage, filter, tenant 404, no overflow, Finance entry pixel parity and session guard')
+    print('PASS: mobile Jobs create/edit/lifecycle, Customer/WEB linkage, filter, tenant 404, no overflow, Finance entry pixel parity and authorized product transitions')
 
 
 if __name__=='__main__': main()

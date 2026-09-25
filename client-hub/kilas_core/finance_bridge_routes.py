@@ -1,7 +1,7 @@
 """Explicit owner forms only; chat/AI cannot call financial actions here."""
 import uuid
 from werkzeug.exceptions import NotFound
-from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 import db, security
 import finance_service as finance
 import finance_branches as branches
@@ -17,7 +17,7 @@ def private_response(response):
 
 
 def available(business):
-    if not bridge.enabled() or session.get('active_product') == 'finance':
+    if not bridge.enabled():
         return False
     user = security.current_user()
     if not user or not business:

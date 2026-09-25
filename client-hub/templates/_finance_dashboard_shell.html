@@ -11,7 +11,7 @@
 {% if not finance_workspace_personal %}<a href="{{ url_for('finance.receivables',business_id=business.id,branch_id=selected_branch_id,section='invoices') }}">{{ icon('invoice') }}Invoice</a>{% endif %}
 <a href="{{ url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('people') }}Penerima</a>
 <a href="{{ url_for('finance.reports',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('chart') }}Laporan</a>
-</nav><nav class="finance-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-dashboard-open="dashboard-help">{{ icon('help') }}Bantuan</button><a href="{{ url_for('client.dashboard') }}">← Keluar Finance</a></nav>
+</nav><nav class="finance-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-dashboard-open="dashboard-help">{{ icon('help') }}Bantuan</button><a href="{{ url_for('workspace.more') }}">← Keluar Finance</a></nav>
 </aside>
 <div class="finance-dashboard-topbar">
 <form class="finance-dashboard-search" method="get" data-finance-live-period><input type="hidden" name="branch_id" value="{{ selected_branch_id }}"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="display_currency" value="{{ display_currency }}">{{ icon('search') }}<input type="search" name="q" value="{{ dashboard_view.query }}" aria-label="Cari transaksi, tagihan, atau penerima" placeholder="Cari transaksi, tagihan, atau penerima..."><button type="submit" aria-label="Cari">→</button></form>

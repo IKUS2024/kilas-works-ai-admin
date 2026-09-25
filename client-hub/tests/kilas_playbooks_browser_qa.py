@@ -106,7 +106,8 @@ def main():
         assert response.status==404
         owner.goto(job_url,wait_until='networkidle')
         expect(owner.get_by_label('Judul',exact=True)).to_have_value('Pengiriman ditangani tim')
-        finance.goto(job_url,wait_until='networkidle')
+        assert finance.goto(job_url,wait_until='networkidle').status==200
+        finance.goto(BASE+'/products/finance',wait_until='networkidle')
         assert urlsplit(finance.url).path=='/products/finance'
         assert finance.screenshot(path=str(OUT/'07_finance_after.png'),full_page=True)==finance_before
         assert not errors,errors
