@@ -43,8 +43,8 @@ STATUS_FILTERS = ("READY_FOR_REVIEW", "NEEDS_REVISION", "APPROVED", "ACTIVE")
 def get_display_status(business):
     """APPROVED-but-not-connected reads as a distinct pseudo-status in the UI (section 30).
 
-    Ecosystem Sync Section 14: a business created WITHOUT AI Admin (package='NONE', Section 2)
-    must NOT be shown/treated as part of the AI Admin status pipeline (NOT PURCHASED / PAYMENT
+    Ecosystem Sync Section 14: a business created WITHOUT Kilas Assist (package='NONE', Section 2)
+    must NOT be shown/treated as part of the Kilas Assist status pipeline (NOT PURCHASED / PAYMENT
     PENDING / ONBOARDING / READY FOR REVIEW / APPROVED / WAITING WHATSAPP CONNECTION / WHATSAPP
     CONNECTED / ACTIVE / SUSPENDED) — it gets its own simple pseudo-status instead."""
     if business.get("package") == "NONE":
@@ -179,7 +179,7 @@ def review_business(business_id):
 @security.admin_required
 def renew_subscription(business_id):
     """Gap-fix Area E — admin marks a renewal payment verified and extends/reactivates the
-    tenant's AI Admin subscription. Never touches creative-service projects, never re-runs
+    tenant's Kilas Assist subscription. Never touches creative-service projects, never re-runs
     onboarding, never re-provisions the tenant — see subscription_service.renew_subscription()'s
     docstring for the exact (minimal) side effects."""
     business = repo.get_business(business_id)
@@ -191,7 +191,7 @@ def renew_subscription(business_id):
     except ValueError as e:
         flash(f"Belum bisa perpanjang: {e}. Subscription record belum ada untuk business ini.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
-    flash("Subscription AI Admin diperpanjang. Business aktif kembali (kalau sebelumnya SUSPENDED).", "success")
+    flash("Subscription Kilas Assist diperpanjang. Business aktif kembali (kalau sebelumnya SUSPENDED).", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
@@ -382,7 +382,7 @@ def activate(business_id):
         flash(f"Belum bisa Activate: {e}", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
     if result["changed"]:
-        flash("Business ACTIVE. AI Admin engine sekarang bisa memakai tenant ini.", "success")
+        flash("Business ACTIVE. Kilas Assist engine sekarang bisa memakai tenant ini.", "success")
     else:
         flash("Business sudah ACTIVE sebelumnya — tidak ada perubahan.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
@@ -416,7 +416,7 @@ def change_package(business_id):
     except ValueError:
         flash("Perubahan paket belum diizinkan. Upgrade Pro membutuhkan pembayaran Pro yang sudah diverifikasi.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
-    flash("Paket Kilas Brain berhasil diperbarui.", "success")
+    flash("Paket Kilas Assist berhasil diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
