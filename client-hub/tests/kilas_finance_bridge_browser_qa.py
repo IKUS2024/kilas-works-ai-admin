@@ -33,8 +33,8 @@ def main():
         owner.goto(BASE+'/dev/standalone',wait_until='networkidle')
         assert owner.url.endswith(f"/business/{data['standalone']}/finance")
         shot(owner,'01_standalone_zero_bridge.png')
-        for tail in ('accounts','transactions','invoices','operations','reports','settings','assistant'):
-            response=owner.goto(f"{BASE}/business/{data['standalone']}/finance/{tail}",wait_until='networkidle')
+        for tail in ('?view=accounts','?view=transactions','/receivables?section=invoices','/operations','/reports','/invoices/settings','/assistant'):
+            response=owner.goto(f"{BASE}/business/{data['standalone']}/finance{tail}",wait_until='networkidle')
             assert response.status==200,(tail,response.status)
             fits(owner)
         owner.goto(BASE+'/dev/owner',wait_until='networkidle')

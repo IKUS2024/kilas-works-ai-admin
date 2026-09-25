@@ -114,7 +114,8 @@ def main():
         assert other.context.request.post(BASE+'/business/7/automations/run',form={'csrf_token':'csrf-test'}).status==404
         other.goto(BASE+'/business/8/attention',wait_until='networkidle')
         expect(other.locator('[data-attention-item]')).to_have_count(0)
-        finance.goto(BASE+'/business/7/attention',wait_until='networkidle')
+        assert finance.goto(BASE+'/business/7/attention',wait_until='networkidle').status==200
+        finance.goto(BASE+'/products/finance',wait_until='networkidle')
         assert urlsplit(finance.url).path=='/products/finance'
         assert finance.screenshot(path=str(OUT/'08_finance_after.png'),full_page=True)==before
         assert not errors,errors
