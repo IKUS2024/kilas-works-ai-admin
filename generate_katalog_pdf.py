@@ -1,6 +1,6 @@
 """
 Generate katalog.pdf LANGSUNG dari PRICING_CONFIG di app.py — SATU sumber data yang sama dipakai
-AI WhatsApp Admin (SYSTEM_PROMPT) & katalog PDF ini, biar gak ada lagi harga beda-beda antar tempat.
+Kilas Assist (SYSTEM_PROMPT) & katalog PDF ini, biar gak ada lagi harga beda-beda antar tempat.
 
 Business Hub V2, Phase I (Section 27/33): Section 9 (TALENT MANAGEMENT) di bawah dibaca dari
 client-hub/talent_service.py's SEED_TALENTS — bukan angka harga (talent SELALU CUSTOM_QUOTE, tidak
@@ -104,7 +104,7 @@ def section(number_label, title, body_flowables, gap_after=5 * mm):
     story.append(KeepTogether(block))
 
 
-# ===== 1. CURRENT KILAS BRAIN PLAN =====
+# ===== 1. CURRENT KILAS ASSIST PLAN =====
 ai_plan = cfg["ai_admin"]["current"]
 ai_body = []
 for tier in (ai_plan,):
@@ -116,11 +116,11 @@ for tier in (ai_plan,):
     ai_body.append(Paragraph("<b>Yang didapat:</b><br/>" + bullet_list(tier["fitur"]), styles["KWBody"]))
     ai_body.append(Spacer(1, 3 * mm))
 ai_body.append(Paragraph(
-    "<b>Tidak termasuk di paket Kilas Brain:</b> " + ", ".join(ai_plan["tidak_termasuk"]) +
+    "<b>Tidak termasuk di paket Kilas Assist:</b> " + ", ".join(ai_plan["tidak_termasuk"]) +
     " — di luar paket ini, bisa didiskusikan terpisah dengan tim sesuai kebutuhan.",
     styles["KWNote"],
 ))
-section("1", "KILAS BRAIN", ai_body)
+section("1", "KILAS ASSIST", ai_body)
 
 # ===== 2. CONTENT PACKAGES =====
 rows = [header_row(["Paket", "Harga/bulan", "Deliverables"])]
@@ -134,12 +134,12 @@ section("2", "CONTENT PACKAGES", [
     Paragraph(f"<b>Catatan Static Visual:</b> {cfg['static_visual_note']}", styles["KWNote"]),
 ])
 
-# ===== 3. CONTENT + AI ADMIN BUNDLE =====
+# ===== 3. CONTENT + KILAS ASSIST BUNDLE =====
 rows = [header_row(["Bundle", "Harga/bulan", "Isi"])]
 for key in ("growth_ai_basic", "growth_ai", "pro_ai"):
     b = cfg["bundles"][key]
     rows.append([cell(b["nama"], "KWCellBold"), cell(fmt(b["harga"]), "KWCellPrice"), cell(" + ".join(b["isi"]))])
-section("3", "CONTENT + AI ADMIN BUNDLE", [pkg_table(rows, [42 * mm, 26 * mm, 97 * mm])])
+section("3", "CONTENT + KILAS ASSIST BUNDLE", [pkg_table(rows, [42 * mm, 26 * mm, 97 * mm])])
 
 # ===== 4. META ADS =====
 ma = cfg["meta_ads"]

@@ -1,6 +1,6 @@
 """Unified AI Brain v2 — shared core intelligence/behavior source of truth.
 
-Used by every AI Admin surface: Kilas Works production WhatsApp, tenant WhatsApp bots, the public
+Used by every Kilas Assist surface: Kilas Works production WhatsApp, tenant WhatsApp bots, the public
 demo, and Client Hub's Test AI. Each surface composes this SAME text with its own business
 context, permission policy, and allowed actions on top — this file is the ONE place generic
 conversational intelligence lives, so improving it once benefits every surface without

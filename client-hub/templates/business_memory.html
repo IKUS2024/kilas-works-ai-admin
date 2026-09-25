@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Pengetahuan Kilas Brain — {{ business.business_name }}{% endblock %}
+{% block title %}Pengetahuan Kilas Assist — {{ business.business_name }}{% endblock %}
 {% macro service_card(row) %}
 <fieldset class="knowledge-card">
   <legend>Produk / layanan</legend>
@@ -44,22 +44,22 @@
 @media(max-width:640px){.knowledge-grid{grid-template-columns:1fr;gap:6px}.knowledge-card{padding:10px;margin:7px 0}.knowledge-head h1{font-size:20px}.knowledge-collapse>summary{padding:10px 11px}.knowledge-collapse-body{padding:9px 11px}.knowledge-page textarea{min-height:54px}.knowledge-actions{position:sticky;bottom:8px;z-index:4;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);padding:8px;border:1px solid var(--border);border-radius:12px}.knowledge-actions .btn{flex:1 1 auto;text-align:center}}
 </style>
 <div class="knowledge-page" data-assist-url="{{ url_for('client.knowledge_assist_draft', business_id=business.id) }}">
-<header class="knowledge-head"><h1>Pengetahuan Kilas Brain</h1><p>{{ business.business_name }} · Data dari setup awal sudah otomatis ada di sini.</p></header>
+<header class="knowledge-head"><h1>Pengetahuan Kilas Assist</h1><p>{{ business.business_name }} · Data dari setup awal sudah otomatis ada di sini.</p></header>
 <div class="card" style="padding:11px 13px;border-left:3px solid var(--orange);margin-bottom:10px;">
   <strong style="font-size:12px;">Tidak perlu isi ulang dari awal</strong>
-  <p class="client-note" style="margin:4px 0 0;">Halaman ini untuk memperbarui pengetahuan Brain kalau ada layanan, harga, FAQ, jam, atau informasi bisnis yang berubah. Ubah hanya bagian yang memang perlu diperbarui.</p>
+  <p class="client-note" style="margin:4px 0 0;">Halaman ini untuk memperbarui pengetahuan Kilas Assist kalau ada layanan, harga, FAQ, jam, atau informasi bisnis yang berubah. Ubah hanya bagian yang memang perlu diperbarui.</p>
 </div>
 {% if business.status in ('APPROVED','ACTIVE','SUSPENDED') %}
   <div class="card" style="padding:10px 12px;border-left:3px solid {{ 'var(--yellow)' if ai_settings.ai_status == 'STALE' else 'var(--green)' }};">
-    <strong style="font-size:12px;">{{ 'Perubahan menunggu review' if ai_settings.ai_status == 'STALE' else 'Versi Brain sudah disetujui' }}</strong>
+    <strong style="font-size:12px;">{{ 'Perubahan menunggu review' if ai_settings.ai_status == 'STALE' else 'Versi Kilas Assist sudah disetujui' }}</strong>
     <p class="client-note" style="margin:3px 0 0;">{{ 'Draft terbaru belum live. Versi terakhir yang disetujui tetap berjalan sampai Kilas Works menyetujui perubahan.' if ai_settings.ai_status == 'STALE' else 'Kamu tetap boleh mengedit kapan saja. Perubahan berikutnya akan masuk review sebelum mengganti versi live.' }}</p>
   </div>
 {% endif %}
-<div class="card knowledge-readiness" aria-label="Kelengkapan informasi Kilas Brain">
+<div class="card knowledge-readiness" aria-label="Kelengkapan informasi Kilas Assist">
   {% if readiness.missing %}
     <h2>Masih ada {{ readiness.missing|length }} informasi inti yang bisa dilengkapi</h2>
   {% else %}
-    <h2>Informasi inti Brain sudah lengkap</h2>
+    <h2>Informasi inti Kilas Assist sudah lengkap</h2>
   {% endif %}
   <progress value="{{ readiness.score }}" max="100" style="width:100%;" aria-label="Kelengkapan informasi">{{ readiness.score }}%</progress>
   <p class="muted" style="font-size:11px;">Kelengkapan data: {{ readiness.score }}%. Ini bukan nilai kepintaran AI dan bukan skor kualitas jawaban.</p>
@@ -71,7 +71,7 @@
     <a href="{{ url_for('client.wizard_step', business_id=business.id, step='upload') }}">Dokumen &amp; Katalog →</a>
   </div>
 </div>
-<p class="muted knowledge-tip">Semua isian menggunakan data yang sudah tersimpan. AI hanya membantu merapikan draft; perubahan pada Brain yang sudah disetujui akan direview lagi sebelum menjadi versi live.</p>
+<p class="muted knowledge-tip">Semua isian menggunakan data yang sudah tersimpan. AI hanya membantu merapikan draft; perubahan pada Kilas Assist yang sudah disetujui akan direview lagi sebelum menjadi versi live.</p>
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="knowledge_form" value="v2">
@@ -116,7 +116,7 @@
       <label>Bahasa utama<select name="primary_language"><option value="id" {{ 'selected' if profile.primary_language != 'en' else '' }}>Bahasa Indonesia</option><option value="en" {{ 'selected' if profile.primary_language == 'en' else '' }}>Bahasa Inggris</option></select></label>
       <label>Sapaan customer<input name="customer_salutation" maxlength="4000" value="{{ profile.customer_salutation or 'Kak' }}" required placeholder="Contoh: Kak, Bapak/Ibu"></label>
     </div>
-    <p class="muted">Bagian ini hanya mengatur cara bicara Brain. Untuk kebijakan, batasan, refund, reschedule, atau aturan lain, gunakan bagian FAQ supaya robot membacanya sebagai fakta bisnis. Pengaturan ini tidak mengubah izin paket atau mengaktifkan fitur baru.</p>
+    <p class="muted">Bagian ini hanya mengatur cara bicara Kilas Assist. Untuk kebijakan, batasan, refund, reschedule, atau aturan lain, gunakan bagian FAQ supaya robot membacanya sebagai fakta bisnis. Pengaturan ini tidak mengubah izin paket atau mengaktifkan fitur baru.</p>
   </div></details>
   <div class="knowledge-actions"><button class="btn" type="submit">Simpan perubahan pengetahuan</button><a href="{{ url_for('client.dashboard') }}">Kembali ke dashboard</a></div>
 </form>

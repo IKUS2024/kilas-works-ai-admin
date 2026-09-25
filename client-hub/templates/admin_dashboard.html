@@ -142,15 +142,15 @@
 
   {% if not finance_trials_only %}
   <div class="owner-type-note" aria-label="Jenis data di dashboard">
-    <div class="owner-type-pill client"><strong>Client / Akun Bisnis</strong> = akun customer yang memakai produk Kilas seperti <strong>Brain</strong> dan <strong>Finance</strong>.</div>
+    <div class="owner-type-pill client"><strong>Client / Akun Bisnis</strong> = akun customer yang memakai produk Kilas seperti <strong>Kilas Assist</strong> dan <strong>Finance</strong>.</div>
     <div class="owner-type-pill order"><strong>Pesanan Jasa</strong> = pekerjaan/project yang customer beli, misalnya <strong>Content, Ads, Event, Foto/Video</strong>.</div>
   </div>
   {% endif %}
 
   <div class="owner-section-title">
     <div class="owner-section-copy">
-      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else ('Review Perubahan Brain' if brain_review_only else 'Client / Akun Bisnis') }}</h2>
-      <p>{% if finance_trials_only %}Client yang sedang mencoba Kilas Finance.{% elif brain_review_only %}Client yang mengubah data Brain setelah versi sebelumnya disetujui. Versi live lama tetap aman sampai perubahan direview.{% else %}Lihat siapa client-nya, produk Kilas yang dipakai, dan status akunnya.{% endif %}</p>
+      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else ('Review Perubahan Kilas Assist' if brain_review_only else 'Client / Akun Bisnis') }}</h2>
+      <p>{% if finance_trials_only %}Client yang sedang mencoba Kilas Finance.{% elif brain_review_only %}Client yang mengubah data Kilas Assist setelah versi sebelumnya disetujui. Versi live lama tetap aman sampai perubahan direview.{% else %}Lihat siapa client-nya, produk Kilas yang dipakai, dan status akunnya.{% endif %}</p>
     </div>
     <span class="owner-section-tag">{{ businesses_total }} client</span>
   </div>
@@ -160,7 +160,7 @@
     {% for f in status_filters %}
       <a class="btn small {{ 'secondary' if status_filter != f else '' }}" href="{{ url_for('admin.dashboard', status=f) }}">{{ f|humanize_status('business') }}</a>
     {% endfor %}
-    <a class="btn small {{ '' if brain_review_only else 'secondary' }}" href="{{ url_for('admin.dashboard', brain_review='changes') }}">Review Brain</a>
+    <a class="btn small {{ '' if brain_review_only else 'secondary' }}" href="{{ url_for('admin.dashboard', brain_review='changes') }}">Review Kilas Assist</a>
     <a class="btn small {{ '' if finance_trials_only else 'secondary' }}" href="{{ url_for('admin.dashboard', finance='trial') }}">Finance Trial</a>
   </nav>
 
@@ -175,7 +175,7 @@
           <div class="business-date">{{ b.created_at|humanize_timestamp }}</div>
         </div>
         <div class="business-products">
-          {% if b.package != 'NONE' %}<span class="product-badge brain">Kilas Brain</span>{% endif %}
+          {% if b.package != 'NONE' %}<span class="product-badge brain">Kilas Assist</span>{% endif %}
           {% if b.brain_review_pending %}<span class="product-badge review">Review perubahan</span>{% endif %}
           {% if b.finance_entitlement and b.finance_entitlement.status != 'NOT_ACTIVATED' %}<span class="product-badge finance">Kilas Finance</span>{% endif %}
           {% if b.package == 'NONE' and (not b.finance_entitlement or b.finance_entitlement.status == 'NOT_ACTIVATED') %}<span class="product-badge none">Belum ada produk aktif</span>{% endif %}
@@ -193,7 +193,7 @@
         </div>
       </div>
     {% else %}
-      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else ('Tidak ada perubahan Brain yang menunggu review.' if brain_review_only else 'Belum ada client.') }}</div>
+      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else ('Tidak ada perubahan Kilas Assist yang menunggu review.' if brain_review_only else 'Belum ada client.') }}</div>
     {% endfor %}
   </section>
 

@@ -69,12 +69,12 @@ def transport_fee(distance_km, out_of_town=False):
 FINANCE_PLAN = {"key": "finance", "name": "Kilas Finance", "amount_minor": 9900000, "regular_amount_minor": 14900000, "accepted_amounts_minor": (9900000, 14900000), "currency": "IDR", "period_days": 30, "trial_days": 7, "promo_label": "Harga promo pengguna awal"}
 
 BRAIN_PLAN = {
-    "nama": "Kilas Brain", "harga": 499000, "satuan": "bulan",
-    "positioning": "AI WhatsApp Admin + Owner Assistant untuk 1 bisnis / 1 nomor WhatsApp.",
+    "nama": "Kilas Assist", "harga": 499000, "satuan": "bulan",
+    "positioning": "Kilas Assist untuk customer service, leads, follow-up, dan owner support untuk 1 bisnis / 1 nomor WhatsApp.",
     "fitur": ["FAQ, info bisnis dan katalog", "Riwayat dan kualifikasi lead",
               "Owner Assistant, gambar dan voice note", "Appointment dan payment conversation",
               "Human Takeover dan follow-up sesuai konfigurasi"],
-    "catatan": "Biaya penggunaan WhatsApp Business Platform dari Meta tidak termasuk biaya langganan Kilas Brain dan mengikuti penggunaan akun WhatsApp Business terkait. Fair usage berlaku. Penggunaan sangat tinggi dapat memerlukan paket penggunaan tambahan.",
+    "catatan": "Biaya penggunaan WhatsApp Business Platform dari Meta tidak termasuk biaya langganan Kilas Assist dan mengikuti penggunaan akun WhatsApp Business terkait. Fair usage berlaku. Penggunaan sangat tinggi dapat memerlukan paket penggunaan tambahan.",
     "tidak_termasuk": ["Payment gateway custom", "CRM/POS/inventory custom", "Integrasi API kompleks"],
 }
 RETIRED_BRAIN_KEYS = ("ai_admin_basic", "ai_admin_pro")
@@ -85,9 +85,9 @@ CATALOG_ITEMS = [
     # --- KILAS BRAIN (2026 public rebrand — internal category/key stay AI_ADMIN/ai_admin_* on
     # purpose: changing them would touch tenant onboarding, subscription, and feature-flag code
     # that keys off these exact strings — only the public-facing "name" changes) ---
-    {"key": "ai_admin_basic", "category": "AI_ADMIN", "name": "Kilas Brain Basic",
+    {"key": "ai_admin_basic", "category": "AI_ADMIN", "name": "Kilas Assist Basic",
      "pricing_mode": "FIXED_PRICE", "price_amount": 499_000, "price_unit": "per bulan"},
-    {"key": "ai_admin_pro", "category": "AI_ADMIN", "name": "Kilas Brain Pro",
+    {"key": "ai_admin_pro", "category": "AI_ADMIN", "name": "Kilas Assist Pro",
      "pricing_mode": "FIXED_PRICE", "price_amount": 999_000, "price_unit": "per bulan"},
 
     # --- CONTENT ---
@@ -105,13 +105,13 @@ CATALOG_ITEMS = [
     # below (Section RETIRED_BUNDLES), never deleted, so historical orders that referenced them
     # stay fully readable) ---
     {"key": "bundle_content_growth_brain_basic", "category": "BUNDLE",
-     "name": "Content Growth + Kilas Brain Basic",
+     "name": "Content Growth + Kilas Assist Basic",
      "pricing_mode": "FIXED_PRICE", "price_amount": 3_100_000, "price_unit": "per bulan"},
     {"key": "bundle_content_growth_brain_pro", "category": "BUNDLE",
-     "name": "Content Growth + Kilas Brain Pro",
+     "name": "Content Growth + Kilas Assist Pro",
      "pricing_mode": "FIXED_PRICE", "price_amount": 3_600_000, "price_unit": "per bulan"},
     {"key": "bundle_content_pro_brain_pro", "category": "BUNDLE",
-     "name": "Content Pro + Kilas Brain Pro",
+     "name": "Content Pro + Kilas Assist Pro",
      "pricing_mode": "FIXED_PRICE", "price_amount": 5_100_000, "price_unit": "per bulan"},
 
     # --- META ADS (always a separate service — never bundled with Kilas Brain or Content) ---

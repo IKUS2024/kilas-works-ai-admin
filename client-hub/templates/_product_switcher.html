@@ -1,13 +1,13 @@
 <header class="product-bar no-print" aria-label="Workspace produk">
 {% if workspace_ui.ai and workspace_ui.finance %}
 <details class="product-switcher">
-<summary>{{ 'Kilas Finance' if workspace_ui.product == 'finance' else 'Kilas AI Admin' }} <span aria-hidden="true">⌄</span></summary>
+<summary>{{ 'Kilas Finance' if workspace_ui.product == 'finance' else 'Kilas Assist' }} <span aria-hidden="true">⌄</span></summary>
 <nav aria-label="Pilih produk">
-<a href="{{ url_for('workspace.ai_home') }}" {% if workspace_ui.product == 'ai' %}aria-current="true"{% endif %}>Kilas AI Admin</a>
+<a href="{{ url_for('workspace.ai_home') }}" {% if workspace_ui.product == 'ai' %}aria-current="true"{% endif %}>Kilas Assist</a>
 <a href="{{ url_for('workspace.go',area='finance',business_id=workspace_ui.selected_finance) }}" {% if workspace_ui.product == 'finance' %}aria-current="true"{% endif %}>Kilas Finance</a>
 </nav>
 </details>
-{% else %}<strong>{{ 'Kilas Finance' if workspace_ui.product == 'finance' else 'Kilas AI Admin' if workspace_ui.ai else 'Kilas Works' }}</strong>{% endif %}
+{% else %}<strong>{{ 'Kilas Finance' if workspace_ui.product == 'finance' else 'Kilas Assist' if workspace_ui.ai else 'Kilas Works' }}</strong>{% endif %}
 {% if workspace_ui.product == 'finance' and not (finance_ui and finance_ui.enabled) %}<a href="{{ url_for('workspace.go',area='finance',business_id=workspace_ui.selected_finance) }}">Dashboard Finance</a>{% endif %}
 <a class="product-settings" href="{{ url_for('workspace.more') }}" aria-label="Pengaturan workspace">Pengaturan</a>
 </header>

@@ -41,7 +41,7 @@
     {% endif %}
     {% for category, items in by_category.items() %}
       <details class="card catalog-group" {% if loop.first %}open{% endif %}>
-        <summary>{{ {'AI_ADMIN':'Kilas Brain','CONTENT':'Content / Creative','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Business Systems','TALENT':'Talent Management','ADS':'Meta Ads'}.get(category, category.replace('_',' ').title()) }} · {{ items|length }}</summary>
+        <summary>{{ {'AI_ADMIN':'Kilas Assist','CONTENT':'Content / Creative','PHOTO':'Fotografi','VIDEO':'Videografi','WEBSITE':'Website','APPLICATION':'Business Systems','TALENT':'Talent Management','ADS':'Meta Ads'}.get(category, category.replace('_',' ').title()) }} · {{ items|length }}</summary>
         <div class="catalog-body"><div class="catalog-grid">
           {% for item in items %}
             <article class="catalog-item">

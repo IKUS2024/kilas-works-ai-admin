@@ -306,4 +306,4 @@ def save(business_id, fields, cards, old_profile, old_services, old_faqs, revisi
         raise
     finally:
         cur.close()
-    repo.write_audit(actor,business_id,'BUSINESS_MEMORY_UPDATED','Client edited Brain draft; admin re-approval required')
+    repo.write_audit(actor,business_id,'BUSINESS_MEMORY_UPDATED','Client edited Kilas Assist draft; admin re-approval required')

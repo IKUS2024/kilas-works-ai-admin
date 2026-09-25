@@ -144,7 +144,7 @@ def upgrade_to_ai_admin(business_id):
     user = security.current_user()
     business = _business_or_404(business_id)
     if business["package"] != "NONE":
-        flash("Bisnis ini sudah punya paket Kilas Brain.", "error")
+        flash("Bisnis ini sudah punya Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
     finance_state = (__import__('finance_entitlements').state(business_id)
                      if __import__('finance_entitlements').self_service() else None)
@@ -155,11 +155,11 @@ def upgrade_to_ai_admin(business_id):
     if finance_claimed:
         # New product setup must stay separated. Do not rewrite or migrate the Finance business.
         session['product_intent'] = 'brain'
-        flash("AI Admin memakai bisnis terpisah dari Kilas Finance. Tambahkan bisnis AI Admin untuk melanjutkan.", "info")
+        flash("Kilas Assist memakai bisnis terpisah dari Kilas Finance. Tambahkan bisnis Kilas Assist untuk melanjutkan.", "info")
         return redirect(url_for("products.continue_product"))
     package = "AI_ADMIN"
     repo.upgrade_business_package(business_id, package, user["id"])
-    flash("Kilas Brain ditambahkan. Lanjutkan setup awal di bawah ini.", "success")
+    flash("Kilas Assist ditambahkan. Lanjutkan setup awal di bawah ini.", "success")
     return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
 
 
@@ -377,7 +377,7 @@ def _check_settings_entitlement(business_id):
     }
     for feature, fields in restricted.items():
         if not features.get(feature) and any(request.form.get(k, "").strip() for k in fields):
-            abort(403, description="Pengaturan ini memerlukan entitlement Kilas Brain yang berlaku.")
+            abort(403, description="Pengaturan ini memerlukan entitlement Kilas Assist yang berlaku.")
     return features
 
 
@@ -446,7 +446,7 @@ def business_memory(business_id):
 def knowledge_assist_draft(business_id):
     business = _business_or_404(business_id)
     if business['package'] == 'NONE':
-        return jsonify({'error': 'Bantuan ini tersedia untuk pengguna Kilas Brain.'}), 403
+        return jsonify({'error': 'Bantuan ini tersedia untuk pengguna Kilas Assist.'}), 403
     if request.content_length is not None and request.content_length > knowledge_assist.MAX_REQUEST_BYTES:
         return jsonify({'error': 'Permintaan terlalu besar. Ringkas isianmu.'}), 413
     if not request.is_json:
@@ -651,7 +651,7 @@ def run_ai_setup(business_id):
     business = _business_or_404(business_id)
     user = security.current_user()
     if business["status"] in ("APPROVED", "ACTIVE"):
-        flash("Perubahan Brain sudah tersimpan sebagai draft. Kilas Works akan review dan menyetujui perubahan tanpa mematikan versi yang sedang aktif.", "info")
+        flash("Perubahan Kilas Assist sudah tersimpan sebagai draft. Kilas Works akan review dan menyetujui perubahan tanpa mematikan versi yang sedang aktif.", "info")
         return redirect(url_for("client.review_page", business_id=business_id))
     status = repo.get_onboarding_status(business_id)
     missing_steps = [s for s in REQUIRED_STEPS_FOR_AI_SETUP if not status.get(f"{s}_done")]
@@ -708,9 +708,9 @@ def submit_for_review(business_id):
     if business["status"] in ("APPROVED", "ACTIVE"):
         ai_settings = repo.get_ai_settings(business_id) or {}
         if ai_settings.get("ai_status") == "STALE":
-            flash("Perubahan Brain sudah masuk antrean review Kilas Works. Versi live lama tetap berjalan sampai perubahan disetujui.", "success")
+            flash("Perubahan Kilas Assist sudah masuk antrean review Kilas Works. Versi live lama tetap berjalan sampai perubahan disetujui.", "success")
         else:
-            flash("Tidak ada perubahan Brain yang menunggu review.", "info")
+            flash("Tidak ada perubahan Kilas Assist yang menunggu review.", "info")
         return redirect(url_for("client.review_page", business_id=business_id))
 
     status = repo.get_onboarding_status(business_id)
@@ -745,7 +745,7 @@ def submit_for_review(business_id):
     repo.write_audit(user["id"], business_id, "submitted_for_review", None)
     provisioning.record_business_submitted(business_id, user["id"])
     flash(
-        "Data bisnis terkirim! Tim Kilas Works akan review setup AI Admin kamu — sekarang lanjut ke "
+        "Data bisnis terkirim! Tim Kilas Works akan review setup Kilas Assist kamu — sekarang lanjut ke "
         "pembayaran ya.",
         "success",
     )
@@ -787,11 +787,11 @@ def _brain_checkout(business_id):
     business = _business_or_404(business_id)
     user = security.current_user()
     if business['package'] == 'NONE':
-        flash('Bisnis ini belum memilih paket Kilas Brain.', 'error')
+        flash('Bisnis ini belum memilih Kilas Assist.', 'error')
         return redirect(url_for('client.dashboard'))
     missing = repo.required_fields_missing(business_id)
     if missing:
-        flash("Lengkapi data penting Kilas Brain dulu sebelum pembayaran: " + ", ".join(_human_missing_labels(missing)) + ".", "error")
+        flash("Lengkapi data penting Kilas Assist dulu sebelum pembayaran: " + ", ".join(_human_missing_labels(missing)) + ".", "error")
         return redirect(url_for("client.wizard_step", business_id=business_id, step=_step_for_missing_fields(missing)))
     target_package = request.args.get('package', 'AI_ADMIN')
     if target_package not in ('AI_ADMIN', business['package']):
@@ -807,7 +807,7 @@ def _brain_checkout(business_id):
         if legacy:
             return redirect(url_for('payments.checkout_page', project_id=legacy['id']))
     if not catalog_key:
-        flash("Bisnis ini belum memilih paket Kilas Brain.", "error")
+        flash("Bisnis ini belum memilih Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
     existing = db.query_one(
@@ -825,7 +825,7 @@ def _brain_checkout(business_id):
     else:
         item = catalog_service.get_catalog_item(catalog_key)
         if item is None:
-            flash("Paket Kilas Brain ini sedang tidak tersedia — hubungi Kilas Works.", "error")
+            flash("Kilas Assist ini sedang tidak tersedia — hubungi Kilas Works.", "error")
             return redirect(url_for("client.review_page", business_id=business_id))
         if request.method=='GET':
             return render_template('brain_checkout_start.html',business=business,item=item)
@@ -969,7 +969,7 @@ def simulate_flag(business_id):
 def inbox_page(business_id):
     business = _business_or_404(business_id)
     if business.get("package") == "NONE":
-        flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Brain.", "error")
+        flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
     from kilas_core.whatsapp_access import selected as core_whatsapp_selected
@@ -1032,7 +1032,7 @@ def inbox_takeover(business_id):
     if not phone or not inbox_service.customer_exists(business_id, phone):
         abort(404)
     if business.get("status") != "ACTIVE":
-        flash("AI Admin business ini belum ACTIVE.", "error")
+        flash("Kilas Assist bisnis ini belum aktif.", "error")
         return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
     user = security.current_user()
     wa_takeover_service.start_human_takeover(business_id, phone, user["id"])
@@ -1049,7 +1049,7 @@ def inbox_return_ai(business_id):
         abort(404)
     user = security.current_user()
     wa_takeover_service.return_to_ai(business_id, phone, user["id"])
-    flash("Chat dikembalikan ke AI Admin.", "success")
+    flash("Chat dikembalikan ke Kilas Assist.", "success")
     return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
 
 
@@ -1079,7 +1079,7 @@ def inbox_reply(business_id):
             "outside_24h_window": "Sudah di luar window WhatsApp 24 jam. Free-text tidak dikirim; perlu template message.",
             "no_customer_inbound": "Belum ada inbound customer yang valid untuk membuka window WhatsApp 24 jam.",
             "whatsapp_not_connected": "WhatsApp business ini belum berstatus CONNECTED.",
-            "business_not_active": "AI Admin business ini belum ACTIVE.",
+            "business_not_active": "Kilas Assist bisnis ini belum aktif.",
             "tenant_credentials_unavailable": "Credential WhatsApp tenant belum tersedia di server.",
             "default_whatsapp_credentials_unavailable": "Credential WhatsApp platform belum tersedia di server.",
             "takeover_state_unavailable": "Status Human Takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
