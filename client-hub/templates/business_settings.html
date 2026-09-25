@@ -39,7 +39,7 @@
       <summary>💳 Info Pembayaran Customer</summary>
       <div class="client-collapsible-body">
         {% if tenant_features and tenant_features.payment_conversation %}
-          <p class="client-note">Rekening ini yang disampaikan Brain ke customer bisnis kamu. Bukan tagihan ke Kilas Works.</p>
+          <p class="client-note">Rekening ini yang disampaikan Kilas Assist ke customer bisnis kamu. Bukan tagihan ke Kilas Works.</p>
           <div class="client-form-grid">
             <label>Nama bank<input type="text" name="payment_bank_name" value="{{ profile.payment_bank_name or '' }}" placeholder="mis. BCA"></label>
             <label>Nomor rekening<input type="text" name="payment_account_number" value="{{ profile.payment_account_number or '' }}"></label>
@@ -50,7 +50,7 @@
       </div>
     </details>
 
-    <div class="client-actions"><button class="btn" type="submit">Simpan Pengaturan</button><a class="btn secondary" href="{{ url_for('client.business_memory', business_id=business.id) }}">Ajari Brain</a></div>
+    <div class="client-actions"><button class="btn" type="submit">Simpan Pengaturan</button><a class="btn secondary" href="{{ url_for('client.business_memory', business_id=business.id) }}">Ajari Kilas Assist</a></div>
   </form>
 </div>
 {% endblock %}
