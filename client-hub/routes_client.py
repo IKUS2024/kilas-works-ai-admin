@@ -966,13 +966,12 @@ def simulate_flag(business_id):
 
 
 # ---------------------------------------------------------------------------
-# Demo Kilas WhatsApp bridge — privacy-scoped to the logged-in browser session.
+# Demo Kilas WhatsApp bridge — privacy-scoped to one authorized business.
 #
 # The demo deliberately uses Kilas Works' own WhatsApp number, not the tenant's future
-# WhatsApp channel. A short random code in the prefilled WhatsApp message is the only binding
-# between this browser/business and the sender's platform conversation. The Inbox can therefore
-# mirror ONLY the conversation that proved possession of this session's code; it never exposes
-# the rest of Kilas Works' platform inbox to a customer.
+# WhatsApp channel. A short code proves the initial binding. Once proven, only that phone +
+# start-message boundary are persisted for this business, so refresh/redeploy/login-session changes
+# do not disconnect the Inbox and no other Kilas Works platform conversations are exposed.
 # ---------------------------------------------------------------------------
 
 _DEMO_KILAS_PHONE = "6282213039137"
@@ -1075,6 +1074,9 @@ def _demo_kilas_pending_state(business_id):
 
     state = _demo_kilas_audit_state(business_id, _DEMO_KILAS_STARTED_ACTION)
     if not state or not _demo_kilas_marker(state):
+        return None
+    bound = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
+    if bound and int(bound.get("_audit_id") or 0) > int(state.get("_audit_id") or 0):
         return None
     try:
         state["expires_at"] = int(state.get("expires_at") or 0)
