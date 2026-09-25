@@ -37,3 +37,92 @@ body.admin-ui>.topbar{display:none}.kw-operator-nav{position:fixed;inset:0 auto 
  .kw-app .finance-context-home .finance-app-more{grid-column:6/7;grid-row:2;justify-self:end}
 }
 .kw-subscription-note{padding:12px;border-radius:8px;border:1px solid #765626;background:#2e271b;color:#f4d39a!important;font-size:13px}.kw-subscription-note.danger{border-color:#743b3b;background:#302020;color:#ffc1bd!important}
+
+
+/* Kilas Assist home — focused command-center redesign. */
+.kw-assist-home{max-width:1040px}
+.kw-assist-head{margin-bottom:22px}
+.kw-assist-head h1{font-size:clamp(28px,4vw,42px);letter-spacing:-1.5px;margin:4px 0 8px}
+.kw-assist-head>div>p:last-child{max-width:640px}
+.kw-head-link{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap}
+.kw-head-link:hover{border-color:#555960;color:var(--text);text-decoration:none}
+.kw-business-stack{display:grid;gap:20px}
+.kw-assist-card{position:relative;padding:0!important;overflow:hidden!important;border-radius:20px!important;background:#1d1f22!important;box-shadow:0 18px 45px rgba(0,0,0,.16)!important}
+.kw-assist-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:24px 26px 18px}
+.kw-assist-card-head h2{font-size:clamp(24px,3vw,32px)!important;letter-spacing:-.7px;margin:0!important}
+.kw-business-status{display:inline-flex;align-items:center;min-height:30px;padding:5px 10px;border:1px solid #40444a;border-radius:999px;background:#25282c;color:#c7cbd1;font-size:10px;font-weight:800;letter-spacing:.3px;white-space:nowrap}
+.kw-business-status-ready_for_review,.kw-business-status-approved{border-color:#6a5225;background:#2a2419;color:#f0c878}
+.kw-business-status-active{border-color:#285a45;background:#192a23;color:#72d7aa}
+.kw-business-status-needs_revision,.kw-business-status-suspended{border-color:#6b3636;background:#2b1d1d;color:#ffaaa5}
+.kw-assist-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:26px;margin:0 16px;padding:28px 30px;border:1px solid #3a3d42;border-radius:16px;background:linear-gradient(135deg,#25272b 0%,#202226 72%,#2a211b 100%)}
+.kw-assist-hero-copy{max-width:620px}
+.kw-assist-hero h3{font-size:clamp(24px,3vw,34px);line-height:1.12;letter-spacing:-1px;margin:0 0 10px;color:#fff}
+.kw-assist-hero p{margin:0;max-width:590px;font-size:14px;line-height:1.65}
+.kw-assist-primary-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.kw-assist-primary-actions .btn{min-height:46px!important;padding:11px 18px!important;border-radius:10px!important;font-size:13px!important;text-align:center}
+.kw-primary-cta{box-shadow:0 8px 20px rgba(255,122,24,.18)}
+.kw-demo-btn{min-width:142px}
+.kw-flow-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 16px 0}
+.kw-flow-grid>a{position:relative;display:flex;flex-direction:column;gap:3px;min-height:92px;padding:16px;border:1px solid #34373c;border-radius:14px;background:#202226;color:var(--text);text-decoration:none;transition:border-color .15s ease,transform .15s ease,background .15s ease}
+.kw-flow-grid>a:hover{border-color:#5a4433;background:#242529;transform:translateY(-1px);text-decoration:none}
+.kw-flow-index{font-size:9px;font-weight:850;letter-spacing:1.4px;color:var(--orange)}
+.kw-flow-grid strong{font-size:14px}
+.kw-flow-grid small{font-size:11px;color:#969ba3;line-height:1.35}
+.kw-next-step{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px;align-items:center;margin:14px 16px 0;padding:18px 20px;border:1px solid #483a2d;border-radius:14px;background:#231f1b}
+.kw-next-step-copy .kw-eyebrow{margin-bottom:4px!important}
+.kw-next-step h3{font-size:15px;margin:0 0 4px}
+.kw-next-step p{font-size:12px;margin:0;line-height:1.5}
+.kw-next-step-actions{display:flex;flex-direction:column;align-items:flex-end;gap:7px}
+.kw-next-step-actions a{font-size:12px;font-weight:800;white-space:nowrap}
+.kw-attention-block{margin:14px 16px 0;padding:18px 20px;border:1px solid #3a3d42;border-radius:14px;background:#202226}
+.kw-attention-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:8px}
+.kw-attention-head h3{font-size:15px;margin:0}
+.kw-attention-head>a{font-size:11px;font-weight:800;white-space:nowrap}
+.kw-assist-card>.kw-subscription-note{margin:14px 16px 0}
+.kw-assist-details{margin:16px 26px 0!important;padding:16px 0 22px!important}
+.kw-assist-details summary{font-size:12px;font-weight:800;color:#d9dce1}
+.kw-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.kw-details-grid p{display:flex;flex-direction:column;gap:3px;margin:0;padding:12px;border:1px solid #34373c;border-radius:10px;background:#202226}
+.kw-details-grid span{font-size:10px;color:#8f949d}
+.kw-details-grid strong{font-size:12px;color:#eef0f3}
+.kw-detail-links{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px}
+.kw-detail-links a{font-size:12px;font-weight:750}
+.kw-state-card{max-width:720px}
+
+@media(max-width:760px){
+  .kw-assist-home{max-width:none}
+  .kw-assist-head{display:flex!important;align-items:flex-end!important;justify-content:space-between!important;gap:12px!important;margin:4px 2px 16px!important}
+  .kw-assist-head h1{font-size:27px!important;line-height:1.08;margin:2px 0 6px}
+  .kw-assist-head>div>p:last-child{font-size:12px;line-height:1.45;max-width:290px}
+  .kw-head-link{min-height:34px;padding:6px 8px;font-size:10px;border-radius:9px}
+  .kw-assist-card{border-radius:18px!important}
+  .kw-assist-card-head{padding:20px 18px 14px;align-items:center}
+  .kw-assist-card-head h2{font-size:24px!important}
+  .kw-business-status{min-height:27px;padding:4px 8px;font-size:9px;max-width:44%;overflow:hidden;text-overflow:ellipsis}
+  .kw-assist-hero{display:block;margin:0 10px;padding:20px;border-radius:14px}
+  .kw-assist-hero h3{font-size:24px;line-height:1.12;margin-bottom:8px}
+  .kw-assist-hero p{font-size:12px;line-height:1.55}
+  .kw-assist-primary-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}
+  .kw-assist-primary-actions .btn{width:100%;min-height:44px!important;padding:10px 8px!important}
+  .kw-flow-grid{gap:7px;padding:10px 10px 0}
+  .kw-flow-grid>a{min-height:84px;padding:12px 10px;border-radius:12px}
+  .kw-flow-grid strong{font-size:12px}
+  .kw-flow-grid small{font-size:9px}
+  .kw-flow-index{font-size:8px}
+  .kw-next-step{grid-template-columns:1fr;margin:10px 10px 0;padding:15px;gap:10px;border-radius:12px}
+  .kw-next-step-actions{align-items:flex-start;flex-direction:row;flex-wrap:wrap}
+  .kw-attention-block{margin:10px 10px 0;padding:15px}
+  .kw-assist-card>.kw-subscription-note{margin:10px 10px 0}
+  .kw-assist-details{margin:12px 18px 0!important;padding:14px 0 18px!important}
+  .kw-details-grid{grid-template-columns:1fr;gap:7px}
+  .kw-details-grid p{padding:10px}
+}
+
+@media(max-width:430px){
+  .kw-assist-head{align-items:flex-start!important}
+  .kw-assist-head>div>p:last-child{max-width:240px}
+  .kw-head-link{padding:5px 7px}
+  .kw-assist-primary-actions{grid-template-columns:1fr}
+  .kw-flow-grid small{display:none}
+  .kw-flow-grid>a{min-height:72px}
+}
