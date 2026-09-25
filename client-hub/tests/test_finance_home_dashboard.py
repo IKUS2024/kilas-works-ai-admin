@@ -669,7 +669,7 @@ class DashboardHomeTests(unittest.TestCase):
         html,_=self.page('?month=2026-09')
         self.assertIn('finance-dashboard-link',html)
         self.assertIn('>Dashboard</a>',html)
-        self.assertIn('← Home</a>',html)
+        self.assertIn('← Keluar Finance</a>',html)
 
     def test_workspace_entry_redirects_directly_to_business_finance(self):
         import finance_branches
@@ -725,14 +725,14 @@ class DashboardHomeTests(unittest.TestCase):
             self.assertIn('compact',classes)
         self.assertIn('finance-budget-chart-wrap',html)
         self.assertIn('finance-budget-ring',html)
-        self.assertIn('Catat langsung atau minta bantuan Kilas untuk keuangan ini.',html)
+        self.assertIn('Bantu kelola keuanganmu lebih cepat.',html)
 
     def test_finance_pages_hide_client_hub_topbar_and_offer_dashboard_back(self):
         html,_=self.page('?month=2026-09')
         self.assertNotIn('Kilas<span>Works</span> Client Hub',html)
         self.assertNotIn('class="finance-context-bar"',html)
         self.assertNotIn('class="topbar-active" aria-current="page"',html)
-        self.assertIn('href="/workspace"',html)
+        self.assertIn('Keluar Finance',html)
         self.assertIn('finance-exit-bar',html)
 
     def test_transaction_form_can_add_income_and_expense_categories_in_place(self):
