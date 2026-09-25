@@ -13,11 +13,25 @@ from kilas_core.playbook_definitions import PLAYBOOKS
 jobs_bp = Blueprint('core_jobs', __name__)
 
 
+def workspace_available(business):
+    """Owner workspace access for Jobs, including pre-onboarding demo businesses.
+
+    This is intentionally less strict than the automation/channel rollout gate below:
+    the logged-in owner may explore their own Jobs workspace before review/subscription
+    activation, while automated production behavior still requires the full rollout gate.
+    """
+    return bool(
+        jobs.enabled()
+        and customers.enabled()
+        and business
+        and business.get('package') in customers.AI_PACKAGES
+        and business.get('status') not in ('ARCHIVED','SUSPENDED','CANCELLED')
+    )
+
+
 def available(business):
-    if (not jobs.enabled() or not customers.enabled() or not business
-            or business.get('package') not in customers.AI_PACKAGES
-            or business.get('status') in ('ARCHIVED','SUSPENDED','CANCELLED')
-            or not enabled_for_business(business['id'])):
+    """Full production availability for automated/channel-linked Jobs behavior."""
+    if not workspace_available(business) or not enabled_for_business(business['id']):
         return False
     try:
         sub = subscription_service.get_subscription(business['id'])
@@ -28,7 +42,7 @@ def available(business):
 
 def _business(bid):
     business = security.require_business_access(bid)
-    if not available(business):
+    if not workspace_available(business):
         abort(404)
     return business
 
