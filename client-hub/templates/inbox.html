@@ -18,6 +18,8 @@
 .kw-delivery{font-size:10px;font-weight:750}.kw-delivery.sent{color:var(--green)}
 .kw-send-status{font-size:11px;font-weight:750;color:var(--text-dim);margin-left:auto}
 .kw-send-status.sending{color:var(--yellow)}.kw-send-status.sent{color:var(--green)}.kw-send-status.failed{color:var(--red)}
+
+.kw-demo-inbox-note{padding:10px 12px;border:1px solid color-mix(in srgb,var(--orange) 45%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--orange) 7%,transparent)}
 @media(max-width:900px){.customer-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
 @media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
 </style>
@@ -55,10 +57,12 @@
     <div class="kw-conversations">
       {% for c in conversations %}
         <a class="kw-conversation {{ 'active' if selected and selected.customer_phone == c.customer_phone else '' }}"
-           href="{{ url_for('client.inbox_page', business_id=business.id, customer=c.customer_phone, q=search, mode=mode_filter, page=inbox_page) }}">
+           href="{{ url_for('client.inbox_page', business_id=business.id, customer=c.customer_phone, source=c.source or 'tenant', q=search, mode=mode_filter, page=inbox_page) }}">
           <div class="kw-row">
             <strong>{{ c.customer_name or c.customer_phone }}</strong>
-            {% if c.mode == 'HUMAN_TAKEOVER' %}
+            {% if c.source == 'demo' %}
+              <span class="pill READY_FOR_REVIEW">Demo WA</span>
+            {% elif c.mode == 'HUMAN_TAKEOVER' %}
               <span class="pill NEEDS_REVISION">Human</span>
             {% else %}
               <span class="pill ACTIVE">AI</span>
@@ -93,7 +97,9 @@
           <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
           {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
           <div style="margin-top:5px;">
-            {% if selected.mode == 'HUMAN_TAKEOVER' %}
+            {% if selected_source == 'demo' %}
+              <span class="pill READY_FOR_REVIEW">Demo WhatsApp Kilas</span>
+            {% elif selected.mode == 'HUMAN_TAKEOVER' %}
               <span class="pill NEEDS_REVISION">Human Handling</span>
             {% elif selected.mode == 'AI_ACTIVE' %}
               <span class="pill ACTIVE">AI Active</span>
@@ -103,7 +109,8 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          {% if selected.mode == 'AI_ACTIVE' %}
+          {% if selected_source == 'demo' %}
+          {% elif selected.mode == 'AI_ACTIVE' %}
             <form method="post" action="{{ url_for('client.inbox_takeover', business_id=business.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
@@ -136,7 +143,12 @@
       </div>
 
       <div class="kw-compose">
-        {% if selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
+        {% if selected_source == 'demo' %}
+          <div class="kw-demo-inbox-note">
+            <strong>Demo WhatsApp aktif</strong>
+            <p class="muted" style="margin:4px 0 0;">Chat ini berasal dari WhatsApp Kilas Works dan hanya dimirror ke workspace demo ini. Lanjutkan chat dari WhatsApp; Inbox akan update otomatis.</p>
+          </div>
+        {% elif selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
           <form id="tenant-reply-form" method="post" action="{{ url_for('client.inbox_reply', business_id=business.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
