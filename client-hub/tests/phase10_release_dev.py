@@ -5,6 +5,7 @@ if os.environ.get('KILAS_PHASE10_BROWSER_QA') != '1':
 
 from unittest.mock import Mock, patch
 import json
+import traceback
 from flask import jsonify
 from test_kilas_finance_bridge import BridgeTests
 from test_finance_phase2a import app
@@ -45,6 +46,13 @@ finance_http = patch('requests.post', side_effect=finance_provider)
 finance_config.start(); finance_http.start()
 app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True,
                   SECRET_KEY='phase10-disposable-signing-key-never-production')
+# Disposable-only diagnostics preserve the application's response and error handling.
+import routes_finance
+original_assistant_error = routes_finance.assistant_error
+def diagnostic_assistant_error(error):
+    traceback.print_exception(error)
+    return original_assistant_error(error)
+routes_finance.assistant_error = diagnostic_assistant_error
 
 
 @app.get('/dev/health')
