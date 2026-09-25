@@ -10,6 +10,38 @@ INTENTS = frozenset({'REQUEST', 'CONTINUE', 'NEW_REQUEST', 'BUSINESS_QUESTION', 
 KEYS = {'intent', 'fields', 'evidence', 'corrections', 'ambiguous'}
 
 
+
+_SIMPLE_GREETING_PATTERNS = (
+    ('hai',), ('hi',), ('halo',), ('hello',), ('hey',),
+    ('pagi',), ('siang',), ('sore',), ('malam',), ('permisi',),
+    ('selamat','pagi'), ('selamat','siang'), ('selamat','sore'), ('selamat','malam'),
+    ('assalamualaikum',), ('assalamu','alaikum'), ('tes',), ('test',),
+)
+_GREETING_ADDRESSES = frozenset({'kak','min','admin','gan','bro','sis','mas','mba','mbak','pak','bu'})
+
+
+def is_simple_greeting(text):
+    """True only for a bounded greeting/test utterance with no operational request.
+
+    This intentionally handles obvious greetings before model classification so a plain
+    "hai" can never be escalated to Human Takeover merely because a model labels it
+    HUMAN/UNSUPPORTED. Anything with additional business/request content still goes
+    through the normal understanding contract.
+    """
+    if not isinstance(text, str):
+        return False
+    cleaned = re.sub(r'[^\w\s]+', ' ', text.casefold(), flags=re.UNICODE)
+    tokens = tuple(part for part in cleaned.split() if part)
+    if not tokens or len(tokens) > 3:
+        return False
+    for pattern in _SIMPLE_GREETING_PATTERNS:
+        if tokens == pattern:
+            return True
+        if len(tokens) == len(pattern) + 1 and tokens[:len(pattern)] == pattern and tokens[-1] in _GREETING_ADDRESSES:
+            return True
+    return False
+
+
 class UnderstandingError(ValueError):
     """Closed diagnostic codes only; never carries model/customer text."""
     CODES = frozenset({'invalid_understanding', 'invalid_json', 'invalid_envelope',
