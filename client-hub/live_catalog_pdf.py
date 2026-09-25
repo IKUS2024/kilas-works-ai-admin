@@ -150,7 +150,7 @@ def generate_catalog_pdf_bytes():
     ):
         story.extend([Spacer(1, 5 * mm), para(title, "KWCardHead"), para(text)])
     groups = [
-        ("Kilas Brain", ("AI_ADMIN",)),
+        ("Kilas Assist", ("AI_ADMIN",)),
         ("Business Systems", ("WEBSITE", "APPLICATION")),
         ("Creative Production", ("CONTENT", "VIDEO", "PHOTO", "BUNDLE", "EVENT")),
         ("Layanan Lainnya", tuple(k for k in by_category if k not in
