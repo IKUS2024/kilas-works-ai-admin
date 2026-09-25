@@ -1,26 +1,146 @@
 {% extends 'base.html' %}
 {% block title %}Home · Kilas Assist{% endblock %}
 {% block content %}
-<section class="kw-page">
-<header class="kw-page-head"><div><p class="kw-eyebrow">KILAS ASSIST</p><h1>Selamat datang, {{ user.full_name or 'Pemilik' }}.</h1><p>Mulai dari yang membutuhkan perhatian Anda.</p></div><a class="btn secondary" href="{{ url_for('workspace.more') }}">Kelola ruang kerja</a></header>
-{% if workspace_ui.unavailable %}<section class="card" role="alert"><h2>Ruang kerja belum dapat dimuat</h2><p>Data Anda belum dapat ditampilkan. Coba muat ulang halaman.</p><a class="btn" href="{{ url_for('workspace.home') }}">Coba lagi</a></section>
-{% elif not workspace_ui.ai and not workspace_ui.finance %}
-<section class="kw-welcome card"><p class="kw-eyebrow">MULAI DARI KEBUTUHAN ANDA</p><h2>Apa yang mau dibantu Kilas?</h2><p>Layani customer, kelola keuangan, atau gunakan keduanya. Anda bisa mulai tanpa menghubungkan WhatsApp.</p><a class="btn" href="{{ url_for('workspace.go',area='setup') }}">Siapkan ruang kerja</a><a class="btn secondary" href="{{ url_for('workspace.go',area='services') }}">Jelajahi Kilas Services</a></section>
-{% endif %}
+<section class="kw-page kw-assist-home">
+  <header class="kw-page-head kw-assist-head">
+    <div>
+      <p class="kw-eyebrow">KILAS ASSIST</p>
+      <h1>Selamat datang, {{ user.full_name or 'Pemilik' }}.</h1>
+      <p>Kelola percakapan customer, customer, dan pekerjaan bisnis dari satu tempat.</p>
+    </div>
+    <a class="kw-head-link" href="{{ url_for('workspace.more') }}">Kelola ruang kerja <span aria-hidden="true">→</span></a>
+  </header>
 
-<div class="kw-grid">
-{% for business in workspace_ui.ai %}<section class="card kw-business-card"><p class="kw-eyebrow">KILAS ASSIST</p><h2>{{ business.business_name }}</h2>
-{% set attention_data=attention_summary(business) %}{% if attention_data and attention_data.total %}<section data-attention-home><h3>{{ attention_data.total }} hal perlu perhatian</h3>{% include '_attention_items.html' %}<a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Lihat semua perhatian →</a></section>{% endif %}
-{% set setup=workspace_ui.setup.get(business.id) if workspace_ui.setup else none %}
-{% if setup and setup.subscription and setup.subscription.message %}<p class="kw-subscription-note {{ setup.subscription.level }}" role="status">{{ setup.subscription.message }}</p>{% endif %}
-{% if business.status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','SUSPENDED') %}<p role="status">{{ {'READY_FOR_REVIEW':'Data bisnis sedang ditinjau.', 'NEEDS_REVISION':'Ada data bisnis yang perlu diperbaiki.', 'APPROVED':'Setup disetujui. Periksa aktivasi dan status langganan.', 'SUSPENDED':'Kilas Assist sedang dijeda. Periksa langganan atau hubungi Kilas Works.'}[business.status] }} <a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Tinjau bisnis →</a></p>{% endif %}
-{% if setup and setup.missing %}<div class="kw-setup-note"><h3>Lengkapi dasar bisnis</h3><p>{{ setup.missing|join(', ') }}.</p><a href="{{ url_for('client.wizard_step',business_id=business.id,step=setup.step) }}">Lanjutkan setup →</a></div>{% endif %}
-<p>Customer, percakapan, dan pekerjaan bisnis Anda dalam satu alur.</p>
-<div class="kw-actions"><a class="btn" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a></div>
-{% include '_web_share.html' %}
-<details class="kw-details"><summary>Setup, channel &amp; penggunaan</summary><p>Paket {{ business.package|humanize_package }} · {{ business.status|humanize_status('business') }}</p><p>Respons AI bulan ini: {% if setup and setup.usage %}{{ setup.usage.replies }}{% else %}Belum tersedia{% endif %}</p>{% if setup and setup.usage and setup.usage.status != 'NORMAL' %}<p>Penggunaan AI tinggi. Kilas Works dapat menghubungi Anda untuk meninjau kebutuhan; layanan tetap berjalan.</p>{% endif %}<p>Koneksi WhatsApp bisnis Anda tetap opsional dan bergantung pada akses Meta untuk akun dan aset Anda. Demo Kilas dibuka langsung melalui WhatsApp Kilas Works.</p><div class="kw-actions"><a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Tinjau setup &amp; aktivasi</a><a href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Pengetahuan bisnis</a></div></details>
-</section>{% endfor %}
+  {% if workspace_ui.unavailable %}
+  <section class="card kw-state-card" role="alert">
+    <h2>Ruang kerja belum dapat dimuat</h2>
+    <p>Data Anda belum dapat ditampilkan. Coba muat ulang halaman.</p>
+    <a class="btn" href="{{ url_for('workspace.home') }}">Coba lagi</a>
+  </section>
+  {% elif not workspace_ui.ai and not workspace_ui.finance %}
+  <section class="card kw-welcome kw-state-card">
+    <p class="kw-eyebrow">MULAI</p>
+    <h2>Siapkan ruang kerja pertama Anda</h2>
+    <p>Pilih kebutuhan bisnis dan mulai gunakan Kilas tanpa harus menghubungkan WhatsApp terlebih dahulu.</p>
+    <div class="kw-actions">
+      <a class="btn" href="{{ url_for('workspace.go',area='setup') }}">Siapkan ruang kerja</a>
+      <a class="btn secondary" href="{{ url_for('workspace.go',area='services') }}">Lihat layanan</a>
+    </div>
+  </section>
+  {% endif %}
 
-</div>
+  <div class="kw-business-stack">
+  {% for business in workspace_ui.ai %}
+    {% set setup = workspace_ui.setup.get(business.id) if workspace_ui.setup else none %}
+    {% set attention_data = attention_summary(business) %}
+
+    <article class="card kw-assist-card">
+      <header class="kw-assist-card-head">
+        <div>
+          <p class="kw-eyebrow">WORKSPACE</p>
+          <h2>{{ business.business_name }}</h2>
+        </div>
+        <span class="kw-business-status kw-business-status-{{ business.status|lower }}">
+          {{ business.status|humanize_status('business') }}
+        </span>
+      </header>
+
+      <section class="kw-assist-hero">
+        <div class="kw-assist-hero-copy">
+          <p class="kw-eyebrow">PUSAT OPERASIONAL</p>
+          <h3>Dari WhatsApp ke Inbox, Customer, dan Jobs.</h3>
+          <p>Balas customer, lihat konteks percakapan, dan tindak lanjuti permintaan tanpa pindah-pindah tempat.</p>
+        </div>
+        <div class="kw-assist-primary-actions">
+          <a class="btn kw-primary-cta" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a>
+          {% include '_web_share.html' %}
+        </div>
+      </section>
+
+      <nav class="kw-flow-grid" aria-label="Akses cepat Kilas Assist">
+        <a href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">
+          <span class="kw-flow-index">01</span>
+          <strong>Inbox</strong>
+          <small>Percakapan masuk</small>
+        </a>
+        <a href="{{ url_for('workspace.go',area='customers',business_id=business.id) }}">
+          <span class="kw-flow-index">02</span>
+          <strong>Customers</strong>
+          <small>Identitas &amp; konteks</small>
+        </a>
+        <a href="{{ url_for('workspace.go',area='jobs',business_id=business.id) }}">
+          <span class="kw-flow-index">03</span>
+          <strong>Jobs</strong>
+          <small>Permintaan yang perlu tindakan</small>
+        </a>
+      </nav>
+
+      {% if business.status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','SUSPENDED') or (setup and setup.missing) %}
+      <section class="kw-next-step">
+        <div class="kw-next-step-copy">
+          <p class="kw-eyebrow">PERLU DISELESAIKAN</p>
+          {% if setup and setup.missing %}
+            <h3>Lengkapi setup bisnis</h3>
+            <p>{{ setup.missing|join(', ') }}.</p>
+          {% elif business.status == 'READY_FOR_REVIEW' %}
+            <h3>Data bisnis sedang ditinjau</h3>
+            <p>Tidak ada yang perlu diulang. Anda tetap bisa membuka workspace.</p>
+          {% elif business.status == 'NEEDS_REVISION' %}
+            <h3>Ada data yang perlu diperbaiki</h3>
+            <p>Tinjau catatan agar setup bisa dilanjutkan.</p>
+          {% elif business.status == 'APPROVED' %}
+            <h3>Setup bisnis sudah disetujui</h3>
+            <p>Periksa aktivasi channel dan status layanan.</p>
+          {% elif business.status == 'SUSPENDED' %}
+            <h3>Kilas Assist sedang dijeda</h3>
+            <p>Periksa status langganan atau hubungi Kilas Works.</p>
+          {% endif %}
+        </div>
+        <div class="kw-next-step-actions">
+          {% if setup and setup.missing %}
+          <a href="{{ url_for('client.wizard_step',business_id=business.id,step=setup.step) }}">Lanjutkan setup →</a>
+          {% endif %}
+          {% if business.status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','SUSPENDED') %}
+          <a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Tinjau bisnis →</a>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      {% if attention_data and attention_data.total %}
+      <section class="kw-attention-block" data-attention-home>
+        <div class="kw-attention-head">
+          <div>
+            <p class="kw-eyebrow">PERHATIAN</p>
+            <h3>{{ attention_data.total }} hal perlu ditindaklanjuti</h3>
+          </div>
+          <a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Lihat semua →</a>
+        </div>
+        {% include '_attention_items.html' %}
+      </section>
+      {% endif %}
+
+      {% if setup and setup.subscription and setup.subscription.message %}
+      <p class="kw-subscription-note {{ setup.subscription.level }}" role="status">{{ setup.subscription.message }}</p>
+      {% endif %}
+
+      <details class="kw-details kw-assist-details">
+        <summary>Setup, channel &amp; penggunaan</summary>
+        <div class="kw-details-grid">
+          <p><span>Paket</span><strong>{{ business.package|humanize_package }}</strong></p>
+          <p><span>Status</span><strong>{{ business.status|humanize_status('business') }}</strong></p>
+          <p><span>Respons AI bulan ini</span><strong>{% if setup and setup.usage %}{{ setup.usage.replies }}{% else %}Belum tersedia{% endif %}</strong></p>
+        </div>
+        {% if setup and setup.usage and setup.usage.status != 'NORMAL' %}
+        <p class="kw-note">Penggunaan AI tinggi. Kilas Works dapat menghubungi Anda untuk meninjau kebutuhan; layanan tetap berjalan.</p>
+        {% endif %}
+        <div class="kw-detail-links">
+          <a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Setup &amp; aktivasi</a>
+          <a href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Pengetahuan bisnis</a>
+        </div>
+      </details>
+    </article>
+  {% endfor %}
+  </div>
 </section>
 {% endblock %}
