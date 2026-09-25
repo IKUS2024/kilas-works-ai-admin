@@ -3,7 +3,8 @@ import os
 if os.environ.get('KILAS_PHASE10_BROWSER_QA') != '1':
     raise SystemExit('Explicit Phase 10 disposable QA flag required')
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+import json
 from flask import jsonify
 from test_kilas_finance_bridge import BridgeTests
 from test_finance_phase2a import app
@@ -29,6 +30,19 @@ os.environ.update(KILAS_WEB_CHAT_ENABLED='true', KILAS_PLAYBOOKS_V2_ENABLED='tru
 finance_entitlements.start_trial(case.target, case.actor)
 finance_entitlements.start_trial(case.foreign, case.foreign_actor)
 model = patch.object(ai_onboarding, '_call_claude', side_effect=reply); model.start()
+# Stub only provider configuration/HTTP; retain semantic validation and draft engine.
+def finance_provider(url, **kwargs):
+    assert url == 'https://api.anthropic.com/v1/messages'
+    request = json.loads(kwargs['json']['messages'][0]['content'])
+    assert request['message'] == 'catat pengeluaran', request['message']
+    response = Mock(status_code=200)
+    response.json.return_value = {'stop_reason':'end_turn', 'content':[
+        {'type':'text', 'text':json.dumps({'intent':'create_expense','slots':{}})}]}
+    return response
+
+finance_config = patch('finance_bank_extract.configuration', return_value=('synthetic-only','qa-model'))
+finance_http = patch('requests.post', side_effect=finance_provider)
+finance_config.start(); finance_http.start()
 app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
 
 
