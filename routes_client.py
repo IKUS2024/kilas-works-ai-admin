@@ -108,8 +108,8 @@ def dashboard():
             "completion_percent": repo.onboarding_completion_percent(b["id"]),
             "onboarding_status": repo.get_onboarding_status(b["id"]),
             # Gap-fix Area E — owner-facing subscription banner (renewal-due/GRACE/SUSPENDED),
-            # this business's OWN AI Admin subscription only. None when there's no subscription
-            # row yet (e.g. this business was never activated with an AI Admin package).
+            # this business's OWN Kilas Assist subscription only. None when there's no subscription
+            # row yet (e.g. this business was never activated with an Kilas Assist package).
             "subscription_banner": subscription_service.get_subscription_banner(b["id"]),
         })
         # Business Hub V2, Phase E (Section 19): surface this customer's own projects/quotations
@@ -149,9 +149,9 @@ def dashboard():
 @security.login_required
 def create_business():
     """Ecosystem Sync Section 2 (priority gap): registration/business-creation must NOT force an
-    AI Admin package pick. The form defaults to 'NONE' (no AI Admin yet) — a customer who picks
+    Kilas Assist package pick. The form defaults to 'NONE' (no Kilas Assist yet) — a customer who picks
     that lands straight on the dashboard and can browse/buy any other Kilas Works service. Only a
-    customer who actively selects AI Admin Basic/Pro here goes through the onboarding wizard."""
+    customer who actively selects Kilas Assist Basic/Pro here goes through the onboarding wizard."""
     user = security.current_user()
     name = (request.form.get("business_name") or "").strip()
     package = request.form.get("package") or "NONE"
@@ -171,18 +171,18 @@ def create_business():
 @security.login_required
 def upgrade_to_ai_admin(business_id):
     """Ecosystem Sync Section 2: the explicit, simple 'upgrade' action for a business created
-    without AI Admin. Only reachable for a business currently on package='NONE' — an existing AI
+    without Kilas Assist. Only reachable for a business currently on package='NONE' — an existing AI
     Admin business is never re-routed through this."""
     user = security.current_user()
     business = _business_or_404(business_id)
     if business["package"] != "NONE":
-        flash("Business ini sudah punya paket AI Admin.", "error")
+        flash("Business ini sudah punya paket Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
     package = request.form.get("package") or "AI_ADMIN_BASIC"
     if package not in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
         package = "AI_ADMIN_BASIC"
     repo.upgrade_business_package(business_id, package, user["id"])
-    flash("AI Admin ditambahkan. Lanjutkan onboarding di bawah ini.", "success")
+    flash("Kilas Assist ditambahkan. Lanjutkan onboarding di bawah ini.", "success")
     return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
 
 
@@ -360,7 +360,7 @@ def _check_settings_entitlement(business_id):
     }
     for feature, fields in restricted.items():
         if not features.get(feature) and any(request.form.get(k, "").strip() for k in fields):
-            abort(403, description="Pengaturan ini memerlukan langganan Kilas Brain Pro yang berlaku.")
+            abort(403, description="Pengaturan ini memerlukan langganan Kilas Assist Pro yang berlaku.")
     return features
 
 
@@ -394,7 +394,7 @@ def business_memory(business_id):
             print('KNOWLEDGE_SETUP: save_failed; exception_type=' + type(exc).__name__)
             flash('Informasi belum tersimpan. Coba lagi sebentar.', 'error')
         else:
-            flash('Informasi bisnis tersimpan untuk Kilas Brain.', 'success')
+            flash('Informasi bisnis tersimpan untuk Kilas Assist.', 'success')
         return redirect(url_for('client.business_memory', business_id=business_id))
     if request.method == "POST":
         data = {k: request.form.get(k, profile.get(k) or '').strip() for k in fields}
@@ -410,7 +410,7 @@ def business_memory(business_id):
             print('BUSINESS_MEMORY: save failed; exception_type=' + type(exc).__name__)
             flash('Memori bisnis belum tersimpan. Coba lagi sebentar.', 'error')
         else:
-            flash('Memori bisnis tersimpan dan digunakan Kilas Brain untuk chat berikutnya.', 'success')
+            flash('Memori bisnis tersimpan dan digunakan Kilas Assist untuk chat berikutnya.', 'success')
         return redirect(url_for('client.business_memory', business_id=business_id))
     return render_template('business_memory.html', business=business, profile=profile,
                            services=services_existing, faqs=faqs_existing, setup=setup,
@@ -423,7 +423,7 @@ def business_memory(business_id):
 def knowledge_assist_draft(business_id):
     business = _business_or_404(business_id)
     if business['package'] == 'NONE':
-        return jsonify({'error': 'Bantuan ini tersedia untuk pengguna Kilas Brain.'}), 403
+        return jsonify({'error': 'Bantuan ini tersedia untuk pengguna Kilas Assist.'}), 403
     if request.content_length is not None and request.content_length > knowledge_assist.MAX_REQUEST_BYTES:
         return jsonify({'error': 'Permintaan terlalu besar. Ringkas isianmu.'}), 413
     if not request.is_json:
@@ -649,7 +649,7 @@ def review_page(business_id):
         missing_required_sentence=display_labels.missing_fields_sentence(repo.required_fields_missing(business_id)),
         missing_fix_step=_step_for_missing_fields(repo.required_fields_missing(business_id)),
         is_admin_view=False,
-        # Business flow cleanup: lets review.html show whether AI Admin payment is already done
+        # Business flow cleanup: lets review.html show whether Kilas Assist payment is already done
         # (so "Lanjut ke Pembayaran" only appears when it's actually still needed) — same check
         # provisioning.activate_tenant() itself already uses to gate activation, so this is purely
         # a display convenience, never a second source of truth.
@@ -704,12 +704,12 @@ def submit_for_review(business_id):
     repo.write_audit(user["id"], business_id, "submitted_for_review", None)
     provisioning.record_business_submitted(business_id, user["id"])
     flash(
-        "Data bisnis terkirim! Tim Kilas Works akan review setup AI Admin kamu — sekarang lanjut ke "
+        "Data bisnis terkirim! Tim Kilas Works akan review setup Kilas Assist kamu — sekarang lanjut ke "
         "pembayaran ya.",
         "success",
     )
     # Business flow cleanup: Review -> Pembayaran -> Pending verification/activation -> Selesai.
-    # AI Admin now has exactly ONE purchase path (this wizard), never the generic /services
+    # Kilas Assist now has exactly ONE purchase path (this wizard), never the generic /services
     # instant-checkout — see ai_admin_checkout()'s own docstring below for the full rationale.
     return redirect(url_for("client.ai_admin_checkout", business_id=business_id))
 
@@ -717,20 +717,20 @@ def submit_for_review(business_id):
 @client_bp.route("/business/<int:business_id>/ai-admin/checkout")
 @security.login_required
 def ai_admin_checkout(business_id):
-    """Business flow cleanup (single AI Admin purchase path) — the ONLY route that starts payment
-    for an AI Admin business. Reached from the wizard/review flow (submit_for_review()'s own
+    """Business flow cleanup (single Kilas Assist purchase path) — the ONLY route that starts payment
+    for an Kilas Assist business. Reached from the wizard/review flow (submit_for_review()'s own
     redirect, and a "Lanjut ke Pembayaran" link on review.html for anyone revisiting later) —
     NEVER from the generic /services catalog page, which no longer offers instant checkout for the
     AI_ADMIN category (see service_catalog.html + start_fixed_checkout()'s own guard). Before this
-    fix, AI Admin could ALSO be bought as a plain FIXED_PRICE catalog item straight from
+    fix, Kilas Assist could ALSO be bought as a plain FIXED_PRICE catalog item straight from
     /services — completely bypassing the business-info wizard — which is exactly the "two
-    different AI Admin products" confusion this closes. This function does not introduce a new
+    different Kilas Assist products" confusion this closes. This function does not introduce a new
     payment mechanism: it only creates (or reuses) the SAME kind of `projects` row every other
     fixed-price service already uses, then hands off to the SAME shared payments.checkout_page —
     payment verification, proof upload, and admin review are completely unchanged.
 
     Idempotent: revisiting this route (e.g. the customer navigates away mid-payment and comes back
-    via "Lanjut ke Pembayaran" on the review page) reuses the existing AI Admin project for this
+    via "Lanjut ke Pembayaran" on the review page) reuses the existing Kilas Assist project for this
     business instead of creating a duplicate one — payment_service.checkout() is itself already
     idempotent per-project (reuses the existing invoice), so this only needs to avoid creating a
     second PROJECT row.
@@ -743,7 +743,7 @@ def ai_admin_checkout(business_id):
         abort(403)
     catalog_key = {"AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(target_package)
     if not catalog_key:
-        flash("Bisnis ini belum memilih paket Kilas Brain.", "error")
+        flash("Bisnis ini belum memilih paket Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
     existing = db.query_one(
@@ -761,7 +761,7 @@ def ai_admin_checkout(business_id):
     else:
         item = catalog_service.get_catalog_item(catalog_key)
         if item is None:
-            flash("Paket Kilas Brain ini sedang tidak tersedia — hubungi Kilas Works.", "error")
+            flash("Paket Kilas Assist ini sedang tidak tersedia — hubungi Kilas Works.", "error")
             return redirect(url_for("client.review_page", business_id=business_id))
         project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
 
@@ -893,7 +893,7 @@ def simulate_flag(business_id):
 def inbox_page(business_id):
     business = _business_or_404(business_id)
     if business.get("package") == "NONE":
-        flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Brain.", "error")
+        flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
     search = (request.args.get('q') or '').strip()
@@ -941,7 +941,7 @@ def inbox_takeover(business_id):
     if not phone or not inbox_service.customer_exists(business_id, phone):
         abort(404)
     if business.get("status") != "ACTIVE":
-        flash("AI Admin business ini belum ACTIVE.", "error")
+        flash("Kilas Assist business ini belum ACTIVE.", "error")
         return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
     user = security.current_user()
     wa_takeover_service.start_human_takeover(business_id, phone, user["id"])
@@ -958,7 +958,7 @@ def inbox_return_ai(business_id):
         abort(404)
     user = security.current_user()
     wa_takeover_service.return_to_ai(business_id, phone, user["id"])
-    flash("Chat dikembalikan ke AI Admin.", "success")
+    flash("Chat dikembalikan ke Kilas Assist.", "success")
     return redirect(url_for("client.inbox_page", business_id=business_id, customer=phone))
 
 
@@ -988,7 +988,7 @@ def inbox_reply(business_id):
             "outside_24h_window": "Sudah di luar window WhatsApp 24 jam. Free-text tidak dikirim; perlu template message.",
             "no_customer_inbound": "Belum ada inbound customer yang valid untuk membuka window WhatsApp 24 jam.",
             "whatsapp_not_connected": "WhatsApp business ini belum berstatus CONNECTED.",
-            "business_not_active": "AI Admin business ini belum ACTIVE.",
+            "business_not_active": "Kilas Assist business ini belum ACTIVE.",
             "tenant_credentials_unavailable": "Credential WhatsApp tenant belum tersedia di server.",
             "default_whatsapp_credentials_unavailable": "Credential WhatsApp platform belum tersedia di server.",
             "takeover_state_unavailable": "Status Human Takeover tidak bisa diverifikasi. Demi keamanan pesan tidak dikirim.",
