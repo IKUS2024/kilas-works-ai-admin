@@ -142,7 +142,7 @@
 
   <section class="orders-list">
     {% for p in projects %}
-      {% set is_brain = p.catalog_key == 'ai_admin' or p.title|lower == 'kilas brain' %}
+      {% set is_brain = p.catalog_key == 'ai_admin' or p.title|lower in ('kilas brain','kilas assist') %}
       {% set detail_url = url_for('talent.talent_list') if p.legacy_talent_flow and p.status not in ('COMPLETED','CANCELLED') else url_for('projects.project_view', project_id=p.id) %}
       {% set status_class = 'ok' if p.status in ('PAID','IN_PROGRESS','COMPLETED','DELIVERED') else ('warn' if p.status in ('REQUESTED','WAITING_FOR_QUOTE','PAYMENT_PENDING') else ('danger' if p.status in ('CANCELLED','REJECTED','NEEDS_REVISION') else 'info')) %}
       <article class="order-card">
