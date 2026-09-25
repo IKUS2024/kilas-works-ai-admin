@@ -1624,7 +1624,7 @@ def _get_ai_admin_pipeline_status_safe():
             "waiting_whatsapp_connection_names": [b.get("business_name") for b in waiting_connection[:10]],
         }
     except Exception as e:
-        print(f"Ambil AI admin pipeline status gagal ({e}).")
+        print(f"Ambil Kilas Assist pipeline status gagal ({e}).")
         return {"ready_for_review": 0, "waiting_whatsapp_connection": 0}
 
 
@@ -2813,7 +2813,7 @@ def is_office_closed_on(date_str):
 
 def meeting_mode_label(req):
     """(live demo, additive) Label mode meeting yang konsisten dipakai di semua kalimat konfirmasi/
-    notify — "live demo Kilas Assist" kalau req['purpose']=='demo' (lihat SOAL DEMO AI ADMIN di
+    notify — "live demo Kilas Assist" kalau req['purpose']=='demo' (lihat SOAL DEMO KILAS ASSIST di
     SYSTEM_PROMPT), selain itu perilaku LAMA gak berubah ("ketemu langsung" / "online meeting")."""
     if (req or {}).get("purpose") == "demo":
         return "live demo Kilas Assist"
@@ -3780,7 +3780,7 @@ SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa 
   customer nanya soal respon cepat/chat admin) — lihat aturan CROSS-SELL di bawah, tetap harus relevan,
   BUKAN dipaksa disebut di semua balasan.
 
-SOAL DEMO AI ADMIN (link resmi: https://demo.kilasworks.id — WAJIB DIIKUTI):
+SOAL DEMO KILAS ASSIST (link resmi: https://demo.kilasworks.id — WAJIB DIIKUTI):
 - Kalau customer nanya soal demo/coba/contoh Kilas Assist secara EKSPLISIT — contoh: "ada demo?", "bisa
   coba?", "gimana cara kerjanya?", "saya mau lihat Kilas Assistnya", "ada contoh botnya?", "boleh test
   dulu?" — WAJIB tawarin link demo secara natural, jangan muter-muter. Gaya yang BENER, contoh:
@@ -3920,7 +3920,7 @@ SOAL "INI BOT?"/"INI AI?" (WAJIB JUJUR, TAPI TETAP SELLING-FRIENDLY):
   malah bikin obrolan berasa gak natural. Cukup jujur PAS ditanya, sisanya ngobrol biasa aja kayak aturan
   gaya bahasa di atas.
 
-SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
+SOAL DEMO KILAS ASSIST (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
 - Kilas Works punya demo Kilas Assist mandiri yang bisa dicoba langsung di https://kilasworks.id/demo
   (self-service, langsung di browser, gratis, tanpa perlu appointment/jadwal apapun). Kalau customer
   nanya "bisa coba?", "ada demo?", "AI-nya bisa dicoba gak?", "boleh lihat cara kerjanya?", atau
@@ -9398,7 +9398,7 @@ DEMO_SYSTEM_PROMPT = (
     "buka jam 10.00-22.00 ya Kak. Nanti pada implementasi asli, jam operasionalnya bakal ikut data "
     "bisnis Kakak beneran.' Pola yang sama buat harga/menu/paket — selalu tempelin catatan jujur "
     "kayak gitu, jangan cuma sekali di awal terus abis itu ngarang fakta tanpa disclaimer lagi.\n\n"
-    "TUNJUKKAN VALUE KILAS BRAIN, JANGAN JADI CUMA FAQ BOT: selama simulasi, tunjukkan secara natural "
+    "TUNJUKKAN VALUE KILAS ASSIST, JANGAN JADI CUMA FAQ BOT: selama simulasi, tunjukkan secara natural "
     "kemampuan kayak Kilas Assist asli — jawab pertanyaan, gali kebutuhan customer lebih detail (nanya "
     "balik seperlunya, bukan interogasi), qualifikasi lead (makin serius makin digali detailnya), "
     "kalau customer keliatan cukup serius (nanya harga+detail, mau booking, kasih info kontak) baru "
