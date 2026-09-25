@@ -4,7 +4,7 @@
 <section class="kw-page kw-onboarding">
 <header class="kw-page-head"><div><p class="kw-eyebrow">KILAS WORKS</p><h1>Apa yang mau dibantu Kilas?</h1><p>Pilih kebutuhan Anda. Mulai sederhana, lengkapi saat diperlukan.</p></div></header>
 <div class="kw-intent-grid">
-{% for key,title,description,detail in [('assist','Layani Customer','Bantu customer dari pertanyaan pertama hingga pekerjaan siap ditindaklanjuti.','Coba sebagai customer. WhatsApp dapat dihubungkan nanti.'),('finance','Kelola Keuangan','Catat pemasukan, pengeluaran, tagihan, dan invoice.','Langsung ke Finance tanpa setup AI Admin.'),('both','Keduanya','Layani customer dan kelola keuangan dalam satu ruang kerja.','Siapkan AI Admin dahulu, lalu tambahkan Finance dari Home.')] %}
+{% for key,title,description,detail in [('assist','Layani Customer','Bantu customer dari pertanyaan pertama hingga pekerjaan siap ditindaklanjuti.','Coba sebagai customer. WhatsApp dapat dihubungkan nanti.'),('finance','Kelola Keuangan','Catat pemasukan, pengeluaran, tagihan, dan invoice.','Langsung ke Finance tanpa setup Kilas Assist.'),('both','Keduanya','Layani customer dan kelola keuangan dalam satu ruang kerja.','Siapkan Kilas Assist dahulu, lalu tambahkan Finance dari Home.')] %}
 <form class="card kw-intent" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="{{ key }}"><p class="kw-eyebrow">{{ '%02d'|format(loop.index) }}</p><h2>{{ title }}</h2><p>{{ description }}</p><p class="kw-note">{{ detail }}</p><button class="btn" type="submit">Pilih {{ title }} →</button></form>
 {% endfor %}
 </div>
