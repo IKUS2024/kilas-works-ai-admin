@@ -15,6 +15,15 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt playwright
+      - name: Paid AI lifecycle and historical compatibility regression
+        env:
+          PYTHONPATH: client-hub:client-hub/tests
+        run: |
+          python scripts/run_offline_tests.py --only test_paid_ai_lifecycle.py
+          python scripts/run_offline_tests.py --only test_subscription_backfill.py
+          python scripts/run_offline_tests.py --only test_subscription_lifecycle.py
+          python scripts/run_offline_tests.py --only test_single_plan_release.py
+          python scripts/run_offline_tests.py --only test_payment_verification_strengthening.py
       - run: python -m playwright install --with-deps chromium
       - name: Start disposable release application
         env:

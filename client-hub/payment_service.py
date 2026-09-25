@@ -200,9 +200,20 @@ def upload_payment_proof(payment_id, business_id, proof_file_id, actor_user_id, 
 
 
 def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
+    if not db._transaction_active():
+        with db.app_purchase_transaction(business_id, actor_user_id):
+            return verify_payment(payment_id, business_id, actor_user_id, admin_notes)
     payment = get_payment(payment_id)
     if payment is None or payment["business_id"] != business_id:
         raise ValueError("payment_not_found")
+    if payment['status'] == 'VERIFIED':
+        # Retry repairs a historical missing lifecycle but never renews/resets an existing one.
+        import subscription_service
+        project = projects_repo.get_project(get_invoice(payment['invoice_id'])['project_id'])
+        business = repo.get_business(business_id) if business_id is not None else None
+        if business and project and project.get('catalog_key') == subscription_service.plan_key_for_package(business['package']):
+            subscription_service.establish_paid_subscription(business_id, actor_user_id)
+        return
     if payment["status"] not in ("UNDER_REVIEW", "PROOF_UPLOADED"):
         raise ValueError(f"invalid_state: payment is {payment['status']}, cannot verify")
 
@@ -223,6 +234,12 @@ def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
         business = repo.get_business(business_id)
         if business and business['package'] != 'AI_ADMIN':
             repo.set_business_package(business_id, 'AI_ADMIN', actor_user_id)
+    if business_id is not None and project:
+        import subscription_service
+        business = repo.get_business(business_id)
+        plan = subscription_service.plan_key_for_package(business['package']) if business else None
+        if plan and project.get('catalog_key') == plan:
+            subscription_service.establish_paid_subscription(business_id, actor_user_id)
     repo.write_audit(actor_user_id, business_id, "PAYMENT_VERIFIED", f"payment_id={payment_id}",
                       project_id=invoice["project_id"])
 

@@ -133,6 +133,8 @@ def test_activation_aborts_when_subscription_creation_fails():
     admin, uid, bid = _prepare_for_activation()
     business_before = repo.get_business(bid)
     assert business_before["status"] == "APPROVED"
+    subscription_before = subscription_service.get_subscription(bid)
+    assert subscription_before is not None, "verified payment establishes independent AI lifecycle"
 
     import provisioning as prov_module
 
@@ -149,8 +151,8 @@ def test_activation_aborts_when_subscription_creation_fails():
     business_after = repo.get_business(bid)
     assert business_after["status"] != "ACTIVE", "business must NOT become ACTIVE when subscription setup fails"
     assert business_after["status"] == "APPROVED", "business status must be left exactly as it was"
-    assert subscription_service.get_subscription(bid) is None, \
-        "no subscription row should exist after a failed creation attempt"
+    assert subscription_service.get_subscription(bid) == subscription_before, \
+        "failed WhatsApp activation must preserve the paid AI lifecycle"
     print("test_activation_aborts_when_subscription_creation_fails OK")
 
 

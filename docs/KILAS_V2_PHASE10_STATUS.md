@@ -3,6 +3,28 @@
 **PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
 **RESUME FROM STATUS FILE.**
 
+## Paid lifecycle repair checkpoint — supersedes prior pilot blockers
+
+User authorizes AI/Web Chat pilot **business 2 Pm__bae**, preserving all existing data;
+Finance QA writes ONLY **business 13 / branch 19**. Intended Core/Web allowlist is **2**,
+not 13. Finance-only 13 remains denied AI entitlement. No logout/password access or WA sends.
+Old production Finance session lock is not a pre-deploy blocker; verify its removal after V2.
+
+Read-only billing evidence: payment 4 / invoice 4 / project 4, ai_admin_pro, VERIFIED,
+invoice PAID, verified_at 2026-09-03T14:43:56.747677Z. Existing authoritative period rule
+is DEFAULT_PERIOD_DAYS=30: derived period ends 2026-10-03T14:43:56.747677Z.
+Pending payment 10 / invoice 10 / project 25 is NOT evidence and is not modified.
+Pm__bae is APPROVED; normalized setup STALE; subscription absent; WhatsApp not connected.
+
+Candidate repair now establishes an audited subscription during verified payment independently
+of WhatsApp activation, serializes retries, preserves existing subscription periods/status,
+and adds an evidence-derived mode to the existing audited backfill script. Expired historical
+evidence cannot create a fresh ACTIVE period. Payment/subscription/audit updates are transactional.
+Regression and exact review pending on this changed candidate. PRE-MERGE GATE NOT PASSED.
+No production subscription backfill, schema install, env change, merge or deploy yet.
+Both production services/main remain 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c.
+Only prior authorized production mutation remains creation of QA business 13 via product UI.
+
 ## Current-session pilot checkpoint — 2026-09-25
 
 - User explicitly authorized the already authenticated Putri session; NO logout, password access,
