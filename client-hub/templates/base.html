@@ -291,9 +291,9 @@
 {# Load all Finance styles before any shell/content can paint. Keep shared overrides last. #}
 {% block finance_styles %}{% endblock %}
 {% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_ui.css',v='20260924-greeting-wrap-1') }}">{% endif %}
-{% if (workspace_ui and workspace_ui.enabled) or session.get('role')=='KILAS_ADMIN' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ui.css') }}">{% endif %}
+{% if ((workspace_ui and workspace_ui.enabled) and not (finance_ui and finance_ui.enabled)) or session.get('role')=='KILAS_ADMIN' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ui.css') }}">{% endif %}
 </head>
-<body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kw-app' if workspace_ui and workspace_ui.enabled else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
+<body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kw-app' if workspace_ui and workspace_ui.enabled and not (finance_ui and finance_ui.enabled) else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 {% if request.blueprint != 'finance' and (not session.get('user_id') or session.get('role') == 'KILAS_ADMIN') %}
 <div class="topbar">
   <div class="brand">Kilas<span>Works</span> Client Hub</div>
@@ -334,7 +334,7 @@
 </div>
 {% endif %}
 
-{% include '_workspace_nav.html' %}
+{% if not (finance_ui and finance_ui.enabled) %}{% include '_workspace_nav.html' %}{% endif %}
 {% include '_operator_nav.html' %}
 <div id="kw-main" tabindex="-1" class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}">
 {% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}
@@ -360,7 +360,7 @@
   {% if finance_read_only or (branch_read_only and finance_branches and request.endpoint != 'finance.assistant') %}<script src="{{ url_for('static',filename='finance_read_only.js') }}" defer></script>{% endif %}
 </div>
 
-{% if (workspace_ui and workspace_ui.enabled) or session.get('role')=='KILAS_ADMIN' %}<script src="{{ url_for('static',filename='kilas_ui.js') }}" defer></script>{% endif %}
+{% if ((workspace_ui and workspace_ui.enabled) and not (finance_ui and finance_ui.enabled)) or session.get('role')=='KILAS_ADMIN' %}<script src="{{ url_for('static',filename='kilas_ui.js') }}" defer></script>{% endif %}
 <footer>Kilas Works Client Hub</footer>
 <script>
 // Reusable "Bantu dengan AI" writing helper (UX pass, Section A/D) — ONE module driving EVERY
