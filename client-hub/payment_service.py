@@ -211,7 +211,8 @@ def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
         import subscription_service
         project = projects_repo.get_project(get_invoice(payment['invoice_id'])['project_id'])
         business = repo.get_business(business_id) if business_id is not None else None
-        if business and project and project.get('catalog_key') == subscription_service.plan_key_for_package(business['package']):
+        plan = subscription_service.plan_key_for_package(business['package']) if business else None
+        if plan and project and project.get('catalog_key') == plan:
             subscription_service.establish_paid_subscription(business_id, actor_user_id)
         return
     if payment["status"] not in ("UNDER_REVIEW", "PROOF_UPLOADED"):

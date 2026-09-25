@@ -58,6 +58,15 @@ class PaidLifecycleTests(unittest.TestCase):
         self.assertEqual(subs._parse(results[0]['period_start']),subs._parse(stamp))
         self.assertEqual(db.query_one('SELECT count(*) n FROM subscriptions WHERE business_id=?',(self.bid,))['n'],1)
         self.assertEqual(db.query_one("SELECT count(*) n FROM audit_log WHERE business_id=? AND action='SUBSCRIPTION_PAYMENT_EVIDENCE'",(self.bid,))['n'],1)
+    def test_duplicate_verified_payment_same_invoice_is_one_period(self):
+        stamp=self.historical()
+        iid=pay.get_payment(self.pid)['invoice_id']
+        db.execute("INSERT INTO payments (business_id,invoice_id,status,verified_at) VALUES (?,?,'VERIFIED',?)",
+                   (self.bid,iid,stamp))
+        evidence=subs.verified_payment_period(self.bid)
+        self.assertEqual(evidence['payment_ids'],[self.pid])
+        self.assertEqual(subs._parse(evidence['period_end']),subs._parse(stamp)+timedelta(days=30))
+
     def test_existing_active_and_grace_period_never_reset(self):
         self.verify()
         for state in ('ACTIVE','GRACE'):

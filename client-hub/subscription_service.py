@@ -179,13 +179,18 @@ def verified_payment_period(business_id):
     if not plan:
         raise ValueError('ai_payment_required')
     rows = db.query_all(
-        "SELECT p.id, p.verified_at FROM payments p "
+        "SELECT p.id, p.invoice_id, p.verified_at FROM payments p "
         "JOIN invoices i ON i.id=p.invoice_id JOIN projects pr ON pr.id=i.project_id "
         "WHERE p.business_id=? AND i.business_id=? AND pr.business_id=? "
         "AND pr.catalog_key=? AND p.status='VERIFIED' AND i.status='PAID' "
         "ORDER BY p.verified_at,p.id", (business_id,business_id,business_id,plan))
     if not rows:
         raise ValueError('ai_payment_required')
+    # One paid invoice purchases one period, even if duplicate payment rows were verified.
+    unique_invoices = {}
+    for row in rows:
+        unique_invoices.setdefault(row['invoice_id'], row)
+    rows = list(unique_invoices.values())
     stamps = [_parse(row['verified_at']) for row in rows]
     if any(stamp is None or stamp > _now_dt() for stamp in stamps):
         raise ValueError('invalid_verified_payment_period')

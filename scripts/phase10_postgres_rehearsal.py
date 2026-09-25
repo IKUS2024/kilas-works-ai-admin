@@ -146,3 +146,41 @@ for checkout in (baseline / 'client-hub', HUB):
 after_rollback_write = snapshot()
 assert all(set(rows) <= set(after_rollback_write[table]) for table, rows in before.items()), 'Rollback write changed legacy fixtures'
 print('Phase 10 migration rehearsal PASS: legacy rows preserved; old/new Finance readback; repeat installation; rollback-code Finance writes')
+
+# Same candidate paid-lifecycle transaction paths on real PostgreSQL, no provider IO.
+paid_qa = '''
+import repo,db,catalog_service,projects_repo,payment_service as pay,subscription_service as subs
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
+from datetime import datetime,timedelta,timezone
+catalog_service.seed_catalog_if_needed()
+u=repo.create_user('paid-pg@example.test','unused')
+b=repo.create_business(u,'Paid PostgreSQL QA','AI_ADMIN_PRO')
+p=projects_repo.create_fixed_price_project(b,catalog_service.get_catalog_item('ai_admin_pro'),u)
+i=pay.checkout(p,b,u)
+pid=pay.get_payment_for_invoice(i)['id']
+db.execute("UPDATE payments SET status='UNDER_REVIEW' WHERE id=?",(pid,))
+with patch.object(subs,'create_subscription_with_explicit_period',side_effect=RuntimeError('synthetic failure')):
+ try:pay.verify_payment(pid,b,u)
+ except RuntimeError:pass
+ else:raise AssertionError('expected rollback')
+assert pay.get_payment(pid)['status']=='UNDER_REVIEW'
+assert subs.get_subscription(b) is None
+with ThreadPoolExecutor(max_workers=2) as pool:
+ list(pool.map(lambda _:pay.verify_payment(pid,b,u),range(2)))
+x=subs.get_subscription(b)
+assert subs._parse(x['period_end'])==subs._parse(pay.get_payment(pid)['verified_at'])+timedelta(days=30)
+assert db.query_one('SELECT COUNT(*) n FROM subscriptions WHERE business_id=?',(b,))['n']==1
+assert not repo.get_business(b)['whatsapp_connected']
+assert db.query_one("SELECT COUNT(*) n FROM audit_log WHERE business_id=? AND action='SUBSCRIPTION_PAYMENT_EVIDENCE'",(b,))['n']==1
+# Simulate historical missing lifecycle only in this disposable fixture, then use existing CLI.
+db.execute('DELETE FROM subscriptions WHERE business_id=?',(b,))
+import subprocess,sys
+for n in range(2):
+ subprocess.run([sys.executable,'scripts/backfill_subscriptions.py','--business-id',str(b),'--from-verified-payments','--confirm'],check=True)
+y=subs.get_subscription(b)
+assert y['period_start']==x['period_start'] and y['period_end']==x['period_end']
+print('PostgreSQL paid lifecycle PASS: atomic failure, concurrent payment retry, historical CLI period preservation; WhatsApp unconnected')
+'''
+subprocess.run([sys.executable, '-c', paid_qa], cwd=HUB,
+    env=dict(env, PYTHONPATH=str(HUB)), check=True)
