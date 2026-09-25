@@ -1,18 +1,25 @@
-# Phase 10 — rollback diagnosis / narrow hotfix validation in progress
+# Phase 10 — hotfix LIVE; controlled production smoke PASS
 
-**NOT COMPLETE. RESUME FROM STATUS FILE.**
+**Phase 10 NOT COMPLETE. RESUME FROM STATUS FILE. Do not restart Phase 10.**
 
-## Current authoritative checkpoint — 2026-09-25 hotfix
+## Current authoritative checkpoint — 2026-09-25 05:34 UTC
 
-This section supersedes every historical release-state statement below.
-- Main: d2d8af60419630fd351d62654126db63a643ebee (V2 merged).
-- Hub rollback LIVE: 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c,
-  dep-daqvhnvavr4c73f6rvvg. Bot rollback LIVE: same SHA,
-  dep-daqvi3p42hec73ce9ov0. Both Render autoDeploy=no / trigger=off confirmed.
-- Installed additive 0055–0061 schema and historical paid business-2 backfill retained.
-  Do not rerun schema installation/backfill, reset config, or touch business-2 Finance.
-- WhatsApp general stays OFF. Main has no workflow runs; hotfix PR gates pending.
-- Working branch: fix/phase10-core-interpretation, based on merged main.
+This section supersedes all historical release-state statements below.
+
+- Hotfix PR #17 merged. Deployed main/runtime SHA:
+  `db777b23c0c04b4a5419b1f4aabd9ba88bddd613`.
+  This subsequent status-only commit does not require another deployment.
+- Client Hub LIVE: `dep-dar09inlot8c73dvkkbg`, finished 05:21:51.363746 UTC.
+- AI Admin bot LIVE: `dep-dar09j7avr4c73f9fpo0`, finished 05:21:56.626614 UTC.
+  Both run the exact runtime SHA above; reverified at 05:33 UTC.
+- Both Render autoDeploy=no / autoDeployTrigger=off. Keep controlled manual deployment.
+- Additive schema 0055–0061 (22 tables) and historical business-2 subscription backfill remain.
+  Do not reinstall, remove, or reset them. Business-2 profile/services/FAQs/config were not reset.
+- Hub flags Core/Customers/Jobs/Playbooks/Operations/Web=true; Core allowlist=2.
+  Bridge OFF; WhatsApp Core OFF/no channels; WhatsApp general OFF. Bot V2 flags remain closed.
+  RUN_MIGRATIONS_ON_BOOT=false. No env changes were made for this hotfix redeploy.
+- Rollback remains available at `05d50a8bdf14ede2b1ec588f1fe78619f7387f0c` for both services;
+  preserve additive data if rollback is needed. Do not replay the historical failed event.
 
 ### Rollback cause and evidence limits
 
@@ -35,38 +42,6 @@ intents with fields are correctly prohibited. This is a structured interpretatio
 contract failure, not demonstrated network/provider unavailability or Job validation failure.
 Category fallback to GENERIC_SERVICE is valid; no category remapping or STALE-config wipe.
 
-### Hotfix implementation gates PASS — c2455f8dcb68419e4661f4b4f7937c69b531ee9b
-
-PR #17 is mergeable against unchanged d2d8af6, with no unresolved review threads.
-Exact remote tree bf50757264540fd350ead634d2c44cc209f0e687 matches local reviewed code.
-Phase 1 runs inside the Phase 2–5 regression gates. Phase 2–10 implementation runs PASS:
-2=36097096240, 3=36097096264, 4=36097096269, 5=36097096306,
-6=36097096256, 7=36097096228, 8=36097096227, 9=36097096238, 10=36097096252.
-Finance baseline job 107951532996: 39 files / 1018 tests PASS, zero skipped.
-PostgreSQL rehearsal job 107951533313 PASS; authenticated browser job 107951533025
-PASS / 30 checks. Artifact 10847668876 downloaded and results/screenshots inspected;
-SHA256 a87a24d3a8acd8ea095d55049969eb3ac4969c502ab946ef1164f8c084c86a24.
-
-Pinned candidate understanding/prompt tested inference-only in the isolated diagnostic
-process against the same production config/input: REQUEST with service/need/location/
-preferred_date_or_time, no ambiguity, strict parse PASS, decision READY_FOR_QUOTE,
-Job field validation PASS. This did NOT create a production Job or replay a WEB event.
-
-Pre-deploy read-only verification: all nine Finance fingerprints below still match exactly
-(excluding business 13; ordered JSON text joined by newline, relocation_version excluded).
-Profile/services/FAQs match their recorded fingerprints; 22 additive tables still present;
-business 2 retains ACTIVE ai_admin_pro 2026-09-03 -> 2026-10-03 from verified payment 4;
-business 13 has no AI subscription. No reset, Finance write or new backfill was performed.
-
-Render saved next-deploy Hub config has Core/Customers/Jobs/Playbooks/Operations/Web=true,
-allowlist=2; Bridge and WhatsApp flags/channel list absent/default OFF. The running rollback
-process uses its historical snapshot (V2 flags absent); that is expected and differs from
-saved next-deploy configuration. No env changes are needed for the hotfix release.
-Both auto-deploys stay OFF. Both live deployments remain rollback 05d50a8.
-
-This documentation checkpoint changes no runtime/test content. Wait for its PR checks before
-merge/deploy. PRE-MERGE implementation GATE PASS; production verification still pending.
-
 ### Narrow candidate fix
 
 - Accept exactly one complete ```json or unlabelled Markdown envelope, bounded by the original
@@ -83,16 +58,80 @@ merge/deploy. PRE-MERGE implementation GATE PASS; production verification still 
   failures. No prompts, raw output, customer text, tokens, secrets or exception messages logged.
 - No schema, accounting, entitlement, category or normalized configuration mutation.
 
-Local synthetic tests cover category/config shape, fenced JSON, deterministic create/update,
-Customer reuse, exact retry, no rejected facts, malformed/unsafe output, tenant-scoped handover,
-in-flight takeover, truncation/lease budget, and sanitized Job-error logging.
-Focused tests and all implementation gates above PASS. Documentation-head checks must finish
-before merge. No hotfix deploy or successful production smoke yet.
 
-Next: certify exact hotfix head in PR; update checkpoint; safely merge only after all gates
-PASS; keep auto-deploy OFF; manually deploy exact certified main revision; Pm__bae Web Chat
-first, then Customer/Job readback, logs and Finance fingerprints, then remaining Phase 10 QA.
-Never mark COMPLETE on synthetic or inference-only results. Roll back on critical failure.
+### Certified pre-deploy gates — PASS
+
+All Phase 1–10 gates passed on final PR head
+`f3faf0c554b0aa463e2e759cdc87c4d3e00301b4`; merge tree matches exactly.
+Phase 1 is included in earlier phase regression jobs. Phase 2–10 runs:
+2=36097658441, 3=36097658565, 4=36097658407, 5=36097658519,
+6=36097658417, 7=36097658438, 8=36097658468, 9=36097658625, 10=36097658578.
+Finance baseline job 107953219260: **39 files / 1018 tests PASS**.
+PostgreSQL rehearsal 107953219553 PASS; authenticated browser QA 107953219765 PASS.
+Earlier implementation-head run also passed all gates; browser artifact 10847668876
+was downloaded and its 30 checks and screenshots inspected, SHA256
+`a87a24d3a8acd8ea095d55049969eb3ac4969c502ab946ef1164f8c084c86a24`.
+Regression covers same category/STALE config shape, bounded wrapper normalization,
+Customer reuse, deterministic Job create/update, rejected/malformed output, tenant-scoped
+handover, takeover during extraction, truncation/lease budget and sanitized Job diagnostics.
+
+### Actual production verification — PASS within authorized allocation
+
+Pm__bae Web Chat was tested FIRST after both services became LIVE. Synthetic messages
+explicitly identified an internal QA simulation, not a real booking. Persisted readback:
+- New event `fe733799-6566-4a36-a768-43f1a5b4a65b`: done, error null, attempts=1.
+- Existing conversation `f0913cce27304bfe8e3f19f44f0e7397` reused Customer
+  `26bd4959820c4a6ab3de283190599818` from the earlier failed smoke.
+- Created Job `4ccb0d6f7ae34ca6a8046d82831d0cb1`, SERVICE / READY_FOR_QUOTE,
+  version 2. Follow-up notes updated SAME Job to version 3.
+- Owner takeover set HUMAN_TAKEOVER/version 1; visitor input produced no AI reply
+  and left Job version 3 unchanged. Manual owner reply appeared in visitor Web Chat.
+- Explicit return to AI, then location correction updated SAME Job to version 4.
+  Final state AI_ACTIVE, location Tangerang, READY_FOR_QUOTE. No booking/payment claim.
+- Owner Home attention, Inbox, Customer detail and Job links/readback verified in browser.
+  Same Customer detail shows the single conversation and Job after navigation.
+- Historical failed event remains historical; it was neither reset nor replayed.
+- Production Finance-only workspace business 13 / branch 19 verified via normal UI.
+  Created clearly labeled INTERNAL QA synthetic income Rp10,000 (transaction 63),
+  expense Rp2,500 (transaction 64), both POSTED. Report shows two transactions,
+  net/cash balance Rp7,500. No business-2 Finance write.
+- Both service error-log query 05:21:55–05:31:53 UTC returned no errors. Earlier
+  post-smoke core_interpretation diagnostic query returned no matches.
+- Production screenshot: phase10-hotfix-production-job.jpg (saved separately).
+
+### Data integrity readback
+
+At 05:32 UTC all nine original Finance baseline fingerprints still match the historical
+values below (exclude authorized QA business 13). Transactions must be compared on the
+original id<=58 set: 58 rows, hash `037f2e03f84b72e80ab93abab5f55149`.
+Four unrelated live transactions 59–62 were created in business 8 / branch 8 between
+05:21:40 and 05:26:13 UTC. Do not claim the entire growing transaction table is unchanged.
+The other eight complete table fingerprints match. Our only Finance writes are 63–64 in
+business 13 / branch 19. Business-2 Finance remains untouched by this work.
+Pm__bae profile/services/FAQs matched pre-deploy fingerprints after initial smoke;
+normalized config remains installed with STALE status, which does not invalidate the
+supported generic-service playbook. No category, knowledge or subscription mutation.
+
+### Remaining Phase 10 production verification / explicit limits
+
+The hotfix and controlled business-2 Core pilot smoke have passed. Full Phase 10 is NOT
+certified complete. Disposable CI covers broad product, security, PostgreSQL and responsive
+flows; it must not be represented as production evidence for the following:
+- Production Finance Bridge/full combined write flow is excluded by the QA allocation:
+  business 2 Finance writes prohibited; business 13 Finance-only. Keep Bridge OFF and
+  never cross-map these tenants. A separate authorized combined pilot is needed.
+- Production admin/operator dashboard needs an authorized operator session. The preserved
+  Putri owner session is not an operator session; do not log it out or access passwords.
+- Fresh signup/login/logout production cycle and mobile-width production review remain;
+  current session preservation and available desktop browser prevented those checks here.
+- Finance production opening balance, invoice/partial payment, recurring/budget/export and
+  AI-safe-action flows beyond the two-transaction smoke remain; disposable 30-check QA PASS.
+- Do not expand the Core allowlist to new pilots until remaining applicable verification
+  is complete and explicit pilot businesses are allocated. WhatsApp general remains OFF.
+
+Resume with these remaining checks, not schema/backfill/release restart. Keep deployed
+runtime SHA pinned; documentation-only main updates do not warrant a new deploy.
+
 
 ---
 
