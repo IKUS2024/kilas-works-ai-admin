@@ -978,6 +978,21 @@ def simulate_flag(business_id):
 _DEMO_KILAS_PHONE = "6282213039137"
 _DEMO_KILAS_PENDING_SECONDS = 60 * 60
 _DEMO_KILAS_BOUND_SECONDS = 24 * 60 * 60
+_DEMO_KILAS_CONNECTED_TEXT = (
+    "Demo aktif ✅\n\n"
+    "Sekarang lanjut chat seperti customer biasa. Pesan berikutnya akan muncul otomatis di Inbox Kilas Assist."
+)
+
+
+def _demo_kilas_marker(state):
+    """Return the current short marker, with legacy KWDEMO compatibility for active sessions."""
+    code = (state or {}).get("code")
+    if isinstance(code, str) and re.fullmatch(r"[0-9A-F]{4}-[0-9A-F]{4}", code):
+        return "Demo ID: " + code
+    token = (state or {}).get("token")
+    if isinstance(token, str) and re.fullmatch(r"[0-9a-f]{24}", token):
+        return "KWDEMO-" + token
+    return None
 
 
 def _demo_kilas_states():
@@ -1026,17 +1041,20 @@ def _demo_kilas_phone_for_business(business_id):
     if phone and isinstance(start_message_id, int) and start_message_id > 0:
         return phone
 
-    token = state.get("token")
-    if not isinstance(token, str) or not re.fullmatch(r"[0-9a-f]{24}", token):
+    marker = _demo_kilas_marker(state)
+    if not marker:
         _clear_demo_kilas_state(business_id)
         return None
-    code = "KWDEMO-" + token
+    try:
+        min_message_id = max(0, int(state.get("min_message_id") or 0))
+    except (TypeError, ValueError):
+        min_message_id = 0
     try:
         row = db.query_one(
             "SELECT id, number FROM messages "
-            "WHERE mode IN ('customer','owner') AND role='user' AND content LIKE ? "
+            "WHERE id>? AND mode IN ('customer','owner') AND role='user' AND content LIKE ? "
             "ORDER BY id DESC LIMIT 1",
-            ("%" + code + "%",),
+            (min_message_id, "%" + marker + "%"),
         )
     except Exception:
         return None
@@ -1073,23 +1091,34 @@ def _demo_kilas_rows(business_id, phone, limit=160):
 def _demo_kilas_clean_thread(business_id, phone):
     rows = _demo_kilas_rows(business_id, phone)
     state = _demo_kilas_state(business_id) or {}
-    token = state.get("token")
-    if not isinstance(token, str):
+    marker = _demo_kilas_marker(state)
+    if not marker:
         return rows
-    code = "KWDEMO-" + token
+
     cleaned = []
+    handshake_reply_cleaned = False
     for row in rows:
         item = dict(row)
         content = item.get("content")
-        if isinstance(content, str) and code in content:
-            content = re.sub(
-                r"\s*K(?:ode)?\s*demo\s*:\s*" + re.escape(code),
-                "",
-                content,
-                flags=re.I,
-            ).strip()
-            content = content.replace(code, "").strip()
-            item["content"] = content or "Halo Kilas Works, saya mau coba Demo Kilas"
+        role = item.get("role")
+
+        if isinstance(content, str) and marker in content:
+            if role == "user":
+                # The binding marker is transport plumbing, not customer-visible conversation.
+                item["content"] = "Halo Kilas Works 👋 Saya mau coba Kilas Assist."
+            elif role == "assistant":
+                item["content"] = _DEMO_KILAS_CONNECTED_TEXT
+                handshake_reply_cleaned = True
+        elif (
+            role == "assistant"
+            and not handshake_reply_cleaned
+            and isinstance(content, str)
+            and ("demo.kilasworks.id" in content or "kode demo" in content.lower())
+        ):
+            # Compatibility cleanup for the old AI-generated handshake already stored in history.
+            item["content"] = _DEMO_KILAS_CONNECTED_TEXT
+            handshake_reply_cleaned = True
+
         cleaned.append(item)
     return cleaned
 
@@ -1132,20 +1161,27 @@ def demo_kilas_whatsapp(business_id):
         flash("Demo Kilas tersedia dari workspace Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
-    token = secrets.token_hex(12)
+    raw_code = secrets.token_hex(4).upper()
+    code = raw_code[:4] + "-" + raw_code[4:]
+    try:
+        latest = db.query_one("SELECT COALESCE(MAX(id),0) AS max_id FROM messages")
+        min_message_id = int((latest or {}).get("max_id") or 0)
+    except Exception:
+        min_message_id = 0
     _save_demo_kilas_state(
         business_id,
         {
-            "token": token,
+            "code": code,
             "phone": None,
+            "min_message_id": min_message_id,
             "created_at": int(time.time()),
             "expires_at": int(time.time()) + _DEMO_KILAS_PENDING_SECONDS,
         },
     )
     text = (
-        "KWDEMO-" + token + "\n"
-        "Halo Kilas Works, saya mau coba Demo Kilas.\n\n"
-        "Jangan hapus kode demo di baris pertama."
+        "Halo Kilas Works 👋\n"
+        "Saya mau coba Kilas Assist.\n\n"
+        "Demo ID: " + code
     )
     return redirect(
         "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),
