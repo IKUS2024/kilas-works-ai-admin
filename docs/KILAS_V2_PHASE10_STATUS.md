@@ -1,6 +1,7 @@
-# Phase 10 — pre-merge; authorized internal QA business created
+# Phase 10 — PRE-MERGE GATE PASS; controlled release pending
 
-**PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
+**PRE-MERGE GATE PASS on implementation candidate c57252416bf1ceb27e7b89333f0e0d0a96fb54b6.**
+**Wait for all current-head CI after this documentation checkpoint before production mutation.**
 **RESUME FROM STATUS FILE.**
 
 ## Paid lifecycle repair checkpoint — supersedes prior pilot blockers
@@ -20,12 +21,70 @@ Candidate repair now establishes an audited subscription during verified payment
 of WhatsApp activation, serializes retries, preserves existing subscription periods/status,
 and adds an evidence-derived mode to the existing audited backfill script. Expired historical
 evidence cannot create a fresh ACTIVE period. Payment/subscription/audit updates are transactional.
-Regression and exact review pending on this changed candidate. PRE-MERGE GATE NOT PASSED.
+Regression and exact review PASS on c57252416bf1ceb27e7b89333f0e0d0a96fb54b6.
 No production subscription backfill, schema install, env change, merge or deploy yet.
 Both production services/main remain 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c.
 Only prior authorized production mutation remains creation of QA business 13 via product UI.
 
-## Current-session pilot checkpoint — 2026-09-25
+## PRE-MERGE GATE PASS — 2026-09-25
+
+All required implementation gates passed on c57252416bf1ceb27e7b89333f0e0d0a96fb54b6.
+This checkpoint changes documentation only; wait for its own current-head CI before mutation.
+Required env names present, secret values not inspected; seven missing schema steps verified;
+rollback target/artifacts/recovery available; PR #16 mergeable, no unresolved review threads;
+controlled pilot 2 authorized with real verified billing, Finance QA 13/19 only.
+WhatsApp activation excluded. No unresolved dependency is required for the existing normalized
+Web Chat path. The STALE owner refresh requires normal review, never bypass approved-state rules.
+
+Next authorized sequence: recheck remote main/head/CI → apply missing seven additive schema
+steps from pinned candidate → audited evidence-derived subscription backfill business 2 and
+idempotent retry → stage pilot flags with Save only → normal PR #16 merge → monitor both
+Render auto-deploys → real Putri-session production smoke and integrity/log/isolation checks.
+On critical regression, close pilot flags and roll both services back to recorded main SHA;
+retain additive schema (old-code compatibility rehearsed), do not delete customer data.
+Do not mark COMPLETE until production verification succeeds under the user's QA allocation.
+
+## Current candidate verification — c57252416bf1ceb27e7b89333f0e0d0a96fb54b6
+
+- Narrow lifecycle implementation reviewed against the prior certified candidate; no product redesign.
+  One paid invoice contributes one period even with duplicate payment rows. Existing ACTIVE/GRACE
+  rows remain unchanged. Payment, invoice, project, package and entitlement commit atomically.
+- Phase 10 run 36093023940 PASS: PostgreSQL job 107939254441 proves exact seven-step additive
+  sequence twice, every legacy row preserved, old/new code Finance read/write compatibility,
+  paid verification rollback/concurrency, historical audited CLI twice with exact periods retained.
+- Authenticated browser job 107939254614 PASS: 30 checks covering new AI-only, Finance-only,
+  combined path, Inbox/Customer/Job/takeover, Bridge draft and authoritative partial payment,
+  duplicate submission, foreign-tenant denial, operator surfaces and session persistence.
+- All five paid/historical compatibility test files PASS. Old checkout fixtures now supply required
+  profiles; old dashboard payment checks now inspect supported V2 project/invoice pages.
+- Phase 1 regression runs inside Phase 2. Phase 2–10 PASS; full Phase 7 baseline job 107939254711 PASS: 39 files / 1018 tests.
+- Exact feature/main comparison: 246 files, 155 commits ahead, zero behind, no merge conflict.
+  Prior complete feature review plus all subsequent lifecycle/test diffs reviewed; diff --check clean.
+- Production read-only backfill preview through isolated candidate code returned payment_ids=[4],
+  start 2026-09-03T14:43:56.747677+00:00, end 2026-10-03T14:43:56.747677+00:00;
+  DRY RUN, no subscription written. Archive was created from client-hub subdirectory, so its
+  application root is /tmp/kilas-phase10-11d5d4c (not an additional client-hub subdirectory).
+- Main/services remain rollback SHA. V2 schema absent. No backfill or pilot flag mutation.
+  Render Save only control checked with unchanged form (saved unchanged configuration, no deploy).
+- Planned Hub flags after all gates: KILAS_CORE_V2_ENABLED=true,
+  KILAS_CORE_V2_TEST_BUSINESS_IDS=2, KILAS_CUSTOMERS_V2_ENABLED=true,
+  KILAS_JOBS_V2_ENABLED=true, KILAS_PLAYBOOKS_V2_ENABLED=true,
+  KILAS_OPERATIONS_V2_ENABLED=true, KILAS_WEB_CHAT_ENABLED=true.
+  Finance Bridge remains OFF for this allocation: user prohibits Finance QA writes in business 2,
+  and business 13 remains Finance-only. Combined Bridge write path is certified in disposable QA;
+  never bridge these two production businesses or claim production Bridge-write verification.
+  WhatsApp Core OFF/no selected channels; bot V2 flags unchanged/default closed.
+- Pm__bae normalized configuration exists, status STALE. Current approved/live owner setup flow
+  intentionally stages changes for admin review; do not downgrade status or wipe knowledge.
+  Existing normalized knowledge is accepted by Web Chat; refresh only through supported flow if
+  actually required. Verify business/profile/services/FAQs remain intact after pilot smoke.
+- Pm__bae pre-pilot knowledge fingerprints: profile 1 row cea326f6acf968ff501a1dfe2c8e98ab;
+  services 11 rows 854ab4f096ffc6723d48ab30fb6a1ac7;
+  FAQs 2 rows 5c9a9e1ebe1d865024d09dad6a139f1a.
+- Production logout/login is excluded by explicit user instruction to preserve current Putri session;
+  authenticated disposable login/logout coverage passed. No passwords inspected.
+
+## Historical checkpoint — superseded by paid lifecycle authorization above
 
 - User explicitly authorized the already authenticated Putri session; NO logout, password access,
   reset, or login was performed. UI profile plus scoped membership query confirm Putri Maudy,
@@ -97,7 +156,7 @@ The prior automatic-review rejection of this narrow read is resolved by that aut
 | Database dpg-da4ea1u417fc73fqv80g-a | PostgreSQL 18.4, available, basic_256mb, 1 GB, no HA |
 | DB Recovery dashboard | settled page confirms 3-day point-in-time recovery; restore/export controls available |
 | Rollback controls | both service deploy histories expose Rollback controls for prior artifacts |
-| Hub execution path | authenticated Web Shell available; no command executed |
+| Hub execution path | authenticated Web Shell; isolated candidate archive prepared; read-only backfill preview passed |
 | Production UI | signed-in /products/start loads on old main; not V2 E2E certification |
 | /healthz | browser returned ERR_BLOCKED_BY_CLIENT; endpoint remains unverified; no bypass attempted |
 
@@ -270,7 +329,7 @@ visibility and use Core/Web/Job/Bridge allowlists where supported. Finance opera
 Finance capability gates; enabling Core does not establish Finance AI capability.
 Do not change Finance entitlement or unrelated env values without a reviewed rollout need.
 
-## Remaining release blockers / resume sequence
+## Historical blockers / resume sequence — superseded by current checkpoint
 
 1. Phase 1–9, complete Finance, expanded authenticated browser and PostgreSQL candidate gates
    PASS. Recheck final documentation-head CI before release; do not bypass a red check.
