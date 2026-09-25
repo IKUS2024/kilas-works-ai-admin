@@ -74,6 +74,15 @@ def _ai_home(ui):
     import workspace_presenter
     if not ui['unavailable']:
         ui['setup'] = {b['id']: workspace_presenter.setup(b) for b in ui['ai']}
+        # Home and Inbox must use ONE authoritative Demo WhatsApp binding. Reuse the exact
+        # resolver behind client.demo_kilas_whatsapp/inbox_page; never create a second notion of
+        # "connected" in the presentation layer.
+        from routes_client import _demo_kilas_phone_for_business
+        ui['demo_connected'] = {
+            b['id']: bool(_demo_kilas_phone_for_business(b['id'])) for b in ui['ai']
+        }
+    else:
+        ui['demo_connected'] = {}
     return render_template('workspace_home.html', user=security.current_user()), (503 if ui['unavailable'] else 200)
 
 
