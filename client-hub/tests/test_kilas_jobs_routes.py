@@ -85,10 +85,10 @@ class JobRoutesTests(unittest.TestCase):
         self.db.execute("UPDATE businesses SET package='AI_ADMIN' WHERE id=7")
         with self.client.session_transaction() as session: session['active_product']='finance'
         response=self.client.get('/business/7/jobs')
-        self.assertEqual(response.status_code,303)
-        self.assertIn('finance',response.location)
+        self.assertEqual(response.status_code,200)
+        self.assertNotIn('finance-app-sidebar',response.text)
         self.assertEqual(self.create().status_code,303)
-        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(jobs.list_jobs(7)[1],1)
 
 
     def test_customer_and_inbox_manual_job_linkage(self):

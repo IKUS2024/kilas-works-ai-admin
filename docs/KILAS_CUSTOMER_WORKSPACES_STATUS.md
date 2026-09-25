@@ -42,7 +42,10 @@ new product contract. Finance financial assertions and malformed/foreign-write g
 
 ## Integration and data safety
 
-Core, Finance Bridge, schema, subscription lifecycle and accounting services unchanged.
+Core/Finance Bridge engines, schema, subscription lifecycle and accounting services unchanged.
+Job, Operations and Bridge route presentation guards no longer treat active_product=finance
+as authorization: owned AI pages work across products, while existing package/subscription,
+allowlist, flags, membership and Bridge source/destination validation remain mandatory.
 Bridge still requires configured mapping, owner-confirmed customer/draft invoice actions,
 and authoritative Finance issue/payment rules. Casual conversation never posts money.
 Duplicate bridge/payment protections remain tested. UI separation does not enable production

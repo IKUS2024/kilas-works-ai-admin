@@ -70,7 +70,7 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.client.get('/chat/'+self.slug).status_code,200)
         self.assertEqual(self.start(client=self.client).status_code,200)
         self.assertEqual(self.client.post('/business/7/simulate/message',json={'message':'hi'},
-                                         headers={'X-CSRF-Token':'csrf-test'}).status_code,303)
+                                         headers={'X-CSRF-Token':'csrf-test'}).status_code,200)
 
     def test_rate_limit_and_no_cache(self):
         for _ in range(30): self.assertEqual(self.start().status_code,200)

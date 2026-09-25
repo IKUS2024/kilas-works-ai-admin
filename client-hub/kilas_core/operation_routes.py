@@ -10,7 +10,6 @@ operations_bp=Blueprint('core_operations',__name__)
 
 def business_for_owner(bid):
     business=security.require_business_access(bid)
-    if session.get('active_product')=='finance': abort(404)
     with jobs.transaction() as tx: operation_access.require(tx,bid)
     return business
 

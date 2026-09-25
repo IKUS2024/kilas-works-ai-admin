@@ -153,8 +153,8 @@ class OperationsRoutesTests(unittest.TestCase):
         with self.client.session_transaction() as session: session['active_product']='finance'
         for path in ('/business/7/attention','/business/7/automations'):
             response=self.client.get(path)
-            self.assertEqual(response.status_code,303)
-            self.assertIn('finance',response.location)
+            self.assertEqual(response.status_code,200)
+            self.assertNotIn('finance-app-sidebar',response.text)
 
     def test_runner_protected_writes_and_no_model_or_external_send(self):
         import sqlite3

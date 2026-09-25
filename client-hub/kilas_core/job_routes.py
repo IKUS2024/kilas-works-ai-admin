@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 import uuid
 from werkzeug.exceptions import NotFound
-from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, redirect, render_template, request, url_for
 import repo
 import security
 import subscription_service
@@ -15,7 +15,6 @@ jobs_bp = Blueprint('core_jobs', __name__)
 
 def available(business):
     if (not jobs.enabled() or not customers.enabled() or not business
-            or session.get('active_product') == 'finance'
             or business.get('package') not in customers.AI_PACKAGES
             or business.get('status') in ('ARCHIVED','SUSPENDED','CANCELLED')
             or not enabled_for_business(business['id'])):
