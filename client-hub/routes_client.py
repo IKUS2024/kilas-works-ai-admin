@@ -982,6 +982,8 @@ _DEMO_KILAS_CONNECTED_TEXT = (
     "Demo aktif ✅\n\n"
     "Sekarang lanjut chat seperti customer biasa. Pesan berikutnya akan muncul otomatis di Inbox Kilas Assist."
 )
+_DEMO_KILAS_STARTED_ACTION = "demo_whatsapp_started"
+_DEMO_KILAS_BOUND_ACTION = "demo_whatsapp_bound"
 
 
 def _demo_kilas_marker(state):
@@ -1020,35 +1022,132 @@ def _clear_demo_kilas_state(business_id):
         session.modified = True
 
 
-def _demo_kilas_phone_for_business(business_id):
-    """Resolve only the platform conversation that supplied this browser's opaque demo code.
-
-    The sender may be an ordinary customer OR the Kilas owner testing from the owner number.
-    We therefore accept the exact token in either platform message mode, but persist the matched
-    message id as the lower bound for everything mirrored into this workspace. Older platform or
-    owner-assistant history can never leak into the demo Inbox.
-    """
-    state = _demo_kilas_state(business_id)
-    if not state:
+def _demo_kilas_audit_state(business_id, action):
+    try:
+        row = db.query_one(
+            "SELECT id, detail, created_at FROM audit_log "
+            "WHERE business_id=? AND action=? ORDER BY id DESC LIMIT 1",
+            (business_id, action),
+        )
+    except Exception:
         return None
-    now = int(time.time())
-    if int(state.get("expires_at") or 0) <= now:
-        _clear_demo_kilas_state(business_id)
-        return None
-
-    phone = platform_inbox_service.normalize_customer_phone(state.get("phone"))
-    start_message_id = state.get("start_message_id")
-    if phone and isinstance(start_message_id, int) and start_message_id > 0:
-        return phone
-
-    marker = _demo_kilas_marker(state)
-    if not marker:
-        _clear_demo_kilas_state(business_id)
+    if not row or not row.get("detail"):
         return None
     try:
-        min_message_id = max(0, int(state.get("min_message_id") or 0))
+        state = json.loads(row["detail"])
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(state, dict):
+        return None
+    state["_audit_id"] = int(row["id"])
+    state["_audit_created_at"] = row.get("created_at")
+    return state
+
+
+def _demo_kilas_bound_state(business_id):
+    session_state = _demo_kilas_state(business_id)
+    if session_state:
+        phone = platform_inbox_service.normalize_customer_phone(session_state.get("phone"))
+        start_message_id = session_state.get("start_message_id")
+        if phone and isinstance(start_message_id, int) and start_message_id > 0:
+            session_state["phone"] = phone
+            return session_state
+
+    state = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
+    if not state:
+        return None
+    phone = platform_inbox_service.normalize_customer_phone(state.get("phone"))
+    try:
+        start_message_id = int(state.get("start_message_id") or 0)
+    except (TypeError, ValueError):
+        return None
+    if not phone or start_message_id <= 0:
+        return None
+    state["phone"] = phone
+    state["start_message_id"] = start_message_id
+    return state
+
+
+def _demo_kilas_pending_state(business_id):
+    state = _demo_kilas_state(business_id)
+    if state and _demo_kilas_marker(state) and not state.get("phone"):
+        return state
+
+    state = _demo_kilas_audit_state(business_id, _DEMO_KILAS_STARTED_ACTION)
+    if not state or not _demo_kilas_marker(state):
+        return None
+    try:
+        state["expires_at"] = int(state.get("expires_at") or 0)
+        state["min_message_id"] = int(state.get("min_message_id") or 0)
+    except (TypeError, ValueError):
+        return None
+    return state
+
+
+def _persist_demo_kilas_started(business_id, state):
+    actor = security.current_user()
+    detail = {
+        "code": state.get("code"),
+        "min_message_id": int(state.get("min_message_id") or 0),
+        "created_at": int(state.get("created_at") or time.time()),
+        "expires_at": int(state.get("expires_at") or 0),
+    }
+    repo.write_audit(
+        actor["id"] if actor else None,
+        business_id,
+        _DEMO_KILAS_STARTED_ACTION,
+        json.dumps(detail, separators=(",", ":")),
+    )
+
+
+def _persist_demo_kilas_bound(business_id, phone, start_message_id):
+    existing = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
+    if (
+        existing
+        and platform_inbox_service.normalize_customer_phone(existing.get("phone")) == phone
+        and int(existing.get("start_message_id") or 0) == int(start_message_id)
+    ):
+        return
+    actor = security.current_user()
+    detail = {
+        "phone": phone,
+        "start_message_id": int(start_message_id),
+        "bound_at": int(time.time()),
+    }
+    repo.write_audit(
+        actor["id"] if actor else None,
+        business_id,
+        _DEMO_KILAS_BOUND_ACTION,
+        json.dumps(detail, separators=(",", ":")),
+    )
+
+
+def _demo_kilas_phone_for_business(business_id):
+    """Resolve the demo phone and persist it so refreshes/redeploys keep the Inbox connected."""
+    bound = _demo_kilas_bound_state(business_id)
+    if bound:
+        try:
+            _persist_demo_kilas_bound(
+                business_id,
+                bound["phone"],
+                int(bound["start_message_id"]),
+            )
+        except Exception:
+            pass
+
+    pending = _demo_kilas_pending_state(business_id)
+    now = int(time.time())
+    if not pending or int(pending.get("expires_at") or 0) <= now:
+        return bound["phone"] if bound else None
+
+    marker = _demo_kilas_marker(pending)
+    if not marker:
+        return bound["phone"] if bound else None
+    try:
+        min_message_id = max(0, int(pending.get("min_message_id") or 0))
     except (TypeError, ValueError):
         min_message_id = 0
+
     try:
         row = db.query_one(
             "SELECT id, number FROM messages "
@@ -1057,24 +1156,31 @@ def _demo_kilas_phone_for_business(business_id):
             (min_message_id, "%" + marker + "%"),
         )
     except Exception:
-        return None
+        return bound["phone"] if bound else None
+
     phone = platform_inbox_service.normalize_customer_phone(row.get("number")) if row else None
     if not phone:
-        return None
+        return bound["phone"] if bound else None
 
+    start_message_id = int(row["id"])
+    state = dict(pending)
     state["phone"] = phone
-    state["start_message_id"] = int(row["id"])
+    state["start_message_id"] = start_message_id
     state["bound_at"] = now
     state["expires_at"] = now + _DEMO_KILAS_BOUND_SECONDS
     _save_demo_kilas_state(business_id, state)
+    _persist_demo_kilas_bound(business_id, phone, start_message_id)
     return phone
 
 
 def _demo_kilas_rows(business_id, phone, limit=160):
-    """Return only messages created after this browser proved its demo token."""
-    state = _demo_kilas_state(business_id) or {}
-    start_message_id = state.get("start_message_id")
-    if not isinstance(start_message_id, int) or start_message_id <= 0:
+    """Return the permanently-bound demo thread for this business."""
+    state = _demo_kilas_bound_state(business_id) or {}
+    try:
+        start_message_id = int(state.get("start_message_id") or 0)
+    except (TypeError, ValueError):
+        start_message_id = 0
+    if start_message_id <= 0:
         return []
     try:
         rows = db.query_all(
@@ -1090,10 +1196,11 @@ def _demo_kilas_rows(business_id, phone, limit=160):
 
 def _demo_kilas_clean_thread(business_id, phone):
     rows = _demo_kilas_rows(business_id, phone)
-    state = _demo_kilas_state(business_id) or {}
-    marker = _demo_kilas_marker(state)
-    if not marker:
-        return rows
+    state = _demo_kilas_bound_state(business_id) or {}
+    try:
+        start_message_id = int(state.get("start_message_id") or 0)
+    except (TypeError, ValueError):
+        start_message_id = 0
 
     cleaned = []
     handshake_reply_cleaned = False
@@ -1101,21 +1208,22 @@ def _demo_kilas_clean_thread(business_id, phone):
         item = dict(row)
         content = item.get("content")
         role = item.get("role")
+        row_id = int(item.get("id") or 0)
 
-        if isinstance(content, str) and marker in content:
-            if role == "user":
-                # The binding marker is transport plumbing, not customer-visible conversation.
-                item["content"] = "Halo Kilas Works 👋 Saya mau coba Kilas Assist."
-            elif role == "assistant":
-                item["content"] = _DEMO_KILAS_CONNECTED_TEXT
-                handshake_reply_cleaned = True
+        if role == "user" and row_id == start_message_id:
+            item["content"] = "Halo Kilas Works 👋 Saya mau coba Kilas Assist."
         elif (
             role == "assistant"
             and not handshake_reply_cleaned
-            and isinstance(content, str)
-            and ("demo.kilasworks.id" in content or "kode demo" in content.lower())
+            and (
+                content == _DEMO_KILAS_CONNECTED_TEXT
+                or (isinstance(content, str) and (
+                    "demo.kilasworks.id" in content
+                    or "kode demo" in content.lower()
+                    or "demo aktif" in content.lower()
+                ))
+            )
         ):
-            # Compatibility cleanup for the old AI-generated handshake already stored in history.
             item["content"] = _DEMO_KILAS_CONNECTED_TEXT
             handshake_reply_cleaned = True
 
@@ -1168,16 +1276,15 @@ def demo_kilas_whatsapp(business_id):
         min_message_id = int((latest or {}).get("max_id") or 0)
     except Exception:
         min_message_id = 0
-    _save_demo_kilas_state(
-        business_id,
-        {
-            "code": code,
-            "phone": None,
-            "min_message_id": min_message_id,
-            "created_at": int(time.time()),
-            "expires_at": int(time.time()) + _DEMO_KILAS_PENDING_SECONDS,
-        },
-    )
+    pending_state = {
+        "code": code,
+        "phone": None,
+        "min_message_id": min_message_id,
+        "created_at": int(time.time()),
+        "expires_at": int(time.time()) + _DEMO_KILAS_PENDING_SECONDS,
+    }
+    _save_demo_kilas_state(business_id, pending_state)
+    _persist_demo_kilas_started(business_id, pending_state)
     text = (
         "Halo Kilas Works 👋\n"
         "Saya mau coba Kilas Assist.\n\n"
