@@ -75,7 +75,7 @@ def main():
                 page.goto(BASE + '/workspace')
                 expect(page.locator('.finance-app-sidebar')).to_be_visible()
                 page.locator('.product-switcher summary').click()
-                page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas AI Admin',exact=True).click()
+                page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Assist',exact=True).click()
                 assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')
