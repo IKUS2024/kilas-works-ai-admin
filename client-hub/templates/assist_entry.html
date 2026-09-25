@@ -130,7 +130,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
       <header class="assist-hero">
         <span class="assist-kicker"><span class="assist-kicker-dot"></span>Kilas Assist</span>
         <h1>Buat bisnis Kilas Assist</h1>
-        <p>Bisnis ini khusus untuk AI Admin WhatsApp, customer, leads, follow-up, booking, dan alur sales. Data Finance tidak dipakai di sini.</p>
+        <p>Bisnis ini khusus untuk Kilas Assist: WhatsApp, customer, leads, follow-up, booking, dan alur sales. Data Finance tidak dipakai di sini.</p>
       </header>
 
       <section class="assist-form-card">
@@ -189,7 +189,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
             {% if b.assist_missing and b.status!='ACTIVE' %}
               <div class="assist-note"><strong>Lengkapi:</strong> {{ b.assist_missing_labels|join(', ') }}.</div>
             {% elif b.status=='ACTIVE' %}
-              <div class="assist-note">AI Admin siap melayani customer melalui channel yang telah diaktifkan. WhatsApp tetap opsional.</div>
+              <div class="assist-note">Kilas Assist siap melayani customer melalui channel yang telah diaktifkan. WhatsApp tetap opsional.</div>
             {% elif b.status=='READY_FOR_REVIEW' %}
               <div class="assist-note">Setup sudah dikirim dan sedang direview oleh tim Kilas Works.</div>
             {% elif b.status=='APPROVED' and not b.assist_payment_verified %}
