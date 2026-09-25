@@ -450,7 +450,7 @@ def build_activation_checklist(business_id):
         {"key": "knowledge", "label": "Knowledge (AI Setup)", "done": knowledge_done,
          "next_action": None if knowledge_done else "Jalankan AI Setup setelah Data Bisnis lengkap."},
         {"key": "payment", "label": "Payment", "done": payment_done,
-         "next_action": None if payment_done else "Selesaikan pembayaran paket AI Admin & tunggu verifikasi admin."},
+         "next_action": None if payment_done else "Selesaikan pembayaran Kilas Assist & tunggu verifikasi admin."},
         {"key": "whatsapp", "label": "WhatsApp", "done": whatsapp_done,
          "next_action": None if whatsapp_done else "Hubungkan nomor WhatsApp di halaman admin."},
         {"key": "template", "label": "Template Re-engagement", "done": template_done,
