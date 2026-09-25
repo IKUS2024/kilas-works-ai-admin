@@ -77,7 +77,15 @@
           <p>Balas customer, lihat konteks percakapan, dan tindak lanjuti permintaan tanpa pindah-pindah tempat.</p>
         </div>
         <div class="kw-assist-primary-actions">
+          {% if workspace_ui.demo_connected and workspace_ui.demo_connected.get(business.id) %}
+          <a class="btn kw-demo-btn"
+             data-demo-kilas-whatsapp
+             href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}">
+            Buka Demo WhatsApp
+          </a>
+          {% else %}
           {% include '_web_share.html' %}
+          {% endif %}
           <a class="btn secondary" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a>
         </div>
       </section>
