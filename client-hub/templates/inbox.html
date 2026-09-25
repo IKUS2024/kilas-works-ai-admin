@@ -25,6 +25,8 @@
 .kw-demo-empty p{margin:0;line-height:1.45}
 .kw-demo-start{width:100%;justify-content:center;background:var(--orange)!important;border-color:var(--orange)!important;color:#17110d!important;font-weight:900}
 .kw-demo-hint{font-size:11px}
+.kw-demo-connected-empty{border-left:3px solid var(--green)}
+.kw-demo-connected-empty>strong{color:var(--green)}
 @media(max-width:900px){.customer-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
 @media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
 </style>
@@ -78,12 +80,19 @@
           <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at|humanize_timestamp }}</div>
         </a>
       {% else %}
-        <div class="kw-demo-empty">
-          <strong>Belum ada chat di Inbox</strong>
-          <p class="muted">Untuk demo WhatsApp, kirim satu pesan otomatis yang sudah berisi kode demo. Setelah dikirim, chat akan muncul di sini otomatis.</p>
-          <a class="btn kw-demo-start" href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}" target="_blank" rel="noopener noreferrer">Mulai Demo WhatsApp</a>
-          <p class="muted kw-demo-hint">Jangan hapus kode <strong>KWDEMO-…</strong> dari pesan yang terbuka di WhatsApp.</p>
+        {% if demo_phone %}
+        <div class="kw-demo-empty kw-demo-connected-empty">
+          <strong>WhatsApp demo tersambung ✓</strong>
+          <p class="muted">Inbox tetap terhubung ke chat WhatsApp ini. Kirim pesan berikutnya dari WhatsApp dan percakapan akan muncul otomatis di sini.</p>
         </div>
+        {% else %}
+        <div class="kw-demo-empty">
+          <strong>Hubungkan WhatsApp untuk demo</strong>
+          <p class="muted">Cukup kirim satu pesan pembuka dari WhatsApp. Setelah tersambung, koneksi akan tetap tersimpan untuk bisnis ini.</p>
+          <a class="btn kw-demo-start" href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}" target="_blank" rel="noopener noreferrer">Mulai Demo WhatsApp</a>
+          <p class="muted kw-demo-hint">Pesan pembuka akan berisi Demo ID singkat untuk menghubungkan chat ke Inbox ini.</p>
+        </div>
+        {% endif %}
       {% endfor %}
     </div>
 
