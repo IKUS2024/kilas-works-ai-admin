@@ -65,6 +65,21 @@ def main():
             page.goto(BASE + '/logout'); login(page, 'release-' + persona + '@example.test')
             expect(page.get_by_role('heading', name='Release ' + persona, exact=True)).to_be_visible()
             shot(page, persona + '-login-persistence')
+            if persona == 'both':
+                page.goto(BASE + '/workspace/go/finance_setup')
+                page.get_by_role('button', name='Mulai Sekarang', exact=False).click()
+                expect(page.get_by_role('heading', name='Ringkasan keuangan', exact=True)).to_be_visible()
+                page.goto(BASE + '/workspace')
+                assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','Finance','More']
+                shot(page, 'both-real-finance-activation')
+        finance_only = new_page(); signup(finance_only, 'finance')
+        finance_only.get_by_role('button', name='Pilih Kelola Keuangan', exact=False).click()
+        finance_only.get_by_role('button', name='Mulai Sekarang', exact=False).click()
+        expect(finance_only.get_by_role('heading', name='Ringkasan keuangan', exact=True)).to_be_visible()
+        finance_only.goto(BASE + '/workspace')
+        assert [s.strip() for s in finance_only.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Finance','More']
+        finance_only.goto(BASE + '/logout'); login(finance_only, 'release-finance@example.test')
+        shot(finance_only, 'finance-only-signup-activation-persistence')
         # Existing eligible full-package fixture: only entitlement/model are synthetic.
         login(owner, data['email'])
         owner.goto(BASE + f'/business/{bid}/inbox?channel=web')

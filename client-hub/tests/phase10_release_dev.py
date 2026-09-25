@@ -7,7 +7,7 @@ from unittest.mock import patch
 from flask import jsonify
 from test_kilas_finance_bridge import BridgeTests
 from test_finance_phase2a import app
-import repo, db, security
+import repo, db, security, finance_entitlements
 from kilas_core import operation_schema
 import ai_onboarding
 from playbook_qa_provider import reply
@@ -21,8 +21,13 @@ repo.update_user_password(case.foreign_actor, security.hash_password(PASSWORD))
 admin = repo.create_user('phase10-operator@example.test', security.hash_password(PASSWORD),
                          role='KILAS_ADMIN', full_name='Release QA Operator')
 repo.upsert_business_profile(case.source, {'category':'Logistics'})
+repo.save_ai_normalized_config(case.source, 'Synthetic approved logistics fixture',
+                              {'business_name':'Release Logistics','hours':'09.00-17.00'}, [])
 os.environ.update(KILAS_WEB_CHAT_ENABLED='true', KILAS_PLAYBOOKS_V2_ENABLED='true',
-                  KILAS_OPERATIONS_V2_ENABLED='true')
+                  KILAS_OPERATIONS_V2_ENABLED='true', KILAS_FINANCE_ACCESS_MODE='self_service',
+                  KILAS_FINANCE_UNLIMITED_TRIAL='false')
+finance_entitlements.start_trial(case.target, case.actor)
+finance_entitlements.start_trial(case.foreign, case.foreign_actor)
 model = patch.object(ai_onboarding, '_call_claude', side_effect=reply); model.start()
 app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
 
