@@ -56,6 +56,11 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
     try:
         if not eligible(bid):
             return store.finish(event, error='provider_error')
+        # A greeting is not a business request and must never manufacture a Job or trigger
+        # Human Takeover just because the extraction model labels it HUMAN/UNSUPPORTED.
+        # Keep this deterministic and narrowly scoped to whole-message greetings only.
+        if understanding.is_simple_greeting(message.text):
+            return store.finish(event, reply='Halo! Ada yang bisa saya bantu hari ini?')
         book = select((repo.get_business_profile(bid) or {}).get('category'))
         with jobs.transaction() as tx:
             expected = actions.snapshot(tx, bid, cid)
