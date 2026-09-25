@@ -1,5 +1,5 @@
 <a class="btn secondary kw-demo-btn"
    data-demo-kilas-whatsapp
-   href="https://wa.me/6282213039137?text=Halo%20Kilas%20Works%2C%20saya%20mau%20coba%20Demo%20Kilas"
+   href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}"
    target="_blank"
    rel="noopener noreferrer">Coba Demo Kilas</a>
