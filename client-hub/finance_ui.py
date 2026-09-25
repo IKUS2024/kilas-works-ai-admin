@@ -26,7 +26,7 @@ def context(business_id, user):
         'new_invoice':'invoices','edit_invoice':'invoices','invoice_detail':'invoices','invoice_settings':'invoices',
         'reports':'reports','assistant':'assistant','receipt_new':'assistant','collections':'invoices',
         'customer_statement':'invoices','collection_reminder':'invoices','edit_transaction':'transactions',
-        'bank_index':'bank','bank_new':'bank','bank_detail':'bank',
+        'bank_index':'transactions','bank_new':'transactions','bank_detail':'transactions',
         'analyst':'reports','operator':'assistant','operator_action':'assistant','receipt_analyze':'assistant','receipt_confirm':'assistant'}.get(endpoint,'dashboard')
     return dict(enabled=endpoint in PAGE_ENDPOINTS, month=month, currency=currency, area=area,
                 home=endpoint=='dashboard' and not view, businesses=repo.list_businesses_for_user(user['id']) if endpoint in PAGE_ENDPOINTS else [],

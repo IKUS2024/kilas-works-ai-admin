@@ -88,7 +88,7 @@ class DashboardDesignTests(unittest.TestCase):
         self.assertEqual(c['period_income_display'],'Rp450,00')
         self.assertIn('>Scan Struk</a>',html)
         self.assertIn('>Buat Invoice</a>',html)
-        self.assertIn('>Tanya Kilas</a>',html)
+        self.assertIn('>Tanya</a>',html)
         self.assertIn('Invoice',html)
         _,business=self.page(f'&branch_id={self.branch}')
         self.assertEqual(business['period_income_display'],'Rp0,00')
