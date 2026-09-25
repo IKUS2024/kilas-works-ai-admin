@@ -1,0 +1,40 @@
+name: Kilas V2 Phase 10 release QA
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  migration-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_phase10
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_phase10"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+      - uses: actions/checkout@v4
+        with:
+          ref: 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c
+          path: rollback
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r candidate/client-hub/requirements.txt
+      - name: Exact additive upgrade and old-code rollback readback on PostgreSQL 18
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase10
+          KILAS_PHASE10_POSTGRES_QA: '1'
+          KILAS_PHASE10_BASELINE_DIR: ${{ github.workspace }}/rollback
+        run: python candidate/scripts/phase10_postgres_rehearsal.py
