@@ -33,7 +33,7 @@ MESSAGES = {
     'approval_required': 'Setup bisnis sedang direview. Tunggu persetujuan Kilas Works.',
     'payment_verification_required': 'Pembayaran menunggu verifikasi Kilas Works.',
     'provisioning_required': 'Persiapan bisnis belum selesai. Hubungi Kilas Works.',
-    'package_ineligible': 'Bisnis ini belum menggunakan Kilas Brain.',
+    'package_ineligible': 'Bisnis ini belum menggunakan Kilas Assist.',
     'invalid_state': 'Sesi koneksi sudah digunakan atau berakhir. Muat ulang halaman untuk mencoba lagi.',
     'coexistence_phone_missing': 'Nomor WhatsApp Business di HP belum terdeteksi. Pastikan proses di Meta dan konfirmasi di HP selesai.',
     'coexistence_phone_ambiguous': 'Ada lebih dari satu nomor WhatsApp Business yang cocok. Hubungi Kilas Works untuk memilih nomor yang benar.',
@@ -167,10 +167,10 @@ def embedded_signup_complete(business_id):
             business_id, user, waba, phone, connection_mode=connection_mode)
         active = result['status'] == 'ACTIVE'
         if connection_mode == 'COEXISTENCE':
-            message = ('Kilas Brain aktif. WhatsApp Business tetap bisa digunakan di HP.' if active else
-                       'WhatsApp Business di HP sudah terhubung. Aktivasi Kilas Brain masih menunggu pemeriksaan.')
+            message = ('Kilas Assist aktif. WhatsApp Business tetap bisa digunakan di HP.' if active else
+                       'WhatsApp Business di HP sudah terhubung. Aktivasi Kilas Assist masih menunggu pemeriksaan.')
         else:
-            message = ('Kilas Brain aktif.' if active else
+            message = ('Kilas Assist aktif.' if active else
                        'WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan Kilas Works.')
         return jsonify(status='active' if active else 'connected',
                        connection_mode=connection_mode.lower(), message=message)
@@ -211,7 +211,7 @@ def retry_activation(business_id):
         if channel.get('connection_status') != 'CONNECTED' or channel.get('credentials_reference'):
             raise signup.SignupError('channel_validation_failed')
         result = provisioning.complete_self_service_whatsapp(business_id, user, channel['waba_id'], channel['phone_number_id'])
-        flash('Kilas Brain aktif.' if result['status'] == 'ACTIVE' else
+        flash('Kilas Assist aktif.' if result['status'] == 'ACTIVE' else
               'WhatsApp terhubung. Aktivasi masih menunggu pemeriksaan Kilas Works.', 'success' if result['status'] == 'ACTIVE' else 'error')
     except HTTPException:
         raise
