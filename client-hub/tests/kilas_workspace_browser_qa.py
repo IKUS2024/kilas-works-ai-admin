@@ -49,7 +49,7 @@ with sync_playwright() as p:
             visit(path,name)
         # Switch product from Finance without a routing dead end.
         visit(f'/workspace/go/finance?business_id={target}','finance-selector')
-        page.get_by_role('navigation',name='Navigasi utama').get_by_text('Home',exact=True).click()
+        page.get_by_role('link',name='Keluar Finance',exact=False).click()
         expect(page.get_by_role('heading',name='Selamat datang,',exact=False)).to_be_visible()
         # Skip link is reachable by keyboard and has visible focus.
         page.keyboard.press('Control+Home'); page.reload();page.keyboard.press('Tab')
