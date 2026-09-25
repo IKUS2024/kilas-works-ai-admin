@@ -51,6 +51,7 @@
 </div>
 
 {% for b in businesses %}
+{% with business=b %}{% include '_web_share.html' %}{% endwith %}
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
       <div>

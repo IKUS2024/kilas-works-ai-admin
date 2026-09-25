@@ -396,9 +396,11 @@ def set_business_package(business_id, package, actor_user_id=None):
         if receipt_id is not None:
             cur.execute(db._adapt_placeholders("INSERT INTO audit_log (actor_user_id, business_id, action, detail) VALUES (?, ?, 'PRO_ENTITLEMENT_APPLIED', ?)"),
                         (actor_user_id, business_id, str(receipt_id)))
-        conn.commit()
+        if not db._transaction_active():
+            conn.commit()
     except Exception:
-        conn.rollback()
+        if not db._transaction_active():
+            conn.rollback()
         raise
     finally:
         cur.close()

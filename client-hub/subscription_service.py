@@ -172,6 +172,61 @@ def create_subscription_with_explicit_period(business_id, plan_key, period_start
     return get_subscription(business_id)
 
 
+def verified_payment_period(business_id):
+    """Read-only billing evidence; never uses channel activation or today's date as start."""
+    business = repo.get_business(business_id)
+    plan = plan_key_for_package(business['package']) if business else None
+    if not plan:
+        raise ValueError('ai_payment_required')
+    rows = db.query_all(
+        "SELECT p.id, p.invoice_id, p.verified_at FROM payments p "
+        "JOIN invoices i ON i.id=p.invoice_id JOIN projects pr ON pr.id=i.project_id "
+        "WHERE p.business_id=? AND i.business_id=? AND pr.business_id=? "
+        "AND pr.catalog_key=? AND p.status='VERIFIED' AND i.status='PAID' "
+        "ORDER BY p.verified_at,p.id", (business_id,business_id,business_id,plan))
+    if not rows:
+        raise ValueError('ai_payment_required')
+    # One paid invoice purchases one period, even if duplicate payment rows were verified.
+    unique_invoices = {}
+    for row in rows:
+        unique_invoices.setdefault(row['invoice_id'], row)
+    rows = list(unique_invoices.values())
+    stamps = [_parse(row['verified_at']) for row in rows]
+    if any(stamp is None or stamp > _now_dt() for stamp in stamps):
+        raise ValueError('invalid_verified_payment_period')
+    start = stamps[0]
+    end = start
+    for stamp in stamps:
+        end = max(end, stamp) + timedelta(days=DEFAULT_PERIOD_DAYS)
+    return dict(plan_key=plan, period_start=start.isoformat(), period_end=end.isoformat(),
+                payment_ids=[row['id'] for row in rows])
+
+
+def establish_paid_subscription(business_id, actor_user_id=None):
+    """Audited, serialized missing-row backfill; existing periods/status are immutable here."""
+    if not db._transaction_active():
+        with db.app_purchase_transaction(business_id, None):
+            return establish_paid_subscription(business_id, actor_user_id)
+    existing = get_subscription(business_id)
+    if existing:
+        return existing
+    evidence = verified_payment_period(business_id)
+    sub = create_subscription_with_explicit_period(
+        business_id, evidence['plan_key'], evidence['period_start'], evidence['period_end'],
+        actor_user_id=actor_user_id)
+    end = _parse(evidence['period_end'])
+    now = _now_dt()
+    # Historical expired payments must not become ACTIVE merely because backfill ran today.
+    if now >= end:
+        status = 'SUSPENDED' if now >= end + timedelta(days=DEFAULT_GRACE_DAYS) else 'GRACE'
+        db.execute("UPDATE subscriptions SET status=?,grace_started_at=?,updated_at=? WHERE business_id=?",
+                   (status,end.isoformat(),now.isoformat(),business_id))
+    repo.write_audit(actor_user_id,business_id,'SUBSCRIPTION_PAYMENT_EVIDENCE',
+                     'payment_ids=' + ','.join(str(x) for x in evidence['payment_ids']) +
+                     ' rule=verified_at_plus_30_days preserve_existing=true')
+    return get_subscription(business_id)
+
+
 def list_active_ai_admin_businesses_missing_subscription():
     """Fix 5 — read-only lookup for the backfill script's dry-run/list mode. Returns businesses
     that are ACTIVE, on an AI Admin package (AI_ADMIN_BASIC/AI_ADMIN_PRO), and have NO row in

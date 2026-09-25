@@ -1,0 +1,17 @@
+{% for item in attention_data.rows %}
+<article class="card" data-attention-item>
+  <strong>{{ item.reason_label }}</strong>
+  <p>{{ item.display_name or 'Kebutuhan bisnis' }}{% if item.job_title %} · {{ item.job_title }}{% endif %}</p>
+  <div class="client-actions" style="display:flex;gap:10px;flex-wrap:wrap">
+    {% if item.conversation_id %}<a data-attention-inbox href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=item.conversation_id) }}">Buka Inbox</a>{% endif %}
+    {% if item.customer_id %}<a href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=item.customer_id) }}">Customer</a>{% endif %}
+    {% if item.job_id %}<a data-attention-job href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=item.job_id) }}">Buka pekerjaan</a>{% endif %}
+  </div>
+  {% if attention_full %}
+    <p class="client-note">{{ 'Perlu perhatian' if item.status=='OPEN' else 'Selesai ditinjau' }} · {{ item.created_at|job_time }}</p>
+    {% if item.status=='OPEN' %}<form method="post" action="{{ url_for('core_operations.resolve',bid=business.id,aid=item.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Selesai ditinjau</button>
+    </form>{% endif %}
+  {% endif %}
+</article>
+{% endfor %}

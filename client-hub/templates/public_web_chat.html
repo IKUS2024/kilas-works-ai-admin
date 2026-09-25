@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chat — {{ business.business_name }}</title>
+<link rel="stylesheet" href="{{ url_for('static',filename='web_chat.css') }}"></head>
+<body class="web-public"><main class="web-chat" data-web-chat data-base="{{ url_for('public_web.page',slug=slug) }}">
+<header><span class="web-mark" aria-hidden="true">K</span><div><h1>{{ business.business_name }}</h1><p data-mode>Asisten bisnis</p></div><span class="web-badge">WEB</span></header>
+<section class="web-welcome"><h2>Ada yang bisa kami bantu?</h2><p>Tanyakan produk, layanan, atau kebutuhanmu di sini. Balasan AI bisa saja keliru; tim dapat melanjutkan percakapan.</p></section>
+<div class="web-thread" data-thread role="log" aria-live="polite" aria-label="Percakapan"></div>
+<p data-status role="status">Menghubungkan…</p>
+<form data-message-form><label for="web-message">Pesan kamu</label><div class="web-compose">
+<textarea id="web-message" rows="2" maxlength="4000" required placeholder="Tulis pesan…" disabled></textarea>
+<button type="submit" disabled>Kirim</button></div></form>
+<button class="web-retry" type="button" data-retry hidden>Coba kirim lagi</button>
+<footer>Didukung oleh <strong>Kilas</strong> · Jangan kirim kata sandi atau kode OTP.</footer>
+</main><script src="{{ url_for('static',filename='public_web_chat.js') }}" defer></script></body></html>

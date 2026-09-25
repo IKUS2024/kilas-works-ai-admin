@@ -163,7 +163,7 @@ class CollectionsTests(unittest.TestCase):
         i=self.invoice()
         response=self.client.get(self.url+'/collections?section=queue&sort=balance&view=overdue')
         self.assertEqual(response.status_code,200)
-        for text in ('Statement','Invoice / Bayar','Reminder','Rp250','1 hari terlambat'):
+        for text in ('Statement','Invoice / Bayar','Reminder','Rp2,50','1 hari terlambat'):
             self.assertIn(text.encode(),response.data)
         markup=(Path(__file__).parents[1]/'templates/finance_collections.html').read_text()
         self.assertNotIn('<table',markup)
@@ -204,9 +204,9 @@ class CollectionsTests(unittest.TestCase):
         i=self.invoice();self.pay(i,100,paid_on=date.today().isoformat())
         for tone in ('friendly','firm'):
             text=c.reminder(self.b,i,self.uid,tone)
-            self.assertIn('Rp150',text);self.assertIn('Customer <test>',text)
+            self.assertIn('Rp1,50',text);self.assertIn('Customer <test>',text)
             self.assertIn(f.get_finance_invoice(self.b,i)['invoice_number'],text)
-            self.assertNotIn('Rp250',text)
+            self.assertNotIn('Rp2,50',text)
             self.assertEqual(self.client.get(self.url+f'/invoices/{i}/reminder?tone={tone}').status_code,200)
 
     def test_reminder_unavailable_for_draft_void_paid_current(self):

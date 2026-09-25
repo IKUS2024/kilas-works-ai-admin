@@ -1,0 +1,2 @@
+{% extends 'base.html' %}{% block title %}Periksa Finance{% endblock %}
+{% block content %}<section class="card"><h1>Aksi belum selesai</h1><p>{{ message }}</p><a href="{{ url_for('core_finance_bridge.settings',bid=bid) }}">Periksa koneksi Finance</a><p><a href="{{ url_for('core_jobs.list_page',bid=bid) }}">Kembali ke Jobs</a></p></section>{% endblock %}

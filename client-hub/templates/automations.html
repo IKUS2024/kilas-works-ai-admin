@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Otomatisasi WEB — {{ business.business_name }}{% endblock %}
+{% block content %}
+{% include '_client_compact_style.html' %}
+<section class="client-page" data-automations-page>
+  <div class="client-head"><h1>Otomatisasi WEB</h1><a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Perlu perhatian</a></div>
+  <p>{{ business.business_name }}</p>
+  <p>Pesan dikirim ke percakapan WEB yang masih aktif. Saat tim mengambil alih, pesan otomatis berhenti.</p>
+  {% if saved %}<div class="flash success">Pengaturan tersimpan.</div>{% endif %}
+  <form class="card" method="post" action="{{ url_for('core_operations.settings',bid=business.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version" value="{{ config.version }}">
+    <label for="followup-enabled">Tindak lanjut customer yang belum membalas</label>
+    <select id="followup-enabled" name="followup_enabled"><option value="false" {% if not config.followup_enabled %}selected{% endif %}>Nonaktif</option><option value="true" {% if config.followup_enabled %}selected{% endif %}>Aktif</option></select>
+    <label for="delay-hours">Jeda dan jarak antar pesan (jam)</label><input id="delay-hours" name="delay_hours" type="number" min="1" max="168" value="{{ config.delay_hours }}" required>
+    <label for="max-attempts">Maksimal pesan sebelum customer membalas</label><input id="max-attempts" name="max_attempts" type="number" min="1" max="3" value="{{ config.max_attempts }}" required>
+    <label for="review-enabled">Minta ulasan setelah pekerjaan selesai</label>
+    <select id="review-enabled" name="review_enabled"><option value="false" {% if not config.review_enabled %}selected{% endif %}>Nonaktif</option><option value="true" {% if config.review_enabled %}selected{% endif %}>Aktif</option></select>
+    <button class="btn" type="submit">Simpan pengaturan</button>
+  </form>
+  <form class="card" method="post" action="{{ url_for('core_operations.run',bid=business.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if next_conversation or next_job %}
+      <input type="hidden" name="conversation_after" value="{{ next_conversation or '' }}"><input type="hidden" name="job_after" value="{{ next_job or '' }}">
+    {% endif %}
+    <p>Periksa percakapan dan pekerjaan yang sudah waktunya ditindaklanjuti.</p>
+    <button class="btn secondary" type="submit">{{ 'Lanjutkan pemeriksaan' if next_conversation or next_job else 'Periksa sekarang' }}</button>
+  </form>
+</section>
+{% endblock %}

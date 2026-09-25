@@ -1,0 +1,6 @@
+{% if session.get('role')=='KILAS_ADMIN' %}
+<aside class="kw-operator-nav" aria-label="Navigasi operator"><a class="kw-brand" href="{{ url_for('admin.dashboard') }}">Kilas<span>Works</span><small>Operator workspace</small></a>
+{% for label,items in [('Operasional',[('admin.dashboard','Antrian & bisnis'),('admin.platform_inbox','Inbox platform'),('admin.admin_search','Cari & dukungan')]),('Paket & pembayaran',[('admin.payments_admin','Pembayaran jasa / AI Admin'),('products.admin_bills','Pembayaran Finance'),('admin.dashboard','Status langganan')]),('Kilas Services',[('admin.projects_admin','Projects & penawaran'),('admin.talent_admin','Talent'),('admin.catalog_admin','Katalog layanan')]),('Platform',[('meta_direct.launcher','WhatsApp & channel'),('admin.ai_usage_dashboard','Penggunaan AI'),('admin.official_links_admin','Tautan resmi')])] %}
+<details class="kw-operator-group" open><summary>{{ label }}</summary><nav>{% for endpoint,title in items %}<a href="{{ url_for(endpoint,status='SUSPENDED') if title=='Status langganan' else url_for(endpoint) }}" {% if request.endpoint==endpoint %}aria-current="page"{% endif %}>{{ title }}</a>{% endfor %}</nav></details>{% endfor %}
+<a class="kw-operator-logout" href="{{ url_for('auth.logout_page') }}">Keluar</a></aside>
+{% endif %}

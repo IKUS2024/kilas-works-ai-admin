@@ -318,7 +318,7 @@ class AssistantTests(unittest.TestCase):
 
     def test_bank_origin_and_exactly_once_totals(self):
         i=self.create();before=self.totals()['total_expense_minor'];first=self.post(i);self.post(i)
-        self.assertEqual(self.totals()['total_expense_minor'],before+100000)
+        self.assertEqual(self.totals()['total_expense_minor'],before+10000000)
         self.assertEqual(finance.get_transaction(self.b,first)['source_type'],'FINANCE_BANK_IMPORT')
 
     def test_bank_duplicate_source_reuse(self):

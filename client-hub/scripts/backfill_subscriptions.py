@@ -98,7 +98,24 @@ def main():
     parser.add_argument("--actor-admin-id", type=int, default=None,
                          help="KILAS_ADMIN user id to attribute the audit log entry to (recommended). "
                               "If omitted, the audit entry is recorded with no actor.")
+    parser.add_argument('--from-verified-payments', action='store_true',
+                        help='Derive the exact period from verified matching AI billing evidence, including APPROVED tenants without WhatsApp.')
     args = parser.parse_args()
+    if args.from_verified_payments:
+        if args.business_id is None or args.period_start or args.period_end:
+            parser.error('--from-verified-payments requires --business-id and forbids manual period overrides')
+        existing = subscription_service.get_subscription(args.business_id)
+        if existing:
+            print('Existing subscription preserved; no changes.')
+            return
+        evidence = subscription_service.verified_payment_period(args.business_id)
+        print(dict(business_id=args.business_id, **evidence))
+        if not args.confirm:
+            print('DRY RUN; nothing written.')
+            return
+        sub = subscription_service.establish_paid_subscription(args.business_id, args.actor_admin_id)
+        print({k: sub[k] for k in ('business_id','plan_key','status','period_start','period_end')})
+        return
 
     if args.business_id is None:
         _print_list(subscription_service.list_active_ai_admin_businesses_missing_subscription())

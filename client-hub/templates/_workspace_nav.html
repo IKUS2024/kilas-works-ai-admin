@@ -1,0 +1,14 @@
+{% if workspace_ui.enabled %}
+<a class="kw-skip" href="#kw-main">Lewati navigasi</a>
+<aside class="kw-sidebar" aria-label="Ruang kerja Kilas">
+<a class="kw-brand" href="{{ url_for('workspace.home') }}">Kilas<span>Works</span><small>Ruang kerja bisnis</small></a>
+<nav class="kw-primary" aria-label="Navigasi utama">
+{% set items=[('home','Home','⌂')] %}
+{% if workspace_ui.ai %}{% set items=items+[('inbox','Inbox','▤'),('customers','Customers','◎'),('jobs','Jobs','▣')] %}{% endif %}
+{% if workspace_ui.finance %}{% set items=items+[('finance','Finance','↗')] %}{% endif %}
+{% set items=items+[('more','More','•••')] %}
+{% for key,label,symbol in items %}<a href="{{ url_for('workspace.home') if key=='home' else (url_for('workspace.more') if key=='more' else url_for('workspace.go',area=key,business_id=workspace_ui.selected_finance if key=='finance' else workspace_ui.selected_ai)) }}" {% if workspace_ui.active==key %}aria-current="page"{% endif %}><span aria-hidden="true">{{ symbol }}</span><span>{{ label }}</span></a>{% endfor %}
+</nav>
+<div class="kw-sidebar-note">Satu ruang untuk melayani customer dan mengelola bisnis.</div>
+</aside>
+{% endif %}

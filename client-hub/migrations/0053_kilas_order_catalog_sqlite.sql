@@ -13,13 +13,13 @@ CREATE TABLE IF NOT EXISTS kilas_order_catalog (
   estimated_shipping_idr INTEGER NOT NULL DEFAULT 0 CHECK(estimated_shipping_idr >= 0),
   estimated_fee_idr INTEGER NOT NULL DEFAULT 0 CHECK(estimated_fee_idr >= 0),
   service_fee_idr INTEGER NOT NULL DEFAULT 0 CHECK(service_fee_idr >= 0),
-  CHECK(customer_price_idr = source_price_idr + estimated_shipping_idr + estimated_fee_idr + service_fee_idr),
   availability_status TEXT NOT NULL DEFAULT 'CHECK_REQUIRED' CHECK(availability_status IN ('AVAILABLE','CHECK_REQUIRED','PAUSED')),
   source_checked_at TEXT,
   is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK(customer_price_idr = source_price_idr + estimated_shipping_idr + estimated_fee_idr + service_fee_idr)
 );
 CREATE INDEX IF NOT EXISTS idx_kilas_order_catalog_active_sort ON kilas_order_catalog(is_active,sort_order);
 INSERT INTO kilas_order_catalog

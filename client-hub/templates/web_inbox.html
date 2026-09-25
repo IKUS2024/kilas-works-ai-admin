@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Inbox — {{ business.business_name }}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static',filename='web_chat.css') }}">
+{% if jobs_available(business) %}<style>.web-owner .jobs-tabs{flex-wrap:wrap}</style>{% endif %}
+<section class="web-owner">
+  <h1>Inbox — {{ business.business_name }}</h1>
+  {% include '_web_share.html' %}
+  <nav class="web-tabs {{ 'jobs-tabs' if jobs_available(business) else '' }}" aria-label="Channel">
+    <a href="{{ url_for('client.inbox_page',business_id=business.id,channel='legacy') }}">Riwayat WhatsApp</a>
+    <a aria-current="page" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">{{ 'Percakapan' if mixed_channels else 'WEB' }} · {{ total }}</a>
+    {% if kilas_customers_enabled() %}<a href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>{% endif %}
+    {% if jobs_available(business) %}<a href="{{ url_for('core_jobs.list_page',bid=business.id) }}">{{ job_labels(business).plural }}</a>{% endif %}
+  </nav>
+  <div class="web-columns {{ 'web-selected' if selected else '' }}">
+    <aside class="web-list">
+      <h2>{{ 'Percakapan' if mixed_channels else 'Percakapan web' }}</h2>
+      {% for row in conversations %}
+      <a class="web-conversation" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
+        <strong>{{ row.customer_display_name or ('Pengunjung ' ~ row.id[:6]) }} <small>{{ 'WhatsApp' if row.id.startswith('wa_') else 'WEB' }}</small></strong>
+        <span>{{ 'Ditangani tim' if row.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</span>
+        <p>{{ row.preview[:100] }}</p>
+      </a>
+      {% else %}<p>Belum ada pesan web. Bagikan link chat bisnis untuk memulai.</p>{% endfor %}
+      <nav aria-label="Halaman percakapan">
+      {% if page>1 %}<a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',page=page-1) }}">Sebelumnya</a>{% endif %}
+      <span>{{ page }} / {{ pages }}</span>
+      {% if page<pages %}<a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',page=page+1) }}">Berikutnya</a>{% endif %}
+      </nav>
+    </aside>
+    {% if selected %}
+    <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-mode-url="{{ url_for('owner_web.mode',bid=business.id,cid=selected.id) }}" data-reply-url="{{ url_for('owner_web.reply',bid=business.id,cid=selected.id) }}" data-csrf="{{ csrf_token() }}">
+      {% include "_jobs_panel.html" %}
+      <header><a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">← Percakapan</a>
+        <h2>{{ selected_customer.display_name if selected_customer else ('Pengunjung ' ~ selected.id[:6]) }} · {{ 'WhatsApp' if selected.id.startswith('wa_') else 'WEB' }}</h2><p data-mode>{{ 'Ditangani tim' if selected.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</p>
+        <button type="button" class="btn" data-takeover>Ambil alih</button>
+        <button type="button" class="btn secondary" data-return>Kembalikan ke AI</button>
+      </header>
+      <div class="web-thread" data-thread role="log" aria-live="polite"></div>
+      <p data-status role="status"></p>
+      <form data-reply><label for="web-owner-message">Balasan tim</label>
+        <textarea id="web-owner-message" maxlength="4000" required disabled placeholder="Ambil alih untuk membalas"></textarea>
+        <button class="btn" type="submit" disabled>Kirim balasan</button>
+      </form><p data-send-status role="status"></p>
+      {% if selected.id.startswith('wa_') %}
+      <button class="btn secondary" type="button" disabled data-template-url="{{ url_for('owner_web.template',bid=business.id,cid=selected.id) }}">Kirim template yang disetujui</button>
+      <p>Di luar jendela balasan, gunakan template yang telah disetujui Meta. Pengiriman tidak otomatis mengaktifkan AI.</p>
+      {% endif %}
+    </section>
+    {% else %}<section class="web-panel web-empty"><p>Pilih percakapan untuk membaca pesan.</p></section>{% endif %}
+  </div>
+</section>
+<script src="{{ url_for('static',filename='web_inbox.js') }}" defer></script>
+{% endblock %}

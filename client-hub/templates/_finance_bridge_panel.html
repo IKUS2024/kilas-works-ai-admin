@@ -1,0 +1,19 @@
+{% if finance_bridge_panel is defined %}
+{% set bridge_panel = finance_bridge_panel(business, customer.id, job.id if job is defined and job else none) %}
+{% if bridge_panel %}
+<div class="card" data-finance-bridge>
+  <h2>Finance</h2>
+  {% if bridge_panel.unavailable %}<p>Akses Finance tidak tersedia. Periksa koneksi atau izin bisnis tujuan.</p><a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Periksa koneksi Finance</a>{% else %}
+  <p>{{ 'Finance terhubung' if bridge_panel.mapping and bridge_panel.mapping.enabled else 'Belum terhubung ke Finance' }}</p>
+  {% if bridge_panel.result %}
+    {% set inv=bridge_panel.result.invoice %}
+    <p>{{ inv.invoice_number }} · {{ inv.status }}<br>Sisa {{ inv.outstanding_minor|finance_money(inv.currency) }}</p>
+  {% endif %}
+  {% for linked in bridge_panel.links %}<p>Customer Finance: {{ linked.customer.name }} · Bisnis #{{ linked.link.finance_business_id }}</p>{% endfor %}
+  <p><a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi Finance</a></p>
+  <p><a href="{{ url_for('core_finance_bridge.customer_page',bid=business.id,cid=customer.id) }}">Buat/Hubungkan Customer Finance</a></p>
+  {% if job is defined and job %}<a class="btn" href="{{ url_for('core_finance_bridge.job_page',bid=business.id,jid=job.id) }}">{{ 'Lihat invoice Finance' if bridge_panel.result else 'Buat Invoice di Finance' }}</a>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}

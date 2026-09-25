@@ -136,15 +136,34 @@ class RecurringTests(unittest.TestCase):
         for limit in (0,101,True,1.5):
             with self.assertRaises(f.FinanceError):f.process_due_recurring_expenses(self.b,'2026-01-01',max_occurrences=limit)
 
+    def test_existing_bill_keeps_archived_category_but_new_manual_writes_reject_it(self):
+        rule=self.rule()
+        # Historical category overrides may already be archived; scheduled history
+        # retains its identity. New manual transactions must still use active options.
+        db.execute('UPDATE finance_category_workspace_settings SET is_active=FALSE '
+                   'WHERE business_id=? AND category_id=?',(self.b,self.exp))
+        self.assertFalse(f.recurring_needs_attention(self.b,rule))
+        with self.assertRaisesRegex(f.FinanceError,'category_unavailable'):
+            f.create_transaction(self.b,'EXPENSE',100,self.a,self.exp,'2026-01-31',actor_user_id=self.uid)
+        self.assertEqual(f.list_transactions(self.b),[])
+        paid=f.record_recurring_payment(self.b,rule,'2026-01-31','2026-02-05',self.uid)
+        self.assertTrue(paid['created'])
+        transactions=f.list_transactions(self.b)
+        self.assertEqual(len(transactions),1)
+        self.assertEqual(transactions[0]['category_id'],self.exp)
+        self.assertEqual(transactions[0]['amount_minor'],100)
+        self.assertEqual(transactions[0]['occurred_on'],'2026-02-05')
+
     def test_invalid_account_category_stays_due_and_can_recover(self):
         r=self.rule()
-        for table,key,value in [('finance_accounts','id',self.a),('finance_categories','id',self.exp)]:
-            db.execute(f'UPDATE {table} SET is_active=FALSE WHERE business_id=? AND {key}=?',(self.b,value))
+        # Simulate an invalid stored reference without weakening the write guards.
+        for table,value,column,invalid,valid in [('finance_accounts',self.a,'is_active',False,True),('finance_categories',self.exp,'direction','INCOME','EXPENSE')]:
+            db.execute(f'UPDATE {table} SET {column}=? WHERE business_id=? AND id=?',(invalid,self.b,value))
             result=f.process_due_recurring_expenses(self.b,'2026-01-31')
             self.assertEqual(result['posted_count'],0);self.assertEqual(result['needs_attention_count'],1)
             self.assertTrue(f.recurring_needs_attention(self.b,r))
             self.assertEqual(f.get_recurring_expense(self.b,r)['next_due_on'],'2026-01-31')
-            db.execute(f'UPDATE {table} SET is_active=TRUE WHERE business_id=? AND {key}=?',(self.b,value))
+            db.execute(f'UPDATE {table} SET {column}=? WHERE business_id=? AND id=?',(valid,self.b,value))
         self.assertEqual(f.process_due_recurring_expenses(self.b,'2026-01-31')['posted_count'],1)
 
     def test_cross_tenant_rule_read_deactivate_and_process(self):
@@ -219,8 +238,8 @@ class RecurringTests(unittest.TestCase):
     def test_ui_get_read_only_projects_scoped_and_beta(self):
         self.rule();before=f.list_transactions(self.b)
         html=self.client.get(self.url+'/operations?section=projects').get_data(as_text=True)
-        self.assertIn('Biaya Rutin &amp; Proyek',html);self.assertNotIn('PRIVATE project',html)
-        self.assertIn('Uang Masuk &amp; Keluar per Proyek',html);self.assertEqual(before,f.list_transactions(self.b))
+        self.assertIn('Tagihan',html);self.assertNotIn('PRIVATE project',html)
+        self.assertIn('Arus Kas Proyek',html);self.assertEqual(before,f.list_transactions(self.b))
         html=self.client.get(self.url).get_data(as_text=True)
         self.assertIn('name="project_id"',html);self.assertNotIn('PRIVATE project',html)
         self.assertIn('name="customer_id"',html)
@@ -247,8 +266,11 @@ class RecurringTests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url+'/recurring',data=data).status_code,303)
         r=f.list_recurring_expenses(self.b)[0]
         self.assertEqual(r['anchor_day'],31)
-        self.assertEqual(self.client.post(self.url+'/recurring/process',data={'occurrence':f"{r['id']}:2026-01-31"}).status_code,303)
-        self.assertGreater(len(f.list_transactions(self.b)),0)
+        self.assertEqual(self.client.post(self.url+'/recurring/process',data={'occurrence':f"{r['id']}:2026-01-31",'paid_on':'2026-01-31','account_id':self.a}).status_code,303)
+        transactions=f.list_transactions(self.b)
+        self.assertEqual(len(transactions),1)
+        self.assertEqual(transactions[0]['amount_minor'],12300)
+        self.assertEqual(transactions[0]['occurred_on'],'2026-01-31')
         self.assertEqual(self.client.post(self.url+f'/recurring/{r["id"]}/deactivate').status_code,303)
         self.assertFalse(f.get_recurring_expense(self.b,r['id'])['is_active'])
 
@@ -266,13 +288,15 @@ class RecurringTests(unittest.TestCase):
 
     def test_cron_setup_failure_sanitized_and_attention_not_execution_failure(self):
         output=io.StringIO()
-        with patch.object(db,'query_all',side_effect=RuntimeError('SECRET DATABASE_URL')),contextlib.redirect_stderr(output):
+        with patch.object(db,'query_one',side_effect=RuntimeError('SECRET DATABASE_URL')),contextlib.redirect_stderr(output):
             self.assertEqual(cron.run('2026-01-31'),1)
         self.assertNotIn('SECRET',output.getvalue())
         self.rule();db.execute('UPDATE finance_accounts SET is_active=FALSE WHERE business_id=? AND id=?',(self.b,self.a))
+        before='\n'.join(db.get_connection().iterdump())
         output=io.StringIO()
         with contextlib.redirect_stdout(output):self.assertEqual(cron.run('2026-01-31'),0)
-        self.assertIn('needs_attention=1',output.getvalue());self.assertEqual(f.list_transactions(self.b),[])
+        self.assertEqual(before,'\n'.join(db.get_connection().iterdump()))
+        self.assertIn('auto_post=disabled',output.getvalue());self.assertIn('due_rules=1',output.getvalue());self.assertEqual(f.list_transactions(self.b),[])
 
 
 if __name__=='__main__':unittest.main()

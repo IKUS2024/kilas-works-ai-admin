@@ -52,7 +52,9 @@ class MultiBusinessTests(unittest.TestCase):
             for row in context['breakdown']:
                 cash=next((r for r in row['cash_summaries'] if r['currency']=='IDR'),{})
                 row['summary']={k:cash.get(k,0) for k in context['summary']}
-                row['summary'].update({k:row['receivables'][k] for k in ('total_outstanding_minor','total_overdue_minor','open_invoice_count','overdue_invoice_count')})
+                aging=next((r for r in row['receivables']['by_currency'] if r['currency']=='IDR'),{})
+                row['summary'].update({k:aging.get(k,0) for k in ('total_outstanding_minor','total_overdue_minor')})
+                row['summary'].update({k:row['receivables'][k] for k in ('open_invoice_count','overdue_invoice_count')})
         return result, context
 
     def transaction(self, business, direction, amount, day='2026-09-10', currency='IDR'):
@@ -70,8 +72,9 @@ class MultiBusinessTests(unittest.TestCase):
             response, context = self.page(url)
             self.assertEqual({b['id'] for b in context['businesses']}, {self.b, self.second, self.empty})
             html = response.get_data(as_text=True)
-            for name in ('Business', 'Second authorized business', 'Empty authorized business', 'Semua Bisnis'):
+            for name in ('Business', 'Second authorized business', 'Empty authorized business'):
                 self.assertIn(name, html)
+            self.assertEqual('Semua Bisnis' in html,url.startswith('/finance?'))
             for secret in ('Other business', 'PRIVATE CUSTOMER', '987.654.321'):
                 self.assertNotIn(secret, html)
 
@@ -121,6 +124,9 @@ class MultiBusinessTests(unittest.TestCase):
         for key, expected in (('total_income_minor', 1800), ('total_expense_minor', 500), ('net_cashflow_minor', 1300)):
             self.assertEqual(context['summary'][key], expected)
             self.assertEqual(context['summary'][key], sum(row['summary'][key] for row in context['breakdown']))
+        usd=next(row for row in context['totals_by_currency'] if row['currency']=='USD')
+        self.assertEqual(usd['total_income_minor'],99999)
+        self.assertEqual(usd['net_cashflow_minor'],99999)
         _, single = self.page(self.url+'?month=2026-09')
         self.assertEqual({k:v for k,v in single['summary'].items() if k!='transaction_count'}, finance.get_finance_summary(self.b, '2026-09-01', '2026-09-30', actor_user_id=self.uid))
         self.assertEqual(single['summary']['net_cashflow_minor'], 800)
@@ -174,7 +180,7 @@ class MultiBusinessTests(unittest.TestCase):
         self.assertIn(('option', {'value': '2024', 'selected': None}), elements)
         self.assertIn(('input', {'type': 'hidden', 'name': 'month', 'value': '2024-02'}), elements)
         response = self.client.get('/finance', query_string={'business_id': self.second, 'month': '2024-02'})
-        self.assertTrue(response.location.endswith(f'/business/{self.second}/finance?month=2024-02'))
+        self.assertTrue(response.location.endswith(f'/business/{self.second}/finance?month=2024-02&display_currency=IDR'))
         response, context = self.page(response.location)
         self.assertEqual(context['month'], '2024-02')
         self.assertIn(('option', {'value': str(self.second), 'selected': None}), Elements(response.get_data(as_text=True)).elements)
@@ -199,7 +205,7 @@ class MultiBusinessTests(unittest.TestCase):
         self.assertEqual(self.client.post('/finance').status_code, 405)
         self.assertIn('no-store', response.headers['Cache-Control'])
         single, _ = self.page('/finance?business_id='+str(self.b)+'&month=2026-09')
-        for text in ('Tanya Kilas Finance', 'Pemasukan', 'Pengeluaran'):
+        for text in ('AI Finance', 'Pemasukan', 'Pengeluaran'):
             self.assertIn(text, single.get_data(as_text=True))
 
     def test_login_and_feature_gates_unchanged(self):

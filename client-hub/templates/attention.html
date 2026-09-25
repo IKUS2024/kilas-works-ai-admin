@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Perlu perhatian — {{ business.business_name }}{% endblock %}
+{% block content %}
+{% include '_client_compact_style.html' %}
+<section class="client-page" data-attention-page style="overflow-wrap:anywhere">
+  <div class="client-head"><h1>Perlu perhatian</h1><a href="{{ url_for('products.assist_entry') }}">Beranda</a></div>
+  <p>{{ business.business_name }} · {{ attention_data.total }} {{ 'hal perlu perhatian' if attention_data.status=='OPEN' else 'selesai ditinjau' }}</p>
+  <nav style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px">
+    <a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Perlu perhatian</a>
+    <a href="{{ url_for('core_operations.list_page',bid=business.id,status='RESOLVED') }}">Selesai ditinjau</a>
+    <a href="{{ url_for('core_operations.settings',bid=business.id) }}">Otomatisasi WEB</a>
+  </nav>
+  {% set attention_full=true %}{% include '_attention_items.html' %}
+  {% if not attention_data.rows %}<p>Tidak ada item pada daftar ini.</p>{% endif %}
+  <nav aria-label="Halaman perhatian">
+    {% if attention_data.page>1 %}<a href="{{ url_for('core_operations.list_page',bid=business.id,status=attention_data.status,page=attention_data.page-1) }}">Sebelumnya</a>{% endif %}
+    <span>{{ attention_data.page }} / {{ attention_data.pages }}</span>
+    {% if attention_data.page<attention_data.pages %}<a href="{{ url_for('core_operations.list_page',bid=business.id,status=attention_data.status,page=attention_data.page+1) }}">Berikutnya</a>{% endif %}
+  </nav>
+</section>
+{% endblock %}

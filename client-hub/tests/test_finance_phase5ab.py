@@ -73,7 +73,7 @@ class InvoicePresentationTests(unittest.TestCase):
             response=self.client.post(self.path(i)+'/share')
         self.assertEqual(response.status_code,200);self.assertEqual(before,self.snapshot())
         self.assertIn(b'https://app.example.test/finance/invoice-share/',response.data)
-        self.assertIn(b'Copy Link',response.data);self.assertIn(b'Open Customer View',response.data)
+        self.assertIn(b'Copy Link',response.data);self.assertIn(b'Buka Tampilan Pelanggan',response.data)
         self.assertIn(b'no-store',response.headers['Cache-Control'].encode())
 
     def test_draft_and_void_cannot_generate_share(self):

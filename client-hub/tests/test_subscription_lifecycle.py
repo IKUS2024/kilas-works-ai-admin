@@ -63,7 +63,10 @@ def _activate_fully(package="AI_ADMIN_BASIC"):
     admin = _make_admin()
     uid, bid = _make_owner_and_business(email=f"owner_{os.urandom(4).hex()}@test.com", package=package)
     repo.upsert_business_profile(bid, {"business_name": "Test Biz", "category": "Test", "owner_name": "X",
-                                        "primary_language": "id", "customer_salutation": "Kak"})
+                                        "primary_language": "id", "customer_salutation": "Kak",
+                                        "short_description": "Layanan uji", "operating_hours": "09:00-17:00",
+                                        "online_or_offline": "online", "business_phone": "628123456789"})
+    repo.set_trusted_owner_phone(bid, "628123456780")
     repo.replace_business_services(bid, ["Layanan A - 10rb"])
     repo.replace_business_faqs(bid, ["FAQ? Jawaban."])
     repo.save_ai_normalized_config(bid, "summary", {"description": "desc"}, [])
@@ -95,7 +98,10 @@ def _prepare_for_activation(package="AI_ADMIN_BASIC"):
     admin = _make_admin()
     uid, bid = _make_owner_and_business(email=f"owner_{os.urandom(4).hex()}@test.com", package=package)
     repo.upsert_business_profile(bid, {"business_name": "Test Biz", "category": "Test", "owner_name": "X",
-                                        "primary_language": "id", "customer_salutation": "Kak"})
+                                        "primary_language": "id", "customer_salutation": "Kak",
+                                        "short_description": "Layanan uji", "operating_hours": "09:00-17:00",
+                                        "online_or_offline": "online", "business_phone": "628123456789"})
+    repo.set_trusted_owner_phone(bid, "628123456780")
     repo.replace_business_services(bid, ["Layanan A - 10rb"])
     repo.replace_business_faqs(bid, ["FAQ? Jawaban."])
     repo.save_ai_normalized_config(bid, "summary", {"description": "desc"}, [])
@@ -127,6 +133,8 @@ def test_activation_aborts_when_subscription_creation_fails():
     admin, uid, bid = _prepare_for_activation()
     business_before = repo.get_business(bid)
     assert business_before["status"] == "APPROVED"
+    subscription_before = subscription_service.get_subscription(bid)
+    assert subscription_before is not None, "verified payment establishes independent AI lifecycle"
 
     import provisioning as prov_module
 
@@ -143,8 +151,8 @@ def test_activation_aborts_when_subscription_creation_fails():
     business_after = repo.get_business(bid)
     assert business_after["status"] != "ACTIVE", "business must NOT become ACTIVE when subscription setup fails"
     assert business_after["status"] == "APPROVED", "business status must be left exactly as it was"
-    assert subscription_service.get_subscription(bid) is None, \
-        "no subscription row should exist after a failed creation attempt"
+    assert subscription_service.get_subscription(bid) == subscription_before, \
+        "failed WhatsApp activation must preserve the paid AI lifecycle"
     print("test_activation_aborts_when_subscription_creation_fails OK")
 
 
@@ -604,7 +612,8 @@ def test_admin_review_page_renders_with_subscription_card():
             sess["role"] = "KILAS_ADMIN"
         resp = c.get(f"/admin/business/{bid}")
         assert resp.status_code == 200
-        assert b"Kilas Brain Subscription" in resp.data
+        assert b"Subscription:" in resp.data
+        assert subscription_service.get_subscription(bid)["plan_key"].encode() in resp.data
     print("test_admin_review_page_renders_with_subscription_card OK")
 
 
@@ -624,7 +633,9 @@ def test_admin_renew_route_reactivates_suspended_business():
             sess["user_id"] = admin["id"]
             sess["role"] = "KILAS_ADMIN"
         resp = c.get(f"/admin/business/{bid}")  # loads CSRF-bearing page first (matches app convention)
-        resp = c.post(f"/admin/business/{bid}/subscription/renew", data={}, follow_redirects=True)
+        with c.session_transaction() as sess:
+            csrf = sess["_csrf_token"]
+        resp = c.post(f"/admin/business/{bid}/subscription/renew", data={"csrf_token": csrf}, follow_redirects=True)
         assert resp.status_code == 200
     assert repo.get_business(bid)["status"] == "ACTIVE"
     print("test_admin_renew_route_reactivates_suspended_business OK")

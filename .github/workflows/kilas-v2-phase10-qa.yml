@@ -1,0 +1,82 @@
+name: Kilas V2 Phase 10 release QA
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticated-journeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt playwright
+      - name: Paid AI lifecycle and historical compatibility regression
+        env:
+          PYTHONPATH: client-hub:client-hub/tests
+        run: |
+          python scripts/run_offline_tests.py --only test_paid_ai_lifecycle.py
+          python scripts/run_offline_tests.py --only test_subscription_backfill.py
+          python scripts/run_offline_tests.py --only test_subscription_lifecycle.py
+          python scripts/run_offline_tests.py --only test_single_plan_release.py
+          python scripts/run_offline_tests.py --only test_payment_verification_strengthening.py
+      - run: python -m playwright install --with-deps chromium
+      - name: Start disposable release application
+        env:
+          PYTHONPATH: client-hub:client-hub/tests
+          KILAS_PHASE10_BROWSER_QA: '1'
+        run: |
+          python client-hub/tests/phase10_release_dev.py >/tmp/phase10-harness.log 2>&1 &
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8771/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then cat /tmp/phase10-harness.log; exit 1; fi
+      - name: Real login Web Chat takeover Bridge and authoritative Finance payment
+        run: python client-hub/tests/phase10_release_browser_qa.py
+      - name: Synthetic harness diagnostics
+        if: always()
+        run: cat /tmp/phase10-harness.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-phase10-authenticated-journeys
+          path: /tmp/kilas-phase10-browser-qa
+          if-no-files-found: ignore
+  migration-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_phase10
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_phase10"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+      - uses: actions/checkout@v4
+        with:
+          ref: 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c
+          path: rollback
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r candidate/client-hub/requirements.txt
+      - name: Exact additive upgrade and old-code rollback readback on PostgreSQL 18
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase10
+          KILAS_PHASE10_POSTGRES_QA: '1'
+          KILAS_PHASE10_BASELINE_DIR: ${{ github.workspace }}/rollback
+        run: python candidate/scripts/phase10_postgres_rehearsal.py

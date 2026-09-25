@@ -1,0 +1,132 @@
+name: Kilas V2 Phase 2 QA
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "client-hub/public_chat/**"
+      - "client-hub/kilas_core/**"
+      - "client-hub/migrations/0053_kilas_order_catalog_sqlite.sql"
+      - "client-hub/migrations/0055_public_web_chat_*"
+      - "client-hub/templates/*web*"
+      - "client-hub/templates/inbox.html"
+      - "client-hub/templates/product_dashboard.html"
+      - "client-hub/templates/assist_entry.html"
+      - "client-hub/templates/client_dashboard.html"
+      - "client-hub/static/public_web_chat.js"
+      - "client-hub/static/web_chat.css"
+      - "client-hub/static/web_inbox.js"
+      - "client-hub/static/web_share.js"
+      - "client-hub/tests/test_public_chat_*"
+      - "client-hub/tests/public_chat_*"
+      - ".github/workflows/kilas-v2-phase2-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phase2-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_phase2
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_phase2"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install app and QA dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r client-hub/requirements.txt
+          pip install playwright
+
+      - name: Phase 1 regression
+        env:
+          PYTHONPATH: client-hub
+        run: python scripts/run_offline_tests.py --only test_kilas_core
+
+      - name: Phase 2 SQLite focused regression
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_public_chat_routes.py
+          python scripts/run_offline_tests.py --only test_public_chat_store.py
+
+      - name: Existing Inbox and tenant regressions on disposable SQLite
+        env:
+          PYTHONPATH: client-hub
+        run: |
+          python scripts/run_offline_tests.py --only test_inbox_unification.py
+          python scripts/run_offline_tests.py --only test_inbox_media.py
+          python scripts/run_offline_tests.py --only test_inbox_responsive_parity.py
+          python scripts/run_offline_tests.py --only test_tenant_persistence_repos.py
+
+      - name: Phase 2 PostgreSQL 0055 runtime validation
+        env:
+          PYTHONPATH: client-hub
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase2
+          KILAS_PHASE2_POSTGRES_QA: "1"
+          CLIENT_HUB_ENV: development
+          RUN_MIGRATIONS_ON_BOOT: "false"
+          SECRET_KEY: phase2-postgres-qa-only
+        run: python client-hub/tests/test_public_chat_postgres.py
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Start disposable browser-QA harness
+        env:
+          PYTHONPATH: client-hub:client-hub/tests
+        run: |
+          python client-hub/tests/public_chat_dev.py >/tmp/kilas-public-chat-harness.log 2>&1 &
+          echo $! >/tmp/kilas-public-chat-harness.pid
+          ready=0
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8765/dev/health >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            cat /tmp/kilas-public-chat-harness.log
+            exit 1
+          fi
+
+      - name: Mobile browser QA
+        env:
+          KILAS_PUBLIC_CHAT_QA_BASE: http://127.0.0.1:8765
+          KILAS_PUBLIC_CHAT_QA_OUT: /tmp/kilas-browser-qa
+        run: python client-hub/tests/public_chat_browser_qa.py
+
+      - name: Show harness log
+        if: always()
+        run: cat /tmp/kilas-public-chat-harness.log || true
+
+      - name: Upload browser QA screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kilas-phase2-browser-qa
+          path: /tmp/kilas-browser-qa
+          if-no-files-found: ignore

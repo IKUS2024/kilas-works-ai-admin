@@ -161,7 +161,7 @@ class InvoiceEditorTests(unittest.TestCase):
         for n in range(12):self.draft(notes=str(n))
         i=f.list_finance_invoices(self.b)[0]['id'];self.edit(i,{'document_data':self.data()})
         html=self.client.get(self.url+'/receivables?section=invoices').get_data(as_text=True)
-        self.assertEqual(html.count('Buat Invoice'),1)
+        self.assertEqual(html.count('/invoices/new?branch_id='),1)
         self.assertNotIn('<div class="fin-tool-grid">',html)
         self.assertEqual(html.count('<article class="fin-entry fin-invoice-row">'),10)
         second=self.client.get(self.url+'/receivables?section=invoices&page=2').get_data(as_text=True)

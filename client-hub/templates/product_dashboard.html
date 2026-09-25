@@ -234,6 +234,7 @@ body.customer-ui>footer{display:none}
 
     <div class="kh-business-list">
     {% for b in brain_businesses %}
+      {% with business=b %}{% include '_attention_home.html' %}{% endwith %}
       {% set brain_payment = namespace(verified=b.brain_payment_verified, status='VERIFIED' if b.brain_payment_verified else 'NONE') %}
       {% for p in my_projects %}
         {% if p.business_id == b.id and p.catalog_key == b.package|lower and p.payment %}
@@ -293,8 +294,11 @@ body.customer-ui>footer{display:none}
         </div>
 
         {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
+        {% with business=b %}{% include '_web_share.html' %}{% endwith %}
         <div class="kh-brain-links">
           <a href="{{ url_for('client.business_memory',business_id=b.id) }}">Pengetahuan</a>
+          {% if jobs_available(b) %}<a href="{{ url_for('core_jobs.list_page',bid=b.id) }}">{{ job_labels(b).plural }}</a>{% endif %}
+          {% if kilas_customers_enabled() %}<a href="{{ url_for('core_customers.list_page',bid=b.id) }}">Customers</a>{% endif %}
           <a href="{{ url_for('client.simulate_page',business_id=b.id) }}">Simulasi</a>
         </div>
         {% endif %}

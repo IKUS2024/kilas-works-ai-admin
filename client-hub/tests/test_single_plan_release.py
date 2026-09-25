@@ -62,7 +62,18 @@ class SinglePlanTests(unittest.TestCase):
             self.assertEqual(response.status_code,302)
             self.assertEqual(db.query_one('SELECT package FROM businesses WHERE business_name=?',(old,))['package'],'AI_ADMIN')
 
+    def complete_checkout_profile(self, bid):
+        repo.upsert_business_profile(bid, dict(owner_name='QA Owner', category='Services',
+            short_description='Offline QA service', operating_hours='09:00-17:00',
+            online_or_offline='ONLINE', business_phone='6281234567890',
+            primary_language='id', customer_salutation='Kak'))
+        repo.replace_business_services(bid, ['QA service'])
+        db.execute('UPDATE businesses SET trusted_owner_phone=? WHERE id=?', ('6281234567890', bid))
+        self.assertEqual(repo.required_fields_missing(bid), [])
+
     def test_checkout_current_and_historical_resume(self):
+        self.complete_checkout_profile(self.bid)
+        self.complete_checkout_profile(self.other)
         response=self.client.post(f'/business/{self.bid}/ai-admin/checkout')
         self.assertEqual(response.status_code,302)
         project=db.query_one('SELECT * FROM projects WHERE business_id=?',(self.bid,))
@@ -75,6 +86,7 @@ class SinglePlanTests(unittest.TestCase):
 
     def test_legacy_to_current_requires_verified_entitlement(self):
         bid=repo.create_business(self.uid,'Legacy Basic','AI_ADMIN_BASIC')
+        self.complete_checkout_profile(bid)
         db.execute("UPDATE businesses SET status='ACTIVE' WHERE id=?",(bid,));subs.create_subscription(bid,'ai_admin_basic')
         with self.assertRaises(ValueError): repo.set_business_package(bid,'AI_ADMIN')
         response=self.client.post(f'/business/{bid}/ai-admin/checkout?package=AI_ADMIN')

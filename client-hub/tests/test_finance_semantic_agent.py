@@ -39,7 +39,7 @@ class SemanticAgentTests(unittest.TestCase):
         return f.create_transaction(self.b,direction,amount,account or self.a,self.cat if direction=='INCOME' else self.meal,
             when or date.today().isoformat(),currency=currency,actor_user_id=self.uid,**extra)
 
-    def invoice(self,amount=2000000,issued=True,issue=None,due=None):
+    def invoice(self,amount=200000000,issued=True,issue=None,due=None):
         customer=f.create_customer(self.b,'Wilson Wijaya',actor_user_id=self.uid)
         ident=f.create_finance_invoice(self.b,customer,issue or date.today().isoformat(),due or date.today().isoformat(),
             [dict(description='Jasa',quantity=1,unit_price_minor=amount)],actor_user_id=self.uid)
@@ -47,14 +47,14 @@ class SemanticAgentTests(unittest.TestCase):
         return f.get_finance_invoice(self.b,ident,self.uid)
 
     def test_actual_all_time_spans_years_and_excludes_void(self):
-        self.tx(350000,'2023-01-01');self.tx(250000)
-        void=self.tx(9900000);f.void_transaction(self.b,void,self.uid)
+        self.tx(35000000,'2023-01-01');self.tx(25000000)
+        void=self.tx(990000000);f.void_transaction(self.b,void,self.uid)
         answer=self.ask('pendapatan keseluruhan dari awal?')
         self.assertIn('Rp600.000',str(answer['preview']));self.assertNotIn('9.900.000',str(answer))
         self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid)[0]['transaction_count'],2)
 
     def test_context_replaces_month_then_metric_then_alltime(self):
-        self.tx(120000,'2026-07-02');self.tx(230000,'2026-08-02');self.tx(340000,'2026-08-03','EXPENSE')
+        self.tx(12000000,'2026-07-02');self.tx(23000000,'2026-08-02');self.tx(34000000,'2026-08-03','EXPENSE')
         july=self.ask('pendapatan july?');self.assertIn('120.000',str(july))
         august=self.ask('kalau agustus?',july);self.assertIn('230.000',str(august['preview']));self.assertNotIn('120.000',str(august['preview']))
         expense=self.ask('kalau pengeluarannya?',august);self.assertIn('340.000',str(expense['preview']));self.assertNotIn('230.000',str(expense['preview']))
@@ -62,21 +62,21 @@ class SemanticAgentTests(unittest.TestCase):
         julyagain=self.ask('bulan july aja',alltime);self.assertNotIn('340.000',str(julyagain['preview']))
 
     def test_typoed_month_names_still_select_the_requested_report_period(self):
-        self.tx(120000,'2026-08-02');self.tx(990000,'2026-09-02')
+        self.tx(12000000,'2026-08-02');self.tx(99000000,'2026-09-02')
         august=self.ask('pemasukan agstus 2026?')
         self.assertIn('120.000',str(august['preview']));self.assertNotIn('990.000',str(august['preview']))
         september=self.ask('pemasukan sepetember 2026?')
         self.assertIn('990.000',str(september['preview']));self.assertNotIn('120.000',str(september['preview']))
     def test_currency_followup_replaces_old_currency(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',actor_user_id=self.uid)
-        self.tx(210000);self.tx(3456,account=usd,currency='USD')
+        self.tx(21000000);self.tx(3456,account=usd,currency='USD')
         first=self.ask('pemasukan IDR bulan ini?')
         second=self.ask('yang USD?',first)
         self.assertIn('34.56',str(second['preview']));self.assertNotIn('210.000',str(second['preview']))
         third=self.ask('yang IDR?',second);self.assertIn('210.000',str(third['preview']));self.assertNotIn('34.56',str(third['preview']))
 
     def test_explicit_date_range_does_not_use_upload_or_creation_date(self):
-        self.tx(510000,'2026-07-01');self.tx(710000,'2026-08-01')
+        self.tx(51000000,'2026-07-01');self.tx(71000000,'2026-08-01')
         answer=self.ask('pemasukan 2026-07-01 sampai 2026-07-31 berapa?')
         self.assertIn('510.000',str(answer['preview']));self.assertNotIn('710.000',str(answer['preview']))
 
@@ -89,28 +89,28 @@ class SemanticAgentTests(unittest.TestCase):
     def test_ambiguous_customer_followup_choices_preserve_query(self):
         a=f.create_customer(self.b,'Wilson Wijaya',actor_user_id=self.uid)
         z=f.create_customer(self.b,'Wilson Kusuma',actor_user_id=self.uid)
-        self.tx(100000,customer_id=a);self.tx(900000,customer_id=z)
+        self.tx(10000000,customer_id=a);self.tx(90000000,customer_id=z)
         first=self.ask('pemasukan customer Wilson keseluruhan?')
         self.assertIn('Wilson Wijaya',first.get('choices',[]));self.assertNotIn('Rp1.000.000',str(first))
         second=self.ask('Wilson Wijaya',first);self.assertIn('100.000',str(second['preview']));self.assertNotIn('900.000',str(second['preview']))
 
     def test_context_never_answers_weather_as_finance(self):
         first=self.ask('saldo gw berapa?')
-        self.assertIn('khusus',self.ask('cuaca gimana?',first)['message'])
-        self.assertIn('khusus',self.ask('kalau cuaca gimana?',first)['message'])
+        self.assertIn('Finance',self.ask('cuaca gimana?',first)['message'])
+        self.assertIn('Finance',self.ask('kalau cuaca gimana?',first)['message'])
 
     def test_aggregate_read_is_explicit_and_selected_branch_stays_isolated(self):
-        self.tx(100000)
+        self.tx(10000000)
         other=branches.create_branch(self.b,'BSD',self.uid)
         with branches.scope(self.b,other,self.uid):
-            account=f.list_accounts(self.b,actor_user_id=self.uid)[0]['id'];self.tx(900000,account=account)
+            account=f.list_accounts(self.b,actor_user_id=self.uid)[0]['id'];self.tx(90000000,account=account)
         selected=self.ask('pemasukan keseluruhan?');self.assertNotIn('900.000',str(selected['preview']))
         aggregate=self.ask('pemasukan semua cabang keseluruhan?');self.assertIn('1.000.000',str(aggregate['preview']))
         isolated=self.ask('pemasukan cabang BSD keseluruhan?');self.assertIn('900.000',str(isolated['preview']));self.assertNotIn('1.000.000',str(isolated['preview']))
 
     def test_opening_fx_and_native_balances_are_not_cashflow(self):
         usd=f.create_account(self.b,'BOFA',currency='USD',opening_balance_minor=10000,actor_user_id=self.uid)
-        f.record_currency_exchange(self.b,usd,self.a,5000,750000,date.today().isoformat(),actor_user_id=self.uid)
+        f.record_currency_exchange(self.b,usd,self.a,5000,75000000,date.today().isoformat(),actor_user_id=self.uid)
         self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid),[])
         balances=f.get_account_balance_report(self.b,date.today().isoformat(),self.uid)
         self.assertEqual(next(r for r in balances if r['id']==usd)['balance_minor'],5000)
@@ -118,24 +118,24 @@ class SemanticAgentTests(unittest.TestCase):
         self.assertEqual(first['preview'],second['preview'])
 
     def test_balance_totals_do_not_depend_on_export_row_cap(self):
-        for _ in range(5):self.tx(100000)
+        for _ in range(5):self.tx(10000000)
         with patch.object(f,'MAX_REPORT_ROWS',3):
             totals=f.get_cash_totals(self.b,actor_user_id=self.uid)
             balances=f.get_account_balance_report(self.b,date.today().isoformat(),self.uid)
-        self.assertEqual(totals[0]['total_income_minor'],500000)
-        self.assertEqual(balances[0]['income_minor'],500000)
+        self.assertEqual(totals[0]['total_income_minor'],50000000)
+        self.assertEqual(balances[0]['income_minor'],50000000)
 
     def test_historical_receivable_survives_later_payment(self):
         row=self.invoice(issue='2026-07-01',due='2026-07-10')
-        f.record_invoice_payment(self.b,row['id'],2000000,date.today().isoformat(),self.a,self.cat,actor_user_id=self.uid,idempotency_key='historical_payment_key')
+        f.record_invoice_payment(self.b,row['id'],200000000,date.today().isoformat(),self.a,self.cat,actor_user_id=self.uid,idempotency_key='historical_payment_key')
         history=f.get_report_invoices(self.b,'2026-07-31',actor_user_id=self.uid,open_only=True)
-        self.assertEqual(len(history),1);self.assertEqual(history[0]['outstanding_minor'],2000000);self.assertTrue(history[0]['overdue'])
+        self.assertEqual(len(history),1);self.assertEqual(history[0]['outstanding_minor'],200000000);self.assertTrue(history[0]['overdue'])
         self.assertEqual(f.get_report_invoices(self.b,date.today().isoformat(),actor_user_id=self.uid,open_only=True),[])
-        self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid)[0]['total_income_minor'],2000000)
+        self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid)[0]['total_income_minor'],200000000)
 
     def test_draft_invoice_and_recurring_do_not_inflate_actuals(self):
         self.invoice(issued=False)
-        f.create_recurring_expense(self.b,'AI',2000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
+        f.create_recurring_expense(self.b,'AI',200000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
         self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid),[])
         self.assertEqual(f.get_receivables_summary(self.b,self.uid)['by_currency'][0]['outstanding_minor'] if f.get_receivables_summary(self.b,self.uid).get('by_currency') else 0,0)
         actual=self.ask('pengeluaran keseluruhan?');self.assertNotIn('2.000.000',str(actual['preview']))
@@ -144,25 +144,26 @@ class SemanticAgentTests(unittest.TestCase):
     def test_recurring_slots_frequency_then_date_without_invention(self):
         f.create_account(self.b,'BCA',account_type='BANK',actor_user_id=self.uid)
         first=self.ask('tambah biaya rutin 2 juta untuk AI')
-        self.assertEqual(first['next_field'],'cadence')
+        self.assertEqual(first['next_field'],'category_id')
+        first=self.revise(first,category_id=str(self.meal)).json
         second=self.follow(first,'bulanan');self.assertEqual(second.json['next_field'],'date')
-        third=self.follow(second.json,'tanggal 25');self.assertEqual(third.json['next_field'],'account_id')
-        fourth=self.follow(third.json,'BCA');self.assertTrue(fourth.json['ready'],fourth.json)
+        third=self.follow(second.json,'tanggal 25');self.assertTrue(third.json['ready'],third.json)
+        fourth=self.revise(third.json,account_id=str(next(a['id'] for a in f.list_accounts(self.b) if a['name']=='BCA')));self.assertTrue(fourth.json['ready'],fourth.json)
         self.save(fourth.json);self.assertEqual(len(f.list_recurring_expenses(self.b)),1);self.assertEqual(f.list_transactions(self.b),[])
 
     def test_recurring_unknown_cadence_is_not_silently_monthly(self):
         first=self.ask('tambah biaya rutin 2 juta untuk AI')
         second=self.follow(first,'tiap tahun')
         self.assertTrue(second.json['keep_pending']);self.assertNotIn('context',second.json)
-        self.assertEqual(self.values(self.follow(first,'oke'))['cadence'],'')
+        self.assertEqual(self.values(self.follow(first,'oke'))['cadence'],'ONCE')
 
     def test_recurring_post_one_reviewed_due_occurrence_once(self):
-        f.create_recurring_expense(self.b,'AI',2000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
+        f.create_recurring_expense(self.b,'AI',200000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
         draft=self.ask('bayar biaya rutin AI');self.assertTrue(draft['ready'],draft)
         self.assertEqual(f.list_transactions(self.b),[])
         for _ in range(2):self.save(draft)
         self.assertEqual(len(f.list_transactions(self.b)),1)
-        self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid)[0]['total_expense_minor'],2000000)
+        self.assertEqual(f.get_cash_totals(self.b,actor_user_id=self.uid)[0]['total_expense_minor'],200000000)
 
     def test_new_account_review_fields_and_idempotency(self):
         draft=self.ask('tambah rekening BOFA USD')
@@ -200,9 +201,9 @@ class SemanticAgentTests(unittest.TestCase):
         self.assertEqual(len([r for r in f.list_categories(self.b) if r['name']=='Cloud']),1)
 
     def test_command_stale_snapshot_cannot_void_changed_transaction(self):
-        ident=self.tx(100000)
+        ident=self.tx(10000000)
         draft=self.ask('batalkan transaksi '+str(ident));self.assertTrue(draft['ready'])
-        f.update_transaction(self.b,ident,amount_minor=200000,actor_user_id=self.uid)
+        f.update_transaction(self.b,ident,amount_minor=20000000,actor_user_id=self.uid)
         self.assertEqual(self.follow(draft,'oke').status_code,400)
         self.assertEqual(f.get_transaction(self.b,ident)['status'],'POSTED')
 
@@ -210,7 +211,7 @@ class SemanticAgentTests(unittest.TestCase):
         first=self.ask('pengeluaran makan 100 ribu');saved=self.save(first)
         draft=self.ask('ubah transaksi yang tadi',saved)
         revised=self.follow(draft,'ubah jadi 200 ribu');self.save(revised.json)
-        rows=f.list_transactions(self.b);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['amount_minor'],200000)
+        rows=f.list_transactions(self.b);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['amount_minor'],20000000)
 
     def test_saved_invoice_reference_issue_is_separate(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
@@ -226,7 +227,7 @@ class SemanticAgentTests(unittest.TestCase):
         self.assertIn('3.000.000',str(second.json['preview']))
         saved=self.save(second.json)
         self.assertEqual(len(f.list_invoice_items(self.b,saved['record_id'])),2)
-        self.assertEqual(f.get_invoice_totals(self.b,saved['record_id'])['total_minor'],3000000)
+        self.assertEqual(f.get_invoice_totals(self.b,saved['record_id'])['total_minor'],300000000)
 
     def test_lunas_uses_exact_outstanding_and_one_payment(self):
         row=self.invoice()
@@ -288,7 +289,7 @@ class SemanticAgentTests(unittest.TestCase):
         self.assertEqual(len(f.list_currency_exchanges(self.b)),1);self.assertEqual(f.list_transactions(self.b),[])
         balances=f.get_account_balance_report(self.b,date.today().isoformat(),self.uid)
         self.assertEqual(next(r for r in balances if r['id']==usd)['balance_minor'],10000)
-        self.assertEqual(next(r for r in balances if r['id']==bca)['balance_minor'],1500000)
+        self.assertEqual(next(r for r in balances if r['id']==bca)['balance_minor'],150000000)
         cancel=self.ask('batalkan fx '+str(saved['record_id']));self.save(cancel);self.save(cancel)
         balances=f.get_account_balance_report(self.b,date.today().isoformat(),self.uid)
         self.assertEqual(next(r for r in balances if r['id']==usd)['balance_minor'],20000)
@@ -317,7 +318,7 @@ class SemanticAgentTests(unittest.TestCase):
 
     def test_aggregate_write_asks_branch_for_settings_too(self):
         r=self.client.post(self.path+'/message?branch_id=all',json={'text':'tambah rekening BCA USD'})
-        self.assertEqual(r.status_code,200,r.text);self.assertEqual(r.json['kind'],'branch_choice')
+        self.assertEqual(r.status_code,403,r.text);self.assertIn('Pilih satu cabang aktif',r.json['error'])
         self.assertFalse(any(r['name']=='BCA' for r in f.list_accounts(self.b)))
 
     def test_list_transactions_is_paginated_not_silently_truncated(self):
@@ -326,7 +327,7 @@ class SemanticAgentTests(unittest.TestCase):
         second=self.ask('berikutnya',first);self.assertEqual(len(second['preview']),1);self.assertEqual(second['choices'],[])
 
     def test_native_category_rankings_do_not_add_income_to_expense(self):
-        self.tx(700000,direction='EXPENSE');self.tx(9000000)
+        self.tx(70000000,direction='EXPENSE');self.tx(900000000)
         read=self.ask('kategori pengeluaran terbesar keseluruhan?')
         self.assertIn('700.000',str(read['preview']));self.assertNotIn('9.000.000',str(read['preview']))
 
@@ -351,7 +352,7 @@ class SemanticAgentTests(unittest.TestCase):
 
     def test_new_complete_question_does_not_inherit_previous_customer_filter(self):
         customer=f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
-        self.tx(100000,customer_id=customer);self.tx(900000)
+        self.tx(10000000,customer_id=customer);self.tx(90000000)
         first=self.ask('pemasukan customer Wilson bulan ini?');self.assertIn('100.000',str(first['preview']))
         second=self.ask('pemasukan IDR bulan ini?',first);self.assertIn('1.000.000',str(second['preview']))
 

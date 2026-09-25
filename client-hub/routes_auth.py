@@ -279,7 +279,7 @@ def login_page():
     if user["role"] == "KILAS_ADMIN":
         return redirect(url_for("admin.dashboard"))
     session.pop("product_intent", None)
-    return redirect(url_for("products.product_start"))
+    return redirect(url_for("workspace.home" if repo.list_businesses_for_user(user["id"]) else "products.product_start"))
 
 
 @auth_bp.route("/logout")

@@ -1,0 +1,82 @@
+name: Kilas V2 Phase 7 QA
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  finance-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Complete isolated Finance baseline
+        run: python scripts/run_finance_baseline.py --logs /tmp/phase7-finance-baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-phase7-finance-baseline
+          path: /tmp/phase7-finance-baseline
+  finance-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_phase7
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_phase7"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Bridge SQLite services routes and standalone independence
+        run: python scripts/run_offline_tests.py --only test_kilas_finance_bridge
+      - name: PostgreSQL migration and workspace corrections
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_phase7
+          KILAS_PHASE7_POSTGRES_QA: '1'
+          KILAS_FINANCE_ACCESS_MODE: internal_beta
+          SECRET_KEY: synthetic-phase7-only
+        run: |
+          python client-hub/tests/finance_workspace_postgres_qa.py
+          python client-hub/tests/kilas_finance_bridge_postgres_qa.py
+      - name: Install mobile QA browser
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Start synthetic Finance harness
+        env:
+          PYTHONPATH: client-hub:client-hub/tests
+          KILAS_PHASE7_BROWSER_QA: '1'
+        run: |
+          python client-hub/tests/kilas_finance_bridge_dev.py >/tmp/phase7-browser-harness.log 2>&1 &
+          ready=0
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8768/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then cat /tmp/phase7-browser-harness.log; exit 1; fi
+      - name: Mobile standalone connected and read-only Finance
+        run: python client-hub/tests/kilas_finance_bridge_browser_qa.py
+      - name: Show synthetic harness log
+        if: always()
+        run: cat /tmp/phase7-browser-harness.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kilas-phase7-mobile
+          path: /tmp/kilas-phase7-browser-qa
+          if-no-files-found: ignore

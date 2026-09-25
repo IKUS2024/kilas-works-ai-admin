@@ -39,7 +39,7 @@ class SemanticBrainTests(unittest.TestCase):
     def test_customer_new_name_phone_save_then_pronoun_invoice(self):
         before=self.snapshot()
         draft=self.propose('buatkan customer baru','customer')
-        self.assertEqual(draft['message'],'Siapa nama customernya?')
+        self.assertEqual(draft['message'],'Siapa nama pelanggannya?')
         self.assertEqual(draft['next_field'],'name')
         self.assertFalse(draft['ready'])
         self.assertEqual(self.follow(draft,'oke').json['next_field'],'name')
@@ -71,7 +71,7 @@ class SemanticBrainTests(unittest.TestCase):
         self.model({'intent':'customers','slots':{}})
         with patch('finance_query_plan.plan',side_effect=AssertionError('Language guessed after semantics')):
             result=self.ask('jita punya customer namanya siapa aja')
-        self.assertEqual(result['title'],'Data customer')
+        self.assertEqual(result['title'],'Data pelanggan')
         self.assertIn('Putri',str(result['preview']))
         self.assertEqual(self.http.call_count,1)
 
@@ -110,7 +110,10 @@ class SemanticBrainTests(unittest.TestCase):
         draft=self.propose('pengeluaran makan 250k pakai BKA','create_expense',
                            {'amount':'250k','category':'makan','account':'BKA'})
         values={x['key']:x['value'] for x in draft['fields']}
-        self.assertEqual(values['account_id'],str(bca))
+        self.assertEqual(values['account_id'],'')
+        self.assertFalse(draft['ready'])
+        resolved=self.edit(draft,'pakai BCA',{'account':'BCA'})
+        self.assertEqual(next(x['value'] for x in resolved['fields'] if x['key']=='account_id'),str(bca))
         self.assertEqual(f.list_transactions(self.b),[])
     def test_account_change_is_semantic_and_server_resolved(self):
         bca=f.create_account(self.b,'BCA',actor_user_id=self.uid)
@@ -228,7 +231,7 @@ class SemanticBrainTests(unittest.TestCase):
         draft=self.propose('customer baru','customer')
         answer=self.edit(draft,'kamu bisa apa aja',{},'capabilities')
         self.assertTrue(answer['keep_pending'])
-        for word in ('invoice','FX','proyek','struk','cabang'):self.assertIn(word,answer['message'])
+        for word in ('invoice','penukaran mata uang','proyek','struk','cabang'):self.assertIn(word,answer['message'])
 
     def test_confirmed_reference_survives_report(self):
         draft=self.propose('customer Putri','customer',{'name':'Putri'});saved=self.save(draft)
@@ -246,7 +249,7 @@ class SemanticBrainTests(unittest.TestCase):
         saved=self.save(draft)
         corrected=self.propose('yang tadi jadi 200 ribu','edit_transaction',{'target_reference':'yang tadi','amount':'200 ribu'},saved)
         self.assertTrue(corrected['ready'])
-        self.assertEqual(f.get_transaction(self.b,saved['record_id'])['amount_minor'],100000)
+        self.assertEqual(f.get_transaction(self.b,saved['record_id'])['amount_minor'],10000000)
         done=self.save(corrected)
         void=self.propose('batalin yang tadi','void_transaction',{'target_reference':'yang tadi'},saved)
         self.assertTrue(void['ready']);self.assertEqual(self.follow(void,'batal').json['state'],'CANCELLED')
@@ -297,11 +300,12 @@ class SemanticBrainTests(unittest.TestCase):
             clock.now.return_value.date.return_value=date(2026,9,21)
             self.assertEqual(f.business_today(self.b),date(2026,9,21))
             self.assertEqual(flow.proposed_date('hari ini'), '2026-09-21')
-            ident=f.create_transaction(self.b,'INCOME',100000,self.a,self.cat,'2026-09-21',actor_user_id=self.uid)
+            ident=f.create_transaction(self.b,'INCOME',10000000,self.a,self.cat,'2026-09-21',actor_user_id=self.uid)
             self.assertIsInstance(ident,int)
     def test_exact_options_and_dates_do_not_call_provider(self):
         draft=self.propose('biaya rutin makan','recurring',{'name':'makan','category':'makan'})
         calls=self.http.call_count
+        draft=self.follow(draft,'250 ribu').json
         draft=self.follow(draft,'Bulanan').json
         draft=self.follow(draft,date.today().isoformat()).json
         self.assertEqual(self.http.call_count,calls)
@@ -324,7 +328,7 @@ class SemanticBrainTests(unittest.TestCase):
         self.assertEqual(f.list_transactions(self.b)[0]['project_id'],project)
 
     def test_single_transaction_query_does_not_list_unrelated_records(self):
-        first=self.tx(100000);self.tx(900000)
+        first=self.tx(10000000);self.tx(90000000)
         result=self.propose('lihat transaksi '+str(first),'transactions',{'target':'transaksi '+str(first)})
         self.assertEqual(len(result['preview']),1)
         self.assertIn('100.000',str(result['preview']))
@@ -333,6 +337,7 @@ class SemanticBrainTests(unittest.TestCase):
     def test_customer_pronoun_survives_a_confirmed_customer_linked_transaction(self):
         customer=f.create_customer(self.b,'Putri',actor_user_id=self.uid)
         draft=self.propose('pemasukan Putri 100k','create_income',{'amount':'100k','customer':'Putri'})
+        draft=self.edit(draft,'kategori Produk / Jasa',{'category':'Produk / Jasa'})
         saved=self.save(draft)
         invoice=self.propose('dia belum bayar 500k','invoice',{'customer_reference':'dia','amount':'500k'},saved)
         values={x['key']:x['value'] for x in invoice['fields']}
@@ -361,9 +366,9 @@ class SemanticBrainTests(unittest.TestCase):
         with app.app_context(),branches.scope(self.b,self.branch,self.uid):
             previous={'query_context':flow.seal_query(self.b,self.uid,{'last_record':{'kind':'invoice','id':invoice['id']}})}
         self.http.reset_mock()
-        issue=self.ask('yaudh terbitkan dia sudah bayar',previous)
+        issue=self.propose('yaudh terbitkan dia sudah bayar','issue_invoice',{'target_reference':'dia','settlement':'sudah bayar'},previous)
         self.assertEqual(issue['title'],'Terbitkan + pelunasan')
-        self.assertEqual(self.http.call_count,0)
+        self.assertEqual(self.http.call_count,1)
         payment=self.save(issue)
         self.assertEqual(payment['title'],'Pembayaran invoice')
         self.assertEqual(f.get_finance_invoice(self.b,invoice['id'])['status'],'ISSUED')

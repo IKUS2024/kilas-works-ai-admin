@@ -368,42 +368,38 @@ def test_K_duplicate_detection_intentionally_global_documented():
 # TEST L — customer dashboard shows project status and payment status separately.
 # ---------------------------------------------------------------------------
 def test_L_dashboard_shows_project_and_payment_status_separately():
+    # V2 Home replaces the old dashboard table; inspect the supported detail routes.
     reset_db()
     uid, bid = _make_owner_and_business("Biz L", "payl@test.com", package="AI_ADMIN_BASIC")
-    _, _, payment_id = _checkout(bid, "ai_admin_basic", uid)  # PAYMENT_PENDING, no proof uploaded yet
+    project_id, invoice_id, payment_id = _checkout(bid, "ai_admin_basic", uid)
     client = fresh_client()
     _login_owner(client, "payl@test.com")
-    resp = client.get("/dashboard")
-    body = resp.data.decode()
-    assert "Status Layanan" in body
-    assert "Status Pembayaran" in body
-    # Existing business logic (projects_repo.set_project_status() called from payment_service.
-    # checkout()) already correctly moves the PROJECT's own status to PAYMENT_PENDING at checkout
-    # time — so both columns legitimately agree here ("Menunggu pembayaran" for both), which is
-    # CORRECT, non-misleading behavior: the confusion the request describes ("Disetujui" while
-    # unpaid) genuinely cannot occur once an invoice exists, by design. The safety property that
-    # matters — "Disetujui" must never look like "Lunas"/"Aktif" — holds either way.
-    assert "Menunggu pembayaran" in body
-    assert "Lunas" not in body
-    assert "Aktif" not in body or "Belum pakai AI Admin" in body  # "Aktif" never describes payment here
+    project = client.get(f"/business/{bid}/projects/{project_id}")
+    invoice = client.get(f"/invoices/{invoice_id}")
+    assert project.status_code == invoice.status_code == 200
+    assert "Menunggu pembayaran" in project.get_data(as_text=True)
+    assert "Lanjut Bayar" in project.get_data(as_text=True)
+    assert payment_service.get_payment(payment_id)['status'] == 'PAYMENT_PENDING'
+    assert payment_service.get_invoice(invoice_id)['status'] == 'ISSUED'
+    assert "Lunas" not in invoice.get_data(as_text=True)
+    assert "Menunggu pembayaran" in invoice.get_data(as_text=True)
     print("test_L_dashboard_shows_project_and_payment_status_separately OK")
 
 
 def test_L_dashboard_no_invoice_yet_shows_natural_state():
-    """This IS the exact scenario the request describes: project APPROVED ("Disetujui") with no
-    payment obligation established yet (no invoice/checkout at all) — dashboard must show a
-    natural "no payment yet" state, never implying the payment is done."""
     reset_db()
     uid, bid = _make_owner_and_business("Biz L2", "payl2@test.com", package="AI_ADMIN_BASIC")
     item = catalog_service.get_catalog_item("ai_admin_basic")
-    projects_repo.create_fixed_price_project(bid, item, uid)  # project exists, no checkout yet
+    project_id = projects_repo.create_fixed_price_project(bid, item, uid)
     client = fresh_client()
     _login_owner(client, "payl2@test.com")
-    resp = client.get("/dashboard")
-    body = resp.data.decode()
+    resp = client.get(f"/business/{bid}/projects/{project_id}")
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
     assert "Disetujui" in body
-    assert "Belum ada tagihan" in body
+    assert "Lanjut Checkout" in body
     assert "Lunas" not in body
+    assert db.query_one('SELECT id FROM invoices WHERE project_id=?',(project_id,)) is None
     print("test_L_dashboard_no_invoice_yet_shows_natural_state OK")
 
 

@@ -1,0 +1,25 @@
+{% if linked_jobs %}
+<style>
+[data-linked-jobs] .client-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+[data-linked-jobs] .client-list{display:grid;gap:8px}
+[data-linked-jobs] .client-item{display:block;overflow-wrap:anywhere;padding:8px;border:1px solid var(--border);border-radius:8px}
+</style>
+<div class="card" data-linked-jobs>
+  <h2>{{ linked_jobs.labels.plural }}</h2>
+  <div class="client-actions">
+    <a class="btn" data-create-job href="{{ url_for('core_jobs.new_page',bid=business.id,customer_id=linked_jobs.customer_id,conversation_id=linked_jobs.conversation_id) }}">Buat {{ linked_jobs.labels.singular }}</a>
+    <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id,customer_id=linked_jobs.customer_id) }}">Lihat semua</a>
+  </div>
+  <div class="client-list">
+    {% for row in linked_jobs.rows %}<a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
+      <strong>{{ row.title }}</strong><span class="client-item-meta"> · {{ row.status_label }}</span>
+      {% if row.workflow_label %}<div data-playbook-context>
+        <p>{{ row.workflow_label }}</p>
+        <dl>{% for label,value in row.known_details %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+        {% if row.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ row.fields.missing_information }}</p>
+        {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
+      </div>{% endif %}
+    </a>{% else %}<p class="client-note">Belum ada {{ linked_jobs.labels.singular|lower }} terkait.</p>{% endfor %}
+  </div>
+</div>
+{% endif %}

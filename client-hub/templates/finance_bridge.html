@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Koneksi Finance{% endblock %}
+{% macro command() %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><input type="hidden" name="version" value="{{ mapping.version if mapping else 0 }}">
+{% endmacro %}
+{% macro confirm(text) %}<label class="bridge-confirm"><input type="checkbox" name="confirmed" value="yes" required> {{ text }}</label>{% endmacro %}
+{% block content %}
+{% include '_client_compact_style.html' %}
+<style>[data-bridge-page] {overflow-wrap:anywhere}[data-bridge-page] input,[data-bridge-page] select{max-width:100%;box-sizing:border-box}.bridge-confirm{display:block;margin:1rem 0}.bridge-confirm input{width:auto!important}fieldset{min-width:0;margin:.7rem 0}</style>
+<section class="client-page" data-bridge-page>
+<h1>Koneksi Finance</h1><p>{{ business.business_name }} · Bisnis Core #{{ business.id }}</p>
+<p><a href="{{ url_for('core_jobs.list_page',bid=business.id) }}">Kembali ke Jobs</a> · <a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi</a></p>
+{% if mapping %}<p>Finance #{{ mapping.finance_business_id }} · Cabang #{{ mapping.finance_branch_id }} · {{ 'Aktif' if mapping.enabled else 'Nonaktif' }}</p>{% else %}<p>Belum terhubung. Pilih bisnis dan cabang milik Anda secara eksplisit.</p>{% endif %}
+{% if mode=='settings' %}
+<form method="post" class="card">{{ command() }}
+<label for="destination">Bisnis dan cabang Finance</label><select id="destination" name="destination" required><option value="">Pilih tujuan</option>
+{% for choice in choices %}<option value="{{ choice.business.id }}:{{ choice.branch.id }}">{{ choice.business.business_name }} (#{{ choice.business.id }}) · {{ choice.branch.name }} (#{{ choice.branch.id }})</option>{% endfor %}</select>
+{% if not choices %}<p>Belum ada cabang Finance aktif. Siapkan bisnis dan cabang melalui Finance terlebih dahulu.</p>{% endif %}
+<label for="enabled">Status koneksi</label><select id="enabled" name="enabled"><option value="yes">Aktif</option><option value="no">Nonaktif</option></select>
+<p>Perubahan koneksi berlaku untuk aksi baru. Invoice dan customer yang sudah terhubung tetap menyimpan tujuan aslinya.</p>
+{{ confirm('Saya menyetujui bisnis, cabang, dan status koneksi ini.') }}<button class="btn" type="submit">Simpan koneksi</button>
+</form>
+{% elif mode=='customer' %}
+<h2>Customer: {{ customer.display_name }}</h2>
+{% for linked in links %}<div class="card">Terhubung: {{ linked.customer.name }} · Customer #{{ linked.customer.id }} · Finance #{{ linked.link.finance_business_id }}</div>{% endfor %}
+{% if mapping and mapping.enabled and not links|selectattr('link.finance_business_id','equalto',mapping.finance_business_id)|list %}
+<form method="post" class="card">{{ command() }}
+<label for="customer-choice">Pilih Customer Finance</label><select id="customer-choice" name="customer_choice" required><option value="">Pilih secara eksplisit</option><option value="new">Buat customer baru dari rincian di bawah</option>{% for choice in choices %}<option value="{{ choice.id }}">{{ choice.name }} (#{{ choice.id }})</option>{% endfor %}</select>
+<p>Nama, telepon, atau email yang sama tidak menggabungkan customer otomatis.</p>
+<label for="name">Nama customer baru</label><input id="name" name="name" maxlength="160" value="{{ customer.display_name }}">
+<label for="phone">Telepon customer baru</label><input id="phone" name="phone" maxlength="40" value="{{ customer.phone or '' }}">
+<label for="email">Email customer baru</label><input id="email" name="email" maxlength="254" value="{{ customer.email or '' }}">
+{{ confirm('Saya telah memeriksa dan menyetujui pilihan customer serta data yang akan dibuat di Finance.') }}<button class="btn" type="submit">Hubungkan customer</button></form>
+{% endif %}
+{% elif mode=='job' %}
+<h2>{{ job.title }}</h2><p><a href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=job.id) }}">Kembali ke detail Job</a></p>
+{% if result %}{% set inv=result.invoice %}<div class="card" data-invoice-readback>
+<h3>{{ inv.invoice_number }}</h3><p>Status: {{ inv.status }}</p>
+<p>Total: {{ inv.total_minor|finance_money(inv.currency) }}<br>Terbayar: {{ inv.paid_minor|finance_money(inv.currency) }}<br>Sisa: {{ inv.outstanding_minor|finance_money(inv.currency) }}<br>{{ 'Lewat jatuh tempo' if inv.overdue else 'Belum lewat jatuh tempo' }}</p>
+<p>Finance #{{ result.link.finance_business_id }} · Cabang #{{ result.link.finance_branch_id }}</p>
+<a class="btn" href="/business/{{ result.link.finance_business_id }}/finance/invoices/{{ inv.id }}?branch_id={{ result.link.finance_branch_id }}">Buka invoice di Finance</a><p>Status dan jumlah berasal dari Finance. Penerbitan serta pembayaran dilakukan di Finance.</p></div>
+{% elif not mapping or not mapping.enabled %}<p>Aktifkan koneksi Finance untuk membuat draft.</p>
+{% elif not links|selectattr('link.finance_business_id','equalto',mapping.finance_business_id)|list %}<p>Customer belum terhubung.</p><a class="btn" href="{{ url_for('core_finance_bridge.customer_page',bid=business.id,cid=job.customer_id) }}">Buat/Hubungkan Customer Finance</a>
+{% else %}
+<form method="post" class="card">{{ command() }}<h3>Review draft invoice</h3>
+<label for="currency">Mata uang</label><input id="currency" name="currency" maxlength="3" placeholder="Kode mata uang" required>
+<label for="issue-date">Tanggal invoice</label><input id="issue-date" name="issue_date" type="date" required>
+<label for="due-date">Jatuh tempo</label><input id="due-date" name="due_date" type="date" required>
+<p>Isi harga dalam satuan mata uang. Jumlah harus bilangan bulat. Baris kosong diabaikan.</p>
+{% for i in range(5) %}<fieldset><legend>Item {{ i+1 }}</legend>
+<label for="description-{{ i }}">Deskripsi {{ i+1 }}</label><input id="description-{{ i }}" name="description_{{ i }}" maxlength="500" {% if i==0 %}required{% endif %}>
+<label for="quantity-{{ i }}">Jumlah {{ i+1 }}</label><input id="quantity-{{ i }}" name="quantity_{{ i }}" type="number" min="1" step="1" {% if i==0 %}required{% endif %}>
+<label for="price-{{ i }}">Harga satuan {{ i+1 }}</label><input id="price-{{ i }}" name="price_{{ i }}" inputmode="decimal" {% if i==0 %}required{% endif %}>
+</fieldset>{% endfor %}<label for="notes">Catatan</label><textarea id="notes" name="notes" maxlength="2000"></textarea>
+<p>Aksi ini membuat DRAFT. Review dan terbitkan di Finance. Pembayaran tidak dicatat dari chat.</p>
+{{ confirm('Saya telah memeriksa dan menyetujui item, jumlah, harga, mata uang, dan tanggal invoice ini.') }}<button class="btn" type="submit">Buat draft di Finance</button></form>
+{% endif %}{% endif %}
+</section>{% endblock %}

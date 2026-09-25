@@ -163,6 +163,7 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
 
       <div class="assist-list">
         {% for b in businesses %}
+          {% with business=b %}{% include '_attention_home.html' %}{% endwith %}
           <article class="assist-card">
             <div class="assist-card-head">
               <div class="assist-icon" aria-hidden="true">
@@ -188,11 +189,11 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
             {% if b.assist_missing and b.status!='ACTIVE' %}
               <div class="assist-note"><strong>Lengkapi:</strong> {{ b.assist_missing_labels|join(', ') }}.</div>
             {% elif b.status=='ACTIVE' %}
-              <div class="assist-note">Kilas Assist aktif dan siap dipakai untuk WhatsApp dan customer flow bisnis ini.</div>
+              <div class="assist-note">AI Admin siap melayani customer melalui channel yang telah diaktifkan. WhatsApp tetap opsional.</div>
             {% elif b.status=='READY_FOR_REVIEW' %}
               <div class="assist-note">Setup sudah dikirim dan sedang direview oleh tim Kilas Works.</div>
             {% elif b.status=='APPROVED' and not b.assist_payment_verified %}
-              <div class="assist-note">Setup sudah disetujui. Lanjutkan pembayaran sebelum menghubungkan WhatsApp.</div>
+              <div class="assist-note">Setup sudah disetujui. Lanjutkan pembayaran untuk aktivasi paket. Koneksi WhatsApp dapat dilakukan nanti.</div>
             {% endif %}
 
             <div class="assist-actions">
@@ -200,10 +201,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
                 <a class="assist-action primary" href="{{ url_for('client.wizard_step',business_id=b.id,step=b.assist_fix_step or 'basics') }}">Lengkapi Data</a>
                 <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
               {% elif b.status=='ACTIVE' %}
-                <a class="assist-action primary" href="{{ url_for('client.inbox_page',business_id=b.id) }}">Buka Kilas Assist</a>
+                <a class="assist-action primary" href="{{ url_for('workspace.go',area='inbox',business_id=b.id) }}">Buka Kilas Assist</a>
                 <a class="assist-action" href="{{ url_for('client.wizard_step',business_id=b.id,step='basics') }}">Edit Data</a>
               {% elif b.status=='APPROVED' and b.assist_payment_verified %}
-                <a class="assist-action primary" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">Hubungkan WhatsApp</a>
+                <a class="assist-action primary" href="{{ url_for('whatsapp.embedded_signup_start',business_id=b.id) }}">WhatsApp opsional</a>
                 <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
               {% elif b.status=='APPROVED' %}
                 <a class="assist-action primary" href="{{ url_for('client.ai_admin_checkout',business_id=b.id) }}">Pembayaran</a>
@@ -216,6 +217,10 @@ body.customer-ui>.wrap{max-width:none!important;margin:0!important;padding:0!imp
                 <a class="assist-action" href="{{ url_for('client.review_page',business_id=b.id) }}">Lihat Data</a>
               {% endif %}
             </div>
+
+            {% if b.status=='ACTIVE' %}
+              {% with business=b %}{% include '_web_share.html' %}{% endwith %}
+            {% endif %}
 
             {% if b.status not in ('DRAFT','ONBOARDING','READY_FOR_AI_SETUP') %}
               <div class="assist-sub-actions">

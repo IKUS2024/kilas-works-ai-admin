@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.display_name }} — Customer{% endblock %}
+{% block content %}
+{% include "_client_compact_style.html" %}
+<section class="client-page">
+  <div class="client-head">
+    <div><h1>{{ customer.display_name }}</h1><p>Customer {{ business.business_name }}</p></div>
+    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">← Customers</a>
+  </div>
+  {% if saved %}<div class="flash success">Data customer tersimpan.</div>{% endif %}
+  {% if form_error %}<div class="flash error">{{ form_error }}</div>{% endif %}
+  <div class="client-grid">
+    <form class="card" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <h2>Profil customer</h2>
+      <label>Nama</label><input name="display_name" maxlength="160" required value="{{ customer.display_name }}">
+      <label>Telepon</label><input name="phone" maxlength="40" value="{{ customer.phone or '' }}" placeholder="Opsional">
+      <label>Email</label><input name="email" maxlength="254" value="{{ customer.email or '' }}" placeholder="Opsional">
+      <label>Catatan</label><textarea name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
+      <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan customer otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
+      <button class="btn" type="submit">Simpan</button>
+    </form>
+    <div class="card">
+      <h2>Percakapan</h2>
+      <div class="client-list">
+      {% for row in conversations %}
+        <a class="client-item" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
+          <div class="client-item-title">{{ 'WhatsApp' if row.id.startswith('wa_') else 'WEB' }} · {{ row.id[:6] }}</div>
+          <div class="client-item-meta">{{ row.preview or 'Belum ada pesan' }}</div>
+        </a>
+      {% else %}<div class="client-empty">Belum ada percakapan terkait.</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% include "_jobs_panel.html" %}
+{% if job is not defined or job %}{% include "_finance_bridge_panel.html" %}{% endif %}
+</section>
+{% endblock %}

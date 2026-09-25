@@ -110,9 +110,10 @@ class SectionTests(unittest.TestCase):
 
     def test_decimal_precision_preserved_and_held(self):
         source,rows=self.extract()
-        self.assertEqual(source['row_reviews']['9']['original_amount'],'12.34')
-        self.assertEqual(source['row_reviews']['10']['original_amount'],'2.34')
-        self.assertEqual(rows[8]['amount_minor'],12)
+        self.assertNotIn('9',source['row_reviews'])
+        self.assertNotIn('10',source['row_reviews'])
+        self.assertEqual(rows[8]['amount_minor'],1234)
+        self.assertEqual(rows[9]['amount_minor'],234)
 
     def test_summaries_reconcile_or_fall_back_without_partial_acceptance(self):
         for text in (IDR.replace('9,012.34 4','9,012.34 5'),IDR.replace('17,210.00','17,211.00'),
@@ -127,7 +128,7 @@ class SectionTests(unittest.TestCase):
     def test_fx_and_precision_holds_survive_edit_and_block_ledger_writes(self):
         ident,_=bank.analyze(self.b,self.a,[('synthetic.pdf',statement_pdf())],self.uid)
         rows=bank.get_rows(self.b,ident,self.uid)
-        held=[r for r in rows if r['held_for_review']];self.assertEqual(len(held),3)
+        held=[r for r in rows if r['held_for_review']];self.assertEqual(len(held),1)
         self.assertTrue(held[0]['extraction_review']['fx'])
         original=held[0]
         bank.edit_row(self.b,ident,original['id'],0,dict(transaction_date=original['occurred_on'],
@@ -148,11 +149,11 @@ class SectionTests(unittest.TestCase):
         self.assertEqual(bank.analyze(self.b,self.a,files,self.uid),(a,False))
         with prior.app.test_request_context('/'):
             result=flow._bank_confirm(self.b,self.uid,dict(import_id=a,revision=0))
-            self.assertEqual(result['held_count'],3)
-            self.assertEqual(result['posted_count'],7)
+            self.assertEqual(result['held_count'],9)
+            self.assertEqual(result['posted_count'],1)
             second=flow._bank_confirm(self.b,self.uid,dict(import_id=a,revision=0))
             self.assertEqual(second['posted_count'],0)
-        self.assertEqual(len(f.list_transactions(self.b)),7)
+        self.assertEqual(len(f.list_transactions(self.b)),1)
         self.assertTrue(all(r['currency']=='IDR' for r in f.list_transactions(self.b)))
 
     def test_reset_cancelled_import_can_be_confirmed_again_without_stale_review(self):
@@ -160,7 +161,7 @@ class SectionTests(unittest.TestCase):
         ident,_=bank.analyze(self.b,self.a,files,self.uid)
         with prior.app.test_request_context('/'):
             first=flow._bank_confirm(self.b,self.uid,dict(import_id=ident,revision=0))
-        self.assertEqual(first['posted_count'],7)
+        self.assertEqual(first['posted_count'],1)
         branch_id=branches.list_branches(self.b,self.uid)[0]['id']
         with branches.scope(self.b,branch_id,self.uid):
             f.reset_branch_finance(self.b,self.uid)
@@ -169,13 +170,13 @@ class SectionTests(unittest.TestCase):
         # the user presses "oke". Confirmation reopens a fresh reconciliation generation.
         with prior.app.test_request_context('/'):
             second=flow._bank_confirm(self.b,self.uid,dict(import_id=ident,revision=0))
-        self.assertEqual(second['posted_count'],7)
+        self.assertEqual(second['posted_count'],1)
         self.assertEqual(bank.get_import(self.b,ident,self.uid)['revision'],1)
         counts=db.query_one("""SELECT
             SUM(CASE WHEN status='POSTED' THEN 1 ELSE 0 END) AS posted,
             SUM(CASE WHEN status='VOID' THEN 1 ELSE 0 END) AS voided
             FROM finance_transactions WHERE business_id=? AND source_type='FINANCE_BANK_IMPORT'""",(self.b,))
-        self.assertEqual((counts['posted'],counts['voided']),(7,7))
+        self.assertEqual((counts['posted'],counts['voided']),(1,1))
 
     def test_text_fallback_sends_only_selected_section_and_visual_keeps_currency(self):
         source=self.source()
@@ -272,7 +273,12 @@ class DocumentFlowTests(unittest.TestCase):
         self.assertEqual(result.status_code,200,result.text);self.assertEqual(result.json['count'],2)
         self.assertIn('Bagian IDR',result.json['message'])
         result=self.confirm(result.json['token']);self.assertEqual(result.status_code,200,result.text)
-        self.assertEqual(result.json['held_count'],1);self.assertEqual(result.json['posted_count'],1)
+        self.assertEqual(result.json['held_count'],2);self.assertEqual(result.json['posted_count'],0)
+        # Unknown category stays held until the owner supplies an explicit choice.
+        ident=bank.list_imports(self.b,self.uid)[0]['id']
+        row=next(r for r in bank.get_rows(self.b,ident,self.uid) if not r['held_for_review'])
+        bank.decide(self.b,ident,row['id'],'post',self.uid,fields=dict(
+            category_id=self.cat,occurred_on=row['occurred_on'],description=row['description'],counterparty_name=None))
         ledger=f.list_transactions(self.b)
         self.assertEqual([r['currency'] for r in ledger],['USD'])
         self.assertEqual(ledger[0]['amount_minor'],825)
@@ -285,9 +291,9 @@ class DocumentFlowTests(unittest.TestCase):
         self.assertIn('ditahan',result.json['message']);self.assertEqual(f.list_transactions(self.b),[])
         for _ in range(2):
             response=self.confirm(result.json['token']);self.assertEqual(response.status_code,200,response.text)
-        self.assertEqual(len(f.list_transactions(self.b)),7)
+        self.assertEqual(len(f.list_transactions(self.b)),1)
         retry=self.document('BANK_STATEMENT',raw,'synthetic.pdf',account_id=str(self.a))
-        self.confirm(retry.json['token']);self.assertEqual(len(f.list_transactions(self.b)),7)
+        self.confirm(retry.json['token']);self.assertEqual(len(f.list_transactions(self.b)),1)
 
     def test_provider_failure_http_messages_and_retry(self):
         for status,expected in ((429,429),(503,503)):
@@ -310,7 +316,7 @@ class DocumentFlowTests(unittest.TestCase):
         ident,_=bank.analyze(self.b,self.a,[('synthetic.pdf',statement_pdf())],self.uid)
         response=self.client.get(self.url+'/bank-imports/'+str(ident))
         self.assertEqual(response.status_code,200,response.text)
-        self.assertIn('12.34 IDR',response.text);self.assertIn('Kemungkinan transfer FX',response.text)
+        self.assertIn('value="12.34"',response.text);self.assertIn('Kemungkinan transfer FX',response.text)
         self.assertIn('IDR, USD',response.text)
 
     def test_migration_is_idempotent_with_existing_review(self):

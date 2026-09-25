@@ -23,8 +23,12 @@
 </style>
 
 <div class="tenant-inbox-head">
+  {% if web_chat_available(business) %}
+  <a class="btn small secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Inbox WEB</a>
+  {% endif %}
   <div>
     <h1>CS Inbox — {{ business.business_name }}</h1>
+    {% include '_web_share.html' %}
     <p class="muted">WhatsApp customer, takeover, dan balasan dalam satu tempat · {{ conversations_total }} percakapan.</p>
   </div>
   <div style="display:flex;gap:6px;align-items:center;">

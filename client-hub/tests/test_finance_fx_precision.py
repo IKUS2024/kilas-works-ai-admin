@@ -6,7 +6,8 @@ import finance_fx as fx
 class FxPrecisionTests(unittest.TestCase):
     def test_combined_total_rounds_once(self):
         rows=[{'currency':'USD','balance_minor':1},{'currency':'SGD','balance_minor':1}]
-        rates={'rates':{'IDR':'1','USD':'25','SGD':'25'}}
+        # Each source cent converts to 0.25 IDR minor units; round only the sum.
+        rates={'rates':{'IDR':'1','USD':'0.25','SGD':'0.25'}}
         self.assertEqual(fx.convert_total(rows,'IDR',rates),1)
         self.assertEqual(fx.to_idr(1,'USD',rates),0)
         self.assertEqual(fx.to_idr(1,'SGD',rates),0)

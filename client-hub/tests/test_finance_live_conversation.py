@@ -24,7 +24,7 @@ class LiveConversationTests(unittest.TestCase):
     race=prior.prior.SemanticAgentTests.race
 
     def fields(self,r):return {x['key']:x['value'] for x in r['fields']}
-    def invoice(self,name='Wilson',amount=800000,status='ISSUED',customer=None):
+    def invoice(self,name='Wilson',amount=80000000,status='ISSUED',customer=None):
         customer=customer or f.create_customer(self.b,name,notes='belum bayar 800 ribu',actor_user_id=self.uid)
         ident=f.create_finance_invoice(self.b,customer,date.today().isoformat(),date.today().isoformat(),
             [dict(description='Jasa desain',quantity=1,unit_price_minor=amount)],actor_user_id=self.uid)
@@ -127,10 +127,10 @@ class LiveConversationTests(unittest.TestCase):
         self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],0)
         self.assertEqual(len(f.list_invoice_payments(self.b,invoice['id'])),1)
         self.assertEqual(len(f.list_transactions(self.b)),1)
-        self.assertEqual(f.list_transactions(self.b)[0]['amount_minor'],800000)
+        self.assertEqual(f.list_transactions(self.b)[0]['amount_minor'],80000000)
 
     def test_multiple_open_invoices_require_choice_and_do_not_select_other_customer(self):
-        first=self.invoice();second=self.invoice(customer=first['customer_id'],amount=500000);other=self.invoice('Putri')
+        first=self.invoice();second=self.invoice(customer=first['customer_id'],amount=50000000);other=self.invoice('Putri')
         draft=self.payment('Wilson lunas')
         self.assertEqual(draft['next_field'],'invoice_id')
         choices=next(x['options'] for x in draft['fields'] if x['key']=='invoice_id')
@@ -152,8 +152,8 @@ class LiveConversationTests(unittest.TestCase):
         draft=self.payment('Wilson bayar 300 ribu',{'customer':'Wilson','amount':'300 ribu'})
         draft=self.complete_payment(draft);self.save(draft);self.save(draft)
         self.assertEqual(f.get_finance_invoice(self.b,invoice['id'])['status'],'PARTIALLY_PAID')
-        self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],500000)
-        self.assertEqual([t['amount_minor'] for t in f.list_transactions(self.b)],[300000])
+        self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],50000000)
+        self.assertEqual([t['amount_minor'] for t in f.list_transactions(self.b)],[30000000])
 
     def test_void_between_payment_review_and_confirmation_no_write(self):
         invoice=self.invoice();draft=self.complete_payment(self.payment())
@@ -165,13 +165,13 @@ class LiveConversationTests(unittest.TestCase):
 
     def test_changed_outstanding_requires_new_review_and_oke(self):
         invoice=self.invoice();draft=self.complete_payment(self.payment())
-        f.record_invoice_payment(self.b,invoice['id'],300000,date.today().isoformat(),self.a,self.cat,actor_user_id=self.uid,idempotency_key='external_payment_12345')
+        f.record_invoice_payment(self.b,invoice['id'],30000000,date.today().isoformat(),self.a,self.cat,actor_user_id=self.uid,idempotency_key='external_payment_12345')
         result=self.follow(draft,'oke').json
         self.assertEqual(result['kind'],'review');self.assertEqual(self.fields(result)['amount'],'500000')
         self.assertEqual(len(f.list_transactions(self.b)),1)
         self.save(result);self.save(result)
         self.assertEqual(f.get_finance_invoice(self.b,invoice['id'])['status'],'PAID')
-        self.assertEqual(sum(t['amount_minor'] for t in f.list_transactions(self.b)),800000)
+        self.assertEqual(sum(t['amount_minor'] for t in f.list_transactions(self.b)),80000000)
 
     def test_create_issue_paid_compound_order_replay_and_exact_cash(self):
         f.create_customer(self.b,'Wilson',actor_user_id=self.uid)
@@ -202,14 +202,14 @@ class LiveConversationTests(unittest.TestCase):
         self.assertEqual(f.list_finance_invoices(self.b),[]);self.assertEqual(f.list_transactions(self.b),[])
 
     def test_inactive_recurring_and_changed_balances_are_live(self):
-        rule=f.create_recurring_expense(self.b,'Sewa',500000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
+        rule=f.create_recurring_expense(self.b,'Sewa',50000000,self.a,self.meal,'MONTHLY',date.today().isoformat(),actor_user_id=self.uid)
         first=self.propose('biaya rutin aktif','recurring_list')
         self.assertIn('Sewa',str(first))
         db.execute('UPDATE finance_recurring_expenses SET is_active=FALSE WHERE id=?',(rule,))
         second=self.propose('yang aktif','continue_query',previous=first)
-        self.assertNotIn('Sewa',str(second));self.assertIn('Belum ada biaya rutin aktif',second['message'])
+        self.assertNotIn('Sewa',str(second));self.assertIn('Belum ada tagihan aktif',second['message'])
         balance=self.propose('saldo berapa','balances')
-        f.create_transaction(self.b,'INCOME',123000,self.a,self.cat,date.today().isoformat(),actor_user_id=self.uid)
+        f.create_transaction(self.b,'INCOME',12300000,self.a,self.cat,date.today().isoformat(),actor_user_id=self.uid)
         updated=self.propose('sekarang berapa','continue_query',previous=balance)
         self.assertNotEqual(balance['preview'],updated['preview'])
 
@@ -222,7 +222,7 @@ class LiveConversationTests(unittest.TestCase):
         outcomes=self.race([write,write])
         self.assertEqual(outcomes[0],outcomes[1]);self.assertEqual(outcomes[0][0],'ok')
         self.assertEqual(len(f.list_transactions(self.b)),1)
-        self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],500000)
+        self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],50000000)
 
     def test_payment_review_tenant_branch_and_inactive_customer_boundaries(self):
         invoice=self.invoice();draft=self.complete_payment(self.payment())
@@ -251,7 +251,7 @@ class LiveConversationTests(unittest.TestCase):
             refreshed=flow.review(self.b,self.uid,flow.unseal(self.b,self.uid,draft['context'],'review'))
         self.save(draft);self.save(refreshed)
         self.assertEqual(len(f.list_transactions(self.b)),1)
-        self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],500000)
+        self.assertEqual(f.get_invoice_totals(self.b,invoice['id'])['outstanding_minor'],50000000)
 
     def test_lunas_can_be_corrected_to_partial_and_same_customer_read_after_payment(self):
         self.invoice();draft=self.complete_payment(self.payment())
@@ -262,7 +262,7 @@ class LiveConversationTests(unittest.TestCase):
         self.assertIn('500.000',str(answer['preview']))
 
     def test_new_customer_query_switches_pronoun_and_unknown_does_not_reuse_old_person(self):
-        self.invoice('Putri',100000);self.invoice('Wilson',800000)
+        self.invoice('Putri',10000000);self.invoice('Wilson',80000000)
         first=self.propose('utang Putri berapa','receivables',{'customer':'Putri'})
         second=self.propose('utang Wilson berapa','receivables',{'customer':'Wilson'},first)
         third=self.propose('utang dia berapa','receivables',{'customer_reference':'dia'},second)
@@ -274,7 +274,7 @@ class LiveConversationTests(unittest.TestCase):
     def test_partial_over_current_outstanding_is_re_reviewed_without_adjusting_amount_silently(self):
         invoice=self.invoice()
         draft=self.complete_payment(self.payment('Wilson bayar 600 ribu',{'customer':'Wilson','amount':'600 ribu'}))
-        f.record_invoice_payment(self.b,invoice['id'],300000,date.today().isoformat(),self.a,self.cat,
+        f.record_invoice_payment(self.b,invoice['id'],30000000,date.today().isoformat(),self.a,self.cat,
             actor_user_id=self.uid,idempotency_key='external_partial_1234')
         result=self.follow(draft,'oke').json
         self.assertEqual(result['kind'],'review');self.assertFalse(result['ready'])
@@ -287,7 +287,7 @@ class LiveConversationTests(unittest.TestCase):
         invoice=self.invoice()
         with app.app_context(),branches.scope(self.b,self.branch,self.uid):
             prepared=flow.operator.prepare_fields(self.b,self.uid,'record_invoice_payment',dict(account_id=self.a,category_id=self.cat,
-                date=date.today().isoformat(),invoice_id=invoice['id'],currency='IDR',amount_minor=300000,description=''))
+                date=date.today().isoformat(),invoice_id=invoice['id'],currency='IDR',amount_minor=30000000,description=''))
             context=dict(action='record_invoice_payment',nonce=uuid.uuid4().hex,service_token=prepared['token'],values=dict(
                 amount='300000',currency='IDR',date=date.today().isoformat(),account_id=str(self.a),category_id=str(self.cat),invoice_id=str(invoice['id']),description=''))
             token=flow.seal(self.b,self.uid,'confirm',context)

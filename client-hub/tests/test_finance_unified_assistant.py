@@ -192,7 +192,7 @@ class UnifiedTests(unittest.TestCase):
     def test_semicolon_tab_csv_and_ambiguous_direction(self):
         for sep in (';','\t'):
             raw=sep.join(['tanggal','keterangan','jumlah','jenis'])+'\n'+sep.join(['17/09/2026','bensin','100.000,00','KELUAR'])
-            self.assertEqual(extraction.parse_csv(raw.encode())[0]['amount_minor'],100000)
+            self.assertEqual(extraction.parse_csv(raw.encode())[0]['amount_minor'],10000000)
         with self.assertRaises(ValueError):extraction.parse_csv(b'date;description;debit;credit\n2026-09-17;x;1;1')
     def test_recognize_multipart_stays_memory_bounded(self):
         with app.test_request_context(self.assistant+'/recognize'):
@@ -213,7 +213,7 @@ class UnifiedTests(unittest.TestCase):
         self.assertEqual(result.status_code,200);self.assertEqual(f.list_transactions(self.b),[])
         for _ in range(2):
             self.assertEqual(self.client.post(self.url+'/operator/confirm',json={'token':result.json['token'],'confirm':True}).status_code,200)
-        rows=f.list_transactions(self.b);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['amount_minor'],120000)
+        rows=f.list_transactions(self.b);self.assertEqual(len(rows),1);self.assertEqual(rows[0]['amount_minor'],12000000)
     def test_bank_text_pdf_failed_structure_retries_original_as_vision(self):
         from test_finance_phase6a import pdf_bytes
         source=extraction.validate_sources([('bank.pdf',pdf_bytes(text=True))])

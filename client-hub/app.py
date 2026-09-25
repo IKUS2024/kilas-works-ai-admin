@@ -130,10 +130,32 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
+    from public_chat.routes import public_bp
+    app.register_blueprint(public_bp)
+    from public_chat.owner import owner_bp
+    app.register_blueprint(owner_bp)
+    from public_chat.security import available as web_chat_available
+    app.jinja_env.globals['web_chat_available'] = web_chat_available
+    from kilas_core.customer_routes import customers_bp
+    from kilas_core import customers as core_customers
+    app.register_blueprint(customers_bp)
+    app.jinja_env.globals['kilas_customers_enabled'] = core_customers.enabled
+    from kilas_core.job_routes import jobs_bp, available as jobs_available, labels as job_labels
+    app.register_blueprint(jobs_bp)
+    from kilas_core.operation_routes import operations_bp, summary as attention_summary
+    app.register_blueprint(operations_bp)
+    app.jinja_env.globals['attention_summary'] = attention_summary
+    app.jinja_env.globals['jobs_available'] = jobs_available
+    app.jinja_env.globals['job_labels'] = job_labels
+    from kilas_core.finance_bridge_routes import bridge_bp, panel as finance_bridge_panel
+    app.register_blueprint(bridge_bp)
+    app.jinja_env.globals['finance_bridge_panel'] = finance_bridge_panel
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
+    from routes_workspace import workspace_bp
+    app.register_blueprint(workspace_bp)
     app.jinja_env.globals["brain_plan"] = __import__("pricing_config").BRAIN_PLAN
     app.register_blueprint(admin_bp)
     app.register_blueprint(projects_bp)
@@ -183,12 +205,22 @@ def create_app():
         return url_for("products.finance_entry")
 
     @app.before_request
+    def _retired_order():
+        # Retired handlers include GETs that used to start a search / handoff.
+        # Stop before any old handler can read or mutate marketplace records.
+        from legacy_order_retirement import retired_endpoint
+        if retired_endpoint(request.endpoint):
+            return render_template('order_retired.html'), 410
+
+    @app.before_request
     def _lock_customer_to_selected_finance():
         """Once a customer chooses Finance, keep this login session inside Finance.
 
         Logout clears the Flask session, so the next login starts from the product picker again.
         Account/profile pages remain reachable because they are part of the Finance experience.
         """
+        if (request.endpoint or "").startswith("public_web."):
+            return None  # Independent anonymous channel; never uses the owner product session.
         if not session.get("user_id") or session.get("role") == "KILAS_ADMIN":
             return None
         if (session.get("active_product") or "").strip().lower() != "finance":
@@ -198,9 +230,12 @@ def create_app():
         allowed = (
             endpoint == "static"
             or endpoint.startswith("finance.")
+            or endpoint.startswith("workspace.")
             or endpoint in {
                 "products.finance_entry",
                 "products.finance_setup",
+                "index",
+                "client.dashboard",
                 "auth.account_page",
                 "auth.account_personal_photo",
                 "auth.account_business_photo",
@@ -217,6 +252,8 @@ def create_app():
 
     @app.before_request
     def _csrf_protect():
+        if (request.endpoint or "").startswith("public_web."):
+            return None  # Public blueprint enforces exact Origin + visitor-specific WEB CSRF.
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return None
         if current_app.config.get("TESTING") and not current_app.config.get("CLIENT_HUB_FORCE_CSRF_IN_TESTS"):
@@ -239,12 +276,7 @@ def create_app():
         if session.get("user_id"):
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
-            if (session.get("active_product") or "").strip().lower() == "finance":
-                business_id = session.get("dashboard_business_id")
-                if business_id:
-                    return redirect(url_for("finance.workspace_choice", business_id=business_id))
-                return redirect(url_for("products.finance_entry"))
-            return redirect(url_for("products.product_start"))
+            return redirect(url_for("workspace.home"))
         return redirect(url_for("auth.login_page"))
 
     @app.route("/healthz")
