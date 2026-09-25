@@ -1,222 +1,230 @@
-# Phase 10 — BLOCKED before release; production untouched
+# Phase 10 — pre-production verification; production untouched
 
 **PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
 **RESUME FROM STATUS FILE.**
 
-## Authenticated release QA checkpoint
+This checkpoint supersedes the earlier incremental status text; prior checkpoints
+remain in Git history. Required rollout specification: `ASTRA_PHASE10_PRODUCTION_ROLLOUT.md`.
+All nine required documents were read completely. Phase 10 adds release QA/documentation
+only; no production application code or accounting behavior has been changed in Phase 10.
 
-- Feature 9de24ee229e2449fab955b5386c1f9c87b3f4099: Phase 10 run 36087817688
-  SUCCESS. Authenticated browser job 107923500122 reports **19 checks PASS**;
-  PostgreSQL migration rehearsal job 107923500211 SUCCESS.
-- Real signup, AI/both intent, minimal profile forms, Finance activation, login/logout
-  persistence, full eligible fixture Web Chat/Customer/Job followup, Human Takeover,
-  manual reply, explicit resume, owner-reviewed Bridge draft, real Finance issue/payment
-  forms, exact payment-form replay without duplicate readback, foreign-object denial,
-  and operator login/pages passed at 390px. No session-injection login shortcut.
-- Initial b273eb5 browser attempt correctly rejected an incomplete synthetic AI fixture
-  with business_setup_required; the fixture now supplies its synthetic normalized config.
-  No production application change was needed for this fixture failure.
-- Coverage limitation: eligible paid full-business/model provider are synthetic;
-  this is not live-provider or production smoke certification. Extended Finance-only
-  account/opening/income/expense/report/export browser checks are being added.
-- Bot current Live deployment still 05d50a8; prior deploys expose Rollback controls.
-  Both service rollback targets remain their recorded current Live artifacts after release.
-- Read-only production inventory contains demo-named businesses, but no business is
-  yet certified as the authorized Finance-write pilot. Do not infer permission from a name.
-- Production schema/env/main/deploys remain untouched. Final exact diff review and
-  full pre-merge gate remain pending. RESUME FROM STATUS FILE.
+## Current release state
 
-## Resumed checkpoint — boolean verified, remaining release QA in progress
+- Repo: IKUS2024/kilas-works-ai-admin; feature/kilas-core-v2; PR #16 still open/draft.
+- Latest implementation/test candidate: fa8a561f4bba684aadb7aa485baa76bf3f07505a.
+- Main and production rollback target: **05d50a8bdf14ede2b1ec588f1fe78619f7387f0c**.
+- Latest PR inspection: mergeable, base still rollback SHA; all Phase 2–10 CI on the implementation candidate SUCCESS.
+- No production database writes, schema installation, environment writes, merge,
+  deployment request, or production test transaction has occurred in Phase 10.
+- No WhatsApp general activation. Official Meta access remains unverified.
 
-- User explicitly authorized ONLY the true/false migration flag read.
-- Hub `RUN_MIGRATIONS_ON_BOOT` is **false**, verified in its single Render UI row,
-  then hidden again. No credential values read, copied or logged; no flag changed.
-- Bot linked-environment-group section confirms no environment groups available.
-  Thus neither service has inherited V2 enablement from a linked group.
-- Current tested feature head: `f7b60657290e42c5b593b69a78030a94389b5051`.
-- Phase 2–10 workflows on that head all SUCCESS, including Phase 7 run
-  36086838228 and exact PostgreSQL 18 rehearsal run 36086838099.
-- Previous narrow approval blocker is resolved. Combined authenticated browser
-  release journeys, exact diff review and pilot identity remain pending.
-- PRE-MERGE GATE NOT PASSED. No production mutations, merge or deploy.
+## Boolean authorization resolved
 
-## Latest checkpoint — rehearsal PASS, release BLOCKED before production
+User explicitly authorized ONLY the boolean read of RUN_MIGRATIONS_ON_BOOT.
+Hub value is **false**: inspected its single Render UI row, then hid it again.
+The flag was not changed. Bot has no such service-level variable. Both services have
+no linked environment groups. No DATABASE_URL, API key, token, password, SECRET_KEY,
+or WhatsApp/Meta credential value was opened, copied, displayed or logged.
+The prior automatic-review rejection of this narrow read is resolved by that authorization.
 
-Implementation/test checkpoint: **7f4022abe660ff176b6f6acfcc16b94136708f9b**.
-This later checkpoint supersedes the pending access/rehearsal statements below.
+## Production baseline / rollback
 
-- New Phase 10 workflow **36086483153 SUCCESS**, job **107919420144**.
-  Log verifies the exact seven-step sequence twice; every legacy row preserved;
-  both rollback-main and candidate Finance authoritative readback PASS.
-- On 7f4022a, Phase 2 36086483078, Phase 3 36086483210, Phase 4 36086483019,
-  Phase 5 36086483017, Phase 6 36086483031, Phase 8 36086483020 and
-  Phase 9 36086483097 SUCCESS. Phase 7 36086483080 runtime job
-  107919420096 SUCCESS; finance-baseline job 107919420433 still IN PROGRESS
-  at last inspection. Earlier 8091271 complete Finance baseline remains certified
-  1018/39, and no application or Finance code changed in 7f4022a.
-- Local py_compile and git diff --check PASS. Default invocation of the new
-  rehearsal correctly refuses execution without its explicit disposable QA target.
-- Render authentication succeeded through secure Google sign-in.
-- Complete visible service environment key inventories inspected for both services:
-  all ten listed V2 enablement/allowlist/channel variables are ABSENT at service level.
-  Hub has no linked environment groups. Bot linked-group section exists; inheritance
-  still requires final verification. No enablement or environment change performed.
-- Hub required DATABASE_URL, SECRET_KEY and ANTHROPIC_API_KEY names are present;
-  bot DATABASE_URL/ANTHROPIC_API_KEY/internal/WhatsApp credential names are present.
-  Secret values were not revealed or verified.
-- Hub RUN_MIGRATIONS_ON_BOOT exists but is masked.
-  **Automatic approval review rejected clicking Show secret and reading this value**,
-  interpreting it as disclosure contrary to the no-secret-values requirement.
-  No retry or indirect workaround was attempted. Its actual boolean remains unverified.
-  To proceed, obtain explicit user approval to read ONLY this non-credential migration
-  flag's boolean state; do not reveal DATABASE_URL, API keys, tokens or other secrets.
-- Render DB Recovery settled UI confirms **3-day point-in-time recovery**;
-  initial loading text briefly said 7 days, superseded by the settled Basic-plan page.
-  Restore database and Create export controls are available. No restore, export or
-  database mutation was invoked. Actual restore exercise is not claimed.
-- Authenticated Hub Web Shell is available. No shell command was executed.
-  Hub deploy history exposes rollback controls for prior deployments at rollback SHA.
-  Bot rollback UI and final recovery readiness remain pending.
-- Production is still at the exact LIVE deploys and rollback SHA in the table below.
-  DB/schema, flags, main, both service deploys and customer records are unchanged by this run.
-- Full Phase 10 combined browser journeys/login persistence, final exact diff review,
-  authorized pilot IDs and final pre-merge checkpoint are still pending.
-  Existing phase browser gates do not automatically certify those missing release checks.
-
-**State: BLOCKED before PRE-MERGE GATE PASS. No merge, production schema or deploy.**
-**RESUME FROM STATUS FILE.** Resolve the narrow approval block, finish the remaining
-pre-production gates, then follow the authorized controlled deployment sequence.
-
-## Initial release checkpoint
-- Repository: IKUS2024/kilas-works-ai-admin; branch: feature/kilas-core-v2.
-- Inspected remote feature: 809127129ccfa2b251814c3115c0353606fe8f15.
-- Current remote main and verified production rollback target:
-  05d50a8bdf14ede2b1ec588f1fe78619f7387f0c.
-- PR #16: open, draft, mergeable; 138 commits ahead, 0 behind main;
-  release comparison contains 234 changed files. Full final diff review remains pending.
-- All nine required documents read completely.
-- Candidate source materialized and every tracked blob checked against the complete
-  non-truncated GitHub tree (756 tree entries); zero missing/mismatched blobs.
-- This checkpoint adds only a disposable PostgreSQL release rehearsal, its CI
-  workflow, and this status. No application or accounting behavior changes.
-
-## Verified production state
 | Resource | Verified state |
 | --- | --- |
-| kilas-works-client-hub / srv-da7ti2psrm7s73dh9i2g | LIVE deploy dep-daqa4e49v7es73cdvuc0 at rollback SHA |
-| kilas-works-ai-admin / srv-da353nm7bikc7396r430 | LIVE deploy dep-daqa3f145ssc73916je0 at rollback SHA |
-| Both services | main; autoDeploy=yes, trigger=commit; one instance; Oregon; gunicorn app:app |
-| Hub rootDir / bot rootDir | client-hub / repository root |
-| Database dpg-da4ea1u417fc73fqv80g-a | available; PostgreSQL 18.4; basic_256mb; 1 GB; HA disabled |
-| DB/schema mutations in Phase 10 | NONE |
-| Environment/flag changes in Phase 10 | NONE |
-| Merge/deploy requests in Phase 10 | NONE |
-| Production UI baseline | app.kilasworks.id loads signed-in product selector; not V2 E2E certification |
+| Hub srv-da7ti2psrm7s73dh9i2g | LIVE dep-daqa4e49v7es73cdvuc0 at 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c |
+| Bot srv-da353nm7bikc7396r430 | LIVE dep-daqa3f145ssc73916je0 at 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c |
+| Both services | main; auto-deploy on commit; Oregon; one instance; gunicorn app:app; pip requirements |
+| Hub / bot rootDir | client-hub / repository root |
+| Database dpg-da4ea1u417fc73fqv80g-a | PostgreSQL 18.4, available, basic_256mb, 1 GB, no HA |
+| DB Recovery dashboard | settled page confirms 3-day point-in-time recovery; restore/export controls available |
+| Rollback controls | both service deploy histories expose Rollback controls for prior artifacts |
+| Hub execution path | authenticated Web Shell available; no command executed |
+| Production UI | signed-in /products/start loads on old main; not V2 E2E certification |
+| /healthz | browser returned ERR_BLOCKED_BY_CLIENT; endpoint remains unverified; no bypass attempted |
 
-Read-only schema inspection: no kw_web_* or kw_core_* tables; no
-finance_workspace_corrections or finance_workspace_opening_history tables;
-no relocation_version columns. Finance transaction/recurring guard_branch_identity
-triggers still invoke finance_branch_immutable(). Legacy Kilas Order tables remain.
-
-Read-only count checkpoint (not a complete integrity proof; live traffic may change it):
-12 businesses, 32 Finance accounts, 58 Finance transactions, 9 Finance invoices,
+Latest read-only schema recheck still finds no kw_web_*, kw_core_*,
+finance_workspace_corrections or finance_workspace_opening_history tables.
+Earlier column/trigger inspection: no relocation_version; existing two guard_branch_identity
+triggers use finance_branch_immutable(). Legacy Kilas Order history remains present.
+Read-only count baseline: 12 businesses, 32 accounts, 58 Finance transactions, 9 invoices,
 4 invoice payments, 2 recurring expenses, 2 historical Kilas Order requests.
-No customer names, credentials or monetary values were collected for this checkpoint.
+Counts alone are not a full integrity proof and may change with live customer traffic.
+No customer records were copied to QA. No backup/restore or deployment rollback was executed.
 
-## Regression evidence on inspected feature SHA
-All eight latest Phase 2–9 workflows SUCCESS:
-- Phase 2: 36085735701 (includes Phase 1).
-- Phase 3: 36085735703.
-- Phase 4: 36085735742.
-- Phase 5: 36085735741.
-- Phase 6: 36085735712.
-- Phase 7: 36085735822.
-- Phase 8: 36085735771.
-- Phase 9: 36085735699.
+Read-only integrity checkpoint, 2026-09-25 03:13 UTC: ordered JSON-row MD5 fingerprints
+(excluding only relocation_version). These are comparison digests, not backups or secret values.
+Recapture immediately before schema application and compare after; reconcile legitimate live
+traffic rather than assuming any changed aggregate is migration corruption.
 
-Phase 7 finance-baseline job 107917097582 log explicitly reports:
-**PASS: 39 files / 1018 tests**.
-Finance runtime job 107917097739: SQLite Bridge, PostgreSQL workspace corrections,
-PostgreSQL Bridge and mobile standalone/connected/read-only gates all SUCCESS.
-These are existing phase regression gates, NOT proof of every new Phase 10 requirement.
-The existing browser harness uses synthetic session entry and provider stubs; full real
-signup/login/logout/persistence journeys and a complete combined release E2E remain pending.
+| Finance table | Rows | Digest |
+| --- | ---: | --- |
+| accounts | 32 | 0b9a2531aa186761a463042801e1edc8 |
+| transactions | 58 | 037f2e03f84b72e80ab93abab5f55149 |
+| invoices | 9 | fb5dd4d4e02582a180f423bac62121d6 |
+| invoice_items | 20 | 4dc304675cd4197faed7a2c8d0cc2f1e |
+| invoice_payments | 4 | 64ff1cd509319060e24d71ead988d920 |
+| customers | 7 | 33c9b67a9b5da14e4be697abdebcfd95 |
+| recurring_expenses | 2 | 6d6d3d0fd1bd30a5ce05c4fefc39bc5f |
+| recurring_postings | 0 | d41d8cd98f00b204e9800998ecf8427e |
+| budgets | 2 | 5922928e4763dc81fa4fba7e7e1f68ab |
 
-Local execution limitation: Flask/psycopg2/pikepdf not installed; requirements install
-could not resolve Flask in this runtime. No local PostgreSQL server available.
-Do not call local tests passing. Use isolated GitHub Actions QA, never production as a test substitute.
 
-## Missing-schema plan — inspected, NOT yet production-approved
-Order:
-1. From client-hub: python -m public_chat.schema --apply (0055).
-2. python -m kilas_core.customer_schema --apply (0056).
-3. python -m kilas_core.job_schema --apply (0057).
-4. python -m kilas_core.operation_schema --apply (0058).
-5. Execute ONLY migrations/0059_finance_workspace_corrections_postgres.sql as one
-   PostgreSQL transaction with bounded connection/lock/statement timeouts.
-   Preserve dollar-quoted function bodies; NEVER split this file on semicolons.
-6. python -m kilas_core.finance_bridge_schema --apply (0060, including immutable triggers).
-7. python -m kilas_core.whatsapp_schema --apply (0061).
+Rollback after any critical auth/tenant/Finance/migration/duplicate-write/core-path failure:
+disable affected pilot gates, restore BOTH services to the recorded pre-release artifact/SHA,
+and verify login, old Finance reads/writes and logs. Preserve additive schema and historical
+data; do not run a destructive down migration. Record each deploy ID/status and DB state.
+PITR is recovery protection, not a claim that a restore exercise was performed.
 
-0059 is not merely new tables: it adds default-zero relocation columns and replaces
-two guard triggers with audited correction-aware guards. It does not rewrite existing
-row economics. Its compatibility, transaction boundary and rollback protection must
-be explicitly certified. 0060 installer also reinstalls immutable-history triggers.
-Do not run db.init_schema, historical migration runner, RUN_MIGRATIONS_ON_BOOT=true,
-or drop/reset tables on production.
+## Regression and browser evidence
 
-New scripts/phase10_postgres_rehearsal.py:
-- accepts only explicit QA flag + empty loopback database named kilas_phase10 on PG18;
-- verifies the exact rollback checkout;
-- builds pre-V2 synthetic fixture from that checkout's SQL registry in the empty QA DB only;
-- seeds opening balance/income/expense/invoice/partial-payment/recurring through existing services;
-- executes the exact seven-step upgrade twice;
-- compares all pre-existing table rows, accounting for default-zero added columns;
-- checks authoritative Finance readback using BOTH old main and candidate code.
-No copied production data and no production target accepted.
-New workflow .github/workflows/kilas-v2-phase10-qa.yml runs that rehearsal.
-Result at this checkpoint: PENDING. No exact-sequence PASS claimed.
+- Original runtime candidate 809127129ccfa2b251814c3115c0353606fe8f15 passed Phase 2–9.
+  Phase 7 baseline job 107917097582 explicitly reports **39 files / 1018 tests PASS**.
+- f7b60657290e42c5b593b69a78030a94389b5051 passed all Phase 2–10 workflows.
+- 9de24ee229e2449fab955b5386c1f9c87b3f4099 Phase 10 run 36087817688 passed
+  19 authenticated browser checks plus exact PostgreSQL rehearsal.
+- 210d03b0dfeba657ef419c918666e510080991f7 Phase 10 run 36088135919 passed
+  extended Finance account/opening/income/expense/report/export checks and the old-code
+  rollback write rehearsal. Subsequent test-only changes add recurring/budget/AI/invoice QA.
+- Phase 9 run 36088005579 passed 155 responsive visits / 157 screenshots at
+  360, 390, 430, 820 and 1440px, with focus, overflow and JavaScript checks.
+  Downloaded artifacts were inspected, including mobile, tablet and desktop Finance
+  and the Phase 10 Web Inbox / authoritative Bridge readback.
+- Latest expanded gate on fa8a561f4bba684aadb7aa485baa76bf3f07505a: Phase 10 run
+  **36089094923 SUCCESS**, browser job **107927378713: 30 checks PASS**, migration job
+  **107927378851 PASS**. Artifact 10844029520, SHA256
+  ca77a9317064399dfd20ca9c3915f2ad3dfacd2da8d26b54149fb313cbdf87c1.
+  All Phase 2–10 workflows on fa8a561 SUCCESS:
+  Phase 2 36089094888; Phase 3 36089094877; Phase 4 36089094917;
+  Phase 5 36089094896; Phase 6 36089094901; Phase 7 36089094889;
+  Phase 8 36089094881; Phase 9 36089094891; Phase 10 36089094923.
+  Complete Finance baseline job 107927378670 again reports 39 files / 1018 tests PASS.
+  This status update is documentation-only; recheck its successor-head checks before merge.
 
-Before production application, additionally verify schema constraints/indexes against
-actual production, backup/PITR or equivalent restore protection, bounded DDL lock behavior,
-authorized execution path, unchanged rollback main SHA and all final release gates.
+Phase 10 browser harness uses REAL signup/password login/logout, forms, CSRF, routes,
+SQLite storage and owner sessions. It does not inject sessions through persona endpoints.
+Coverage includes AI/both signup intent and minimal setup, Finance activation, independent
+Finance-only signup; eligible fixture Web Chat -> Inbox -> Customer/Job with repeated visitor,
+missing-info followup, takeover suppression, manual reply, explicit AI resume; owner mapping,
+reviewed Bridge DRAFT, existing Finance issue/payment, exact payment-form replay, authoritative
+partial/outstanding readback; foreign-object denial and operator pages.
+New Finance-only coverage adds opening balance, income/expense, recurring, budget,
+AI draft/cancel without ledger writes, standalone invoice/payment, reports and CSV/ZIP exports.
+Paid eligibility and AI-provider IO remain synthetic; this is not live-provider certification.
+New signup checks and the paid-eligible chat fixture are separate scenarios.
 
-## Rollout configuration audit
-Actual production values are **UNVERIFIED**, not assumed OFF from code defaults.
-The Render connector exposes env update but no env read or SQL write operation.
-Browser Render dashboard is at sign-in; authenticated access is needed for env,
-backup/restore and shell/execution readiness. No local Render/DB credentials available.
+Earlier expanded-harness failures are not suppressed:
+- incomplete synthetic AI normalized config was correctly rejected; supplied fixture config;
+- account row was inside a collapsed group; test now expands the real group;
+- Finance provider was initially absent; only synthetic configuration/provider HTTP is stubbed;
+- Finance operator capability must explicitly be enabled in the self-service QA environment;
+- disposable signing configuration is explicit; production credentials remain untouched.
+Diagnostic run 36089036575 confirmed finance_ai_unavailable at the capability check.
+Expanded browser run 36089094923 then passed with explicit QA-only operator enablement.
 
-| Flag | Safe intended initial state, pending current-env inspection |
+Security/reliability regression is covered across Phase 2–8 suites: tenant/direct-object denial,
+CSRF, idempotency/retry, concurrent Customer/Job/Bridge operations, stale versions and transaction
+rollback, subscription denial/read-only, unknown WhatsApp identity/no tenant fallback, takeover
+and authoritative Finance payment status. Phase 2 includes Phase 1 regression.
+No skipped tests count as a gate pass. Local py_compile and git diff --check passed.
+Local Flask/psycopg2/pikepdf/PostgreSQL are unavailable; runtime results come from disposable CI.
+
+## Exact diff review
+
+Reviewed feature-vs-main runtime changes: app/blueprint/auth/workspace/navigation, Finance service
+and route changes, public Web Chat, Core flags/customer/job/interpretation/playbook/operations,
+Bridge, WhatsApp routing/readiness/takeover, schema installers and 0055–0061 SQL, templates and
+shared/public UI assets. Reviewed regression assertion migrations for current money/display/scope
+contracts. No production money-parser rewrite is part of V2. Phase 10 changes are confined to:
+
+- .github/workflows/kilas-v2-phase10-qa.yml
+- client-hub/tests/phase10_release_dev.py
+- client-hub/tests/phase10_release_browser_qa.py
+- scripts/phase10_postgres_rehearsal.py
+- docs/KILAS_V2_PHASE10_STATUS.md
+
+All 746 tracked blobs at c7898b8353beca450569ea3a0263e7825c98d0e8 matched the local materialization.
+Subsequent edits are the reviewed test-only diagnostics/operator flag changes. Final comparison
+at fa8a561: 150 commits ahead, 0 behind, 239 changed files; no unresolved merge conflict. Reinspect exact
+final head/base/diff/checks before PRE-MERGE GATE PASS; do not trust this checkpoint after drift.
+
+## Exact missing-schema plan — tested, NOT executed in production
+
+Use the certified feature checkout in an isolated directory in the Hub Web Shell, verify
+its exact commit before execution, and retain the existing application process checkout.
+Do not print environment values or shell tracing. Existing service credentials are consumed
+internally by the application connection code; never reveal or copy them.
+
+From candidate/client-hub, the ordered sequence is:
+
+1. python -m public_chat.schema --apply (0055)
+2. python -m kilas_core.customer_schema --apply (0056)
+3. python -m kilas_core.job_schema --apply (0057)
+4. python -m kilas_core.operation_schema --apply (0058)
+5. Execute the ENTIRE migrations/0059_finance_workspace_corrections_postgres.sql using
+   psycopg2 cursor.execute in ONE connection transaction; connection timeout 10s,
+   statement timeout 30s, lock timeout 5s. Never split dollar-quoted SQL on semicolons.
+6. python -m kilas_core.finance_bridge_schema --apply (0060, including immutable triggers)
+7. python -m kilas_core.whatsapp_schema --apply (0061)
+
+Installer connections already have bounded connection/statement/lock/idle transaction timeouts.
+0059 adds default-zero relocation_version columns and REPLACES two existing guard triggers
+with audited correction-aware guards. It does not rewrite economic values. 0060 reinstalls
+immutable-history triggers. Each step is transactional; stop on any failure, record the last
+committed step, inspect read-only state, and never blindly replay unrelated migration history.
+Read-only production prerequisite review also confirms existing Finance primary keys and
+composite unique keys required by the new foreign keys.
+No db.init_schema, no historical runner, no RUN_MIGRATIONS_ON_BOOT=true, no schema reset.
+Re-query actual missing schema immediately before applying; do not reinstall unrelated schema.
+
+Disposable PostgreSQL 18 rehearsal builds a pre-V2 synthetic baseline from exact rollback main,
+then executes the seven steps twice. It compares every pre-existing row (excluding only the
+new default-zero column), verifies zero relocation versions, and exercises Finance authoritative
+invoice/payment readback with both old and candidate code. It also seeds NEW synthetic records
+using OLD rollback code after upgrade, verifying writes/payment/recurring and preserving the
+original fixtures. Latest fa8a561 run 36089094923 migration job 107927378851 PASS.
+Loopback-only guard, exact /kilas_phase10 target, explicit QA flag and empty-schema checks prevent
+accidental use against production. No production data was used.
+
+## Feature flags / pilot readiness
+
+Full Render key inventories and linked-group state inspected. All ten V2 variables below are
+ABSENT in both services; no inherited groups. Authoritative defaults therefore remain closed.
+Required credential NAMES are present (Hub database/session/Anthropic; bot database/Anthropic/
+internal/WhatsApp); values, validity and live-provider behavior were not inspected or certified.
+
+| Flag | Current / intended controlled state |
 | --- | --- |
-| KILAS_CORE_V2_ENABLED | false until certified internal pilot |
-| KILAS_CORE_V2_TEST_BUSINESS_IDS | no broad IDs; explicit authorized pilot IDs only |
-| KILAS_CUSTOMERS_V2_ENABLED | false initially; required true for pilot Customer path |
-| KILAS_JOBS_V2_ENABLED | false initially; required true for pilot Job path |
-| KILAS_PLAYBOOKS_V2_ENABLED | false initially; true only with Customer/Job prerequisites |
-| KILAS_OPERATIONS_V2_ENABLED | false initially; true for certified pilot operations |
-| KILAS_WEB_CHAT_ENABLED | false initially; true only with explicit Core allowlist and paid eligibility |
-| KILAS_FINANCE_BRIDGE_ENABLED | false initially; true only for explicit owner-reviewed pilot mapping |
-| KILAS_WHATSAPP_CORE_ENABLED | false; official Meta access unverified |
-| KILAS_WHATSAPP_CORE_CHANNELS | no selected production channels |
-| RUN_MIGRATIONS_ON_BOOT | false; no historical replay |
+| KILAS_CORE_V2_ENABLED | absent/default false; enable only for certified pilot |
+| KILAS_CORE_V2_TEST_BUSINESS_IDS | absent/empty; requires explicit authorized IDs |
+| KILAS_CUSTOMERS_V2_ENABLED | absent/default false; required for pilot Customers |
+| KILAS_JOBS_V2_ENABLED | absent/default false; required for pilot Jobs |
+| KILAS_PLAYBOOKS_V2_ENABLED | absent/default false |
+| KILAS_OPERATIONS_V2_ENABLED | absent/default false |
+| KILAS_WEB_CHAT_ENABLED | absent/default false; allowlist + paid eligible AI required |
+| KILAS_FINANCE_BRIDGE_ENABLED | absent/default false; owner-reviewed mapping required |
+| KILAS_WHATSAPP_CORE_ENABLED | absent/default false; keep OFF |
+| KILAS_WHATSAPP_CORE_CHANNELS | absent/empty; no selected production channel |
+| RUN_MIGRATIONS_ON_BOOT | Hub false, unchanged; bot absent |
 
-Customer and Job flags are additional authoritative dependencies omitted from the
-specification's illustrative flag list. Never invent pilot business IDs.
-Do not change Finance entitlements, existing secrets, or unrelated env values.
-No WhatsApp activation or live provider send authorized by this checkpoint.
+Customer flag is a module gate rather than a Core business allowlist: confirm package-scoped
+visibility and use Core/Web/Job/Bridge allowlists where supported. Finance operator has separate
+Finance capability gates; enabling Core does not establish Finance AI capability.
+Do not change Finance entitlement or unrelated env values without a reviewed rollout need.
 
-## Remaining gates / precise blockers
-1. Observe the new exact migration rehearsal and current-head Phase 1–9 CI.
-2. Full Phase 10 browser journeys/security/rollback coverage and exact release diff review.
-3. Authenticated Render env inspection, DB backup/restore evidence, and authorized schema execution.
-4. Identify authorized internal/pilot businesses and package personas without fabricating customer records.
-5. Record concrete rollback deployment mechanism/readiness for both services. SHA is verified,
-   but end-to-end rollback execution path and backup recovery are not yet certified.
-6. Only then PRE-MERGE GATE PASS, missing schema, safe PR merge, both auto-deploys LIVE,
-   production E2E, data integrity, logs/5xx/isolation, pilot configuration and COMPLETE.
+## Remaining release blockers / resume sequence
 
-Rollback policy: disable affected pilot gates and restore both services to recorded
-rollback SHA if critical failure appears. Preserve additive schema/data; no destructive
-database downgrade. Never trigger duplicate deployments or claim release completion
-while any gate is pending.
+1. Phase 1–9, complete Finance, expanded authenticated browser and PostgreSQL candidate gates
+   PASS. Recheck final documentation-head CI before release; do not bypass a red check.
+2. Identify explicitly authorized internal/pilot business IDs, owner-access context and Finance
+   workspace/branch for production test writes. Existing demo-named records are NOT authorization.
+   This is required by specification sections 7 and 11; do not invent IDs or write in a customer
+   ledger. Choose and document the exact controlled allowlist before production mutation.
+3. Recheck main/PR/current CI, schema prerequisites, recovery/rollback artifacts and execution
+   checkout readiness; finalize the exact missing-only production application checkpoint.
+4. Only if every gate passes: record PRE-MERGE GATE PASS; apply missing additive schema; safely
+   merge PR #16 without force; watch automatic deployments (no duplicates) until BOTH are LIVE
+   on the merged main SHA; run actual authorized production QA and data/log/isolation checks.
+5. Keep rollout internal/pilot-scoped; WhatsApp general rollout stays separately Meta-gated.
+   Mark COMPLETE only after real production verification and intact existing Finance data.
+
+**Production remains unchanged. Phase 10 is NOT COMPLETE. RESUME FROM STATUS FILE.**
