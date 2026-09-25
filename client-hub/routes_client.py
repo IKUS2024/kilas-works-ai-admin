@@ -1219,8 +1219,10 @@ def inbox_page(business_id):
         if selected_source == "demo":
             if not demo_phone or selected_phone != demo_phone:
                 abort(404)
-            if not platform_inbox_service.customer_exists(selected_phone):
-                abort(404)
+            # Demo bindings are allowed to originate from either a normal customer message or
+            # the Kilas owner test path. Validate against the session-scoped demo thread itself,
+            # not platform_inbox_service.customer_exists(), which intentionally only recognizes
+            # mode='customer' rows and would reject a valid owner-mode demo.
             thread = _demo_kilas_clean_thread(business_id, selected_phone)
             if not thread:
                 abort(404)
