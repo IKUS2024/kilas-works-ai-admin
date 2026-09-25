@@ -445,18 +445,18 @@ def get_subscription_banner(business_id):
             days_remaining = (end_dt - now_dt).days
     if sub["status"] == "SUSPENDED":
         level, message = "danger", (
-            "AI Admin kamu sedang SUSPENDED karena belum ada perpanjangan langganan. "
+            "Kilas Assist kamu sedang SUSPENDED karena belum ada perpanjangan langganan. "
             "Data, riwayat chat, dan konfigurasi kamu tetap aman — hubungi Kilas Works untuk "
             "aktivasi ulang begitu pembayaran perpanjangan diverifikasi."
         )
     elif sub["status"] == "GRACE":
         level, message = "warning", (
-            f"Langganan AI Admin kamu sudah lewat jatuh tempo dan sedang masa tenggang "
-            f"({sub['grace_days']} hari) — segera perpanjang supaya AI Admin gak berhenti."
+            f"Langganan Kilas Assist kamu sudah lewat jatuh tempo dan sedang masa tenggang "
+            f"({sub['grace_days']} hari) — segera perpanjang supaya Kilas Assist gak berhenti."
         )
     elif sub["status"] == "ACTIVE" and sub["reminder_stage"] in ("H7", "H3", "H1"):
         level, message = "info", (
-            f"Langganan AI Admin kamu ({sub['plan_key']}) akan jatuh tempo dalam "
+            f"Langganan Kilas Assist kamu ({sub['plan_key']}) akan jatuh tempo dalam "
             f"{max(days_remaining, 0) if days_remaining is not None else '-'} hari."
         )
     else:
