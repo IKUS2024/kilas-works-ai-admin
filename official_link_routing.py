@@ -3,7 +3,7 @@ import re
 from urllib.parse import urlsplit
 
 PATTERNS = (
-    ('demo', r'\bdemo\b|\b(?:coba|test|trial) kilas brain\b'),
+    ('demo', r'\bdemo\b|\b(?:coba|test|trial) (?:kilas assist|kilas brain)\b'),
     ('instagram', r'\b(?:ig|instagram)(?:nya)?\b'),
     ('catalog', r'\b(?:katalog|pricelist)(?:nya)?\b'),
     ('app', r'\bclient hub\b|\bapp\b|\blogin\b'),
@@ -26,9 +26,9 @@ def classify_official_link_intent(text, recent_history=None, role='customer'):
     if role == 'owner' and re.search(r'\b(?:customer|pelanggan|dia)\b|\d{5}|\bke\s+(?!sini\b|saya\b|aku\b|gw\b|gue\b)\w+', text):
         return None
     generic = text in ('ada linknya', 'linknya mana', 'ada link', 'boleh minta linknya', 'minta linknya')
-    trial = text in ('bisa dicoba', 'mau lihat botnya', 'gimana cara kerja kilas brain')
+    trial = text in ('bisa dicoba', 'mau lihat botnya', 'gimana cara kerja kilas assist', 'gimana cara kerja kilas brain')
     if generic or trial:
-        if trial and ('kilas brain' in text or text == 'mau lihat botnya'):
+        if trial and ('kilas assist' in text or 'kilas brain' in text or text == 'mau lihat botnya'):
             return 'demo'
         for row in reversed((recent_history or [])[-6:]):
             content = row.get('content', '')
@@ -38,7 +38,7 @@ def classify_official_link_intent(text, recent_history=None, role='customer'):
             if trial:
                 if re.search(r'content|foto|photo|video|landing page|meta ads', content):
                     return None
-                if re.search(r'kilas brain|\bbot\b|ai admin', content):
+                if re.search(r'kilas assist|kilas brain|\bbot\b|ai admin', content):
                     return 'demo'
             else:
                 found = [key for key, pattern in PATTERNS if re.search(pattern, content)]
@@ -59,7 +59,7 @@ def classify_official_link_intent(text, recent_history=None, role='customer'):
     remainder = text
     for _, pattern in PATTERNS:
         remainder = re.sub(pattern, ' ', remainder)
-    remainder = re.sub(r'\bkilas\s*works\b|\bkilas brain\b|\bai admin\b', ' ', remainder)
+    remainder = re.sub(r'\bkilas\s*works\b|\bkilas assist\b|\bkilas brain\b|\bai admin\b', ' ', remainder)
     allowed = {'kita','kalian','resmi','link','url','buat','coba','kirim','kirimin','minta','boleh',
                'ada','apa','mana','di','nya','dong','kak','ya','mau','lihat','kesini','ke','sini','saya','aku','gw','gue'}
     if any(word not in allowed for word in remainder.split()):
@@ -80,5 +80,5 @@ def link_reply(intent, links, *, tenant=False, owner=False):
         return ('Link tersebut belum tersedia di profil bisnis ini. Silakan hubungi tim bisnis.' if tenant
                 else 'Link resmi belum bisa diambil. Coba lagi sebentar ya.')
     labels = {'landing_page':'Website resmi', 'demo':'Demo', 'instagram':'Instagram', 'catalog':'Katalog resmi', 'app':'Client Hub'}
-    brand = '' if tenant else (' Kilas Brain' if intent == 'demo' else ' Kilas Works')
+    brand = '' if tenant else (' Kilas Assist' if intent == 'demo' else ' Kilas Works')
     return f'{labels[intent]}{brand}: {value}'
