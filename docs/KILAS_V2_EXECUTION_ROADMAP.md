@@ -24,7 +24,7 @@ Phase order:
 7. Finance Bridge only, using existing Finance services; preserve full Standalone Finance and add optional Connected Finance links
 8. Official WhatsApp adapter into the tested Core
 9. UX polish / onboarding simplification / package visibility / owner + admin dashboard refresh / Finance UX and accountant-readiness polish
-10. Production hardening, browser QA, staged rollout
+10. Production hardening, full browser QA, controlled merge to main, Render production deploy, and staged rollout
 
 Business-first scope:
 - Kilas AI is a business operator/assistant, not a general chatbot.
