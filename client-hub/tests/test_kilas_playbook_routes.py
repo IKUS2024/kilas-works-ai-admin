@@ -99,6 +99,28 @@ class PlaybookRoutesTests(unittest.TestCase):
             result = self.send(self.identity,text=text,event=event)
         return result, model
 
+    def test_simple_greetings_reply_without_model_job_or_handover(self):
+        greetings = ('hai', 'Halo!', 'hi kak', 'selamat pagi', 'permisi', 'tes')
+        with patch.object(self.ai, '_call_claude', side_effect=AssertionError('greeting must not call provider')) as model:
+            for index, greeting in enumerate(greetings):
+                result = self.send(self.identity, text=greeting, event=f'greeting-event-{index:02d}')
+                self.assertEqual(result.status_code, 200)
+                self.assertEqual(store.conversation(7, self.cid)['mode'], 'AI_ACTIVE')
+        model.assert_not_called()
+        self.assertEqual(jobs.list_jobs(7)[1], 0)
+        replies = [row['content'] for row in store.thread(7, self.cid) if row['role'] == 'assistant']
+        self.assertEqual(replies, ['Halo! Ada yang bisa saya bantu hari ini?'] * len(greetings))
+
+        # A greeting prefix plus a real request must continue through normal extraction.
+        text = 'hai saya mau kirim 20 kg baju dari Guangzhou ke Tangerang'
+        result, model = self.deliver(text=text,
+            fields={'item':'baju','weight':'20 kg','origin':'Guangzhou','destination':'Tangerang'},
+            event='greeting-with-request-01')
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(model.call_count, 1)
+        self.assertEqual(jobs.list_jobs(7)[1], 1)
+        self.assertEqual(store.conversation(7, self.cid)['mode'], 'AI_ACTIVE')
+
     def test_create_retry_followup_one_call(self):
         result, model = self.deliver()
         self.assertEqual(result.status_code,200)
