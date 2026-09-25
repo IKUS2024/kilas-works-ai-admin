@@ -66,7 +66,12 @@ body.customer-ui>footer{display:none}
 .kh-product-title{min-width:0;flex:1}.kh-product-title h2{margin:0;font-size:16px;line-height:1.2}.kh-product-title p{margin:3px 0 0;color:var(--kh-muted);font-size:10px}
 .kh-product-count{margin-left:auto;display:flex;align-items:center;gap:5px;color:#b2b7be;font-size:10px;font-weight:750}.kh-product-count svg{width:14px;height:14px}
 
+.kh-business-switcher{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:2px 1px 9px;margin:-2px 0 1px}
+.kh-business-switcher::-webkit-scrollbar{display:none}
+.kh-business-tab{flex:0 0 auto;max-width:210px;min-height:34px;padding:7px 11px;border:1px solid var(--kh-border);border-radius:999px;background:#15191e;color:#aeb4bc;font-size:9.5px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.kh-business-tab.is-active{border-color:#b75011;background:rgba(255,122,26,.11);color:var(--kh-orange);box-shadow:inset 0 0 0 1px rgba(255,122,26,.08)}
 .kh-business-list{display:grid;gap:8px}
+.kh-business-card[hidden]{display:none!important}
 .kh-business-card{position:relative;border:1px solid var(--kh-border);border-radius:14px;background:#191d22;padding:10px}
 .kh-business-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:9px;align-items:center}
 .kh-business-avatar{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#4b3124,#241f1c);color:#ff9a52;border:1px solid #5a4030}
@@ -176,12 +181,19 @@ body.customer-ui>footer{display:none}
       <div class="kh-product-count"><span>{{ finance_businesses|length }} bisnis</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg></div>
     </div>
 
-    <div class="kh-business-list">
+    {% if finance_businesses|length > 1 %}
+    <div class="kh-business-switcher" role="tablist" aria-label="Pilih bisnis Finance" data-business-switcher="finance">
+      {% for b in finance_businesses %}
+      <button type="button" class="kh-business-tab {{ 'is-active' if loop.first else '' }}" data-business-target="{{ b.id }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ b.business_name }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="kh-business-list" data-business-list="finance">
     {% for b in finance_businesses %}
       {% set fs = b.finance_entitlement %}
       {% set finance_status = fs.status if fs else 'NOT_ACTIVATED' %}
       {% set finance_label = {'NOT_ACTIVATED':'Data lama','TRIAL_ACTIVE':'Trial aktif','PAID_ACTIVE':'Langganan aktif','EXPIRED':'Masa aktif habis'}.get(finance_status,'Finance') %}
-      <article class="kh-business-card">
+      <article class="kh-business-card" data-business-card="{{ b.id }}" {% if not loop.first and finance_businesses|length > 1 %}hidden{% endif %}>
         <div class="kh-business-top">
           <div class="kh-business-avatar" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -232,7 +244,14 @@ body.customer-ui>footer{display:none}
       <div class="kh-product-count"><span>{{ brain_businesses|length }} bisnis</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg></div>
     </div>
 
-    <div class="kh-business-list">
+    {% if brain_businesses|length > 1 %}
+    <div class="kh-business-switcher" role="tablist" aria-label="Pilih bisnis Kilas Assist" data-business-switcher="brain">
+      {% for b in brain_businesses %}
+      <button type="button" class="kh-business-tab {{ 'is-active' if loop.first else '' }}" data-business-target="{{ b.id }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ b.business_name }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="kh-business-list" data-business-list="brain">
     {% for b in brain_businesses %}
       {% with business=b %}{% include '_attention_home.html' %}{% endwith %}
       {% set brain_payment = namespace(verified=b.brain_payment_verified, status='VERIFIED' if b.brain_payment_verified else 'NONE') %}
@@ -242,7 +261,7 @@ body.customer-ui>footer{display:none}
           {% if p.payment.status == 'VERIFIED' %}{% set brain_payment.verified = true %}{% endif %}
         {% endif %}
       {% endfor %}
-      <article class="kh-business-card">
+      <article class="kh-business-card" data-business-card="{{ b.id }}" {% if not loop.first and brain_businesses|length > 1 %}hidden{% endif %}>
         <div class="kh-business-top">
           <div class="kh-business-avatar" aria-hidden="true">✦</div>
           <div class="kh-business-info">
@@ -359,6 +378,41 @@ body.customer-ui>footer{display:none}
 
 <script>
 (function(){
+  document.querySelectorAll('[data-business-switcher]').forEach(function(switcher){
+    var lane=switcher.getAttribute('data-business-switcher');
+    var list=document.querySelector('[data-business-list="'+lane+'"]');
+    if(!list)return;
+    var buttons=Array.prototype.slice.call(switcher.querySelectorAll('[data-business-target]'));
+    var cards=Array.prototype.slice.call(list.querySelectorAll('[data-business-card]'));
+    var storageKey='kilas:selected-business:'+lane;
+
+    function activate(id,remember){
+      var found=false;
+      buttons.forEach(function(btn){
+        var active=btn.getAttribute('data-business-target')===String(id);
+        btn.classList.toggle('is-active',active);
+        btn.setAttribute('aria-selected',active?'true':'false');
+        if(active){found=true;btn.scrollIntoView({block:'nearest',inline:'nearest'});}
+      });
+      cards.forEach(function(card){
+        card.hidden=card.getAttribute('data-business-card')!==String(id);
+      });
+      if(found&&remember){
+        try{localStorage.setItem(storageKey,String(id));}catch(e){}
+      }
+    }
+
+    buttons.forEach(function(btn){
+      btn.addEventListener('click',function(){activate(btn.getAttribute('data-business-target'),true);});
+    });
+
+    var remembered=null;
+    try{remembered=localStorage.getItem(storageKey);}catch(e){}
+    if(remembered&&buttons.some(function(btn){return btn.getAttribute('data-business-target')===remembered;})){
+      activate(remembered,false);
+    }
+  });
+
   var target=document.getElementById('kilas-current-date');
   if(!target)return;
   try{
