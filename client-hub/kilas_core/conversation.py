@@ -56,6 +56,8 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
     try:
         if not eligible(bid):
             return store.finish(event, error='provider_error')
+        if understanding.is_simple_greeting(message.text):
+            return store.finish(event, reply='Hai! Ada yang bisa saya bantu terkait produk atau layanan bisnis ini?')
         book = select((repo.get_business_profile(bid) or {}).get('category'))
         with jobs.transaction() as tx:
             expected = actions.snapshot(tx, bid, cid)

@@ -99,6 +99,30 @@ class PlaybookRoutesTests(unittest.TestCase):
             result = self.send(self.identity,text=text,event=event)
         return result, model
 
+    def test_simple_greeting_never_calls_model_creates_job_or_takeover(self):
+        result, model = self.deliver(text='hai', fields={}, event='phase5-greeting-001',
+                                     raw=output('hai', intent='HUMAN'))
+        self.assertEqual(result.status_code, 200)
+        model.assert_not_called()
+        self.assertEqual(jobs.list_jobs(7)[1], 0)
+        messages = store.thread(7, self.cid)
+        self.assertEqual(messages[-1]['role'], 'assistant')
+        self.assertIn('Ada yang bisa saya bantu', messages[-1]['content'])
+        with store.transaction() as tx:
+            conversation = store._locked(tx, 7, self.cid)
+        self.assertEqual(conversation['mode'], 'AI_ACTIVE')
+
+    def test_greeting_plus_real_request_still_uses_normal_interpretation(self):
+        text = 'hai saya mau kirim 20 kg baju dari Guangzhou ke Tangerang'
+        result, model = self.deliver(
+            text=text,
+            fields={'item':'baju','weight':'20 kg','origin':'Guangzhou','destination':'Tangerang'},
+            event='phase5-greeting-request-001',
+        )
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(model.call_count, 1)
+        self.assertEqual(jobs.list_jobs(7)[1], 1)
+
     def test_create_retry_followup_one_call(self):
         result, model = self.deliver()
         self.assertEqual(result.status_code,200)
