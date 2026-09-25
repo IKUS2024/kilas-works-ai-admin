@@ -42,10 +42,10 @@ FIELD_LABELS = {
 }
 
 PACKAGE_LABELS = {
-    "NONE": "Belum pakai Kilas Brain",
-    "AI_ADMIN": "Kilas Brain",
-    "AI_ADMIN_BASIC": "Kilas Brain",
-    "AI_ADMIN_PRO": "Kilas Brain",
+    "NONE": "Belum pakai Kilas Assist",
+    "AI_ADMIN": "Kilas Assist",
+    "AI_ADMIN_BASIC": "Kilas Assist",
+    "AI_ADMIN_PRO": "Kilas Assist",
 }
 
 BUSINESS_STATUS_LABELS = {
@@ -181,7 +181,7 @@ _STATUS_TABLES = {
 AUDIT_ACTION_LABELS = {
     "PROJECT_CREATED": "Pesanan dibuat",
     "PROJECT_STATUS_CHANGED": "Status pesanan diperbarui",
-    "business_upgraded_to_ai_admin": "Paket AI Admin diaktifkan",
+    "business_upgraded_to_ai_admin": "Paket Kilas Assist diaktifkan",
     "submitted_for_review": "Bisnis dikirim untuk ditinjau",
     "PAYMENT_PROOF_UPLOADED": "Bukti pembayaran diunggah",
     "CS_MANUAL_REPLY_SENT": "Balasan manual dikirim",
@@ -209,7 +209,7 @@ def humanize_missing_fields(fields):
 def missing_fields_sentence(fields):
     """Natural full-sentence Indonesian for a missing-required-fields warning, replacing a bare
     comma-separated list of raw/label field names. E.g. ["Bahasa utama", "Sapaan untuk pelanggan"]
-    -> "Lengkapi Bahasa utama dan Sapaan untuk pelanggan agar Kilas Brain dapat berkomunikasi sesuai
+    -> "Lengkapi Bahasa utama dan Sapaan untuk pelanggan agar Kilas Assist dapat berkomunikasi sesuai
     gaya bisnis ini." Falls back gracefully for 1 or 3+ items."""
     labels = humanize_missing_fields(fields)
     if not labels:
@@ -218,7 +218,7 @@ def missing_fields_sentence(fields):
         joined = labels[0]
     else:
         joined = ", ".join(labels[:-1]) + f" dan {labels[-1]}"
-    return f"Lengkapi {joined} agar Kilas Brain dapat berkomunikasi sesuai gaya bisnis ini."
+    return f"Lengkapi {joined} agar Kilas Assist dapat berkomunikasi sesuai gaya bisnis ini."
 
 
 def humanize_package(code):
@@ -252,7 +252,7 @@ def display_or_missing(value):
 _DETAIL_PATTERNS = [
     (re.compile(r'^fixed-price:\s*(.+?)\s*\(project_id=\d+\)$'), lambda m: f"Pesanan {m.group(1)} dibuat"),
     (re.compile(r'^checkout:\s*(\S+)$'), lambda m: f"Invoice {m.group(1)} dibuat"),
-    (re.compile(r'^package=NONE$'), lambda m: "Belum memiliki paket AI Admin"),
+    (re.compile(r'^package=NONE$'), lambda m: "Belum memiliki paket Kilas Assist"),
     (re.compile(r'^package=(\S+)$'), lambda m: f"Paket: {humanize_package(m.group(1))}"),
     (re.compile(r'^customer=(\S+)$'), lambda m: f"Customer: {m.group(1)}"),
     (re.compile(r'^config_version=(\d+)$'), lambda m: f"Konfigurasi tenant diperbarui (versi {m.group(1)})"),
@@ -273,8 +273,8 @@ def humanize_audit_action(action):
 
 def humanize_audit_detail(detail):
     """A raw audit_log.detail string -> human-readable Indonesian, when it matches one of a small
-    set of known structured formats (e.g. "fixed-price: AI Admin Pro (project_id=1)" ->
-    "Pesanan AI Admin Pro dibuat"). The RAW value in the database is never touched. A detail string
+    set of known structured formats (e.g. "fixed-price: Kilas Assist Pro (project_id=1)" ->
+    "Pesanan Kilas Assist Pro dibuat"). The RAW value in the database is never touched. A detail string
     that doesn't match any known pattern is returned exactly as stored — never hidden or
     truncated, since it may still carry technically-useful information for an admin even
     unformatted."""
