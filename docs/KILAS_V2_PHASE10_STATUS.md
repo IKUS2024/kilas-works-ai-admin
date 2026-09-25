@@ -4,6 +4,24 @@
 **Wait for all current-head CI after this documentation checkpoint before production mutation.**
 **RESUME FROM STATUS FILE.**
 
+## LIVE execution checkpoint — 2026-09-25
+
+All Phase 2–10 runs on final head 19ad910b4782ec9df0c6c1408fc295d3ac6c0288 SUCCESS.
+Production schema: 0055–0061 applied successfully from exact pinned archive, ordered and individually committed.
+Read-only inventory confirms all 22 expected new tables. All nine existing Finance fingerprints unchanged.
+Main merged via PR #16 to d2d8af60419630fd351d62654126db63a643ebee.
+Hub auto-deploy dep-daqvg37lk1mc73cvga00 BUILD_IN_PROGRESS at d2d8af6.
+Bot auto-deploy dep-daqvg37lk1mc73cvgb3g BUILD_IN_PROGRESS at d2d8af6.
+Prior LIVE deploys still rollback SHA until replacements succeed.
+Subscription backfill business 2 committed: ai_admin_pro ACTIVE, 2026-09-03T14:43:56.747677Z
+to 2026-10-03T14:43:56.747677Z, payment 4 only. Business 13 has no AI subscription.
+Backfill retry confirmed no-op; exactly one BACKFILLED and one PAYMENT_EVIDENCE audit event.
+Hub pilot flags saved using Save only: Core=true, allowlist=2, Customers/Jobs/Playbooks/Operations/Web=true.
+They take effect on next deploy. Bridge/WhatsApp remain absent/default OFF; no selected WA channel.
+Bot V2 flags unchanged/default OFF. Boot migration false unchanged.
+Production V2 smoke pending. Rollback target 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c ready.
+No manual deploy triggered. Do not mark COMPLETE until both replacements are LIVE and QA passes.
+
 ## Paid lifecycle repair checkpoint — supersedes prior pilot blockers
 
 User authorizes AI/Web Chat pilot **business 2 Pm__bae**, preserving all existing data;
