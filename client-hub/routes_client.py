@@ -1006,7 +1006,13 @@ def _clear_demo_kilas_state(business_id):
 
 
 def _demo_kilas_phone_for_business(business_id):
-    """Resolve only the platform conversation that supplied this browser's opaque demo code."""
+    """Resolve only the platform conversation that supplied this browser's opaque demo code.
+
+    The sender may be an ordinary customer OR the Kilas owner testing from the owner number.
+    We therefore accept the exact token in either platform message mode, but persist the matched
+    message id as the lower bound for everything mirrored into this workspace. Older platform or
+    owner-assistant history can never leak into the demo Inbox.
+    """
     state = _demo_kilas_state(business_id)
     if not state:
         return None
@@ -1016,7 +1022,8 @@ def _demo_kilas_phone_for_business(business_id):
         return None
 
     phone = platform_inbox_service.normalize_customer_phone(state.get("phone"))
-    if phone:
+    start_message_id = state.get("start_message_id")
+    if phone and isinstance(start_message_id, int) and start_message_id > 0:
         return phone
 
     token = state.get("token")
@@ -1026,8 +1033,8 @@ def _demo_kilas_phone_for_business(business_id):
     code = "KWDEMO-" + token
     try:
         row = db.query_one(
-            "SELECT number FROM messages "
-            "WHERE mode='customer' AND role='user' AND content LIKE ? "
+            "SELECT id, number FROM messages "
+            "WHERE mode IN ('customer','owner') AND role='user' AND content LIKE ? "
             "ORDER BY id DESC LIMIT 1",
             ("%" + code + "%",),
         )
@@ -1038,14 +1045,33 @@ def _demo_kilas_phone_for_business(business_id):
         return None
 
     state["phone"] = phone
+    state["start_message_id"] = int(row["id"])
     state["bound_at"] = now
     state["expires_at"] = now + _DEMO_KILAS_BOUND_SECONDS
     _save_demo_kilas_state(business_id, state)
     return phone
 
 
+def _demo_kilas_rows(business_id, phone, limit=160):
+    """Return only messages created after this browser proved its demo token."""
+    state = _demo_kilas_state(business_id) or {}
+    start_message_id = state.get("start_message_id")
+    if not isinstance(start_message_id, int) or start_message_id <= 0:
+        return []
+    try:
+        rows = db.query_all(
+            "SELECT id, role, content, created_at FROM messages "
+            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
+            "ORDER BY id ASC LIMIT ?",
+            (phone, start_message_id, int(limit)),
+        )
+    except Exception:
+        return []
+    return [dict(row) for row in rows]
+
+
 def _demo_kilas_clean_thread(business_id, phone):
-    rows = platform_inbox_service.get_thread(phone)
+    rows = _demo_kilas_rows(business_id, phone)
     state = _demo_kilas_state(business_id) or {}
     token = state.get("token")
     if not isinstance(token, str):
@@ -1056,11 +1082,46 @@ def _demo_kilas_clean_thread(business_id, phone):
         item = dict(row)
         content = item.get("content")
         if isinstance(content, str) and code in content:
-            content = re.sub(r"\s*K(?:ode)?\s*demo\s*:\s*" + re.escape(code), "", content, flags=re.I).strip()
+            content = re.sub(
+                r"\s*K(?:ode)?\s*demo\s*:\s*" + re.escape(code),
+                "",
+                content,
+                flags=re.I,
+            ).strip()
             content = content.replace(code, "").strip()
             item["content"] = content or "Halo Kilas Works, saya mau coba Demo Kilas"
         cleaned.append(item)
     return cleaned
+
+
+def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
+    rows = _demo_kilas_clean_thread(business_id, phone)
+    if not rows:
+        return None
+    name = platform_inbox_service.get_customer_name(phone)
+    needle = (search or "").strip().lower()
+    if needle:
+        searchable = " ".join([
+            phone,
+            name or "",
+            " ".join(str(row.get("content") or "") for row in rows),
+        ]).lower()
+        if needle not in searchable:
+            return None
+    # The demo mirror itself is read-only, so filtering on takeover mode is not meaningful.
+    if mode_filter == "HUMAN_TAKEOVER":
+        return None
+    latest = rows[-1]
+    return {
+        "customer_phone": phone,
+        "customer_name": name,
+        "last_role": latest.get("role"),
+        "last_message": latest.get("content") or "",
+        "last_message_at": latest.get("created_at"),
+        "mode": "AI_ACTIVE",
+        "source": "demo",
+        "is_demo": True,
+    }
 
 
 @client_bp.route("/business/<int:business_id>/demo-kilas")
@@ -1134,19 +1195,10 @@ def inbox_page(business_id):
     # here. We never list the platform inbox wholesale.
     demo_phone = _demo_kilas_phone_for_business(business_id)
     if demo_phone:
-        demo_match = next(
-            (
-                dict(row)
-                for row in platform_inbox_service.list_conversations(
-                    search=search, mode_filter=mode_filter or None
-                )
-                if row.get("customer_phone") == demo_phone
-            ),
-            None,
+        demo_match = _demo_kilas_conversation(
+            business_id, demo_phone, search=search, mode_filter=mode_filter or None
         )
         if demo_match:
-            demo_match["source"] = "demo"
-            demo_match["is_demo"] = True
             conversations.insert(0, demo_match)
 
     conversations_total = len(conversations)
@@ -1170,18 +1222,16 @@ def inbox_page(business_id):
             if not platform_inbox_service.customer_exists(selected_phone):
                 abort(404)
             thread = _demo_kilas_clean_thread(business_id, selected_phone)
-            try:
-                mode = platform_inbox_service.get_state(selected_phone)
-            except Exception:
-                mode = "STATE_UNAVAILABLE"
+            if not thread:
+                abort(404)
             selected = {
                 "customer_phone": selected_phone,
                 "customer_name": platform_inbox_service.get_customer_name(selected_phone),
-                "mode": mode,
+                "mode": "AI_ACTIVE",
                 "source": "demo",
                 "is_demo": True,
             }
-            window = platform_inbox_service.freeform_window_status(selected_phone)
+            window = None
         else:
             if not inbox_service.customer_exists(business_id, selected_phone):
                 abort(404)
