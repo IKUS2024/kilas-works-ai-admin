@@ -7,6 +7,8 @@
 .kw-business-switcher button{flex:0 0 auto;max-width:220px;min-height:36px;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--card);color:var(--text-dim);font:inherit;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .kw-business-switcher button.is-active{border-color:var(--orange);background:color-mix(in srgb,var(--orange) 10%,transparent);color:var(--orange)}
 .kw-assist-card[hidden]{display:none!important}
+.kw-assist-primary-actions .kw-demo-btn{background:var(--orange);border-color:var(--orange);color:#17110d;font-weight:900}
+.kw-assist-primary-actions .kw-demo-btn:hover{filter:brightness(1.03)}
 </style>
 <section class="kw-page kw-assist-home">
   <header class="kw-page-head kw-assist-head">
@@ -15,7 +17,6 @@
       <h1>Selamat datang, {{ user.full_name or 'Pemilik' }}.</h1>
       <p>Kelola percakapan customer, customer, dan pekerjaan bisnis dari satu tempat.</p>
     </div>
-    <a class="kw-head-link" href="{{ url_for('workspace.more') }}">Kelola ruang kerja <span aria-hidden="true">→</span></a>
   </header>
 
   {% if workspace_ui.unavailable %}
@@ -62,9 +63,11 @@
           <p class="kw-eyebrow">WORKSPACE</p>
           <h2>{{ business.business_name }}</h2>
         </div>
-        <span class="kw-business-status kw-business-status-{{ business.status|lower }}">
-          {{ business.status|humanize_status('business') }}
-        </span>
+        {% if business.status == 'ACTIVE' %}
+        <span class="kw-business-status kw-business-status-active">Aktif</span>
+        {% else %}
+        <span class="kw-business-status kw-business-status-approved">Mode Demo</span>
+        {% endif %}
       </header>
 
       <section class="kw-assist-hero">
@@ -74,8 +77,8 @@
           <p>Balas customer, lihat konteks percakapan, dan tindak lanjuti permintaan tanpa pindah-pindah tempat.</p>
         </div>
         <div class="kw-assist-primary-actions">
-          <a class="btn kw-primary-cta" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a>
           {% include '_web_share.html' %}
+          <a class="btn secondary" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a>
         </div>
       </section>
 
@@ -97,39 +100,9 @@
         </a>
       </nav>
 
-      {% if business.status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','SUSPENDED') or (setup and setup.missing) %}
-      <section class="kw-next-step">
-        <div class="kw-next-step-copy">
-          <p class="kw-eyebrow">PERLU DISELESAIKAN</p>
-          {% if setup and setup.missing %}
-            <h3>Lengkapi setup bisnis</h3>
-            <p>{{ setup.missing|join(', ') }}.</p>
-          {% elif business.status == 'READY_FOR_REVIEW' %}
-            <h3>Data bisnis sedang ditinjau</h3>
-            <p>Tidak ada yang perlu diulang. Anda tetap bisa membuka workspace.</p>
-          {% elif business.status == 'NEEDS_REVISION' %}
-            <h3>Ada data yang perlu diperbaiki</h3>
-            <p>Tinjau catatan agar setup bisa dilanjutkan.</p>
-          {% elif business.status == 'APPROVED' %}
-            <h3>Setup bisnis sudah disetujui</h3>
-            <p>Periksa aktivasi channel dan status layanan.</p>
-          {% elif business.status == 'SUSPENDED' %}
-            <h3>Kilas Assist sedang dijeda</h3>
-            <p>Periksa status langganan atau hubungi Kilas Works.</p>
-          {% endif %}
-        </div>
-        <div class="kw-next-step-actions">
-          {% if setup and setup.missing %}
-          <a href="{{ url_for('client.wizard_step',business_id=business.id,step=setup.step) }}">Lanjutkan setup →</a>
-          {% endif %}
-          {% if business.status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','SUSPENDED') %}
-          <a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Tinjau bisnis →</a>
-          {% endif %}
-        </div>
-      </section>
-      {% endif %}
+      {# Demo-first home: onboarding/setup prompts intentionally live outside this screen. #}
 
-      {% if attention_data and attention_data.total %}
+      {% if business.status == 'ACTIVE' and attention_data and attention_data.total %}
       <section class="kw-attention-block" data-attention-home>
         <div class="kw-attention-head">
           <div>
@@ -142,25 +115,10 @@
       </section>
       {% endif %}
 
-      {% if setup and setup.subscription and setup.subscription.message %}
+      {% if business.status == 'ACTIVE' and setup and setup.subscription and setup.subscription.message %}
       <p class="kw-subscription-note {{ setup.subscription.level }}" role="status">{{ setup.subscription.message }}</p>
       {% endif %}
 
-      <details class="kw-details kw-assist-details">
-        <summary>Setup, channel &amp; penggunaan</summary>
-        <div class="kw-details-grid">
-          <p><span>Paket</span><strong>{{ business.package|humanize_package }}</strong></p>
-          <p><span>Status</span><strong>{{ business.status|humanize_status('business') }}</strong></p>
-          <p><span>Respons AI bulan ini</span><strong>{% if setup and setup.usage %}{{ setup.usage.replies }}{% else %}Belum tersedia{% endif %}</strong></p>
-        </div>
-        {% if setup and setup.usage and setup.usage.status != 'NORMAL' %}
-        <p class="kw-note">Penggunaan AI tinggi. Kilas Works dapat menghubungi Anda untuk meninjau kebutuhan; layanan tetap berjalan.</p>
-        {% endif %}
-        <div class="kw-detail-links">
-          <a href="{{ url_for('workspace.go',area='review',business_id=business.id) }}">Setup &amp; aktivasi</a>
-          <a href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Pengetahuan bisnis</a>
-        </div>
-      </details>
     </article>
   {% endfor %}
   </div>
