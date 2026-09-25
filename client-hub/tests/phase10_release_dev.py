@@ -27,7 +27,7 @@ repo.save_ai_normalized_config(case.source, 'Synthetic approved logistics fixtur
                               {'business_name':'Release Logistics','hours':'09.00-17.00'}, [])
 os.environ.update(KILAS_WEB_CHAT_ENABLED='true', KILAS_PLAYBOOKS_V2_ENABLED='true',
                   KILAS_OPERATIONS_V2_ENABLED='true', KILAS_FINANCE_ACCESS_MODE='self_service',
-                  KILAS_FINANCE_UNLIMITED_TRIAL='false')
+                  KILAS_FINANCE_UNLIMITED_TRIAL='false', KILAS_FINANCE_OPERATOR_ENABLED='true')
 finance_entitlements.start_trial(case.target, case.actor)
 finance_entitlements.start_trial(case.foreign, case.foreign_actor)
 model = patch.object(ai_onboarding, '_call_claude', side_effect=reply); model.start()
