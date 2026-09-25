@@ -81,10 +81,7 @@
         </a>
       {% else %}
         {% if demo_phone %}
-        <div class="kw-demo-empty kw-demo-connected-empty">
-          <strong>WhatsApp demo tersambung ✓</strong>
-          <p class="muted">Inbox tetap terhubung ke chat WhatsApp ini. Kirim pesan berikutnya dari WhatsApp dan percakapan akan muncul otomatis di sini.</p>
-        </div>
+        {# Connected demo state is persistent. Never show the setup/demo CTA again. #}
         {% else %}
         <div class="kw-demo-empty">
           <strong>Hubungkan WhatsApp untuk demo</strong>
