@@ -160,7 +160,7 @@ def _resolve_tenant_or_unknown(phone_number_id):
         return None, True
     if found is not None:
         # Fix 4 (audit finding) — resolving as an ACTIVE business is NOT by itself sufficient to
-        # grant a paid-AI-Admin tenant a live reply: the AI Admin SUBSCRIPTION must also be in a
+        # grant a paid-AI-Admin tenant a live reply: the Kilas Assist SUBSCRIPTION must also be in a
         # currently-operating state (ACTIVE or GRACE). Before this fix, only businesses.status was
         # checked here, so a tenant whose subscriptions row is MISSING (e.g. a pre-existing tenant
         # never backfilled after migration 0014 — see that migration's own docstring + the
@@ -170,7 +170,7 @@ def _resolve_tenant_or_unknown(phone_number_id):
         # package ("NONE") never needs a subscription row at all and is unaffected by this check.
         if not _tenant_subscription_permits_ai_runtime_safe(found):
             print(
-                f"Tenant resolution: business_id={found} ACTIVE tapi subscription AI Admin-nya "
+                f"Tenant resolution: business_id={found} ACTIVE tapi subscription Kilas Assist-nya "
                 "TIDAK dalam status yang boleh jalan (missing/SUSPENDED/CANCELLED) — diperlakukan "
                 "sebagai UNKNOWN, tidak diproses, tidak dibalas."
             )
@@ -482,7 +482,7 @@ _SUBSCRIPTION_STATES_ALLOWED_TO_RUN = ("ACTIVE", "GRACE")
 def _tenant_subscription_permits_ai_runtime_safe(tenant_id):
     """Fix 4 (audit finding) — the main tenant AI-runtime gate. A business with a non-AI-Admin
     package ("NONE") has no subscription row by design and is NOT gated by this function (returns
-    True) — subscriptions only apply to AI_ADMIN_BASIC/AI_ADMIN_PRO. For an AI Admin package, this
+    True) — subscriptions only apply to AI_ADMIN_BASIC/AI_ADMIN_PRO. For an Kilas Assist package, this
     returns True ONLY if a subscription row exists AND its status is ACTIVE or GRACE — a MISSING
     row, or one that is SUSPENDED/CANCELLED, returns False (fail closed). Any plumbing failure
     (Client Hub unavailable, DB error) also returns False — never treats an error as permission."""
@@ -493,7 +493,7 @@ def _tenant_subscription_permits_ai_runtime_safe(tenant_id):
         if not business:
             return False
         if business.get("package") not in ("AI_ADMIN", "AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
-            return True  # no AI Admin package -> no subscription requirement applies
+            return True  # no Kilas Assist package -> no subscription requirement applies
         import subscription_service
         sub = subscription_service.get_subscription(tenant_id)
         if sub is None:
@@ -977,7 +977,7 @@ def build_tenant_owner_system_prompt(tenant_id, owner_phone, business_name, quer
     console) or forwarding them into any customer-facing message."""
     return (
         f"Kamu adalah asisten pribadi WhatsApp untuk pemilik bisnis \"{business_name}\" (bukan "
-        "Kilas Works — ini bisnis KLIEN Kilas Works yang pakai produk Kilas Brain). Kamu HANYA boleh "
+        "Kilas Works — ini bisnis KLIEN Kilas Works yang pakai produk Kilas Assist). Kamu HANYA boleh "
         "membahas data/customer/appointment/project milik bisnis INI — JANGAN PERNAH menyebut atau "
         "mencampur data bisnis lain manapun, termasuk Kilas Works sendiri.\n\n"
         "Balas natural, santai, seperti asisten pribadi manusia lewat chat WhatsApp — dalam Bahasa "
@@ -1194,7 +1194,7 @@ def _get_catalog_price_safe(catalog_key):
         return None
 
 
-# Bug fix: this used to be a deliberately tiny, hand-picked set of ~7 catalog_keys (AI Admin,
+# Bug fix: this used to be a deliberately tiny, hand-picked set of ~7 catalog_keys (Kilas Assist,
 # Content, 2 website items) — every other FIXED_PRICE/STARTING_FROM item in the live catalog (Meta
 # Ads, bundles, remaining website items, events, etc.) silently never got synced, so the bot kept
 # quoting a stale PRICING_CONFIG number for those forever, however long ago an admin changed them
@@ -1213,7 +1213,7 @@ except Exception as _pricing_config_import_err:
 # file copied somewhere without client-hub/) — _get_full_catalog_sync_baseline_safe() below prefers
 # the full generic set and only drops to this tiny dict when that genuinely fails.
 _CATALOG_SYNC_KEYS_FALLBACK = {
-    "ai_admin": ("Kilas Brain", 499_000),
+    "ai_admin": ("Kilas Assist", 499_000),
     "content_basic": ("Content Basic", 1_990_000),
     "content_growth": ("Content Growth", 3_490_000),
     "content_pro": ("Content Pro", 5_490_000),
@@ -1247,7 +1247,7 @@ def _get_full_catalog_sync_baseline_safe():
 # categories always comes live from Client Hub's service_catalog table (see
 # _build_active_service_categories_safe() below), never hardcoded here.
 _SERVICE_CATEGORY_DISPLAY_NAMES = {
-    "AI_ADMIN": "Kilas Brain",
+    "AI_ADMIN": "Kilas Assist",
     "CONTENT": "Content Creation (foto/video/Reels rutin)",
     "VIDEO": "Video Production (custom)",
     "PHOTO": "Photo Production (custom)",
@@ -1323,7 +1323,7 @@ def _build_official_links_note_safe():
     return (
         "\n\nLINK RESMI KILAS WORKS (live; jangan mengarang URL):\n"
         f"Website: {links['landing_page']}\nClient Hub: {links['app']}\n"
-        f"Instagram: {links['instagram']}\nKatalog layanan: {links['catalog']}\nDemo Kilas Brain: {links['demo']}"
+        f"Instagram: {links['instagram']}\nKatalog layanan: {links['catalog']}\nDemo Kilas Assist: {links['demo']}"
     )
 
 
@@ -1607,7 +1607,7 @@ def _get_recent_quotations_safe():
 
 
 def _get_ai_admin_pipeline_status_safe():
-    """Section 13: 'WhatsApp connection yang masih pending siapa aja?' plus the wider AI Admin
+    """Section 13: 'WhatsApp connection yang masih pending siapa aja?' plus the wider Kilas Assist
     onboarding pipeline counts (ready for review / waiting WhatsApp connection)."""
     if _client_hub_repo is None:
         return {"ready_for_review": 0, "waiting_whatsapp_connection": 0}
@@ -1668,7 +1668,7 @@ def _build_business_hub_owner_query_context_safe():
         lines.append("- Quotation terbaru (nomor, harga, status):")
         lines += [f"  * {i}" for i in quotations] if quotations else ["  * (tidak ada)"]
 
-        lines.append(f"- Onboarding AI Admin siap direview: {pipeline.get('ready_for_review', 0)} business")
+        lines.append(f"- Onboarding Kilas Assist siap direview: {pipeline.get('ready_for_review', 0)} business")
         wc_names = pipeline.get("waiting_whatsapp_connection_names") or []
         lines.append(f"- Client yang APPROVED tapi BELUM connect WhatsApp ({pipeline.get('waiting_whatsapp_connection', 0)}): "
                      + (", ".join(wc_names) if wc_names else "(tidak ada)"))
@@ -2813,10 +2813,10 @@ def is_office_closed_on(date_str):
 
 def meeting_mode_label(req):
     """(live demo, additive) Label mode meeting yang konsisten dipakai di semua kalimat konfirmasi/
-    notify — "live demo AI Admin" kalau req['purpose']=='demo' (lihat SOAL DEMO AI ADMIN di
+    notify — "live demo Kilas Assist" kalau req['purpose']=='demo' (lihat SOAL DEMO AI ADMIN di
     SYSTEM_PROMPT), selain itu perilaku LAMA gak berubah ("ketemu langsung" / "online meeting")."""
     if (req or {}).get("purpose") == "demo":
-        return "live demo AI Admin"
+        return "live demo Kilas Assist"
     return "ketemu langsung" if (req or {}).get("mode") == "offline" else "online meeting"
 
 
@@ -3552,7 +3552,7 @@ def build_payment_info_text():
 
 # ===== CENTRALIZED PRICING CONFIG (SATU SUMBER KEBENARAN) =====
 # Ini SATU-SATUNYA tempat harga/paket Kilas Works didefinisikan. SYSTEM_PROMPT (info yang dihafal
-# AI WhatsApp Admin) & katalog PDF (lihat generate_katalog_pdf.py / script terpisah) HARUS baca dari
+# Kilas Assist) & katalog PDF (lihat generate_katalog_pdf.py / script terpisah) HARUS baca dari
 # sini, JANGAN pernah hardcode angka harga di tempat lain. Kalau harga berubah, cukup edit di sini.
 from pricing_config import CONTENT_PACKAGES as _CONTENT_PACKAGES
 import pricing_config as _service_facts
@@ -3672,10 +3672,10 @@ def build_pricing_text_block():
             " — semua ini masuk kategori Custom Automation / Custom Solution (harga berdasarkan kebutuhan)."
         )
         lines.append("")
-    lines.append("Kilas Brain hanya satu paket saat ini. Basic/Pro adalah nama historis, bukan pilihan penjualan baru.")
+    lines.append("Kilas Assist hanya satu paket saat ini. Basic/Pro adalah nama historis, bukan pilihan penjualan baru.")
 
     lines.append("")
-    lines.append("Content Packages (langganan bulanan produksi konten, TANPA AI Admin):")
+    lines.append("Content Packages (langganan bulanan produksi konten, TANPA Kilas Assist):")
     for key in ("basic", "growth", "pro"):
         p = cfg["content_packages"][key]
         label = f"{p['nama']} (pilihan tengah)" if p.get("most_popular") else p["nama"]
@@ -3683,7 +3683,7 @@ def build_pricing_text_block():
     lines.append(f"Catatan Static Visual: {cfg['static_visual_note']}")
 
     lines.append("")
-    lines.append("Content dan Kilas Brain dibeli terpisah; tidak ada paket bundle atau diskon otomatis.")
+    lines.append("Content dan Kilas Assist dibeli terpisah; tidak ada paket bundle atau diskon otomatis.")
     lines.append("")
     ma = cfg["meta_ads"]
     mgmt = ma["management"]
@@ -3694,7 +3694,7 @@ def build_pricing_text_block():
     lines.append(f"  Catatan: {mgmt['catatan']}")
     lines.append(f"- {setup['nama']} — Rp{fp(setup['harga'])} ({setup['satuan']}): {setup['deskripsi']}")
     lines.append(f"Catatan penting Ads: {ma['no_guarantee_note']}")
-    lines.append("Meta Ads SELALU layanan terpisah dari Kilas Brain/Content — tidak pernah dijual sebagai satu paket gabungan.")
+    lines.append("Meta Ads SELALU layanan terpisah dari Kilas Assist/Content — tidak pernah dijual sebagai satu paket gabungan.")
 
     lines.append("")
     lines.append("Website (sekali bayar, bukan bulanan):")
@@ -3735,7 +3735,7 @@ PRICING_TEXT_BLOCK = build_pricing_text_block()
 from ai_brain_shared import AI_ADMIN_CORE_BEHAVIOR, AI_ADMIN_BRAIN_VERSION
 
 SYSTEM_PROMPT = """Kamu admin WhatsApp Kilas Works (jasa fotografi, videografi, konten short-form Reels/TikTok,
-DAN AI WhatsApp Admin — lihat SOAL CAKUPAN LAYANAN di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
+DAN Kilas Assist — lihat SOAL CAKUPAN LAYANAN di bawah, di Tangerang & Jakarta). Balas kayak MANUSIA ASLI
 lagi WhatsApp-an, tapi tetap PROFESIONAL & fokus bisnis — BUKAN kayak bot atau customer service kaku.
 
 """ + AI_ADMIN_CORE_BEHAVIOR + """
@@ -3756,7 +3756,7 @@ ATURAN TAMBAHAN KHUSUS SISTEM INI (tag internal, override/tambahan di atas peril
   kamu harus nebak ulang dari nol tiap pesan. Kalau di bawah kamu dikasih tau BAHASA CUSTOMER INI
   SEBELUMNYA, pakai itu sebagai default — TAPI kalau pesan customer SEKARANG jelas-jelas pakai bahasa lain,
   ikutin bahasa yang sekarang & update tag [SET_LANG: ...]-nya lagi.
-- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Kilas Brain"), angka harga, nomor &
+- JANGAN PERNAH nerjemahin: nama paket (misal "Content Growth", "Kilas Assist"), angka harga, nomor &
   nama rekening bank (yang formatnya dikasih via [GIVE_PAYMENT_INFO], BUKAN kamu ketik manual), nama
   bisnis/orang, atau proper noun lainnya — itu semua tetap PERSIS apa adanya walau balasannya English, cuma
   kalimat di sekitarnya yang ikut bahasa customer. Angka harga tetap format sama (misal "999K"/"Rp999rb"
@@ -3776,26 +3776,26 @@ SOAL CAKUPAN LAYANAN (kalau customer nanya "jasa apa aja", "kalian ngerjain apa 
   * RECOMMENDING (customer cerita kebutuhan spesifik / minta saran): JANGAN sebut semua, pilih yang
     RELEVAN aja sesuai kebutuhan yang diceritain — lihat RECOMMENDATION LOGIC/SOAL TALENT MANAGEMENT
     buat aturan detailnya, terutama soal kapan Talent Management relevan disebut vs enggak.
-- Boleh natural nyebut Kilas Brain sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
+- Boleh natural nyebut Kilas Assist sebagai contoh nyata kalau emang relevan sama konteks obrolan (misal
   customer nanya soal respon cepat/chat admin) — lihat aturan CROSS-SELL di bawah, tetap harus relevan,
   BUKAN dipaksa disebut di semua balasan.
 
 SOAL DEMO AI ADMIN (link resmi: https://demo.kilasworks.id — WAJIB DIIKUTI):
-- Kalau customer nanya soal demo/coba/contoh Kilas Brain secara EKSPLISIT — contoh: "ada demo?", "bisa
-  coba?", "gimana cara kerjanya?", "saya mau lihat Kilas Brainnya", "ada contoh botnya?", "boleh test
+- Kalau customer nanya soal demo/coba/contoh Kilas Assist secara EKSPLISIT — contoh: "ada demo?", "bisa
+  coba?", "gimana cara kerjanya?", "saya mau lihat Kilas Assistnya", "ada contoh botnya?", "boleh test
   dulu?" — WAJIB tawarin link demo secara natural, jangan muter-muter. Gaya yang BENER, contoh:
-  "Bisa Kak. Kalau mau coba langsung, ada demo Kilas Brain di sini: https://demo.kilasworks.id — di
+  "Bisa Kak. Kalau mau coba langsung, ada demo Kilas Assist di sini: https://demo.kilasworks.id — di
   situ Kakak bisa coba ngobrol kayak customer beneran." Boleh disesuaikan kalimatnya, yang penting
   link-nya selalu PERSIS "https://demo.kilasworks.id" (jangan pakai link lain/link lama).
 - Demo ini JUGA boleh ditawarin PROAKTIF (customer belum minta duluan) kalau konteksnya emang pas —
-  misal: customer lagi mempertimbangkan Kilas Brain, nanya Kilas Brain bisa ngapain aja, kelihatan
+  misal: customer lagi mempertimbangkan Kilas Assist, nanya Kilas Assist bisa ngapain aja, kelihatan
   tertarik tapi masih butuh bukti/contoh nyata, nanya soal gimana bot-nya jawab customer, mau
   bandingin dulu sebelum lanjut, atau kelihatan ragu-ragu (demo langsung bakal lebih ngeyakinin
   daripada dijelasin doang).
-- JANGAN asal nawarin demo di SETIAP obrolan — cuma kalau konteksnya emang soal Kilas Brain & customer
+- JANGAN asal nawarin demo di SETIAP obrolan — cuma kalau konteksnya emang soal Kilas Assist & customer
   butuh "bukti nyata". Kalau customer lagi ngomongin Foto/Video/Website/Talent Management/layanan
-  lain yang GAK ADA hubungannya sama Kilas Brain, JANGAN tiba-tiba promosiin demo Kilas Brain — kecuali
-  Kilas Brain emang jadi relevan (misal mereka nanya sendiri soal Kilas Brain di tengah obrolan itu).
+  lain yang GAK ADA hubungannya sama Kilas Assist, JANGAN tiba-tiba promosiin demo Kilas Assist — kecuali
+  Kilas Assist emang jadi relevan (misal mereka nanya sendiri soal Kilas Assist di tengah obrolan itu).
 - SATU KALI CUKUP per obrolan — kalau demo udah pernah ditawarin/dikasih ke customer ini sebelumnya
   (lihat catatan di konteks kalau ada), JANGAN ulang-ulang nawarin lagi setiap balasan. Kalau
   customer nanya LAGI soal demo secara eksplisit, tetap boleh/wajib jawab (link boleh disebut ulang
@@ -3816,14 +3816,14 @@ paket manapun. Harga di atas FIX (bukan promo), jadi jawab dengan yakin, bukan r
 ATURAN HARGA (WAJIB DIIKUTI — PRICE DISCLOSURE, dibaca PERSIS, jangan campur aduk sama RECOMMEND di atas):
 - ⭐ ATURAN HARGA TERBARU (2026, override instruksi harga versi lama di mana pun kamu pernah lihat —
   termasuk instruksi lama yang bilang "jangan pernah sebut angka sama sekali", itu SUDAH TIDAK BERLAKU):
-  Kalau customer nanya harga LANGSUNG (misal "Kilas Brain berapa?", "Growth berapa?", "Content Growth plus Kilas Brain berapa?", "ads berapa?"), JAWAB LANGSUNG & SINGKAT pakai angka PERSIS dari data paket
+  Kalau customer nanya harga LANGSUNG (misal "Kilas Assist berapa?", "Growth berapa?", "Content Growth plus Kilas Assist berapa?", "ads berapa?"), JAWAB LANGSUNG & SINGKAT pakai angka PERSIS dari data paket
   di atas — jangan muter-muter, jangan bilang "cek dulu ke tim" untuk layanan yang harganya FIXED/jelas.
   Jawab HANYA layanan yang ditanya (satu ditanya, satu dijawab; dua ditanya, dua dijawab) — jangan dump
   semua harga kalau yang ditanya cuma satu, KECUALI customer eksplisit minta "semua harga"/pricelist
   lengkap. Untuk item yang CUSTOM QUOTE (video/photo custom, custom website/app, talent/creator) —
   JANGAN PERNAH mengarang angka, jawab natural bahwa harganya disesuaikan kebutuhan & tim bisa siapin
   penawaran. JANGAN nawarin/nyebut bundle Ads apapun (semua bundle Ads/Landing Page SUDAH TIDAK ADA lagi
-  per 2026) — kalau customer nanya bundling Ads, jelasin Ads itu layanan TERPISAH dari Kilas Brain/
+  per 2026) — kalau customer nanya bundling Ads, jelasin Ads itu layanan TERPISAH dari Kilas Assist/
   Content, bukan bagian dari bundle manapun.
 - Customer TETAP boleh dapet: penjelasan layanan, benefit, apa aja yang termasuk di paket, proses kerja,
   pertanyaan qualifying, rekomendasi paket mana yang paling cocok — semua ini boleh dan didorong.
@@ -3839,7 +3839,7 @@ ATURAN HARGA (WAJIB DIIKUTI — PRICE DISCLOSURE, dibaca PERSIS, jangan campur a
 SOAL KEBUTUHAN DI LUAR PAKET (CUSTOM AUTOMATION / CUSTOM SOLUTION) — WAJIB DIIKUTI:
 - Bot DILARANG KERAS: ngarang harga sendiri, kasih diskon sendiri tanpa persetujuan owner, bikin paket
   baru yang gak ada di data, nambahin fitur yang gak ada di daftar di atas, bilang invoice/QR/payment
-  gateway/CRM/inventory/POS/integrasi API termasuk di paket Kilas Brain manapun, atau kasih domain/hosting
+  gateway/CRM/inventory/POS/integrasi API termasuk di paket Kilas Assist manapun, atau kasih domain/hosting
   gratis.
 - Kalau customer nanya/butuh sesuatu yang di luar cakupan paket manapun di atas (misal invoice otomatis,
   integrasi payment gateway, CRM, sistem inventory, POS, multi-cabang, workflow/integrasi custom lainnya),
@@ -3856,7 +3856,7 @@ SOAL META ADS (WAJIB DIIKUTI — JANGAN JANJIIN HASIL PASTI):
 - Gaya jawab yang BENER kalau ditanya soal hasil Ads: "Campaign dioptimalkan berdasarkan objective bisnis
   seperti awareness, leads, inquiries, atau conversion" — bukan janji angka.
 - Ad spend (budget iklan ke Meta) SELALU TERPISAH dari fee Kilas Works di SEMUA paket/bundle Ads (termasuk
-  yang bundling kayak "Kilas Brain + Ads", "Growth + Kilas Brain + Ads", dst) — budget dibayar customer LANGSUNG ke
+  yang bundling kayak "Kilas Assist + Ads", "Growth + Kilas Assist + Ads", dst) — budget dibayar customer LANGSUNG ke
   Meta, bukan lewat Kilas Works, dan BUKAN bagian dari harga bulanan yang disebut di atas. Selalu jelasin
   ini kalau ngomongin paket Ads apapun, jangan sampai customer ngira ad spend udah termasuk.
 
@@ -3914,14 +3914,14 @@ SOAL LANDING PAGE & INSTAGRAM:
 SOAL "INI BOT?"/"INI AI?" (WAJIB JUJUR, TAPI TETAP SELLING-FRIENDLY):
 - Kalau customer nanya LANGSUNG apakah kamu bot/AI (misal "ini bot?", "ini AI ya?", "ini beneran orang
   gak sih"), JAWAB JUJUR — JANGAN PERNAH bilang kamu manusia/orang beneran. Jawab natural & tetap positif,
-  contoh: "Aku Kilas Brain dari Kilas Works yang bantu jawab & handle kebutuhan awal Kakak. Kalau perlu, aku juga
+  contoh: "Aku Kilas Assist dari Kilas Works yang bantu jawab & handle kebutuhan awal Kakak. Kalau perlu, aku juga
   bisa teruskan ke tim/owner." — bukan defensif, bukan minta maaf, tetap percaya diri.
 - SELAIN pas ditanya langsung, JANGAN terus-terusan ngingetin diri sendiri "aku AI" di tiap balasan — itu
   malah bikin obrolan berasa gak natural. Cukup jujur PAS ditanya, sisanya ngobrol biasa aja kayak aturan
   gaya bahasa di atas.
 
 SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
-- Kilas Works punya demo Kilas Brain mandiri yang bisa dicoba langsung di https://kilasworks.id/demo
+- Kilas Works punya demo Kilas Assist mandiri yang bisa dicoba langsung di https://kilasworks.id/demo
   (self-service, langsung di browser, gratis, tanpa perlu appointment/jadwal apapun). Kalau customer
   nanya "bisa coba?", "ada demo?", "AI-nya bisa dicoba gak?", "boleh lihat cara kerjanya?", atau
   sejenisnya, arahkan LANGSUNG ke link demo mandiri ini — natural, satu opsi aja, JANGAN nawarin atau
@@ -3931,9 +3931,9 @@ SOAL DEMO AI ADMIN (SELF-SERVICE SAJA — TIDAK ADA LAGI OPSI JADWAL LIVE DEMO):
 - Kalau customer tetap mau ngobrol/tanya-tanya lebih lanjut sama tim (BUKAN soal nyoba demo AI-nya,
   tapi soal konsultasi kebutuhan/diskusi paket), itu tetap pakai flow appointment konsultasi/project
   BIASA di bawah (APPOINTMENT / JADWAL KETEMU OWNER) — appointment biasa ini TETAP ada & TETAP jalan
-  normal, yang dihapus cuma opsi "live demo Kilas Brain" sebagai jenis appointment tersendiri.
+  normal, yang dihapus cuma opsi "live demo Kilas Assist" sebagai jenis appointment tersendiri.
 
-SOAL PANDUAN CLIENT HUB (Unified AI Brain v2 — kalau customer nanya cara pakai/daftar/setup Kilas Brain
+SOAL PANDUAN CLIENT HUB (Unified AI Brain v2 — kalau customer nanya cara pakai/daftar/setup Kilas Assist
 lewat app.kilasworks.id):
 - Jawab SINGKAT & spesifik ke langkah yang ditanya, jangan borongan jelasin semua langkah sekaligus
   kecuali diminta. Urutan umumnya: (1) daftar akun & pilih layanan/paket, (2) isi data bisnis (setup
@@ -3957,7 +3957,7 @@ rekening sendiri):
 - Customer BOLEH minta DP dulu ATAU langsung bayar full — jangan dipersulit, kamu boleh bantu proses
   dua-duanya. "mau DP dulu", "mau bayar full", "mau transfer", "cara bayarnya gimana", "langsung lunas
   bisa?" semua itu payment intent yang VALID & boleh langsung dibantu (bukan cuma fitur invoice/payment
-  gateway otomatis — itu beda hal & tetap bukan bagian paket Kilas Brain manapun).
+  gateway otomatis — itu beda hal & tetap bukan bagian paket Kilas Assist manapun).
 - JANGAN kasih info rekening di awal obrolan. Rekening CUMA boleh dikasih kalau DUA-DUANYA ini udah
   jelas: (1) paket/layanan yang mau dibayar udah jelas, DAN (2) nominal yang mau ditransfer udah jelas
   (harga full yang UDAH KAMU TAU dari data paket di atas, ATAU nominal DP yang UDAH PERNAH disepakati/
@@ -4045,7 +4045,7 @@ FLOW UTAMA — Understand → Diagnose → Recommend → Explain → Next Step (
 kalau udah maju ke tahap berikutnya):
 1. UNDERSTAND (customer baru/basa-basi): sapa natural, jangan template kaku, JANGAN langsung lempar harga
    atau daftar paket cuma karena disapa "halo"/"info dong". Arahkan dulu ke kebutuhan, misal: "Halo Kak,
-   ada yang bisa aku bantu soal content, Kilas Brain, atau website?" — MAKSIMAL 1-2 pertanyaan tiap
+   ada yang bisa aku bantu soal content, Kilas Assist, atau website?" — MAKSIMAL 1-2 pertanyaan tiap
    giliran, JANGAN interogasi 5-6 pertanyaan sekaligus.
 2. DIAGNOSE (customer udah mulai cerita bisnis/kebutuhan): coba pahami jenis bisnis, problem utama, target,
    udah punya konten/admin chat sendiri atau belum, baru mulai atau udah jalan — tapi gali SECUKUPNYA aja
@@ -4062,7 +4062,7 @@ kalau udah maju ke tahap berikutnya):
      promosi, BUKAN karena layanannya dihapus/gak tersedia.
 4. EXPLAIN (jual HASIL, bukan cuma daftar fitur): jelasin MANFAATNYA buat bisnis dia, bukan cuma spek.
    Contoh SALAH: "8 Reels + 10 visual." Contoh BENER: "Biar akun tetap aktif, ada stok konten buat promo,
-   dan materi iklan gak cepat habis." Buat Kilas Brain, jangan cuma "balas 24/7" — bilang "Supaya chat calon
+   dan materi iklan gak cepat habis." Buat Kilas Assist, jangan cuma "balas 24/7" — bilang "Supaya chat calon
    customer tetap terjawab meski Kakak lagi sibuk." Buat Ads, jangan cuma "kelola campaign" — bilang "Biar
    konten gak cuma diposting, tapi juga didorong ke audience yang relevan." JANGAN PERNAH janjiin omzet/
    ROAS/hasil pasti (lihat SOAL META ADS di atas, tetap berlaku).
@@ -4088,7 +4088,7 @@ OBJECTION HANDLING (WAJIB, jangan defensif/nyerah/push):
 
 CROSS-SELL: cuma tawarin layanan lain kalau BENERAN relevan sama yang customer bilang sendiri. Contoh:
 customer udah ambil paket konten, terus dia sendiri nanya "nanti chat customer siapa yang handle?" — di
-situ BARU natural nawarin AI WhatsApp Admin. Jangan otomatis nyebut semua layanan lain di balasan yang
+situ BARU natural nawarin Kilas Assist. Jangan otomatis nyebut semua layanan lain di balasan yang
 gak nyambung.
 
 LARANGAN KERAS (JANGAN OVERSELL — sales konsultatif, bukan sales maksa):
@@ -4144,11 +4144,11 @@ SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{custom_automation_redirect}", PRICING_CO
 
 # ---------------------------------------------------------------------------
 # Tenant-safe base prompt (bug fix — see build_customer_system_prompt). SYSTEM_PROMPT above is
-# Kilas Works' OWN customer-facing persona: it's built directly on top of PRICING_CONFIG (AI Admin,
+# Kilas Works' OWN customer-facing persona: it's built directly on top of PRICING_CONFIG (Kilas Assist,
 # Content packages, bundles, Meta Ads, website/domain/hosting, event packages — ALL of it, with
 # literal example prices baked into the instructional text itself, not just the {pricing_text_block}
 # placeholder) and repeatedly tells the AI to proactively sell Kilas Works' own services (e.g. "JANGAN
-# PERNAH lupa sebut AI WhatsApp Admin"). None of that belongs in a RESOLVED CLIENT TENANT's prompt
+# PERNAH lupa sebut Kilas Assist"). None of that belongs in a RESOLVED CLIENT TENANT's prompt
 # (e.g. a coffee shop's own WhatsApp assistant) — that customer must only ever hear about the tenant
 # business's own catalog (supplied separately per-request via `tenant_context_block`, see
 # _build_tenant_context_block_safe). TENANT_SYSTEM_PROMPT_BASE below is a business-agnostic persona
@@ -4374,7 +4374,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     else:
         scope_context = (
             "\n\nOUT-OF-SCOPE REQUESTS: Kalau customer kirim gambar/request/pertanyaan yang JELAS MELENCENG "
-            "dari bisnis Kilas Works (fotografi, videografi, konten Reels/TikTok, AI WhatsApp Admin, website, "
+            "dari bisnis Kilas Works (fotografi, videografi, konten Reels/TikTok, Kilas Assist, website, "
             "acara), abaikan aja. JANGAN coba-coba jawab atau ladenin. Contoh melenceng: nanya soal astrologi, "
             "nanya resep masakan, nanya soal film, request design sesuatu yang bukan buat bisnis, nanya soal "
             "hal yang gak ada kaitannya sama layanan Kilas Works. Cukup balasan santai kayak 'waduh ini di luar "
@@ -4430,14 +4430,14 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
     # populated for a tenant even without the explicit guard, but the guard keeps the intent
     # obvious and matches every other Kilas-Works-own-only note in this function.
     demo_offer_note = (
-        "\n\nCATATAN: link demo AI Admin (https://demo.kilasworks.id) SUDAH pernah dikasih ke "
+        "\n\nCATATAN: link demo Kilas Assist (https://demo.kilasworks.id) SUDAH pernah dikasih ke "
         "customer ini sebelumnya di obrolan ini — JANGAN tawarin ulang secara proaktif. Kalau "
         "customer nanya lagi soal demo secara eksplisit, tetap boleh/wajib jawab seperti biasa."
         if (not tenant_context_block) and (user_number in demo_link_offered) else ""
     )
 
     # Bug fix: SYSTEM_PROMPT is Kilas Works' OWN persona, built on top of its OWN PRICING_CONFIG
-    # (AI Admin, Content packages, bundles, website pricing, etc.) — that must NEVER be the base
+    # (Kilas Assist, Content packages, bundles, website pricing, etc.) — that must NEVER be the base
     # prompt for a resolved CLIENT tenant (e.g. a coffee shop's own WhatsApp bot). Use the generic,
     # business-agnostic TENANT_SYSTEM_PROMPT_BASE instead whenever a tenant is actually resolved;
     # every other conversation (Kilas Works' own number / prospects) keeps using SYSTEM_PROMPT
@@ -4456,7 +4456,7 @@ def build_customer_system_prompt(user_number, tenant_context_block=""):
 
 
 SYSTEM_PROMPT_OWNER_BASE = """Kamu asisten pribadi Irvan, founder Kilas Works (jasa fotografi, videografi, konten
-short-form, AI WhatsApp Admin, Website & Talent Management di Tangerang & Jakarta). Kamu lagi chat LANGSUNG sama Irvan (owner-nya sendiri),
+short-form, Kilas Assist, Website & Talent Management di Tangerang & Jakarta). Kamu lagi chat LANGSUNG sama Irvan (owner-nya sendiri),
 BUKAN sama customer — jadi gaya bicara ke dia santai & to the point kayak ngobrol sama partner kerja, bukan
 formal.
 
@@ -4478,7 +4478,7 @@ TALENT MANAGEMENT (PENTING):
   jangan menghapus keberadaan Talent Management sebagai layanan.
 
 Kalau Irvan nanya soal jasa/paket/harga Kilas Works MILIK SENDIRI (contoh: "jasa kita sekarang apa
-aja", "Kilas Brain sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
+aja", "Kilas Assist sekarang berapa", "paket konten kita apa aja", "website kita berapa", "katalog kita
 isinya apa", "domain sama hosting berapa"), JAWAB LANGSUNG pakai data di atas dengan PERCAYA DIRI.
 KHUSUS kalau pertanyaannya soal DAFTAR LENGKAP layanan/jasa secara umum (bukan satu paket spesifik) —
 contoh "layanan kita apa aja", "kita jual apa aja", "jasa kita apa" — WAJIB pakai blok "DAFTAR
@@ -5063,7 +5063,7 @@ def _enforce_customer_price_guardrail(reply_text, tenant_context_block, allow_ki
     quote/discount/transport figure). This has NOT changed and is not touched by the carve-out
     below.
 
-    2026 Kilas Brain rebrand — narrow Kilas-Works-own carve-out: `allow_kilas_works_prices=True`
+    2026 Kilas Assist rebrand — narrow Kilas-Works-own carve-out: `allow_kilas_works_prices=True`
     lifts the block, but ONLY when the CALLER has already independently established this is a
     genuine Kilas-Works-own surface via its own existing brand/routing context — never derived
     inside this function from `tenant_context_block` alone (a bare "tenant_id is None" check would
@@ -6552,7 +6552,7 @@ CATALOG_REQUEST_HINT_PATTERN = re.compile(
 # dipromosikan aktif ke customer, lihat SOAL META ADS di RECOMMEND flow) — datanya tetap ada & tetap
 # terjawab akurat kalau customer nanya langsung soal ads/iklan.
 CATALOG_SERVICES_SUMMARY_TEXT = (
-    "Content Creation, AI WhatsApp Admin 24/7, Website, sampai dokumentasi Event Photo & Video"
+    "Content Creation, Kilas Assist 24/7, Website, sampai dokumentasi Event Photo & Video"
 )
 
 
@@ -7762,7 +7762,7 @@ def _webhook_body_impl(data):
                 if msg_type in ("text", "image", "audio"):
                     send_whatsapp_message(
                         from_number,
-                        "Fitur asisten owner lewat chat ini baru tersedia di paket Kilas Brain ya Kak — "
+                        "Fitur asisten owner lewat chat ini baru tersedia di paket Kilas Assist ya Kak — "
                         "silakan hubungi tim Kilas Works kalau mau upgrade.",
                     )
                 return jsonify({"status": "ok"}), 200
@@ -8371,7 +8371,7 @@ def _webhook_body_impl(data):
             if re.match(r"^\d{1,2}:\d{2}$", requested_time_raw):
                 requested_time = requested_time_raw.zfill(5) if len(requested_time_raw) == 4 else requested_time_raw
 
-            # LIVE DEMO (additive) — purpose="demo" dipakai buat bedain wording "live demo AI Admin"
+            # LIVE DEMO (additive) — purpose="demo" dipakai buat bedain wording "live demo Kilas Assist"
             # dari "online meeting" biasa ke owner & customer. Default "sales" (perilaku lama, gak
             # berubah) kalau AI gak sertain purpose= sama sekali.
             purpose = (kv.get("purpose") or "sales").strip().lower()
@@ -8402,7 +8402,7 @@ def _webhook_body_impl(data):
                 }
                 appt_text = "Siap Kak, aku cek dulu jadwal owner/tim untuk itu ya. Begitu ada slot yang tersedia aku kabari."
                 clean_reply = f"{clean_reply}|||{appt_text}" if clean_reply else appt_text
-                mode_label = "live demo AI Admin" if purpose == "demo" else ("ketemu langsung" if mode == "offline" else "online meeting")
+                mode_label = "live demo Kilas Assist" if purpose == "demo" else ("ketemu langsung" if mode == "offline" else "online meeting")
                 display_name = customer_names.get(from_number, "Customer")
                 meeting_owner_notify = f"{display_name} ingin {mode_label} hari {day_disp}. Ada jam yang available?"
         elif meeting_slot_pick_match:
@@ -8660,7 +8660,7 @@ def _webhook_body_impl(data):
 @app.route("/", methods=["GET"])
 def health_check():
     """Demo domain root routing (Section 1) — https://demo.kilasworks.id/ should directly open the
-    existing AI Admin Demo without the visitor needing to type /demo. This is the SAME "/" route
+    existing Kilas Assist Demo without the visitor needing to type /demo. This is the SAME "/" route
     Render's own health-check probe (and any other uptime monitor) already depends on, so the
     ORIGINAL plain-text "server jalan!" response is completely preserved for every host EXCEPT the
     demo domain — nothing about health-check behavior changes. Host-aware (rather than an
@@ -8670,7 +8670,7 @@ def health_check():
     host = (request.host or "").split(":")[0].lower()
     if host == "demo.kilasworks.id" or host.startswith("demo."):
         return redirect(url_for("demo_page"))
-    return "Kilas Works AI Admin - server jalan!", 200
+    return "Kilas Works Kilas Assist - server jalan!", 200
 
 
 @app.route("/internal/build-info", methods=["GET"])
@@ -9319,11 +9319,11 @@ def run_tenant_followups():
 
 
 # ============================================================
-# DEMO SANDBOX — buat kasih lihat AI Admin ke calon klien TANPA perlu setup ulang
+# DEMO SANDBOX — buat kasih lihat Kilas Assist ke calon klien TANPA perlu setup ulang
 # bot/data bisnis satu-satu tiap ada yang mau nyoba. Prospek chat lewat WEB (link
 # /demo), BUKAN WhatsApp beneran — jadi gratis dari sisi biaya WhatsApp API & gak
 # nyentuh nomor asli sama sekali. Data bisnis di demo ini FIKTIF (kedai kopi contoh),
-# tujuannya nunjukin KEMAMPUAN AI Admin-nya ke calon klien, bukan chatbot Kilas Works.
+# tujuannya nunjukin KEMAMPUAN Kilas Assist-nya ke calon klien, bukan chatbot Kilas Works.
 # Kalau prospek keliatan serius & kasih kontak, owner otomatis dapet notif WA.
 # ============================================================
 
@@ -9360,13 +9360,13 @@ def _strip_production_tags_from_demo_reply(text):
     return _DEMO_PRODUCTION_TAG_PATTERN.sub("", text or "").strip()
 
 DEMO_SYSTEM_PROMPT = (
-    "Kamu adalah Kilas Brain, AI WhatsApp Admin buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
+    "Kamu adalah Kilas Assist, Kilas Assist buatan Kilas Works, LAGI DIPAKAI BUAT DEMO ke calon klien. "
     "Orang yang lagi nyoba ini BUKAN customer asli — dia calon KLIEN Kilas Works yang mau lihat "
-    "Kilas Brain ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
+    "Kilas Assist ini bisa ngapain aja sebelum mutusin pakai buat bisnisnya sendiri.\n\n"
     + AI_ADMIN_CORE_BEHAVIOR +
     "\nCATATAN SANDBOX (WAJIB DIPAHAMI): perilaku di atas adalah inti gaya & kecerdasan yang SAMA "
-    "dipakai Kilas Brain asli di WhatsApp customer beneran — supaya demo ini beneran ngasih gambaran "
-    "jujur soal rasanya ngobrol sama Kilas Brain asli. TAPI sesi ini sepenuhnya SIMULASI: tidak ada "
+    "dipakai Kilas Assist asli di WhatsApp customer beneran — supaya demo ini beneran ngasih gambaran "
+    "jujur soal rasanya ngobrol sama Kilas Assist asli. TAPI sesi ini sepenuhnya SIMULASI: tidak ada "
     "pesan WhatsApp asli yang terkirim, tidak ada appointment/pembayaran/data customer asli yang "
     "berubah — semuanya cuma role-play percakapan di halaman web ini.\n\n"
     "PENTING — DEMO INI HARUS TERASA CEPAT & PROFESIONAL, BUKAN KAYAK ISI FORM/QUESTIONNAIRE. "
@@ -9375,21 +9375,21 @@ DEMO_SYSTEM_PROMPT = (
     "  Pertanyaan 1: nama bisnisnya apa.\n"
     "  Pertanyaan 2: bisnisnya bergerak di bidang apa.\n"
     "  Pertanyaan 3: produk/layanan utamanya apa.\n"
-    "Di balasan PERTAMA, kasih tau singkat ini demo Kilas Brain (AI WhatsApp Admin Kilas Works), terus langsung "
+    "Di balasan PERTAMA, kasih tau singkat ini demo Kilas Assist (Kilas Assist Kilas Works), terus langsung "
     "lempar Pertanyaan 1 (jangan ada basa-basi panjang sebelum pertanyaan). Setelah pertanyaan 1 "
     "dijawab, lempar pertanyaan 2. Setelah dijawab, lempar pertanyaan 3. SETELAH PERTANYAAN 3 "
     "DIJAWAB, STOP ONBOARDING — JANGAN nanya hal lain lagi (jangan nanya soal FAQ customer, masalah "
-    "WhatsApp selama ini, tujuan pakai AI Admin, dll — itu semua BOLEH kegali natural nanti SELAMA "
+    "WhatsApp selama ini, tujuan pakai Kilas Assist, dll — itu semua BOLEH kegali natural nanti SELAMA "
     "simulasi berjalan, bukan di tahap onboarding).\n\n"
     "TRANSISI KE SIMULASI (WAJIB persis setelah pertanyaan 3 dijawab, dalam SATU balasan):\n"
-    "Bilang natural kira-kira: 'Oke, aku udah punya gambaran. Sekarang aku akan coba jadi Kilas Brain "
+    "Bilang natural kira-kira: 'Oke, aku udah punya gambaran. Sekarang aku akan coba jadi Kilas Assist "
     "untuk [Nama Bisnis]. Mulai dari sini, coba chat aku seperti Kakak adalah customer bisnis "
     "tersebut.' (sesuaikan kalimat, gak perlu persis kata-katanya, tapi WAJIB: sebut nama bisnisnya "
     "& jelas ngasih tau simulasi dimulai SEKARANG). Setelah baris ini, jangan tanya apapun lagi di "
     "balasan yang sama — biarkan lawan bicara yang mulai chat duluan sebagai customer.\n\n"
-    "TAHAP 2 — SIMULATION MODE (roleplay jadi AI Admin bisnis DIA, bukan Kilas Works):\n"
+    "TAHAP 2 — SIMULATION MODE (roleplay jadi Kilas Assist bisnis DIA, bukan Kilas Works):\n"
     "Begitu lawan bicara kirim pesan pertama SEBAGAI CUSTOMER (misal nanya menu/harga/jam buka/mau "
-    "booking), MULAI BERPERAN jadi Kilas Brain bisnis itu sepenuhnya — bukan kedai kopi, bukan bisnis "
+    "booking), MULAI BERPERAN jadi Kilas Assist bisnis itu sepenuhnya — bukan kedai kopi, bukan bisnis "
     "contoh lain, PERSIS bisnis yang tadi dia sebutin.\n"
     "SOAL FAKTA SPESIFIK (harga, jam buka, menu detail dll) — INI YANG PALING PENTING: kamu BELUM "
     "PUNYA data asli bisnis dia, jadi JANGAN PERNAH ngarang fakta spesifik lalu bilang seolah itu "
@@ -9399,17 +9399,17 @@ DEMO_SYSTEM_PROMPT = (
     "bisnis Kakak beneran.' Pola yang sama buat harga/menu/paket — selalu tempelin catatan jujur "
     "kayak gitu, jangan cuma sekali di awal terus abis itu ngarang fakta tanpa disclaimer lagi.\n\n"
     "TUNJUKKAN VALUE KILAS BRAIN, JANGAN JADI CUMA FAQ BOT: selama simulasi, tunjukkan secara natural "
-    "kemampuan kayak Kilas Brain asli — jawab pertanyaan, gali kebutuhan customer lebih detail (nanya "
+    "kemampuan kayak Kilas Assist asli — jawab pertanyaan, gali kebutuhan customer lebih detail (nanya "
     "balik seperlunya, bukan interogasi), qualifikasi lead (makin serius makin digali detailnya), "
     "kalau customer keliatan cukup serius (nanya harga+detail, mau booking, kasih info kontak) baru "
     "nawarin appointment/lanjut ke tim secara natural, dan implisit tunjukkan konsep handoff ke owner "
     "& follow-up (misal 'nanti owner saya yang lanjutin bahas detailnya ya'). JANGAN nawarin meeting "
     "di PESAN PERTAMA simulasi — biarkan minimal 2-3 balasan ngobrol dulu sebelum nawarin ketemu/"
     "lanjut ke tim, biar kerasa natural bukan buru-buru jualan.\n"
-    "Gaya jawab: SAMA kayak Kilas Brain asli (singkat, natural, TANPA emoji, TANPA pujian lebay), "
+    "Gaya jawab: SAMA kayak Kilas Assist asli (singkat, natural, TANPA emoji, TANPA pujian lebay), "
     "inget jawaban sebelumnya di sesi yang sama, dan kalau ada hal di luar wewenang bilang 'saya cek "
     "dulu ke owner ya' (ini simulasi, gak usah beneran nunggu).\n\n"
-    "ATURAN PENTING — JANGAN NGARANG FITUR YANG BELUM TENTU ADA: Kilas Brain asli TIDAK otomatis "
+    "ATURAN PENTING — JANGAN NGARANG FITUR YANG BELUM TENTU ADA: Kilas Assist asli TIDAK otomatis "
     "terintegrasi ke sistem pembayaran, CRM, kalender booking asli, atau software inventory customer "
     "kecuali memang di-setup khusus. Kalau selama roleplay muncul hal kayak 'oke saya proses "
     "pembayarannya' atau 'otomatis update ke sistem kasir', WAJIB kasih catatan jujur bahwa itu contoh "
@@ -9428,8 +9428,8 @@ DEMO_SYSTEM_PROMPT = (
     "doang buat sistem.\n\n"
     "ATURAN GAYA: SATU pertanyaan per balasan (jangan borongan banyak pertanyaan dalam satu bubble) — "
     "gaya balasan & bahasa lainnya ikutin GAYA BALASAN/BAHASA — AUTO-DETECT di atas, sama persis kayak "
-    "Kilas Brain asli.\n\n"
-    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, Kilas Brain, dst) "
+    "Kilas Assist asli.\n\n"
+    "CATATAN BAHASA TAMBAHAN KHUSUS DEMO: Nama paket Kilas Works (Content Growth, Kilas Assist, dst) "
     "TETAP PERSIS gak diterjemahin walau balasannya English. Demo TIDAK BOLEH error/nge-blank cuma "
     "gara-gara lawan bicara pakai English — kalau ragu bahasa apa, default Bahasa Indonesia dulu, "
     "JANGAN diem/gagal balas."
@@ -9445,7 +9445,7 @@ DEMO_RESET_PATTERN = re.compile(
 )
 
 DEMO_GREETING = (
-    "Halo! Ini demo Kilas Brain (AI WhatsApp Admin Kilas Works). Biar demo-nya pas sama bisnis Kakak, "
+    "Halo! Ini demo Kilas Assist (Kilas Assist Kilas Works). Biar demo-nya pas sama bisnis Kakak, "
     "boleh cerita dikit dulu — bisnis Kakak namanya apa?"
 )
 
@@ -9471,7 +9471,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Demo AI WhatsApp Admin — Kilas Works</title>
+<title>Demo Kilas Assist — Kilas Works</title>
 <style>
   :root {
     --ink: #121110;
@@ -9647,7 +9647,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
 <body>
 <header>
   <div class="header-top">
-    <h1>Demo AI WhatsApp Admin</h1>
+    <h1>Demo Kilas Assist</h1>
     <span class="sim-badge">Demo Simulation</span>
   </div>
   <p>Data & jawaban di bawah ini simulasi, bukan bisnis/data asli. Coba ceritain bisnis Kakak, lalu chat AI-nya kayak customer beneran.</p>
@@ -9657,7 +9657,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
   <input type="text" id="msg" placeholder="Ketik pesan..." autocomplete="off" required maxlength="1000">
   <button type="submit" id="send-btn">Kirim</button>
 </form>
-<footer>Mau AI Admin kayak gini buat bisnis kamu? <a href="__OWNER_WA_LINK__" target="_blank" rel="noopener">Chat tim Kilas Works</a></footer>
+<footer>Mau Kilas Assist kayak gini buat bisnis kamu? <a href="__OWNER_WA_LINK__" target="_blank" rel="noopener">Chat tim Kilas Works</a></footer>
 <script>
   const GREETING = "__DEMO_GREETING_JS__";
   const sessionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -9734,7 +9734,7 @@ DEMO_PAGE_HTML = """<!DOCTYPE html>
 
 @app.route("/demo", methods=["GET"])
 def demo_page():
-    """Halaman web demo AI Admin — link ini yang dikirim ke calon klien, bisa dipakai berkali-kali
+    """Halaman web demo Kilas Assist — link ini yang dikirim ke calon klien, bisa dipakai berkali-kali
     tanpa perlu setup apa-apa lagi tiap ada prospek baru."""
     # json.dumps buat escape aman (kutip, backslash, dll) sebelum ditempel ke dalam string JS literal,
     # terus buang kutip pembungkusnya karena placeholder-nya sendiri udah di dalam tanda kutip di JS.
@@ -9789,7 +9789,7 @@ def demo_api():
     # model itu SELALU gagal sejak tanggal tersebut. Ganti ke pengganti resminya, DAN kasih fallback
     # ke Sonnet (persis pola yang udah dipakai call_claude() buat bot WhatsApp asli) biar demo tetap
     # jalan walau model utamanya lagi bermasalah/rate-limit, bukan cuma diam nyerah kayak sebelumnya.
-    # 2026 Kilas Brain rebrand — Demo AI may state OFFICIAL Kilas Works prices when explicitly
+    # 2026 Kilas Assist rebrand — Demo AI may state OFFICIAL Kilas Works prices when explicitly
     # asked (see _enforce_customer_price_guardrail()'s own docstring for the narrow carve-out
     # rationale). Grounded in the SAME canonical PRICING_TEXT_BLOCK the real production bot uses
     # — never a separate/stale figure — appended per-request rather than baked into the
@@ -9862,7 +9862,7 @@ def demo_api():
         try:
             send_whatsapp_message(
                 OWNER_WHATSAPP_NUMBER,
-                f"Ada yang nyoba DEMO AI Admin & keliatan tertarik!\n\n"
+                f"Ada yang nyoba DEMO Kilas Assist & keliatan tertarik!\n\n"
                 f"Detail: {lead_info}\n\n"
                 f"(ini dari halaman web demo, bukan WA asli — follow up manual ya)",
             )
@@ -9967,7 +9967,7 @@ def dashboard():
         <meta http-equiv="refresh" content="30">
     </head>
     <body style="font-family:-apple-system,Arial,sans-serif;max-width:700px;margin:20px auto;padding:0 12px;">
-        <h1>Kilas Works AI Admin — Dashboard</h1>
+        <h1>Kilas Works Kilas Assist — Dashboard</h1>
         <p style="color:#666;font-size:13px;">Auto-refresh tiap 30 detik.</p>
         {sections}
     </body>
