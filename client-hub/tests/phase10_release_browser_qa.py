@@ -86,6 +86,8 @@ def main():
         account_form.locator('[name=currency]').select_option('IDR')
         account_form.locator('[name=opening_balance]').fill('1000')
         account_form.get_by_role('button', name='Tambah Akun', exact=True).click()
+        finance_only.get_by_role('region', name='Daftar Akun').locator('details').filter(
+            has=finance_only.get_by_text('Release Cash', exact=True)).locator('summary').first.click()
         expect(finance_only.get_by_text('Release Cash', exact=True).first).to_be_visible()
         shot(finance_only, 'finance-only-account-opening')
         for direction, amount in [('INCOME','200'),('EXPENSE','50')]:

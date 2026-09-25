@@ -134,4 +134,15 @@ for checkout in (baseline / 'client-hub', HUB):
     subprocess.run([sys.executable, '-c', readback], cwd=checkout,
         env=dict(env, PYTHONPATH=str(checkout), KILAS_PHASE10_FIXTURE=json.dumps(identity)), check=True)
 assert snapshot() == before
-print('Phase 10 migration rehearsal PASS: legacy rows preserved; old/new Finance readback; repeat installation')
+# A rollback must also retain writes, not merely render existing invoices.
+# Use a NEW synthetic business so none of the pre-upgrade fixtures are edited.
+rollback_seed = seed.replace('release-fixture@example.test', 'rollback-write@example.test')
+rollback_result = subprocess.check_output([sys.executable, '-c', rollback_seed],
+    cwd=baseline / 'client-hub', env=dict(env, PYTHONPATH=str(baseline / 'client-hub')), text=True)
+rollback_identity = json.loads(rollback_result.strip().splitlines()[-1])
+for checkout in (baseline / 'client-hub', HUB):
+    subprocess.run([sys.executable, '-c', readback], cwd=checkout,
+        env=dict(env, PYTHONPATH=str(checkout), KILAS_PHASE10_FIXTURE=json.dumps(rollback_identity)), check=True)
+after_rollback_write = snapshot()
+assert all(set(rows) <= set(after_rollback_write[table]) for table, rows in before.items()), 'Rollback write changed legacy fixtures'
+print('Phase 10 migration rehearsal PASS: legacy rows preserved; old/new Finance readback; repeat installation; rollback-code Finance writes')
