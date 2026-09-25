@@ -70,11 +70,11 @@
         <div class="review-product-actions">
           {% if business.package != 'NONE' %}
             {% if ai_settings and ai_settings.ai_status == 'STALE' %}
-              <span class="muted">Client mengubah data Brain. <strong>Versi live terakhir tetap berjalan</strong> sampai perubahan ini disetujui.</span>
+              <span class="muted">Client mengubah data Kilas Assist. <strong>Versi live terakhir tetap berjalan</strong> sampai perubahan ini disetujui.</span>
               {% if business.status in ('APPROVED','ACTIVE') %}
                 <form method="post" action="{{ url_for('admin.approve_brain_changes', business_id=business.id) }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                  <button class="btn small" type="submit">Setujui Perubahan Brain</button>
+                  <button class="btn small" type="submit">Setujui Perubahan Kilas Assist</button>
                 </form>
               {% endif %}
             {% else %}
@@ -109,7 +109,7 @@
     {% set pending_items = activation_checklist|selectattr('done', 'equalto', False)|list %}
     <section class="card activation-compact">
       <div class="activation-head">
-        <h2>{{ 'Status Aktivasi Brain' if is_admin_view else 'Progres Aktivasi' }}</h2>
+        <h2>{{ 'Status Aktivasi Kilas Assist' if is_admin_view else 'Progres Aktivasi' }}</h2>
         <span class="activation-score">{{ done_items|length }}/{{ activation_checklist|length }} selesai</span>
       </div>
       <div class="activation-track"><div class="activation-fill" style="width:{{ ((done_items|length * 100) / (activation_checklist|length))|round(0, 'floor') }}%"></div></div>
@@ -128,7 +128,7 @@
   {% endif %}
 
   {# Missing business-profile fields are Kilas Assist onboarding requirements.
-     A Finance-only client must not be shown as incomplete just because Brain is not enabled. #}
+     A Finance-only client must not be shown as incomplete just because Kilas Assist is not enabled. #}
   {% if missing_required and business.package != 'NONE' %}
     <div class="review-alert">
       <strong>Data bisnis belum lengkap</strong>
@@ -212,9 +212,9 @@
           {% endif %}
         {% elif ai_settings.ai_status == 'STALE' %}
           {% if is_admin_view %}
-            <p style="color:var(--orange);">Client mengubah data Brain. Draft ini belum live; versi terakhir yang sudah disetujui tetap dipakai sampai kamu menyetujui perubahan.</p>
+            <p style="color:var(--orange);">Client mengubah data Kilas Assist. Draft ini belum live; versi terakhir yang sudah disetujui tetap dipakai sampai kamu menyetujui perubahan.</p>
           {% else %}
-            <p style="color:var(--orange);">Perubahanmu sudah tersimpan dan menunggu persetujuan Kilas Works. Versi Brain yang terakhir disetujui tetap berjalan sampai review selesai.</p>
+            <p style="color:var(--orange);">Perubahanmu sudah tersimpan dan menunggu persetujuan Kilas Works. Versi Kilas Assist yang terakhir disetujui tetap berjalan sampai review selesai.</p>
           {% endif %}
           {% if ai_settings.normalized_summary %}<p class="muted">Ringkasan versi sebelumnya: {{ ai_settings.normalized_summary }}</p>{% endif %}
         {% elif ai_settings.ai_status == 'DONE' %}
@@ -230,7 +230,7 @@
 
       {% if not is_admin_view %}
         {% if business.status in ('APPROVED','ACTIVE') %}
-          <a class="btn secondary" href="{{ url_for('client.wizard_step', business_id=business.id, step='basics') }}">Edit Semua Data Brain</a>
+          <a class="btn secondary" href="{{ url_for('client.wizard_step', business_id=business.id, step='basics') }}">Edit Semua Data Kilas Assist</a>
         {% else %}
           <form method="post" action="{{ url_for('client.run_ai_setup', business_id=business.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn secondary" type="submit">Jalankan Ulang AI Setup</button>
@@ -307,9 +307,9 @@
       <div class="card">
         <h2>Langkah Selanjutnya</h2>
         {% if business.status in ('APPROVED','ACTIVE') %}
-          <p class="muted">Kamu tetap boleh mengubah semua data Brain. Perubahan tidak langsung mengganti versi live.</p>
+          <p class="muted">Kamu tetap boleh mengubah semua data Kilas Assist. Perubahan tidak langsung mengganti versi live.</p>
           <div class="review-actions">
-            <a class="btn" href="{{ url_for('client.wizard_step', business_id=business.id, step='basics') }}">Edit Semua Data Brain</a>
+            <a class="btn" href="{{ url_for('client.wizard_step', business_id=business.id, step='basics') }}">Edit Semua Data Kilas Assist</a>
             <a class="btn secondary" href="{{ url_for('client.simulate_page', business_id=business.id) }}">Test AI</a>
             {% if ai_settings and ai_settings.ai_status == 'STALE' %}
               <span class="pill READY_FOR_REVIEW">Menunggu persetujuan perubahan</span>
@@ -357,7 +357,7 @@
       </div>
 
       <details class="review-subsection">
-        <summary>Info Paket Brain</summary>
+        <summary>Info Paket Kilas Assist</summary>
         <div class="review-subsection-body">
           <p class="muted">Paket client: <strong>{{ business.package|humanize_package }}</strong>. Owner view tidak mengubah paket client dari halaman ini.</p>
         </div>
