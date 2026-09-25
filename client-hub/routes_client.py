@@ -1,6 +1,7 @@
 import uuid
 import json
 import traceback
+import re
 import secrets
 import time
 from urllib.parse import quote
@@ -1102,8 +1103,15 @@ def inbox_page(business_id):
         flash("CS Inbox tersedia untuk bisnis yang memakai Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
+    requested_source = (request.args.get("source") or "tenant").strip().lower()
+    if requested_source not in ("tenant", "demo"):
+        requested_source = "tenant"
+
     from kilas_core.whatsapp_access import selected as core_whatsapp_selected
-    if request.args.get('channel') == 'web' or (core_whatsapp_selected(business_id) and request.args.get('channel') != 'legacy'):
+    if requested_source != "demo" and (
+        request.args.get('channel') == 'web'
+        or (core_whatsapp_selected(business_id) and request.args.get('channel') != 'legacy')
+    ):
         from public_chat.owner import inbox_page as web_inbox_page
         return web_inbox_page(business)
 
@@ -1111,7 +1119,36 @@ def inbox_page(business_id):
     mode_filter = (request.args.get('mode') or '').strip()
     if mode_filter not in ('', 'AI_ACTIVE', 'HUMAN_TAKEOVER'):
         mode_filter = ''
-    conversations = inbox_service.list_conversations(business_id, search=search, mode_filter=mode_filter or None)
+
+    # Tenant conversations remain the normal Inbox source.
+    conversations = []
+    for row in inbox_service.list_conversations(
+        business_id, search=search, mode_filter=mode_filter or None
+    ):
+        item = dict(row)
+        item["source"] = "tenant"
+        conversations.append(item)
+
+    # Demo Kilas is intentionally different: the WhatsApp number belongs to Kilas Works.
+    # Only the ONE platform conversation that proved this browser's random demo code is mirrored
+    # here. We never list the platform inbox wholesale.
+    demo_phone = _demo_kilas_phone_for_business(business_id)
+    if demo_phone:
+        demo_match = next(
+            (
+                dict(row)
+                for row in platform_inbox_service.list_conversations(
+                    search=search, mode_filter=mode_filter or None
+                )
+                if row.get("customer_phone") == demo_phone
+            ),
+            None,
+        )
+        if demo_match:
+            demo_match["source"] = "demo"
+            demo_match["is_demo"] = True
+            conversations.insert(0, demo_match)
+
     conversations_total = len(conversations)
     inbox_per_page = 10
     inbox_total_pages = max(1, (conversations_total + inbox_per_page - 1) // inbox_per_page)
@@ -1119,36 +1156,70 @@ def inbox_page(business_id):
     inbox_page = min(max(1, inbox_page), inbox_total_pages)
     inbox_start = (inbox_page - 1) * inbox_per_page
     conversations = conversations[inbox_start:inbox_start + inbox_per_page]
+
     selected_phone = inbox_service.normalize_customer_phone(request.args.get("customer"))
     selected = None
     thread = []
     window = None
+    selected_source = requested_source
+
     if selected_phone:
-        if not inbox_service.customer_exists(business_id, selected_phone):
-            abort(404)
-        thread = inbox_service.get_thread(business_id, selected_phone)
-        try:
-            mode = wa_takeover_service.get_state(business_id, selected_phone)
-        except Exception:
-            # Fail safe in UI too: do not pretend AI is active if DB state could not be verified.
-            mode = "STATE_UNAVAILABLE"
-        selected = {
-            "customer_phone": selected_phone,
-            "customer_name": inbox_service.get_customer_name(business_id, selected_phone),
-            "mode": mode,
-        }
-        window = inbox_service.freeform_window_status(business_id, selected_phone)
+        if selected_source == "demo":
+            if not demo_phone or selected_phone != demo_phone:
+                abort(404)
+            if not platform_inbox_service.customer_exists(selected_phone):
+                abort(404)
+            thread = _demo_kilas_clean_thread(business_id, selected_phone)
+            try:
+                mode = platform_inbox_service.get_state(selected_phone)
+            except Exception:
+                mode = "STATE_UNAVAILABLE"
+            selected = {
+                "customer_phone": selected_phone,
+                "customer_name": platform_inbox_service.get_customer_name(selected_phone),
+                "mode": mode,
+                "source": "demo",
+                "is_demo": True,
+            }
+            window = platform_inbox_service.freeform_window_status(selected_phone)
+        else:
+            if not inbox_service.customer_exists(business_id, selected_phone):
+                abort(404)
+            thread = inbox_service.get_thread(business_id, selected_phone)
+            try:
+                mode = wa_takeover_service.get_state(business_id, selected_phone)
+            except Exception:
+                # Fail safe in UI too: do not pretend AI is active if DB state could not be verified.
+                mode = "STATE_UNAVAILABLE"
+            selected = {
+                "customer_phone": selected_phone,
+                "customer_name": inbox_service.get_customer_name(business_id, selected_phone),
+                "mode": mode,
+                "source": "tenant",
+                "is_demo": False,
+            }
+            window = inbox_service.freeform_window_status(business_id, selected_phone)
 
     return render_template(
         "inbox.html",
-        search=search, mode_filter=mode_filter,
-        template_readiness=inbox_service.template_readiness(business_id) if selected and selected["mode"] == "HUMAN_TAKEOVER" and not (window and window.get("allowed")) else None,
+        search=search,
+        mode_filter=mode_filter,
+        template_readiness=(
+            inbox_service.template_readiness(business_id)
+            if selected
+            and selected_source == "tenant"
+            and selected["mode"] == "HUMAN_TAKEOVER"
+            and not (window and window.get("allowed"))
+            else None
+        ),
         business=business,
         conversations=conversations,
         conversations_total=conversations_total,
         inbox_page=inbox_page,
         inbox_total_pages=inbox_total_pages,
         selected=selected,
+        selected_source=selected_source,
+        demo_phone=demo_phone,
         thread=thread,
         window=window,
     )
