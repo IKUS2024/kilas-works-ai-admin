@@ -5305,7 +5305,7 @@ def build_focused_customer_prompt(scoped_number, query, tenant_context_block="",
 
 
 _DEMO_BINDING_PATTERN = re.compile(
-    r"(?:KWDEMO-[0-9a-f]{24}|Demo\\s*ID:\\s*[0-9A-F]{4}-[0-9A-F]{4})",
+    r"(?:KWDEMO-[0-9a-f]{24}|Demo\s*ID:\s*[0-9A-F]{4}-[0-9A-F]{4})",
     re.IGNORECASE,
 )
 _DEMO_CONNECTED_REPLY = (
