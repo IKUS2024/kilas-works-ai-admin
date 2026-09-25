@@ -1,5 +1,6 @@
 """Release journeys against the synthetic loopback harness, without session injection."""
 import json
+import re
 from datetime import date
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
@@ -76,6 +77,33 @@ def main():
         finance_only.get_by_role('button', name='Pilih Kelola Keuangan', exact=False).click()
         finance_only.get_by_role('button', name='Mulai Sekarang', exact=False).click()
         expect(finance_only.get_by_role('heading', name='Ringkasan keuangan', exact=True)).to_be_visible()
+        finance_bid = re.search(r'/business/(\d+)/finance', finance_only.url).group(1)
+        finance_base = BASE + f'/business/{finance_bid}/finance'
+        finance_only.goto(finance_base + '?view=accounts')
+        finance_only.locator('[data-finance-open="account-dialog"]').first.click()
+        account_form = finance_only.locator('#account-dialog form[data-account-type-manager]')
+        account_form.locator('[name=name]').fill('Release Cash')
+        account_form.locator('[name=currency]').select_option('IDR')
+        account_form.locator('[name=opening_balance]').fill('1000')
+        account_form.get_by_role('button', name='Tambah Akun', exact=True).click()
+        expect(finance_only.get_by_text('Release Cash', exact=True).first).to_be_visible()
+        shot(finance_only, 'finance-only-account-opening')
+        for direction, amount in [('INCOME','200'),('EXPENSE','50')]:
+            finance_only.goto(finance_base + '?view=transactions&direction=' + direction)
+            finance_only.locator('[data-finance-open="add-transaction-dialog"]').first.click()
+            form = finance_only.locator('#add-transaction')
+            form.locator('[name=account_id]').select_option(label='Release Cash · IDR')
+            form.locator('[name=amount]').fill(amount)
+            category = form.locator(f'[name=category_id] option[data-direction="{direction}"][data-other="false"]').first.get_attribute('value')
+            form.locator('[name=category_id]').select_option(category)
+            form.get_by_role('button', name='Simpan Transaksi', exact=True).click()
+            expect(finance_only.locator('#add-transaction-dialog')).not_to_be_visible()
+            shot(finance_only, 'finance-only-' + direction.lower())
+        for tail in ('operations','budget','reports','assistant'):
+            assert finance_only.goto(finance_base + '/' + tail).status == 200
+            shot(finance_only, 'finance-only-' + tail)
+        export = finance_only.context.request.get(finance_base + '/reports/export/all.zip')
+        assert export.ok and 'zip' in export.headers.get('content-type',''), export.status
         finance_only.goto(BASE + '/workspace')
         assert [s.strip() for s in finance_only.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Finance','More']
         finance_only.goto(BASE + '/logout'); login(finance_only, 'release-finance@example.test')

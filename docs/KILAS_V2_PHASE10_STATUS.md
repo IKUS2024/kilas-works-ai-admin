@@ -3,6 +3,29 @@
 **PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
 **RESUME FROM STATUS FILE.**
 
+## Authenticated release QA checkpoint
+
+- Feature 9de24ee229e2449fab955b5386c1f9c87b3f4099: Phase 10 run 36087817688
+  SUCCESS. Authenticated browser job 107923500122 reports **19 checks PASS**;
+  PostgreSQL migration rehearsal job 107923500211 SUCCESS.
+- Real signup, AI/both intent, minimal profile forms, Finance activation, login/logout
+  persistence, full eligible fixture Web Chat/Customer/Job followup, Human Takeover,
+  manual reply, explicit resume, owner-reviewed Bridge draft, real Finance issue/payment
+  forms, exact payment-form replay without duplicate readback, foreign-object denial,
+  and operator login/pages passed at 390px. No session-injection login shortcut.
+- Initial b273eb5 browser attempt correctly rejected an incomplete synthetic AI fixture
+  with business_setup_required; the fixture now supplies its synthetic normalized config.
+  No production application change was needed for this fixture failure.
+- Coverage limitation: eligible paid full-business/model provider are synthetic;
+  this is not live-provider or production smoke certification. Extended Finance-only
+  account/opening/income/expense/report/export browser checks are being added.
+- Bot current Live deployment still 05d50a8; prior deploys expose Rollback controls.
+  Both service rollback targets remain their recorded current Live artifacts after release.
+- Read-only production inventory contains demo-named businesses, but no business is
+  yet certified as the authorized Finance-write pilot. Do not infer permission from a name.
+- Production schema/env/main/deploys remain untouched. Final exact diff review and
+  full pre-merge gate remain pending. RESUME FROM STATUS FILE.
+
 ## Resumed checkpoint — boolean verified, remaining release QA in progress
 
 - User explicitly authorized ONLY the true/false migration flag read.
