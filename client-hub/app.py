@@ -236,7 +236,7 @@ def create_app():
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
             or endpoint.startswith(("client.", "core_customers.", "core_jobs.",
-                                    "core_operations.", "owner_web."))
+                                    "core_operations.", "core_finance_bridge.", "owner_web."))
             or endpoint in {
                 "products.finance_entry",
                 "products.finance_setup",

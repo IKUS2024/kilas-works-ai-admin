@@ -35,7 +35,7 @@ def context():
         result['selected_'+lane] = selected['id'] if selected else None
     ep = request.endpoint or ''
     # The validated page owns its product context. Preferences never grant access.
-    ai_page = (ep.startswith(('core_customers.', 'core_jobs.', 'core_operations.', 'owner_web.'))
+    ai_page = (ep.startswith(('core_customers.', 'core_jobs.', 'core_operations.', 'core_finance_bridge.', 'owner_web.'))
                or ep.startswith('client.') and ep != 'client.dashboard'
                or ep == 'workspace.ai_home')
     result['product'] = ('finance' if ep.startswith('finance.') else 'ai' if ai_page else

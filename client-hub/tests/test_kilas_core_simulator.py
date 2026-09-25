@@ -306,7 +306,7 @@ class RouteTests(unittest.TestCase):
         provider.assert_not_called()
         self.assertEqual(self.rows(), [])
 
-    def test_csrf_missing_session_and_finance_session_guard(self):
+    def test_csrf_and_simulation_session_required_across_products(self):
         with patch.object(self.ai, "simulate_customer_reply") as provider:
             self.assertEqual(self.post(csrf=False).status_code, 400)
             with self.client.session_transaction() as session:
@@ -314,7 +314,9 @@ class RouteTests(unittest.TestCase):
             self.assertEqual(self.post().get_json(), {"error": "no_session"})
             with self.client.session_transaction() as session:
                 session["active_product"] = "finance"
-            self.assertEqual(self.post().status_code, 303)
+            response = self.post()
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.get_json(), {"error": "no_session"})
         provider.assert_not_called()
         self.assertEqual(self.rows(), [])
 

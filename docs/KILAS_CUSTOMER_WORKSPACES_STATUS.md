@@ -66,7 +66,12 @@ Compare the original ID range on final readback; do not mistake unrelated live a
 
 Local workspace 10 tests pass. First complete Finance run exposed the old membership-only
 selector assertion, an unmatched-method redirect, and CSS-order violation; corrected narrowly.
-Focused Finance selector and CSS tests pass. Full certified CI and browser gates pending.
+Focused Finance selector and CSS tests pass. Complete local Finance baseline PASS: 39 files / 1018 tests.
+First Phase 9 browser gate PASS at all five widths. Release QA exposed a Finance-session
+redirect blocking the return to Bridge payment readback; fixed by recognizing Bridge as an AI
+workflow route while keeping every Bridge permission/confirmation gate. Old standalone Bridge
+route tests were reaching nonexistent GET URLs masked by redirects; now exercise canonical
+Finance routes and retain all zero-Bridge-row and accounting assertions. Final CI rerun pending.
 Browser suite checks 360/390/430/820/1440 widths, both switching directions, no mixed menus,
 bottom-nav clearance, no horizontal overflow or JS errors. Authenticated release suite retains
 invoice partial payment, Bridge duplicate protection, takeover and Finance persistence checks.
