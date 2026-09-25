@@ -1052,6 +1052,42 @@ def _demo_kilas_bound_state(business_id):
             session_state["phone"] = phone
             return session_state
 
+        # Compatibility recovery for sessions that successfully bound before persistent binding
+        # was introduced. The browser still holds the exact marker; recover that one conversation
+        # from the shared platform message log and immediately persist the durable binding below.
+        marker = _demo_kilas_marker(session_state)
+        if marker:
+            try:
+                min_message_id = max(0, int(session_state.get("min_message_id") or 0))
+            except (TypeError, ValueError):
+                min_message_id = 0
+            try:
+                recovered = db.query_one(
+                    "SELECT id, number FROM messages "
+                    "WHERE id>? AND mode IN ('customer','owner') AND role='user' AND content LIKE ? "
+                    "ORDER BY id DESC LIMIT 1",
+                    (min_message_id, "%" + marker + "%"),
+                )
+            except Exception:
+                recovered = None
+            recovered_phone = (
+                platform_inbox_service.normalize_customer_phone(recovered.get("number"))
+                if recovered else None
+            )
+            if recovered_phone:
+                recovered_state = dict(session_state)
+                recovered_state["phone"] = recovered_phone
+                recovered_state["start_message_id"] = int(recovered["id"])
+                recovered_state["bound_at"] = int(time.time())
+                _save_demo_kilas_state(business_id, recovered_state)
+                try:
+                    _persist_demo_kilas_bound(
+                        business_id, recovered_phone, int(recovered["id"])
+                    )
+                except Exception:
+                    pass
+                return recovered_state
+
     state = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
     if not state:
         return None
