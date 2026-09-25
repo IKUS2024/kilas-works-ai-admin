@@ -11,7 +11,14 @@ KEYS = {'intent', 'fields', 'evidence', 'corrections', 'ambiguous'}
 
 
 class UnderstandingError(ValueError):
-    pass
+    """Closed diagnostic codes only; never carries model/customer text."""
+    CODES = frozenset({'invalid_understanding', 'invalid_json', 'invalid_envelope',
+        'invalid_fields', 'invalid_evidence', 'invalid_clarification', 'nonoperational_fields',
+        'wrong_workflow_fields', 'truncated_output'})
+
+    def __init__(self, code='invalid_understanding'):
+        self.code = code if code in self.CODES else 'invalid_understanding'
+        super().__init__(self.code)
 
 
 @dataclass(frozen=True)
@@ -22,8 +29,8 @@ class Interpretation:
     ambiguous: tuple[str, ...]
 
 
-def _reject():
-    raise UnderstandingError('invalid_understanding')
+def _reject(code='invalid_fields'):
+    raise UnderstandingError(code)
 
 
 def _object(pairs):
@@ -65,30 +72,36 @@ def validate_fields(fields):
 def parse(raw, current_text):
     if not isinstance(raw, str) or len(raw.encode('utf-8')) > 12000:
         _reject()
+    # Recover exactly one complete Markdown envelope, never extract a JSON fragment
+    # from prose, repair JSON, discard keys, or accept a partial/truncated response.
+    raw = raw.strip()
+    wrapped = re.fullmatch(r'```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```', raw)
+    if wrapped:
+        raw = wrapped.group(1)
     try:
         data = json.loads(raw, object_pairs_hook=_object, parse_constant=lambda _: _reject())
     except (ValueError, RecursionError):
-        _reject()
+        _reject('invalid_json')
     if type(data) is not dict or set(data) != KEYS or not isinstance(data['intent'], str) or data['intent'] not in INTENTS:
-        _reject()
+        _reject('invalid_envelope')
     fields = validate_fields(data['fields'])
     evidence = data['evidence']
     if type(evidence) is not dict or set(evidence) != set(fields):
-        _reject()
+        _reject('invalid_evidence')
     for quote in evidence.values():
         if not isinstance(quote, str) or not quote.strip() or len(quote) > 1000 or quote not in current_text:
-            _reject()
+            _reject('invalid_evidence')
     for key in ('corrections', 'ambiguous'):
         value = data[key]
         if type(value) is not list or len(value) > len(FIELD_LABELS) or any(not isinstance(v, str) or v not in FIELD_LABELS for v in value):
-            _reject()
+            _reject('invalid_clarification')
         if len(value) != len(set(value)):
-            _reject()
+            _reject('invalid_clarification')
     if set(data['corrections']) - fields.keys() or set(data['corrections']) & set(data['ambiguous']):
-        _reject()
+        _reject('invalid_clarification')
     # Non-operational intents cannot smuggle facts into a write decision.
     if data['intent'] not in ('REQUEST', 'CONTINUE', 'NEW_REQUEST') and (fields or data['corrections']):
-        _reject()
+        _reject('nonoperational_fields')
     return Interpretation(data['intent'], MappingProxyType(fields), frozenset(data['corrections']), tuple(data['ambiguous']))
 
 
@@ -101,6 +114,11 @@ def prompt(playbook, known, business_context):
         '"fields":{},"evidence":{},"corrections":[],"ambiguous":[]}. '
         'REQUEST adalah permintaan operasional; CONTINUE melengkapi permintaan yang ada; NEW_REQUEST hanya permintaan terpisah yang jelas. '
         'UNRELATED untuk pertanyaan di luar bisnis; HUMAN jika meminta manusia. '
+        'Permintaan jasa/penawaran untuk kebutuhan konkret adalah REQUEST, walaupun berbentuk pertanyaan harga. '
+        'BUSINESS_QUESTION hanya pertanyaan informasi umum tanpa permintaan operasional. '
+        'Untuk BUSINESS_QUESTION, UNRELATED, HUMAN, UNSUPPORTED: fields dan evidence wajib {}, corrections wajib []. '
+        'Corrections dan ambiguous wajib array nama field dari allowed_fields, bukan boolean, null, kalimat atau nilai field. '
+        'Jika tidak ada koreksi/ambiguitas gunakan []. Jangan masukkan field di luar allowed_fields. '
         'Fields hanya fakta dari pesan pelanggan TERAKHIR. Setiap field wajib punya evidence berupa kutipan persis pesan terakhir. '
         'Riwayat membantu mengartikan jawaban singkat, bukan sumber fakta baru. Jangan mengulang fakta known. '
         'Jangan menebak nilai ambigu. Daftarkan nama field yang ambigu. Corrections hanya field yang secara eksplisit dikoreksi pelanggan. '

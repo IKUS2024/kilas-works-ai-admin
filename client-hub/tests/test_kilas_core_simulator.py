@@ -230,7 +230,7 @@ class RouteTests(unittest.TestCase):
         for bid in (7, 8):
             db.execute("INSERT INTO businesses VALUES (?, ?, 'AI_ADMIN', 'ACTIVE')", (bid, str(bid)))
             db.execute("INSERT INTO business_memberships VALUES (?, 1)", (bid,))
-            db.execute("INSERT INTO ai_settings VALUES (?, ?)", (bid, '{"description":"Tenant ' + str(bid) + '"}'))
+            db.execute("INSERT INTO ai_settings (business_id,normalized_config_json) VALUES (?, ?)", (bid, '{"description":"Tenant ' + str(bid) + '"}'))
             db.execute("INSERT INTO onboarding_status VALUES (?, 0, NULL)", (bid,))
         db.execute("INSERT INTO businesses VALUES (9, 'Archived', 'AI_ADMIN', 'ARCHIVED')")
         db.execute("INSERT INTO business_memberships VALUES (9, 1)")

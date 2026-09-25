@@ -12,9 +12,73 @@ def output(text, fields=None, intent='REQUEST', **changes):
 
 
 class PlaybookRoutesTests(unittest.TestCase):
+    def creative_config(self):
+        # Same production category and normalized-config types, synthetic values only.
+        self.db.execute("UPDATE business_profiles SET category=? WHERE business_id=7",
+                        ('DJ, Content Creator & Influencer',))
+        config = dict(business_name='Synthetic Studio', category='DJ, Content Creator & Influencer',
+            description='Jasa kreatif', appointment_rules='Ditinjau tim', business_hours={},
+            faqs=[], features_enabled={}, languages={}, missing_fields=[], owner={},
+            payment_rules='Konfirmasi tim', policies=[], services=[], tone='friendly')
+        self.db.execute('UPDATE ai_settings SET ai_status=?,normalized_config_json=? WHERE business_id=7',
+                        ('STALE', json.dumps(config)))
+        return config
+
+    def test_creative_stale_config_fenced_json_customer_reuse_deterministic_job(self):
+        config = self.creative_config()
+        text = 'Saya butuh DJ untuk acara kantor'
+        raw = '```json\n' + output(text, {'service':'DJ','need':'acara kantor'}) + '\n```'
+        response, model = self.deliver(text=text, raw=raw)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(model.call_count,1)
+        first = jobs.list_jobs(7)[0][0]
+        self.assertEqual(first['customer_id'],self.customer['id'])
+        self.assertEqual(first['kind'],'SERVICE')
+        response, model = self.deliver(text=text,raw=raw)
+        model.assert_not_called()
+        self.assertEqual(jobs.list_jobs(7)[0][0]['version'],first['version'])
+        response, model = self.deliver(text='di Jakarta',fields={'location':'Jakarta'},event='creative-followup-01')
+        self.assertEqual(response.status_code,200)
+        second = jobs.list_jobs(7)[0][0]
+        self.assertEqual(second['id'],first['id'])
+        self.assertEqual(second['customer_id'],self.customer['id'])
+        self.assertEqual(second['fields']['location'],'Jakarta')
+        self.assertEqual(jobs.list_jobs(7)[1],1)
+        settings = self.repo.get_ai_settings(7)
+        self.assertEqual(settings['ai_status'],'STALE')
+        self.assertEqual(settings['normalized_config'],config)
+
+    def test_creative_invalid_interpretation_reextract_once_without_accepting_bad_facts(self):
+        self.creative_config()
+        text = 'Saya butuh DJ untuk acara kantor'
+        invalid = json.dumps(dict(intent='BUSINESS_QUESTION',fields={'service':'DJ'},
+            evidence={'service':'DJ'},corrections=[],ambiguous=['unrecognized-field']))
+        valid = output(text,{'service':'DJ','need':'acara kantor'})
+        with patch.object(self.ai,'_call_claude',side_effect=[('```json\n'+invalid+'\n```','end_turn',None),
+                                                           (valid,'end_turn',None)]) as model:
+            with self.assertLogs('kilas_core.conversation',level='WARNING') as logs:
+                response = self.send(self.identity,text=text,event='creative-repair-01')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(model.call_count,2)
+        self.assertIn('invalid_clarification',' '.join(logs.output))
+        self.assertNotIn(text,' '.join(logs.output))
+        self.assertNotIn(invalid,' '.join(logs.output))
+        self.assertNotIn(invalid,model.call_args_list[1].args[0])
+        self.assertEqual(jobs.list_jobs(7)[1],1)
+
+    def test_job_error_diagnostic_does_not_log_exception_text(self):
+        with patch.object(jobs,'_update_job',side_effect=jobs.JobError('PRIVATE_SENTINEL')):
+            with self.assertLogs('kilas_core.conversation',level='WARNING') as logs:
+                response,_ = self.deliver()
+        self.assertEqual(response.status_code,502)
+        self.assertIn('stage=job code=other',' '.join(logs.output))
+        self.assertNotIn('PRIVATE_SENTINEL',' '.join(logs.output))
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+
     @classmethod
     def setUpClass(cls):
         phase4.JobRoutesTests.setUpClass.__func__(cls)
+        cls.db.execute("ALTER TABLE ai_settings ADD COLUMN ai_status TEXT DEFAULT 'DONE'")
         global jobs, store
         from kilas_core import jobs
         from public_chat import store
