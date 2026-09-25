@@ -356,8 +356,8 @@ def has_verified_ai_admin_payment(business_id):
     """Section 22's activation gate: 'Never activate an unpaid tenant.'
 
     Bug fix: this used to be has_unpaid_ai_admin_invoice(), which returned False (= 'not unpaid' =
-    OK to activate) whenever a business had NO AI Admin invoice/payment row at all — treating
-    "never bought AI Admin" the same as "already paid for AI Admin", which let a business be
+    OK to activate) whenever a business had NO Kilas Assist invoice/payment row at all — treating
+    "never bought Kilas Assist" the same as "already paid for Kilas Assist", which let a business be
     activated without ever paying. "No invoice at all" must NEVER be treated as "already covered".
 
     K7 KOPI legacy-package fix (UI cleanup cycle): this used to accept a VERIFIED payment tied to
@@ -375,7 +375,7 @@ def has_verified_ai_admin_payment(business_id):
     payment stays exactly as it is in the database (never deleted/modified), it simply no longer
     satisfies a gate for a package it was never actually for.
 
-    Returns True ONLY when there is an explicit VERIFIED payment tied to an AI Admin project whose
+    Returns True ONLY when there is an explicit VERIFIED payment tied to an Kilas Assist project whose
     catalog_key matches THIS business's CURRENT package (ai_admin_basic for AI_ADMIN_BASIC,
     ai_admin_pro for AI_ADMIN_PRO) — the positive condition activate_tenant() now requires before
     allowing activation, rather than the absence of a negative one. A VERIFIED payment for a
@@ -398,7 +398,7 @@ def has_verified_ai_admin_payment(business_id):
         return False
     catalog_key = {"AI_ADMIN": "ai_admin", "AI_ADMIN_BASIC": "ai_admin_basic", "AI_ADMIN_PRO": "ai_admin_pro"}.get(business["package"])
     if not catalog_key:
-        # package is 'NONE' (or some other non-AI-Admin value) — no historical AI Admin payment,
+        # package is 'NONE' (or some other non-AI-Admin value) — no historical Kilas Assist payment,
         # for any tier, can ever satisfy an activation gate for a package this business doesn't
         # currently have.
         return False
@@ -450,7 +450,7 @@ def build_activation_checklist(business_id):
         {"key": "knowledge", "label": "Knowledge (AI Setup)", "done": knowledge_done,
          "next_action": None if knowledge_done else "Jalankan AI Setup setelah Data Bisnis lengkap."},
         {"key": "payment", "label": "Payment", "done": payment_done,
-         "next_action": None if payment_done else "Selesaikan pembayaran paket AI Admin & tunggu verifikasi admin."},
+         "next_action": None if payment_done else "Selesaikan pembayaran paket Kilas Assist & tunggu verifikasi admin."},
         {"key": "whatsapp", "label": "WhatsApp", "done": whatsapp_done,
          "next_action": None if whatsapp_done else "Hubungkan nomor WhatsApp di halaman admin."},
         {"key": "template", "label": "Template Re-engagement", "done": template_done,
