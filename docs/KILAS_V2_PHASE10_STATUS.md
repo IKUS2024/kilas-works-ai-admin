@@ -1,3 +1,103 @@
+# Phase 10 — rollback diagnosis / narrow hotfix validation in progress
+
+**NOT COMPLETE. RESUME FROM STATUS FILE.**
+
+## Current authoritative checkpoint — 2026-09-25 hotfix
+
+This section supersedes every historical release-state statement below.
+- Main: d2d8af60419630fd351d62654126db63a643ebee (V2 merged).
+- Hub rollback LIVE: 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c,
+  dep-daqvhnvavr4c73f6rvvg. Bot rollback LIVE: same SHA,
+  dep-daqvi3p42hec73ce9ov0. Both Render autoDeploy=no / trigger=off confirmed.
+- Installed additive 0055–0061 schema and historical paid business-2 backfill retained.
+  Do not rerun schema installation/backfill, reset config, or touch business-2 Finance.
+- WhatsApp general stays OFF. Main has no workflow runs; hotfix PR gates pending.
+- Working branch: fix/phase10-core-interpretation, based on merged main.
+
+### Rollback cause and evidence limits
+
+Production WEB event 4aba4dec-ca71-442f-b500-60aae1a0fbff for business 2 failed
+with invalid_provider_result, attempts=1. Read-only metadata confirms one inbound,
+one Customer link, zero Jobs, AI_ACTIVE/version=0. No customer text was exported.
+Old code stored neither the exception category nor the model output; the precise original
+model response is unrecoverable from that event. Do not claim historical byte-for-byte proof.
+
+Controlled inference-only reproductions used pinned d2d8af6 code and the same existing
+category/config/input internally in the production environment, without replaying the event
+or invoking Job/Finance writes. They record ordinary simulation usage, not Finance entries.
+Sanitized output shows provider_error=false, stop=end_turn, GENERIC_SERVICE, STALE config.
+Responses repeatedly had a complete Markdown JSON envelope: old understanding.parse rejects
+this at JSON parsing. Removing only that envelope exposed a second deterministic contract
+failure: invalid corrections/ambiguous shape (old parse line 84). A sanitized shape probe
+also showed BUSINESS_QUESTION carrying service/location/preferred_date_or_time fields;
+all evidence quotes were exact substrings, and field names were known. Non-operational
+intents with fields are correctly prohibited. This is a structured interpretation/prompt
+contract failure, not demonstrated network/provider unavailability or Job validation failure.
+Category fallback to GENERIC_SERVICE is valid; no category remapping or STALE-config wipe.
+
+### Hotfix implementation gates PASS — c2455f8dcb68419e4661f4b4f7937c69b531ee9b
+
+PR #17 is mergeable against unchanged d2d8af6, with no unresolved review threads.
+Exact remote tree bf50757264540fd350ead634d2c44cc209f0e687 matches local reviewed code.
+Phase 1 runs inside the Phase 2–5 regression gates. Phase 2–10 implementation runs PASS:
+2=36097096240, 3=36097096264, 4=36097096269, 5=36097096306,
+6=36097096256, 7=36097096228, 8=36097096227, 9=36097096238, 10=36097096252.
+Finance baseline job 107951532996: 39 files / 1018 tests PASS, zero skipped.
+PostgreSQL rehearsal job 107951533313 PASS; authenticated browser job 107951533025
+PASS / 30 checks. Artifact 10847668876 downloaded and results/screenshots inspected;
+SHA256 a87a24d3a8acd8ea095d55049969eb3ac4969c502ab946ef1164f8c084c86a24.
+
+Pinned candidate understanding/prompt tested inference-only in the isolated diagnostic
+process against the same production config/input: REQUEST with service/need/location/
+preferred_date_or_time, no ambiguity, strict parse PASS, decision READY_FOR_QUOTE,
+Job field validation PASS. This did NOT create a production Job or replay a WEB event.
+
+Pre-deploy read-only verification: all nine Finance fingerprints below still match exactly
+(excluding business 13; ordered JSON text joined by newline, relocation_version excluded).
+Profile/services/FAQs match their recorded fingerprints; 22 additive tables still present;
+business 2 retains ACTIVE ai_admin_pro 2026-09-03 -> 2026-10-03 from verified payment 4;
+business 13 has no AI subscription. No reset, Finance write or new backfill was performed.
+
+Render saved next-deploy Hub config has Core/Customers/Jobs/Playbooks/Operations/Web=true,
+allowlist=2; Bridge and WhatsApp flags/channel list absent/default OFF. The running rollback
+process uses its historical snapshot (V2 flags absent); that is expected and differs from
+saved next-deploy configuration. No env changes are needed for the hotfix release.
+Both auto-deploys stay OFF. Both live deployments remain rollback 05d50a8.
+
+This documentation checkpoint changes no runtime/test content. Wait for its PR checks before
+merge/deploy. PRE-MERGE implementation GATE PASS; production verification still pending.
+
+### Narrow candidate fix
+
+- Accept exactly one complete ```json or unlabelled Markdown envelope, bounded by the original
+  size limit; still strictly validate JSON, duplicate keys, types, keys, evidence and intents.
+- Make operational quote requests vs general business questions, empty non-operational fields,
+  and corrections/ambiguous arrays explicit in the extraction prompt.
+- At most one fresh extraction after contract rejection; no rejected facts are accepted or
+  persisted. No network-error retry. Do not retry without enough remaining event lease time
+  or after takeover/version change. Truncated provider output never authorizes a Job.
+- If interpretation remains unsafe, request Human Takeover through the existing tenant/gate/
+  event/lease/version/channel-fenced transaction when Operations is eligible. Otherwise retain
+  fail-closed behavior. Job errors remain separately diagnosed, not silently accepted.
+- Closed diagnostic codes distinguish understanding, workflow, Job, provider and handover
+  failures. No prompts, raw output, customer text, tokens, secrets or exception messages logged.
+- No schema, accounting, entitlement, category or normalized configuration mutation.
+
+Local synthetic tests cover category/config shape, fenced JSON, deterministic create/update,
+Customer reuse, exact retry, no rejected facts, malformed/unsafe output, tenant-scoped handover,
+in-flight takeover, truncation/lease budget, and sanitized Job-error logging.
+Focused tests and all implementation gates above PASS. Documentation-head checks must finish
+before merge. No hotfix deploy or successful production smoke yet.
+
+Next: certify exact hotfix head in PR; update checkpoint; safely merge only after all gates
+PASS; keep auto-deploy OFF; manually deploy exact certified main revision; Pm__bae Web Chat
+first, then Customer/Job readback, logs and Finance fingerprints, then remaining Phase 10 QA.
+Never mark COMPLETE on synthetic or inference-only results. Roll back on critical failure.
+
+---
+
+## Historical pre-rollback checkpoints (superseded)
+
 # Phase 10 — PRE-MERGE GATE PASS; controlled release pending
 
 **PRE-MERGE GATE PASS on implementation candidate c57252416bf1ceb27e7b89333f0e0d0a96fb54b6.**

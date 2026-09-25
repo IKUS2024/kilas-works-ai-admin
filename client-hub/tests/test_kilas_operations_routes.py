@@ -6,6 +6,47 @@ import test_kilas_playbook_routes as phase5
 
 
 class OperationsRoutesTests(unittest.TestCase):
+    def test_invalid_interpretation_handover_is_bounded_atomic_and_tenant_scoped(self):
+        phase5.PlaybookRoutesTests.creative_config(self)
+        with self.assertLogs('kilas_core.conversation',level='WARNING') as logs:
+            result, model = self.deliver(raw='{"action":"write_finance","secret":"DO_NOT_LOG"}')
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(model.call_count,2)
+        self.assertNotIn('DO_NOT_LOG',' '.join(logs.output))
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(store.conversation(7,self.cid)['mode'],'HUMAN_TAKEOVER')
+        self.assertEqual(attention.listing(7)['total'],1)
+        self.assertEqual(attention.listing(8)['total'],0)
+        result,model=self.deliver(event='after-invalid-human')
+        model.assert_not_called()
+        self.assertEqual(attention.listing(7)['total'],1)
+        self.assertFalse(any(r['role']=='assistant' for r in store.thread(7,self.cid)))
+
+    def test_takeover_during_invalid_inference_prevents_repair_and_attention(self):
+        def inference(*args,**kwargs):
+            store.set_mode(7,self.cid,'HUMAN_TAKEOVER',1)
+            return 'malformed','end_turn',None
+        with patch.object(self.ai,'_call_claude',side_effect=inference) as model:
+            response = self.send(self.identity,text='DJ',event='invalid-takeover-01')
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(model.call_count,1)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(attention.listing(7)['total'],0)
+
+    def test_repair_does_not_outlive_claim_budget_or_accept_truncation(self):
+        def inference(*args,**kwargs):
+            return phase5.output('DJ',{'service':'DJ'}),'max_tokens',None
+        with patch.object(self.ai,'_call_claude',side_effect=inference) as model:
+            with patch('kilas_core.conversation.time') as clock:
+                clock.time.return_value=__import__('time').time()+50
+                response=self.send(self.identity,text='DJ',event='repair-budget-01')
+        # Only inference's clock advances: claim has <46s remaining. No repair call,
+        # and a syntactically valid prefix marked truncated is never accepted.
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(model.call_count,1)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(store.conversation(7,self.cid)['mode'],'HUMAN_TAKEOVER')
+
     @classmethod
     def setUpClass(cls):
         phase5.PlaybookRoutesTests.setUpClass.__func__(cls)

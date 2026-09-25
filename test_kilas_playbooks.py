@@ -16,6 +16,18 @@ def interpretation(fields=None, text='pesan', intent='REQUEST', corrections=(), 
 
 
 class ContractTests(unittest.TestCase):
+    def test_exact_markdown_envelope_preserves_strict_contract(self):
+        raw = json.dumps(dict(intent='REQUEST', fields={'service':'DJ'},
+            evidence={'service':'DJ'}, corrections=[], ambiguous=[]))
+        for prefix in ('```json\n', '```\n'):
+            self.assertEqual(u.parse(prefix + raw + '\n```', 'DJ').fields['service'], 'DJ')
+        for raw_bad in ('prefix\n```json\n'+raw+'\n```', '```json\n'+raw,
+                        '```json\n'+raw+'\n```\nsuffix', '```json\n'+raw+raw+'\n```',
+                        '```json\n{"intent":"REQUEST","intent":"HUMAN"}\n```',
+                        '```json\n'+raw.replace('"ambiguous": []', '"ambiguous": true')+'\n```'):
+            with self.subTest(raw=raw_bad), self.assertRaises(u.UnderstandingError):
+                u.parse(raw_bad, 'DJ')
+
     def test_category_mapping_fallback(self):
         for category, code in [('Logistik', 'LOGISTICS'), ('Restaurant', 'SIMPLE_ORDER'), ('Salon', 'BOOKING_SERVICE'),
                                ('Videografi agency', 'AGENCY_PROJECT'), ('Bengkel', 'GENERIC_SERVICE'), ('Unknown', 'GENERIC_SERVICE')]:

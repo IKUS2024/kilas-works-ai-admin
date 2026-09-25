@@ -1,12 +1,42 @@
 """Shared channel-neutral business orchestration. Model IO occurs before the fenced transaction."""
 import os
+import logging
+import time
 import ai_onboarding
 import ai_usage
 import repo
-from kilas_core import actions, customers, jobs, service, understanding, operation_access
+from kilas_core import actions, customers, jobs, service, understanding, operation_access, playbooks
 from kilas_core.contracts import HistoryMessage
 from kilas_core.playbook_definitions import select
 from public_chat import store, security
+
+
+log = logging.getLogger(__name__)
+_JOB_CODES = frozenset({'stale_version', 'invalid_fields', 'invalid_text', 'fields_too_large',
+    'invalid_kind', 'invalid_scope', 'invalid_operation', 'invalid_channel', 'not_found',
+    'operation_conflict', 'invalid_status', 'invalid_transition'})
+
+
+def _diagnostic(bid, stage, code):
+    # Values are closed code-owned enums; no exception repr, prompt, output, text or secrets.
+    safe = code if code in understanding.UnderstandingError.CODES | _JOB_CODES else 'other'
+    log.warning('core_interpretation business_id=%d stage=%s code=%s', bid, stage, safe)
+
+
+def _handover_invalid(bid, cid, event, eligible, fence):
+    if not eligible(bid):
+        return store.finish(event, error='provider_error')
+    with store.transaction() as tx:
+        jobs._lock(tx, bid)
+        if not (operation_access.enabled() and operation_access.eligible(tx, bid)):
+            return store._finish(tx, event, error='invalid_provider_result')
+        def handover(transaction):
+            if fence is not None and not fence(transaction):
+                return None
+            from kilas_core.handover import request_human
+            request_human(transaction, bid, cid, 'UNSUPPORTED')
+            return None
+        return store._finish(tx, event, before_reply=handover)
 
 
 def enabled():
@@ -39,20 +69,47 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
                    'knowledge': settings.get('normalized_config') or {}, 'uncertain': uncertain}
         prompt = understanding.prompt(book, known, context)
 
+        repair_code = None
+        stop_reason = None
+
         def provider(inbound, scoped_history):
+            nonlocal stop_reason
             with ai_usage.scope(bid, 'tenant_customer'):
-                raw, _, error = ai_onboarding._call_claude(prompt,
+                raw, stop_reason, error = ai_onboarding._call_claude(prompt + (
+                    '\nKeluaran sebelumnya ditolak (' + repair_code + '). Ekstrak ulang dari pesan terakhir; '
+                    'jangan menebak atau menyalin keluaran sebelumnya. Patuhi semua tipe, intent, allowed_fields '
+                    'dan kutipan persis. Jika tidak dapat dipahami dengan aman, gunakan UNSUPPORTED '
+                    'dengan fields={}, evidence={}, corrections=[], ambiguous=[].' if repair_code else ''),
                     [{'role': row.role, 'content': row.content} for row in scoped_history]
                     + [{'role':'user', 'content':inbound.text}], max_tokens=1200,
                     model=ai_onboarding.CLIENT_HUB_SIMULATION_MODEL)
             return raw, error
 
-        result = service.process_message(message,
-            history=tuple(HistoryMessage('assistant' if r['role']=='human' else r['role'], r['content']) for r in history),
-            reply_provider=provider)
-        if result.error:
-            return store.finish(event, error=result.error)
-        interpretation = understanding.parse(result.reply, message.text)
+        for attempt in range(2):
+            result = service.process_message(message,
+                history=tuple(HistoryMessage('assistant' if r['role']=='human' else r['role'], r['content']) for r in history),
+                reply_provider=provider)
+            if result.error:
+                _diagnostic(bid, 'provider_contract' if result.error == 'invalid_provider_result' else 'provider', 'other')
+                return store.finish(event, error=result.error)
+            try:
+                if stop_reason == 'max_tokens':
+                    raise understanding.UnderstandingError('truncated_output')
+                interpretation = understanding.parse(result.reply, message.text)
+                # Validate workflow before any write; action boundary revalidates after fencing.
+                playbooks.decide(book, interpretation, known=known, uncertain=uncertain,
+                    current_status=expected['job']['status'] if expected['job'] else None,
+                    has_job=bool(expected['job']))
+                break
+            except understanding.UnderstandingError as error:
+                _diagnostic(bid, 'understanding', error.code)
+                if attempt or not eligible(bid) or event['lease_until'] - time.time() <= 46:
+                    raise
+                current = store.conversation(bid, cid)
+                if current['mode'] != 'AI_ACTIVE' or current['version'] != event['version']:
+                    return store.finish(event)
+                # At most one new extraction; never accept or persist rejected facts.
+                repair_code = error.code
         if not eligible(bid):
             return store.finish(event, error='provider_error')
         with store.transaction() as tx:
@@ -74,11 +131,18 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
                 return reply
             return store._finish(tx,event,before_reply=commit_action)
     except jobs.JobError as error:
+        _diagnostic(bid, 'job', error.code)
         if error.code == 'stale_version':
             return store.finish(event, reply='Tim baru memperbarui rincian permintaan. Mohon konfirmasi perubahan yang masih dibutuhkan agar tidak tertimpa.')
         return store.finish(event, error='invalid_provider_result')
-    except understanding.UnderstandingError:
-        return store.finish(event, error='invalid_provider_result')
+    except understanding.UnderstandingError as error:
+        _diagnostic(bid, 'handover', error.code)
+        try:
+            return _handover_invalid(bid, cid, event, eligible, fence)
+        except Exception:
+            _diagnostic(bid, 'handover_failed', 'other')
+            return store.finish(event, error='provider_error')
     except Exception:
+        _diagnostic(bid, 'core', 'other')
         # Rollback first; never expose model output, internal errors, or fake success.
         return store.finish(event, error='provider_error')
