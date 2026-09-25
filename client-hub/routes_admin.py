@@ -286,7 +286,7 @@ def platform_whatsapp_coexistence():
         safe_reason = str(exc)
         print("PLATFORM_WHATSAPP_PAGE unavailable reason=" + safe_reason)
         error = (
-            "Koneksi aman Client Hub → AI Admin belum siap."
+            "Koneksi aman Client Hub → Kilas Assist belum siap."
             if safe_reason in ("platform_bot_bridge_unavailable", "platform_bot_rejected", "platform_bot_bad_response")
             else "Konfigurasi Meta untuk nomor utama Kilas Works belum siap."
         )
@@ -599,7 +599,7 @@ def renew_subscription(business_id):
     except ValueError as e:
         flash(f"Belum bisa perpanjang: {e}. Subscription record belum ada untuk business ini.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
-    flash("Subscription AI Admin diperpanjang. Business aktif kembali (kalau sebelumnya SUSPENDED).", "success")
+    flash("Langganan Kilas Assist diperpanjang. Business aktif kembali (kalau sebelumnya SUSPENDED).", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
@@ -737,7 +737,7 @@ def approve(business_id):
     if ai_settings and ai_settings.get("ai_status") == "STALE":
         ok, _ = _normalize_brain_draft_for_review(business_id, admin["id"])
         if not ok:
-            flash("Belum bisa approve — draft Brain gagal diproses. Versi sebelumnya tetap aman.", "error")
+            flash("Belum bisa approve — draft Kilas Assist gagal diproses. Versi sebelumnya tetap aman.", "error")
             return redirect(url_for("admin.review_business", business_id=business_id))
         ai_settings = repo.get_ai_settings(business_id)
     if not ai_settings or ai_settings.get("ai_status") != "DONE":
@@ -762,13 +762,13 @@ def approve_brain_changes(business_id):
     if business.get("package") == "NONE":
         abort(404)
     if business["status"] not in ("APPROVED", "ACTIVE"):
-        flash("Perubahan Brain memakai alur approve awal untuk status bisnis ini.", "error")
+        flash("Perubahan Kilas Assist memakai alur approve awal untuk status bisnis ini.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
 
     admin = security.current_user()
     ai_settings = repo.get_ai_settings(business_id) or {}
     if ai_settings.get("ai_status") != "STALE":
-        flash("Tidak ada perubahan Brain yang menunggu persetujuan.", "info")
+        flash("Tidak ada perubahan Kilas Assist yang menunggu persetujuan.", "info")
         return redirect(url_for("admin.review_business", business_id=business_id))
 
     missing = repo.required_fields_missing(business_id)
@@ -778,7 +778,7 @@ def approve_brain_changes(business_id):
 
     ok, _ = _normalize_brain_draft_for_review(business_id, admin["id"])
     if not ok:
-        flash("Perubahan belum bisa disetujui karena pemrosesan Brain gagal. Versi live lama tetap berjalan.", "error")
+        flash("Perubahan belum bisa disetujui karena pemrosesan Kilas Assist gagal. Versi live lama tetap berjalan.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
 
     try:
@@ -794,7 +794,7 @@ def approve_brain_changes(business_id):
         f"config_version={result['config_version']}"
     )
     if business["status"] == "ACTIVE":
-        flash("Perubahan Brain disetujui. Versi baru sekarang live; WhatsApp tetap aktif selama proses.", "success")
+        flash("Perubahan Kilas Assist disetujui. Versi baru sekarang live; WhatsApp tetap aktif selama proses.", "success")
     else:
         flash("Perubahan Brain disetujui dan konfigurasi client sudah diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
@@ -900,7 +900,7 @@ def activate(business_id):
         flash(f"Belum bisa Activate: {e}", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
     if result["changed"]:
-        flash("Business ACTIVE. AI Admin engine sekarang bisa memakai tenant ini.", "success")
+        flash("Business ACTIVE. Kilas Assist sekarang bisa memakai tenant ini.", "success")
     else:
         flash("Business sudah ACTIVE sebelumnya — tidak ada perubahan.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
@@ -934,7 +934,7 @@ def change_package(business_id):
     except ValueError:
         flash("Perubahan paket belum diizinkan. Perubahan entitlement memerlukan pembayaran paket tujuan yang sudah diverifikasi.", "error")
         return redirect(url_for("admin.review_business", business_id=business_id))
-    flash("Paket Kilas Brain berhasil diperbarui.", "success")
+    flash("Kilas Assist berhasil diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
