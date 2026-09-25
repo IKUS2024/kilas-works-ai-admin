@@ -1,6 +1,9 @@
 import uuid
 import json
 import traceback
+import secrets
+import time
+from urllib.parse import quote
 
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, session, abort, send_file, jsonify
@@ -21,6 +24,7 @@ import quotation_service
 import feature_flags
 import subscription_service
 import inbox_service
+import platform_inbox_service
 import wa_takeover_service
 import catalog_service
 import db
@@ -958,6 +962,132 @@ def simulate_flag(business_id):
         return jsonify({"error": "missing message_id"}), 400
     repo.flag_simulation_message(int(message_id), business_id, note)
     return jsonify({"status": "ok"})
+
+
+# ---------------------------------------------------------------------------
+# Demo Kilas WhatsApp bridge — privacy-scoped to the logged-in browser session.
+#
+# The demo deliberately uses Kilas Works' own WhatsApp number, not the tenant's future
+# WhatsApp channel. A short random code in the prefilled WhatsApp message is the only binding
+# between this browser/business and the sender's platform conversation. The Inbox can therefore
+# mirror ONLY the conversation that proved possession of this session's code; it never exposes
+# the rest of Kilas Works' platform inbox to a customer.
+# ---------------------------------------------------------------------------
+
+_DEMO_KILAS_PHONE = "6282213039137"
+_DEMO_KILAS_PENDING_SECONDS = 60 * 60
+_DEMO_KILAS_BOUND_SECONDS = 24 * 60 * 60
+
+
+def _demo_kilas_states():
+    raw = session.get("_demo_kilas_whatsapp")
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _demo_kilas_state(business_id):
+    state = _demo_kilas_states().get(str(business_id))
+    return dict(state) if isinstance(state, dict) else None
+
+
+def _save_demo_kilas_state(business_id, state):
+    states = _demo_kilas_states()
+    states[str(business_id)] = state
+    session["_demo_kilas_whatsapp"] = states
+    session.modified = True
+
+
+def _clear_demo_kilas_state(business_id):
+    states = _demo_kilas_states()
+    if str(business_id) in states:
+        states.pop(str(business_id), None)
+        session["_demo_kilas_whatsapp"] = states
+        session.modified = True
+
+
+def _demo_kilas_phone_for_business(business_id):
+    """Resolve only the platform conversation that supplied this browser's opaque demo code."""
+    state = _demo_kilas_state(business_id)
+    if not state:
+        return None
+    now = int(time.time())
+    if int(state.get("expires_at") or 0) <= now:
+        _clear_demo_kilas_state(business_id)
+        return None
+
+    phone = platform_inbox_service.normalize_customer_phone(state.get("phone"))
+    if phone:
+        return phone
+
+    token = state.get("token")
+    if not isinstance(token, str) or not re.fullmatch(r"[0-9a-f]{24}", token):
+        _clear_demo_kilas_state(business_id)
+        return None
+    code = "KWDEMO-" + token
+    try:
+        row = db.query_one(
+            "SELECT number FROM messages "
+            "WHERE mode='customer' AND role='user' AND content LIKE ? "
+            "ORDER BY id DESC LIMIT 1",
+            ("%" + code + "%",),
+        )
+    except Exception:
+        return None
+    phone = platform_inbox_service.normalize_customer_phone(row.get("number")) if row else None
+    if not phone:
+        return None
+
+    state["phone"] = phone
+    state["bound_at"] = now
+    state["expires_at"] = now + _DEMO_KILAS_BOUND_SECONDS
+    _save_demo_kilas_state(business_id, state)
+    return phone
+
+
+def _demo_kilas_clean_thread(business_id, phone):
+    rows = platform_inbox_service.get_thread(phone)
+    state = _demo_kilas_state(business_id) or {}
+    token = state.get("token")
+    if not isinstance(token, str):
+        return rows
+    code = "KWDEMO-" + token
+    cleaned = []
+    for row in rows:
+        item = dict(row)
+        content = item.get("content")
+        if isinstance(content, str) and code in content:
+            content = re.sub(r"\s*K(?:ode)?\s*demo\s*:\s*" + re.escape(code), "", content, flags=re.I).strip()
+            content = content.replace(code, "").strip()
+            item["content"] = content or "Halo Kilas Works, saya mau coba Demo Kilas"
+        cleaned.append(item)
+    return cleaned
+
+
+@client_bp.route("/business/<int:business_id>/demo-kilas")
+@security.login_required
+def demo_kilas_whatsapp(business_id):
+    business = _business_or_404(business_id)
+    if business.get("package") == "NONE":
+        flash("Demo Kilas tersedia dari workspace Kilas Assist.", "error")
+        return redirect(url_for("client.dashboard"))
+
+    token = secrets.token_hex(12)
+    _save_demo_kilas_state(
+        business_id,
+        {
+            "token": token,
+            "phone": None,
+            "created_at": int(time.time()),
+            "expires_at": int(time.time()) + _DEMO_KILAS_PENDING_SECONDS,
+        },
+    )
+    text = (
+        "Halo Kilas Works, saya mau coba Demo Kilas. "
+        "Kode demo: KWDEMO-" + token
+    )
+    return redirect(
+        "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),
+        code=302,
+    )
 
 
 # ---------------------------------------------------------------------------
