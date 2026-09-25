@@ -92,7 +92,7 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
     business_id = chrepo.create_business(user_id, name, package=package)
     if package in ("AI_ADMIN_BASIC", "AI_ADMIN_PRO"):
         # Fix 4 audit — the live bot now requires a currently-operating subscription row to
-        # resolve an AI Admin tenant (see app.py's _tenant_subscription_permits_ai_runtime_safe()).
+        # resolve an Kilas Assist tenant (see app.py's _tenant_subscription_permits_ai_runtime_safe()).
         # Backfill one here so this test helper keeps producing a tenant that resolves exactly
         # like it did before that fix, for every test that doesn't care about subscription state.
         _sub_admin_id = chrepo.create_user(
@@ -442,7 +442,7 @@ def test_basic_tenant_owner_commands_blocked_pro_tenant_allowed():
     assert mock_send_basic.called, "Basic tenant owner must get a real reply, not silence"
     decline_text = mock_send_basic.call_args[0][1].lower()
     assert "feature" not in decline_text and "flag" not in decline_text, "must be natural wording, not internal jargon"
-    assert "kilas brain" in decline_text, "should explain current Kilas Brain entitlement without selling retired Pro"
+    assert "kilas assist" in decline_text, "should explain current Kilas Assist entitlement without selling retired Pro"
 
     # Pro tenant's owner: bridge IS reachable (classify_owner_message runs instead of call_claude).
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
