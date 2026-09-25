@@ -796,7 +796,7 @@ def approve_brain_changes(business_id):
     if business["status"] == "ACTIVE":
         flash("Perubahan Kilas Assist disetujui. Versi baru sekarang live; WhatsApp tetap aktif selama proses.", "success")
     else:
-        flash("Perubahan Brain disetujui dan konfigurasi client sudah diperbarui.", "success")
+        flash("Perubahan Kilas Assist disetujui dan konfigurasi client sudah diperbarui.", "success")
     return redirect(url_for("admin.review_business", business_id=business_id))
 
 
