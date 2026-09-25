@@ -7,7 +7,7 @@
    instead — this app additionally re-validates the shape of what comes back before writing it to
    the database (section 25: AI returns validated structured data only, it never touches SQL).
 
-2. simulate_customer_reply(...) — powers the "Test AI Admin" sandbox (section 15). Uses the
+2. simulate_customer_reply(...) — powers the "Test Kilas Assist" sandbox (section 15). Uses the
    tenant's DRAFT config only, entirely isolated from production (no WhatsApp send, no real
    appointment/payment writes — those functions are never imported here).
 
@@ -77,7 +77,7 @@ REQUIRED_CONFIG_KEYS = (
 # below) before the required-keys check runs, so this key is guaranteed present and well-formed
 # regardless of whether — or how — the model's raw JSON mentions it.
 
-NORMALIZATION_SYSTEM_PROMPT = """Kamu adalah asisten internal Kilas Works yang membantu merapikan data onboarding client menjadi konfigurasi AI Admin yang terstruktur.
+NORMALIZATION_SYSTEM_PROMPT = """Kamu adalah asisten internal Kilas Works yang membantu merapikan data onboarding client menjadi konfigurasi Kilas Assist yang terstruktur.
 
 ATURAN MUTLAK:
 1. JANGAN PERNAH mengarang data yang tidak ada di input. Kalau sebuah informasi (harga, alamat/area layanan, jam operasional, kebijakan, aturan pembayaran, ketersediaan appointment) tidak disebutkan jelas di data client, kosongkan field itu (null) dan sebutkan nama fieldnya di "missing_fields".
@@ -163,9 +163,9 @@ ATURAN MUTLAK:
    sama, tipe yang sama) — kalau ada field yang datanya jadi tidak lengkap gara-gara perbaikan ini, isi
    null / array kosong untuk field itu, JANGAN mengarang isinya."""
 
-SIMULATION_SYSTEM_PROMPT_TEMPLATE = """Kamu adalah AI Admin WhatsApp untuk bisnis "{business_name}" ({category}) --
+SIMULATION_SYSTEM_PROMPT_TEMPLATE = """Kamu adalah Kilas Assist WhatsApp untuk bisnis "{business_name}" ({category}) --
 sesi ini adalah mode "Test AI" di Client Hub: SANDBOX, dipakai calon client Kilas Works untuk coba
-sebelum tenant ini beneran aktif. Kamu pakai OTAK & GAYA YANG SAMA PERSIS dengan AI Admin yang beneran
+sebelum tenant ini beneran aktif. Kamu pakai OTAK & GAYA YANG SAMA PERSIS dengan Kilas Assist yang beneran
 akan aktif di WhatsApp produksi tenant ini nanti -- bedanya HANYA di sini tidak ada pesan WhatsApp asli
 yang terkirim, tidak ada appointment/pembayaran asli yang dibuat.
 
@@ -566,7 +566,7 @@ def generate_writing_suggestion(business, profile, raw_services, raw_faqs, field
     return None, "AI_RESPONSE_SHAPE_INVALID: neither suggestion nor needs_more_info was set"
 
 
-FAQ_SUGGESTION_SYSTEM_PROMPT = """Kamu membantu pemilik bisnis melengkapi FAQ untuk AI Admin mereka.
+FAQ_SUGGESTION_SYSTEM_PROMPT = """Kamu membantu pemilik bisnis melengkapi FAQ untuk Kilas Assist mereka.
 
 Analisis data bisnis yang diberikan, lalu sarankan pertanyaan FAQ yang BELUM ada di daftar tapi
 kemungkinan besar akan ditanyakan customer (contoh topik umum: cara booking, area/kota yang dilayani,
