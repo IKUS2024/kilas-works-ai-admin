@@ -1271,6 +1271,18 @@ def demo_kilas_whatsapp(business_id):
         flash("Demo Kilas tersedia dari workspace Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
+    existing_phone = _demo_kilas_phone_for_business(business_id)
+    if existing_phone:
+        return redirect(
+            url_for(
+                "client.inbox_page",
+                business_id=business_id,
+                customer=existing_phone,
+                source="demo",
+            ),
+            code=303,
+        )
+
     raw_code = secrets.token_hex(4).upper()
     code = raw_code[:4] + "-" + raw_code[4:]
     try:
