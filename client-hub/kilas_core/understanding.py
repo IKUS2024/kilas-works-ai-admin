@@ -10,6 +10,26 @@ INTENTS = frozenset({'REQUEST', 'CONTINUE', 'NEW_REQUEST', 'BUSINESS_QUESTION', 
 KEYS = {'intent', 'fields', 'evidence', 'corrections', 'ambiguous'}
 
 
+_SIMPLE_GREETING_RE = re.compile(
+    r"^(?:hai+|halo+|hi+|hello+|hey+|permisi|pagi|siang|sore|malam|"
+    r"selamat\\s+(?:pagi|siang|sore|malam)|ass?alamualaikum|assalamu[’']?alaikum|tes|test)"
+    r"(?:\\s+(?:kak|admin|min|bro|sis|gan))?[!?.~,\\s]*$",
+    re.IGNORECASE,
+)
+
+
+def is_simple_greeting(text):
+    """Deterministic no-action greeting guard.
+
+    Only accepts a short message whose ENTIRE content is a greeting/test phrase. A message such
+    as "hai saya mau sewa DJ" deliberately returns False so the normal understanding/playbook
+    pipeline can extract the real business request.
+    """
+    if not isinstance(text, str) or not text.strip() or len(text) > 80:
+        return False
+    return bool(_SIMPLE_GREETING_RE.fullmatch(re.sub(r"\\s+", " ", text.strip())))
+
+
 class UnderstandingError(ValueError):
     """Closed diagnostic codes only; never carries model/customer text."""
     CODES = frozenset({'invalid_understanding', 'invalid_json', 'invalid_envelope',
