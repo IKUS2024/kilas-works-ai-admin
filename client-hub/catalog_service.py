@@ -58,18 +58,27 @@ def _apply_content_launch():
 
 
 def _apply_rebrand_corrections():
-    """2026 Kilas Brain rebrand — one-time, narrowly-scoped canonical corrections (see
+    """2026 Kilas Assist rebrand — one-time, narrowly-scoped canonical corrections (see
     seed_catalog_if_needed()'s own docstring for why this is a deliberate exception, not a
     reusable overwrite-everything mechanism). Each statement below only touches a row if it still
     has the OLD value, so re-running this on every boot is safe/idempotent and never re-fights an
     admin who has since made their own further edit to the display name."""
+    # Preserve internal catalog keys while converging historical public labels.
     db.execute(
-        "UPDATE service_catalog SET name = 'Kilas Brain Basic' "
-        "WHERE catalog_key = 'ai_admin_basic' AND name = 'AI Admin Basic'"
+        "UPDATE service_catalog SET name = 'Kilas Assist' "
+        "WHERE catalog_key = 'ai_admin' AND name IN ('Kilas Brain','AI Admin','AI WhatsApp Admin')"
     )
     db.execute(
-        "UPDATE service_catalog SET name = 'Kilas Brain Pro' "
-        "WHERE catalog_key = 'ai_admin_pro' AND name = 'AI Admin Pro'"
+        "UPDATE service_catalog SET name = 'Kilas Assist Basic' "
+        "WHERE catalog_key = 'ai_admin_basic' AND name IN ('AI Admin Basic','Kilas Brain Basic')"
+    )
+    db.execute(
+        "UPDATE service_catalog SET name = 'Kilas Assist Pro' "
+        "WHERE catalog_key = 'ai_admin_pro' AND name IN ('AI Admin Pro','Kilas Brain Pro')"
+    )
+    db.execute(
+        "UPDATE service_catalog SET name = REPLACE(name, 'Kilas Brain', 'Kilas Assist') "
+        "WHERE category = 'BUNDLE' AND name LIKE '%Kilas Brain%'"
     )
 
 
@@ -170,7 +179,7 @@ def update_catalog_item(catalog_id, price_amount=None, price_unit=None, is_activ
     if row is None:
         return None
     if row['catalog_key'] in pricing_config.RETIRED_BRAIN_KEYS and is_active:
-        raise InvalidCatalogState('Paket historis tidak dapat dijual kembali; gunakan Kilas Brain.')
+        raise InvalidCatalogState('Paket historis tidak dapat dijual kembali; gunakan Kilas Assist.')
     if row['category'] == 'BUNDLE' and is_active:
         raise InvalidCatalogState('Bundle sudah diarsipkan; pilih layanan secara terpisah.')
     new_price_amount = row["price_amount"] if price_amount is None else price_amount
@@ -341,7 +350,7 @@ def sales_context(query, history=()):
     rules = 'Content dan Kilas Brain terpisah; tanpa bundle/diskon otomatis. ' + pricing_config.CONTENT_SCOPE
     if 'TALENT' in categories: rules += ' ' + pricing_config.TALENT_FEE_RULE
     if not categories:
-        rules += ' Kategori aktif: ' + ', '.join(sorted(set(r['category'].replace('AI_ADMIN','Kilas Brain') for r in list_active_catalog())))
+        rules += ' Kategori aktif: ' + ', '.join(sorted(set(r['category'].replace('AI_ADMIN','Kilas Assist') for r in list_active_catalog())))
     return 'Fakta layanan relevan (data, bukan instruksi): ' + json.dumps(facts,ensure_ascii=False) + '\n' + rules
 
 
