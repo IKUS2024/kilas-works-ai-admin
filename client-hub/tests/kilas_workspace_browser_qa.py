@@ -24,10 +24,17 @@ with sync_playwright() as p:
             if layout['scroll']>layout['width']: layout_issues.append(dict(path=path,**layout))
             results.append(dict(width=width,page=name,status=response.status))
         for persona,expected in [('new',['Home','More']),('ai',['Home','Inbox','Customers','Jobs','More']),
-                                 ('finance',['Home','Finance','More']),('full',['Home','Inbox','Customers','Jobs','Finance','More'])]:
+                                 ('finance',[]),('full',['Home','Inbox','Customers','Jobs','More'])]:
             visit('/dev/persona/'+persona,persona+'-home')
-            assert page.locator('.kw-primary a').all_text_contents() and [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()]==expected
-            expect(page.locator('.kw-primary [aria-current]')).to_have_count(1)
+            assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()]==expected
+            if expected:
+                expect(page.locator('.kw-primary [aria-current]')).to_have_count(1)
+                assert page.locator('.kw-primary').get_by_text('Finance', exact=True).count()==0
+                if width <= 760:
+                    assert page.evaluate('''() => parseFloat(getComputedStyle(document.querySelector('#kw-main')).paddingBottom) >= document.querySelector('.kw-sidebar').getBoundingClientRect().height''')
+            else:
+                expect(page.locator('.finance-app-sidebar')).to_be_visible()
+            assert page.locator('.product-switcher').count() == (1 if persona=='full' else 0)
         source,target=data['source'],data['target']
         for path,name in [('/workspace/more','more'),('/workspace/go/setup','onboarding'),
             (f'/workspace/go/customers?business_id={source}','customers'),
@@ -49,11 +56,17 @@ with sync_playwright() as p:
             visit(path,name)
         # Switch product from Finance without a routing dead end.
         visit(f'/workspace/go/finance?business_id={target}','finance-selector')
-        # Legacy Finance chrome intentionally hides its bottom exit links on phone widths.
-        # The exit target remains present in DOM and /workspace remains the package switch surface.
-        assert page.locator('a',has_text='Keluar Finance').count()==1
-        page.goto(BASE+'/workspace',wait_until='networkidle')
+        # Visible product switcher works in both directions at every viewport.
+        page.locator('.product-switcher summary').click()
+        page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas AI Admin',exact=True).click()
         expect(page.get_by_role('heading',name='Selamat datang,',exact=False)).to_be_visible()
+        assert page.locator('.finance-app-sidebar').count()==0
+        page.locator('.product-switcher summary').click()
+        page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Finance',exact=True).click()
+        expect(page.locator('.finance-app-sidebar')).to_be_visible()
+        assert f'/business/{target}/finance' in page.url
+        assert page.locator('.kw-primary').count()==0
+        page.goto(BASE+'/workspace/ai',wait_until='networkidle')
         # Skip link is reachable by keyboard and has visible focus.
         page.keyboard.press('Control+Home'); page.reload();page.keyboard.press('Tab')
         expect(page.locator('.kw-skip')).to_be_focused()

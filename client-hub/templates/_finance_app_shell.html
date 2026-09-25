@@ -15,7 +15,7 @@
 ('assistant','AI Finance','chat','assistant',{})] %}
 <a class="{{ 'active' if ui.area==area }}" {% if ui.area==area %}aria-current="page"{% endif %} href="{{ url_for('finance.' ~ endpoint,business_id=business.id,branch_id=selected_branch_id,**params) }}">{{ icon(symbol) }}{{ label }}</a>
 {% endfor %}</nav>
-<nav class="finance-app-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-finance-ui-open="finance-help-dialog">{{ icon('help') }}Bantuan</button><a href="{{ url_for('client.dashboard') }}">← Keluar Finance</a></nav>
+<nav class="finance-app-sidebar-bottom"><a href="{{ url_for('auth.account_page') }}">{{ icon('settings') }}Pengaturan</a><button type="button" data-finance-ui-open="finance-help-dialog">{{ icon('help') }}Bantuan</button><a href="{{ url_for('workspace.more') }}">← Keluar Finance</a></nav>
 </aside>
 <div class="finance-app-topbar">
 <form class="finance-app-search" method="get" action="{{ url_for('finance.dashboard',business_id=business.id) }}" {% if ui.home %}data-finance-live-period{% endif %}>

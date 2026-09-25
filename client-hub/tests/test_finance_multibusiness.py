@@ -72,8 +72,13 @@ class MultiBusinessTests(unittest.TestCase):
             response, context = self.page(url)
             self.assertEqual({b['id'] for b in context['businesses']}, {self.b, self.second, self.empty})
             html = response.get_data(as_text=True)
-            for name in ('Business', 'Second authorized business', 'Empty authorized business'):
+            for name in ('Business', 'Second authorized business'):
                 self.assertIn(name, html)
+            # The dashboard selector is product-aware; membership alone does not activate Finance.
+            if url.startswith('/finance?'):
+                self.assertIn('Empty authorized business', html)
+            else:
+                self.assertNotIn('Empty authorized business', html)
             self.assertEqual('Semua Bisnis' in html,url.startswith('/finance?'))
             for secret in ('Other business', 'PRIVATE CUSTOMER', '987.654.321'):
                 self.assertNotIn(secret, html)

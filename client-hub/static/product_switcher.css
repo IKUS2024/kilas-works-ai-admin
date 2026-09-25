@@ -1,0 +1,13 @@
+/* Product selection is separate from each product's navigation. */
+.product-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px;min-width:0;font-size:13px}
+.product-bar strong{color:var(--text);font-size:14px}
+.product-switcher{position:relative;max-width:100%;z-index:75}
+.product-switcher summary{display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:44px;padding:9px 13px;border:1px solid var(--border);border-radius:9px;color:var(--text);font-weight:700;cursor:pointer;list-style:none;background:var(--card)}
+.product-switcher summary::-webkit-details-marker{display:none}
+.product-switcher nav{position:absolute;top:calc(100% + 6px);left:0;width:210px;max-width:calc(100vw - 28px);padding:6px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px #0005;display:grid}
+.product-switcher nav a{display:block;min-height:44px;padding:10px;border-radius:6px;color:var(--text);text-decoration:none}
+.product-switcher nav a:hover,.product-switcher nav a[aria-current]{background:var(--bg-soft);color:var(--orange)}
+.product-settings{color:var(--text-dim);min-height:44px;display:flex;align-items:center}
+.product-bar :is(a,summary):focus-visible{outline:2px solid var(--orange);outline-offset:3px}
+@media(max-width:760px){.product-bar{margin-bottom:12px;font-size:12px}.product-switcher summary{font-size:13px}}
+@media print{.product-bar{display:none!important}}

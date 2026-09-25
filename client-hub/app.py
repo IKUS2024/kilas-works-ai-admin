@@ -227,13 +227,20 @@ def create_app():
             return None
 
         endpoint = request.endpoint or ""
+        if not endpoint:
+            return None  # Preserve router 404/405 errors; never redirect an unmatched write.
         allowed = (
             endpoint == "static"
             or endpoint.startswith("finance.")
             or endpoint.startswith("workspace.")
+            # Authorized direct AI links must leave the Finance workspace too.
+            # Each destination still enforces its own membership/product/CSRF gates.
+            or endpoint.startswith(("client.", "core_customers.", "core_jobs.",
+                                    "core_operations.", "owner_web."))
             or endpoint in {
                 "products.finance_entry",
                 "products.finance_setup",
+                "products.account_bills",
                 "index",
                 "client.dashboard",
                 "auth.account_page",
