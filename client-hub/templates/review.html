@@ -214,7 +214,7 @@
           {% if is_admin_view %}
             <p style="color:var(--orange);">Client mengubah data Kilas Assist. Draft ini belum live; versi terakhir yang sudah disetujui tetap dipakai sampai kamu menyetujui perubahan.</p>
           {% else %}
-            <p style="color:var(--orange);">Perubahanmu sudah tersimpan dan menunggu persetujuan Kilas Works. Versi Brain yang terakhir disetujui tetap berjalan sampai review selesai.</p>
+            <p style="color:var(--orange);">Perubahanmu sudah tersimpan dan menunggu persetujuan Kilas Works. Versi Kilas Assist yang terakhir disetujui tetap berjalan sampai review selesai.</p>
           {% endif %}
           {% if ai_settings.normalized_summary %}<p class="muted">Ringkasan versi sebelumnya: {{ ai_settings.normalized_summary }}</p>{% endif %}
         {% elif ai_settings.ai_status == 'DONE' %}
