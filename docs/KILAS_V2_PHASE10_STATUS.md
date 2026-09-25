@@ -1,7 +1,44 @@
-# Phase 10 — pre-production verification; production untouched
+# Phase 10 — pre-merge; authorized internal QA business created
 
 **PRE-MERGE GATE NOT PASSED. DO NOT MERGE OR DEPLOY.**
 **RESUME FROM STATUS FILE.**
+
+## Current-session pilot checkpoint — 2026-09-25
+
+- User explicitly authorized the already authenticated Putri session; NO logout, password access,
+  reset, or login was performed. UI profile plus scoped membership query confirm Putri Maudy,
+  user ID 2, OWNER of existing Pm__bae business ID 2. Existing real/ambiguous business is excluded.
+- All Phase 2–10 CI at 6b06f156dd7ed61b5881b334344dfeed9c0117db SUCCESS.
+- Through normal production product form, created **Kilas Internal QA**, business **13**, OWNER
+  user 2, Finance branch **19 (Utama)**. Finance activation/defaults created by normal product flow.
+  No QA income, expense, invoice or payment has been entered yet. Package NONE, status DRAFT.
+- This is the only production business-data mutation so far. No other business/ledger was modified.
+- Intended explicit V2 pilot allowlist is **13 only**. AI Admin entitlement/setup still needs
+  readiness verification; no entitlement or payment bypass is authorized or performed.
+- Main remains 05d50a8bdf14ede2b1ec588f1fe78619f7387f0c; both recorded Render deploys remain LIVE
+  at that SHA. No V2 schema, env flag, merge or deploy change. WhatsApp OFF; no live send.
+- Read-only post-creation check confirms business 13 has ZERO Finance transactions, ZERO
+  invoices and ZERO AI subscriptions. Only branch 19, BUSINESS workspace, exists for business 13.
+- Rechecked nine existing Finance table fingerprints EXCLUDING business 13: all counts/digests
+  exactly match the earlier recorded baseline. Existing Finance data is unchanged.
+- BLOCKER: current production main app.py `_lock_customer_to_selected_finance` redirects this
+  session's non-Finance routes after Finance was selected while inspecting the account. Both
+  /products/start and the visible /dashboard link return to Finance. This is old production
+  behavior; the candidate removes that lock, but is not deployed. Do not bypass/forge session
+  state, logout, inspect passwords, or substitute another user to work around it.
+- BLOCKER: new internal business has package NONE and no ACTIVE/GRACE AI subscription.
+  public_chat.security.available explicitly requires a paid AI entitlement in addition to
+  allowlisting. Current normal product flows keep newly created Finance and AI businesses in
+  separate lanes; do not silently convert this Finance workspace, grant a subscription through
+  SQL, fabricate verified payment, or expand the pilot to another existing business.
+- The user's requested same-session internal AI/Web Chat smoke path is therefore NOT ready.
+  Stop before production schema/merge/deploy under specification section 8. Identity and pilot
+  selection permission are resolved; the remaining blocker is actual product/entitlement readiness.
+- Both Render Live deploys rechecked after QA business creation: unchanged on rollback SHA.
+  V2 schema not installed; all V2 flags still absent/default closed; RUN_MIGRATIONS_ON_BOOT false
+  unchanged; WhatsApp OFF/no live send. No deployment rollback needed because none occurred.
+- PRE-MERGE GATE remains pending. Earlier "production untouched" statements below describe
+  the checkpoint BEFORE this explicitly authorized isolated QA business creation.
 
 This checkpoint supersedes the earlier incremental status text; prior checkpoints
 remain in Git history. Required rollout specification: `ASTRA_PHASE10_PRODUCTION_ROLLOUT.md`.
@@ -215,10 +252,10 @@ Do not change Finance entitlement or unrelated env values without a reviewed rol
 
 1. Phase 1–9, complete Finance, expanded authenticated browser and PostgreSQL candidate gates
    PASS. Recheck final documentation-head CI before release; do not bypass a red check.
-2. Identify explicitly authorized internal/pilot business IDs, owner-access context and Finance
-   workspace/branch for production test writes. Existing demo-named records are NOT authorization.
-   This is required by specification sections 7 and 11; do not invent IDs or write in a customer
-   ledger. Choose and document the exact controlled allowlist before production mutation.
+2. Pilot identity is now resolved: Putri user 2 / internal business 13 / Finance branch 19.
+   Resolve the current-session product access and legitimate AI entitlement blockers above
+   before claiming launch readiness. Preserve the no-logout/no-password requirement and do
+   not bypass paid entitlement or mutate Pm__bae's real ledger.
 3. Recheck main/PR/current CI, schema prerequisites, recovery/rollback artifacts and execution
    checkout readiness; finalize the exact missing-only production application checkpoint.
 4. Only if every gate passes: record PRE-MERGE GATE PASS; apply missing additive schema; safely
@@ -227,4 +264,5 @@ Do not change Finance entitlement or unrelated env values without a reviewed rol
 5. Keep rollout internal/pilot-scoped; WhatsApp general rollout stays separately Meta-gated.
    Mark COMPLETE only after real production verification and intact existing Finance data.
 
-**Production remains unchanged. Phase 10 is NOT COMPLETE. RESUME FROM STATUS FILE.**
+**Only authorized QA business 13 has been created; schema/main/deploys/flags unchanged.
+Phase 10 is NOT COMPLETE. RESUME FROM STATUS FILE.**
