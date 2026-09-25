@@ -1361,6 +1361,19 @@ def inbox_page(business_id):
     window = None
     selected_source = requested_source
 
+    # Before a real tenant WhatsApp channel is connected, a proven Demo WhatsApp binding is the
+    # workspace's active Inbox. Reopening the Inbox should therefore land straight back in the
+    # same thread instead of showing a reconnect screen/list. Once production WhatsApp is truly
+    # connected, normal tenant Inbox routing keeps precedence.
+    if (
+        not selected_phone
+        and demo_phone
+        and not business.get("whatsapp_connected")
+        and _demo_kilas_clean_thread(business_id, demo_phone)
+    ):
+        selected_phone = demo_phone
+        selected_source = "demo"
+
     if selected_phone:
         if selected_source == "demo":
             if not demo_phone or selected_phone != demo_phone:
