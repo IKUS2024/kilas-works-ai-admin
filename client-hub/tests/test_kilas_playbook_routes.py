@@ -196,14 +196,18 @@ class PlaybookRoutesTests(unittest.TestCase):
     def test_owner_context_manual_edit_and_metadata_protection(self):
         self.assertEqual(self.deliver()[0].status_code,200)
         row = jobs.list_jobs(7)[0][0]
-        for path in ('/business/7/inbox?channel=web&conversation='+self.cid, '/business/7/jobs/'+row['id']):
-            page = self.client.get(path)
-            self.assertEqual(page.status_code,200)
-            self.assertIn(b'data-playbook-context',page.data)
-            for text in ('Guangzhou','Tangerang','20 kg','volume','Masih dibutuhkan'):
-                self.assertIn(text.encode(),page.data)
-            self.assertNotIn(b'field_uncertain_fields',page.data)
-            self.assertNotIn(b'field_playbook',page.data)
+        inbox = self.client.get('/business/7/inbox?channel=web&conversation='+self.cid)
+        self.assertEqual(inbox.status_code,200)
+        self.assertNotIn(b'data-playbook-context',inbox.data)
+        self.assertNotIn(b'data-linked-jobs',inbox.data)
+
+        page = self.client.get('/business/7/jobs/'+row['id'])
+        self.assertEqual(page.status_code,200)
+        self.assertIn(b'data-playbook-context',page.data)
+        for text in ('Guangzhou','Tangerang','20 kg','volume','Masih dibutuhkan'):
+            self.assertIn(text.encode(),page.data)
+        self.assertNotIn(b'field_uncertain_fields',page.data)
+        self.assertNotIn(b'field_playbook',page.data)
         store.set_mode(7,self.cid,'HUMAN_TAKEOVER',1)
         data = dict(csrf_token='csrf-test',title='Pengiriman revisi pemilik',summary='',status=row['status'],
                     version=row['version'],operation_key='manual-phase5-0001',field_item='baju',field_weight='20 kg',
