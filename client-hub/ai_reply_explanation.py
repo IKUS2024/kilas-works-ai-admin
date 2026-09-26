@@ -206,11 +206,16 @@ def _encode(scope, analysis, **identity):
 
 
 def save_core(tx, business_id, conversation_id, event_id, analysis):
-    raw = _encode("core", analysis, conversation_id=conversation_id, event_id=event_id)
-    tx.execute(
-        "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (NULL,?,?,?)",
-        (business_id, ACTION, raw),
-    )
+    """Best-effort audit metadata: never make the customer reply depend on this write."""
+    try:
+        raw = _encode("core", analysis, conversation_id=conversation_id, event_id=event_id)
+        tx.execute(
+            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (NULL,?,?,?)",
+            (business_id, ACTION, raw),
+        )
+        return True
+    except Exception:
+        return False
 
 
 def load_core(business_id, conversation_id, event_ids):
