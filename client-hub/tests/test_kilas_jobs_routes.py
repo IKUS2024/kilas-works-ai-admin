@@ -12,7 +12,7 @@ class JobRoutesTests(unittest.TestCase):
         global jobs, customers, customer_action_jobs
         from kilas_core import jobs, customers, job_schema, customer_action_jobs
         job_schema.apply_schema()
-        cls.db.execute('CREATE TABLE business_profiles(business_id INTEGER PRIMARY KEY,category TEXT)')
+        cls.db.execute('CREATE TABLE IF NOT EXISTS business_profiles(business_id INTEGER PRIMARY KEY,category TEXT)')
         cls.db.execute("INSERT INTO business_profiles VALUES (7,'Restaurant'),(8,'Salon')")
 
     tearDown = phase3.CustomerTests.tearDown
