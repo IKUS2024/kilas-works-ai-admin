@@ -390,4 +390,6 @@ def list_jobs(business_id, *, search='', status='', page=1, customer_id=None,
 def jobs_for_customer(business_id, customer_id):
     with transaction() as tx:
         _references(tx,business_id,customer_id,None)
-    return list_jobs(business_id,customer_id=customer_id)[0]
+    return list_jobs(
+        business_id, customer_id=customer_id, customer_stage='CUSTOMER'
+    )[0]
