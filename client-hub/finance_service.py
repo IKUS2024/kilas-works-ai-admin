@@ -187,10 +187,13 @@ def _write(business_id, actor_user_id, *, related_business_ids=()):
     # calls reuse these locks; the monetary service/entitlement contract is unchanged.
     lock_ids = sorted({_id(business_id), *(_id(bid) for bid in related_business_ids)})
     if related_business_ids:
+        actor = (db.query_one("SELECT role FROM users WHERE id=?", (actor_user_id,))
+                 if actor_user_id is not None else None)
+        is_admin = bool(actor and actor.get('role') == 'KILAS_ADMIN')
         for bid in lock_ids:
-            if actor_user_id is None or not db.query_one(
+            if not is_admin and (actor_user_id is None or not db.query_one(
                     "SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=? "
-                    "AND role_in_business='OWNER'", (bid, actor_user_id)):
+                    "AND role_in_business='OWNER'", (bid, actor_user_id))):
                 raise FinanceError('business_unavailable')
     with db.app_purchase_transaction(lock_ids[0], None):
         for bid in lock_ids[1:]:
