@@ -11,7 +11,7 @@
   <div class="client-head">
     <div>
       <h1>Tindakan</h1>
-      <p>{{ business.business_name }} · tindak lanjut customer</p>
+      <p>{{ business.business_name }} · tindakan customer</p>
     </div>
     <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>
   </div>
@@ -45,10 +45,6 @@
           <div class="job-action-line">{{ row.summary }}</div>
           {% endif %}
           <div class="job-action-meta">
-            {% if row.fields.priority %}
-              <span class="client-status {{ 'danger' if row.fields.priority == 'Tinggi' else 'warn' if row.fields.priority == 'Sedang' else 'info' }}">{{ row.fields.priority }}</span>
-            {% endif %}
-            {% if row.fields.intent %}<span class="client-status">{{ row.fields.intent }}</span>{% endif %}
             <span class="client-status">{{ row.label }}</span>
           </div>
         </div>
@@ -56,8 +52,7 @@
     </a>
     {% else %}
       <div class="client-empty">
-        Belum ada tindakan customer yang perlu ditindaklanjuti. Saat customer menunjukkan kebutuhan,
-        minat, ingin booking, meminta penawaran, atau punya next action yang jelas, Jobs akan muncul di sini.
+        Belum ada tindakan. Job hanya muncul untuk Customer yang sudah menyatakan tindakan atau permintaan konkret.
       </div>
     {% endfor %}
   </div>
