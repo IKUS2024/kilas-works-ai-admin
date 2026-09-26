@@ -283,6 +283,7 @@ MIGRATIONS = [
     ("0053_kilas_order_catalog_sqlite.sql", "0053_kilas_order_catalog_postgres.sql"),
     ("0054_remove_initial_kilas_order_products_sqlite.sql", "0054_remove_initial_kilas_order_products_postgres.sql"),
     ("0059_finance_workspace_corrections_sqlite.sql", "0059_finance_workspace_corrections_postgres.sql"),
+    ("0065_platform_workspace_scope_sqlite.sql", "0065_platform_workspace_scope_postgres.sql"),
 ]
 
 
