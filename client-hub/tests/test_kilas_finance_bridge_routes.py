@@ -184,6 +184,24 @@ class BridgeRoutesTests(unittest.TestCase):
         db.execute("DELETE FROM finance_entitlements WHERE business_id=?", (self.source,))
         with patch.dict(os.environ, {
             'KILAS_FINANCE_ACCESS_MODE': 'self_service',
+            'KILAS_FINANCE_EMERGENCY_DISABLE': 'true',
+        }):
+            blocked = self.client.post(
+                self.base + '/jobs/' + self.jid + '/invoice/start',
+                data={'csrf_token': csrf},
+            )
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn('Finance internal belum siap', blocked.text)
+        self.assertNotIn('Periksa koneksi Finance', blocked.text)
+        self.assertIsNone(bridge.connection(self.source, self.actor))
+        self.assertEqual(
+            db.query_one("SELECT COUNT(*) AS n FROM finance_branches WHERE business_id=?",
+                         (self.source,))['n'],
+            0,
+        )
+
+        with patch.dict(os.environ, {
+            'KILAS_FINANCE_ACCESS_MODE': 'self_service',
             'KILAS_FINANCE_EMERGENCY_DISABLE': 'false',
         }):
             started = self.client.post(
