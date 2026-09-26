@@ -162,6 +162,44 @@ def _stored(business_id, customer_id):
     }
 
 
+def snapshot(business_id, customer_id):
+    """Return the last stored Insight plus cheap freshness metadata, without calling AI."""
+    try:
+        customer, stored, core, demo = source_state(business_id, customer_id)
+    except Exception:
+        stored = _stored(business_id, customer_id)
+        customer = None
+        core, demo = [], []
+    result = dict(stored["insight"]) if stored else _default()
+    result["_meta"] = {
+        "updated_at": stored["updated_at"] if stored else None,
+        "message_count": stored["message_count"] if stored else 0,
+        "fresh": not bool(core or demo),
+        "has_history": bool(
+            (stored and stored["message_count"]) or core or demo
+        ),
+        "pending_messages": len(core) + len(demo),
+    }
+    return result
+
+
+def safe_snapshot(business_id, customer_id):
+    """Never let cached Insight rendering break Customer detail navigation."""
+    try:
+        return snapshot(business_id, customer_id)
+    except Exception:
+        result = _default()
+        result["_meta"] = {
+            "updated_at": None,
+            "message_count": 0,
+            "fresh": False,
+            "has_history": False,
+            "pending_messages": 0,
+            "error": True,
+        }
+        return result
+
+
 def _demo_binding(business_id, phone):
     if not phone:
         return None

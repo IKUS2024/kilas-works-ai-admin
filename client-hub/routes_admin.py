@@ -42,6 +42,7 @@ import platform_workspace
 import subscription_service
 import finance_entitlements
 import whatsapp_signup
+from kilas_core import background_tasks
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -219,17 +220,21 @@ def dashboard():
 
     platform_crm = {"total": 0, "leads": 0, "customers": 0, "jobs_need_action": 0}
     try:
-        scope, _synced = platform_workspace.sync_contacts()
-        from kilas_core import customers as core_customers, jobs as core_jobs
-        _, platform_crm["total"], _, _ = core_customers.list_customers(
-            scope["id"], page=1, stage="ALL")
-        _, platform_crm["leads"], _, _ = core_customers.list_customers(
-            scope["id"], page=1, stage="LEAD")
-        _, platform_crm["customers"], _, _ = core_customers.list_customers(
-            scope["id"], page=1, stage="CUSTOMER")
-        _, platform_crm["jobs_need_action"], _, _ = core_jobs.list_jobs(
-            scope["id"], customer_stage="CUSTOMER",
-            statuses=core_jobs.OWNER_STATUS_GROUPS["NEW"], page=1)
+        scope = platform_workspace.business(create=True)
+        if scope:
+            background_tasks.schedule_business_refresh(
+                scope, actor_id=security.current_user()["id"]
+            )
+            from kilas_core import customers as core_customers, jobs as core_jobs
+            _, platform_crm["total"], _, _ = core_customers.list_customers(
+                scope["id"], page=1, stage="ALL")
+            _, platform_crm["leads"], _, _ = core_customers.list_customers(
+                scope["id"], page=1, stage="LEAD")
+            _, platform_crm["customers"], _, _ = core_customers.list_customers(
+                scope["id"], page=1, stage="CUSTOMER")
+            _, platform_crm["jobs_need_action"], _, _ = core_jobs.list_jobs(
+                scope["id"], customer_stage="CUSTOMER",
+                statuses=core_jobs.OWNER_STATUS_GROUPS["NEW"], page=1)
     except Exception:
         pass
 
@@ -280,7 +285,12 @@ def dashboard():
 @security.admin_required
 def customers_workspace():
     """Kilas Works CRM: same Core Customers engine as tenant/demo, sourced from platform Inbox."""
-    scope, _synced = platform_workspace.sync_contacts()
+    scope = platform_workspace.business(create=True)
+    if not scope:
+        abort(503)
+    background_tasks.schedule_business_refresh(
+        scope, actor_id=security.current_user()["id"]
+    )
     return redirect(
         url_for(
             "core_customers.list_page",
@@ -297,13 +307,12 @@ def customers_workspace():
 @security.admin_required
 def jobs_workspace():
     """Kilas Works Jobs: same Core Jobs lifecycle as tenant/demo, scoped to platform CRM."""
-    scope, _synced = platform_workspace.sync_contacts()
-    try:
-        from kilas_core import customer_action_jobs
-        customer_action_jobs.prune_invalid_lead_jobs(scope["id"])
-        customer_action_jobs.reconcile_business(scope)
-    except Exception:
-        pass
+    scope = platform_workspace.business(create=True)
+    if not scope:
+        abort(503)
+    background_tasks.schedule_business_refresh(
+        scope, actor_id=security.current_user()["id"]
+    )
     return redirect(
         url_for(
             "core_jobs.list_page",

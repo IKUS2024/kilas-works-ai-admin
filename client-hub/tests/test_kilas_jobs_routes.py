@@ -516,6 +516,19 @@ class JobRoutesTests(unittest.TestCase):
             404,
         )
 
+    def test_owner_navigation_never_waits_on_customer_insight_model(self):
+        # GET navigation must be DB/render-only. Slow AI work is scheduled off the request path.
+        with patch.object(self.ai, '_call_claude') as model:
+            customers_page = self.client.get('/business/7/customers?stage=CUSTOMER')
+            jobs_page = self.client.get('/business/7/jobs')
+            detail_page = self.client.get('/business/7/customers/' + self.customer['id'])
+            insight_fragment = self.client.get('/business/7/customers/' + self.customer['id'] + '/insight')
+        self.assertEqual(customers_page.status_code, 200)
+        self.assertEqual(jobs_page.status_code, 200)
+        self.assertEqual(detail_page.status_code, 200)
+        self.assertEqual(insight_fragment.status_code, 200)
+        model.assert_not_called()
+
     def test_chat_and_simulator_never_create_jobs_automatically(self):
         with patch.object(self.ai,'_call_claude',return_value=('Kami bantu pesanan Anda','end_turn',None)):
             self.assertEqual(self.send(self.identity,text='Buat pesanan 20 kopi').status_code,200)

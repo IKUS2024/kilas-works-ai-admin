@@ -66,6 +66,10 @@ class CustomerTests(unittest.TestCase):
              json.dumps({"phone": phone, "start_message_id": 1402, "bound_at": 1790362912})),
         )
 
+        # Navigation is now read-only/fast. Durable channel reconciliation is a service task,
+        # not a prerequisite for rendering the Customers page.
+        customer = customers.sync_demo_binding_lead(7)
+        self.assertIsNotNone(customer)
         first = self.client.get("/business/7/customers")
         self.assertEqual(first.status_code, 200)
         self.assertIn(phone.encode(), first.data)
@@ -104,6 +108,7 @@ class CustomerTests(unittest.TestCase):
         with patch.object(customer_insights.db, "query_all", return_value=demo_rows), \
              patch.object(customer_insights.ai_onboarding, "_call_claude",
                           return_value=(first_json, "end_turn", None)) as call:
+            customer_insights.refresh({"id": 7}, customer)
             page = self.client.get(f"/business/7/customers/{customer['id']}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Budi", page.data)
@@ -112,6 +117,7 @@ class CustomerTests(unittest.TestCase):
         self.assertIn("coffee shop", sent)
         self.assertNotIn("Demo ID", sent)
 
+        # Owner navigation and insight fragments must never call the model synchronously.
         with patch.object(customer_insights.ai_onboarding, "_call_claude") as call:
             cached = self.client.get(f"/business/7/customers/{customer['id']}/insight")
         self.assertEqual(cached.status_code, 200)
@@ -133,6 +139,7 @@ class CustomerTests(unittest.TestCase):
         with patch.object(customer_insights.db, "query_all", return_value=demo_rows), \
              patch.object(customer_insights.ai_onboarding, "_call_claude",
                           return_value=(second_json, "end_turn", None)) as call:
+            customer_insights.refresh({"id": 7}, customer)
             updated = self.client.get(f"/business/7/customers/{customer['id']}/insight")
         self.assertEqual(updated.status_code, 200)
         self.assertIn(b"Rp500 ribu", updated.data)

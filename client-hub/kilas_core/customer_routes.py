@@ -2,7 +2,7 @@
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
 import platform_workspace
-from kilas_core import customers, customer_insights, customer_action_jobs
+from kilas_core import customers, customer_insights, customer_action_jobs, background_tasks
 from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
@@ -19,25 +19,11 @@ def _business(bid):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
-    if platform_workspace.is_scope_business(bid):
-        try:
-            platform_workspace.sync_contacts()
-        except Exception:
-            pass
-        # Reconcile only a small bounded batch on normal page loads. The raw keyword prefilter
-        # never promotes; Customer Insight must independently confirm a concrete customer action.
-        try:
-            customer_action_jobs.reconcile_actionable_platform_leads(
-                business, actor_id=security.current_user()["id"], limit=3
-            )
-        except Exception:
-            pass
-    # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
-    # historical demo chats immediately visible as Lead without requiring another message.
-    try:
-        customers.sync_demo_binding_lead(bid)
-    except Exception:
-        pass
+    # Navigation must never wait for WhatsApp sync or AI Customer Insight.
+    # A bounded background task refreshes CRM/Jobs after this response is rendered.
+    background_tasks.schedule_business_refresh(
+        business, actor_id=security.current_user()["id"]
+    )
     q = request.args.get("q", "")
     page = request.args.get("page", 1, type=int) or 1
     stage = (request.args.get("stage") or "LEAD").strip().upper()
@@ -75,13 +61,10 @@ def detail_page(bid, customer_id):
     demo = customer_insights.demo_conversation_row(bid, customer)
     if demo:
         conversations.insert(0, demo)
-    insight, _ = customer_action_jobs.refresh_and_sync(
-        business, customer, actor_id=security.current_user()["id"]
+    insight = customer_insights.safe_snapshot(bid, customer_id)
+    background_tasks.schedule_customer_refresh(
+        business, customer_id, actor_id=security.current_user()["id"]
     )
-    try:
-        customer = customers.get_customer(bid, customer_id)
-    except customers.CustomerError:
-        pass
     return render_template("customer_detail.html", business=business, customer=customer,
                            conversations=conversations, insight=insight,
                            saved=request.args.get("saved") == "1",
@@ -96,13 +79,10 @@ def insight_fragment(bid, customer_id):
         customer = customers.get_customer(bid, customer_id)
     except customers.CustomerError as error:
         abort(error.status)
-    insight, _ = customer_action_jobs.refresh_and_sync(
-        business, customer, actor_id=security.current_user()["id"]
+    insight = customer_insights.safe_snapshot(bid, customer_id)
+    background_tasks.schedule_customer_refresh(
+        business, customer_id, actor_id=security.current_user()["id"]
     )
-    try:
-        customer = customers.get_customer(bid, customer_id)
-    except customers.CustomerError:
-        pass
     return render_template("_customer_insight.html", business=business,
                            customer=customer, insight=insight)
 
@@ -143,15 +123,13 @@ def update_profile(bid, customer_id):
                                conversations=conversations, insight=insight, saved=False,
                                form_error="Periksa kembali data customer.",
                                linked_jobs=linked_context(business,customer_id)), 400
-    # Promotion to Customer is the only point where this CRM contact becomes eligible
-    # for an AI action Job. Re-read the authoritative profile and refresh Insight; if the
-    # customer has not stated a concrete action, sync remains a no-op and Jobs stays empty.
+    # Keep the save POST fast too. If this promotion makes the contact eligible for a Job,
+    # Customer Insight + Job reconciliation runs off the request path.
     try:
-        customer = customers.get_customer(bid, customer_id)
-        if customer.get("stage") == "CUSTOMER":
-            business = security.require_business_access(bid)
-            insight = customer_insights.safe_refresh(business, customer)
-            customer_action_jobs.sync_from_insight(business, customer, insight)
+        business = security.require_business_access(bid)
+        background_tasks.schedule_customer_refresh(
+            business, customer_id, actor_id=user["id"]
+        )
     except Exception:
         pass
     return redirect(url_for("core_customers.detail_page", bid=bid, customer_id=customer_id, saved=1))
