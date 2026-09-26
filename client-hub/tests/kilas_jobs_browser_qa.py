@@ -50,10 +50,10 @@ def main():
         expect(owner.locator('span.client-status')).to_have_text('Dikerjakan')
         owner.screenshot(path=str(OUT/'08_job_updated.png'),full_page=True)
         owner.locator('[data-job-customer]').click()
-        expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
+        expect(owner.locator('[data-linked-jobs]').get_by_text('Siapkan 20 paket makan siang',exact=True)).to_be_visible()
         owner.screenshot(path=str(OUT/'09_customer_jobs.png'),full_page=True)
         # Customer-only Jobs remain supported; retired Web Chat is no longer a CRM navigation source.
-        expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
+        expect(owner.locator('[data-linked-jobs]').get_by_text('Siapkan 20 paket makan siang',exact=True)).to_be_visible()
 
         owner.goto(BASE+'/business/7/jobs',wait_until='networkidle')
         owner.get_by_label('Cari tindakan',exact=True).fill('kantor')
