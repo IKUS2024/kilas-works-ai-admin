@@ -130,6 +130,11 @@ def list_page(bid):
         customers.get_customer(bid,customer_id)
     rows,total,page,pages = jobs.list_jobs(bid,search=q,status=status,customer_id=customer_id,
                                          page=request.args.get('page',1))
+    for row in rows:
+        try:
+            row['customer_name'] = customers.get_customer(bid,row['customer_id'])['display_name']
+        except Exception:
+            row['customer_name'] = None
     return render_template('jobs.html',**_context(business,rows=rows,total=total,page=page,pages=pages,
                                                 search=q,status=status,customer_id=customer_id))
 
