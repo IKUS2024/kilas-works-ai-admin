@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS kw_core_customer_insights (
     unknowns TEXT NOT NULL DEFAULT '[]',
     follow_up TEXT,
     source_message_count INTEGER NOT NULL DEFAULT 0,
-    source_last_at BIGINT NOT NULL DEFAULT 0,
+    source_version BIGINT NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'STALE' CHECK(status IN ('STALE','READY','FAILED')),
     updated_at BIGINT NOT NULL,
     PRIMARY KEY (business_id, customer_id),
