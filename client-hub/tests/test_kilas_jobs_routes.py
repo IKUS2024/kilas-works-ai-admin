@@ -170,81 +170,93 @@ class JobRoutesTests(unittest.TestCase):
             self.assertEqual(denied,[])
         finally: self.db.get_connection().set_authorizer(None)
 
-    def test_customer_insight_creates_and_updates_one_action_job(self):
+    def test_only_confirmed_customer_with_concrete_action_gets_job(self):
         business = {'id': 7}
         insight = {
-            'summary': 'Customer tertarik dan ingin booking konsultasi untuk kebutuhan parfum.',
-            'name': None, 'business_name': None, 'business_type': 'parfum',
-            'location': None, 'budget': None,
-            'interests': ['Kilas Assist'], 'needs': ['booking konsultasi'],
+            'summary': 'Customer ingin booking konsultasi.',
+            'interests': ['konsultasi'], 'needs': ['booking'],
             'buying_stage': 'BERMINAT',
-            'buying_signal_reason': 'Customer menyebut ingin booking.',
-            'communication_notes': None,
-            'missing_info': ['tanggal booking'],
-            'follow_up': 'Tanyakan tanggal yang diinginkan untuk booking konsultasi.',
+            'follow_up': 'Tanyakan tanggal yang diinginkan.',
+            'action': 'Booking konsultasi minggu depan',
             '_meta': {'has_history': True, 'fresh': True, 'message_count': 3},
         }
-        first = customer_action_jobs.sync_from_insight(business, self.customer, insight)
+
+        # Lead may have a strong Insight, but Jobs is Customer-only.
+        self.assertEqual(self.customer['stage'], 'LEAD')
+        self.assertIsNone(customer_action_jobs.sync_from_insight(business, self.customer, insight))
+        self.assertEqual(jobs.list_jobs(7)[1], 0)
+
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='CUSTOMER', actor_id=1,
+        )
+        customer = customers.get_customer(7, self.customer['id'])
+        first = customer_action_jobs.sync_from_insight(business, customer, insight)
         self.assertIsNotNone(first)
-        self.assertEqual(first['customer_id'], self.customer['id'])
+        self.assertEqual(first['customer_id'], customer['id'])
         self.assertEqual(first['status'], 'NEW')
         self.assertEqual(first['fields']['source'], 'Customer Insight')
-        self.assertEqual(first['fields']['priority'], 'Sedang')
-        self.assertIn('booking', first['title'].lower())
-        self.assertIn('tanggal', first['fields']['action'].lower())
+        self.assertEqual(first['fields']['action'], 'Booking konsultasi minggu depan')
+        self.assertNotIn('priority', first['fields'])
+        self.assertNotIn('intent', first['fields'])
 
-        # Same intent is idempotent: one customer action, not one Job per chat/page refresh.
-        again = customer_action_jobs.sync_from_insight(business, self.customer, insight)
+        again = customer_action_jobs.sync_from_insight(business, customer, insight)
         self.assertEqual(again['id'], first['id'])
         self.assertEqual(jobs.list_jobs(7)[1], 1)
 
         updated_insight = {
             **insight,
-            'summary': 'Customer sudah memilih arah booking dan siap lanjut.',
-            'buying_stage': 'SIAP_MEMBELI',
-            'follow_up': 'Konfirmasi tanggal booking dan langkah berikutnya.',
-            'missing_info': [],
+            'summary': 'Customer memilih booking tanggal 10.',
+            'action': 'Booking konsultasi tanggal 10',
             '_meta': {'has_history': True, 'fresh': True, 'message_count': 4},
         }
-        updated = customer_action_jobs.sync_from_insight(business, self.customer, updated_insight)
+        updated = customer_action_jobs.sync_from_insight(business, customer, updated_insight)
         self.assertEqual(updated['id'], first['id'])
-        self.assertEqual(updated['fields']['priority'], 'Tinggi')
+        self.assertEqual(updated['fields']['action'], 'Booking konsultasi tanggal 10')
         self.assertEqual(updated['version'], first['version'] + 1)
 
         page = self.client.get('/business/7/jobs')
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'Tindakan', page.data)
-        self.assertIn(self.customer['display_name'].encode(), page.data)
-        self.assertIn(b'Konfirmasi tanggal booking', page.data)
+        self.assertIn(customer['display_name'].encode(), page.data)
+        self.assertIn(b'Booking konsultasi tanggal 10', page.data)
 
-    def test_customer_insight_skips_noise_and_never_duplicates_manual_job(self):
+    def test_information_only_customer_stays_out_of_jobs_and_manual_job_wins(self):
         business = {'id': 7}
-        noise = {
-            'summary': 'Customer hanya menyapa.',
-            'interests': [], 'needs': [], 'buying_stage': 'BELUM_JELAS',
-            'missing_info': [], 'follow_up': None,
-            '_meta': {'has_history': True, 'fresh': True, 'message_count': 1},
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='CUSTOMER', actor_id=1,
+        )
+        customer = customers.get_customer(7, self.customer['id'])
+        info_only = {
+            'summary': 'Customer bertanya paket dan harga.',
+            'interests': ['paket'], 'needs': ['informasi harga'],
+            'buying_stage': 'MENCARI_INFORMASI',
+            'follow_up': 'Jelaskan pilihan paket.',
+            'action': None,
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 2},
         }
-        self.assertIsNone(customer_action_jobs.sync_from_insight(business, self.customer, noise))
+        self.assertIsNone(customer_action_jobs.sync_from_insight(business, customer, info_only))
         self.assertEqual(jobs.list_jobs(7)[1], 0)
 
         manual = jobs.create_job(
-            7, self.customer['id'], title='Hubungi customer manual',
+            7, customer['id'], title='Hubungi customer manual',
             summary='Owner sudah membuat tindakan sendiri.',
             actor_id=1, operation_key='manual-action-job-0001', fields={'details':'Manual'},
         )
-        actionable = {
-            'summary': 'Customer meminta price list.',
-            'interests': ['paket'], 'needs': ['informasi harga'],
-            'buying_stage': 'MENCARI_INFORMASI',
-            'buying_signal_reason': 'Meminta harga.',
-            'missing_info': [], 'follow_up': 'Kirim dan jelaskan pilihan paket.',
-            '_meta': {'has_history': True, 'fresh': True, 'message_count': 2},
+        concrete = {
+            **info_only,
+            'summary': 'Customer meminta proposal dikirim.',
+            'action': 'Kirim proposal',
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 3},
         }
-        result = customer_action_jobs.sync_from_insight(business, self.customer, actionable)
+        result = customer_action_jobs.sync_from_insight(business, customer, concrete)
         self.assertEqual(result['id'], manual['id'])
         self.assertEqual(jobs.list_jobs(7)[1], 1)
         self.assertNotEqual(jobs.list_jobs(7)[0][0]['fields'].get('source'), 'Customer Insight')
+
 
     def test_chat_and_simulator_never_create_jobs_automatically(self):
         with patch.object(self.ai,'_call_claude',return_value=('Kami bantu pesanan Anda','end_turn',None)):
