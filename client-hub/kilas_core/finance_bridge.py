@@ -1,7 +1,8 @@
-"""Optional owner-confirmed Core links to the existing authoritative Finance engine.
+"""Owner-confirmed Core links to the existing authoritative Finance engine.
 
-No protected Finance SQL writes, payment posting, issue action, provider call or sender.
-All compound writes reuse Finance's transaction, validation, entitlement and audit APIs.
+Finance remains the sole invoice, payment, and ledger authority. This bridge never invents a
+second financial ledger: invoice issue/payment reuse Finance service APIs, while customer delivery
+uses the official WhatsApp transport and preserves its channel/window/takeover safeguards.
 """
 import hashlib
 import json
