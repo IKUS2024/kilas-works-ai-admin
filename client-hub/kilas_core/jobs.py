@@ -304,7 +304,7 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
         previous = json.loads(current['fields_json'])
         if previous.get('source') == 'Customer Insight':
             preserved = dict(fields)
-            for key in ('action','intent','priority','source','source_key'):
+            for key in ('action','intent','priority','source','source_key','payment_step_reached'):
                 if key in previous:
                     preserved[key] = previous[key]
             encoded = validate_fields(preserved)
