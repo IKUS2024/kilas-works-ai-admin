@@ -191,6 +191,12 @@ class WhatsAppTests(unittest.TestCase):
 
     def test_owner_inbox_scope_channel_and_csrf(self):
         self.receive();cid=self.link()['conversation_id']
+        # Jobs are Customer-only. Promote this fixture before asserting linked Job detail.
+        customer=customers.customer_for_conversation(7,cid)
+        customers.update_customer(
+            7,customer['id'],display_name=customer['display_name'],
+            phone=customer.get('phone'),email=customer.get('email'),notes=customer.get('notes'),
+            stage='CUSTOMER',actor_id=1)
         response=self.client.get('/business/7/inbox?channel=web&conversation='+cid)
         self.assertEqual(response.status_code,200);self.assertIn(b'WhatsApp',response.data);self.assertIn(b'Guangzhou',response.data)
         self.assertEqual(self.client.post(f'/business/7/web-inbox/{cid}/reply',json={'event_id':'forged-send-0001','message':'x'}).status_code,400)
