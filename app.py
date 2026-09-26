@@ -5460,6 +5460,8 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
                     route,
                     has_image=has_image,
                     has_business_data=True,
+                    customer_text=user_message,
+                    reply_text=(conversations.get(scoped_number) or [{}])[-1].get("content", ""),
                 ),
             )
         except Exception:
