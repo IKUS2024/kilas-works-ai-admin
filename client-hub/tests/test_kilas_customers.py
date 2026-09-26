@@ -77,23 +77,23 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200)
         self.assertEqual(customers.list_customers(7, stage="LEAD")[1], 1)
 
-    def test_customer_insight_is_incremental_cached_and_never_reanalyzes_without_new_chat(self):
-        identity = self.start().json
-        customer = customers.customer_for_conversation(7, identity["conversation_id"])
-        now = 1_800_000_000
-        with store.transaction() as tx:
-            tx.execute(
-                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (7, identity["conversation_id"], "insight-user-1", "user",
-                 "Nama saya Budi. Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp.", now),
-            )
-            tx.execute(
-                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (7, identity["conversation_id"], "insight-ai-1", "assistant",
-                 "Baik, ada budget tertentu?", now + 1),
-            )
+    def test_customer_insight_reads_demo_whatsapp_inbox_only_and_updates_incrementally(self):
+        phone = "14048836437"
+        self.db.execute(
+            "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
+            (phone, "customer", "user", "Demo ID: AAAA-BBBB", "2026-09-26 02:00:00"),
+        )
+        start_id = self.db.query_one("SELECT MAX(id) AS id FROM messages")["id"]
+        self.db.execute(
+            "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
+            (phone, "customer", "user", "Nama saya Budi. Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp.", "2026-09-26 02:01:00"),
+        )
+        self.db.execute(
+            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
+            (1, 7, "demo_whatsapp_bound",
+             json.dumps({"phone": phone, "start_message_id": start_id, "bound_at": 1790362912})),
+        )
+        customer = customers.sync_demo_binding_lead(7)
         first_json = json.dumps({
             "summary": "Budi memiliki coffee shop di Tangerang dan mencari admin WhatsApp.",
             "name": "Budi", "business_name": None, "business_type": "coffee shop",
@@ -109,21 +109,20 @@ class CustomerTests(unittest.TestCase):
             page = self.client.get(f"/business/7/customers/{customer['id']}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Budi", page.data)
-        self.assertIn(b"coffee shop", page.data)
         call.assert_called_once()
+        sent = call.call_args.args[1][0]["content"]
+        self.assertIn("coffee shop", sent)
+        self.assertNotIn("Demo ID", sent)
 
         with patch.object(customer_insights.ai_onboarding, "_call_claude") as call:
             cached = self.client.get(f"/business/7/customers/{customer['id']}/insight")
         self.assertEqual(cached.status_code, 200)
         call.assert_not_called()
 
-        with store.transaction() as tx:
-            tx.execute(
-                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
-                "VALUES (?,?,?,?,?,?)",
-                (7, identity["conversation_id"], "insight-user-2", "user",
-                 "Budget saya sekitar 500 ribu per bulan.", now + 2),
-            )
+        self.db.execute(
+            "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
+            (phone, "customer", "user", "Budget saya sekitar 500 ribu per bulan.", "2026-09-26 02:02:00"),
+        )
         second_json = json.dumps({
             "summary": "Budi mencari admin WhatsApp untuk coffee shop di Tangerang dengan budget sekitar Rp500 ribu per bulan.",
             "name": "Budi", "business_name": None, "business_type": "coffee shop",
@@ -140,13 +139,25 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(updated.status_code, 200)
         self.assertIn(b"Rp500 ribu", updated.data)
         call.assert_called_once()
-        sent = call.call_args.args[1][0]["content"]
-        self.assertIn("INSIGHT SEBELUMNYA", sent)
-        self.assertIn("500 ribu", sent)
-        with customers.transaction() as tx:
-            row = tx.one("SELECT analyzed_message_count FROM kw_core_customer_insights "
-                         "WHERE business_id=? AND customer_id=?", (7, customer["id"]))
-        self.assertEqual(row["analyzed_message_count"], 3)
+        self.assertIn("INSIGHT SEBELUMNYA", call.call_args.args[1][0]["content"])
+        self.assertIn("500 ribu", call.call_args.args[1][0]["content"])
+
+    def test_customer_insight_excludes_retired_web_chat(self):
+        identity = self.start().json
+        customer = customers.customer_for_conversation(7, identity["conversation_id"])
+        with store.transaction() as tx:
+            tx.execute(
+                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (7, identity["conversation_id"], "old-web", "user",
+                 "Nama saya TidakBolehMasukInsight", 1_800_000_000),
+            )
+        with patch.object(customer_insights.ai_onboarding, "_call_claude") as call:
+            page = self.client.get(f"/business/7/customers/{customer['id']}")
+        self.assertEqual(page.status_code, 200)
+        call.assert_not_called()
+        self.assertNotIn(b"TidakBolehMasukInsight", page.data)
+
 
     def test_lead_filter_and_manual_customer_promotion(self):
         first = self.start().json
