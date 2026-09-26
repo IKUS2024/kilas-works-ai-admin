@@ -1256,7 +1256,7 @@ def _demo_kilas_rows(business_id, phone, limit=160):
         )
     except Exception:
         return []
-    return [dict(row) for row in rows]
+    return inbox_media_service.attach([dict(row) for row in rows], None)
 
 
 def _demo_kilas_clean_thread(business_id, phone):
@@ -1310,8 +1310,11 @@ def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
         ]).lower()
         if needle not in searchable:
             return None
-    # The demo mirror itself is read-only, so filtering on takeover mode is not meaningful.
-    if mode_filter == "HUMAN_TAKEOVER":
+    try:
+        mode = platform_inbox_service.get_state(phone)
+    except Exception:
+        mode = "STATE_UNAVAILABLE"
+    if mode_filter in ("AI_ACTIVE", "HUMAN_TAKEOVER") and mode != mode_filter:
         return None
     latest = rows[-1]
     return {
@@ -1320,7 +1323,7 @@ def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
         "last_role": latest.get("role"),
         "last_message": latest.get("content") or "",
         "last_message_at": latest.get("created_at"),
-        "mode": "AI_ACTIVE",
+        "mode": mode,
         "source": "demo",
         "is_demo": True,
     }
@@ -1460,14 +1463,18 @@ def inbox_page(business_id):
             thread = _demo_kilas_clean_thread(business_id, selected_phone)
             if not thread:
                 abort(404)
+            try:
+                mode = platform_inbox_service.get_state(selected_phone)
+            except Exception:
+                mode = "STATE_UNAVAILABLE"
             selected = {
                 "customer_phone": selected_phone,
                 "customer_name": platform_inbox_service.get_customer_name(selected_phone),
-                "mode": "AI_ACTIVE",
+                "mode": mode,
                 "source": "demo",
                 "is_demo": True,
             }
-            window = None
+            window = platform_inbox_service.freeform_window_status(selected_phone)
         else:
             if not inbox_service.customer_exists(business_id, selected_phone):
                 abort(404)
@@ -1491,9 +1498,12 @@ def inbox_page(business_id):
         search=search,
         mode_filter=mode_filter,
         template_readiness=(
-            inbox_service.template_readiness(business_id)
+            (
+                platform_inbox_service.template_readiness()
+                if selected_source == "demo"
+                else inbox_service.template_readiness(business_id)
+            )
             if selected
-            and selected_source == "tenant"
             and selected["mode"] == "HUMAN_TAKEOVER"
             and not (window and window.get("allowed"))
             else None
@@ -1509,6 +1519,114 @@ def inbox_page(business_id):
         thread=thread,
         window=window,
     )
+
+
+def _demo_kilas_bound_phone_or_404(business_id, supplied=None):
+    """Authorize one tenant owner to only the platform conversation bound by that business' demo."""
+    _business_or_404(business_id)
+    bound = _demo_kilas_phone_for_business(business_id)
+    phone = platform_inbox_service.normalize_customer_phone(supplied or bound)
+    if not bound or phone != bound or not _demo_kilas_clean_thread(business_id, phone):
+        abort(404)
+    return phone
+
+
+def _demo_kilas_inbox_redirect(business_id, phone):
+    return redirect(url_for(
+        "client.inbox_page", business_id=business_id, customer=phone, source="demo"), code=303)
+
+
+@client_bp.route("/business/<int:business_id>/demo-inbox/takeover", methods=["POST"])
+@security.login_required
+def demo_inbox_takeover(business_id):
+    phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    user = security.current_user()
+    platform_inbox_service.start_human_takeover(phone, user["id"])
+    repo.write_audit(user["id"], business_id, "DEMO_HUMAN_TAKEOVER_STARTED", f"customer={phone}")
+    flash("Human Takeover aktif untuk chat demo ini. AI akan diam sampai dikembalikan ke AI.", "success")
+    return _demo_kilas_inbox_redirect(business_id, phone)
+
+
+@client_bp.route("/business/<int:business_id>/demo-inbox/return-ai", methods=["POST"])
+@security.login_required
+def demo_inbox_return_ai(business_id):
+    phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    user = security.current_user()
+    platform_inbox_service.return_to_ai(phone, user["id"])
+    repo.write_audit(user["id"], business_id, "DEMO_HUMAN_TAKEOVER_ENDED", f"customer={phone}")
+    flash("Chat demo dikembalikan ke Kilas Assist.", "success")
+    return _demo_kilas_inbox_redirect(business_id, phone)
+
+
+@client_bp.route("/business/<int:business_id>/demo-inbox/reply", methods=["POST"])
+@security.login_required
+def demo_inbox_reply(business_id):
+    phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    text = (request.form.get("message") or "").strip()
+    if not text:
+        flash("Pesan tidak boleh kosong.", "error")
+        return _demo_kilas_inbox_redirect(business_id, phone)
+    ok, reason = platform_inbox_service.send_manual_reply(phone, text)
+    user = security.current_user()
+    if ok:
+        repo.write_audit(user["id"], business_id, "DEMO_CS_MANUAL_REPLY_SENT", f"customer={phone}")
+        flash("Pesan human terkirim dari WhatsApp Kilas Works.", "success")
+    else:
+        friendly = {
+            "human_takeover_required": "Klik Ambil Alih dulu sebelum mengirim pesan.",
+            "outside_24h_window": "Di luar jendela WhatsApp. Kirim template resmi dulu.",
+            "no_customer_inbound": "Belum ada inbound customer yang valid untuk membuka jendela WhatsApp.",
+            "message_too_long": "Pesan terlalu panjang. Maksimal 4096 karakter.",
+            "bot_internal_bridge_unavailable": "Koneksi pengiriman demo belum tersedia.",
+            "bot_internal_bridge_timeout": "Pengiriman belum terkonfirmasi. Periksa chat sebelum mencoba lagi.",
+        }.get(reason, "Pesan demo belum berhasil dikirim.")
+        flash(friendly, "error")
+    return _demo_kilas_inbox_redirect(business_id, phone)
+
+
+@client_bp.route("/business/<int:business_id>/demo-inbox/send-template", methods=["POST"])
+@security.login_required
+def demo_inbox_send_template(business_id):
+    phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    ok, reason = platform_inbox_service.send_template_reply(phone)
+    user = security.current_user()
+    if ok:
+        repo.write_audit(user["id"], business_id, "DEMO_CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
+        flash("Template terkirim. Setelah customer membalas, teks dan media aktif lagi.", "success")
+    else:
+        flash(wa_inbox_shared.template_error_message(reason, platform=True), "error")
+    return _demo_kilas_inbox_redirect(business_id, phone)
+
+
+@client_bp.route("/business/<int:business_id>/demo-inbox/media/<media_key>")
+@security.login_required
+def demo_inbox_media(business_id, media_key):
+    phone = _demo_kilas_bound_phone_or_404(business_id)
+    row = inbox_media_service.get(media_key, None)
+    if not row:
+        abort(404)
+    allowed_message_ids = {
+        int(item["id"]) for item in _demo_kilas_rows(business_id, phone)
+        if item.get("id") is not None
+    }
+    if row.get("message_row_id") not in allowed_message_ids:
+        abort(404)
+    return inbox_media_service.serve(row, lambda: inbox_media_service.platform_download(row))
+
+
+@client_bp.route("/business/<int:business_id>/demo-inbox/media", methods=["POST"])
+@security.login_required
+def demo_inbox_media_send(business_id):
+    if not request.content_length or request.content_length > 12 * 1024 * 1024:
+        abort(413)
+    phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    ok, reason = inbox_media_service.platform_send(
+        phone, request.files.get("file"), request.form.get("caption"))
+    user = security.current_user()
+    if ok:
+        repo.write_audit(user["id"], business_id, "DEMO_CS_MEDIA_SENT", f"customer={phone}")
+    flash(*inbox_media_service.upload_flash(ok, reason))
+    return _demo_kilas_inbox_redirect(business_id, phone)
 
 
 @client_bp.route("/business/<int:business_id>/inbox/takeover", methods=["POST"])
