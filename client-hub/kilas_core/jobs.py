@@ -309,8 +309,11 @@ def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, co
             page = min(max(1,int(page)),pages)
         except (TypeError,ValueError):
             raise JobError('invalid_page')
-        rows = tx.execute('SELECT * FROM kw_core_jobs WHERE '+where+' ORDER BY updated_at DESC,id LIMIT 10 OFFSET ?',
-                          tuple(args+[(page-1)*10]))
+        rows = tx.execute(
+            'SELECT j.*,(SELECT c.display_name FROM kw_core_customers c '
+            'WHERE c.business_id=j.business_id AND c.id=j.customer_id) AS customer_name '
+            'FROM kw_core_jobs j WHERE '+where+' ORDER BY updated_at DESC,id LIMIT 10 OFFSET ?',
+            tuple(args+[(page-1)*10]))
         return [_row(row) for row in rows],total,page,pages
 
 
