@@ -7,6 +7,7 @@ an actionable next step. Existing manual/playbook Jobs always win to avoid dupli
 import hashlib
 import json
 
+import db
 from kilas_core import customer_insights, customers, jobs
 
 
@@ -137,15 +138,21 @@ def refresh_and_sync(business, customer):
     return insight, job
 
 
+def _table_exists(tx, table):
+    if db.BACKEND == "postgres":
+        row = tx.one("SELECT to_regclass(?) AS name", ("public." + table,))
+        return bool(row and row.get("name"))
+    row = tx.one("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    return bool(row)
+
+
 def _delete_job_dependencies(tx, business_id, job_id):
     # These tables reference Jobs without ON DELETE CASCADE in 0057/0058.
-    # Remove only rows attached to the exact AI-generated Job being pruned.
-    tx.execute("DELETE FROM kw_core_automation_runs WHERE business_id=? AND job_id=?",
-               (business_id, job_id))
-    tx.execute("DELETE FROM kw_core_attention WHERE business_id=? AND job_id=?",
-               (business_id, job_id))
-    tx.execute("DELETE FROM kw_core_job_operations WHERE business_id=? AND job_id=?",
-               (business_id, job_id))
+    # Older test/dev schemas may not have 0058 yet, so probe before touching optional tables.
+    for table in ("kw_core_automation_runs", "kw_core_attention", "kw_core_job_operations"):
+        if _table_exists(tx, table):
+            tx.execute(f"DELETE FROM {table} WHERE business_id=? AND job_id=?",
+                       (business_id, job_id))
 
 
 def prune_invalid_lead_jobs(business_id):
