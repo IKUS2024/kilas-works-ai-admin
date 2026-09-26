@@ -300,8 +300,13 @@ def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, co
             where += ' AND ' + column + '=?'
             args.append(value)
     if search:
-        where += ' AND (LOWER(title) LIKE LOWER(?) OR LOWER(summary) LIKE LOWER(?))'
-        args += ['%'+search+'%']*2
+        like = '%'+search+'%'
+        where += (
+            ' AND (LOWER(title) LIKE LOWER(?) OR LOWER(summary) LIKE LOWER(?) '
+            'OR LOWER(fields_json) LIKE LOWER(?) OR customer_id IN '
+            '(SELECT id FROM kw_core_customers WHERE business_id=? AND LOWER(display_name) LIKE LOWER(?)))'
+        )
+        args += [like, like, like, business_id, like]
     with transaction() as tx:
         total = tx.one('SELECT COUNT(*) AS n FROM kw_core_jobs WHERE '+where,tuple(args))['n']
         pages = max(1,(total+9)//10)
