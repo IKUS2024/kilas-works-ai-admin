@@ -134,6 +134,11 @@ def create_app():
         import ai_usage
         ai_usage.startup_schema_check()
 
+        if os.environ.get("KILAS_FORCE_PRUNE_INVALID_LEAD_JOBS", "").strip().lower() in ("1","true","yes","on"):
+            from kilas_core import customer_action_jobs
+            removed = customer_action_jobs.force_prune_invalid_lead_jobs_all()
+            print(f"Forced Lead Job cleanup: removed {removed}")
+
         # Repair only stale AI-generated Jobs that were created for CRM Leads by the retired
         # broad-intent implementation. Safe/idempotent and intentionally non-fatal on older
         # local schemas where Core Jobs is not installed yet.
