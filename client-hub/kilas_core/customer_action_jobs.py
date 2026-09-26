@@ -10,16 +10,8 @@ import json
 from kilas_core import customer_insights, customers, jobs
 
 
-ACTIONABLE_STAGES = {
-    "MENCARI_INFORMASI": "Mencari informasi",
-    "MEMBANDINGKAN": "Membandingkan pilihan",
-    "BERMINAT": "Berminat",
-    "SIAP_MEMBELI": "Siap membeli",
-    "CUSTOMER_AKTIF": "Customer aktif",
-}
 TERMINAL = {"COMPLETED", "CANCELLED"}
 AUTO_EDITABLE = {"NEW", "NEEDS_INFORMATION"}
-
 
 def _clean(value, maximum=700):
     if not isinstance(value, str):
@@ -33,92 +25,59 @@ def _list(value):
     return [_clean(item, 180) for item in value[:8] if _clean(item, 180)]
 
 
-def _title_kind(insight):
-    text = " ".join(
-        _list(insight.get("needs"))
-        + _list(insight.get("interests"))
-        + [_clean(insight.get("follow_up"), 500)]
-    ).lower()
+def _title_kind(action):
+    text = _clean(action, 240).lower()
     if any(word in text for word in ("booking", "jadwal", "appointment", "reservasi", "janji")):
-        return "Tindak lanjut booking", "BOOKING"
+        return "Booking", "BOOKING"
     if any(word in text for word in ("foto", "photo", "video", "reels", "konten", "content", "website", "landing page")):
-        return "Tindak lanjut kebutuhan project", "PROJECT"
-    if any(word in text for word in ("harga", "price", "paket", "biaya", "quote", "quotation", "penawaran")):
-        return "Tindak lanjut penawaran", "SERVICE"
+        return "Kebutuhan project", "PROJECT"
     if any(word in text for word in ("konsultasi", "meeting", "diskusi", "call", "telepon")):
-        return "Jadwalkan konsultasi", "BOOKING"
-    if any(word in text for word in ("beli", "pembelian", "order", "pesan", "ambil")):
-        return "Tindak lanjut pembelian", "ORDER"
-    needs = _list(insight.get("needs"))
-    if needs:
-        return "Tindak lanjut: " + needs[0][:110], "SERVICE"
-    return "Tindak lanjut customer", "GENERIC"
-
-
-def _priority(stage):
-    if stage == "SIAP_MEMBELI":
-        return "Tinggi"
-    if stage in ("BERMINAT", "MEMBANDINGKAN"):
-        return "Sedang"
-    return "Normal"
-
+        return "Konsultasi", "BOOKING"
+    if any(word in text for word in ("beli", "pembelian", "order", "pesan")):
+        return "Pembelian / pesanan", "ORDER"
+    if any(word in text for word in ("proposal", "quotation", "penawaran")):
+        return "Kirim penawaran", "SERVICE"
+    return "Tindakan customer", "GENERIC"
 
 def _fingerprint(insight):
     basis = {
-        "stage": insight.get("buying_stage"),
-        "needs": _list(insight.get("needs")),
-        "interests": _list(insight.get("interests")),
-        "follow_up": _clean(insight.get("follow_up"), 700),
+        "action": _clean(insight.get("action"), 240),
+        "summary": _clean(insight.get("summary"), 500),
     }
     return hashlib.sha256(
         json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()[:20]
 
-
 def _payload(insight):
-    stage = insight.get("buying_stage")
-    action = _clean(insight.get("follow_up"), 700)
-    needs = _list(insight.get("needs"))
-    interests = _list(insight.get("interests"))
+    action = _clean(insight.get("action"), 240)
     if not action:
-        if needs:
-            action = "Tindak lanjuti kebutuhan customer: " + ", ".join(needs[:3])
-        elif interests:
-            action = "Tindak lanjuti minat customer: " + ", ".join(interests[:3])
-    title, kind = _title_kind(insight)
-    summary = _clean(insight.get("summary"), 1300)
-    if action:
-        summary = (summary + ("\n\n" if summary else "") + "Tindakan: " + action)[:2000]
-    missing = ", ".join(_list(insight.get("missing_info")))
+        return None
+    title, kind = _title_kind(action)
+    summary = _clean(insight.get("summary"), 420)
     ref = "insight:" + _fingerprint(insight)
     fields = {
         "action": action,
-        "intent": ACTIONABLE_STAGES.get(stage, stage or ""),
-        "priority": _priority(stage),
         "source": "Customer Insight",
         "source_key": ref,
     }
     if summary:
-        fields["details"] = summary[:1000]
-    if missing:
-        fields["missing_information"] = missing[:1000]
+        fields["details"] = summary[:420]
     return title, kind, summary, fields, ref
-
 
 def sync_from_insight(business, customer, insight):
     """Create/update a single actionable Job without overriding owner-controlled work."""
     if not jobs.enabled() or not business or not customer or not isinstance(insight, dict):
         return None
+    # Jobs belongs to confirmed Customers only. Leads may have rich Insight, but never a Job.
+    if customer.get("stage") != "CUSTOMER":
+        return None
     meta = insight.get("_meta") or {}
     if not meta.get("has_history"):
         return None
-    stage = insight.get("buying_stage")
-    if stage not in ACTIONABLE_STAGES:
+    payload = _payload(insight)
+    if payload is None:
         return None
-
-    title, kind, summary, fields, ref = _payload(insight)
-    if not fields.get("action") and not _list(insight.get("needs")) and not _list(insight.get("interests")):
-        return None
+    title, kind, summary, fields, ref = payload
 
     bid, cid = business["id"], customer["id"]
     with jobs.transaction() as tx:
@@ -179,15 +138,11 @@ def refresh_and_sync(business, customer):
 
 
 def reconcile_business(business, limit=10):
-    """Bounded recent-customer reconciliation when owner opens Jobs.
-
-    This gives Demo WhatsApp the same practical monitoring behavior as official channel playbooks
-    without a background worker or an unbounded model sweep.
-    """
+    """Reconcile only confirmed Customers; Leads never create Jobs."""
     if not jobs.enabled() or not business:
         return 0
     try:
-        rows, _, _, _ = customers.list_customers(business["id"], page=1, stage="ALL")
+        rows, _, _, _ = customers.list_customers(business["id"], page=1, stage="CUSTOMER")
     except Exception:
         return 0
     synced = 0
