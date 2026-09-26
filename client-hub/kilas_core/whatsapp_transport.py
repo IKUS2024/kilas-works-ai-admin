@@ -70,6 +70,39 @@ def deliver(bid,cid,eid,*,role,template=False):
     return {'status':status,'error':error}
 
 
+def system_text(bid, cid, event_id, text, actor):
+    """Owner-authorized transactional text that preserves the current AI/Human mode."""
+    if not isinstance(event_id, str) or not 1 <= len(event_id) <= 256:
+        raise store.ChatError('invalid_event')
+    if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+        raise store.ChatError('invalid_message')
+    text = text.strip()
+    with store.transaction() as tx:
+        jobs._lock(tx, bid)
+        store._locked(tx, bid, cid)
+        link = binding(tx, bid, cid)
+        if not link:
+            raise store.ChatError('not_found', 404)
+        active = sync_human(tx, bid, cid, link['customer_phone'])
+        existing = tx.one(
+            "SELECT role,content FROM kw_web_messages WHERE business_id=? AND conversation_id=? "
+            "AND event_id=? AND role IN ('assistant','human') ORDER BY id DESC LIMIT 1",
+            (bid, cid, event_id),
+        )
+        if existing:
+            if existing['content'] != text:
+                raise store.ChatError('event_conflict', 409)
+            role = existing['role']
+        else:
+            role = 'assistant' if active else 'human'
+            store._message(tx, bid, cid, event_id, role, text)
+            tx.execute(
+                'INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
+                (actor, bid, 'SYSTEM_TRANSACTIONAL_MESSAGE', cid + ':' + event_id),
+            )
+    return deliver(bid, cid, event_id, role=role)
+
+
 def statuses(bid,pid,events):
     ranking={'accepted':0,'sent':1,'delivered':2,'read':3}
     with store.transaction() as tx:
