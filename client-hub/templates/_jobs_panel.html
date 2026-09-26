@@ -14,7 +14,7 @@
   <div class="client-list">
     {% for row in linked_jobs.rows %}
     <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
-      <strong>{{ row.label }}</strong><span class="client-item-meta"> · {{ row.status_label }}</span>
+      <strong>{{ row.label }}</strong><span class="client-item-meta"> · {{ row.owner_status_label }}</span>
       <div class="job-next-action">{{ row.fields.action or row.summary or row.title }}</div>
       {% if row.workflow_label %}<div data-playbook-context>
         <p>{{ row.workflow_label }}</p>

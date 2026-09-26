@@ -10,7 +10,7 @@
 {% set active_finance_area='receivables' %}{% include '_finance_area_nav.html' %}
 
 <div class="invoice-editor-top">
-  <a class="invoice-editor-back" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">← Kembali ke Invoice</a>
+  <a class="invoice-editor-back" href="{{ url_for('core_jobs.detail_page',bid=core_context.job.business_id,job_id=core_context.job.id) if core_context else (url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices')) }}">← {{ 'Kembali ke Job' if core_context else 'Kembali ke Invoice' }}</a>
   {% if invoice %}<small>{{ invoice.invoice_number }}</small>{% endif %}
 </div>
 
@@ -34,11 +34,11 @@
 <section class="invoice-editor-section">
   <h2><span class="invoice-step-number">1</span>Pelanggan</h2>
   <label for="customer">Pilih pelanggan yang sudah ada</label>
-  <select id="customer" name="customer_id" {% if locked %}disabled{% endif %}>
+  <select id="customer" name="customer_id" {% if locked or core_context %}disabled{% endif %}>
     <option value="" disabled hidden {{ 'selected' if not values.customer_id }}>Pilih pelanggan</option>
     {% for c in customers %}<option value="{{ c.id }}" {{ 'selected' if values.customer_id|string==c.id|string }} data-name="{{ c.name }}" data-phone="{{ c.phone or '' }}" data-email="{{ c.email or '' }}">{{ c.name }}</option>{% endfor %}
   </select>
-  {% if locked %}
+  {% if locked or core_context %}
     <input type="hidden" name="customer_id" value="{{ values.customer_id }}">
   {% else %}
     <button class="btn small secondary" type="button" id="new-recipient">＋ Pelanggan baru</button>
@@ -96,7 +96,7 @@
 <p class="muted">{{ 'Perubahan tersimpan dalam riwayat revisi invoice.' if invoice else 'Simpan draft dulu. Setelah preview benar, invoice baru dapat diterbitkan.' }}</p>
 <div class="invoice-form-actions invoice-editor-actions-sticky">
   <button class="btn" data-finance-write>{{ 'Simpan Perubahan' if invoice else 'Simpan Draft & Preview' }}</button>
-  <a class="btn secondary" href="{{ url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices') }}">Batal</a>
+  <a class="btn secondary" href="{{ url_for('core_jobs.detail_page',bid=core_context.job.business_id,job_id=core_context.job.id) if core_context else (url_for('finance.invoice_detail',business_id=business.id,branch_id=g.finance_branch_id,invoice_id=invoice.id) if invoice else url_for('finance.receivables',business_id=business.id,branch_id=g.finance_branch_id,section='invoices')) }}">Batal</a>
 </div>
 </form>
 </div>

@@ -16,7 +16,7 @@
       {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
       <p class="client-note">Harga dan ketersediaan perlu konfirmasi tim.</p></div>{% endif %}
     {% if job %}
-    <p><span class="client-status info">{{ job.status_label }}</span></p>
+    <p><span class="client-status info">{{ job.owner_status_label }}</span></p>
     {% if job.fields.source == 'Customer Insight' %}
     <div class="client-card" style="margin-top:10px">
       <div class="client-note">Tindakan berikutnya</div>
@@ -41,7 +41,7 @@
     <label for="job-title">Judul</label><input id="job-title" name="title" maxlength="160" required value="{{ job.title if job else '' }}">
     <label for="job-summary">Ringkasan</label><textarea id="job-summary" name="summary" maxlength="2000">{{ job.summary if job else '' }}</textarea>
     {% if job %}<label for="job-status">Status</label><select id="job-status" name="status">
-      <option value="{{ job.status }}">{{ job.status_label }}</option>
+      <option value="{{ job.owner_status }}">{{ job.owner_status_label }}</option>
       {% for value in transitions %}<option value="{{ value }}">{{ status_labels[value] }}</option>{% endfor %}
     </select>{% else %}<p class="client-note">Status awal: Perlu tindakan</p>{% endif %}
     <details class="client-collapsible" {% if fields %}open{% endif %}><summary>Rincian tambahan</summary>

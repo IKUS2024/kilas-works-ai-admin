@@ -181,12 +181,24 @@ def main():
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(1, timeout=15000)
         assert 'volume' in visitor.locator('.web-bubble.assistant').inner_text()
-        owner.reload(); owner.locator('a.web-conversation').first.click()
+        # CRM policy: a new contact is a Lead and must not expose Jobs until confirmed Customer.
+        owner.goto(BASE + f'/business/{bid}/customers?stage=LEAD')
+        owner.locator('a.client-item').first.click()
+        expect(owner.locator('[data-linked-jobs]')).to_have_count(0)
+        owner.locator('select[name=stage]').select_option('CUSTOMER')
+        owner.get_by_role('button', name='Simpan', exact=True).click()
+        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(0)
+        send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)
+        owner.reload()
+        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
+        owner.goto(BASE + f'/business/{bid}/inbox?channel=web')
+        owner.locator('a.web-conversation').first.click()
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
         job_url = BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href')
         inbox_url = owner.url
         send(visitor, 'Volumenya 0.2 m3')
-        expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(3, timeout=15000)
         owner.reload()
         assert BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href') == job_url
         shot(owner, 'web-inbox-same-job-followup')
@@ -196,7 +208,7 @@ def main():
         owner.get_by_role('button', name='Ambil alih', exact=True).click()
         expect(owner.locator('#web-owner-message')).to_be_enabled(timeout=10000)
         send(visitor, 'Koreksi asalnya Shanghai')
-        expect(visitor.locator('.web-bubble.assistant')).to_have_count(2)
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(3)
         owner.locator('#web-owner-message').fill('Tim sedang memeriksa pengiriman Anda.')
         owner.get_by_role('button', name='Kirim balasan', exact=True).click()
         expect(owner.locator('[data-send-status]')).to_have_text('Balasan terkirim.')
@@ -204,9 +216,15 @@ def main():
         owner.get_by_role('button', name='Kembalikan ke AI', exact=True).click()
         expect(owner.locator('[data-mode]')).to_have_text('AI aktif', timeout=10000)
         send(visitor, 'Koreksi asalnya Shanghai')
-        expect(visitor.locator('.web-bubble.assistant')).to_have_count(3, timeout=15000)
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(4, timeout=15000)
         owner.goto(job_url); expect(owner.locator('#field-origin')).to_have_value('Shanghai')
         shot(owner, 'human-reply-explicit-resume-persisted')
+
+        # Customer has explicitly dealt: move the owner-visible Job to Dikerjakan.
+        owner.goto(job_url)
+        owner.get_by_label('Status', exact=True).select_option('IN_PROGRESS')
+        owner.get_by_role('button', name='Simpan perubahan', exact=True).click()
+        expect(owner.locator('span.client-status').first).to_have_text('Dikerjakan')
 
         base = BASE + f'/business/{bid}/finance-bridge'
         owner.goto(base)
@@ -214,46 +232,44 @@ def main():
         owner.get_by_role('checkbox').check()
         owner.get_by_role('button', name='Simpan koneksi', exact=True).click()
         cid = customer_url.rsplit('/',1)[-1]; jid = job_url.rsplit('/',1)[-1]
-        owner.goto(base + '/customers/' + cid)
-        owner.get_by_label('Pilih Customer Finance').select_option('new')
-        owner.get_by_label('Nama customer baru').fill('Release reviewed customer')
-        owner.get_by_role('checkbox').check()
-        owner.get_by_role('button', name='Hubungkan customer', exact=True).click()
         bridge_job = base + '/jobs/' + jid
-        owner.goto(bridge_job)
-        owner.get_by_label('Mata uang', exact=True).fill('IDR')
-        owner.get_by_label('Tanggal invoice', exact=True).fill(date.today().isoformat())
-        owner.get_by_label('Jatuh tempo', exact=True).fill(date.today().isoformat())
-        owner.get_by_label('Deskripsi 1', exact=True).fill('Synthetic reviewed shipping')
-        owner.get_by_label('Jumlah 1', exact=True).fill('2')
-        owner.get_by_label('Harga satuan 1', exact=True).fill('500')
-        owner.get_by_role('checkbox').check()
-        shot(owner, 'owner-review-before-draft')
-        owner.get_by_role('button', name='Buat draft di Finance', exact=True).click()
-        expect(owner.get_by_text('Status: DRAFT', exact=True)).to_be_visible()
-        owner.get_by_role('link', name='Buka invoice di Finance', exact=True).click()
-        invoice_url = owner.url
-        owner.get_by_role('button', name='Terbitkan Invoice', exact=True).click()
-        owner.locator('[name=amount]').fill('400')
-        owner.locator('[name=account_id]').select_option(index=1)
-        owner.locator('[name=category_id]').select_option(index=1)
-        # Replay exact browser form, including idempotency key, after genuine submission.
-        payment_form = owner.locator('form').filter(has=owner.locator('[name=payment_key]'))
-        payment_action = payment_form.get_attribute('action')
-        payment_data = payment_form.evaluate('(f) => Object.fromEntries(new FormData(f))')
-        owner.get_by_role('button', name='Simpan Pembayaran', exact=True).click()
-        payment_once = owner.locator('.fin-invoice-amounts').inner_text()
-        assert owner.context.request.post(BASE + payment_action, form=payment_data).ok
-        owner.goto(invoice_url)
-        assert owner.locator('.fin-invoice-amounts').inner_text() == payment_once
-        shot(owner, 'finance-ui-payment-retry-no-duplicate')
-        owner.goto(bridge_job)
-        expect(owner.get_by_text('Status: PARTIALLY_PAID', exact=True)).to_be_visible()
-        shot(owner, 'authoritative-bridge-partial-readback')
+
+        # Dikerjakan exposes the human invoice task. It must reuse the full Finance editor.
+        owner.goto(job_url)
+        expect(owner.get_by_text('Tugas manusia · Invoice', exact=True)).to_be_visible()
+        owner.get_by_role('button', name='Buat Invoice', exact=True).click()
+        assert f'/business/{target}/finance/invoices/new' in owner.url
+        expect(owner.get_by_text('Buat Invoice', exact=True)).to_be_visible()
+        owner.locator('[name=sender_address]').fill('Synthetic QA address')
+        owner.locator('[name=sender_phone]').fill('080000000002')
+        owner.locator('[name=item_description]').first.fill('Synthetic reviewed shipping')
+        owner.locator('[name=quantity]').first.fill('2')
+        owner.locator('[name=unit_price]').first.fill('500')
+        shot(owner, 'job-finance-full-editor')
+        owner.get_by_role('button', name='Simpan Draft & Preview', exact=True).click()
+
+        # Saving the authoritative Finance draft returns to the Job for the human publish action.
+        assert owner.url.startswith(job_url)
+        expect(owner.get_by_role('button', name='Terbitkan', exact=True)).to_be_visible()
+        shot(owner, 'job-invoice-draft-ready-to-publish')
+        owner.get_by_role('button', name='Terbitkan', exact=True).click()
+        expect(owner.get_by_text('Customer sudah bayar?', exact=True)).to_be_visible()
+        shot(owner, 'job-invoice-issued-payment-task')
+
+        # Human confirms the full outstanding payment. Finance must own the resulting ledger write.
+        payment = owner.locator('form').filter(has=owner.get_by_role('button', name='Invoice sudah dibayar', exact=True))
+        payment.locator('[name=account_id]').select_option(index=1)
+        payment.locator('[name=category_id]').select_option(index=1)
+        payment.get_by_role('button', name='Invoice sudah dibayar', exact=True).click()
+        expect(owner.get_by_text('Lunas · pembayaran sudah masuk sebagai pemasukan di Kilas Finance.', exact=True)).to_be_visible()
+        shot(owner, 'job-invoice-paid-finance-income')
+        invoice_link = owner.get_by_role('link', name='Buka Invoice di Finance', exact=True)
+        invoice_url = BASE + invoice_link.get_attribute('href')
+
         owner.goto(BASE + '/logout')
         assert '/login' in owner.goto(job_url).url
-        login(owner, data['email']); owner.goto(bridge_job)
-        expect(owner.get_by_text('Status: PARTIALLY_PAID', exact=True)).to_be_visible()
+        login(owner, data['email']); owner.goto(job_url)
+        expect(owner.get_by_text('Lunas · pembayaran sudah masuk sebagai pemasukan di Kilas Finance.', exact=True)).to_be_visible()
         shot(owner, 'full-logout-login-persistence')
         other = new_page(); login(other, data['foreign_email'])
         for path in (job_url, customer_url, bridge_job, invoice_url, inbox_url):

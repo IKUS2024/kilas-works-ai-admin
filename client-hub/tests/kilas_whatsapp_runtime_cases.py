@@ -63,7 +63,14 @@ class RuntimeCases:
         with self.assertRaises(store.ChatError): wa.ensure(7,'77777','628444555666',event_id='same',payload_hash='changed')
         self.assertEqual(customers.list_customers(7)[1],1)
 
+    def confirm_action_customer(self):
+        link=wa.ensure(7,'77777','628111222333')
+        customer=customers.customer_for_conversation(7,link['conversation_id'])
+        with store.transaction() as tx:
+            tx.execute("UPDATE kw_core_customer_stages SET stage='CUSTOMER' WHERE business_id=7 AND customer_id=?",(customer['id'],))
+
     def test_core_action_outbound_concurrency_and_repeat_schema(self):
+        self.confirm_action_customer()
         with patch.object(conversation.ai_onboarding,'_call_claude',return_value=(self._raw(),'end_turn',None)):
             wa.handle(7,'77777',self._message(),'messages')
         row=jobs.list_jobs(7)[0][0];cid=row['conversation_id']
@@ -75,12 +82,14 @@ class RuntimeCases:
         whatsapp_schema.apply_schema();self.assertEqual(jobs.get_job(7,row['id']),row)
 
     def test_action_rollback_no_false_reply_or_outbound(self):
+        self.confirm_action_customer()
         with patch.object(conversation.ai_onboarding,'_call_claude',return_value=(self._raw(),'end_turn',None)),patch.object(jobs,'_update_job',side_effect=RuntimeError('rollback')):
             wa.handle(7,'77777',self._message(),'messages')
         self.assertEqual(jobs.list_jobs(7)[1],0);self.http.assert_not_called()
         with store.transaction() as tx: self.assertEqual(tx.one("SELECT COUNT(*) AS n FROM kw_web_messages WHERE role='assistant'")['n'],0)
 
     def test_abandoned_send_attempt_never_resends(self):
+        self.confirm_action_customer()
         with patch.object(conversation.ai_onboarding,'_call_claude',return_value=(self._raw(),'end_turn',None)):
             wa.handle(7,'77777',self._message(),'messages')
         cid=jobs.list_jobs(7)[0][0]['conversation_id']

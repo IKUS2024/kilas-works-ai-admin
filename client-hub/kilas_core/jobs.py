@@ -22,15 +22,43 @@ STATUS_LABELS = {
     'APPROVED': 'Disetujui', 'IN_PROGRESS': 'Dikerjakan',
     'COMPLETED': 'Selesai', 'CANCELLED': 'Dibatalkan',
 }
+# Owner UI exposes only the three business states used by Kilas Jobs.
+# Legacy states remain readable for older automation/playbook rows.
+OWNER_STATUS_LABELS = {
+    'NEW': 'Perlu tindakan',
+    'IN_PROGRESS': 'Dikerjakan',
+    'CANCELLED': 'Batal',
+}
+OWNER_STATUS_GROUPS = {
+    'NEW': ('NEW', 'NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'QUOTED', 'APPROVED'),
+    'IN_PROGRESS': ('IN_PROGRESS', 'COMPLETED'),
+    'CANCELLED': ('CANCELLED',),
+}
 TRANSITIONS = {
-    'NEW': ('NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'CANCELLED'),
-    'NEEDS_INFORMATION': ('READY_FOR_QUOTE', 'CANCELLED'),
-    'READY_FOR_QUOTE': ('QUOTED', 'CANCELLED'),
-    'QUOTED': ('APPROVED', 'CANCELLED'),
+    'NEW': ('NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'IN_PROGRESS', 'CANCELLED'),
+    'NEEDS_INFORMATION': ('READY_FOR_QUOTE', 'IN_PROGRESS', 'CANCELLED'),
+    'READY_FOR_QUOTE': ('QUOTED', 'IN_PROGRESS', 'CANCELLED'),
+    'QUOTED': ('APPROVED', 'IN_PROGRESS', 'CANCELLED'),
     'APPROVED': ('IN_PROGRESS', 'CANCELLED'),
     'IN_PROGRESS': ('COMPLETED', 'CANCELLED'),
     'COMPLETED': (), 'CANCELLED': (),
 }
+
+
+def owner_status(status):
+    for key, values in OWNER_STATUS_GROUPS.items():
+        if status in values:
+            return key
+    raise JobError('invalid_status')
+
+
+def owner_transitions(status):
+    current = owner_status(status)
+    if current == 'NEW':
+        return ('IN_PROGRESS', 'CANCELLED')
+    if current == 'IN_PROGRESS' and status != 'COMPLETED':
+        return ('CANCELLED',)
+    return ()
 KINDS = {'ORDER': 'Pesanan', 'BOOKING': 'Booking', 'SHIPMENT': 'Pengiriman',
          'PROJECT': 'Project', 'SERVICE': 'Service', 'GENERIC': 'Pekerjaan'}
 # Explicit future-compatible operational keys only. No arbitrary metadata/secrets.
@@ -130,6 +158,8 @@ def _row(row):
     item = dict(row)
     item['fields'] = json.loads(item.pop('fields_json'))
     item['status_label'] = STATUS_LABELS[item['status']]
+    item['owner_status'] = owner_status(item['status'])
+    item['owner_status_label'] = OWNER_STATUS_LABELS[item['owner_status']]
     item['label'] = KINDS[item['kind']]
     return item
 
@@ -216,6 +246,10 @@ def _create_job(tx, business_id, customer_id, *, title, actor_id, operation_key,
                         ['create', customer_id, conversation_id, kind, title, summary, encoded])
     _lock(tx, business_id)
     _references(tx, business_id, customer_id, conversation_id)
+    stage = tx.one('SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
+                   (business_id, customer_id))
+    if stage and stage['stage'] != 'CUSTOMER':
+        raise JobError('not_found', 404)
     replay = _replay(tx, business_id, operation_key, digest)
     if replay:
         return replay
@@ -299,14 +333,23 @@ def get_job(business_id, job_id):
 
 
 def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, conversation_id=None,
-              customer_stage=None):
+              customer_stage=None, statuses=None):
     _positive(business_id)
     if status and status not in STATUS_LABELS:
         raise JobError('invalid_status')
     if customer_stage is not None and customer_stage not in ('LEAD', 'CUSTOMER'):
         raise JobError('invalid_scope')
+    if statuses is not None:
+        if not isinstance(statuses, (tuple, list)) or not statuses or any(s not in STATUS_LABELS for s in statuses):
+            raise JobError('invalid_status')
+        if status:
+            raise JobError('invalid_status')
     search = _text(search,120)
     where, args = 'business_id=?', [business_id]
+    if statuses:
+        marks = ','.join('?' for _ in statuses)
+        where += ' AND status IN (' + marks + ')'
+        args += list(statuses)
     if customer_stage:
         where += (
             ' AND customer_id IN (SELECT customer_id FROM kw_core_customer_stages '

@@ -1,7 +1,8 @@
-"""Optional owner-confirmed Core links to the existing authoritative Finance engine.
+"""Owner-confirmed Core links to the existing authoritative Finance engine.
 
-No protected Finance SQL writes, payment posting, issue action, provider call or sender.
-All compound writes reuse Finance's transaction, validation, entitlement and audit APIs.
+Finance remains the sole invoice, payment, and ledger authority. This bridge never invents a
+second financial ledger: invoice issue/payment reuse Finance service APIs, while customer delivery
+uses the official WhatsApp transport and preserves its channel/window/takeover safeguards.
 """
 import hashlib
 import json
@@ -13,7 +14,8 @@ import repo
 import finance_service as finance
 import finance_branches as branches
 import finance_entitlements as entitlements
-from . import customers, jobs
+import finance_invoice_view
+from . import customers, jobs, customer_insights, whatsapp_transport
 from .flags import enabled_for_business
 
 
@@ -249,6 +251,200 @@ def _invoice_result(bid, jid, actor):
 def read_invoice(bid, actor, jid):
     _source(bid,actor); _job(bid,jid)
     return _invoice_result(bid,jid,actor)
+
+
+def _deal_job(bid, actor, jid):
+    _source(bid, actor)
+    job = _job(bid, jid)
+    stage = db.query_one('SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
+                         (bid, job['customer_id']))
+    if stage and stage['stage'] != 'CUSTOMER':
+        raise BridgeError('not_found', 404)
+    if jobs.owner_status(job['status']) != 'IN_PROGRESS':
+        raise BridgeError('job_not_deal', 409)
+    return job
+
+
+def ensure_job_customer_link(bid, actor, jid, *, expected_version, operation_key):
+    job = _deal_job(bid, actor, jid)
+    mapping = _active_mapping(bid, expected_version)
+    existing = db.query_one(
+        'SELECT * FROM kw_core_finance_customer_links WHERE source_business_id=? '
+        'AND core_customer_id=? AND finance_business_id=?',
+        (bid, job['customer_id'], mapping['finance_business_id']),
+    )
+    if existing:
+        if existing['finance_branch_id'] != mapping['finance_branch_id']:
+            raise BridgeError('customer_link_wrong_branch', 409)
+        return _customer_result(bid, job['customer_id'], mapping['finance_business_id'], actor)
+    customer = _customer(bid, job['customer_id'])
+    return link_customer(
+        bid, actor, job['customer_id'], expected_version=expected_version,
+        operation_key=operation_key, confirmed=True,
+        new_customer={'name': customer['display_name'], 'phone': customer.get('phone') or '',
+                      'email': customer.get('email') or ''},
+    )
+
+
+def invoice_editor_context(bid, actor, jid, *, expected_version, finance_business_id, finance_branch_id,
+                           invoice_id=None):
+    job = _deal_job(bid, actor, jid)
+    mapping = _active_mapping(bid, expected_version)
+    if mapping['finance_business_id'] != finance_business_id or mapping['finance_branch_id'] != finance_branch_id:
+        raise BridgeError('stale_connection', 409)
+    link = db.query_one(
+        'SELECT * FROM kw_core_finance_customer_links WHERE source_business_id=? '
+        'AND core_customer_id=? AND finance_business_id=?',
+        (bid, job['customer_id'], finance_business_id),
+    )
+    if not link or link['finance_branch_id'] != finance_branch_id:
+        raise BridgeError('customer_link_required', 409)
+    result = _invoice_result(bid, jid, actor)
+    if invoice_id is not None:
+        if not result or result['link']['finance_invoice_id'] != invoice_id:
+            raise BridgeError('link_unavailable', 404)
+    elif result:
+        raise BridgeError('invoice_already_linked', 409)
+    return dict(job=job, mapping=dict(mapping), link=dict(link), result=result)
+
+
+def create_job_invoice(bid, actor, jid, *, expected_version, customer_id, document, submission_key, payload):
+    import finance_invoice_editor as editor
+    mapping = _active_mapping(bid, expected_version)
+    with _command(bid, actor, mapping):
+        ctx = invoice_editor_context(bid, actor, jid, expected_version=expected_version,
+            finance_business_id=mapping['finance_business_id'], finance_branch_id=mapping['finance_branch_id'])
+        if ctx['link']['finance_customer_id'] != customer_id:
+            raise BridgeError('customer_unavailable', 404)
+        invoice_id = editor.create(mapping['finance_business_id'], customer_id, document,
+            actor_user_id=actor, submission_key=submission_key, **payload)
+        attach_existing_invoice(bid, actor, jid, invoice_id, expected_version=expected_version)
+        return invoice_id
+
+
+def attach_existing_invoice(bid, actor, jid, invoice_id, *, expected_version):
+    existing = _invoice_result(bid, jid, actor)
+    if existing:
+        if existing['link']['finance_invoice_id'] != invoice_id:
+            raise BridgeError('invoice_already_linked', 409)
+        return existing
+    mapping = _active_mapping(bid, expected_version)
+    ctx = invoice_editor_context(
+        bid, actor, jid, expected_version=expected_version,
+        finance_business_id=mapping['finance_business_id'], finance_branch_id=mapping['finance_branch_id'])
+    link = ctx['link']; target = mapping['finance_business_id']
+    with branches.scope(target, mapping['finance_branch_id'], actor):
+        invoice = finance.get_finance_invoice(target, invoice_id, actor)
+        if (not invoice or invoice['branch_id'] != mapping['finance_branch_id']
+                or invoice['customer_id'] != link['finance_customer_id'] or invoice['status'] == 'VOID'):
+            raise BridgeError('link_unavailable', 404)
+    db.execute(
+        'INSERT INTO kw_core_finance_invoice_links '
+        '(source_business_id,core_job_id,core_customer_id,finance_business_id,finance_branch_id,'
+        'finance_customer_id,finance_invoice_id,connection_version,actor_user_id,created_at) '
+        'VALUES (?,?,?,?,?,?,?,?,?,?)',
+        (bid, jid, ctx['job']['customer_id'], target, mapping['finance_branch_id'],
+         link['finance_customer_id'], invoice_id, mapping['version'], actor, repo._now()))
+    repo.write_audit(actor, bid, 'CORE_FINANCE_INVOICE_ATTACHED', json.dumps({
+        'job_id': jid, 'finance_business_id': target, 'finance_invoice_id': invoice_id,
+        'finance_branch_id': mapping['finance_branch_id']}, sort_keys=True))
+    return _invoice_result(bid, jid, actor)
+
+
+def issue_job_invoice(bid, actor, jid):
+    _deal_job(bid, actor, jid)
+    result = _invoice_result(bid, jid, actor)
+    if not result:
+        raise BridgeError('invoice_required', 409)
+    link = result['link']; target = link['finance_business_id']
+    with branches.scope(target, link['finance_branch_id'], actor):
+        with finance._write(target,actor,related_business_ids=(bid,)):
+            _deal_job(bid,actor,jid)
+            current = finance.get_finance_invoice(target, link['finance_invoice_id'], actor)
+            if not current:
+                raise BridgeError('link_unavailable', 404)
+            if current['status'] == 'DRAFT':
+                finance.issue_finance_invoice(target, current['id'], actor_user_id=actor)
+            elif current['status'] not in ('ISSUED', 'PARTIALLY_PAID', 'PAID'):
+                raise BridgeError('invoice_unavailable', 409)
+    return _invoice_result(bid, jid, actor)
+
+
+def invoice_delivery_status(bid, finance_invoice_id):
+    row = db.query_one(
+        "SELECT o.status,o.error,o.event_id FROM kw_core_wa_outbound o "
+        "JOIN kw_web_messages m ON m.business_id=o.business_id AND m.conversation_id=o.conversation_id "
+        "AND m.event_id=o.event_id WHERE o.business_id=? "
+        "AND o.event_id LIKE ? ORDER BY m.id DESC LIMIT 1",
+        (bid, f"invoice:{finance_invoice_id}:%"))
+    return dict(row) if row else None
+
+
+def _job_whatsapp_conversation(bid, job):
+    cid = job.get('conversation_id')
+    if cid and db.query_one(
+        'SELECT 1 FROM kw_core_wa_conversations WHERE business_id=? AND conversation_id=?', (bid, cid)):
+        return cid
+    rows = customer_insights.whatsapp_conversation_rows(bid, job['customer_id'])
+    return rows[0]['id'] if rows else None
+
+
+def publish_and_send_invoice(bid, actor, jid, operation_key):
+    result = issue_job_invoice(bid, actor, jid)
+    link, invoice = result['link'], result['invoice']
+    cid = _job_whatsapp_conversation(bid, _job(bid, jid))
+    if not cid:
+        return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
+    try:
+        base = finance_invoice_view.base_url()
+        with branches.scope(link['finance_business_id'], link['finance_branch_id'], actor):
+            token = finance_invoice_view.create_token(link['finance_business_id'], link['finance_invoice_id'], actor)
+        share_url = base + '/finance/invoice-share/' + token
+        message = f"Invoice {invoice['invoice_number']} sudah terbit.\nSilakan lihat detail invoice di:\n{share_url}"
+        delivery = whatsapp_transport.system_text(
+            bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
+    except Exception:
+        delivery = {'status':'send_unavailable','error':'transactional_send_failed'}
+    if delivery.get('status') in ('accepted','sent','delivered','read'):
+        repo.write_audit(actor,bid,'CORE_FINANCE_INVOICE_SENT',json.dumps({
+            'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
+            'conversation_id':cid,'status':delivery.get('status')},sort_keys=True))
+    return dict(result=_invoice_result(bid,jid,actor),delivery=delivery,already_sent=False)
+
+
+def payment_options(bid, actor, jid):
+    _deal_job(bid, actor, jid)
+    result = _invoice_result(bid, jid, actor)
+    if not result:
+        raise BridgeError('invoice_required', 409)
+    link=result['link']; target=link['finance_business_id']
+    with branches.scope(target,link['finance_branch_id'],actor):
+        return dict(accounts=finance.list_accounts(target,actor_user_id=actor),
+                    categories=finance.list_categories(target,'INCOME',actor_user_id=actor),
+                    today=finance.business_today(target).isoformat())
+
+
+def record_full_payment(bid, actor, jid, *, paid_on, account_id, category_id, note, payment_key):
+    _deal_job(bid, actor, jid)
+    result=_invoice_result(bid,jid,actor)
+    if not result:
+        raise BridgeError('invoice_required',409)
+    link=result['link']; target=link['finance_business_id']
+    with branches.scope(target,link['finance_branch_id'],actor):
+        with finance._write(target,actor,related_business_ids=(bid,)):
+            _deal_job(bid,actor,jid)
+            invoice=_invoice_result(bid,jid,actor)['invoice']
+            if invoice['status']=='PAID' and invoice['outstanding_minor']==0:
+                return _invoice_result(bid,jid,actor)
+            if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or invoice['outstanding_minor']<=0:
+                raise BridgeError('invoice_not_payable',409)
+            finance.record_invoice_payment(
+                target,link['finance_invoice_id'],invoice['outstanding_minor'],paid_on,
+                account_id,category_id,note=note,actor_user_id=actor,idempotency_key=payment_key)
+            repo.write_audit(actor,bid,'CORE_FINANCE_JOB_PAYMENT_RECORDED',json.dumps({
+                'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
+                'amount_minor':invoice['outstanding_minor']},sort_keys=True))
+            return _invoice_result(bid,jid,actor)
 
 
 def customer_links(bid, actor, cid):

@@ -107,7 +107,7 @@ def _context(business, **extra):
     if book:
         field_labels.update({key: jobs.FIELD_LABELS[key] for key in jobs.LEGACY_FIELD_LABELS
                              if key in job['fields'] and key != 'missing_information'})
-    return dict(business=business, labels=labels(business), status_labels=jobs.STATUS_LABELS,
+    return dict(business=business, labels=labels(business), status_labels=jobs.OWNER_STATUS_LABELS,
                 field_labels=field_labels, workflow=book, operation_key=uuid.uuid4().hex, **extra)
 
 
@@ -133,12 +133,16 @@ def list_page(bid):
     except Exception:
         pass
     q, status = request.args.get('q',''), request.args.get('status','')
+    if status and status not in jobs.OWNER_STATUS_LABELS:
+        raise jobs.JobError('invalid_status')
     customer_id = request.args.get('customer_id')
     if customer_id:
         _confirmed_customer(bid, customer_id)
     rows,total,page,pages = jobs.list_jobs(
-        bid, search=q, status=status, customer_id=customer_id,
-        customer_stage='CUSTOMER', page=request.args.get('page',1)
+        bid, search=q, customer_id=customer_id,
+        customer_stage='CUSTOMER',
+        statuses=jobs.OWNER_STATUS_GROUPS.get(status) if status else None,
+        page=request.args.get('page',1)
     )
     for row in rows:
         try:
@@ -180,7 +184,7 @@ def detail_page(bid,job_id):
     customer = _confirmed_customer(bid, job['customer_id'])
     return render_template('job_form.html',**_context(business,job=job,customer=customer,
                            conversation_id=job['conversation_id'],fields=job['fields'],
-                           transitions=jobs.TRANSITIONS[job['status']],saved=request.args.get('saved')=='1'))
+                           transitions=jobs.owner_transitions(job['status']),saved=request.args.get('saved')=='1'))
 
 
 @jobs_bp.post('/business/<int:bid>/jobs/<job_id>')
@@ -194,8 +198,19 @@ def update(bid,job_id):
         version = int(form.get('version',''))
     except ValueError:
         raise jobs.JobError('invalid_version')
+    requested_status = form.get('status')
+    if requested_status not in jobs.OWNER_STATUS_LABELS:
+        raise jobs.JobError('invalid_status')
+    # Preserve the exact submitted status for same-state retries when the internal status
+    # already equals the owner state, so the existing operation key replays idempotently.
+    # Legacy internal states grouped under "Perlu tindakan" still use None to avoid rewinding.
+    target_status = (
+        requested_status if requested_status == job['status']
+        else None if requested_status == job['owner_status']
+        else requested_status
+    )
     jobs.update_job(bid,job_id,expected_version=version,title=form.get('title'),summary=form.get('summary',''),
-                    status=form.get('status'),fields=_fields(form),actor_id=security.current_user()['id'],
+                    status=target_status,fields=_fields(form),actor_id=security.current_user()['id'],
                     operation_key=form.get('operation_key'))
     return redirect(url_for('core_jobs.detail_page',bid=bid,job_id=job_id,saved=1),code=303)
 

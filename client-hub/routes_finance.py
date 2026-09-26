@@ -1873,12 +1873,33 @@ def invoice_settings(business_id,user,business):
     return render_template('finance_invoice_settings.html',user=user,business=business,data=data),error_status
 
 
+def _core_job_invoice_context(business_id,user_id,invoice_id=None):
+    raw_bid=request.args.get('core_bid');jid=request.args.get('core_job');raw_version=request.args.get('core_version')
+    if not (raw_bid or jid or raw_version):
+        return None
+    try:
+        bid=int(raw_bid);version=int(raw_version)
+    except (TypeError,ValueError):
+        abort(400)
+    if not jid or bid<=0 or version<=0:
+        abort(400)
+    from kilas_core import finance_bridge as core_bridge
+    try:
+        return core_bridge.invoice_editor_context(
+            bid,user_id,jid,expected_version=version,
+            finance_business_id=business_id,finance_branch_id=g.finance_branch_id,
+            invoice_id=invoice_id)
+    except core_bridge.BridgeError as error:
+        abort(error.status)
+
+
 @finance_bp.route('/business/<int:business_id>/finance/invoices/new', methods=['GET','POST'])
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>/edit', methods=['GET','POST'],endpoint='edit_invoice')
 @finance_access
 def new_invoice(business_id, user, business, invoice_id=None):
     import finance_invoice_editor as editor
     actor=user['id'];today=finance.business_today(business_id).isoformat()
+    core_context=_core_job_invoice_context(business_id,actor,invoice_id)
     invoice=finance.get_finance_invoice(business_id,invoice_id,actor) if invoice_id else None
     if invoice_id and (not invoice or invoice['status']=='VOID'):abort(404)
     locked=bool(invoice and (invoice['status'] in ('PARTIALLY_PAID','PAID') or finance.list_invoice_payments(business_id,invoice_id,actor)))
@@ -1889,6 +1910,11 @@ def new_invoice(business_id, user, business, invoice_id=None):
     else:
         data=dict(editor.defaults(business_id,actor),recipient={},reference='')
         values=dict(customer_id='',issue_date=today,due_date=today,currency='IDR',notes='',revision=0)
+        if core_context:
+            linked=finance.get_customer(business_id,core_context['link']['finance_customer_id'],actor)
+            values['customer_id']=str(core_context['link']['finance_customer_id'])
+            data['recipient']=dict(name=linked['name'],pic='',address='',
+                                   phone=linked.get('phone') or '',email=linked.get('email') or '',tax_id='')
         items=[dict(description='',quantity=1,unit_price_minor=0)]
     form_items=[dict(description=x['description'],quantity=x['quantity'],unit_price=format(Decimal(x['unit_price_minor'])/100,'.2f')) for x in items]
     submission_key=uuid.uuid4().hex
@@ -1903,22 +1929,37 @@ def new_invoice(business_id, user, business, invoice_id=None):
             currency=finance._currency(values['currency'])
             items=_invoice_form_items(currency)
             customer_id=record_id(values['customer_id']) if values['customer_id'] else None
+            if core_context and customer_id!=core_context['link']['finance_customer_id']:
+                raise finance.FinanceError('customer_unavailable')
             payload=dict(issue_date=values['issue_date'],due_date=values['due_date'],currency=currency,notes=values['notes'],items=items)
             if invoice:
                 revision=record_id(values['revision']) if values['revision']!='0' else 0
                 editor.edit(business_id,invoice_id,dict(payload,customer_id=customer_id,document_data=data),
                             actor_user_id=actor,expected_revision=revision)
             else:
-                invoice_id=editor.create(business_id,customer_id,data,actor_user_id=actor,submission_key=submission_key,**payload)
+                if core_context:
+                    from kilas_core import finance_bridge as core_bridge
+                    try:
+                        invoice_id=core_bridge.create_job_invoice(
+                            int(request.args['core_bid']),actor,request.args['core_job'],
+                            expected_version=int(request.args['core_version']), customer_id=customer_id,
+                            document=data, submission_key=submission_key, payload=payload)
+                    except core_bridge.BridgeError as error:
+                        raise finance.FinanceError(error.code) from error
+                else:
+                    invoice_id=editor.create(business_id,customer_id,data,actor_user_id=actor,submission_key=submission_key,**payload)
         except finance.FinanceError as error:
             flash(INVOICE_EDIT_ERRORS.get(str(error),ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.')),'error')
             error_status=400
         else:
+            if core_context:
+                return redirect(url_for('core_jobs.detail_page',
+                    bid=int(request.args['core_bid']),job_id=request.args['core_job'],invoice_saved=1),code=303)
             return redirect(url_for('finance.invoice_detail',business_id=business_id,branch_id=g.finance_branch_id,invoice_id=invoice_id),code=303)
     return render_template('finance_invoice_form.html',user=user,business=business,invoice=invoice,
         customers=finance.list_customers(business_id,include_inactive=bool(invoice),actor_user_id=actor),today=today,
         supported_currencies=finance.SUPPORTED_CURRENCIES,data=data,values=values,form_items=form_items,
-        locked=locked,submission_key=submission_key),error_status
+        locked=locked,submission_key=submission_key,core_context=core_context),error_status
 
 
 @finance_bp.route('/business/<int:business_id>/finance/invoices/<int:invoice_id>')

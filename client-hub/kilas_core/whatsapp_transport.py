@@ -1,5 +1,6 @@
 """Bounded official transport. Durable at-most-once attempt; ambiguous sends need owner review."""
 import json
+import hashlib
 import os
 import re
 import time
@@ -68,6 +69,58 @@ def deliver(bid,cid,eid,*,role,template=False):
         tx.execute('UPDATE kw_core_wa_outbound SET status=?,provider_id=?,error=? WHERE business_id=? AND conversation_id=? AND event_id=?',
                    (status,provider_id,error,bid,cid,eid))
     return {'status':status,'error':error}
+
+
+def system_text(bid, cid, event_id, text, actor, *, safe_retry=False):
+    """Owner-authorized transactional text that preserves the current AI/Human mode."""
+    if not isinstance(event_id, str) or not 1 <= len(event_id) <= 256:
+        raise store.ChatError('invalid_event')
+    if not isinstance(text, str) or not text.strip() or len(text) > 4000:
+        raise store.ChatError('invalid_message')
+    text = text.strip()
+    with store.transaction() as tx:
+        jobs._lock(tx, bid)
+        store._locked(tx, bid, cid)
+        link = binding(tx, bid, cid)
+        if not link:
+            raise store.ChatError('not_found', 404)
+        active = sync_human(tx, bid, cid, link['customer_phone'])
+        if safe_retry:
+            # Stable delivery family, serialized by the business lock. Only a definite
+            # rejection/suppression permits a new attempt. Pending/ambiguous attempts
+            # are never retried, even across concurrent clicks or process restarts.
+            previous = tx.one(
+                "SELECT m.event_id,m.conversation_id,m.content,m.role,o.status FROM kw_web_messages m "
+                "LEFT JOIN kw_core_wa_outbound o ON o.business_id=m.business_id "
+                "AND o.conversation_id=m.conversation_id AND o.event_id=m.event_id "
+                "WHERE m.business_id=? AND m.event_id LIKE ? "
+                "AND m.role IN ('assistant','human') ORDER BY m.id DESC LIMIT 1",
+                (bid, event_id + ':%'))
+            if previous:
+                if previous['status'] in ('failed','suppressed'):
+                    event_id += ':' + hashlib.sha256(previous['event_id'].encode()).hexdigest()[:32]
+                else:
+                    event_id, text = previous['event_id'], previous['content']
+                    cid = previous['conversation_id']
+            else:
+                event_id += ':initial'
+        existing = tx.one(
+            "SELECT role,content FROM kw_web_messages WHERE business_id=? AND conversation_id=? "
+            "AND event_id=? AND role IN ('assistant','human') ORDER BY id DESC LIMIT 1",
+            (bid, cid, event_id),
+        )
+        if existing:
+            if existing['content'] != text:
+                raise store.ChatError('event_conflict', 409)
+            role = existing['role']
+        else:
+            role = 'assistant' if active else 'human'
+            store._message(tx, bid, cid, event_id, role, text)
+            tx.execute(
+                'INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
+                (actor, bid, 'SYSTEM_TRANSACTIONAL_MESSAGE', cid + ':' + event_id),
+            )
+    return deliver(bid, cid, event_id, role=role)
 
 
 def statuses(bid,pid,events):

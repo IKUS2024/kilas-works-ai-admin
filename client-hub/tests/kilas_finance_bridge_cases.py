@@ -94,6 +94,101 @@ class BridgeCases:
                 self.assertEqual(current['outstanding_minor'],50000 if n==0 else 0)
         self.assertEqual(len(f.list_transactions(self.target,actor_user_id=self.actor)),2)
 
+    def test_parallel_mark_paid_uses_current_outstanding_once(self):
+        self.connect();self.customer();self.draft()
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",(self.source,self.jid))
+        bridge.issue_job_invoice(self.source,self.actor,self.jid)
+        opts=bridge.payment_options(self.source,self.actor,self.jid)
+        barrier=threading.Barrier(4)
+        def pay(index):
+            try:
+                barrier.wait()
+                return bridge.record_full_payment(self.source,self.actor,self.jid,paid_on='2026-09-10',
+                    account_id=opts['accounts'][0]['id'],category_id=opts['categories'][0]['id'],
+                    note='',payment_key=f'concurrent-{index:020d}')
+            finally:
+                if getattr(db._local,'conn',None):db._local.conn.close();db._local.conn=None
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            rows=list(pool.map(pay,range(4)))
+        self.assertTrue(all(row['invoice']['status']=='PAID' for row in rows))
+        transactions=f.list_transactions(self.target,actor_user_id=self.actor)
+        self.assertEqual(len(transactions),1)
+        self.assertEqual(transactions[0]['amount_minor'],100000)
+        self.assertEqual(transactions[0]['source_type'],'FINANCE_INVOICE_PAYMENT')
+
+    def test_deal_job_invoice_payment_posts_authoritative_income(self):
+        # New Jobs workflow: only a deal (Dikerjakan) may start invoicing.
+        self.connect()
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",
+                   (self.source,self.jid))
+        linked=bridge.ensure_job_customer_link(
+            self.source,self.actor,self.jid,expected_version=1,operation_key='8'*32)
+        finance_customer=linked['customer']['id']
+        with branches.scope(self.target,self.branch,self.actor):
+            invoice_id=f.create_finance_invoice(
+                self.target,finance_customer,self.invoice['issue_date'],self.invoice['due_date'],
+                self.invoice['items'],currency=self.invoice['currency'],actor_user_id=self.actor,
+                idempotency_key='a'*32)
+        attached=bridge.attach_existing_invoice(
+            self.source,self.actor,self.jid,invoice_id,expected_version=1)
+        self.assertEqual(attached['invoice']['status'],'DRAFT')
+        issued=bridge.issue_job_invoice(self.source,self.actor,self.jid)
+        self.assertEqual(issued['invoice']['status'],'ISSUED')
+        options=bridge.payment_options(self.source,self.actor,self.jid)
+        account=next(a for a in options['accounts'] if a['currency']=='IDR')
+        category=options['categories'][0]
+        paid=bridge.record_full_payment(
+            self.source,self.actor,self.jid,paid_on='2026-09-10',
+            account_id=account['id'],category_id=category['id'],note='Paid from Job',
+            payment_key='job-full-payment-0001')
+        self.assertEqual(paid['invoice']['status'],'PAID')
+        self.assertEqual(paid['invoice']['outstanding_minor'],0)
+        with branches.scope(self.target,self.branch,self.actor):
+            rows=f.list_transactions(self.target,actor_user_id=self.actor)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['direction'],'INCOME')
+        self.assertEqual(rows[0]['source_type'],'FINANCE_INVOICE_PAYMENT')
+        self.assertEqual(rows[0]['amount_minor'],100000)
+        # Transport/UI retry with the same payment key must not duplicate income.
+        replay=bridge.record_full_payment(
+            self.source,self.actor,self.jid,paid_on='2026-09-10',
+            account_id=account['id'],category_id=category['id'],note='Paid from Job',
+            payment_key='job-full-payment-0001')
+        self.assertEqual(replay['invoice']['status'],'PAID')
+        with branches.scope(self.target,self.branch,self.actor):
+            self.assertEqual(len(f.list_transactions(self.target,actor_user_id=self.actor)),1)
+
+    def test_publish_job_invoice_uses_official_whatsapp_transport(self):
+        self.connect()
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",
+                   (self.source,self.jid))
+        linked=bridge.ensure_job_customer_link(
+            self.source,self.actor,self.jid,expected_version=1,operation_key='c'*32)
+        with branches.scope(self.target,self.branch,self.actor):
+            invoice_id=f.create_finance_invoice(
+                self.target,linked['customer']['id'],self.invoice['issue_date'],self.invoice['due_date'],
+                self.invoice['items'],currency='IDR',actor_user_id=self.actor,idempotency_key='d'*32)
+        bridge.attach_existing_invoice(self.source,self.actor,self.jid,invoice_id,expected_version=1)
+        from flask import Flask
+        share_app=Flask(__name__);share_app.secret_key='synthetic-invoice-share-test-key-only-123456789'
+        with share_app.app_context(), patch.object(bridge.customer_insights,'whatsapp_conversation_rows',
+                          return_value=[{'id':'wa_invoice_test'}]), \
+             patch.object(bridge.finance_invoice_view,'base_url',return_value='https://app.kilasworks.id'), \
+             patch.object(bridge.whatsapp_transport,'system_text',
+                          return_value={'status':'accepted'}) as send:
+            result=bridge.publish_and_send_invoice(
+                self.source,self.actor,self.jid,'publish-job-invoice-0001')
+        self.assertEqual(result['result']['invoice']['status'],'ISSUED')
+        send.assert_called_once()
+        args=send.call_args.args
+        self.assertEqual(args[0],self.source)
+        self.assertEqual(args[1],'wa_invoice_test')
+        token=args[3].split('/finance/invoice-share/')[1]
+        with share_app.app_context():
+            self.assertEqual(bridge.finance_invoice_view.resolve_token(token),(self.target,invoice_id))
+        self.assertTrue(send.call_args.kwargs['safe_retry'])
+        self.assertIn(result['result']['invoice']['invoice_number'],args[3])
+
     def test_mapping_change_disable_preserves_history_and_old_replay(self):
         self.connect();original=self.customer();invoice=self.draft()
         new_branch=branches.create_branch(self.target,'Second',self.actor)

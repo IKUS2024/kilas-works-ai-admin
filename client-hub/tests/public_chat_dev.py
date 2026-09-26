@@ -79,6 +79,16 @@ if __name__ == '__main__':
         stubs.append(patch.object(automations,'clock',side_effect=lambda now=None:
             int(time.time())+qa_clock['offset'] if now is None else now))
 
+        @app.post('/dev/operations/legacy-complete')
+        def legacy_complete():
+            if session.get('user_id') != 1: abort(404)
+            from kilas_core import jobs
+            for row in jobs.list_jobs(7)[0]:
+                if row['status']=='IN_PROGRESS':
+                    jobs.update_job(7,row['id'],expected_version=row['version'],actor_id=1,
+                        operation_key='fixture-complete-'+row['id'],status='COMPLETED')
+            return {'ok':True}
+
         @app.post('/dev/operations/advance')
         def dev_advance():
             # Test-only synthetic clock; normal app CSRF still applies.
@@ -86,6 +96,17 @@ if __name__ == '__main__':
             qa_clock['offset']+=3601
             return {'offset':qa_clock['offset']}
     for stub in stubs: stub.start()
+
+    @app.post('/dev/confirm-customer/<int:bid>')
+    def confirm_customer(bid):
+        if public_staging or session.get('user_id') != (1 if bid==7 else 2) or bid not in (7,8): abort(404)
+        from kilas_core import customers
+        rows,_,_,_=customers.list_customers(bid)
+        for customer in rows:
+            customers.update_customer(bid,customer['id'],display_name=customer['display_name'],
+                phone=customer.get('phone'),email=customer.get('email'),notes=customer.get('notes'),
+                stage='CUSTOMER',actor_id=session['user_id'])
+        return {'ok':True}
 
     @app.get('/dev/owner/<int:bid>')
     def dev_owner(bid):

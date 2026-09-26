@@ -89,16 +89,65 @@ class BridgeRoutesTests(unittest.TestCase):
         db.execute('DELETE FROM business_memberships WHERE business_id=? AND user_id=?',(self.target,self.actor))
         page=self.client.get(f'/business/{self.source}/jobs/{self.jid}')
         self.assertEqual(page.status_code,200)
-        self.assertIn('Akses Finance tidak tersedia',page.text)
+        self.assertNotIn('Buat Invoice',page.text)
         self.assertNotIn(result['invoice']['invoice_number'],page.text)
         self.assertEqual(self.client.get(self.base+'/jobs/'+self.jid).status_code,404)
+
+    def test_deal_full_editor_draft_issue_failure_payment_and_replay(self):
+        from kilas_core import jobs
+        self.login();fixture.BridgeTests.connect(self)
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",(self.source,self.jid))
+        job=f'/business/{self.source}/jobs/{self.jid}'
+        page=self.client.get(job)
+        self.assertIn('Tugas manusia · Invoice',page.text)
+        csrf=re.search(r'name="csrf_token" value="([^"]*)"',page.text)[1]
+        start=self.client.post(self.base+'/jobs/'+self.jid+'/invoice/start',data={'csrf_token':csrf})
+        self.assertEqual(start.status_code,303)
+        editor_url=start.location
+        page=self.client.get(editor_url)
+        self.assertEqual(page.status_code,200)
+        self.assertIn('invoice-editor-form',page.text)
+        self.assertRegex(page.text,r'<select id="customer" name="customer_id" disabled>')
+        linked=bridge.customer_links(self.source,self.actor,self.cid)[0]
+        customer_id=linked['link']['finance_customer_id'] if 'link' in linked else linked['finance_customer_id']
+        data=dict(csrf_token=csrf,submission_key='d'*32,revision='0',customer_id=str(customer_id),
+            issue_date='2026-09-01',due_date='2026-09-30',currency='IDR',notes='Job invoice',
+            item_description='Photo service',quantity='2',unit_price='500',
+            sender_name='Studio',sender_address='Tangerang',sender_phone='628123456789',
+            recipient_name='Wilson',payment_method='Transfer',payment_bank='BCA',
+            payment_account_number='12345',payment_account_holder='Studio')
+        with patch.object(bridge,'attach_existing_invoice',side_effect=bridge.BridgeError('stale_connection',409)):
+            self.assertEqual(self.client.post(editor_url,data=data).status_code,400)
+        self.assertEqual(len(f.list_finance_invoices(self.target,actor_user_id=self.actor)),0)
+        saved=self.client.post(editor_url,data=data)
+        self.assertEqual(saved.status_code,303,saved.text)
+        self.assertIn(job,saved.location)
+        invoice=bridge.read_invoice(self.source,self.actor,self.jid)['invoice']
+        self.assertEqual(invoice['total_minor'],100000)
+        self.assertEqual(invoice['status'],'DRAFT')
+        issued=self.client.post(self.base+'/jobs/'+self.jid+'/invoice/publish',data={'csrf_token':csrf})
+        self.assertEqual(issued.status_code,303)
+        page=self.client.get(issued.location)
+        self.assertIn('conversation_unavailable',page.text)
+        self.assertNotIn('Invoice sudah dikirim',page.text)
+        self.assertIn('Customer sudah bayar?',page.text)
+        options=bridge.payment_options(self.source,self.actor,self.jid)
+        payment=dict(csrf_token=csrf,paid_on='2026-09-10',account_id=options['accounts'][0]['id'],
+            category_id=options['categories'][0]['id'],note='Received',payment_key='e'*32)
+        for _ in range(2):
+            self.assertEqual(self.client.post(self.base+'/jobs/'+self.jid+'/invoice/paid',data=payment).status_code,303)
+        rows=f.list_transactions(self.target,actor_user_id=self.actor)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['direction'],'INCOME')
+        self.assertEqual(rows[0]['source_type'],'FINANCE_INVOICE_PAYMENT')
+        self.assertIn('Lunas · pembayaran sudah masuk sebagai pemasukan di Kilas Finance.',self.client.get(job).text)
 
     def test_protected_boundary_no_direct_finance_writes_or_payment_actions(self):
         root=Path(__file__).resolve().parents[1]/'kilas_core'
         for name in ('finance_bridge.py','finance_bridge_routes.py','finance_bridge_schema.py'):
             text=(root/name).read_text()
             self.assertIsNone(re.search(r'\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+finance_',text,re.I))
-            for action in ('record_invoice_payment(', 'issue_finance_invoice(', 'record_currency_exchange('):
+            for action in ('create_transaction(', 'record_currency_exchange(', '_insert_transaction('):
                 self.assertNotIn(action,text)
 
 if __name__=='__main__':unittest.main()

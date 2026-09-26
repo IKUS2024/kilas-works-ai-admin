@@ -12,7 +12,11 @@ from kilas_core import customer_insights, customers, jobs
 
 
 TERMINAL = {"COMPLETED", "CANCELLED"}
-AUTO_EDITABLE = {"NEW", "NEEDS_INFORMATION"}
+SIGNAL_TO_STATUS = {
+    "PERLU_TINDAKAN": "NEW",
+    "DIKERJAKAN": "IN_PROGRESS",
+    "BATAL": "CANCELLED",
+}
 
 def _clean(value, maximum=700):
     if not isinstance(value, str):
@@ -44,6 +48,7 @@ def _fingerprint(insight):
     basis = {
         "action": _clean(insight.get("action"), 240),
         "summary": _clean(insight.get("summary"), 500),
+        "job_status": insight.get("job_status"),
     }
     return hashlib.sha256(
         json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
@@ -66,19 +71,26 @@ def _payload(insight):
     return title, kind, summary, fields, ref
 
 def sync_from_insight(business, customer, insight):
-    """Create/update a single actionable Job without overriding owner-controlled work."""
+    """Keep one Customer Job aligned with the customer's concrete action and explicit deal/cancel signal."""
     if not jobs.enabled() or not business or not customer or not isinstance(insight, dict):
         return None
-    # Jobs belongs to confirmed Customers only. Leads may have rich Insight, but never a Job.
     if customer.get("stage") != "CUSTOMER":
         return None
     meta = insight.get("_meta") or {}
     if not meta.get("has_history"):
         return None
+
+    signal = insight.get("job_status")
+    target_status = SIGNAL_TO_STATUS.get(signal)
     payload = _payload(insight)
-    if payload is None:
+    if payload is None and target_status not in ("IN_PROGRESS", "CANCELLED"):
         return None
-    title, kind, summary, fields, ref = payload
+
+    if payload is not None:
+        title, kind, summary, fields, ref = payload
+    else:
+        title = kind = summary = fields = None
+        ref = "insight:" + _fingerprint(insight)
 
     bid, cid = business["id"], customer["id"]
     with jobs.transaction() as tx:
@@ -95,39 +107,70 @@ def sync_from_insight(business, customer, insight):
         active_auto = [row for row in auto if row["status"] not in TERMINAL]
         active_manual = [row for row in active if row["fields"].get("source") != "Customer Insight"]
 
-        # A manual/playbook Job already represents the customer action. Never duplicate it.
-        if active_manual:
-            return active_manual[0]
-
-        if active_auto:
-            current = active_auto[0]
-            if current["status"] not in AUTO_EDITABLE:
+        def apply_status(current):
+            if target_status not in ("IN_PROGRESS", "CANCELLED"):
                 return current
-            if (
-                current["fields"].get("source_key") == ref
-                and current["fields"].get("action") == fields.get("action")
-                and current["title"] == title
-            ):
+            if current["owner_status"] == target_status:
                 return current
-            op = "customer_insight_" + hashlib.sha256(
-                f"{cid}:{ref}:{current['version']}".encode()
+            op = "customer_signal_" + hashlib.sha256(
+                f"{cid}:{signal}:{ref}:{current['version']}".encode()
             ).hexdigest()
             return jobs._update_job(
                 tx, bid, current["id"], expected_version=current["version"],
                 actor_id=jobs._CUSTOMER_INSIGHT_ACTOR, operation_key=op,
-                title=title, summary=summary, fields=fields, kind=kind,
+                status=target_status,
             )
 
-        # Do not recreate the exact same action immediately after owner completed/cancelled it.
+        if active_manual:
+            return apply_status(active_manual[0])
+
+        if active_auto:
+            current = active_auto[0]
+            status_arg = None
+            if target_status in ("IN_PROGRESS", "CANCELLED") and current["owner_status"] != target_status:
+                status_arg = target_status
+            content_changed = bool(payload) and (
+                current["fields"].get("source_key") != ref
+                or current["fields"].get("action") != fields.get("action")
+                or current["title"] != title
+                or current["kind"] != kind
+                or current["summary"] != summary
+            )
+            if not content_changed and status_arg is None:
+                return current
+            op = "customer_insight_" + hashlib.sha256(
+                f"{cid}:{ref}:{signal}:{current['version']}".encode()
+            ).hexdigest()
+            return jobs._update_job(
+                tx, bid, current["id"], expected_version=current["version"],
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR, operation_key=op,
+                title=title if payload else None,
+                summary=summary if payload else None,
+                fields=fields if payload else None,
+                kind=kind if payload else None,
+                status=status_arg,
+            )
+
+        if payload is None or target_status == "CANCELLED":
+            return None
         if auto and auto[0]["fields"].get("source_key") == ref:
             return auto[0]
 
         op = "customer_insight_" + hashlib.sha256(f"{cid}:{ref}:create".encode()).hexdigest()
-        return jobs._create_job(
+        created = jobs._create_job(
             tx, bid, cid, title=title, actor_id=jobs._CUSTOMER_INSIGHT_ACTOR,
             operation_key=op, kind=kind, summary=summary, fields=fields,
         )
-
+        if target_status == "IN_PROGRESS":
+            op2 = "customer_signal_" + hashlib.sha256(
+                f"{cid}:{ref}:deal:{created['version']}".encode()
+            ).hexdigest()
+            return jobs._update_job(
+                tx, bid, created["id"], expected_version=created["version"],
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR, operation_key=op2,
+                status="IN_PROGRESS",
+            )
+        return created
 
 def refresh_and_sync(business, customer):
     insight = customer_insights.safe_refresh(business, customer)
