@@ -29,6 +29,12 @@ _PLATFORM_ACTION_HINT = re.compile(
     re.IGNORECASE,
 )
 _PLATFORM_SYSTEM_MARKERS = ("[FOLLOW-UP OTOMATIS SISTEM]",)
+_PAYMENT_READY_HINT = re.compile(
+    r"\b(mau\s+bayar|siap\s+bayar|akan\s+bayar|bayar(?:\s+sekarang)?|pembayaran|"
+    r"payment(?:\s+link)?|invoice|invoicenya|tagihan|billing|checkout|transfer|"
+    r"dp|down\s+payment|uang\s+muka|pelunasan|lunas|qris|virtual\s+account|rekening)\b",
+    re.IGNORECASE,
+)
 
 def _clean(value, maximum=700):
     if not isinstance(value, str):
@@ -56,10 +62,37 @@ def _title_kind(action):
         return "Kirim penawaran", "SERVICE"
     return "Tindakan customer", "GENERIC"
 
+def _payment_ready(insight):
+    """Strict commercial boundary: Dikerjakan means the customer is ready to pay/invoice."""
+    if insight.get("payment_ready") is True:
+        return True
+    if insight.get("payment_ready") is False:
+        return False
+    # Legacy stored Insights predate payment_ready. Repair them conservatively using only
+    # explicit payment/invoice language already present in the structured Insight.
+    evidence = " ".join(
+        _clean(insight.get(key), 900) for key in ("action", "summary", "buying_signal_reason")
+        if _clean(insight.get(key), 900)
+    )
+    return bool(_PAYMENT_READY_HINT.search(evidence))
+
+
+def _target_status(insight):
+    signal = insight.get("job_status")
+    if signal == "BATAL":
+        return "CANCELLED"
+    if signal == "DIKERJAKAN":
+        return "IN_PROGRESS" if _payment_ready(insight) else "NEW"
+    if signal == "PERLU_TINDAKAN":
+        return "NEW"
+    return None
+
+
 def _fingerprint(insight):
     basis = {
         "action": _clean(insight.get("action"), 240),
         "summary": _clean(insight.get("summary"), 500),
+        "payment_ready": _payment_ready(insight),
         "job_status": insight.get("job_status"),
     }
     return hashlib.sha256(
@@ -77,6 +110,7 @@ def _payload(insight):
         "action": action,
         "source": "Customer Insight",
         "source_key": ref,
+        "payment_ready": "yes" if _payment_ready(insight) else "no",
     }
     if summary:
         fields["details"] = summary[:420]
@@ -224,7 +258,7 @@ def sync_from_insight(business, customer, insight):
         return None
 
     signal = insight.get("job_status")
-    target_status = SIGNAL_TO_STATUS.get(signal)
+    target_status = _target_status(insight)
     payload = _payload(insight)
     if payload is None and target_status not in ("IN_PROGRESS", "CANCELLED"):
         return None
@@ -270,7 +304,7 @@ def sync_from_insight(business, customer, insight):
         if active_auto:
             current = active_auto[0]
             status_arg = None
-            if target_status in ("IN_PROGRESS", "CANCELLED") and current["owner_status"] != target_status:
+            if target_status in ("NEW", "IN_PROGRESS", "CANCELLED") and current["owner_status"] != target_status:
                 status_arg = target_status
             content_changed = bool(payload) and (
                 current["fields"].get("source_key") != ref
@@ -409,6 +443,50 @@ def prune_invalid_lead_jobs_all():
             ('%"source":"Customer Insight"%',)
         )
     return sum(prune_invalid_lead_jobs(int(row["business_id"])) for row in rows)
+
+
+def repair_payment_boundary_jobs(business_id, limit=100):
+    """Downgrade stale AI Jobs that were marked Dikerjakan before payment was explicit.
+
+    This is database-only and never calls an AI model, so it is safe on Jobs navigation.
+    Manual Jobs are untouched.
+    """
+    if not jobs.enabled():
+        return 0
+    try:
+        limit = max(1, min(int(limit or 100), 200))
+    except (TypeError, ValueError):
+        limit = 100
+    try:
+        with jobs.transaction() as tx:
+            rows = tx.execute(
+                "SELECT j.customer_id,i.insight_json FROM kw_core_jobs j "
+                "JOIN kw_core_customer_insights i ON i.business_id=j.business_id AND i.customer_id=j.customer_id "
+                "WHERE j.business_id=? AND j.status='IN_PROGRESS' "
+                "AND j.fields_json LIKE ? ORDER BY j.updated_at DESC LIMIT ?",
+                (business_id, '%\"source\":\"Customer Insight\"%', limit),
+            )
+    except Exception:
+        return 0
+
+    repaired = 0
+    business = {"id": business_id}
+    for row in rows:
+        try:
+            insight = json.loads(row["insight_json"])
+        except (TypeError, ValueError):
+            continue
+        if insight.get("job_status") != "DIKERJAKAN" or _payment_ready(insight):
+            continue
+        insight["_meta"] = {"has_history": True, "fresh": True}
+        try:
+            customer = customers.get_customer(business_id, row["customer_id"])
+            updated = sync_from_insight(business, customer, insight)
+            if updated and updated["owner_status"] == "NEW":
+                repaired += 1
+        except Exception:
+            continue
+    return repaired
 
 
 def reconcile_business(business, limit=10):
