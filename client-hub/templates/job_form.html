@@ -15,8 +15,21 @@
       {% if job.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ job.fields.missing_information }}</p>
       {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
       <p class="client-note">Harga dan ketersediaan perlu konfirmasi tim.</p></div>{% endif %}
-    {% if job %}<p><span class="client-status info">{{ job.status_label }}</span></p>
-    <p class="client-note">Dibuat {{ job.created_at|job_time }}<br>Diperbarui {{ job.updated_at|job_time }}</p>{% endif %}
+    {% if job %}
+    <p><span class="client-status info">{{ job.status_label }}</span></p>
+    {% if job.fields.source == 'Customer Insight' %}
+    <div class="client-card" style="margin-top:10px">
+      <div class="client-note">Tindakan berikutnya</div>
+      <strong>{{ job.fields.action or job.summary or '-' }}</strong>
+      <div class="client-actions" style="margin-top:8px">
+        {% if job.fields.priority %}<span class="client-status {{ 'danger' if job.fields.priority == 'Tinggi' else 'warn' if job.fields.priority == 'Sedang' else 'info' }}">{{ job.fields.priority }}</span>{% endif %}
+        {% if job.fields.intent %}<span class="client-status">{{ job.fields.intent }}</span>{% endif %}
+      </div>
+      <p class="client-note" style="margin-bottom:0">Dibuat otomatis dari Customer Insight WhatsApp Inbox.</p>
+    </div>
+    {% endif %}
+    <p class="client-note">Dibuat {{ job.created_at|job_time }}<br>Diperbarui {{ job.updated_at|job_time }}</p>
+    {% endif %}
   </div>
   <form class="card" method="post" action="{{ url_for('core_jobs.update',bid=business.id,job_id=job.id) if job else url_for('core_jobs.create',bid=business.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -30,7 +43,7 @@
     {% if job %}<label for="job-status">Status</label><select id="job-status" name="status">
       <option value="{{ job.status }}">{{ job.status_label }}</option>
       {% for value in transitions %}<option value="{{ value }}">{{ status_labels[value] }}</option>{% endfor %}
-    </select>{% else %}<p class="client-note">Status awal: Baru</p>{% endif %}
+    </select>{% else %}<p class="client-note">Status awal: Perlu tindakan</p>{% endif %}
     <details class="client-collapsible" {% if fields %}open{% endif %}><summary>Rincian tambahan</summary>
       <div class="client-form-grid client-collapsible-body">
       {% for key,label in field_labels.items() %}<div><label for="field-{{ key }}">{{ label }}</label>
