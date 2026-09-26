@@ -33,28 +33,42 @@ def _list(value):
     return [_clean(item, 180) for item in value[:8] if _clean(item, 180)]
 
 
-def _title_kind(insight):
-    text = " ".join(
-        _list(insight.get("needs"))
-        + _list(insight.get("interests"))
-        + [_clean(insight.get("follow_up"), 500)]
-    ).lower()
-    if any(word in text for word in ("booking", "jadwal", "appointment", "reservasi", "janji")):
-        return "Tindak lanjut booking", "BOOKING"
-    if any(word in text for word in ("foto", "photo", "video", "reels", "konten", "content", "website", "landing page")):
-        return "Tindak lanjut kebutuhan project", "PROJECT"
-    if any(word in text for word in ("harga", "price", "paket", "biaya", "quote", "quotation", "penawaran")):
-        return "Tindak lanjut penawaran", "SERVICE"
-    if any(word in text for word in ("konsultasi", "meeting", "diskusi", "call", "telepon")):
-        return "Jadwalkan konsultasi", "BOOKING"
-    if any(word in text for word in ("beli", "pembelian", "order", "pesan", "ambil")):
-        return "Tindak lanjut pembelian", "ORDER"
+def _short_action(insight):
+    """One short owner-facing sentence: what this Customer wants."""
     needs = _list(insight.get("needs"))
-    if needs:
-        return "Tindak lanjut: " + needs[0][:110], "SERVICE"
-    return "Tindak lanjut customer", "GENERIC"
+    interests = _list(insight.get("interests"))
+    candidate = needs[0] if needs else (interests[0] if interests else "")
+    candidate = _clean(candidate, 150)
+    low = candidate.lower()
+    if low.startswith("informasi "):
+        return "Mau tahu " + candidate[10:].strip()
+    if low.startswith("info "):
+        return "Mau tahu " + candidate[5:].strip()
+    if low.startswith(("booking ", "konsultasi ", "foto ", "photo ", "video ", "website ", "paket ", "harga ", "penawaran ")):
+        return "Mau " + candidate
+    if candidate:
+        return ("Mau " + candidate)[:160]
+
+    summary = _clean(insight.get("summary"), 180)
+    if summary:
+        first = summary.split(".")[0].strip()
+        if first:
+            return first[:160]
+    return ""
 
 
+def _title_kind(insight):
+    action = _short_action(insight)
+    text = action.lower()
+    if any(word in text for word in ("booking", "jadwal", "appointment", "reservasi", "janji", "konsultasi")):
+        return action or "Tindak lanjut booking", "BOOKING"
+    if any(word in text for word in ("foto", "photo", "video", "reels", "konten", "content", "website", "landing page")):
+        return action or "Tindak lanjut project", "PROJECT"
+    if any(word in text for word in ("beli", "pembelian", "order", "pesan", "ambil")):
+        return action or "Tindak lanjut pembelian", "ORDER"
+    if any(word in text for word in ("harga", "price", "paket", "biaya", "quote", "quotation", "penawaran")):
+        return action or "Tindak lanjut penawaran", "SERVICE"
+    return action or "Tindak lanjut customer", "GENERIC"
 def _priority(stage):
     if stage == "SIAP_MEMBELI":
         return "Tinggi"
@@ -77,19 +91,8 @@ def _fingerprint(insight):
 
 def _payload(insight):
     stage = insight.get("buying_stage")
-    action = _clean(insight.get("follow_up"), 700)
-    needs = _list(insight.get("needs"))
-    interests = _list(insight.get("interests"))
-    if not action:
-        if needs:
-            action = "Tindak lanjuti kebutuhan customer: " + ", ".join(needs[:3])
-        elif interests:
-            action = "Tindak lanjuti minat customer: " + ", ".join(interests[:3])
     title, kind = _title_kind(insight)
-    summary = _clean(insight.get("summary"), 1300)
-    if action:
-        summary = (summary + ("\n\n" if summary else "") + "Tindakan: " + action)[:2000]
-    missing = ", ".join(_list(insight.get("missing_info")))
+    action = title
     ref = "insight:" + _fingerprint(insight)
     fields = {
         "action": action,
@@ -98,16 +101,16 @@ def _payload(insight):
         "source": "Customer Insight",
         "source_key": ref,
     }
-    if summary:
-        fields["details"] = summary[:1000]
-    if missing:
-        fields["missing_information"] = missing[:1000]
+    # Keep details intentionally short. Jobs is an action queue, not a second analysis screen.
+    summary = action
     return title, kind, summary, fields, ref
-
 
 def sync_from_insight(business, customer, insight):
     """Create/update a single actionable Job without overriding owner-controlled work."""
     if not jobs.enabled() or not business or not customer or not isinstance(insight, dict):
+        return None
+    # Jobs belongs to real Customers only. Leads stay in Customers/Lead + Customer Insight.
+    if customer.get("stage") != "CUSTOMER":
         return None
     meta = insight.get("_meta") or {}
     if not meta.get("has_history"):
@@ -117,7 +120,7 @@ def sync_from_insight(business, customer, insight):
         return None
 
     title, kind, summary, fields, ref = _payload(insight)
-    if not fields.get("action") and not _list(insight.get("needs")) and not _list(insight.get("interests")):
+    if not fields.get("action"):
         return None
 
     bid, cid = business["id"], customer["id"]
@@ -178,26 +181,3 @@ def refresh_and_sync(business, customer):
     return insight, job
 
 
-def reconcile_business(business, limit=10):
-    """Bounded recent-customer reconciliation when owner opens Jobs.
-
-    This gives Demo WhatsApp the same practical monitoring behavior as official channel playbooks
-    without a background worker or an unbounded model sweep.
-    """
-    if not jobs.enabled() or not business:
-        return 0
-    try:
-        rows, _, _, _ = customers.list_customers(business["id"], page=1, stage="ALL")
-    except Exception:
-        return 0
-    synced = 0
-    for customer in rows[:max(1, min(int(limit or 10), 10))]:
-        if customer.get("source_channel") != "WHATSAPP":
-            continue
-        try:
-            insight = customer_insights.safe_refresh(business, customer)
-            if sync_from_insight(business, customer, insight):
-                synced += 1
-        except Exception:
-            continue
-    return synced
