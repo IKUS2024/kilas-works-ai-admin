@@ -184,8 +184,13 @@ def main():
         # CRM policy: a new contact is a Lead and must not expose Jobs until confirmed Customer.
         owner.goto(BASE + f'/business/{bid}/customers?stage=LEAD')
         owner.locator('a.client-item').first.click()
+        expect(owner.locator('[data-linked-jobs]')).to_have_count(0)
         owner.locator('select[name=stage]').select_option('CUSTOMER')
         owner.get_by_role('button', name='Simpan', exact=True).click()
+        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(0)
+        send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)
+        owner.reload()
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
         owner.goto(BASE + f'/business/{bid}/inbox?channel=web')
         owner.locator('a.web-conversation').first.click()
@@ -193,7 +198,7 @@ def main():
         job_url = BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href')
         inbox_url = owner.url
         send(visitor, 'Volumenya 0.2 m3')
-        expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(3, timeout=15000)
         owner.reload()
         assert BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href') == job_url
         shot(owner, 'web-inbox-same-job-followup')
@@ -203,7 +208,7 @@ def main():
         owner.get_by_role('button', name='Ambil alih', exact=True).click()
         expect(owner.locator('#web-owner-message')).to_be_enabled(timeout=10000)
         send(visitor, 'Koreksi asalnya Shanghai')
-        expect(visitor.locator('.web-bubble.assistant')).to_have_count(2)
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(3)
         owner.locator('#web-owner-message').fill('Tim sedang memeriksa pengiriman Anda.')
         owner.get_by_role('button', name='Kirim balasan', exact=True).click()
         expect(owner.locator('[data-send-status]')).to_have_text('Balasan terkirim.')
@@ -211,7 +216,7 @@ def main():
         owner.get_by_role('button', name='Kembalikan ke AI', exact=True).click()
         expect(owner.locator('[data-mode]')).to_have_text('AI aktif', timeout=10000)
         send(visitor, 'Koreksi asalnya Shanghai')
-        expect(visitor.locator('.web-bubble.assistant')).to_have_count(3, timeout=15000)
+        expect(visitor.locator('.web-bubble.assistant')).to_have_count(4, timeout=15000)
         owner.goto(job_url); expect(owner.locator('#field-origin')).to_have_value('Shanghai')
         shot(owner, 'human-reply-explicit-resume-persisted')
 

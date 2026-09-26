@@ -169,10 +169,11 @@ class BridgeCases:
                 self.target,linked['customer']['id'],self.invoice['issue_date'],self.invoice['due_date'],
                 self.invoice['items'],currency='IDR',actor_user_id=self.actor,idempotency_key='d'*32)
         bridge.attach_existing_invoice(self.source,self.actor,self.jid,invoice_id,expected_version=1)
-        with patch.object(bridge.customer_insights,'whatsapp_conversation_rows',
+        from flask import Flask
+        share_app=Flask(__name__);share_app.secret_key='synthetic-invoice-share-test-key-only-123456789'
+        with share_app.app_context(), patch.object(bridge.customer_insights,'whatsapp_conversation_rows',
                           return_value=[{'id':'wa_invoice_test'}]), \
              patch.object(bridge.finance_invoice_view,'base_url',return_value='https://app.kilasworks.id'), \
-             patch.object(bridge.finance_invoice_view,'create_token',return_value='signed-test-token'), \
              patch.object(bridge.whatsapp_transport,'system_text',
                           return_value={'status':'accepted'}) as send:
             result=bridge.publish_and_send_invoice(
@@ -182,7 +183,10 @@ class BridgeCases:
         args=send.call_args.args
         self.assertEqual(args[0],self.source)
         self.assertEqual(args[1],'wa_invoice_test')
-        self.assertIn('/finance/invoice-share/signed-test-token',args[3])
+        token=args[3].split('/finance/invoice-share/')[1]
+        with share_app.app_context():
+            self.assertEqual(bridge.finance_invoice_view.resolve_token(token),(self.target,invoice_id))
+        self.assertTrue(send.call_args.kwargs['safe_retry'])
         self.assertIn(result['result']['invoice']['invoice_number'],args[3])
 
     def test_mapping_change_disable_preserves_history_and_old_replay(self):

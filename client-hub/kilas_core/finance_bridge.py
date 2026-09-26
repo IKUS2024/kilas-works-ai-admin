@@ -358,13 +358,15 @@ def issue_job_invoice(bid, actor, jid):
         raise BridgeError('invoice_required', 409)
     link = result['link']; target = link['finance_business_id']
     with branches.scope(target, link['finance_branch_id'], actor):
-        current = finance.get_finance_invoice(target, link['finance_invoice_id'], actor)
-        if not current:
-            raise BridgeError('link_unavailable', 404)
-        if current['status'] == 'DRAFT':
-            finance.issue_finance_invoice(target, current['id'], actor_user_id=actor)
-        elif current['status'] not in ('ISSUED', 'PARTIALLY_PAID', 'PAID'):
-            raise BridgeError('invoice_unavailable', 409)
+        with finance._write(target,actor,related_business_ids=(bid,)):
+            _deal_job(bid,actor,jid)
+            current = finance.get_finance_invoice(target, link['finance_invoice_id'], actor)
+            if not current:
+                raise BridgeError('link_unavailable', 404)
+            if current['status'] == 'DRAFT':
+                finance.issue_finance_invoice(target, current['id'], actor_user_id=actor)
+            elif current['status'] not in ('ISSUED', 'PARTIALLY_PAID', 'PAID'):
+                raise BridgeError('invoice_unavailable', 409)
     return _invoice_result(bid, jid, actor)
 
 
