@@ -69,7 +69,7 @@ FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
 
 # Server-only workflow metadata is not accepted by owner form routes.
 WORKFLOW_METADATA = {'playbook', 'uncertain_fields',
-                     'action', 'intent', 'priority', 'source', 'source_key'}
+                     'action', 'intent', 'priority', 'source', 'source_key', 'payment_ready'}
 LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
@@ -285,13 +285,19 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
     if current['version'] != expected_version:
         raise JobError('stale_version',409)
     target = current['status'] if status is None else status
-    if target != current['status'] and target not in TRANSITIONS[current['status']]:
+    payment_boundary_repair = (
+        actor_id is _CUSTOMER_INSIGHT_ACTOR
+        and current['status'] == 'IN_PROGRESS'
+        and target == 'NEW'
+    )
+    if (target != current['status'] and target not in TRANSITIONS[current['status']]
+            and not payment_boundary_repair):
         raise JobError('invalid_transition',409)
     if fields is not None and actor_id not in _PLAYBOOK_ACTORS:
         previous = json.loads(current['fields_json'])
         if previous.get('source') == 'Customer Insight':
             preserved = dict(fields)
-            for key in ('action','intent','priority','source','source_key'):
+            for key in ('action','intent','priority','source','source_key','payment_ready'):
                 if key in previous:
                     preserved[key] = previous[key]
             encoded = validate_fields(preserved)
