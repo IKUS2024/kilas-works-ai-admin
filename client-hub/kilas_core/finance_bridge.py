@@ -98,6 +98,66 @@ def connection(bid, actor):
     return _connection(bid)
 
 
+def platform_automatic(bid):
+    """Kilas Works operator workspace never asks an admin to choose a Finance destination."""
+    return platform_workspace.is_scope_business(bid)
+
+
+def ensure_platform_connection(bid, actor):
+    """Provision the hidden Kilas Works workspace onto its own Finance Business workspace.
+
+    This is intentionally platform-only and is called from an explicit POST action (for example
+    "Buat Invoice"), never from a page-render GET. Existing linked customers/invoices keep their
+    recorded Finance destination; this only controls NEW Finance actions.
+    """
+    _source(bid, actor)
+    if not platform_automatic(bid):
+        return _connection(bid)
+    admin = db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'", (actor,))
+    if not admin:
+        raise BridgeError('not_found', 404)
+
+    # The Admin workspace is its own accounting scope. Seed the normal authoritative Finance
+    # defaults once (Utama/Kas/categories) rather than inventing a second ledger or asking the
+    # operator to pick some unrelated client business.
+    finance.ensure_finance_defaults(bid, actor_user_id=actor)
+    rows = branches.list_branches(bid, actor, workspace_type='BUSINESS')
+    active = [row for row in rows if row.get('is_active')]
+    selected = next((row for row in active if row.get('is_default')), None)
+    selected = selected or (active[0] if active else None)
+    if not selected:
+        raise BridgeError('not_connected', 409)
+
+    current = _connection(bid)
+    if (current and current.get('enabled')
+            and current.get('finance_business_id') == bid
+            and current.get('finance_branch_id') == selected['id']):
+        return current
+
+    expected = current['version'] if current else 0
+    operation_key = hashlib.sha256(
+        f"platform-auto-finance:{bid}:{selected['id']}:{expected + 1}".encode()
+    ).hexdigest()[:32]
+    try:
+        return configure(
+            bid, actor,
+            finance_business_id=bid,
+            finance_branch_id=selected['id'],
+            expected_version=expected,
+            enabled_value=True,
+            operation_key=operation_key,
+            confirmed=True,
+        )
+    except BridgeError as error:
+        # A concurrent admin request may have created the exact same automatic mapping.
+        latest = _connection(bid)
+        if (error.code == 'stale_connection' and latest and latest.get('enabled')
+                and latest.get('finance_business_id') == bid
+                and latest.get('finance_branch_id') == selected['id']):
+            return latest
+        raise
+
+
 def _request(bid, actor, key, kind, payload, confirmed):
     _source(bid, actor)
     if confirmed is not True:
