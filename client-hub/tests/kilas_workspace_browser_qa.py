@@ -75,8 +75,8 @@ with sync_playwright() as p:
         assert admin_nav==['Home','Inbox','Customers','Jobs','More'],admin_nav
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_have_count(1)
         expect(page.get_by_role('heading',name='Workspace Kilas Works',exact=True)).to_be_visible()
-        assert page.get_by_text('OPERASIONAL',exact=True).count()==0
-        assert page.get_by_text('PAKET & PEMBAYARAN',exact=True).count()==0
+        assert page.locator('.kw-operator-group').count()==0
+        assert page.locator('.kw-operator-nav details').count()==0
 
         visit('/admin/?workspace=customers','admin-customers')
         expect(page.get_by_role('heading',name='Customers Kilas Works',exact=True)).to_be_visible()
