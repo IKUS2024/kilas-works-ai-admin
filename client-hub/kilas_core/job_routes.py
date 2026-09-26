@@ -6,7 +6,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 import repo
 import security
 import subscription_service
-from kilas_core import customers, jobs, customer_action_jobs
+from kilas_core import customers, jobs
 from kilas_core.flags import enabled_for_business
 from kilas_core.playbook_definitions import PLAYBOOKS
 
@@ -111,6 +111,8 @@ def _source(bid, customer_id, conversation_id):
             abort(404)
         customer_id = linked['id']
     customer = customers.get_customer(bid, customer_id)
+    if customer.get('stage') != 'CUSTOMER':
+        abort(404)
     return customer, conversation_id or None
 
 
@@ -118,18 +120,13 @@ def _source(bid, customer_id, conversation_id):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
-    # Bounded monitoring pass: recent WhatsApp Leads/Customers with a real next action
-    # are reconciled into one idempotent Job before the owner sees the queue.
-    try:
-        customer_action_jobs.reconcile_business(business)
-    except Exception:
-        pass
     q, status = request.args.get('q',''), request.args.get('status','')
     customer_id = request.args.get('customer_id')
     if customer_id:
         customers.get_customer(bid,customer_id)
-    rows,total,page,pages = jobs.list_jobs(bid,search=q,status=status,customer_id=customer_id,
-                                         page=request.args.get('page',1))
+    rows,total,page,pages = jobs.list_jobs(
+        bid,search=q,status=status,customer_id=customer_id,
+        page=request.args.get('page',1),customer_stage='CUSTOMER')
     for row in rows:
         try:
             row['customer_name'] = customers.get_customer(bid,row['customer_id'])['display_name']
@@ -193,7 +190,12 @@ def linked_context(business, customer_id, conversation_id=None):
     """Bounded owner-only panel; never read Jobs tables when the rollout is off."""
     if not available(business):
         return None
-    rows, total, _, _ = jobs.list_jobs(business['id'],customer_id=customer_id,conversation_id=conversation_id)
+    customer = customers.get_customer(business['id'], customer_id)
+    if customer.get('stage') != 'CUSTOMER':
+        return None
+    rows, total, _, _ = jobs.list_jobs(
+        business['id'],customer_id=customer_id,conversation_id=conversation_id,
+        customer_stage='CUSTOMER')
     for row in rows:
         book = PLAYBOOKS.get(row['fields'].get('playbook'))
         row['workflow_label'] = book.label if book else None
