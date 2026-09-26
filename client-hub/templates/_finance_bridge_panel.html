@@ -24,7 +24,7 @@
       {% elif not bridge_panel.result %}
         <form method="post" action="{{ url_for('core_finance_bridge.invoice_start',bid=business.id,jid=job.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Buat Invoice</button>
+          <button class="btn" type="submit">Buat Invoice untuk {{ customer.display_name }}</button>
         </form>
       {% else %}
         {% set link=bridge_panel.result.link %}
