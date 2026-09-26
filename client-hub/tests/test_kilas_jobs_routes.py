@@ -259,7 +259,7 @@ class JobRoutesTests(unittest.TestCase):
 
         page = self.client.get('/business/7/jobs')
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b'Tindakan', page.data)
+        self.assertIn(b'Jobs', page.data)
         self.assertIn(customer['display_name'].encode(), page.data)
         self.assertIn(b'Booking konsultasi tanggal 10', page.data)
 
