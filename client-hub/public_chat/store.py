@@ -185,12 +185,12 @@ def claim(bid, cid, event_id, text, ip_key):
         return current, list(reversed(history)) if status == "processing" else None
 
 
-def finish(event, reply=None, error=None):
+def finish(event, reply=None, error=None, trace=None):
     with transaction() as tx:
-        return _finish(tx, event, reply=reply, error=error)
+        return _finish(tx, event, reply=reply, error=error, trace=trace)
 
 
-def _finish(tx, event, reply=None, error=None, before_reply=None):
+def _finish(tx, event, reply=None, error=None, before_reply=None, trace=None):
     bid, cid, eid = event["business_id"], event["conversation_id"], event["event_id"]
     conv = _locked(tx, bid, cid)
     current = tx.one("SELECT * FROM kw_web_events WHERE business_id=? AND conversation_id=? AND event_id=?",
@@ -206,6 +206,9 @@ def _finish(tx, event, reply=None, error=None, before_reply=None):
             reply = before_reply(tx)
     if reply is not None and error is None:
         _message(tx, bid, cid, eid, "assistant", reply)
+        if trace is not None:
+            from ai_reply_explanation import save_core
+            save_core(tx, bid, cid, eid, trace)
     status = "failed" if error else "done"
     tx.execute("UPDATE kw_web_events SET status=?,error=? WHERE business_id=? AND conversation_id=? AND event_id=?",
                (status, error, bid, cid, eid))
