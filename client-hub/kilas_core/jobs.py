@@ -294,12 +294,22 @@ def get_job(business_id, job_id):
         return _row(_get(tx,business_id,job_id))
 
 
-def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, conversation_id=None):
+def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, conversation_id=None,
+              customer_stage=None):
     _positive(business_id)
     if status and status not in STATUS_LABELS:
         raise JobError('invalid_status')
     search = _text(search,120)
+    if customer_stage not in (None, 'LEAD', 'CUSTOMER'):
+        raise JobError('invalid_status')
     where, args = 'business_id=?', [business_id]
+    if customer_stage:
+        where += (
+            " AND customer_id IN (SELECT c.id FROM kw_core_customers c "
+            "LEFT JOIN kw_core_customer_stages s ON s.business_id=c.business_id AND s.customer_id=c.id "
+            "WHERE c.business_id=? AND COALESCE(s.stage,'CUSTOMER')=?)"
+        )
+        args += [business_id, customer_stage]
     for column, value in (('status',status),('customer_id',customer_id),('conversation_id',conversation_id)):
         if value:
             where += ' AND ' + column + '=?'
