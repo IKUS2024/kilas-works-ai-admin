@@ -30,6 +30,42 @@ _PLATFORM_ACTION_HINT = re.compile(
 )
 _PLATFORM_SYSTEM_MARKERS = ("[FOLLOW-UP OTOMATIS SISTEM]",)
 
+# "Dikerjakan" is the commercial handoff state: invoice/payment has started.
+# Meeting/booking/scheduling/deal language alone must remain "Perlu tindakan".
+_PAYMENT_STEP_HINT = re.compile(
+    r"\b(bayar|pembayaran|payment|pay|paid|invoice|tagihan|billing|payment\s+link|"
+    r"transfer|dp|down\s+payment|deposit|pelunasan|lunas|rekening|"
+    r"bukti\s+(?:bayar|pembayaran))\b",
+    re.IGNORECASE,
+)
+_PAYMENT_STEP_META = "payment_step_reached"
+
+
+def _payment_step_text(*values):
+    text = " ".join(_clean(value, 900) for value in values if _clean(value, 900))
+    return bool(_PAYMENT_STEP_HINT.search(text))
+
+
+def _insight_payment_step(insight):
+    if not isinstance(insight, dict):
+        return False
+    return _payment_step_text(
+        insight.get("action"),
+        insight.get("summary"),
+        insight.get("buying_signal_reason"),
+    )
+
+
+def _job_payment_step(job):
+    fields = (job or {}).get("fields") or {}
+    if fields.get(_PAYMENT_STEP_META) == "true":
+        return True
+    return _payment_step_text(
+        fields.get("action"),
+        fields.get("details"),
+        (job or {}).get("summary"),
+    )
+
 def _clean(value, maximum=700):
     if not isinstance(value, str):
         return ""
@@ -80,6 +116,8 @@ def _payload(insight):
     }
     if summary:
         fields["details"] = summary[:420]
+    if _insight_payment_step(insight):
+        fields[_PAYMENT_STEP_META] = "true"
     return title, kind, summary, fields, ref
 
 def _platform_candidate_needs_analysis(customer):
@@ -224,6 +262,10 @@ def sync_from_insight(business, customer, insight):
         return None
 
     signal = insight.get("job_status")
+    # Deterministic safety gate: a model saying "DIKERJAKAN" is not enough. The
+    # structured Customer Insight must also contain explicit payment/invoice evidence.
+    if signal == "DIKERJAKAN" and not _insight_payment_step(insight):
+        signal = "PERLU_TINDAKAN"
     target_status = SIGNAL_TO_STATUS.get(signal)
     payload = _payload(insight)
     if payload is None and target_status not in ("IN_PROGRESS", "CANCELLED"):
@@ -269,12 +311,24 @@ def sync_from_insight(business, customer, insight):
 
         if active_auto:
             current = active_auto[0]
+            current_payment_step = _job_payment_step(current)
+            if payload and current_payment_step and fields.get(_PAYMENT_STEP_META) != "true":
+                # Once a real payment/invoice step was reached, keep that fact durable even
+                # when later chat moves on to scheduling or delivery details.
+                fields = dict(fields)
+                fields[_PAYMENT_STEP_META] = "true"
             status_arg = None
             if target_status in ("IN_PROGRESS", "CANCELLED") and current["owner_status"] != target_status:
                 status_arg = target_status
+            elif (target_status == "NEW" and current["status"] == "IN_PROGRESS"
+                  and not current_payment_step):
+                # Repair historical false positives where a meeting/booking/deal was
+                # incorrectly promoted to Dikerjakan before any payment/invoice signal.
+                status_arg = "NEW"
             content_changed = bool(payload) and (
                 current["fields"].get("source_key") != ref
                 or current["fields"].get("action") != fields.get("action")
+                or current["fields"].get(_PAYMENT_STEP_META) != fields.get(_PAYMENT_STEP_META)
                 or current["title"] != title
                 or current["kind"] != kind
                 or current["summary"] != summary
@@ -325,6 +379,42 @@ def refresh_and_sync(business, customer, actor_id=None):
     except Exception:
         job = None
     return insight, job
+
+
+def repair_prepayment_in_progress_jobs(business_id, limit=200):
+    """Repair old AI Jobs that reached Dikerjakan before invoice/payment intent.
+
+    This is local database work only: no model call, Inbox rescan, or external request.
+    Manual/playbook Jobs are excluded by the Customer Insight source marker.
+    """
+    if not jobs.enabled():
+        return 0
+    try:
+        limit = max(1, min(int(limit or 200), 500))
+    except (TypeError, ValueError):
+        limit = 200
+    with jobs.transaction() as tx:
+        jobs._lock(tx, business_id)
+        rows = tx.execute(
+            "SELECT * FROM kw_core_jobs WHERE business_id=? AND status='IN_PROGRESS' "
+            "AND fields_json LIKE ? ORDER BY updated_at DESC,id DESC LIMIT ?",
+            (business_id, '%\"source\":\"Customer Insight\"%', limit),
+        )
+        repaired = 0
+        for raw in rows:
+            current = jobs._row(raw)
+            if _job_payment_step(current):
+                continue
+            op = "customer_insight_payment_gate_repair_" + hashlib.sha256(
+                f"{business_id}:{current['id']}:{current['version']}".encode()
+            ).hexdigest()
+            jobs._update_job(
+                tx, business_id, current["id"], expected_version=current["version"],
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR, operation_key=op,
+                status="NEW",
+            )
+            repaired += 1
+        return repaired
 
 
 def _table_exists(tx, table):
