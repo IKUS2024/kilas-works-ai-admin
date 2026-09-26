@@ -56,6 +56,7 @@ try:
     import payment_reviews_repo as _pay_review_repo
     import repo as _ch_repo
     import tenant_followup_service as _tenant_followup
+    import ai_reply_explanation as _reply_explain
     _CLIENT_HUB_AVAILABLE = True
 except Exception as _client_hub_import_err:
     print(f"Client Hub bridge tidak tersedia ({_client_hub_import_err}) — bot jalan tanpa fitur multi-tenant.")
