@@ -30,6 +30,14 @@ def list_page(bid):
     if stage not in ("LEAD", "CUSTOMER"):
         stage = "LEAD"
     rows, total, page, pages = customers.list_customers(bid, q, page, stage)
+    # Customer cards should reflect conversations visible in Inbox, not retired Web Chat counts.
+    for row in rows:
+        try:
+            row["conversation_count"] = customer_insights.inbox_snapshot(
+                bid, row["id"]
+            )["conversation_count"]
+        except Exception:
+            row["conversation_count"] = int(row.get("conversation_count") or 0)
     stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q,
@@ -42,20 +50,29 @@ def detail_page(bid, customer_id):
     business = _business(bid)
     try:
         customer = customers.get_customer(bid, customer_id)
-        conversations = customers.customer_conversations(bid, customer_id)
-        insight = customer_insights.refresh(bid, customer_id)
-        all_messages = customer_insights.messages(bid, customer_id)
-        # Demo WhatsApp is a privacy-scoped mirror and has no kw_web_customer_links row.
-        # Count it as a real conversation in the customer UI when messages exist.
-        demo_count = 1 if any(m["source"] == "DEMO_WHATSAPP" for m in all_messages) else 0
-        conversation_count = len(conversations) + demo_count
+        snapshot = customer_insights.inbox_snapshot(bid, customer_id)
+        insight = customer_insights.refresh(bid, customer_id, snapshot=snapshot)
     except customers.CustomerError as error:
         abort(error.status)
     return render_template("customer_detail.html", business=business, customer=customer,
-                           conversations=conversations, insight=insight,
-                           conversation_count=conversation_count,
+                           insight=insight, inbox_snapshot=snapshot,
+                           conversation_count=snapshot["conversation_count"],
                            saved=request.args.get("saved") == "1",
                            linked_jobs=linked_context(business,customer_id))
+
+
+
+
+@customers_bp.post("/business/<int:bid>/customers/<customer_id>/insight/refresh")
+@security.login_required
+def refresh_insight(bid, customer_id):
+    _business(bid)
+    try:
+        customers.get_customer(bid, customer_id)
+        customer_insights.refresh(bid, customer_id, force=True)
+    except customers.CustomerError as error:
+        abort(error.status)
+    return redirect(url_for("core_customers.detail_page", bid=bid, customer_id=customer_id), code=303)
 
 
 @customers_bp.post("/business/<int:bid>/customers/<customer_id>")
