@@ -6,6 +6,7 @@ import ai_onboarding
 import ai_usage
 import repo
 from kilas_core import actions, customers, jobs, service, understanding, operation_access, playbooks
+import ai_reply_explanation as reply_explanation
 from kilas_core.contracts import HistoryMessage
 from kilas_core.playbook_definitions import select
 from public_chat import store, security
@@ -57,13 +58,21 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
         if not eligible(bid):
             return store.finish(event, error='provider_error')
         if understanding.is_simple_greeting(message.text):
-            return store.finish(event, reply='Hai! Ada yang bisa saya bantu terkait produk atau layanan bisnis ini?')
+            return store.finish(
+                event,
+                reply='Hai! Ada yang bisa saya bantu terkait produk atau layanan bisnis ini?',
+                trace=reply_explanation.simple_greeting(),
+            )
         book = select((repo.get_business_profile(bid) or {}).get('category'))
         with jobs.transaction() as tx:
             expected = actions.snapshot(tx, bid, cid)
         resolved = actions.state(book, expected)
         if resolved is None:
-            return store.finish(event, reply='Permintaan ini perlu ditinjau tim agar tidak tercatat sebagai pekerjaan ganda.')
+            return store.finish(
+                event,
+                reply='Permintaan ini perlu ditinjau tim agar tidak tercatat sebagai pekerjaan ganda.',
+                trace=reply_explanation.blocked_workflow(),
+            )
         known, uncertain = resolved
         settings = repo.get_ai_settings(bid) or {}
         customer = customers.get_customer(bid, expected['customer_id'])
@@ -99,7 +108,8 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
                     raise understanding.UnderstandingError('truncated_output')
                 interpretation = understanding.parse(result.reply, message.text)
                 # Validate workflow before any write; action boundary revalidates after fencing.
-                playbooks.decide(book, interpretation, known=known, uncertain=uncertain,
+                preview_decision = playbooks.decide(
+                    book, interpretation, known=known, uncertain=uncertain,
                     current_status=expected['job']['status'] if expected['job'] else None,
                     has_job=bool(expected['job']))
                 break
@@ -125,17 +135,33 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
                     from kilas_core.handover import request_human
                     request_human(transaction,bid,cid,interpretation.intent)
                     return None
-                row, reply = actions.apply(transaction,bid,cid,expected=expected,book=book,
-                                         interpretation=interpretation,event_id=message.external_message_id,channel=message.channel)
+                stage = transaction.one(
+                    'SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
+                    (bid, expected['customer_id']))
+                row, reply = actions.apply(
+                    transaction,bid,cid,expected=expected,book=book,
+                    interpretation=interpretation,event_id=message.external_message_id,channel=message.channel)
                 if operations and row:
                     from kilas_core.handover import observe_uncertainty
                     observe_uncertainty(transaction,row)
+                reply_explanation.save_core(
+                    transaction, bid, cid, message.external_message_id,
+                    reply_explanation.core_decision(
+                        book, interpretation, preview_decision,
+                        category=(repo.get_business_profile(bid) or {}).get('category') or '',
+                        write_applied=bool(
+                            preview_decision.write and stage and stage.get('stage') == 'CUSTOMER'),
+                    ))
                 return reply
             return store._finish(tx,event,before_reply=commit_action)
     except jobs.JobError as error:
         _diagnostic(bid, 'job', error.code)
         if error.code == 'stale_version':
-            return store.finish(event, reply='Tim baru memperbarui rincian permintaan. Mohon konfirmasi perubahan yang masih dibutuhkan agar tidak tertimpa.')
+            return store.finish(
+                event,
+                reply='Tim baru memperbarui rincian permintaan. Mohon konfirmasi perubahan yang masih dibutuhkan agar tidak tertimpa.',
+                trace=reply_explanation.stale_update(),
+            )
         return store.finish(event, error='invalid_provider_result')
     except understanding.UnderstandingError as error:
         _diagnostic(bid, 'handover', error.code)
