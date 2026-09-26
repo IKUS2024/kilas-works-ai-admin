@@ -40,6 +40,9 @@ ATURAN MUTLAK:
    Pertanyaan informasi/FAQ/harga/paket, sekadar minat, membandingkan, atau bisnis menawarkan sesuatu
    BUKAN action. Untuk kasus itu action wajib null.
 9. action harus sangat singkat (maksimal satu kalimat), faktual, dan tidak boleh berisi strategi admin.
+   Jika customer sudah masuk tahap pembayaran, action tetap menjelaskan APA produk/layanan/order yang
+   customer mau beli/lanjutkan. Jangan ubah action menjadi instruksi admin seperti "kirim invoice";
+   aksi membuat/mengirim invoice ditampilkan terpisah oleh sistem Job.
 10. job_status HANYA berdasarkan pernyataan customer:
    - "PERLU_TINDAKAN" jika customer menyatakan mau sesuatu / mau booking / mau order / minta dibuatkan,
      mengatur atau mengonfirmasi jadwal/meeting, atau bahkan bilang deal/oke lanjut/fix lanjut,
