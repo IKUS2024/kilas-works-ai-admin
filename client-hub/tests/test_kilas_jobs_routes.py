@@ -9,8 +9,8 @@ class JobRoutesTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         phase3.CustomerTests.setUpClass.__func__(cls)
-        global jobs, customers
-        from kilas_core import jobs, customers, job_schema
+        global jobs, customers, customer_action_jobs
+        from kilas_core import jobs, customers, job_schema, customer_action_jobs
         job_schema.apply_schema()
         cls.db.execute('CREATE TABLE business_profiles(business_id INTEGER PRIMARY KEY,category TEXT)')
         cls.db.execute("INSERT INTO business_profiles VALUES (7,'Restaurant'),(8,'Salon')")
@@ -169,6 +169,82 @@ class JobRoutesTests(unittest.TestCase):
                 for spy in spies: spy.assert_not_called()
             self.assertEqual(denied,[])
         finally: self.db.get_connection().set_authorizer(None)
+
+    def test_customer_insight_creates_and_updates_one_action_job(self):
+        business = {'id': 7}
+        insight = {
+            'summary': 'Customer tertarik dan ingin booking konsultasi untuk kebutuhan parfum.',
+            'name': None, 'business_name': None, 'business_type': 'parfum',
+            'location': None, 'budget': None,
+            'interests': ['Kilas Assist'], 'needs': ['booking konsultasi'],
+            'buying_stage': 'BERMINAT',
+            'buying_signal_reason': 'Customer menyebut ingin booking.',
+            'communication_notes': None,
+            'missing_info': ['tanggal booking'],
+            'follow_up': 'Tanyakan tanggal yang diinginkan untuk booking konsultasi.',
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 3},
+        }
+        first = customer_action_jobs.sync_from_insight(business, self.customer, insight)
+        self.assertIsNotNone(first)
+        self.assertEqual(first['customer_id'], self.customer['id'])
+        self.assertEqual(first['status'], 'NEW')
+        self.assertEqual(first['fields']['source'], 'Customer Insight')
+        self.assertEqual(first['fields']['priority'], 'Sedang')
+        self.assertIn('booking', first['title'].lower())
+        self.assertIn('tanggal', first['fields']['action'].lower())
+
+        # Same intent is idempotent: one customer action, not one Job per chat/page refresh.
+        again = customer_action_jobs.sync_from_insight(business, self.customer, insight)
+        self.assertEqual(again['id'], first['id'])
+        self.assertEqual(jobs.list_jobs(7)[1], 1)
+
+        updated_insight = {
+            **insight,
+            'summary': 'Customer sudah memilih arah booking dan siap lanjut.',
+            'buying_stage': 'SIAP_MEMBELI',
+            'follow_up': 'Konfirmasi tanggal booking dan langkah berikutnya.',
+            'missing_info': [],
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 4},
+        }
+        updated = customer_action_jobs.sync_from_insight(business, self.customer, updated_insight)
+        self.assertEqual(updated['id'], first['id'])
+        self.assertEqual(updated['fields']['priority'], 'Tinggi')
+        self.assertEqual(updated['version'], first['version'] + 1)
+
+        page = self.client.get('/business/7/jobs')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'Tindakan', page.data)
+        self.assertIn(self.customer['display_name'].encode(), page.data)
+        self.assertIn(b'Konfirmasi tanggal booking', page.data)
+
+    def test_customer_insight_skips_noise_and_never_duplicates_manual_job(self):
+        business = {'id': 7}
+        noise = {
+            'summary': 'Customer hanya menyapa.',
+            'interests': [], 'needs': [], 'buying_stage': 'BELUM_JELAS',
+            'missing_info': [], 'follow_up': None,
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 1},
+        }
+        self.assertIsNone(customer_action_jobs.sync_from_insight(business, self.customer, noise))
+        self.assertEqual(jobs.list_jobs(7)[1], 0)
+
+        manual = jobs.create_job(
+            7, self.customer['id'], title='Hubungi customer manual',
+            summary='Owner sudah membuat tindakan sendiri.',
+            actor_id=1, operation_key='manual-action-job-0001', fields={'details':'Manual'},
+        )
+        actionable = {
+            'summary': 'Customer meminta price list.',
+            'interests': ['paket'], 'needs': ['informasi harga'],
+            'buying_stage': 'MENCARI_INFORMASI',
+            'buying_signal_reason': 'Meminta harga.',
+            'missing_info': [], 'follow_up': 'Kirim dan jelaskan pilihan paket.',
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 2},
+        }
+        result = customer_action_jobs.sync_from_insight(business, self.customer, actionable)
+        self.assertEqual(result['id'], manual['id'])
+        self.assertEqual(jobs.list_jobs(7)[1], 1)
+        self.assertNotEqual(jobs.list_jobs(7)[0][0]['fields'].get('source'), 'Customer Insight')
 
     def test_chat_and_simulator_never_create_jobs_automatically(self):
         with patch.object(self.ai,'_call_claude',return_value=('Kami bantu pesanan Anda','end_turn',None)):
