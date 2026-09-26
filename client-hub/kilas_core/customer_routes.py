@@ -1,7 +1,7 @@
 """Owner-facing Kilas Core Customers routes. AI Admin only; Finance remains separate."""
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
-from kilas_core import customers, customer_insights
+from kilas_core import customers, customer_insights, customer_action_jobs
 from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
@@ -57,6 +57,10 @@ def detail_page(bid, customer_id):
     if demo:
         conversations.insert(0, demo)
     insight = customer_insights.safe_refresh(business, customer)
+    try:
+        customer_action_jobs.sync_from_insight(business, customer, insight)
+    except Exception:
+        pass
     return render_template("customer_detail.html", business=business, customer=customer,
                            conversations=conversations, insight=insight,
                            saved=request.args.get("saved") == "1",
@@ -72,6 +76,10 @@ def insight_fragment(bid, customer_id):
     except customers.CustomerError as error:
         abort(error.status)
     insight = customer_insights.safe_refresh(business, customer)
+    try:
+        customer_action_jobs.sync_from_insight(business, customer, insight)
+    except Exception:
+        pass
     return render_template("_customer_insight.html", business=business,
                            customer=customer, insight=insight)
 
@@ -101,6 +109,10 @@ def update_profile(bid, customer_id):
         if demo:
             conversations.insert(0, demo)
         insight = customer_insights.safe_refresh(business, customer)
+        try:
+            customer_action_jobs.sync_from_insight(business, customer, insight)
+        except Exception:
+            pass
         return render_template("customer_detail.html", business=business, customer=customer,
                                conversations=conversations, insight=insight, saved=False,
                                form_error="Periksa kembali data customer.",
