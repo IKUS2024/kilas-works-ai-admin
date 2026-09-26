@@ -450,6 +450,34 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(cancelled['id'],first['id'])
         self.assertEqual(cancelled['owner_status'],'CANCELLED')
 
+    def test_repair_legacy_dikerjakan_without_payment_evidence(self):
+        customer = customers.get_customer(7, self.customer['id'])
+        with jobs.transaction() as tx:
+            legacy = jobs._create_job(
+                tx, 7, customer['id'], title='Booking',
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR,
+                operation_key='legacy-prepayment-create-0001',
+                kind='BOOKING',
+                summary='Jadwalkan meeting Selasa jam 09:00.',
+                fields={
+                    'action':'Jadwalkan meeting Selasa jam 09:00',
+                    'details':'Customer menyetujui jadwal meeting.',
+                    'source':'Customer Insight',
+                    'source_key':'insight:legacy-prepayment',
+                },
+            )
+            legacy = jobs._update_job(
+                tx, 7, legacy['id'], expected_version=legacy['version'],
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR,
+                operation_key='legacy-prepayment-progress-0001',
+                status='IN_PROGRESS',
+            )
+        self.assertEqual(legacy['owner_status'], 'IN_PROGRESS')
+        self.assertEqual(customer_action_jobs.repair_prepayment_in_progress_jobs(7), 1)
+        repaired = jobs.get_job(7, legacy['id'])
+        self.assertEqual(repaired['owner_status'], 'NEW')
+        self.assertEqual(repaired['fields']['action'], 'Jadwalkan meeting Selasa jam 09:00')
+
     def test_information_only_customer_stays_out_of_jobs_and_manual_job_wins(self):
         business = {'id': 7}
         customers.update_customer(
