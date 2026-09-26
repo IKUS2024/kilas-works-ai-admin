@@ -1940,9 +1940,14 @@ def new_invoice(business_id, user, business, invoice_id=None):
                 invoice_id=editor.create(business_id,customer_id,data,actor_user_id=actor,submission_key=submission_key,**payload)
                 if core_context:
                     from kilas_core import finance_bridge as core_bridge
-                    core_bridge.attach_existing_invoice(
-                        int(request.args['core_bid']),actor,request.args['core_job'],invoice_id,
-                        expected_version=int(request.args['core_version']))
+                    try:
+                        core_bridge.attach_existing_invoice(
+                            int(request.args['core_bid']),actor,request.args['core_job'],invoice_id,
+                            expected_version=int(request.args['core_version']))
+                    except core_bridge.BridgeError as error:
+                        # Reuse the Finance editor's normal validation/error surface rather than
+                        # leaking a bridge race as a 500 after the invoice draft was saved.
+                        raise finance.FinanceError(error.code) from error
         except finance.FinanceError as error:
             flash(INVOICE_EDIT_ERRORS.get(str(error),ERRORS.get(str(error),'Data invoice belum valid. Periksa isian dan coba lagi.')),'error')
             error_status=400
