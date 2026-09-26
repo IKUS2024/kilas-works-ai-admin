@@ -3,6 +3,7 @@
 Reuses the proven Phase 2 public-chat fixture but applies only additive 0056 on top of 0055.
 """
 import os
+import json
 import unittest
 from unittest.mock import patch
 
@@ -54,6 +55,26 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(rows[0]["id"], customer["id"])
         self.assertEqual(rows[0]["stage"], "LEAD")
         self.assertEqual(customers.get_customer(7, customer["id"])["stage"], "LEAD")
+
+    def test_existing_demo_whatsapp_binding_backfills_as_lead_once(self):
+        phone = "14048836437"
+        self.db.execute(
+            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
+            (1, 7, "demo_whatsapp_bound",
+             json.dumps({"phone": phone, "start_message_id": 1402, "bound_at": 1790362912})),
+        )
+
+        first = self.client.get("/business/7/customers")
+        self.assertEqual(first.status_code, 200)
+        self.assertIn(phone.encode(), first.data)
+        leads, total, _, _ = customers.list_customers(7, stage="LEAD")
+        self.assertEqual(total, 1)
+        self.assertEqual(leads[0]["phone"], phone)
+        self.assertEqual(leads[0]["source_channel"], "WHATSAPP")
+
+        second = self.client.get("/business/7/customers")
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(customers.list_customers(7, stage="LEAD")[1], 1)
 
     def test_lead_filter_and_manual_customer_promotion(self):
         first = self.start().json
