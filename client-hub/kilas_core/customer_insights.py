@@ -1,6 +1,6 @@
 """Incremental, tenant-scoped Customer Insight for Kilas Assist CRM.
 
-Customer chat delivery never waits on this module. The owner/detail surface calls refresh(),
+Customer chat delivery never waits on this module. Insight reads WhatsApp Inbox only; retired Web Chat is excluded. The owner/detail surface calls refresh(),
 which compares immutable message cursors and only sends new chat messages plus the previous
 structured insight to the model. Demo WhatsApp is read through its durable, privacy-scoped
 binding; no platform-wide inbox is ever exposed to a tenant.
@@ -174,10 +174,30 @@ def _core_messages(business_id, customer_id, after):
                 "SELECT m.id,m.role,m.content,m.created_at,w.id AS conversation_id "
                 "FROM kw_web_customer_links l "
                 "JOIN kw_web_conversations w ON w.business_id=l.business_id AND w.id=l.conversation_id "
+                "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
                 "JOIN kw_web_messages m ON m.business_id=w.business_id AND m.conversation_id=w.id "
-                "WHERE l.business_id=? AND l.customer_id=? AND m.id>? "
+                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' AND m.id>? "
                 "ORDER BY m.id ASC LIMIT ?",
                 (business_id, customer_id, int(after), MAX_NEW_MESSAGES),
+            )
+    except Exception:
+        return []
+
+
+def whatsapp_conversation_rows(business_id, customer_id):
+    """Conversation cards that belong to the active WhatsApp Inbox only."""
+    try:
+        with customers.transaction() as tx:
+            return tx.execute(
+                "SELECT w.id,w.mode,w.created_at,w.updated_at,"
+                "(SELECT content FROM kw_web_messages m WHERE m.business_id=w.business_id "
+                "AND m.conversation_id=w.id ORDER BY m.id DESC LIMIT 1) AS preview "
+                "FROM kw_web_customer_links l "
+                "JOIN kw_web_conversations w ON w.business_id=l.business_id AND w.id=l.conversation_id "
+                "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
+                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' "
+                "ORDER BY w.updated_at DESC",
+                (business_id, customer_id),
             )
     except Exception:
         return []
@@ -229,7 +249,7 @@ def _transcript(core, demo):
     rows = []
     for row in core:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
-        rows.append(f"[{who}][CORE] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
+        rows.append(f"[{who}][WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     for row in demo:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
         rows.append(f"[{who}][DEMO_WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")

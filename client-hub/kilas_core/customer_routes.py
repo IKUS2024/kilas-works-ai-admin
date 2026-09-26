@@ -30,11 +30,14 @@ def list_page(bid):
     if stage not in ("LEAD", "CUSTOMER"):
         stage = "LEAD"
     rows, total, page, pages = customers.list_customers(bid, q, page, stage)
-    # Demo WhatsApp lives in the privacy-scoped platform mirror, not kw_web_customer_links.
-    # Count that durable thread as a real conversation for CRM display.
+    # CRM counts the same WhatsApp Inbox sources used by Customer Insight.
+    # Retired Web Chat history is intentionally excluded.
     for row in rows:
+        row["conversation_count"] = len(
+            customer_insights.whatsapp_conversation_rows(bid, row["id"])
+        )
         if customer_insights.demo_conversation_row(bid, row):
-            row["conversation_count"] = int(row.get("conversation_count") or 0) + 1
+            row["conversation_count"] += 1
     stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q,
@@ -47,7 +50,7 @@ def detail_page(bid, customer_id):
     business = _business(bid)
     try:
         customer = customers.get_customer(bid, customer_id)
-        conversations = customers.customer_conversations(bid, customer_id)
+        conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
     except customers.CustomerError as error:
         abort(error.status)
     demo = customer_insights.demo_conversation_row(bid, customer)
@@ -93,7 +96,7 @@ def update_profile(bid, customer_id):
             abort(404)
         customer = customers.get_customer(bid, customer_id)
         business = security.require_business_access(bid)
-        conversations = customers.customer_conversations(bid, customer_id)
+        conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
         demo = customer_insights.demo_conversation_row(bid, customer)
         if demo:
             conversations.insert(0, demo)

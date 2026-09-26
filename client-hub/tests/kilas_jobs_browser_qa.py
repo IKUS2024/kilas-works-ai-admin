@@ -52,20 +52,8 @@ def main():
         owner.locator('[data-job-customer]').click()
         expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
         owner.screenshot(path=str(OUT/'09_customer_jobs.png'),full_page=True)
-        # Customer-only creation is allowed. A second job validates the optional WEB source path.
-        owner.locator('a.client-item').filter(has_text='WEB').first.click()
-        expect(owner.locator('[data-create-job]')).to_be_visible()
-        owner.locator('[data-create-job]').click()
-        expect(owner.locator('[data-job-conversation]')).to_be_visible()
-        owner.get_by_label('Judul',exact=True).fill('Tindak lanjut percakapan')
-        owner.get_by_role('button',name='Buat Pesanan',exact=True).click()
-        second_job_url=owner.url.split('?')[0]
-        owner.locator('[data-job-conversation]').click()
-        expect(owner.locator('[data-linked-jobs]').get_by_text('Tindak lanjut percakapan',exact=True)).to_be_visible()
-        fits(owner)
-        owner.screenshot(path=str(OUT/'10_inbox_jobs.png'),full_page=True)
-        owner.locator('[data-linked-jobs] a.client-item').first.click()
-        expect(owner.locator('[data-job-customer]')).to_have_attribute('href',urlsplit(customer_url).path)
+        # Customer-only Jobs remain supported; retired Web Chat is no longer a CRM navigation source.
+        expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
 
         owner.goto(BASE+'/business/7/jobs',wait_until='networkidle')
         owner.get_by_label('Cari pesanan',exact=True).fill('kantor')
@@ -76,7 +64,7 @@ def main():
 
         other_ctx=browser.new_context(viewport={'width':390,'height':844})
         other=other_ctx.new_page();other.goto(BASE+'/dev/owner/8',wait_until='networkidle')
-        for url in (first_job_url,second_job_url,first_job_url.replace('/business/7/','/business/8/')):
+        for url in (first_job_url,first_job_url.replace('/business/7/','/business/8/')):
             assert other.goto(url,wait_until='domcontentloaded').status==404
         # A workspace preference cannot revoke this owner's entitled AI Job access.
         assert finance.goto(first_job_url,wait_until='networkidle').status==200
@@ -91,7 +79,7 @@ def main():
         assert before==after, 'Finance entry visual changed'
         assert not errors, errors
         browser.close()
-    print('PASS: mobile Jobs create/edit/lifecycle, Customer/WEB linkage, filter, tenant 404, no overflow, Finance entry pixel parity and authorized product transitions')
+    print('PASS: mobile Jobs create/edit/lifecycle, Customer linkage, filter, tenant 404, no overflow, Finance entry pixel parity and authorized product transitions')
 
 
 if __name__=='__main__': main()
