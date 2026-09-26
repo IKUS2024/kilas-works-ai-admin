@@ -1,7 +1,7 @@
 """Owner-facing Kilas Core Customers routes. AI Admin only; Finance remains separate."""
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
-from kilas_core import customers
+from kilas_core import customers, customer_insights
 from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
@@ -43,10 +43,18 @@ def detail_page(bid, customer_id):
     try:
         customer = customers.get_customer(bid, customer_id)
         conversations = customers.customer_conversations(bid, customer_id)
+        insight = customer_insights.refresh(bid, customer_id)
+        all_messages = customer_insights.messages(bid, customer_id)
+        # Demo WhatsApp is a privacy-scoped mirror and has no kw_web_customer_links row.
+        # Count it as a real conversation in the customer UI when messages exist.
+        demo_count = 1 if any(m["source"] == "DEMO_WHATSAPP" for m in all_messages) else 0
+        conversation_count = len(conversations) + demo_count
     except customers.CustomerError as error:
         abort(error.status)
     return render_template("customer_detail.html", business=business, customer=customer,
-                           conversations=conversations, saved=request.args.get("saved") == "1",
+                           conversations=conversations, insight=insight,
+                           conversation_count=conversation_count,
+                           saved=request.args.get("saved") == "1",
                            linked_jobs=linked_context(business,customer_id))
 
 
