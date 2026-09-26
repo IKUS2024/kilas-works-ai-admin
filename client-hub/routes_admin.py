@@ -217,6 +217,22 @@ def dashboard():
     client_start = (client_page - 1) * client_per_page
     businesses = businesses[client_start:client_start + client_per_page]
 
+    platform_crm = {"total": 0, "leads": 0, "customers": 0, "jobs_need_action": 0}
+    try:
+        scope, _synced = platform_workspace.sync_contacts()
+        from kilas_core import customers as core_customers, jobs as core_jobs
+        _, platform_crm["total"], _, _ = core_customers.list_customers(
+            scope["id"], page=1, stage="ALL")
+        _, platform_crm["leads"], _, _ = core_customers.list_customers(
+            scope["id"], page=1, stage="LEAD")
+        _, platform_crm["customers"], _, _ = core_customers.list_customers(
+            scope["id"], page=1, stage="CUSTOMER")
+        _, platform_crm["jobs_need_action"], _, _ = core_jobs.list_jobs(
+            scope["id"], customer_stage="CUSTOMER",
+            statuses=core_jobs.OWNER_STATUS_GROUPS["NEW"], page=1)
+    except Exception:
+        pass
+
     action_center = {
         "finance_trials_active": len(finance_trials),
         "finance_bills_waiting_review": finance_bills_review,
@@ -256,6 +272,7 @@ def dashboard():
         client_page=client_page,
         client_total_pages=client_total_pages,
         workspace_view=workspace_view,
+        platform_crm=platform_crm,
     )
 
 
