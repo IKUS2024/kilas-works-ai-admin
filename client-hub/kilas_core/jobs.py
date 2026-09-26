@@ -49,7 +49,7 @@ STATUS_FILTER_GROUPS = {
 TRANSITIONS = {
     'NEW': ('NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'IN_PROGRESS', 'CANCELLED'),
     'NEEDS_INFORMATION': ('NEW', 'READY_FOR_QUOTE', 'IN_PROGRESS', 'CANCELLED'),
-    'READY_FOR_QUOTE': ('NEEDS_INFORMATION', 'IN_PROGRESS', 'CANCELLED'),
+    'READY_FOR_QUOTE': ('NEEDS_INFORMATION', 'QUOTED', 'IN_PROGRESS', 'CANCELLED'),
     'QUOTED': ('NEEDS_INFORMATION', 'APPROVED', 'IN_PROGRESS', 'CANCELLED'),
     'APPROVED': ('IN_PROGRESS', 'CANCELLED'),
     'IN_PROGRESS': ('NEEDS_INFORMATION', 'COMPLETED', 'CANCELLED'),
@@ -388,8 +388,8 @@ def list_jobs(business_id, *, search='', status='', page=1, customer_id=None,
 
 
 def jobs_for_customer(business_id, customer_id):
+    # Low-level service helper stays stage-agnostic for legacy/playbook compatibility.
+    # Customer-only product enforcement lives at the owner routes/panels.
     with transaction() as tx:
         _references(tx,business_id,customer_id,None)
-    return list_jobs(
-        business_id, customer_id=customer_id, customer_stage='CUSTOMER'
-    )[0]
+    return list_jobs(business_id,customer_id=customer_id)[0]
