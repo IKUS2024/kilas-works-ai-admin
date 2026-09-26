@@ -95,6 +95,17 @@ class WhatsAppTests(unittest.TestCase):
         self.assertEqual(row['customer_id'],customers.customer_for_conversation(7,cid)['id'])
         self.assertEqual(row['fields']['weight'],'20 kg')
         reply=store.thread(7,cid)[-1]['content'];self.assertIn('volume',reply);self.assertNotIn('berat',reply)
+        payload=self.client.get(f'/business/7/web-inbox/{cid}/messages?after=0').json
+        explained=[m for m in payload['messages'] if m['role']=='assistant' and m.get('analysis')]
+        self.assertTrue(explained,payload)
+        analysis=explained[-1]['analysis']
+        self.assertEqual(analysis['intent'],'Permintaan customer')
+        self.assertEqual(analysis['workflow'],'Pengiriman')
+        self.assertTrue(analysis['basis'])
+        self.assertTrue(analysis['guardrails'])
+        encoded=json.dumps(analysis,ensure_ascii=False).lower()
+        for forbidden in ('chain_of_thought','chain-of-thought:', 'system_prompt', 'anthropic_api_key', 'access_token'):
+            self.assertNotIn(forbidden,encoded)
         _,model=self.receive();model.assert_not_called();self.http.assert_called_once()
         self.response.json.return_value={'messages':[{'id':'out-2'}]}
         self.receive('volumenya 0.2 m3',{'volume_cbm':'0.2 m³'},'wamid.two')
