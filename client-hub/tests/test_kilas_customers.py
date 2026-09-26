@@ -80,18 +80,19 @@ class CustomerTests(unittest.TestCase):
         import json
         phone = "14048836437"
         self.db.execute(
+            "INSERT INTO messages(number,mode,role,content) VALUES (?,?,?,?)",
+            (phone, "customer", "user", "Demo ID: AAAA-BBBB"),
+        )
+        start_id = self.db.query_one("SELECT MAX(id) AS id FROM messages")["id"]
+        self.db.execute(
             "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
             (1, 7, "demo_whatsapp_bound",
-             json.dumps({"phone": phone, "start_message_id": 1, "bound_at": 1790362912})),
+             json.dumps({"phone": phone, "start_message_id": start_id, "bound_at": 1790362912})),
         )
         lead = customers.ensure_whatsapp_lead(7, phone)
         self.db.execute(
-            "INSERT INTO messages(id,number,mode,role,content) VALUES (?,?,?,?,?)",
-            (1, phone, "customer", "user", "Demo ID: AAAA-BBBB"),
-        )
-        self.db.execute(
-            "INSERT INTO messages(id,number,mode,role,content) VALUES (?,?,?,?,?)",
-            (2, phone, "customer", "user", "Saya punya coffee shop di Tangerang, mau tahu paket Kilas Assist."),
+            "INSERT INTO messages(number,mode,role,content) VALUES (?,?,?,?)",
+            (phone, "customer", "user", "Saya punya coffee shop di Tangerang, mau tahu paket Kilas Assist."),
         )
 
         first_json = json.dumps({
@@ -124,8 +125,8 @@ class CustomerTests(unittest.TestCase):
 
         # New Inbox message changes the source signature and refreshes the insight.
         self.db.execute(
-            "INSERT INTO messages(id,number,mode,role,content) VALUES (?,?,?,?,?)",
-            (3, phone, "customer", "user", "Budget saya sekitar 500 ribu per bulan."),
+            "INSERT INTO messages(number,mode,role,content) VALUES (?,?,?,?)",
+            (phone, "customer", "user", "Budget saya sekitar 500 ribu per bulan."),
         )
         second_json = json.dumps({
             "summary": "Pemilik coffee shop di Tangerang mempertimbangkan Kilas Assist dengan budget sekitar Rp500 ribu per bulan.",
