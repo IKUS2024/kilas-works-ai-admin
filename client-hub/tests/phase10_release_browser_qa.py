@@ -181,7 +181,14 @@ def main():
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(1, timeout=15000)
         assert 'volume' in visitor.locator('.web-bubble.assistant').inner_text()
-        owner.reload(); owner.locator('a.web-conversation').first.click()
+        # CRM policy: a new contact is a Lead and must not expose Jobs until confirmed Customer.
+        owner.goto(BASE + f'/business/{bid}/customers?stage=LEAD')
+        owner.locator('a.client-item').first.click()
+        owner.locator('select[name=stage]').select_option('CUSTOMER')
+        owner.get_by_role('button', name='Simpan', exact=True).click()
+        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
+        owner.goto(BASE + f'/business/{bid}/inbox?channel=web')
+        owner.locator('a.web-conversation').first.click()
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
         job_url = BASE + owner.locator('[data-linked-jobs] a.client-item').get_attribute('href')
         inbox_url = owner.url
