@@ -78,18 +78,31 @@ with sync_playwright() as p:
         assert page.locator('.kw-operator-group').count()==0
         assert page.locator('.kw-operator-nav details').count()==0
 
-        visit('/admin/?workspace=customers','admin-customers')
-        expect(page.get_by_role('heading',name='Customers Kilas Works',exact=True)).to_be_visible()
+        visit('/admin/customers','admin-customers')
+        expect(page.get_by_role('heading',name='Customers',exact=True)).to_be_visible()
+        expect(page.get_by_role('link',name='Lead',exact=True)).to_be_visible()
+        expect(page.get_by_role('link',name='Customer',exact=True)).to_be_visible()
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Customers')
 
         visit('/admin/inbox','admin-inbox')
-        # Preserve the mature platform Inbox itself; only the outer admin workspace navigation changes.
+        # Preserve the mature platform Inbox itself; only Customers/Jobs now reuse Core services.
         expect(page.get_by_role('heading',name='Inbox Kilas Works',exact=True)).to_be_visible()
         expect(page.locator('.kw-inbox-shell')).to_be_visible()
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Inbox')
 
-        visit('/admin/projects','admin-jobs')
+        visit('/admin/jobs','admin-jobs')
+        expect(page.get_by_role('heading',name='Jobs',exact=True)).to_be_visible()
+        statuses=page.locator('#job-filter option').all_text_contents()
+        assert statuses==['Semua status','Perlu tindakan','Dikerjakan','Batal'],statuses
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Jobs')
+
+        visit('/admin/?workspace=accounts','admin-accounts')
+        expect(page.get_by_role('heading',name='Client / Akun Bisnis',exact=True)).to_be_visible()
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('More')
+
+        visit('/admin/projects','admin-projects-legacy')
+        expect(page.get_by_role('heading',name='Proyek',exact=True)).to_be_visible()
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('More')
 
         visit('/admin/more','admin-more')
         expect(page.get_by_role('heading',name='Operasional & pengaturan',exact=True)).to_be_visible()

@@ -17,8 +17,8 @@
       <div class="kw-link-list">
         <a href="{{ url_for('admin.payments_admin') }}">Pembayaran jasa / Kilas Assist <span aria-hidden="true">→</span></a>
         <a href="{{ url_for('products.admin_bills') }}">Verifikasi Kilas Finance <span aria-hidden="true">→</span></a>
-        <a href="{{ url_for('admin.dashboard',workspace='customers',finance='trial') }}">Finance trial aktif <span aria-hidden="true">→</span></a>
-        <a href="{{ url_for('admin.dashboard',workspace='customers') }}">Customers &amp; status langganan <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='accounts',finance='trial') }}">Finance trial aktif <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='accounts') }}">Client / akun bisnis <span aria-hidden="true">→</span></a>
       </div>
     </section>
 
@@ -26,7 +26,7 @@
       <p class="kw-eyebrow">KILAS SERVICES</p>
       <h2>Services &amp; talent</h2>
       <div class="kw-link-list">
-        <a href="{{ url_for('admin.projects_admin') }}">Jobs / Projects <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.projects_admin') }}">Projects layanan lama <span aria-hidden="true">→</span></a>
         <a href="{{ url_for('admin.talent_admin') }}">Talent <span aria-hidden="true">→</span></a>
         <a href="{{ url_for('admin.catalog_admin') }}">Katalog layanan <span aria-hidden="true">→</span></a>
       </div>
@@ -47,8 +47,8 @@
       <h2>Cari &amp; administrasi</h2>
       <div class="kw-link-list">
         <a href="{{ url_for('admin.admin_search') }}">Cari bisnis, project, invoice <span aria-hidden="true">→</span></a>
-        <a href="{{ url_for('admin.dashboard',workspace='customers',brain_review='changes') }}">Review perubahan Brain <span aria-hidden="true">→</span></a>
-        <a href="{{ url_for('admin.dashboard',workspace='customers') }}">Semua Customers <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='accounts',brain_review='changes') }}">Review perubahan Brain <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='accounts') }}">Semua client / akun bisnis <span aria-hidden="true">→</span></a>
       </div>
     </section>
   </div>

@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 import db, repo, subscription_service
 import finance_service as f, finance_branches as branches
+import platform_workspace
 from kilas_core import finance_bridge as bridge
 
 
@@ -188,6 +189,48 @@ class BridgeCases:
             self.assertEqual(bridge.finance_invoice_view.resolve_token(token),(self.target,invoice_id))
         self.assertTrue(send.call_args.kwargs['safe_retry'])
         self.assertIn(result['result']['invoice']['invoice_number'],args[3])
+
+    def test_platform_job_invoice_uses_old_inbox_transport_at_most_once(self):
+        # Treat this synthetic source as the hidden Kilas Works CRM scope.
+        db.execute("DELETE FROM platform_workspace_scope")
+        db.execute(
+            "INSERT INTO platform_workspace_scope(singleton,business_id) VALUES (1,?)",
+            (self.source,))
+        db.execute(
+            "UPDATE kw_core_customers SET phone=?,source_channel='WHATSAPP' "
+            "WHERE business_id=? AND id=?",
+            ("628555000111", self.source, self.cid))
+
+        self.connect(); self.customer(); draft=self.draft()
+        db.execute(
+            "UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",
+            (self.source,self.jid))
+
+        with patch.object(bridge.finance_invoice_view,'base_url',
+                          return_value='https://app.kilasworks.id'), \
+             patch.object(bridge.finance_invoice_view,'create_token',
+                          return_value='platform-signed-token'), \
+             patch.object(platform_workspace.platform_inbox_service,'send_system_reply',
+                          return_value=(True,'sent')) as send, \
+             patch.object(bridge.whatsapp_transport,'system_text') as tenant_send:
+            first=bridge.publish_and_send_invoice(
+                self.source,self.actor,self.jid,'platform-publish-0001')
+            second=bridge.publish_and_send_invoice(
+                self.source,self.actor,self.jid,'platform-publish-0002')
+
+        self.assertEqual(first['result']['invoice']['status'],'ISSUED')
+        self.assertEqual(first['delivery']['status'],'accepted')
+        self.assertEqual(second['delivery']['status'],'accepted')
+        self.assertTrue(first['already_sent'])
+        self.assertTrue(second['already_sent'])
+        send.assert_called_once()
+        tenant_send.assert_not_called()
+        sent_text=send.call_args.args[1]
+        self.assertIn(draft['invoice']['invoice_number'],sent_text)
+        self.assertIn('/finance/invoice-share/platform-signed-token',sent_text)
+        status=bridge.invoice_delivery_status(self.source,draft['invoice']['id'])
+        self.assertEqual(status['status'],'accepted')
+        self.assertEqual(status['event_id'],f"invoice:{draft['invoice']['id']}:issued")
 
     def test_mapping_change_disable_preserves_history_and_old_replay(self):
         self.connect();original=self.customer();invoice=self.draft()

@@ -317,11 +317,22 @@ def update_business_identity(business_id, business_name, actor_user_id=None):
 
 
 def list_all_businesses(status_filter=None):
-    if status_filter:
-        return db.query_all(
-            "SELECT * FROM businesses WHERE status = ? ORDER BY created_at DESC", (status_filter,)
-        )
-    return db.query_all("SELECT * FROM businesses ORDER BY created_at DESC")
+    """Normal client/account businesses only; the hidden Kilas Works operator scope is excluded."""
+    scoped = (
+        "SELECT b.* FROM businesses b WHERE NOT EXISTS "
+        "(SELECT 1 FROM platform_workspace_scope p WHERE p.business_id=b.id)"
+    )
+    try:
+        if status_filter:
+            return db.query_all(scoped + " AND b.status = ? ORDER BY b.created_at DESC", (status_filter,))
+        return db.query_all(scoped + " ORDER BY b.created_at DESC")
+    except Exception:
+        # Old/partial schemas used by isolated tests before migration 0065.
+        if status_filter:
+            return db.query_all(
+                "SELECT * FROM businesses WHERE status = ? ORDER BY created_at DESC", (status_filter,)
+            )
+        return db.query_all("SELECT * FROM businesses ORDER BY created_at DESC")
 
 
 def set_business_status(business_id, new_status, actor_user_id=None, detail=None):
@@ -1087,12 +1098,21 @@ def admin_search(query, limit=10):
         "ORDER BY id DESC LIMIT ?",
         (q, q, limit),
     )
-    businesses = db.query_all(
-        "SELECT b.* FROM businesses b LEFT JOIN business_profiles p ON p.business_id = b.id "
-        "WHERE b.business_name LIKE ? OR p.business_phone LIKE ? OR p.owner_name LIKE ? "
-        "ORDER BY b.created_at DESC LIMIT ?",
-        (q, q, q, limit),
-    )
+    try:
+        businesses = db.query_all(
+            "SELECT b.* FROM businesses b LEFT JOIN business_profiles p ON p.business_id = b.id "
+            "WHERE NOT EXISTS (SELECT 1 FROM platform_workspace_scope s WHERE s.business_id=b.id) "
+            "AND (b.business_name LIKE ? OR p.business_phone LIKE ? OR p.owner_name LIKE ?) "
+            "ORDER BY b.created_at DESC LIMIT ?",
+            (q, q, q, limit),
+        )
+    except Exception:
+        businesses = db.query_all(
+            "SELECT b.* FROM businesses b LEFT JOIN business_profiles p ON p.business_id = b.id "
+            "WHERE b.business_name LIKE ? OR p.business_phone LIKE ? OR p.owner_name LIKE ? "
+            "ORDER BY b.created_at DESC LIMIT ?",
+            (q, q, q, limit),
+        )
     projects = db.query_all(
         "SELECT * FROM projects WHERE title LIKE ? OR project_type LIKE ? "
         "ORDER BY created_at DESC LIMIT ?",

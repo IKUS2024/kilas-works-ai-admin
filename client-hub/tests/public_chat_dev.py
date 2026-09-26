@@ -36,7 +36,7 @@ if __name__ == '__main__':
         from kilas_core import job_schema
         job_schema.apply_schema()
         os.environ['KILAS_JOBS_V2_ENABLED']='true'
-        fixture.db.execute('CREATE TABLE business_profiles(business_id INTEGER PRIMARY KEY,category TEXT)')
+        fixture.db.execute('CREATE TABLE IF NOT EXISTS business_profiles(business_id INTEGER PRIMARY KEY,category TEXT)')
         fixture.db.execute("INSERT INTO business_profiles VALUES (7,'Restaurant'),(8,'Salon')")
     fixture.db.execute("UPDATE businesses SET business_name='Kedai Demo' WHERE id=7")
     fixture.db.execute("UPDATE businesses SET business_name='Bisnis Kedua' WHERE id=8")

@@ -38,6 +38,7 @@ import talent_service
 import platform_assets_service
 import wa_takeover_service
 import platform_inbox_service
+import platform_workspace
 import subscription_service
 import finance_entitlements
 import whatsapp_signup
@@ -216,6 +217,22 @@ def dashboard():
     client_start = (client_page - 1) * client_per_page
     businesses = businesses[client_start:client_start + client_per_page]
 
+    platform_crm = {"total": 0, "leads": 0, "customers": 0, "jobs_need_action": 0}
+    try:
+        scope, _synced = platform_workspace.sync_contacts()
+        from kilas_core import customers as core_customers, jobs as core_jobs
+        _, platform_crm["total"], _, _ = core_customers.list_customers(
+            scope["id"], page=1, stage="ALL")
+        _, platform_crm["leads"], _, _ = core_customers.list_customers(
+            scope["id"], page=1, stage="LEAD")
+        _, platform_crm["customers"], _, _ = core_customers.list_customers(
+            scope["id"], page=1, stage="CUSTOMER")
+        _, platform_crm["jobs_need_action"], _, _ = core_jobs.list_jobs(
+            scope["id"], customer_stage="CUSTOMER",
+            statuses=core_jobs.OWNER_STATUS_GROUPS["NEW"], page=1)
+    except Exception:
+        pass
+
     action_center = {
         "finance_trials_active": len(finance_trials),
         "finance_bills_waiting_review": finance_bills_review,
@@ -231,8 +248,8 @@ def dashboard():
     }
 
     workspace_view = (
-        "customers"
-        if request.args.get("workspace") == "customers"
+        "accounts"
+        if request.args.get("workspace") == "accounts"
         or finance_trials_only
         or brain_review_only
         or status_filter
@@ -255,6 +272,47 @@ def dashboard():
         client_page=client_page,
         client_total_pages=client_total_pages,
         workspace_view=workspace_view,
+        platform_crm=platform_crm,
+    )
+
+
+@admin_bp.route("/customers")
+@security.admin_required
+def customers_workspace():
+    """Kilas Works CRM: same Core Customers engine as tenant/demo, sourced from platform Inbox."""
+    scope, _synced = platform_workspace.sync_contacts()
+    return redirect(
+        url_for(
+            "core_customers.list_page",
+            bid=scope["id"],
+            q=request.args.get("q") or None,
+            stage=request.args.get("stage") or "LEAD",
+            page=request.args.get("page", type=int) or None,
+        ),
+        code=303,
+    )
+
+
+@admin_bp.route("/jobs")
+@security.admin_required
+def jobs_workspace():
+    """Kilas Works Jobs: same Core Jobs lifecycle as tenant/demo, scoped to platform CRM."""
+    scope, _synced = platform_workspace.sync_contacts()
+    try:
+        from kilas_core import customer_action_jobs
+        customer_action_jobs.prune_invalid_lead_jobs(scope["id"])
+        customer_action_jobs.reconcile_business(scope)
+    except Exception:
+        pass
+    return redirect(
+        url_for(
+            "core_jobs.list_page",
+            bid=scope["id"],
+            q=request.args.get("q") or None,
+            status=request.args.get("status") or None,
+            page=request.args.get("page", type=int) or None,
+        ),
+        code=303,
     )
 
 

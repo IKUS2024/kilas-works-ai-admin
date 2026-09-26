@@ -1,6 +1,7 @@
 """Owner-facing Kilas Core Customers routes. AI Admin only; Finance remains separate."""
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
+import platform_workspace
 from kilas_core import customers, customer_insights, customer_action_jobs
 from kilas_core.job_routes import linked_context
 
@@ -18,6 +19,11 @@ def _business(bid):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
+    if platform_workspace.is_scope_business(bid):
+        try:
+            platform_workspace.sync_contacts()
+        except Exception:
+            pass
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:
@@ -38,6 +44,8 @@ def list_page(bid):
         )
         if customer_insights.demo_conversation_row(bid, row):
             row["conversation_count"] += 1
+        if customer_insights.platform_conversation_row(bid, row):
+            row["conversation_count"] += 1
     stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q,
@@ -53,6 +61,9 @@ def detail_page(bid, customer_id):
         conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
     except customers.CustomerError as error:
         abort(error.status)
+    platform = customer_insights.platform_conversation_row(bid, customer)
+    if platform:
+        conversations.insert(0, platform)
     demo = customer_insights.demo_conversation_row(bid, customer)
     if demo:
         conversations.insert(0, demo)
@@ -105,6 +116,9 @@ def update_profile(bid, customer_id):
         customer = customers.get_customer(bid, customer_id)
         business = security.require_business_access(bid)
         conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
+        platform = customer_insights.platform_conversation_row(bid, customer)
+        if platform:
+            conversations.insert(0, platform)
         demo = customer_insights.demo_conversation_row(bid, customer)
         if demo:
             conversations.insert(0, demo)

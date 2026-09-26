@@ -1,34 +1,34 @@
 {% extends "base.html" %}
-{% block title %}{{ 'Customers' if workspace_view == 'customers' else 'Home' }} · Kilas Works{% endblock %}
+{% block title %}{{ 'Client Accounts' if workspace_view == 'accounts' else 'Home' }} · Kilas Works{% endblock %}
 {% block content %}
 
-{% if workspace_view == 'customers' %}
-<section class="kw-page" data-admin-customers>
+{% if workspace_view == 'accounts' %}
+<section class="kw-page" data-admin-accounts>
   <header class="kw-page-head">
     <div>
-      <p class="kw-eyebrow">CUSTOMERS</p>
-      <h1>Customers Kilas Works</h1>
-      <p>Kelola client, produk yang mereka pakai, status akun, dan kebutuhan review.</p>
+      <p class="kw-eyebrow">CLIENT ACCOUNTS</p>
+      <h1>Client / Akun Bisnis</h1>
+      <p>Administrasi akun SaaS, paket, status, review Brain, dan Finance trial. CRM customer ada di tab Customers.</p>
     </div>
     <a class="btn secondary" href="{{ url_for('admin.admin_search') }}">Cari</a>
   </header>
 
   <div class="admin-customers-toolbar">
     <div>
-      <strong>{{ businesses_total }} customer</strong>
-      <div class="muted">Akun bisnis yang terdaftar di Kilas Works.</div>
+      <strong>{{ businesses_total }} client account</strong>
+      <div class="muted">Akun bisnis yang terdaftar di produk Kilas Works.</div>
     </div>
     <nav class="admin-filter-strip" aria-label="Filter customer">
       <a class="btn small {{ 'secondary' if status_filter or finance_trials_only or brain_review_only else '' }}"
-         href="{{ url_for('admin.dashboard',workspace='customers') }}">Semua</a>
+         href="{{ url_for('admin.dashboard',workspace='accounts') }}">Semua</a>
       {% for f in status_filters %}
       <a class="btn small {{ 'secondary' if status_filter != f else '' }}"
-         href="{{ url_for('admin.dashboard',workspace='customers',status=f) }}">{{ f|humanize_status('business') }}</a>
+         href="{{ url_for('admin.dashboard',workspace='accounts',status=f) }}">{{ f|humanize_status('business') }}</a>
       {% endfor %}
       <a class="btn small {{ '' if brain_review_only else 'secondary' }}"
-         href="{{ url_for('admin.dashboard',workspace='customers',brain_review='changes') }}">Review Brain</a>
+         href="{{ url_for('admin.dashboard',workspace='accounts',brain_review='changes') }}">Review Brain</a>
       <a class="btn small {{ '' if finance_trials_only else 'secondary' }}"
-         href="{{ url_for('admin.dashboard',workspace='customers',finance='trial') }}">Finance Trial</a>
+         href="{{ url_for('admin.dashboard',workspace='accounts',finance='trial') }}">Finance Trial</a>
     </nav>
   </div>
 
@@ -73,16 +73,16 @@
   <nav class="admin-pagination" aria-label="Halaman customers">
     {% if client_page > 1 %}
       <a class="admin-page-btn"
-         href="{{ url_for('admin.dashboard',workspace='customers',client_page=client_page-1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">←</a>
+         href="{{ url_for('admin.dashboard',workspace='accounts',client_page=client_page-1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">←</a>
     {% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
     {% for page_number in range(1,client_total_pages+1) %}
       <a class="admin-page-btn {{ 'active' if page_number == client_page else '' }}"
-         href="{{ url_for('admin.dashboard',workspace='customers',client_page=page_number,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}"
+         href="{{ url_for('admin.dashboard',workspace='accounts',client_page=page_number,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}"
          {% if page_number == client_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
     {% endfor %}
     {% if client_page < client_total_pages %}
       <a class="admin-page-btn"
-         href="{{ url_for('admin.dashboard',workspace='customers',client_page=client_page+1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">→</a>
+         href="{{ url_for('admin.dashboard',workspace='accounts',client_page=client_page+1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">→</a>
     {% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
   </nav>
   {% endif %}
@@ -117,20 +117,22 @@
         <strong>Inbox</strong>
         <small>Inbox admin lama Kilas Works</small>
       </a>
-      <a href="{{ url_for('admin.dashboard',workspace='customers') }}">
+      <a href="{{ url_for('admin.customers_workspace') }}">
         <span class="admin-home-flow-index">02</span>
         <strong>Customers</strong>
-        <small>Client & akun bisnis</small>
+        <small>Lead & customer dari Inbox</small>
       </a>
-      <a href="{{ url_for('admin.projects_admin') }}">
+      <a href="{{ url_for('admin.jobs_workspace') }}">
         <span class="admin-home-flow-index">03</span>
         <strong>Jobs</strong>
-        <small>Project & pekerjaan Kilas Works</small>
+        <small>Tindakan customer: perlu tindakan, dikerjakan, batal</small>
       </a>
     </nav>
 
     {% set total_attention =
-      action_center.new_client_requests
+      platform_crm.leads
+      + platform_crm.jobs_need_action
+      + action_center.new_client_requests
       + action_center.ai_onboarding_waiting_review
       + action_center.brain_changes_waiting_review
       + action_center.projects_waiting_admin_action
@@ -151,24 +153,34 @@
 
       {% if total_attention %}
       <div class="admin-action-grid">
+        {% if platform_crm.leads %}
+        <a class="admin-action-item priority" href="{{ url_for('admin.customers_workspace',stage='LEAD') }}">
+          <div><div class="admin-action-count">{{ platform_crm.leads }}</div><div class="admin-action-label">Lead dari Inbox</div></div>
+        </a>
+        {% endif %}
+        {% if platform_crm.jobs_need_action %}
+        <a class="admin-action-item priority" href="{{ url_for('admin.jobs_workspace',status='NEW') }}">
+          <div><div class="admin-action-count">{{ platform_crm.jobs_need_action }}</div><div class="admin-action-label">Job perlu tindakan</div></div>
+        </a>
+        {% endif %}
         {% if action_center.new_client_requests %}
-        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='customers') }}">
-          <div><div class="admin-action-count">{{ action_center.new_client_requests }}</div><div class="admin-action-label">Customer baru</div></div>
+        <a class="admin-action-item" href="{{ url_for('admin.dashboard',workspace='accounts') }}">
+          <div><div class="admin-action-count">{{ action_center.new_client_requests }}</div><div class="admin-action-label">Client account baru</div></div>
         </a>
         {% endif %}
         {% if action_center.ai_onboarding_waiting_review %}
-        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='customers',status='READY_FOR_REVIEW') }}">
+        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='accounts',status='READY_FOR_REVIEW') }}">
           <div><div class="admin-action-count">{{ action_center.ai_onboarding_waiting_review }}</div><div class="admin-action-label">Review customer</div></div>
         </a>
         {% endif %}
         {% if action_center.brain_changes_waiting_review %}
-        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='customers',brain_review='changes') }}">
+        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='accounts',brain_review='changes') }}">
           <div><div class="admin-action-count">{{ action_center.brain_changes_waiting_review }}</div><div class="admin-action-label">Review pengetahuan</div></div>
         </a>
         {% endif %}
         {% if action_center.projects_waiting_admin_action %}
-        <a class="admin-action-item priority" href="{{ url_for('admin.projects_admin') }}">
-          <div><div class="admin-action-count">{{ action_center.projects_waiting_admin_action }}</div><div class="admin-action-label">Jobs perlu tindakan</div></div>
+        <a class="admin-action-item" href="{{ url_for('admin.projects_admin') }}">
+          <div><div class="admin-action-count">{{ action_center.projects_waiting_admin_action }}</div><div class="admin-action-label">Project layanan perlu tindakan</div></div>
         </a>
         {% endif %}
         {% if action_center.custom_projects_waiting_quote %}
@@ -187,7 +199,7 @@
         </a>
         {% endif %}
         {% if action_center.whatsapp_tenants_waiting_connection %}
-        <a class="admin-action-item" href="{{ url_for('admin.dashboard',workspace='customers',status='APPROVED') }}">
+        <a class="admin-action-item" href="{{ url_for('admin.dashboard',workspace='accounts',status='APPROVED') }}">
           <div><div class="admin-action-count">{{ action_center.whatsapp_tenants_waiting_connection }}</div><div class="admin-action-label">Dukungan channel</div></div>
         </a>
         {% endif %}
@@ -205,10 +217,13 @@
 
   <div class="kw-grid" style="margin-top:20px">
     <section class="card">
-      <p class="kw-eyebrow">CUSTOMERS</p>
-      <h2>{{ businesses_total }} customer terdaftar</h2>
-      <p>Lihat paket, status akun, review Brain, dan trial Finance tanpa masuk ke menu admin panjang.</p>
-      <a class="btn secondary" href="{{ url_for('admin.dashboard',workspace='customers') }}">Buka Customers</a>
+      <p class="kw-eyebrow">CUSTOMERS & JOBS</p>
+      <h2>{{ platform_crm.total }} contact · {{ platform_crm.jobs_need_action }} perlu tindakan</h2>
+      <p>CRM yang sama dengan Kilas Assist: Lead/Customer, Insight, dan Job dari percakapan Inbox Kilas Works.</p>
+      <div class="kw-actions">
+        <a class="btn secondary" href="{{ url_for('admin.customers_workspace') }}">Buka Customers</a>
+        <a class="btn secondary" href="{{ url_for('admin.jobs_workspace') }}">Buka Jobs</a>
+      </div>
     </section>
     <section class="card">
       <p class="kw-eyebrow">OPERASIONAL</p>

@@ -1,19 +1,19 @@
 {% if session.get('role')=='KILAS_ADMIN' %}
 {% set ep = request.endpoint or '' %}
-{% set customers_view = (
+{% set accounts_view = (
   ep == 'admin.dashboard'
   and (
-    request.args.get('workspace') == 'customers'
+    request.args.get('workspace') == 'accounts'
     or request.args.get('status')
     or request.args.get('finance')
     or request.args.get('brain_review')
   )
 ) %}
-{% set home_active = ep == 'admin.dashboard' and not customers_view %}
+{% set home_active = ep == 'admin.dashboard' and not accounts_view %}
 {% set inbox_active = ep == 'admin.platform_inbox' %}
-{% set jobs_active = ep in ('admin.projects_admin','admin.project_admin_detail') %}
-{% set customers_active = customers_view %}
-{% set more_active = not home_active and not inbox_active and not jobs_active and not customers_active %}
+{% set customers_active = ep == 'admin.customers_workspace' or ep.startswith('core_customers.') %}
+{% set jobs_active = ep == 'admin.jobs_workspace' or ep.startswith('core_jobs.') %}
+{% set more_active = not home_active and not inbox_active and not customers_active and not jobs_active %}
 
 <a class="kw-skip" href="#kw-main">Lewati navigasi</a>
 <aside class="kw-operator-nav" aria-label="Workspace Kilas Works">
@@ -28,16 +28,16 @@
     <a href="{{ url_for('admin.platform_inbox') }}" {% if inbox_active %}aria-current="page"{% endif %}>
       <span aria-hidden="true">▤</span><span>Inbox</span>
     </a>
-    <a href="{{ url_for('admin.dashboard',workspace='customers') }}" {% if customers_active %}aria-current="page"{% endif %}>
+    <a href="{{ url_for('admin.customers_workspace') }}" {% if customers_active %}aria-current="page"{% endif %}>
       <span aria-hidden="true">◎</span><span>Customers</span>
     </a>
-    <a href="{{ url_for('admin.projects_admin') }}" {% if jobs_active %}aria-current="page"{% endif %}>
+    <a href="{{ url_for('admin.jobs_workspace') }}" {% if jobs_active %}aria-current="page"{% endif %}>
       <span aria-hidden="true">▣</span><span>Jobs</span>
     </a>
     <a href="{{ url_for('admin.more_admin') }}" {% if more_active %}aria-current="page"{% endif %}>
       <span aria-hidden="true">•••</span><span>More</span>
     </a>
   </nav>
-  <div class="kw-sidebar-note">Kelola customer, pekerjaan, channel, dan operasional Kilas Works.</div>
+  <div class="kw-sidebar-note">Kelola customer dari Inbox, tindak lanjut, channel, dan operasional Kilas Works.</div>
 </aside>
 {% endif %}

@@ -21,7 +21,12 @@
       <h1>{{ customer.display_name }}</h1>
       <p>{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }} · {{ business.business_name }}</p>
     </div>
-    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage=customer.stage) }}">← Customers</a>
+    <div class="client-actions">
+      {% if session.get('role') == 'KILAS_ADMIN' and customer.phone %}
+      <a class="btn secondary" href="{{ url_for('admin.platform_inbox',customer=customer.phone) }}">Buka chat</a>
+      {% endif %}
+      <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage=customer.stage) }}">← Customers</a>
+    </div>
   </div>
   {% if saved %}<div class="flash success">Data kontak tersimpan.</div>{% endif %}
   {% if form_error %}<div class="flash error">{{ form_error }}</div>{% endif %}

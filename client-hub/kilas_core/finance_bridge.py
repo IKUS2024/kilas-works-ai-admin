@@ -15,6 +15,7 @@ import finance_service as finance
 import finance_branches as branches
 import finance_entitlements as entitlements
 import finance_invoice_view
+import platform_workspace
 from . import customers, jobs, customer_insights, whatsapp_transport
 from .flags import enabled_for_business
 
@@ -32,13 +33,22 @@ def enabled():
 def _owner(bid, actor):
     if type(bid) is not int or type(actor) is not int or bid <= 0 or actor <= 0:
         raise BridgeError('not_found', 404)
+    if platform_workspace.is_scope_business(bid):
+        admin = db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'", (actor,))
+        if admin:
+            return
     if not db.query_one("SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=? "
                         "AND role_in_business='OWNER'", (bid, actor)):
         raise BridgeError('not_found', 404)
 
 
 def _finance_owner(bid, actor):
-    _owner(bid, actor)
+    admin = db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'", (actor,))
+    if admin:
+        if not db.query_one("SELECT 1 FROM businesses WHERE id=?", (bid,)):
+            raise BridgeError('not_found', 404)
+    else:
+        _owner(bid, actor)
     # Match existing Finance product visibility as well as service entitlement.
     if not (entitlements.self_service() or entitlements.flag('KILAS_FINANCE_BETA')
             or db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'",(actor,))):
@@ -47,13 +57,16 @@ def _finance_owner(bid, actor):
 
 def _source(bid, actor):
     _owner(bid, actor)
-    if not enabled() or not customers.enabled() or not jobs.enabled() or not enabled_for_business(bid):
+    internal = platform_workspace.is_scope_business(bid)
+    if not enabled() or not customers.enabled() or not jobs.enabled():
+        raise BridgeError('unavailable', 404)
+    if not internal and not enabled_for_business(bid):
         raise BridgeError('unavailable', 404)
     row = db.query_one('SELECT b.package,b.status,s.status AS subscription_status '
                        'FROM businesses b LEFT JOIN subscriptions s ON s.business_id=b.id WHERE b.id=?', (bid,))
     if (not row or row['package'] not in customers.AI_PACKAGES
             or row['status'] in ('ARCHIVED', 'SUSPENDED', 'CANCELLED')
-            or row['subscription_status'] not in ('ACTIVE', 'GRACE')):
+            or (not internal and row['subscription_status'] not in ('ACTIVE', 'GRACE'))):
         raise BridgeError('unavailable', 404)
 
 
@@ -371,6 +384,8 @@ def issue_job_invoice(bid, actor, jid):
 
 
 def invoice_delivery_status(bid, finance_invoice_id):
+    if platform_workspace.is_scope_business(bid):
+        return platform_workspace.transactional_status(f"invoice:{finance_invoice_id}:")
     row = db.query_one(
         "SELECT o.status,o.error,o.event_id FROM kw_core_wa_outbound o "
         "JOIN kw_web_messages m ON m.business_id=o.business_id AND m.conversation_id=o.conversation_id "
@@ -392,24 +407,46 @@ def _job_whatsapp_conversation(bid, job):
 def publish_and_send_invoice(bid, actor, jid, operation_key):
     result = issue_job_invoice(bid, actor, jid)
     link, invoice = result['link'], result['invoice']
-    cid = _job_whatsapp_conversation(bid, _job(bid, jid))
-    if not cid:
-        return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
+    job = _job(bid, jid)
+    platform_scope = platform_workspace.is_scope_business(bid)
+
+    # Preserve the established tenant contract: when no WhatsApp conversation exists, report
+    # conversation_unavailable before generating a public invoice-share token. Platform Admin
+    # uses the legacy Kilas Works Inbox instead, so it resolves the customer's phone directly.
+    if platform_scope:
+        customer = _customer(bid, job['customer_id'])
+        phone = customer.get('phone')
+        conversation_ref = "platform:" + str(phone or "")
+    else:
+        cid = _job_whatsapp_conversation(bid, job)
+        if not cid:
+            return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
+        conversation_ref = cid
+
     try:
         base = finance_invoice_view.base_url()
         with branches.scope(link['finance_business_id'], link['finance_branch_id'], actor):
             token = finance_invoice_view.create_token(link['finance_business_id'], link['finance_invoice_id'], actor)
         share_url = base + '/finance/invoice-share/' + token
         message = f"Invoice {invoice['invoice_number']} sudah terbit.\nSilakan lihat detail invoice di:\n{share_url}"
-        delivery = whatsapp_transport.system_text(
-            bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
+
+        if platform_scope:
+            event_id = f"invoice:{link['finance_invoice_id']}:issued"
+            delivery = platform_workspace.send_transactional_text(
+                phone, event_id, message, actor_id=actor)
+        else:
+            delivery = whatsapp_transport.system_text(
+                bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
     except Exception:
         delivery = {'status':'send_unavailable','error':'transactional_send_failed'}
-    if delivery.get('status') in ('accepted','sent','delivered','read'):
+        conversation_ref = None
+
+    accepted = delivery.get('status') in ('accepted','sent','delivered','read')
+    if accepted:
         repo.write_audit(actor,bid,'CORE_FINANCE_INVOICE_SENT',json.dumps({
             'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
-            'conversation_id':cid,'status':delivery.get('status')},sort_keys=True))
-    return dict(result=_invoice_result(bid,jid,actor),delivery=delivery,already_sent=False)
+            'conversation_id':conversation_ref,'status':delivery.get('status')},sort_keys=True))
+    return dict(result=_invoice_result(bid,jid,actor),delivery=delivery,already_sent=accepted)
 
 
 def payment_options(bid, actor, jid):

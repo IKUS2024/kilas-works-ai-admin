@@ -5,7 +5,11 @@
 <section class="client-page">
   <div class="client-head">
     <div><h1>Customers</h1><p>{{ business.business_name }} · {{ total }} {{ stage_label }}</p></div>
+    {% if session.get('role') == 'KILAS_ADMIN' %}
+    <a class="btn secondary" href="{{ url_for('admin.platform_inbox') }}">Inbox</a>
+    {% else %}
     <a class="btn secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Inbox</a>
+    {% endif %}
   </div>
 
   <div class="client-toolbar" aria-label="Filter kontak">

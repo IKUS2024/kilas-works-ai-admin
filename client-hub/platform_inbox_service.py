@@ -339,6 +339,36 @@ def send_manual_reply(customer_phone, message_text):
     return False, body.get("reason") or "bot_internal_bridge_rejected"
 
 
+def send_system_reply(customer_phone, message_text):
+    """Transactional platform send for owner-authorized system actions such as issuing an invoice.
+
+    Unlike manual CS replies this does not require Human Takeover because the action originates
+    from an explicit authenticated workflow, not the conversational AI. It still requires an
+    existing platform customer and the Meta free-form window. Client Hub keeps an at-most-once
+    ledger around this call, so transport uncertainty is never blindly retried.
+    """
+    phone = normalize_customer_phone(customer_phone)
+    text = (message_text or "").strip()
+    if not phone:
+        return False, "invalid_customer_phone"
+    if not text:
+        return False, "empty_message"
+    if len(text) > MAX_MANUAL_MESSAGE_CHARS:
+        return False, "message_too_long"
+    if not customer_exists(phone):
+        return False, "customer_not_found"
+    window = freeform_window_status(phone)
+    if not window["allowed"]:
+        return False, window["reason"]
+
+    endpoint = _bot_platform_reply_url()
+    secret = (os.environ.get("INTERNAL_SERVICE_SECRET") or "").strip()
+    if not endpoint or not secret:
+        return False, "bot_internal_bridge_unavailable"
+    endpoint = endpoint.replace("/internal/platform-cs-reply", "/internal/platform-system-reply")
+    return _post_to_bot_bridge(endpoint, {"customer_phone": phone, "message": text}, secret)
+
+
 def template_readiness():
     name, _language = wa_inbox_shared.resolve_reengagement_template_config(os.environ.get)
     reason = None
