@@ -340,7 +340,7 @@ def _legacy_visible_fallback(customer_text, reply_text):
     )
 
 
-def attach_demo(rows, business_id):
+def attach_demo(rows, business_id, *, allow_visible_fallback=False):
     ids = {int(row.get("id") or 0) for row in rows if row.get("role") == "assistant" and row.get("id")}
     if not ids:
         return rows
@@ -372,6 +372,6 @@ def attach_demo(rows, business_id):
         mid = int(row.get("id") or 0)
         if mid in found:
             row["analysis"] = found[mid]
-        else:
+        elif allow_visible_fallback:
             row["analysis"] = _legacy_visible_fallback(last_customer, row.get("content") or "")
     return rows
