@@ -6,6 +6,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 import repo
 import security
 import subscription_service
+import platform_workspace
 from kilas_core import customers, jobs, customer_action_jobs
 from kilas_core.flags import enabled_for_business
 from kilas_core.playbook_definitions import PLAYBOOKS
@@ -31,7 +32,11 @@ def workspace_available(business):
 
 def available(business):
     """Full production availability for automated/channel-linked Jobs behavior."""
-    if not workspace_available(business) or not enabled_for_business(business['id']):
+    if not workspace_available(business):
+        return False
+    if platform_workspace.is_scope_business(business['id']):
+        return True
+    if not enabled_for_business(business['id']):
         return False
     try:
         sub = subscription_service.get_subscription(business['id'])
