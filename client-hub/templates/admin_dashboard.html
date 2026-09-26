@@ -1,241 +1,222 @@
 {% extends "base.html" %}
-{% block title %}Operasional Kilas · Kilas Works{% endblock %}
+{% block title %}{{ 'Customers' if workspace_view == 'customers' else 'Home' }} · Kilas Works{% endblock %}
 {% block content %}
-<style>
-.owner-page{max-width:1080px;margin:0 auto}
-.owner-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}.owner-head h1{font-size:24px;margin:0 0 4px}.owner-head p{margin:0;color:var(--text-dim);font-size:12px}
-.owner-search{display:flex;gap:6px;min-width:min(100%,340px)}.owner-search input{margin:0}.owner-search .btn{margin:0;white-space:nowrap}
-.owner-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.owner-section-title h2{margin:0;font-size:16px}.owner-section-title span{font-size:11px;color:var(--text-dim)}
-.owner-action-card{padding:13px}
-.action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
-.action-item{border:1px solid var(--border);border-radius:13px;padding:9px;display:flex;gap:8px;align-items:center;min-height:58px;color:var(--text);text-decoration:none;background:rgba(255,255,255,.012);min-width:0}
-.action-item:hover{border-color:#4a4e56;background:rgba(255,255,255,.025);text-decoration:none}
-.action-item.priority{border-color:rgba(255,122,26,.35);background:rgba(255,122,26,.045)}
-.action-icon{width:31px;height:31px;border-radius:9px;background:var(--bg-soft);display:grid;place-items:center;color:var(--orange);flex:0 0 auto}.action-icon svg{width:17px;height:17px}
-.action-copy{min-width:0}.action-count{display:block;font-size:17px;font-weight:800;line-height:1}.action-label{display:block;font-size:11px;color:var(--text-dim);line-height:1.2;margin-top:3px}
-.owner-clear{padding:10px 12px;border:1px dashed var(--border);border-radius:13px;color:var(--text-dim);font-size:13px}
-.owner-info-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}
-.owner-info{border:1px solid var(--border);border-radius:12px;padding:9px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px}.owner-info strong{font-size:14px}.owner-info span{font-size:12px;color:var(--text-dim)}
-.filter-strip{display:flex;gap:6px;overflow-x:auto;padding:1px 0 7px;margin-bottom:5px;scrollbar-width:none}.filter-strip::-webkit-scrollbar{display:none}.filter-strip .btn{flex:0 0 auto;margin:0;border-radius:999px;padding:6px 10px;min-height:32px;font-size:11px}
-.business-card{padding:0;overflow:hidden}
-.business-list-head{display:grid;grid-template-columns:minmax(170px,1.3fr) minmax(100px,.8fr) minmax(150px,1fr) 90px;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text-dim);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
-.business-row{display:grid;grid-template-columns:minmax(170px,1.3fr) minmax(100px,.8fr) minmax(150px,1fr) 90px;gap:8px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border);min-width:0}.business-row:last-child{border-bottom:0}
-.business-name{font-weight:750;min-width:0;overflow-wrap:anywhere;font-size:13px}.business-package{color:var(--text-dim);font-size:12px}.business-date{font-size:10px;color:var(--text-dim);margin-top:3px}
-.owner-status{display:inline-flex;width:max-content;max-width:100%;padding:4px 7px;border-radius:999px;background:#33363c;color:#d5d7db;font-size:11px;font-weight:750;line-height:1.15;white-space:normal}
-.owner-status.READY_FOR_REVIEW{background:rgba(224,185,59,.14);color:var(--yellow)}.owner-status.NEEDS_REVISION{background:rgba(241,101,101,.13);color:var(--red)}.owner-status.ACTIVE{background:rgba(62,207,142,.12);color:var(--green)}.owner-status.APPROVED,.owner-status.APPROVED_WAITING_WHATSAPP_CONNECTION{background:rgba(127,211,240,.12);color:#7fd3f0}
-.business-action{text-align:right}.business-action a{font-size:12px;font-weight:700}
-.finance-trial-meta{font-size:11px;color:var(--text-dim);margin-top:4px}
-.service-order-card{padding:0;overflow:hidden}.service-order-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border)}.service-order-row:last-child{border-bottom:0}.service-order-main{min-width:0}.service-order-main strong{display:block;font-size:14px;overflow-wrap:anywhere}.service-order-main span{display:block;font-size:12px;color:var(--text-dim);margin-top:3px}.service-order-row .btn{flex:0 0 auto;margin:0}
-.empty-business{padding:12px;color:var(--text-dim)}
-.owner-type-note{display:flex;gap:7px;margin:0 0 10px;overflow-x:auto;scrollbar-width:none}.owner-type-note::-webkit-scrollbar{display:none}
-.owner-type-pill{flex:1 0 250px;border:1px solid var(--border);border-radius:11px;padding:8px 10px;background:rgba(255,255,255,.012);font-size:11px;line-height:1.35;color:var(--text-dim)}
-.owner-type-pill strong{color:var(--text);font-size:12px}
-.owner-type-pill.client{border-left:3px solid #7fd3f0}.owner-type-pill.order{border-left:3px solid var(--orange)}
-.owner-section-copy{min-width:0}.owner-section-copy p{margin:2px 0 0;color:var(--text-dim);font-size:11px;line-height:1.35}
-.owner-section-tag{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;border:1px solid var(--border);font-size:9px;font-weight:800;letter-spacing:.04em;color:var(--text-dim);text-transform:uppercase;white-space:nowrap}
-.business-card{border-left:3px solid #7fd3f0}.business-date::before{content:"Client sejak "}
-.business-products{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-.product-badge{display:inline-flex;align-items:center;padding:4px 7px;border-radius:999px;font-size:10px;font-weight:800;border:1px solid var(--border);background:rgba(255,255,255,.015);color:var(--text-dim)}
-.product-badge.brain{color:#c8b6ff;border-color:rgba(200,182,255,.25);background:rgba(200,182,255,.07)}
-.product-badge.finance{color:#7fd3f0;border-color:rgba(127,211,240,.25);background:rgba(127,211,240,.07)}
-.product-badge.review{color:var(--yellow);border-color:rgba(224,185,59,.28);background:rgba(224,185,59,.08)}
-.product-badge.none{font-weight:650}
-.service-order-card{border-left:3px solid var(--orange)}
-.service-order-main{min-width:0}.service-order-main strong{display:block}.service-order-main span{display:block}
-.service-order-label{display:inline-flex;margin-bottom:3px;padding:3px 6px;border-radius:999px;background:rgba(255,122,26,.09);color:var(--orange);font-size:9px;font-weight:850;letter-spacing:.04em}
-.owner-pagination{display:flex;align-items:center;justify-content:center;gap:6px;margin:-2px 0 14px;overflow-x:auto;scrollbar-width:none;padding:4px 0}.owner-pagination::-webkit-scrollbar{display:none}
-.owner-page-btn{flex:0 0 auto;min-width:34px;height:34px;padding:0 9px;border:1px solid var(--border);border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:11px;font-weight:800;text-decoration:none;background:rgba(255,255,255,.01)}
-.owner-page-btn:hover{border-color:#4a4e56;color:var(--text);text-decoration:none}.owner-page-btn.active{background:var(--orange);border-color:var(--orange);color:#171717}.owner-page-btn.disabled{opacity:.38;pointer-events:none}
-.owner-pagination-meta{text-align:center;color:var(--text-dim);font-size:10px;margin:-7px 0 10px}
-@media(max-width:760px){.owner-type-note{margin-right:-10px;padding-right:10px}.owner-type-pill{flex-basis:215px}.owner-section-title{align-items:flex-start}.owner-section-copy p{font-size:10px}}
-@media(max-width:760px){.owner-head{display:block}.owner-head h1{font-size:21px}.owner-search{margin-top:8px;min-width:0;width:100%}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.owner-info-row{grid-template-columns:1fr 1fr}.business-list-head{display:none}.business-row{grid-template-columns:1fr auto;gap:5px 8px;padding:9px 10px}.business-package{grid-column:1}.business-status-wrap{grid-column:1}.business-action{grid-column:2;grid-row:1 / span 3;align-self:center}.business-action a{display:inline-flex;padding:6px 8px;border:1px solid var(--border);border-radius:9px;font-size:11px}.business-card{overflow:visible}.service-order-row{padding:8px 10px}}
-@media(max-width:430px){.owner-search{display:grid;grid-template-columns:1fr auto}.action-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.action-item{padding:8px 7px;min-height:54px}.action-icon{width:28px;height:28px}.action-count{font-size:16px}.action-label{font-size:10px}.owner-info-row{grid-template-columns:1fr}.business-row{padding:8px 9px}.filter-strip{margin-right:-10px;padding-right:10px}.filter-strip .btn{font-size:10px}}
-</style>
 
-<div class="owner-page">
-  <header class="owner-head">
+{% if workspace_view == 'customers' %}
+<section class="kw-page" data-admin-customers>
+  <header class="kw-page-head">
     <div>
-      <h1>Operasional Kilas</h1>
-      <p>Prioritaskan antrian, review, dan dukungan bisnis.</p>
+      <p class="kw-eyebrow">CUSTOMERS</p>
+      <h1>Customers Kilas Works</h1>
+      <p>Kelola client, produk yang mereka pakai, status akun, dan kebutuhan review.</p>
     </div>
-    <form class="owner-search" method="get" action="{{ url_for('admin.admin_search') }}">
-      <input type="text" name="q" placeholder="Cari bisnis, project, invoice...">
-      <button class="btn secondary" type="submit">Cari</button>
-    </form>
+    <a class="btn secondary" href="{{ url_for('admin.admin_search') }}">Cari</a>
   </header>
 
-  <section class="card owner-action-card">
-    <div class="owner-section-title">
-      <h2>Perlu tindakan</h2>
-      <span>Operasional saat ini</span>
+  <div class="admin-customers-toolbar">
+    <div>
+      <strong>{{ businesses_total }} customer</strong>
+      <div class="muted">Akun bisnis yang terdaftar di Kilas Works.</div>
     </div>
-
-    {% set needs_action = action_center.new_client_requests or action_center.ai_onboarding_waiting_review or action_center.brain_changes_waiting_review or action_center.custom_projects_waiting_quote or action_center.payments_waiting_verification or action_center.talent_requests_waiting or action_center.projects_waiting_admin_action or action_center.whatsapp_tenants_waiting_connection or action_center.finance_bills_waiting_review %}
-
-    {% if needs_action %}
-      <div class="action-grid">
-        {% if action_center.new_client_requests %}
-          <a class="action-item priority" href="{{ url_for('admin.dashboard', status='DRAFT') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.new_client_requests }}</strong><span class="action-label">Business baru</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.ai_onboarding_waiting_review %}
-          <a class="action-item priority" href="{{ url_for('admin.dashboard', status='READY_FOR_REVIEW') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/><path d="M5 6h6M5 18h14"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.ai_onboarding_waiting_review }}</strong><span class="action-label">Review bisnis</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.brain_changes_waiting_review %}
-          <a class="action-item priority" href="{{ url_for('admin.dashboard', brain_review='changes') }}">
-            <span class="action-icon" aria-hidden="true">🧠</span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.brain_changes_waiting_review }}</strong><span class="action-label">Review pengetahuan bisnis</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.projects_waiting_admin_action %}
-          <a class="action-item priority" href="{{ url_for('admin.projects_admin') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.projects_waiting_admin_action }}</strong><span class="action-label">Proyek perlu tindakan</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.whatsapp_tenants_waiting_connection %}
-          <a class="action-item" href="{{ url_for('admin.dashboard', status='APPROVED') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.5 8.6 8.6 0 0 1-3.7-.9L3 21l1.8-5a8.5 8.5 0 1 1 16.2-4.5Z"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.whatsapp_tenants_waiting_connection }}</strong><span class="action-label">Dukungan channel</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.custom_projects_waiting_quote %}
-          <a class="action-item" href="{{ url_for('admin.projects_admin', status='WAITING_FOR_QUOTE') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h6"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.custom_projects_waiting_quote }}</strong><span class="action-label">Quote belum dibuat</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.payments_waiting_verification %}
-          <a class="action-item" href="{{ url_for('admin.payments_admin') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.payments_waiting_verification }}</strong><span class="action-label">Verifikasi pembayaran</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.talent_requests_waiting %}
-          <a class="action-item" href="{{ url_for('admin.talent_admin') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3"/><path d="M5 21a7 7 0 0 1 14 0"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.talent_requests_waiting }}</strong><span class="action-label">Review talent</span></span>
-          </a>
-        {% endif %}
-        {% if action_center.finance_bills_waiting_review %}
-          <a class="action-item" href="{{ url_for('products.admin_bills') }}">
-            <span class="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span>
-            <span class="action-copy"><strong class="action-count">{{ action_center.finance_bills_waiting_review }}</strong><span class="action-label">Pembayaran Finance</span></span>
-          </a>
-        {% endif %}
-      </div>
-    {% else %}
-      <div class="owner-clear">✓ Tidak ada pekerjaan admin yang menunggu tindakan.</div>
-    {% endif %}
-
-    <div class="owner-info-row">
-      <a class="owner-info" href="{{ url_for('admin.dashboard', finance='trial') }}"><strong>Finance trial aktif</strong><span>{{ action_center.finance_trials_active }}</span></a>
-      <a class="owner-info" href="{{ url_for('admin.projects_admin') }}"><strong>Project perlu tindakan</strong><span>{{ action_center.projects_waiting_admin_action }}</span></a>
-      <a class="owner-info" href="{{ url_for('meta_direct.launcher') }}"><strong>WhatsApp utama</strong><span>Direct Meta Coexistence</span></a>
-    </div>
-  </section>
-
-  {% if not finance_trials_only %}
-  <div class="owner-type-note" aria-label="Jenis data di dashboard">
-    <div class="owner-type-pill client"><strong>Client / Akun Bisnis</strong> = akun customer yang memakai produk Kilas seperti <strong>Brain</strong> dan <strong>Finance</strong>.</div>
-    <div class="owner-type-pill order"><strong>Pesanan Jasa</strong> = pekerjaan/project yang customer beli, misalnya <strong>Content, Ads, Event, Foto/Video</strong>.</div>
-  </div>
-  {% endif %}
-
-  <div class="owner-section-title">
-    <div class="owner-section-copy">
-      <h2>{{ 'Finance Trial Aktif' if finance_trials_only else ('Review Perubahan Brain' if brain_review_only else 'Client / Akun Bisnis') }}</h2>
-      <p>{% if finance_trials_only %}Client yang sedang mencoba Kilas Finance.{% elif brain_review_only %}Client yang mengubah data Brain setelah versi sebelumnya disetujui. Versi live lama tetap aman sampai perubahan direview.{% else %}Lihat siapa client-nya, produk Kilas yang dipakai, dan status akunnya.{% endif %}</p>
-    </div>
-    <span class="owner-section-tag">{{ businesses_total }} client</span>
+    <nav class="admin-filter-strip" aria-label="Filter customer">
+      <a class="btn small {{ 'secondary' if status_filter or finance_trials_only or brain_review_only else '' }}"
+         href="{{ url_for('admin.dashboard',workspace='customers') }}">Semua</a>
+      {% for f in status_filters %}
+      <a class="btn small {{ 'secondary' if status_filter != f else '' }}"
+         href="{{ url_for('admin.dashboard',workspace='customers',status=f) }}">{{ f|humanize_status('business') }}</a>
+      {% endfor %}
+      <a class="btn small {{ '' if brain_review_only else 'secondary' }}"
+         href="{{ url_for('admin.dashboard',workspace='customers',brain_review='changes') }}">Review Brain</a>
+      <a class="btn small {{ '' if finance_trials_only else 'secondary' }}"
+         href="{{ url_for('admin.dashboard',workspace='customers',finance='trial') }}">Finance Trial</a>
+    </nav>
   </div>
 
-  <nav class="filter-strip" aria-label="Filter bisnis">
-    <a class="btn small {{ 'secondary' if status_filter or finance_trials_only or brain_review_only else '' }}" href="{{ url_for('admin.dashboard') }}">Semua</a>
-    {% for f in status_filters %}
-      <a class="btn small {{ 'secondary' if status_filter != f else '' }}" href="{{ url_for('admin.dashboard', status=f) }}">{{ f|humanize_status('business') }}</a>
-    {% endfor %}
-    <a class="btn small {{ '' if brain_review_only else 'secondary' }}" href="{{ url_for('admin.dashboard', brain_review='changes') }}">Review Brain</a>
-    <a class="btn small {{ '' if finance_trials_only else 'secondary' }}" href="{{ url_for('admin.dashboard', finance='trial') }}">Finance Trial</a>
-  </nav>
-
-  <section class="card business-card">
-    <div class="business-list-head">
-      <span>Client</span><span>Produk Kilas</span><span>Status Akun</span><span></span>
-    </div>
+  <section class="card admin-customer-list">
     {% for b in businesses %}
-      <div class="business-row">
-        <div>
-          <div class="business-name">{{ b.business_name }}</div>
-          <div class="business-date">{{ b.created_at|humanize_timestamp }}</div>
-        </div>
-        <div class="business-products">
-          {% if b.package != 'NONE' %}<span class="product-badge brain">Kilas Brain</span>{% endif %}
-          {% if b.brain_review_pending %}<span class="product-badge review">Review perubahan</span>{% endif %}
-          {% if b.finance_entitlement and b.finance_entitlement.status != 'NOT_ACTIVATED' %}<span class="product-badge finance">Kilas Finance</span>{% endif %}
-          {% if b.package == 'NONE' and (not b.finance_entitlement or b.finance_entitlement.status == 'NOT_ACTIVATED') %}<span class="product-badge none">Belum ada produk aktif</span>{% endif %}
-        </div>
-        <div class="business-status-wrap">
-          <span class="owner-status {{ b.display_status }}">{{ 'Dukungan channel' if b.display_status=='APPROVED_WAITING_WHATSAPP_CONNECTION' else b.display_status|humanize_status('business') }}</span>
-          {% if finance_trials_only %}<div class="finance-trial-meta">Trial s/d {{ b.finance_entitlement.until_local }}</div>{% endif %}
-        </div>
-        <div class="business-action">
-          {% if finance_trials_only %}
-            <a href="{{ url_for('products.finance_setup', business_id=b.id) }}">Finance →</a>
-          {% else %}
-            <a href="{{ url_for('admin.review_business', business_id=b.id) }}">Lihat →</a>
-          {% endif %}
-        </div>
+    <div class="admin-customer-row">
+      <div>
+        <div class="admin-customer-name">{{ b.business_name }}</div>
+        <div class="admin-customer-meta">Client sejak {{ b.created_at|humanize_timestamp }}</div>
       </div>
+      <div class="admin-products">
+        {% if b.package != 'NONE' %}<span class="admin-product-badge brain">Kilas Assist</span>{% endif %}
+        {% if b.brain_review_pending %}<span class="admin-product-badge review">Review perubahan</span>{% endif %}
+        {% if b.finance_entitlement and b.finance_entitlement.status != 'NOT_ACTIVATED' %}<span class="admin-product-badge finance">Kilas Finance</span>{% endif %}
+        {% if b.package == 'NONE' and (not b.finance_entitlement or b.finance_entitlement.status == 'NOT_ACTIVATED') %}
+          <span class="admin-product-badge">Belum ada produk aktif</span>
+        {% endif %}
+      </div>
+      <div class="admin-status-wrap">
+        <span class="admin-status {{ b.display_status }}">
+          {{ 'Dukungan channel' if b.display_status == 'APPROVED_WAITING_WHATSAPP_CONNECTION' else b.display_status|humanize_status('business') }}
+        </span>
+        {% if finance_trials_only and b.finance_entitlement %}<div class="admin-customer-meta">Trial s/d {{ b.finance_entitlement.until_local }}</div>{% endif %}
+      </div>
+      <div class="admin-customer-action">
+        {% if finance_trials_only %}
+          <a class="btn small secondary" href="{{ url_for('products.finance_setup',business_id=b.id) }}">Finance →</a>
+        {% else %}
+          <a class="btn small secondary" href="{{ url_for('admin.review_business',business_id=b.id) }}">Lihat →</a>
+        {% endif %}
+      </div>
+    </div>
     {% else %}
-      <div class="empty-business">{{ 'Belum ada trial Finance aktif.' if finance_trials_only else ('Tidak ada perubahan Brain yang menunggu review.' if brain_review_only else 'Belum ada client.') }}</div>
+    <div style="padding:18px" class="muted">
+      {{ 'Belum ada Finance trial aktif.' if finance_trials_only else ('Tidak ada perubahan Brain yang menunggu review.' if brain_review_only else 'Belum ada customer pada filter ini.') }}
+    </div>
     {% endfor %}
   </section>
 
   {% if client_total_pages > 1 %}
-  <div class="owner-pagination-meta">Menampilkan maksimal 5 client per halaman · Halaman {{ client_page }} dari {{ client_total_pages }}</div>
-  <nav class="owner-pagination" aria-label="Halaman client">
+  <div class="admin-page-meta">Halaman {{ client_page }} dari {{ client_total_pages }}</div>
+  <nav class="admin-pagination" aria-label="Halaman customers">
     {% if client_page > 1 %}
-      <a class="owner-page-btn" href="{{ url_for('admin.dashboard', brain_review='changes', client_page=client_page-1) if brain_review_only else (url_for('admin.dashboard', finance='trial', client_page=client_page-1) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=client_page-1) if status_filter else url_for('admin.dashboard', client_page=client_page-1))) }}">←</a>
-    {% else %}<span class="owner-page-btn disabled">←</span>{% endif %}
-
-    {% for page_number in range(1, client_total_pages + 1) %}
-      <a class="owner-page-btn {{ 'active' if page_number == client_page else '' }}"
-         href="{{ url_for('admin.dashboard', brain_review='changes', client_page=page_number) if brain_review_only else (url_for('admin.dashboard', finance='trial', client_page=page_number) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=page_number) if status_filter else url_for('admin.dashboard', client_page=page_number))) }}"
+      <a class="admin-page-btn"
+         href="{{ url_for('admin.dashboard',workspace='customers',client_page=client_page-1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">←</a>
+    {% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
+    {% for page_number in range(1,client_total_pages+1) %}
+      <a class="admin-page-btn {{ 'active' if page_number == client_page else '' }}"
+         href="{{ url_for('admin.dashboard',workspace='customers',client_page=page_number,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}"
          {% if page_number == client_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
     {% endfor %}
-
     {% if client_page < client_total_pages %}
-      <a class="owner-page-btn" href="{{ url_for('admin.dashboard', brain_review='changes', client_page=client_page+1) if brain_review_only else (url_for('admin.dashboard', finance='trial', client_page=client_page+1) if finance_trials_only else (url_for('admin.dashboard', status=status_filter, client_page=client_page+1) if status_filter else url_for('admin.dashboard', client_page=client_page+1))) }}">→</a>
-    {% else %}<span class="owner-page-btn disabled">→</span>{% endif %}
+      <a class="admin-page-btn"
+         href="{{ url_for('admin.dashboard',workspace='customers',client_page=client_page+1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">→</a>
+    {% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
   </nav>
   {% endif %}
+</section>
 
-  {% if not finance_trials_only and recent_service_orders %}
-  <div class="owner-section-title">
-    <div class="owner-section-copy">
-      <h2>Pesanan Jasa Terbaru</h2>
-      <p>Project kerja seperti Content, Ads, Event, Foto/Video, Website, atau Talent.</p>
+{% else %}
+<section class="kw-page kw-assist-home" data-admin-home>
+  <header class="kw-page-head kw-assist-head">
+    <div>
+      <p class="kw-eyebrow">KILAS WORKS</p>
+      <h1>Workspace Kilas Works</h1>
+      <p>Kelola percakapan, customer, pekerjaan, dan operasional Kilas Works dari satu tempat.</p>
     </div>
-    <a href="{{ url_for('admin.projects_admin') }}">Semua Proyek →</a>
-  </div>
-  <section class="card service-order-card">
-    {% for p in recent_service_orders %}
-      <div class="service-order-row">
-        <div class="service-order-main">
-          <span class="service-order-label">JASA / PROJECT</span>
-          <strong>{{ p.title }}</strong>
-          <span>{% if p.business_name == 'Pesanan pribadi' %}Pesanan langsung · {% else %}Client: {{ p.business_name }} · {% endif %}{{ p.project_type }} · {{ p.status|humanize_status('project') }}</span>
-        </div>
-        <a class="btn small secondary" href="{{ url_for('admin.talent_request_detail', request_id=p.talent_request_id) if p.talent_request_id else url_for('admin.project_admin_detail', project_id=p.id) }}">Kelola →</a>
+  </header>
+
+  <article class="card admin-home-card">
+    <section class="admin-home-hero">
+      <div>
+        <p class="kw-eyebrow">PUSAT OPERASIONAL</p>
+        <h2>Dari Inbox ke Customer dan Jobs.</h2>
+        <p>Gunakan pola kerja yang sama seperti workspace Kilas Assist, khusus untuk mengelola Kilas Works sebagai operator.</p>
       </div>
-    {% endfor %}
-  </section>
-  {% endif %}
-</div>
+      <div class="admin-home-actions">
+        <a class="btn" href="{{ url_for('admin.platform_inbox') }}">Buka Inbox</a>
+        <a class="btn secondary" href="{{ url_for('admin.admin_search') }}">Cari</a>
+      </div>
+    </section>
+
+    <nav class="admin-home-flow" aria-label="Akses cepat Kilas Works">
+      <a href="{{ url_for('admin.platform_inbox') }}">
+        <span class="admin-home-flow-index">01</span>
+        <strong>Inbox</strong>
+        <small>Inbox admin lama Kilas Works</small>
+      </a>
+      <a href="{{ url_for('admin.dashboard',workspace='customers') }}">
+        <span class="admin-home-flow-index">02</span>
+        <strong>Customers</strong>
+        <small>Client & akun bisnis</small>
+      </a>
+      <a href="{{ url_for('admin.projects_admin') }}">
+        <span class="admin-home-flow-index">03</span>
+        <strong>Jobs</strong>
+        <small>Project & pekerjaan Kilas Works</small>
+      </a>
+    </nav>
+
+    {% set total_attention =
+      action_center.new_client_requests
+      + action_center.ai_onboarding_waiting_review
+      + action_center.brain_changes_waiting_review
+      + action_center.projects_waiting_admin_action
+      + action_center.custom_projects_waiting_quote
+      + action_center.payments_waiting_verification
+      + action_center.talent_requests_waiting
+      + action_center.whatsapp_tenants_waiting_connection
+      + action_center.finance_bills_waiting_review
+    %}
+    <section class="admin-attention">
+      <div class="admin-attention-head">
+        <div>
+          <p class="kw-eyebrow">PERLU TINDAKAN</p>
+          <h2>{{ total_attention }} hal perlu ditindaklanjuti</h2>
+        </div>
+        <a href="{{ url_for('admin.more_admin') }}">Lihat tools →</a>
+      </div>
+
+      {% if total_attention %}
+      <div class="admin-action-grid">
+        {% if action_center.new_client_requests %}
+        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='customers') }}">
+          <div><div class="admin-action-count">{{ action_center.new_client_requests }}</div><div class="admin-action-label">Customer baru</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.ai_onboarding_waiting_review %}
+        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='customers',status='READY_FOR_REVIEW') }}">
+          <div><div class="admin-action-count">{{ action_center.ai_onboarding_waiting_review }}</div><div class="admin-action-label">Review customer</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.brain_changes_waiting_review %}
+        <a class="admin-action-item priority" href="{{ url_for('admin.dashboard',workspace='customers',brain_review='changes') }}">
+          <div><div class="admin-action-count">{{ action_center.brain_changes_waiting_review }}</div><div class="admin-action-label">Review pengetahuan</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.projects_waiting_admin_action %}
+        <a class="admin-action-item priority" href="{{ url_for('admin.projects_admin') }}">
+          <div><div class="admin-action-count">{{ action_center.projects_waiting_admin_action }}</div><div class="admin-action-label">Jobs perlu tindakan</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.custom_projects_waiting_quote %}
+        <a class="admin-action-item" href="{{ url_for('admin.projects_admin',status='WAITING_FOR_QUOTE') }}">
+          <div><div class="admin-action-count">{{ action_center.custom_projects_waiting_quote }}</div><div class="admin-action-label">Quote belum dibuat</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.payments_waiting_verification %}
+        <a class="admin-action-item" href="{{ url_for('admin.payments_admin') }}">
+          <div><div class="admin-action-count">{{ action_center.payments_waiting_verification }}</div><div class="admin-action-label">Pembayaran perlu verifikasi</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.talent_requests_waiting %}
+        <a class="admin-action-item" href="{{ url_for('admin.talent_admin') }}">
+          <div><div class="admin-action-count">{{ action_center.talent_requests_waiting }}</div><div class="admin-action-label">Talent perlu review</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.whatsapp_tenants_waiting_connection %}
+        <a class="admin-action-item" href="{{ url_for('admin.dashboard',workspace='customers',status='APPROVED') }}">
+          <div><div class="admin-action-count">{{ action_center.whatsapp_tenants_waiting_connection }}</div><div class="admin-action-label">Dukungan channel</div></div>
+        </a>
+        {% endif %}
+        {% if action_center.finance_bills_waiting_review %}
+        <a class="admin-action-item" href="{{ url_for('products.admin_bills') }}">
+          <div><div class="admin-action-count">{{ action_center.finance_bills_waiting_review }}</div><div class="admin-action-label">Pembayaran Finance</div></div>
+        </a>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="owner-clear">✓ Tidak ada pekerjaan admin yang menunggu tindakan.</div>
+      {% endif %}
+    </section>
+  </article>
+
+  <div class="kw-grid" style="margin-top:20px">
+    <section class="card">
+      <p class="kw-eyebrow">CUSTOMERS</p>
+      <h2>{{ businesses_total }} customer terdaftar</h2>
+      <p>Lihat paket, status akun, review Brain, dan trial Finance tanpa masuk ke menu admin panjang.</p>
+      <a class="btn secondary" href="{{ url_for('admin.dashboard',workspace='customers') }}">Buka Customers</a>
+    </section>
+    <section class="card">
+      <p class="kw-eyebrow">OPERASIONAL</p>
+      <h2>Tools tambahan di More</h2>
+      <p>Pembayaran, Talent, Katalog, penggunaan AI, WhatsApp/channel, pencarian, dan tools platform tetap tersedia.</p>
+      <a class="btn secondary" href="{{ url_for('admin.more_admin') }}">Buka More</a>
+    </section>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

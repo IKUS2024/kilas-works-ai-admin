@@ -230,6 +230,14 @@ def dashboard():
         "whatsapp_tenants_waiting_connection": len(whatsapp_waiting_connection),
     }
 
+    workspace_view = (
+        "customers"
+        if request.args.get("workspace") == "customers"
+        or finance_trials_only
+        or brain_review_only
+        or status_filter
+        else "home"
+    )
     return render_template(
         "admin_dashboard.html",
         businesses=businesses,
@@ -246,7 +254,15 @@ def dashboard():
         businesses_total=businesses_total,
         client_page=client_page,
         client_total_pages=client_total_pages,
+        workspace_view=workspace_view,
     )
+
+
+@admin_bp.route("/more")
+@security.admin_required
+def more_admin():
+    """Secondary Kilas Works operator tools behind the same workspace shell as the demo."""
+    return render_template("admin_more.html")
 
 
 @admin_bp.route("/platform-whatsapp/coexistence")
