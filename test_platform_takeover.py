@@ -44,6 +44,7 @@ def reset_state():
     appmod.conversations.clear()
     appmod.customer_names.clear()
     appmod.followup_state.clear()
+    appmod._owner_demo_sessions.clear()
     chdb.execute("DELETE FROM platform_wa_conversation_state")
 
 
@@ -78,6 +79,50 @@ def test_ai_active_default_kilas_ai_may_respond():
     assert resp.status_code == 200
     assert mock_post.called, "AI_ACTIVE must let the bot actually reply"
     print("test_ai_active_default_kilas_ai_may_respond OK")
+
+
+# ---------------------------------------------------------------------------
+# Demo owner test path: while the owner's number is bound to Demo, it must use customer routing.
+# ---------------------------------------------------------------------------
+def test_owner_demo_session_routes_owner_number_as_customer():
+    reset_state()
+    owner = appmod.OWNER_WHATSAPP_NUMBER
+    appmod._activate_owner_demo_session(owner, now=int(__import__("time").time()))
+
+    with patch.object(appmod, "call_claude", return_value="Parfum ya Kak. Ceritain kebutuhan bisnisnya ya.") as customer_ai, \
+         patch.object(appmod, "call_claude_owner") as owner_ai, \
+         patch.object(appmod, "send_whatsapp_message", return_value=(True, None)):
+        resp = client.post(
+            "/webhook",
+            data=json.dumps(_text_payload(owner, "iya kak bisnis saya di parfum")),
+            content_type="application/json",
+        )
+    assert resp.status_code == 200
+    customer_ai.assert_called_once()
+    owner_ai.assert_not_called()
+    assert customer_ai.call_args.args[0] == owner
+    print("test_owner_demo_session_routes_owner_number_as_customer OK")
+
+
+def test_owner_demo_session_recovers_from_durable_binding():
+    reset_state()
+    owner = appmod.OWNER_WHATSAPP_NUMBER
+    now = 1_790_400_000
+    detail = json.dumps({"phone": owner, "start_message_id": 1402, "bound_at": now - 60})
+
+    cursor = type("Cursor", (), {})()
+    cursor.execute = lambda *args, **kwargs: None
+    cursor.fetchall = lambda: [(detail,)]
+    cursor.close = lambda: None
+    conn = type("Conn", (), {})()
+    conn.cursor = lambda: cursor
+    conn.close = lambda: None
+
+    with patch.object(appmod, "db_enabled", return_value=True), \
+         patch.object(appmod, "get_db_connection", return_value=conn):
+        assert appmod._owner_demo_active(owner, now=now) is True
+    assert appmod._owner_demo_sessions[owner] > now
+    print("test_owner_demo_session_recovers_from_durable_binding OK")
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +223,8 @@ def test_genuine_read_failure_fails_safe_to_human_takeover():
 
 
 if __name__ == "__main__":
+    test_owner_demo_session_routes_owner_number_as_customer()
+    test_owner_demo_session_recovers_from_durable_binding()
     test_ai_active_default_kilas_ai_may_respond()
     test_human_takeover_ai_stays_silent()
     test_return_to_ai_resumes_normal_replies()
