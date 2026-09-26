@@ -50,9 +50,24 @@ def error_response(error):
     status = getattr(error, 'status', 400)
     if status == 404:
         return NotFound().get_response()
-    return render_template('finance_bridge_error.html', bid=request.view_args['bid'],
-        message=('Data koneksi berubah atau aksi sudah digunakan. Muat ulang dan periksa riwayat.' if status == 409 else
-                 'Belum tersimpan. Periksa konfirmasi, isian, akses Finance, dan cabang aktif.')), status
+    bid = request.view_args['bid']
+    automatic = bridge.platform_automatic(bid)
+    if automatic:
+        message = (
+            'Data Job berubah atau aksi sudah digunakan. Muat ulang Job lalu coba lagi.'
+            if status == 409 else
+            'Finance internal belum siap untuk aksi ini. Kembali ke Job lalu coba lagi.'
+        )
+    else:
+        message = (
+            'Data koneksi berubah atau aksi sudah digunakan. Muat ulang dan periksa riwayat.'
+            if status == 409 else
+            'Belum tersimpan. Periksa konfirmasi, isian, akses Finance, dan cabang aktif.'
+        )
+    return render_template(
+        'finance_bridge_error.html', bid=bid, message=message,
+        automatic_finance=automatic
+    ), status
 
 
 def _form(fields):
