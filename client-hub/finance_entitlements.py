@@ -60,10 +60,32 @@ def state(business_id):
     )
 
 
+def _platform_internal_admin(business_id, actor_user_id):
+    """Hidden Kilas Works operator workspace is internal, not a customer subscription.
+
+    This exemption is deliberately narrow: exact platform workspace + KILAS_ADMIN only.
+    Emergency disable still wins, and every normal Finance authorization/accounting rule
+    continues to run through finance._scope, branch scope, and the Finance service layer.
+    """
+    if actor_user_id is None:
+        return False
+    actor = db.query_one("SELECT role FROM users WHERE id=?", (actor_user_id,))
+    if not actor or actor.get("role") != "KILAS_ADMIN":
+        return False
+    try:
+        import platform_workspace
+        return platform_workspace.is_scope_business(business_id)
+    except Exception:
+        return False
+
+
 def require_write(business_id, actor_user_id=None):
     import finance_service as finance
     finance._scope(business_id, actor_user_id)
-    if flag('KILAS_FINANCE_EMERGENCY_DISABLE') or (self_service() and not state(business_id)['active']):
+    if flag('KILAS_FINANCE_EMERGENCY_DISABLE'):
+        raise finance.FinanceError('finance_read_only')
+    internal_admin = _platform_internal_admin(business_id, actor_user_id)
+    if self_service() and not internal_admin and not state(business_id)['active']:
         raise finance.FinanceError('finance_read_only')
     if os.environ.get('KILAS_FINANCE_ACCESS_MODE','internal_beta') not in ('internal_beta','self_service'):
         raise finance.FinanceError('finance_configuration')
