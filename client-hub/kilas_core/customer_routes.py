@@ -24,14 +24,9 @@ def list_page(bid):
             platform_workspace.sync_contacts()
         except Exception:
             pass
-        # Reconcile only a small bounded batch on normal page loads. The raw keyword prefilter
-        # never promotes; Customer Insight must independently confirm a concrete customer action.
-        try:
-            customer_action_jobs.reconcile_actionable_platform_leads(
-                business, actor_id=security.current_user()["id"], limit=3
-            )
-        except Exception:
-            pass
+        # Navigation GETs must stay read-fast. Never call Customer Insight / an external AI model
+        # while rendering the Customers list. Actionable Lead promotion is handled by the
+        # ingestion/backfill paths, not by an operator tapping a tab.
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:
