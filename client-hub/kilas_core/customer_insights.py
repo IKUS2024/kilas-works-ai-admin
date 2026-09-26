@@ -38,7 +38,14 @@ ATURAN MUTLAK:
    Pertanyaan informasi/FAQ/harga/paket, sekadar minat, membandingkan, atau bisnis menawarkan sesuatu
    BUKAN action. Untuk kasus itu action wajib null.
 9. action harus sangat singkat (maksimal satu kalimat), faktual, dan tidak boleh berisi strategi admin.
-10. Balas HANYA satu JSON valid dengan schema persis:
+10. job_status HANYA berdasarkan pernyataan customer:
+   - "PERLU_TINDAKAN" jika customer menyatakan mau sesuatu / mau booking / mau order / minta dibuatkan
+     tetapi BELUM secara eksplisit deal atau setuju lanjut.
+   - "DIKERJAKAN" jika customer secara eksplisit sudah deal, setuju, oke lanjut, fix lanjut,
+     mengonfirmasi booking/pesanan, atau menyatakan keputusan final untuk melanjutkan.
+   - "BATAL" jika customer secara eksplisit mengatakan tidak jadi, batal, cancel, atau tidak lanjut.
+   - null jika tidak ada sinyal yang cukup jelas. Jangan menebak dari pesan Bisnis/AI.
+11. Balas HANYA satu JSON valid dengan schema persis:
 {
   "summary": string,
   "name": string|null,
@@ -53,7 +60,8 @@ ATURAN MUTLAK:
   "communication_notes": string|null,
   "missing_info": [string],
   "follow_up": string|null,
-  "action": string|null
+  "action": string|null,
+  "job_status": "PERLU_TINDAKAN"|"DIKERJAKAN"|"BATAL"|null
 }
 """
 
@@ -74,6 +82,7 @@ def _default():
         "missing_info": [],
         "follow_up": None,
         "action": None,
+        "job_status": None,
     }
 
 
@@ -121,6 +130,8 @@ def _normalize(value):
         "missing_info": _clean_list(value.get("missing_info")),
         "follow_up": _clean_string(value.get("follow_up"), 700),
         "action": _clean_string(value.get("action"), 240),
+        "job_status": value.get("job_status") if value.get("job_status") in
+                      ("PERLU_TINDAKAN", "DIKERJAKAN", "BATAL") else None,
     })
     return result
 
