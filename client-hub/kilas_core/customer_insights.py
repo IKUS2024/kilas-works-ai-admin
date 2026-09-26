@@ -95,11 +95,12 @@ def _demo_inbox_messages(bid, phone):
         rows = db.query_all(
             "SELECT id,role,content,created_at FROM messages "
             "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id ASC LIMIT 300",
+            "ORDER BY id DESC LIMIT 300",
             (phone, start),
         )
     except Exception:
         return []
+    rows = list(reversed(rows))
     result = []
     for row in rows:
         text = str(row.get("content") or "")
@@ -151,9 +152,10 @@ def _official_inbox_messages(bid, customer_id):
                 "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
                 "JOIN kw_web_messages m ON m.business_id=w.business_id AND m.conversation_id=w.id "
                 "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' "
-                "ORDER BY m.created_at,m.id LIMIT 300",
+                "ORDER BY m.id DESC LIMIT 300",
                 (bid, customer_id),
             )
+        rows = list(reversed(rows))
     except Exception:
         # Older/partial fixtures may not have the official WhatsApp adapter schema yet.
         return []
