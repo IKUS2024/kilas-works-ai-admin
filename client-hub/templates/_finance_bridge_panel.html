@@ -1,4 +1,5 @@
 {% if finance_bridge_panel is defined %}
+{% if job is not defined or not job or job.owner_status == 'IN_PROGRESS' %}
 {% set bridge_panel = finance_bridge_panel(business, customer.id, job.id if job is defined and job else none) %}
 {% if bridge_panel %}
 <div class="card" data-finance-bridge>
@@ -84,9 +85,6 @@
             invoice_id=link.finance_invoice_id) }}">Buka Invoice di Finance</a>
         {% endif %}
       {% endif %}
-    {% else %}
-      <h2>Finance</h2>
-      <p class="client-note">Tugas invoice muncul setelah status Job menjadi Dikerjakan (customer sudah deal).</p>
     {% endif %}
   {% else %}
     <h2>Finance</h2>
@@ -99,5 +97,6 @@
     {% endif %}
   {% endif %}
 </div>
+{% endif %}
 {% endif %}
 {% endif %}
