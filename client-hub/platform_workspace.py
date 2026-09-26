@@ -80,12 +80,19 @@ def ensure_business():
 
         tx.execute(
             "INSERT INTO businesses(tenant_slug,business_name,package,status,whatsapp_connected) "
-            "VALUES (?,?,?,'ACTIVE',?) ON CONFLICT(tenant_slug) DO NOTHING",
+            "VALUES (?,?,?,'APPROVED',?) ON CONFLICT(tenant_slug) DO NOTHING",
             (_SLUG, _NAME, "AI_ADMIN", True),
         )
         internal = tx.one("SELECT * FROM businesses WHERE tenant_slug=?", (_SLUG,))
         if not internal:
             raise RuntimeError("platform_workspace_unavailable")
+        # Keep this technical scope out of ACTIVE tenant/subscription/background scans.
+        tx.execute(
+            "UPDATE businesses SET status='APPROVED',whatsapp_connected=? "
+            "WHERE id=? AND tenant_slug=?",
+            (True, internal["id"], _SLUG),
+        )
+        internal = tx.one("SELECT * FROM businesses WHERE id=?", (internal["id"],))
         tx.execute(
             "INSERT INTO platform_workspace_scope(singleton,business_id) VALUES (1,?) "
             "ON CONFLICT(singleton) DO NOTHING",
