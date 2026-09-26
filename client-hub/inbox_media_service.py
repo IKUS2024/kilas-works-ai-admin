@@ -103,6 +103,28 @@ def attach(rows, business_id):
     return rows
 
 
+
+def attach_events(rows, business_id):
+    """Attach shared media metadata to Core Inbox rows by verified WhatsApp event id."""
+    if not rows:
+        return rows
+    event_ids = [str(row.get('event_id') or '') for row in rows if row.get('event_id')]
+    if not event_ids:
+        return rows
+    try:
+        media = db.query_all(
+            'SELECT * FROM inbox_media WHERE scope_key = ? AND event_id IN ('
+            + ','.join('?' for _ in event_ids) + ')',
+            (scope(business_id), *event_ids))
+    except Exception:
+        return rows
+    by_event = {str(item['event_id']): item for item in media}
+    for row in rows:
+        item = by_event.get(str(row.get('event_id') or ''))
+        if item:
+            row['media'] = item
+    return rows
+
 def _read(response):
     if response.status_code != 200:
         raise ValueError('media_unavailable')
@@ -209,9 +231,15 @@ def validate_upload(upload):
     return data, kind, mime, filename
 
 
-def send_upload(business_id, phone, upload, caption, channel, allowed):
+def send_upload_detail(business_id, phone, upload, caption, channel, allowed):
+    """Send one human-owned image/PDF and return bounded metadata for Core Inbox mirroring.
+
+    The historic send_upload() wrapper below keeps its two-value contract. Core Inbox uses this
+    detailed variant only so the accepted provider id can be mirrored into kw_web_messages without
+    guessing the newest media row or duplicating the transport.
+    """
     if not allowed():
-        return False, 'human_mode_and_open_window_required'
+        return False, 'human_mode_and_open_window_required', None
     try:
         data, kind, mime, filename = validate_upload(upload)
         token, phone_id = channel['access_token'], channel['phone_number_id']
@@ -221,12 +249,12 @@ def send_upload(business_id, phone, upload, caption, channel, allowed):
                            data={'messaging_product': 'whatsapp', 'type': mime},
                            files={'file': (filename, data, mime)}, timeout=(5, 45), allow_redirects=False) as response:
             if response.status_code not in (200, 201):
-                return False, 'media_upload_failed'
+                return False, 'media_upload_failed', None
             media_id = str(response.json().get('id') or '')
         if not re.fullmatch(r'[0-9]{1,128}', media_id):
-            return False, 'media_upload_failed'
+            return False, 'media_upload_failed', None
         if not allowed():
-            return False, 'human_mode_and_open_window_required'
+            return False, 'human_mode_and_open_window_required', None
         meta = {'id': media_id}
         caption = str(caption or '')[:1024]
         if caption:
@@ -239,19 +267,32 @@ def send_upload(business_id, phone, upload, caption, channel, allowed):
             body = response.json()
             messages = body.get('messages') if isinstance(body, dict) else None
             if response.status_code != 200 or not messages or not messages[0].get('id'):
-                return False, 'media_send_failed'
+                return False, 'media_send_failed', None
+        provider_id = str(messages[0]['id'])
+        detail = {
+            'provider_id': provider_id,
+            'kind': kind,
+            'mime_type': mime,
+            'filename': filename,
+            'caption': caption,
+        }
         try:
-            record(business_id, phone, {'type': kind, 'id': messages[0]['id'],
+            record(business_id, phone, {'type': kind, 'id': provider_id,
                    'timestamp': int(datetime.now(timezone.utc).timestamp()),
                    kind: {**meta, 'mime_type': mime, 'filename': filename}}, role='assistant')
         except Exception:
-            return True, 'accepted_history_unavailable'
-        return True, 'accepted'
+            return True, 'accepted_history_unavailable', detail
+        return True, 'accepted', detail
     except ValueError:
-        return False, 'unsupported_or_oversize_file'
+        return False, 'unsupported_or_oversize_file', None
     except Exception:
-        return False, 'media_send_unconfirmed'
+        return False, 'media_send_unconfirmed', None
 
+
+def send_upload(business_id, phone, upload, caption, channel, allowed):
+    ok, reason, _detail = send_upload_detail(
+        business_id, phone, upload, caption, channel, allowed)
+    return ok, reason
 
 def human_window_allowed(business_id, phone):
     if not re.fullmatch(r'[0-9]{6,20}', str(phone or '')):

@@ -1,4 +1,5 @@
 """Phase 8 actual shared Core integration, isolated synthetic SQLite and stubbed Meta IO."""
+import io
 import json
 import os
 import time
@@ -159,6 +160,50 @@ class WhatsAppTests(unittest.TestCase):
         wa.mode(7,cid,'AI_ACTIVE',1)
         self.response.json.return_value={'messages':[{'id':'resume-out'}]}
         _,model=self.receive(eid='resume-inbound');model.assert_called_once()
+
+    def test_core_inbox_human_persists_and_media_controls_follow_meta_window(self):
+        import inbox_media_service as media
+        self.receive();cid=self.link()['conversation_id']
+        wa.mode(7,cid,'HUMAN_TAKEOVER',1)
+        page=self.client.get('/business/7/inbox?channel=web&conversation='+cid)
+        self.assertEqual(page.status_code,200)
+        self.assertIn(b'Kirim gambar atau PDF',page.data)
+        self.assertIn(b'Human Takeover tetap aktif',page.data)
+        self.assertEqual(store.conversation(7,cid)['mode'],'HUMAN_TAKEOVER')
+
+        detail={'provider_id':'wamid.media.owner','kind':'document','mime_type':'application/pdf',
+                'filename':'invoice.pdf','caption':'Invoice'}
+        with patch.object(media,'send_upload_detail',return_value=(True,'accepted',detail)) as send:
+            response=self.client.post(
+                f'/business/7/web-inbox/{cid}/media',
+                data={'csrf_token':'csrf-test','file':(io.BytesIO(b'%PDF-1.4\ntest'),'invoice.pdf'),'caption':'Invoice'},
+                headers={'X-CSRF-Token':'csrf-test'},content_type='multipart/form-data')
+        self.assertEqual(response.status_code,200,response.data)
+        send.assert_called_once()
+        self.assertEqual(store.thread(7,cid)[-1]['role'],'human')
+        self.assertEqual(store.thread(7,cid)[-1]['content'],'Invoice')
+
+        def attach(rows,bid):
+            for row in rows:
+                if row.get('event_id')=='wamid.media.owner':
+                    row['media']={'id':'media-test','event_id':'wamid.media.owner',
+                                  'message_type':'document','filename':'invoice.pdf',
+                                  'caption':'Invoice'}
+            return rows
+        with patch.object(media,'attach_events',side_effect=attach):
+            payload=self.client.get(f'/business/7/web-inbox/{cid}/messages?after=0').json
+        attached=[row for row in payload['messages'] if row.get('media')]
+        self.assertTrue(attached)
+        self.assertEqual(attached[-1]['media']['message_type'],'document')
+        self.assertIn('/business/7/inbox/media/',attached[-1]['media']['url'])
+
+        with store.transaction() as tx:
+            tx.execute('UPDATE kw_core_wa_conversations SET last_inbound_at=0 WHERE business_id=7 AND conversation_id=?',(cid,))
+        expired=self.client.get('/business/7/inbox?channel=web&conversation='+cid)
+        self.assertEqual(expired.status_code,200)
+        self.assertIn(b'Human tetap aktif',expired.data)
+        self.assertIn(b'Kirim Template &amp; Lanjutkan',expired.data)
+        self.assertEqual(store.conversation(7,cid)['mode'],'HUMAN_TAKEOVER')
 
     def test_echo_once_suppresses_ai_and_api_echo_does_not_take_over(self):
         self.receive();cid=self.link()['conversation_id']

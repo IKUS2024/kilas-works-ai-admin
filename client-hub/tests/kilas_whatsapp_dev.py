@@ -26,6 +26,12 @@ if __name__=='__main__':
         fixture.response.json.return_value={'messages':[{'id':'next-model-out'}]}
         fixture.receive('volumenya 0.2 m3',{'volume_cbm':'0.2 m³'},'browser-second')
         return {'ok':True}
+    @app.post('/dev/expire')
+    def expire():
+        if session.get('user_id')!=1: abort(404)
+        with store.transaction() as tx:
+            tx.execute('UPDATE kw_core_wa_conversations SET last_inbound_at=0 WHERE business_id=7 AND conversation_id=?',(cid,))
+        return {'ok':True}
     @app.get('/dev/evidence')
     def evidence():
         if session.get('user_id')!=1: abort(404)
