@@ -401,10 +401,12 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
     uid_b, bid_b = _make_active_ai_admin_tenant("Demo Biz B", "demob@test.com")
     phone = "14048836437"
     now = datetime.now(timezone.utc).isoformat()
-    demo_rows = [
+    demo_rows = ai_reply_explanation.attach_demo([
         {"id": 901, "role": "user", "content": "bisnis aku parfum ka", "created_at": now},
-        {"id": 902, "role": "assistant", "content": "Oke, bisnis parfum.", "created_at": now},
-    ]
+        {"id": 902, "role": "assistant",
+         "content": "Oke, bisnis parfum. Aku bantu apa nih? Mau bikin konten, foto produk, ads, atau yang lain?",
+         "created_at": now},
+    ], bid_a, allow_visible_fallback=True)
 
     client = fresh_client()
     _login_owner(client, "demoa@test.com")
