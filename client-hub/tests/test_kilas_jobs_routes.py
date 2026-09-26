@@ -155,7 +155,8 @@ class JobRoutesTests(unittest.TestCase):
             self.assertIn(b'Pesanan makan siang',page.data)
         page=self.client.get('/business/7/jobs/'+job['id'])
         self.assertIn(detail.encode(),page.data)
-        self.assertIn(b'data-job-conversation',page.data)
+        self.assertNotIn(b'data-job-conversation',page.data)
+        self.assertNotIn(b'Buka percakapan WEB',page.data)
         with patch.dict(os.environ,{'KILAS_JOBS_V2_ENABLED':'false'}):
             self.assertNotIn(b'data-linked-jobs',self.client.get(detail).data)
             self.assertNotIn(b'data-linked-jobs',self.client.get(inbox).data)
