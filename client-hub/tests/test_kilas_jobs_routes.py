@@ -44,7 +44,7 @@ class JobRoutesTests(unittest.TestCase):
     def test_owner_create_detail_update_audit(self):
         page=self.client.get('/business/7/jobs/new?customer_id='+self.customer['id']+'&conversation_id='+self.cid)
         self.assertEqual(page.status_code,200)
-        self.assertIn(b'Buat Pekerjaan',page.data)
+        self.assertIn(b'Buat Pesanan',page.data)
         response=self.create();self.assertEqual(response.status_code,303)
         job=jobs.list_jobs(7)[0][0]
         self.assertEqual(job['kind'],'ORDER')
