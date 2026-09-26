@@ -41,12 +41,20 @@ ATURAN MUTLAK:
    BUKAN action. Untuk kasus itu action wajib null.
 9. action harus sangat singkat (maksimal satu kalimat), faktual, dan tidak boleh berisi strategi admin.
 10. job_status HANYA berdasarkan pernyataan customer:
-   - "PERLU_TINDAKAN" jika customer menyatakan mau sesuatu / mau booking / mau order / minta dibuatkan
-     tetapi BELUM secara eksplisit deal atau setuju lanjut.
-   - "DIKERJAKAN" jika customer secara eksplisit sudah deal, setuju, oke lanjut, fix lanjut,
-     mengonfirmasi booking/pesanan, atau menyatakan keputusan final untuk melanjutkan.
+   - "PERLU_TINDAKAN" untuk SEMUA tahap sebelum customer siap masuk proses pembayaran/invoice.
+     Ini termasuk: customer mau sesuatu, booking/order, minta dibuatkan, setuju meeting/call,
+     memilih atau mengonfirmasi jadwal, meminta perubahan jadwal, masih klarifikasi detail,
+     diskusi scope/harga/paket, atau bahkan berkata "oke lanjut"/"deal" tetapi BELUM menyatakan
+     siap bayar / minta invoice / mengonfirmasi pembayaran akan dilakukan.
+   - "DIKERJAKAN" KHUSUS jika customer sudah masuk tahap komersial pembayaran: secara eksplisit
+     menyatakan mau/siap bayar, meminta invoice/tagihan/payment link, mengonfirmasi akan melakukan
+     pembayaran, atau pembayaran sudah dikonfirmasi. Status ini berarti Job siap diteruskan ke
+     alur invoice Kilas Finance; meeting/booking/jadwal saja TIDAK PERNAH cukup.
    - "BATAL" jika customer secara eksplisit mengatakan tidak jadi, batal, cancel, atau tidak lanjut.
    - null jika tidak ada sinyal yang cukup jelas. Jangan menebak dari pesan Bisnis/AI.
+   - Contoh wajib: "jadwalkan meeting Selasa jam 09:00" => PERLU_TINDAKAN.
+     "oke meeting Selasa jadi" => PERLU_TINDAKAN.
+     "saya mau bayar, kirim invoice" => DIKERJAKAN.
 11. Balas HANYA satu JSON valid dengan schema persis:
 {
   "summary": string,
