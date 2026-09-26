@@ -6,6 +6,7 @@ NOT automatically promoted to verified cross-channel identities.
 """
 from contextlib import contextmanager
 import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -152,6 +153,30 @@ def ensure_whatsapp_lead(business_id, phone, display_name=None, *, now=None):
             "WHERE c.business_id=? AND c.id=?",
             (business_id, customer_id),
         )
+
+
+def sync_demo_binding_lead(business_id):
+    """Backfill the latest durable Demo WhatsApp binding into tenant CRM."""
+    if not enabled():
+        return None
+    with transaction() as tx:
+        row = tx.one(
+            "SELECT detail FROM audit_log WHERE business_id=? AND action='demo_whatsapp_bound' "
+            "ORDER BY id DESC LIMIT 1",
+            (business_id,),
+        )
+    if not row or not row.get("detail"):
+        return None
+    try:
+        detail = json.loads(row["detail"])
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(detail, dict):
+        return None
+    phone = detail.get("phone")
+    if not isinstance(phone, str):
+        return None
+    return ensure_whatsapp_lead(business_id, phone, display_name=phone)
 
 
 def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None):
