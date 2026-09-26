@@ -17,7 +17,7 @@ from kilas_core.customers import transaction
 from kilas_core.playbook_definitions import FIELD_LABELS as PLAYBOOK_FIELDS, PLAYBOOKS
 
 STATUS_LABELS = {
-    'NEW': 'Baru', 'NEEDS_INFORMATION': 'Butuh informasi',
+    'NEW': 'Perlu tindakan', 'NEEDS_INFORMATION': 'Butuh informasi',
     'READY_FOR_QUOTE': 'Siap ditawarkan', 'QUOTED': 'Sudah ditawarkan',
     'APPROVED': 'Disetujui', 'IN_PROGRESS': 'Dikerjakan',
     'COMPLETED': 'Selesai', 'CANCELLED': 'Dibatalkan',
@@ -37,7 +37,9 @@ KINDS = {'ORDER': 'Pesanan', 'BOOKING': 'Booking', 'SHIPMENT': 'Pengiriman',
 FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
                 'origin': 'Asal', 'destination': 'Tujuan',
                 'scheduled_at': 'Jadwal', 'reference': 'Referensi',
-                'missing_information': 'Informasi yang masih dibutuhkan'}
+                'missing_information': 'Informasi yang masih dibutuhkan',
+                'action': 'Tindakan berikutnya', 'intent': 'Intent customer',
+                'priority': 'Prioritas', 'source': 'Sumber'}
 
 # Server-only workflow metadata is not accepted by owner form routes.
 WORKFLOW_METADATA = {'playbook', 'uncertain_fields'}
@@ -45,7 +47,18 @@ LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
 _WHATSAPP_PLAYBOOK_ACTOR = object()
-_PLAYBOOK_ACTORS = (_WEB_PLAYBOOK_ACTOR, _WHATSAPP_PLAYBOOK_ACTOR)
+_CUSTOMER_INSIGHT_ACTOR = object()
+_PLAYBOOK_ACTORS = (_WEB_PLAYBOOK_ACTOR, _WHATSAPP_PLAYBOOK_ACTOR, _CUSTOMER_INSIGHT_ACTOR)
+
+
+def _internal_actor_name(actor_id):
+    if actor_id is _WEB_PLAYBOOK_ACTOR:
+        return 'WEB_PLAYBOOK'
+    if actor_id is _WHATSAPP_PLAYBOOK_ACTOR:
+        return 'WHATSAPP_PLAYBOOK'
+    if actor_id is _CUSTOMER_INSIGHT_ACTOR:
+        return 'CUSTOMER_INSIGHT'
+    return None
 
 
 class JobError(ValueError):
@@ -143,8 +156,9 @@ def _lock(tx, bid):
 
 def _operation(bid, actor_id, operation_key, payload):
     _positive(bid)
-    if actor_id in _PLAYBOOK_ACTORS:
-        actor_id = 'WEB_PLAYBOOK' if actor_id is _WEB_PLAYBOOK_ACTOR else 'WHATSAPP_PLAYBOOK'
+    internal_actor = _internal_actor_name(actor_id)
+    if internal_actor:
+        actor_id = internal_actor
     else:
         _positive(actor_id)
     if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', operation_key):
@@ -166,9 +180,10 @@ def _replay(tx, bid, operation_key, request_hash):
 def _record(tx, bid, jid, actor_id, operation_key, request_hash, version, action, now):
     tx.execute('INSERT INTO kw_core_job_operations(business_id,operation_key,request_hash,job_id,result_version,created_at) '
                'VALUES (?,?,?,?,?,?)', (bid, operation_key, request_hash, jid, version, now))
+    origin = _internal_actor_name(actor_id)
     tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
-               (None if actor_id in _PLAYBOOK_ACTORS else actor_id, bid, action,
-                json.dumps({'job_id': jid, 'version': version, **({'origin': 'WEB_PLAYBOOK' if actor_id is _WEB_PLAYBOOK_ACTOR else 'WHATSAPP_PLAYBOOK'} if actor_id in _PLAYBOOK_ACTORS else {})})))
+               (None if origin else actor_id, bid, action,
+                json.dumps({'job_id': jid, 'version': version, **({'origin': origin} if origin else {})})))
 
 
 def create_job(business_id, customer_id, *, title, actor_id, operation_key,
