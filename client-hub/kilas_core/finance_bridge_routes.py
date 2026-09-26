@@ -1,7 +1,7 @@
 """Explicit owner forms only; chat/AI cannot call financial actions here."""
 import uuid
 from werkzeug.exceptions import NotFound
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 import db, security
 import finance_service as finance
 import finance_branches as branches
@@ -169,6 +169,8 @@ def invoice_publish(bid,jid):
     _, actor = _context(bid)
     result=bridge.publish_and_send_invoice(bid,actor,jid,uuid.uuid4().hex)
     status=(result.get('delivery') or {}).get('status') or 'unknown'
+    if status not in ('accepted','sent','delivered','read'):
+        flash('Invoice sudah terbit. Pengiriman WhatsApp belum berhasil atau belum dapat dipastikan ('+status+').', 'error')
     return redirect(url_for('core_jobs.detail_page',bid=bid,job_id=jid,invoice_delivery=status),code=303)
 
 

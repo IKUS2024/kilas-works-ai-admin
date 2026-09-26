@@ -1,5 +1,6 @@
 """Bounded official transport. Durable at-most-once attempt; ambiguous sends need owner review."""
 import json
+import hashlib
 import os
 import re
 import time
@@ -70,7 +71,7 @@ def deliver(bid,cid,eid,*,role,template=False):
     return {'status':status,'error':error}
 
 
-def system_text(bid, cid, event_id, text, actor):
+def system_text(bid, cid, event_id, text, actor, *, safe_retry=False):
     """Owner-authorized transactional text that preserves the current AI/Human mode."""
     if not isinstance(event_id, str) or not 1 <= len(event_id) <= 256:
         raise store.ChatError('invalid_event')
@@ -84,6 +85,25 @@ def system_text(bid, cid, event_id, text, actor):
         if not link:
             raise store.ChatError('not_found', 404)
         active = sync_human(tx, bid, cid, link['customer_phone'])
+        if safe_retry:
+            # Stable delivery family, serialized by the business lock. Only a definite
+            # rejection/suppression permits a new attempt. Pending/ambiguous attempts
+            # are never retried, even across concurrent clicks or process restarts.
+            previous = tx.one(
+                "SELECT m.event_id,m.conversation_id,m.content,m.role,o.status FROM kw_web_messages m "
+                "LEFT JOIN kw_core_wa_outbound o ON o.business_id=m.business_id "
+                "AND o.conversation_id=m.conversation_id AND o.event_id=m.event_id "
+                "WHERE m.business_id=? AND m.event_id LIKE ? "
+                "AND m.role IN ('assistant','human') ORDER BY m.id DESC LIMIT 1",
+                (bid, event_id + ':%'))
+            if previous:
+                if previous['status'] in ('failed','suppressed'):
+                    event_id += ':' + hashlib.sha256(previous['event_id'].encode()).hexdigest()[:32]
+                else:
+                    event_id, text = previous['event_id'], previous['content']
+                    cid = previous['conversation_id']
+            else:
+                event_id += ':initial'
         existing = tx.one(
             "SELECT role,content FROM kw_web_messages WHERE business_id=? AND conversation_id=? "
             "AND event_id=? AND role IN ('assistant','human') ORDER BY id DESC LIMIT 1",

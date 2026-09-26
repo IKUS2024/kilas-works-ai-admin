@@ -94,6 +94,28 @@ class BridgeCases:
                 self.assertEqual(current['outstanding_minor'],50000 if n==0 else 0)
         self.assertEqual(len(f.list_transactions(self.target,actor_user_id=self.actor)),2)
 
+    def test_parallel_mark_paid_uses_current_outstanding_once(self):
+        self.connect();self.customer();self.draft()
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",(self.source,self.jid))
+        bridge.issue_job_invoice(self.source,self.actor,self.jid)
+        opts=bridge.payment_options(self.source,self.actor,self.jid)
+        barrier=threading.Barrier(4)
+        def pay(index):
+            try:
+                barrier.wait()
+                return bridge.record_full_payment(self.source,self.actor,self.jid,paid_on='2026-09-10',
+                    account_id=opts['accounts'][0]['id'],category_id=opts['categories'][0]['id'],
+                    note='',payment_key=f'concurrent-{index:020d}')
+            finally:
+                if getattr(db._local,'conn',None):db._local.conn.close();db._local.conn=None
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            rows=list(pool.map(pay,range(4)))
+        self.assertTrue(all(row['invoice']['status']=='PAID' for row in rows))
+        transactions=f.list_transactions(self.target,actor_user_id=self.actor)
+        self.assertEqual(len(transactions),1)
+        self.assertEqual(transactions[0]['amount_minor'],100000)
+        self.assertEqual(transactions[0]['source_type'],'FINANCE_INVOICE_PAYMENT')
+
     def test_deal_job_invoice_payment_posts_authoritative_income(self):
         # New Jobs workflow: only a deal (Dikerjakan) may start invoicing.
         self.connect()

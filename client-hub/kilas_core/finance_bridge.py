@@ -256,6 +256,10 @@ def read_invoice(bid, actor, jid):
 def _deal_job(bid, actor, jid):
     _source(bid, actor)
     job = _job(bid, jid)
+    stage = db.query_one('SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
+                         (bid, job['customer_id']))
+    if stage and stage['stage'] != 'CUSTOMER':
+        raise BridgeError('not_found', 404)
     if jobs.owner_status(job['status']) != 'IN_PROGRESS':
         raise BridgeError('job_not_deal', 409)
     return job
@@ -302,6 +306,20 @@ def invoice_editor_context(bid, actor, jid, *, expected_version, finance_busines
     elif result:
         raise BridgeError('invoice_already_linked', 409)
     return dict(job=job, mapping=dict(mapping), link=dict(link), result=result)
+
+
+def create_job_invoice(bid, actor, jid, *, expected_version, customer_id, document, submission_key, payload):
+    import finance_invoice_editor as editor
+    mapping = _active_mapping(bid, expected_version)
+    with _command(bid, actor, mapping):
+        ctx = invoice_editor_context(bid, actor, jid, expected_version=expected_version,
+            finance_business_id=mapping['finance_business_id'], finance_branch_id=mapping['finance_branch_id'])
+        if ctx['link']['finance_customer_id'] != customer_id:
+            raise BridgeError('customer_unavailable', 404)
+        invoice_id = editor.create(mapping['finance_business_id'], customer_id, document,
+            actor_user_id=actor, submission_key=submission_key, **payload)
+        attach_existing_invoice(bid, actor, jid, invoice_id, expected_version=expected_version)
+        return invoice_id
 
 
 def attach_existing_invoice(bid, actor, jid, invoice_id, *, expected_version):
@@ -352,8 +370,10 @@ def issue_job_invoice(bid, actor, jid):
 
 def invoice_delivery_status(bid, finance_invoice_id):
     row = db.query_one(
-        "SELECT status,error,event_id FROM kw_core_wa_outbound WHERE business_id=? "
-        "AND event_id LIKE ? ORDER BY created_at DESC LIMIT 1",
+        "SELECT o.status,o.error,o.event_id FROM kw_core_wa_outbound o "
+        "JOIN kw_web_messages m ON m.business_id=o.business_id AND m.conversation_id=o.conversation_id "
+        "AND m.event_id=o.event_id WHERE o.business_id=? "
+        "AND o.event_id LIKE ? ORDER BY m.id DESC LIMIT 1",
         (bid, f"invoice:{finance_invoice_id}:%"))
     return dict(row) if row else None
 
@@ -370,23 +390,17 @@ def _job_whatsapp_conversation(bid, job):
 def publish_and_send_invoice(bid, actor, jid, operation_key):
     result = issue_job_invoice(bid, actor, jid)
     link, invoice = result['link'], result['invoice']
-    sent = db.query_one(
-        "SELECT status,error,event_id FROM kw_core_wa_outbound WHERE business_id=? "
-        "AND event_id LIKE ? AND status IN ('accepted','sent','delivered','read') "
-        "ORDER BY created_at DESC LIMIT 1",
-        (bid, f"invoice:{link['finance_invoice_id']}:%"))
-    if sent:
-        return dict(result=result, delivery=dict(sent), already_sent=True)
     cid = _job_whatsapp_conversation(bid, _job(bid, jid))
     if not cid:
         return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
     try:
         base = finance_invoice_view.base_url()
-        token = finance_invoice_view.create_token(link['finance_business_id'], link['finance_invoice_id'], actor)
+        with branches.scope(link['finance_business_id'], link['finance_branch_id'], actor):
+            token = finance_invoice_view.create_token(link['finance_business_id'], link['finance_invoice_id'], actor)
         share_url = base + '/finance/invoice-share/' + token
         message = f"Invoice {invoice['invoice_number']} sudah terbit.\nSilakan lihat detail invoice di:\n{share_url}"
         delivery = whatsapp_transport.system_text(
-            bid, cid, f"invoice:{link['finance_invoice_id']}:{operation_key}", message, actor)
+            bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
     except Exception:
         delivery = {'status':'send_unavailable','error':'transactional_send_failed'}
     if delivery.get('status') in ('accepted','sent','delivered','read'):
@@ -413,20 +427,22 @@ def record_full_payment(bid, actor, jid, *, paid_on, account_id, category_id, no
     result=_invoice_result(bid,jid,actor)
     if not result:
         raise BridgeError('invoice_required',409)
-    link,invoice=result['link'],result['invoice']
-    if invoice['status']=='PAID' and invoice['outstanding_minor']==0:
-        return result
-    if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or invoice['outstanding_minor']<=0:
-        raise BridgeError('invoice_not_payable',409)
-    target=link['finance_business_id']
+    link=result['link']; target=link['finance_business_id']
     with branches.scope(target,link['finance_branch_id'],actor):
-        finance.record_invoice_payment(
-            target,link['finance_invoice_id'],invoice['outstanding_minor'],paid_on,
-            account_id,category_id,note=note,actor_user_id=actor,idempotency_key=payment_key)
-    repo.write_audit(actor,bid,'CORE_FINANCE_JOB_PAYMENT_RECORDED',json.dumps({
-        'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
-        'amount_minor':invoice['outstanding_minor']},sort_keys=True))
-    return _invoice_result(bid,jid,actor)
+        with finance._write(target,actor,related_business_ids=(bid,)):
+            _deal_job(bid,actor,jid)
+            invoice=_invoice_result(bid,jid,actor)['invoice']
+            if invoice['status']=='PAID' and invoice['outstanding_minor']==0:
+                return _invoice_result(bid,jid,actor)
+            if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or invoice['outstanding_minor']<=0:
+                raise BridgeError('invoice_not_payable',409)
+            finance.record_invoice_payment(
+                target,link['finance_invoice_id'],invoice['outstanding_minor'],paid_on,
+                account_id,category_id,note=note,actor_user_id=actor,idempotency_key=payment_key)
+            repo.write_audit(actor,bid,'CORE_FINANCE_JOB_PAYMENT_RECORDED',json.dumps({
+                'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
+                'amount_minor':invoice['outstanding_minor']},sort_keys=True))
+            return _invoice_result(bid,jid,actor)
 
 
 def customer_links(bid, actor, cid):

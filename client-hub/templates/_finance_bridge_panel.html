@@ -38,7 +38,9 @@
           <p class="client-note">Sesudah diterbitkan, Kilas Assist langsung mencoba mengirim link invoice ke WhatsApp customer.</p>
         {% elif inv.status in ('ISSUED','PARTIALLY_PAID') %}
           {% if bridge_panel.delivery and bridge_panel.delivery.status in ('accepted','sent','delivered','read') %}
-            <p class="flash success">Invoice sudah dikirim ke customer melalui WhatsApp.</p>
+            <p class="flash success">{{ 'Invoice diterima Meta; menunggu status pengiriman.' if bridge_panel.delivery.status == 'accepted' else 'Invoice sudah dikirim melalui WhatsApp.' }}</p>
+          {% elif bridge_panel.delivery and bridge_panel.delivery.status in ('attempting','unknown') %}
+            <p class="client-note">Invoice sudah terbit. Status pengiriman belum pasti; periksa percakapan WhatsApp sebelum tindakan lain. Pengiriman ulang diblokir agar tidak ganda.</p>
           {% else %}
             <p class="client-note">Invoice sudah terbit{% if bridge_panel.delivery %}, tetapi pengiriman terakhir: {{ bridge_panel.delivery.status }}{% endif %}.</p>
             <form method="post" action="{{ url_for('core_finance_bridge.invoice_publish',bid=business.id,jid=job.id) }}">

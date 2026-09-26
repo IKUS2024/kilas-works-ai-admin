@@ -312,11 +312,6 @@ class JobRoutesTests(unittest.TestCase):
 
 
     def test_prune_invalid_customer_insight_job_from_lead_only(self):
-        customers.update_customer(
-            7, self.customer['id'], display_name=self.customer['display_name'],
-            phone=self.customer.get('phone'), email=self.customer.get('email'),
-            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
-        )
         # Synthetic stale record from the retired broad-intent implementation.
         with jobs.transaction() as tx:
             jobs._lock(tx, 7)
@@ -331,6 +326,11 @@ class JobRoutesTests(unittest.TestCase):
             actor_id=1, operation_key='manual-lead-action-0001',
             fields={'details':'Keep me'},
         )
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
+        )
         self.assertEqual(jobs.list_jobs(7)[1], 2)
         self.assertEqual(customer_action_jobs.prune_invalid_lead_jobs_all(), 1)
         remaining = jobs.list_jobs(7)[0]
@@ -339,15 +339,15 @@ class JobRoutesTests(unittest.TestCase):
         self.assertNotEqual(remaining[0]['id'], stale['id'])
 
     def test_lead_is_outside_jobs_even_if_legacy_manual_row_exists(self):
-        customers.update_customer(
-            7, self.customer['id'], display_name=self.customer['display_name'],
-            phone=self.customer.get('phone'), email=self.customer.get('email'),
-            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
-        )
         legacy = jobs.create_job(
             7, self.customer['id'], title='Legacy lead manual',
             actor_id=1, operation_key='legacy-lead-manual-0001',
             fields={'details':'Historical only'},
+        )
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
         )
         detail = self.client.get(f"/business/7/customers/{self.customer['id']}")
         self.assertEqual(detail.status_code, 200)

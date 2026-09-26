@@ -51,6 +51,7 @@ def main():
         expect(finance.locator('.finance-entry-shell')).to_be_visible()
         finance_before=finance.screenshot(path=str(OUT/'01_finance_before.png'),full_page=True)
         visitor.goto(public_link(owner,7),wait_until='networkidle')
+        assert owner.context.request.post(BASE+'/dev/confirm-customer/7',form={'csrf_token':'csrf-test'}).ok
         send(visitor,'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(1,timeout=10000)
         reply=visitor.locator('.web-bubble.assistant').inner_text()
@@ -70,7 +71,7 @@ def main():
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
         assert BASE+owner.locator('[data-linked-jobs] a.client-item').get_attribute('href') == job_url
         assert '0.2 m³' in owner.locator('[data-playbook-context]').inner_text()
-        assert 'Siap ditawarkan' in owner.locator('[data-linked-jobs]').inner_text()
+        assert 'Perlu tindakan' in owner.locator('[data-linked-jobs]').inner_text()
         owner.goto(job_url,wait_until='networkidle')
         customer_path=owner.locator('[data-job-customer]').get_attribute('href')
         version=owner.locator('[name=version]').input_value()
@@ -89,6 +90,7 @@ def main():
         owner.screenshot(path=str(OUT/'05_human_manual_edit.png'),full_page=True)
 
         booking.goto(public_link(other,8),wait_until='networkidle')
+        assert other.context.request.post(BASE+'/dev/confirm-customer/8',form={'csrf_token':'csrf-test'}).ok
         send(booking,'Mau potong rambut besok jam 14.00')
         expect(booking.locator('.web-bubble.assistant')).to_have_count(1,timeout=10000)
         assert 'Boleh informasikan' not in booking.locator('.web-bubble.assistant').inner_text()

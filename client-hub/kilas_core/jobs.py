@@ -246,6 +246,10 @@ def _create_job(tx, business_id, customer_id, *, title, actor_id, operation_key,
                         ['create', customer_id, conversation_id, kind, title, summary, encoded])
     _lock(tx, business_id)
     _references(tx, business_id, customer_id, conversation_id)
+    stage = tx.one('SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
+                   (business_id, customer_id))
+    if stage and stage['stage'] != 'CUSTOMER':
+        raise JobError('not_found', 404)
     replay = _replay(tx, business_id, operation_key, digest)
     if replay:
         return replay

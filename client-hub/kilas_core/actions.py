@@ -51,6 +51,10 @@ def apply(tx, business_id, conversation_id, *, expected, book, interpretation, e
     row = current['job']
     decision = playbooks.decide(book, interpretation, known=known, uncertain=uncertain,
                                current_status=row['status'] if row else None, has_job=bool(row))
+    stage = tx.one('SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
+                   (business_id, current['customer_id']))
+    if stage and stage['stage'] != 'CUSTOMER':
+        return None, playbooks.response(decision)
     if not decision.write:
         return row, playbooks.response(decision)
     # Preserve owner metadata and unrelated bounded fields rather than replace blindly.

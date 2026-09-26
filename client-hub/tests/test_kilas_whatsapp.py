@@ -46,8 +46,14 @@ class WhatsAppTests(unittest.TestCase):
     def event(self,text='Mau kirim 20 kg baju dari Guangzhou ke Tangerang',eid='wamid.one',phone='628123456789'):
         return {'messages':[{'id':eid,'from':phone,'timestamp':self.stamp,'type':'text','text':{'body':text}}]}
 
-    def receive(self,text='Mau kirim 20 kg baju dari Guangzhou ke Tangerang',fields=None,eid='wamid.one',bid=7,intent='REQUEST'):
+    def receive(self,text='Mau kirim 20 kg baju dari Guangzhou ke Tangerang',fields=None,eid='wamid.one',bid=7,intent='REQUEST',confirmed=True):
         fields=fields if fields is not None else {'item':'baju','weight':'20 kg','origin':'Guangzhou','destination':'Tangerang'}
+        if confirmed and access.channel(bid,str(bid)*5):
+            link=wa.ensure(bid,str(bid)*5,'628123456789')
+            customer=customers.customer_for_conversation(bid,link['conversation_id'])
+            customers.update_customer(bid,customer['id'],display_name=customer['display_name'],
+                phone=customer.get('phone'),email=customer.get('email'),notes=customer.get('notes'),
+                stage='CUSTOMER',actor_id=1 if bid==7 else 2)
         with patch.object(self.ai,'_call_claude',return_value=(phase5.output(text,fields,intent),'end_turn',None)) as model:
             result=wa.handle(bid,str(bid)*5,self.event(text,eid),'messages')
         return result,model
@@ -55,6 +61,32 @@ class WhatsAppTests(unittest.TestCase):
     def link(self,bid=7):
         with store.transaction() as tx:
             return tx.one('SELECT * FROM kw_core_wa_conversations WHERE business_id=?',(bid,))
+
+    def test_invoice_transport_safe_retry_unknown_rejection_and_takeover(self):
+        self.receive();cid=self.link()['conversation_id'];self.http.reset_mock()
+        self.http.side_effect=TimeoutError('ambiguous')
+        first=transport.system_text(7,cid,'invoice:901','signed link',1,safe_retry=True)
+        self.assertEqual(first['status'],'unknown')
+        again=transport.system_text(7,cid,'invoice:901','new signed link',1,safe_retry=True)
+        self.assertEqual(again['status'],'unknown');self.http.assert_called_once()
+        self.http.side_effect=None;self.http.reset_mock()
+        self.response.status_code=400;self.response.json.return_value={'error':{'message':'rejected'}}
+        self.assertEqual(transport.system_text(7,cid,'invoice:902','signed link',1,safe_retry=True)['status'],'failed')
+        self.response.status_code=200;self.response.json.return_value={'messages':[{'id':'invoice-accepted'}]}
+        wa.mode(7,cid,'HUMAN_TAKEOVER',1)
+        self.assertEqual(transport.system_text(7,cid,'invoice:902','signed link',1,safe_retry=True)['status'],'accepted')
+        self.assertEqual(transport.system_text(7,cid,'invoice:902','signed link',1,safe_retry=True)['status'],'accepted')
+        self.assertEqual(self.http.call_count,2)
+        self.assertEqual(store.conversation(7,cid)['mode'],'HUMAN_TAKEOVER')
+        with store.transaction() as tx:
+            tx.execute('UPDATE kw_core_wa_conversations SET last_inbound_at=? WHERE business_id=7',(int(time.time())-90000,))
+        self.assertEqual(transport.system_text(7,cid,'invoice:903','signed link',1,safe_retry=True)['status'],'suppressed')
+        self.assertEqual(self.http.call_count,2)
+
+    def test_lead_request_never_creates_job(self):
+        self.receive(confirmed=False)
+        self.assertEqual(jobs.list_jobs(7)[1],0)
+        self.assertEqual(customers.get_customer(7,customers.customer_for_conversation(7,self.link()['conversation_id'])['id'])['stage'],'LEAD')
 
     def test_core_logistics_reuse_retry_missing_info_and_update(self):
         _,model=self.receive();model.assert_called_once();self.http.assert_called_once()
@@ -175,6 +207,12 @@ class WhatsAppTests(unittest.TestCase):
         for index,(category,fields,kind) in enumerate(examples):
             self.db.execute('UPDATE business_profiles SET category=? WHERE business_id=7',(category,))
             visitor=self.app.test_client();identity=self.start(client=visitor).json
+            wa_link=wa.ensure(7,'77777','62811100000'+str(index))
+            for conv_id in (identity['conversation_id'],wa_link['conversation_id']):
+                customer=customers.customer_for_conversation(7,conv_id)
+                customers.update_customer(7,customer['id'],display_name=customer['display_name'],
+                    phone=customer.get('phone'),email=customer.get('email'),notes=customer.get('notes'),
+                    stage='CUSTOMER',actor_id=1)
             eid='parity-event-'+str(index).zfill(6);text='pesan'
             raw=phase5.output(text,fields)
             with patch.object(self.ai,'_call_claude',return_value=(raw,'end_turn',None)):

@@ -51,6 +51,7 @@ def main():
             headers={'X-CSRF-Token':'csrf-test','Content-Type':'application/json'},data={})
         assert response.ok,response.text()
         visitor.goto(BASE+response.json()['path'],wait_until='networkidle')
+        assert owner.context.request.post(BASE+'/dev/confirm-customer/7',form={'csrf_token':'csrf-test'}).ok
         send(visitor,'Saya mau bicara dengan manusia')
         owner.goto(BASE+'/products/assist',wait_until='networkidle')
         home=owner.locator('[data-attention-home]')
@@ -74,7 +75,7 @@ def main():
         expect(home.locator('[data-attention-item]')).to_have_count(1)
         home.locator('[data-attention-job]').click()
         job_url=owner.url.split('?')[0]
-        expect(owner.locator('span.client-status')).to_have_text('Siap ditawarkan')
+        expect(owner.locator('span.client-status')).to_have_text('Perlu tindakan')
         fits(owner);owner.screenshot(path=str(OUT/'04_ready_job.png'),full_page=True)
         owner.goto(BASE+'/business/7/automations',wait_until='networkidle')
         owner.locator('#followup-enabled').select_option('true')
@@ -96,10 +97,11 @@ def main():
         owner.get_by_role('button',name='Kembalikan ke AI',exact=True).click()
         expect(owner.locator('[data-mode]')).to_have_text('AI aktif',timeout=10000)
         owner.goto(job_url,wait_until='networkidle')
-        for status in ('QUOTED','APPROVED','IN_PROGRESS','COMPLETED'):
+        for status in ('IN_PROGRESS',):
             owner.get_by_label('Status',exact=True).select_option(status)
             owner.get_by_role('button',name='Simpan perubahan',exact=True).click()
             expect(owner.get_by_text('Data tersimpan.',exact=True)).to_be_visible()
+        assert owner.context.request.post(BASE+'/dev/operations/legacy-complete',form={'csrf_token':'csrf-test'}).ok
         run(owner)
         expect(visitor.locator('.web-bubble.assistant').filter(has_text=REVIEW)).to_have_count(1,timeout=15000)
         run(owner)
