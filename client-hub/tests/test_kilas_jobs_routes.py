@@ -29,6 +29,9 @@ class JobRoutesTests(unittest.TestCase):
         self.identity=self.start().json
         self.cid=self.identity['conversation_id']
         self.customer=customers.customer_for_conversation(7,self.cid)
+        customers.update_customer(
+            7,self.customer['id'],display_name=self.customer['display_name'],stage='CUSTOMER')
+        self.customer=customers.get_customer(7,self.customer['id'])
         self.form=dict(csrf_token='csrf-test',customer_id=self.customer['id'],conversation_id=self.cid,
                        title='Pesanan makan siang',summary='Untuk kantor',operation_key='route-create-0001')
 
@@ -170,7 +173,7 @@ class JobRoutesTests(unittest.TestCase):
             self.assertEqual(denied,[])
         finally: self.db.get_connection().set_authorizer(None)
 
-    def test_customer_insight_creates_and_updates_one_action_job(self):
+    def test_customer_insight_creates_one_short_action_for_customer_only(self):
         business = {'id': 7}
         insight = {
             'summary': 'Customer tertarik dan ingin booking konsultasi untuk kebutuhan parfum.',
@@ -189,33 +192,68 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(first['customer_id'], self.customer['id'])
         self.assertEqual(first['status'], 'NEW')
         self.assertEqual(first['fields']['source'], 'Customer Insight')
-        self.assertEqual(first['fields']['priority'], 'Sedang')
-        self.assertIn('booking', first['title'].lower())
-        self.assertIn('tanggal', first['fields']['action'].lower())
+        self.assertEqual(first['fields']['action'], 'Mau booking konsultasi')
+        self.assertEqual(first['summary'], 'Mau booking konsultasi')
 
-        # Same intent is idempotent: one customer action, not one Job per chat/page refresh.
+        # Same customer/intent stays one Job.
         again = customer_action_jobs.sync_from_insight(business, self.customer, insight)
         self.assertEqual(again['id'], first['id'])
         self.assertEqual(jobs.list_jobs(7)[1], 1)
 
         updated_insight = {
             **insight,
-            'summary': 'Customer sudah memilih arah booking dan siap lanjut.',
             'buying_stage': 'SIAP_MEMBELI',
             'follow_up': 'Konfirmasi tanggal booking dan langkah berikutnya.',
-            'missing_info': [],
             '_meta': {'has_history': True, 'fresh': True, 'message_count': 4},
         }
         updated = customer_action_jobs.sync_from_insight(business, self.customer, updated_insight)
         self.assertEqual(updated['id'], first['id'])
         self.assertEqual(updated['fields']['priority'], 'Tinggi')
-        self.assertEqual(updated['version'], first['version'] + 1)
+        self.assertEqual(updated['fields']['action'], 'Mau booking konsultasi')
 
         page = self.client.get('/business/7/jobs')
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b'Tindakan', page.data)
         self.assertIn(self.customer['display_name'].encode(), page.data)
-        self.assertIn(b'Konfirmasi tanggal booking', page.data)
+        self.assertIn(b'Mau booking konsultasi', page.data)
+        self.assertNotIn(b'Mencari informasi', page.data)
+
+    def test_lead_never_appears_in_jobs_until_promoted_to_customer(self):
+        business = {'id': 7}
+        customers.update_customer(
+            7,self.customer['id'],display_name=self.customer['display_name'],stage='LEAD')
+        lead = customers.get_customer(7,self.customer['id'])
+        insight = {
+            'summary': 'Lead ingin tahu paket yang tersedia untuk bisnis parfum.',
+            'interests': ['Kilas Assist'], 'needs': ['informasi paket yang tersedia'],
+            'buying_stage': 'MENCARI_INFORMASI',
+            'missing_info': [], 'follow_up': 'Jelaskan paket yang relevan.',
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 3},
+        }
+        self.assertIsNone(customer_action_jobs.sync_from_insight(business, lead, insight))
+        page = self.client.get('/business/7/jobs')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'Belum ada tindakan', page.data)
+        self.assertNotIn(b'informasi paket', page.data)
+        self.assertEqual(
+            self.client.get('/business/7/jobs/new?customer_id='+lead['id']).status_code,404)
+
+        # Even a legacy/raw Job linked to a Lead is hidden from the Customer-only Jobs page.
+        raw = jobs.create_job(
+            7,lead['id'],title='Legacy lead action',summary='hidden',
+            actor_id=1,operation_key='legacy-lead-job-0001')
+        self.assertIsNotNone(raw)
+        hidden = self.client.get('/business/7/jobs')
+        self.assertNotIn(b'Legacy lead action', hidden.data)
+
+        customers.update_customer(
+            7,lead['id'],display_name=lead['display_name'],stage='CUSTOMER')
+        customer = customers.get_customer(7,lead['id'])
+        result = customer_action_jobs.sync_from_insight(business, customer, insight)
+        # Existing manual Job wins rather than creating a duplicate.
+        self.assertEqual(result['id'], raw['id'])
+        visible = self.client.get('/business/7/jobs')
+        self.assertIn(b'Legacy lead action', visible.data)
+
 
     def test_customer_insight_skips_noise_and_never_duplicates_manual_job(self):
         business = {'id': 7}
