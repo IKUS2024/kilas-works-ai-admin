@@ -379,6 +379,8 @@ def issue_job_invoice(bid, actor, jid):
 
 
 def invoice_delivery_status(bid, finance_invoice_id):
+    if platform_workspace.is_scope_business(bid):
+        return platform_workspace.transactional_status(f"invoice:{finance_invoice_id}:")
     row = db.query_one(
         "SELECT o.status,o.error,o.event_id FROM kw_core_wa_outbound o "
         "JOIN kw_web_messages m ON m.business_id=o.business_id AND m.conversation_id=o.conversation_id "
@@ -400,24 +402,38 @@ def _job_whatsapp_conversation(bid, job):
 def publish_and_send_invoice(bid, actor, jid, operation_key):
     result = issue_job_invoice(bid, actor, jid)
     link, invoice = result['link'], result['invoice']
-    cid = _job_whatsapp_conversation(bid, _job(bid, jid))
-    if not cid:
-        return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
+    job = _job(bid, jid)
     try:
         base = finance_invoice_view.base_url()
         with branches.scope(link['finance_business_id'], link['finance_branch_id'], actor):
             token = finance_invoice_view.create_token(link['finance_business_id'], link['finance_invoice_id'], actor)
         share_url = base + '/finance/invoice-share/' + token
         message = f"Invoice {invoice['invoice_number']} sudah terbit.\nSilakan lihat detail invoice di:\n{share_url}"
-        delivery = whatsapp_transport.system_text(
-            bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
+
+        if platform_workspace.is_scope_business(bid):
+            customer = _customer(bid, job['customer_id'])
+            phone = customer.get('phone')
+            event_id = f"invoice:{link['finance_invoice_id']}:issued"
+            delivery = platform_workspace.send_transactional_text(
+                phone, event_id, message, actor_id=actor)
+            conversation_ref = "platform:" + str(phone or "")
+        else:
+            cid = _job_whatsapp_conversation(bid, job)
+            if not cid:
+                return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
+            delivery = whatsapp_transport.system_text(
+                bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
+            conversation_ref = cid
     except Exception:
         delivery = {'status':'send_unavailable','error':'transactional_send_failed'}
-    if delivery.get('status') in ('accepted','sent','delivered','read'):
+        conversation_ref = None
+
+    accepted = delivery.get('status') in ('accepted','sent','delivered','read')
+    if accepted:
         repo.write_audit(actor,bid,'CORE_FINANCE_INVOICE_SENT',json.dumps({
             'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
-            'conversation_id':cid,'status':delivery.get('status')},sort_keys=True))
-    return dict(result=_invoice_result(bid,jid,actor),delivery=delivery,already_sent=False)
+            'conversation_id':conversation_ref,'status':delivery.get('status')},sort_keys=True))
+    return dict(result=_invoice_result(bid,jid,actor),delivery=delivery,already_sent=accepted)
 
 
 def payment_options(bid, actor, jid):
