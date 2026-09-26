@@ -205,7 +205,7 @@ class PlaybookRoutesTests(unittest.TestCase):
             self.assertNotIn(b'field_uncertain_fields',page.data)
             self.assertNotIn(b'field_playbook',page.data)
         store.set_mode(7,self.cid,'HUMAN_TAKEOVER',1)
-        data = dict(csrf_token='csrf-test',title='Pengiriman revisi pemilik',summary='',status=row['status'],
+        data = dict(csrf_token='csrf-test',title='Pengiriman revisi pemilik',summary='',status=row['owner_status'],
                     version=row['version'],operation_key='manual-phase5-0001',field_item='baju',field_weight='20 kg',
                     field_origin='Shanghai',field_destination='Tangerang',field_volume_cbm='0.3 m3')
         response = self.client.post('/business/7/jobs/'+row['id'],data=data)
