@@ -302,8 +302,8 @@ class JobRoutesTests(unittest.TestCase):
         page = self.client.get(f"/business/{scope['id']}/jobs")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Customer Platform", page.data)
-        self.assertIn(b"Perlu tindakan", page.data)
-        self.assertNotIn(b"Dikerjakan", page.data)
+        self.assertIn("Status · Perlu tindakan".encode(), page.data)
+        self.assertNotIn("Status · Dikerjakan".encode(), page.data)
         self.assertNotIn(b"Butuh informasi", page.data)
         self.assertNotIn(b"Siap ditawarkan", page.data)
 
