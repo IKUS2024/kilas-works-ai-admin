@@ -249,7 +249,7 @@ class RouteTests(unittest.TestCase):
         db = self.db
         conn = db.get_connection()
         conn.set_authorizer(None)
-        for table in ("platform_workspace_outbound", "platform_workspace_scope", "business_profiles",
+        for table in ("platform_workspace_outbound", "platform_workspace_scope",
                       "users", "businesses", "business_memberships", "ai_settings", "simulation_messages",
                       "onboarding_status", "audit_log"):
             db.execute("DELETE FROM " + table)
