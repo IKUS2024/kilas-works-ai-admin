@@ -18,13 +18,13 @@ def main():
         owner_ctx = browser.new_context(viewport={"width": 390, "height": 844})
         owner = owner_ctx.new_page()
         owner.goto(BASE + "/dev/owner/7", wait_until="networkidle")
-        expect(owner.locator("[data-web-share]").first).to_be_visible()
-        share = owner.locator("[data-web-share]").first
-        endpoint = share.get_attribute("data-url")
-        csrf = share.get_attribute("data-csrf")
+        # The current owner workspace intentionally leads with the real Kilas WhatsApp
+        # demo action. Public Web Chat remains an independently sellable/testable channel,
+        # so exercise its scoped endpoint directly with the synthetic harness CSRF token.
+        expect(owner.get_by_role("link", name="Coba Demo Kilas").first).to_be_visible()
         response = owner_ctx.request.post(
-            BASE + endpoint,
-            headers={"X-CSRF-Token": csrf, "Content-Type": "application/json"},
+            BASE + "/business/7/web-chat/link",
+            headers={"X-CSRF-Token": "csrf-test", "Content-Type": "application/json"},
             data={},
         )
         assert response.ok, response.text()
@@ -44,14 +44,24 @@ def main():
 
         owner.goto(BASE + "/business/7/customers", wait_until="networkidle")
         expect(owner.get_by_role("heading", name="Customers")).to_be_visible()
+        expect(owner.get_by_role("link", name="Semua", exact=True)).to_be_visible()
+        expect(owner.get_by_role("link", name="Lead", exact=True)).to_be_visible()
+        expect(owner.get_by_role("link", name="Customer", exact=True)).to_be_visible()
         first_customer = owner.locator("a.client-item").first
         expect(first_customer).to_be_visible()
+        expect(first_customer.get_by_text("Lead", exact=True)).to_be_visible()
         first_customer.click()
         name = owner.locator('input[name="display_name"]')
+        stage = owner.locator('select[name="stage"]')
         expect(name).to_be_visible()
+        expect(stage).to_have_value("LEAD")
         name.fill("Nadia QA")
+        stage.select_option("CUSTOMER")
         owner.get_by_role("button", name="Simpan").click()
-        expect(owner.get_by_text("Data customer tersimpan.")).to_be_visible()
+        expect(owner.get_by_text("Data kontak tersimpan.")).to_be_visible()
+        expect(stage).to_have_value("CUSTOMER")
+        owner.goto(BASE + "/business/7/customers?stage=CUSTOMER", wait_until="networkidle")
+        expect(owner.get_by_text("Nadia QA")).to_be_visible()
         owner.screenshot(path=str(OUT / "03_customer_profile.png"), full_page=True)
 
         owner.goto(BASE + "/business/7/inbox?channel=web", wait_until="networkidle")

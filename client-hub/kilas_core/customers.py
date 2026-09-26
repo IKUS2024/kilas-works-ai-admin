@@ -15,6 +15,7 @@ import db
 
 
 AI_PACKAGES = ("AI_ADMIN", "AI_ADMIN_BASIC", "AI_ADMIN_PRO")
+STAGES = ("LEAD", "CUSTOMER")
 
 
 def enabled():
@@ -81,6 +82,17 @@ def _clean_text(value, maximum, *, allow_blank=True):
     return value
 
 
+def _stage(value, *, allow_none=False):
+    if value is None and allow_none:
+        return None
+    if not isinstance(value, str):
+        raise CustomerError("invalid_stage")
+    value = value.strip().upper()
+    if value not in STAGES:
+        raise CustomerError("invalid_stage")
+    return value
+
+
 def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None):
     """Resolve/create one Core customer for one strong tenant-scoped WEB visitor identity.
 
@@ -124,6 +136,11 @@ def ensure_channel_customer(tx, business_id, conversation_id, identity_type, ide
             "VALUES (?,?,?,?,1,?)",
             (business_id, customer_id, identity_type, identity_hash, now),
         )
+        tx.execute(
+            "INSERT INTO kw_core_customer_stages"
+            "(business_id,customer_id,stage,created_at,updated_at) VALUES (?,?,?,?,?)",
+            (business_id, customer_id, "LEAD", now, now),
+        )
 
     tx.execute(
         "INSERT INTO kw_web_customer_links(business_id,conversation_id,customer_id,created_at) "
@@ -166,7 +183,10 @@ def customer_for_conversation(business_id, conversation_id):
 def get_customer(business_id, customer_id):
     with transaction() as tx:
         row = tx.one(
-            "SELECT * FROM kw_core_customers WHERE business_id=? AND id=?",
+            "SELECT c.*,COALESCE(s.stage,'CUSTOMER') AS stage "
+            "FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
+            "ON s.business_id=c.business_id AND s.customer_id=c.id "
+            "WHERE c.business_id=? AND c.id=?",
             (business_id, customer_id),
         )
         if not row:
@@ -174,24 +194,33 @@ def get_customer(business_id, customer_id):
         return row
 
 
-def list_customers(business_id, search="", page=1):
+def list_customers(business_id, search="", page=1, stage="ALL"):
     search = (search or "").strip()[:120]
     page = max(1, int(page or 1))
-    where = "business_id=?"
+    stage = (stage or "ALL").strip().upper()
+    if stage not in ("ALL",) + STAGES:
+        stage = "ALL"
+    where = "c.business_id=?"
     args = [business_id]
+    if stage != "ALL":
+        where += " AND COALESCE(s.stage,'CUSTOMER')=?"
+        args.append(stage)
     if search:
-        where += " AND (LOWER(display_name) LIKE LOWER(?) OR LOWER(COALESCE(phone,'')) LIKE LOWER(?) OR LOWER(COALESCE(email,'')) LIKE LOWER(?))"
+        where += " AND (LOWER(c.display_name) LIKE LOWER(?) OR LOWER(COALESCE(c.phone,'')) LIKE LOWER(?) OR LOWER(COALESCE(c.email,'')) LIKE LOWER(?))"
         like = "%" + search + "%"
         args += [like, like, like]
+    base = (
+        " FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
+        "ON s.business_id=c.business_id AND s.customer_id=c.id WHERE " + where
+    )
     with transaction() as tx:
-        total = tx.one("SELECT COUNT(*) AS n FROM kw_core_customers WHERE " + where, tuple(args))["n"]
+        total = tx.one("SELECT COUNT(*) AS n" + base, tuple(args))["n"]
         pages = max(1, (total + 9) // 10)
         page = min(page, pages)
         rows = tx.execute(
-            "SELECT c.*, "
-            "(SELECT COUNT(*) FROM kw_web_customer_links l WHERE l.business_id=c.business_id AND l.customer_id=c.id) AS conversation_count "
-            "FROM kw_core_customers c WHERE " + where +
-            " ORDER BY last_activity_at DESC,id LIMIT 10 OFFSET ?",
+            "SELECT c.*,COALESCE(s.stage,'CUSTOMER') AS stage, "
+            "(SELECT COUNT(*) FROM kw_web_customer_links l WHERE l.business_id=c.business_id AND l.customer_id=c.id) AS conversation_count" +
+            base + " ORDER BY c.last_activity_at DESC,c.id LIMIT 10 OFFSET ?",
             tuple(args + [(page - 1) * 10]),
         )
         return rows, total, page, pages
@@ -211,17 +240,22 @@ def customer_conversations(business_id, customer_id):
         )
 
 
-def update_customer(business_id, customer_id, *, display_name, phone=None, email=None, notes=None, actor_id=None):
+def update_customer(business_id, customer_id, *, display_name, phone=None, email=None, notes=None,
+                    stage=None, actor_id=None):
     display_name = _clean_text(display_name, 160, allow_blank=False)
     phone = _clean_text(phone, 40)
     email = _clean_text(email, 254)
     notes = _clean_text(notes, 2000)
+    stage = _stage(stage, allow_none=True)
     if email and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
         raise CustomerError("invalid_email")
     now = int(time.time())
     with transaction() as tx:
         existing = tx.one(
-            "SELECT id FROM kw_core_customers WHERE business_id=? AND id=?",
+            "SELECT c.id,COALESCE(s.stage,'CUSTOMER') AS stage "
+            "FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
+            "ON s.business_id=c.business_id AND s.customer_id=c.id "
+            "WHERE c.business_id=? AND c.id=?",
             (business_id, customer_id),
         )
         if not existing:
@@ -231,12 +265,28 @@ def update_customer(business_id, customer_id, *, display_name, phone=None, email
             "WHERE business_id=? AND id=?",
             (display_name, phone, email, notes, now, business_id, customer_id),
         )
+        if stage is not None:
+            tx.execute(
+                "INSERT INTO kw_core_customer_stages(business_id,customer_id,stage,created_at,updated_at) "
+                "VALUES (?,?,?,?,?) ON CONFLICT(business_id,customer_id) DO UPDATE SET "
+                "stage=excluded.stage,updated_at=excluded.updated_at",
+                (business_id, customer_id, stage, now, now),
+            )
         if actor_id is not None:
             tx.execute(
                 "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
                 (actor_id, business_id, "CUSTOMER_UPDATED", customer_id),
             )
+            if stage is not None and stage != existing["stage"]:
+                tx.execute(
+                    "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
+                    (actor_id, business_id, "CUSTOMER_STAGE_CHANGED",
+                     customer_id + ":" + existing["stage"] + "->" + stage),
+                )
         return tx.one(
-            "SELECT * FROM kw_core_customers WHERE business_id=? AND id=?",
+            "SELECT c.*,COALESCE(s.stage,'CUSTOMER') AS stage "
+            "FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
+            "ON s.business_id=c.business_id AND s.customer_id=c.id "
+            "WHERE c.business_id=? AND c.id=?",
             (business_id, customer_id),
         )

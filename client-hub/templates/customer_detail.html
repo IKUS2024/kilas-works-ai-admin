@@ -4,20 +4,29 @@
 {% include "_client_compact_style.html" %}
 <section class="client-page">
   <div class="client-head">
-    <div><h1>{{ customer.display_name }}</h1><p>Customer {{ business.business_name }}</p></div>
-    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">← Customers</a>
+    <div>
+      <h1>{{ customer.display_name }}</h1>
+      <p>{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }} · {{ business.business_name }}</p>
+    </div>
+    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage=customer.stage) }}">← Customers</a>
   </div>
-  {% if saved %}<div class="flash success">Data customer tersimpan.</div>{% endif %}
+  {% if saved %}<div class="flash success">Data kontak tersimpan.</div>{% endif %}
   {% if form_error %}<div class="flash error">{{ form_error }}</div>{% endif %}
   <div class="client-grid">
     <form class="card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <h2>Profil customer</h2>
+      <h2>Profil kontak</h2>
+      <label>Status</label>
+      <select name="stage">
+        <option value="LEAD" {{ 'selected' if customer.stage == 'LEAD' else '' }}>Lead</option>
+        <option value="CUSTOMER" {{ 'selected' if customer.stage == 'CUSTOMER' else '' }}>Customer</option>
+      </select>
+      <p class="client-note">Kontak baru masuk sebagai Lead. Ubah menjadi Customer saat sudah benar-benar menjadi pelanggan.</p>
       <label>Nama</label><input name="display_name" maxlength="160" required value="{{ customer.display_name }}">
       <label>Telepon</label><input name="phone" maxlength="40" value="{{ customer.phone or '' }}" placeholder="Opsional">
       <label>Email</label><input name="email" maxlength="254" value="{{ customer.email or '' }}" placeholder="Opsional">
       <label>Catatan</label><textarea name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
-      <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan customer otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
+      <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan kontak otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
       <button class="btn" type="submit">Simpan</button>
     </form>
     <div class="card">

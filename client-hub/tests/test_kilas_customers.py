@@ -13,16 +13,18 @@ class CustomerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         phase2.WebTests.setUpClass.__func__(cls)
-        global store, customer_schema, customers
+        global store, customer_schema, customer_stage_schema, customers
         from public_chat import store
-        from kilas_core import customer_schema, customers
+        from kilas_core import customer_schema, customer_stage_schema, customers
         customer_schema.apply_schema()
+        customer_stage_schema.apply_schema()
 
     tearDown = phase2.WebTests.tearDown
 
     def setUp(self):
         with store.transaction() as tx:
-            for table in ("kw_web_customer_links", "kw_core_customer_identities", "kw_core_customers"):
+            for table in ("kw_web_customer_links", "kw_core_customer_identities",
+                          "kw_core_customer_stages", "kw_core_customers"):
                 tx.execute("DELETE FROM " + table)
         phase2.WebTests.setUp(self)
         # The simulator fixture deliberately shares one owner across both businesses.
@@ -50,6 +52,42 @@ class CustomerTests(unittest.TestCase):
         rows, total, _, _ = customers.list_customers(7)
         self.assertEqual(total, 1)
         self.assertEqual(rows[0]["id"], customer["id"])
+        self.assertEqual(rows[0]["stage"], "LEAD")
+        self.assertEqual(customers.get_customer(7, customer["id"])["stage"], "LEAD")
+
+    def test_lead_filter_and_manual_customer_promotion(self):
+        first = self.start().json
+        other_client = self.app.test_client()
+        second = self.start(client=other_client).json
+        one = customers.customer_for_conversation(7, first["conversation_id"])
+        two = customers.customer_for_conversation(7, second["conversation_id"])
+        customers.update_customer(7, one["id"], display_name="Lead Satu")
+        customers.update_customer(7, two["id"], display_name="Customer Dua", stage="CUSTOMER")
+
+        leads, lead_total, _, _ = customers.list_customers(7, stage="LEAD")
+        buyers, customer_total, _, _ = customers.list_customers(7, stage="CUSTOMER")
+        self.assertEqual(lead_total, 1)
+        self.assertEqual(customer_total, 1)
+        self.assertEqual(leads[0]["id"], one["id"])
+        self.assertEqual(buyers[0]["id"], two["id"])
+
+        lead_page = self.client.get("/business/7/customers?stage=LEAD")
+        customer_page = self.client.get("/business/7/customers?stage=CUSTOMER")
+        self.assertIn(b"Lead Satu", lead_page.data)
+        self.assertNotIn(b"Customer Dua", lead_page.data)
+        self.assertIn(b"Customer Dua", customer_page.data)
+        self.assertNotIn(b"Lead Satu", customer_page.data)
+
+        response = self.client.post(
+            f"/business/7/customers/{one['id']}",
+            data={
+                "csrf_token": "csrf-test",
+                "display_name": "Lead Satu",
+                "stage": "CUSTOMER",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(customers.get_customer(7, one["id"])["stage"], "CUSTOMER")
 
     def test_different_visitors_are_distinct_and_same_name_never_merges(self):
         first = self.start().json

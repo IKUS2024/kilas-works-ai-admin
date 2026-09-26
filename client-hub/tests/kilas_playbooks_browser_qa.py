@@ -16,10 +16,9 @@ def fits(page):
 
 def public_link(owner, bid):
     owner.goto(BASE+'/dev/owner/'+str(bid),wait_until='networkidle')
-    share = owner.locator('[data-web-share]').first
-    expect(share).to_be_visible()
-    response = owner.context.request.post(BASE+share.get_attribute('data-url'),
-        headers={'X-CSRF-Token':share.get_attribute('data-csrf'),'Content-Type':'application/json'},data={})
+    expect(owner.get_by_role('link',name='Coba Demo Kilas').first).to_be_visible()
+    response = owner.context.request.post(BASE+f'/business/{bid}/web-chat/link',
+        headers={'X-CSRF-Token':'csrf-test','Content-Type':'application/json'},data={})
     assert response.ok, response.text()
     return BASE+response.json()['path']
 

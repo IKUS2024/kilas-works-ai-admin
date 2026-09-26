@@ -75,7 +75,7 @@ def main():
                 page.goto(BASE + '/workspace')
                 expect(page.locator('.finance-app-sidebar')).to_be_visible()
                 page.locator('.product-switcher summary').click()
-                page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas AI Admin',exact=True).click()
+                page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Assist',exact=True).click()
                 assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')
@@ -169,12 +169,13 @@ def main():
         shot(finance_only, 'finance-only-signup-activation-persistence')
         # Existing eligible full-package fixture: only entitlement/model are synthetic.
         login(owner, data['email'])
+        owner.goto(BASE + f'/business/{bid}/automations')
+        csrf = owner.locator('input[name="csrf_token"]').first.input_value()
         owner.goto(BASE + f'/business/{bid}/inbox?channel=web')
-        share = owner.locator('[data-web-share]').first
-        expect(share).to_be_visible()
-        assert owner.context.request.post(BASE + share.get_attribute('data-url'), data={}).status == 400
-        response = owner.context.request.post(BASE + share.get_attribute('data-url'), data={},
-            headers={'X-CSRF-Token':share.get_attribute('data-csrf')})
+        public_link_path = f'/business/{bid}/web-chat/link'
+        assert owner.context.request.post(BASE + public_link_path, data={}).status == 400
+        response = owner.context.request.post(BASE + public_link_path, data={},
+            headers={'X-CSRF-Token':csrf})
         assert response.ok, response.text()
         visitor = new_page(); visitor.goto(BASE + response.json()['path'])
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')

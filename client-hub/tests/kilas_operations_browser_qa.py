@@ -46,9 +46,9 @@ def main():
         expect(finance.locator('.finance-entry-shell')).to_be_visible()
         before=finance.screenshot(path=str(OUT/'01_finance_before.png'),full_page=True)
         owner.goto(BASE+'/dev/owner/7',wait_until='networkidle')
-        share=owner.locator('[data-web-share]').first
-        response=owner.context.request.post(BASE+share.get_attribute('data-url'),
-            headers={'X-CSRF-Token':share.get_attribute('data-csrf'),'Content-Type':'application/json'},data={})
+        expect(owner.get_by_role('link',name='Coba Demo Kilas').first).to_be_visible()
+        response=owner.context.request.post(BASE+'/business/7/web-chat/link',
+            headers={'X-CSRF-Token':'csrf-test','Content-Type':'application/json'},data={})
         assert response.ok,response.text()
         visitor.goto(BASE+response.json()['path'],wait_until='networkidle')
         send(visitor,'Saya mau bicara dengan manusia')

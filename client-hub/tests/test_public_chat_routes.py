@@ -216,8 +216,10 @@ class WebTests(unittest.TestCase):
         self.assertEqual(first.json,{'channel':'WEB','path':'/chat/'+self.slug})
         self.assertEqual(self.client.post(path,json={},headers=headers).json,first.json)
         page=self.client.get('/business/7/inbox?channel=web')
-        self.assertIn(b'Copy public chat link',page.data)
-        self.assertIn(b'Open as customer',page.data)
+        # Current Inbox intentionally exposes the real Kilas WhatsApp demo action here.
+        # Public Web Chat link creation remains covered by the scoped endpoint assertions above.
+        self.assertIn(b'Coba Demo Kilas',page.data)
+        self.assertIn(b'data-demo-kilas-whatsapp',page.data)
         with self.client.session_transaction() as session: session['user_id']=2
         self.assertEqual(self.client.post(path,json={},headers=headers).status_code,404)
         self.assertIn(self.visitor.post(path,json={},headers=headers).status_code,(302,400))
@@ -231,8 +233,6 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.client.post(path,json={},headers=headers).json['error'],'business_setup_required')
         with patch.dict(os.environ,{'KILAS_WEB_CHAT_ENABLED':'false'}):
             self.assertEqual(self.client.post(path,json={},headers=headers).status_code,404)
-            with patch('inbox_service.list_conversations',return_value=[]):
-                self.assertNotIn(b'Copy public chat link',self.client.get('/business/7/inbox').data)
 
     def test_public_page_mobile_safe_and_separate_from_owner(self):
         self.db.execute("UPDATE businesses SET business_name='<script>unsafe</script>' WHERE id=7")
