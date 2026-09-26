@@ -96,7 +96,7 @@ def _payload(insight):
         "intent": ACTIONABLE_STAGES.get(stage, stage or ""),
         "priority": _priority(stage),
         "source": "Customer Insight",
-        "reference": ref,
+        "source_key": ref,
     }
     if summary:
         fields["details"] = summary[:1000]
@@ -144,7 +144,7 @@ def sync_from_insight(business, customer, insight):
             if current["status"] not in AUTO_EDITABLE:
                 return current
             if (
-                current["fields"].get("reference") == ref
+                current["fields"].get("source_key") == ref
                 and current["fields"].get("action") == fields.get("action")
                 and current["title"] == title
             ):
@@ -159,7 +159,7 @@ def sync_from_insight(business, customer, insight):
             )
 
         # Do not recreate the exact same action immediately after owner completed/cancelled it.
-        if auto and auto[0]["fields"].get("reference") == ref:
+        if auto and auto[0]["fields"].get("source_key") == ref:
             return auto[0]
 
         op = "customer_insight_" + hashlib.sha256(f"{cid}:{ref}:create".encode()).hexdigest()
