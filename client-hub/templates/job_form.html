@@ -19,8 +19,11 @@
     <p><span class="client-status info">{{ job.owner_status_label }}</span></p>
     {% if job.fields.source == 'Customer Insight' %}
     <div class="client-card" style="margin-top:10px">
-      <div class="client-note">Tindakan berikutnya</div>
+      <div class="client-note">{{ 'Customer mau' if job.owner_status == 'IN_PROGRESS' else 'Tindakan berikutnya' }}</div>
       <strong>{{ job.fields.action or job.summary or '-' }}</strong>
+      {% if job.owner_status == 'IN_PROGRESS' %}
+      <p class="client-note" style="margin-bottom:0">Customer sudah masuk tahap pembayaran. Buat invoice untuk customer dari Job ini.</p>
+      {% endif %}
       <div class="client-actions" style="margin-top:8px">
         {% if job.fields.priority %}<span class="client-status {{ 'danger' if job.fields.priority == 'Tinggi' else 'warn' if job.fields.priority == 'Sedang' else 'info' }}">{{ job.fields.priority }}</span>{% endif %}
         {% if job.fields.intent %}<span class="client-status">{{ job.fields.intent }}</span>{% endif %}
