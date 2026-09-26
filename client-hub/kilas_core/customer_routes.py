@@ -20,11 +20,11 @@ def list_page(bid):
     business = _business(bid)
     q = request.args.get("q", "")
     page = request.args.get("page", 1, type=int) or 1
-    stage = (request.args.get("stage") or "ALL").strip().upper()
-    if stage not in ("ALL", "LEAD", "CUSTOMER"):
-        stage = "ALL"
+    stage = (request.args.get("stage") or "LEAD").strip().upper()
+    if stage not in ("LEAD", "CUSTOMER"):
+        stage = "LEAD"
     rows, total, page, pages = customers.list_customers(bid, q, page, stage)
-    stage_label = {"ALL": "kontak", "LEAD": "lead", "CUSTOMER": "customer"}[stage]
+    stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q,
                            stage=stage, stage_label=stage_label)

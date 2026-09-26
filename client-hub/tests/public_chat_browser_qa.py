@@ -44,7 +44,7 @@ def main():
 
         owner.goto(BASE + "/business/7/customers", wait_until="networkidle")
         expect(owner.get_by_role("heading", name="Customers")).to_be_visible()
-        expect(owner.get_by_role("link", name="Semua", exact=True)).to_be_visible()
+        expect(owner.get_by_role("link", name="Semua", exact=True)).to_have_count(0)
         expect(owner.get_by_role("link", name="Lead", exact=True)).to_be_visible()
         expect(owner.get_by_role("link", name="Customer", exact=True)).to_be_visible()
         first_customer = owner.locator("a.client-item").first

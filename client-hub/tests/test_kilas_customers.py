@@ -71,8 +71,12 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(leads[0]["id"], one["id"])
         self.assertEqual(buyers[0]["id"], two["id"])
 
+        default_page = self.client.get("/business/7/customers")
         lead_page = self.client.get("/business/7/customers?stage=LEAD")
         customer_page = self.client.get("/business/7/customers?stage=CUSTOMER")
+        self.assertIn(b"Lead Satu", default_page.data)
+        self.assertNotIn(b"Customer Dua", default_page.data)
+        self.assertNotIn(b">Semua<", default_page.data)
         self.assertIn(b"Lead Satu", lead_page.data)
         self.assertNotIn(b"Customer Dua", lead_page.data)
         self.assertIn(b"Customer Dua", customer_page.data)

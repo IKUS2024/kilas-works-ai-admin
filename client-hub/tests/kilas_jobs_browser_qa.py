@@ -28,7 +28,7 @@ def main():
         before=finance.screenshot(path=str(OUT/'06_finance_before.png'),full_page=True)
 
         owner.goto(BASE+'/dev/owner/7',wait_until='networkidle')
-        owner.goto(BASE+'/business/7/customers',wait_until='networkidle')
+        owner.goto(BASE+'/business/7/customers?stage=CUSTOMER',wait_until='networkidle')
         owner.locator('a.client-item').first.click()
         customer_url=owner.url
         expect(owner.locator('[data-create-job]')).to_be_visible()
