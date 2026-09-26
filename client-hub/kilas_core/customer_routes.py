@@ -20,13 +20,10 @@ def _business(bid):
 def list_page(bid):
     business = _business(bid)
     if platform_workspace.is_scope_business(bid):
-        try:
-            platform_workspace.sync_contacts()
-        except Exception:
-            pass
-        # Navigation GETs must stay read-fast. Never call Customer Insight / an external AI model
-        # while rendering the Customers list. Actionable Lead promotion is handled by the
-        # ingestion/backfill paths, not by an operator tapping a tab.
+        # Navigation GETs must stay read-fast. Do not rescan the full platform Inbox and do not
+        # call Customer Insight / an external AI model while rendering Customers. Inbox ingestion
+        # and explicit reconciliation own those writes; tapping a tab is a read operation.
+        pass
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:
