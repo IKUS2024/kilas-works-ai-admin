@@ -287,7 +287,8 @@ class JobRoutesTests(unittest.TestCase):
             "_meta": {"has_history": True, "fresh": True, "message_count": 3},
         })
         self.assertEqual(deal["id"], first["id"])
-        self.assertEqual(deal["owner_status"], "IN_PROGRESS")
+        # Deal/booking without payment or invoice is still an owner action.
+        self.assertEqual(deal["owner_status"], "NEW")
 
         admin_id = repo_module.create_user(
             "platform-admin@example.test", "unused-password",
@@ -301,7 +302,8 @@ class JobRoutesTests(unittest.TestCase):
         page = self.client.get(f"/business/{scope['id']}/jobs")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Customer Platform", page.data)
-        self.assertIn(b"Dikerjakan", page.data)
+        self.assertIn("Status · Perlu tindakan".encode(), page.data)
+        self.assertNotIn("Status · Dikerjakan".encode(), page.data)
         self.assertNotIn(b"Butuh informasi", page.data)
         self.assertNotIn(b"Siap ditawarkan", page.data)
 
@@ -407,22 +409,74 @@ class JobRoutesTests(unittest.TestCase):
             '_meta':{'has_history':True,'fresh':True,'message_count':2},
         })
         self.assertEqual(first['owner_status'],'NEW')
+
         deal = customer_action_jobs.sync_from_insight(business, customer, {
-            'summary':'Customer bilang oke deal dan lanjut.',
+            'summary':'Customer bilang oke deal dan lanjut booking.',
             'action':'Booking foto minggu depan',
             'job_status':'DIKERJAKAN',
             '_meta':{'has_history':True,'fresh':True,'message_count':3},
         })
         self.assertEqual(deal['id'],first['id'])
-        self.assertEqual(deal['owner_status'],'IN_PROGRESS')
+        self.assertEqual(deal['owner_status'],'NEW')
+
+        payment = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer siap bayar dan meminta invoice.',
+            'action':'Kirim invoice untuk booking foto',
+            'buying_signal_reason':'Customer meminta invoice agar bisa membayar.',
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+        })
+        self.assertEqual(payment['id'],first['id'])
+        self.assertEqual(payment['owner_status'],'IN_PROGRESS')
+        self.assertEqual(payment['fields']['payment_step_reached'],'true')
+
+        # Once payment/invoice has genuinely started, later delivery/scheduling chat
+        # must not accidentally rewind the Job.
+        later_schedule = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer mengatur jadwal meeting teknis.',
+            'action':'Jadwalkan meeting teknis Selasa',
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':5},
+        })
+        self.assertEqual(later_schedule['owner_status'],'IN_PROGRESS')
+        self.assertEqual(later_schedule['fields']['payment_step_reached'],'true')
+
         cancelled = customer_action_jobs.sync_from_insight(business, customer, {
             'summary':'Customer bilang tidak jadi.',
             'action':None,
             'job_status':'BATAL',
-            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+            '_meta':{'has_history':True,'fresh':True,'message_count':6},
         })
         self.assertEqual(cancelled['id'],first['id'])
         self.assertEqual(cancelled['owner_status'],'CANCELLED')
+
+    def test_repair_legacy_dikerjakan_without_payment_evidence(self):
+        customer = customers.get_customer(7, self.customer['id'])
+        with jobs.transaction() as tx:
+            legacy = jobs._create_job(
+                tx, 7, customer['id'], title='Booking',
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR,
+                operation_key='legacy-prepayment-create-0001',
+                kind='BOOKING',
+                summary='Jadwalkan meeting Selasa jam 09:00.',
+                fields={
+                    'action':'Jadwalkan meeting Selasa jam 09:00',
+                    'details':'Customer menyetujui jadwal meeting.',
+                    'source':'Customer Insight',
+                    'source_key':'insight:legacy-prepayment',
+                },
+            )
+            legacy = jobs._update_job(
+                tx, 7, legacy['id'], expected_version=legacy['version'],
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR,
+                operation_key='legacy-prepayment-progress-0001',
+                status='IN_PROGRESS',
+            )
+        self.assertEqual(legacy['owner_status'], 'IN_PROGRESS')
+        self.assertEqual(customer_action_jobs.repair_prepayment_in_progress_jobs(7), 1)
+        repaired = jobs.get_job(7, legacy['id'])
+        self.assertEqual(repaired['owner_status'], 'NEW')
+        self.assertEqual(repaired['fields']['action'], 'Jadwalkan meeting Selasa jam 09:00')
 
     def test_information_only_customer_stays_out_of_jobs_and_manual_job_wins(self):
         business = {'id': 7}
