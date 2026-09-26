@@ -50,9 +50,9 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(job['kind'],'ORDER')
         self.assertIn(b'Pesanan makan siang',self.client.get(response.location).data)
         edited=self.client.post(f"/business/7/jobs/{job['id']}",data=dict(csrf_token='csrf-test',title='Makan siang revisi',
-                 summary='Besok',status='NEEDS_INFORMATION',version=1,operation_key='route-update-0001'))
+                 summary='Besok',status='IN_PROGRESS',version=1,operation_key='route-update-0001'))
         self.assertEqual(edited.status_code,303)
-        self.assertEqual(jobs.get_job(7,job['id'])['status'],'NEEDS_INFORMATION')
+        self.assertEqual(jobs.get_job(7,job['id'])['status'],'IN_PROGRESS')
         self.assertEqual(self.db.query_one("SELECT COUNT(*) AS n FROM audit_log WHERE action LIKE 'JOB_%'")['n'],2)
 
     def test_form_csrf_unknown_payload_and_status_rejected(self):
@@ -137,14 +137,14 @@ class JobRoutesTests(unittest.TestCase):
         job=jobs.list_jobs(7)[0][0];path='/business/7/jobs/'+job['id']
         self.assertIn(b'&lt;script&gt;',self.client.get(path).data)
         self.assertNotIn(b'<script>alert(1)</script>',self.client.get(path).data)
-        data=dict(csrf_token='csrf-test',title='Updated',summary='',status='NEEDS_INFORMATION',version=1,operation_key='retry-update-0001')
+        data=dict(csrf_token='csrf-test',title='Updated',summary='',status='IN_PROGRESS',version=1,operation_key='retry-update-0001')
         for _ in range(2): self.assertEqual(self.client.post(path,data=data).status_code,303)
         self.assertEqual(self.client.post(path,data={**data,'operation_key':'stale-update-0001'}).status_code,409)
         self.assertEqual(self.client.post(path,data={**data,'version':2,'status':'COMPLETED','operation_key':'bad-status-00001'}).status_code,409)
         self.assertEqual(jobs.get_job(7,job['id'])['version'],2)
         self.assertEqual(self.client.get('/business/7/jobs?status=BAD').status_code,400)
         self.assertEqual(self.client.get('/business/7/jobs?customer_id=foreign').status_code,404)
-        self.assertEqual(self.client.get('/business/7/jobs?q=Updated&status=NEEDS_INFORMATION').status_code,200)
+        self.assertEqual(self.client.get('/business/7/jobs?q=Updated&status=IN_PROGRESS').status_code,200)
         self.assertEqual(self.app.test_client().get('/business/7/jobs').status_code,302)
 
     def test_jobs_have_no_finance_legacy_order_whatsapp_or_model_writes(self):
@@ -170,7 +170,7 @@ class JobRoutesTests(unittest.TestCase):
                 self.assertEqual(self.create().status_code,303)
                 row=jobs.list_jobs(7)[0][0]
                 response=self.client.post('/business/7/jobs/'+row['id'],data=dict(csrf_token='csrf-test',
-                         title='Approved manual details',summary='',status='READY_FOR_QUOTE',version=1,operation_key='safe-update-0001'))
+                         title='Approved manual details',summary='',status='IN_PROGRESS',version=1,operation_key='safe-update-0001'))
                 self.assertEqual(response.status_code,303)
                 for spy in spies: spy.assert_not_called()
             self.assertEqual(denied,[])
@@ -247,6 +247,33 @@ class JobRoutesTests(unittest.TestCase):
         self.assertIn(b'Foto produk minggu depan', page.data)
         self.assertIn(b'Jenis', page.data)
         self.assertIn(b'Status', page.data)
+
+    def test_customer_deal_and_cancel_update_job_status(self):
+        business = {'id': 7}
+        customer = customers.get_customer(7, self.customer['id'])
+        first = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer mau booking foto.',
+            'action':'Booking foto minggu depan',
+            'job_status':'PERLU_TINDAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':2},
+        })
+        self.assertEqual(first['owner_status'],'NEW')
+        deal = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer bilang oke deal dan lanjut.',
+            'action':'Booking foto minggu depan',
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':3},
+        })
+        self.assertEqual(deal['id'],first['id'])
+        self.assertEqual(deal['owner_status'],'IN_PROGRESS')
+        cancelled = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer bilang tidak jadi.',
+            'action':None,
+            'job_status':'BATAL',
+            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+        })
+        self.assertEqual(cancelled['id'],first['id'])
+        self.assertEqual(cancelled['owner_status'],'CANCELLED')
 
     def test_information_only_customer_stays_out_of_jobs_and_manual_job_wins(self):
         business = {'id': 7}
