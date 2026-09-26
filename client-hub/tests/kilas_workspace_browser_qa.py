@@ -70,9 +70,36 @@ with sync_playwright() as p:
         # Skip link is reachable by keyboard and has visible focus.
         page.keyboard.press('Control+Home'); page.reload();page.keyboard.press('Tab')
         expect(page.locator('.kw-skip')).to_be_focused()
-        for path,name in [('/dev/persona/admin','admin'),('/admin/search','admin-search'),
-                          ('/admin/projects','admin-projects'),('/admin/payments','admin-payments'),
-                          ('/admin/talent','admin-talent'),('/admin/ai-usage','admin-ai')]:
+        visit('/dev/persona/admin','admin')
+        admin_nav=[s.strip() for s in page.locator('.kw-operator-nav .kw-primary a>span:last-child').all_text_contents()]
+        assert admin_nav==['Home','Inbox','Customers','Jobs','More'],admin_nav
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_have_count(1)
+        expect(page.get_by_role('heading',name='Workspace Kilas Works',exact=True)).to_be_visible()
+        assert page.get_by_text('OPERASIONAL',exact=True).count()==0
+        assert page.get_by_text('PAKET & PEMBAYARAN',exact=True).count()==0
+
+        visit('/admin/?workspace=customers','admin-customers')
+        expect(page.get_by_role('heading',name='Customers Kilas Works',exact=True)).to_be_visible()
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Customers')
+
+        visit('/admin/inbox','admin-inbox')
+        # Preserve the mature platform Inbox itself; only the outer admin workspace navigation changes.
+        expect(page.get_by_role('heading',name='Inbox Kilas Works',exact=True)).to_be_visible()
+        expect(page.locator('.kw-inbox-shell')).to_be_visible()
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Inbox')
+
+        visit('/admin/projects','admin-jobs')
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Jobs')
+
+        visit('/admin/more','admin-more')
+        expect(page.get_by_role('heading',name='Operasional & pengaturan',exact=True)).to_be_visible()
+        expect(page.get_by_text('Pembayaran & langganan',exact=True)).to_be_visible()
+        expect(page.get_by_text('WhatsApp & AI',exact=True)).to_be_visible()
+        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('More')
+
+        for path,name in [('/admin/search','admin-search'),
+                          ('/admin/payments','admin-payments'),('/admin/talent','admin-talent'),
+                          ('/admin/ai-usage','admin-ai')]:
             visit(path,name)
         assert not errors,errors
         context.close()
