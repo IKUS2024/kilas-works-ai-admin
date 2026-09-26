@@ -4,6 +4,7 @@ plus template-config-missing and tenant-credential-isolation tests).
 Run with:
     cd client-hub && python3 tests/test_inbox_unification.py
 """
+import io
 import os
 import sys
 import tempfile
