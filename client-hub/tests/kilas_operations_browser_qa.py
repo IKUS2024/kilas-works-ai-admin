@@ -74,7 +74,7 @@ def main():
         expect(home.locator('[data-attention-item]')).to_have_count(1)
         home.locator('[data-attention-job]').click()
         job_url=owner.url.split('?')[0]
-        expect(owner.locator('span.client-status')).to_have_text('Siap ditawarkan')
+        expect(owner.locator('span.client-status.info')).to_have_text('Siap diproses')
         fits(owner);owner.screenshot(path=str(OUT/'04_ready_job.png'),full_page=True)
         owner.goto(BASE+'/business/7/automations',wait_until='networkidle')
         owner.locator('#followup-enabled').select_option('true')
@@ -96,7 +96,7 @@ def main():
         owner.get_by_role('button',name='Kembalikan ke AI',exact=True).click()
         expect(owner.locator('[data-mode]')).to_have_text('AI aktif',timeout=10000)
         owner.goto(job_url,wait_until='networkidle')
-        for status in ('QUOTED','APPROVED','IN_PROGRESS','COMPLETED'):
+        for status in ('IN_PROGRESS','COMPLETED'):
             owner.get_by_label('Status',exact=True).select_option(status)
             owner.get_by_role('button',name='Simpan perubahan',exact=True).click()
             expect(owner.get_by_text('Data tersimpan.',exact=True)).to_be_visible()
