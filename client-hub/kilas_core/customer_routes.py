@@ -94,8 +94,12 @@ def update_profile(bid, customer_id):
         customer = customers.get_customer(bid, customer_id)
         business = security.require_business_access(bid)
         conversations = customers.customer_conversations(bid, customer_id)
+        demo = customer_insights.demo_conversation_row(bid, customer)
+        if demo:
+            conversations.insert(0, demo)
+        insight = customer_insights.safe_refresh(business, customer)
         return render_template("customer_detail.html", business=business, customer=customer,
-                               conversations=conversations, saved=False,
+                               conversations=conversations, insight=insight, saved=False,
                                form_error="Periksa kembali data customer.",
                                linked_jobs=linked_context(business,customer_id)), 400
     return redirect(url_for("core_customers.detail_page", bid=bid, customer_id=customer_id, saved=1))
