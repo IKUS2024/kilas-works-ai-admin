@@ -47,7 +47,7 @@ def main():
         owner.screenshot(path=str(OUT/'07_job_created.png'),full_page=True)
         owner.get_by_label('Status',exact=True).select_option('NEEDS_INFORMATION')
         owner.get_by_role('button',name='Simpan perubahan',exact=True).click()
-        expect(owner.locator('span.client-status')).to_have_text('Menunggu customer')
+        expect(owner.locator('span.client-status.info')).to_have_text('Menunggu customer')
         owner.screenshot(path=str(OUT/'08_job_updated.png'),full_page=True)
         owner.locator('[data-job-customer]').click()
         expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
