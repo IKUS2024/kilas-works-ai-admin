@@ -117,6 +117,15 @@ def create_app():
                 "adding a new migration file)"
             )
 
+        # Kilas Core schemas 0055+ are intentionally installed out-of-band rather than through
+        # db.MIGRATIONS. Keep this one-time production extension equally explicit and opt-in.
+        # The migration itself is additive/idempotent and backfills existing customer rows as
+        # CUSTOMER. Leave this flag disabled during normal boots.
+        if os.environ.get("KILAS_CUSTOMER_STAGE_SCHEMA_APPLY", "").strip().lower() in ("1", "true", "yes", "on"):
+            from kilas_core import customer_stage_schema
+            customer_stage_schema.apply_schema()
+            print("Customer stage schema 0062: applied")
+
         import ai_usage
         ai_usage.startup_schema_check()
 
