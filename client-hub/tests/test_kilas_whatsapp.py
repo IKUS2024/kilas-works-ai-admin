@@ -1,4 +1,5 @@
 """Phase 8 actual shared Core integration, isolated synthetic SQLite and stubbed Meta IO."""
+import io
 import json
 import os
 import time
@@ -12,9 +13,9 @@ class WhatsAppTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         phase6.OperationsRoutesTests.setUpClass.__func__(cls)
-        global wa, access, transport, store, jobs, customers
+        global wa, access, transport, whatsapp_media, store, jobs, customers
         from kilas_core.adapters import whatsapp as wa
-        from kilas_core import whatsapp_access as access, whatsapp_transport as transport, whatsapp_schema, jobs, customers
+        from kilas_core import whatsapp_access as access, whatsapp_transport as transport, whatsapp_media, whatsapp_schema, jobs, customers
         from public_chat import store
         whatsapp_schema.apply_schema()
         cls.db.execute('CREATE TABLE wa_conversation_state (business_id INTEGER,customer_phone TEXT,mode TEXT,updated_by_user_id INTEGER,UNIQUE(business_id,customer_phone))')
@@ -24,7 +25,7 @@ class WhatsAppTests(unittest.TestCase):
 
     def setUp(self):
         with store.transaction() as tx:
-            for table in ('kw_core_wa_inbound','kw_core_wa_outbound','kw_core_wa_conversations','wa_conversation_state'):
+            for table in ('kw_core_wa_media','kw_core_wa_inbound','kw_core_wa_outbound','kw_core_wa_conversations','wa_conversation_state'):
                 tx.execute('DELETE FROM '+table)
         phase6.OperationsRoutesTests.setUp(self)
         self.stamp=str(int(time.time()))
@@ -141,6 +142,70 @@ class WhatsAppTests(unittest.TestCase):
         result=self.client.get(f'/business/7/web-inbox/{cid}/messages?after={history[-1]["id"]}').json
         self.assertEqual(result['messages'],[])
         self.assertEqual(result['delivery'],{str(history[-1]['id']):'read'})
+
+    def test_core_inbound_image_is_visible_scoped_and_forces_human_review(self):
+        link=wa.ensure(7,'77777','628123456789')
+        payload={'messages':[{
+            'id':'wamid.media.001','from':'628123456789','timestamp':self.stamp,
+            'type':'image','image':{'id':'123456789','mime_type':'image/jpeg','caption':'Foto parfum'}
+        }]}
+        with patch.object(self.ai,'_call_claude') as model:
+            result=wa.handle(7,'77777',payload,'messages')
+        self.assertEqual(result['status'],'ok');model.assert_not_called();self.http.assert_not_called()
+        cid=link['conversation_id']
+        self.assertEqual(store.conversation(7,cid)['mode'],'HUMAN_TAKEOVER')
+        response=self.client.get(f'/business/7/web-inbox/{cid}/messages').json
+        self.assertEqual(response['channel'],'WHATSAPP')
+        self.assertFalse(response['freeform_allowed'] is False)  # fresh inbound reopens free-form
+        media=response['messages'][-1]['media']
+        self.assertEqual(media['message_type'],'image')
+        self.assertEqual(media['caption'],'Foto parfum')
+        self.assertIn(f'/business/7/web-inbox/{cid}/media/',media['url'])
+        page=self.client.get('/business/7/inbox?channel=web&conversation='+cid)
+        self.assertIn(b'data-media-form',page.data)
+        self.assertIn(b'Kirim Template &amp; Lanjutkan',page.data)
+
+        with patch.object(whatsapp_media.inbox_media_service,'download',
+                          return_value=(io.BytesIO(b'jpeg-bytes'),'image/jpeg')):
+            fetched=self.client.get(media['url'])
+        self.assertEqual(fetched.status_code,200)
+        self.assertEqual(fetched.data,b'jpeg-bytes')
+        foreign=media['url'].replace('/business/7/','/business/8/')
+        self.assertEqual(self.client.get(foreign).status_code,404)
+
+    def test_core_human_can_send_image_pdf_once_and_window_blocks_late_send(self):
+        self.receive();cid=self.link()['conversation_id'];wa.mode(7,cid,'HUMAN_TAKEOVER',1)
+        upload=Mock(status_code=200);upload.json.return_value={'id':'987654321'}
+        send=Mock(status_code=200);send.json.return_value={'messages':[{'id':'media-out-1'}]}
+        headers={'X-CSRF-Token':'csrf-test'}
+        def submit(event='owner-media-000001'):
+            return self.client.post(
+                f'/business/7/web-inbox/{cid}/media',
+                data={'csrf_token':'csrf-test','event_id':event,'caption':'Katalog parfum',
+                      'file':(io.BytesIO(b'fake'),'catalog.jpg')},
+                content_type='multipart/form-data',headers=headers)
+        with patch.object(whatsapp_media.inbox_media_service,'validate_upload',
+                          return_value=(b'fake','image','image/jpeg','catalog.jpg')), \
+             patch.object(whatsapp_media.requests,'post',side_effect=[upload,send]) as media_http:
+            first=submit()
+            self.assertEqual(first.status_code,200,first.data)
+            self.assertEqual(first.json['status'],'accepted')
+            again=submit()
+            self.assertEqual(again.status_code,200,again.data)
+            self.assertEqual(media_http.call_count,2)
+
+            history=self.client.get(f'/business/7/web-inbox/{cid}/messages').json
+            outbound=[m for m in history['messages'] if m['role']=='human' and m.get('media')]
+            self.assertEqual(len(outbound),1)
+            self.assertEqual(outbound[0]['media']['filename'],'catalog.jpg')
+            self.assertEqual(outbound[0]['delivery_status'],'accepted')
+
+            with store.transaction() as tx:
+                tx.execute('UPDATE kw_core_wa_conversations SET last_inbound_at=0 WHERE business_id=7 AND conversation_id=?',(cid,))
+            late=submit('owner-media-000002')
+            self.assertEqual(late.status_code,409)
+            self.assertEqual(late.json['error'],'outside_24h_window')
+            self.assertEqual(media_http.call_count,2)
 
     def test_human_takeover_manual_reply_resume_and_template(self):
         self.receive();cid=self.link()['conversation_id'];wa.mode(7,cid,'HUMAN_TAKEOVER',1)
