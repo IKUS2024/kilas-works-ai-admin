@@ -83,7 +83,9 @@ class JobRoutesTests(unittest.TestCase):
         with patch.dict(os.environ,{'KILAS_CORE_V2_ENABLED':'false'}):
             self.assertEqual(self.client.get('/business/7/jobs').status_code,200)
         self.db.execute("UPDATE subscriptions SET status='SUSPENDED' WHERE business_id=7")
-        self.assertEqual(self.create().status_code,404)
+        # Subscription gates automated/channel-linked availability, not the owner's
+        # pre-onboarding manual Jobs workspace.
+        self.assertEqual(self.client.get('/business/7/jobs').status_code,200)
         self.db.execute("UPDATE subscriptions SET status='ACTIVE' WHERE business_id=7")
         self.db.execute("UPDATE businesses SET package='FINANCE' WHERE id=7")
         self.assertEqual(self.client.get('/business/7/jobs').status_code,404)
