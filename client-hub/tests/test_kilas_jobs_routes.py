@@ -310,6 +310,93 @@ class JobRoutesTests(unittest.TestCase):
         self.assertIn(b"data-linked-jobs", detail.data)
         self.assertIn(b"Booking jasa foto minggu depan", detail.data)
 
+    def test_platform_actionable_lead_auto_promotes_and_creates_job(self):
+        import platform_workspace
+        from kilas_core import customer_insights
+
+        phone = "628555333444"
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS messages("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,number TEXT NOT NULL,mode TEXT NOT NULL,"
+            "role TEXT NOT NULL,content TEXT NOT NULL,created_at TEXT NOT NULL)"
+        )
+        self.db.execute("DELETE FROM messages WHERE number=?", (phone,))
+        self.db.execute(
+            "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
+            (phone, "customer", "user",
+             "Yaudah boleh, saya mau content pro dan minta invoicenya.",
+             "2026-09-26 13:00:00"),
+        )
+        with patch.object(platform_workspace.platform_inbox_service, "list_conversations", return_value=[{
+            "customer_phone": phone,
+            "customer_name": "Action Customer",
+            "last_role": "user",
+            "last_message": "Yaudah boleh, saya mau content pro dan minta invoicenya.",
+            "last_message_at": "2026-09-26 13:00:00",
+            "mode": "AI_ACTIVE",
+        }]):
+            scope, _ = platform_workspace.sync_contacts()
+        lead = customers.list_customers(scope["id"], stage="LEAD")[0][0]
+        actionable = {
+            "summary": "Customer ingin lanjut Content Pro dan meminta invoice.",
+            "action": "Lanjut Content Pro dan kirim invoice",
+            "job_status": "DIKERJAKAN",
+            "_meta": {"has_history": True, "fresh": True, "message_count": 2},
+        }
+        with patch.object(customer_insights, "safe_refresh", return_value=actionable) as refresh:
+            promoted = customer_action_jobs.reconcile_actionable_platform_leads(
+                scope, actor_id=1, limit=10
+            )
+        self.assertEqual(promoted, 1)
+        refresh.assert_called_once()
+        customer = customers.get_customer(scope["id"], lead["id"])
+        self.assertEqual(customer["stage"], "CUSTOMER")
+        rows, total, _, _ = jobs.list_jobs(scope["id"], customer_id=customer["id"])
+        self.assertEqual(total, 1)
+        self.assertEqual(rows[0]["owner_status"], "IN_PROGRESS")
+        self.assertEqual(rows[0]["fields"]["action"], "Lanjut Content Pro dan kirim invoice")
+
+    def test_platform_information_only_lead_stays_lead(self):
+        import platform_workspace
+        from kilas_core import customer_insights
+
+        phone = "628555333445"
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS messages("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,number TEXT NOT NULL,mode TEXT NOT NULL,"
+            "role TEXT NOT NULL,content TEXT NOT NULL,created_at TEXT NOT NULL)"
+        )
+        self.db.execute("DELETE FROM messages WHERE number=?", (phone,))
+        self.db.execute(
+            "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
+            (phone, "customer", "user", "Mau tanya harga paketnya berapa?",
+             "2026-09-26 13:01:00"),
+        )
+        with patch.object(platform_workspace.platform_inbox_service, "list_conversations", return_value=[{
+            "customer_phone": phone,
+            "customer_name": "Info Only",
+            "last_role": "user",
+            "last_message": "Mau tanya harga paketnya berapa?",
+            "last_message_at": "2026-09-26 13:01:00",
+            "mode": "AI_ACTIVE",
+        }]):
+            scope, _ = platform_workspace.sync_contacts()
+        lead = customers.list_customers(scope["id"], stage="LEAD")[0][0]
+        information_only = {
+            "summary": "Customer hanya menanyakan harga paket.",
+            "action": None,
+            "job_status": None,
+            "_meta": {"has_history": True, "fresh": True, "message_count": 1},
+        }
+        with patch.object(customer_insights, "safe_refresh", return_value=information_only) as refresh:
+            promoted = customer_action_jobs.reconcile_actionable_platform_leads(
+                scope, actor_id=1, limit=10
+            )
+        self.assertEqual(promoted, 0)
+        refresh.assert_called_once()
+        self.assertEqual(customers.get_customer(scope["id"], lead["id"])["stage"], "LEAD")
+        self.assertEqual(jobs.list_jobs(scope["id"], customer_id=lead["id"])[1], 0)
+
     def test_customer_deal_and_cancel_update_job_status(self):
         business = {'id': 7}
         customer = customers.get_customer(7, self.customer['id'])

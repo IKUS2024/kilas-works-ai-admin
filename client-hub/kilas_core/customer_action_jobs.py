@@ -6,6 +6,7 @@ an actionable next step. Existing manual/playbook Jobs always win to avoid dupli
 """
 import hashlib
 import json
+import re
 
 import db
 from kilas_core import customer_insights, customers, jobs
@@ -17,6 +18,17 @@ SIGNAL_TO_STATUS = {
     "DIKERJAKAN": "IN_PROGRESS",
     "BATAL": "CANCELLED",
 }
+
+# High-recall prefilter only. It NEVER promotes by itself; it only decides whether a Lead's
+# platform WhatsApp history is worth sending through the existing Customer Insight classifier.
+# Customer Insight remains the authority for whether the customer actually requested a concrete
+# action, so "mau tanya harga" / FAQ / comparison can safely stay Lead.
+_PLATFORM_ACTION_HINT = re.compile(
+    r"\b(mau|ingin|booking|reservasi|pesan|order|beli|payment|bayar|invoice|"
+    r"lanjut|deal|fix|setuju|butuh|minta|pakai|bisa\s+bantu)\b",
+    re.IGNORECASE,
+)
+_PLATFORM_SYSTEM_MARKERS = ("[FOLLOW-UP OTOMATIS SISTEM]",)
 
 def _clean(value, maximum=700):
     if not isinstance(value, str):
@@ -69,6 +81,137 @@ def _payload(insight):
     if summary:
         fields["details"] = summary[:420]
     return title, kind, summary, fields, ref
+
+def _platform_candidate_needs_analysis(customer):
+    """True only when a platform Lead has new customer text that may contain a concrete request."""
+    phone = (customer or {}).get("phone")
+    if not phone:
+        return False
+    try:
+        stored = db.query_one(
+            "SELECT demo_message_cursor,insight_json FROM kw_core_customer_insights "
+            "WHERE business_id=? AND customer_id=?",
+            (customer["business_id"], customer["id"]),
+        )
+        if stored and stored.get("insight_json"):
+            try:
+                previous = json.loads(stored["insight_json"])
+            except (TypeError, ValueError):
+                previous = {}
+            if (
+                isinstance(previous, dict)
+                and _clean(previous.get("action"), 240)
+                and previous.get("job_status") in ("PERLU_TINDAKAN", "DIKERJAKAN")
+            ):
+                # Old Insight may already prove intent even if no message is new. Let the
+                # promotion step consume it without another model call.
+                return True
+
+        cursor = int((stored or {}).get("demo_message_cursor") or 0)
+        rows = db.query_all(
+            "SELECT id,content FROM messages WHERE number=? AND mode='customer' AND role='user' "
+            "AND id>? ORDER BY id DESC LIMIT 80",
+            (phone, cursor),
+        )
+    except Exception:
+        return False
+    for row in rows:
+        text = str(row.get("content") or "").strip()
+        if not text or any(marker in text for marker in _PLATFORM_SYSTEM_MARKERS):
+            continue
+        if _PLATFORM_ACTION_HINT.search(text):
+            return True
+    return False
+
+
+def promote_lead_if_actionable(business, customer, insight, actor_id=None):
+    """Promote only the hidden Kilas Works platform Lead when Insight proves concrete intent.
+
+    No keyword directly changes CRM stage. The existing Customer Insight contract must provide
+    both a concrete action and a positive owner-facing job signal. Informational questions,
+    comparisons, vague interest, and cancellations remain Lead.
+    """
+    if not business or not customer or not isinstance(insight, dict):
+        return customer
+    try:
+        import platform_workspace
+        if not platform_workspace.is_scope_business(business["id"]):
+            return customer
+    except Exception:
+        return customer
+    if customer.get("stage") != "LEAD":
+        return customer
+    meta = insight.get("_meta") or {}
+    if not meta.get("has_history") or not meta.get("fresh"):
+        return customer
+    if not _clean(insight.get("action"), 240):
+        return customer
+    if insight.get("job_status") not in ("PERLU_TINDAKAN", "DIKERJAKAN"):
+        return customer
+    return customers.update_customer(
+        business["id"], customer["id"],
+        display_name=customer.get("display_name"),
+        phone=customer.get("phone"),
+        email=customer.get("email"),
+        notes=customer.get("notes"),
+        stage="CUSTOMER",
+        actor_id=actor_id,
+    )
+
+
+def reconcile_actionable_platform_leads(business, actor_id=None, limit=3):
+    """Bounded semantic reconciliation for platform Inbox Leads.
+
+    The broad text prefilter only reduces model calls. Customer Insight makes the final decision.
+    Once an informational Lead is analyzed, its message cursor advances, so later page loads move
+    on to newer/unanalysed Leads instead of repeatedly analyzing the same contact.
+    """
+    if not business:
+        return 0
+    try:
+        import platform_workspace
+        if not platform_workspace.is_scope_business(business["id"]):
+            return 0
+    except Exception:
+        return 0
+    try:
+        limit = max(1, min(int(limit or 3), 50))
+    except (TypeError, ValueError):
+        limit = 3
+    try:
+        with customers.transaction() as tx:
+            leads = tx.execute(
+                "SELECT c.*,COALESCE(s.stage,'CUSTOMER') AS stage "
+                "FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
+                "ON s.business_id=c.business_id AND s.customer_id=c.id "
+                "WHERE c.business_id=? AND COALESCE(s.stage,'CUSTOMER')='LEAD' "
+                "ORDER BY c.last_activity_at DESC,c.id LIMIT 200",
+                (business["id"],),
+            )
+    except Exception:
+        return 0
+
+    promoted_count = 0
+    analyzed = 0
+    for customer in leads:
+        if analyzed >= limit:
+            break
+        if customer.get("source_channel") != "WHATSAPP":
+            continue
+        if not _platform_candidate_needs_analysis(customer):
+            continue
+        analyzed += 1
+        insight = customer_insights.safe_refresh(business, customer)
+        promoted = promote_lead_if_actionable(business, customer, insight, actor_id=actor_id)
+        if not promoted or promoted.get("stage") != "CUSTOMER":
+            continue
+        promoted_count += 1
+        try:
+            sync_from_insight(business, promoted, insight)
+        except Exception:
+            pass
+    return promoted_count
+
 
 def sync_from_insight(business, customer, insight):
     """Keep one Customer Job aligned with the customer's concrete action and explicit deal/cancel signal."""
@@ -172,9 +315,12 @@ def sync_from_insight(business, customer, insight):
             )
         return created
 
-def refresh_and_sync(business, customer):
+def refresh_and_sync(business, customer, actor_id=None):
     insight = customer_insights.safe_refresh(business, customer)
     try:
+        customer = promote_lead_if_actionable(
+            business, customer, insight, actor_id=actor_id
+        ) or customer
         job = sync_from_insight(business, customer, insight)
     except Exception:
         job = None

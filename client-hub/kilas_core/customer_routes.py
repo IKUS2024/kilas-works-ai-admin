@@ -24,6 +24,14 @@ def list_page(bid):
             platform_workspace.sync_contacts()
         except Exception:
             pass
+        # Reconcile only a small bounded batch on normal page loads. The raw keyword prefilter
+        # never promotes; Customer Insight must independently confirm a concrete customer action.
+        try:
+            customer_action_jobs.reconcile_actionable_platform_leads(
+                business, actor_id=security.current_user()["id"], limit=3
+            )
+        except Exception:
+            pass
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:
@@ -67,10 +75,12 @@ def detail_page(bid, customer_id):
     demo = customer_insights.demo_conversation_row(bid, customer)
     if demo:
         conversations.insert(0, demo)
-    insight = customer_insights.safe_refresh(business, customer)
+    insight, _ = customer_action_jobs.refresh_and_sync(
+        business, customer, actor_id=security.current_user()["id"]
+    )
     try:
-        customer_action_jobs.sync_from_insight(business, customer, insight)
-    except Exception:
+        customer = customers.get_customer(bid, customer_id)
+    except customers.CustomerError:
         pass
     return render_template("customer_detail.html", business=business, customer=customer,
                            conversations=conversations, insight=insight,
@@ -86,10 +96,12 @@ def insight_fragment(bid, customer_id):
         customer = customers.get_customer(bid, customer_id)
     except customers.CustomerError as error:
         abort(error.status)
-    insight = customer_insights.safe_refresh(business, customer)
+    insight, _ = customer_action_jobs.refresh_and_sync(
+        business, customer, actor_id=security.current_user()["id"]
+    )
     try:
-        customer_action_jobs.sync_from_insight(business, customer, insight)
-    except Exception:
+        customer = customers.get_customer(bid, customer_id)
+    except customers.CustomerError:
         pass
     return render_template("_customer_insight.html", business=business,
                            customer=customer, insight=insight)
