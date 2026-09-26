@@ -33,7 +33,7 @@ def send(page, text):
 def inbox(owner, bid):
     owner.goto(BASE+f'/business/{bid}/inbox?channel=web',wait_until='networkidle')
     owner.locator('a.web-conversation').first.click()
-    expect(owner.locator('[data-playbook-context]')).to_be_visible()
+    expect(owner.locator('[data-linked-jobs]')).to_be_visible()
     fits(owner)
 
 
@@ -59,19 +59,24 @@ def main():
         inbox(owner,7)
         panel=owner.locator('[data-linked-jobs]')
         expect(panel.locator('a.client-item')).to_have_count(1)
-        for fact in ('baju','20 kg','Guangzhou','Tangerang','Masih dibutuhkan'):
-            assert fact in panel.inner_text()
+        # Linked action stays concise; detailed workflow facts live on the Job detail page.
+        assert 'baju' in panel.inner_text()
         job_url=BASE+panel.locator('a.client-item').get_attribute('href')
         inbox_url=owner.url
         owner.screenshot(path=str(OUT/'03_inbox_known_missing.png'),full_page=True)
+        owner.goto(job_url,wait_until='networkidle')
+        for fact in ('baju','20 kg','Guangzhou','Tangerang','Masih dibutuhkan'):
+            assert fact in owner.locator('[data-playbook-context]').inner_text()
+        owner.goto(inbox_url,wait_until='networkidle')
+
         send(visitor,'Volumenya 0.2 m3')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(2,timeout=10000)
         owner.reload(wait_until='networkidle')
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
         assert BASE+owner.locator('[data-linked-jobs] a.client-item').get_attribute('href') == job_url
-        assert '0.2 m³' in owner.locator('[data-playbook-context]').inner_text()
         assert 'Siap ditawarkan' in owner.locator('[data-linked-jobs]').inner_text()
         owner.goto(job_url,wait_until='networkidle')
+        assert '0.2 m³' in owner.locator('[data-playbook-context]').inner_text()
         customer_path=owner.locator('[data-job-customer]').get_attribute('href')
         version=owner.locator('[name=version]').input_value()
         fits(owner);owner.screenshot(path=str(OUT/'04_same_job_ready.png'),full_page=True)
