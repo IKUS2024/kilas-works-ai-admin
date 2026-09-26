@@ -1,30 +1,30 @@
 {% extends "base.html" %}
-{% block title %}Tindakan — {{ business.business_name }}{% endblock %}
+{% block title %}Jobs — {{ business.business_name }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
-.job-action-line{margin-top:6px;font-size:13px;line-height:1.45;color:var(--text)}
-.job-action-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.job-action-meta .client-status{font-size:9px}
+.job-one-line{margin-top:7px;font-size:14px;line-height:1.45;color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.job-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.job-badges .client-status{font-size:9px}
 </style>
 <section class="client-page">
   <div class="client-head">
     <div>
-      <h1>Tindakan</h1>
+      <h1>Jobs</h1>
       <p>{{ business.business_name }} · tindakan customer</p>
     </div>
-    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>
+    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage='CUSTOMER') }}">Customers</a>
   </div>
 
   <form class="card client-search-card" method="get">
     {% if customer_id %}<input type="hidden" name="customer_id" value="{{ customer_id }}">{% endif %}
-    <label for="job-search">Cari tindakan</label>
-    <input id="job-search" type="search" name="q" maxlength="120" value="{{ search }}" placeholder="Customer, tindakan, atau ringkasan">
+    <label for="job-search">Cari Job</label>
+    <input id="job-search" type="search" name="q" maxlength="120" value="{{ search }}" placeholder="Customer atau tindakan">
     <label for="job-filter">Status</label>
     <select id="job-filter" name="status">
       <option value="">Semua status</option>
-      {% for key,value in status_labels.items() %}
-      <option value="{{ key }}" {{ 'selected' if status==key else '' }}>{{ value }}</option>
+      {% for key,label in status_options %}
+      <option value="{{ key }}" {{ 'selected' if status==key else '' }}>{{ label }}</option>
       {% endfor %}
     </select>
     <button class="btn" type="submit">Cari</button>
@@ -35,30 +35,27 @@
     <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
       <div class="client-item-head">
         <div class="client-item-main">
-          <div class="client-item-title">{{ row.title }}</div>
-          <div class="client-item-meta">
-            {{ row.customer_name or 'Customer' }} · {{ row.status_label }}
-          </div>
-          {% if row.fields.action %}
-          <div class="job-action-line">{{ row.fields.action }}</div>
-          {% elif row.summary %}
-          <div class="job-action-line">{{ row.summary }}</div>
+          <div class="client-item-title">{{ row.fields.action or row.title }}</div>
+          <div class="client-item-meta">{{ row.customer_name or 'Customer' }}</div>
+          {% if not row.fields.action and row.summary %}
+          <div class="job-one-line">{{ row.summary }}</div>
           {% endif %}
-          <div class="job-action-meta">
+          <div class="job-badges">
             <span class="client-status">{{ row.label }}</span>
+            <span class="client-status info">{{ row.status_label }}</span>
           </div>
         </div>
       </div>
     </a>
     {% else %}
       <div class="client-empty">
-        Belum ada tindakan. Job hanya muncul untuk Customer yang sudah menyatakan tindakan atau permintaan konkret.
+        Belum ada Job. Job hanya muncul untuk Customer yang punya tindakan atau permintaan konkret.
       </div>
     {% endfor %}
   </div>
 
   {% if pages>1 %}
-  <nav class="client-pagination" aria-label="Halaman tindakan">
+  <nav class="client-pagination" aria-label="Halaman Jobs">
     {% if page>1 %}<a class="client-page-btn" href="{{ url_for('core_jobs.list_page',bid=business.id,q=search,status=status,customer_id=customer_id,page=page-1) }}">← Sebelumnya</a>{% endif %}
     <span>{{ page }} / {{ pages }}</span>
     {% if page<pages %}<a class="client-page-btn" href="{{ url_for('core_jobs.list_page',bid=business.id,q=search,status=status,customer_id=customer_id,page=page+1) }}">Berikutnya →</a>{% endif %}
