@@ -39,7 +39,7 @@
           <div class="client-item-title">{{ row.customer_name or 'Customer' }}</div>
           <div class="job-action-meta">
             <span class="client-status">Jenis · {{ row.label }}</span>
-            <span class="client-status">Status · {{ row.status_label }}</span>
+            <span class="client-status">Status · {{ row.owner_status_label }}</span>
           </div>
           <div class="job-action-label">Tindakan</div>
           <div class="job-action-line">{{ row.fields.action or row.summary or row.title }}</div>
