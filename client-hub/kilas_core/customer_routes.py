@@ -96,7 +96,7 @@ def update_profile(bid, customer_id):
             abort(404)
         customer = customers.get_customer(bid, customer_id)
         business = security.require_business_access(bid)
-        conversations = customers.customer_conversations(bid, customer_id)
+        conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
         demo = customer_insights.demo_conversation_row(bid, customer)
         if demo:
             conversations.insert(0, demo)
