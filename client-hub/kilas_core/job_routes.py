@@ -121,6 +121,7 @@ def list_page(bid):
     # Bounded monitoring pass: recent WhatsApp Leads/Customers with a real next action
     # are reconciled into one idempotent Job before the owner sees the queue.
     try:
+        customer_action_jobs.prune_invalid_lead_jobs(bid)
         customer_action_jobs.reconcile_business(business)
     except Exception:
         pass
