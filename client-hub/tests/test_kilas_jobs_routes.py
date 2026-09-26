@@ -259,6 +259,28 @@ class JobRoutesTests(unittest.TestCase):
         self.assertNotEqual(jobs.list_jobs(7)[0][0]['fields'].get('source'), 'Customer Insight')
 
 
+    def test_prune_invalid_customer_insight_job_from_lead_only(self):
+        # Synthetic stale record from the retired broad-intent implementation.
+        with jobs.transaction() as tx:
+            jobs._lock(tx, 7)
+            stale = jobs._create_job(
+                tx, 7, self.customer['id'], title='Stale AI action',
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR,
+                operation_key='stale-insight-lead-0001',
+                fields={'action':'Follow up','source':'Customer Insight','source_key':'old'},
+            )
+        manual = jobs.create_job(
+            7, self.customer['id'], title='Manual owner action',
+            actor_id=1, operation_key='manual-lead-action-0001',
+            fields={'details':'Keep me'},
+        )
+        self.assertEqual(jobs.list_jobs(7)[1], 2)
+        self.assertEqual(customer_action_jobs.prune_invalid_lead_jobs(7), 1)
+        remaining = jobs.list_jobs(7)[0]
+        self.assertEqual(len(remaining), 1)
+        self.assertEqual(remaining[0]['id'], manual['id'])
+        self.assertNotEqual(remaining[0]['id'], stale['id'])
+
     def test_chat_and_simulator_never_create_jobs_automatically(self):
         with patch.object(self.ai,'_call_claude',return_value=('Kami bantu pesanan Anda','end_turn',None)):
             self.assertEqual(self.send(self.identity,text='Buat pesanan 20 kopi').status_code,200)
