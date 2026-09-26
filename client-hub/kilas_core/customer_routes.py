@@ -1,6 +1,7 @@
 """Owner-facing Kilas Core Customers routes. AI Admin only; Finance remains separate."""
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
+import platform_workspace
 from kilas_core import customers, customer_insights, customer_action_jobs
 from kilas_core.job_routes import linked_context
 
@@ -18,6 +19,11 @@ def _business(bid):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
+    if platform_workspace.is_scope_business(bid):
+        try:
+            platform_workspace.sync_contacts()
+        except Exception:
+            pass
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:
