@@ -137,6 +137,33 @@ def refresh_and_sync(business, customer):
     return insight, job
 
 
+def prune_invalid_lead_jobs(business_id):
+    """Remove only AI-generated Customer Insight Jobs whose CRM owner is still a Lead.
+
+    This repairs records created by the short-lived broad-intent implementation. Manual and
+    playbook Jobs are never touched.
+    """
+    if not jobs.enabled():
+        return 0
+    with jobs.transaction() as tx:
+        jobs._lock(tx, business_id)
+        rows = tx.execute(
+            "SELECT j.id FROM kw_core_jobs j "
+            "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
+            "WHERE j.business_id=? AND s.stage='LEAD' "
+            "AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%'",
+            (business_id,),
+        )
+        removed = 0
+        for row in rows:
+            tx.execute("DELETE FROM kw_core_job_operations WHERE business_id=? AND job_id=?",
+                       (business_id, row["id"]))
+            tx.execute("DELETE FROM kw_core_jobs WHERE business_id=? AND id=?",
+                       (business_id, row["id"]))
+            removed += 1
+        return removed
+
+
 def reconcile_business(business, limit=10):
     """Reconcile only confirmed Customers; Leads never create Jobs."""
     if not jobs.enabled() or not business:
