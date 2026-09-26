@@ -5319,6 +5319,65 @@ def _is_demo_binding_message(text):
     return isinstance(text, str) and bool(_DEMO_BINDING_PATTERN.search(text))
 
 
+# The Kilas owner may use their own WhatsApp number to test the customer-facing Demo Inbox.
+# Without an explicit session gate, the handshake itself works but every following message falls
+# back into Owner Assistant routing because from_number == OWNER_WHATSAPP_NUMBER. Keep a bounded
+# 24-hour demo-customer session. In-memory state is the fast path; the durable Client Hub
+# demo_whatsapp_bound audit row recovers the session after a bot restart/redeploy.
+_DEMO_OWNER_SESSION_SECONDS = 24 * 60 * 60
+_owner_demo_sessions = {}
+
+
+def _activate_owner_demo_session(number, now=None):
+    if not isinstance(number, str) or not number:
+        return False
+    now = int(time.time()) if now is None else int(now)
+    _owner_demo_sessions[number] = now + _DEMO_OWNER_SESSION_SECONDS
+    return True
+
+
+def _owner_demo_active(number, now=None):
+    if not isinstance(number, str) or not number:
+        return False
+    now = int(time.time()) if now is None else int(now)
+    expires = int(_owner_demo_sessions.get(number) or 0)
+    if expires > now:
+        return True
+    if expires:
+        _owner_demo_sessions.pop(number, None)
+
+    # Recovery path for a currently-bound demo after process restart. Query only the bounded
+    # audit action and parse the JSON defensively; a malformed/old row never turns on demo mode.
+    if not db_enabled():
+        return False
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT detail FROM audit_log WHERE action = %s ORDER BY id DESC LIMIT 50",
+            ("demo_whatsapp_bound",),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception:
+        return False
+    for row in rows:
+        try:
+            detail = json.loads(row[0] or "{}")
+            phone = str(detail.get("phone") or "")
+            bound_at = int(detail.get("bound_at") or 0)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if phone != number:
+            continue
+        if bound_at > 0 and bound_at + _DEMO_OWNER_SESSION_SECONDS > now:
+            _owner_demo_sessions[number] = bound_at + _DEMO_OWNER_SESSION_SECONDS
+            return True
+        return False
+    return False
+
+
 def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None,
                  is_voice_note=False, tenant_context_block="", tenant_id=None, defer_delivery=False):
     """Panggil Claude API buat generate balasan AI.
@@ -7001,6 +7060,7 @@ def _webhook_body_impl(data):
                 owner_text = normalize_owner_text_light(message["text"]["body"])
                 if _is_demo_binding_message(owner_text):
                     save_message_to_db(from_number, "owner", "user", owner_text)
+                    _activate_owner_demo_session(from_number)
                     sent, _ = send_whatsapp_message(from_number, _DEMO_CONNECTED_REPLY)
                     if sent:
                         owner_conversations[from_number] = (
@@ -7009,7 +7069,7 @@ def _webhook_body_impl(data):
                                {"role": "assistant", "content": _DEMO_CONNECTED_REPLY}]
                         )[-20:]
                         save_message_to_db(from_number, "owner", "assistant", _DEMO_CONNECTED_REPLY)
-                    print("[DEMO_BINDING] owner handshake accepted")
+                    print("[DEMO_BINDING] owner handshake accepted; customer-demo session active")
                     return jsonify({"status": "ok"}), 200
 
                 official_reply = _official_link_answer(owner_text, owner_conversations.get(from_number, []), owner=True)
@@ -7044,6 +7104,23 @@ def _webhook_body_impl(data):
                         f"Oke? (bilang 'terusin' atau 'oke' buat konfirmasi)",
                     )
                     return jsonify({"status": "ok"}), 200
+
+            # If this owner number is currently bound to a Kilas Assist demo, the owner is
+            # intentionally role-playing a CUSTOMER. Route through the exact customer pipeline so
+            # the message + AI reply are durably written to customer history, mirrored by Client
+            # Hub Inbox, and consumed by Customer Insight. Normal Owner Assistant behavior resumes
+            # automatically when the bounded 24-hour session expires.
+            if _owner_demo_active(from_number):
+                reply = call_claude(
+                    from_number,
+                    owner_text,
+                    image_b64=owner_image_b64,
+                    image_mime=owner_image_mime,
+                    is_voice_note=owner_msg_is_voice_note,
+                )
+                send_whatsapp_message(from_number, strip_tags(reply))
+                print("[DEMO_OWNER_SESSION] routed owner-number message through customer demo")
+                return jsonify({"status": "ok"}), 200
 
             if _owner_intent.classify(owner_text) in _owner_intent.READ_INTENTS:
                 pending_owner_clarification.pop(_ck(tenant_id, from_number), None)
