@@ -705,6 +705,8 @@ if __name__ == "__main__":
     test_L_kilas_admin_can_still_manage_platform_inbox()
     test_L_non_admin_cannot_reach_platform_inbox()
     test_M_non_ai_admin_business_has_no_inbox()
+    test_demo_ai_reply_analysis_is_scoped_and_safe()
+    test_demo_inbox_human_text_media_template_controls_are_scoped()
     test_template_config_missing_fails_closed()
     test_platform_template_config_missing_fails_closed()
     test_tenant_template_send_uses_only_that_tenants_credentials()
