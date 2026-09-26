@@ -147,20 +147,25 @@ class JobRoutesTests(unittest.TestCase):
             self.assertEqual(self.send(self.identity).status_code,200)
         detail='/business/7/customers/'+self.customer['id']
         inbox='/business/7/inbox?channel=web&conversation='+self.cid
-        for path in (detail,inbox):
-            page=self.client.get(path)
-            self.assertEqual(page.status_code,200)
-            self.assertIn(b'data-create-job',page.data)
+        detail_page=self.client.get(detail)
+        inbox_page=self.client.get(inbox)
+        self.assertEqual(detail_page.status_code,200)
+        self.assertEqual(inbox_page.status_code,200)
+        self.assertIn(b'data-create-job',detail_page.data)
+        self.assertNotIn(b'data-create-job',inbox_page.data)
+        self.assertNotIn(b'data-linked-jobs',inbox_page.data)
         # Server resolves the customer from the selected conversation.
         new=self.client.get('/business/7/jobs/new?conversation_id='+self.cid)
         self.assertEqual(new.status_code,200)
         self.assertIn(self.customer['id'].encode(),new.data)
         self.assertEqual(self.create().status_code,303)
         job=jobs.list_jobs(7)[0][0]
-        for path in (detail,inbox):
-            page=self.client.get(path)
-            self.assertIn(('/business/7/jobs/'+job['id']).encode(),page.data)
-            self.assertIn(b'Pesanan makan siang',page.data)
+        detail_page=self.client.get(detail)
+        inbox_page=self.client.get(inbox)
+        self.assertIn(('/business/7/jobs/'+job['id']).encode(),detail_page.data)
+        self.assertIn(b'Pesanan makan siang',detail_page.data)
+        self.assertNotIn(('/business/7/jobs/'+job['id']).encode(),inbox_page.data)
+        self.assertNotIn(b'data-linked-jobs',inbox_page.data)
         page=self.client.get('/business/7/jobs/'+job['id'])
         self.assertIn(detail.encode(),page.data)
         self.assertNotIn(b'data-job-conversation',page.data)
