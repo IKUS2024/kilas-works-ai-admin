@@ -1,0 +1,79 @@
+<div class="customer-insight-card-inner">
+  <div class="customer-insight-head">
+    <div>
+      <p class="client-kicker">AI CUSTOMER INSIGHT</p>
+      <h2>Customer Insight</h2>
+    </div>
+    <span class="client-status {{ 'ok' if insight._meta.fresh else 'warn' }}">
+      {{ 'Terkini' if insight._meta.fresh else 'Perlu update' }}
+    </span>
+  </div>
+
+  {% if insight._meta.error %}
+    <div class="client-note insight-warning">
+      Analisis terbaru belum bisa dibuat. {% if insight._meta.updated_at %}Insight terakhir tetap ditampilkan.{% else %}Coba buka lagi sebentar lagi.{% endif %}
+    </div>
+  {% endif %}
+
+  {% if not insight._meta.has_history %}
+    <div class="client-empty">Belum ada cukup chat untuk dianalisis. Insight akan terisi otomatis setelah customer mulai percakapan.</div>
+  {% else %}
+    <div class="insight-summary">{{ insight.summary }}</div>
+
+    <div class="insight-facts">
+      <div><span>Nama</span><strong>{{ insight.name or 'Belum diketahui' }}</strong></div>
+      <div><span>Bisnis</span><strong>{{ insight.business_name or 'Belum diketahui' }}</strong></div>
+      <div><span>Jenis bisnis</span><strong>{{ insight.business_type or 'Belum diketahui' }}</strong></div>
+      <div><span>Lokasi</span><strong>{{ insight.location or 'Belum diketahui' }}</strong></div>
+      <div><span>Budget</span><strong>{{ insight.budget or 'Belum diketahui' }}</strong></div>
+      <div><span>Tahap</span><strong>{{ insight.buying_stage|replace('_',' ')|title }}</strong></div>
+    </div>
+
+    {% if insight.interests %}
+    <div class="insight-section">
+      <h3>Minat</h3>
+      <div class="insight-tags">{% for item in insight.interests %}<span>{{ item }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+
+    {% if insight.needs %}
+    <div class="insight-section">
+      <h3>Kebutuhan</h3>
+      <ul>{% for item in insight.needs %}<li>{{ item }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if insight.buying_signal_reason %}
+    <div class="insight-section">
+      <h3>Sinyal minat</h3>
+      <p>{{ insight.buying_signal_reason }}</p>
+    </div>
+    {% endif %}
+
+    {% if insight.communication_notes %}
+    <div class="insight-section">
+      <h3>Pola komunikasi</h3>
+      <p>{{ insight.communication_notes }}</p>
+    </div>
+    {% endif %}
+
+    {% if insight.missing_info %}
+    <div class="insight-section">
+      <h3>Yang belum diketahui</h3>
+      <div class="insight-tags muted-tags">{% for item in insight.missing_info %}<span>{{ item }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+
+    {% if insight.follow_up %}
+    <div class="insight-followup">
+      <span>Saran follow-up</span>
+      <strong>{{ insight.follow_up }}</strong>
+    </div>
+    {% endif %}
+
+    <div class="insight-meta">
+      {{ insight._meta.message_count }} pesan dianalisis
+      {% if insight._meta.updated_at %} · diperbarui {{ insight._meta.updated_at|humanize_timestamp }}{% endif %}
+    </div>
+  {% endif %}
+</div>
