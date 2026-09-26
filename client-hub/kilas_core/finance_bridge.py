@@ -408,6 +408,21 @@ def publish_and_send_invoice(bid, actor, jid, operation_key):
     result = issue_job_invoice(bid, actor, jid)
     link, invoice = result['link'], result['invoice']
     job = _job(bid, jid)
+    platform_scope = platform_workspace.is_scope_business(bid)
+
+    # Preserve the established tenant contract: when no WhatsApp conversation exists, report
+    # conversation_unavailable before generating a public invoice-share token. Platform Admin
+    # uses the legacy Kilas Works Inbox instead, so it resolves the customer's phone directly.
+    if platform_scope:
+        customer = _customer(bid, job['customer_id'])
+        phone = customer.get('phone')
+        conversation_ref = "platform:" + str(phone or "")
+    else:
+        cid = _job_whatsapp_conversation(bid, job)
+        if not cid:
+            return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
+        conversation_ref = cid
+
     try:
         base = finance_invoice_view.base_url()
         with branches.scope(link['finance_business_id'], link['finance_branch_id'], actor):
@@ -415,20 +430,13 @@ def publish_and_send_invoice(bid, actor, jid, operation_key):
         share_url = base + '/finance/invoice-share/' + token
         message = f"Invoice {invoice['invoice_number']} sudah terbit.\nSilakan lihat detail invoice di:\n{share_url}"
 
-        if platform_workspace.is_scope_business(bid):
-            customer = _customer(bid, job['customer_id'])
-            phone = customer.get('phone')
+        if platform_scope:
             event_id = f"invoice:{link['finance_invoice_id']}:issued"
             delivery = platform_workspace.send_transactional_text(
                 phone, event_id, message, actor_id=actor)
-            conversation_ref = "platform:" + str(phone or "")
         else:
-            cid = _job_whatsapp_conversation(bid, job)
-            if not cid:
-                return dict(result=result, delivery={'status':'conversation_unavailable'}, already_sent=False)
             delivery = whatsapp_transport.system_text(
                 bid, cid, f"invoice:{link['finance_invoice_id']}", message, actor, safe_retry=True)
-            conversation_ref = cid
     except Exception:
         delivery = {'status':'send_unavailable','error':'transactional_send_failed'}
         conversation_ref = None
