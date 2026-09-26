@@ -100,6 +100,22 @@ def enabled():
     return os.environ.get('KILAS_JOBS_V2_ENABLED', '').strip().lower() == 'true'
 
 
+def visible_transitions(status):
+    """Owner-facing next states, collapsing legacy quote/approval states."""
+    if status in ('QUOTED', 'APPROVED'):
+        raw = TRANSITIONS[status]
+    else:
+        raw = TRANSITIONS.get(status, ())
+    result = []
+    seen = set()
+    for value in raw:
+        visible = 'READY_FOR_QUOTE' if value in ('QUOTED','APPROVED') else value
+        if visible in dict(VISIBLE_STATUS_OPTIONS) and visible not in seen:
+            result.append(visible)
+            seen.add(visible)
+    return tuple(result)
+
+
 def presentation(category):
     words = set(re.findall(r'[a-z]+', str(category or '').lower()))
     groups = (
