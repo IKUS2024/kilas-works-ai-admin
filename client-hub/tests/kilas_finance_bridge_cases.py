@@ -136,6 +136,33 @@ class BridgeCases:
         with branches.scope(self.target,self.branch,self.actor):
             self.assertEqual(len(f.list_transactions(self.target,actor_user_id=self.actor)),1)
 
+    def test_publish_job_invoice_uses_official_whatsapp_transport(self):
+        self.connect()
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",
+                   (self.source,self.jid))
+        linked=bridge.ensure_job_customer_link(
+            self.source,self.actor,self.jid,expected_version=1,operation_key='c'*32)
+        with branches.scope(self.target,self.branch,self.actor):
+            invoice_id=f.create_finance_invoice(
+                self.target,linked['customer']['id'],self.invoice['issue_date'],self.invoice['due_date'],
+                self.invoice['items'],currency='IDR',actor_user_id=self.actor,idempotency_key='d'*32)
+        bridge.attach_existing_invoice(self.source,self.actor,self.jid,invoice_id,expected_version=1)
+        with patch.object(bridge.customer_insights,'whatsapp_conversation_rows',
+                          return_value=[{'id':'wa_invoice_test'}]), \
+             patch.object(bridge.finance_invoice_view,'base_url',return_value='https://app.kilasworks.id'), \
+             patch.object(bridge.finance_invoice_view,'create_token',return_value='signed-test-token'), \
+             patch.object(bridge.whatsapp_transport,'system_text',
+                          return_value={'status':'accepted'}) as send:
+            result=bridge.publish_and_send_invoice(
+                self.source,self.actor,self.jid,'publish-job-invoice-0001')
+        self.assertEqual(result['result']['invoice']['status'],'ISSUED')
+        send.assert_called_once()
+        args=send.call_args.args
+        self.assertEqual(args[0],self.source)
+        self.assertEqual(args[1],'wa_invoice_test')
+        self.assertIn('/finance/invoice-share/signed-test-token',args[3])
+        self.assertIn(result['result']['invoice']['invoice_number'],args[3])
+
     def test_mapping_change_disable_preserves_history_and_old_replay(self):
         self.connect();original=self.customer();invoice=self.draft()
         new_branch=branches.create_branch(self.target,'Second',self.actor)
