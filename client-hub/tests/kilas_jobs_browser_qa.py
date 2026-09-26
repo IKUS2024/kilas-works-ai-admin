@@ -45,9 +45,9 @@ def main():
         first_job_url=owner.url.split('?')[0]
         fits(owner)
         owner.screenshot(path=str(OUT/'07_job_created.png'),full_page=True)
-        owner.get_by_label('Status',exact=True).select_option('NEEDS_INFORMATION')
+        owner.get_by_label('Status',exact=True).select_option('IN_PROGRESS')
         owner.get_by_role('button',name='Simpan perubahan',exact=True).click()
-        expect(owner.locator('span.client-status')).to_have_text('Butuh informasi')
+        expect(owner.locator('span.client-status')).to_have_text('Dikerjakan')
         owner.screenshot(path=str(OUT/'08_job_updated.png'),full_page=True)
         owner.locator('[data-job-customer]').click()
         expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
@@ -57,7 +57,7 @@ def main():
 
         owner.goto(BASE+'/business/7/jobs',wait_until='networkidle')
         owner.get_by_label('Cari tindakan',exact=True).fill('kantor')
-        owner.get_by_label('Status',exact=True).select_option('NEEDS_INFORMATION')
+        owner.get_by_label('Status',exact=True).select_option('IN_PROGRESS')
         owner.get_by_role('button',name='Cari',exact=True).click()
         expect(owner.locator('a.client-item')).to_have_count(1)
         fits(owner);owner.screenshot(path=str(OUT/'11_jobs_filter.png'),full_page=True)
