@@ -38,6 +38,8 @@ def list_page(bid):
         )
         if customer_insights.demo_conversation_row(bid, row):
             row["conversation_count"] += 1
+        if customer_insights.platform_conversation_row(bid, row):
+            row["conversation_count"] += 1
     stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q,
@@ -53,6 +55,9 @@ def detail_page(bid, customer_id):
         conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
     except customers.CustomerError as error:
         abort(error.status)
+    platform = customer_insights.platform_conversation_row(bid, customer)
+    if platform:
+        conversations.insert(0, platform)
     demo = customer_insights.demo_conversation_row(bid, customer)
     if demo:
         conversations.insert(0, demo)
@@ -105,6 +110,9 @@ def update_profile(bid, customer_id):
         customer = customers.get_customer(bid, customer_id)
         business = security.require_business_access(bid)
         conversations = customer_insights.whatsapp_conversation_rows(bid, customer_id)
+        platform = customer_insights.platform_conversation_row(bid, customer)
+        if platform:
+            conversations.insert(0, platform)
         demo = customer_insights.demo_conversation_row(bid, customer)
         if demo:
             conversations.insert(0, demo)
