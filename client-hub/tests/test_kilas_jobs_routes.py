@@ -419,6 +419,17 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(deal['id'],first['id'])
         self.assertEqual(deal['owner_status'],'NEW')
 
+        # Owner cannot manually bypass the payment boundary for an AI-generated Job.
+        path=f"/business/7/jobs/{deal['id']}"
+        page=self.client.get(path)
+        self.assertNotIn(b'value="IN_PROGRESS"', page.data)
+        blocked=self.client.post(path,data=dict(
+            csrf_token='csrf-test',title=deal['title'],summary=deal['summary'],
+            status='IN_PROGRESS',version=deal['version'],operation_key='blocked-prepayment-0001'
+        ))
+        self.assertEqual(blocked.status_code,409)
+        self.assertEqual(jobs.get_job(7,deal['id'])['owner_status'],'NEW')
+
         payment = customer_action_jobs.sync_from_insight(business, customer, {
             'summary':'Customer siap bayar dan meminta invoice.',
             'action':'Kirim invoice untuk booking foto',

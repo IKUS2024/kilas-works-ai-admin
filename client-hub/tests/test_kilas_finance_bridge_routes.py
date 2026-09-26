@@ -99,7 +99,7 @@ class BridgeRoutesTests(unittest.TestCase):
         db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",(self.source,self.jid))
         job=f'/business/{self.source}/jobs/{self.jid}'
         page=self.client.get(job)
-        self.assertIn('Tugas manusia · Invoice',page.text)
+        self.assertIn('Buat invoice untuk customer',page.text)
         csrf=re.search(r'name="csrf_token" value="([^"]*)"',page.text)[1]
         start=self.client.post(self.base+'/jobs/'+self.jid+'/invoice/start',data={'csrf_token':csrf})
         self.assertEqual(start.status_code,303)

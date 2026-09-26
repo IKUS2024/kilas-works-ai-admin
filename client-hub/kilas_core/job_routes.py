@@ -194,9 +194,13 @@ def detail_page(bid,job_id):
         pass
     job = jobs.get_job(bid,job_id)
     customer = _confirmed_customer(bid, job['customer_id'])
+    transitions = jobs.owner_transitions(job['status'])
+    if (job['fields'].get('source') == 'Customer Insight'
+            and job['fields'].get('payment_step_reached') != 'true'):
+        transitions = tuple(value for value in transitions if value != 'IN_PROGRESS')
     return render_template('job_form.html',**_context(business,job=job,customer=customer,
                            conversation_id=job['conversation_id'],fields=job['fields'],
-                           transitions=jobs.owner_transitions(job['status']),saved=request.args.get('saved')=='1'))
+                           transitions=transitions,saved=request.args.get('saved')=='1'))
 
 
 @jobs_bp.post('/business/<int:bid>/jobs/<job_id>')
@@ -213,6 +217,10 @@ def update(bid,job_id):
     requested_status = form.get('status')
     if requested_status not in jobs.OWNER_STATUS_LABELS:
         raise jobs.JobError('invalid_status')
+    if (job['fields'].get('source') == 'Customer Insight'
+            and requested_status == 'IN_PROGRESS'
+            and job['fields'].get('payment_step_reached') != 'true'):
+        raise jobs.JobError('payment_not_ready', 409)
     # Preserve the exact submitted status for same-state retries when the internal status
     # already equals the owner state, so the existing operation key replays idempotently.
     # Legacy internal states grouped under "Perlu tindakan" still use None to avoid rewinding.
