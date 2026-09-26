@@ -7,7 +7,7 @@ import repo
 import security
 import subscription_service
 import platform_workspace
-from kilas_core import customers, jobs, customer_action_jobs
+from kilas_core import customers, jobs, customer_action_jobs, background_tasks
 from kilas_core.flags import enabled_for_business
 from kilas_core.playbook_definitions import PLAYBOOKS
 
@@ -130,18 +130,11 @@ def _source(bid, customer_id, conversation_id):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
-    if platform_workspace.is_scope_business(bid):
-        try:
-            platform_workspace.sync_contacts()
-        except Exception:
-            pass
-    # Bounded monitoring pass: confirmed WhatsApp Customers with a real next action
-    # are reconciled into one idempotent Job before the owner sees the queue.
-    try:
-        customer_action_jobs.prune_invalid_lead_jobs(bid)
-        customer_action_jobs.reconcile_business(business)
-    except Exception:
-        pass
+    # Keep owner navigation read-only and fast. Contact sync + Customer Insight + Job
+    # reconciliation continue in the bounded background worker instead of blocking this GET.
+    background_tasks.schedule_business_refresh(
+        business, actor_id=security.current_user()["id"]
+    )
     q, status = request.args.get('q',''), request.args.get('status','')
     if status and status not in jobs.OWNER_STATUS_LABELS:
         raise jobs.JobError('invalid_status')
