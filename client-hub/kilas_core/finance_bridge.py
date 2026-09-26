@@ -335,6 +335,13 @@ def _deal_job(bid, actor, jid):
         raise BridgeError('not_found', 404)
     if jobs.owner_status(job['status']) != 'IN_PROGRESS':
         raise BridgeError('job_not_deal', 409)
+    try:
+        fields = json.loads(job.get('fields_json') or '{}')
+    except (TypeError, ValueError):
+        fields = {}
+    if (fields.get('source') == 'Customer Insight'
+            and fields.get('payment_step_reached') != 'true'):
+        raise BridgeError('job_not_payment_ready', 409)
     return job
 
 
