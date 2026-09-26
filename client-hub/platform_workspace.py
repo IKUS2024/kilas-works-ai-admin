@@ -98,11 +98,9 @@ def ensure_business():
         if not scoped or scoped["id"] != internal["id"]:
             raise RuntimeError("platform_workspace_conflict")
         tx.execute(
-            "INSERT INTO business_profiles(business_id,category,short_description,country,timezone,"
-            "primary_language,tone,customer_salutation) "
-            "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(business_id) DO NOTHING",
-            (internal["id"], "software agency", "Kilas Works internal platform operations",
-             "Indonesia", "Asia/Jakarta", "id", "friendly", "Kak"),
+            "INSERT INTO business_profiles(business_id,category) VALUES (?,?) "
+            "ON CONFLICT(business_id) DO NOTHING",
+            (internal["id"], "software agency"),
         )
         return scoped
 
