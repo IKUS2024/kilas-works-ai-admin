@@ -5,6 +5,7 @@ Run with:
     cd client-hub && python3 tests/test_inbox_unification.py
 """
 import io
+import json
 import os
 import sys
 import tempfile
