@@ -4,16 +4,28 @@
 {% include "_client_compact_style.html" %}
 <section class="client-page">
   <div class="client-head">
-    <div><h1>Customers</h1><p>{{ business.business_name }} · {{ total }} customer</p></div>
+    <div><h1>Customers</h1><p>{{ business.business_name }} · {{ total }} {{ stage_label }}</p></div>
     <a class="btn secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Inbox</a>
   </div>
+
+  <div class="client-toolbar" aria-label="Filter kontak">
+    <a class="btn small {{ 'secondary' if stage != 'ALL' else '' }}"
+       href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage='ALL') }}">Semua</a>
+    <a class="btn small {{ 'secondary' if stage != 'LEAD' else '' }}"
+       href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage='LEAD') }}">Lead</a>
+    <a class="btn small {{ 'secondary' if stage != 'CUSTOMER' else '' }}"
+       href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage='CUSTOMER') }}">Customer</a>
+  </div>
+
   <form class="card client-search-card" method="get">
+    {% if stage != 'ALL' %}<input type="hidden" name="stage" value="{{ stage }}">{% endif %}
     <div class="client-search-row">
-      <input type="search" name="q" value="{{ search }}" aria-label="Cari customer" placeholder="Cari nama, telepon, atau email">
+      <input type="search" name="q" value="{{ search }}" aria-label="Cari kontak" placeholder="Cari nama, telepon, atau email">
       <button class="btn small" type="submit">Cari</button>
-      {% if search %}<a class="btn small secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Reset</a>{% endif %}
+      {% if search %}<a class="btn small secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage=stage) }}">Reset</a>{% endif %}
     </div>
   </form>
+
   <div class="client-list">
     {% for c in customers %}
     <a class="client-item" href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=c.id) }}">
@@ -21,22 +33,31 @@
         <div class="client-item-main">
           <div class="client-item-title">{{ c.display_name }}</div>
           <div class="client-item-meta">
-            {% if c.phone %}{{ c.phone }}{% elif c.email %}{{ c.email }}{% else %}WEB customer{% endif %}
-            · {{ c.conversation_count }} percakapan
+            {% if c.phone %}{{ c.phone }}{% elif c.email %}{{ c.email }}{% else %}{{ 'WhatsApp' if c.source_channel == 'WHATSAPP' else 'WEB' }} contact{% endif %}
+            · {{ c.conversation_count }} percakapan · {{ c.source_channel }}
           </div>
         </div>
-        <div class="client-item-side"><span class="client-status info">{{ c.source_channel }}</span></div>
+        <div class="client-item-side">
+          <span class="client-status {{ 'ok' if c.stage == 'CUSTOMER' else 'warn' }}">{{ 'Customer' if c.stage == 'CUSTOMER' else 'Lead' }}</span>
+        </div>
       </div>
     </a>
     {% else %}
-    <div class="client-empty">Belum ada customer. Customer dari Web Chat atau WhatsApp resmi akan muncul setelah percakapan masuk.</div>
+      {% if stage == 'LEAD' %}
+      <div class="client-empty">Belum ada lead. Kontak baru dari Web Chat atau WhatsApp resmi akan masuk sebagai Lead.</div>
+      {% elif stage == 'CUSTOMER' %}
+      <div class="client-empty">Belum ada customer. Lead bisa diubah menjadi Customer dari halaman detail.</div>
+      {% else %}
+      <div class="client-empty">Belum ada kontak. Kontak baru dari Web Chat atau WhatsApp resmi akan masuk sebagai Lead.</div>
+      {% endif %}
     {% endfor %}
   </div>
+
   {% if pages > 1 %}
-  <nav class="client-pagination" aria-label="Halaman customer">
-    {% if page>1 %}<a class="client-page-btn" href="?q={{ search|urlencode }}&page={{ page-1 }}">←</a>{% endif %}
-    {% for n in range(1,pages+1) %}<a class="client-page-btn {{ 'active' if n==page else '' }}" href="?q={{ search|urlencode }}&page={{ n }}">{{ n }}</a>{% endfor %}
-    {% if page<pages %}<a class="client-page-btn" href="?q={{ search|urlencode }}&page={{ page+1 }}">→</a>{% endif %}
+  <nav class="client-pagination" aria-label="Halaman kontak">
+    {% if page>1 %}<a class="client-page-btn" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=page-1) }}">←</a>{% endif %}
+    {% for n in range(1,pages+1) %}<a class="client-page-btn {{ 'active' if n==page else '' }}" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=n) }}">{{ n }}</a>{% endfor %}
+    {% if page<pages %}<a class="client-page-btn" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=page+1) }}">→</a>{% endif %}
   </nav>
   {% endif %}
 </section>
