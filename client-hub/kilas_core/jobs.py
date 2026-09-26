@@ -17,7 +17,7 @@ from kilas_core.customers import transaction
 from kilas_core.playbook_definitions import FIELD_LABELS as PLAYBOOK_FIELDS, PLAYBOOKS
 
 STATUS_LABELS = {
-    'NEW': 'Baru', 'NEEDS_INFORMATION': 'Butuh informasi',
+    'NEW': 'Perlu tindakan', 'NEEDS_INFORMATION': 'Butuh informasi',
     'READY_FOR_QUOTE': 'Siap ditawarkan', 'QUOTED': 'Sudah ditawarkan',
     'APPROVED': 'Disetujui', 'IN_PROGRESS': 'Dikerjakan',
     'COMPLETED': 'Selesai', 'CANCELLED': 'Dibatalkan',
@@ -40,12 +40,24 @@ FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
                 'missing_information': 'Informasi yang masih dibutuhkan'}
 
 # Server-only workflow metadata is not accepted by owner form routes.
-WORKFLOW_METADATA = {'playbook', 'uncertain_fields'}
+WORKFLOW_METADATA = {'playbook', 'uncertain_fields',
+                     'action', 'intent', 'priority', 'source', 'source_key'}
 LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
 _WHATSAPP_PLAYBOOK_ACTOR = object()
-_PLAYBOOK_ACTORS = (_WEB_PLAYBOOK_ACTOR, _WHATSAPP_PLAYBOOK_ACTOR)
+_CUSTOMER_INSIGHT_ACTOR = object()
+_PLAYBOOK_ACTORS = (_WEB_PLAYBOOK_ACTOR, _WHATSAPP_PLAYBOOK_ACTOR, _CUSTOMER_INSIGHT_ACTOR)
+
+
+def _internal_actor_name(actor_id):
+    if actor_id is _WEB_PLAYBOOK_ACTOR:
+        return 'WEB_PLAYBOOK'
+    if actor_id is _WHATSAPP_PLAYBOOK_ACTOR:
+        return 'WHATSAPP_PLAYBOOK'
+    if actor_id is _CUSTOMER_INSIGHT_ACTOR:
+        return 'CUSTOMER_INSIGHT'
+    return None
 
 
 class JobError(ValueError):
@@ -143,8 +155,9 @@ def _lock(tx, bid):
 
 def _operation(bid, actor_id, operation_key, payload):
     _positive(bid)
-    if actor_id in _PLAYBOOK_ACTORS:
-        actor_id = 'WEB_PLAYBOOK' if actor_id is _WEB_PLAYBOOK_ACTOR else 'WHATSAPP_PLAYBOOK'
+    internal_actor = _internal_actor_name(actor_id)
+    if internal_actor:
+        actor_id = internal_actor
     else:
         _positive(actor_id)
     if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', operation_key):
@@ -166,9 +179,10 @@ def _replay(tx, bid, operation_key, request_hash):
 def _record(tx, bid, jid, actor_id, operation_key, request_hash, version, action, now):
     tx.execute('INSERT INTO kw_core_job_operations(business_id,operation_key,request_hash,job_id,result_version,created_at) '
                'VALUES (?,?,?,?,?,?)', (bid, operation_key, request_hash, jid, version, now))
+    origin = _internal_actor_name(actor_id)
     tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
-               (None if actor_id in _PLAYBOOK_ACTORS else actor_id, bid, action,
-                json.dumps({'job_id': jid, 'version': version, **({'origin': 'WEB_PLAYBOOK' if actor_id is _WEB_PLAYBOOK_ACTOR else 'WHATSAPP_PLAYBOOK'} if actor_id in _PLAYBOOK_ACTORS else {})})))
+               (None if origin else actor_id, bid, action,
+                json.dumps({'job_id': jid, 'version': version, **({'origin': origin} if origin else {})})))
 
 
 def create_job(business_id, customer_id, *, title, actor_id, operation_key,
@@ -238,6 +252,12 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
         raise JobError('invalid_transition',409)
     if fields is not None and actor_id not in _PLAYBOOK_ACTORS:
         previous = json.loads(current['fields_json'])
+        if previous.get('source') == 'Customer Insight':
+            preserved = dict(fields)
+            for key in ('action','intent','priority','source','source_key'):
+                if key in previous:
+                    preserved[key] = previous[key]
+            encoded = validate_fields(preserved)
         if previous.get('playbook') in PLAYBOOKS:
             from .playbooks import missing_fields, labels
             book = PLAYBOOKS[previous['playbook']]
@@ -285,8 +305,13 @@ def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, co
             where += ' AND ' + column + '=?'
             args.append(value)
     if search:
-        where += ' AND (LOWER(title) LIKE LOWER(?) OR LOWER(summary) LIKE LOWER(?))'
-        args += ['%'+search+'%']*2
+        like = '%'+search+'%'
+        where += (
+            ' AND (LOWER(title) LIKE LOWER(?) OR LOWER(summary) LIKE LOWER(?) '
+            'OR LOWER(fields_json) LIKE LOWER(?) OR customer_id IN '
+            '(SELECT id FROM kw_core_customers WHERE business_id=? AND LOWER(display_name) LIKE LOWER(?)))'
+        )
+        args += [like, like, like, business_id, like]
     with transaction() as tx:
         total = tx.one('SELECT COUNT(*) AS n FROM kw_core_jobs WHERE '+where,tuple(args))['n']
         pages = max(1,(total+9)//10)
@@ -294,8 +319,9 @@ def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, co
             page = min(max(1,int(page)),pages)
         except (TypeError,ValueError):
             raise JobError('invalid_page')
-        rows = tx.execute('SELECT * FROM kw_core_jobs WHERE '+where+' ORDER BY updated_at DESC,id LIMIT 10 OFFSET ?',
-                          tuple(args+[(page-1)*10]))
+        rows = tx.execute(
+            'SELECT * FROM kw_core_jobs WHERE '+where+' ORDER BY updated_at DESC,id LIMIT 10 OFFSET ?',
+            tuple(args+[(page-1)*10]))
         return [_row(row) for row in rows],total,page,pages
 
 

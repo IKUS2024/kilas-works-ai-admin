@@ -6,7 +6,7 @@ from flask import Blueprint, abort, redirect, render_template, request, url_for
 import repo
 import security
 import subscription_service
-from kilas_core import customers, jobs
+from kilas_core import customers, jobs, customer_action_jobs
 from kilas_core.flags import enabled_for_business
 from kilas_core.playbook_definitions import PLAYBOOKS
 
@@ -118,12 +118,23 @@ def _source(bid, customer_id, conversation_id):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
+    # Bounded monitoring pass: recent WhatsApp Leads/Customers with a real next action
+    # are reconciled into one idempotent Job before the owner sees the queue.
+    try:
+        customer_action_jobs.reconcile_business(business)
+    except Exception:
+        pass
     q, status = request.args.get('q',''), request.args.get('status','')
     customer_id = request.args.get('customer_id')
     if customer_id:
         customers.get_customer(bid,customer_id)
     rows,total,page,pages = jobs.list_jobs(bid,search=q,status=status,customer_id=customer_id,
                                          page=request.args.get('page',1))
+    for row in rows:
+        try:
+            row['customer_name'] = customers.get_customer(bid,row['customer_id'])['display_name']
+        except Exception:
+            row['customer_name'] = None
     return render_template('jobs.html',**_context(business,rows=rows,total=total,page=page,pages=pages,
                                                 search=q,status=status,customer_id=customer_id))
 

@@ -56,7 +56,7 @@ def main():
         expect(owner.locator('[data-linked-jobs]').get_by_text('Pesanan kantor Jumat',exact=True)).to_be_visible()
 
         owner.goto(BASE+'/business/7/jobs',wait_until='networkidle')
-        owner.get_by_label('Cari pesanan',exact=True).fill('kantor')
+        owner.get_by_label('Cari tindakan',exact=True).fill('kantor')
         owner.get_by_label('Status',exact=True).select_option('NEEDS_INFORMATION')
         owner.get_by_role('button',name='Cari',exact=True).click()
         expect(owner.locator('a.client-item')).to_have_count(1)
