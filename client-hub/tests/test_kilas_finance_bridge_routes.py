@@ -142,6 +142,69 @@ class BridgeRoutesTests(unittest.TestCase):
         self.assertEqual(rows[0]['source_type'],'FINANCE_INVOICE_PAYMENT')
         self.assertIn('Lunas · pembayaran sudah masuk sebagai pemasukan di Kilas Finance.',self.client.get(job).text)
 
+    def test_platform_admin_job_finance_is_automatic_and_customer_follows_job(self):
+        import platform_workspace
+
+        # Reuse the synthetic Core business as the hidden Kilas Works operator scope.
+        db.execute("DELETE FROM platform_workspace_scope")
+        db.execute(
+            "INSERT INTO platform_workspace_scope(singleton,business_id) VALUES (1,?)",
+            (self.source,),
+        )
+        db.execute("UPDATE users SET role='KILAS_ADMIN' WHERE id=?", (self.actor,))
+        db.execute(
+            "UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",
+            (self.source, self.jid),
+        )
+        self.login()
+
+        # Merely opening Admin pages must not create Finance state or show the old destination picker.
+        settings = self.client.get(self.base)
+        self.assertEqual(settings.status_code, 200)
+        self.assertIn('Koneksi otomatis', settings.text)
+        self.assertNotIn('Pilih tujuan', settings.text)
+        self.assertNotIn('Bisnis dan cabang Finance', settings.text)
+        self.assertIsNone(bridge.connection(self.source, self.actor))
+
+        customer_page = self.client.get(self.base + '/customers/' + self.cid)
+        self.assertEqual(customer_page.status_code, 200)
+        self.assertIn('tidak perlu dipilih manual', customer_page.text)
+        self.assertNotIn('Pilih Customer Finance', customer_page.text)
+
+        job_url = f'/business/{self.source}/jobs/{self.jid}'
+        job_page = self.client.get(job_url)
+        self.assertEqual(job_page.status_code, 200)
+        self.assertIn('Buat Invoice', job_page.text)
+        self.assertNotIn('Hubungkan Kilas Finance', job_page.text)
+        self.assertIsNone(bridge.connection(self.source, self.actor))
+
+        csrf = re.search(r'name="csrf_token" value="([^"]*)"', job_page.text)[1]
+        started = self.client.post(
+            self.base + '/jobs/' + self.jid + '/invoice/start',
+            data={'csrf_token': csrf},
+        )
+        self.assertEqual(started.status_code, 303)
+        mapping = bridge.connection(self.source, self.actor)
+        self.assertIsNotNone(mapping)
+        self.assertTrue(mapping['enabled'])
+        self.assertEqual(mapping['finance_business_id'], self.source)
+        branch = db.query_one(
+            "SELECT * FROM finance_branches WHERE business_id=? AND id=?",
+            (self.source, mapping['finance_branch_id']),
+        )
+        self.assertIsNotNone(branch)
+        self.assertTrue(branch['is_active'])
+
+        # The Job's Core Customer is the only source of customer identity; no manual chooser.
+        links = bridge.customer_links(self.source, self.actor, self.cid)
+        self.assertEqual(len(links), 1)
+        linked = links[0]
+        linked_customer = linked['customer'] if 'customer' in linked else f.get_customer(
+            self.source, linked['finance_customer_id'], actor_user_id=self.actor
+        )
+        self.assertEqual(linked_customer['name'], 'Wilson')
+        self.assertIn(f'/business/{self.source}/finance/invoices/new', started.location)
+
     def test_protected_boundary_no_direct_finance_writes_or_payment_actions(self):
         root=Path(__file__).resolve().parents[1]/'kilas_core'
         for name in ('finance_bridge.py','finance_bridge_routes.py','finance_bridge_schema.py'):

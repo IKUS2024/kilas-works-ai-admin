@@ -9,7 +9,15 @@
       <p class="client-note">Customer sudah deal. Buat dan terbitkan invoice, lalu catat pembayaran di sini.</p>
       {% if bridge_panel.unavailable %}
         <p>Akses Kilas Finance belum tersedia.</p>
+        {% if not bridge_panel.automatic_finance %}
         <a class="btn secondary" href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Periksa koneksi Finance</a>
+        {% endif %}
+      {% elif bridge_panel.automatic_finance and not bridge_panel.result %}
+        <p class="client-note">Customer Finance dan pembukuan internal dipilih otomatis dari Job ini.</p>
+        <form method="post" action="{{ url_for('core_finance_bridge.invoice_start',bid=business.id,jid=job.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn" type="submit">Buat Invoice</button>
+        </form>
       {% elif not bridge_panel.mapping or not bridge_panel.mapping.enabled %}
         <p>Hubungkan Job ini ke Kilas Finance agar invoice dan pemasukan memakai pembukuan yang sama.</p>
         <a class="btn" href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Hubungkan Kilas Finance</a>
@@ -91,7 +99,10 @@
   {% else %}
     <h2>Finance</h2>
     {% if bridge_panel.unavailable %}
-      <p>Akses Finance tidak tersedia. Periksa koneksi atau izin bisnis tujuan.</p>
+      <p>Akses Finance tidak tersedia.</p>
+    {% elif bridge_panel.automatic_finance %}
+      <p>Finance mengikuti Customer pada Job secara otomatis.</p>
+      <p class="client-note">Tidak perlu menghubungkan Customer Finance dari halaman ini. Buat invoice langsung dari Job.</p>
     {% else %}
       <p>{{ 'Finance terhubung' if bridge_panel.mapping and bridge_panel.mapping.enabled else 'Belum terhubung ke Finance' }}</p>
       <p><a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi Finance</a></p>
