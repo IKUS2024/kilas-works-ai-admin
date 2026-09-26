@@ -30,7 +30,6 @@
     </aside>
     {% if selected %}
     <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-mode-url="{{ url_for('owner_web.mode',bid=business.id,cid=selected.id) }}" data-reply-url="{{ url_for('owner_web.reply',bid=business.id,cid=selected.id) }}" data-csrf="{{ csrf_token() }}">
-      {% include "_jobs_panel.html" %}
       <header><a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">← Percakapan</a>
         <h2>{{ selected_customer.display_name if selected_customer else ('Pengunjung ' ~ selected.id[:6]) }} · {{ 'WhatsApp' if selected.id.startswith('wa_') else 'WEB' }}</h2><p data-mode>{{ 'Ditangani tim' if selected.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</p>
         <button type="button" class="btn" data-takeover>Ambil alih</button>
