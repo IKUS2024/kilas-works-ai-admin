@@ -401,10 +401,12 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
     uid_b, bid_b = _make_active_ai_admin_tenant("Demo Biz B", "demob@test.com")
     phone = "14048836437"
     now = datetime.now(timezone.utc).isoformat()
-    demo_rows = [
+    demo_rows = ai_reply_explanation.attach_demo([
         {"id": 901, "role": "user", "content": "bisnis aku parfum ka", "created_at": now},
-        {"id": 902, "role": "assistant", "content": "Oke, bisnis parfum.", "created_at": now},
-    ]
+        {"id": 902, "role": "assistant",
+         "content": "Oke, bisnis parfum. Aku bantu apa nih? Mau bikin konten, foto produk, ads, atau yang lain?",
+         "created_at": now},
+    ], bid_a, allow_visible_fallback=True)
 
     client = fresh_client()
     _login_owner(client, "demoa@test.com")
@@ -424,7 +426,9 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
     assert "Ambil Alih" in body
     assert "Kontrol manusia" in body
     assert "Analisa" in body
-    assert "Jejak analisa belum tersedia untuk pesan lama atau balasan manual." in body
+    assert "Kenapa AI jawab begitu:" in body
+    assert "Customer memberi konteks" in body
+    assert "Jejak analisa belum tersedia untuk pesan lama atau balasan manual." not in body
     assert "Lanjutkan chat dari WhatsApp; Inbox akan update otomatis." not in body
 
     with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \

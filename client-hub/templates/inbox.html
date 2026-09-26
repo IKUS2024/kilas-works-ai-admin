@@ -156,10 +156,13 @@
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Bisnis / AI' }}</div>
             {% include '_inbox_media.html' %}
             {% if m.role == 'assistant' %}
-            <details class="kw-ai-analysis">
+            <details class="kw-ai-analysis" data-analysis-message="{{ m.id }}">
               <summary>Analisa</summary>
               <div class="kw-ai-analysis-body">
                 {% if m.analysis %}
+                  {% if m.analysis.summary %}
+                    <div style="margin-bottom:9px;"><strong>Kenapa AI jawab begitu:</strong><br>{{ m.analysis.summary }}</div>
+                  {% endif %}
                   {% if m.analysis.intent %}<div><strong>Intent:</strong> {{ m.analysis.intent }}</div>{% endif %}
                   {% if m.analysis.workflow %}<div><strong>Workflow:</strong> {{ m.analysis.workflow }}</div>{% endif %}
                   {% if m.analysis.facts %}
@@ -305,7 +308,14 @@
       const freshThread=fresh.getElementById('kw-thread');
       if(currentThread&&freshThread&&currentThread.innerHTML!==freshThread.innerHTML){
         const stick=nearBottom(currentThread);
+        const openAnalyses=new Set(
+          [...currentThread.querySelectorAll('.kw-ai-analysis[open][data-analysis-message]')]
+            .map(node=>node.dataset.analysisMessage)
+        );
         currentThread.innerHTML=freshThread.innerHTML;
+        for(const node of currentThread.querySelectorAll('.kw-ai-analysis[data-analysis-message]')){
+          if(openAnalyses.has(node.dataset.analysisMessage))node.open=true;
+        }
         if(stick)currentThread.scrollTop=currentThread.scrollHeight;
       }
       setLive('live','Live');

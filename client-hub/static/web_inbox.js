@@ -83,6 +83,7 @@
     const panel=document.createElement('div');panel.className='ai-analysis-panel';panel.hidden=true;
     const analysis=message.analysis;
     if(analysis&&typeof analysis==='object'){
+      analysisLine(panel,'Kenapa AI jawab begitu',analysis.summary);
       analysisLine(panel,'Intent',analysis.intent);
       analysisLine(panel,'Workflow',analysis.workflow);
       analysisList(panel,'Fakta customer',analysis.facts);

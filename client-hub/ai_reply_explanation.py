@@ -50,10 +50,11 @@ def _facts(fields):
     return out
 
 
-def _trace(title, *, intent="", workflow="", basis=(), facts=(), missing=(), uncertain=(),
+def _trace(title, *, summary="", intent="", workflow="", basis=(), facts=(), missing=(), uncertain=(),
            guardrails=(), action="", result="", route=""):
     payload = {
         "title": _text(title, 180),
+        "summary": _text(summary, 600),
         "intent": _text(intent, 180),
         "workflow": _text(workflow, 180),
         "basis": _list(basis),
@@ -72,6 +73,7 @@ def _trace(title, *, intent="", workflow="", basis=(), facts=(), missing=(), unc
 def simple_greeting():
     return _trace(
         "Sapaan sederhana",
+        summary="AI mengenali pesan sebagai sapaan singkat, jadi tidak membuat Job atau mengubah data dan hanya membuka percakapan.",
         intent="Sapaan",
         basis=("Pesan customer hanya berupa sapaan/test singkat.",),
         guardrails=("Sapaan tidak boleh membuat Job atau mengubah data customer.",),
@@ -84,6 +86,7 @@ def simple_greeting():
 def blocked_workflow():
     return _trace(
         "Perlu ditinjau tim",
+        summary="AI tidak melanjutkan otomatis karena state pekerjaan yang ada berisiko tertimpa atau menjadi duplikat, jadi percakapan diarahkan ke tim.",
         intent="Permintaan operasional",
         basis=("Percakapan sudah memiliki state pekerjaan yang tidak aman untuk diubah otomatis.",),
         guardrails=("AI tidak boleh membuat pekerjaan ganda atau menimpa perubahan owner.",),
@@ -96,6 +99,7 @@ def blocked_workflow():
 def stale_update():
     return _trace(
         "Data baru saja diperbarui owner",
+        summary="AI membatalkan update karena owner sudah mengubah rincian setelah proses AI dimulai. Perubahan owner diprioritaskan agar tidak tertimpa.",
         intent="Konflik versi",
         basis=("Rincian pekerjaan berubah setelah AI mulai memproses pesan.",),
         guardrails=("Perubahan owner tidak boleh ditimpa oleh hasil AI yang lebih lama.",),
@@ -132,8 +136,13 @@ def core_decision(book, interpretation, decision, *, category="", write_applied=
         result = "AI mengembalikan percakapan ke konteks produk atau layanan bisnis."
     else:
         result = "AI memberi balasan berdasarkan state permintaan yang tervalidasi."
+    summary = (
+        "AI memahami pesan sebagai " + _INTENTS.get(interpretation.intent, interpretation.intent).lower() + ". "
+        + result
+    )
     return _trace(
         "Dasar balasan AI",
+        summary=summary,
         intent=_INTENTS.get(interpretation.intent, interpretation.intent),
         workflow=getattr(book, "label", "") or getattr(book, "code", ""),
         basis=basis,
@@ -156,6 +165,7 @@ def generic_model(*, has_business_data=False, has_image=False):
         basis.append("Gambar yang dikirim customer.")
     return _trace(
         "Dasar balasan AI",
+        summary="AI menjawab sebagai customer service dari pesan terakhir, riwayat yang relevan, dan data bisnis yang tersedia. Jika detail belum cukup, AI harus meminta klarifikasi daripada mengarang.",
         intent="Jawaban customer service",
         basis=basis,
         guardrails=(
@@ -168,7 +178,7 @@ def generic_model(*, has_business_data=False, has_image=False):
     )
 
 
-def legacy(route, *, has_image=False, has_business_data=True):
+def legacy(route, *, has_image=False, has_business_data=True, customer_text="", reply_text=""):
     labels = {
         "demo_handshake": ("Aktivasi demo", "Sistem mengenali kode Demo WhatsApp yang valid."),
         "order_rule": ("Alur order terstruktur", "Permintaan cocok dengan aturan order/checkout yang tersedia."),
@@ -178,6 +188,27 @@ def legacy(route, *, has_image=False, has_business_data=True):
         "model_reply": ("Jawaban AI", "AI memakai konteks percakapan dan data bisnis yang tersedia."),
     }
     title, result = labels.get(route, labels["model_reply"])
+    customer_text = _text(customer_text, 240)
+    reply_text = _text(reply_text, 240)
+    lower_reply = reply_text.casefold()
+    asks_clarification = "?" in reply_text or any(
+        token in lower_reply for token in ("mau ", "boleh ", "apa nih", "yang mana", "bisa kasih", "mohon ")
+    )
+    if route == "vision_model":
+        summary = "AI memakai gambar customer bersama konteks chat untuk menyusun balasan, tanpa menganggap isi gambar sebagai transaksi yang sudah terjadi."
+    elif route in ("catalog_exact", "deterministic_rule", "order_rule"):
+        summary = result
+    elif asks_clarification and customer_text:
+        summary = (
+            "Customer baru memberi konteks: “" + customer_text + "”. "
+            "Balasan AI meminta kebutuhan/detail berikutnya karena informasi yang terlihat belum cukup spesifik untuk mengambil tindakan yang lebih jauh."
+        )
+    elif customer_text:
+        summary = (
+            "AI merespons pesan customer “" + customer_text + "” menggunakan konteks percakapan dan data bisnis yang tersedia."
+        )
+    else:
+        summary = result
     basis = ["Pesan customer terakhir.", "Riwayat percakapan yang relevan."]
     if has_business_data:
         basis.append("Profil/katalog/knowledge bisnis yang tersedia.")
@@ -185,6 +216,7 @@ def legacy(route, *, has_image=False, has_business_data=True):
         basis.append("Gambar customer yang diproses oleh model vision.")
     return _trace(
         title,
+        summary=summary,
         intent="Customer service",
         basis=basis,
         guardrails=(
@@ -277,7 +309,38 @@ def record_latest_legacy(business_id, number, analysis):
         return False
 
 
-def attach_demo(rows, business_id):
+def _legacy_visible_fallback(customer_text, reply_text):
+    """Honest fallback for old messages that predate explanation audit metadata."""
+    customer_text = _text(customer_text, 240)
+    reply_text = _text(reply_text, 240)
+    lower_reply = reply_text.casefold()
+    asks_clarification = "?" in reply_text or any(
+        token in lower_reply for token in ("mau ", "boleh ", "apa nih", "yang mana", "bisa kasih", "mohon ")
+    )
+    if asks_clarification and customer_text:
+        summary = (
+            "Customer memberi konteks: “" + customer_text + "”. "
+            "Balasan AI terlihat meminta kebutuhan/detail berikutnya karena pesan tersebut belum cukup spesifik untuk menentukan tindakan."
+        )
+    elif customer_text:
+        summary = (
+            "Balasan AI terlihat menanggapi pesan customer “" + customer_text + "” berdasarkan konteks chat yang tersedia."
+        )
+    else:
+        summary = "Pesan ini dibuat sebelum fitur jejak keputusan aktif, jadi hanya hubungan isi chat yang dapat diringkas."
+    return _trace(
+        "Ringkasan pesan lama",
+        summary=summary,
+        intent="Ringkasan dari isi chat",
+        basis=("Pesan customer yang terlihat sebelum balasan ini.", "Isi balasan AI yang terlihat."),
+        guardrails=("Ini bukan jejak keputusan asli karena pesan dibuat sebelum fitur Analisa aktif.",),
+        action="Tidak dapat dipastikan dari audit lama.",
+        result="Ringkasan ini hanya menjelaskan hubungan isi percakapan yang terlihat.",
+        route="legacy_visible_fallback",
+    )
+
+
+def attach_demo(rows, business_id, *, allow_visible_fallback=False):
     ids = {int(row.get("id") or 0) for row in rows if row.get("role") == "assistant" and row.get("id")}
     if not ids:
         return rows
@@ -287,7 +350,7 @@ def attach_demo(rows, business_id):
             (business_id, ACTION),
         )
     except Exception:
-        return rows
+        audits = []
     found = {}
     for audit in audits:
         try:
@@ -299,8 +362,16 @@ def attach_demo(rows, business_id):
         mid = int(item.get("message_id") or 0)
         if mid in ids and mid not in found and isinstance(item.get("analysis"), dict):
             found[mid] = item["analysis"]
+    last_customer = ""
     for row in rows:
+        if row.get("role") == "user":
+            last_customer = str(row.get("content") or "")
+            continue
+        if row.get("role") != "assistant":
+            continue
         mid = int(row.get("id") or 0)
         if mid in found:
             row["analysis"] = found[mid]
+        elif allow_visible_fallback:
+            row["analysis"] = _legacy_visible_fallback(last_customer, row.get("content") or "")
     return rows
