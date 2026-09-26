@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS kw_core_wa_media (
  created_at BIGINT NOT NULL,
  UNIQUE(business_id,conversation_id,event_id,role),
  FOREIGN KEY(business_id,conversation_id,event_id,role)
-   REFERENCES kw_web_messages(business_id,conversation_id,event_id,role)
+   REFERENCES kw_web_messages(business_id,conversation_id,event_id,role) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS kw_core_wa_media_thread
  ON kw_core_wa_media(business_id,conversation_id,created_at);
