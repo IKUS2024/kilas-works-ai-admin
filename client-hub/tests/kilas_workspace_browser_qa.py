@@ -58,7 +58,7 @@ with sync_playwright() as p:
         visit(f'/workspace/go/finance?business_id={target}','finance-selector')
         # Visible product switcher works in both directions at every viewport.
         page.locator('.product-switcher summary').click()
-        page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas AI Admin',exact=True).click()
+        page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Assist',exact=True).click()
         expect(page.get_by_role('heading',name='Selamat datang,',exact=False)).to_be_visible()
         assert page.locator('.finance-app-sidebar').count()==0
         page.locator('.product-switcher summary').click()
