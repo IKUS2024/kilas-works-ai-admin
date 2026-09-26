@@ -249,7 +249,7 @@ def _transcript(core, demo):
     rows = []
     for row in core:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
-        rows.append(f"[{who}][CORE] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
+        rows.append(f"[{who}][WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     for row in demo:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
         rows.append(f"[{who}][DEMO_WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
