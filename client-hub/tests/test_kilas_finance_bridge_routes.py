@@ -179,11 +179,18 @@ class BridgeRoutesTests(unittest.TestCase):
         self.assertIsNone(bridge.connection(self.source, self.actor))
 
         csrf = re.search(r'name="csrf_token" value="([^"]*)"', job_page.text)[1]
-        started = self.client.post(
-            self.base + '/jobs/' + self.jid + '/invoice/start',
-            data={'csrf_token': csrf},
-        )
-        self.assertEqual(started.status_code, 303)
+        # Production uses self-service Finance. The hidden operator workspace has no
+        # customer entitlement row and must still provision because it is internal, not a tenant.
+        db.execute("DELETE FROM finance_entitlements WHERE business_id=?", (self.source,))
+        with patch.dict(os.environ, {
+            'KILAS_FINANCE_ACCESS_MODE': 'self_service',
+            'KILAS_FINANCE_EMERGENCY_DISABLE': 'false',
+        }):
+            started = self.client.post(
+                self.base + '/jobs/' + self.jid + '/invoice/start',
+                data={'csrf_token': csrf},
+            )
+        self.assertEqual(started.status_code, 303, started.text)
         mapping = bridge.connection(self.source, self.actor)
         self.assertIsNotNone(mapping)
         self.assertTrue(mapping['enabled'])
