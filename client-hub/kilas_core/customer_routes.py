@@ -1,7 +1,7 @@
 """Owner-facing Kilas Core Customers routes. AI Admin only; Finance remains separate."""
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 import security
-from kilas_core import customers
+from kilas_core import customers, customer_insights
 from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
@@ -30,6 +30,11 @@ def list_page(bid):
     if stage not in ("LEAD", "CUSTOMER"):
         stage = "LEAD"
     rows, total, page, pages = customers.list_customers(bid, q, page, stage)
+    # Demo WhatsApp lives in the privacy-scoped platform mirror, not kw_web_customer_links.
+    # Count that durable thread as a real conversation for CRM display.
+    for row in rows:
+        if customer_insights.demo_conversation_row(bid, row):
+            row["conversation_count"] = int(row.get("conversation_count") or 0) + 1
     stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q,
@@ -45,9 +50,27 @@ def detail_page(bid, customer_id):
         conversations = customers.customer_conversations(bid, customer_id)
     except customers.CustomerError as error:
         abort(error.status)
+    demo = customer_insights.demo_conversation_row(bid, customer)
+    if demo:
+        conversations.insert(0, demo)
+    insight = customer_insights.safe_refresh(business, customer)
     return render_template("customer_detail.html", business=business, customer=customer,
-                           conversations=conversations, saved=request.args.get("saved") == "1",
+                           conversations=conversations, insight=insight,
+                           saved=request.args.get("saved") == "1",
                            linked_jobs=linked_context(business,customer_id))
+
+
+@customers_bp.get("/business/<int:bid>/customers/<customer_id>/insight")
+@security.login_required
+def insight_fragment(bid, customer_id):
+    business = _business(bid)
+    try:
+        customer = customers.get_customer(bid, customer_id)
+    except customers.CustomerError as error:
+        abort(error.status)
+    insight = customer_insights.safe_refresh(business, customer)
+    return render_template("_customer_insight.html", business=business,
+                           customer=customer, insight=insight)
 
 
 @customers_bp.post("/business/<int:bid>/customers/<customer_id>")
