@@ -11,6 +11,7 @@ from flask import (
 )
 import io
 import inbox_media_service
+import ai_reply_explanation
 
 import ai_onboarding
 import ai_usage
@@ -1294,7 +1295,7 @@ def _demo_kilas_clean_thread(business_id, phone):
             handshake_reply_cleaned = True
 
         cleaned.append(item)
-    return cleaned
+    return ai_reply_explanation.attach_demo(cleaned, business_id)
 
 
 def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
