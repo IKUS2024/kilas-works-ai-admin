@@ -9099,6 +9099,55 @@ def internal_platform_cs_reply():
     return jsonify({"status": "ok"}), 200
 
 
+@app.route("/internal/platform-system-reply", methods=["POST"])
+def internal_platform_system_reply():
+    """Authenticated transactional send for explicit Kilas Works operator workflows.
+
+    This is not a conversational manual-reply endpoint, so it does not require Human Takeover.
+    It still only targets an existing platform Inbox customer and still enforces the conservative
+    free-form window. Client Hub owns the at-most-once event ledger and never blindly retries an
+    uncertain call.
+    """
+    _clear_active_whatsapp_channel()
+    provided_secret = request.headers.get("X-Internal-Service-Secret", "")
+    if not INTERNAL_SERVICE_SECRET or not hmac.compare_digest(provided_secret, INTERNAL_SERVICE_SECRET):
+        return jsonify({"status": "error", "reason": "access_denied"}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({"status": "error", "reason": "client_hub_bridge_unavailable"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    phone = re.sub(r"\D", "", str(payload.get("customer_phone") or ""))
+    text = (payload.get("message") or "").strip() if isinstance(payload.get("message"), str) else ""
+    if not re.fullmatch(r"\d{6,20}", phone):
+        return jsonify({"status": "error", "reason": "invalid_customer_phone"}), 400
+    if not text or len(text) > 4096:
+        return jsonify({"status": "error", "reason": "invalid_message"}), 400
+
+    try:
+        if not _platform_inbox.customer_exists(phone):
+            return jsonify({"status": "error", "reason": "customer_not_found"}), 404
+        window = _platform_inbox.freeform_window_status(phone)
+    except Exception:
+        return jsonify({"status": "error", "reason": "window_state_unavailable"}), 503
+    if not window.get("allowed"):
+        return jsonify({"status": "error", "reason": window.get("reason") or "outside_24h_window"}), 409
+
+    ok, err = send_whatsapp_message(phone, text)
+    if not ok:
+        safe_error = err if isinstance(err, str) and re.fullmatch(
+            r"meta_http_[0-9]{3}_code_(?:[0-9]{1,12}|unknown)|meta_transport_error|meta_invalid_response", err
+        ) else "whatsapp_send_failed"
+        return jsonify({"status": "error", "reason": safe_error}), 502
+
+    history = conversations.get(phone)
+    if history is None:
+        history = load_recent_messages_from_db(phone, "customer")
+    history.append({"role": "assistant", "content": text})
+    conversations[phone] = history[-20:]
+    save_message_to_db(phone, "customer", "assistant", text)
+    return jsonify({"status": "ok"}), 200
+
+
 @app.route("/internal/platform-cs-template-reply", methods=["POST"])
 def internal_platform_cs_template_reply():
     """Authenticated Client Hub -> Kilas Works WhatsApp APPROVED TEMPLATE bridge — Inbox
