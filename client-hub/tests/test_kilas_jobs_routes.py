@@ -28,9 +28,16 @@ class JobRoutesTests(unittest.TestCase):
         flag.start();self.addCleanup(flag.stop)
         self.identity=self.start().json
         self.cid=self.identity['conversation_id']
-        self.customer=customers.customer_for_conversation(7,self.cid)
+        raw_customer=customers.customer_for_conversation(7,self.cid)
+        customers.update_customer(
+            7, raw_customer['id'], display_name=raw_customer['display_name'],
+            phone=raw_customer.get('phone'), email=raw_customer.get('email'),
+            notes=raw_customer.get('notes'), stage='CUSTOMER', actor_id=1,
+        )
+        self.customer=customers.get_customer(7,raw_customer['id'])
         self.form=dict(csrf_token='csrf-test',customer_id=self.customer['id'],conversation_id=self.cid,
-                       title='Pesanan makan siang',summary='Untuk kantor',operation_key='route-create-0001')
+                       kind='ORDER',title='Pesanan makan siang',summary='Untuk kantor',
+                       operation_key='route-create-0001')
 
     def create(self, **changes):
         return self.client.post('/business/7/jobs',data={**self.form,**changes})
@@ -38,7 +45,7 @@ class JobRoutesTests(unittest.TestCase):
     def test_owner_create_detail_update_audit(self):
         page=self.client.get('/business/7/jobs/new?customer_id='+self.customer['id']+'&conversation_id='+self.cid)
         self.assertEqual(page.status_code,200)
-        self.assertIn(b'Buat Pesanan',page.data)
+        self.assertIn(b'Buat Job',page.data)
         response=self.create();self.assertEqual(response.status_code,303)
         job=jobs.list_jobs(7)[0][0]
         self.assertEqual(job['kind'],'ORDER')
@@ -46,8 +53,37 @@ class JobRoutesTests(unittest.TestCase):
         edited=self.client.post(f"/business/7/jobs/{job['id']}",data=dict(csrf_token='csrf-test',title='Makan siang revisi',
                  summary='Besok',status='NEEDS_INFORMATION',version=1,operation_key='route-update-0001'))
         self.assertEqual(edited.status_code,303)
-        self.assertEqual(jobs.get_job(7,job['id'])['status'],'NEEDS_INFORMATION')
+        updated=jobs.get_job(7,job['id'])
+        self.assertEqual(updated['status'],'NEEDS_INFORMATION')
+        self.assertEqual(updated['status_label'],'Menunggu customer')
+        self.assertEqual(updated['label'],'Order / Pembelian')
         self.assertEqual(self.db.query_one("SELECT COUNT(*) AS n FROM audit_log WHERE action LIKE 'JOB_%'")['n'],2)
+
+    def test_lead_cannot_create_job_and_simple_status_filter_groups_legacy_ready_states(self):
+        other_client=self.app.test_client()
+        lead_identity=self.start(client=other_client).json
+        lead=customers.customer_for_conversation(7,lead_identity['conversation_id'])
+        self.assertEqual(customers.get_customer(7,lead['id'])['stage'],'LEAD')
+        blocked=self.client.get('/business/7/jobs/new?customer_id='+lead['id'])
+        self.assertEqual(blocked.status_code,404)
+
+        self.assertEqual(self.create().status_code,303)
+        job=jobs.list_jobs(7,customer_stage='CUSTOMER')[0][0]
+        # Simulate an existing legacy QUOTED row; owner UI groups it under "Siap diproses".
+        self.db.execute(
+            "UPDATE kw_core_jobs SET status='QUOTED' WHERE business_id=7 AND id=?",
+            (job['id'],),
+        )
+        rows,total,_,_=jobs.list_jobs(7,status='READY_FOR_QUOTE',customer_stage='CUSTOMER')
+        self.assertEqual(total,1)
+        self.assertEqual(rows[0]['status'],'QUOTED')
+        self.assertEqual(rows[0]['status_label'],'Siap diproses')
+
+        page=self.client.get('/business/7/jobs?status=READY_FOR_QUOTE')
+        self.assertEqual(page.status_code,200)
+        self.assertIn(b'Siap diproses',page.data)
+        self.assertNotIn(b'Sudah ditawarkan',page.data)
+        self.assertNotIn(b'Disetujui',page.data)
 
     def test_form_csrf_unknown_payload_and_status_rejected(self):
         for changes in ({'csrf_token':'bad'},{'business_id':8},{'kind':'FINANCE'},
