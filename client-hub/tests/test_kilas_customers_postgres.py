@@ -24,7 +24,7 @@ class CustomerPostgresTests(unittest.TestCase):
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("""
-            DROP TABLE IF EXISTS kw_web_customer_links, kw_core_customer_identities, kw_core_customer_stages, kw_core_customers,
+            DROP TABLE IF EXISTS kw_core_customer_insights, kw_web_customer_links, kw_core_customer_identities, kw_core_customer_stages, kw_core_customers,
                 kw_web_messages, kw_web_events, kw_web_conversations, kw_web_channels, kw_web_limits,
                 audit_log, businesses CASCADE;
             CREATE TABLE businesses (
@@ -56,7 +56,7 @@ class CustomerPostgresTests(unittest.TestCase):
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("""
-            DROP TABLE IF EXISTS kw_web_customer_links, kw_core_customer_identities, kw_core_customer_stages, kw_core_customers,
+            DROP TABLE IF EXISTS kw_core_customer_insights, kw_web_customer_links, kw_core_customer_identities, kw_core_customer_stages, kw_core_customers,
                 kw_web_messages, kw_web_events, kw_web_conversations, kw_web_channels, kw_web_limits,
                 audit_log, businesses CASCADE;
         """)
@@ -64,8 +64,9 @@ class CustomerPostgresTests(unittest.TestCase):
 
     def setUp(self):
         with store.transaction() as tx:
-            for table in ("kw_web_customer_links","kw_core_customer_identities","kw_core_customer_stages",
-                          "kw_core_customers","kw_web_messages","kw_web_events","kw_web_conversations",
+            for table in ("kw_core_customer_insights","kw_web_customer_links","kw_core_customer_identities",
+                          "kw_core_customer_stages","kw_core_customers","kw_web_messages",
+                          "kw_web_events","kw_web_conversations",
                           "kw_web_channels","kw_web_limits"):
                 tx.execute("DELETE FROM " + table)
         store.ensure_channel(7)
