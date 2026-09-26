@@ -3,6 +3,7 @@ import uuid
 from werkzeug.exceptions import NotFound
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 import db, repo, security
+import platform_workspace
 import finance_service as finance
 import finance_branches as branches
 from . import finance_bridge as bridge
@@ -76,14 +77,24 @@ def _command(form):
 
 def _render(business, actor, **extra):
     mapping = bridge.connection(business['id'], actor)
-    return render_template('finance_bridge.html', business=business, mapping=mapping,
-                           operation_key=uuid.uuid4().hex, **extra)
+    return render_template(
+        'finance_bridge.html',
+        business=business,
+        mapping=mapping,
+        automatic_finance=bridge.platform_automatic(business['id']),
+        operation_key=uuid.uuid4().hex,
+        **extra,
+    )
 
 
 @bridge_bp.get('/business/<int:bid>/finance-bridge')
 @security.login_required
 def settings(bid):
     business, actor = _context(bid)
+    if bridge.platform_automatic(bid):
+        # Admin Finance is internal plumbing. The Job already owns the Customer identity, and
+        # the first explicit invoice action provisions the hidden workspace automatically.
+        return _render(business, actor, mode='settings', choices=[])
     user = security.current_user()
     if user and user.get('role') == 'KILAS_ADMIN':
         candidates = repo.list_all_businesses()
@@ -109,7 +120,10 @@ def settings(bid):
 @bridge_bp.post('/business/<int:bid>/finance-bridge')
 @security.login_required
 def configure(bid):
-    _, actor = _context(bid)
+    business, actor = _context(bid)
+    if bridge.platform_automatic(bid):
+        bridge.ensure_platform_connection(bid, actor)
+        return redirect(url_for('core_jobs.list_page', bid=business['id']), code=303)
     form = _form(['destination','enabled'])
     try:
         target, branch = form.get('destination','').split(':')
@@ -129,7 +143,7 @@ def customer_page(bid,cid):
     customer = bridge._customer(bid,cid)
     mapping = bridge.connection(bid,actor)
     choices = []
-    if mapping and mapping['enabled']:
+    if not bridge.platform_automatic(bid) and mapping and mapping['enabled']:
         bridge._finance_owner(mapping['finance_business_id'],actor)
         with branches.scope(mapping['finance_business_id'],mapping['finance_branch_id'],actor):
             choices = finance.list_customers(mapping['finance_business_id'],actor_user_id=actor)
@@ -140,7 +154,11 @@ def customer_page(bid,cid):
 @bridge_bp.post('/business/<int:bid>/finance-bridge/customers/<cid>')
 @security.login_required
 def customer_link(bid,cid):
-    _, actor = _context(bid)
+    business, actor = _context(bid)
+    if bridge.platform_automatic(bid):
+        # Platform customer linkage happens from a concrete Job so the Job remains the source
+        # of truth for which Customer is being invoiced.
+        return redirect(url_for('core_customers.detail_page', bid=business['id'], customer_id=cid), code=303)
     form = _form(['customer_choice','name','phone','email'])
     choice = form.get('customer_choice')
     args = (dict(new_customer={k:form.get(k,'') for k in ('name','phone','email')}) if choice=='new'
@@ -162,7 +180,11 @@ def job_page(bid,jid):
 @security.login_required
 def invoice_start(bid,jid):
     _, actor = _context(bid)
-    mapping = bridge.connection(bid,actor)
+    mapping = (
+        bridge.ensure_platform_connection(bid, actor)
+        if bridge.platform_automatic(bid)
+        else bridge.connection(bid, actor)
+    )
     if not mapping or not mapping['enabled']:
         raise bridge.BridgeError('not_connected',409)
     bridge.ensure_job_customer_link(
@@ -227,6 +249,7 @@ def panel(business, customer_id=None, job_id=None):
         mapping=bridge.connection(business['id'],actor)
         result=bridge.read_invoice(business['id'],actor,job_id) if job_id else None
         data=dict(mapping=mapping,result=result,
+                  automatic_finance=bridge.platform_automatic(business['id']),
                   links=bridge.customer_links(business['id'],actor,customer_id) if customer_id else [],
                   operation_key=uuid.uuid4().hex,payment_key=uuid.uuid4().hex)
         if result:
@@ -236,4 +259,7 @@ def panel(business, customer_id=None, job_id=None):
         return data
     except (bridge.BridgeError, finance.FinanceError):
         # Lost Finance access must neither leak its data nor break the Core Job.
-        return dict(unavailable=True,mapping=None,result=None,links=[])
+        return dict(
+            unavailable=True, mapping=None, result=None, links=[],
+            automatic_finance=bridge.platform_automatic(business['id'])
+        )
