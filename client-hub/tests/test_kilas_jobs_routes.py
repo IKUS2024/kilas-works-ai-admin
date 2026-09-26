@@ -122,7 +122,7 @@ class JobRoutesTests(unittest.TestCase):
         for path in (detail,inbox):
             page=self.client.get(path)
             self.assertIn(('/business/7/jobs/'+job['id']).encode(),page.data)
-            self.assertIn(b'Pesanan makan siang',page.data)
+            self.assertIn(b'Untuk kantor',page.data)
         page=self.client.get('/business/7/jobs/'+job['id'])
         self.assertIn(detail.encode(),page.data)
         self.assertIn(b'data-job-conversation',page.data)
@@ -140,7 +140,7 @@ class JobRoutesTests(unittest.TestCase):
         data=dict(csrf_token='csrf-test',title='Updated',summary='',status='IN_PROGRESS',version=1,operation_key='retry-update-0001')
         for _ in range(2): self.assertEqual(self.client.post(path,data=data).status_code,303)
         self.assertEqual(self.client.post(path,data={**data,'operation_key':'stale-update-0001'}).status_code,409)
-        self.assertEqual(self.client.post(path,data={**data,'version':2,'status':'COMPLETED','operation_key':'bad-status-00001'}).status_code,409)
+        self.assertEqual(self.client.post(path,data={**data,'version':2,'status':'COMPLETED','operation_key':'bad-status-00001'}).status_code,400)
         self.assertEqual(jobs.get_job(7,job['id'])['version'],2)
         self.assertEqual(self.client.get('/business/7/jobs?status=BAD').status_code,400)
         self.assertEqual(self.client.get('/business/7/jobs?customer_id=foreign').status_code,404)
