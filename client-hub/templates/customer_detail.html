@@ -2,6 +2,19 @@
 {% block title %}{{ customer.display_name }} — Customer{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
+<style>
+.customer-insight-card{padding:16px;margin-bottom:14px}
+.customer-insight-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.customer-insight-head h2{margin:1px 0 0}.client-kicker{margin:0;color:var(--orange);font-size:10px;font-weight:850;letter-spacing:.08em}
+.insight-summary{font-size:15px;line-height:1.55;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.018);margin-bottom:10px}
+.insight-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.insight-facts>div{border:1px solid var(--border);border-radius:11px;padding:9px;min-width:0}.insight-facts span{display:block;color:var(--text-dim);font-size:10px;margin-bottom:3px}.insight-facts strong{display:block;font-size:12px;overflow-wrap:anywhere}
+.insight-section{margin-top:12px}.insight-section h3{margin:0 0 6px;font-size:12px}.insight-section p,.insight-section ul{margin:0;color:var(--text-dim);font-size:12px;line-height:1.5}.insight-section ul{padding-left:18px}
+.insight-tags{display:flex;gap:5px;flex-wrap:wrap}.insight-tags span{display:inline-flex;padding:5px 8px;border:1px solid rgba(255,122,26,.28);background:rgba(255,122,26,.07);color:#ffc08f;border-radius:999px;font-size:10px;font-weight:700}.insight-tags.muted-tags span{border-color:var(--border);background:rgba(255,255,255,.015);color:var(--text-dim)}
+.insight-followup{margin-top:12px;padding:11px 12px;border-left:3px solid var(--orange);background:rgba(255,122,26,.055);border-radius:10px}.insight-followup span{display:block;font-size:10px;color:var(--orange);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.insight-followup strong{display:block;font-size:13px;line-height:1.45;margin-top:4px}
+.insight-meta{margin-top:10px;color:var(--text-dim);font-size:10px}.insight-warning{margin-bottom:10px}
+@media(max-width:600px){.insight-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.customer-insight-card{padding:13px}}
+</style>
 <section class="client-page">
   <div class="client-head">
     <div>
@@ -12,6 +25,13 @@
   </div>
   {% if saved %}<div class="flash success">Data kontak tersimpan.</div>{% endif %}
   {% if form_error %}<div class="flash error">{{ form_error }}</div>{% endif %}
+
+  <div class="card customer-insight-card"
+       data-customer-insight
+       data-url="{{ url_for('core_customers.insight_fragment',bid=business.id,customer_id=customer.id) }}">
+    {% include "_customer_insight.html" %}
+  </div>
+
   <div class="client-grid">
     <form class="card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -33,10 +53,17 @@
       <h2>Percakapan</h2>
       <div class="client-list">
       {% for row in conversations %}
+        {% if row.is_demo %}
+        <a class="client-item" href="{{ url_for('client.inbox_page',business_id=business.id,customer=row.phone,source='demo') }}">
+          <div class="client-item-title">Demo WhatsApp</div>
+          <div class="client-item-meta">{{ row.preview or 'Belum ada pesan' }}</div>
+        </a>
+        {% else %}
         <a class="client-item" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
           <div class="client-item-title">{{ 'WhatsApp' if row.id.startswith('wa_') else 'WEB' }} · {{ row.id[:6] }}</div>
           <div class="client-item-meta">{{ row.preview or 'Belum ada pesan' }}</div>
         </a>
+        {% endif %}
       {% else %}<div class="client-empty">Belum ada percakapan terkait.</div>{% endfor %}
       </div>
     </div>
@@ -44,4 +71,22 @@
   {% include "_jobs_panel.html" %}
 {% if job is not defined or job %}{% include "_finance_bridge_panel.html" %}{% endif %}
 </section>
+<script>
+(function(){
+  var box=document.querySelector('[data-customer-insight]');
+  if(!box)return;
+  var url=box.getAttribute('data-url');
+  var running=false;
+  function refreshInsight(){
+    if(running||document.hidden)return;
+    running=true;
+    fetch(url,{credentials:'same-origin',cache:'no-store',headers:{'X-Requested-With':'XMLHttpRequest'}})
+      .then(function(response){if(!response.ok)throw new Error('insight');return response.text();})
+      .then(function(html){box.innerHTML=html;})
+      .catch(function(){})
+      .finally(function(){running=false;});
+  }
+  window.setInterval(refreshInsight,20000);
+})();
+</script>
 {% endblock %}

@@ -14,9 +14,9 @@ class CustomerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         phase2.WebTests.setUpClass.__func__(cls)
-        global store, customer_schema, customer_stage_schema, customers
+        global store, customer_schema, customer_stage_schema, customers, customer_insights
         from public_chat import store
-        from kilas_core import customer_schema, customer_stage_schema, customers
+        from kilas_core import customer_schema, customer_stage_schema, customers, customer_insights
         customer_schema.apply_schema()
         customer_stage_schema.apply_schema()
 
@@ -24,8 +24,9 @@ class CustomerTests(unittest.TestCase):
 
     def setUp(self):
         with store.transaction() as tx:
-            for table in ("kw_web_customer_links", "kw_core_customer_identities",
-                          "kw_core_customer_stages", "kw_core_customers"):
+            for table in ("kw_core_customer_insights", "kw_web_customer_links",
+                          "kw_core_customer_identities", "kw_core_customer_stages",
+                          "kw_core_customers"):
                 tx.execute("DELETE FROM " + table)
         phase2.WebTests.setUp(self)
         # The simulator fixture deliberately shares one owner across both businesses.
@@ -75,6 +76,77 @@ class CustomerTests(unittest.TestCase):
         second = self.client.get("/business/7/customers")
         self.assertEqual(second.status_code, 200)
         self.assertEqual(customers.list_customers(7, stage="LEAD")[1], 1)
+
+    def test_customer_insight_is_incremental_cached_and_never_reanalyzes_without_new_chat(self):
+        identity = self.start().json
+        customer = customers.customer_for_conversation(7, identity["conversation_id"])
+        now = 1_800_000_000
+        with store.transaction() as tx:
+            tx.execute(
+                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (7, identity["conversation_id"], "insight-user-1", "user",
+                 "Nama saya Budi. Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp.", now),
+            )
+            tx.execute(
+                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (7, identity["conversation_id"], "insight-ai-1", "assistant",
+                 "Baik, ada budget tertentu?", now + 1),
+            )
+        first_json = json.dumps({
+            "summary": "Budi memiliki coffee shop di Tangerang dan mencari admin WhatsApp.",
+            "name": "Budi", "business_name": None, "business_type": "coffee shop",
+            "location": "Tangerang", "budget": None,
+            "interests": ["Kilas Assist"], "needs": ["admin WhatsApp"],
+            "buying_stage": "BERMINAT",
+            "buying_signal_reason": "Customer menyebut kebutuhan spesifik.",
+            "communication_notes": "Menjelaskan kebutuhan secara langsung.",
+            "missing_info": ["budget"], "follow_up": "Tanyakan kisaran budget."
+        })
+        with patch.object(customer_insights.ai_onboarding, "_call_claude",
+                          return_value=(first_json, "end_turn", None)) as call:
+            page = self.client.get(f"/business/7/customers/{customer['id']}")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Budi", page.data)
+        self.assertIn(b"coffee shop", page.data)
+        call.assert_called_once()
+
+        with patch.object(customer_insights.ai_onboarding, "_call_claude") as call:
+            cached = self.client.get(f"/business/7/customers/{customer['id']}/insight")
+        self.assertEqual(cached.status_code, 200)
+        call.assert_not_called()
+
+        with store.transaction() as tx:
+            tx.execute(
+                "INSERT INTO kw_web_messages(business_id,conversation_id,event_id,role,content,created_at) "
+                "VALUES (?,?,?,?,?,?)",
+                (7, identity["conversation_id"], "insight-user-2", "user",
+                 "Budget saya sekitar 500 ribu per bulan.", now + 2),
+            )
+        second_json = json.dumps({
+            "summary": "Budi mencari admin WhatsApp untuk coffee shop di Tangerang dengan budget sekitar Rp500 ribu per bulan.",
+            "name": "Budi", "business_name": None, "business_type": "coffee shop",
+            "location": "Tangerang", "budget": "sekitar Rp500 ribu per bulan",
+            "interests": ["Kilas Assist"], "needs": ["admin WhatsApp"],
+            "buying_stage": "BERMINAT",
+            "buying_signal_reason": "Customer sudah menyebut kebutuhan dan budget.",
+            "communication_notes": "Menjelaskan kebutuhan secara langsung.",
+            "missing_info": [], "follow_up": "Tawarkan paket yang sesuai budget."
+        })
+        with patch.object(customer_insights.ai_onboarding, "_call_claude",
+                          return_value=(second_json, "end_turn", None)) as call:
+            updated = self.client.get(f"/business/7/customers/{customer['id']}/insight")
+        self.assertEqual(updated.status_code, 200)
+        self.assertIn(b"Rp500 ribu", updated.data)
+        call.assert_called_once()
+        sent = call.call_args.args[1][0]["content"]
+        self.assertIn("INSIGHT SEBELUMNYA", sent)
+        self.assertIn("500 ribu", sent)
+        with customers.transaction() as tx:
+            row = tx.one("SELECT analyzed_message_count FROM kw_core_customer_insights "
+                         "WHERE business_id=? AND customer_id=?", (7, customer["id"]))
+        self.assertEqual(row["analyzed_message_count"], 3)
 
     def test_lead_filter_and_manual_customer_promotion(self):
         first = self.start().json

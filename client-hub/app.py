@@ -126,6 +126,11 @@ def create_app():
             customer_stage_schema.apply_schema()
             print("Customer stage schema 0062: applied")
 
+        if os.environ.get("KILAS_CUSTOMER_INSIGHT_SCHEMA_APPLY", "").strip().lower() in ("1", "true", "yes", "on"):
+            from kilas_core import customer_insight_schema
+            customer_insight_schema.apply_schema()
+            print("Customer Insight schema 0063: applied")
+
         import ai_usage
         ai_usage.startup_schema_check()
 

@@ -1,8 +1,9 @@
 """Explicit additive customer schema installer.
 
 Never called on normal application boot. Applies the Phase 3 base schema (0056) and the
-current additive relationship-stage extension (0062) against an explicitly authorized target.
-Both migrations are idempotent; no existing customer rows are deleted or rewritten.
+current additive relationship-stage extension (0062) plus Customer Insight cache (0063)
+against an explicitly authorized target. All migrations are idempotent; no existing customer
+or chat rows are deleted or rewritten.
 """
 from pathlib import Path
 import db
@@ -20,6 +21,7 @@ def _apply(filename):
 def apply_schema():
     _apply(f"0056_kilas_core_customers_{db.BACKEND}.sql")
     _apply(f"0062_kilas_customer_stages_{db.BACKEND}.sql")
+    _apply(f"0063_customer_insights_{db.BACKEND}.sql")
 
 
 if __name__ == "__main__":
@@ -28,4 +30,4 @@ if __name__ == "__main__":
     parser.add_argument("--apply", action="store_true", required=True)
     parser.parse_args()
     apply_schema()
-    print("Kilas Core Customers + stages additive schema applied; legacy migrations were not run.")
+    print("Kilas Core Customers + stages + insights additive schema applied; legacy migrations were not run.")
