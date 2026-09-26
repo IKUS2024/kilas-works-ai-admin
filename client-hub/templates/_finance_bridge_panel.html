@@ -2,17 +2,101 @@
 {% set bridge_panel = finance_bridge_panel(business, customer.id, job.id if job is defined and job else none) %}
 {% if bridge_panel %}
 <div class="card" data-finance-bridge>
-  <h2>Finance</h2>
-  {% if bridge_panel.unavailable %}<p>Akses Finance tidak tersedia. Periksa koneksi atau izin bisnis tujuan.</p><a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Periksa koneksi Finance</a>{% else %}
-  <p>{{ 'Finance terhubung' if bridge_panel.mapping and bridge_panel.mapping.enabled else 'Belum terhubung ke Finance' }}</p>
-  {% if bridge_panel.result %}
-    {% set inv=bridge_panel.result.invoice %}
-    <p>{{ inv.invoice_number }} · {{ inv.status }}<br>Sisa {{ inv.outstanding_minor|finance_money(inv.currency) }}</p>
-  {% endif %}
-  {% for linked in bridge_panel.links %}<p>Customer Finance: {{ linked.customer.name }} · Bisnis #{{ linked.link.finance_business_id }}</p>{% endfor %}
-  <p><a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi Finance</a></p>
-  <p><a href="{{ url_for('core_finance_bridge.customer_page',bid=business.id,cid=customer.id) }}">Buat/Hubungkan Customer Finance</a></p>
-  {% if job is defined and job %}<a class="btn" href="{{ url_for('core_finance_bridge.job_page',bid=business.id,jid=job.id) }}">{{ 'Lihat invoice Finance' if bridge_panel.result else 'Buat Invoice di Finance' }}</a>{% endif %}
+  {% if job is defined and job %}
+    {% if job.owner_status == 'IN_PROGRESS' %}
+      <h2>Tugas manusia · Invoice</h2>
+      <p class="client-note">Customer sudah deal. Buat dan terbitkan invoice, lalu catat pembayaran di sini.</p>
+      {% if bridge_panel.unavailable %}
+        <p>Akses Kilas Finance belum tersedia.</p>
+        <a class="btn secondary" href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Periksa koneksi Finance</a>
+      {% elif not bridge_panel.mapping or not bridge_panel.mapping.enabled %}
+        <p>Hubungkan Job ini ke Kilas Finance agar invoice dan pemasukan memakai pembukuan yang sama.</p>
+        <a class="btn" href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Hubungkan Kilas Finance</a>
+      {% elif not bridge_panel.result %}
+        <form method="post" action="{{ url_for('core_finance_bridge.invoice_start',bid=business.id,jid=job.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn" type="submit">Buat Invoice</button>
+        </form>
+      {% else %}
+        {% set link=bridge_panel.result.link %}
+        {% set inv=bridge_panel.result.invoice %}
+        <p><strong>{{ inv.invoice_number }}</strong> · {{ inv.status }}<br>
+          Total {{ inv.total_minor|finance_money(inv.currency) }} ·
+          Sisa {{ inv.outstanding_minor|finance_money(inv.currency) }}</p>
+        {% if inv.status == 'DRAFT' %}
+          <div class="client-actions">
+            <a class="btn secondary" href="{{ url_for('finance.edit_invoice',
+              business_id=link.finance_business_id,branch_id=link.finance_branch_id,
+              invoice_id=link.finance_invoice_id,core_bid=business.id,core_job=job.id,
+              core_version=link.connection_version) }}">Edit Invoice</a>
+            <form method="post" action="{{ url_for('core_finance_bridge.invoice_publish',bid=business.id,jid=job.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn" type="submit">Terbitkan</button>
+            </form>
+          </div>
+          <p class="client-note">Sesudah diterbitkan, Kilas Assist langsung mencoba mengirim link invoice ke WhatsApp customer.</p>
+        {% elif inv.status in ('ISSUED','PARTIALLY_PAID') %}
+          {% if bridge_panel.delivery and bridge_panel.delivery.status in ('accepted','sent','delivered','read') %}
+            <p class="flash success">Invoice sudah dikirim ke customer melalui WhatsApp.</p>
+          {% else %}
+            <p class="client-note">Invoice sudah terbit{% if bridge_panel.delivery %}, tetapi pengiriman terakhir: {{ bridge_panel.delivery.status }}{% endif %}.</p>
+            <form method="post" action="{{ url_for('core_finance_bridge.invoice_publish',bid=business.id,jid=job.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn secondary" type="submit">Kirim Invoice ke Customer</button>
+            </form>
+          {% endif %}
+          {% if bridge_panel.payment_options %}
+          <hr>
+          <h3>Customer sudah bayar?</h3>
+          <form method="post" action="{{ url_for('core_finance_bridge.invoice_paid',bid=business.id,jid=job.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="payment_key" value="{{ bridge_panel.payment_key }}">
+            <label>Tanggal pembayaran
+              <input type="date" name="paid_on" value="{{ bridge_panel.payment_options.today }}" max="{{ bridge_panel.payment_options.today }}" required>
+            </label>
+            <label>Masuk ke akun
+              <select name="account_id" required>
+                <option value="">Pilih akun penerima</option>
+                {% for account in bridge_panel.payment_options.accounts %}
+                  {% if account.currency == inv.currency %}
+                  <option value="{{ account.id }}">{{ account.name }} · {{ account.currency }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+            </label>
+            <label>Kategori pemasukan
+              <select name="category_id" required>
+                <option value="">Pilih kategori</option>
+                {% for category in bridge_panel.payment_options.categories %}
+                  <option value="{{ category.id }}">{{ category.name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>Catatan <input name="note" maxlength="1000" placeholder="Opsional"></label>
+            <button class="btn" type="submit">Invoice sudah dibayar</button>
+          </form>
+          <p class="client-note">Nominal yang dicatat adalah sisa invoice. Kilas Finance otomatis membuat transaksi pemasukan dan memperbarui invoice menjadi lunas.</p>
+          {% endif %}
+        {% elif inv.status == 'PAID' %}
+          <p class="flash success">Lunas · pembayaran sudah masuk sebagai pemasukan di Kilas Finance.</p>
+          <a class="btn secondary" href="{{ url_for('finance.invoice_detail',
+            business_id=link.finance_business_id,branch_id=link.finance_branch_id,
+            invoice_id=link.finance_invoice_id) }}">Buka Invoice di Finance</a>
+        {% endif %}
+      {% endif %}
+    {% else %}
+      <h2>Finance</h2>
+      <p class="client-note">Tugas invoice muncul setelah status Job menjadi Dikerjakan (customer sudah deal).</p>
+    {% endif %}
+  {% else %}
+    <h2>Finance</h2>
+    {% if bridge_panel.unavailable %}
+      <p>Akses Finance tidak tersedia. Periksa koneksi atau izin bisnis tujuan.</p>
+    {% else %}
+      <p>{{ 'Finance terhubung' if bridge_panel.mapping and bridge_panel.mapping.enabled else 'Belum terhubung ke Finance' }}</p>
+      <p><a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi Finance</a></p>
+      <p><a href="{{ url_for('core_finance_bridge.customer_page',bid=business.id,cid=customer.id) }}">Buat/Hubungkan Customer Finance</a></p>
+    {% endif %}
   {% endif %}
 </div>
 {% endif %}
