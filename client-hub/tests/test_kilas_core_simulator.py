@@ -193,7 +193,13 @@ class RouteTests(unittest.TestCase):
         assert Path(cls.db.SQLITE_PATH).parent == Path(cls.temp.name)
         cls.addClassCleanup(cls.db.reset_connection_for_new_db_path)
         cls.db.get_connection().executescript("""
-            CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT);
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY,
+                email TEXT UNIQUE,
+                password_hash TEXT,
+                role TEXT,
+                full_name TEXT
+            );
             CREATE TABLE businesses (
                 id INTEGER PRIMARY KEY,
                 tenant_slug TEXT UNIQUE,
@@ -249,7 +255,7 @@ class RouteTests(unittest.TestCase):
             db.execute("DELETE FROM " + table)
         db.execute("DELETE FROM sqlite_sequence WHERE name='simulation_messages'")
         for uid in (1, 2):
-            db.execute("INSERT INTO users VALUES (?, 'CLIENT_OWNER')", (uid,))
+            db.execute("INSERT INTO users(id,role) VALUES (?, 'CLIENT_OWNER')", (uid,))
         for bid in (7, 8):
             db.execute(
                 "INSERT INTO businesses(id,business_name,package,status) VALUES (?, ?, 'AI_ADMIN', 'ACTIVE')",
