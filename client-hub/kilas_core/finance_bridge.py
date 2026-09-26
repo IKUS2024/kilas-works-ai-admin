@@ -43,7 +43,12 @@ def _owner(bid, actor):
 
 
 def _finance_owner(bid, actor):
-    _owner(bid, actor)
+    admin = db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'", (actor,))
+    if admin:
+        if not db.query_one("SELECT 1 FROM businesses WHERE id=?", (bid,)):
+            raise BridgeError('not_found', 404)
+    else:
+        _owner(bid, actor)
     # Match existing Finance product visibility as well as service entitlement.
     if not (entitlements.self_service() or entitlements.flag('KILAS_FINANCE_BETA')
             or db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'",(actor,))):
