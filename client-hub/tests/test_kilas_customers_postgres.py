@@ -12,7 +12,7 @@ sys.path.insert(0, str(HUB))
 
 import db
 from public_chat import schema as web_schema, store
-from kilas_core import customer_schema, customers
+from kilas_core import customer_schema, customer_stage_schema, customers
 
 
 class CustomerPostgresTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class CustomerPostgresTests(unittest.TestCase):
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("""
-            DROP TABLE IF EXISTS kw_web_customer_links, kw_core_customer_identities, kw_core_customers,
+            DROP TABLE IF EXISTS kw_web_customer_links, kw_core_customer_identities, kw_core_customer_stages, kw_core_customers,
                 kw_web_messages, kw_web_events, kw_web_conversations, kw_web_channels, kw_web_limits,
                 audit_log, businesses CASCADE;
             CREATE TABLE businesses (
@@ -48,6 +48,7 @@ class CustomerPostgresTests(unittest.TestCase):
         cur.close(); conn.close()
         web_schema.apply_schema()
         customer_schema.apply_schema()
+        customer_stage_schema.apply_schema()
 
     @classmethod
     def tearDownClass(cls):
@@ -55,7 +56,7 @@ class CustomerPostgresTests(unittest.TestCase):
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("""
-            DROP TABLE IF EXISTS kw_web_customer_links, kw_core_customer_identities, kw_core_customers,
+            DROP TABLE IF EXISTS kw_web_customer_links, kw_core_customer_identities, kw_core_customer_stages, kw_core_customers,
                 kw_web_messages, kw_web_events, kw_web_conversations, kw_web_channels, kw_web_limits,
                 audit_log, businesses CASCADE;
         """)
@@ -63,8 +64,9 @@ class CustomerPostgresTests(unittest.TestCase):
 
     def setUp(self):
         with store.transaction() as tx:
-            for table in ("kw_web_customer_links","kw_core_customer_identities","kw_core_customers",
-                          "kw_web_messages","kw_web_events","kw_web_conversations","kw_web_channels","kw_web_limits"):
+            for table in ("kw_web_customer_links","kw_core_customer_identities","kw_core_customer_stages",
+                          "kw_core_customers","kw_web_messages","kw_web_events","kw_web_conversations",
+                          "kw_web_channels","kw_web_limits"):
                 tx.execute("DELETE FROM " + table)
         store.ensure_channel(7)
         store.ensure_channel(8)
@@ -76,6 +78,9 @@ class CustomerPostgresTests(unittest.TestCase):
             other = customers.ensure_web_customer(tx, 8, self._conversation(tx,8,"conv-b","hash-a"), "hash-a")
         self.assertEqual(one["id"], same["id"])
         self.assertNotEqual(one["id"], other["id"])
+        self.assertEqual(customers.get_customer(7, one["id"])["stage"], "LEAD")
+        customers.update_customer(7, one["id"], display_name="Promoted", stage="CUSTOMER")
+        self.assertEqual(customers.list_customers(7, stage="CUSTOMER")[1], 1)
 
     def _conversation(self, tx, bid, cid, visitor_hash):
         now = 1_800_000_000
