@@ -32,7 +32,13 @@ ATURAN MUTLAK:
 6. buying_stage harus salah satu:
    "BELUM_JELAS", "MENCARI_INFORMASI", "MEMBANDINGKAN", "BERMINAT", "SIAP_MEMBELI", "CUSTOMER_AKTIF".
 7. follow_up harus berupa saran praktis untuk admin, bukan pesan yang otomatis dikirim.
-8. Balas HANYA satu JSON valid dengan schema persis:
+8. action HANYA diisi jika CUSTOMER SENDIRI sudah menyatakan tindakan/permintaan konkret yang perlu
+   dikerjakan, misalnya mau booking, mau order/beli, minta dibuatkan sesuatu, minta dikirim proposal,
+   minta dijadwalkan konsultasi, atau menyatakan layanan spesifik yang ingin dilanjutkan.
+   Pertanyaan informasi/FAQ/harga/paket, sekadar minat, membandingkan, atau bisnis menawarkan sesuatu
+   BUKAN action. Untuk kasus itu action wajib null.
+9. action harus sangat singkat (maksimal satu kalimat), faktual, dan tidak boleh berisi strategi admin.
+10. Balas HANYA satu JSON valid dengan schema persis:
 {
   "summary": string,
   "name": string|null,
@@ -46,7 +52,8 @@ ATURAN MUTLAK:
   "buying_signal_reason": string|null,
   "communication_notes": string|null,
   "missing_info": [string],
-  "follow_up": string|null
+  "follow_up": string|null,
+  "action": string|null
 }
 """
 
@@ -66,6 +73,7 @@ def _default():
         "communication_notes": None,
         "missing_info": [],
         "follow_up": None,
+        "action": None,
     }
 
 
@@ -112,6 +120,7 @@ def _normalize(value):
         "communication_notes": _clean_string(value.get("communication_notes"), 500),
         "missing_info": _clean_list(value.get("missing_info")),
         "follow_up": _clean_string(value.get("follow_up"), 700),
+        "action": _clean_string(value.get("action"), 240),
     })
     return result
 

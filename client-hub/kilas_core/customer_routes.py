@@ -117,4 +117,15 @@ def update_profile(bid, customer_id):
                                conversations=conversations, insight=insight, saved=False,
                                form_error="Periksa kembali data customer.",
                                linked_jobs=linked_context(business,customer_id)), 400
+    # Promotion to Customer is the only point where this CRM contact becomes eligible
+    # for an AI action Job. Re-read the authoritative profile and refresh Insight; if the
+    # customer has not stated a concrete action, sync remains a no-op and Jobs stays empty.
+    try:
+        customer = customers.get_customer(bid, customer_id)
+        if customer.get("stage") == "CUSTOMER":
+            business = security.require_business_access(bid)
+            insight = customer_insights.safe_refresh(business, customer)
+            customer_action_jobs.sync_from_insight(business, customer, insight)
+    except Exception:
+        pass
     return redirect(url_for("core_customers.detail_page", bid=bid, customer_id=customer_id, saved=1))
