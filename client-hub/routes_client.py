@@ -1295,7 +1295,7 @@ def _demo_kilas_clean_thread(business_id, phone):
             handshake_reply_cleaned = True
 
         cleaned.append(item)
-    return ai_reply_explanation.attach_demo(cleaned, business_id)
+    return ai_reply_explanation.attach_demo(cleaned, business_id, allow_visible_fallback=True)
 
 
 def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
