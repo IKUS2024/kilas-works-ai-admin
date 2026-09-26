@@ -137,6 +137,7 @@ def list_page(bid):
     # Customer Insight / external AI reconciliation must never block an operator opening Jobs.
     try:
         customer_action_jobs.prune_invalid_lead_jobs(bid)
+        customer_action_jobs.repair_prepayment_in_progress_jobs(bid)
     except Exception:
         pass
     q, status = request.args.get('q',''), request.args.get('status','')
@@ -187,6 +188,10 @@ def create(bid):
 @security.login_required
 def detail_page(bid,job_id):
     business = _business(bid)
+    try:
+        customer_action_jobs.repair_prepayment_in_progress_jobs(bid)
+    except Exception:
+        pass
     job = jobs.get_job(bid,job_id)
     customer = _confirmed_customer(bid, job['customer_id'])
     return render_template('job_form.html',**_context(business,job=job,customer=customer,
