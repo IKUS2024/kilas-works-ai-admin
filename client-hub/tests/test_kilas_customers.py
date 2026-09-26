@@ -143,6 +143,11 @@ class CustomerTests(unittest.TestCase):
     def test_platform_admin_workspace_reuses_same_customers_engine_and_hides_internal_business(self):
         phone = "628111223344"
         self.db.execute(
+            "CREATE TABLE IF NOT EXISTS messages("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,number TEXT NOT NULL,mode TEXT NOT NULL,"
+            "role TEXT NOT NULL,content TEXT NOT NULL,created_at TEXT NOT NULL)"
+        )
+        self.db.execute(
             "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
             (phone, "customer", "user", "Saya mau foto produk parfum minggu depan", "2026-09-26 11:00:00"),
         )
