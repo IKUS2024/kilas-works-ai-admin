@@ -137,6 +137,17 @@ def refresh_and_sync(business, customer):
     return insight, job
 
 
+def _delete_job_dependencies(tx, business_id, job_id):
+    # These tables reference Jobs without ON DELETE CASCADE in 0057/0058.
+    # Remove only rows attached to the exact AI-generated Job being pruned.
+    tx.execute("DELETE FROM kw_core_automation_runs WHERE business_id=? AND job_id=?",
+               (business_id, job_id))
+    tx.execute("DELETE FROM kw_core_attention WHERE business_id=? AND job_id=?",
+               (business_id, job_id))
+    tx.execute("DELETE FROM kw_core_job_operations WHERE business_id=? AND job_id=?",
+               (business_id, job_id))
+
+
 def prune_invalid_lead_jobs(business_id):
     """Remove only AI-generated Customer Insight Jobs whose CRM owner is still a Lead.
 
@@ -156,12 +167,25 @@ def prune_invalid_lead_jobs(business_id):
         )
         removed = 0
         for row in rows:
-            tx.execute("DELETE FROM kw_core_job_operations WHERE business_id=? AND job_id=?",
-                       (business_id, row["id"]))
+            _delete_job_dependencies(tx, business_id, row["id"])
             tx.execute("DELETE FROM kw_core_jobs WHERE business_id=? AND id=?",
                        (business_id, row["id"]))
             removed += 1
         return removed
+
+
+def prune_invalid_lead_jobs_all():
+    """Bounded startup reconciliation across only businesses that currently have invalid AI Lead Jobs."""
+    if not jobs.enabled():
+        return 0
+    with jobs.transaction() as tx:
+        rows = tx.execute(
+            "SELECT DISTINCT j.business_id FROM kw_core_jobs j "
+            "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
+            "WHERE s.stage='LEAD' AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%' "
+            "ORDER BY j.business_id LIMIT 200"
+        )
+    return sum(prune_invalid_lead_jobs(int(row["business_id"])) for row in rows)
 
 
 def reconcile_business(business, limit=10):
