@@ -21,8 +21,7 @@ def list_page(bid):
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:
-        from routes_client import sync_demo_kilas_lead
-        sync_demo_kilas_lead(bid)
+        customers.sync_demo_binding_lead(bid)
     except Exception:
         pass
     q = request.args.get("q", "")
