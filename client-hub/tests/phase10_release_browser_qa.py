@@ -236,8 +236,8 @@ def main():
 
         # Dikerjakan exposes the human invoice task. It must reuse the full Finance editor.
         owner.goto(job_url)
-        expect(owner.get_by_text('Tugas manusia · Invoice', exact=True)).to_be_visible()
-        owner.get_by_role('button', name='Buat Invoice', exact=True).click()
+        expect(owner.get_by_text('Buat invoice untuk customer', exact=True)).to_be_visible()
+        owner.get_by_role('button', name=re.compile(r'^Buat Invoice untuk ')).click()
         assert f'/business/{target}/finance/invoices/new' in owner.url
         expect(owner.get_by_text('Buat Invoice', exact=True)).to_be_visible()
         owner.locator('[name=sender_address]').fill('Synthetic QA address')
