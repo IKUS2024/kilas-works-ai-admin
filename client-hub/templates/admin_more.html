@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}More · Kilas Works{% endblock %}
+{% block content %}
+<section class="kw-page" data-admin-more>
+  <header class="kw-page-head">
+    <div>
+      <p class="kw-eyebrow">MORE</p>
+      <h1>Operasional &amp; pengaturan</h1>
+      <p>Semua tool Kilas Works yang tidak perlu memenuhi navigasi utama.</p>
+    </div>
+  </header>
+
+  <div class="kw-grid">
+    <section class="card">
+      <p class="kw-eyebrow">PEMBAYARAN</p>
+      <h2>Pembayaran &amp; langganan</h2>
+      <div class="kw-link-list">
+        <a href="{{ url_for('admin.payments_admin') }}">Pembayaran jasa / Kilas Assist <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('products.admin_bills') }}">Verifikasi Kilas Finance <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='customers',finance='trial') }}">Finance trial aktif <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='customers',status='SUSPENDED') }}">Status langganan <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="kw-eyebrow">KILAS SERVICES</p>
+      <h2>Services &amp; talent</h2>
+      <div class="kw-link-list">
+        <a href="{{ url_for('admin.projects_admin') }}">Jobs / Projects <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.talent_admin') }}">Talent <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.catalog_admin') }}">Katalog layanan <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="kw-eyebrow">PLATFORM</p>
+      <h2>WhatsApp &amp; AI</h2>
+      <div class="kw-link-list">
+        <a href="{{ url_for('meta_direct.launcher') }}">WhatsApp &amp; channel <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.ai_usage_dashboard') }}">Penggunaan / biaya AI <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.official_links_admin') }}">Tautan resmi <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="kw-eyebrow">TOOLS</p>
+      <h2>Cari &amp; administrasi</h2>
+      <div class="kw-link-list">
+        <a href="{{ url_for('admin.admin_search') }}">Cari bisnis, project, invoice <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='customers',brain_review='changes') }}">Review perubahan Brain <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('admin.dashboard',workspace='customers') }}">Semua Customers <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  </div>
+
+  <p><a class="btn secondary" href="{{ url_for('auth.logout_page') }}">Keluar dari akun admin</a></p>
+</section>
+{% endblock %}
