@@ -27,6 +27,13 @@
 .kw-demo-hint{font-size:11px}
 .kw-demo-connected-empty{border-left:3px solid var(--green)}
 .kw-demo-connected-empty>strong{color:var(--green)}
+.kw-ai-analysis{margin-top:7px}
+.kw-ai-analysis>summary{display:inline-flex;cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:11px;font-weight:800;list-style:none}
+.kw-ai-analysis>summary::-webkit-details-marker{display:none}
+.kw-ai-analysis-body{margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.025);font-size:12px;line-height:1.45}
+.kw-ai-analysis-body strong{color:var(--text)}
+.kw-ai-analysis-body ul{margin:4px 0 8px 18px;padding:0}
+.kw-ai-analysis-note{font-size:10px;color:var(--text-dim);margin-top:7px}
 @media(max-width:900px){.customer-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
 @media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
 </style>
@@ -148,6 +155,42 @@
           <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
             <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Bisnis / AI' }}</div>
             {% include '_inbox_media.html' %}
+            {% if m.role == 'assistant' %}
+            <details class="kw-ai-analysis">
+              <summary>Analisa</summary>
+              <div class="kw-ai-analysis-body">
+                {% if m.analysis %}
+                  {% if m.analysis.intent %}<div><strong>Intent:</strong> {{ m.analysis.intent }}</div>{% endif %}
+                  {% if m.analysis.workflow %}<div><strong>Workflow:</strong> {{ m.analysis.workflow }}</div>{% endif %}
+                  {% if m.analysis.facts %}
+                    <strong>Fakta customer:</strong>
+                    <ul>{% for fact in m.analysis.facts %}<li>{{ fact.label }} = {{ fact.value }}</li>{% endfor %}</ul>
+                  {% endif %}
+                  {% if m.analysis.basis %}
+                    <strong>Dasar jawaban:</strong>
+                    <ul>{% for item in m.analysis.basis %}<li>{{ item }}</li>{% endfor %}</ul>
+                  {% endif %}
+                  {% if m.analysis.missing %}
+                    <strong>Info belum lengkap:</strong>
+                    <ul>{% for item in m.analysis.missing %}<li>{{ item }}</li>{% endfor %}</ul>
+                  {% endif %}
+                  {% if m.analysis.uncertain %}
+                    <strong>Info ambigu:</strong>
+                    <ul>{% for item in m.analysis.uncertain %}<li>{{ item }}</li>{% endfor %}</ul>
+                  {% endif %}
+                  {% if m.analysis.guardrails %}
+                    <strong>Aturan pengaman:</strong>
+                    <ul>{% for item in m.analysis.guardrails %}<li>{{ item }}</li>{% endfor %}</ul>
+                  {% endif %}
+                  {% if m.analysis.action %}<div><strong>Aksi sistem:</strong> {{ m.analysis.action }}</div>{% endif %}
+                  {% if m.analysis.result %}<div><strong>Hasil:</strong> {{ m.analysis.result }}</div>{% endif %}
+                  <div class="kw-ai-analysis-note">{{ m.analysis.note or 'Ini jejak keputusan produk, bukan chain-of-thought internal model.' }}</div>
+                {% else %}
+                  <div class="kw-ai-analysis-note">Jejak analisa belum tersedia untuk pesan lama atau balasan manual.</div>
+                {% endif %}
+              </div>
+            </details>
+            {% endif %}
             <div class="kw-msg-meta muted" style="font-size:11px;">
               <span>{{ m.created_at|humanize_timestamp }}</span>
               {% if not customer %}<span class="kw-delivery sent">✓ Terkirim</span>{% endif %}
