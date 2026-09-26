@@ -146,6 +146,46 @@ def job_page(bid,jid):
                    links=bridge.customer_links(bid,actor,job['customer_id']))
 
 
+@bridge_bp.post('/business/<int:bid>/finance-bridge/jobs/<jid>/invoice/start')
+@security.login_required
+def invoice_start(bid,jid):
+    _, actor = _context(bid)
+    mapping = bridge.connection(bid,actor)
+    if not mapping or not mapping['enabled']:
+        raise bridge.BridgeError('not_connected',409)
+    bridge.ensure_job_customer_link(
+        bid,actor,jid,expected_version=mapping['version'],operation_key=uuid.uuid4().hex)
+    ctx=bridge.invoice_editor_context(
+        bid,actor,jid,expected_version=mapping['version'],
+        finance_business_id=mapping['finance_business_id'],finance_branch_id=mapping['finance_branch_id'])
+    return redirect(url_for('finance.new_invoice',
+        business_id=ctx['mapping']['finance_business_id'],branch_id=ctx['mapping']['finance_branch_id'],
+        core_bid=bid,core_job=jid,core_version=ctx['mapping']['version']),code=303)
+
+
+@bridge_bp.post('/business/<int:bid>/finance-bridge/jobs/<jid>/invoice/publish')
+@security.login_required
+def invoice_publish(bid,jid):
+    _, actor = _context(bid)
+    result=bridge.publish_and_send_invoice(bid,actor,jid,uuid.uuid4().hex)
+    status=(result.get('delivery') or {}).get('status') or 'unknown'
+    return redirect(url_for('core_jobs.detail_page',bid=bid,job_id=jid,invoice_delivery=status),code=303)
+
+
+@bridge_bp.post('/business/<int:bid>/finance-bridge/jobs/<jid>/invoice/paid')
+@security.login_required
+def invoice_paid(bid,jid):
+    _, actor = _context(bid)
+    allowed={'csrf_token','paid_on','account_id','category_id','note','payment_key'}
+    if set(request.form)-allowed or any(len(request.form.getlist(k))!=1 for k in request.form):
+        raise bridge.BridgeError('invalid_form')
+    bridge.record_full_payment(
+        bid,actor,jid,paid_on=request.form.get('paid_on'),
+        account_id=_int(request.form.get('account_id')),category_id=_int(request.form.get('category_id')),
+        note=request.form.get('note'),payment_key=request.form.get('payment_key'))
+    return redirect(url_for('core_jobs.detail_page',bid=bid,job_id=jid,invoice_paid=1),code=303)
+
+
 @bridge_bp.post('/business/<int:bid>/finance-bridge/jobs/<jid>')
 @security.login_required
 def draft(bid,jid):
@@ -170,9 +210,16 @@ def panel(business, customer_id=None, job_id=None):
         return None
     actor=security.current_user()['id']
     try:
-        return dict(mapping=bridge.connection(business['id'],actor),
-                    result=bridge.read_invoice(business['id'],actor,job_id) if job_id else None,
-                    links=bridge.customer_links(business['id'],actor,customer_id) if customer_id else [])
+        mapping=bridge.connection(business['id'],actor)
+        result=bridge.read_invoice(business['id'],actor,job_id) if job_id else None
+        data=dict(mapping=mapping,result=result,
+                  links=bridge.customer_links(business['id'],actor,customer_id) if customer_id else [],
+                  operation_key=uuid.uuid4().hex,payment_key=uuid.uuid4().hex)
+        if result:
+            data['delivery']=bridge.invoice_delivery_status(business['id'],result['link']['finance_invoice_id'])
+            if result['invoice']['status'] in ('ISSUED','PARTIALLY_PAID'):
+                data['payment_options']=bridge.payment_options(business['id'],actor,job_id)
+        return data
     except (bridge.BridgeError, finance.FinanceError):
         # Lost Finance access must neither leak its data nor break the Core Job.
         return dict(unavailable=True,mapping=None,result=None,links=[])
