@@ -224,15 +224,16 @@ def source_state(business_id, customer_id):
 
 
 def _transcript(core, demo):
+    # Each source is already in durable ascending message order. Do not parse created_at here:
+    # the legacy platform message table can use a datetime string while Core uses epoch seconds.
     rows = []
     for row in core:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
-        rows.append((int(row.get("created_at") or 0), f"[{who}][CORE] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}"))
+        rows.append(f"[{who}][CORE] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     for row in demo:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
-        rows.append((0, f"[{who}][DEMO_WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}"))
-    rows.sort(key=lambda item: item[0])
-    text = "\n".join(item[1] for item in rows)
+        rows.append(f"[{who}][DEMO_WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
+    text = "\n".join(rows)
     return text[-MAX_TRANSCRIPT_CHARS:]
 
 
@@ -343,3 +344,19 @@ def demo_conversation_row(business_id, customer):
         "is_demo": True,
         "phone": binding["phone"],
     }
+
+
+def safe_refresh(business, customer):
+    """Never let Customer Insight availability break the CRM detail page."""
+    try:
+        return refresh(business, customer)
+    except Exception:
+        result = _default()
+        result["_meta"] = {
+            "updated_at": None,
+            "message_count": 0,
+            "fresh": False,
+            "has_history": False,
+            "error": True,
+        }
+        return result
