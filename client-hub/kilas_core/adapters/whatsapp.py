@@ -114,10 +114,16 @@ def handle(bid,pid,value,field):
         import json
         fingerprint=store.digest(json.dumps(message,sort_keys=True,separators=(',',':')))
         link=ensure(bid,pid,message.get('from'),event_id=eid,payload_hash=fingerprint); cid=link['conversation_id']
+        media_event = None
         if message.get('type')!='text':
-            # Root persists supported bounded media first. Owner handles it, no invented extraction.
+            # Media is owner-review work, never guessed by the text model. Persist its scoped
+            # metadata next to the shared Core message and fence AI with Human Takeover.
             mode(bid,cid,'HUMAN_TAKEOVER',None)
-            text='[Media customer: perlu ditinjau tim]'
+            from kilas_core import whatsapp_media
+            media_event = message if message.get('type') in whatsapp_media.TYPES else None
+            meta = (message.get(message.get('type')) or {}) if media_event else {}
+            caption = str(meta.get('caption') or '').strip()
+            text = caption[:4000] if caption else '[Media customer: perlu ditinjau tim]'
         else:
             text=(message.get('text') or {}).get('body')
         if not isinstance(text,str) or not text.strip() or len(text)>4000: raise store.ChatError('invalid_message')
@@ -127,7 +133,13 @@ def handle(bid,pid,value,field):
             tx.execute('UPDATE kw_core_wa_conversations SET last_inbound_at=CASE WHEN last_inbound_at<? THEN ? ELSE last_inbound_at END WHERE business_id=? AND conversation_id=?',(stamp,stamp,bid,cid))
         inbound=InboundMessage(business_id=bid,channel='whatsapp',conversation_id=cid,actor_type='visitor',
                                text=text.strip(),timestamp=datetime.fromtimestamp(stamp,timezone.utc),external_message_id=eid)
-        event,history=store.claim(bid,cid,eid,inbound.text,store.digest(pid+':'+link['customer_phone']))
+        media_hook = (
+            (lambda tx: whatsapp_media.record(tx,bid,cid,media_event,'user'))
+            if media_event is not None else None
+        )
+        event,history=store.claim(
+            bid,cid,eid,inbound.text,store.digest(pid+':'+link['customer_phone']),
+            on_new_message=media_hook)
         if history is not None:
             def fence(tx):
                 return bool(whatsapp_access.channel(bid,pid)) and sync_human(tx,bid,cid,link['customer_phone'])

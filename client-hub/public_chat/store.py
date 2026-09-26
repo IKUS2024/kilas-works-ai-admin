@@ -128,7 +128,7 @@ def authorized(bid, cid, token):
 def thread(bid, cid, after=0):
     with transaction() as tx:
         _locked(tx, bid, cid)
-        return tx.execute("SELECT id,role,content,created_at FROM kw_web_messages "
+        return tx.execute("SELECT id,event_id,role,content,created_at FROM kw_web_messages "
                           "WHERE business_id=? AND conversation_id=? AND id>? ORDER BY id LIMIT 100",
                           (bid, cid, after))
 
@@ -142,7 +142,7 @@ def _message(tx, bid, cid, event_id, role, text):
     customers.touch_from_conversation(tx, bid, cid, now=now)
 
 
-def claim(bid, cid, event_id, text, ip_key):
+def claim(bid, cid, event_id, text, ip_key, on_new_message=None):
     now, fingerprint = int(time.time()), digest(text)
     with transaction() as tx:
         conv = _locked(tx, bid, cid)
@@ -171,6 +171,8 @@ def claim(bid, cid, event_id, text, ip_key):
                    "AND status='processing' AND lease_until<=?", (bid,cid,event_id,now))
         if not event:
             _message(tx, bid, cid, event_id, "user", text)
+            if on_new_message is not None:
+                on_new_message(tx)
         token = secrets.token_hex(16)
         status = "done" if conv["mode"] == "HUMAN_TAKEOVER" else "processing"
         tx.execute("INSERT INTO kw_web_events(business_id,conversation_id,event_id,payload_hash,status,claim_token,"

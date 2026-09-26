@@ -51,13 +51,21 @@ def messages(bid,cid):
     is_wa=cid.startswith('wa_')
     messages=store.thread(bid,cid,after)
     delivery={}
+    freeform_allowed=True
     if is_wa:
         with store.transaction() as tx:
             states=tx.execute('SELECT m.id,o.status FROM kw_web_messages m LEFT JOIN kw_core_wa_outbound o ON o.business_id=m.business_id AND o.conversation_id=m.conversation_id AND o.event_id=m.event_id WHERE m.business_id=? AND m.conversation_id=? AND m.role!=?',(bid,cid,'user'))
         delivery={r['id']:r['status'] for r in states}
+        from kilas_core import whatsapp_media
+        messages=whatsapp_media.attach(bid,cid,messages)
         for message in messages:
             message['delivery_status']=delivery.get(message['id']) if message['role']!='user' else None
-    return jsonify(channel='WHATSAPP' if is_wa else 'WEB',mode=selected['mode'],messages=messages,delivery=delivery)
+            if message.get('media'):
+                message['media']['url']=url_for(
+                    'owner_web.media',bid=bid,cid=cid,media_key=message['media']['id'])
+        freeform_allowed=whatsapp_media.freeform_allowed(bid,cid)
+    return jsonify(channel='WHATSAPP' if is_wa else 'WEB',mode=selected['mode'],
+                   messages=messages,delivery=delivery,freeform_allowed=freeform_allowed)
 
 
 @owner_bp.post('/business/<int:bid>/web-inbox/<cid>/mode')
@@ -114,4 +122,37 @@ def template(bid,cid):
     if not isinstance(event,str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',event):
         raise store.ChatError('invalid_event_id')
     result=manual(bid,cid,event,'',owner_security.current_user()['id'],template=True)
+    return jsonify(channel='WHATSAPP',status=result['status'])
+
+
+@owner_bp.get('/business/<int:bid>/web-inbox/<cid>/media/<media_key>')
+@owner_security.login_required
+def media(bid,cid,media_key):
+    business_for_owner(bid)
+    from kilas_core import whatsapp_media
+    row=whatsapp_media.get(bid,cid,media_key)
+    if not row: abort(404)
+    return whatsapp_media.serve(bid,cid,row)
+
+
+@owner_bp.post('/business/<int:bid>/web-inbox/<cid>/media')
+@owner_security.login_required
+def media_send(bid,cid):
+    business_for_owner(bid)
+    from kilas_core.adapters import whatsapp
+    if not whatsapp.mapped(bid,cid): abort(404)
+    allowed={'csrf_token','event_id','caption'}
+    if set(request.form)-allowed or set(request.files)!={'file'}:
+        raise store.ChatError('invalid_media')
+    if len(request.files.getlist('file'))!=1:
+        raise store.ChatError('invalid_media')
+    event=request.form.get('event_id')
+    if not isinstance(event,str) or not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',event):
+        raise store.ChatError('invalid_event_id')
+    from kilas_core import whatsapp_media
+    result=whatsapp_media.manual(
+        bid,cid,event,request.files.get('file'),request.form.get('caption',''),
+        owner_security.current_user()['id'])
+    if result['status'] not in ('accepted','sent','delivered','read'):
+        raise store.ChatError('whatsapp_'+result['status'],409)
     return jsonify(channel='WHATSAPP',status=result['status'])

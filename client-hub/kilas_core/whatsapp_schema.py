@@ -5,10 +5,15 @@ from public_chat.store import transaction
 
 
 def apply_schema():
-    path = Path(__file__).resolve().parents[1]/'migrations'/f'0061_kilas_whatsapp_{db.BACKEND}.sql'
+    root = Path(__file__).resolve().parents[1]/'migrations'
+    paths = [
+        root/f'0061_kilas_whatsapp_{db.BACKEND}.sql',
+        root/f'0064_kilas_core_wa_media_{db.BACKEND}.sql',
+    ]
     with transaction() as tx:
-        for statement in path.read_text().split(';'):
-            if statement.strip(): tx.execute(statement)
+        for path in paths:
+            for statement in path.read_text().split(';'):
+                if statement.strip(): tx.execute(statement)
 
 
 if __name__ == '__main__':
