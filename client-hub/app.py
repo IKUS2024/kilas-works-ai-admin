@@ -134,6 +134,21 @@ def create_app():
         import ai_usage
         ai_usage.startup_schema_check()
 
+        # One-deploy production backfill for the hidden Kilas Works Admin CRM. The broad text
+        # prefilter only chooses which historical Leads need Customer Insight analysis; promotion
+        # still requires the structured Insight to prove a concrete customer-requested action.
+        if os.environ.get("KILAS_PLATFORM_ACTIONABLE_LEAD_BACKFILL", "").strip().lower() in ("1","true","yes","on"):
+            try:
+                import platform_workspace
+                from kilas_core import customer_action_jobs
+                platform_business = platform_workspace.business(create=True)
+                promoted = customer_action_jobs.reconcile_actionable_platform_leads(
+                    platform_business, actor_id=None, limit=50
+                )
+                print(f"Platform actionable Lead backfill: promoted {promoted}")
+            except Exception:
+                print("Platform actionable Lead backfill: skipped")
+
         if os.environ.get("KILAS_FORCE_PRUNE_INVALID_LEAD_JOBS", "").strip().lower() in ("1","true","yes","on"):
             from kilas_core import customer_action_jobs
             removed = customer_action_jobs.force_prune_invalid_lead_jobs_all()
