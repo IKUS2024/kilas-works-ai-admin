@@ -24,8 +24,8 @@ SIGNAL_TO_STATUS = {
 # Customer Insight remains the authority for whether the customer actually requested a concrete
 # action, so "mau tanya harga" / FAQ / comparison can safely stay Lead.
 _PLATFORM_ACTION_HINT = re.compile(
-    r"\\b(mau|ingin|booking|reservasi|pesan|order|beli|payment|bayar|invoice|"
-    r"lanjut|deal|fix|setuju|butuh|minta|pakai|bisa\\s+bantu)\\b",
+    r"\b(mau|ingin|booking|reservasi|pesan|order|beli|payment|bayar|invoice|"
+    r"lanjut|deal|fix|setuju|butuh|minta|pakai|bisa\s+bantu)\b",
     re.IGNORECASE,
 )
 _PLATFORM_SYSTEM_MARKERS = ("[FOLLOW-UP OTOMATIS SISTEM]",)
