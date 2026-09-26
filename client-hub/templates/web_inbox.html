@@ -3,6 +3,22 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static',filename='web_chat.css') }}">
 {% if jobs_available(business) %}<style>.web-owner .jobs-tabs{flex-wrap:wrap}</style>{% endif %}
+<style>
+.web-owner .web-media-form{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.02)}
+.web-owner .web-media-form-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end}
+.web-owner .web-media-form input[type=file]{padding:7px}
+.web-owner .web-media-form .client-note{margin:5px 0 0}
+.web-media-asset{display:block;max-width:100%;margin-top:7px;border-radius:9px}
+img.web-media-asset,video.web-media-asset{max-height:300px;object-fit:contain}
+audio.web-media-asset{width:100%}
+.web-media-document{display:inline-flex;margin-top:7px;align-items:center;gap:6px}
+.web-media-caption{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px}
+.web-window-note{font-size:12px;color:var(--text-dim);margin:7px 0}
+@media(max-width:600px){
+  .web-owner .web-media-form-grid{grid-template-columns:1fr}
+  .web-owner .web-media-form .btn{width:100%}
+}
+</style>
 <section class="web-owner">
   <h1>Inbox — {{ business.business_name }}</h1>
   {% include '_web_share.html' %}
@@ -29,7 +45,7 @@
       </nav>
     </aside>
     {% if selected %}
-    <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-mode-url="{{ url_for('owner_web.mode',bid=business.id,cid=selected.id) }}" data-reply-url="{{ url_for('owner_web.reply',bid=business.id,cid=selected.id) }}" data-csrf="{{ csrf_token() }}">
+    <section class="web-panel" data-owner-chat data-base="{{ url_for('owner_web.messages',bid=business.id,cid=selected.id) }}" data-mode-url="{{ url_for('owner_web.mode',bid=business.id,cid=selected.id) }}" data-reply-url="{{ url_for('owner_web.reply',bid=business.id,cid=selected.id) }}" {% if selected.id.startswith('wa_') %}data-media-url="{{ url_for('owner_web.media_send',bid=business.id,cid=selected.id) }}"{% endif %} data-csrf="{{ csrf_token() }}">
       {% include "_jobs_panel.html" %}
       <header><a href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">← Percakapan</a>
         <h2>{{ selected_customer.display_name if selected_customer else ('Pengunjung ' ~ selected.id[:6]) }} · {{ 'WhatsApp' if selected.id.startswith('wa_') else 'WEB' }}</h2><p data-mode>{{ 'Ditangani tim' if selected.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</p>
@@ -41,11 +57,26 @@
       <form data-reply><label for="web-owner-message">Balasan tim</label>
         <textarea id="web-owner-message" maxlength="4000" required disabled placeholder="Ambil alih untuk membalas"></textarea>
         <button class="btn" type="submit" disabled>Kirim balasan</button>
-      </form><p data-send-status role="status"></p>
+      </form>
       {% if selected.id.startswith('wa_') %}
-      <button class="btn secondary" type="button" disabled data-template-url="{{ url_for('owner_web.template',bid=business.id,cid=selected.id) }}">Kirim template yang disetujui</button>
-      <p>Di luar jendela balasan, gunakan template yang telah disetujui Meta. Pengiriman tidak otomatis mengaktifkan AI.</p>
+      <form class="web-media-form" data-media-form enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="event_id" value="">
+        <div class="web-media-form-grid">
+          <div>
+            <label for="web-owner-file">Gambar / PDF</label>
+            <input id="web-owner-file" name="file" type="file" accept="image/jpeg,image/png,application/pdf" disabled required>
+            <input name="caption" maxlength="1024" placeholder="Keterangan (opsional)" disabled>
+          </div>
+          <button class="btn secondary" type="submit" disabled>Kirim media</button>
+        </div>
+        <p class="client-note">JPG/PNG maksimal 5 MB · PDF maksimal 10 MB.</p>
+      </form>
+      <p class="web-window-note" data-window-note></p>
+      <button class="btn secondary" type="button" disabled data-template-url="{{ url_for('owner_web.template',bid=business.id,cid=selected.id) }}">Kirim Template &amp; Lanjutkan</button>
+      <p class="client-note">Inbox tetap tersimpan. Di luar jendela WhatsApp, kirim template resmi; setelah customer membalas, teks dan media aktif lagi.</p>
       {% endif %}
+      <p data-send-status role="status"></p>
     </section>
     {% else %}<section class="web-panel web-empty"><p>Pilih percakapan untuk membaca pesan.</p></section>{% endif %}
   </div>
