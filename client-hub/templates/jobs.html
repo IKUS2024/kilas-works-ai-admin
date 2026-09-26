@@ -1,17 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Tindakan — {{ business.business_name }}{% endblock %}
+{% block title %}Jobs — {{ business.business_name }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
-.job-action-line{margin-top:6px;font-size:13px;line-height:1.45;color:var(--text)}
-.job-action-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.job-action-label{margin-top:10px;color:var(--text-dim);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.job-action-line{margin-top:3px;font-size:13px;line-height:1.45;color:var(--text)}
+.job-action-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
 .job-action-meta .client-status{font-size:9px}
 </style>
 <section class="client-page">
   <div class="client-head">
     <div>
-      <h1>Tindakan</h1>
-      <p>{{ business.business_name }} · tindakan customer</p>
+      <h1>Jobs</h1>
+      <p>{{ business.business_name }} · tindakan konkret dari Customer</p>
     </div>
     <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>
   </div>
@@ -35,24 +36,19 @@
     <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
       <div class="client-item-head">
         <div class="client-item-main">
-          <div class="client-item-title">{{ row.title }}</div>
-          <div class="client-item-meta">
-            {{ row.customer_name or 'Customer' }} · {{ row.status_label }}
-          </div>
-          {% if row.fields.action %}
-          <div class="job-action-line">{{ row.fields.action }}</div>
-          {% elif row.summary %}
-          <div class="job-action-line">{{ row.summary }}</div>
-          {% endif %}
+          <div class="client-item-title">{{ row.customer_name or 'Customer' }}</div>
           <div class="job-action-meta">
-            <span class="client-status">{{ row.label }}</span>
+            <span class="client-status">Jenis · {{ row.label }}</span>
+            <span class="client-status">Status · {{ row.status_label }}</span>
           </div>
+          <div class="job-action-label">Tindakan</div>
+          <div class="job-action-line">{{ row.fields.action or row.summary or row.title }}</div>
         </div>
       </div>
     </a>
     {% else %}
       <div class="client-empty">
-        Belum ada tindakan. Job hanya muncul untuk Customer yang sudah menyatakan tindakan atau permintaan konkret.
+        Belum ada Job. Job hanya muncul untuk Customer yang sudah punya tindakan atau permintaan konkret.
       </div>
     {% endfor %}
   </div>

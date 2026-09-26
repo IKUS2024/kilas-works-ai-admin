@@ -115,7 +115,7 @@ def sync_from_insight(business, customer, insight):
             return jobs._update_job(
                 tx, bid, current["id"], expected_version=current["version"],
                 actor_id=jobs._CUSTOMER_INSIGHT_ACTOR, operation_key=op,
-                title=title, summary=summary, fields=fields,
+                title=title, summary=summary, fields=fields, kind=kind,
             )
 
         # Do not recreate the exact same action immediately after owner completed/cancelled it.

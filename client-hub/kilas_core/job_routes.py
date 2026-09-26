@@ -47,6 +47,13 @@ def _business(bid):
     return business
 
 
+def _confirmed_customer(bid, customer_id):
+    customer = customers.get_customer(bid, customer_id)
+    if customer.get('stage') != 'CUSTOMER':
+        abort(404)
+    return customer
+
+
 def labels(business):
     profile = repo.get_business_profile(business['id']) or {}
     return jobs.presentation(profile.get('category'))
@@ -110,7 +117,7 @@ def _source(bid, customer_id, conversation_id):
         if not linked or (customer_id and customer_id != linked['id']):
             abort(404)
         customer_id = linked['id']
-    customer = customers.get_customer(bid, customer_id)
+    customer = _confirmed_customer(bid, customer_id)
     return customer, conversation_id or None
 
 
@@ -118,7 +125,7 @@ def _source(bid, customer_id, conversation_id):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
-    # Bounded monitoring pass: recent WhatsApp Leads/Customers with a real next action
+    # Bounded monitoring pass: confirmed WhatsApp Customers with a real next action
     # are reconciled into one idempotent Job before the owner sees the queue.
     try:
         customer_action_jobs.prune_invalid_lead_jobs(bid)
@@ -128,9 +135,11 @@ def list_page(bid):
     q, status = request.args.get('q',''), request.args.get('status','')
     customer_id = request.args.get('customer_id')
     if customer_id:
-        customers.get_customer(bid,customer_id)
-    rows,total,page,pages = jobs.list_jobs(bid,search=q,status=status,customer_id=customer_id,
-                                         page=request.args.get('page',1))
+        _confirmed_customer(bid, customer_id)
+    rows,total,page,pages = jobs.list_jobs(
+        bid, search=q, status=status, customer_id=customer_id,
+        customer_stage='CUSTOMER', page=request.args.get('page',1)
+    )
     for row in rows:
         try:
             row['customer_name'] = customers.get_customer(bid,row['customer_id'])['display_name']
@@ -168,7 +177,7 @@ def create(bid):
 def detail_page(bid,job_id):
     business = _business(bid)
     job = jobs.get_job(bid,job_id)
-    customer = customers.get_customer(bid,job['customer_id'])
+    customer = _confirmed_customer(bid, job['customer_id'])
     return render_template('job_form.html',**_context(business,job=job,customer=customer,
                            conversation_id=job['conversation_id'],fields=job['fields'],
                            transitions=jobs.TRANSITIONS[job['status']],saved=request.args.get('saved')=='1'))
@@ -178,7 +187,8 @@ def detail_page(bid,job_id):
 @security.login_required
 def update(bid,job_id):
     _business(bid)
-    jobs.get_job(bid,job_id)
+    job = jobs.get_job(bid,job_id)
+    _confirmed_customer(bid, job['customer_id'])
     form = _form(['title','summary','status','version','operation_key']+['field_'+key for key in jobs.FIELD_LABELS])
     try:
         version = int(form.get('version',''))
@@ -191,10 +201,16 @@ def update(bid,job_id):
 
 
 def linked_context(business, customer_id, conversation_id=None):
-    """Bounded owner-only panel; never read Jobs tables when the rollout is off."""
+    """Bounded owner-only panel for confirmed Customers; Leads stay outside Jobs."""
     if not available(business):
         return None
-    rows, total, _, _ = jobs.list_jobs(business['id'],customer_id=customer_id,conversation_id=conversation_id)
+    customer = customers.get_customer(business['id'], customer_id)
+    if customer.get('stage') != 'CUSTOMER':
+        return None
+    rows, total, _, _ = jobs.list_jobs(
+        business['id'], customer_id=customer_id, conversation_id=conversation_id,
+        customer_stage='CUSTOMER'
+    )
     for row in rows:
         book = PLAYBOOKS.get(row['fields'].get('playbook'))
         row['workflow_label'] = book.label if book else None

@@ -29,6 +29,12 @@ class JobRoutesTests(unittest.TestCase):
         self.identity=self.start().json
         self.cid=self.identity['conversation_id']
         self.customer=customers.customer_for_conversation(7,self.cid)
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='CUSTOMER', actor_id=1,
+        )
+        self.customer=customers.get_customer(7,self.customer['id'])
         self.form=dict(csrf_token='csrf-test',customer_id=self.customer['id'],conversation_id=self.cid,
                        title='Pesanan makan siang',summary='Untuk kantor',operation_key='route-create-0001')
 
@@ -182,6 +188,11 @@ class JobRoutesTests(unittest.TestCase):
         }
 
         # Lead may have a strong Insight, but Jobs is Customer-only.
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
+        )
         lead = customers.get_customer(7, self.customer['id'])
         self.assertEqual(lead['stage'], 'LEAD')
         self.assertIsNone(customer_action_jobs.sync_from_insight(business, lead, insight))
@@ -217,11 +228,25 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(updated['fields']['action'], 'Booking konsultasi tanggal 10')
         self.assertEqual(updated['version'], first['version'] + 1)
 
+        project_insight = {
+            **updated_insight,
+            'summary': 'Customer meminta foto produk minggu depan.',
+            'action': 'Foto produk minggu depan',
+            '_meta': {'has_history': True, 'fresh': True, 'message_count': 5},
+        }
+        retyped = customer_action_jobs.sync_from_insight(business, customer, project_insight)
+        self.assertEqual(retyped['id'], first['id'])
+        self.assertEqual(retyped['kind'], 'PROJECT')
+        self.assertEqual(retyped['label'], 'Project')
+        self.assertEqual(retyped['fields']['action'], 'Foto produk minggu depan')
+
         page = self.client.get('/business/7/jobs')
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'Tindakan', page.data)
         self.assertIn(customer['display_name'].encode(), page.data)
-        self.assertIn(b'Booking konsultasi tanggal 10', page.data)
+        self.assertIn(b'Foto produk minggu depan', page.data)
+        self.assertIn(b'Jenis', page.data)
+        self.assertIn(b'Status', page.data)
 
     def test_information_only_customer_stays_out_of_jobs_and_manual_job_wins(self):
         business = {'id': 7}
@@ -260,6 +285,11 @@ class JobRoutesTests(unittest.TestCase):
 
 
     def test_prune_invalid_customer_insight_job_from_lead_only(self):
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
+        )
         # Synthetic stale record from the retired broad-intent implementation.
         with jobs.transaction() as tx:
             jobs._lock(tx, 7)
@@ -280,6 +310,35 @@ class JobRoutesTests(unittest.TestCase):
         self.assertEqual(len(remaining), 1)
         self.assertEqual(remaining[0]['id'], manual['id'])
         self.assertNotEqual(remaining[0]['id'], stale['id'])
+
+    def test_lead_is_outside_jobs_even_if_legacy_manual_row_exists(self):
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
+        )
+        legacy = jobs.create_job(
+            7, self.customer['id'], title='Legacy lead manual',
+            actor_id=1, operation_key='legacy-lead-manual-0001',
+            fields={'details':'Historical only'},
+        )
+        detail = self.client.get(f"/business/7/customers/{self.customer['id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotIn(b'data-linked-jobs', detail.data)
+        self.assertEqual(
+            self.client.get('/business/7/jobs/new?customer_id='+self.customer['id']).status_code,
+            404,
+        )
+        self.assertEqual(self.create().status_code, 404)
+        listing = self.client.get('/business/7/jobs')
+        self.assertEqual(listing.status_code, 200)
+        self.assertNotIn(b'Legacy lead manual', listing.data)
+        self.assertEqual(self.client.get('/business/7/jobs/'+legacy['id']).status_code, 404)
+        self.assertEqual(
+            self.client.post('/business/7/jobs/'+legacy['id'],
+                             data={'csrf_token':'csrf-test'}).status_code,
+            404,
+        )
 
     def test_chat_and_simulator_never_create_jobs_automatically(self):
         with patch.object(self.ai,'_call_claude',return_value=('Kami bantu pesanan Anda','end_turn',None)):

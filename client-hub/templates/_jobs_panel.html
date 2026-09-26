@@ -6,16 +6,16 @@
 [data-linked-jobs] .job-next-action{font-size:12px;color:var(--text);line-height:1.45;margin-top:5px}
 </style>
 <div class="card" data-linked-jobs>
-  <h2>Tindakan</h2>
+  <h2>Jobs</h2>
   <div class="client-actions">
-    <a class="btn secondary" data-create-job href="{{ url_for('core_jobs.new_page',bid=business.id,customer_id=linked_jobs.customer_id,conversation_id=linked_jobs.conversation_id) }}">Tambah manual</a>
+    <a class="btn secondary" data-create-job href="{{ url_for('core_jobs.new_page',bid=business.id,customer_id=linked_jobs.customer_id,conversation_id=linked_jobs.conversation_id) }}">Tambah Job manual</a>
     <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id,customer_id=linked_jobs.customer_id) }}">Lihat semua</a>
   </div>
   <div class="client-list">
     {% for row in linked_jobs.rows %}
     <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
-      <strong>{{ row.title }}</strong><span class="client-item-meta"> · {{ row.status_label }}</span>
-      {% if row.fields.action %}<div class="job-next-action">{{ row.fields.action }}</div>{% endif %}
+      <strong>{{ row.label }}</strong><span class="client-item-meta"> · {{ row.status_label }}</span>
+      <div class="job-next-action">{{ row.fields.action or row.summary or row.title }}</div>
       {% if row.workflow_label %}<div data-playbook-context>
         <p>{{ row.workflow_label }}</p>
         <dl>{% for label,value in row.known_details %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
@@ -23,7 +23,7 @@
         {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
       </div>{% endif %}
     </a>
-    {% else %}<p class="client-note">Belum ada tindakan terkait customer ini.</p>{% endfor %}
+    {% else %}<p class="client-note">Belum ada Job untuk Customer ini.</p>{% endfor %}
   </div>
 </div>
 {% endif %}

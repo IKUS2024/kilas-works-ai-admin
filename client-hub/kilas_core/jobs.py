@@ -194,11 +194,12 @@ def create_job(business_id, customer_id, *, title, actor_id, operation_key,
 
 
 def update_job(business_id, job_id, *, expected_version, actor_id, operation_key,
-               title=None, summary=None, fields=None, status=None):
+               title=None, summary=None, fields=None, status=None, kind=None):
     _positive(actor_id)
     with transaction() as tx:
         return _update_job(tx,business_id,job_id,expected_version=expected_version,actor_id=actor_id,
-                           operation_key=operation_key,title=title,summary=summary,fields=fields,status=status)
+                           operation_key=operation_key,title=title,summary=summary,fields=fields,
+                           status=status,kind=kind)
 
 
 def _create_job(tx, business_id, customer_id, *, title, actor_id, operation_key,
@@ -227,7 +228,7 @@ def _create_job(tx, business_id, customer_id, *, title, actor_id, operation_key,
 
 
 def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operation_key,
-               title=None, summary=None, fields=None, status=None):
+               title=None, summary=None, fields=None, status=None, kind=None):
     _positive(expected_version)
     if title is not None:
         title = _text(title,160,True)
@@ -236,8 +237,10 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
     encoded = validate_fields(fields) if fields is not None else None
     if status is not None and (not isinstance(status,str) or status not in STATUS_LABELS):
         raise JobError('invalid_status')
+    if kind is not None and (not isinstance(kind,str) or kind not in KINDS):
+        raise JobError('invalid_kind')
     digest = _operation(business_id,actor_id,operation_key,
-                        ['update',job_id,expected_version,title,summary,encoded,status])
+                        ['update',job_id,expected_version,title,summary,encoded,status,kind])
     _lock(tx,business_id)
     current = _get(tx,business_id,job_id)
     _row(current)  # Fail closed before replay lookup for a forged job.
@@ -269,9 +272,10 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
             preserved['missing_information'] = labels(missing_fields(book, preserved) + uncertain)
             encoded = validate_fields(preserved)
     now = int(time.time())
-    result = tx.one('UPDATE kw_core_jobs SET title=?,summary=?,fields_json=?,status=?,version=version+1,updated_at=? '
+    result = tx.one('UPDATE kw_core_jobs SET kind=?,title=?,summary=?,fields_json=?,status=?,version=version+1,updated_at=? '
                     'WHERE business_id=? AND id=? AND version=? RETURNING *',
-                    (current['title'] if title is None else title,
+                    (current['kind'] if kind is None else kind,
+                     current['title'] if title is None else title,
                      current['summary'] if summary is None else summary,
                      current['fields_json'] if encoded is None else encoded,
                      target,now,business_id,job_id,expected_version))
@@ -294,12 +298,21 @@ def get_job(business_id, job_id):
         return _row(_get(tx,business_id,job_id))
 
 
-def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, conversation_id=None):
+def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, conversation_id=None,
+              customer_stage=None):
     _positive(business_id)
     if status and status not in STATUS_LABELS:
         raise JobError('invalid_status')
+    if customer_stage is not None and customer_stage not in ('LEAD', 'CUSTOMER'):
+        raise JobError('invalid_scope')
     search = _text(search,120)
     where, args = 'business_id=?', [business_id]
+    if customer_stage:
+        where += (
+            ' AND customer_id IN (SELECT customer_id FROM kw_core_customer_stages '
+            'WHERE business_id=? AND stage=?)'
+        )
+        args += [business_id, customer_stage]
     for column, value in (('status',status),('customer_id',customer_id),('conversation_id',conversation_id)):
         if value:
             where += ' AND ' + column + '=?'
