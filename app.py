@@ -5379,6 +5379,44 @@ def _owner_demo_active(number, now=None):
     return False
 
 
+def _demo_business_for_phone(number, now=None):
+    """Return one unambiguous active demo business bound to this platform customer phone.
+
+    If the same phone is simultaneously bound to multiple demo workspaces, return None rather
+    than attaching an explanation to the wrong tenant. This is metadata only and never affects
+    message routing or delivery.
+    """
+    if not _CLIENT_HUB_AVAILABLE or not db_enabled() or not isinstance(number, str) or not number:
+        return None
+    now = int(time.time()) if now is None else int(now)
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT business_id, detail FROM audit_log "
+            "WHERE action = %s ORDER BY id DESC LIMIT 100",
+            ("demo_whatsapp_bound",),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception:
+        return None
+    matches = []
+    for row in rows:
+        try:
+            business_id = int(row[0])
+            detail = json.loads(row[1] or "{}")
+            phone = str(detail.get("phone") or "")
+            bound_at = int(detail.get("bound_at") or 0)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if phone == number and bound_at > 0 and bound_at + _DEMO_OWNER_SESSION_SECONDS > now:
+            if business_id not in matches:
+                matches.append(business_id)
+    return matches[0] if len(matches) == 1 else None
+
+
 def call_claude(user_number, user_message, image_b64=None, image_mime=None, memory_override=None,
                  is_voice_note=False, tenant_context_block="", tenant_id=None, defer_delivery=False):
     """Panggil Claude API buat generate balasan AI.
@@ -5409,6 +5447,25 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         tenant_context_block = _build_tenant_context_block_safe(tenant_id) or _TENANT_INCOMPLETE_PROFILE_BLOCK
     user_message = re.sub(r"https://[^\s]+/wa-checkout#[^\s]+", "[Tautan order pribadi]", user_message)
     scoped_number = _ck(tenant_id, user_number)
+    explanation_business_id = tenant_id if tenant_id is not None else _demo_business_for_phone(user_number)
+
+    def _record_reply_explanation(route, *, has_image=False):
+        if defer_delivery or not _CLIENT_HUB_AVAILABLE or not explanation_business_id:
+            return
+        try:
+            _reply_explain.record_latest_legacy(
+                explanation_business_id,
+                scoped_number,
+                _reply_explain.legacy(
+                    route,
+                    has_image=has_image,
+                    has_business_data=True,
+                ),
+            )
+        except Exception:
+            # Explanation metadata must never break a customer reply or expose raw errors.
+            print("[AI_REPLY_EXPLANATION] status=unavailable")
+
     history = conversations.get(scoped_number)
     if history is None:
         history = load_recent_messages_from_db(scoped_number, "customer")  # isi ulang kalau server abis restart
@@ -5452,6 +5509,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
         conversations[scoped_number] = history[-20:]
         if not defer_delivery:
             _record_delivered_reply(scoped_number, _DEMO_CONNECTED_REPLY)
+            _record_reply_explanation("demo_handshake")
         print("[DEMO_BINDING] customer handshake accepted")
         return _DEMO_CONNECTED_REPLY
 
@@ -5467,6 +5525,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
             conversations[scoped_number] = history[-20:]
             if not defer_delivery:
                 _record_delivered_reply(scoped_number, order_reply)
+                _record_reply_explanation("order_rule")
             return order_reply
 
     if not image_b64 and memory_override is None:
@@ -5475,6 +5534,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
             conversations[scoped_number] = history[-20:]
             if not defer_delivery:
                 _record_delivered_reply(scoped_number, strip_tags(exact))
+                _record_reply_explanation("deterministic_rule")
             print('[AI_CONTEXT] mode=customer route=deterministic llm_calls=0')
             return exact
 
@@ -5484,6 +5544,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
             conversations[scoped_number] = history[-20:]
             if not defer_delivery:
                 _record_delivered_reply(scoped_number, exact)
+                _record_reply_explanation("catalog_exact")
             print('[AI_CONTEXT] mode=customer route=exact_catalog llm_calls=0')
             return exact
 
@@ -5557,6 +5618,7 @@ def call_claude(user_number, user_message, image_b64=None, image_mime=None, memo
     if not defer_delivery:
         history.append({"role": "assistant", "content": clean_reply_for_memory})
         save_message_to_db(scoped_number, "customer", "assistant", clean_reply_for_memory)
+        _record_reply_explanation("vision_model" if image_b64 else "model_reply", has_image=bool(image_b64))
     conversations[scoped_number] = history[-20:]
 
     return reply_text
