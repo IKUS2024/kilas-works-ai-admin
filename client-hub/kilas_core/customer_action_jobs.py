@@ -7,6 +7,7 @@ an actionable next step. Existing manual/playbook Jobs always win to avoid dupli
 import hashlib
 import json
 
+import db
 from kilas_core import customer_insights, customers, jobs
 
 
@@ -137,6 +138,23 @@ def refresh_and_sync(business, customer):
     return insight, job
 
 
+def _table_exists(tx, table):
+    if db.BACKEND == "postgres":
+        row = tx.one("SELECT to_regclass(?) AS name", ("public." + table,))
+        return bool(row and row.get("name"))
+    row = tx.one("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
+    return bool(row)
+
+
+def _delete_job_dependencies(tx, business_id, job_id):
+    # These tables reference Jobs without ON DELETE CASCADE in 0057/0058.
+    # Older test/dev schemas may not have 0058 yet, so probe before touching optional tables.
+    for table in ("kw_core_automation_runs", "kw_core_attention", "kw_core_job_operations"):
+        if _table_exists(tx, table):
+            tx.execute(f"DELETE FROM {table} WHERE business_id=? AND job_id=?",
+                       (business_id, job_id))
+
+
 def prune_invalid_lead_jobs(business_id):
     """Remove only AI-generated Customer Insight Jobs whose CRM owner is still a Lead.
 
@@ -156,12 +174,25 @@ def prune_invalid_lead_jobs(business_id):
         )
         removed = 0
         for row in rows:
-            tx.execute("DELETE FROM kw_core_job_operations WHERE business_id=? AND job_id=?",
-                       (business_id, row["id"]))
+            _delete_job_dependencies(tx, business_id, row["id"])
             tx.execute("DELETE FROM kw_core_jobs WHERE business_id=? AND id=?",
                        (business_id, row["id"]))
             removed += 1
         return removed
+
+
+def prune_invalid_lead_jobs_all():
+    """Bounded startup reconciliation across only businesses that currently have invalid AI Lead Jobs."""
+    if not jobs.enabled():
+        return 0
+    with jobs.transaction() as tx:
+        rows = tx.execute(
+            "SELECT DISTINCT j.business_id FROM kw_core_jobs j "
+            "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
+            "WHERE s.stage='LEAD' AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%' "
+            "ORDER BY j.business_id LIMIT 200"
+        )
+    return sum(prune_invalid_lead_jobs(int(row["business_id"])) for row in rows)
 
 
 def reconcile_business(business, limit=10):

@@ -134,6 +134,17 @@ def create_app():
         import ai_usage
         ai_usage.startup_schema_check()
 
+        # Repair only stale AI-generated Jobs that were created for CRM Leads by the retired
+        # broad-intent implementation. Safe/idempotent and intentionally non-fatal on older
+        # local schemas where Core Jobs is not installed yet.
+        try:
+            from kilas_core import customer_action_jobs
+            removed_invalid_lead_jobs = customer_action_jobs.prune_invalid_lead_jobs_all()
+            if removed_invalid_lead_jobs:
+                print(f"Customer action cleanup: removed {removed_invalid_lead_jobs} invalid Lead Job(s)")
+        except Exception:
+            print("Customer action cleanup: skipped")
+
         print("Catalog seed: starting")
         catalog_service.seed_catalog_if_needed()
         print("Catalog seed: OK")
