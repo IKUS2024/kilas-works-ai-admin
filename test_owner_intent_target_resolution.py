@@ -35,6 +35,7 @@ def reset_state():
     appmod.active_customer_context.clear()
     appmod.pending_owner_questions.clear()
     appmod.pending_owner_clarification.clear()
+    appmod._owner_demo_sessions.clear()
 
 
 def _owner_payload(text, msg_id="wamid.intent.1"):
@@ -44,6 +45,60 @@ def _owner_payload(text, msg_id="wamid.intent.1"):
             "text": {"body": text},
         }]}}]}]
     }
+
+
+# ---------------------------------------------------------------------------
+# Demo-owner regression: the platform owner may role-play a customer in Kilas Assist Demo.
+# ---------------------------------------------------------------------------
+def test_owner_demo_handshake_keeps_followup_in_customer_pipeline():
+    reset_state()
+    handshake = "Halo Kilas Works, saya mau coba Kilas Assist. Demo ID: C8C7-449B"
+
+    with patch.object(appmod, "save_message_to_db", return_value=True), \
+         patch.object(appmod, "send_whatsapp_message", return_value=(True, None)):
+        first = client.post(
+            "/webhook",
+            data=json.dumps(_owner_payload(handshake, "wamid.demo.owner.1")),
+            content_type="application/json",
+        )
+    assert first.status_code == 200
+    assert appmod._owner_demo_active(appmod.OWNER_WHATSAPP_NUMBER),         "owner demo handshake must activate the bounded customer-demo session"
+
+    with patch.object(appmod, "call_claude", return_value="Parfum ya Kak. Boleh cerita kebutuhan bisnisnya?") as customer_ai, \
+         patch.object(appmod, "call_claude_owner") as owner_ai, \
+         patch.object(appmod, "send_whatsapp_message", return_value=(True, None)):
+        second = client.post(
+            "/webhook",
+            data=json.dumps(_owner_payload("iya kak bisnis saya di parfum", "wamid.demo.owner.2")),
+            content_type="application/json",
+        )
+    assert second.status_code == 200
+    customer_ai.assert_called_once()
+    owner_ai.assert_not_called()
+    assert customer_ai.call_args.args[0] == appmod.OWNER_WHATSAPP_NUMBER
+    assert "parfum" in customer_ai.call_args.args[1].lower()
+    print("test_owner_demo_handshake_keeps_followup_in_customer_pipeline OK")
+
+
+def test_owner_demo_session_recovers_from_durable_binding_after_restart():
+    reset_state()
+    number = appmod.OWNER_WHATSAPP_NUMBER
+    now = 1_790_400_000
+    detail = json.dumps({"phone": number, "start_message_id": 1402, "bound_at": now - 60})
+
+    cursor = type("Cursor", (), {})()
+    cursor.execute = lambda *args, **kwargs: None
+    cursor.fetchall = lambda: [(detail,)]
+    cursor.close = lambda: None
+    conn = type("Conn", (), {})()
+    conn.cursor = lambda: cursor
+    conn.close = lambda: None
+
+    with patch.object(appmod, "db_enabled", return_value=True), \
+         patch.object(appmod, "get_db_connection", return_value=conn):
+        assert appmod._owner_demo_active(number, now=now)
+    assert appmod._owner_demo_sessions[number] > now
+    print("test_owner_demo_session_recovers_from_durable_binding_after_restart OK")
 
 
 # ---------------------------------------------------------------------------
@@ -283,6 +338,8 @@ def test_unrelated_reply_abandons_pending_clarification_cleanly():
 
 
 if __name__ == "__main__":
+    test_owner_demo_handshake_keeps_followup_in_customer_pipeline()
+    test_owner_demo_session_recovers_from_durable_binding_after_restart()
     test_resolve_clarification_reply_phone_suffix()
     test_resolve_clarification_reply_exact_name_not_substring()
     test_resolve_clarification_reply_last_first()
