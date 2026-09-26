@@ -85,6 +85,14 @@ class JobRoutesTests(unittest.TestCase):
         self.assertNotIn(b'Sudah ditawarkan',page.data)
         self.assertNotIn(b'Disetujui',page.data)
 
+    def test_legacy_quote_states_collapse_without_fake_transition(self):
+        self.assertEqual(jobs.STATUS_LABELS['QUOTED'],'Siap diproses')
+        self.assertEqual(jobs.STATUS_LABELS['APPROVED'],'Siap diproses')
+        self.assertNotIn('QUOTED', jobs.visible_transitions('READY_FOR_QUOTE'))
+        self.assertNotIn('APPROVED', jobs.visible_transitions('QUOTED'))
+        self.assertIn('IN_PROGRESS', jobs.visible_transitions('QUOTED'))
+        self.assertIn('IN_PROGRESS', jobs.visible_transitions('APPROVED'))
+
     def test_form_csrf_unknown_payload_and_status_rejected(self):
         for changes in ({'csrf_token':'bad'},{'business_id':8},{'kind':'FINANCE'},
                         {'status':'COMPLETED'},{'field_token':'secret'},{'field_quantity':'oops'}):
