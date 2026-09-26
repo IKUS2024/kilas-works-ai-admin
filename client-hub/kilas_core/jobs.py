@@ -109,7 +109,11 @@ def visible_transitions(status):
     result = []
     seen = set()
     for value in raw:
-        visible = 'READY_FOR_QUOTE' if value in ('QUOTED','APPROVED') else value
+        # QUOTED/APPROVED are legacy internal milestones inside the single owner-facing
+        # "Siap diproses" bucket. Never offer them as a separate owner transition.
+        if value in ('QUOTED','APPROVED'):
+            continue
+        visible = value
         if visible in dict(VISIBLE_STATUS_OPTIONS) and visible not in seen:
             result.append(visible)
             seen.add(visible)
