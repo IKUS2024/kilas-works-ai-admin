@@ -14,8 +14,9 @@ class CustomerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         phase2.WebTests.setUpClass.__func__(cls)
-        global store, customer_schema, customer_stage_schema, customers, customer_insights
+        global store, customer_schema, customer_stage_schema, customers, customer_insights, platform_workspace
         from public_chat import store
+        import platform_workspace
         from kilas_core import customer_schema, customer_stage_schema, customers, customer_insights
         customer_schema.apply_schema()
         customer_stage_schema.apply_schema()
@@ -138,6 +139,41 @@ class CustomerTests(unittest.TestCase):
         call.assert_called_once()
         self.assertIn("INSIGHT SEBELUMNYA", call.call_args.args[1][0]["content"])
         self.assertIn("500 ribu", call.call_args.args[1][0]["content"])
+
+    def test_platform_admin_workspace_reuses_same_customers_engine_and_hides_internal_business(self):
+        phone = "628111223344"
+        self.db.execute(
+            "INSERT INTO messages(number,mode,role,content,created_at) VALUES (?,?,?,?,?)",
+            (phone, "customer", "user", "Saya mau foto produk parfum minggu depan", "2026-09-26 11:00:00"),
+        )
+        with patch.object(platform_workspace.platform_inbox_service, "list_conversations", return_value=[{
+            "customer_phone": phone,
+            "customer_name": "Budi Parfum",
+            "last_role": "user",
+            "last_message": "Saya mau foto produk parfum minggu depan",
+            "last_message_at": "2026-09-26 11:00:00",
+            "mode": "AI_ACTIVE",
+        }]):
+            scope, synced = platform_workspace.sync_contacts()
+        self.assertEqual(synced, 1)
+        self.assertTrue(platform_workspace.is_scope_business(scope["id"]))
+        self.assertNotIn(scope["id"], [row["id"] for row in __import__("repo").list_all_businesses()])
+
+        rows, total, _, _ = customers.list_customers(scope["id"], stage="LEAD")
+        self.assertEqual(total, 1)
+        lead = rows[0]
+        self.assertEqual(lead["display_name"], "Budi Parfum")
+        self.assertEqual(lead["phone"], phone)
+        self.assertEqual(lead["source_channel"], "WHATSAPP")
+
+        source_customer, stored, core, platform_rows = customer_insights.source_state(scope["id"], lead["id"])
+        self.assertEqual(source_customer["id"], lead["id"])
+        self.assertIsNone(stored)
+        self.assertEqual(core, [])
+        self.assertEqual(platform_rows[-1]["content"], "Saya mau foto produk parfum minggu depan")
+        self.assertEqual(platform_rows[-1]["_source"], "PLATFORM_WHATSAPP")
+        conversation = customer_insights.platform_conversation_row(scope["id"], lead)
+        self.assertEqual(conversation["id"], "platform:" + phone)
 
     def test_customer_insight_excludes_retired_web_chat(self):
         identity = self.start().json
