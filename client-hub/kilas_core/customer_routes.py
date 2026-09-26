@@ -18,6 +18,15 @@ def _business(bid):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
+    # Demo WhatsApp uses a privacy-scoped mirrored Inbox instead of a Core conversation row.
+    # Reconcile its durable binding into CRM on read so historical bindings created before
+    # Lead sync was introduced become visible without requiring the prospect to chat again.
+    try:
+        from routes_client import sync_demo_kilas_lead
+        sync_demo_kilas_lead(bid)
+    except Exception:
+        # Customers remains usable even if the demo mirror is temporarily unavailable.
+        pass
     q = request.args.get("q", "")
     page = request.args.get("page", 1, type=int) or 1
     stage = (request.args.get("stage") or "LEAD").strip().upper()
