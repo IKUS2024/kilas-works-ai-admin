@@ -126,6 +126,48 @@ def test_owner_demo_session_recovers_from_durable_binding():
 
 
 # ---------------------------------------------------------------------------
+# Explicit transactional workflow (invoice, etc.) -> no takeover requirement, but window remains.
+# ---------------------------------------------------------------------------
+def test_platform_system_reply_uses_existing_customer_and_window_without_takeover():
+    reset_state()
+    number = "628700111020"
+    with patch.object(appmod, "INTERNAL_SERVICE_SECRET", "test-only"), \
+         patch.object(appmod, "_CLIENT_HUB_AVAILABLE", True), \
+         patch.object(platform_inbox_service, "customer_exists", return_value=True), \
+         patch.object(platform_inbox_service, "get_state") as takeover_state, \
+         patch.object(platform_inbox_service, "freeform_window_status",
+                      return_value={"allowed": True}), \
+         patch.object(appmod, "send_whatsapp_message", return_value=(True, None)) as send, \
+         patch.object(appmod, "save_message_to_db"), \
+         patch.object(appmod, "load_recent_messages_from_db", return_value=[]):
+        response = client.post(
+            "/internal/platform-system-reply",
+            json={"customer_phone": number, "message": "Invoice sudah terbit."},
+            headers={"X-Internal-Service-Secret": "test-only"},
+        )
+    assert response.status_code == 200
+    assert response.json == {"status": "ok"}
+    takeover_state.assert_not_called()
+    send.assert_called_once_with(number, "Invoice sudah terbit.")
+
+    with patch.object(appmod, "INTERNAL_SERVICE_SECRET", "test-only"), \
+         patch.object(appmod, "_CLIENT_HUB_AVAILABLE", True), \
+         patch.object(platform_inbox_service, "customer_exists", return_value=True), \
+         patch.object(platform_inbox_service, "freeform_window_status",
+                      return_value={"allowed": False, "reason": "outside_24h_window"}), \
+         patch.object(appmod, "send_whatsapp_message") as blocked:
+        response = client.post(
+            "/internal/platform-system-reply",
+            json={"customer_phone": number, "message": "Invoice sudah terbit."},
+            headers={"X-Internal-Service-Secret": "test-only"},
+        )
+    assert response.status_code == 409
+    assert response.json["reason"] == "outside_24h_window"
+    blocked.assert_not_called()
+    print("test_platform_system_reply_uses_existing_customer_and_window_without_takeover OK")
+
+
+# ---------------------------------------------------------------------------
 # 2. HUMAN_TAKEOVER (explicitly set) -> AI stays silent
 # ---------------------------------------------------------------------------
 def test_human_takeover_ai_stays_silent():
@@ -226,6 +268,7 @@ if __name__ == "__main__":
     test_owner_demo_session_routes_owner_number_as_customer()
     test_owner_demo_session_recovers_from_durable_binding()
     test_ai_active_default_kilas_ai_may_respond()
+    test_platform_system_reply_uses_existing_customer_and_window_without_takeover()
     test_human_takeover_ai_stays_silent()
     test_return_to_ai_resumes_normal_replies()
     test_client_hub_unavailable_fails_closed_for_kilas_and_tenant()
