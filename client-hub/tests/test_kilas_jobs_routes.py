@@ -248,6 +248,68 @@ class JobRoutesTests(unittest.TestCase):
         self.assertIn(b'Jenis', page.data)
         self.assertIn(b'Status', page.data)
 
+    def test_admin_platform_workspace_uses_same_customer_and_job_lifecycle(self):
+        import platform_workspace
+        import repo as repo_module
+
+        phone = "628555111222"
+        with patch.object(platform_workspace.platform_inbox_service, "list_conversations", return_value=[{
+            "customer_phone": phone,
+            "customer_name": "Customer Platform",
+            "last_role": "user",
+            "last_message": "Saya mau booking jasa foto minggu depan",
+            "last_message_at": "2026-09-26 12:00:00",
+            "mode": "AI_ACTIVE",
+        }]):
+            scope, synced = platform_workspace.sync_contacts()
+        self.assertEqual(synced, 1)
+        lead = customers.list_customers(scope["id"], stage="LEAD")[0][0]
+        self.assertEqual(lead["display_name"], "Customer Platform")
+
+        customers.update_customer(
+            scope["id"], lead["id"], display_name=lead["display_name"],
+            phone=lead.get("phone"), email=lead.get("email"), notes=lead.get("notes"),
+            stage="CUSTOMER", actor_id=1,
+        )
+        customer = customers.get_customer(scope["id"], lead["id"])
+        first = customer_action_jobs.sync_from_insight(scope, customer, {
+            "summary": "Customer mau booking jasa foto minggu depan.",
+            "action": "Booking jasa foto minggu depan",
+            "job_status": "PERLU_TINDAKAN",
+            "_meta": {"has_history": True, "fresh": True, "message_count": 2},
+        })
+        self.assertEqual(first["owner_status"], "NEW")
+
+        deal = customer_action_jobs.sync_from_insight(scope, customer, {
+            "summary": "Customer bilang oke deal lanjut booking foto.",
+            "action": "Booking jasa foto minggu depan",
+            "job_status": "DIKERJAKAN",
+            "_meta": {"has_history": True, "fresh": True, "message_count": 3},
+        })
+        self.assertEqual(deal["id"], first["id"])
+        self.assertEqual(deal["owner_status"], "IN_PROGRESS")
+
+        admin_id = repo_module.create_user(
+            "platform-admin@example.test", "unused-password",
+            role="KILAS_ADMIN", full_name="Platform Admin",
+        )
+        with self.client.session_transaction() as session:
+            session["user_id"] = admin_id
+            session["role"] = "KILAS_ADMIN"
+            session["_csrf_token"] = "csrf-test"
+
+        page = self.client.get(f"/business/{scope['id']}/jobs")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Customer Platform", page.data)
+        self.assertIn(b"Dikerjakan", page.data)
+        self.assertNotIn(b"Butuh informasi", page.data)
+        self.assertNotIn(b"Siap ditawarkan", page.data)
+
+        detail = self.client.get(f"/business/{scope['id']}/customers/{customer['id']}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b"data-linked-jobs", detail.data)
+        self.assertIn(b"Booking jasa foto minggu depan", detail.data)
+
     def test_customer_deal_and_cancel_update_job_status(self):
         business = {'id': 7}
         customer = customers.get_customer(7, self.customer['id'])
