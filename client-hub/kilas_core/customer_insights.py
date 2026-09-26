@@ -40,7 +40,14 @@ ATURAN MUTLAK:
    Pertanyaan informasi/FAQ/harga/paket, sekadar minat, membandingkan, atau bisnis menawarkan sesuatu
    BUKAN action. Untuk kasus itu action wajib null.
 9. action harus sangat singkat (maksimal satu kalimat), faktual, dan tidak boleh berisi strategi admin.
-10. job_status HANYA berdasarkan pernyataan customer:
+   Jika customer sudah masuk tahap pembayaran, action tetap merangkum APA produk/layanan/order yang
+   customer putuskan untuk dibeli/dilanjutkan. Jangan mengganti action menjadi instruksi admin seperti
+   "kirim invoice"; tombol invoice ditangani oleh sistem Job.
+10. payment_ready HANYA true jika customer secara eksplisit sudah mau/siap bayar, meminta invoice/tagihan/
+   payment link, mengonfirmasi akan melakukan pembayaran, atau pembayaran sudah dikonfirmasi.
+   Meeting, booking, memilih jadwal, diskusi detail, "oke lanjut", "deal", dan "fix lanjut" TANPA sinyal
+   pembayaran wajib payment_ready=false.
+11. job_status HANYA berdasarkan pernyataan customer:
    - "PERLU_TINDAKAN" untuk SEMUA tahap sebelum customer siap masuk proses pembayaran/invoice.
      Ini termasuk: customer mau sesuatu, booking/order, minta dibuatkan, setuju meeting/call,
      memilih atau mengonfirmasi jadwal, meminta perubahan jadwal, masih klarifikasi detail,
@@ -55,7 +62,7 @@ ATURAN MUTLAK:
    - Contoh wajib: "jadwalkan meeting Selasa jam 09:00" => PERLU_TINDAKAN.
      "oke meeting Selasa jadi" => PERLU_TINDAKAN.
      "saya mau bayar, kirim invoice" => DIKERJAKAN.
-11. Balas HANYA satu JSON valid dengan schema persis:
+12. Balas HANYA satu JSON valid dengan schema persis:
 {
   "summary": string,
   "name": string|null,
@@ -71,6 +78,7 @@ ATURAN MUTLAK:
   "missing_info": [string],
   "follow_up": string|null,
   "action": string|null,
+  "payment_ready": boolean,
   "job_status": "PERLU_TINDAKAN"|"DIKERJAKAN"|"BATAL"|null
 }
 """
@@ -92,6 +100,7 @@ def _default():
         "missing_info": [],
         "follow_up": None,
         "action": None,
+        "payment_ready": None,
         "job_status": None,
     }
 
@@ -140,6 +149,7 @@ def _normalize(value):
         "missing_info": _clean_list(value.get("missing_info")),
         "follow_up": _clean_string(value.get("follow_up"), 700),
         "action": _clean_string(value.get("action"), 240),
+        "payment_ready": value.get("payment_ready") if type(value.get("payment_ready")) is bool else None,
         "job_status": value.get("job_status") if value.get("job_status") in
                       ("PERLU_TINDAKAN", "DIKERJAKAN", "BATAL") else None,
     })
