@@ -33,7 +33,8 @@ def send(page, text):
 def inbox(owner, bid):
     owner.goto(BASE+f'/business/{bid}/inbox?channel=web',wait_until='networkidle')
     owner.locator('a.web-conversation').first.click()
-    expect(owner.locator('[data-playbook-context]')).to_be_visible()
+    expect(owner.locator('[data-linked-jobs]')).to_have_count(0)
+    expect(owner.locator('[data-playbook-context]')).to_have_count(0)
     fits(owner)
 
 
@@ -57,36 +58,21 @@ def main():
         assert 'volume' in reply and all(word not in reply for word in ('berat','asal','tujuan','jenis barang'))
         fits(visitor);visitor.screenshot(path=str(OUT/'02_logistics_missing.png'),full_page=True)
         inbox(owner,7)
-        panel=owner.locator('[data-linked-jobs]')
-        expect(panel.locator('a.client-item')).to_have_count(1)
-        for fact in ('baju','20 kg','Guangzhou','Tangerang','Masih dibutuhkan'):
-            assert fact in panel.inner_text()
-        job_url=BASE+panel.locator('a.client-item').get_attribute('href')
         inbox_url=owner.url
-        owner.screenshot(path=str(OUT/'03_inbox_known_missing.png'),full_page=True)
+        owner.screenshot(path=str(OUT/'03_inbox_without_jobs.png'),full_page=True)
+
         send(visitor,'Volumenya 0.2 m3')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(2,timeout=10000)
         owner.reload(wait_until='networkidle')
-        expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(1)
-        assert BASE+owner.locator('[data-linked-jobs] a.client-item').get_attribute('href') == job_url
-        assert '0.2 m³' in owner.locator('[data-playbook-context]').inner_text()
-        assert 'Siap ditawarkan' in owner.locator('[data-linked-jobs]').inner_text()
-        owner.goto(job_url,wait_until='networkidle')
-        customer_path=owner.locator('[data-job-customer]').get_attribute('href')
-        version=owner.locator('[name=version]').input_value()
-        fits(owner);owner.screenshot(path=str(OUT/'04_same_job_ready.png'),full_page=True)
+        expect(owner.locator('[data-linked-jobs]')).to_have_count(0)
+        expect(owner.locator('[data-playbook-context]')).to_have_count(0)
+
         owner.goto(inbox_url,wait_until='networkidle')
         owner.get_by_role('button',name='Ambil alih',exact=True).click()
         expect(owner.locator('#web-owner-message')).to_be_enabled(timeout=10000)
         send(visitor,'Koreksi asalnya Shanghai')
-        owner.goto(job_url,wait_until='networkidle')
-        assert owner.locator('[name=version]').input_value()==version
-        expect(owner.locator('#field-origin')).to_have_value('Guangzhou')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(2)
-        owner.get_by_label('Judul',exact=True).fill('Pengiriman ditangani tim')
-        owner.get_by_role('button',name='Simpan perubahan',exact=True).click()
-        expect(owner.get_by_text('Data tersimpan.',exact=True)).to_be_visible()
-        owner.screenshot(path=str(OUT/'05_human_manual_edit.png'),full_page=True)
+        owner.screenshot(path=str(OUT/'04_human_fence.png'),full_page=True)
 
         booking.goto(public_link(other,8),wait_until='networkidle')
         send(booking,'Mau potong rambut besok jam 14.00')
@@ -94,24 +80,17 @@ def main():
         assert 'Boleh informasikan' not in booking.locator('.web-bubble.assistant').inner_text()
         assert 'belum ada pesanan atau booking yang dikonfirmasi' in booking.locator('.web-bubble.assistant').inner_text()
         inbox(other,8)
-        assert 'potong rambut' in other.locator('[data-linked-jobs]').inner_text()
-        assert 'besok' in other.locator('[data-linked-jobs]').inner_text()
-        assert '14.00' in other.locator('[data-linked-jobs]').inner_text()
-        other.screenshot(path=str(OUT/'06_booking_known_time.png'),full_page=True)
-        for target in (job_url,job_url.replace('/business/7/','/business/8/'),BASE+customer_path,inbox_url):
-            assert other.goto(target,wait_until='domcontentloaded').status==404
-        response=other.context.request.post(job_url.replace('/business/7/','/business/8/'),
-                                             form={'csrf_token':'csrf-test','title':'forged'})
-        assert response.status==404
-        owner.goto(job_url,wait_until='networkidle')
-        expect(owner.get_by_label('Judul',exact=True)).to_have_value('Pengiriman ditangani tim')
-        assert finance.goto(job_url,wait_until='networkidle').status==200
+        expect(other.locator('[data-linked-jobs]')).to_have_count(0)
+        other.screenshot(path=str(OUT/'05_booking_inbox_without_jobs.png'),full_page=True)
+
+        # Tenant isolation remains on the current Inbox surface.
+        assert other.goto(inbox_url,wait_until='domcontentloaded').status==404
         finance.goto(BASE+'/products/finance',wait_until='networkidle')
         assert urlsplit(finance.url).path=='/products/finance'
         assert finance.screenshot(path=str(OUT/'07_finance_after.png'),full_page=True)==finance_before
         assert not errors,errors
         browser.close()
-    print('PASS Phase 5 mobile 390px: logistics known/missing, same Job followup, booking no re-ask, human fence/manual edit, tenant read/write 404, Finance pixel parity; synthetic model only')
+    print('PASS Phase 5 mobile 390px: logistics/booking replies, Inbox without duplicated Jobs, human fence, tenant isolation, Finance parity; synthetic model only')
 
 
 if __name__=='__main__': main()

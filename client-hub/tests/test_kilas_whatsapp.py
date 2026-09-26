@@ -192,7 +192,10 @@ class WhatsAppTests(unittest.TestCase):
     def test_owner_inbox_scope_channel_and_csrf(self):
         self.receive();cid=self.link()['conversation_id']
         response=self.client.get('/business/7/inbox?channel=web&conversation='+cid)
-        self.assertEqual(response.status_code,200);self.assertIn(b'WhatsApp',response.data);self.assertIn(b'Guangzhou',response.data)
+        self.assertEqual(response.status_code,200)
+        self.assertIn(b'WhatsApp',response.data)
+        self.assertNotIn(b'data-linked-jobs',response.data)
+        self.assertNotIn(b'data-playbook-context',response.data)
         self.assertEqual(self.client.post(f'/business/7/web-inbox/{cid}/reply',json={'event_id':'forged-send-0001','message':'x'}).status_code,400)
         self.assertEqual(self.client.get(f'/business/8/web-inbox/{cid}/messages').status_code,404)
 

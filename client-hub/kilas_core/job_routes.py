@@ -100,8 +100,17 @@ def _context(business, **extra):
     if book:
         field_labels.update({key: jobs.FIELD_LABELS[key] for key in jobs.LEGACY_FIELD_LABELS
                              if key in job['fields'] and key != 'missing_information'})
-    return dict(business=business, labels=labels(business), status_labels=jobs.STATUS_LABELS,
-                field_labels=field_labels, workflow=book, operation_key=uuid.uuid4().hex, **extra)
+    return dict(
+        business=business,
+        labels=labels(business),
+        status_labels=jobs.STATUS_LABELS,
+        status_options=jobs.VISIBLE_STATUS_OPTIONS,
+        kind_labels=jobs.KINDS,
+        field_labels=field_labels,
+        workflow=book,
+        operation_key=uuid.uuid4().hex,
+        **extra,
+    )
 
 
 def _source(bid, customer_id, conversation_id):
@@ -111,6 +120,8 @@ def _source(bid, customer_id, conversation_id):
             abort(404)
         customer_id = linked['id']
     customer = customers.get_customer(bid, customer_id)
+    if customer.get('stage') != 'CUSTOMER':
+        abort(404)
     return customer, conversation_id or None
 
 
@@ -129,8 +140,10 @@ def list_page(bid):
     customer_id = request.args.get('customer_id')
     if customer_id:
         customers.get_customer(bid,customer_id)
-    rows,total,page,pages = jobs.list_jobs(bid,search=q,status=status,customer_id=customer_id,
-                                         page=request.args.get('page',1))
+    rows,total,page,pages = jobs.list_jobs(
+        bid, search=q, status=status, customer_id=customer_id,
+        page=request.args.get('page',1), customer_stage='CUSTOMER'
+    )
     for row in rows:
         try:
             row['customer_name'] = customers.get_customer(bid,row['customer_id'])['display_name']
@@ -145,19 +158,27 @@ def list_page(bid):
 def new_page(bid):
     business = _business(bid)
     customer, conversation_id = _source(bid,request.args.get('customer_id'),request.args.get('conversation_id'))
-    return render_template('job_form.html',**_context(business,job=None,customer=customer,
-                                                    conversation_id=conversation_id,fields={}))
+    return render_template(
+        'job_form.html',
+        **_context(
+            business, job=None, customer=customer,
+            conversation_id=conversation_id, fields={},
+            default_kind=labels(business)['kind'],
+        )
+    )
 
 
 @jobs_bp.post('/business/<int:bid>/jobs')
 @security.login_required
 def create(bid):
     business = _business(bid)
-    form = _form(['customer_id','conversation_id','title','summary','operation_key']+
+    form = _form(['customer_id','conversation_id','title','summary','kind','operation_key']+
                  ['field_'+key for key in jobs.FIELD_LABELS])
     customer, conversation_id = _source(bid,form.get('customer_id'),form.get('conversation_id'))
-    job = jobs.create_job(bid,customer['id'],conversation_id=conversation_id,
-                          kind=labels(business)['kind'],title=form.get('title'),summary=form.get('summary',''),
+    job = jobs.create_job(
+        bid, customer['id'], conversation_id=conversation_id,
+        kind=form.get('kind') or labels(business)['kind'],
+        title=form.get('title'), summary=form.get('summary',''),
                           fields=_fields(form),actor_id=security.current_user()['id'],
                           operation_key=form.get('operation_key'))
     return redirect(url_for('core_jobs.detail_page',bid=bid,job_id=job['id'],saved=1),code=303)
@@ -169,9 +190,15 @@ def detail_page(bid,job_id):
     business = _business(bid)
     job = jobs.get_job(bid,job_id)
     customer = customers.get_customer(bid,job['customer_id'])
-    return render_template('job_form.html',**_context(business,job=job,customer=customer,
-                           conversation_id=job['conversation_id'],fields=job['fields'],
-                           transitions=jobs.TRANSITIONS[job['status']],saved=request.args.get('saved')=='1'))
+    return render_template(
+        'job_form.html',
+        **_context(
+            business, job=job, customer=customer,
+            conversation_id=job['conversation_id'], fields=job['fields'],
+            transitions=jobs.visible_transitions(job['status']),
+            saved=request.args.get('saved')=='1',
+        )
+    )
 
 
 @jobs_bp.post('/business/<int:bid>/jobs/<job_id>')
@@ -194,7 +221,13 @@ def linked_context(business, customer_id, conversation_id=None):
     """Bounded owner-only panel; never read Jobs tables when the rollout is off."""
     if not available(business):
         return None
-    rows, total, _, _ = jobs.list_jobs(business['id'],customer_id=customer_id,conversation_id=conversation_id)
+    customer = customers.get_customer(business['id'], customer_id)
+    if customer.get('stage') != 'CUSTOMER':
+        return None
+    rows, total, _, _ = jobs.list_jobs(
+        business['id'], customer_id=customer_id, conversation_id=conversation_id,
+        customer_stage='CUSTOMER'
+    )
     for row in rows:
         book = PLAYBOOKS.get(row['fields'].get('playbook'))
         row['workflow_label'] = book.label if book else None

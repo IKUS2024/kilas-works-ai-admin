@@ -28,9 +28,16 @@ class JobRoutesTests(unittest.TestCase):
         flag.start();self.addCleanup(flag.stop)
         self.identity=self.start().json
         self.cid=self.identity['conversation_id']
-        self.customer=customers.customer_for_conversation(7,self.cid)
+        raw_customer=customers.customer_for_conversation(7,self.cid)
+        customers.update_customer(
+            7, raw_customer['id'], display_name=raw_customer['display_name'],
+            phone=raw_customer.get('phone'), email=raw_customer.get('email'),
+            notes=raw_customer.get('notes'), stage='CUSTOMER', actor_id=1,
+        )
+        self.customer=customers.get_customer(7,raw_customer['id'])
         self.form=dict(csrf_token='csrf-test',customer_id=self.customer['id'],conversation_id=self.cid,
-                       title='Pesanan makan siang',summary='Untuk kantor',operation_key='route-create-0001')
+                       kind='ORDER',title='Pesanan makan siang',summary='Untuk kantor',
+                       operation_key='route-create-0001')
 
     def create(self, **changes):
         return self.client.post('/business/7/jobs',data={**self.form,**changes})
@@ -38,7 +45,7 @@ class JobRoutesTests(unittest.TestCase):
     def test_owner_create_detail_update_audit(self):
         page=self.client.get('/business/7/jobs/new?customer_id='+self.customer['id']+'&conversation_id='+self.cid)
         self.assertEqual(page.status_code,200)
-        self.assertIn(b'Buat Pesanan',page.data)
+        self.assertIn(b'Buat Job',page.data)
         response=self.create();self.assertEqual(response.status_code,303)
         job=jobs.list_jobs(7)[0][0]
         self.assertEqual(job['kind'],'ORDER')
@@ -46,8 +53,45 @@ class JobRoutesTests(unittest.TestCase):
         edited=self.client.post(f"/business/7/jobs/{job['id']}",data=dict(csrf_token='csrf-test',title='Makan siang revisi',
                  summary='Besok',status='NEEDS_INFORMATION',version=1,operation_key='route-update-0001'))
         self.assertEqual(edited.status_code,303)
-        self.assertEqual(jobs.get_job(7,job['id'])['status'],'NEEDS_INFORMATION')
+        updated=jobs.get_job(7,job['id'])
+        self.assertEqual(updated['status'],'NEEDS_INFORMATION')
+        self.assertEqual(updated['status_label'],'Menunggu customer')
+        self.assertEqual(updated['label'],'Order / Pembelian')
         self.assertEqual(self.db.query_one("SELECT COUNT(*) AS n FROM audit_log WHERE action LIKE 'JOB_%'")['n'],2)
+
+    def test_lead_cannot_create_job_and_simple_status_filter_groups_legacy_ready_states(self):
+        other_client=self.app.test_client()
+        lead_identity=self.start(client=other_client).json
+        lead=customers.customer_for_conversation(7,lead_identity['conversation_id'])
+        self.assertEqual(customers.get_customer(7,lead['id'])['stage'],'LEAD')
+        blocked=self.client.get('/business/7/jobs/new?customer_id='+lead['id'])
+        self.assertEqual(blocked.status_code,404)
+
+        self.assertEqual(self.create().status_code,303)
+        job=jobs.list_jobs(7,customer_stage='CUSTOMER')[0][0]
+        # Simulate an existing legacy QUOTED row; owner UI groups it under "Siap diproses".
+        self.db.execute(
+            "UPDATE kw_core_jobs SET status='QUOTED' WHERE business_id=7 AND id=?",
+            (job['id'],),
+        )
+        rows,total,_,_=jobs.list_jobs(7,status='READY_FOR_QUOTE',customer_stage='CUSTOMER')
+        self.assertEqual(total,1)
+        self.assertEqual(rows[0]['status'],'QUOTED')
+        self.assertEqual(rows[0]['status_label'],'Siap diproses')
+
+        page=self.client.get('/business/7/jobs?status=READY_FOR_QUOTE')
+        self.assertEqual(page.status_code,200)
+        self.assertIn(b'Siap diproses',page.data)
+        self.assertNotIn(b'Sudah ditawarkan',page.data)
+        self.assertNotIn(b'Disetujui',page.data)
+
+    def test_legacy_quote_states_collapse_without_fake_transition(self):
+        self.assertEqual(jobs.STATUS_LABELS['QUOTED'],'Siap diproses')
+        self.assertEqual(jobs.STATUS_LABELS['APPROVED'],'Siap diproses')
+        self.assertNotIn('QUOTED', jobs.visible_transitions('READY_FOR_QUOTE'))
+        self.assertNotIn('APPROVED', jobs.visible_transitions('QUOTED'))
+        self.assertIn('IN_PROGRESS', jobs.visible_transitions('QUOTED'))
+        self.assertIn('IN_PROGRESS', jobs.visible_transitions('APPROVED'))
 
     def test_form_csrf_unknown_payload_and_status_rejected(self):
         for changes in ({'csrf_token':'bad'},{'business_id':8},{'kind':'FINANCE'},
@@ -103,23 +147,29 @@ class JobRoutesTests(unittest.TestCase):
             self.assertEqual(self.send(self.identity).status_code,200)
         detail='/business/7/customers/'+self.customer['id']
         inbox='/business/7/inbox?channel=web&conversation='+self.cid
-        for path in (detail,inbox):
-            page=self.client.get(path)
-            self.assertEqual(page.status_code,200)
-            self.assertIn(b'data-create-job',page.data)
+        detail_page=self.client.get(detail)
+        inbox_page=self.client.get(inbox)
+        self.assertEqual(detail_page.status_code,200)
+        self.assertEqual(inbox_page.status_code,200)
+        self.assertIn(b'data-create-job',detail_page.data)
+        self.assertNotIn(b'data-create-job',inbox_page.data)
+        self.assertNotIn(b'data-linked-jobs',inbox_page.data)
         # Server resolves the customer from the selected conversation.
         new=self.client.get('/business/7/jobs/new?conversation_id='+self.cid)
         self.assertEqual(new.status_code,200)
         self.assertIn(self.customer['id'].encode(),new.data)
         self.assertEqual(self.create().status_code,303)
         job=jobs.list_jobs(7)[0][0]
-        for path in (detail,inbox):
-            page=self.client.get(path)
-            self.assertIn(('/business/7/jobs/'+job['id']).encode(),page.data)
-            self.assertIn(b'Pesanan makan siang',page.data)
+        detail_page=self.client.get(detail)
+        inbox_page=self.client.get(inbox)
+        self.assertIn(('/business/7/jobs/'+job['id']).encode(),detail_page.data)
+        self.assertIn(b'Pesanan makan siang',detail_page.data)
+        self.assertNotIn(('/business/7/jobs/'+job['id']).encode(),inbox_page.data)
+        self.assertNotIn(b'data-linked-jobs',inbox_page.data)
         page=self.client.get('/business/7/jobs/'+job['id'])
         self.assertIn(detail.encode(),page.data)
-        self.assertIn(b'data-job-conversation',page.data)
+        self.assertNotIn(b'data-job-conversation',page.data)
+        self.assertNotIn(b'Buka percakapan WEB',page.data)
         with patch.dict(os.environ,{'KILAS_JOBS_V2_ENABLED':'false'}):
             self.assertNotIn(b'data-linked-jobs',self.client.get(detail).data)
             self.assertNotIn(b'data-linked-jobs',self.client.get(inbox).data)
@@ -182,17 +232,20 @@ class JobRoutesTests(unittest.TestCase):
         }
 
         # Lead may have a strong Insight, but Jobs is Customer-only.
-        lead = customers.get_customer(7, self.customer['id'])
+        lead_client=self.app.test_client()
+        lead_identity=self.start(client=lead_client).json
+        lead_raw=customers.customer_for_conversation(7,lead_identity['conversation_id'])
+        lead=customers.get_customer(7,lead_raw['id'])
         self.assertEqual(lead['stage'], 'LEAD')
         self.assertIsNone(customer_action_jobs.sync_from_insight(business, lead, insight))
         self.assertEqual(jobs.list_jobs(7)[1], 0)
 
         customers.update_customer(
-            7, self.customer['id'], display_name=self.customer['display_name'],
-            phone=self.customer.get('phone'), email=self.customer.get('email'),
-            notes=self.customer.get('notes'), stage='CUSTOMER', actor_id=1,
+            7, lead['id'], display_name=lead['display_name'],
+            phone=lead.get('phone'), email=lead.get('email'),
+            notes=lead.get('notes'), stage='CUSTOMER', actor_id=1,
         )
-        customer = customers.get_customer(7, self.customer['id'])
+        customer = customers.get_customer(7, lead['id'])
         first = customer_action_jobs.sync_from_insight(business, customer, insight)
         self.assertIsNotNone(first)
         self.assertEqual(first['customer_id'], customer['id'])
@@ -219,7 +272,7 @@ class JobRoutesTests(unittest.TestCase):
 
         page = self.client.get('/business/7/jobs')
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b'Tindakan', page.data)
+        self.assertIn(b'Jobs', page.data)
         self.assertIn(customer['display_name'].encode(), page.data)
         self.assertIn(b'Booking konsultasi tanggal 10', page.data)
 
@@ -261,6 +314,11 @@ class JobRoutesTests(unittest.TestCase):
 
     def test_prune_invalid_customer_insight_job_from_lead_only(self):
         # Synthetic stale record from the retired broad-intent implementation.
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
+        )
         with jobs.transaction() as tx:
             jobs._lock(tx, 7)
             stale = jobs._create_job(
