@@ -283,11 +283,23 @@ class JobRoutesTests(unittest.TestCase):
         deal = customer_action_jobs.sync_from_insight(scope, customer, {
             "summary": "Customer bilang oke deal lanjut booking foto.",
             "action": "Booking jasa foto minggu depan",
+            "payment_ready": False,
             "job_status": "DIKERJAKAN",
             "_meta": {"has_history": True, "fresh": True, "message_count": 3},
         })
         self.assertEqual(deal["id"], first["id"])
-        self.assertEqual(deal["owner_status"], "IN_PROGRESS")
+        self.assertEqual(deal["owner_status"], "NEW")
+
+        payment = customer_action_jobs.sync_from_insight(scope, customer, {
+            "summary": "Customer siap bayar jasa foto dan meminta invoice.",
+            "action": "Booking jasa foto minggu depan",
+            "payment_ready": True,
+            "job_status": "DIKERJAKAN",
+            "_meta": {"has_history": True, "fresh": True, "message_count": 4},
+        })
+        self.assertEqual(payment["id"], first["id"])
+        self.assertEqual(payment["owner_status"], "IN_PROGRESS")
+        self.assertEqual(payment["fields"]["payment_ready"], "yes")
 
         admin_id = repo_module.create_user(
             "platform-admin@example.test", "unused-password",
@@ -339,7 +351,8 @@ class JobRoutesTests(unittest.TestCase):
         lead = customers.list_customers(scope["id"], stage="LEAD")[0][0]
         actionable = {
             "summary": "Customer ingin lanjut Content Pro dan meminta invoice.",
-            "action": "Lanjut Content Pro dan kirim invoice",
+            "action": "Ambil paket Content Pro",
+            "payment_ready": True,
             "job_status": "DIKERJAKAN",
             "_meta": {"has_history": True, "fresh": True, "message_count": 2},
         }
@@ -354,7 +367,8 @@ class JobRoutesTests(unittest.TestCase):
         rows, total, _, _ = jobs.list_jobs(scope["id"], customer_id=customer["id"])
         self.assertEqual(total, 1)
         self.assertEqual(rows[0]["owner_status"], "IN_PROGRESS")
-        self.assertEqual(rows[0]["fields"]["action"], "Lanjut Content Pro dan kirim invoice")
+        self.assertEqual(rows[0]["fields"]["action"], "Ambil paket Content Pro")
+        self.assertEqual(rows[0]["fields"]["payment_ready"], "yes")
 
     def test_platform_information_only_lead_stays_lead(self):
         import platform_workspace
@@ -410,19 +424,77 @@ class JobRoutesTests(unittest.TestCase):
         deal = customer_action_jobs.sync_from_insight(business, customer, {
             'summary':'Customer bilang oke deal dan lanjut.',
             'action':'Booking foto minggu depan',
+            'payment_ready':False,
             'job_status':'DIKERJAKAN',
             '_meta':{'has_history':True,'fresh':True,'message_count':3},
         })
         self.assertEqual(deal['id'],first['id'])
-        self.assertEqual(deal['owner_status'],'IN_PROGRESS')
+        self.assertEqual(deal['owner_status'],'NEW')
+        payment = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer siap bayar booking foto dan meminta invoice.',
+            'action':'Booking foto minggu depan',
+            'payment_ready':True,
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+        })
+        self.assertEqual(payment['id'],first['id'])
+        self.assertEqual(payment['owner_status'],'IN_PROGRESS')
+        self.assertEqual(payment['fields']['payment_ready'],'yes')
         cancelled = customer_action_jobs.sync_from_insight(business, customer, {
             'summary':'Customer bilang tidak jadi.',
             'action':None,
+            'payment_ready':False,
             'job_status':'BATAL',
-            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+            '_meta':{'has_history':True,'fresh':True,'message_count':5},
         })
         self.assertEqual(cancelled['id'],first['id'])
         self.assertEqual(cancelled['owner_status'],'CANCELLED')
+
+    def test_customer_insight_payment_boundary_repairs_false_in_progress_and_blocks_manual_promotion(self):
+        business = {'id': 7}
+        customer = customers.get_customer(7, self.customer['id'])
+        job = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer minta meeting Selasa jam 09:00.',
+            'action':'Jadwalkan meeting Selasa jam 09:00',
+            'payment_ready':False,
+            'job_status':'PERLU_TINDAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':2},
+        })
+        self.assertEqual(job['owner_status'],'NEW')
+        self.assertEqual(job['fields']['payment_ready'],'no')
+
+        path=f"/business/7/jobs/{job['id']}"
+        page=self.client.get(path)
+        self.assertNotIn(b'value="IN_PROGRESS"', page.data)
+        blocked=self.client.post(path,data=dict(
+            csrf_token='csrf-test',title=job['title'],summary=job['summary'],
+            status='IN_PROGRESS',version=job['version'],operation_key='blocked-pay-status-01'
+        ))
+        self.assertEqual(blocked.status_code,409)
+        self.assertEqual(jobs.get_job(7,job['id'])['owner_status'],'NEW')
+
+        # Simulate a stale pre-fix record that had been marked Dikerjakan for a meeting.
+        self.db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",(7,job['id']))
+        repaired=customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer sudah setuju meeting Selasa jam 09:00.',
+            'action':'Jadwalkan meeting Selasa jam 09:00',
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':3},
+        })
+        self.assertEqual(repaired['owner_status'],'NEW')
+        self.assertEqual(repaired['fields']['payment_ready'],'no')
+
+        payment=customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer siap bayar jasa dan meminta invoice.',
+            'action':'Jasa foto untuk campaign',
+            'payment_ready':True,
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+        })
+        self.assertEqual(payment['owner_status'],'IN_PROGRESS')
+        detail=self.client.get(path)
+        self.assertIn(b'Customer mau',detail.data)
+        self.assertIn(b'Jasa foto untuk campaign',detail.data)
 
     def test_information_only_customer_stays_out_of_jobs_and_manual_job_wins(self):
         business = {'id': 7}
