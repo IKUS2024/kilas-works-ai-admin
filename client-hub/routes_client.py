@@ -27,6 +27,7 @@ import subscription_service
 import inbox_service
 import platform_inbox_service
 import wa_takeover_service
+import wa_inbox_shared
 import catalog_service
 import db
 import payment_service
