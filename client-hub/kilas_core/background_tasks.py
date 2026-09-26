@@ -1,10 +1,10 @@
 """Non-blocking Core CRM/Jobs maintenance for owner navigation.
 
 Owner GET routes must stay fast. Slow Customer Insight/model work runs on one bounded daemon
-executor so a page render never waits on AI. Database connections are thread-local, and all
+worker so a page render never waits on AI. Database connections are thread-local, and all
 underlying Customer/Job services remain idempotent and tenant-scoped.
 """
-from concurrent.futures import ThreadPoolExecutor
+import queue
 import threading
 import time
 
@@ -13,10 +13,11 @@ from flask import current_app
 import platform_workspace
 from kilas_core import customer_action_jobs, customers
 
-_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="kilas-core-bg")
+_tasks = queue.Queue(maxsize=64)
 _guard = threading.Lock()
 _inflight = set()
 _last_started = {}
+_worker = None
 
 
 def _testing():
@@ -26,15 +27,31 @@ def _testing():
         return False
 
 
-def _run(key, fn, args):
-    try:
-        fn(*args)
-    except Exception:
-        # Background enrichment must never affect navigation or crash the worker.
-        pass
-    finally:
-        with _guard:
-            _inflight.discard(key)
+def _worker_loop():
+    while True:
+        key, fn, args = _tasks.get()
+        try:
+            fn(*args)
+        except Exception:
+            # Background enrichment must never affect navigation or crash the worker.
+            pass
+        finally:
+            with _guard:
+                _inflight.discard(key)
+            _tasks.task_done()
+
+
+def _ensure_worker():
+    global _worker
+    with _guard:
+        if _worker is not None and _worker.is_alive():
+            return
+        _worker = threading.Thread(
+            target=_worker_loop,
+            name="kilas-core-bg",
+            daemon=True,
+        )
+        _worker.start()
 
 
 def _submit(key, fn, args=(), min_interval=20):
@@ -49,10 +66,11 @@ def _submit(key, fn, args=(), min_interval=20):
             return False
         _last_started[key] = now
         _inflight.add(key)
+    _ensure_worker()
     try:
-        _executor.submit(_run, key, fn, args)
+        _tasks.put_nowait((key, fn, args))
         return True
-    except Exception:
+    except queue.Full:
         with _guard:
             _inflight.discard(key)
         return False
@@ -63,6 +81,7 @@ def _refresh_business(business, actor_id):
     bid = business.get("id")
     if not bid:
         return
+
     if platform_workspace.is_scope_business(bid):
         try:
             scope, _ = platform_workspace.sync_contacts()
