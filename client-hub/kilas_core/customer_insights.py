@@ -264,9 +264,13 @@ def platform_conversation_row(business_id, customer):
         return None
     if not row:
         return None
+    try:
+        mode = platform_inbox_service.get_state(phone) if platform_inbox_service.customer_exists(phone) else "AI_ACTIVE"
+    except Exception:
+        mode = "STATE_UNAVAILABLE"
     return {
         "id": "platform:" + phone,
-        "mode": platform_inbox_service.get_state(phone) if platform_inbox_service.customer_exists(phone) else "AI_ACTIVE",
+        "mode": mode,
         "created_at": row.get("created_at"),
         "updated_at": row.get("created_at"),
         "preview": row.get("content") or "",
