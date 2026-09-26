@@ -20,18 +20,10 @@ def _business(bid):
 def list_page(bid):
     business = _business(bid)
     if platform_workspace.is_scope_business(bid):
-        try:
-            platform_workspace.sync_contacts()
-        except Exception:
-            pass
-        # Reconcile only a small bounded batch on normal page loads. The raw keyword prefilter
-        # never promotes; Customer Insight must independently confirm a concrete customer action.
-        try:
-            customer_action_jobs.reconcile_actionable_platform_leads(
-                business, actor_id=security.current_user()["id"], limit=3
-            )
-        except Exception:
-            pass
+        # Navigation GETs must stay read-fast. Do not rescan the full platform Inbox and do not
+        # call Customer Insight / an external AI model while rendering Customers. Inbox ingestion
+        # and explicit reconciliation own those writes; tapping a tab is a read operation.
+        pass
     # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
     # historical demo chats immediately visible as Lead without requiring another message.
     try:

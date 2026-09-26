@@ -131,15 +131,12 @@ def _source(bid, customer_id, conversation_id):
 def list_page(bid):
     business = _business(bid)
     if platform_workspace.is_scope_business(bid):
-        try:
-            platform_workspace.sync_contacts()
-        except Exception:
-            pass
-    # Bounded monitoring pass: confirmed WhatsApp Customers with a real next action
-    # are reconciled into one idempotent Job before the owner sees the queue.
+        # Platform Inbox/CRM synchronization is ingestion work, not navigation work.
+        pass
+    # Keep navigation GET read-fast. Local cleanup is bounded and database-only, but
+    # Customer Insight / external AI reconciliation must never block an operator opening Jobs.
     try:
         customer_action_jobs.prune_invalid_lead_jobs(bid)
-        customer_action_jobs.reconcile_business(business)
     except Exception:
         pass
     q, status = request.args.get('q',''), request.args.get('status','')
