@@ -11,6 +11,8 @@ import time
 import ai_onboarding
 import ai_usage
 import db
+import platform_inbox_service
+import platform_workspace
 from kilas_core import customers
 
 
@@ -223,6 +225,56 @@ def whatsapp_conversation_rows(business_id, customer_id):
         return []
 
 
+def _platform_messages(business_id, customer, after):
+    if not platform_workspace.is_scope_business(business_id):
+        return []
+    phone = platform_inbox_service.normalize_customer_phone(customer.get("phone"))
+    if not phone:
+        return []
+    try:
+        rows = db.query_all(
+            "SELECT id,role,content,created_at FROM messages "
+            "WHERE number=? AND mode='customer' AND id>? "
+            "ORDER BY id ASC LIMIT ?",
+            (phone, int(after), MAX_NEW_MESSAGES),
+        )
+    except Exception:
+        return []
+    cleaned = []
+    for raw in rows:
+        row = dict(raw)
+        row["_source"] = "PLATFORM_WHATSAPP"
+        cleaned.append(row)
+    return cleaned
+
+
+def platform_conversation_row(business_id, customer):
+    if not platform_workspace.is_scope_business(business_id):
+        return None
+    phone = platform_inbox_service.normalize_customer_phone(customer.get("phone"))
+    if not phone:
+        return None
+    try:
+        row = db.query_one(
+            "SELECT id,role,content,created_at FROM messages "
+            "WHERE number=? AND mode='customer' ORDER BY id DESC LIMIT 1",
+            (phone,),
+        )
+    except Exception:
+        return None
+    if not row:
+        return None
+    return {
+        "id": "platform:" + phone,
+        "mode": platform_inbox_service.get_state(phone) if platform_inbox_service.customer_exists(phone) else "AI_ACTIVE",
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("created_at"),
+        "preview": row.get("content") or "",
+        "is_platform": True,
+        "phone": phone,
+    }
+
+
 def _demo_messages(business_id, customer, after):
     binding = _demo_binding(business_id, customer.get("phone"))
     if not binding:
@@ -249,6 +301,7 @@ def _demo_messages(business_id, customer, after):
             "demo aktif" in lowered or "demo.kilasworks.id" in lowered or "kode demo" in lowered
         ):
             continue
+        row["_source"] = "DEMO_WHATSAPP"
         cleaned.append(row)
     return cleaned
 
@@ -259,8 +312,12 @@ def source_state(business_id, customer_id):
     core_cursor = stored["core_cursor"] if stored else 0
     demo_cursor = stored["demo_cursor"] if stored else 0
     core = _core_messages(business_id, customer_id, core_cursor)
-    demo = _demo_messages(business_id, customer, demo_cursor)
-    return customer, stored, core, demo
+    legacy = (
+        _platform_messages(business_id, customer, demo_cursor)
+        if platform_workspace.is_scope_business(business_id)
+        else _demo_messages(business_id, customer, demo_cursor)
+    )
+    return customer, stored, core, legacy
 
 
 def _transcript(core, demo):
@@ -272,7 +329,8 @@ def _transcript(core, demo):
         rows.append(f"[{who}][WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     for row in demo:
         who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
-        rows.append(f"[{who}][DEMO_WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
+        source = row.get("_source") or "DEMO_WHATSAPP"
+        rows.append(f"[{who}][{source}] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     text = "\n".join(rows)
     return text[-MAX_TRANSCRIPT_CHARS:]
 
