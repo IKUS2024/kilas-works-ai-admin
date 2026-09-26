@@ -96,7 +96,12 @@ def handle(bid,pid,value,field):
                 store._locked(tx,bid,cid)
                 # An API send echo is not a new human reply.
                 sent=tx.one('SELECT event_id FROM kw_core_wa_outbound WHERE business_id=? AND provider_id=?',(bid,echo['id']))
-                old=tx.one("SELECT id FROM kw_web_messages WHERE business_id=? AND conversation_id=? AND event_id=? AND role='human'",(bid,cid,eid))
+                # Core Inbox media sends store the provider wamid directly as the human message
+                # event id so shared media metadata can attach without copying private URLs.
+                old=tx.one(
+                    "SELECT id FROM kw_web_messages WHERE business_id=? AND conversation_id=? "
+                    "AND event_id IN (?,?) AND role='human'",
+                    (bid,cid,eid,str(echo['id'])))
                 if sent or old: continue
                 import wa_takeover_service
                 wa_takeover_service.set_state_in_transaction(tx,bid,link['customer_phone'],'HUMAN_TAKEOVER',None)
