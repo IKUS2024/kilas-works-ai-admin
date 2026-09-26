@@ -194,8 +194,30 @@ class RouteTests(unittest.TestCase):
         cls.addClassCleanup(cls.db.reset_connection_for_new_db_path)
         cls.db.get_connection().executescript("""
             CREATE TABLE users (id INTEGER PRIMARY KEY, role TEXT);
-            CREATE TABLE businesses (id INTEGER PRIMARY KEY, business_name TEXT, package TEXT, status TEXT);
+            CREATE TABLE businesses (
+                id INTEGER PRIMARY KEY,
+                tenant_slug TEXT UNIQUE,
+                business_name TEXT,
+                package TEXT,
+                status TEXT,
+                whatsapp_connected INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
             CREATE TABLE business_memberships (business_id INTEGER, user_id INTEGER);
+            CREATE TABLE business_profiles (business_id INTEGER PRIMARY KEY, category TEXT);
+            CREATE TABLE platform_workspace_scope (
+                singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                business_id INTEGER NOT NULL UNIQUE,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE platform_workspace_outbound (
+                event_id TEXT PRIMARY KEY,
+                customer_phone TEXT NOT NULL,
+                payload_hash TEXT NOT NULL,
+                status TEXT NOT NULL,
+                error TEXT,
+                created_at INTEGER NOT NULL
+            );
             CREATE TABLE ai_settings (business_id INTEGER, normalized_config_json TEXT);
             CREATE TABLE simulation_messages (id INTEGER PRIMARY KEY AUTOINCREMENT,
                 business_id INTEGER, session_token TEXT, role TEXT, content TEXT,
@@ -221,18 +243,24 @@ class RouteTests(unittest.TestCase):
         db = self.db
         conn = db.get_connection()
         conn.set_authorizer(None)
-        for table in ("users", "businesses", "business_memberships", "ai_settings", "simulation_messages",
+        for table in ("platform_workspace_outbound", "platform_workspace_scope", "business_profiles",
+                      "users", "businesses", "business_memberships", "ai_settings", "simulation_messages",
                       "onboarding_status", "audit_log"):
             db.execute("DELETE FROM " + table)
         db.execute("DELETE FROM sqlite_sequence WHERE name='simulation_messages'")
         for uid in (1, 2):
             db.execute("INSERT INTO users VALUES (?, 'CLIENT_OWNER')", (uid,))
         for bid in (7, 8):
-            db.execute("INSERT INTO businesses VALUES (?, ?, 'AI_ADMIN', 'ACTIVE')", (bid, str(bid)))
+            db.execute(
+                "INSERT INTO businesses(id,business_name,package,status) VALUES (?, ?, 'AI_ADMIN', 'ACTIVE')",
+                (bid, str(bid)),
+            )
             db.execute("INSERT INTO business_memberships VALUES (?, 1)", (bid,))
             db.execute("INSERT INTO ai_settings (business_id,normalized_config_json) VALUES (?, ?)", (bid, '{"description":"Tenant ' + str(bid) + '"}'))
             db.execute("INSERT INTO onboarding_status VALUES (?, 0, NULL)", (bid,))
-        db.execute("INSERT INTO businesses VALUES (9, 'Archived', 'AI_ADMIN', 'ARCHIVED')")
+        db.execute(
+            "INSERT INTO businesses(id,business_name,package,status) VALUES (9, 'Archived', 'AI_ADMIN', 'ARCHIVED')"
+        )
         db.execute("INSERT INTO business_memberships VALUES (9, 1)")
         self.flag = patch.dict(os.environ, {"KILAS_CORE_V2_ENABLED": "true",
                                           "KILAS_CORE_V2_TEST_BUSINESS_IDS": "7,8"})
