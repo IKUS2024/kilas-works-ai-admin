@@ -179,7 +179,9 @@ class SinglePlanTests(unittest.TestCase):
         hidden=repo.create_business(outsider,'Private tenant','AI_ADMIN')
         self.usage(hidden)
         body=self.client.get('/dashboard').get_data(as_text=True)
-        self.assertIn('Respons AI bulan ini',body);self.assertNotIn('Private tenant',body)
+        # /dashboard now resolves to the package-aware Kilas Assist Home. Usage counters
+        # moved out of this surface, but tenant isolation and raw-cost secrecy remain required.
+        self.assertIn('My business',body);self.assertNotIn('Private tenant',body)
         self.assertNotIn('estimated_cost_usd',body)
 
     def test_ai_scope_isolation_and_reset(self):
