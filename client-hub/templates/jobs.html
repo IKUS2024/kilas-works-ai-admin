@@ -3,23 +3,18 @@
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
-.job-action-line{margin-top:6px;font-size:13px;line-height:1.45;color:var(--text)}
-.job-action-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.job-action-meta .client-status{font-size:9px}
+.job-action-line{margin-top:7px;font-size:14px;line-height:1.45;color:var(--text)}
 </style>
 <section class="client-page">
   <div class="client-head">
-    <div>
-      <h1>Tindakan</h1>
-      <p>{{ business.business_name }} · tindak lanjut customer</p>
-    </div>
-    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>
+    <div><h1>Tindakan</h1><p>{{ business.business_name }}</p></div>
+    <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage='CUSTOMER') }}">Customers</a>
   </div>
 
   <form class="card client-search-card" method="get">
     {% if customer_id %}<input type="hidden" name="customer_id" value="{{ customer_id }}">{% endif %}
     <label for="job-search">Cari tindakan</label>
-    <input id="job-search" type="search" name="q" maxlength="120" value="{{ search }}" placeholder="Customer, tindakan, atau ringkasan">
+    <input id="job-search" type="search" name="q" maxlength="120" value="{{ search }}" placeholder="Customer atau tindakan">
     <label for="job-filter">Status</label>
     <select id="job-filter" name="status">
       <option value="">Semua status</option>
@@ -33,32 +28,12 @@
   <div class="client-list">
     {% for row in rows %}
     <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
-      <div class="client-item-head">
-        <div class="client-item-main">
-          <div class="client-item-title">{{ row.title }}</div>
-          <div class="client-item-meta">
-            {{ row.customer_name or 'Customer' }} · {{ row.status_label }}
-          </div>
-          {% if row.fields.action %}
-          <div class="job-action-line">{{ row.fields.action }}</div>
-          {% elif row.summary %}
-          <div class="job-action-line">{{ row.summary }}</div>
-          {% endif %}
-          <div class="job-action-meta">
-            {% if row.fields.priority %}
-              <span class="client-status {{ 'danger' if row.fields.priority == 'Tinggi' else 'warn' if row.fields.priority == 'Sedang' else 'info' }}">{{ row.fields.priority }}</span>
-            {% endif %}
-            {% if row.fields.intent %}<span class="client-status">{{ row.fields.intent }}</span>{% endif %}
-            <span class="client-status">{{ row.label }}</span>
-          </div>
-        </div>
-      </div>
+      <div class="client-item-title">{{ row.customer_name or 'Customer' }}</div>
+      <div class="client-item-meta">{{ row.status_label }}</div>
+      <div class="job-action-line">{{ row.fields.action or row.title }}</div>
     </a>
     {% else %}
-      <div class="client-empty">
-        Belum ada tindakan customer yang perlu ditindaklanjuti. Saat customer menunjukkan kebutuhan,
-        minat, ingin booking, meminta penawaran, atau punya next action yang jelas, Jobs akan muncul di sini.
-      </div>
+    <div class="client-empty">Belum ada tindakan. Job hanya muncul untuk Customer yang punya tindakan.</div>
     {% endfor %}
   </div>
 
