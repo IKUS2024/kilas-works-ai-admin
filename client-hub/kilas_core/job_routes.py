@@ -131,10 +131,8 @@ def _source(bid, customer_id, conversation_id):
 def list_page(bid):
     business = _business(bid)
     if platform_workspace.is_scope_business(bid):
-        try:
-            platform_workspace.sync_contacts()
-        except Exception:
-            pass
+        # Platform Inbox/CRM synchronization is ingestion work, not navigation work.
+        pass
     # Keep navigation GET read-fast. Local cleanup is bounded and database-only, but
     # Customer Insight / external AI reconciliation must never block an operator opening Jobs.
     try:
