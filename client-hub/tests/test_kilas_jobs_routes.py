@@ -287,7 +287,8 @@ class JobRoutesTests(unittest.TestCase):
             "_meta": {"has_history": True, "fresh": True, "message_count": 3},
         })
         self.assertEqual(deal["id"], first["id"])
-        self.assertEqual(deal["owner_status"], "IN_PROGRESS")
+        # Deal/booking without payment or invoice is still an owner action.
+        self.assertEqual(deal["owner_status"], "NEW")
 
         admin_id = repo_module.create_user(
             "platform-admin@example.test", "unused-password",
@@ -301,7 +302,8 @@ class JobRoutesTests(unittest.TestCase):
         page = self.client.get(f"/business/{scope['id']}/jobs")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Customer Platform", page.data)
-        self.assertIn(b"Dikerjakan", page.data)
+        self.assertIn(b"Perlu tindakan", page.data)
+        self.assertNotIn(b"Dikerjakan", page.data)
         self.assertNotIn(b"Butuh informasi", page.data)
         self.assertNotIn(b"Siap ditawarkan", page.data)
 
@@ -407,19 +409,43 @@ class JobRoutesTests(unittest.TestCase):
             '_meta':{'has_history':True,'fresh':True,'message_count':2},
         })
         self.assertEqual(first['owner_status'],'NEW')
+
         deal = customer_action_jobs.sync_from_insight(business, customer, {
-            'summary':'Customer bilang oke deal dan lanjut.',
+            'summary':'Customer bilang oke deal dan lanjut booking.',
             'action':'Booking foto minggu depan',
             'job_status':'DIKERJAKAN',
             '_meta':{'has_history':True,'fresh':True,'message_count':3},
         })
         self.assertEqual(deal['id'],first['id'])
-        self.assertEqual(deal['owner_status'],'IN_PROGRESS')
+        self.assertEqual(deal['owner_status'],'NEW')
+
+        payment = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer siap bayar dan meminta invoice.',
+            'action':'Kirim invoice untuk booking foto',
+            'buying_signal_reason':'Customer meminta invoice agar bisa membayar.',
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+        })
+        self.assertEqual(payment['id'],first['id'])
+        self.assertEqual(payment['owner_status'],'IN_PROGRESS')
+        self.assertEqual(payment['fields']['payment_step_reached'],'true')
+
+        # Once payment/invoice has genuinely started, later delivery/scheduling chat
+        # must not accidentally rewind the Job.
+        later_schedule = customer_action_jobs.sync_from_insight(business, customer, {
+            'summary':'Customer mengatur jadwal meeting teknis.',
+            'action':'Jadwalkan meeting teknis Selasa',
+            'job_status':'DIKERJAKAN',
+            '_meta':{'has_history':True,'fresh':True,'message_count':5},
+        })
+        self.assertEqual(later_schedule['owner_status'],'IN_PROGRESS')
+        self.assertEqual(later_schedule['fields']['payment_step_reached'],'true')
+
         cancelled = customer_action_jobs.sync_from_insight(business, customer, {
             'summary':'Customer bilang tidak jadi.',
             'action':None,
             'job_status':'BATAL',
-            '_meta':{'has_history':True,'fresh':True,'message_count':4},
+            '_meta':{'has_history':True,'fresh':True,'message_count':6},
         })
         self.assertEqual(cancelled['id'],first['id'])
         self.assertEqual(cancelled['owner_status'],'CANCELLED')
