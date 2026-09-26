@@ -37,12 +37,11 @@ KINDS = {'ORDER': 'Pesanan', 'BOOKING': 'Booking', 'SHIPMENT': 'Pengiriman',
 FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
                 'origin': 'Asal', 'destination': 'Tujuan',
                 'scheduled_at': 'Jadwal', 'reference': 'Referensi',
-                'missing_information': 'Informasi yang masih dibutuhkan',
-                'action': 'Tindakan berikutnya', 'intent': 'Intent customer',
-                'priority': 'Prioritas', 'source': 'Sumber'}
+                'missing_information': 'Informasi yang masih dibutuhkan'}
 
 # Server-only workflow metadata is not accepted by owner form routes.
-WORKFLOW_METADATA = {'playbook', 'uncertain_fields'}
+WORKFLOW_METADATA = {'playbook', 'uncertain_fields',
+                     'action', 'intent', 'priority', 'source', 'source_key'}
 LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
@@ -253,6 +252,12 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
         raise JobError('invalid_transition',409)
     if fields is not None and actor_id not in _PLAYBOOK_ACTORS:
         previous = json.loads(current['fields_json'])
+        if previous.get('source') == 'Customer Insight':
+            preserved = dict(fields)
+            for key in ('action','intent','priority','source','source_key'):
+                if key in previous:
+                    preserved[key] = previous[key]
+            encoded = validate_fields(preserved)
         if previous.get('playbook') in PLAYBOOKS:
             from .playbooks import missing_fields, labels
             book = PLAYBOOKS[previous['playbook']]
