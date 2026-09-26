@@ -16,23 +16,53 @@ import db
 from kilas_core.customers import transaction
 from kilas_core.playbook_definitions import FIELD_LABELS as PLAYBOOK_FIELDS, PLAYBOOKS
 
+# Internal database status codes are kept for backwards compatibility with existing
+# playbooks/automation. The owner-facing product deliberately exposes a much simpler lifecycle.
 STATUS_LABELS = {
-    'NEW': 'Perlu tindakan', 'NEEDS_INFORMATION': 'Butuh informasi',
-    'READY_FOR_QUOTE': 'Siap ditawarkan', 'QUOTED': 'Sudah ditawarkan',
-    'APPROVED': 'Disetujui', 'IN_PROGRESS': 'Dikerjakan',
-    'COMPLETED': 'Selesai', 'CANCELLED': 'Dibatalkan',
+    'NEW': 'Perlu tindakan',
+    'NEEDS_INFORMATION': 'Menunggu customer',
+    'READY_FOR_QUOTE': 'Siap diproses',
+    'QUOTED': 'Siap diproses',
+    'APPROVED': 'Siap diproses',
+    'IN_PROGRESS': 'Sedang dikerjakan',
+    'COMPLETED': 'Selesai',
+    'CANCELLED': 'Dibatalkan',
 }
+VISIBLE_STATUS_OPTIONS = (
+    ('NEW', 'Perlu tindakan'),
+    ('NEEDS_INFORMATION', 'Menunggu customer'),
+    ('READY_FOR_QUOTE', 'Siap diproses'),
+    ('IN_PROGRESS', 'Sedang dikerjakan'),
+    ('COMPLETED', 'Selesai'),
+    ('CANCELLED', 'Dibatalkan'),
+)
+STATUS_FILTER_GROUPS = {
+    'NEW': ('NEW',),
+    'NEEDS_INFORMATION': ('NEEDS_INFORMATION',),
+    # Existing QUOTED/APPROVED rows are presented as the same simple "Siap diproses" state.
+    'READY_FOR_QUOTE': ('READY_FOR_QUOTE', 'QUOTED', 'APPROVED'),
+    'IN_PROGRESS': ('IN_PROGRESS',),
+    'COMPLETED': ('COMPLETED',),
+    'CANCELLED': ('CANCELLED',),
+}
+# Expanded transitions support the simpler owner workflow while preserving legacy states.
 TRANSITIONS = {
-    'NEW': ('NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'CANCELLED'),
-    'NEEDS_INFORMATION': ('READY_FOR_QUOTE', 'CANCELLED'),
-    'READY_FOR_QUOTE': ('QUOTED', 'CANCELLED'),
-    'QUOTED': ('APPROVED', 'CANCELLED'),
+    'NEW': ('NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'IN_PROGRESS', 'CANCELLED'),
+    'NEEDS_INFORMATION': ('NEW', 'READY_FOR_QUOTE', 'IN_PROGRESS', 'CANCELLED'),
+    'READY_FOR_QUOTE': ('NEEDS_INFORMATION', 'IN_PROGRESS', 'CANCELLED'),
+    'QUOTED': ('NEEDS_INFORMATION', 'APPROVED', 'IN_PROGRESS', 'CANCELLED'),
     'APPROVED': ('IN_PROGRESS', 'CANCELLED'),
-    'IN_PROGRESS': ('COMPLETED', 'CANCELLED'),
+    'IN_PROGRESS': ('NEEDS_INFORMATION', 'COMPLETED', 'CANCELLED'),
     'COMPLETED': (), 'CANCELLED': (),
 }
-KINDS = {'ORDER': 'Pesanan', 'BOOKING': 'Booking', 'SHIPMENT': 'Pengiriman',
-         'PROJECT': 'Project', 'SERVICE': 'Service', 'GENERIC': 'Pekerjaan'}
+KINDS = {
+    'ORDER': 'Order / Pembelian',
+    'BOOKING': 'Booking',
+    'SHIPMENT': 'Pengiriman',
+    'PROJECT': 'Project',
+    'SERVICE': 'Konsultasi / Service',
+    'GENERIC': 'Follow-up',
+}
 # Explicit future-compatible operational keys only. No arbitrary metadata/secrets.
 FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
                 'origin': 'Asal', 'destination': 'Tujuan',
@@ -80,8 +110,9 @@ def presentation(category):
         ('SERVICE', {'workshop', 'repair', 'bengkel', 'servis'}),
     )
     kind = next((kind for kind, aliases in groups if words & aliases), 'GENERIC')
-    # Indonesian noun labels do not require English plural suffixes.
-    return {'kind': kind, 'singular': KINDS[kind], 'plural': KINDS[kind]}
+    # Jobs is one generic workspace regardless of business category. Category only supplies
+    # a sensible default kind for manual creation.
+    return {'kind': kind, 'singular': 'Job', 'plural': 'Jobs'}
 
 
 def _positive(value):
@@ -294,16 +325,31 @@ def get_job(business_id, job_id):
         return _row(_get(tx,business_id,job_id))
 
 
-def list_jobs(business_id, *, search='', status='', page=1, customer_id=None, conversation_id=None):
+def list_jobs(business_id, *, search='', status='', page=1, customer_id=None,
+              conversation_id=None, customer_stage=None):
     _positive(business_id)
-    if status and status not in STATUS_LABELS:
+    if status and status not in VISIBLE_STATUS_OPTIONS and status not in STATUS_LABELS:
         raise JobError('invalid_status')
     search = _text(search,120)
     where, args = 'business_id=?', [business_id]
-    for column, value in (('status',status),('customer_id',customer_id),('conversation_id',conversation_id)):
+    if status:
+        grouped = STATUS_FILTER_GROUPS.get(status, (status,))
+        if len(grouped) == 1:
+            where += ' AND status=?'
+            args.append(grouped[0])
+        else:
+            where += ' AND status IN (' + ','.join('?' for _ in grouped) + ')'
+            args += list(grouped)
+    for column, value in (('customer_id',customer_id),('conversation_id',conversation_id)):
         if value:
             where += ' AND ' + column + '=?'
             args.append(value)
+    if customer_stage:
+        if customer_stage not in ('LEAD','CUSTOMER'):
+            raise JobError('invalid_customer_stage')
+        where += (' AND customer_id IN (SELECT customer_id FROM kw_core_customer_stages '
+                  'WHERE business_id=? AND stage=?)')
+        args += [business_id, customer_stage]
     if search:
         like = '%'+search+'%'
         where += (
