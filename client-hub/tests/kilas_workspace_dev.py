@@ -20,7 +20,8 @@ repo.update_business_identity(case.target, 'Studio Sore Finance', actor_user_id=
 repo.update_business_identity(case.b, 'Toko Senja', actor_user_id=case.uid)
 db.execute("UPDATE businesses SET package='NONE' WHERE id=?", (case.b,))
 os.environ.update(KILAS_CORE_V2_TEST_BUSINESS_IDS=f'{case.source},{ai_business}',
-                  KILAS_WEB_CHAT_ENABLED='true', KILAS_OPERATIONS_V2_ENABLED='true')
+                  KILAS_WEB_CHAT_ENABLED='true', KILAS_OPERATIONS_V2_ENABLED='true',
+                  KILAS_CUSTOMERS_V2_ENABLED='true', KILAS_JOBS_V2_ENABLED='true')
 # Populate finance using authoritative services, never UI fake values.
 customer = finance.create_customer(case.target, 'PT Cahaya', actor_user_id=case.actor)
 invoice = finance.create_finance_invoice(case.target, customer, '2026-09-01', '2026-09-30',
