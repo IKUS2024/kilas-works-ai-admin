@@ -2,7 +2,7 @@
 import uuid
 from werkzeug.exceptions import NotFound
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
-import db, security
+import db, repo, security
 import finance_service as finance
 import finance_branches as branches
 from . import finance_bridge as bridge
@@ -84,12 +84,24 @@ def _render(business, actor, **extra):
 @security.login_required
 def settings(bid):
     business, actor = _context(bid)
-    owned = db.query_all("SELECT b.id,b.business_name FROM businesses b JOIN business_memberships m "
-                         "ON m.business_id=b.id WHERE m.user_id=? AND m.role_in_business='OWNER' ORDER BY b.id", (actor,))
+    user = security.current_user()
+    if user and user.get('role') == 'KILAS_ADMIN':
+        candidates = repo.list_all_businesses()
+    else:
+        candidates = db.query_all(
+            "SELECT b.id,b.business_name FROM businesses b JOIN business_memberships m "
+            "ON m.business_id=b.id WHERE m.user_id=? AND m.role_in_business='OWNER' ORDER BY b.id",
+            (actor,))
     choices = []
-    for row in owned:
-        for branch in branches.list_branches(row['id'], actor):
-            if branch['is_active']:
+    for row in candidates:
+        if row['id'] == bid:
+            continue
+        try:
+            finance_branches = branches.list_branches(row['id'], actor)
+        except finance.FinanceError:
+            continue
+        for branch in finance_branches:
+            if branch['is_active'] and branch.get('workspace_type') == 'BUSINESS':
                 choices.append(dict(business=row, branch=branch))
     return _render(business, actor, mode='settings', choices=choices)
 
