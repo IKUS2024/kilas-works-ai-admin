@@ -182,8 +182,9 @@ class JobRoutesTests(unittest.TestCase):
         }
 
         # Lead may have a strong Insight, but Jobs is Customer-only.
-        self.assertEqual(self.customer['stage'], 'LEAD')
-        self.assertIsNone(customer_action_jobs.sync_from_insight(business, self.customer, insight))
+        lead = customers.get_customer(7, self.customer['id'])
+        self.assertEqual(lead['stage'], 'LEAD')
+        self.assertIsNone(customer_action_jobs.sync_from_insight(business, lead, insight))
         self.assertEqual(jobs.list_jobs(7)[1], 0)
 
         customers.update_customer(
