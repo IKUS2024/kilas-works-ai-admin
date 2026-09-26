@@ -266,7 +266,9 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(inbox.status_code, 200)
         self.assertIn(b"Wilson", inbox.data)
         detail = self.client.get(f"/business/7/customers/{customer['id']}")
-        self.assertIn(b"Siap Kak", detail.data)
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotIn(b"Siap Kak", detail.data)
+        self.assertIn(b"Percakapan Inbox", detail.data)
 
     def test_flag_off_keeps_phase2_behavior_and_hides_customers_area(self):
         with patch.dict(os.environ, {"KILAS_CUSTOMERS_V2_ENABLED": "false"}):
