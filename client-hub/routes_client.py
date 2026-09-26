@@ -1138,6 +1138,25 @@ def _persist_demo_kilas_started(business_id, state):
     )
 
 
+def _sync_demo_kilas_lead(business_id, phone):
+    """Mirror one proven Demo WhatsApp phone into tenant CRM as a Lead.
+
+    Demo remains read-only in Inbox; this only creates/reuses the tenant-scoped verified
+    WhatsApp identity so Customers reflects the person who actually chatted.
+    """
+    try:
+        from kilas_core import customers
+        if not customers.enabled():
+            return None
+        name = platform_inbox_service.get_customer_name(phone)
+        return customers.ensure_whatsapp_lead(
+            business_id, phone, display_name=name or phone
+        )
+    except Exception:
+        # Demo Inbox must remain available even if CRM is temporarily unavailable.
+        return None
+
+
 def _persist_demo_kilas_bound(business_id, phone, start_message_id):
     existing = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
     if (
@@ -1145,6 +1164,7 @@ def _persist_demo_kilas_bound(business_id, phone, start_message_id):
         and platform_inbox_service.normalize_customer_phone(existing.get("phone")) == phone
         and int(existing.get("start_message_id") or 0) == int(start_message_id)
     ):
+        _sync_demo_kilas_lead(business_id, phone)
         return
     actor = security.current_user()
     detail = {
@@ -1158,6 +1178,13 @@ def _persist_demo_kilas_bound(business_id, phone, start_message_id):
         _DEMO_KILAS_BOUND_ACTION,
         json.dumps(detail, separators=(",", ":")),
     )
+    _sync_demo_kilas_lead(business_id, phone)
+
+
+def sync_demo_kilas_lead(business_id):
+    """Backfill/reconcile an existing durable Demo WhatsApp binding into CRM."""
+    phone = _demo_kilas_phone_for_business(business_id)
+    return _sync_demo_kilas_lead(business_id, phone) if phone else None
 
 
 def _demo_kilas_phone_for_business(business_id):

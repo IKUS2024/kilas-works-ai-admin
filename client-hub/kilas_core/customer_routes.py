@@ -18,6 +18,12 @@ def _business(bid):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
+    # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
+    # historical demo chats immediately visible as Lead without requiring another message.
+    try:
+        customers.sync_demo_binding_lead(bid)
+    except Exception:
+        pass
     q = request.args.get("q", "")
     page = request.args.get("page", 1, type=int) or 1
     stage = (request.args.get("stage") or "LEAD").strip().upper()

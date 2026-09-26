@@ -5,6 +5,8 @@ tokens are never stored here. Owner-entered phone/email are profile fields only 
 NOT automatically promoted to verified cross-channel identities.
 """
 from contextlib import contextmanager
+import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -91,6 +93,90 @@ def _stage(value, *, allow_none=False):
     if value not in STAGES:
         raise CustomerError("invalid_stage")
     return value
+
+
+def ensure_whatsapp_lead(business_id, phone, display_name=None, *, now=None):
+    """Resolve/create a tenant-scoped WhatsApp lead without requiring a Core conversation row.
+
+    Used by the privacy-scoped Demo WhatsApp mirror, which intentionally does not create
+    kw_web_conversations rows. The verified phone identity is identical to the official
+    WhatsApp adapter identity, so a future official conversation reuses this customer instead
+    of creating a duplicate.
+    """
+    if not enabled():
+        return None
+    if not isinstance(phone, str) or not re.fullmatch(r"[1-9][0-9]{5,19}", phone):
+        raise CustomerError("invalid_identity")
+    now = int(time.time()) if now is None else int(now)
+    identity_hash = hashlib.sha256(phone.encode()).hexdigest()
+    name = _clean_text(display_name, 160) or phone
+    with transaction() as tx:
+        identity = tx.one(
+            "SELECT customer_id FROM kw_core_customer_identities "
+            "WHERE business_id=? AND identity_type='WHATSAPP_PHONE' AND identity_hash=?",
+            (business_id, identity_hash),
+        )
+        if identity:
+            customer_id = identity["customer_id"]
+            customer = tx.one(
+                "SELECT c.*,COALESCE(s.stage,'CUSTOMER') AS stage "
+                "FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
+                "ON s.business_id=c.business_id AND s.customer_id=c.id "
+                "WHERE c.business_id=? AND c.id=?",
+                (business_id, customer_id),
+            )
+            if not customer:
+                raise CustomerError("customer_identity_conflict", 409)
+            return customer
+
+        customer_id = uuid.uuid4().hex
+        tx.execute(
+            "INSERT INTO kw_core_customers"
+            "(business_id,id,display_name,phone,source_channel,created_at,updated_at,last_activity_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (business_id, customer_id, name, phone, "WHATSAPP", now, now, now),
+        )
+        tx.execute(
+            "INSERT INTO kw_core_customer_identities"
+            "(business_id,customer_id,identity_type,identity_hash,verified,created_at) "
+            "VALUES (?,?,'WHATSAPP_PHONE',?,1,?)",
+            (business_id, customer_id, identity_hash, now),
+        )
+        tx.execute(
+            "INSERT INTO kw_core_customer_stages"
+            "(business_id,customer_id,stage,created_at,updated_at) VALUES (?,?,'LEAD',?,?)",
+            (business_id, customer_id, now, now),
+        )
+        return tx.one(
+            "SELECT c.*,s.stage FROM kw_core_customers c "
+            "JOIN kw_core_customer_stages s ON s.business_id=c.business_id AND s.customer_id=c.id "
+            "WHERE c.business_id=? AND c.id=?",
+            (business_id, customer_id),
+        )
+
+
+def sync_demo_binding_lead(business_id):
+    """Backfill the latest durable Demo WhatsApp binding into tenant CRM."""
+    if not enabled():
+        return None
+    with transaction() as tx:
+        row = tx.one(
+            "SELECT detail FROM audit_log WHERE business_id=? AND action='demo_whatsapp_bound' "
+            "ORDER BY id DESC LIMIT 1",
+            (business_id,),
+        )
+    if not row or not row.get("detail"):
+        return None
+    try:
+        detail = json.loads(row["detail"])
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(detail, dict):
+        return None
+    phone = detail.get("phone")
+    if not isinstance(phone, str):
+        return None
+    return ensure_whatsapp_lead(business_id, phone, display_name=phone)
 
 
 def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None):
