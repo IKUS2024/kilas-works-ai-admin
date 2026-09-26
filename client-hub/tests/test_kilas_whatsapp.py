@@ -183,11 +183,15 @@ class WhatsAppTests(unittest.TestCase):
         self.assertEqual(store.thread(7,cid)[-1]['role'],'human')
         self.assertEqual(store.thread(7,cid)[-1]['content'],'Invoice')
 
-        media.record(7,'628123456789',{
-            'id':'wamid.media.owner','type':'document','timestamp':int(time.time()),
-            'document':{'id':'123456789','mime_type':'application/pdf',
-                        'filename':'invoice.pdf','caption':'Invoice'}},role='assistant')
-        payload=self.client.get(f'/business/7/web-inbox/{cid}/messages?after=0').json
+        def attach(rows,bid):
+            for row in rows:
+                if row.get('event_id')=='wamid.media.owner':
+                    row['media']={'id':'media-test','event_id':'wamid.media.owner',
+                                  'message_type':'document','filename':'invoice.pdf',
+                                  'caption':'Invoice'}
+            return rows
+        with patch.object(media,'attach_events',side_effect=attach):
+            payload=self.client.get(f'/business/7/web-inbox/{cid}/messages?after=0').json
         attached=[row for row in payload['messages'] if row.get('media')]
         self.assertTrue(attached)
         self.assertEqual(attached[-1]['media']['message_type'],'document')
