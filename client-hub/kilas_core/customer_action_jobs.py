@@ -169,8 +169,8 @@ def prune_invalid_lead_jobs(business_id):
             "SELECT j.id FROM kw_core_jobs j "
             "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
             "WHERE j.business_id=? AND s.stage='LEAD' "
-            "AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%'",
-            (business_id,),
+            "AND j.fields_json LIKE ?",
+            (business_id, '%"source":"Customer Insight"%'),
         )
         removed = 0
         for row in rows:
@@ -191,8 +191,9 @@ def force_prune_invalid_lead_jobs_all():
         rows = tx.execute(
             "SELECT j.business_id,j.id FROM kw_core_jobs j "
             "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
-            "WHERE s.stage='LEAD' AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%' "
-            "ORDER BY j.business_id,j.id LIMIT 500"
+            "WHERE s.stage='LEAD' AND j.fields_json LIKE ? "
+            "ORDER BY j.business_id,j.id LIMIT 500",
+            ('%"source":"Customer Insight"%',)
         )
         removed = 0
         for row in rows:
@@ -214,8 +215,9 @@ def prune_invalid_lead_jobs_all():
         rows = tx.execute(
             "SELECT DISTINCT j.business_id FROM kw_core_jobs j "
             "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
-            "WHERE s.stage='LEAD' AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%' "
-            "ORDER BY j.business_id LIMIT 200"
+            "WHERE s.stage='LEAD' AND j.fields_json LIKE ? "
+            "ORDER BY j.business_id LIMIT 200",
+            ('%"source":"Customer Insight"%',)
         )
     return sum(prune_invalid_lead_jobs(int(row["business_id"])) for row in rows)
 
