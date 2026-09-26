@@ -55,6 +55,24 @@ class CustomerTests(unittest.TestCase):
         self.assertEqual(rows[0]["stage"], "LEAD")
         self.assertEqual(customers.get_customer(7, customer["id"])["stage"], "LEAD")
 
+    def test_customers_page_reconciles_existing_demo_whatsapp_binding(self):
+        import json
+        self.db.execute(
+            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
+            (1, 7, "demo_whatsapp_bound",
+             json.dumps({"phone":"14048836437","start_message_id":1402,"bound_at":1790362912})),
+        )
+        self.assertEqual(customers.list_customers(7, stage="LEAD")[1], 0)
+        page = self.client.get("/business/7/customers")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"14048836437", page.data)
+        leads, total, _, _ = customers.list_customers(7, stage="LEAD")
+        self.assertEqual(total, 1)
+        self.assertEqual(leads[0]["phone"], "14048836437")
+        # Repeated reads reconcile, they never duplicate the same verified phone.
+        self.client.get("/business/7/customers")
+        self.assertEqual(customers.list_customers(7, stage="LEAD")[1], 1)
+
     def test_lead_filter_and_manual_customer_promotion(self):
         first = self.start().json
         other_client = self.app.test_client()
