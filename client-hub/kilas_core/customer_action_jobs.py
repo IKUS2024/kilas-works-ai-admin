@@ -181,6 +181,31 @@ def prune_invalid_lead_jobs(business_id):
         return removed
 
 
+def force_prune_invalid_lead_jobs_all():
+    """One-shot production repair independent of feature flags.
+
+    Narrow scope: only Customer Insight Jobs whose linked CRM stage is still LEAD.
+    Manual/playbook Jobs are excluded by the source marker.
+    """
+    with jobs.transaction() as tx:
+        rows = tx.execute(
+            "SELECT j.business_id,j.id FROM kw_core_jobs j "
+            "JOIN kw_core_customer_stages s ON s.business_id=j.business_id AND s.customer_id=j.customer_id "
+            "WHERE s.stage='LEAD' AND j.fields_json LIKE '%\"source\":\"Customer Insight\"%' "
+            "ORDER BY j.business_id,j.id LIMIT 500"
+        )
+        removed = 0
+        for row in rows:
+            # Customer Insight auto-Jobs created by this retired path have a Job operation row
+            # but no owner/manual semantics. Remove the exact operation first to satisfy 0057 FK.
+            tx.execute("DELETE FROM kw_core_job_operations WHERE business_id=? AND job_id=?",
+                       (row["business_id"], row["id"]))
+            tx.execute("DELETE FROM kw_core_jobs WHERE business_id=? AND id=?",
+                       (row["business_id"], row["id"]))
+            removed += 1
+        return removed
+
+
 def prune_invalid_lead_jobs_all():
     """Bounded startup reconciliation across only businesses that currently have invalid AI Lead Jobs."""
     if not jobs.enabled():
