@@ -1,62 +1,100 @@
 {% extends "base.html" %}
-{% block title %}{{ job.title if job else 'Buat ' ~ labels.singular }}{% endblock %}
+{% block title %}{{ (job.fields.action or job.title) if job else 'Buat Job' }}{% endblock %}
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>[data-jobs-page] h1,[data-jobs-page] a{overflow-wrap:anywhere}</style>
 <section class="client-page" data-jobs-page>
-  <div class="client-head"><div><h1>{{ job.title if job else 'Buat ' ~ labels.singular }}</h1><p>{{ business.business_name }}</p></div>
-    <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id) }}">← {{ labels.plural }}</a>
+  <div class="client-head">
+    <div>
+      <h1>{{ (job.fields.action or job.title) if job else 'Buat Job' }}</h1>
+      <p>{{ business.business_name }}</p>
+    </div>
+    <a class="btn secondary" href="{{ url_for('core_jobs.list_page',bid=business.id) }}">← Jobs</a>
   </div>
+
   {% if saved %}<div class="flash success">Data tersimpan.</div>{% endif %}
+
   <div class="card">
     <a data-job-customer href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=customer.id) }}">Customer: {{ customer.display_name }}</a>
-    {% if conversation_id %}<p><a data-job-conversation href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=conversation_id) }}">Buka percakapan WEB</a></p>{% endif %}
-    {% if workflow %}<div data-playbook-context><p>Alur: {{ workflow.label }}</p>
-      {% if job.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ job.fields.missing_information }}</p>
-      {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
-      <p class="client-note">Harga dan ketersediaan perlu konfirmasi tim.</p></div>{% endif %}
     {% if job %}
-    <p><span class="client-status info">{{ job.status_label }}</span></p>
-    {% if job.fields.source == 'Customer Insight' %}
-    <div class="client-card" style="margin-top:10px">
-      <div class="client-note">Tindakan berikutnya</div>
-      <strong>{{ job.fields.action or job.summary or '-' }}</strong>
-      <div class="client-actions" style="margin-top:8px">
-        {% if job.fields.priority %}<span class="client-status {{ 'danger' if job.fields.priority == 'Tinggi' else 'warn' if job.fields.priority == 'Sedang' else 'info' }}">{{ job.fields.priority }}</span>{% endif %}
-        {% if job.fields.intent %}<span class="client-status">{{ job.fields.intent }}</span>{% endif %}
+      <div class="client-actions" style="margin-top:10px">
+        <span class="client-status">{{ job.label }}</span>
+        <span class="client-status info">{{ job.status_label }}</span>
       </div>
-      <p class="client-note" style="margin-bottom:0">Dibuat otomatis dari Customer Insight WhatsApp Inbox.</p>
-    </div>
+      {% if job.fields.action %}
+      <div style="margin-top:12px">
+        <div class="client-note">Tindakan</div>
+        <strong>{{ job.fields.action }}</strong>
+      </div>
+      {% endif %}
+      <p class="client-note">Diperbarui {{ job.updated_at|job_time }}</p>
     {% endif %}
-    <p class="client-note">Dibuat {{ job.created_at|job_time }}<br>Diperbarui {{ job.updated_at|job_time }}</p>
+    {% if workflow %}
+      <div data-playbook-context style="margin-top:10px">
+        <p>Alur: {{ workflow.label }}</p>
+        {% if job.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ job.fields.missing_information }}</p>{% endif %}
+      </div>
     {% endif %}
   </div>
+
   <form class="card" method="post" action="{{ url_for('core_jobs.update',bid=business.id,job_id=job.id) if job else url_for('core_jobs.create',bid=business.id) }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="operation_key" value="{{ operation_key }}">
-    {% if job %}<input type="hidden" name="version" value="{{ job.version }}">
-    {% else %}<input type="hidden" name="customer_id" value="{{ customer.id }}">
+    {% if job %}
+      <input type="hidden" name="version" value="{{ job.version }}">
+    {% else %}
+      <input type="hidden" name="customer_id" value="{{ customer.id }}">
       {% if conversation_id %}<input type="hidden" name="conversation_id" value="{{ conversation_id }}">{% endif %}
+      <label for="job-kind">Jenis Job</label>
+      <select id="job-kind" name="kind">
+        {% for key,label in kind_labels.items() %}
+        <option value="{{ key }}" {{ 'selected' if key==default_kind else '' }}>{{ label }}</option>
+        {% endfor %}
+      </select>
     {% endif %}
-    <label for="job-title">Judul</label><input id="job-title" name="title" maxlength="160" required value="{{ job.title if job else '' }}">
-    <label for="job-summary">Ringkasan</label><textarea id="job-summary" name="summary" maxlength="2000">{{ job.summary if job else '' }}</textarea>
-    {% if job %}<label for="job-status">Status</label><select id="job-status" name="status">
-      <option value="{{ job.status }}">{{ job.status_label }}</option>
-      {% for value in transitions %}<option value="{{ value }}">{{ status_labels[value] }}</option>{% endfor %}
-    </select>{% else %}<p class="client-note">Status awal: Perlu tindakan</p>{% endif %}
-    <details class="client-collapsible" {% if fields %}open{% endif %}><summary>Rincian tambahan</summary>
+
+    <label for="job-title">Judul</label>
+    <input id="job-title" name="title" maxlength="160" required value="{{ job.title if job else '' }}">
+
+    <label for="job-summary">Catatan singkat</label>
+    <textarea id="job-summary" name="summary" maxlength="2000">{{ job.summary if job else '' }}</textarea>
+
+    {% if job %}
+      <label for="job-status">Status</label>
+      <select id="job-status" name="status">
+        <option value="{{ job.status }}">{{ job.status_label }}</option>
+        {% for value in transitions %}
+          {% if value != job.status %}<option value="{{ value }}">{{ status_labels[value] }}</option>{% endif %}
+        {% endfor %}
+      </select>
+    {% else %}
+      <p class="client-note">Status awal: Perlu tindakan</p>
+    {% endif %}
+
+    <details class="client-collapsible" {% if fields %}open{% endif %}>
+      <summary>Rincian tambahan</summary>
       <div class="client-form-grid client-collapsible-body">
-      {% for key,label in field_labels.items() %}<div><label for="field-{{ key }}">{{ label }}</label>
-        {% if key=='fulfillment' %}<select id="field-{{ key }}" name="field_{{ key }}"><option value="">Belum ditentukan</option>
-          <option value="pickup" {% if fields.get(key)=='pickup' %}selected{% endif %}>Ambil sendiri</option>
-          <option value="delivery" {% if fields.get(key)=='delivery' %}selected{% endif %}>Diantar</option>
-          <option value="dine_in" {% if fields.get(key)=='dine_in' %}selected{% endif %}>Di tempat</option></select>
-        {% else %}<input id="field-{{ key }}" name="field_{{ key }}" value="{{ fields.get(key,'') }}" maxlength="1000" {% if key=='quantity' %}type="number" min="0.000001" max="1000000000" step="any"{% endif %}>{% endif %}
-      </div>{% endfor %}
+      {% for key,label in field_labels.items() %}
+        <div>
+          <label for="field-{{ key }}">{{ label }}</label>
+          {% if key=='fulfillment' %}
+            <select id="field-{{ key }}" name="field_{{ key }}">
+              <option value="">Belum ditentukan</option>
+              <option value="pickup" {% if fields.get(key)=='pickup' %}selected{% endif %}>Ambil sendiri</option>
+              <option value="delivery" {% if fields.get(key)=='delivery' %}selected{% endif %}>Diantar</option>
+              <option value="dine_in" {% if fields.get(key)=='dine_in' %}selected{% endif %}>Di tempat</option>
+            </select>
+          {% else %}
+            <input id="field-{{ key }}" name="field_{{ key }}" value="{{ fields.get(key,'') }}" maxlength="1000" {% if key=='quantity' %}type="number" min="0.000001" max="1000000000" step="any"{% endif %}>
+          {% endif %}
+        </div>
+      {% endfor %}
       </div>
     </details>
-    <button class="btn" type="submit">{{ 'Simpan perubahan' if job else 'Buat ' ~ labels.singular }}</button>
+
+    <button class="btn" type="submit">{{ 'Simpan perubahan' if job else 'Buat Job' }}</button>
   </form>
+
 {% if job is not defined or job %}{% include "_finance_bridge_panel.html" %}{% endif %}
 </section>
 {% endblock %}
