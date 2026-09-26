@@ -304,6 +304,11 @@ def invoice_editor_context(bid, actor, jid, *, expected_version, finance_busines
 
 
 def attach_existing_invoice(bid, actor, jid, invoice_id, *, expected_version):
+    existing = _invoice_result(bid, jid, actor)
+    if existing:
+        if existing['link']['finance_invoice_id'] != invoice_id:
+            raise BridgeError('invoice_already_linked', 409)
+        return existing
     mapping = _active_mapping(bid, expected_version)
     ctx = invoice_editor_context(
         bid, actor, jid, expected_version=expected_version,
