@@ -101,6 +101,49 @@
     {% endif %}
   </section>
 
+  <section class="card" style="margin-bottom:12px">
+    <div class="client-item-head">
+      <div>
+        <h2 style="margin:0">Customer Insight</h2>
+        <p class="client-note" style="margin:4px 0 0">Diperbarui dari percakapan WhatsApp di Inbox Kilas Assist.</p>
+      </div>
+      {% if insight and insight.status == 'READY' %}<span class="client-status ok">AI · {{ insight.source_message_count }} pesan</span>{% endif %}
+    </div>
+    {% if insight and insight.status == 'READY' %}
+      <p style="font-size:15px;line-height:1.55;margin:14px 0">{{ insight.summary or 'Belum cukup informasi untuk membuat ringkasan.' }}</p>
+      <div class="client-grid">
+        <div>
+          <div class="client-note">Nama</div><strong>{{ insight.known_name or 'Belum diketahui' }}</strong>
+          <div class="client-note" style="margin-top:10px">Bisnis</div><strong>{{ insight.business_name or 'Belum diketahui' }}</strong>
+          <div class="client-note" style="margin-top:10px">Lokasi</div><strong>{{ insight.location or 'Belum diketahui' }}</strong>
+          <div class="client-note" style="margin-top:10px">Budget</div><strong>{{ insight.budget or 'Belum diketahui' }}</strong>
+        </div>
+        <div>
+          <div class="client-note">Kebutuhan / minat</div><strong>{{ insight.needs or 'Belum diketahui' }}</strong>
+          <div class="client-note" style="margin-top:10px">Intent</div><strong>{{ insight.intent or 'Belum diketahui' }}</strong>
+          <div class="client-note" style="margin-top:10px">Saran follow-up</div><strong>{{ insight.follow_up or 'Belum ada saran.' }}</strong>
+        </div>
+      </div>
+      {% if insight.buying_signals %}
+        <div class="client-note" style="margin-top:14px">Sinyal minat / beli</div>
+        <ul>{% for item in insight.buying_signals %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if insight.important_questions %}
+        <div class="client-note">Pertanyaan penting</div>
+        <ul>{% for item in insight.important_questions %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if insight.unknowns %}
+        <div class="client-note">Yang belum diketahui</div>
+        <ul>{% for item in insight.unknowns %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% endif %}
+    {% elif insight and insight.status == 'FAILED' %}
+      <div class="client-empty">Insight belum berhasil diperbarui. Percakapan tetap aman di Inbox dan akan dicoba lagi saat ada pembaruan berikutnya.</div>
+    {% else %}
+      <div class="client-empty">Belum cukup percakapan WhatsApp di Inbox untuk dianalisis.</div>
+    {% endif %}
+    <div class="client-note" style="margin-top:10px">{{ conversation_count or 0 }} percakapan Inbox terkait.</div>
+  </section>
+
   <div class="client-grid">
     <form class="card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
