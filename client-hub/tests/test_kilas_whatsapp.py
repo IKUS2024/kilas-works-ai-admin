@@ -176,7 +176,7 @@ class WhatsAppTests(unittest.TestCase):
         with patch.object(media,'send_upload_detail',return_value=(True,'accepted',detail)) as send:
             response=self.client.post(
                 f'/business/7/web-inbox/{cid}/media',
-                data={'file':(io.BytesIO(b'%PDF-1.4\ntest'),'invoice.pdf'),'caption':'Invoice'},
+                data={'csrf_token':'csrf-test','file':(io.BytesIO(b'%PDF-1.4\ntest'),'invoice.pdf'),'caption':'Invoice'},
                 headers={'X-CSRF-Token':'csrf-test'},content_type='multipart/form-data')
         self.assertEqual(response.status_code,200,response.data)
         send.assert_called_once()
