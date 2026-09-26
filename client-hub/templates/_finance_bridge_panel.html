@@ -5,8 +5,8 @@
 <div class="card" data-finance-bridge>
   {% if job is defined and job %}
     {% if job.owner_status == 'IN_PROGRESS' %}
-      <h2>Tugas manusia · Invoice</h2>
-      <p class="client-note">Customer sudah deal. Buat dan terbitkan invoice, lalu catat pembayaran di sini.</p>
+      <h2>Buat invoice untuk customer</h2>
+      <p class="client-note">Customer sudah mau bayar. Buat invoice berdasarkan permintaan di Job ini, lalu terbitkan dan kirim ke customer.</p>
       {% if bridge_panel.unavailable %}
         <p>Akses Kilas Finance belum tersedia.</p>
         {% if not bridge_panel.automatic_finance %}
@@ -16,7 +16,7 @@
         <p class="client-note">Customer Finance dan pembukuan internal dipilih otomatis dari Job ini.</p>
         <form method="post" action="{{ url_for('core_finance_bridge.invoice_start',bid=business.id,jid=job.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn" type="submit">Buat Invoice</button>
+          <button class="btn" type="submit">Buat Invoice untuk {{ customer.display_name }}</button>
         </form>
       {% elif not bridge_panel.mapping or not bridge_panel.mapping.enabled %}
         <p>Hubungkan Job ini ke Kilas Finance agar invoice dan pemasukan memakai pembukuan yang sama.</p>
