@@ -112,10 +112,11 @@
         <div>
           <h2 style="margin:0;">{{ selected.customer_name or selected.customer_phone }}</h2>
           {% if selected.customer_name %}<div class="muted">{{ selected.customer_phone }}</div>{% endif %}
-          <div style="margin-top:5px;">
+          <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;">
             {% if selected_source == 'demo' %}
               <span class="pill READY_FOR_REVIEW">Demo WhatsApp Kilas</span>
-            {% elif selected.mode == 'HUMAN_TAKEOVER' %}
+            {% endif %}
+            {% if selected.mode == 'HUMAN_TAKEOVER' %}
               <span class="pill NEEDS_REVISION">Human Handling</span>
             {% elif selected.mode == 'AI_ACTIVE' %}
               <span class="pill ACTIVE">AI Active</span>
@@ -125,15 +126,14 @@
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          {% if selected_source == 'demo' %}
-          {% elif selected.mode == 'AI_ACTIVE' %}
-            <form method="post" action="{{ url_for('client.inbox_takeover', business_id=business.id) }}">
+          {% if selected.mode == 'AI_ACTIVE' %}
+            <form method="post" action="{{ url_for('client.demo_inbox_takeover', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_takeover', business_id=business.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
               <button class="btn" type="submit">Ambil Alih</button>
             </form>
           {% elif selected.mode == 'HUMAN_TAKEOVER' %}
-            <form method="post" action="{{ url_for('client.inbox_return_ai', business_id=business.id) }}">
+            <form method="post" action="{{ url_for('client.demo_inbox_return_ai', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_return_ai', business_id=business.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
               <button class="btn secondary" type="submit">Kembalikan ke AI</button>
@@ -160,12 +160,13 @@
 
       <div class="kw-compose">
         {% if selected_source == 'demo' %}
-          <div class="kw-demo-inbox-note">
+          <div class="kw-demo-inbox-note" style="margin-bottom:10px;">
             <strong>Demo WhatsApp aktif</strong>
-            <p class="muted" style="margin:4px 0 0;">Chat ini berasal dari WhatsApp Kilas Works dan hanya dimirror ke workspace demo ini. Lanjutkan chat dari WhatsApp; Inbox akan update otomatis.</p>
+            <p class="muted" style="margin:4px 0 0;">Chat ini memakai nomor demo Kilas Works. Kontrol manusia di bawah hanya berlaku untuk percakapan demo yang terikat ke workspace ini.</p>
           </div>
-        {% elif selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
-          <form id="tenant-reply-form" method="post" action="{{ url_for('client.inbox_reply', business_id=business.id) }}">
+        {% endif %}
+        {% if selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
+          <form id="tenant-reply-form" method="post" action="{{ url_for('client.demo_inbox_reply', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_reply', business_id=business.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
             <textarea name="message" maxlength="4096" required placeholder="Balas sebagai CS..." style="min-height:68px;"></textarea>
@@ -176,7 +177,7 @@
             </div>
           </form>
           <details style="margin-top:10px;"><summary>Kirim gambar atau PDF</summary>
-            <form method="post" enctype="multipart/form-data" action="{{ url_for('client.inbox_media_send', business_id=business.id) }}">
+            <form method="post" enctype="multipart/form-data" action="{{ url_for('client.demo_inbox_media_send', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_media_send', business_id=business.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
               <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" required aria-label="Gambar atau PDF">
@@ -197,7 +198,7 @@
               jam aktif lagi.
             </p>
             {% if template_readiness %}<p class="muted" role="status">{{ template_readiness.message }}</p>{% endif %}
-            <form method="post" action="{{ url_for('client.inbox_send_template', business_id=business.id) }}">
+            <form method="post" action="{{ url_for('client.demo_inbox_send_template', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_send_template', business_id=business.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
               <button class="btn" type="submit" {% if not template_readiness or not template_readiness.ready %}disabled{% endif %}>Kirim Template &amp; Lanjutkan</button>

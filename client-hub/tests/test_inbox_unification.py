@@ -4,6 +4,7 @@ plus template-config-missing and tenant-credential-isolation tests).
 Run with:
     cd client-hub && python3 tests/test_inbox_unification.py
 """
+import io
 import os
 import sys
 import tempfile
@@ -29,6 +30,7 @@ import platform_inbox_service  # noqa: E402
 import wa_takeover_service  # noqa: E402
 import wa_inbox_shared  # noqa: E402
 import app as client_hub_app  # noqa: E402
+import routes_client  # noqa: E402
 
 FLASK_APP = client_hub_app.app
 FLASK_APP.testing = True
@@ -350,6 +352,99 @@ def test_M_non_ai_admin_business_has_no_inbox():
     assert resp.status_code == 302
     assert "dashboard" in resp.headers.get("Location", "").lower()
     print("test_M_non_ai_admin_business_has_no_inbox OK")
+
+
+# ---------------------------------------------------------------------------
+# DEMO INBOX — bound Kilas platform demo gets the same human controls, but remains business-scoped.
+# ---------------------------------------------------------------------------
+def test_demo_inbox_human_text_media_template_controls_are_scoped():
+    reset_db()
+    uid_a, bid_a = _make_active_ai_admin_tenant("Demo Biz A", "demoa@test.com")
+    uid_b, bid_b = _make_active_ai_admin_tenant("Demo Biz B", "demob@test.com")
+    phone = "14048836437"
+    now = datetime.now(timezone.utc).isoformat()
+    demo_rows = [
+        {"id": 901, "role": "user", "content": "bisnis aku parfum ka", "created_at": now},
+        {"id": 902, "role": "assistant", "content": "Oke, bisnis parfum.", "created_at": now},
+    ]
+
+    client = fresh_client()
+    _login_owner(client, "demoa@test.com")
+
+    def bound_for(bid):
+        return phone if bid == bid_a else None
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(platform_inbox_service, "get_state", return_value="AI_ACTIVE"), \
+         patch.object(platform_inbox_service, "freeform_window_status",
+                      return_value={"allowed": True, "reason": None}):
+        page = client.get(f"/business/{bid_a}/inbox?source=demo&customer={phone}")
+    assert page.status_code == 200
+    body = page.data.decode()
+    assert "Demo WhatsApp Kilas" in body
+    assert "Ambil Alih" in body
+    assert "Kontrol manusia" in body
+    assert "Lanjutkan chat dari WhatsApp; Inbox akan update otomatis." not in body
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(platform_inbox_service, "start_human_takeover") as takeover:
+        response = client.post(
+            f"/business/{bid_a}/demo-inbox/takeover",
+            data={"csrf_token": "csrf-test", "customer_phone": phone})
+    assert response.status_code == 303
+    takeover.assert_called_once_with(phone, uid_a)
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(platform_inbox_service, "send_manual_reply", return_value=(True, "sent")) as reply:
+        response = client.post(
+            f"/business/{bid_a}/demo-inbox/reply",
+            data={"csrf_token": "csrf-test", "customer_phone": phone, "message": "Saya bantu ya"})
+    assert response.status_code == 303
+    reply.assert_called_once_with(phone, "Saya bantu ya")
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(routes_client.inbox_media_service, "platform_send",
+                      return_value=(True, "accepted")) as media:
+        response = client.post(
+            f"/business/{bid_a}/demo-inbox/media",
+            data={"csrf_token": "csrf-test", "customer_phone": phone,
+                  "caption": "Katalog", "file": (io.BytesIO(b"%PDF-1.4 test"), "katalog.pdf")},
+            content_type="multipart/form-data")
+    assert response.status_code == 303
+    assert media.call_count == 1
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(platform_inbox_service, "send_template_reply",
+                      return_value=(True, "sent")) as template:
+        response = client.post(
+            f"/business/{bid_a}/demo-inbox/send-template",
+            data={"csrf_token": "csrf-test", "customer_phone": phone})
+    assert response.status_code == 303
+    template.assert_called_once_with(phone)
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(platform_inbox_service, "return_to_ai") as resume:
+        response = client.post(
+            f"/business/{bid_a}/demo-inbox/return-ai",
+            data={"csrf_token": "csrf-test", "customer_phone": phone})
+    assert response.status_code == 303
+    resume.assert_called_once_with(phone, uid_a)
+
+    # Same phone cannot be used as an arbitrary platform relay from another business.
+    other = fresh_client()
+    _login_owner(other, "demob@test.com")
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for):
+        denied = other.post(
+            f"/business/{bid_b}/demo-inbox/takeover",
+            data={"csrf_token": "csrf-test", "customer_phone": phone})
+    assert denied.status_code == 404
+    print("test_demo_inbox_human_text_media_template_controls_are_scoped OK")
 
 
 # ---------------------------------------------------------------------------

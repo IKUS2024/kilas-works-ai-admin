@@ -1,6 +1,12 @@
 {% if m.media %}
   {% set media = m.media %}
-  {% set media_url = url_for('client.inbox_media', business_id=business.id, media_key=media.id) if business is defined else url_for('admin.inbox_media', media_key=media.id) %}
+  {% if business is defined and selected_source is defined and selected_source == 'demo' %}
+    {% set media_url = url_for('client.demo_inbox_media', business_id=business.id, media_key=media.id) %}
+  {% elif business is defined %}
+    {% set media_url = url_for('client.inbox_media', business_id=business.id, media_key=media.id) %}
+  {% else %}
+    {% set media_url = url_for('admin.inbox_media', media_key=media.id) %}
+  {% endif %}
   {% if media.message_type in ['image', 'sticker'] %}
     <img src="{{ media_url }}" alt="Media tidak tersedia" loading="lazy" style="display:block;max-width:100%;max-height:280px;border-radius:8px;" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">
     <span hidden class="muted">Media tidak tersedia</span>
