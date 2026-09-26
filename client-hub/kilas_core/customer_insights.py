@@ -226,9 +226,9 @@ def _store_failed(bid, customer_id, now, message_count, source_version):
         )
 
 
-def refresh(bid, customer_id, *, force=False):
+def refresh(bid, customer_id, *, force=False, snapshot=None):
     """Refresh only when Inbox changed. AI never runs inside the inbound-message transaction."""
-    snapshot = inbox_snapshot(bid, customer_id)
+    snapshot = snapshot or inbox_snapshot(bid, customer_id)
     rows = snapshot["messages"]
     current = get(bid, customer_id)
     if not rows:
