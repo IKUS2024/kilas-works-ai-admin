@@ -130,6 +130,11 @@ def _source(bid, customer_id, conversation_id):
 @security.login_required
 def list_page(bid):
     business = _business(bid)
+    if platform_workspace.is_scope_business(bid):
+        try:
+            platform_workspace.sync_contacts()
+        except Exception:
+            pass
     # Bounded monitoring pass: confirmed WhatsApp Customers with a real next action
     # are reconciled into one idempotent Job before the owner sees the queue.
     try:
