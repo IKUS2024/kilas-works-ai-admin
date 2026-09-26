@@ -19,8 +19,9 @@ Run locally against Postgres instead of SQLite:
 """
 import os
 import io
+import time
 
-from flask import Flask, Request, render_template, redirect, url_for, session, request, abort, current_app, send_file
+from flask import Flask, Request, render_template, redirect, url_for, session, request, abort, current_app, send_file, g
 
 import db
 import security
@@ -219,6 +220,24 @@ def create_app():
     @app.errorhandler(413)
     def upload_too_large(error):
         return render_template("upload_too_large.html"), 413
+
+    @app.before_request
+    def _request_latency_start():
+        g._kilas_request_started = time.perf_counter()
+
+    @app.after_request
+    def _request_latency_log(response):
+        started = getattr(g, "_kilas_request_started", None)
+        if started is not None and request.endpoint != "static":
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            if elapsed_ms >= 750:
+                # Operational timing only: endpoint name, verb, status and duration.
+                # Never log paths, query strings, customer IDs, message bodies or form data.
+                print(
+                    f"[SLOW_REQUEST] endpoint={request.endpoint or 'unknown'} "
+                    f"method={request.method} status={response.status_code} ms={elapsed_ms}"
+                )
+        return response
 
     @app.after_request
     def _set_security_headers(response):
