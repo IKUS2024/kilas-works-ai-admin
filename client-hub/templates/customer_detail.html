@@ -32,42 +32,22 @@
     {% include "_customer_insight.html" %}
   </div>
 
-  <div class="client-grid">
-    <form class="card" method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <h2>Profil kontak</h2>
-      <label>Status</label>
-      <select name="stage">
-        <option value="LEAD" {{ 'selected' if customer.stage == 'LEAD' else '' }}>Lead</option>
-        <option value="CUSTOMER" {{ 'selected' if customer.stage == 'CUSTOMER' else '' }}>Customer</option>
-      </select>
-      <p class="client-note">Kontak baru masuk sebagai Lead. Ubah menjadi Customer saat sudah benar-benar menjadi pelanggan.</p>
-      <label>Nama</label><input name="display_name" maxlength="160" required value="{{ customer.display_name }}">
-      <label>Telepon</label><input name="phone" maxlength="40" value="{{ customer.phone or '' }}" placeholder="Opsional">
-      <label>Email</label><input name="email" maxlength="254" value="{{ customer.email or '' }}" placeholder="Opsional">
-      <label>Catatan</label><textarea name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
-      <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan kontak otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
-      <button class="btn" type="submit">Simpan</button>
-    </form>
-    <div class="card">
-      <h2>Percakapan Inbox</h2>
-      <div class="client-list">
-      {% for row in conversations %}
-        {% if row.is_demo %}
-        <a class="client-item" href="{{ url_for('client.inbox_page',business_id=business.id,customer=row.phone,source='demo') }}">
-          <div class="client-item-title">Demo WhatsApp</div>
-          <div class="client-item-meta">{{ row.preview or 'Belum ada pesan' }}</div>
-        </a>
-        {% else %}
-        <a class="client-item" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
-          <div class="client-item-title">WhatsApp · {{ row.id[:6] }}</div>
-          <div class="client-item-meta">{{ row.preview or 'Belum ada pesan' }}</div>
-        </a>
-        {% endif %}
-      {% else %}<div class="client-empty">Belum ada percakapan WhatsApp terkait.</div>{% endfor %}
-      </div>
-    </div>
-  </div>
+  <form class="card" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2>Profil kontak</h2>
+    <label>Status</label>
+    <select name="stage">
+      <option value="LEAD" {{ 'selected' if customer.stage == 'LEAD' else '' }}>Lead</option>
+      <option value="CUSTOMER" {{ 'selected' if customer.stage == 'CUSTOMER' else '' }}>Customer</option>
+    </select>
+    <p class="client-note">Kontak baru masuk sebagai Lead. Ubah menjadi Customer saat sudah benar-benar menjadi pelanggan.</p>
+    <label>Nama</label><input name="display_name" maxlength="160" required value="{{ customer.display_name }}">
+    <label>Telepon</label><input name="phone" maxlength="40" value="{{ customer.phone or '' }}" placeholder="Opsional">
+    <label>Email</label><input name="email" maxlength="254" value="{{ customer.email or '' }}" placeholder="Opsional">
+    <label>Catatan</label><textarea name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
+    <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan kontak otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
+    <button class="btn" type="submit">Simpan</button>
+  </form>
   {% include "_jobs_panel.html" %}
 {% if job is not defined or job %}{% include "_finance_bridge_panel.html" %}{% endif %}
 </section>
