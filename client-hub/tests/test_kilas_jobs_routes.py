@@ -275,7 +275,7 @@ class JobRoutesTests(unittest.TestCase):
             fields={'details':'Keep me'},
         )
         self.assertEqual(jobs.list_jobs(7)[1], 2)
-        self.assertEqual(customer_action_jobs.prune_invalid_lead_jobs(7), 1)
+        self.assertEqual(customer_action_jobs.prune_invalid_lead_jobs_all(), 1)
         remaining = jobs.list_jobs(7)[0]
         self.assertEqual(len(remaining), 1)
         self.assertEqual(remaining[0]['id'], manual['id'])
