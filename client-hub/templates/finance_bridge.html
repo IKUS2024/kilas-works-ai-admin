@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Koneksi Finance{% endblock %}
+{% block title %}{{ 'Finance Job' if automatic_finance else 'Koneksi Finance' }}{% endblock %}
 {% macro command() %}
 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="operation_key" value="{{ operation_key }}"><input type="hidden" name="version" value="{{ mapping.version if mapping else 0 }}">
 {% endmacro %}
@@ -8,20 +8,48 @@
 {% include '_client_compact_style.html' %}
 <style>[data-bridge-page] {overflow-wrap:anywhere}[data-bridge-page] input,[data-bridge-page] select{max-width:100%;box-sizing:border-box}.bridge-confirm{display:block;margin:1rem 0}.bridge-confirm input{width:auto!important}fieldset{min-width:0;margin:.7rem 0}</style>
 <section class="client-page" data-bridge-page>
-<h1>Koneksi Finance</h1><p>{{ business.business_name }} · Bisnis Core #{{ business.id }}</p>
-<p><a href="{{ url_for('core_jobs.list_page',bid=business.id) }}">Kembali ke Jobs</a> · <a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi</a></p>
-{% if mapping %}<p>Finance #{{ mapping.finance_business_id }} · Cabang #{{ mapping.finance_branch_id }} · {{ 'Aktif' if mapping.enabled else 'Nonaktif' }}</p>{% else %}<p>Belum terhubung. Pilih bisnis dan cabang milik Anda secara eksplisit.</p>{% endif %}
+<h1>{{ 'Finance Job' if automatic_finance else 'Koneksi Finance' }}</h1>
+<p>{{ business.business_name }}{% if not automatic_finance %} · Bisnis Core #{{ business.id }}{% endif %}</p>
+<p><a href="{{ url_for('core_jobs.list_page',bid=business.id) }}">Kembali ke Jobs</a>{% if not automatic_finance %} · <a href="{{ url_for('core_finance_bridge.settings',bid=business.id) }}">Pengaturan koneksi</a>{% endif %}</p>
+{% if automatic_finance %}
+<p>Customer dan tujuan Finance mengikuti Job secara otomatis. Admin tidak perlu memilih bisnis, cabang, atau Customer Finance.</p>
+{% elif mapping %}
+<p>Finance #{{ mapping.finance_business_id }} · Cabang #{{ mapping.finance_branch_id }} · {{ 'Aktif' if mapping.enabled else 'Nonaktif' }}</p>
+{% else %}
+<p>Belum terhubung. Pilih bisnis dan cabang milik Anda secara eksplisit.</p>
+{% endif %}
+
 {% if mode=='settings' %}
-<form method="post" class="card">{{ command() }}
-<label for="destination">Bisnis dan cabang Finance</label><select id="destination" name="destination" required><option value="">Pilih tujuan</option>
-{% for choice in choices %}<option value="{{ choice.business.id }}:{{ choice.branch.id }}">{{ choice.business.business_name }} (#{{ choice.business.id }}) · {{ choice.branch.name }} (#{{ choice.branch.id }})</option>{% endfor %}</select>
-{% if not choices %}<p>Belum ada cabang Finance aktif. Siapkan bisnis dan cabang melalui Finance terlebih dahulu.</p>{% endif %}
-<label for="enabled">Status koneksi</label><select id="enabled" name="enabled"><option value="yes">Aktif</option><option value="no">Nonaktif</option></select>
-<p>Perubahan koneksi berlaku untuk aksi baru. Invoice dan customer yang sudah terhubung tetap menyimpan tujuan aslinya.</p>
-{{ confirm('Saya menyetujui bisnis, cabang, dan status koneksi ini.') }}<button class="btn" type="submit">Simpan koneksi</button>
-</form>
+  {% if automatic_finance %}
+  <div class="card">
+    <h2>Koneksi otomatis</h2>
+    {% if mapping and mapping.enabled %}
+      <p>Finance sudah siap. Job akan memakai Customer yang terhubung pada Job tersebut.</p>
+    {% else %}
+      <p>Finance akan disiapkan otomatis saat Admin menekan <strong>Buat Invoice</strong> dari Job.</p>
+    {% endif %}
+    <p class="client-note">Invoice atau customer Finance lama tetap menyimpan tujuan aslinya.</p>
+    <a class="btn" href="{{ url_for('core_jobs.list_page',bid=business.id) }}">Kembali ke Jobs</a>
+  </div>
+  {% else %}
+  <form method="post" class="card">{{ command() }}
+  <label for="destination">Bisnis dan cabang Finance</label><select id="destination" name="destination" required><option value="">Pilih tujuan</option>
+  {% for choice in choices %}<option value="{{ choice.business.id }}:{{ choice.branch.id }}">{{ choice.business.business_name }} (#{{ choice.business.id }}) · {{ choice.branch.name }} (#{{ choice.branch.id }})</option>{% endfor %}</select>
+  {% if not choices %}<p>Belum ada cabang Finance aktif. Siapkan bisnis dan cabang melalui Finance terlebih dahulu.</p>{% endif %}
+  <label for="enabled">Status koneksi</label><select id="enabled" name="enabled"><option value="yes">Aktif</option><option value="no">Nonaktif</option></select>
+  <p>Perubahan koneksi berlaku untuk aksi baru. Invoice dan customer yang sudah terhubung tetap menyimpan tujuan aslinya.</p>
+  {{ confirm('Saya menyetujui bisnis, cabang, dan status koneksi ini.') }}<button class="btn" type="submit">Simpan koneksi</button>
+  </form>
+  {% endif %}
+
 {% elif mode=='customer' %}
 <h2>Customer: {{ customer.display_name }}</h2>
+{% if automatic_finance %}
+<div class="card">
+  <p>Customer Finance tidak perlu dipilih manual. Saat Job customer ini dibuatkan invoice, Kilas otomatis memakai customer yang sama.</p>
+  <a class="btn secondary" href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=customer.id) }}">Kembali ke Customer</a>
+</div>
+{% else %}
 {% for linked in links %}<div class="card">Terhubung: {{ linked.customer.name }} · Customer #{{ linked.customer.id }} · Finance #{{ linked.link.finance_business_id }}</div>{% endfor %}
 {% if mapping and mapping.enabled and not links|selectattr('link.finance_business_id','equalto',mapping.finance_business_id)|list %}
 <form method="post" class="card">{{ command() }}
@@ -32,13 +60,24 @@
 <label for="email">Email customer baru</label><input id="email" name="email" maxlength="254" value="{{ customer.email or '' }}">
 {{ confirm('Saya telah memeriksa dan menyetujui pilihan customer serta data yang akan dibuat di Finance.') }}<button class="btn" type="submit">Hubungkan customer</button></form>
 {% endif %}
+{% endif %}
+
 {% elif mode=='job' %}
 <h2>{{ job.title }}</h2><p><a href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=job.id) }}">Kembali ke detail Job</a></p>
 {% if result %}{% set inv=result.invoice %}<div class="card" data-invoice-readback>
 <h3>{{ inv.invoice_number }}</h3><p>Status: {{ inv.status }}</p>
 <p>Total: {{ inv.total_minor|finance_money(inv.currency) }}<br>Terbayar: {{ inv.paid_minor|finance_money(inv.currency) }}<br>Sisa: {{ inv.outstanding_minor|finance_money(inv.currency) }}<br>{{ 'Lewat jatuh tempo' if inv.overdue else 'Belum lewat jatuh tempo' }}</p>
-<p>Finance #{{ result.link.finance_business_id }} · Cabang #{{ result.link.finance_branch_id }}</p>
+{% if not automatic_finance %}<p>Finance #{{ result.link.finance_business_id }} · Cabang #{{ result.link.finance_branch_id }}</p>{% endif %}
 <a class="btn" href="/business/{{ result.link.finance_business_id }}/finance/invoices/{{ inv.id }}?branch_id={{ result.link.finance_branch_id }}">Buka invoice di Finance</a><p>Status dan jumlah berasal dari Finance. Penerbitan serta pembayaran dilakukan di Finance.</p></div>
+{% elif automatic_finance %}
+<div class="card">
+  <p>Customer invoice: <strong>{{ job.customer_name or 'Customer pada Job ini' }}</strong></p>
+  <p class="client-note">Kilas akan membuat/menghubungkan Customer Finance otomatis dari Customer pada Job ini.</p>
+  <form method="post" action="{{ url_for('core_finance_bridge.invoice_start',bid=business.id,jid=job.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">Buat Invoice</button>
+  </form>
+</div>
 {% elif not mapping or not mapping.enabled %}<p>Aktifkan koneksi Finance untuk membuat draft.</p>
 {% elif not links|selectattr('link.finance_business_id','equalto',mapping.finance_business_id)|list %}<p>Customer belum terhubung.</p><a class="btn" href="{{ url_for('core_finance_bridge.customer_page',bid=business.id,cid=job.customer_id) }}">Buat/Hubungkan Customer Finance</a>
 {% else %}
