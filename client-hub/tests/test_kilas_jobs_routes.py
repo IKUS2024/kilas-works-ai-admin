@@ -218,17 +218,20 @@ class JobRoutesTests(unittest.TestCase):
         }
 
         # Lead may have a strong Insight, but Jobs is Customer-only.
-        lead = customers.get_customer(7, self.customer['id'])
+        lead_client=self.app.test_client()
+        lead_identity=self.start(client=lead_client).json
+        lead_raw=customers.customer_for_conversation(7,lead_identity['conversation_id'])
+        lead=customers.get_customer(7,lead_raw['id'])
         self.assertEqual(lead['stage'], 'LEAD')
         self.assertIsNone(customer_action_jobs.sync_from_insight(business, lead, insight))
         self.assertEqual(jobs.list_jobs(7)[1], 0)
 
         customers.update_customer(
-            7, self.customer['id'], display_name=self.customer['display_name'],
-            phone=self.customer.get('phone'), email=self.customer.get('email'),
-            notes=self.customer.get('notes'), stage='CUSTOMER', actor_id=1,
+            7, lead['id'], display_name=lead['display_name'],
+            phone=lead.get('phone'), email=lead.get('email'),
+            notes=lead.get('notes'), stage='CUSTOMER', actor_id=1,
         )
-        customer = customers.get_customer(7, self.customer['id'])
+        customer = customers.get_customer(7, lead['id'])
         first = customer_action_jobs.sync_from_insight(business, customer, insight)
         self.assertIsNotNone(first)
         self.assertEqual(first['customer_id'], customer['id'])
@@ -297,6 +300,11 @@ class JobRoutesTests(unittest.TestCase):
 
     def test_prune_invalid_customer_insight_job_from_lead_only(self):
         # Synthetic stale record from the retired broad-intent implementation.
+        customers.update_customer(
+            7, self.customer['id'], display_name=self.customer['display_name'],
+            phone=self.customer.get('phone'), email=self.customer.get('email'),
+            notes=self.customer.get('notes'), stage='LEAD', actor_id=1,
+        )
         with jobs.transaction() as tx:
             jobs._lock(tx, 7)
             stale = jobs._create_job(
