@@ -9,6 +9,8 @@ No messages are copied. Contacts are mirrored as Core customer identities while 
 reads the authoritative platform WhatsApp message table directly.
 """
 from datetime import datetime, timezone
+import hashlib
+import re
 import time
 
 import db
@@ -175,5 +177,89 @@ def customer_for_phone(phone):
             "WHERE i.business_id=? AND i.identity_type='WHATSAPP_PHONE' AND i.identity_hash=?",
             (scope["id"], identity_hash),
         )
+    except Exception:
+        return None
+
+
+def send_transactional_text(phone, event_id, text, actor_id=None):
+    """At-most-once platform WhatsApp text for explicit system workflows.
+
+    A prior attempted event is never re-sent automatically: accepted is replayed as accepted,
+    failed/suppressed are returned as such, and unknown stays unknown because the provider may
+    already have accepted the first request.
+    """
+    normalized = platform_inbox_service.normalize_customer_phone(phone)
+    if not normalized or not isinstance(event_id, str) or not re.fullmatch(r"[A-Za-z0-9:._-]{16,180}", event_id):
+        return {"status": "failed", "error": "invalid_request"}
+    text = str(text or "").strip()
+    if not text or len(text) > 4096:
+        return {"status": "failed", "error": "invalid_message"}
+    digest = hashlib.sha256(text.encode()).hexdigest()
+    existing = db.query_one(
+        "SELECT * FROM platform_workspace_outbound WHERE event_id=?", (event_id,))
+    if existing:
+        if existing["payload_hash"] != digest or existing["customer_phone"] != normalized:
+            return {"status": "failed", "error": "event_conflict"}
+        return {"status": existing["status"], "error": existing.get("error")}
+
+    now = int(time.time())
+    try:
+        db.execute(
+            "INSERT INTO platform_workspace_outbound"
+            "(event_id,customer_phone,payload_hash,status,created_at) VALUES (?,?,?,?,?)",
+            (event_id, normalized, digest, "attempting", now),
+        )
+    except Exception:
+        existing = db.query_one(
+            "SELECT * FROM platform_workspace_outbound WHERE event_id=?", (event_id,))
+        if existing and existing["payload_hash"] == digest and existing["customer_phone"] == normalized:
+            return {"status": existing["status"], "error": existing.get("error")}
+        return {"status": "unknown", "error": "ledger_unavailable"}
+
+    try:
+        ok, reason = platform_inbox_service.send_system_reply(normalized, text)
+    except Exception:
+        ok, reason = False, "transport_uncertain"
+
+    if ok:
+        status, error = "accepted", None
+    elif reason in ("outside_24h_window", "no_customer_inbound"):
+        status, error = "suppressed", reason
+    elif reason in ("bot_internal_bridge_timeout", "bot_internal_bridge_network_error",
+                    "bot_internal_bridge_bad_response", "transport_uncertain"):
+        status, error = "unknown", reason
+    else:
+        status, error = "failed", str(reason or "send_failed")[:160]
+
+    try:
+        db.execute(
+            "UPDATE platform_workspace_outbound SET status=?,error=? WHERE event_id=?",
+            (status, error, event_id),
+        )
+        scope = business(create=False)
+        if actor_id and scope:
+            db.execute(
+                "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
+                (actor_id, scope["id"], "PLATFORM_TRANSACTIONAL_SEND",
+                 event_id + ":" + status),
+            )
+    except Exception:
+        if status == "accepted":
+            # Provider accepted it. Never invite a duplicate because local bookkeeping failed.
+            return {"status": "accepted", "error": "ledger_update_failed"}
+        return {"status": "unknown", "error": "ledger_update_failed"}
+    return {"status": status, "error": error}
+
+
+def transactional_status(event_prefix):
+    if not isinstance(event_prefix, str) or not event_prefix:
+        return None
+    try:
+        row = db.query_one(
+            "SELECT status,error,event_id FROM platform_workspace_outbound "
+            "WHERE event_id LIKE ? ORDER BY created_at DESC LIMIT 1",
+            (event_prefix + "%",),
+        )
+        return dict(row) if row else None
     except Exception:
         return None
