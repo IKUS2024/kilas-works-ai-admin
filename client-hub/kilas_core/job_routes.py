@@ -201,7 +201,14 @@ def update(bid,job_id):
     requested_status = form.get('status')
     if requested_status not in jobs.OWNER_STATUS_LABELS:
         raise jobs.JobError('invalid_status')
-    target_status = None if requested_status == job['owner_status'] else requested_status
+    # Preserve the exact submitted status for same-state retries when the internal status
+    # already equals the owner state, so the existing operation key replays idempotently.
+    # Legacy internal states grouped under "Perlu tindakan" still use None to avoid rewinding.
+    target_status = (
+        requested_status if requested_status == job['status']
+        else None if requested_status == job['owner_status']
+        else requested_status
+    )
     jobs.update_job(bid,job_id,expected_version=version,title=form.get('title'),summary=form.get('summary',''),
                     status=target_status,fields=_fields(form),actor_id=security.current_user()['id'],
                     operation_key=form.get('operation_key'))
