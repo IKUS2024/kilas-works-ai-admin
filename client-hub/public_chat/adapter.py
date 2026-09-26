@@ -5,6 +5,7 @@ import re
 import ai_onboarding
 import ai_usage
 import repo
+import ai_reply_explanation as reply_explanation
 from kilas_core.contracts import ContractError, HistoryMessage, InboundMessage
 from kilas_core import service
 from . import store
@@ -54,6 +55,10 @@ def send(business, cid, payload, ip_key):
         result=service.process_message(message,
             history=tuple(HistoryMessage('assistant' if row['role']=='human' else row['role'],row['content']) for row in history),
             reply_provider=reply_provider)
-        event=store.finish(event,reply=result.reply,error=result.error)
+        event=store.finish(
+            event,reply=result.reply,error=result.error,
+            trace=(reply_explanation.generic_model(
+                has_business_data=bool((repo.get_ai_settings(business['id']) or {}).get('normalized_config')))
+                if result.error is None and result.reply else None))
     status=202 if event['status']=='processing' else (502 if event['status']=='failed' else 200)
     return {'channel':'WEB','event_id':event_id,'status':event['status'],'error':event.get('error')},status

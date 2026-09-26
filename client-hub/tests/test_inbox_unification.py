@@ -5,6 +5,7 @@ Run with:
     cd client-hub && python3 tests/test_inbox_unification.py
 """
 import io
+import json
 import os
 import sys
 import tempfile
@@ -29,6 +30,7 @@ import inbox_service  # noqa: E402
 import platform_inbox_service  # noqa: E402
 import wa_takeover_service  # noqa: E402
 import wa_inbox_shared  # noqa: E402
+import ai_reply_explanation  # noqa: E402
 import app as client_hub_app  # noqa: E402
 import routes_client  # noqa: E402
 
@@ -355,6 +357,42 @@ def test_M_non_ai_admin_business_has_no_inbox():
 
 
 # ---------------------------------------------------------------------------
+# AI REPLY ANALYSIS — legacy/demo traces bind to the exact assistant message and tenant.
+# ---------------------------------------------------------------------------
+def test_demo_ai_reply_analysis_is_scoped_and_safe():
+    reset_db()
+    _uid, bid = _make_active_ai_admin_tenant("Demo Explain", "demoexplain@test.com")
+    phone = "14048836437"
+    now = datetime.now(timezone.utc).isoformat()
+    db.execute(
+        "INSERT INTO messages (number, mode, role, content, created_at) "
+        "VALUES (?, 'customer', 'user', ?, ?)",
+        (phone, "bisnis aku parfum ka", now),
+    )
+    db.execute(
+        "INSERT INTO messages (number, mode, role, content, created_at) "
+        "VALUES (?, 'customer', 'assistant', ?, ?)",
+        (phone, "Oke, bisnis parfum. Aku bantu apa nih?", now),
+    )
+    analysis = ai_reply_explanation.legacy("model_reply", has_business_data=True)
+    assert ai_reply_explanation.record_latest_legacy(bid, phone, analysis) is True
+    rows = db.query_all(
+        "SELECT id, role, content, created_at FROM messages WHERE number=? ORDER BY id",
+        (phone,),
+    )
+    attached = ai_reply_explanation.attach_demo([dict(r) for r in rows], bid)
+    ai_rows = [r for r in attached if r["role"] == "assistant"]
+    assert len(ai_rows) == 1
+    assert ai_rows[0]["analysis"]["intent"] == "Customer service"
+    encoded = json.dumps(ai_rows[0]["analysis"], ensure_ascii=False).lower()
+    for forbidden in ("system_prompt", "anthropic_api_key", "access_token", "chain_of_thought"):
+        assert forbidden not in encoded
+    other = ai_reply_explanation.attach_demo([dict(r) for r in rows], bid + 999)
+    assert not any(r.get("analysis") for r in other)
+    print("test_demo_ai_reply_analysis_is_scoped_and_safe OK")
+
+
+# ---------------------------------------------------------------------------
 # DEMO INBOX — bound Kilas platform demo gets the same human controls, but remains business-scoped.
 # ---------------------------------------------------------------------------
 def test_demo_inbox_human_text_media_template_controls_are_scoped():
@@ -385,6 +423,8 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
     assert "Demo WhatsApp Kilas" in body
     assert "Ambil Alih" in body
     assert "Kontrol manusia" in body
+    assert "Analisa" in body
+    assert "Jejak analisa belum tersedia untuk pesan lama atau balasan manual." in body
     assert "Lanjutkan chat dari WhatsApp; Inbox akan update otomatis." not in body
 
     with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
@@ -665,6 +705,8 @@ if __name__ == "__main__":
     test_L_kilas_admin_can_still_manage_platform_inbox()
     test_L_non_admin_cannot_reach_platform_inbox()
     test_M_non_ai_admin_business_has_no_inbox()
+    test_demo_ai_reply_analysis_is_scoped_and_safe()
+    test_demo_inbox_human_text_media_template_controls_are_scoped()
     test_template_config_missing_fails_closed()
     test_platform_template_config_missing_fails_closed()
     test_tenant_template_send_uses_only_that_tenants_credentials()

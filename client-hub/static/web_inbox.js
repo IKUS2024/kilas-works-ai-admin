@@ -60,6 +60,48 @@
     });
   }
 
+  function analysisLine(panel,label,value){
+    if(!value)return;
+    const row=document.createElement('div');
+    const strong=document.createElement('strong');strong.textContent=label+': ';
+    row.append(strong,document.createTextNode(value));panel.append(row);
+  }
+  function analysisList(panel,label,values){
+    if(!Array.isArray(values)||!values.length)return;
+    const title=document.createElement('strong');title.textContent=label+':';panel.append(title);
+    const ul=document.createElement('ul');
+    for(const value of values){
+      const li=document.createElement('li');
+      li.textContent=typeof value==='string'?value:((value.label||'Fakta')+' = '+(value.value||''));
+      ul.append(li);
+    }
+    panel.append(ul);
+  }
+  function appendAnalysis(bubble,message){
+    if(message.role!=='assistant')return;
+    const button=document.createElement('button');button.type='button';button.className='ai-analysis-toggle';button.textContent='Analisa';
+    const panel=document.createElement('div');panel.className='ai-analysis-panel';panel.hidden=true;
+    const analysis=message.analysis;
+    if(analysis&&typeof analysis==='object'){
+      analysisLine(panel,'Intent',analysis.intent);
+      analysisLine(panel,'Workflow',analysis.workflow);
+      analysisList(panel,'Fakta customer',analysis.facts);
+      analysisList(panel,'Dasar jawaban',analysis.basis);
+      analysisList(panel,'Info belum lengkap',analysis.missing);
+      analysisList(panel,'Info ambigu',analysis.uncertain);
+      analysisList(panel,'Aturan pengaman',analysis.guardrails);
+      analysisLine(panel,'Aksi sistem',analysis.action);
+      analysisLine(panel,'Hasil',analysis.result);
+      const note=document.createElement('div');note.className='analysis-note';
+      note.textContent=analysis.note||'Ini jejak keputusan produk, bukan chain-of-thought internal model.';panel.append(note);
+    }else{
+      const note=document.createElement('div');note.className='analysis-note';
+      note.textContent='Jejak analisa belum tersedia untuk pesan lama.';panel.append(note);
+    }
+    button.addEventListener('click',()=>{panel.hidden=!panel.hidden;button.textContent=panel.hidden?'Analisa':'Tutup analisa';});
+    bubble.append(button,panel);
+  }
+
   async function refresh(){
     try {
       const response=await fetch(panel.dataset.base+'?after='+after,{cache:'no-store'});
@@ -93,7 +135,7 @@
         }else{
           bubble.append(document.createTextNode(message.content));
         }
-        thread.append(bubble);after=message.id;
+        appendAnalysis(bubble,message);thread.append(bubble);after=message.id;
       }
       for(const [id,delivery] of Object.entries(data.delivery||{})){
         const entry=labels.get(id);if(entry&&delivery)entry.label.textContent=(entry.role==='human'?'Tim':'AI')+' · '+delivery;

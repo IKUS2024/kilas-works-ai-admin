@@ -8,6 +8,7 @@ import security as owner_security
 import inbox_media_service
 import inbox_service
 import wa_inbox_shared
+import ai_reply_explanation
 from kilas_core import customers as core_customers
 from . import security, store
 from kilas_core.job_routes import linked_context
@@ -90,6 +91,11 @@ def messages(bid,cid):
             'SELECT id,event_id,role,content,created_at FROM kw_web_messages '
             'WHERE business_id=? AND conversation_id=? AND id>? ORDER BY id LIMIT 100',
             (bid,cid,after))
+    explanations=ai_reply_explanation.load_core(
+        bid,cid,[row.get('event_id') for row in messages if row.get('role')=='assistant'])
+    for message in messages:
+        if message.get('role')=='assistant':
+            message['analysis']=explanations.get(str(message.get('event_id') or ''))
     delivery={}
     window=None
     template_ready=False
