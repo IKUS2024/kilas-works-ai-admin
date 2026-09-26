@@ -71,18 +71,19 @@
   {% if client_total_pages > 1 %}
   <div class="admin-page-meta">Halaman {{ client_page }} dari {{ client_total_pages }}</div>
   <nav class="admin-pagination" aria-label="Halaman customers">
-    {% set prev_params = {'workspace':'customers','client_page':client_page-1} %}
-    {% set next_params = {'workspace':'customers','client_page':client_page+1} %}
-    {% if status_filter %}{% set _ = prev_params.update({'status':status_filter}) %}{% set _ = next_params.update({'status':status_filter}) %}{% endif %}
-    {% if finance_trials_only %}{% set _ = prev_params.update({'finance':'trial'}) %}{% set _ = next_params.update({'finance':'trial'}) %}{% endif %}
-    {% if brain_review_only %}{% set _ = prev_params.update({'brain_review':'changes'}) %}{% set _ = next_params.update({'brain_review':'changes'}) %}{% endif %}
-    {% if client_page > 1 %}<a class="admin-page-btn" href="{{ url_for('admin.dashboard',**prev_params) }}">←</a>{% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
+    {% if client_page > 1 %}
+      <a class="admin-page-btn"
+         href="{{ url_for('admin.dashboard',workspace='customers',client_page=client_page-1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">←</a>
+    {% else %}<span class="admin-page-btn disabled">←</span>{% endif %}
     {% for page_number in range(1,client_total_pages+1) %}
       <a class="admin-page-btn {{ 'active' if page_number == client_page else '' }}"
          href="{{ url_for('admin.dashboard',workspace='customers',client_page=page_number,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}"
          {% if page_number == client_page %}aria-current="page"{% endif %}>{{ page_number }}</a>
     {% endfor %}
-    {% if client_page < client_total_pages %}<a class="admin-page-btn" href="{{ url_for('admin.dashboard',**next_params) }}">→</a>{% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
+    {% if client_page < client_total_pages %}
+      <a class="admin-page-btn"
+         href="{{ url_for('admin.dashboard',workspace='customers',client_page=client_page+1,status=status_filter,finance='trial' if finance_trials_only else none,brain_review='changes' if brain_review_only else none) }}">→</a>
+    {% else %}<span class="admin-page-btn disabled">→</span>{% endif %}
   </nav>
   {% endif %}
 </section>
