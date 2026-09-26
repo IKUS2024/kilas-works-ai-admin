@@ -14,9 +14,9 @@ class CustomerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         phase2.WebTests.setUpClass.__func__(cls)
-        global store, customer_schema, customer_stage_schema, customers
+        global store, customer_schema, customer_stage_schema, customers, customer_insights
         from public_chat import store
-        from kilas_core import customer_schema, customer_stage_schema, customers
+        from kilas_core import customer_schema, customer_stage_schema, customers, customer_insights
         customer_schema.apply_schema()
         customer_stage_schema.apply_schema()
 
@@ -75,6 +75,78 @@ class CustomerTests(unittest.TestCase):
         second = self.client.get("/business/7/customers")
         self.assertEqual(second.status_code, 200)
         self.assertEqual(customers.list_customers(7, stage="LEAD")[1], 1)
+
+    def test_demo_inbox_customer_insight_updates_only_when_inbox_changes(self):
+        import json
+        phone = "14048836437"
+        self.db.execute(
+            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
+            (1, 7, "demo_whatsapp_bound",
+             json.dumps({"phone": phone, "start_message_id": 1, "bound_at": 1790362912})),
+        )
+        lead = customers.ensure_whatsapp_lead(7, phone)
+        self.db.execute(
+            "INSERT INTO messages(id,number,mode,role,content) VALUES (?,?,?,?,?)",
+            (1, phone, "customer", "user", "Demo ID: AAAA-BBBB"),
+        )
+        self.db.execute(
+            "INSERT INTO messages(id,number,mode,role,content) VALUES (?,?,?,?,?)",
+            (2, phone, "customer", "user", "Saya punya coffee shop di Tangerang, mau tahu paket Kilas Assist."),
+        )
+
+        first_json = json.dumps({
+            "summary": "Pemilik coffee shop di Tangerang sedang mencari paket Kilas Assist.",
+            "known_name": None,
+            "business_name": "coffee shop",
+            "location": "Tangerang",
+            "needs": "Mengetahui paket Kilas Assist",
+            "budget": None,
+            "intent": "Eksplorasi produk",
+            "important_questions": ["Paket Kilas Assist apa saja?"],
+            "buying_signals": ["Menanyakan paket layanan"],
+            "unknowns": ["Nama", "Budget"],
+            "follow_up": "Tanyakan kebutuhan utama dan budget.",
+        })
+        with patch.object(self.ai, "_call_claude", return_value=(first_json, "end_turn", None)) as model:
+            page = self.client.get(f"/business/7/customers/{lead['id']}")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"Customer Insight", page.data)
+        self.assertIn(b"coffee shop", page.data)
+        self.assertIn(b"Tangerang", page.data)
+        self.assertIn(b"1 percakapan", page.data)
+        model.assert_called_once()
+
+        # No new Inbox message: existing structured insight is reused with zero model calls.
+        with patch.object(self.ai, "_call_claude") as model:
+            page = self.client.get(f"/business/7/customers/{lead['id']}")
+        self.assertEqual(page.status_code, 200)
+        model.assert_not_called()
+
+        # New Inbox message changes the source signature and refreshes the insight.
+        self.db.execute(
+            "INSERT INTO messages(id,number,mode,role,content) VALUES (?,?,?,?,?)",
+            (3, phone, "customer", "user", "Budget saya sekitar 500 ribu per bulan."),
+        )
+        second_json = json.dumps({
+            "summary": "Pemilik coffee shop di Tangerang mempertimbangkan Kilas Assist dengan budget sekitar Rp500 ribu per bulan.",
+            "known_name": None,
+            "business_name": "coffee shop",
+            "location": "Tangerang",
+            "needs": "Kilas Assist",
+            "budget": "Sekitar Rp500 ribu per bulan",
+            "intent": "Mempertimbangkan pembelian",
+            "important_questions": ["Paket Kilas Assist apa saja?"],
+            "buying_signals": ["Sudah menyebut budget"],
+            "unknowns": ["Nama"],
+            "follow_up": "Rekomendasikan paket yang sesuai budget dan kebutuhan.",
+        })
+        with patch.object(self.ai, "_call_claude", return_value=(second_json, "end_turn", None)) as model:
+            updated = self.client.get(f"/business/7/customers/{lead['id']}")
+        self.assertIn(b"500 ribu", updated.data)
+        model.assert_called_once()
+
+        listing = self.client.get("/business/7/customers")
+        self.assertIn(b"1 percakapan", listing.data)
 
     def test_lead_filter_and_manual_customer_promotion(self):
         first = self.start().json
