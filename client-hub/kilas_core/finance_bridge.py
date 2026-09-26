@@ -15,6 +15,7 @@ import finance_service as finance
 import finance_branches as branches
 import finance_entitlements as entitlements
 import finance_invoice_view
+import platform_workspace
 from . import customers, jobs, customer_insights, whatsapp_transport
 from .flags import enabled_for_business
 
@@ -32,6 +33,10 @@ def enabled():
 def _owner(bid, actor):
     if type(bid) is not int or type(actor) is not int or bid <= 0 or actor <= 0:
         raise BridgeError('not_found', 404)
+    if platform_workspace.is_scope_business(bid):
+        admin = db.query_one("SELECT 1 FROM users WHERE id=? AND role='KILAS_ADMIN'", (actor,))
+        if admin:
+            return
     if not db.query_one("SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=? "
                         "AND role_in_business='OWNER'", (bid, actor)):
         raise BridgeError('not_found', 404)
@@ -47,13 +52,16 @@ def _finance_owner(bid, actor):
 
 def _source(bid, actor):
     _owner(bid, actor)
-    if not enabled() or not customers.enabled() or not jobs.enabled() or not enabled_for_business(bid):
+    internal = platform_workspace.is_scope_business(bid)
+    if not enabled() or not customers.enabled() or not jobs.enabled():
+        raise BridgeError('unavailable', 404)
+    if not internal and not enabled_for_business(bid):
         raise BridgeError('unavailable', 404)
     row = db.query_one('SELECT b.package,b.status,s.status AS subscription_status '
                        'FROM businesses b LEFT JOIN subscriptions s ON s.business_id=b.id WHERE b.id=?', (bid,))
     if (not row or row['package'] not in customers.AI_PACKAGES
             or row['status'] in ('ARCHIVED', 'SUSPENDED', 'CANCELLED')
-            or row['subscription_status'] not in ('ACTIVE', 'GRACE')):
+            or (not internal and row['subscription_status'] not in ('ACTIVE', 'GRACE'))):
         raise BridgeError('unavailable', 404)
 
 
