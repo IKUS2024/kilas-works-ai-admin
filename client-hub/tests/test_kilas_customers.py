@@ -153,7 +153,8 @@ class CustomerTests(unittest.TestCase):
             page = self.client.get(f"/business/7/customers/{customer['id']}")
         self.assertEqual(page.status_code, 200)
         call.assert_not_called()
-        # Legacy Web Chat may remain visible in historical conversation UI; it must not trigger AI analysis.
+        self.assertNotIn(b"TidakBolehMasukInsight", page.data)
+        self.assertNotIn(b">WEB<", page.data)
 
 
     def test_lead_filter_and_manual_customer_promotion(self):
