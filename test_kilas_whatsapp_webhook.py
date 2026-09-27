@@ -44,5 +44,23 @@ class IngressTests(unittest.TestCase):
         with patch.object(bot,'ENABLE_MULTI_TENANT',True),patch.object(bot,'_resolve_tenant_or_unknown',return_value=(7,False)),patch.object(whatsapp_access,'selected',return_value={'selected':True}),patch.object(whatsapp,'handle',side_effect=RuntimeError('SECRET')),patch.object(bot,'call_claude') as legacy:
             response=self.post(self.data());self.assertEqual(response.status_code,503);self.assertNotIn(b'SECRET',response.data);legacy.assert_not_called()
 
+    def test_health_bridge_is_authenticated_readonly_and_never_returns_secrets(self):
+        import assist_connection_transport as transport
+        values={'WHATSAPP_ACCESS_TOKEN':'private-wa','OPENAI_API_KEY':'private-openai',
+                'ANTHROPIC_API_KEY':'private-claude','WHATSAPP_APP_SECRET':'private-signature',
+                'RENDER_GIT_COMMIT':'a'*40,'KILAS_ASSIST_RUNTIME_ENABLED':'true'}
+        with patch.object(bot,'INTERNAL_SERVICE_SECRET','private-bridge'),patch.dict(os.environ,values), \
+             patch.object(transport.db,'query_one',return_value={'ok':1}) as query, \
+             patch.object(transport.requests,'request',side_effect=AssertionError('No external health calls')):
+            denied=self.client.post('/internal/assist-connection/health',json={})
+            self.assertEqual(denied.status_code,403);query.assert_not_called()
+            result=self.client.post('/internal/assist-connection/health',json={},headers={'X-Internal-Service-Secret':'private-bridge'})
+            self.assertEqual(result.status_code,200)
+            self.assertEqual(result.json,dict(status='ok',commit='a'*40,database=True,
+                whatsapp=True,openai=True,claude=True,webhook_signature=True,assist_runtime=True))
+            query.assert_called_once_with('SELECT 1 AS ok')
+            for value in values.values():
+                if value.startswith('private-'):self.assertNotIn(value,result.text)
+
 
 if __name__=='__main__': unittest.main()

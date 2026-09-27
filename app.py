@@ -8918,7 +8918,9 @@ def internal_assist_connection(action):
     try:
         import assist_connection_transport as transport
         payload = request.get_json(silent=True) or {}
-        if action == 'verify':
+        if action == 'health':
+            result = transport.health()
+        elif action == 'verify':
             result = transport.verify(payload)
         elif action == 'outbound':
             result = transport.outbound(payload.get('business_id'))
@@ -10290,6 +10292,9 @@ print(
     f"transcription_provider={TRANSCRIPTION_PROVIDER} transcription_model={TRANSCRIPTION_MODEL} "
     f"openai_api_key_present={bool((OPENAI_API_KEY or '').strip())}"
 )
+if _CLIENT_HUB_AVAILABLE:
+    from assist_connection_transport import configuration as _assist_configuration
+    print('ASSIST_CONFIG ' + str(_assist_configuration()))
 init_db()
 _restore_handoff_state()
 customer_names.update(load_all_customer_names_from_db())

@@ -104,6 +104,12 @@ def support_scope():
         return
     bid=(request.view_args or {}).get('business_id',(request.view_args or {}).get('bid'))
     if bid is None:return
+    # Kilas Works' existing internal CRM is its own explicit stored workspace,
+    # not a customer tenant or a default scope. Preserve its admin-only routes.
+    # An active support session must still prevent leaving the selected tenant.
+    if not session.get('support_business_id'):
+        import platform_workspace
+        if platform_workspace.is_scope_business(bid):return
     # Admin CRM/support is explicit; platform endpoints remain separate administrative actions.
     if session.get('support_business_id') != bid:abort(404)
 

@@ -9,6 +9,26 @@ import assist_connections as workflow
 from whatsapp_signup import binding_lock, normalize_phone_digits
 
 
+def configuration():
+    """Allowlisted configuration evidence, safe for internal operational logs.
+
+    Credentials and arbitrary environment fields never cross the service boundary.
+    This is not a provider connectivity or delivery test.
+    """
+    sha = os.environ.get('RENDER_GIT_COMMIT', '')
+    return {'commit':sha if re.fullmatch(r'[a-f0-9]{40}', sha) else 'unavailable',
+            'whatsapp':bool(os.environ.get('WHATSAPP_ACCESS_TOKEN', '').strip()),
+            'openai':bool(os.environ.get('OPENAI_API_KEY', '').strip()),
+            'claude':bool(os.environ.get('ANTHROPIC_API_KEY', '').strip()),
+            'webhook_signature':bool(os.environ.get('WHATSAPP_APP_SECRET', '').strip()),
+            'assist_runtime':os.environ.get('KILAS_ASSIST_RUNTIME_ENABLED','').lower()=='true'}
+
+
+def health():
+    db.query_one('SELECT 1 AS ok')
+    return dict(configuration(), status='ok', database=True)
+
+
 def _token(bid, ref):
     if ref not in ('', None, 'WHATSAPP_TOKEN__TENANT_'+str(bid)):
         raise ValueError('invalid_reference')

@@ -52,4 +52,37 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(self.client.post(f'/platform/business/{self.bid}/support',data={'csrf_token':'token'}).status_code,403)
         self.assertEqual(self.client.get('/platform/system').status_code,403)
 
+    @patch.dict('os.environ', {'INTERNAL_SERVICE_SECRET':'private-bridge'})
+    def test_system_reports_only_allowlisted_configuration_and_sanitizes_failures(self):
+        import platform_control as control
+        with patch.object(control.assist_connections,'bridge',return_value={
+                'status':'ok','whatsapp':True,'openai':True,'claude':False,
+                'secret':'do-not-display','commit':'do-not-display'}) as bridge:
+            result=self.client.get('/platform/system')
+            self.assertEqual(result.status_code,200)
+            self.assertIn('Reachable and authenticated',result.text)
+            self.assertNotIn('do-not-display',result.text)
+            self.assertNotIn('private-bridge',result.text)
+            bridge.assert_called_once_with('health',{})
+        with patch.object(control.assist_connections,'bridge',side_effect=RuntimeError('private-error')):
+            result=self.client.get('/platform/system')
+            self.assertEqual(result.status_code,200)
+            self.assertIn('Unreachable or configuration not yet verified',result.text)
+            self.assertNotIn('private-error',result.text)
+
+    @patch.dict('os.environ', {'KILAS_CUSTOMERS_V2_ENABLED':'true','KILAS_JOBS_V2_ENABLED':'true'})
+    def test_internal_kilas_workspace_does_not_grant_customer_tenant_access(self):
+        import platform_workspace
+        internal=platform_workspace.ensure_business()
+        for section in ('customers','jobs'):
+            self.assertEqual(self.client.get('/admin/'+section,follow_redirects=True).status_code,200)
+            self.assertEqual(self.client.get(f'/business/{self.bid}/'+section).status_code,404)
+        self.client.post(f'/platform/business/{self.bid}/support',data={'csrf_token':'token'})
+        for section in ('customers','jobs'):
+            self.assertEqual(self.client.get(f'/business/{internal["id"]}/'+section).status_code,404)
+        with self.client.session_transaction() as session:
+            session.clear();session.update(user_id=self.owner,role='CLIENT_OWNER')
+        for section in ('customers','jobs'):
+            self.assertEqual(self.client.get(f'/business/{internal["id"]}/'+section).status_code,404)
+
 if __name__=='__main__':unittest.main()

@@ -67,6 +67,20 @@ def system():
             'Claude configuration': 'Configured' if os.environ.get('ANTHROPIC_API_KEY') else 'Missing on this service',
             'WhatsApp bridge': 'Configured; see connection tests for delivery' if os.environ.get('INTERNAL_SERVICE_SECRET') else 'Missing',
             'Provider availability':'Requires a successful recent inference; configuration alone is not a health test'}
+    result['WhatsApp credentials on Client Hub']='Configured' if os.environ.get('WHATSAPP_ACCESS_TOKEN','').strip() else 'Missing on this service'
+    if os.environ.get('INTERNAL_SERVICE_SECRET','').strip():
+        try:
+            bot=assist_connections.bridge('health',{})
+            result['Bot bridge']='Reachable and authenticated'
+            for key,label in (('database','Bot database'),('whatsapp','Bot WhatsApp configuration'),
+                              ('openai','Bot OpenAI configuration'),('claude','Bot Claude configuration'),
+                              ('webhook_signature','Bot webhook signature configuration'),('assist_runtime','Bot Assist runtime')):
+                result[label]='Available' if bot.get(key) is True else 'Unavailable'
+            import re
+            commit=bot.get('commit','')
+            result['Bot deployed commit']=commit if isinstance(commit,str) and re.fullmatch(r'[a-f0-9]{40}',commit) else 'Unavailable'
+        except Exception:
+            result['Bot bridge']='Unreachable or configuration not yet verified'
     pending=db.query_one("SELECT COUNT(*) AS n FROM kw_assist_demo_events WHERE status IN ('processing','sending')")['n']
     result['Demo events awaiting resolution']=pending
     result['Finance bridge']='Tables reachable' if db.query_one('SELECT COUNT(*) AS n FROM kw_core_finance_connections') is not None else 'Unavailable'

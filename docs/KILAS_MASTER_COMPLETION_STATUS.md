@@ -1,6 +1,16 @@
 # Kilas Assist + Finance master completion
 
-FINAL STATUS: IN PROGRESS — NOT COMPLETE. No master-task deployment yet.
+FINAL STATUS: IN PROGRESS — NOT COMPLETE. No master-task production deployment yet.
+
+## Authoritative latest summary (2026-09-27, supersedes historical checkpoint notes below)
+- Remote main and both production baselines: 4344748c439597744806ad8ccb6a5ad7a8a0e54f. Working branch feature/kilas-master-completion-20260927; latest remote milestone 983e81e8759535fdbc2e67f52648c70eb6ab617d. PR #58 is draft, unmerged.
+- All implementation checkpoints 1–8 substantially implemented; final QA/release checkpoint active. Signup/six-part onboarding/training/Test/Ready and SaaS Admin manually exercised on isolated QA. Real WhatsApp delivery/OTP is not certified.
+- On 983e81e, CI Master (Assist + native PostgreSQL18) and Phase2/3/4/5/10 PASS. Phase10 includes real form auth, protected Finance standalone ledger/draft/partial-payment and bridge payment Income/Job Selesai; synthetic external transport only. Phase7 Finance runtime/mobile PASS.
+- Pending next-head fixes: single outdated Finance shortcut visibility test (strengthened denial/no-row-change assertions;16 PASS), Phase6 synthetic completed-history fixture, Phase9 internal Kilas workspace support-middleware regression (fixed; tenant isolation retained). System adds safe authenticated bot configuration/DB evidence and boolean-only boot diagnostics; no credential values.
+- Required before merge/deploy: observe remaining CI/browser and Finance full baseline green; classify remaining historical broad-suite failures from existing baseline-comparison evidence; review final diff/current main; controlled additive migration0066–0069 via Client Hub first, then bot release; verify both LIVE/configuration/live UI and real transport where accessible.
+- Production schema check: 14 businesses, one CONNECTED config, new Assist tables not yet installed. No production data reset or Finance writes performed. Dedicated QA remains LIVE at fa7597a. Public demo wa.me browser navigation is blocked by managed-browser organization policy; no real message sent.
+- External blockers established so far: managed browser cannot open wa.me for real device delivery. Continue all independent release work; do not label COMPLETE.
+
 
 ## Current baseline (2026-09-27)
 - Current remote main: `4344748c439597744806ad8ccb6a5ad7a8a0e54f` (fresh ls-remote and clone).
@@ -279,3 +289,17 @@ Finish scoped browser journey and remaining regression failures (including retir
 - Phase 2–6 failures reached browser QA after successful SQLite/PostgreSQL tests; actual error was the retired Coba Demo/shared-link entry. Archived transport browser regressions now explicitly assert production link HTTP410 and use an authenticated synthetic fixture path; production public resolver remains 404. Existing shared-store takeover/CRM/isolation and protected Finance checks retained.
 - Phase 9 expects seven Platform Admin items and scoped support banner; product picker tests use Assist/Finance. Phase 10 retains all Finance ledger/draft/partial-payment assertions and adds paid Job Selesai assertion. Playbooks/Operations browser ingress updated to the same scoped synthetic fixture. Browser rerun pending next head.
 - Single purchase path 12 PASS; root canonical tenant/assisted-refresh suite 29 PASS. Browser scripts compile and git diff --check passes. Production still untouched; real demo WhatsApp/assisted OTP and transport verification still pending. FINAL STATUS: IN PROGRESS.
+
+- Finance CI diagnosis: exactly one of 1018 tests fails, test_finance_phase1b.FinanceUITests.test_dashboard_button_gate, after the intentional Assist Finance-shortcut visibility change. Resumed session will update only this navigation expectation while adding explicit beta-off GET/POST denial and zero-financial-row mutation assertions. No Finance service/template/calculation change.
+
+- Finance navigation test corrected and strengthened: all 16 phase1b UI/security tests PASS (/tmp/kilas-resume-finance-nav-gate.log). With beta OFF the Assist Finance navigation label may be visible, but Finance GET and initialization POST must remain 404 and exact accounts/categories/transactions rows unchanged. Existing owner/foreign/admin/CSRF/ledger checks remain. Patch applied to original; no Finance implementation or UI design touched. The full 1018 baseline must be observed green on the next CI head.
+
+- Resumed durable checkpoint 0f717220ea232668c2a21bd7595820cf6eb7f035 is remote on complementary branch, based on original 4419244, preserving current browser fixture follow-ups, 29-pass legacy refresh fixture, strengthened 16-pass Finance nav gate, native CI evidence and PR58 release handoff. All patches already exist here. Original execution continues browser fixture ownership and release; do not duplicate/cherry-pick these working paths. Production still not deployed.
+
+- Original execution diagnoses Phase9 follow-on /admin/customers=404: new support middleware accidentally blocks the pre-existing dedicated Kilas Works internal workspace. It owns a narrow middleware correction for that exact stored internal scope only (never customer tenants, never while supporting another business), with regression coverage. Also owns safe server-only configuration health reporting for final release credential verification; no secret values will be emitted.
+
+- Resumed CI review on 983e81e: Master/native, Phase2–5 and Phase10 all PASS. Phase7 runtime PASS, baseline pending; Phase8 pending. Phase6 fails only its synthetic legacy-complete helper: public jobs.update_job correctly rejects the private Finance actor (invalid_scope). Resumed session now owns only this helper in public_chat_dev.py, will call the existing private transaction API in the disposable fixture. Production Job completion guard remains unchanged. Phase9 middleware fix stays with original execution.
+
+- Phase6 synthetic helper fixed narrowly in public_chat_dev.py: uses jobs.transaction + private jobs._update_job with existing Finance actor for archived completed-history fixture. Public update_job and authoritative Finance completion security unchanged. Flask fixture smoke PASS: anonymous/foreign denied, production owner completion rejected, scoped fixture completion200 and retry unchanged. Log /tmp/kilas-resume-phase6-fixture.log. Full browser rerun remains pending next original head; patch already here, include with next commit.
+
+- Latest fixes verified: Platform Admin/read-only/configuration/support-isolation suite5 PASS and signed webhook/authenticated no-secret health suite3 PASS. Protected Finance phase1b16 PASS. Phase9 bug was a real new middleware regression, corrected only for the stored Kilas Works internal scope when no customer-support session is active. No customer tenant bypass added. Native Assist and Phase2–5/10 CI PASS on983e81e. Next commit carries these fixes and Phase6 fixture correction.

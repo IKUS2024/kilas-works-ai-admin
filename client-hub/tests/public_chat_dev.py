@@ -87,8 +87,9 @@ if __name__ == '__main__':
                 if row['status']=='IN_PROGRESS':
                     # Synthetic paid-completed history for review scheduling only.
                     # The real payment/Income lifecycle is checked by Finance bridge QA.
-                    jobs.update_job(7,row['id'],expected_version=row['version'],actor_id=jobs._FINANCE_PAYMENT_ACTOR,
-                        operation_key='fixture-complete-'+row['id'],status='COMPLETED')
+                    with jobs.transaction() as tx:
+                        jobs._update_job(tx,7,row['id'],expected_version=row['version'],actor_id=jobs._FINANCE_PAYMENT_ACTOR,
+                            operation_key='fixture-complete-'+row['id'],status='COMPLETED')
             return {'ok':True}
 
         @app.post('/dev/operations/advance')

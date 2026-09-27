@@ -81,6 +81,8 @@ def create_app():
         # DB connection at boot, so it's the one spot to audit for a leak.
         backend_label = "PostgreSQL" if db.BACKEND == "postgres" else "SQLite"
         print(f"Database backend: {backend_label}")
+        from assist_connection_transport import configuration as assist_configuration
+        print('ASSIST_CONFIG ' + str(assist_configuration()))
         try:
             db.get_connection()
             print("Database connection: OK")
