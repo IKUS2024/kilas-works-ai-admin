@@ -961,8 +961,7 @@ _DEMO_KILAS_PHONE = "6282213039137"
 _DEMO_KILAS_PENDING_SECONDS = 60 * 60
 _DEMO_KILAS_BOUND_SECONDS = 24 * 60 * 60
 _DEMO_KILAS_CONNECTED_TEXT = (
-    "Demo aktif ✅\n\n"
-    "Sekarang lanjut chat seperti customer biasa. Pesan berikutnya akan muncul otomatis di Inbox Kilas Assist."
+    "Demo aktif ✅ Sekarang chat seperti customer bisnis kamu."
 )
 _DEMO_KILAS_STARTED_ACTION = "demo_whatsapp_started"
 _DEMO_KILAS_BOUND_ACTION = "demo_whatsapp_bound"
@@ -1141,7 +1140,8 @@ def _demo_kilas_clean_thread(business_id, phone):
         role = item.get("role")
         row_id = int(item.get("id") or 0)
 
-        if role == "user" and row_id == start_message_id:
+        if role == "user" and (row_id == start_message_id or
+                (isinstance(content, str) and re.search(r'\bKWDEMO-[0-9a-f]{24}\b', content, re.I))):
             item["content"] = "Halo Kilas Works 👋 Saya mau coba Kilas Assist."
         elif (
             role == "assistant"
@@ -1235,8 +1235,13 @@ def demo_kilas_whatsapp(business_id):
             code=303,
         )
 
+    return _launch_demo_whatsapp(business_id, security.current_user()['id'])
+
+
+def _launch_demo_whatsapp(business_id, actor_id):
+    """One shared launch for tested confirmation and Home/Inbox demo entry."""
     import assist_demo
-    _, marker = assist_demo.begin(business_id, security.current_user()['id'])
+    _, marker = assist_demo.begin(business_id, actor_id)
     text = "Halo Kilas Works. Saya mau mencoba Kilas Assist.\n" + marker
     return redirect(
         "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),

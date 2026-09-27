@@ -67,6 +67,12 @@ def resolve(phone, text, *, now=None):
             tx.execute('UPDATE kw_assist_demo_sessions SET active=FALSE '
                        'WHERE sender_phone=? AND id<>? AND active=TRUE', (phone, current['id']))
             tx.execute('UPDATE kw_assist_demo_sessions SET sender_phone=? WHERE id=?', (phone,current['id']))
+            if current['sender_phone'] is None:
+                # The explicit new invitation starts a new Demo. Do not inherit a human
+                # takeover from a previous tenant/legacy conversation on this shared phone.
+                tx.execute("INSERT INTO platform_wa_conversation_state(customer_phone,mode) VALUES (?,'AI_ACTIVE') "
+                           "ON CONFLICT(customer_phone) DO UPDATE SET mode='AI_ACTIVE',updated_by_user_id=NULL",
+                           (phone,))
             current['sender_phone'] = phone
         return current
     # Keep the expired sender recognizable so it cannot fall through to platform knowledge.
@@ -164,7 +170,7 @@ def process(event, *, profile_name=None, media_message_id=None, send):
     bid, now = bound['business_id'], int(time.time())
     state = assist_journey.state(repo.get_business(bid))
     if bound['expires_at'] <= now or state['connected'] or not (state['demo_active'] or state['paid']):
-        return True  # Never fall back to platform knowledge for an expired/connected demo.
+        return False  # Webhook sends only the fixed workspace instruction, never legacy AI.
     if not content:
         content = '[Lampiran '+str(event.get('type') or 'pesan')+']'
     with transaction() as tx:
@@ -190,8 +196,7 @@ def process(event, *, profile_name=None, media_message_id=None, send):
         return True
     try:
         if MARKER.search(content):
-            reply = ('Demo aktif untuk '+repo.get_business(bid)['business_name']+
-                     '. Silakan chat seperti customer biasa. Percakapan ini muncul di Inbox Kilas Assist Anda.')
+            reply = 'Demo aktif ✅ Sekarang chat seperti customer bisnis kamu.'
             insight, trace = None, {'title':'Demo terhubung','intent':'Aktivasi demo',
                 'summary':'Kode demo menghubungkan percakapan ini ke workspace Anda.', 'confidence':100}
         else:

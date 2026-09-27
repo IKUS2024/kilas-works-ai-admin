@@ -89,12 +89,15 @@
       {% else %}
         {% if demo_phone %}
         {# Connected demo state is persistent. Never show the setup/demo CTA again. #}
-        {% else %}
+        {% elif assist_journey_state(business).demo_visible %}
         <div class="kw-demo-empty">
-          <strong>Hubungkan WhatsApp untuk demo</strong>
-          <p class="muted">Cukup kirim satu pesan pembuka dari WhatsApp. Setelah tersambung, koneksi akan tetap tersimpan untuk bisnis ini.</p>
-          <a class="btn kw-demo-start" href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}" target="_blank" rel="noopener noreferrer">Mulai Demo WhatsApp</a>
-          <p class="muted kw-demo-hint">Pesan pembuka akan berisi Demo ID singkat untuk menghubungkan chat ke Inbox ini.</p>
+          <strong>Demo Inbox</strong>
+          <p class="muted">Ajari Kilas, tes sebagai customer, lalu coba di WhatsApp. Percakapan kamu akan muncul di sini.</p>
+          {% if assist_journey_state(business).ready %}
+          {% include '_web_share.html' %}
+          {% else %}
+          <a class="btn kw-demo-start" href="{{ url_for('assist.training', business_id=business.id) }}">Latih Kilas Assist</a>
+          {% endif %}
         </div>
         {% endif %}
       {% endfor %}

@@ -82,13 +82,12 @@
           <a class="btn" href="{{ url_for('client.wizard_step',business_id=business.id,step=(setup.step if setup and setup.missing else 'upload')) }}">Lengkapi data bisnis</a>
           {% elif not journey.ready %}
           <a class="btn" href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Latih Kilas Assist</a>
-          <a class="btn secondary" href="{{ url_for('workspace.go',area='simulate',business_id=business.id) }}">Tes AI</a>
           {% elif journey.demo_visible and (journey.demo_active or journey.paid) %}
           {% if workspace_ui.demo_connected and workspace_ui.demo_connected.get(business.id) %}
           <a class="btn kw-demo-btn"
              data-demo-kilas-whatsapp
              href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}">
-            Buka Demo WhatsApp
+            Buka Demo Inbox
           </a>
           {% else %}
           {% include '_web_share.html' %}

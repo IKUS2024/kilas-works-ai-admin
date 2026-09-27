@@ -135,5 +135,15 @@ class DemoTests(unittest.TestCase):
             self.receive(self.marker,'expired')
         self.send.assert_not_called();self.model.assert_not_called()
 
+    def test_fresh_invitation_does_not_inherit_legacy_takeover_but_replay_preserves_handoff(self):
+        platform_inbox_service.start_human_takeover(self.phone,self.u1)
+        self.receive(self.marker,'new-binding')
+        self.assertEqual(platform_inbox_service.get_state(self.phone),'AI_ACTIVE')
+        self.assertEqual(self.send.call_args.args[1],'Demo aktif ✅ Sekarang chat seperti customer bisnis kamu.')
+        platform_inbox_service.start_human_takeover(self.phone,self.u1)
+        self.receive(self.marker,'repeated-invitation')
+        self.assertEqual(platform_inbox_service.get_state(self.phone),'HUMAN_TAKEOVER')
+        self.assertEqual(self.send.call_count,1)
+
 
 if __name__=='__main__': unittest.main()
