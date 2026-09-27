@@ -163,3 +163,13 @@ Read this checkpoint, inspect working diff/current main only as needed, and cont
 4. Real WhatsApp binding, assisted Meta/OTP and inbound/outbound verification remain unverified; never claim them complete from mocks.
 
 FINAL STATUS: IN PROGRESS. No PR, merge or deployment in this task yet. No true external blocker established.
+
+
+## Concurrent resume verification — 2026-09-27 04:57 UTC
+- A resumed session found the original worktree still receiving active edits. It used an isolated worktree at /workspace/scratch/f3a55a3f7ae4/kilas-works-ai-admin to avoid overwriting the ongoing regression work.
+- Fresh remote refs: main 4344748c439597744806ad8ccb6a5ad7a8a0e54f; master branch f39d0b5caeeb898b8c6c46a9a78423964b1fe7ca. Both Render production services independently confirmed LIVE at main baseline, auto-deploy remains OFF.
+- Independent PG18 PGlite rehearsal PASS: atomic failed-migration rollback, 0066–0069 apply/retry, exact Finance table row preservation, tenant binding/rebind isolation. Log /tmp/kilas-resume-pg-release.log. This does not certify native PostgreSQL concurrent sessions.
+- Found missing customer-facing profile fields in Assist knowledge (business name, address, public phone, closed days, payment instructions) and a possible third paid model call after provider fallback plus low confidence. Fixed both in three source files; canonical owner guide now remains in the bounded FAQ set. Private trusted-owner phone is excluded.
+- Five new knowledge/router regression cases plus existing journey/router/runtime suites: 16 tests PASS (/tmp/kilas-resume-knowledge-tests.log).
+- These four-file fixes were applied to the original worktree only after verifying those paths had no concurrent edits and git apply --check succeeded. Preserve client-hub/tests/test_assist_knowledge_contract.py and the changes in assist_training.py, assist_reply.py, ai_router.py in the next master checkpoint commit.
+- Remaining release gates still apply. No production deployment or customer Finance data writes performed by this resumed session.

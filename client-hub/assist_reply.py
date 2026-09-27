@@ -54,7 +54,7 @@ def generate(bid, text, history, previous=None, *, feature="assist_demo"):
     def call(strong=False):
         with ai_usage.scope(bid, feature):
             raw, stop, error = ai_router.complete(PROMPT, [{'role': 'user', 'content': payload}],
-                2200, claude=ai_onboarding._call_claude_direct, strong=strong)
+                2200, claude=ai_onboarding._call_claude_direct, strong=strong, fallback=False)
         if error or stop == 'max_tokens':
             raise ValueError('reply_unavailable')
         value = ai_onboarding._extract_json_object(raw)
@@ -67,8 +67,13 @@ def generate(bid, text, history, previous=None, *, feature="assist_demo"):
             raise ValueError('invalid_reply')
         return value
 
-    result = call()
-    if result['confidence'] < ai_usage.number('KILAS_AI_CONFIDENCE_ESCALATE_BELOW', .65):
+    # One owner for escalation: provider errors, malformed output and low confidence
+    # share the same single strong attempt, never a third paid call.
+    try:
+        result = call()
+    except ValueError:
+        result = None
+    if result is None or result['confidence'] < ai_usage.number('KILAS_AI_CONFIDENCE_ESCALATE_BELOW', .65):
         result = call(strong=True)
     insight = customer_insights._normalize(result['insight'])
     insight['_handoff_requested'] = result['intent'] == 'HUMAN'

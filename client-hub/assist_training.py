@@ -25,13 +25,23 @@ reply mengonfirmasi perubahan yang benar-benar dipahami. Jangan mengklaim sudah 
 
 
 def context(bid):
+    business = repo.get_business(bid) or {}
     profile = repo.get_business_profile(bid) or {}
+    faqs = repo.get_business_faqs(bid)
+    # The owner's canonical training must survive the bounded FAQ window.
+    faqs = sorted(faqs, key=lambda row: row.get('question') != GUIDE_QUESTION)[:60]
     return {
-        'business': {k: profile.get(k) for k in ('short_description', 'category', 'operating_hours',
-                     'tone', 'primary_language', 'customer_salutation', 'appointment_rules_raw')},
+        'business': dict(business_name=business.get('business_name'), **{
+            k: profile.get(k) for k in (
+                'short_description', 'category', 'operating_hours', 'closed_days',
+                'country', 'timezone', 'address', 'online_or_offline', 'business_phone',
+                'tone', 'primary_language', 'additional_languages', 'customer_salutation',
+                'appointment_enabled', 'appointment_rules_raw', 'payment_bank_name',
+                'payment_account_number', 'payment_account_name', 'payment_instructions')
+        }),
         'services': [r['raw_input'][:2000] for r in repo.get_business_services(bid)[:40]],
         'faqs': [dict(question=r.get('question') or r['raw_input'][:1500],
-                      answer=(r.get('answer') or '')[:8000]) for r in repo.get_business_faqs(bid)[:60]],
+                      answer=(r.get('answer') or '')[:8000]) for r in faqs],
     }
 
 

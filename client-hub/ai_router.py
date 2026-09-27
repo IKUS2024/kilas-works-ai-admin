@@ -60,11 +60,12 @@ def _anthropic_messages(messages):
     return result
 
 
-def complete(system, messages, maximum=1500, *, claude, legacy_model=None, strong=False):
+def complete(system, messages, maximum=1500, *, claude, legacy_model=None, strong=False, fallback=True):
     """One economical route, at most one configured escalation on failure.
 
     A caller may request strong=True after detecting low confidence; that request never
-    falls back to the cheap route. Existing Claude-only installations remain supported.
+    falls back to the cheap route. Structured callers can own the single escalation by
+    setting fallback=False. Existing Claude-only installations remain supported.
     """
     default = 'openai' if os.environ.get('OPENAI_API_KEY', '').strip() else 'anthropic'
     fast = os.environ.get('KILAS_AI_FAST_PROVIDER', default).lower()
@@ -86,6 +87,6 @@ def complete(system, messages, maximum=1500, *, claude, legacy_model=None, stron
     if strong:
         return invoke(high, True)
     result = invoke(fast, False)
-    if result[2] or result[1] == 'max_tokens':
+    if fallback and (result[2] or result[1] == 'max_tokens'):
         return invoke(high, True)
     return result
