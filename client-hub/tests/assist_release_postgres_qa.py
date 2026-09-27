@@ -40,6 +40,8 @@ def main():
             uid=repo.create_user('owner@synthetic.invalid','unused')
             bid=repo.create_business(uid,'Synthetic protected ledger','AI_ADMIN')
             other=repo.create_business(uid,'Second synthetic business','AI_ADMIN')
+            repo.upsert_business_profile(bid, dict(short_description='Jasa foto sintetis',
+                category='Fotografi', business_phone='628111111111', primary_language='id'))
             finance.ensure_finance_defaults(bid,actor_user_id=uid)
             account=finance.create_account(bid,'Synthetic bank',opening_balance_minor=12345,actor_user_id=uid)
             category=finance.list_categories(bid,'INCOME',actor_user_id=uid)[0]['id']

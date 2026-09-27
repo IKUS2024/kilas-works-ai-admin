@@ -18,7 +18,7 @@
       <label for="teach-attachment">Lampirkan gambar/PDF</label>
       <input id="teach-attachment" name="attachment" type="file" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf">
       <small>JPG, PNG, atau PDF · maksimal 5 MB dan 10 halaman. Ceritakan isi file dan kapan Kilas boleh menggunakannya.</small>
-      <label id="teach-permission" hidden><input type="checkbox" name="approved_send" value="1"> Boleh kirim file ini ke customer bila relevan</label>
+      <div id="teach-permission" hidden><label><input type="checkbox" name="approved_send" value="1"> Boleh kirim file ini ke customer bila relevan</label></div>
       <div class="kw-actions"><button class="btn" name="action" value="teach">Ajari Kilas</button></div>
     </form>
     {% if can_ready %}
