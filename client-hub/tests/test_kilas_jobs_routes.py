@@ -140,7 +140,7 @@ class JobRoutesTests(unittest.TestCase):
         data=dict(csrf_token='csrf-test',title='Updated',summary='',status='IN_PROGRESS',version=1,operation_key='retry-update-0001')
         for _ in range(2): self.assertEqual(self.client.post(path,data=data).status_code,303)
         self.assertEqual(self.client.post(path,data={**data,'operation_key':'stale-update-0001'}).status_code,409)
-        self.assertEqual(self.client.post(path,data={**data,'version':2,'status':'COMPLETED','operation_key':'bad-status-00001'}).status_code,400)
+        self.assertEqual(self.client.post(path,data={**data,'version':2,'status':'COMPLETED','operation_key':'bad-status-00001'}).status_code,409)
         self.assertEqual(jobs.get_job(7,job['id'])['version'],2)
         self.assertEqual(self.client.get('/business/7/jobs?status=BAD').status_code,400)
         self.assertEqual(self.client.get('/business/7/jobs?customer_id=foreign').status_code,404)
@@ -299,6 +299,14 @@ class JobRoutesTests(unittest.TestCase):
             session["role"] = "KILAS_ADMIN"
             session["_csrf_token"] = "csrf-test"
 
+        # The dedicated Kilas workspace is available to its operator; customer
+        # workspaces still require one explicit support scope at a time.
+        self.assertEqual(self.client.get(f"/business/{scope['id']}/jobs").status_code,200)
+        self.assertEqual(self.client.get('/business/7/jobs').status_code,404)
+        support=self.client.post('/platform/business/7/support',data={'csrf_token':'csrf-test'})
+        self.assertEqual(support.status_code,303)
+        self.assertEqual(self.client.get(f"/business/{scope['id']}/jobs").status_code,404)
+        self.assertEqual(self.client.post('/platform/support/exit',data={'csrf_token':'csrf-test'}).status_code,303)
         page = self.client.get(f"/business/{scope['id']}/jobs")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Customer Platform", page.data)

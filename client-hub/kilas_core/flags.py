@@ -10,6 +10,8 @@ def enabled_for_business(business_id: int, environ: Mapping[str, str] | None = N
         return False
     if env.get("KILAS_CORE_V2_ENABLED", "").strip().lower() not in ("1", "true", "yes", "on"):
         return False
+    if env.get('KILAS_ASSIST_RUNTIME_ENABLED', '').lower() == 'true':
+        return True  # Explicit fleet rollout; every caller must still enforce tenant entitlement.
     entries = env.get("KILAS_CORE_V2_TEST_BUSINESS_IDS", "").split(",")
     # A missing/malformed list fails closed, including wildcard and mixed valid/invalid IDs.
     if not all(re.fullmatch(r"[1-9][0-9]*", value.strip()) for value in entries):

@@ -16,10 +16,13 @@ from pricing_config import BRAIN_PLAN
 # https://platform.claude.com/docs/en/about-claude/pricing
 PRICING_DATE = os.environ.get('AI_PRICING_DATE', '2026-09-15')
 MODEL_PRICING = {
+    # https://developers.openai.com/api/docs/models/gpt-4.1-mini (2026-09-27)
+    'gpt-4.1-mini': dict(input=.40, output=1.60, read=.10, write=0, write_1h=0),
     'claude-haiku-4-5-20251001': dict(input=1, output=5, read=.10, write=1.25, write_1h=2),
     'claude-sonnet-4-6': dict(input=3, output=15, read=.30, write=3.75, write_1h=6),
 }
 _scope = contextvars.ContextVar('ai_usage_scope', default=(None, 'platform_helper'))
+_classification = contextvars.ContextVar('assist_ai_classification',default=None)
 log = logging.getLogger(__name__)
 
 
@@ -36,12 +39,14 @@ def fair_use_limit():
 
 
 @contextlib.contextmanager
-def scope(tenant_id, context):
+def scope(tenant_id, context, *, classification=None):
     token = _scope.set((tenant_id, context))
+    mode = _classification.set(classification)
     try:
         yield
     finally:
         _scope.reset(token)
+        _classification.reset(mode)
 
 
 def for_business(context):
@@ -89,15 +94,15 @@ def _insert(values):
         cur = conn.cursor()
         cur.execute(db._adapt_placeholders('INSERT INTO ai_usage_ledger '
             '(tenant_id,context_type,model,classification,is_reply,input_tokens,output_tokens,'
-            'cache_read_input_tokens,cache_creation_input_tokens,estimated_cost_usd,estimated_cost_idr,pricing_date,created_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'), values)
+            'cache_read_input_tokens,cache_creation_input_tokens,estimated_cost_usd,estimated_cost_idr,pricing_date,created_at,provider) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'), values)
         conn.commit()
         cur.close()
     finally:
         conn.close()
 
 
-def record(model, response, *, tenant_id=None, context=None, classification='normal'):
+def record(model, response, *, tenant_id=None, context=None, classification='normal', provider='anthropic'):
     """Count actual returned usage, even when content parsing later fails. No content stored."""
     try:
         if context is None:
@@ -114,21 +119,25 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
         # Context/model come from code/config, never customer text.
         allowed = {'platform_customer','tenant_customer','owner','tenant_owner','demo','demo_fallback',
                    'normalization','simulation','writing','faq','knowledge_assist','payment_review','platform_helper',
+                   'customer_insight','follow_up','assist_demo','assist_media',
                    'finance_ai','finance_chat','finance_receipt','finance_bank','finance_document','finance_analyst','finance_operator'}
+        if classification=='normal' and _classification.get():classification=_classification.get()
         if context not in allowed or classification not in ('normal','vision','complex'):
             raise ValueError('invalid_classification')
         if not isinstance(model,str) or len(model)>100 or not all(c.isalnum() or c in '-_.' for c in model):
             raise ValueError('invalid_model')
+        if provider not in ('openai','anthropic'):
+            raise ValueError('invalid_provider')
         usd = estimate(model, usage)
         fx = number('AI_COST_USD_IDR', 0)
         idr = usd*fx if usd is not None and fx>0 else None
         log.info('[AI_USAGE] %s', json.dumps(dict(context=context, tenant_id=tenant_id, model=model,
             classification=classification, **dict(zip(keys,counts)))))
         blocks = response.get('content') or []
-        is_reply = context in ('tenant_customer','tenant_owner','platform_customer','owner','simulation') and isinstance(blocks,list) and any(
+        is_reply = context in ('tenant_customer','tenant_owner','platform_customer','owner','simulation','assist_demo') and isinstance(blocks,list) and any(
             isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip() for block in blocks)
         _insert((tenant_id,context,model,classification,bool(is_reply),*counts,usd,idr,PRICING_DATE,
-                 datetime.now(timezone.utc).isoformat()))
+                 datetime.now(timezone.utc).isoformat(),provider))
         return True
     except Exception:
         log.warning('[AI_USAGE] persistence_failed')
@@ -350,8 +359,8 @@ def monthly(tenant_id=None, *, admin=False, now=None):
 
 def client_summary(tenant_id):
     try:
-        row=monthly(tenant_id)[0]
-        return {k:row[k] for k in ('replies','status','fair_use')}
+        from assist_costs import customer_usage
+        return customer_usage(tenant_id)
     except Exception:
         log.warning('[AI_USAGE] summary_unavailable')
         return None

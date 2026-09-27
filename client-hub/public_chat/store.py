@@ -221,7 +221,7 @@ def inbox(bid, page=1):
         pages=max(1,(total+9)//10);page=min(max(1,page),pages)
         if customers.enabled():
             rows=tx.execute(
-                "SELECT c.*, customer.display_name AS customer_display_name, "
+                "SELECT c.*, customer.display_name AS customer_display_name, customer.phone AS customer_phone, "
                 "(SELECT content FROM kw_web_messages m WHERE m.business_id=c.business_id "
                 "AND m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) AS preview "
                 "FROM kw_web_conversations c "

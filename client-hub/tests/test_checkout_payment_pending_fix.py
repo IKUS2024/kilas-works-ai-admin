@@ -466,9 +466,9 @@ def test_25_admin_ui_shows_clear_amount_summary():
     assert resp.status_code == 200
     body = resp.data.decode()
     assert "Tagihan" in body
-    assert "Nominal terbaca" in body
+    assert "<span>Terbaca</span>" in body
     assert "Selisih" in body
-    assert "Duplicate risk" in body
+    assert "Duplicate Risk" in body
     print("test_25_admin_ui_shows_clear_amount_summary OK")
 
 

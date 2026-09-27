@@ -40,7 +40,8 @@ class PaidLifecycleTests(unittest.TestCase):
         self.assertTrue(web_security.available(repo.get_business(self.bid)))
         channel=store.ensure_channel(self.bid)
         client=fixture.FLASK_APP.test_client()
-        self.assertEqual(client.get('/chat/'+channel['slug']).status_code,200)
+        # Paid subscription enables Assist; the anonymous Web Chat channel is retired.
+        self.assertEqual(client.get('/chat/'+channel['slug']).status_code,404)
         with self.assertRaises(provisioning.ProvisioningError):
             provisioning.activate_tenant(self.bid,{'id':self.admin,'role':'KILAS_ADMIN'})
         self.assertEqual(repo.get_business(self.bid)['status'],'APPROVED')

@@ -71,7 +71,7 @@ def test_catalog_seeded_matches_pricing_config():
     ai_basic = catalog_service.get_catalog_item("ai_admin_basic")
     assert ai_basic["price_amount"] == 499_000
     ai_pro = catalog_service.get_catalog_item("ai_admin_pro")
-    assert ai_pro["price_amount"] == 999_000
+    assert ai_pro["price_amount"] == 799_000
     print("test_catalog_seeded_matches_pricing_config OK")
 
 

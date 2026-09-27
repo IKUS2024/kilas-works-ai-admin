@@ -206,7 +206,10 @@ def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
     payment = get_payment(payment_id)
     if payment is None or payment["business_id"] != business_id:
         raise ValueError("payment_not_found")
+    import assist_billing
     if payment['status'] == 'VERIFIED':
+        if assist_billing.apply_verified(payment, actor_user_id):
+            return
         # Retry repairs a historical missing lifecycle but never renews/resets an existing one.
         import subscription_service
         project = projects_repo.get_project(get_invoice(payment['invoice_id'])['project_id'])
@@ -230,6 +233,9 @@ def verify_payment(payment_id, business_id, actor_user_id, admin_notes=None):
     db.execute("UPDATE invoices SET status = 'PAID' WHERE id = ?", (invoice["id"],))
     projects_repo.set_project_status(invoice["project_id"], "PAID", actor_user_id, business_id,
                                       f"payment_id={payment_id} verified")
+    if assist_billing.apply_verified(get_payment(payment_id), actor_user_id):
+        repo.write_audit(actor_user_id, business_id, "PAYMENT_VERIFIED", f"payment_id={payment_id}", project_id=invoice['project_id'])
+        return
     project = projects_repo.get_project(invoice["project_id"])
     if business_id is not None and project and project.get('catalog_key') == 'ai_admin':
         business = repo.get_business(business_id)

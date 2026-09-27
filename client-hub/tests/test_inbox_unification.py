@@ -400,6 +400,12 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
     uid_a, bid_a = _make_active_ai_admin_tenant("Demo Biz A", "demoa@test.com")
     uid_b, bid_b = _make_active_ai_admin_tenant("Demo Biz B", "demob@test.com")
     phone = "14048836437"
+    # Canonical explicit demo membership replaced phone/audit-range inference.
+    import time
+    sid = 'qa-demo-scope'
+    db.execute('INSERT INTO kw_assist_demo_sessions '
+        '(id,business_id,actor_id,token_hash,created_at,expires_at,sender_phone) VALUES (?,?,?,?,?,?,?)',
+        (sid,bid_a,uid_a,'qa-demo-token',int(time.time()),int(time.time())+86400,phone))
     now = datetime.now(timezone.utc).isoformat()
     demo_rows = ai_reply_explanation.attach_demo([
         {"id": 901, "role": "user", "content": "bisnis aku parfum ka", "created_at": now},
@@ -447,7 +453,7 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
             f"/business/{bid_a}/demo-inbox/reply",
             data={"csrf_token": "csrf-test", "customer_phone": phone, "message": "Saya bantu ya"})
     assert response.status_code == 303
-    reply.assert_called_once_with(phone, "Saya bantu ya")
+    reply.assert_called_once_with(phone, "Saya bantu ya", demo_scope={'business_id':bid_a,'session_id':sid})
 
     with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
          patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
@@ -469,7 +475,7 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
             f"/business/{bid_a}/demo-inbox/send-template",
             data={"csrf_token": "csrf-test", "customer_phone": phone})
     assert response.status_code == 303
-    template.assert_called_once_with(phone)
+    template.assert_called_once_with(phone, demo_scope={'business_id':bid_a,'session_id':sid})
 
     with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
          patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \

@@ -1,5 +1,8 @@
+{% set demo_state = assist_journey_state(business) %}
+{% if demo_state.demo_visible and demo_state.ready and (demo_state.demo_active or demo_state.paid) %}
 <a class="btn secondary kw-demo-btn"
    data-demo-kilas-whatsapp
    href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}"
    target="_blank"
-   rel="noopener noreferrer">Coba Demo Kilas</a>
+   rel="noopener noreferrer">Coba WhatsApp Demo</a>
+{% endif %}

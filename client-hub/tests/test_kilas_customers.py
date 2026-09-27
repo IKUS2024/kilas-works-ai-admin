@@ -4,6 +4,8 @@ Reuses the proven Phase 2 public-chat fixture but applies only additive 0056 on 
 """
 import os
 import json
+import time
+import uuid
 import unittest
 from unittest.mock import patch
 
@@ -20,6 +22,7 @@ class CustomerTests(unittest.TestCase):
         from kilas_core import customer_schema, customer_stage_schema, customers, customer_insights
         customer_schema.apply_schema()
         customer_stage_schema.apply_schema()
+        cls.db.execute('CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY,number TEXT,mode TEXT,role TEXT,content TEXT,created_at TEXT)')
 
     tearDown = phase2.WebTests.tearDown
 
@@ -27,7 +30,7 @@ class CustomerTests(unittest.TestCase):
         with store.transaction() as tx:
             for table in ("kw_core_customer_insights", "kw_web_customer_links",
                           "kw_core_customer_identities", "kw_core_customer_stages",
-                          "kw_core_customers"):
+                          "kw_core_customers", "kw_assist_demo_events", "kw_assist_demo_sessions"):
                 tx.execute("DELETE FROM " + table)
         phase2.WebTests.setUp(self)
         # The simulator fixture deliberately shares one owner across both businesses.
@@ -42,6 +45,13 @@ class CustomerTests(unittest.TestCase):
 
     def send(self, identity, text="Halo", event="event-00000000001", slug=None, extra=None):
         return phase2.WebTests.send(self, identity, text=text, event=event, slug=slug, extra=extra)
+
+    def seed_bound_demo(self,phone):
+        now=int(time.time());sid=uuid.uuid4().hex
+        self.db.execute('INSERT INTO kw_assist_demo_sessions '
+            '(id,business_id,actor_id,token_hash,created_at,expires_at,sender_phone) VALUES (?,?,?,?,?,?,?)',
+            (sid,7,1,uuid.uuid4().hex,now,now+86400,phone))
+        return sid
 
     def test_first_web_visitor_creates_customer_and_same_visitor_reuses_it(self):
         first = self.start().json
@@ -60,11 +70,7 @@ class CustomerTests(unittest.TestCase):
 
     def test_existing_demo_whatsapp_binding_backfills_as_lead_once(self):
         phone = "14048836437"
-        self.db.execute(
-            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
-            (1, 7, "demo_whatsapp_bound",
-             json.dumps({"phone": phone, "start_message_id": 1402, "bound_at": 1790362912})),
-        )
+        self.seed_bound_demo(phone)
 
         first = self.client.get("/business/7/customers")
         self.assertEqual(first.status_code, 200)
@@ -81,11 +87,7 @@ class CustomerTests(unittest.TestCase):
     def test_customer_insight_reads_demo_whatsapp_inbox_only_and_updates_incrementally(self):
         phone = "14048836437"
         start_id = 1402
-        self.db.execute(
-            "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
-            (1, 7, "demo_whatsapp_bound",
-             json.dumps({"phone": phone, "start_message_id": start_id, "bound_at": 1790362912})),
-        )
+        self.seed_bound_demo(phone)
         customer = customers.sync_demo_binding_lead(7)
         first_json = json.dumps({
             "summary": "Budi memiliki coffee shop di Tangerang dan mencari admin WhatsApp.",
@@ -101,7 +103,7 @@ class CustomerTests(unittest.TestCase):
             {"id": start_id, "role": "user", "content": "Demo ID: AAAA-BBBB", "created_at": "2026-09-26 02:00:00"},
             {"id": start_id + 1, "role": "user", "content": "Nama saya Budi. Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp.", "created_at": "2026-09-26 02:01:00"},
         ]
-        with patch.object(customer_insights.db, "query_all", return_value=demo_rows), \
+        with patch("assist_demo.rows", return_value=demo_rows), \
              patch.object(customer_insights.ai_onboarding, "_call_claude",
                           return_value=(first_json, "end_turn", None)) as call:
             page = self.client.get(f"/business/7/customers/{customer['id']}")
@@ -130,7 +132,7 @@ class CustomerTests(unittest.TestCase):
             "communication_notes": "Menjelaskan kebutuhan secara langsung.",
             "missing_info": [], "follow_up": "Tawarkan paket yang sesuai budget."
         })
-        with patch.object(customer_insights.db, "query_all", return_value=demo_rows), \
+        with patch("assist_demo.rows", return_value=demo_rows), \
              patch.object(customer_insights.ai_onboarding, "_call_claude",
                           return_value=(second_json, "end_turn", None)) as call:
             updated = self.client.get(f"/business/7/customers/{customer['id']}/insight")

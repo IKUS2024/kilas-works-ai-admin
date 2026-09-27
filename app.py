@@ -129,7 +129,7 @@ def _resolve_tenant_id(phone_number_id):
         return None
 
 
-def _resolve_tenant_or_unknown(phone_number_id):
+def _resolve_tenant_or_unknown(phone_number_id, waba_id=None):
     """Task 7 (multi-tenant runtime safety) — tri-state resolution of the webhook's own
     `phone_number_id`, used ONLY by the webhook route (receive_webhook/_webhook_body_impl), never
     by anything that predates this cycle (see _resolve_tenant_id above, kept unchanged for its
@@ -152,7 +152,8 @@ def _resolve_tenant_or_unknown(phone_number_id):
         # Can't tell whether this is a real tenant without Client Hub — never default to Kilas.
         return None, True
     try:
-        found = _tcs.get_tenant_by_phone_number_id(phone_number_id)
+        found = (_tcs.resolve_tenant_id_by_whatsapp_phone_number_id(phone_number_id, waba_id)
+                 if waba_id is not None else _tcs.get_tenant_by_phone_number_id(phone_number_id))
     except Exception as e:
         print(
             f"Tenant resolution GAGAL (phone_number_id={phone_number_id!r}): {e} — diperlakukan "
@@ -6918,11 +6919,15 @@ def _webhook_body_impl(data):
         # message on Kilas Works' own number today (that number isn't registered as a Client Hub
         # tenant), so nothing below that branches on tenant_id changes behavior for it.
         _incoming_phone_number_id = (value.get("metadata") or {}).get("phone_number_id")
+        if _CLIENT_HUB_AVAILABLE and os.environ.get('WHATSAPP_APP_SECRET'):
+            import assist_connections as _assisted_connections
+            if _assisted_connections.observe(entry.get('id'), _incoming_phone_number_id, value):
+                return jsonify({'status': 'ok', 'connection_test': True}), 200
         if ENABLE_MULTI_TENANT:
             # Task 7 — tri-state resolution: a real tenant, Kilas Works' own official number, or
             # genuinely UNKNOWN. An unknown phone_number_id (including a tenant-lookup DB failure)
             # must NEVER be silently treated as Kilas Works — stop here, log only, no reply sent.
-            tenant_id, _tenant_resolution_unknown = _resolve_tenant_or_unknown(_incoming_phone_number_id)
+            tenant_id, _tenant_resolution_unknown = _resolve_tenant_or_unknown(_incoming_phone_number_id, entry.get("id") or "")
             if _tenant_resolution_unknown:
                 print(
                     f"WARNING: webhook phone_number_id={_incoming_phone_number_id!r} tidak dikenali "
@@ -6931,7 +6936,7 @@ def _webhook_body_impl(data):
                 )
                 return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
         else:
-            if _incoming_phone_number_id and _incoming_phone_number_id != WHATSAPP_PHONE_NUMBER_ID:
+            if not _incoming_phone_number_id or _incoming_phone_number_id != WHATSAPP_PHONE_NUMBER_ID:
                 return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
             tenant_id = None
 
@@ -7012,6 +7017,23 @@ def _webhook_body_impl(data):
             except Exception:
                 print('[INBOX_MEDIA] reason=metadata_persistence_failed')
                 return jsonify({'status': 'media_persistence_unavailable'}), 503
+
+        if _CLIENT_HUB_AVAILABLE and is_kilas_platform_tenant(tenant_id):
+            try:
+                import assist_demo
+                profile_name = next((c.get('profile', {}).get('name') for c in value.get('contacts', [])
+                                     if c.get('wa_id') == from_number), None)
+                if profile_name:
+                    save_customer_name_to_db(from_number, profile_name[:160])
+                media_link = request.environ.get('inbox_media_row') or {}
+                if assist_demo.process(message, profile_name=profile_name,
+                        media_message_id=media_link.get('message_row_id'), send=send_whatsapp_message):
+                    return jsonify({'status':'ok', 'demo_processed':True}), 200
+            except ValueError:
+                return jsonify({'status':'invalid_demo_event'}), 200
+            except Exception:
+                print('[ASSIST_DEMO] processing_failed')
+                return jsonify({'status':'demo_processing_unavailable'}), 503
 
         # WAJIB paling awal: kalau wamid ini udah pernah kepegang sebelumnya (WhatsApp ngirim ulang
         # webhook yang sama), STOP DI SINI — jangan proses apa-apa lagi, jangan panggil AI, jangan
@@ -8887,6 +8909,28 @@ _SUPPORTED_INTERNAL_NOTIFICATION_TYPES = (
 )
 
 
+@app.route('/internal/assist-connection/<action>', methods=['POST'])
+def internal_assist_connection(action):
+    if not _platform_wa_migration_auth():
+        return jsonify({'status':'error','reason':'access_denied'}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({'status':'error','reason':'connection_unavailable'}), 503
+    try:
+        import assist_connection_transport as transport
+        payload = request.get_json(silent=True) or {}
+        if action == 'health':
+            result = transport.health()
+        elif action == 'verify':
+            result = transport.verify(payload)
+        elif action == 'outbound':
+            result = transport.outbound(payload.get('business_id'))
+        else:
+            return jsonify({'status':'error','reason':'invalid_action'}), 404
+        return jsonify(result), 200
+    except Exception:
+        return jsonify({'status':'error','reason':'connection_test_failed'}), 409
+
+
 @app.route('/internal/platform-inbox-media/<media_key>', methods=['GET'])
 def internal_platform_inbox_media(media_key):
     provided = request.headers.get('X-Internal-Service-Secret', '')
@@ -8911,11 +8955,25 @@ def internal_platform_inbox_media_send():
     if not request.content_length or request.content_length > 12 * 1024 * 1024:
         return jsonify({'status': 'error', 'reason': 'upload_too_large'}), 413
     phone = request.form.get('customer_phone', '')
+    demo_bound=None
+    if request.form.get('demo_scope'):
+        try:
+            import assist_demo
+            demo_bound=assist_demo.require_outgoing_scope(json.loads(request.form['demo_scope']),phone)
+        except (ValueError,TypeError):
+            return jsonify({'status':'error','reason':'invalid_demo_scope'}),409
     try:
-        ok, reason = _inbox_media.send_upload(None, phone, request.files.get('file'),
+        ok, reason, detail = _inbox_media.send_upload_detail(None, phone, request.files.get('file'),
             request.form.get('caption'),
             {'access_token': WHATSAPP_ACCESS_TOKEN, 'phone_number_id': WHATSAPP_PHONE_NUMBER_ID},
             lambda: _inbox_media.human_window_allowed(None, phone))
+        if ok and demo_bound:
+            try:
+                recorded=bool(detail and assist_demo.record_sent_media(demo_bound,detail['provider_id']))
+            except Exception:
+                recorded=False
+            if not recorded:
+                reason='accepted_history_unavailable'
     except Exception:
         ok, reason = False, 'media_send_unconfirmed'
     return jsonify({'status': 'ok' if ok else 'error', 'reason': reason}), 200 if ok else 409
@@ -9082,6 +9140,13 @@ def internal_platform_cs_reply():
     if not window.get("allowed"):
         return jsonify({"status": "error", "reason": window.get("reason") or "outside_24h_window"}), 409
 
+    demo_bound = None
+    if payload.get('demo_scope') is not None:
+        import assist_demo
+        try:
+            demo_bound = assist_demo.require_outgoing_scope(payload['demo_scope'], phone)
+        except ValueError:
+            return jsonify({'status':'error','reason':'invalid_demo_scope'}), 409
     ok, err = send_whatsapp_message(phone, text)
     if not ok:
         # Only bounded provider status/code, never raw response bodies or exception text.
@@ -9095,7 +9160,10 @@ def internal_platform_cs_reply():
         history = load_recent_messages_from_db(phone, "customer")
     history.append({"role": "assistant", "content": text})
     conversations[phone] = history[-20:]
-    save_message_to_db(phone, "customer", "assistant", text)
+    if demo_bound:
+        assist_demo.record_sent(demo_bound, text)
+    else:
+        save_message_to_db(phone, "customer", "assistant", text)
     return jsonify({"status": "ok"}), 200
 
 
@@ -9188,6 +9256,11 @@ def internal_platform_cs_template_reply():
     # Deliberately NO freeform_window_status() check here — see this route's own docstring: an
     # approved template is exactly Meta's sanctioned way to send OUTSIDE that window.
 
+    demo_bound = None
+    if payload.get('demo_scope') is not None:
+        import assist_demo
+        try:demo_bound=assist_demo.require_outgoing_scope(payload['demo_scope'],phone)
+        except ValueError:return jsonify({'status':'error','reason':'invalid_demo_scope'}),409
     ok, err = send_whatsapp_template_message(phone, template_name, language_code, params)
     if not ok:
         return jsonify({"status": "error", "reason": "whatsapp_send_failed"}), 502
@@ -9198,7 +9271,8 @@ def internal_platform_cs_template_reply():
         history = load_recent_messages_from_db(phone, "customer")
     history.append({"role": "assistant", "content": marker})
     conversations[phone] = history[-20:]
-    save_message_to_db(phone, "customer", "assistant", marker)
+    if demo_bound:assist_demo.record_sent(demo_bound,marker)
+    else:save_message_to_db(phone, "customer", "assistant", marker)
     return jsonify({"status": "ok"}), 200
 
 
@@ -10218,6 +10292,9 @@ print(
     f"transcription_provider={TRANSCRIPTION_PROVIDER} transcription_model={TRANSCRIPTION_MODEL} "
     f"openai_api_key_present={bool((OPENAI_API_KEY or '').strip())}"
 )
+if _CLIENT_HUB_AVAILABLE:
+    from assist_connection_transport import configuration as _assist_configuration
+    print('ASSIST_CONFIG ' + str(_assist_configuration()))
 init_db()
 _restore_handoff_state()
 customer_names.update(load_all_customer_names_from_db())

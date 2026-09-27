@@ -68,13 +68,13 @@ class Cases:
 
     def test_lifecycle_forward_only_and_terminal(self):
         row=self.create()
-        for status in ('NEEDS_INFORMATION','READY_FOR_QUOTE','QUOTED','APPROVED','IN_PROGRESS','COMPLETED'):
+        for status in ('NEEDS_INFORMATION','READY_FOR_QUOTE','QUOTED','APPROVED','IN_PROGRESS'):
             row=jobs.transition_job(7,row['id'],status,expected_version=row['version'],actor_id=1,
                                     operation_key='transition-'+status)
             self.assertEqual(row['status'],status)
-        for status in ('NEW','CANCELLED','PAID','unexpected'):
+        for status in ('NEW','COMPLETED','PAID','unexpected'):
             with self.assertRaises(jobs.JobError): self.update(row,status=status)
-        self.assertEqual(jobs.get_job(7,row['id'])['version'],7)
+        self.assertEqual(jobs.get_job(7,row['id'])['version'],6)  # Completion requires authoritative Finance posting.
 
     def test_invalid_transition_rollback_and_cancel(self):
         row=self.create()

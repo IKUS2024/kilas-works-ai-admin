@@ -109,7 +109,7 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
     )
     if configure_channel:
         credentials_reference = f"TEST_WA_TOKEN__TENANT_{business_id}"
-        chrepo.upsert_whatsapp_config(business_id, phone_number_id, None, credentials_reference,
+        chrepo.upsert_whatsapp_config(business_id, phone_number_id, 'test-waba', credentials_reference,
                                        connection_status="CONNECTED")
         if credentials_env_value is not None:
             os.environ[credentials_reference] = credentials_env_value
@@ -125,7 +125,7 @@ def _text_payload(from_number, text, phone_number_id=None):
     }
     if phone_number_id:
         value["metadata"] = {"phone_number_id": phone_number_id}
-    return {"entry": [{"changes": [{"value": value}]}]}
+    return {"entry": [{"id": "test-waba", "changes": [{"value": value}]}]}
 
 
 client = appmod.app.test_client()
@@ -221,8 +221,8 @@ def test_incomplete_tenant_channel_skips_send_never_falls_back_to_kilas_identity
 def test_never_connected_tenant_channel_skips_send():
     reset_client_hub_db()
     reset_bot_state()
-    # Tenant resolved (ACTIVE, phone_number_id matches) but "Connect WhatsApp" was never actually
-    # completed in Client Hub -> no tenant_whatsapp_config row at all.
+    # The authoritative connection is absent: matching the legacy business phone alone
+    # must fail at tenant resolution, before the outgoing-channel stage.
     _make_active_tenant("pnid-ch-003", "62899100003", configure_channel=False)
 
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
@@ -234,10 +234,29 @@ def test_never_connected_tenant_channel_skips_send():
             content_type="application/json",
         )
     assert resp.status_code == 200
-    assert resp.get_json().get("tenant_whatsapp_channel_not_configured") is True
+    assert resp.get_json().get("unknown_phone_number_id") is True
     assert not mock_call_claude.called
     assert not mock_post.called
     print("test_never_connected_tenant_channel_skips_send OK")
+
+
+def test_known_phone_with_missing_or_wrong_waba_never_sends():
+    reset_client_hub_db()
+    reset_bot_state()
+    _make_active_tenant('pnid-waba-bound', '62899100999')
+    with patch.object(appmod, 'ENABLE_MULTI_TENANT', True), \
+            patch.object(appmod, 'call_claude') as model, patch('requests.post') as send:
+        for identity in (None, 'other-waba'):
+            payload = _text_payload('628999900099', 'Halo', phone_number_id='pnid-waba-bound')
+            if identity is None:
+                del payload['entry'][0]['id']
+            else:
+                payload['entry'][0]['id'] = identity
+            response = client.post('/webhook', json=payload)
+            assert response.status_code == 200
+            assert response.json['unknown_phone_number_id'] is True
+        model.assert_not_called()
+        send.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +403,7 @@ def test_basic_tenant_image_understanding_blocked_pro_tenant_allowed():
     _make_active_tenant("pnid-feat-pro-img", "62899400002", package="AI_ADMIN_PRO")
 
     image_payload = {
-        "entry": [{"changes": [{"value": {
+        "entry": [{"id": "test-waba", "changes": [{"value": {
             "metadata": {"phone_number_id": "pnid-feat-basic-img"},
             "messages": [{"id": _next_wamid(), "from": "628999666601", "type": "image",
                           "image": {"id": "media-basic"}}],
@@ -402,7 +421,7 @@ def test_basic_tenant_image_understanding_blocked_pro_tenant_allowed():
     assert not mock_download.called, "Basic tenant must never even download the image for vision"
 
     image_payload_pro = {
-        "entry": [{"changes": [{"value": {
+        "entry": [{"id": "test-waba", "changes": [{"value": {
             "metadata": {"phone_number_id": "pnid-feat-pro-img"},
             "messages": [{"id": _next_wamid(), "from": "628999666602", "type": "image",
                           "image": {"id": "media-pro"}}],
@@ -543,12 +562,17 @@ def test_whatsapp_validation_blocks_duplicate_phone_number_id_across_tenants():
     chrepo.upsert_whatsapp_config(bid_a, "dup-pnid-1", None, "TOK_A", connection_status="CONNECTED")
 
     # A second, DIFFERENT tenant must never be allowed to claim the SAME Phone Number ID.
-    result = provisioning.validate_and_connect_whatsapp(bid_b, admin, "dup-pnid-1", None, "TOK_B")
-    assert result["status"] == "VALIDATION_FAILED"
-    assert "duplicate_phone_number_id" in result["reason"]
-    config_b = chrepo.get_whatsapp_config(bid_b)
-    assert config_b["connection_status"] == "VALIDATION_FAILED", \
-        "provisioning.validate_and_connect_whatsapp must never leave a duplicated Phone Number ID as CONNECTED"
+    before_a = chrepo.get_whatsapp_config(bid_a)
+    with patch.object(provisioning, '_check_whatsapp_phone_number_reachable') as network:
+        try:
+            provisioning.validate_and_connect_whatsapp(bid_b, admin, "dup-pnid-1", None, "TOK_B")
+        except provisioning.ProvisioningError as exc:
+            assert str(exc) == 'assisted_connection_required'
+        else:
+            raise AssertionError('A new binding must require the assisted connection gates')
+        network.assert_not_called()
+    assert chrepo.get_whatsapp_config(bid_b) is None
+    assert chrepo.get_whatsapp_config(bid_a) == before_a
     print("test_whatsapp_validation_blocks_duplicate_phone_number_id_across_tenants OK")
 
 
@@ -559,6 +583,8 @@ def test_whatsapp_validation_fails_safe_without_reachable_meta_credential():
     reset_client_hub_db()
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-unreachable", "628700000003", configure_channel=False)
+    chrepo.upsert_whatsapp_config(bid, 'pnid-unreachable', None, 'TOK_UNREACHABLE_TEST', connection_status='CONNECTED')
+    chrepo.mark_whatsapp_validated(bid)
     os.environ.pop("TOK_UNREACHABLE_TEST", None)
 
     result = provisioning.validate_and_connect_whatsapp(bid, admin, "pnid-unreachable", None, "TOK_UNREACHABLE_TEST")
@@ -577,6 +603,9 @@ def test_whatsapp_validation_succeeds_and_marks_connected_when_meta_check_passes
     reset_client_hub_db()
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-reachable", "628700000004", configure_channel=False)
+    # Legacy validation can refresh an already verified mapping, never create a new one.
+    chrepo.upsert_whatsapp_config(bid, 'pnid-reachable', None, 'TOK_REACHABLE_TEST', connection_status='CONNECTED')
+    chrepo.mark_whatsapp_validated(bid)
     original_check = provisioning._check_whatsapp_phone_number_reachable
     provisioning._check_whatsapp_phone_number_reachable = lambda phone_number_id, credentials_reference, expected_business_phone=None: (True, "ok")
     try:
@@ -593,6 +622,8 @@ def test_whatsapp_validation_never_logs_or_returns_the_real_access_token_value()
     reset_client_hub_db()
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-secretcheck", "628700000005", configure_channel=False)
+    chrepo.upsert_whatsapp_config(bid, 'pnid-secretcheck', None, 'TOK_SECRET_VALUE_TEST', connection_status='CONNECTED')
+    chrepo.mark_whatsapp_validated(bid)
     os.environ["TOK_SECRET_VALUE_TEST"] = "super-secret-real-meta-token-value"
     try:
         result = provisioning.validate_and_connect_whatsapp(bid, admin, "pnid-secretcheck", None, "TOK_SECRET_VALUE_TEST")
@@ -848,6 +879,7 @@ if __name__ == "__main__":
     test_kilas_works_own_conversation_still_uses_global_channel()
     test_incomplete_tenant_channel_skips_send_never_falls_back_to_kilas_identity()
     test_never_connected_tenant_channel_skips_send()
+    test_known_phone_with_missing_or_wrong_waba_never_sends()
     test_same_customer_number_two_tenants_no_shared_conversation_or_facts()
     test_same_customer_number_two_tenants_customer_name_not_shared()
     test_kilas_works_own_conversation_key_unaffected_by_ck()

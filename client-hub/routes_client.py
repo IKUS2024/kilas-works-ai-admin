@@ -372,6 +372,10 @@ def wizard_step(business_id, step):
         return redirect(url_for("client.wizard_step", business_id=business_id, step=next_step))
     if step == "operations":
         print(f"PAYMENT_REDIRECT business_id={business_id} next_step=review")
+    import assist_journey
+    if assist_journey.onboarding_complete(business_id):
+        assist_journey.start_demo(business_id, user['id'])
+        return redirect(url_for('assist.training', business_id=business_id))
     return redirect(url_for("client.review_page", business_id=business_id))
 
 
@@ -590,7 +594,7 @@ def delete_file(business_id, file_id):
     return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
 
 
-def _run_ai_normalization(business_id, business, user):
+def _run_ai_normalization(business_id, business, user, *, preserve_status=False):
     """Shared normalization core — Gap-fix Area D. Used by BOTH the manual 'Jalankan (Ulang) AI
     Setup' button (unchanged, still available for re-runs/admin retries) AND the automatic
     normalization a normal client Submit now triggers on its own (see submit_for_review() below).
@@ -602,7 +606,8 @@ def _run_ai_normalization(business_id, business, user):
     fact — ai_onboarding.normalize_business_data() itself only reorganizes what the client actually
     provided (see that module for the "never invent" contract) and features_enabled always comes
     from repo.get_tenant_features(), never the model's own output."""
-    repo.set_business_status(business_id, "READY_FOR_AI_SETUP", user["id"], "AI normalization triggered")
+    if not preserve_status:
+        repo.set_business_status(business_id, "READY_FOR_AI_SETUP", user["id"], "AI normalization triggered")
     repo.set_ai_status(business_id, "RUNNING")
 
     profile = repo.get_business_profile(business_id)
@@ -629,20 +634,25 @@ def _run_ai_normalization(business_id, business, user):
         repo.write_audit(user["id"], business_id, "ai_normalization_failed", error)
         return False, error
 
-    for svc_row, ai_svc in zip(services, config.get("services", [])):
+    # Readiness certifies the exact version the owner tested. Normalization must not
+    # rewrite that version's FAQs or conversational training guide as a side effect.
+    normalized_services = [] if preserve_status else config.get('services', [])
+    normalized_faqs = [] if preserve_status else config.get('faqs', [])
+    for svc_row, ai_svc in zip(services, normalized_services):
         repo.update_normalized_service(
             svc_row["id"], ai_svc.get("service_name"), ai_svc.get("description"),
             ai_svc.get("price_from"), ai_svc.get("price_to"), ai_svc.get("currency") or "IDR",
             ai_svc.get("needs_review", True),
         )
-    for faq_row, ai_faq in zip(faqs, config.get("faqs", [])):
+    for faq_row, ai_faq in zip(faqs, normalized_faqs):
         repo.update_normalized_faq(
             faq_row["id"], ai_faq.get("question"), ai_faq.get("answer"),
             ai_faq.get("category") or "general", ai_faq.get("needs_review", True),
         )
 
     repo.save_ai_normalized_config(business_id, config.get("description"), config, config.get("missing_fields", []))
-    repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "AI normalization completed")
+    if not preserve_status:
+        repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "AI normalization completed")
     repo.write_audit(user["id"], business_id, "ai_normalization_run", "success")
     return True, None
 
@@ -766,9 +776,7 @@ def submit_for_review(business_id):
 @security.login_required
 def ai_admin_checkout(business_id):
     _business_or_404(business_id)
-    if request.method=='POST':
-        with db.app_purchase_transaction(business_id,None):
-            return _brain_checkout(business_id)
+    # assist_billing.purchase owns the lock and transaction, including retry reuse.
     return _brain_checkout(business_id)
 
 
@@ -800,45 +808,18 @@ def _brain_checkout(business_id):
     if missing:
         flash("Lengkapi data penting Kilas Assist dulu sebelum pembayaran: " + ", ".join(_human_missing_labels(missing)) + ".", "error")
         return redirect(url_for("client.wizard_step", business_id=business_id, step=_step_for_missing_fields(missing)))
-    target_package = request.args.get('package', 'AI_ADMIN')
-    if target_package not in ('AI_ADMIN', business['package']):
-        abort(403)
-    upgrade = business['package'] != 'AI_ADMIN'
-    catalog_key = 'ai_admin'
-    # Only resume a historical order when opening the existing legacy payment path.
-    # No new legacy-priced orders are created.
-    if 'package' not in request.args and upgrade:
-        legacy = db.query_one("SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? "
-                              "AND status NOT IN ('CANCELLED', 'COMPLETED', 'PAID', 'IN_PROGRESS') ORDER BY id DESC LIMIT 1",
-                              (business_id, business['package'].lower()))
-        if legacy:
-            return redirect(url_for('payments.checkout_page', project_id=legacy['id']))
-    if not catalog_key:
-        flash("Bisnis ini belum memilih paket Kilas Assist.", "error")
-        return redirect(url_for("client.dashboard"))
-
-    existing = db.query_one(
-        "SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? ORDER BY created_at DESC LIMIT 1",
-        (business_id, catalog_key),
-    )
-    if existing and upgrade:
-        used = db.query_one("SELECT a.id FROM audit_log a JOIN payments p ON a.detail = CAST(p.id AS TEXT) "
-            "JOIN invoices i ON i.id = p.invoice_id WHERE a.business_id = ? "
-            "AND a.action = 'PRO_ENTITLEMENT_APPLIED' AND i.project_id = ?", (business_id, existing['id']))
-        if used:
-            existing = None
+    import assist_billing
+    plan = request.args.get('plan') or ('ai_admin_pro' if business['package'] == 'AI_ADMIN_PRO' else 'ai_admin')
+    if plan not in assist_billing.ASSIST_PLANS:
+        abort(400)
+    existing = assist_billing.pending(business_id)
     if existing:
-        project_id = existing["id"]
-    else:
-        item = catalog_service.get_catalog_item(catalog_key)
-        if item is None:
-            flash("Paket Kilas Assist ini sedang tidak tersedia — hubungi Kilas Works.", "error")
-            return redirect(url_for("client.review_page", business_id=business_id))
-        if request.method=='GET':
-            return render_template('brain_checkout_start.html',business=business,item=item)
-        project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
-
-    return redirect(url_for("payments.checkout_page", project_id=project_id))
+        return redirect(url_for('payments.checkout_page',project_id=existing['id']))
+    facts = assist_billing.offer(business_id,plan)
+    if request.method == 'GET':
+        return render_template('brain_checkout_start.html',business=business,offer=facts)
+    project_id = assist_billing.purchase(business_id,user['id'],plan)
+    return redirect(url_for('payments.checkout_page',project_id=project_id))
 
 
 @client_bp.route("/business/<int:business_id>/ai-writing-help", methods=["POST"])
@@ -1046,64 +1027,8 @@ def _demo_kilas_audit_state(business_id, action):
 
 
 def _demo_kilas_bound_state(business_id):
-    session_state = _demo_kilas_state(business_id)
-    if session_state:
-        phone = platform_inbox_service.normalize_customer_phone(session_state.get("phone"))
-        start_message_id = session_state.get("start_message_id")
-        if phone and isinstance(start_message_id, int) and start_message_id > 0:
-            session_state["phone"] = phone
-            return session_state
-
-        # Compatibility recovery for sessions that successfully bound before persistent binding
-        # was introduced. The browser still holds the exact marker; recover that one conversation
-        # from the shared platform message log and immediately persist the durable binding below.
-        marker = _demo_kilas_marker(session_state)
-        if marker:
-            try:
-                min_message_id = max(0, int(session_state.get("min_message_id") or 0))
-            except (TypeError, ValueError):
-                min_message_id = 0
-            try:
-                recovered = db.query_one(
-                    "SELECT id, number FROM messages "
-                    "WHERE id>? AND mode IN ('customer','owner') AND role='user' AND content LIKE ? "
-                    "ORDER BY id DESC LIMIT 1",
-                    (min_message_id, "%" + marker + "%"),
-                )
-            except Exception:
-                recovered = None
-            recovered_phone = (
-                platform_inbox_service.normalize_customer_phone(recovered.get("number"))
-                if recovered else None
-            )
-            if recovered_phone:
-                recovered_state = dict(session_state)
-                recovered_state["phone"] = recovered_phone
-                recovered_state["start_message_id"] = int(recovered["id"])
-                recovered_state["bound_at"] = int(time.time())
-                _save_demo_kilas_state(business_id, recovered_state)
-                try:
-                    _persist_demo_kilas_bound(
-                        business_id, recovered_phone, int(recovered["id"])
-                    )
-                except Exception:
-                    pass
-                return recovered_state
-
-    state = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
-    if not state:
-        return None
-    phone = platform_inbox_service.normalize_customer_phone(state.get("phone"))
-    try:
-        start_message_id = int(state.get("start_message_id") or 0)
-    except (TypeError, ValueError):
-        return None
-    if not phone or start_message_id <= 0:
-        return None
-    state["phone"] = phone
-    state["start_message_id"] = start_message_id
-    return state
-
+    import assist_demo
+    return assist_demo.binding(business_id)
 
 def _demo_kilas_pending_state(business_id):
     state = _demo_kilas_state(business_id)
@@ -1190,76 +1115,15 @@ def sync_demo_kilas_lead(business_id):
 
 
 def _demo_kilas_phone_for_business(business_id):
-    """Resolve the demo phone and persist it so refreshes/redeploys keep the Inbox connected."""
-    bound = _demo_kilas_bound_state(business_id)
-    if bound:
-        try:
-            _persist_demo_kilas_bound(
-                business_id,
-                bound["phone"],
-                int(bound["start_message_id"]),
-            )
-        except Exception:
-            pass
-
-    pending = _demo_kilas_pending_state(business_id)
-    now = int(time.time())
-    if not pending or int(pending.get("expires_at") or 0) <= now:
-        return bound["phone"] if bound else None
-
-    marker = _demo_kilas_marker(pending)
-    if not marker:
-        return bound["phone"] if bound else None
-    try:
-        min_message_id = max(0, int(pending.get("min_message_id") or 0))
-    except (TypeError, ValueError):
-        min_message_id = 0
-
-    try:
-        row = db.query_one(
-            "SELECT id, number FROM messages "
-            "WHERE id>? AND mode IN ('customer','owner') AND role='user' AND content LIKE ? "
-            "ORDER BY id DESC LIMIT 1",
-            (min_message_id, "%" + marker + "%"),
-        )
-    except Exception:
-        return bound["phone"] if bound else None
-
-    phone = platform_inbox_service.normalize_customer_phone(row.get("number")) if row else None
-    if not phone:
-        return bound["phone"] if bound else None
-
-    start_message_id = int(row["id"])
-    state = dict(pending)
-    state["phone"] = phone
-    state["start_message_id"] = start_message_id
-    state["bound_at"] = now
-    state["expires_at"] = now + _DEMO_KILAS_BOUND_SECONDS
-    _save_demo_kilas_state(business_id, state)
-    _persist_demo_kilas_bound(business_id, phone, start_message_id)
-    return phone
-
+    import assist_demo, assist_journey
+    if assist_journey.state(repo.get_business(business_id))['connected']:
+        return None
+    bound = assist_demo.binding(business_id)
+    return bound['phone'] if bound else None
 
 def _demo_kilas_rows(business_id, phone, limit=160):
-    """Return the permanently-bound demo thread for this business."""
-    state = _demo_kilas_bound_state(business_id) or {}
-    try:
-        start_message_id = int(state.get("start_message_id") or 0)
-    except (TypeError, ValueError):
-        start_message_id = 0
-    if start_message_id <= 0:
-        return []
-    try:
-        rows = db.query_all(
-            "SELECT id, role, content, created_at FROM messages "
-            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id ASC LIMIT ?",
-            (phone, start_message_id, int(limit)),
-        )
-    except Exception:
-        return []
-    return inbox_media_service.attach([dict(row) for row in rows], None)
-
+    import assist_demo
+    return inbox_media_service.attach(assist_demo.rows(business_id, phone, limit=limit), None)
 
 def _demo_kilas_clean_thread(business_id, phone):
     rows = _demo_kilas_rows(business_id, phone)
@@ -1295,7 +1159,16 @@ def _demo_kilas_clean_thread(business_id, phone):
             handshake_reply_cleaned = True
 
         cleaned.append(item)
-    return ai_reply_explanation.attach_demo(cleaned, business_id, allow_visible_fallback=True)
+    import assist_demo
+    bound = assist_demo.binding(business_id, phone)
+    if bound:
+        traces = db.query_all('SELECT reply_message_id,explanation_json FROM kw_assist_demo_events '
+                              'WHERE business_id=? AND session_id=?', (business_id,bound['id']))
+        by_id = {r['reply_message_id']: json.loads(r['explanation_json']) for r in traces if r['explanation_json']}
+        for item in cleaned:
+            if item['id'] in by_id:
+                item['analysis'] = by_id[item['id']]
+    return cleaned
 
 
 def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
@@ -1339,8 +1212,19 @@ def demo_kilas_whatsapp(business_id):
         flash("Demo Kilas tersedia dari workspace Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
+    import assist_journey
+    journey = assist_journey.state(business)
+    if journey['connected']:
+        return redirect(url_for('client.inbox_page', business_id=business_id), code=303)
+    if not journey['ready'] or not journey['onboarding_complete']:
+        return redirect(url_for('assist.training', business_id=business_id), code=303)
+    if not (journey['demo_active'] or journey['paid']):
+        return redirect(url_for('workspace.usage', bid=business_id), code=303)
+
     existing_phone = _demo_kilas_phone_for_business(business_id)
-    if existing_phone:
+    import assist_demo
+    existing_binding = assist_demo.binding(business_id)
+    if existing_phone and existing_binding['active'] and existing_binding['expires_at'] > int(time.time()):
         return redirect(
             url_for(
                 "client.inbox_page",
@@ -1351,27 +1235,9 @@ def demo_kilas_whatsapp(business_id):
             code=303,
         )
 
-    raw_code = secrets.token_hex(4).upper()
-    code = raw_code[:4] + "-" + raw_code[4:]
-    try:
-        latest = db.query_one("SELECT COALESCE(MAX(id),0) AS max_id FROM messages")
-        min_message_id = int((latest or {}).get("max_id") or 0)
-    except Exception:
-        min_message_id = 0
-    pending_state = {
-        "code": code,
-        "phone": None,
-        "min_message_id": min_message_id,
-        "created_at": int(time.time()),
-        "expires_at": int(time.time()) + _DEMO_KILAS_PENDING_SECONDS,
-    }
-    _save_demo_kilas_state(business_id, pending_state)
-    _persist_demo_kilas_started(business_id, pending_state)
-    text = (
-        "Halo Kilas Works 👋\n"
-        "Saya mau coba Kilas Assist.\n\n"
-        "Demo ID: " + code
-    )
+    import assist_demo
+    _, marker = assist_demo.begin(business_id, security.current_user()['id'])
+    text = "Halo Kilas Works. Saya mau mencoba Kilas Assist.\n" + marker
     return redirect(
         "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),
         code=302,
@@ -1530,6 +1396,11 @@ def _demo_kilas_bound_phone_or_404(business_id, supplied=None):
     phone = platform_inbox_service.normalize_customer_phone(supplied or bound)
     if not bound or phone != bound or not _demo_kilas_clean_thread(business_id, phone):
         abort(404)
+    if request.method == 'POST':
+        import assist_demo
+        binding = assist_demo.binding(business_id, phone)
+        if not binding or not binding['active'] or binding['expires_at'] <= int(time.time()):
+            abort(404)
     return phone
 
 
@@ -1568,7 +1439,10 @@ def demo_inbox_reply(business_id):
     if not text:
         flash("Pesan tidak boleh kosong.", "error")
         return _demo_kilas_inbox_redirect(business_id, phone)
-    ok, reason = platform_inbox_service.send_manual_reply(phone, text)
+    import assist_demo
+    bound = assist_demo.binding(business_id, phone)
+    ok, reason = platform_inbox_service.send_manual_reply(phone, text,
+        demo_scope={'business_id': business_id, 'session_id': bound['id']})
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_MANUAL_REPLY_SENT", f"customer={phone}")
@@ -1590,7 +1464,10 @@ def demo_inbox_reply(business_id):
 @security.login_required
 def demo_inbox_send_template(business_id):
     phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
-    ok, reason = platform_inbox_service.send_template_reply(phone)
+    import assist_demo
+    bound=assist_demo.binding(business_id,phone)
+    ok, reason = platform_inbox_service.send_template_reply(phone,
+        demo_scope={'business_id':business_id,'session_id':bound['id']})
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
@@ -1622,8 +1499,11 @@ def demo_inbox_media_send(business_id):
     if not request.content_length or request.content_length > 12 * 1024 * 1024:
         abort(413)
     phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    import assist_demo
+    bound=assist_demo.binding(business_id,phone)
     ok, reason = inbox_media_service.platform_send(
-        phone, request.files.get("file"), request.form.get("caption"))
+        phone, request.files.get("file"), request.form.get("caption"),
+        demo_scope={"business_id":business_id,"session_id":bound["id"]})
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_MEDIA_SENT", f"customer={phone}")

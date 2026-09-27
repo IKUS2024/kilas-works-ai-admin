@@ -33,7 +33,9 @@ def signup(page, name):
     page.locator('[name=email]').fill('release-' + name + '@example.test')
     page.locator('[name=password]').fill(PASSWORD)
     page.locator('button.auth-submit').click()
-    expect(page.get_by_role('button', name='Pilih Layani Customer', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='Pilih Kilas Assist', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='Pilih Kilas Finance', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='Pilih Keduanya', exact=False)).to_have_count(0)
 
 
 def send(page, message):
@@ -54,7 +56,7 @@ def main():
         owner = new_page(); data = owner.context.request.get(BASE + '/dev/health').json()
         bid, target, branch = data['source'], data['target'], data['branch']
         # Registration, intent, business creation and minimal profile use real forms.
-        for persona, label in [('ai','Layani Customer'), ('both','Keduanya')]:
+        for persona, label in [('ai','Kilas Assist'), ('both','Kilas Assist')]:
             page = new_page(); signup(page, persona)
             page.get_by_role('button', name='Pilih ' + label, exact=False).click()
             page.get_by_label('Nama bisnis', exact=True).fill('Release ' + persona)
@@ -79,7 +81,7 @@ def main():
                 assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')
-        finance_only.get_by_role('button', name='Pilih Kelola Keuangan', exact=False).click()
+        finance_only.get_by_role('button', name='Pilih Kilas Finance', exact=False).click()
         finance_only.get_by_role('button', name='Mulai Sekarang', exact=False).click()
         expect(finance_only.get_by_role('heading', name='Release finance', exact=True)).to_be_visible()
         finance_bid = re.search(r'/business/(\d+)/finance', finance_only.url).group(1)
@@ -176,8 +178,10 @@ def main():
         assert owner.context.request.post(BASE + public_link_path, data={}).status == 400
         response = owner.context.request.post(BASE + public_link_path, data={},
             headers={'X-CSRF-Token':csrf})
-        assert response.ok, response.text()
-        visitor = new_page(); visitor.goto(BASE + response.json()['path'])
+        assert response.status == 410, response.text()
+        fixture = owner.context.request.get(BASE + '/dev/chat-path')
+        assert fixture.ok and fixture.json()['synthetic'] is True
+        visitor = new_page(); visitor.goto(BASE + fixture.json()['path'])
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(1, timeout=15000)
         assert 'volume' in visitor.locator('.web-bubble.assistant').inner_text()
@@ -257,10 +261,11 @@ def main():
         shot(owner, 'job-invoice-issued-payment-task')
 
         # Human confirms the full outstanding payment. Finance must own the resulting ledger write.
-        payment = owner.locator('form').filter(has=owner.get_by_role('button', name='Invoice sudah dibayar', exact=True))
+        payment = owner.locator('form').filter(has=owner.get_by_role('button', name='Konfirmasi Pembayaran', exact=True))
         payment.locator('[name=account_id]').select_option(index=1)
         payment.locator('[name=category_id]').select_option(index=1)
-        payment.get_by_role('button', name='Invoice sudah dibayar', exact=True).click()
+        payment.get_by_role('button', name='Konfirmasi Pembayaran', exact=True).click()
+        expect(owner.locator('span.client-status').first).to_have_text('Selesai')
         expect(owner.get_by_text('Lunas · pembayaran sudah masuk sebagai pemasukan di Kilas Finance.', exact=True)).to_be_visible()
         shot(owner, 'job-invoice-paid-finance-income')
         invoice_link = owner.get_by_role('link', name='Buka Invoice di Finance', exact=True)

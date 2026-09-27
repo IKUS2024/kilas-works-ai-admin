@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block title %}Kilas Works · Kilas Assist & Kilas Finance{% endblock %}
+{% block content %}
+<section class="kw-page"><header class="kw-page-head"><div><p class="kw-eyebrow">KILAS WORKS</p><h1>WhatsApp terlayani. Pekerjaan tertata.</h1><p>Ajari Kilas Assist tentang bisnis Anda. Kelola percakapan, customer, dan Jobs dalam satu ruang kerja, dengan pembukuan terpisah di Kilas Finance.</p><div class="kw-actions"><a class="btn" href="{{ url_for('auth.register_page') }}">Daftar · demo gratis 7 hari</a><a class="btn secondary" href="{{ url_for('auth.login_page') }}">Masuk</a></div></div></header>
+<section class="card"><h2>Mulai dari akun Anda</h2><p>Daftar, lengkapi profil bisnis, ajari Kilas, lalu tes jawabannya. Setelah siap, coba percakapan sungguhan melalui WhatsApp Demo Kilas.</p><p>Saat memilih paket, tim Kilas membantu menghubungkan nomor WhatsApp bisnis Anda.</p></section>
+{% include '_assist_pricing.html' %}
+</section>{% endblock %}

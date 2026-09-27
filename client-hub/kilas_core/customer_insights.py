@@ -139,6 +139,7 @@ def _normalize(value):
         "job_status": value.get("job_status") if value.get("job_status") in
                       ("PERLU_TINDAKAN", "DIKERJAKAN", "BATAL") else None,
     })
+    if '_payment_evidence' in value:result['_payment_evidence']=_clean_string(value['_payment_evidence'],900) or ''
     return result
 
 
@@ -167,31 +168,8 @@ def _stored(business_id, customer_id):
 
 
 def _demo_binding(business_id, phone):
-    if not phone:
-        return None
-    try:
-        with customers.transaction() as tx:
-            row = tx.one(
-                "SELECT detail FROM audit_log WHERE business_id=? AND action='demo_whatsapp_bound' "
-                "ORDER BY id DESC LIMIT 1",
-                (business_id,),
-            )
-    except Exception:
-        return None
-    if not row or not row.get("detail"):
-        return None
-    try:
-        detail = json.loads(row["detail"])
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(detail, dict) or detail.get("phone") != phone:
-        return None
-    try:
-        start = int(detail.get("start_message_id") or 0)
-    except (TypeError, ValueError):
-        return None
-    return {"phone": phone, "start_message_id": start} if start > 0 else None
-
+    import assist_demo
+    return assist_demo.binding(business_id, phone) if phone else None
 
 def _core_messages(business_id, customer_id, after):
     try:
@@ -202,9 +180,9 @@ def _core_messages(business_id, customer_id, after):
                 "JOIN kw_web_conversations w ON w.business_id=l.business_id AND w.id=l.conversation_id "
                 "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
                 "JOIN kw_web_messages m ON m.business_id=w.business_id AND m.conversation_id=w.id "
-                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' AND m.id>? "
+                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE ? AND m.id>? "
                 "ORDER BY m.id ASC LIMIT ?",
-                (business_id, customer_id, int(after), MAX_NEW_MESSAGES),
+                (business_id, customer_id, 'wa_%', int(after), MAX_NEW_MESSAGES),
             )
     except Exception:
         return []
@@ -221,9 +199,9 @@ def whatsapp_conversation_rows(business_id, customer_id):
                 "FROM kw_web_customer_links l "
                 "JOIN kw_web_conversations w ON w.business_id=l.business_id AND w.id=l.conversation_id "
                 "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
-                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' "
+                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE ? "
                 "ORDER BY w.updated_at DESC",
-                (business_id, customer_id),
+                (business_id, customer_id, 'wa_%'),
             )
     except Exception:
         return []
@@ -287,16 +265,8 @@ def _demo_messages(business_id, customer, after):
     binding = _demo_binding(business_id, customer.get("phone"))
     if not binding:
         return []
-    minimum = max(binding["start_message_id"], int(after) + 1)
-    try:
-        rows = db.query_all(
-            "SELECT id,role,content,created_at FROM messages "
-            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id ASC LIMIT ?",
-            (binding["phone"], minimum, MAX_NEW_MESSAGES),
-        )
-    except Exception:
-        return []
+    import assist_demo
+    rows = assist_demo.rows(business_id, binding['phone'], after=after, limit=MAX_NEW_MESSAGES)
     cleaned = []
     for raw in rows:
         row = dict(raw)
@@ -429,18 +399,11 @@ def demo_conversation_row(business_id, customer):
     binding = _demo_binding(business_id, customer.get("phone"))
     if not binding:
         return None
-    try:
-        rows = db.query_all(
-            "SELECT id,role,content,created_at FROM messages "
-            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id DESC LIMIT 1",
-            (binding["phone"], binding["start_message_id"]),
-        )
-    except Exception:
-        return None
+    import assist_demo
+    rows = assist_demo.rows(business_id, binding['phone'])
     if not rows:
         return None
-    latest = dict(rows[0])
+    latest = dict(rows[-1])
     return {
         "id": "demo:" + binding["phone"],
         "mode": "AI_ACTIVE",

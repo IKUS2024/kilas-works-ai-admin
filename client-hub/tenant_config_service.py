@@ -70,17 +70,19 @@ def get_open_projects_summary(tenant_id):
     return summaries
 
 
-def resolve_tenant_id_by_whatsapp_phone_number_id(whatsapp_phone_number_id):
+def resolve_tenant_id_by_whatsapp_phone_number_id(whatsapp_phone_number_id, waba_id=None):
     """The ONLY tenant-resolution entrypoint this module exposes. Returns business_id or None.
     Only ACTIVE tenants resolve — an approved-but-not-yet-activated or suspended tenant must not
     have its config consumed by the live bot."""
     if not whatsapp_phone_number_id:
         return None
     rows = db.query_all(
-        "SELECT id FROM businesses WHERE whatsapp_phone_number_id = ? AND status = 'ACTIVE' LIMIT 2",
+        """SELECT b.id,c.waba_id FROM businesses b JOIN tenant_whatsapp_config c ON c.business_id=b.id
+        WHERE c.phone_number_id=? AND b.whatsapp_phone_number_id=c.phone_number_id
+        AND b.status='ACTIVE' AND c.connection_status='CONNECTED' LIMIT 2""",
         (whatsapp_phone_number_id,),
     )
-    return rows[0]["id"] if len(rows) == 1 else None
+    return rows[0]["id"] if len(rows) == 1 and (waba_id is None or str(rows[0]["waba_id"]) == str(waba_id)) else None
 
 
 def get_trusted_owner_phone(tenant_id):

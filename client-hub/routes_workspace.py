@@ -9,21 +9,28 @@ workspace_bp = Blueprint('workspace', __name__)
 def context():
     if hasattr(g, 'kilas_workspace'):
         return g.kilas_workspace
-    result = dict(enabled=False, ai=[], finance=[], unavailable=False, active='more', product='ai')
+    result = dict(enabled=False, ai=[], finance=[], unavailable=False, active='more', product='ai', finance_visible=False)
     g.kilas_workspace = result
-    if not session.get('user_id') or session.get('role') == 'KILAS_ADMIN':
+    if not session.get('user_id') or (session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id')):
         return result
     # Public customer links/documents never acquire owner navigation.
     if request.blueprint == 'public_web' or request.endpoint in (
         'finance.customer_invoice', 'finance.customer_invoice_pdf', 'finance.public_statement'):
         return result
     result['enabled'] = True
+    import finance_entitlements
+    result['finance_visible'] = finance_entitlements.self_service() or finance_entitlements.flag('KILAS_FINANCE_BETA')
     try:
         from routes_products import _finance_business_claimed
         from kilas_core.customers import AI_PACKAGES
-        rows = repo.list_businesses_for_user(session['user_id'])
+        rows = ([repo.get_business(session['support_business_id'])] if session.get('role')=='KILAS_ADMIN'
+                else repo.list_businesses_for_user(session['user_id']))
+        rows = [r for r in rows if r]
         result['ai'] = [r for r in rows if r.get('package') in AI_PACKAGES]
         result['finance'] = [r for r in rows if _finance_business_claimed(r['id'])]
+        # Assist includes a separate Finance workspace; this is navigation only.
+        # Finance still owns membership, entitlement, branch and write checks.
+        result['finance_visible'] = bool(result['finance_visible'] or result['ai'] or result['finance'])
     except Exception:
         # Presentation failure never grants access or asserts there are no records.
         result['unavailable'] = True
@@ -36,7 +43,7 @@ def context():
     ep = request.endpoint or ''
     # The validated page owns its product context. Preferences never grant access.
     ai_page = (ep.startswith(('core_customers.', 'core_jobs.', 'core_operations.', 'core_finance_bridge.', 'owner_web.'))
-               or ep.startswith('client.') and ep != 'client.dashboard'
+               or ep.startswith('assist.') or ep.startswith('client.') and ep != 'client.dashboard'
                or ep == 'workspace.ai_home')
     result['product'] = ('finance' if ep.startswith('finance.') else 'ai' if ai_page else
                          'finance' if session.get('active_product') == 'finance' and result['finance'] else
@@ -56,13 +63,14 @@ def context():
 
 @workspace_bp.app_context_processor
 def workspace_context():
-    return {'workspace_ui': context()}
+    import assist_journey
+    return {'workspace_ui': context(), 'assist_journey_state': assist_journey.state}
 
 
 @workspace_bp.get('/workspace')
 @security.login_required
 def home():
-    if session.get('role') == 'KILAS_ADMIN':
+    if session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id'):
         return redirect(url_for('admin.dashboard'), code=303)
     ui = context()
     if not ui['unavailable'] and ui['product'] == 'finance':
@@ -74,6 +82,8 @@ def _ai_home(ui):
     import workspace_presenter
     if not ui['unavailable']:
         ui['setup'] = {b['id']: workspace_presenter.setup(b) for b in ui['ai']}
+        import assist_journey
+        ui['journey'] = {b['id']: assist_journey.state(b) for b in ui['ai']}
         # Home and Inbox must use ONE authoritative Demo WhatsApp binding. Reuse the exact
         # resolver behind client.demo_kilas_whatsapp/inbox_page; never create a second notion of
         # "connected" in the presentation layer.
@@ -89,7 +99,7 @@ def _ai_home(ui):
 @workspace_bp.get('/workspace/ai')
 @security.login_required
 def ai_home():
-    if session.get('role') == 'KILAS_ADMIN':
+    if session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id'):
         return redirect(url_for('admin.dashboard'), code=303)
     ui = context()
     if not ui['unavailable'] and not ui['ai'] and ui['finance']:
@@ -104,6 +114,20 @@ def more():
     return render_template('workspace_more.html', user=security.current_user())
 
 
+@workspace_bp.get('/workspace/usage/<int:bid>')
+@security.login_required
+def usage(bid):
+    business = security.require_business_access(bid, security.current_user())
+    from kilas_core.customers import AI_PACKAGES
+    if business['package'] not in AI_PACKAGES:
+        abort(404)
+    import assist_journey
+    import ai_usage
+    return render_template('assist_usage.html', business=business,
+                           journey=assist_journey.state(business),
+                           usage=ai_usage.client_summary(bid))
+
+
 @workspace_bp.get('/workspace/go/<area>')
 @security.login_required
 def go(area):
@@ -113,9 +137,9 @@ def go(area):
               'bills': 'products.account_bills', 'account': 'auth.account_page',
               'ai_setup': 'products.assist_entry', 'finance_setup': 'products.finance_entry'}
     core = {'inbox': 'client.inbox_page', 'customers': 'core_customers.list_page',
-            'jobs': 'core_jobs.list_page', 'knowledge': 'client.business_memory',
-            'simulate': 'client.simulate_page', 'settings': 'client.business_settings',
-            'review': 'client.review_page', 'automations': 'core_operations.settings'}
+            'jobs': 'core_jobs.list_page', 'knowledge': 'assist.training',
+            'simulate': 'assist.training', 'settings': 'client.business_settings',
+            'review': 'assist.whatsapp', 'automations': 'core_operations.settings'}
     if area in common:
         if area not in ('account', 'bills'):
             session.pop('active_product', None)
@@ -156,7 +180,4 @@ def go(area):
     if (area == 'automations' and (not operation_access.enabled() or not web_available(business))) or (area == 'customers' and not customers.enabled()) or (area == 'jobs' and not workspace_available(business)) or (area == 'automations' and not available(business)):
         return render_template('workspace_unavailable.html', business=business), 200
     params = {'bid' if area in ('customers', 'jobs', 'automations') else 'business_id': business['id']}
-    if area == 'inbox':
-        if web_available(business):
-            params['channel'] = 'web'
     return redirect(url_for(core[area], **params), code=303)

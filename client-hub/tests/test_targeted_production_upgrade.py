@@ -91,15 +91,20 @@ class TargetedHubTests(unittest.TestCase):
         r=self.client.post('/reset-password/'+raw,data={'password':'otherpass123','confirm_password':'otherpass123'})
         self.assertIn('forgot-password',r.location)
 
-    def test_active_tenant_edits_live_memory_without_reonboarding(self):
+    def test_active_tenant_edits_draft_memory_without_resetting_approved_config(self):
+        import provisioning
+        repo.save_tenant_config(self.bid, provisioning.build_tenant_config(self.bid))
+        before=tcs.get_tenant_config(self.bid)
         r=self.client.post(f'/business/{self.bid}/memory',data=self.memory())
         self.assertEqual(r.status_code,302)
         config=tcs.get_tenant_config(self.bid)
-        self.assertEqual(config['ai']['tone'],'ramah singkat');self.assertEqual(config['ai']['system_instructions'],'Bisnis milik sendiri')
-        self.assertEqual(config['knowledge']['services'][0]['raw_input'],'Kopi susu Rp20.000')
-        self.assertEqual(config['knowledge']['faq'][0]['answer'],'Senin-Sabtu')
+        self.assertEqual(config,before)
+        profile=repo.get_business_profile(self.bid)
+        self.assertEqual(profile['tone'],'ramah singkat');self.assertEqual(profile['short_description'],'Bisnis milik sendiri')
+        self.assertEqual(repo.get_business_services(self.bid)[0]['raw_input'],'Kopi susu Rp20.000')
+        self.assertEqual(repo.get_business_faqs(self.bid)[0]['answer'],'Senin-Sabtu')
         self.assertEqual(repo.get_business(self.bid)['status'],'ACTIVE')
-        self.assertEqual(config['business_info']['business_hours']['raw'],'09-17')
+        self.assertEqual(profile['operating_hours'],'09-17')
 
     def test_cross_tenant_memory_get_and_post_denied(self):
         other=repo.create_user('other@test.com','unused');bid=repo.create_business(other,'Foreign','AI_ADMIN_PRO')
@@ -157,6 +162,10 @@ class TargetedHubTests(unittest.TestCase):
 
     def test_upgrade_checkout_does_not_grant_entitlement(self):
         self.subscribe()
+        repo.upsert_business_profile(self.bid,dict(owner_name='Pemilik',category='Kopi',
+            operating_hours='09-17',online_or_offline='online',business_phone='628123000000'))
+        repo.replace_business_services(self.bid,['Kopi susu Rp20.000'])
+        self.assertEqual(repo.required_fields_missing(self.bid),[])
         r=self.client.post(f'/business/{self.bid}/ai-admin/checkout?package=AI_ADMIN')
         self.assertEqual(r.status_code,302)
         self.assertTrue(db.query_one("SELECT id FROM projects WHERE business_id=? AND catalog_key='ai_admin'",(self.bid,)))

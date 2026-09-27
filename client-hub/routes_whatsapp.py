@@ -12,6 +12,17 @@ import whatsapp_signup as signup
 whatsapp_bp = Blueprint('whatsapp', __name__)
 log = logging.getLogger(__name__)
 
+@whatsapp_bp.before_request
+def assisted_only():
+    user=security.current_user()
+    if not user:return None  # Existing authentication decorator handles anonymous requests.
+    bid=(request.view_args or {}).get('business_id')
+    if bid is not None:security.require_business_access(bid,user)
+    if request.method=='GET' and bid is not None:
+        return redirect(url_for('assist.whatsapp',business_id=bid),code=303)
+    abort(410)  # Embedded Signup / Coexistence writes are retired in the assisted product.
+
+
 def _meta_review_test_asset(business_id):
     """Return the one explicitly configured Meta test asset for the dedicated reviewer demo.
 

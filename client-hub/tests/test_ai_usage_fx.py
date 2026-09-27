@@ -96,7 +96,7 @@ class FXTests(unittest.TestCase):
         self.assertEqual(response.status_code,200)
         self.assertIn(f'Estimasi USD: {usd:.6f}',body)
         self.assertIn(f"Estimasi IDR: {Decimal(str(usd))*Decimal('16000.25'):.0f}",body)
-        for text in ('Kurs acuan USD/IDR','16000.25','2026-01-02','Frankfurter v2','Pendapatan referensi IDR: 499000'):
+        for text in ('Kurs acuan USD/IDR','16000.25','2026-01-02','Frankfurter v2','Pendapatan referensi IDR: 299000'):
             self.assertIn(text,body)
         self.client.get('/admin/ai-usage');self.get.assert_called_once()
         self.assertEqual(before,f.db.query_all('SELECT * FROM ai_usage_ledger ORDER BY id'))

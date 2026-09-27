@@ -1,12 +1,12 @@
 {% if finance_bridge_panel is defined %}
-{% if job is not defined or not job or job.owner_status == 'IN_PROGRESS' %}
+{% if job is not defined or not job or job.owner_status in ('IN_PROGRESS','COMPLETED') %}
 {% set bridge_panel = finance_bridge_panel(business, customer.id, job.id if job is defined and job else none) %}
 {% if bridge_panel %}
 <div class="card" data-finance-bridge>
   {% if job is defined and job %}
-    {% if job.owner_status == 'IN_PROGRESS' %}
+    {% if job.owner_status in ('IN_PROGRESS','COMPLETED') %}
       <h2>Tugas manusia · Invoice</h2>
-      <p class="client-note">Customer sudah deal. Buat dan terbitkan invoice, lalu catat pembayaran di sini.</p>
+      <p class="client-note">Customer sudah masuk tahap invoice atau pembayaran. Periksa rincian invoice dan konfirmasi pembayaran yang benar-benar diterima.</p>
       {% if bridge_panel.unavailable %}
         <p>Akses Kilas Finance belum tersedia.</p>
         {% if not bridge_panel.automatic_finance %}
@@ -84,7 +84,7 @@
               </select>
             </label>
             <label>Catatan <input name="note" maxlength="1000" placeholder="Opsional"></label>
-            <button class="btn" type="submit">Invoice sudah dibayar</button>
+            <button class="btn" type="submit">Konfirmasi Pembayaran</button>
           </form>
           <p class="client-note">Nominal yang dicatat adalah sisa invoice. Kilas Finance otomatis membuat transaksi pemasukan dan memperbarui invoice menjadi lunas.</p>
           {% endif %}

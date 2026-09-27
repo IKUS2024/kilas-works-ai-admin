@@ -181,8 +181,8 @@ def test_H_services_page_still_renders_full_catalog():
     resp = client.get("/services")
     assert resp.status_code == 200
     body = resp.data.decode()
-    assert "Kilas Brain" in body
-    assert "Landing Page" in body
+    assert "Kilas Assist" in body
+    assert "Landing Page" in client.get('/services?q=Landing+Page').text
     print("test_H_services_page_still_renders_full_catalog OK")
 
 
@@ -197,12 +197,12 @@ def test_H_deactivated_service_disappears_from_services_page():
     # the substring "Landing Page" but at a different price, so a bare substring check on the
     # name alone would false-positive against that unrelated bundle; pairing name+price
     # disambiguates the exact standalone item this test is about.
-    before = client.get("/services").data.decode()
+    before = client.get("/services?q=Landing+Page").data.decode()
     assert ">Landing Page<" in before and "Rp799.000" in before
 
     client.post(f"/admin/catalog/{item['id']}/toggle-active", data={"csrf_token": "x"})
     client.get("/services")  # consume the one-shot flash message before the real check
-    resp = client.get("/services")
+    resp = client.get("/services?q=Landing+Page")
     body = resp.data.decode()
     assert ">Landing Page<" not in body, "a deactivated service must disappear from customer browsing"
     print("test_H_deactivated_service_disappears_from_services_page OK")

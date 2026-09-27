@@ -4,6 +4,7 @@ This is intentionally downstream of Customer Insight: chat delivery never waits 
 and raw chat text never writes a Job directly. The structured Insight decides whether there is
 an actionable next step. Existing manual/playbook Jobs always win to avoid duplicate work.
 """
+from contextlib import nullcontext
 import hashlib
 import json
 import re
@@ -43,12 +44,18 @@ _PAYMENT_STEP_META = "payment_step_reached"
 
 def _payment_step_text(*values):
     text = " ".join(_clean(value, 900) for value in values if _clean(value, 900))
-    return bool(_PAYMENT_STEP_HINT.search(text))
+    # Negative / hypothetical clauses do not establish a payment stage.
+    clauses = re.split(r'[,;.!?\n]|\btapi\b|\btetapi\b', text.lower())
+    return any(_PAYMENT_STEP_HINT.search(clause) and not re.search(
+        r'\b(belum|tidak|jangan|nggak|enggak|gak|ga|bukan|tanpa|nanti kalau|jika|kalau|apakah)\b', clause)
+        for clause in clauses)
 
 
 def _insight_payment_step(insight):
     if not isinstance(insight, dict):
         return False
+    if '_payment_evidence' in insight:
+        return bool(insight['_payment_evidence']) and _payment_step_text(insight['_payment_evidence'])
     return _payment_step_text(
         insight.get("action"),
         insight.get("summary"),
@@ -163,19 +170,13 @@ def _platform_candidate_needs_analysis(customer):
 
 
 def promote_lead_if_actionable(business, customer, insight, actor_id=None):
-    """Promote only the hidden Kilas Works platform Lead when Insight proves concrete intent.
+    """Promote a tenant-scoped Lead when Insight proves concrete intent.
 
     No keyword directly changes CRM stage. The existing Customer Insight contract must provide
     both a concrete action and a positive owner-facing job signal. Informational questions,
     comparisons, vague interest, and cancellations remain Lead.
     """
     if not business or not customer or not isinstance(insight, dict):
-        return customer
-    try:
-        import platform_workspace
-        if not platform_workspace.is_scope_business(business["id"]):
-            return customer
-    except Exception:
         return customer
     if customer.get("stage") != "LEAD":
         return customer
@@ -251,7 +252,7 @@ def reconcile_actionable_platform_leads(business, actor_id=None, limit=3):
     return promoted_count
 
 
-def sync_from_insight(business, customer, insight):
+def sync_from_insight(business, customer, insight, *, transaction=None):
     """Keep one Customer Job aligned with the customer's concrete action and explicit deal/cancel signal."""
     if not jobs.enabled() or not business or not customer or not isinstance(insight, dict):
         return None
@@ -278,7 +279,7 @@ def sync_from_insight(business, customer, insight):
         ref = "insight:" + _fingerprint(insight)
 
     bid, cid = business["id"], customer["id"]
-    with jobs.transaction() as tx:
+    with (nullcontext(transaction) if transaction is not None else jobs.transaction()) as tx:
         jobs._lock(tx, bid)
         jobs._references(tx, bid, cid, None)
         rows = tx.execute(

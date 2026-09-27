@@ -301,14 +301,8 @@
   <nav>
     {% if session.get('user_id') %}
       {% if session.get('role') == 'KILAS_ADMIN' %}
-        <a href="{{ url_for('admin.dashboard') }}">Admin</a>
-        <a href="{{ url_for('admin.platform_inbox') }}">Inbox</a>
-        <a href="{{ url_for('admin.catalog_admin') }}">Katalog</a>
-        <a href="{{ url_for('admin.ai_usage_dashboard') }}">Biaya AI</a>
-        <a href="{{ url_for('admin.projects_admin') }}">Projects</a>
-        <a href="{{ url_for('admin.payments_admin') }}">Payments</a>
-        <a href="{{ url_for('admin.talent_admin') }}">Talent</a>
-        <a href="{{ url_for('admin.admin_search') }}">Search</a>
+        <a href="{{ url_for('platform_control.page') }}">Platform Admin</a>
+        <a href="{{ url_for('auth.logout_page') }}">Logout</a>
       {% else %}
         {% set customer_endpoint = request.endpoint or '' %}
         {% set customer_blueprint = request.blueprint or '' %}
@@ -336,7 +330,10 @@
 {% endif %}
 
 {% if not (finance_ui and finance_ui.enabled) %}{% include '_workspace_nav.html' %}{% endif %}
-{% include '_operator_nav.html' %}
+{% if request.blueprint != 'platform_control' and not support_business %}{% include '_operator_nav.html' %}{% endif %}
+{% if support_business %}<aside role="status" style="position:sticky;top:0;z-index:120;padding:12px 20px;background:#614400;color:white;border-bottom:2px solid #ffb347">
+<strong>Anda sedang mengakses {{ support_business.business_name }} sebagai Kilas Admin</strong>
+<form class="inline" method="post" action="{{ url_for('platform_control.support_exit') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary">Akhiri akses support</button></form></aside>{% endif %}
 <div id="kw-main" tabindex="-1" class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}">
 {% if workspace_ui and workspace_ui.enabled %}{% include '_product_switcher.html' %}{% endif %}
 {% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}

@@ -279,8 +279,7 @@ def test_subscription_created_on_first_activation_pro():
 
 
 def test_pricing_config_unchanged():
-    """Gap-fix Area E must NEVER redefine pricing — Basic Rp499.000 / Pro Rp999.000 stay exactly
-    as they were in the source baseline."""
+    """Final Starter/Pro pricing preserves the retired Basic record for old invoices."""
     import pricing_config
     basic = pricing_config.CATALOG_ITEMS_BY_KEY.get("ai_admin_basic") if hasattr(pricing_config, "CATALOG_ITEMS_BY_KEY") else None
     if basic is None:
@@ -290,7 +289,9 @@ def test_pricing_config_unchanged():
     else:
         pro = pricing_config.CATALOG_ITEMS_BY_KEY.get("ai_admin_pro")
     assert basic["price_amount"] == 499000, basic
-    assert pro["price_amount"] == 999000, pro
+    assert pro["price_amount"] == 799000, pro
+    starter=next(i for i in pricing_config.CATALOG_ITEMS if i["key"] == "ai_admin")
+    assert starter["price_amount"] == 299000
     print("test_pricing_config_unchanged OK")
 
 

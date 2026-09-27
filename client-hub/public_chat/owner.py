@@ -42,6 +42,7 @@ def _media_projection(bid,row):
         'message_type':media['message_type'],
         'filename':media['filename'],
         'caption':media.get('caption') or '',
+        'review_url':url_for('assist.media_review',business_id=bid,media_key=media['id']),
         'url':url_for('client.inbox_media',business_id=bid,media_key=media['id']),
     }
 
@@ -205,12 +206,7 @@ def media(bid,cid):
 @owner_security.login_required
 def share(bid):
     business_for_owner(bid)
-    if not (repo.get_ai_settings(bid) or {}).get('normalized_config'):
-        raise store.ChatError('business_setup_required',409)
-    channel=store.ensure_channel(bid)
-    if not channel['enabled']:
-        raise store.ChatError('channel_disabled',409)
-    return jsonify(path=url_for('public_web.page',slug=channel['slug']),channel='WEB')
+    raise store.ChatError('public_channel_retired',410)
 
 
 @owner_bp.post('/business/<int:bid>/web-inbox/<cid>/template')

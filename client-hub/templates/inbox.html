@@ -40,7 +40,7 @@
 
 <div class="tenant-inbox-head">
   {% if web_chat_available(business) %}
-  <a class="btn small secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Inbox WEB</a>
+  <a class="btn small secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Riwayat percakapan</a>
   {% endif %}
   <div>
     <h1>CS Inbox — {{ business.business_name }}</h1>
@@ -157,12 +157,13 @@
             {% include '_inbox_media.html' %}
             {% if m.role == 'assistant' %}
             <details class="kw-ai-analysis" data-analysis-message="{{ m.id }}">
-              <summary>Analisa</summary>
+              <summary>Kenapa AI menjawab ini?</summary>
               <div class="kw-ai-analysis-body">
                 {% if m.analysis %}
                   {% if m.analysis.summary %}
                     <div style="margin-bottom:9px;"><strong>Kenapa AI jawab begitu:</strong><br>{{ m.analysis.summary }}</div>
                   {% endif %}
+                  {% if m.analysis.confidence is defined %}<div><strong>Keyakinan:</strong> {{ m.analysis.confidence }}%</div>{% endif %}
                   {% if m.analysis.intent %}<div><strong>Intent:</strong> {{ m.analysis.intent }}</div>{% endif %}
                   {% if m.analysis.workflow %}<div><strong>Workflow:</strong> {{ m.analysis.workflow }}</div>{% endif %}
                   {% if m.analysis.facts %}
@@ -187,7 +188,7 @@
                   {% endif %}
                   {% if m.analysis.action %}<div><strong>Aksi sistem:</strong> {{ m.analysis.action }}</div>{% endif %}
                   {% if m.analysis.result %}<div><strong>Hasil:</strong> {{ m.analysis.result }}</div>{% endif %}
-                  <div class="kw-ai-analysis-note">{{ m.analysis.note or 'Ini jejak keputusan produk, bukan chain-of-thought internal model.' }}</div>
+                  <div class="kw-ai-analysis-note">{{ m.analysis.note or 'Ringkasan dasar jawaban dan tindakan Kilas Assist.' }}</div>
                 {% else %}
                   <div class="kw-ai-analysis-note">Jejak analisa belum tersedia untuk pesan lama atau balasan manual.</div>
                 {% endif %}

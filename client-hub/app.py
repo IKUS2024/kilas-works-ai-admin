@@ -81,6 +81,8 @@ def create_app():
         # DB connection at boot, so it's the one spot to audit for a leak.
         backend_label = "PostgreSQL" if db.BACKEND == "postgres" else "SQLite"
         print(f"Database backend: {backend_label}")
+        from assist_connection_transport import configuration as assist_configuration
+        print('ASSIST_CONFIG ' + str(assist_configuration()))
         try:
             db.get_connection()
             print("Database connection: OK")
@@ -131,6 +133,11 @@ def create_app():
             customer_insight_schema.apply_schema()
             print("Customer Insight schema 0063: applied")
 
+        if os.environ.get('KILAS_ASSIST_SCHEMA_APPLY','').strip().lower() == 'true':
+            import assist_schema
+            applied=assist_schema.apply_release()
+            print('Assist additive release schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
@@ -175,6 +182,8 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
+    from routes_assist import assist_bp
+    app.register_blueprint(assist_bp)
     from public_chat.routes import public_bp
     app.register_blueprint(public_bp)
     from public_chat.owner import owner_bp
@@ -202,7 +211,11 @@ def create_app():
     from routes_workspace import workspace_bp
     app.register_blueprint(workspace_bp)
     app.jinja_env.globals["brain_plan"] = __import__("pricing_config").BRAIN_PLAN
+    app.jinja_env.globals["assist_plans"] = __import__("pricing_config").ASSIST_PLANS
+    app.jinja_env.globals["assist_launch"] = __import__("pricing_config").ASSIST_LAUNCH_RULE
     app.register_blueprint(admin_bp)
+    from routes_platform_control import platform_bp
+    app.register_blueprint(platform_bp)
     app.register_blueprint(projects_bp)
     from routes_wa_checkout import wa_checkout_bp
     app.register_blueprint(wa_checkout_bp)
@@ -280,7 +293,7 @@ def create_app():
             or endpoint.startswith("workspace.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
-            or endpoint.startswith(("client.", "core_customers.", "core_jobs.",
+            or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",
                                     "core_operations.", "core_finance_bridge.", "owner_web."))
             or endpoint in {
                 "products.finance_entry",
@@ -329,7 +342,7 @@ def create_app():
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
             return redirect(url_for("workspace.home"))
-        return redirect(url_for("auth.login_page"))
+        return render_template("assist_landing.html")
 
     @app.route("/healthz")
     def healthz():

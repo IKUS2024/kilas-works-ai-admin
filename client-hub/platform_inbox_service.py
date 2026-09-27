@@ -263,7 +263,7 @@ def _bot_platform_reply_url():
     return f"{parsed.scheme}://{parsed.netloc}/internal/platform-cs-reply"
 
 
-def send_manual_reply(customer_phone, message_text):
+def send_manual_reply(customer_phone, message_text, *, demo_scope=None):
     """Ask the WhatsApp bot service to send a manual Kilas Works reply.
 
     Client Hub deliberately does NOT need WHATSAPP_ACCESS_TOKEN / Phone Number ID. The production
@@ -298,7 +298,8 @@ def send_manual_reply(customer_phone, message_text):
         timeout_seconds = float(os.environ.get("KILAS_BOT_REPLY_TIMEOUT_SECONDS") or "75")
         resp = requests.post(
             endpoint,
-            json={"customer_phone": phone, "message": text},
+            json={"customer_phone": phone, "message": text,
+                  **({'demo_scope': demo_scope} if demo_scope else {})},
             headers={"X-Internal-Service-Secret": secret},
             timeout=max(15.0, min(timeout_seconds, 120.0)),
         )
@@ -381,7 +382,7 @@ def template_readiness():
                        'Pastikan nama dan bahasa template sesuai template yang disetujui Meta. Koneksi bot diperiksa saat mengirim.'}
 
 
-def send_template_reply(customer_phone, params=None):
+def send_template_reply(customer_phone, params=None, *, demo_scope=None):
     """Approved WhatsApp template send — the "Kirim Template & Lanjutkan" action for a
     conversation whose 24h customer-service window has expired (Section 4 of the request). Unlike
     send_manual_reply(), this path is deliberately allowed to fire EVEN WHEN freeform_window_status()
@@ -421,6 +422,7 @@ def send_template_reply(customer_phone, params=None):
         "customer_phone": phone, "template_name": template_name,
         "language_code": language_code, "params": params or [],
     }
+    if demo_scope:payload['demo_scope']=demo_scope
     return _post_to_bot_bridge(template_endpoint, payload, secret)
 
 
