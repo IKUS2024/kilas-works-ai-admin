@@ -1,15 +1,41 @@
 # Kilas Assist + Finance master completion
 
-FINAL STATUS: IN PROGRESS — production Demo acceptance correction after the master release. Existing completed master work is preserved.
+FINAL STATUS: DEMO FIX DEPLOYED — real-device WhatsApp acceptance still unverified. The master task retains its previously documented external operator/Meta/OTP gates.
 
-## Demo routing override — 2026-09-27 (current work)
-- Fresh remote main: d99e41e55ed6c1c6b2583dde385c3f011ed2b6b0. Both production services independently read LIVE at234f94c; no deployment for this correction yet. Isolated branch fix/kilas-demo-routing-20260927.
-- Reproduced cause: assist_demo.process returned False for an unbound sender, then root webhook reached the platform OWNER branch. The separate Ready and WhatsApp buttons made missing the real invitation easy. The owner phone also skipped inbound media persistence.
-- Implemented: shared Demo channel is terminal for every sender. Valid active session uses that business; unbound/invalid/expired session gets only the exact workspace instruction. DB/service failure fails closed. Entire legacy platform OWNER dispatch removed from the public webhook; internal helper functions and authenticated internal transports remain. No platform-knowledge fallback.
-- Implemented: tested confirmation has one button “Sudah, coba di WhatsApp” that validates current tested knowledge, marks Ready, creates a unique session and redirects to the real6282213039137 WhatsApp with KWDEMO prefill. Automatic seven-day activation at completion of all six onboarding parts preserved; manual start button removed. Legacy completed users recover automatically on a normal training POST without a separate step. Training includes existing onboarding knowledge. Home/Inbox redundant test/start buttons and Demo ID explanation removed; connected production hides Demo.
-- Implemented: exact activation reply; fresh explicit binding clears only inherited old takeover while repeated invitation respects current handoff; owner media stores and attaches just like other Demo senders; Inbox hides transport marker while retaining explicit message/session membership.
-- Local evidence: all10 Assist suites PASS,9 then10 journey cases,9 Demo cases; signed root webhook11 PASS, media9 PASS, platform takeover8 PASS. Trained unique-price fixture verifies same knowledge through test/WhatsApp provider boundary, exact Inbox transcript, Lead→Customer→Job, foreign-tenant404/no history, no Finance writes. External model/transport are synthetic in these tests, not real WhatsApp acceptance. Existing media/takeover fixtures migrated to real current Demo sessions; no routing bypass added to production.
-- Remaining: finish applicable regression/CI and native PG check; review diff; merge/deploy both services; live UI/configuration/error-log checks. Real device send remains a separate acceptance gate; do not claim full real WhatsApp success from mocked transport. Finance implementation/schema/data unchanged; no new migration.
+## Authoritative Demo correction release — 2026-09-27 07:56 UTC
+- Continued the existing release without restarting: baseline main d99e41e; former live code234f94c. PR60 merged as `78d567f6edae9c3c3fe24e228e707b05c52849cb`. Tested candidate `418c80a4750ebbb92cc230d47ace8d029135f0be`, tree4e93aea7a4ceace354824317fc1181449055d80d. [PR60](https://github.com/IKUS2024/kilas-works-ai-admin/pull/60).
+- Both production services are LIVE at78d567f6: bot deploy dep-dascndnpn0mc73frk2ig finished07:55:04UTC; Client Hub dep-dascndu0tbcc73erm71g finished07:55:08UTC. Existing auto-deployOFF retained; no environment changes, no schema migration, no production reset.
+- Root cause verified in source and read-only production state: unbound Demo ingress fell through into platform OWNER commands; production had zero active bound sessions and zero new Demo events before this correction. The separate Ready and WhatsApp steps made missing the binding invitation easy. The owner's phone also skipped platform inbound media persistence.
+- FIXED: shared Demo channel terminates before all legacy reasoning. Active bindings use their exact business; unbound/invalid/expired senders receive only “Untuk mencoba Kilas Assist, buka Demo dari workspace Kilas kamu terlebih dahulu.” Infrastructure failure fails closed. The entire platform OWNER dispatch block was removed from public webhook ingress, including owner/customer lookup and command actions. Existing helper functions and authenticated internal transports remain separate.
+- FIXED: one “Sudah, coba di WhatsApp” POST validates the successful current-knowledge test, marks Ready, creates a unique invitation and redirects to real6282213039137 with KWDEMO prefill. Confirmation: “Demo aktif ✅ Sekarang chat seperti customer bisnis kamu.” Six-part onboarding still automatically starts the seven-day demo and opens training. Redundant start/readiness/technical-ID controls removed. Existing completed legacy users can resume through an ordinary training action without a manual start step. Connected production hides Demo and preserves knowledge.
+- FIXED: fresh explicit binding clears inherited legacy takeover, while repeated invitation preserves current human handoff. The owner's media is stored and linked like other Demo media. Inbox hides the invitation marker while retaining exact event/session membership. Conversational training receives existing onboarding knowledge as context.
+
+### Acceptance evidence
+All eight requested cases are automated with real application routes/storage; external AI/WhatsApp transport is replaced only at its boundary:
+1. Owner phone passes the real signed webhook, binds, and receives business Demo replies; legacy owner and platform models are asserted not called.
+2. Active binding selects the exact business, including separate-tenant rebind/history checks.
+3. Unbound owner/other senders get the fixed instruction only; duplicate deliveries do not resend; DB failure and invalid signature cannot reach owner/customer data.
+4. Another sender cannot steal a claimed token; foreign owner Inbox404; explicit session rows prevent cross-business history exposure.
+5. Real Test POST → confirmation POST marks current tested knowledge Ready, creates pending binding, and opens the correct real number with KWDEMO. Failed/stale tests cannot create it.
+6. A distinctive taught price/rule is asserted in both test and real Demo generation input, excluding another business's secret fixture; no platform catalog injected.
+7. The same stored inbound/reply rows appear in the authenticated Demo Inbox, with transport marker hidden.
+8. That Demo conversation starts as Lead, concrete booking intent promotes Customer and creates the normal Job; foreign business has no Job and Finance receives no test writes.
+- Additional checks: owner media membership; expiry/replay; human takeover/resume; fresh invitation versus repeated invite; connected-business Demo hiding and knowledge preservation.
+
+### QA / production verification
+- ALL SIX applicable PR workflows SUCCESS on exact418c80a: Master36304159614, Phase2 36304159682, Phase7 36304159618, Phase8 36304159568, Phase9 36304159619, Phase10 36304159680.
+- Master CI includes isolated Assist suites plus signed Demo webhook/owner isolation, and native PostgreSQL18 rollback/retry/Finance preservation. WhatsApp and mobile/desktop browser journeys passed.
+- Protected Finance baseline:39 files,1018 tests,PASS, zero skipped; job108577361249 finished07:53:56UTC. Finance runtime/native/mobile also PASS.
+- Local focused checks: all10 Assist files, root signed ingress11, current Demo9, master journey10, platform takeover8, media webhook9, four Inbox files, tenant runtime/isolation PASS. Old platform media/takeover fixtures now use real current Demo sessions; no production bypass added.
+- Production browser shows the new understanding text, “Sudah sesuai?”, “Sudah, coba di WhatsApp”, “Ajari lagi”, and simplified Demo Inbox. An initial reload during the Render swap still showed the old page; a subsequent completed reload verified new UI. No production teaching/Ready/payment forms were submitted for this check.
+- Bot boot reports exact78d567f6 and only boolean presence for WhatsApp, OpenAI, Claude, webhook signature and Assist runtime. Both Render deployments report LIVE; no error-level or processing-failed logs in inspected07:55:09–07:56:06UTC window.
+- Before/after read-only full-row fingerprint and count comparison of all30 Finance tables is EXACTLY UNCHANGED. There are zero Finance implementation/template/migration changes in this correction. No production financial QA writes.
+
+### Remaining live gate / next continuation
+- Real WhatsApp Send and actual signed inbound/reply/Demo Inbox acceptance are NOT certified by mocked transport or deployment status. The connected browser has no usable WhatsApp sending device; the previous wa.me launch reached a blocked whatsapp:// deep link. Do not fabricate provider webhooks, auto-approve owner knowledge, or reset data to claim completion.
+- Owner's next action in their own workspace/phone: Latih Kilas Assist → Tes sebagai customer → review answer → “Sudah, coba di WhatsApp” → Send the prefilled message → chat like their business customer. Then verify exact-business reply, scoped Demo Inbox, and Lead/Customer/Jobs from real traffic.
+- Earlier master external gates (authorized production operator/Meta/OTP/real connection and legitimate payment/receipt acceptance) remain documented below and are not claimed closed by this Demo correction.
+- Resume from78d567f6 and this evidence; do not rerun completed unchanged implementation or redeploy solely for this documentation checkpoint.
 
 ## Authoritative latest summary (2026-09-27 06:11 UTC, supersedes historical checkpoint notes below)
 - Current remote main at release verification: `234f94c23f989e0dd89811da6a7782bb52511b32`. This documentation checkpoint will be committed above that release; its parent remains the deployed source. Working branch: `feature/kilas-master-completion-20260927`, code milestone `0144f7c1fb5763a184174bcca54a412d82438681`.
