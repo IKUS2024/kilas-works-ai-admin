@@ -1,18 +1,19 @@
 # Kilas Assist + Finance master completion
 
-FINAL STATUS: IN PROGRESS — NOT COMPLETE. No master-task production deployment yet.
+FINAL STATUS: DEPLOYED — independent production checks PASS. Full master acceptance remains pending real WhatsApp/OTP and provider-delivery verification.
 
-## Authoritative latest summary (2026-09-27, supersedes historical checkpoint notes below)
-- Remote main and both production baselines: 4344748c439597744806ad8ccb6a5ad7a8a0e54f. Working branch feature/kilas-master-completion-20260927; latest remote milestone 983e81e8759535fdbc2e67f52648c70eb6ab617d. PR #58 is draft, unmerged.
-- All implementation checkpoints 1–8 substantially implemented; final QA/release checkpoint active. Signup/six-part onboarding/training/Test/Ready and SaaS Admin manually exercised on isolated QA. Real WhatsApp delivery/OTP is not certified.
-- On 983e81e, CI Master (Assist + native PostgreSQL18) and Phase2/3/4/5/10 PASS. Phase10 includes real form auth, protected Finance standalone ledger/draft/partial-payment and bridge payment Income/Job Selesai; synthetic external transport only. Phase7 Finance runtime/mobile PASS.
-- Pending next-head fixes: single outdated Finance shortcut visibility test (strengthened denial/no-row-change assertions;16 PASS), Phase6 synthetic completed-history fixture, Phase9 internal Kilas workspace support-middleware regression (fixed; tenant isolation retained). System adds safe authenticated bot configuration/DB evidence and boolean-only boot diagnostics; no credential values.
-- Required before merge/deploy: observe remaining CI/browser and Finance full baseline green; classify remaining historical broad-suite failures from existing baseline-comparison evidence; review final diff/current main; controlled additive migration0066–0069 via Client Hub first, then bot release; verify both LIVE/configuration/live UI and real transport where accessible.
-- Production schema check: 14 businesses, one CONNECTED config, new Assist tables not yet installed. No production data reset or Finance writes performed. Dedicated QA remains LIVE at fa7597a. Public demo wa.me browser navigation is blocked by managed-browser organization policy; no real message sent.
-- External blockers established so far: managed browser cannot open wa.me for real device delivery. Continue all independent release work; do not label COMPLETE.
+## Authoritative latest summary (2026-09-27 13:09 WIB; supersedes historical notes below)
+- PR #58 merged. Main and BOTH production services are LIVE at 234f94c23f989e0dd89811da6a7782bb52511b32. Do not repeat the release or replay historical migrations.
+- All 10 release workflows passed on candidate0144f7c. Finance baseline:39 files,1018 tests,0 skips. Native PostgreSQL18 atomic rollback/additive apply/retry/Finance preservation and release browser journeys all PASS. Historical unrelated/baseline-failing suites are not represented as universally green.
+- Production additive0066–0069 checksums matched committed SQL. Release apply flag disabled after successful Hub migration; bot deployed afterward. Both services remain on main, auto-deployOFF.
+- Both final deployments independently observed LIVE: Hub dep-dasb2no473hc73fgo95g; bot dep-dasb2ofpn0mc73fkuo0g.
+- READ-ONLY post-release comparison of all30 Finance tables found exact row-count and full-row fingerprint equality with preflight, including a final comparison at06:09:36UTC after live browser checks. No production Finance QA writes or redesign.
+- Allowlisted boot logs on both services confirm credential presence for WhatsApp/OpenAI/Claude/webhook signature and Assist runtime=True, without secret values. Presence is not proof of provider success or message delivery.
+- Live authorized customer UI observed: Assist Home, training with99k/299k/799k pricing, usage navigation and existing Finance workspace. Original release execution is completing its final browser observations; resumed execution has performed no production messages or knowledge/payment writes.
+- Remaining external acceptance: real private demo WhatsApp binding, actual send/delivery, and assisted owner OTP/inbound/outbound proof. Managed-browser wa.me navigation was blocked by organization policy. Preserve fail-closed gates; do not bypass them or mark these checks complete from mocks.
+- Source implementation, CI, merge, production schema, deployment and independent Finance integrity checks are preserved. Continue only the remaining live acceptance from this state.
 
-
-## Current baseline (2026-09-27)
+## Historical starting baseline (2026-09-27)
 - Current remote main: `4344748c439597744806ad8ccb6a5ad7a8a0e54f` (fresh ls-remote and clone).
 - Working branch: `feature/kilas-master-completion-20260927` from current main.
 - Repository: IKUS2024/kilas-works-ai-admin.
@@ -318,3 +319,23 @@ Finish scoped browser journey and remaining regression failures (including retir
 
 - Final targeted persistence fixtures now PASS: AI setup reliability30, auto-normalize5, Client Hub V1 auth/ownership/persistence22, Jobs routes17, assisted mapping9. Forms now submit current required description/business and owner phones; no runtime validation weakened. Old admin Connect WhatsApp POST now redirects to assisted detail without mutations, matching the already-retired Activate POST; regression proves neither legacy route invokes provisioning.
 - Phase9 multi-viewport product/Admin/support browser is SUCCESS on849b271 (run36298180860). Phase2/3/8/10 and Master/native also SUCCESS. Phase4/5/6 on that head failed only the internal Jobs fixture assertion; corrected17-pass test is included next. Phase7 full1018 still running at last poll; runtime/mobile is green.
+
+- Resumed release coordination on0144f7c: all complementary fixes/preflight artifact are now committed on the authoritative branch. No further source edits owned by resumed session. Original owns PR58 readiness/merge, configuration and both deployments; resumed session will observe CI and independently compare read-only Finance fingerprints after deployment. Production remains baseline until original releases.
+
+## Release candidate0144f7c
+- Remote main remains4344748. Candidate0144f7c has nine green PR workflows: Master/native, Phase2/3/4/5/6/8/9/10. Phase7 full Finance baseline still running on this head; runtime/native/mobile Finance is green. Full1018 Finance step is now SUCCESS on previous849b271, artifact upload finishing. No Finance code changed between those heads.
+- PR58 marked ready; no reviewer messages sent. Merge/deploy remain pending final gate. Core Finance source and templates have zero changed paths. Potential-secret diff scan matched only the explicitly synthetic loopback PostgreSQL CI URL.
+- Production preflight fingerprints of30 Finance tables are durably committed. Release configuration will be merged by key only, never replace environment or print secrets. Client Hub migration flag first, bot after successful additive0066–0069 checks; historical migrations/backfills remain disabled.
+
+## Release authorized execution — 2026-09-27 05:59 UTC
+- ALL10 PR workflows SUCCESS on0144f7c1fb5763a184174bcca54a412d82438681. Phase7 full protected Finance:39 files,1018 tests,0 skips,PASS (job108561445869, final log05:58:28UTC); Phase2–10 browser/native/scoped suites and Master/native all green.
+- Fresh remote main4344748, candidate0144f7c. PR58 ready, mergeable. Proceeding with user-authorized merge and sequential deployment. No production mutation has occurred at this exact pre-merge checkpoint.
+
+- PR58 MERGED successfully as234f94c23f989e0dd89811da6a7782bb52511b32. Client Hub nonsecret release flags merged by key; historical migrations/backfills disabled, only Assist schema apply enabled. Bot flags unchanged until Hub schema validation. Production rollout IN PROGRESS.
+
+- Client Hub234f94c LIVE via dep-dasb1ju0tbcc73ekrct0 at06:00:27UTC. All4 production checksum rows exactly match committed0066–0069 SQL, applied atomically06:00:25UTC. KILAS_ASSIST_SCHEMA_APPLY now disabled by key merge. Render env-update operation itself starts a deploy despite autodeployOFF; an extra same-SHA explicit deploy was queued before that behavior was observed. Reapplication is checksum-idempotent; do not trigger duplicate bot deploy.
+- Bot nonsecret runtime flags now merged only after Hub/schema proof; expected234f94c deployment is being observed. Both final LIVE/configuration checks and Finance fingerprints/live smoke remain pending.
+
+- Independent resumed production verification: both Client Hub and bot are LIVE at234f94c. Final Hub deploy dep-dasb2no473hc73fgo95g; bot dep-dasb2ofpn0mc73fkuo0g. Repeated the identical READ-ONLY fingerprint query after both became live: all30 Finance table row counts and full-row fingerprints are EXACTLY UNCHANGED from preflight. No production Finance QA writes were made. Post-deployment result appended to docs/qa/kilas-master-finance-integrity.json; include with final durable checkpoint. Original continues browser/configuration verification.
+
+- Resumed independent production configuration read: allowlisted ASSIST_CONFIG startup logs on BOTH services at234f94c report WhatsApp/OpenAI/Claude/webhook-signature credential presence and Assist runtime=True. Only booleans/commit were read; no credential values. This confirms configuration presence, not actual provider connectivity or WhatsApp delivery. Observed live authorized Assist Home and training/pricing DOM with required navigation and99k/299k/799k labels; no knowledge/payment messages submitted by resumed session.

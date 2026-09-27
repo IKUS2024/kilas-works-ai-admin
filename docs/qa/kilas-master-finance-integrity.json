@@ -155,5 +155,18 @@
       "row_fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
       "table_name": "finance_workspace_opening_history"
     }
-  ]
+  ],
+  "post_deployment_verification": {
+    "observed_at_utc": "2026-09-27T06:03:59.136Z",
+    "production_commit": "234f94c23f989e0dd89811da6a7782bb52511b32",
+    "compared_tables": 30,
+    "all_row_counts_and_fingerprints_unchanged": true,
+    "changed_tables": []
+  },
+  "post_live_browser_comparison": {
+    "observed_at_utc": "2026-09-27T06:09:36.119Z",
+    "compared_tables": 30,
+    "unchanged": true,
+    "changed_tables": []
+  }
 }
