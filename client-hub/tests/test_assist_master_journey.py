@@ -79,7 +79,9 @@ class MasterJourneyTests(unittest.TestCase):
 
     def test_only_successful_current_knowledge_test_can_be_confirmed(self):
         self.complete_onboarding()
+        self.assertEqual(journey.state(self.business)['readiness'], 'Belum dilatih')
         self.teach()
+        self.assertEqual(journey.state(self.business)['readiness'], 'Sedang dilatih')
         with patch.object(training.ai_onboarding, '_call_claude', return_value=(None, None, 'provider_failure')):
             with self.assertRaisesRegex(ValueError, 'test_unavailable'):
                 training.test_reply(self.business, self.uid, 'Bisa diskon?')

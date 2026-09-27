@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Paket & Penggunaan · Kilas Assist{% include '_assist_pricing.html' %}{% endblock %}
+{% block title %}Paket & Penggunaan · Kilas Assist{% endblock %}
 {% block content %}
 <section class="kw-page"><header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Paket &amp; Penggunaan</h1><p>Pantau pemakaian Kilas Assist dan kelola langganan Anda.</p></div></header>
 <div class="kw-grid"><section class="card"><h2>{{ 'Langganan aktif' if journey.paid else 'Demo gratis 7 hari' }}</h2>

@@ -14,13 +14,14 @@ if os.environ.get('RENDER_SERVICE_NAME','').startswith('kilas-works-') or any(os
 
 import json
 import secrets
+import re
 import tempfile
 from pathlib import Path
 
 os.environ.update(CLIENT_HUB_DB_PATH=str(Path(tempfile.mkdtemp(prefix='assist-browser-'))/'synthetic.db'),
     SECRET_KEY=secrets.token_hex(32),RUN_MIGRATIONS_ON_BOOT='true',KILAS_CORE_V2_ENABLED='true',
     KILAS_ASSIST_RUNTIME_ENABLED='true',KILAS_CUSTOMERS_V2_ENABLED='true',KILAS_JOBS_V2_ENABLED='true',
-    KILAS_PLAYBOOKS_V2_ENABLED='true',KILAS_OPERATIONS_V2_ENABLED='true',KILAS_FINANCE_BRIDGE_ENABLED='true')
+    KILAS_FINANCE_ACCESS_MODE='self_service',KILAS_PLAYBOOKS_V2_ENABLED='true',KILAS_OPERATIONS_V2_ENABLED='true',KILAS_FINANCE_BRIDGE_ENABLED='true')
 
 import requests
 def no_network(*args,**kwargs):raise RuntimeError('external_network_disabled_in_synthetic_qa')
@@ -70,7 +71,7 @@ def enter(actor):
 def synthetic_notice(response):
     if response.mimetype=='text/html':
         notice='<aside style="padding:8px;background:#fff3b0;color:#222">QA: data sintetis, AI uji, pengiriman WhatsApp dinonaktifkan.</aside>'
-        response.set_data(response.get_data(as_text=True).replace('<body>','<body>'+notice,1))
+        response.set_data(re.sub(r'(<body[^>]*>)',lambda m:m[1]+notice,response.get_data(as_text=True),count=1))
     return response
 
 web.run(host='0.0.0.0',port=int(os.environ.get('PORT','5000')),debug=False,use_reloader=False)

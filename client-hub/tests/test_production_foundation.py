@@ -58,6 +58,8 @@ def _make_business_ready_for_approval():
     bid = repo.create_business(owner_id, "Kopi ABC", package="AI_ADMIN_BASIC")
     repo.upsert_business_profile(bid, {
         "business_name": "Kopi ABC", "category": "Kedai kopi", "owner_name": "Budi",
+        "short_description": "Kedai kopi", "operating_hours": "09-17",
+        "online_or_offline": "online", "business_phone": "628123000000",
         "primary_language": "id", "customer_salutation": "Kak",
     })
     repo.replace_business_services(bid, ["Kopi susu - 20rb"])
@@ -394,7 +396,10 @@ def test_bot_contract_active_tenant_returns_config_and_knowledge():
     _give_verified_ai_admin_payment(bid, admin)
     provisioning.activate_tenant(bid, admin)
 
-    assert tcs.get_tenant_by_phone_number_id("555") == bid
+    # Business phone strings alone cannot authorize tenant routing.
+    assert tcs.get_tenant_by_phone_number_id("555") is None
+    repo.upsert_whatsapp_config(bid, "555", "waba-555", "WHATSAPP_TOKEN__TEST", "CONNECTED")
+    assert tcs.get_tenant_by_phone_number_id("555", "waba-555") == bid
     config = tcs.get_tenant_config(bid)
     assert config is not None and config["tenant_id"] == bid
     knowledge = tcs.get_tenant_knowledge(bid)
@@ -422,8 +427,8 @@ def test_csrf_blocks_post_without_token_when_enforced():
 def test_csrf_allows_post_with_valid_token():
     reset_db()
     c = fresh_client()
-    c.post("/register", data={"email": "csrfcheck2@test.com", "password": "password123"})
-    login_page = c.get("/dashboard")  # ensures a csrf token exists in session (rendered by a GET)
+    c.post("/register", data={"email": "csrfcheck2@test.com", "password": "password123", "full_name": "Pemilik QA"})
+    login_page = c.get("/dashboard", follow_redirects=True)  # first-use product page renders CSRF
     with c.session_transaction() as sess:
         token = sess.get("_csrf_token")
     assert token, "csrf_token() must have been called by some GET-rendered template by now"

@@ -50,8 +50,10 @@ def state(business):
     ready_event = _event(bid, 'assist_ready')
     from assist_training import fingerprint
     ready = bool(ready_event and ready_event.get('knowledge_version') == fingerprint(bid))
+    training_started = bool(_event(bid, 'assist_teach') or _event(bid, 'assist_test'))
     readiness = ('Siap melayani' if trained and ready else
-                 'Sedang dilatih' if trained or settings.get('ai_status') == 'STALE' else 'Belum dilatih')
+                 'Sedang dilatih' if training_started or trained or settings.get('ai_status') == 'STALE'
+                 else 'Belum dilatih')
     wa = repo.get_whatsapp_config(bid) or {}
     connected = (business.get('status') == 'ACTIVE' and wa.get('connection_status') == 'CONNECTED'
                  and bool(wa.get('phone_number_id')) and bool(wa.get('validated_at')))

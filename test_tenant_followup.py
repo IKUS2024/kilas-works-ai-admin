@@ -70,6 +70,8 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
         (True, phone_number_id, trusted_owner_phone, business_id),
     )
     chrepo.upsert_business_profile(business_id, {
+        "short_description": "Bisnis follow-up uji", "online_or_offline": "online",
+        "business_phone": trusted_owner_phone,
         "operating_hours": "Senin-Sabtu 09.00-18.00", "closed_days": "Minggu",
         "owner_name": trusted_owner_phone, "category": "Test", "primary_language": "id",
         "customer_salutation": "Kak",

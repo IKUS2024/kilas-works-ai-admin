@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Latih Kilas Assist{% include '_assist_pricing.html' %}{% endblock %}
+{% block title %}Latih Kilas Assist{% endblock %}
 {% block content %}
 <section class="kw-page"><header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Latih Kilas Assist</h1><p>{{ journey.readiness }} · Ajari saya seperti karyawan baru.</p></div></header>
 {% if not journey.demo_started and not journey.paid %}<section class="card"><h2>Mulai demo gratis 7 hari</h2><p>Tanpa kartu. Ajari Kilas, tes jawabannya, lalu coba WhatsApp Demo.</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button name="action" value="start_demo" class="btn">Mulai demo 7 hari</button></form></section>{% endif %}
