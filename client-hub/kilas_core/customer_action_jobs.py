@@ -104,6 +104,9 @@ def _fingerprint(insight):
         "action": _clean(insight.get("action"), 240),
         "summary": _clean(insight.get("summary"), 500),
         "job_status": insight.get("job_status"),
+        "request_key": insight.get('_request_key'),
+        "missing_info": insight.get('missing_info'),
+        "schedule": insight.get('schedule'),
     }
     return hashlib.sha256(
         json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
@@ -113,7 +116,8 @@ def _payload(insight):
     action = _clean(insight.get("action"), 240)
     if not action:
         return None
-    title, kind = _title_kind(action)
+    _, kind = _title_kind(action)
+    title = action.rstrip('.').strip()[:160]
     summary = _clean(insight.get("summary"), 420)
     ref = "insight:" + _fingerprint(insight)
     fields = {
@@ -121,8 +125,14 @@ def _payload(insight):
         "source": "Customer Insight",
         "source_key": ref,
     }
+    if insight.get('_request_key'):
+        fields['request_key'] = insight['_request_key']
     if summary:
-        fields["details"] = summary[:420]
+        fields["details"] = summary[:900]
+    if insight.get('missing_info'):
+        fields['missing_information'] = '; '.join(_list(insight['missing_info']))[:1000]
+    if insight.get('schedule'):
+        fields['scheduled_at'] = insight['schedule']
     if _insight_payment_step(insight):
         fields[_PAYMENT_STEP_META] = "true"
     return title, kind, summary, fields, ref
@@ -259,7 +269,7 @@ def sync_from_insight(business, customer, insight, *, transaction=None):
     if customer.get("stage") != "CUSTOMER":
         return None
     meta = insight.get("_meta") or {}
-    if not meta.get("has_history"):
+    if not meta.get("has_history") or meta.get("fresh") is False:
         return None
 
     signal = insight.get("job_status")
@@ -307,11 +317,30 @@ def sync_from_insight(business, customer, insight, *, transaction=None):
                 status=target_status,
             )
 
-        if active_manual:
+        request_key = insight.get('_request_key')
+        separate = bool(insight.get('_separate_request'))
+        matched = [row for row in auto if request_key and row['fields'].get('request_key') == request_key]
+        if matched:
+            if matched[0]['status'] in TERMINAL:
+                return matched[0]  # Never resurrect a completed/cancelled request on a new detail.
+            active_auto = [matched[0]]
+        elif request_key:
+            # Adopt a single historical auto Job, but never overwrite another identified request.
+            if separate:
+                active_auto = []
+            elif len(active_auto) > 1:
+                return None  # Ambiguous request: preserve all jobs for owner review.
+            elif active_auto and active_auto[0]['fields'].get('request_key'):
+                fields['request_key'] = active_auto[0]['fields']['request_key']
+        if active_manual and not separate and not active_auto:
             return apply_status(active_manual[0])
 
         if active_auto:
             current = active_auto[0]
+            if payload:
+                # Retain owner-confirmed operational fields absent from a chat delta.
+                fields = {**current['fields'], **fields}
+                fields['missing_information'] = '; '.join(_list(insight.get('missing_info')))[:1000]
             current_payment_step = _job_payment_step(current)
             if payload and current_payment_step and fields.get(_PAYMENT_STEP_META) != "true":
                 # Once a real payment/invoice step was reached, keep that fact durable even

@@ -18,43 +18,35 @@
 <section class="client-page">
   <div class="client-head">
     <div>
-      <h1>{{ customer.display_name }}</h1>
-      <p>{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }} · {{ business.business_name }}</p>
+      <h1 data-contact-name>{{ customer.display_name }}</h1>
+      <p>{{ customer.phone|contact_phone }}</p><span data-contact-stage class="client-status">{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }}</span>
     </div>
     <div class="client-actions">
-      {% if session.get('role') == 'KILAS_ADMIN' and customer.phone %}
-      <a class="btn secondary" href="{{ url_for('admin.platform_inbox',customer=customer.phone) }}">Buka chat</a>
-      {% endif %}
+      <a class="btn secondary" href="{{ chat_url }}">Buka chat</a>
       <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage=customer.stage) }}">← Customers</a>
     </div>
   </div>
   {% if saved %}<div class="flash success">Data kontak tersimpan.</div>{% endif %}
   {% if form_error %}<div class="flash error">{{ form_error }}</div>{% endif %}
 
-  <div class="card customer-insight-card"
+  <div
        data-customer-insight
        data-url="{{ url_for('core_customers.insight_fragment',bid=business.id,customer_id=customer.id) }}">
-    {% include "_customer_insight.html" %}
+    {% include "_contact_context.html" %}
   </div>
 
-  <form class="card" method="post">
+  <details class="card"><summary>Edit profil kontak</summary>
+  <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <h2>Profil kontak</h2>
-    <label>Status</label>
-    <select name="stage">
-      <option value="LEAD" {{ 'selected' if customer.stage == 'LEAD' else '' }}>Lead</option>
-      <option value="CUSTOMER" {{ 'selected' if customer.stage == 'CUSTOMER' else '' }}>Customer</option>
-    </select>
-    <p class="client-note">Kontak baru masuk sebagai Lead. Ubah menjadi Customer saat sudah benar-benar menjadi pelanggan.</p>
+    <p class="client-note">Kilas memindahkan Lead ke Customer saat ada kebutuhan atau permintaan konkret. Customer tidak harus sudah membayar.</p>
     <label>Nama</label><input name="display_name" maxlength="160" required value="{{ customer.display_name }}">
     <label>Telepon</label><input name="phone" maxlength="40" value="{{ customer.phone or '' }}" placeholder="Opsional">
     <label>Email</label><input name="email" maxlength="254" value="{{ customer.email or '' }}" placeholder="Opsional">
     <label>Catatan</label><textarea name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
     <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan kontak otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
     <button class="btn" type="submit">Simpan</button>
-  </form>
-  {% include "_jobs_panel.html" %}
-{% if job is not defined or job %}{% include "_finance_bridge_panel.html" %}{% endif %}
+  </form></details>
 </section>
 <script>
 (function(){
@@ -67,10 +59,19 @@
     running=true;
     fetch(url,{credentials:'same-origin',cache:'no-store',headers:{'X-Requested-With':'XMLHttpRequest'}})
       .then(function(response){if(!response.ok)throw new Error('insight');return response.text();})
-      .then(function(html){box.innerHTML=html;})
+      .then(function(html){
+        if(box.querySelector('[data-followup-editor][open]'))return;
+        box.innerHTML=html;
+        var context=box.querySelector('[data-contact-context]');
+        if(context){
+          document.querySelector('[data-contact-name]').textContent=context.dataset.name;
+          document.querySelector('[data-contact-stage]').textContent=context.dataset.stage;
+        }
+      })
       .catch(function(){})
       .finally(function(){running=false;});
   }
+  refreshInsight();
   window.setInterval(refreshInsight,20000);
 })();
 </script>

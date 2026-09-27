@@ -11,6 +11,7 @@ import repo
 import subscription_service
 
 DEMO_STEP = 'assist_demo_started'
+SETUP_EVENT = 'assist_setup_complete'
 ONBOARDING_PARTS = ('basics', 'services', 'operations', 'faq', 'style', 'upload')
 
 
@@ -24,7 +25,7 @@ def _event(bid, step):
 
 def onboarding_complete(bid):
     status = repo.get_onboarding_status(bid) or {}
-    return all(status.get(part + '_done') for part in ONBOARDING_PARTS)
+    return bool(_event(bid, SETUP_EVENT)) or all(status.get(part + '_done') for part in ONBOARDING_PARTS)
 
 
 def start_demo(bid, actor):

@@ -95,6 +95,62 @@ def _stage(value, *, allow_none=False):
     return value
 
 
+def _sync_whatsapp_name(tx, business_id, customer_id, phone, profile_name, now=None):
+    row = tx.one('SELECT * FROM kw_core_customers WHERE business_id=? AND id=?', (business_id, customer_id))
+    if not row:
+        return
+    name = _clean_text(profile_name, 160)
+    placeholder = row['display_name'] in (phone, _placeholder(customer_id), '', None)
+    edited = tx.one("SELECT 1 AS present FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_NAME_EDITED' LIMIT 1",
+                    (business_id, customer_id))
+    legacy_edit = tx.one("SELECT 1 AS present FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_UPDATED' LIMIT 1",
+                        (business_id, customer_id))
+    if name and not edited and (placeholder or not legacy_edit):
+        tx.execute('UPDATE kw_core_customers SET display_name=?,updated_at=? WHERE business_id=? AND id=?',
+                   (name, now or int(time.time()), business_id, customer_id))
+    elif placeholder and not name and not edited:
+        tx.execute('UPDATE kw_core_customers SET display_name=? WHERE business_id=? AND id=?',
+                   (phone, business_id, customer_id))
+    # The verified inbound identity is the transport phone; never match by an edited profile.
+    tx.execute('UPDATE kw_core_customers SET phone=? WHERE business_id=? AND id=?',
+               (phone, business_id, customer_id))
+
+
+def sync_verified_profile(business_id, customer):
+    """Repair existing Demo/platform name snapshots only through their verified identity scope."""
+    import assist_demo
+    import platform_workspace
+    phone = customer.get('phone')
+    if not phone:
+        return customer
+    identity_hash = hashlib.sha256(phone.encode()).hexdigest()
+    with transaction() as tx:
+        identity = tx.one("SELECT customer_id FROM kw_core_customer_identities WHERE business_id=? "
+                          "AND identity_type='WHATSAPP_PHONE' AND identity_hash=? AND verified=1",
+                          (business_id, identity_hash))
+    if not identity or identity['customer_id'] != customer['id']:
+        return customer
+    if not platform_workspace.is_scope_business(business_id) and not assist_demo.binding(business_id, phone):
+        return customer
+    # Global profile identity is only consulted for a sender proven bound to this tenant.
+    try:
+        profile = db.query_one('SELECT name FROM customer_profiles WHERE number=?', (phone,))
+    except Exception:
+        return customer
+    if profile and profile.get('name'):
+        with transaction() as tx:
+            _sync_whatsapp_name(tx, business_id, customer['id'], phone, profile['name'])
+        return get_customer(business_id, customer['id'])
+    return customer
+
+
+def display_phone(phone):
+    phone = str(phone or '')
+    if re.fullmatch(r'1[0-9]{10}', phone):
+        return '+1 ' + phone[1:4] + '-' + phone[4:7] + '-' + phone[7:]
+    return '+' + phone if phone.isdigit() else phone
+
+
 def ensure_whatsapp_lead(business_id, phone, display_name=None, *, now=None):
     """Resolve/create a tenant-scoped WhatsApp lead without requiring a Core conversation row.
 
@@ -127,6 +183,9 @@ def ensure_whatsapp_lead(business_id, phone, display_name=None, *, now=None):
             )
             if not customer:
                 raise CustomerError("customer_identity_conflict", 409)
+            _sync_whatsapp_name(tx, business_id, customer_id, phone, display_name, now)
+            customer['display_name'] = tx.one('SELECT display_name FROM kw_core_customers WHERE business_id=? AND id=?',
+                                              (business_id, customer_id))['display_name']
             return customer
 
         customer_id = uuid.uuid4().hex
@@ -160,7 +219,10 @@ def sync_demo_binding_lead(business_id):
     if not enabled():
         return None
     bound = assist_demo.binding(business_id)
-    return ensure_whatsapp_lead(business_id, bound['phone']) if bound else None
+    if not bound:
+        return None
+    customer = ensure_whatsapp_lead(business_id, bound['phone'])
+    return sync_verified_profile(business_id, customer) if customer else None
 
 def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None):
     """Resolve/create one Core customer for one strong tenant-scoped WEB visitor identity.
@@ -321,7 +383,7 @@ def update_customer(business_id, customer_id, *, display_name, phone=None, email
     now = int(time.time())
     with transaction() as tx:
         existing = tx.one(
-            "SELECT c.id,COALESCE(s.stage,'CUSTOMER') AS stage "
+            "SELECT c.id,c.display_name,COALESCE(s.stage,'CUSTOMER') AS stage "
             "FROM kw_core_customers c LEFT JOIN kw_core_customer_stages s "
             "ON s.business_id=c.business_id AND s.customer_id=c.id "
             "WHERE c.business_id=? AND c.id=?",
@@ -342,9 +404,14 @@ def update_customer(business_id, customer_id, *, display_name, phone=None, email
                 (business_id, customer_id, stage, now, now),
             )
         if actor_id is not None:
+            if display_name != existing['display_name']:
+                tx.execute('INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)',
+                           (actor_id, business_id, 'CUSTOMER_NAME_EDITED', customer_id))
             tx.execute(
                 "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
-                (actor_id, business_id, "CUSTOMER_UPDATED", customer_id),
+                # V2 records name edits separately. Notes/stage edits must not
+                # masquerade as a historical owner name override on the next sync.
+                (actor_id, business_id, "CUSTOMER_PROFILE_UPDATED", customer_id),
             )
             if stage is not None and stage != existing["stage"]:
                 tx.execute(

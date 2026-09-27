@@ -62,10 +62,14 @@ def main():
             page.get_by_label('Nama bisnis', exact=True).fill('Release ' + persona)
             page.get_by_role('button', name='Buat Bisnis & Setup Kilas Assist', exact=False).click()
             page.locator('[name=category]').fill('Logistics')
-            page.locator('[name=owner_name]').fill('Release Owner')
             page.locator('[name=short_description]').fill('Pengiriman barang untuk QA disposable')
-            page.get_by_role('button', name='Simpan & Lanjut', exact=True).click()
-            assert '/wizard/services' in page.url
+            page.locator('[name=business_phone]').fill('628123450000')
+            page.locator('[name=online_or_offline]').select_option('online')
+            page.locator('[name=operating_hours]').fill('09-17 WIB')
+            page.locator('[name=primary_language]').fill('Bahasa Indonesia')
+            page.get_by_role('button', name='Lanjut ke Latih Kilas Assist', exact=True).click()
+            expect(page.get_by_role('heading', name='Latih Kilas Assist', exact=True)).to_be_visible()
+            assert '/train' in page.url
             page.goto(BASE + '/workspace'); shot(page, persona + '-signup-minimal-setup')
             page.goto(BASE + '/logout'); login(page, 'release-' + persona + '@example.test')
             expect(page.get_by_role('heading', name='Release ' + persona, exact=True)).to_be_visible()
@@ -189,8 +193,16 @@ def main():
         owner.goto(BASE + f'/business/{bid}/customers?stage=LEAD')
         owner.locator('a.client-item').first.click()
         expect(owner.locator('[data-linked-jobs]')).to_have_count(0)
-        owner.locator('select[name=stage]').select_option('CUSTOMER')
-        owner.get_by_role('button', name='Simpan', exact=True).click()
+        # This archived WEB transport is deliberately excluded from live CRM analysis.
+        # Seed its owner-confirmed profile via the existing authenticated write contract;
+        # automatic WhatsApp Lead promotion is exercised by test_assist_crm_cleanup.
+        profile_url = owner.url
+        response = owner.context.request.post(profile_url, form={
+            'csrf_token': owner.locator('input[name=csrf_token]').first.input_value(),
+            'display_name': owner.locator('input[name=display_name]').input_value(),
+            'stage': 'CUSTOMER'}, max_redirects=0)
+        assert response.status == 302, response.text()
+        owner.reload()
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(0)
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)

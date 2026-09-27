@@ -8,7 +8,7 @@ import ai_router
 import ai_usage
 import assist_training
 import assist_business_media
-from kilas_core import customer_insights
+from kilas_core import customer_insights, customer_facts
 
 INTENTS = {'QUESTION': 'Pertanyaan bisnis', 'REQUEST': 'Permintaan customer',
            'PAYMENT': 'Permintaan pembayaran', 'CANCEL': 'Pembatalan', 'HUMAN': 'Bantuan manusia'}
@@ -74,6 +74,7 @@ def _evidence_clauses(text, evidence):
 
 
 def generate(bid, text, history, previous=None, *, feature="assist_demo"):
+    previous = customer_facts.trusted_previous(previous)
     knowledge = relevant_knowledge(bid, text)
     available = assist_business_media.candidates(bid, text)
     payload = json.dumps({'knowledge': knowledge, 'previous_insight': previous or {},
@@ -104,7 +105,8 @@ def generate(bid, text, history, previous=None, *, feature="assist_demo"):
         result = None
     if result is None or result['confidence'] < ai_usage.number('KILAS_AI_CONFIDENCE_ESCALATE_BELOW', .65):
         result = call(strong=True)
-    insight = customer_insights._normalize(result['insight'])
+    insight = customer_facts.ground(customer_insights._normalize(result['insight']),
+        [text], previous)
     insight['_handoff_requested'] = result['intent'] == 'HUMAN'
     evidence = result.get('evidence')
     if not isinstance(evidence, str) or not evidence.strip() or evidence not in text:
@@ -133,6 +135,8 @@ def generate(bid, text, history, previous=None, *, feature="assist_demo"):
         insight['job_status'] = None
     if grounded and re.search(r'^\s*(apa|apakah|berapa|bagaimana|gimana|kenapa)\b',evidence,re.I) and not payment:
         insight['action'] = insight['job_status'] = None
+    insight = customer_facts.continue_request(insight, previous, text, evidence,
+        actionable=bool(insight.get('action') and grounded and result['intent'] in ('REQUEST', 'PAYMENT')))
     used = result.get('knowledge_used')
     used = [key for key in used if isinstance(key, str) and key in knowledge] if isinstance(used, list) else []
     trace = ai_reply_explanation._trace('Kenapa AI menjawab ini?',

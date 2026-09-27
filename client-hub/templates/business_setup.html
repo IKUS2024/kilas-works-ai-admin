@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Setup bisnis singkat — Kilas Assist{% endblock %}
+{% block content %}
+{% include "_client_compact_style.html" %}
+<section class="client-page" style="max-width:760px">
+  <div class="client-head"><div><h1>Kenali bisnis Anda</h1><p>Isi dasar bisnis sekali, lalu ajari Kilas lewat percakapan.</p></div></div>
+  {% if form_error %}<div class="flash error">{{ form_error }}</div>{% endif %}
+  <form class="card" method="post" data-quick-business-setup>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="setup_mode" value="quick">
+    <div class="client-form-grid">
+      <label>Nama bisnis<input name="business_name" maxlength="160" required value="{{ profile.business_name or business.business_name }}"></label>
+      <label>Kategori bisnis<input name="category" maxlength="160" required value="{{ profile.category or '' }}" placeholder="Contoh: Foto produk, coffee shop"></label>
+    </div>
+    <label>Deskripsi singkat<textarea name="short_description" maxlength="1200" rows="3" required placeholder="Bisnis ini menyediakan apa dan untuk siapa?">{{ profile.short_description or '' }}</textarea></label>
+    <div class="client-form-grid">
+      <label>Nomor WhatsApp bisnis<input name="business_phone" type="tel" maxlength="40" required value="{{ profile.business_phone or '' }}" placeholder="Contoh: 628123456789"></label>
+      <label>Model layanan<select name="online_or_offline" required>
+        <option value="">Pilih model layanan</option>
+        {% for value,label in [('online','Online'),('offline','Offline'),('both','Online dan offline')] %}<option value="{{ value }}" {{ 'selected' if profile.online_or_offline == value or (value == 'both' and profile.online_or_offline == 'hybrid') else '' }}>{{ label }}</option>{% endfor %}
+      </select></label>
+    </div>
+    <label>Lokasi / area layanan<input name="address" maxlength="500" value="{{ profile.address or '' }}" placeholder="Contoh: Tangerang atau seluruh Indonesia secara online"></label>
+    <div class="client-form-grid">
+      <label>Jam operasional<input name="operating_hours" maxlength="500" required value="{{ profile.operating_hours or '' }}" placeholder="Contoh: Senin–Sabtu, 09.00–18.00 WIB"></label>
+      <label>Bahasa utama<input name="primary_language" maxlength="100" required value="{{ profile.primary_language or '' }}" placeholder="Contoh: Bahasa Indonesia"></label>
+    </div>
+    <p class="client-note">Produk, harga, promo, FAQ, gaya bahasa, SOP, aturan booking dan handoff, batas janji AI, bahasa tambahan, gambar, serta PDF/katalog diajarkan di langkah berikutnya.</p>
+    <button class="btn" type="submit">Lanjut ke Latih Kilas Assist</button>
+    <a class="btn secondary" href="{{ url_for('workspace.home') }}">Lanjut nanti ke Home</a>
+  </form>
+</section>
+{% endblock %}

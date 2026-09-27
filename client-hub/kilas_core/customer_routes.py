@@ -6,6 +6,22 @@ from kilas_core import customers, customer_insights, customer_action_jobs
 from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
+customers_bp.add_app_template_filter(customers.display_phone, 'contact_phone')
+
+
+def _contact_context(business, customer):
+    customer = customers.sync_verified_profile(business['id'], customer)
+    bid = business['id']
+    if platform_workspace.is_scope_business(bid):
+        chat_url = url_for('admin.platform_inbox', customer=customer.get('phone'))
+    elif customer_insights.demo_conversation_row(bid, customer):
+        chat_url = url_for('client.inbox_page', business_id=bid, customer=customer.get('phone'))
+    else:
+        conversations = customer_insights.whatsapp_conversation_rows(bid, customer['id'])
+        chat_url = url_for('client.inbox_page', business_id=bid, channel='whatsapp',
+                           conversation=conversations[0]['id'] if conversations else None)
+    return dict(customer=customer, chat_url=chat_url,
+                linked_jobs=linked_context(business, customer['id']))
 
 
 def _business(bid):
@@ -38,7 +54,9 @@ def list_page(bid):
     rows, total, page, pages = customers.list_customers(bid, q, page, stage)
     # CRM counts the same WhatsApp Inbox sources used by Customer Insight.
     # Retired Web Chat history is intentionally excluded.
-    for row in rows:
+    for index, row in enumerate(rows):
+        row = customers.sync_verified_profile(bid, row)
+        rows[index] = row
         row["conversation_count"] = len(
             customer_insights.whatsapp_conversation_rows(bid, row["id"])
         )
@@ -67,17 +85,11 @@ def detail_page(bid, customer_id):
     demo = customer_insights.demo_conversation_row(bid, customer)
     if demo:
         conversations.insert(0, demo)
-    insight, _ = customer_action_jobs.refresh_and_sync(
-        business, customer, actor_id=security.current_user()["id"]
-    )
-    try:
-        customer = customers.get_customer(bid, customer_id)
-    except customers.CustomerError:
-        pass
-    return render_template("customer_detail.html", business=business, customer=customer,
+    insight = customer_insights.cached(business, customer)
+    return render_template("customer_detail.html", business=business,
                            conversations=conversations, insight=insight,
                            saved=request.args.get("saved") == "1",
-                           linked_jobs=linked_context(business,customer_id))
+                           **_contact_context(business, customer))
 
 
 @customers_bp.get("/business/<int:bid>/customers/<customer_id>/insight")
@@ -95,8 +107,8 @@ def insight_fragment(bid, customer_id):
         customer = customers.get_customer(bid, customer_id)
     except customers.CustomerError:
         pass
-    return render_template("_customer_insight.html", business=business,
-                           customer=customer, insight=insight)
+    return render_template("_contact_context.html", business=business, insight=insight,
+                           **_contact_context(business, customer))
 
 
 @customers_bp.post("/business/<int:bid>/customers/<customer_id>")
@@ -134,6 +146,7 @@ def update_profile(bid, customer_id):
         return render_template("customer_detail.html", business=business, customer=customer,
                                conversations=conversations, insight=insight, saved=False,
                                form_error="Periksa kembali data customer.",
+                               chat_url=url_for("client.inbox_page",business_id=bid),
                                linked_jobs=linked_context(business,customer_id)), 400
     # Promotion to Customer is the only point where this CRM contact becomes eligible
     # for an AI action Job. Re-read the authoritative profile and refresh Insight; if the

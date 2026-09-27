@@ -6,7 +6,7 @@
   <header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Latih Kilas Assist</h1><p>Ajari saya seperti karyawan baru, lalu tes sebagai customer.</p></div></header>
   {% if journey.demo_active and not journey.paid %}<p class="muted">Demo 7 hari sudah aktif. Pengetahuan bisnis kamu tetap tersimpan.</p>{% endif %}
   <section class="card">
-    <p>Ceritakan produk atau jasa, harga, aturan promo dan diskon, cara menjawab customer, proses booking atau pesanan, kapan perlu bantuan manusia, dan hal yang tidak boleh saya janjikan.</p>
+    <p>Dasar bisnis yang sudah Anda isi tersedia di sini, tidak perlu diketik ulang. Ajarkan FAQ, SOP, gaya bahasa, bahasa tambahan, produk atau jasa, harga, aturan promo dan diskon, cara menjawab customer, proses booking atau pesanan, kapan perlu bantuan manusia, dan hal yang tidak boleh saya janjikan.</p>
     <div aria-label="Riwayat latihan" style="max-height:420px;overflow:auto">
       {% for row in history %}<article><small>{{ 'Tes sebagai customer' if row.mode == 'assist_test' else 'Latihan' }}</small><p><strong>Kamu:</strong> {{ row.message }}</p><p style="white-space:pre-wrap"><strong>Kilas:</strong> {{ row.reply }}</p></article>{% endfor %}
     </div>

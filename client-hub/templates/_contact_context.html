@@ -1,0 +1,15 @@
+<div data-contact-context data-name="{{ customer.display_name }}" data-stage="{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }}">
+  <div class="card customer-insight-card">{% include "_customer_insight.html" %}</div>
+  {% if customer.stage == 'CUSTOMER' %}{% include "_jobs_panel.html" %}{% endif %}
+  {% if customer.stage == 'LEAD' and insight.follow_up and insight._meta.has_history %}
+  <div class="card">
+    <p class="client-note">{{ insight.follow_up }}</p>
+    <details data-followup-editor><summary class="btn secondary">Buat Follow-up</summary>
+      <label for="followup-draft">Draft pesan — periksa sebelum dikirim</label>
+      <textarea id="followup-draft" data-followup-draft rows="4">Halo {{ customer.display_name if customer.display_name != customer.phone else 'Kak' }}, apakah masih ingin membahas {{ insight.interests[0] if insight.interests else 'kebutuhan Anda' }}? Ada detail lain yang bisa kami bantu?</textarea>
+      <p class="client-note">Edit dan salin draft ini, lalu tinjau di Inbox sebelum mengirim.</p>
+      <a class="btn secondary" href="{{ chat_url }}">Buka Inbox</a>
+    </details>
+  </div>
+  {% endif %}
+</div>

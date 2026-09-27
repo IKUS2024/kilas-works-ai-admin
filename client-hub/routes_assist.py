@@ -21,7 +21,7 @@ def training(business_id):
         from routes_client import _step_for_missing_fields
         import repo
         return redirect(url_for('client.wizard_step', business_id=business_id,
-                                step=_step_for_missing_fields(repo.required_fields_missing(business_id))))
+                                step='basics'))
     if request.method == 'POST':
         action = request.form.get('action')
         try:

@@ -229,7 +229,7 @@ def update(bid,job_id):
 
 def linked_context(business, customer_id, conversation_id=None):
     """Bounded owner-only panel for confirmed Customers; Leads stay outside Jobs."""
-    if not available(business):
+    if not workspace_available(business):
         return None
     customer = customers.get_customer(business['id'], customer_id)
     if customer.get('stage') != 'CUSTOMER':
