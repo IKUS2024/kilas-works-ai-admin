@@ -322,7 +322,15 @@ def test_login_routes_by_role_with_no_role_selector_on_login_form():
     client = fresh_client()
     login_page = client.get("/login")
     body = login_page.get_data(as_text=True)
-    assert "owner" not in body.lower() and "kilas_admin" not in body.lower() and "role" not in body.lower(), (
+    from html.parser import HTMLParser
+    class LoginControls(HTMLParser):
+        names = []
+        def handle_starttag(self, tag, attrs):
+            if tag in ('input', 'select', 'textarea', 'button'):
+                self.names.append(dict(attrs).get('name', '').lower())
+    controls = LoginControls()
+    controls.feed(body)
+    assert not {'role', 'owner', 'kilas_admin', 'user_role'}.intersection(controls.names), (
         "login page must not ask the user to choose a role — routing is server-side, post-login"
     )
 

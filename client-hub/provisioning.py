@@ -325,6 +325,14 @@ def _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, 
     queue = assist_connections.get(business_id)
     if queue and queue['state'] != 'Connected':
         raise ProvisioningError('assisted_connection_required')
+    existing = repo.get_whatsapp_config(business_id) or {}
+    # Legacy refresh may revalidate its existing connection; it cannot bind a new asset
+    # or switch credentials without fresh assisted inbound/outbound evidence.
+    if (existing.get('connection_status') != 'CONNECTED' or not existing.get('validated_at')
+            or str(existing.get('phone_number_id') or '') != str(phone_number_id or '')
+            or str(existing.get('waba_id') or '') != str(waba_id or '')
+            or (existing.get('credentials_reference') or '') != (credentials_reference or '')):
+        raise ProvisioningError('assisted_connection_required')
     if not business:
         raise ProvisioningError("business_not_found")
     # Task 8 — credentials_reference is now OPTIONAL: leaving it empty means this tenant shares

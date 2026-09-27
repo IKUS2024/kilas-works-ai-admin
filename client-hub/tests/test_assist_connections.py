@@ -53,6 +53,32 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(repo.get_whatsapp_config(self.bid)['phone_number_id'],'456')
         self.assertIsNone(routing.resolve_tenant_id_by_whatsapp_phone_number_id('456','123'))
 
+    def test_legacy_admin_activation_cannot_bypass_assisted_tests(self):
+        import provisioning
+        client=fixture.fresh_client()
+        with client.session_transaction() as session:
+            session.update(user_id=self.aid,role='KILAS_ADMIN',_csrf_token='assisted-gate')
+        before=repo.get_business(self.bid)
+        with patch.object(provisioning,'activate_tenant',side_effect=AssertionError('legacy bypass')):
+            response=client.post(f'/admin/business/{self.bid}/activate',data={'csrf_token':'assisted-gate'})
+        self.assertEqual(response.status_code,303)
+        self.assertTrue(response.location.endswith(f'/platform/business/{self.bid}'))
+        self.assertEqual(repo.get_business(self.bid),before)
+
+    def test_legacy_active_mapping_cannot_change_without_assisted_evidence(self):
+        import provisioning
+        db.execute('DELETE FROM kw_assist_connections WHERE business_id=?',(self.bid,))
+        db.execute("UPDATE businesses SET status='ACTIVE' WHERE id=?",(self.bid,))
+        repo.upsert_whatsapp_config(self.bid,'456','123','')
+        repo.mark_whatsapp_validated(self.bid)
+        before=repo.get_whatsapp_config(self.bid)
+        with patch.object(provisioning,'_check_whatsapp_phone_number_reachable') as graph:
+            for pid,waba,ref in (('789','123',''),('456','999',''),('456','123','WHATSAPP_TOKEN__TENANT_'+str(self.bid))):
+                with self.assertRaisesRegex(provisioning.ProvisioningError,'assisted_connection_required'):
+                    provisioning.validate_and_connect_whatsapp(self.bid,self.admin,pid,waba,ref)
+            graph.assert_not_called()
+        self.assertEqual(repo.get_whatsapp_config(self.bid),before)
+
     def test_inbound_exact_identity_owner_challenge_and_replay(self):
         code=self.mapped()
         self.assertFalse(self.inbound(code,waba='999'))

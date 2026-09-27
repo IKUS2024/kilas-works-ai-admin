@@ -973,17 +973,9 @@ def activate(business_id):
     business = repo.get_business(business_id)
     if not business:
         abort(404)
-    admin = security.current_user()
-    try:
-        result = provisioning.activate_tenant(business_id, admin)
-    except provisioning.ProvisioningError as e:
-        flash(f"Belum bisa Activate: {e}", "error")
-        return redirect(url_for("admin.review_business", business_id=business_id))
-    if result["changed"]:
-        flash("Business ACTIVE. AI Admin engine sekarang bisa memakai tenant ini.", "success")
-    else:
-        flash("Business sudah ACTIVE sebelumnya — tidak ada perubahan.", "success")
-    return redirect(url_for("admin.review_business", business_id=business_id))
+    # Old bookmarks must not bypass the assisted mapping and signed test evidence.
+    flash("Selesaikan uji inbound dan outbound di koneksi WhatsApp sebelum aktivasi.", "info")
+    return redirect(url_for('platform_control.detail', bid=business_id), code=303)
 
 
 @admin_bp.route("/business/<int:business_id>/deactivate", methods=["POST"])

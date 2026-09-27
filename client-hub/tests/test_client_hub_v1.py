@@ -536,6 +536,8 @@ def test_tenant_config_service_only_resolves_active_tenants():
     db.execute("UPDATE businesses SET trusted_owner_phone = ?, whatsapp_connected = ? WHERE id = ?", ("+62811", True, bid))
     repo.activate_business(bid, admin_id)
 
+    assert tcs.resolve_tenant_id_by_whatsapp_phone_number_id("999") is None
+    repo.upsert_whatsapp_config(bid, "999", "test-waba", None, "CONNECTED")
     assert tcs.resolve_tenant_id_by_whatsapp_phone_number_id("999") == bid
     assert tcs.get_trusted_owner_phone(bid) == "+62811"
     # still None because ai_status != DONE

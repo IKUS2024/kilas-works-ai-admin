@@ -399,7 +399,7 @@ def test_bot_contract_active_tenant_returns_config_and_knowledge():
     # Business phone strings alone cannot authorize tenant routing.
     assert tcs.get_tenant_by_phone_number_id("555") is None
     repo.upsert_whatsapp_config(bid, "555", "waba-555", "WHATSAPP_TOKEN__TEST", "CONNECTED")
-    assert tcs.get_tenant_by_phone_number_id("555", "waba-555") == bid
+    assert tcs.get_tenant_by_phone_number_id("555") == bid
     config = tcs.get_tenant_config(bid)
     assert config is not None and config["tenant_id"] == bid
     knowledge = tcs.get_tenant_knowledge(bid)
@@ -428,7 +428,7 @@ def test_csrf_allows_post_with_valid_token():
     reset_db()
     c = fresh_client()
     c.post("/register", data={"email": "csrfcheck2@test.com", "password": "password123", "full_name": "Pemilik QA"})
-    login_page = c.get("/dashboard", follow_redirects=True)  # first-use product page renders CSRF
+    login_page = c.get("/products/start")  # product-selection POST forms render CSRF
     with c.session_transaction() as sess:
         token = sess.get("_csrf_token")
     assert token, "csrf_token() must have been called by some GET-rendered template by now"

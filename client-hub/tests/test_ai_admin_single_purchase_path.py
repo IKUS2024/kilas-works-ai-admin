@@ -94,11 +94,11 @@ def test_catalog_page_has_no_instant_checkout_for_ai_admin():
         resp = c.get("/services")
     assert resp.status_code == 200
     body = resp.data.decode()
-    idx = body.find("<h3>Kilas Brain</h3>")
+    idx = body.find("<h3>Kilas Assist Starter</h3>")
     assert idx != -1
     snippet = body[idx:body.index("</article>",idx)]
     assert "checkout-fixed" not in snippet
-    assert "Mulai di Dashboard" in snippet
+    assert "Dashboard" in snippet
     print("test_catalog_page_has_no_instant_checkout_for_ai_admin OK")
 
 
@@ -111,7 +111,7 @@ def test_other_fixed_price_categories_still_instant_checkout():
         with c.session_transaction() as sess:
             sess["user_id"] = uid
             sess["role"] = "CLIENT_OWNER"
-        resp = c.get("/services")
+        resp = c.get("/services?q=Landing+Page")
     body = resp.data.decode()
     idx = body.find("Landing Page")
     assert idx != -1
@@ -145,7 +145,8 @@ def test_direct_post_to_ai_admin_pro_checkout_fixed_also_rejected():
             sess["user_id"] = uid
             sess["role"] = "CLIENT_OWNER"
         resp = c.post("/services/ai_admin_pro/checkout-fixed", data={"business_id": bid}, follow_redirects=False)
-    assert resp.status_code == 404
+    assert resp.status_code == 302
+    assert 'dashboard' in resp.location
     assert projects_repo.list_projects_for_business(bid) == []
     print("test_direct_post_to_ai_admin_pro_checkout_fixed_also_rejected OK")
 

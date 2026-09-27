@@ -28,6 +28,9 @@ def context():
         rows = [r for r in rows if r]
         result['ai'] = [r for r in rows if r.get('package') in AI_PACKAGES]
         result['finance'] = [r for r in rows if _finance_business_claimed(r['id'])]
+        # Assist includes a separate Finance workspace; this is navigation only.
+        # Finance still owns membership, entitlement, branch and write checks.
+        result['finance_visible'] = bool(result['finance_visible'] or result['ai'] or result['finance'])
     except Exception:
         # Presentation failure never grants access or asserts there are no records.
         result['unavailable'] = True
