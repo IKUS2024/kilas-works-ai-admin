@@ -193,8 +193,16 @@ def main():
         owner.goto(BASE + f'/business/{bid}/customers?stage=LEAD')
         owner.locator('a.client-item').first.click()
         expect(owner.locator('[data-linked-jobs]')).to_have_count(0)
-        owner.locator('select[name=stage]').select_option('CUSTOMER')
-        owner.get_by_role('button', name='Simpan', exact=True).click()
+        # This archived WEB transport is deliberately excluded from live CRM analysis.
+        # Seed its owner-confirmed profile via the existing authenticated write contract;
+        # automatic WhatsApp Lead promotion is exercised by test_assist_crm_cleanup.
+        profile_url = owner.url
+        response = owner.context.request.post(profile_url, data={
+            'csrf_token': owner.locator('input[name=csrf_token]').first.input_value(),
+            'display_name': owner.locator('input[name=display_name]').input_value(),
+            'stage': 'CUSTOMER'}, max_redirects=0)
+        assert response.status == 302, response.text()
+        owner.reload()
         expect(owner.locator('[data-linked-jobs] a.client-item')).to_have_count(0)
         send(visitor, 'Mau kirim 20 kg baju dari Guangzhou ke Tangerang')
         expect(visitor.locator('.web-bubble.assistant')).to_have_count(2, timeout=15000)

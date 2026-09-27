@@ -101,9 +101,9 @@ def _sync_whatsapp_name(tx, business_id, customer_id, phone, profile_name, now=N
         return
     name = _clean_text(profile_name, 160)
     placeholder = row['display_name'] in (phone, _placeholder(customer_id), '', None)
-    edited = tx.one("SELECT id FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_NAME_EDITED' LIMIT 1",
+    edited = tx.one("SELECT 1 AS present FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_NAME_EDITED' LIMIT 1",
                     (business_id, customer_id))
-    legacy_edit = tx.one("SELECT id FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_UPDATED' LIMIT 1",
+    legacy_edit = tx.one("SELECT 1 AS present FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_UPDATED' LIMIT 1",
                         (business_id, customer_id))
     if name and not edited and (placeholder or not legacy_edit):
         tx.execute('UPDATE kw_core_customers SET display_name=?,updated_at=? WHERE business_id=? AND id=?',
