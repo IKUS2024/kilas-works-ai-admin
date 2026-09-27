@@ -213,12 +213,20 @@ class BusinessMediaTests(unittest.TestCase):
 
     def test_unrelated_negated_unapproved_or_invented_media_never_selected(self):
         fid, _ = self.upload()
+        self.assertIn('250.000', json.dumps(assist_reply.relevant_knowledge(self.bid, 'Apa saja yang tersedia?')))
         for text in ('Jam buka kapan?', 'Jangan kirim katalog', 'Saya mau bayar DP'):
             with patch.object(media.ai_router, 'complete', return_value=self.infer(fid, text)):
                 self.assertNotIn('_media', assist_reply.generate(self.bid, text, [])[2])
         media.instruct(self.bid, fid, self.uid, 'SOP internal saja', False)
         with patch.object(media.ai_router, 'complete', return_value=self.infer(fid, 'Kirim katalog')):
             self.assertNotIn('_media', assist_reply.generate(self.bid, 'Kirim katalog', [])[2])
+
+    def test_business_without_media_preserves_preexisting_knowledge_identity(self):
+        self.assertNotIn('media', assist_training.context(self.bid))
+        before = assist_training.fingerprint(self.bid)
+        # A different tenant's files cannot invalidate this business's successful test.
+        self.upload(business=repo.get_business(self.other))
+        self.assertEqual(assist_training.fingerprint(self.bid), before)
 
     def test_removal_replacement_and_instruction_revoke_readiness_and_pending_send(self):
         fid, _ = self.upload()

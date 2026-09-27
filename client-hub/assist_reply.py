@@ -23,7 +23,7 @@ Keluarkan JSON {"reply":string,"intent":"QUESTION|REQUEST|PAYMENT|CANCEL|HUMAN",
 "insight":objek sesuai schema CRM berikut}. evidence adalah kutipan persis pesan CUSTOMER TERBARU
 yang mendukung action/status, kosong jika tidak ada. knowledge_used hanya ID yang benar digunakan.
 Explain AI tidak memerlukan reasoning atau chain of thought; jangan keluarkan field reasoning.
-Koreksi terbaru dalam panduan pemilik mengalahkan fakta lama dalam file.
+Koreksi terbaru dalam panduan pemilik mengalahkan fakta dan petunjuk penggunaan lama pada file.
 Field tambahan media: null atau {"file_id":integer,"evidence":kutipan persis permintaan customer terbaru}.
 Pilih maksimal SATU approved_media hanya jika customer meminta file/foto/katalog dan isi file
 serta instruksi pemilik benar-benar sesuai. Jangan pilih file hanya karena topik mirip.
@@ -48,7 +48,8 @@ def relevant_knowledge(bid, query):
     for key, value in ranked:
         if len(chosen) >= 12 or budget <= 0:
             break
-        if key != 'profile' and assist_training.GUIDE_QUESTION not in value and not any(
+        # Broad customer questions ("Apa saja yang tersedia?") still need taught file facts.
+        if key != 'profile' and not key.startswith('media_') and assist_training.GUIDE_QUESTION not in value and not any(
                 word in value.casefold() for word in terms):
             continue
         chosen[key] = value[:budget]
