@@ -197,7 +197,7 @@ def main():
         # Seed its owner-confirmed profile via the existing authenticated write contract;
         # automatic WhatsApp Lead promotion is exercised by test_assist_crm_cleanup.
         profile_url = owner.url
-        response = owner.context.request.post(profile_url, data={
+        response = owner.context.request.post(profile_url, form={
             'csrf_token': owner.locator('input[name=csrf_token]').first.input_value(),
             'display_name': owner.locator('input[name=display_name]').input_value(),
             'stage': 'CUSTOMER'}, max_redirects=0)

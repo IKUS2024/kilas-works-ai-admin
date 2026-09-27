@@ -28,9 +28,18 @@ def main():
         before=finance.screenshot(path=str(OUT/'06_finance_before.png'),full_page=True)
 
         owner.goto(BASE+'/dev/owner/7',wait_until='networkidle')
-        owner.goto(BASE+'/business/7/customers?stage=CUSTOMER',wait_until='networkidle')
+        # The prior informational chat correctly remains a Lead. This archived
+        # transport does not run live WhatsApp CRM extraction; set up an explicit
+        # owner-confirmed request for the manual Jobs/Finance acceptance scenario.
+        owner.goto(BASE+'/business/7/customers?stage=LEAD',wait_until='networkidle')
         owner.locator('a.client-item').first.click()
         customer_url=owner.url
+        response=context.request.post(customer_url,form={
+            'csrf_token':owner.locator('input[name=csrf_token]').first.input_value(),
+            'display_name':owner.locator('input[name=display_name]').input_value(),
+            'stage':'CUSTOMER','notes':'Pesanan 20 paket makan siang'},max_redirects=0)
+        assert response.status==302,response.text()
+        owner.reload(wait_until='networkidle')
         expect(owner.locator('[data-create-job]')).to_be_visible()
         owner.locator('[data-create-job]').click()
         expect(owner.get_by_role('heading',name='Buat Pesanan')).to_be_visible()

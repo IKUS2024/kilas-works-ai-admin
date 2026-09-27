@@ -203,7 +203,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
     def test_quick_setup_preserves_knowledge_and_does_not_extend_demo(self):
         before=assist_training.context(self.bid)
         payload=dict(csrf_token='crm-test',setup_mode='quick',business_name='Foto Satu',category='Fotografi',
-            short_description='Foto produk',business_phone='081234567890',online_or_offline='online',
+            short_description='Foto produk',business_phone='081234567890',online_or_offline='both',
             address='Seluruh Indonesia',operating_hours='09-17 WIB',primary_language='Bahasa Indonesia')
         response=self.client.post(f'/business/{self.bid}/wizard/basics',data=payload)
         self.assertEqual(response.status_code,303);self.assertTrue(response.location.endswith('/train'))
@@ -211,6 +211,8 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertEqual(assist_training.context(self.bid)['faqs'],before['faqs'])
         self.assertEqual(assist_training.context(self.bid)['services'],before['services'])
         self.assertEqual(repo.get_business_profile(self.bid)['country'],'Indonesia')
+        self.assertEqual(repo.get_business_profile(self.bid)['online_or_offline'],'both')
+        self.assertIn('value="both" selected',self.client.get(f'/business/{self.bid}/wizard/basics').text)
         self.assertFalse(repo.get_onboarding_status(self.bid)['services_done'])
         trial=assist_journey._event(self.bid,assist_journey.DEMO_STEP)
         self.client.post(f'/business/{self.bid}/wizard/basics',data=payload)

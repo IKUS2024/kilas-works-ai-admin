@@ -183,14 +183,14 @@ def _quick_business_setup(business, profile):
                 'primary_language': 'Bahasa utama'}
     data = {key: request.form.get(key, '').strip() for key in (*required, 'address')}
     errors = [label for key, label in required.items() if not data[key]]
-    if data['online_or_offline'] not in ('online', 'offline', 'hybrid'):
+    if data['online_or_offline'] not in ('online', 'offline', 'both', 'hybrid'):
         errors.append('Model layanan')
     phone = re.sub(r'[\s()+-]', '', data['business_phone'])
     if phone.startswith('0'):
         phone = '62' + phone[1:]
     if not re.fullmatch(r'[1-9][0-9]{7,14}', phone):
         errors.append('Nomor WhatsApp bisnis yang valid')
-    if data['online_or_offline'] in ('offline', 'hybrid') and not data['address']:
+    if data['online_or_offline'] in ('offline', 'both', 'hybrid') and not data['address']:
         errors.append('Lokasi / area layanan')
     if any(len(value) > (1200 if key == 'short_description' else 500) for key, value in data.items()):
         errors.append('Data terlalu panjang')
