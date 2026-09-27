@@ -286,6 +286,7 @@ MIGRATIONS = [
     ("0065_platform_workspace_scope_sqlite.sql", "0065_platform_workspace_scope_postgres.sql"),
     ("0066_assist_demo_sqlite.sql", "0066_assist_demo_postgres.sql"),
     ("0067_assist_usage_provider_sqlite.sql", "0067_assist_usage_provider_postgres.sql"),
+    ("0068_assist_connections_sqlite.sql", "0068_assist_connections_postgres.sql"),
 ]
 
 
@@ -568,7 +569,10 @@ def knowledge_writer(function=None, *, row_table=None, id_argument='business_id'
                     raise ValueError('Business not found')
                 _local.knowledge_business = value
                 result = fn(*args, **kwargs)
-                conn.commit()
+                # A knowledge write may be part of payment verification or assisted activation.
+                # The enclosing commerce transaction owns commit; never release its locks early.
+                if not getattr(_local, 'commerce_transaction', False):
+                    conn.commit()
                 return result
             except Exception:
                 conn.rollback()

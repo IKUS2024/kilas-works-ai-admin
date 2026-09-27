@@ -129,7 +129,7 @@ def _resolve_tenant_id(phone_number_id):
         return None
 
 
-def _resolve_tenant_or_unknown(phone_number_id):
+def _resolve_tenant_or_unknown(phone_number_id, waba_id=None):
     """Task 7 (multi-tenant runtime safety) — tri-state resolution of the webhook's own
     `phone_number_id`, used ONLY by the webhook route (receive_webhook/_webhook_body_impl), never
     by anything that predates this cycle (see _resolve_tenant_id above, kept unchanged for its
@@ -152,7 +152,8 @@ def _resolve_tenant_or_unknown(phone_number_id):
         # Can't tell whether this is a real tenant without Client Hub — never default to Kilas.
         return None, True
     try:
-        found = _tcs.get_tenant_by_phone_number_id(phone_number_id)
+        found = (_tcs.resolve_tenant_id_by_whatsapp_phone_number_id(phone_number_id, waba_id)
+                 if waba_id is not None else _tcs.get_tenant_by_phone_number_id(phone_number_id))
     except Exception as e:
         print(
             f"Tenant resolution GAGAL (phone_number_id={phone_number_id!r}): {e} — diperlakukan "
@@ -6918,11 +6919,15 @@ def _webhook_body_impl(data):
         # message on Kilas Works' own number today (that number isn't registered as a Client Hub
         # tenant), so nothing below that branches on tenant_id changes behavior for it.
         _incoming_phone_number_id = (value.get("metadata") or {}).get("phone_number_id")
+        if _CLIENT_HUB_AVAILABLE and os.environ.get('WHATSAPP_APP_SECRET'):
+            import assist_connections as _assisted_connections
+            if _assisted_connections.observe(entry.get('id'), _incoming_phone_number_id, value):
+                return jsonify({'status': 'ok', 'connection_test': True}), 200
         if ENABLE_MULTI_TENANT:
             # Task 7 — tri-state resolution: a real tenant, Kilas Works' own official number, or
             # genuinely UNKNOWN. An unknown phone_number_id (including a tenant-lookup DB failure)
             # must NEVER be silently treated as Kilas Works — stop here, log only, no reply sent.
-            tenant_id, _tenant_resolution_unknown = _resolve_tenant_or_unknown(_incoming_phone_number_id)
+            tenant_id, _tenant_resolution_unknown = _resolve_tenant_or_unknown(_incoming_phone_number_id, entry.get("id") or "")
             if _tenant_resolution_unknown:
                 print(
                     f"WARNING: webhook phone_number_id={_incoming_phone_number_id!r} tidak dikenali "
@@ -6931,7 +6936,7 @@ def _webhook_body_impl(data):
                 )
                 return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
         else:
-            if _incoming_phone_number_id and _incoming_phone_number_id != WHATSAPP_PHONE_NUMBER_ID:
+            if not _incoming_phone_number_id or _incoming_phone_number_id != WHATSAPP_PHONE_NUMBER_ID:
                 return jsonify({"status": "ok", "unknown_phone_number_id": True}), 200
             tenant_id = None
 
@@ -8902,6 +8907,26 @@ _SUPPORTED_INTERNAL_NOTIFICATION_TYPES = (
     "PAYMENT_PROOF_UPLOADED",
     "WHATSAPP_CONNECTION_READY",
 )
+
+
+@app.route('/internal/assist-connection/<action>', methods=['POST'])
+def internal_assist_connection(action):
+    if not _platform_wa_migration_auth():
+        return jsonify({'status':'error','reason':'access_denied'}), 403
+    if not _CLIENT_HUB_AVAILABLE:
+        return jsonify({'status':'error','reason':'connection_unavailable'}), 503
+    try:
+        import assist_connection_transport as transport
+        payload = request.get_json(silent=True) or {}
+        if action == 'verify':
+            result = transport.verify(payload)
+        elif action == 'outbound':
+            result = transport.outbound(payload.get('business_id'))
+        else:
+            return jsonify({'status':'error','reason':'invalid_action'}), 404
+        return jsonify(result), 200
+    except Exception:
+        return jsonify({'status':'error','reason':'connection_test_failed'}), 409
 
 
 @app.route('/internal/platform-inbox-media/<media_key>', methods=['GET'])

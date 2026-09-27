@@ -78,5 +78,7 @@ def apply_verified(payment, actor):
         if repo.get_business(bid)['package'] != plan.upper():
             repo.set_business_package(bid,plan.upper(),actor)
         subscription_service.establish_paid_subscription(bid,actor)
+    import assist_connections
+    assist_connections.enqueue(bid, actor)
     repo.write_audit(actor,bid,'ASSIST_SUBSCRIPTION_PAYMENT_APPLIED',key,project_id=project['id'])
     return True

@@ -76,7 +76,7 @@ New isolation test initially expected 403; existing security deliberately return
 ## Migration/schema notes
 Production contains kw_core_* Jobs/CRM/bridge/WhatsApp and existing subscriptions, ai_usage_ledger, knowledge revisions, Finance tables. Migration 0066 is local only; migration rehearsal and production apply pending. No production data modification performed.
 ## PR/merge status
-Remote checkpoint branch exists; signup/training checkpoint committed as 37246ec. Demo/router checkpoint committed as 540753cb. Finance/Jobs/pricing/cost checkpoint is being published. No PR/merge yet. CLI push has no GitHub credential; authenticated GitHub connector can publish changes.
+Remote checkpoint branch exists; signup/training checkpoint committed as 37246ec. Demo/router checkpoint committed as 540753cb. Finance/Jobs/pricing/cost checkpoint committed as a6fd709. No PR/merge yet. CLI push has no GitHub credential; authenticated GitHub connector can publish changes.
 ## Deploy status
 No changes deployed in this run.
 ## Production verification
@@ -118,3 +118,23 @@ Read this checkpoint, inspect working diff/current main only as needed, and cont
 2. Assisted WhatsApp queue + authoritative WABA/Phone ID mapping and test gates; SaaS Admin/support banner and audit.
 3. Full production Assist inference/media/payment evidence/follow-up integration and demo manual media/template scope.
 4. Upgrade final regression fixtures, rehearse additive migrations, review complete diff, merge/deploy both services, verify live. Do not certify before these gates.
+
+
+## Checkpoints 7–8 implementation update (not deployed)
+- Added migration 0068 operational connection queue/evidence, without duplicating authoritative WABA/Phone Number ID mapping.
+- Verified new Assist subscriptions enqueue Pending. Missing requested phone does not roll back a valid payment; owner can complete the profile and request connection.
+- Operator stages, Meta WABA asset membership + requested-number verification, one-use inbound challenge from trusted owner, outbound send claim and signed delivered/read receipt. Both tests must match the current mapping before Activate. Changed mapping invalidates evidence; ambiguous outbound sends are not automatically retried.
+- Authoritative inbound resolver now cross-checks canonical CONNECTED config and WABA identity. Unknown/missing identity fails closed. Assisted Core routing supports the verified shared system credential with the tenant's own Phone Number ID.
+- Embedded Signup/Coexistence customer writes retired; customer status page exposes business wording only. Public anonymous chat retired while shared WhatsApp Inbox storage remains usable.
+- New Platform Admin has seven required sections, tenant detail, subscription revenue/cost summaries, explicit unknown operating expenses, configuration/DB observations, scoped support sessions, permanent banner and action audit. No tenant Finance aggregation.
+- Found integration atomicity issue: nested knowledge_writer committed an enclosing commerce transaction. Corrected commit ownership to preserve payment/activation rollback; no Finance calculation or ledger behavior changed.
+- New connection suite initially lacked explicit optional Core fixture schema: added existing installers rather than hiding missing tables. Connection six tests and Platform Admin three tests PASS. Added transaction rollback test next; full release gate still pending.
+- Production remains baseline, not deployed. Real Meta/OTP/inbound/outbound verification is still pending. These are implemented workflow gates, not claimed production outcomes.
+
+## Remaining at current working checkpoint
+- Finish Finance bundle entitlement and owner-visible mapping navigation.
+- Production structured Assist inference/CRM/knowledge, media payment candidates, and outgoing demo media/template session attribution.
+- Harden deterministic payment intent against negation; finish naming/usage sweep.
+- Complete regression diagnosis (including intentionally retired public/self-service paths), browser QA, PostgreSQL migration rehearsal, safe merge/deploy and live verification.
+- New platform pages currently require existing optional Core tables (confirmed in production); local fixtures explicitly install them.
+- No true external blocker has been established. Do not stop at this intermediate implementation checkpoint.

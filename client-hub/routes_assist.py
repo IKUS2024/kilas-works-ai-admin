@@ -53,3 +53,26 @@ def training(business_id):
     return render_template('assist_training.html', business=business, journey=journey,
                            history=assist_training.history(business_id),
                            can_ready=assist_training.can_ready(business_id))
+
+
+@assist_bp.route('/business/<int:business_id>/assist-whatsapp',methods=['GET','POST'])
+@security.login_required
+def whatsapp(business_id):
+    import repo, assist_connections
+    user=security.current_user()
+    business=security.require_business_access(business_id,user)
+    if business['package'] not in ('AI_ADMIN','AI_ADMIN_BASIC','AI_ADMIN_PRO'):abort(404)
+    journey=assist_journey.state(business)
+    if request.method=='POST':
+        try:
+            with assist_connections.binding_lock():assist_connections.enqueue(business_id,user['id'])
+            flash('Permintaan koneksi Anda sudah masuk antrean Kilas.','success')
+        except ValueError:
+            flash('Lengkapi nomor bisnis dan pastikan pembayaran paket sudah terverifikasi.','error')
+        return redirect(url_for('assist.whatsapp',business_id=business_id),code=303)
+    row=assist_connections.get(business_id) or {}
+    status={'Pending':'Menunggu tim Kilas','Processing':'Sedang dihubungkan',
+            'Waiting OTP':'Menunggu kode verifikasi bersama operator','Error':'Tim Kilas sedang memeriksa koneksi',
+            'Disconnected':'Koneksi terputus; hubungi Support','Connected':'Terhubung'}.get(row.get('state'),'Menunggu tim Kilas')
+    return render_template('assist_whatsapp.html',business=business,journey=journey,
+        profile=repo.get_business_profile(business_id) or {},customer_status=status)

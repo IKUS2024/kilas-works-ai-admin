@@ -1,0 +1,3 @@
+<nav aria-label="Platform Admin" class="card" style="display:flex;gap:14px;flex-wrap:wrap">
+{% for key,label in sections %}<a href="{{ url_for('platform_control.page',section=key) }}" {% if section==key %}aria-current="page" style="font-weight:800"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>

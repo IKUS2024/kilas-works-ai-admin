@@ -11,7 +11,7 @@ def context():
         return g.kilas_workspace
     result = dict(enabled=False, ai=[], finance=[], unavailable=False, active='more', product='ai', finance_visible=False)
     g.kilas_workspace = result
-    if not session.get('user_id') or session.get('role') == 'KILAS_ADMIN':
+    if not session.get('user_id') or (session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id')):
         return result
     # Public customer links/documents never acquire owner navigation.
     if request.blueprint == 'public_web' or request.endpoint in (
@@ -23,7 +23,9 @@ def context():
     try:
         from routes_products import _finance_business_claimed
         from kilas_core.customers import AI_PACKAGES
-        rows = repo.list_businesses_for_user(session['user_id'])
+        rows = ([repo.get_business(session['support_business_id'])] if session.get('role')=='KILAS_ADMIN'
+                else repo.list_businesses_for_user(session['user_id']))
+        rows = [r for r in rows if r]
         result['ai'] = [r for r in rows if r.get('package') in AI_PACKAGES]
         result['finance'] = [r for r in rows if _finance_business_claimed(r['id'])]
     except Exception:
@@ -65,7 +67,7 @@ def workspace_context():
 @workspace_bp.get('/workspace')
 @security.login_required
 def home():
-    if session.get('role') == 'KILAS_ADMIN':
+    if session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id'):
         return redirect(url_for('admin.dashboard'), code=303)
     ui = context()
     if not ui['unavailable'] and ui['product'] == 'finance':
@@ -94,7 +96,7 @@ def _ai_home(ui):
 @workspace_bp.get('/workspace/ai')
 @security.login_required
 def ai_home():
-    if session.get('role') == 'KILAS_ADMIN':
+    if session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id'):
         return redirect(url_for('admin.dashboard'), code=303)
     ui = context()
     if not ui['unavailable'] and not ui['ai'] and ui['finance']:
@@ -134,7 +136,7 @@ def go(area):
     core = {'inbox': 'client.inbox_page', 'customers': 'core_customers.list_page',
             'jobs': 'core_jobs.list_page', 'knowledge': 'assist.training',
             'simulate': 'assist.training', 'settings': 'client.business_settings',
-            'review': 'client.review_page', 'automations': 'core_operations.settings'}
+            'review': 'assist.whatsapp', 'automations': 'core_operations.settings'}
     if area in common:
         if area not in ('account', 'bills'):
             session.pop('active_product', None)

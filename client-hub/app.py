@@ -207,6 +207,8 @@ def create_app():
     app.jinja_env.globals["assist_plans"] = __import__("pricing_config").ASSIST_PLANS
     app.jinja_env.globals["assist_launch"] = __import__("pricing_config").ASSIST_LAUNCH_RULE
     app.register_blueprint(admin_bp)
+    from routes_platform_control import platform_bp
+    app.register_blueprint(platform_bp)
     app.register_blueprint(projects_bp)
     from routes_wa_checkout import wa_checkout_bp
     app.register_blueprint(wa_checkout_bp)

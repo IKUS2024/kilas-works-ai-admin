@@ -98,6 +98,12 @@ def get_display_status(business):
 @admin_bp.route("/")
 @security.admin_required
 def dashboard():
+    return redirect(url_for("platform_control.page"), code=303)
+
+
+@admin_bp.route("/legacy-overview")
+@security.admin_required
+def legacy_overview():
     finance_trials_only = request.args.get("finance") == "trial"
     brain_review_only = request.args.get("brain_review") == "changes"
     status_filter = None if (finance_trials_only or brain_review_only) else request.args.get("status") or None

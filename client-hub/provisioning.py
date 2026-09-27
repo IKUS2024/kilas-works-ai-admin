@@ -318,6 +318,13 @@ def validate_and_connect_whatsapp(business_id, actor, phone_number_id, waba_id, 
 
 def _validate_whatsapp_connection(business_id, actor, phone_number_id, waba_id, credentials_reference):
     business = repo.get_business(business_id)
+    # New connections must use the assisted queue and signed inbound/outbound test gates.
+    if business and business.get('status') != 'ACTIVE':
+        raise ProvisioningError('assisted_connection_required')
+    import assist_connections
+    queue = assist_connections.get(business_id)
+    if queue and queue['state'] != 'Connected':
+        raise ProvisioningError('assisted_connection_required')
     if not business:
         raise ProvisioningError("business_not_found")
     # Task 8 — credentials_reference is now OPTIONAL: leaving it empty means this tenant shares

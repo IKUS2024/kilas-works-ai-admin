@@ -10,7 +10,8 @@ from . import store
 
 
 def available(business):
-    eligible = bool(business and os.environ.get('KILAS_WEB_CHAT_ENABLED', '').lower() == 'true'
+    eligible = bool(business and (os.environ.get('KILAS_ASSIST_RUNTIME_ENABLED', '').lower() == 'true'
+                    or os.environ.get('KILAS_WEB_CHAT_ENABLED', '').lower() == 'true')
                     and enabled_for_business(business['id'])
                     and business.get('package') in ('AI_ADMIN', 'AI_ADMIN_BASIC', 'AI_ADMIN_PRO')
                     and business.get('status') not in ('ARCHIVED', 'SUSPENDED', 'CANCELLED'))
@@ -27,7 +28,8 @@ def available(business):
 
 
 def resolve(slug):
-    if os.environ.get('KILAS_WEB_CHAT_ENABLED', '').lower() != 'true':
+    # Public anonymous chat is retired; shared storage still serves authenticated WhatsApp Inbox.
+    if True:
         abort(404)
     channel = store.channel(slug=slug)
     if not channel or not channel['enabled']:
