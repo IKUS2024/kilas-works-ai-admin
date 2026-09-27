@@ -149,6 +149,8 @@ class WorkspaceTests(unittest.TestCase):
         page = self.client.get('/workspace/more')
         self.assertNotIn('Pengetahuan &amp; playbook', page.text)
         self.assertNotIn('kw-primary', page.text)
+        self.assertIn('https://wa.me/14048836437', page.text)
+        self.assertNotIn('https://wa.me/6282213039137', page.text)
         self.assertEqual(len(repo.list_businesses_for_user(self.uid)), before)
 
     def test_foreign_remembered_finance_branch_is_not_reused(self):
