@@ -1264,41 +1264,33 @@ def demo_kilas_whatsapp(business_id):
         flash("Demo Kilas tersedia dari workspace Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
 
-    import assist_journey
-    journey = assist_journey.state(business)
-    if journey['connected']:
-        return redirect(url_for('client.inbox_page', business_id=business_id), code=303)
-    if not journey['ready'] or not journey['onboarding_complete']:
-        return redirect(url_for('assist.training', business_id=business_id), code=303)
-    if not (journey['demo_active'] or journey['paid']):
-        return redirect(url_for('workspace.usage', bid=business_id), code=303)
-
-    existing_phone = _demo_kilas_phone_for_business(business_id)
-    import assist_demo
-    existing_binding = assist_demo.binding(business_id)
-    if existing_phone and existing_binding['active'] and existing_binding['expires_at'] > int(time.time()):
-        return redirect(
-            url_for(
-                "client.inbox_page",
-                business_id=business_id,
-                customer=existing_phone,
-                source="demo",
-            ),
-            code=303,
-        )
-
     return _launch_demo_whatsapp(business_id, security.current_user()['id'])
 
 
 def _launch_demo_whatsapp(business_id, actor_id):
-    """One shared launch for tested confirmation and Home/Inbox demo entry."""
-    import assist_demo
-    _, marker = assist_demo.begin(business_id, actor_id)
-    text = "Halo Kilas Works. Saya mau mencoba Kilas Assist.\n" + marker
-    return redirect(
-        "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),
-        code=302,
-    )
+    """One shared launch/reuse authority for training, Home and Inbox."""
+    import assist_demo, assist_journey
+    business = security.require_business_access(business_id, security.current_user())
+    journey = assist_journey.state(business)
+    if journey['connected']:
+        return redirect(url_for('client.inbox_page', business_id=business_id), code=303)
+    if not (journey['demo_active'] or journey['paid']):
+        return redirect(url_for('workspace.usage', bid=business_id), code=303)
+    if not journey['ready'] or not journey['onboarding_complete']:
+        return redirect(url_for('assist.training', business_id=business_id), code=303)
+    pending = session.get('assist_demo_invitation') or {}
+    marker = pending.get('marker') if pending.get('business_id') == business_id else None
+    try:
+        _, marker = assist_demo.launch(business_id, actor_id, marker)
+    except ValueError:
+        return redirect(url_for('assist.training', business_id=business_id), code=303)
+    target = 'https://wa.me/' + _DEMO_KILAS_PHONE
+    if marker:
+        session['assist_demo_invitation'] = dict(business_id=business_id, marker=marker)
+        target += '?text=' + quote('Halo Kilas Works. Saya mau mencoba Kilas Assist.\n' + marker, safe='')
+    else:
+        session.pop('assist_demo_invitation', None)
+    return redirect(target, code=302)
 
 
 # ---------------------------------------------------------------------------

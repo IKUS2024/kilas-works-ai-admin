@@ -23,6 +23,42 @@ def latest(bid):
                         'ORDER BY active DESC,created_at DESC,id DESC LIMIT 1', (bid,))
 
 
+def active_binding(bid):
+    """A binding is reusable only while its explicit session is healthy."""
+    return db.query_one('SELECT * FROM kw_assist_demo_sessions WHERE business_id=? '
+                        'AND active=TRUE AND sender_phone IS NOT NULL AND expires_at>? '
+                        'ORDER BY created_at DESC,id DESC LIMIT 1', (bid, int(time.time())))
+
+
+@db.knowledge_writer
+def launch(business_id, actor, pending_marker=None):
+    """The only owner launch path. Reuse a binding before considering a new invitation.
+
+    Serialize clicks and training under the business lock. A pending token may be reused
+    only when it still matches the tenant's active unbound invitation; never trust cookies
+    as proof of a binding. begin remains the explicit new/replacement-session primitive.
+    """
+    state = assist_journey.state(repo.get_business(business_id))
+    if state['connected'] or not (state['demo_active'] or state['paid']):
+        raise ValueError('demo_unavailable')
+    if not db.query_one('SELECT 1 FROM business_memberships WHERE business_id=? AND user_id=?',
+                        (business_id, actor)):
+        raise ValueError('not_found')
+    bound = active_binding(business_id)
+    if bound:
+        return bound['id'], None
+    if not state['ready'] or not state['onboarding_complete']:
+        raise ValueError('teaching_required')
+    pending = latest(business_id)
+    match = MARKER.fullmatch(pending_marker or '')
+    if (pending and pending['active'] and pending['expires_at'] > int(time.time())
+            and not pending['sender_phone'] and match
+            and secrets.compare_digest(pending['token_hash'], hashlib.sha256(match[1].lower().encode()).hexdigest())):
+        return pending['id'], pending_marker
+    return begin(business_id, actor)
+
+
+@db.knowledge_writer(id_argument='bid')
 def begin(bid, actor):
     business = repo.get_business(bid)
     state = assist_journey.state(business)
@@ -32,11 +68,9 @@ def begin(bid, actor):
         raise ValueError('not_found')
     token, sid, now = secrets.token_hex(12), uuid.uuid4().hex, int(time.time())
     expiry = int(state['demo_expires_at'].timestamp()) if state['demo_active'] else now + 7 * 86400
-    with transaction() as tx:
-        tx.execute('UPDATE businesses SET id=id WHERE id=?', (bid,))
-        tx.execute('UPDATE kw_assist_demo_sessions SET active=FALSE WHERE business_id=? AND active=TRUE', (bid,))
-        tx.execute('INSERT INTO kw_assist_demo_sessions(id,business_id,actor_id,token_hash,created_at,expires_at) '
-                   'VALUES (?,?,?,?,?,?)', (sid,bid,actor,hashlib.sha256(token.encode()).hexdigest(),now,expiry))
+    db.execute('UPDATE kw_assist_demo_sessions SET active=FALSE WHERE business_id=? AND active=TRUE', (bid,))
+    db.execute('INSERT INTO kw_assist_demo_sessions(id,business_id,actor_id,token_hash,created_at,expires_at) '
+               'VALUES (?,?,?,?,?,?)', (sid,bid,actor,hashlib.sha256(token.encode()).hexdigest(),now,expiry))
     return sid, 'KWDEMO-' + token
 
 

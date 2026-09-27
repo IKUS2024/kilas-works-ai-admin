@@ -90,13 +90,26 @@ def main():
             assert platform_control.economics()['revenue']==0
             assert platform_control.system()['Finance bridge']=='Tables reachable'
             assert snapshot()==before
-            state=dict(ready=True,connected=False,demo_active=True,paid=False,
+            state=dict(ready=True,connected=False,demo_active=True,paid=False,onboarding_complete=True,
                        demo_expires_at=datetime.now(timezone.utc)+timedelta(days=7))
             with patch.object(assist_journey,'state',return_value=state):
-                sid,code=assist_demo.begin(bid,uid)
+                sid,code=assist_demo.launch(bid,uid)
+                assert assist_demo.launch(bid,uid,code)==(sid,code)
                 second,second_code=assist_demo.begin(other,uid)
             bound=assist_demo.resolve('628111111111',code)
             assert bound['business_id']==bid
+            # Native transactions must reuse the binding without lock loss or rebind.
+            with patch.object(assist_journey,'state',return_value=state), \
+                    patch.object(assist_demo,'begin',side_effect=AssertionError('do not rebind')):
+                assert assist_demo.launch(bid,uid)==(sid,None)
+            import assist_training
+            with patch.object(assist_training.ai_onboarding,'_call_claude',return_value=(json.dumps(
+                    dict(reply='Harga terbaru Rp175.000.',knowledge='Harga sekarang Rp175.000.')), 'end_turn', None)):
+                assist_training.teach(repo.get_business(bid),uid,'Harga sekarang Rp175.000.')
+            assist_training.ready(repo.get_business(bid),uid)
+            assert assist_demo.active_binding(bid)['id']==sid
+            assert '175.000' in str(assist_training.context(bid))
+            assert repo.get_ai_settings(bid)['ai_status']=='DONE'
             assert assist_demo.binding(other) is None
             try:assist_demo.resolve('628222222222',code)
             except ValueError:pass

@@ -15,6 +15,7 @@ class ActionEvidenceTests(unittest.TestCase):
                      knowledge_used=[], evidence=evidence,
                      insight=dict(action='Tindak lanjuti permintaan', job_status=status))
         with patch.object(assist_reply, 'relevant_knowledge', return_value={}), \
+                patch.object(assist_reply.assist_training, 'language_policy', return_value={}), \
                 patch.object(assist_reply.ai_router, 'complete',
                              return_value=(json.dumps(value), 'end_turn', None)):
             return assist_reply.generate(123, text, [])[1]
