@@ -205,6 +205,10 @@ def process(event, *, profile_name=None, media_message_id=None, send):
         if not current['active'] or platform_inbox_service.get_state(phone) != 'AI_ACTIVE':
             db.execute("UPDATE kw_assist_demo_events SET status='human' WHERE provider_id=?", (provider_id,))
             return True
+        if insight and insight.get('_handoff_requested'):
+            # The customer gets this acknowledgement, then only the owner's explicit
+            # return-to-AI action may resume automated replies, just as in production.
+            platform_inbox_service.start_human_takeover(phone)
         db.execute("UPDATE kw_assist_demo_events SET reply_text=?,explanation_json=?,status='sending' WHERE provider_id=?",
                    (reply,json.dumps(trace,ensure_ascii=False),provider_id))
         ok, _ = send(phone, reply)

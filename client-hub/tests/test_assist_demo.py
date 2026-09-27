@@ -108,6 +108,27 @@ class DemoTests(unittest.TestCase):
         self.assertTrue(self.receive(self.marker,'bind-1'))
         self.assertEqual(self.send.call_count,1)
 
+    def test_customer_requested_human_handoff_waits_for_owner_to_resume(self):
+        self.receive(self.marker,'bind-1')
+        self.model.return_value = ('Saya hubungkan dengan pemilik.',
+            dict(summary='Meminta bantuan pemilik', action=None, job_status=None,
+                 _handoff_requested=True), {'confidence':95})
+        self.receive('Saya ingin bicara dengan pemilik','human-request')
+        self.assertEqual(platform_inbox_service.get_state(self.phone),'HUMAN_TAKEOVER')
+        self.assertEqual(self.send.call_count,2)
+        self.model.reset_mock()
+        self.receive('Ada orang?','human-wait')
+        self.model.assert_not_called()
+        self.assertEqual(self.send.call_count,2)
+        self.assertEqual(db.query_one("SELECT status FROM kw_assist_demo_events WHERE provider_id='human-wait'")['status'],'human')
+        self.assertEqual(jobs.list_jobs(self.b1)[1],0)
+        self.assertEqual(demo.rows(self.b2,self.phone),[])
+        platform_inbox_service.return_to_ai(self.phone,self.u1)
+        self.model.return_value=('Saya bantu.',dict(action=None,job_status=None),{'confidence':90})
+        self.receive('Terima kasih','owner-resumed')
+        self.model.assert_called_once()
+        self.assertEqual(self.send.call_count,3)
+
     def test_expired_binding_fails_closed(self):
         db.execute('UPDATE kw_assist_demo_sessions SET expires_at=1 WHERE id=?',(self.sid,))
         with self.assertRaisesRegex(ValueError,'invalid_demo_binding'):

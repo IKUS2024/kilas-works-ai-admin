@@ -2,6 +2,10 @@ name: Kilas Master Completion QA
 on:
   pull_request:
     branches: [main]
+  push:
+    branches:
+      - feature/kilas-master-completion-20260927
+      - feature/kilas-master-resume-20260927
   workflow_dispatch:
 permissions:
   contents: read
