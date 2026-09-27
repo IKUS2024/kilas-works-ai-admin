@@ -41,13 +41,18 @@ class DashboardCleanupTests(unittest.TestCase):
         for business in (False,True):
             for status in ('CANCELLED','COMPLETED','REQUESTED','WAITING_FOR_QUOTE','PAID','IN_PROGRESS'):
                 self.project(status,business,title=f'Unique-{business}-{status}')
-        body=self.client.get('/dashboard').get_data(as_text=True)
+        home=self.client.get('/dashboard').get_data(as_text=True)
+        # The master Home presents Assist; historical creative orders stay accessible
+        # through their authorized list and retain all financial/cancellation rules.
+        for business in (False,True):
+            for status in ('CANCELLED','COMPLETED','REQUESTED','WAITING_FOR_QUOTE','PAID','IN_PROGRESS'):
+                self.assertNotIn(f'Unique-{business}-{status}',home)
+        body=self.client.get('/projects?view=active').get_data(as_text=True)
         for business in (False,True):
             for status in ('CANCELLED','COMPLETED'):
                 self.assertNotIn(f'Unique-{business}-{status}',body)
             for status in ('REQUESTED','WAITING_FOR_QUOTE','PAID','IN_PROGRESS'):
                 self.assertIn(f'Unique-{business}-{status}',body)
-        self.assertIn('Riwayat Proyek',body)
         history=self.client.get('/projects?view=history').get_data(as_text=True)
         for business in (False,True):
             self.assertIn(f'Unique-{business}-CANCELLED',history)
@@ -58,8 +63,7 @@ class DashboardCleanupTests(unittest.TestCase):
         for business in (False,True):
             pid=self.project(business=business)
             body=self.client.get('/dashboard').get_data(as_text=True)
-            self.assertIn(f'/projects/{pid}/brief?edit=1',body)
-            self.assertIn('Edit Brief',body)
+            self.assertNotIn(f'/projects/{pid}/brief?edit=1',body)
             before=db.query_one('SELECT COUNT(*) AS n FROM projects')['n']
             page=self.client.get(f'/projects/{pid}/brief?edit=1').get_data(as_text=True)
             self.assertIn('Brand tersimpan',page);self.assertIn('Review Order',page)
@@ -181,12 +185,16 @@ class DashboardCleanupTests(unittest.TestCase):
         self.client.post(f'/projects/{pid}/brief?edit=1',data={'action':'brief','name':'Changed'})
         self.assertEqual(projects.get_project(pid)['requirements'],before)
 
-    def test_customer_confirmation_mobile_and_business_cards_unchanged(self):
-        self.project()
+    def test_assist_home_and_historical_cancel_confirmation(self):
+        pid,_,_=self.with_payment()
         body=self.client.get('/dashboard').get_data(as_text=True)
-        self.assertIn('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.',body)
-        self.assertIn('@media(max-width:680px)',body);self.assertIn('data-label="Proyek"',body)
-        self.assertIn('Knowledge Test',body);self.assertIn('Ajari Kilas Brain',body)
+        self.assertIn('Kilas Assist',body)
+        self.assertIn('Lengkapi data bisnis',body)
+        self.assertIn(f'/business/{self.bid}/wizard/',body)
+        self.assertNotIn('Ajari Kilas Brain',body)
+        self.assertNotIn('data-label="Proyek"',body)
+        detail=self.client.get(f'/projects/{pid}').get_data(as_text=True)
+        self.assertIn('Batalkan pesanan ini? Riwayat transaksi tetap tersimpan.',detail)
         self.assertNotIn('Hapus permanen',body)
 
     def test_personal_detail_uses_same_policy(self):

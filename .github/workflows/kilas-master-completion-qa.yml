@@ -1,0 +1,47 @@
+name: Kilas Master Completion QA
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  assist-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Isolated Assist master regressions with external network blocked
+        run: python scripts/run_offline_tests.py --client-hub-only --only test_assist
+  additive-postgres-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_master_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_master_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Native PostgreSQL 18 additive migration rollback and Finance preservation
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_master_qa
+          KILAS_ASSIST_POSTGRES_QA: '1'
+          KILAS_FINANCE_BETA: 'on'
+          KILAS_FINANCE_ACCESS_MODE: internal_beta
+          SECRET_KEY: synthetic-master-qa-only
+        run: python client-hub/tests/assist_release_postgres_qa.py

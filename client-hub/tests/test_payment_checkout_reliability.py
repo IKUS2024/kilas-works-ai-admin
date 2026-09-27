@@ -205,9 +205,14 @@ def test_8_real_reported_pattern_ai_admin_pro_999k_payment_pending_not_locked():
     reset_db()
     uid, bid = _make_owner_and_business("Biz T8 (real pattern)", "t8@test.com", package="AI_ADMIN_PRO")
     item = catalog_service.get_catalog_item("ai_admin_pro")
+    # Reproduce the historical invoice independently of today's Pro price.
+    current_catalog_price = item['price_amount']
+    item = dict(item, price_amount=999000)
     assert item["price_amount"] == 999000, f"expected Rp999.000 catalog price, got {item['price_amount']}"
     project_id = projects_repo.create_fixed_price_project(bid, item, uid)
-    payment_service.checkout(project_id, bid, uid)  # first checkout -> PAYMENT_PENDING
+    invoice_id = payment_service.checkout(project_id, bid, uid)  # first checkout -> PAYMENT_PENDING
+    invoice_before = payment_service.get_invoice(invoice_id)
+    assert invoice_before['amount'] == 999000
     assert projects_repo.get_project(project_id)["status"] == "PAYMENT_PENDING"
 
     try:
@@ -217,6 +222,8 @@ def test_8_real_reported_pattern_ai_admin_pro_999k_payment_pending_not_locked():
         raised = True
         error_msg = str(e)
     assert not raised, f"BUG: checkout_locked raised for a legitimate PAYMENT_PENDING revisit"
+    assert payment_service.get_invoice(invoice_id) == invoice_before
+    assert catalog_service.get_catalog_item('ai_admin_pro')['price_amount'] == current_catalog_price
     print("test_8_real_reported_pattern_ai_admin_pro_999k_payment_pending_not_locked OK")
 
 
@@ -286,7 +293,7 @@ def test_12_detected_matches_invoice_difference_zero():
     invoice_id = payment_service.checkout(project_id, bid, uid)
     payment = payment_service.get_payment_for_invoice(invoice_id)
     _upload_with_extracted_fields(payment["id"], bid, item["price_amount"], uid,
-                                   extracted_fields={"ai_extracted_amount": 999000})
+                                   extracted_fields={"ai_extracted_amount": item["price_amount"]})
     reloaded = payment_service.get_payment(payment["id"])
     difference = reloaded["ai_extracted_amount"] - item["price_amount"]
     assert difference == 0
@@ -302,7 +309,7 @@ def test_13_detected_mismatch_flagged():
     invoice_id = payment_service.checkout(project_id, bid, uid)
     payment = payment_service.get_payment_for_invoice(invoice_id)
     _upload_with_extracted_fields(payment["id"], bid, item["price_amount"], uid,
-                                   extracted_fields={"ai_extracted_amount": 990000})
+                                   extracted_fields={"ai_extracted_amount": item["price_amount"] - 9000})
     reloaded = payment_service.get_payment(payment["id"])
     difference = reloaded["ai_extracted_amount"] - item["price_amount"]
     assert difference == -9000
@@ -550,8 +557,9 @@ def test_25_admin_ui_shows_clear_amount_and_risk_summary():
     assert resp.status_code == 200
     body = resp.data.decode()
     assert "Selisih" in body
-    assert "Nominal terbaca" in body
-    assert "Duplicate risk" in body
+    assert "<span>Terbaca</span>" in body
+    assert "Duplicate Risk" in body
+    assert 'Rp' + format(item['price_amount'], ',').replace(',', '.') in body
     print("test_25_admin_ui_shows_clear_amount_and_risk_summary OK")
 
 
