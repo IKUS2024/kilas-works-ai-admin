@@ -65,6 +65,7 @@ def teach(business, actor, message):
     with ai_usage.scope(bid, 'knowledge_assist'):
         text, stop, error = ai_onboarding._call_claude(TEACH_PROMPT, [{'role': 'user', 'content':
             json.dumps({'business': business['business_name'],
+                        'business_knowledge': context(bid),
                         'previous_knowledge': (previous or {}).get('answer') or '',
                         'owner_teaches': message}, ensure_ascii=False)}], max_tokens=3000)
     if error or stop == 'max_tokens':

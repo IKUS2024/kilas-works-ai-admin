@@ -24,6 +24,10 @@ def training(business_id):
     if request.method == 'POST':
         action = request.form.get('action')
         try:
+            # Older completed onboarding may predate the automatic trial event. Resume
+            # it on the first normal training action, with no extra customer-facing step.
+            if not journey['demo_started'] and not journey['paid']:
+                journey = assist_journey.start_demo(business_id, user['id'])
             if action == 'start_demo':
                 assist_journey.start_demo(business_id, user['id'])
             else:
@@ -31,9 +35,14 @@ def training(business_id):
                     raise ValueError('demo_expired')
                 if not knowledge_assist.allow_click(user['id'], business_id):
                     raise ValueError('too_many_requests')
-                if action == 'ready':
+                if action in ('ready', 'ready_whatsapp'):
                     assist_training.ready(business, user['id'])
-                    flash('Saya sudah memahami cara Anda ingin customer dilayani. Jika tidak yakin, saya akan meminta bantuan Anda.', 'success')
+                    if journey['connected']:
+                        return redirect(url_for('client.inbox_page', business_id=business_id), code=303)
+                    if action == 'ready_whatsapp':
+                        from routes_client import _launch_demo_whatsapp
+                        return _launch_demo_whatsapp(business_id, user['id'])
+                    flash('Saya sudah memahami cara kamu ingin customer dilayani.', 'success')
                 elif action in ('teach', 'test'):
                     message = (request.form.get('message') or '').strip()
                     if not 1 <= len(message) <= 4000:

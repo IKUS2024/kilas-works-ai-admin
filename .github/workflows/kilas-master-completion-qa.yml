@@ -21,6 +21,8 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - name: Isolated Assist master regressions with external network blocked
         run: python scripts/run_offline_tests.py --client-hub-only --only test_assist
+      - name: Signed Demo webhook routing and owner isolation
+        run: python scripts/run_offline_tests.py --top-level-only --only test_kilas_whatsapp_webhook
   additive-postgres-release:
     runs-on: ubuntu-latest
     timeout-minutes: 15

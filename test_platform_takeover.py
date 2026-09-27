@@ -1,4 +1,4 @@
-"""Platform Inbox / Human Takeover regression tests — Kilas Works' OWN WhatsApp number
+"""Platform Demo Inbox / Human Takeover regression tests — Kilas Works' OWN WhatsApp number
 (tenant_id=None), backed by client-hub/platform_inbox_service.py + the
 platform_wa_conversation_state table (migration 0016_platform_takeover).
 
@@ -36,6 +36,8 @@ import app as appmod  # noqa: E402
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "client-hub"))
 import db as chdb  # noqa: E402
 import platform_inbox_service  # noqa: E402
+import assist_demo, assist_reply, repo, uuid, time
+from datetime import datetime, timedelta, timezone
 
 client = appmod.app.test_client()
 
@@ -46,6 +48,23 @@ def reset_state():
     appmod.followup_state.clear()
     appmod._owner_demo_sessions.clear()
     chdb.execute("DELETE FROM platform_wa_conversation_state")
+    chdb.execute("DELETE FROM kw_assist_demo_events")
+    chdb.execute("DELETE FROM kw_assist_demo_sessions")
+    chdb.execute("CREATE TABLE IF NOT EXISTS messages(id INTEGER PRIMARY KEY AUTOINCREMENT,number TEXT,mode TEXT,role TEXT,content TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+    chdb.execute("DELETE FROM messages")
+    appmod.PROCESSED_MESSAGE_IDS.clear()
+    appmod.PROCESSED_MESSAGE_IDS_ORDER.clear()
+
+
+def bind_demo(phone):
+    """Real current Demo membership; no legacy audit/in-memory routing bypass."""
+    uid=repo.create_user(uuid.uuid4().hex+'@fixture.invalid','not-a-login')
+    bid=repo.create_business(uid,'Demo fixture studio','AI_ADMIN')
+    now=datetime.now(timezone.utc)
+    repo.save_onboarding_session(bid,'assist_demo_started',dict(started_at=now.isoformat(),expires_at=(now+timedelta(days=7)).isoformat()),uid)
+    chdb.execute('INSERT INTO kw_assist_demo_sessions(id,business_id,actor_id,token_hash,sender_phone,created_at,expires_at) VALUES (?,?,?,?,?,?,?)',
+        (uuid.uuid4().hex,bid,uid,uuid.uuid4().hex,phone,int(time.time()),int(time.time())+86400))
+    return bid
 
 
 def _text_payload(from_number, text, phone_number_id="kilas-global-123"):
@@ -64,10 +83,11 @@ def _text_payload(from_number, text, phone_number_id="kilas-global-123"):
 def test_ai_active_default_kilas_ai_may_respond():
     reset_state()
     number = "628700111001"
+    bind_demo(number)
     assert platform_inbox_service.get_state(number) == "AI_ACTIVE", \
         "no row yet must default to AI_ACTIVE, not silently block"
 
-    with patch.object(appmod, "call_claude", return_value="Halo Kak, ada yang bisa dibantu?"), \
+    with patch.object(assist_reply, "generate", return_value=("Halo Kak, ada yang bisa dibantu?",None,{})), \
          patch("requests.post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.text = "{}"
@@ -87,9 +107,9 @@ def test_ai_active_default_kilas_ai_may_respond():
 def test_owner_demo_session_routes_owner_number_as_customer():
     reset_state()
     owner = appmod.OWNER_WHATSAPP_NUMBER
-    appmod._activate_owner_demo_session(owner, now=int(__import__("time").time()))
+    bid=bind_demo(owner)
 
-    with patch.object(appmod, "call_claude", return_value="Parfum ya Kak. Ceritain kebutuhan bisnisnya ya.") as customer_ai, \
+    with patch.object(assist_reply, "generate", return_value=("Parfum ya Kak.",None,{})) as customer_ai, \
          patch.object(appmod, "call_claude_owner") as owner_ai, \
          patch.object(appmod, "send_whatsapp_message", return_value=(True, None)):
         resp = client.post(
@@ -100,28 +120,18 @@ def test_owner_demo_session_routes_owner_number_as_customer():
     assert resp.status_code == 200
     customer_ai.assert_called_once()
     owner_ai.assert_not_called()
-    assert customer_ai.call_args.args[0] == owner
+    assert customer_ai.call_args.args[0] == bid
     print("test_owner_demo_session_routes_owner_number_as_customer OK")
 
 
 def test_owner_demo_session_recovers_from_durable_binding():
     reset_state()
     owner = appmod.OWNER_WHATSAPP_NUMBER
-    now = 1_790_400_000
-    detail = json.dumps({"phone": owner, "start_message_id": 1402, "bound_at": now - 60})
-
-    cursor = type("Cursor", (), {})()
-    cursor.execute = lambda *args, **kwargs: None
-    cursor.fetchall = lambda: [(detail,)]
-    cursor.close = lambda: None
-    conn = type("Conn", (), {})()
-    conn.cursor = lambda: cursor
-    conn.close = lambda: None
-
-    with patch.object(appmod, "db_enabled", return_value=True), \
-         patch.object(appmod, "get_db_connection", return_value=conn):
-        assert appmod._owner_demo_active(owner, now=now) is True
-    assert appmod._owner_demo_sessions[owner] > now
+    bid=bind_demo(owner)
+    appmod._owner_demo_sessions.clear()
+    resolved=assist_demo.resolve(owner,'hello')
+    assert resolved['business_id']==bid
+    assert not appmod._owner_demo_sessions
     print("test_owner_demo_session_recovers_from_durable_binding OK")
 
 
@@ -173,6 +183,7 @@ def test_platform_system_reply_uses_existing_customer_and_window_without_takeove
 def test_human_takeover_ai_stays_silent():
     reset_state()
     number = "628700111002"
+    bind_demo(number)
     platform_inbox_service.start_human_takeover(number, actor_user_id=None)
     assert platform_inbox_service.get_state(number) == "HUMAN_TAKEOVER"
 
@@ -194,12 +205,13 @@ def test_return_to_ai_resumes_normal_replies():
     conversation history — not stay permanently silent."""
     reset_state()
     number = "628700111003"
+    bind_demo(number)
     platform_inbox_service.start_human_takeover(number, actor_user_id=None)
     assert platform_inbox_service.get_state(number) == "HUMAN_TAKEOVER"
     platform_inbox_service.return_to_ai(number, actor_user_id=None)
     assert platform_inbox_service.get_state(number) == "AI_ACTIVE"
 
-    with patch.object(appmod, "call_claude", return_value="Siap Kak, lanjut ya."), \
+    with patch.object(assist_reply, "generate", return_value=("Siap Kak, lanjut ya.",None,{})), \
          patch("requests.post") as mock_post:
         mock_post.return_value.status_code = 200
         mock_post.return_value.text = "{}"
@@ -240,6 +252,7 @@ def test_client_hub_unavailable_fails_closed_for_kilas_and_tenant():
 def test_genuine_read_failure_fails_safe_to_human_takeover():
     reset_state()
     number = "628700111004"
+    bind_demo(number)
 
     # Simulate exactly the failure this whole test-harness fix was about — a broken/unreachable
     # Client Hub DB read — WITHOUT touching _get_conversation_mode_safe() itself, so this proves
@@ -257,7 +270,7 @@ def test_genuine_read_failure_fails_safe_to_human_takeover():
             "/webhook", data=json.dumps(_text_payload(number, "halo")),
             content_type="application/json",
         )
-    assert resp.status_code == 200
+    assert resp.status_code == 503
     mock_claude.assert_not_called()
     assert all(c.kwargs.get("json", {}).get("to") == appmod.OWNER_WHATSAPP_NUMBER
                for c in mock_post.call_args_list), "Only owner notifications allowed; no customer reply or typing during takeover"

@@ -16,6 +16,7 @@ class WebhookMediaTests(unittest.TestCase):
         f.chdb.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, number TEXT NOT NULL, mode TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
         f.chdb.execute('DELETE FROM messages')
         self.phone='628700111019'
+        self.bid=f.bind_demo(self.phone)
         self.counter=0
 
     def event(self,kind='image',event_id=None):
@@ -26,7 +27,7 @@ class WebhookMediaTests(unittest.TestCase):
 
     def webhook(self,events):
         value={'metadata':{'phone_number_id':'kilas-global-123'},'messages':events}
-        with patch.object(bot,'notify_owner_new_message',return_value=True), patch.object(bot,'call_claude',return_value='reply') as ai, patch.object(bot,'send_whatsapp_message',return_value=(True,None)) as send:
+        with patch.object(bot,'notify_owner_new_message',return_value=True), patch.object(f.assist_reply,'generate',return_value=('reply',None,{})) as ai, patch.object(bot,'send_whatsapp_message',return_value=(True,None)) as send:
             result=f.client.post('/webhook',json={'entry':[{'changes':[{'value':value}]}]})
         return result,ai,send
 
@@ -35,7 +36,7 @@ class WebhookMediaTests(unittest.TestCase):
         events=[self.event(kind) for kind in media.TYPES]
         result,ai,send=self.webhook(events)
         self.assertEqual(result.status_code,200)
-        self.assertTrue(result.json['human_takeover'])
+        self.assertTrue(result.json['demo_processed'])
         ai.assert_not_called();send.assert_not_called()
         rows=f.platform_inbox_service.get_thread(self.phone)
         self.assertEqual(len(rows),5)
@@ -46,17 +47,14 @@ class WebhookMediaTests(unittest.TestCase):
 
     def test_image_ai_processing_updates_same_row_not_duplicate(self):
         event=self.event()
-        # Use actual call_claude persistence entry through save_message_to_db, without an LLM call.
-        def ai(number,text,**kwargs):
-            bot.save_message_to_db(number,'customer','user','image caption context')
-            return 'reply'
-        with patch.object(bot,'download_whatsapp_media',return_value=('base64','image/png')), patch.object(bot,'call_claude',side_effect=ai), patch.object(bot,'notify_owner_new_message',return_value=True), patch.object(bot,'send_whatsapp_message',return_value=(True,None)), patch.object(bot,'send_typing_indicator'), patch.object(bot.time,'sleep'):
+        with patch.object(f.assist_reply,'generate',return_value=('reply',None,{})), patch.object(bot,'send_whatsapp_message',return_value=(True,None)):
             result=f.client.post('/webhook',json={'entry':[{'changes':[{'value':{'metadata':{'phone_number_id':'kilas-global-123'},'messages':[event]}}]}]})
         self.assertEqual(result.status_code,200)
         rows=f.platform_inbox_service.get_thread(self.phone)
         inbound=[r for r in rows if r['role']=='user']
         self.assertEqual(len(inbound),1)
-        self.assertEqual(inbound[0]['content'],'image caption context')
+        self.assertEqual(inbound[0]['content'],'caption')
+        self.assertTrue(f.assist_demo.message_allowed(self.bid,self.phone,inbound[0]['id']))
         self.assertEqual(inbound[0]['media']['message_type'],'image')
 
     def test_mixed_media_text_batch_does_not_reuse_media_row(self):
