@@ -36,7 +36,7 @@ def context():
     ep = request.endpoint or ''
     # The validated page owns its product context. Preferences never grant access.
     ai_page = (ep.startswith(('core_customers.', 'core_jobs.', 'core_operations.', 'core_finance_bridge.', 'owner_web.'))
-               or ep.startswith('client.') and ep != 'client.dashboard'
+               or ep.startswith('assist.') or ep.startswith('client.') and ep != 'client.dashboard'
                or ep == 'workspace.ai_home')
     result['product'] = ('finance' if ep.startswith('finance.') else 'ai' if ai_page else
                          'finance' if session.get('active_product') == 'finance' and result['finance'] else
@@ -56,7 +56,8 @@ def context():
 
 @workspace_bp.app_context_processor
 def workspace_context():
-    return {'workspace_ui': context()}
+    import assist_journey
+    return {'workspace_ui': context(), 'assist_journey_state': assist_journey.state}
 
 
 @workspace_bp.get('/workspace')
@@ -74,6 +75,8 @@ def _ai_home(ui):
     import workspace_presenter
     if not ui['unavailable']:
         ui['setup'] = {b['id']: workspace_presenter.setup(b) for b in ui['ai']}
+        import assist_journey
+        ui['journey'] = {b['id']: assist_journey.state(b) for b in ui['ai']}
         # Home and Inbox must use ONE authoritative Demo WhatsApp binding. Reuse the exact
         # resolver behind client.demo_kilas_whatsapp/inbox_page; never create a second notion of
         # "connected" in the presentation layer.
@@ -104,6 +107,20 @@ def more():
     return render_template('workspace_more.html', user=security.current_user())
 
 
+@workspace_bp.get('/workspace/usage/<int:bid>')
+@security.login_required
+def usage(bid):
+    business = security.require_business_access(bid, security.current_user())
+    from kilas_core.customers import AI_PACKAGES
+    if business['package'] not in AI_PACKAGES:
+        abort(404)
+    import assist_journey
+    import ai_usage
+    return render_template('assist_usage.html', business=business,
+                           journey=assist_journey.state(business),
+                           usage=ai_usage.client_summary(bid))
+
+
 @workspace_bp.get('/workspace/go/<area>')
 @security.login_required
 def go(area):
@@ -113,8 +130,8 @@ def go(area):
               'bills': 'products.account_bills', 'account': 'auth.account_page',
               'ai_setup': 'products.assist_entry', 'finance_setup': 'products.finance_entry'}
     core = {'inbox': 'client.inbox_page', 'customers': 'core_customers.list_page',
-            'jobs': 'core_jobs.list_page', 'knowledge': 'client.business_memory',
-            'simulate': 'client.simulate_page', 'settings': 'client.business_settings',
+            'jobs': 'core_jobs.list_page', 'knowledge': 'assist.training',
+            'simulate': 'assist.training', 'settings': 'client.business_settings',
             'review': 'client.review_page', 'automations': 'core_operations.settings'}
     if area in common:
         if area not in ('account', 'bills'):
@@ -156,7 +173,4 @@ def go(area):
     if (area == 'automations' and (not operation_access.enabled() or not web_available(business))) or (area == 'customers' and not customers.enabled()) or (area == 'jobs' and not workspace_available(business)) or (area == 'automations' and not available(business)):
         return render_template('workspace_unavailable.html', business=business), 200
     params = {'bid' if area in ('customers', 'jobs', 'automations') else 'business_id': business['id']}
-    if area == 'inbox':
-        if web_available(business):
-            params['channel'] = 'web'
     return redirect(url_for(core[area], **params), code=303)

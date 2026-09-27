@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Paket & Penggunaan · Kilas Assist{% endblock %}
+{% block content %}
+<section class="kw-page"><header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Paket &amp; Penggunaan</h1><p>Pantau pemakaian Kilas Assist dan kelola langganan Anda.</p></div></header>
+<div class="kw-grid"><section class="card"><h2>{{ 'Langganan aktif' if journey.paid else 'Demo gratis 7 hari' }}</h2>
+{% if journey.demo_expires_at and not journey.paid %}<p>Demo berakhir {{ journey.demo_expires_at.strftime('%d %b %Y') }}.</p>{% endif %}
+<p>Kilas Finance termasuk dalam paket berbayar, dengan workspace keuangan tersendiri.</p><a class="btn" href="{{ url_for('client.ai_admin_checkout',business_id=business.id) }}">{{ 'Kelola paket' if journey.paid else 'Gunakan Kilas untuk Bisnis Saya' }}</a></section>
+<section class="card"><h2>Pemakaian bulan ini</h2>{% if usage %}<p role="status">{{ {'NORMAL':'Normal','WARNING':'Tinggi','HIGH':'Hampir mencapai kapasitas paket'}.get(usage.status,'Normal') }}</p><p><strong>{{ usage.replies }}</strong> balasan ditangani AI</p>{% if usage.status != 'NORMAL' %}<p>Pemakaian Anda meningkat. Tinjau kapasitas paket bersama tim Kilas; percakapan yang sedang berlangsung tetap dilayani.</p>{% endif %}{% else %}<p>Pemakaian belum dapat dimuat. Silakan coba lagi.</p>{% endif %}</section></div></section>
+{% endblock %}

@@ -15,7 +15,7 @@
     <div>
       <p class="kw-eyebrow">KILAS ASSIST</p>
       <h1>Selamat datang, {{ user.full_name or 'Pemilik' }}.</h1>
-      <p>Kelola percakapan customer, customer, dan pekerjaan bisnis dari satu tempat.</p>
+      <p>Layani percakapan, kenali customer, dan tindak lanjuti pekerjaan bisnis.</p>
     </div>
   </header>
 
@@ -32,7 +32,6 @@
     <p>Pilih kebutuhan bisnis dan mulai gunakan Kilas tanpa harus menghubungkan WhatsApp terlebih dahulu.</p>
     <div class="kw-actions">
       <a class="btn" href="{{ url_for('workspace.go',area='setup') }}">Siapkan ruang kerja</a>
-      <a class="btn secondary" href="{{ url_for('workspace.go',area='services') }}">Lihat layanan</a>
     </div>
   </section>
   {% endif %}
@@ -53,6 +52,7 @@
   <div class="kw-business-stack" data-workspace-business-stack>
   {% for business in workspace_ui.ai %}
     {% set setup = workspace_ui.setup.get(business.id) if workspace_ui.setup else none %}
+    {% set journey = workspace_ui.journey.get(business.id) %}
     {% set attention_data = attention_summary(business) %}
 
     <article class="card kw-assist-card"
@@ -63,20 +63,27 @@
           <p class="kw-eyebrow">WORKSPACE</p>
           <h2>{{ business.business_name }}</h2>
         </div>
-        {% if business.status == 'ACTIVE' %}
+        {% if journey.connected %}
         <span class="kw-business-status kw-business-status-active">Aktif</span>
         {% else %}
-        <span class="kw-business-status kw-business-status-approved">Mode Demo</span>
+        <span class="kw-business-status kw-business-status-approved">{{ 'Menunggu WhatsApp' if journey.paid else 'Demo 7 hari' }}</span>
         {% endif %}
       </header>
 
       <section class="kw-assist-hero">
         <div class="kw-assist-hero-copy">
-          <p class="kw-eyebrow">PUSAT OPERASIONAL</p>
-          <h3>Dari WhatsApp ke Inbox, Customer, dan Jobs.</h3>
-          <p>Balas customer, lihat konteks percakapan, dan tindak lanjuti permintaan tanpa pindah-pindah tempat.</p>
+          <p class="kw-eyebrow">KILAS ASSIST</p>
+          <h3>{{ journey.readiness }}</h3>
+          <p>WhatsApp: <strong>{{ journey.whatsapp }}</strong></p>
+          <p>Ajari Kilas tentang bisnis Anda, lalu tes sebagai customer sebelum mulai melayani.</p>
         </div>
         <div class="kw-assist-primary-actions">
+          {% if not journey.onboarding_complete %}
+          <a class="btn" href="{{ url_for('client.wizard_step',business_id=business.id,step=(setup.step if setup and setup.missing else 'upload')) }}">Lengkapi data bisnis</a>
+          {% elif not journey.ready %}
+          <a class="btn" href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Latih Kilas Assist</a>
+          <a class="btn secondary" href="{{ url_for('workspace.go',area='simulate',business_id=business.id) }}">Tes AI</a>
+          {% elif journey.demo_visible and (journey.demo_active or journey.paid) %}
           {% if workspace_ui.demo_connected and workspace_ui.demo_connected.get(business.id) %}
           <a class="btn kw-demo-btn"
              data-demo-kilas-whatsapp
@@ -85,6 +92,7 @@
           </a>
           {% else %}
           {% include '_web_share.html' %}
+          {% endif %}
           {% endif %}
           <a class="btn secondary" href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">Buka Inbox</a>
         </div>
@@ -108,7 +116,8 @@
         </a>
       </nav>
 
-      {# Demo-first home: onboarding/setup prompts intentionally live outside this screen. #}
+      {% if setup and setup.usage %}<p role="status">Pemakaian bulan ini: <strong>{{ {'NORMAL':'Normal','WARNING':'Tinggi','HIGH':'Hampir mencapai kapasitas paket'}.get(setup.usage.status,'Normal') }}</strong> · <a href="{{ url_for('workspace.usage',bid=business.id) }}">Paket &amp; Penggunaan</a></p>{% endif %}
+      <section class="kw-attention-block"><h3>Kilas Finance</h3><p>Kelola invoice dan keuangan di workspace Finance.</p><a class="btn secondary" href="{{ url_for('workspace.go',area='finance') }}">Buka Kilas Finance →</a></section>
 
       {% if business.status == 'ACTIVE' and attention_data and attention_data.total %}
       <section class="kw-attention-block" data-attention-home>

@@ -40,7 +40,7 @@
 
 <div class="tenant-inbox-head">
   {% if web_chat_available(business) %}
-  <a class="btn small secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Inbox WEB</a>
+  <a class="btn small secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Riwayat percakapan</a>
   {% endif %}
   <div>
     <h1>CS Inbox — {{ business.business_name }}</h1>

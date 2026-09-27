@@ -113,7 +113,7 @@ def _oauth_finish_login(email, full_name, provider, provider_subject=None):
         f"provider={provider}",
     )
     session.pop("product_intent", None)
-    return redirect(url_for("products.product_start"))
+    return redirect(url_for("workspace.home" if repo.list_businesses_for_user(user['id']) else "products.product_start"))
 
 
 @auth_bp.route("/oauth/<provider>")

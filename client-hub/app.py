@@ -175,6 +175,8 @@ def create_app():
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(client_bp)
+    from routes_assist import assist_bp
+    app.register_blueprint(assist_bp)
     from public_chat.routes import public_bp
     app.register_blueprint(public_bp)
     from public_chat.owner import owner_bp
@@ -280,7 +282,7 @@ def create_app():
             or endpoint.startswith("workspace.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
-            or endpoint.startswith(("client.", "core_customers.", "core_jobs.",
+            or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",
                                     "core_operations.", "core_finance_bridge.", "owner_web."))
             or endpoint in {
                 "products.finance_entry",

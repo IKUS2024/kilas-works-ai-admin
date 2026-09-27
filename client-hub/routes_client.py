@@ -372,6 +372,10 @@ def wizard_step(business_id, step):
         return redirect(url_for("client.wizard_step", business_id=business_id, step=next_step))
     if step == "operations":
         print(f"PAYMENT_REDIRECT business_id={business_id} next_step=review")
+    import assist_journey
+    if assist_journey.onboarding_complete(business_id):
+        assist_journey.start_demo(business_id, user['id'])
+        return redirect(url_for('assist.training', business_id=business_id))
     return redirect(url_for("client.review_page", business_id=business_id))
 
 
@@ -590,7 +594,7 @@ def delete_file(business_id, file_id):
     return redirect(url_for("client.wizard_step", business_id=business_id, step="upload"))
 
 
-def _run_ai_normalization(business_id, business, user):
+def _run_ai_normalization(business_id, business, user, *, preserve_status=False):
     """Shared normalization core — Gap-fix Area D. Used by BOTH the manual 'Jalankan (Ulang) AI
     Setup' button (unchanged, still available for re-runs/admin retries) AND the automatic
     normalization a normal client Submit now triggers on its own (see submit_for_review() below).
@@ -602,7 +606,8 @@ def _run_ai_normalization(business_id, business, user):
     fact — ai_onboarding.normalize_business_data() itself only reorganizes what the client actually
     provided (see that module for the "never invent" contract) and features_enabled always comes
     from repo.get_tenant_features(), never the model's own output."""
-    repo.set_business_status(business_id, "READY_FOR_AI_SETUP", user["id"], "AI normalization triggered")
+    if not preserve_status:
+        repo.set_business_status(business_id, "READY_FOR_AI_SETUP", user["id"], "AI normalization triggered")
     repo.set_ai_status(business_id, "RUNNING")
 
     profile = repo.get_business_profile(business_id)
@@ -642,7 +647,8 @@ def _run_ai_normalization(business_id, business, user):
         )
 
     repo.save_ai_normalized_config(business_id, config.get("description"), config, config.get("missing_fields", []))
-    repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "AI normalization completed")
+    if not preserve_status:
+        repo.set_business_status(business_id, "READY_FOR_REVIEW", user["id"], "AI normalization completed")
     repo.write_audit(user["id"], business_id, "ai_normalization_run", "success")
     return True, None
 
@@ -1338,6 +1344,15 @@ def demo_kilas_whatsapp(business_id):
     if business.get("package") == "NONE":
         flash("Demo Kilas tersedia dari workspace Kilas Assist.", "error")
         return redirect(url_for("client.dashboard"))
+
+    import assist_journey
+    journey = assist_journey.state(business)
+    if journey['connected']:
+        return redirect(url_for('client.inbox_page', business_id=business_id), code=303)
+    if not journey['ready'] or not journey['onboarding_complete']:
+        return redirect(url_for('assist.training', business_id=business_id), code=303)
+    if not (journey['demo_active'] or journey['paid']):
+        return redirect(url_for('workspace.usage', bid=business_id), code=303)
 
     existing_phone = _demo_kilas_phone_for_business(business_id)
     if existing_phone:
