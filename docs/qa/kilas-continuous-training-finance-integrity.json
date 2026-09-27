@@ -1,0 +1,158 @@
+{
+  "release": "continuous-training-20260927",
+  "production_before": "4bcd5c2e8d4131376e404414ab2dd183cc2d6fdd",
+  "verification": "read-only sorted full-row fingerprints; no raw customer or financial records",
+  "before": [
+    {
+      "fingerprint": "3a2d1fc0f0bb559fc8f013868655bc1a",
+      "row_count": 6,
+      "table_name": "finance_account_type_assignments"
+    },
+    {
+      "fingerprint": "401b1f1d3159078eae05c1833c7735d8",
+      "row_count": 12,
+      "table_name": "finance_account_type_options"
+    },
+    {
+      "fingerprint": "77ee9ba4fbfaa1ec2fc0079be1b67601",
+      "row_count": 35,
+      "table_name": "finance_accounts"
+    },
+    {
+      "fingerprint": "e0e17c12dd8fdd9dcfa91cd96a303d66",
+      "row_count": 12,
+      "table_name": "finance_bank_extraction_reviews"
+    },
+    {
+      "fingerprint": "4510c79c49ae4e7dd15d69858001415f",
+      "row_count": 11,
+      "table_name": "finance_bank_imports"
+    },
+    {
+      "fingerprint": "87ca7968590a0d0c9506cb6e2f2b7366",
+      "row_count": 39,
+      "table_name": "finance_bank_rows"
+    },
+    {
+      "fingerprint": "2d08efdd7054084fcba9fbb1ab64dbd1",
+      "row_count": 4,
+      "table_name": "finance_bill_requests"
+    },
+    {
+      "fingerprint": "42c0fb7e70c5201fced5d46a1769b635",
+      "row_count": 19,
+      "table_name": "finance_branch_workspaces"
+    },
+    {
+      "fingerprint": "63907ec3f61071a90db6739542155c08",
+      "row_count": 19,
+      "table_name": "finance_branches"
+    },
+    {
+      "fingerprint": "5922928e4763dc81fa4fba7e7e1f68ab",
+      "row_count": 2,
+      "table_name": "finance_budgets"
+    },
+    {
+      "fingerprint": "22e7f4cac5bd6e40aa1318595c208f85",
+      "row_count": 1005,
+      "table_name": "finance_categories"
+    },
+    {
+      "fingerprint": "65f6e700bc7ff002b040b1e1bc142e59",
+      "row_count": 662,
+      "table_name": "finance_category_hierarchy"
+    },
+    {
+      "fingerprint": "c2ee7ab40e8211e7dd2a3d57cb8a1074",
+      "row_count": 1103,
+      "table_name": "finance_category_workspace_settings"
+    },
+    {
+      "fingerprint": "9d7adf62836f5de019fb9401dac136c1",
+      "row_count": 8,
+      "table_name": "finance_customers"
+    },
+    {
+      "fingerprint": "98bdad90732d8adcf671fe5a6b6d74c2",
+      "row_count": 9,
+      "table_name": "finance_entitlements"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_fx_exchanges"
+    },
+    {
+      "fingerprint": "4dc304675cd4197faed7a2c8d0cc2f1e",
+      "row_count": 20,
+      "table_name": "finance_invoice_items"
+    },
+    {
+      "fingerprint": "64ff1cd509319060e24d71ead988d920",
+      "row_count": 4,
+      "table_name": "finance_invoice_payments"
+    },
+    {
+      "fingerprint": "c9ae08d3811b7f2d1f25136a87367899",
+      "row_count": 1,
+      "table_name": "finance_invoice_revisions"
+    },
+    {
+      "fingerprint": "8818afb1c7883b53d113768aefaa2e6f",
+      "row_count": 1,
+      "table_name": "finance_invoice_settings"
+    },
+    {
+      "fingerprint": "fb5dd4d4e02582a180f423bac62121d6",
+      "row_count": 9,
+      "table_name": "finance_invoices"
+    },
+    {
+      "fingerprint": "5a49647304fc5ef0e0e7239d29990677",
+      "row_count": 1,
+      "table_name": "finance_money_scale_state"
+    },
+    {
+      "fingerprint": "c2750b2fe4d94014e205a36d5d16b28a",
+      "row_count": 4,
+      "table_name": "finance_payees"
+    },
+    {
+      "fingerprint": "49c89e53f8ea7cb434fcdaa1c7c2a7ed",
+      "row_count": 2,
+      "table_name": "finance_recurring_expenses"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_recurring_postings"
+    },
+    {
+      "fingerprint": "d0de1d8affcdbb099b299cf147279272",
+      "row_count": 1,
+      "table_name": "finance_subscription_bills"
+    },
+    {
+      "fingerprint": "47aaed7433443dbff2a8aca248adf428",
+      "row_count": 1,
+      "table_name": "finance_transaction_revisions"
+    },
+    {
+      "fingerprint": "460e88854358516b6f8e9d9d7e518105",
+      "row_count": 68,
+      "table_name": "finance_transactions"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_corrections"
+    },
+    {
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e",
+      "row_count": 0,
+      "table_name": "finance_workspace_opening_history"
+    }
+  ],
+  "after": null
+}

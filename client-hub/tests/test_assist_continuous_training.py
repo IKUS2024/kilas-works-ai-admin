@@ -153,6 +153,20 @@ class ContinuousTrainingTests(unittest.TestCase):
         self.assertEqual(result.status_code, 303)
         self.assertNotIn('Tunggu sebentar', self.client.get(result.location).text)
 
+    def test_optional_preview_has_visible_result_and_does_not_create_actions(self):
+        self.bind(); sessions = self.sessions()
+        before = db.query_all('SELECT * FROM finance_transactions')
+        with patch.object(training.ai_onboarding, '_call_claude', return_value=('The price is Rp175,000.', 'end_turn', None)):
+            response = self.post('test', message='How much is it?')
+        self.assertIn('preview=1', response.location)
+        page = self.client.get(response.location).text
+        self.assertIn('<details open>', page)
+        self.assertIn('Contoh jawaban terakhir:', page)
+        self.assertIn('The price is Rp175,000.', page)
+        self.assertEqual(self.sessions(), sessions)
+        self.assertEqual(db.query_all('SELECT * FROM finance_transactions'), before)
+        self.assertEqual(db.query_all('SELECT * FROM kw_core_jobs'), [])
+
     def test_first_invitation_is_reused_before_and_after_binding(self):
         self.teach(); self.post('ready')
         first = self.client.get(f'/business/{self.bid}/demo-kilas')
