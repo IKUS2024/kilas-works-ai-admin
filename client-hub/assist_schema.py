@@ -8,6 +8,7 @@ MIGRATIONS = (
     '0067_assist_usage_provider',
     '0068_assist_connections',
     '0069_assist_media_analysis',
+    '0070_assist_business_media',
 )
 
 

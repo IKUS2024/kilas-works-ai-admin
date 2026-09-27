@@ -35,7 +35,7 @@ def main():
     try:
         with patch.object(db,'_postgres_connect_kwargs',side_effect=options):
             # Build a synthetic baseline only. Production never replays this historical chain.
-            baseline=[pair for pair in db.MIGRATIONS if not pair[0].startswith(('0066','0067','0068','0069'))]
+            baseline=[pair for pair in db.MIGRATIONS if not pair[0].startswith(('0066','0067','0068','0069','0070'))]
             with patch.object(db,'MIGRATIONS',baseline):db.init_schema()
             uid=repo.create_user('owner@synthetic.invalid','unused')
             bid=repo.create_business(uid,'Synthetic protected ledger','AI_ADMIN')
@@ -50,7 +50,7 @@ def main():
             before=snapshot();db.reset_connection_for_new_db_path()
             original_read=Path.read_text
             def invalid_final(path,*args,**kwargs):
-                if path.name=='0069_assist_media_analysis_postgres.sql':return 'SELECT nonexistent_migration_function();'
+                if path.name=='0070_assist_business_media_postgres.sql':return 'SELECT nonexistent_migration_function();'
                 return original_read(path,*args,**kwargs)
             try:
                 with patch.object(Path,'read_text',invalid_final):assist_schema.apply_release()
@@ -61,6 +61,24 @@ def main():
             db.reset_connection_for_new_db_path()
             assert assist_schema.apply_release()==list(assist_schema.MIGRATIONS)
             assert assist_schema.apply_release()==[]
+            assert snapshot()==before
+            import assist_business_media as media
+            fid=repo.save_business_file(bid,'synthetic.png','image/png',3,b'qa!','Synthetic item Rp123',uid)
+            db.execute('''INSERT INTO kw_assist_business_media
+                (file_id,business_id,summary,knowledge,usage_instruction,approved_send,version,actor_id)
+                VALUES (?,?,?,?,?,1,?,?)''',(fid,bid,'Synthetic item','Synthetic item Rp123','On request','v1',uid))
+            assert bytes(media.get(bid,fid,content=True)['content'])==b'qa!'
+            assert media.get(other,fid,content=True) is None
+            foreign_file=repo.save_business_file(other,'foreign.pdf','application/pdf',3,b'qa!','Other item',uid)
+            try:
+                db.execute('''INSERT INTO kw_assist_business_media
+                    (file_id,business_id,summary,knowledge,usage_instruction,approved_send,version,actor_id)
+                    VALUES (?,?,?,?,?,1,?,?)''',(foreign_file,bid,'Foreign','Foreign','Never','v2',uid))
+            except db.psycopg2.IntegrityError:pass
+            else:raise AssertionError('cross-tenant original FK must reject')
+            media.remove(bid,fid,uid)
+            assert media.files(bid)==[]
+            assert repo.get_business_file_content(foreign_file,other) is not None
             assert snapshot()==before
             from public_chat import schema as chat_schema
             from kilas_core import customer_schema,job_schema,operation_schema,finance_bridge_schema,whatsapp_schema

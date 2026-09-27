@@ -2,6 +2,7 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 import assist_journey
 import assist_training
+import assist_business_media
 import knowledge_assist
 import security
 
@@ -43,12 +44,29 @@ def training(business_id):
                         from routes_client import _launch_demo_whatsapp
                         return _launch_demo_whatsapp(business_id, user['id'])
                     flash('Saya sudah memahami cara kamu ingin customer dilayani.', 'success')
-                elif action in ('teach', 'test'):
+                elif action == 'remove_media':
+                    assist_business_media.remove(business_id, request.form.get('file_id', type=int), user['id'])
+                elif action in ('teach', 'test', 'instruct_media', 'replace_media'):
                     message = (request.form.get('message') or '').strip()
                     if not 1 <= len(message) <= 4000:
                         raise ValueError('invalid_message')
-                    (assist_training.teach if action == 'teach' else assist_training.test_reply)(
-                        business, user['id'], message)
+                    upload = request.files.get('attachment')
+                    approved = request.form.get('approved_send') == '1'
+                    fid = request.form.get('file_id', type=int)
+                    if action == 'instruct_media':
+                        assist_business_media.instruct(business_id, fid, user['id'], message, approved)
+                    elif upload and upload.filename and action in ('teach', 'replace_media'):
+                        if action == 'replace_media' and not fid:
+                            raise ValueError('media_not_found')
+                        assist_business_media.teach(business, user['id'], message, upload, approved,
+                                                   fid if action == 'replace_media' else None)
+                    elif action == 'replace_media':
+                        raise ValueError('invalid_training_file')
+                    elif upload and upload.filename:
+                        raise ValueError('teach_attachment_first')
+                    else:
+                        (assist_training.teach if action == 'teach' else assist_training.test_reply)(
+                            business, user['id'], message)
                 else:
                     abort(400)
         except ValueError as error:
@@ -56,11 +74,16 @@ def training(business_id):
                         'knowledge_changed': 'Pengetahuan baru saja berubah. Silakan tes ulang.',
                         'demo_expired': 'Demo belum aktif atau sudah berakhir. Periksa paket Anda.',
                         'too_many_requests': 'Tunggu sebentar sebelum mengirim lagi.',
+                        'invalid_training_file': 'Gunakan gambar JPG/PNG atau PDF maksimal 5 MB dan 10 halaman.',
+                        'media_limit': 'Maksimal 20 file. Hapus atau ganti file yang tidak diperlukan.',
+                        'media_not_found': 'File tidak ditemukan di bisnis ini.',
+                        'teach_attachment_first': 'Pilih Ajari Kilas untuk mengajarkan lampiran ini terlebih dahulu.',
                         'invalid_message': 'Tulis pesan antara 1 dan 4.000 karakter.'}
             flash(messages.get(str(error), 'Belum berhasil memproses. Pengetahuan Anda tetap tersimpan; coba lagi.'), 'error')
         return redirect(url_for('assist.training', business_id=business_id), code=303)
     return render_template('assist_training.html', business=business, journey=journey,
                            history=assist_training.history(business_id),
+                           taught_files=assist_business_media.files(business_id),
                            can_ready=assist_training.can_ready(business_id))
 
 

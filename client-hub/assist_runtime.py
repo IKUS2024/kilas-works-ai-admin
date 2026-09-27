@@ -2,6 +2,7 @@
 import json
 import time
 import assist_reply
+import assist_business_media
 import ai_reply_explanation
 from public_chat import store
 from kilas_core import customers,jobs,customer_insights,customer_action_jobs
@@ -50,6 +51,8 @@ def process(business,message,event,history,*,eligibility,fence=None):
                     current['stage']='CUSTOMER'
                 customer_action_jobs.sync_from_insight(business,current,
                     dict(insight,_meta={'fresh':True,'has_history':True}),transaction=transaction)
+            assist_business_media.schedule(transaction, bid, 'core:' + message.external_message_id,
+                                           cid, trace.pop('_media', None))
             ai_reply_explanation.save_core(transaction,bid,cid,message.external_message_id,trace)
             if insight.get('_handoff_requested'):
                 from kilas_core import operation_access, handover
