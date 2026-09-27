@@ -16,10 +16,12 @@ def fits(page):
 
 def public_link(owner, bid):
     owner.goto(BASE+'/dev/owner/'+str(bid),wait_until='networkidle')
-    expect(owner.get_by_role('link',name='Coba Demo Kilas').first).to_be_visible()
+    expect(owner.get_by_role('link',name='Inbox',exact=True).first).to_be_visible()
     response = owner.context.request.post(BASE+f'/business/{bid}/web-chat/link',
         headers={'X-CSRF-Token':'csrf-test','Content-Type':'application/json'},data={})
-    assert response.ok, response.text()
+    assert response.status == 410, response.text()
+    response = owner.context.request.get(BASE+f'/dev/chat-path/{bid}')
+    assert response.ok and response.json()['synthetic'], response.text()
     return BASE+response.json()['path']
 
 

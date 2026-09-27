@@ -71,12 +71,15 @@ with sync_playwright() as p:
         page.keyboard.press('Control+Home'); page.reload();page.keyboard.press('Tab')
         expect(page.locator('.kw-skip')).to_be_focused()
         visit('/dev/persona/admin','admin')
-        admin_nav=[s.strip() for s in page.locator('.kw-operator-nav .kw-primary a>span:last-child').all_text_contents()]
-        assert admin_nav==['Home','Inbox','Customers','Jobs','More'],admin_nav
-        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_have_count(1)
-        expect(page.get_by_role('heading',name='Workspace Kilas Works',exact=True)).to_be_visible()
-        assert page.locator('.kw-operator-group').count()==0
-        assert page.locator('.kw-operator-nav details').count()==0
+        platform_labels=['Overview','Businesses','WhatsApp','Subscriptions','AI Usage & Cost','Platform Finance','System']
+        platform_nav=page.get_by_role('navigation',name='Platform Admin',exact=True)
+        assert platform_nav.get_by_role('link').all_text_contents()==platform_labels
+        expect(page.get_by_role('heading',name='Kilas Works · Platform Admin',exact=True)).to_be_visible()
+        assert page.locator('.kw-operator-nav').count()==0
+        for section,label in zip(('overview','businesses','whatsapp','subscriptions','cost','finance','system'),platform_labels):
+            visit('/platform/'+section,'platform-'+section)
+            expect(page.get_by_role('navigation',name='Platform Admin',exact=True).locator('[aria-current]')).to_have_text(label)
+            assert page.locator('.kw-operator-nav').count()==0
 
         visit('/admin/customers','admin-customers')
         expect(page.get_by_role('heading',name='Customers',exact=True)).to_be_visible()
@@ -93,12 +96,12 @@ with sync_playwright() as p:
         visit('/admin/jobs','admin-jobs')
         expect(page.get_by_role('heading',name='Jobs',exact=True)).to_be_visible()
         statuses=page.locator('#job-filter option').all_text_contents()
-        assert statuses==['Semua status','Perlu tindakan','Dikerjakan','Batal'],statuses
+        assert statuses==['Semua status','Perlu tindakan','Dikerjakan','Selesai','Batal'],statuses
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Jobs')
 
         visit('/admin/?workspace=accounts','admin-accounts')
-        expect(page.get_by_role('heading',name='Client / Akun Bisnis',exact=True)).to_be_visible()
-        expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('More')
+        expect(page.get_by_role('heading',name='Kilas Works · Platform Admin',exact=True)).to_be_visible()
+        expect(page.get_by_role('navigation',name='Platform Admin',exact=True)).to_be_visible()
 
         visit('/admin/projects','admin-projects-legacy')
         expect(page.get_by_role('heading',name='Proyek',exact=True)).to_be_visible()
@@ -114,6 +117,15 @@ with sync_playwright() as p:
                           ('/admin/payments','admin-payments'),('/admin/talent','admin-talent'),
                           ('/admin/ai-usage','admin-ai')]:
             visit(path,name)
+        # Admin customer access requires explicit support entry and stays tenant-scoped.
+        assert context.request.get(BASE+f'/business/{source}/assist-whatsapp').status==404
+        visit(f'/platform/business/{source}','platform-business')
+        page.get_by_role('button',name='Open Workspace · support access',exact=True).click()
+        expect(page.get_by_text('Anda sedang mengakses Studio Sore sebagai Kilas Admin',exact=True)).to_be_visible()
+        assert context.request.get(BASE+f'/business/{data["ai"]}/assist-whatsapp').status==404
+        page.get_by_role('button',name='Akhiri akses support',exact=True).click()
+        expect(page.get_by_role('heading',name='Kilas Works · Platform Admin',exact=True)).to_be_visible()
+        assert context.request.get(BASE+f'/business/{source}/assist-whatsapp').status==404
         assert not errors,errors
         context.close()
     # Real forms: AI setup can be deferred; Finance intent never creates AI setup.
@@ -121,17 +133,18 @@ with sync_playwright() as p:
     page=journey.new_page()
     page.goto(BASE+'/dev/persona/new-ai',wait_until='networkidle')
     page.get_by_role('link',name='Siapkan ruang kerja',exact=True).click()
-    page.get_by_role('button',name='Pilih Layani Customer',exact=False).click()
+    page.get_by_role('button',name='Pilih Kilas Assist',exact=False).click()
     page.get_by_label('Nama bisnis',exact=True).fill('Usaha Laras')
     page.get_by_role('button',name='Buat Bisnis & Setup Kilas Assist',exact=False).click()
-    expect(page.get_by_role('link',name='Coba sebagai customer',exact=True)).to_be_visible()
+    expect(page.get_by_text('Selesaikan enam bagian singkat ini',exact=False)).to_be_visible()
+    expect(page.get_by_role('link',name='Coba sebagai customer',exact=True)).to_have_count(0)
     page.get_by_role('link',name='Lanjut nanti ke Home',exact=True).click()
     expect(page.get_by_role('heading',name='Usaha Laras',exact=True)).to_be_visible()
     evidence=journey.request.get(BASE+'/dev/owner-evidence').json()
     assert evidence['packages']==['AI_ADMIN'] and evidence['finance_accounts']==0,evidence
     page.screenshot(path=str(OUT/'390-ai-continue-later.png'),full_page=True)
     page.goto(BASE+'/dev/finance-onboarding',wait_until='networkidle')
-    page.get_by_role('button',name='Pilih Kelola Keuangan',exact=False).click()
+    page.get_by_role('button',name='Pilih Kilas Finance',exact=False).click()
     expect(page.get_by_role('heading',name='Mulai Kilas Finance',exact=True)).to_be_visible()
     page.get_by_role('button',name='Mulai Sekarang',exact=False).click()
     expect(page.get_by_role('heading',name='Nadia',exact=True)).to_be_visible()

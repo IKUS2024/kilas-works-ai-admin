@@ -46,10 +46,12 @@ def main():
         expect(finance.locator('.finance-entry-shell')).to_be_visible()
         before=finance.screenshot(path=str(OUT/'01_finance_before.png'),full_page=True)
         owner.goto(BASE+'/dev/owner/7',wait_until='networkidle')
-        expect(owner.get_by_role('link',name='Coba Demo Kilas').first).to_be_visible()
+        expect(owner.get_by_role('link',name='Inbox',exact=True).first).to_be_visible()
         response=owner.context.request.post(BASE+'/business/7/web-chat/link',
             headers={'X-CSRF-Token':'csrf-test','Content-Type':'application/json'},data={})
-        assert response.ok,response.text()
+        assert response.status == 410,response.text()
+        response=owner.context.request.get(BASE+'/dev/chat-path/7')
+        assert response.ok and response.json()['synthetic'],response.text()
         visitor.goto(BASE+response.json()['path'],wait_until='networkidle')
         assert owner.context.request.post(BASE+'/dev/confirm-customer/7',form={'csrf_token':'csrf-test'}).ok
         send(visitor,'Saya mau bicara dengan manusia')

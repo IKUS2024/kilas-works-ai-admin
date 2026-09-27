@@ -85,7 +85,9 @@ if __name__ == '__main__':
             from kilas_core import jobs
             for row in jobs.list_jobs(7)[0]:
                 if row['status']=='IN_PROGRESS':
-                    jobs.update_job(7,row['id'],expected_version=row['version'],actor_id=1,
+                    # Synthetic paid-completed history for review scheduling only.
+                    # The real payment/Income lifecycle is checked by Finance bridge QA.
+                    jobs.update_job(7,row['id'],expected_version=row['version'],actor_id=jobs._FINANCE_PAYMENT_ACTOR,
                         operation_key='fixture-complete-'+row['id'],status='COMPLETED')
             return {'ok':True}
 
@@ -133,6 +135,15 @@ if __name__ == '__main__':
     @app.get('/dev/health')
     def dev_health():
         return {'ok':True,'synthetic':True,'public_staging':public_staging}
+
+    @app.get('/dev/chat-path/<int:bid>')
+    def synthetic_chat_path(bid):
+        # Explicit archived transport fixture only. The production link-creation route
+        # stays retired; owner/tenant checks remain in force for this synthetic entry.
+        if bid not in (7,8) or session.get('user_id') != (1 if bid==7 else 2):
+            abort(404)
+        slug=fixture.slug if bid==7 else fixture.other_slug
+        return {'path':'/chat/'+slug,'synthetic':True}
 
     host='0.0.0.0' if public_staging else '127.0.0.1'
     port=int(os.environ.get('PORT','8765'))

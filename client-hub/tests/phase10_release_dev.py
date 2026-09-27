@@ -6,7 +6,7 @@ if os.environ.get('KILAS_PHASE10_BROWSER_QA') != '1':
 from unittest.mock import Mock, patch
 import json
 import traceback
-from flask import jsonify
+from flask import jsonify, abort
 from test_kilas_finance_bridge import BridgeTests
 from test_finance_phase2a import app
 import repo, db, security, finance_entitlements
@@ -28,6 +28,20 @@ repo.save_ai_normalized_config(case.source, 'Synthetic approved logistics fixtur
 os.environ.update(KILAS_WEB_CHAT_ENABLED='true', KILAS_PLAYBOOKS_V2_ENABLED='true',
                   KILAS_OPERATIONS_V2_ENABLED='true', KILAS_FINANCE_ACCESS_MODE='self_service',
                   KILAS_FINANCE_UNLIMITED_TRIAL='false', KILAS_FINANCE_OPERATOR_ENABLED='true')
+# Archived shared-transport fixture only; production public routes remain retired.
+# Keep paid/channel isolation so the browser can still verify CRM, takeover and Finance.
+from public_chat import security as chat_security, store
+def synthetic_resolve(slug):
+    channel=store.channel(slug=slug)
+    if not channel or not channel['enabled']:
+        abort(404)
+    business=repo.get_business(channel['business_id'])
+    if not chat_security.available(business):
+        abort(404)
+    return business
+legacy_resolver=patch.object(chat_security,'resolve',side_effect=synthetic_resolve)
+legacy_resolver.start()
+synthetic_channel=store.ensure_channel(case.source)
 finance_entitlements.start_trial(case.target, case.actor)
 finance_entitlements.start_trial(case.foreign, case.foreign_actor)
 model = patch.object(ai_onboarding, '_call_claude', side_effect=reply); model.start()
@@ -61,6 +75,14 @@ def release_health():
     return jsonify(source=case.source, target=case.target, branch=case.branch,
                    email=repo.get_user_by_id(case.actor)['email'],
                    foreign_email=repo.get_user_by_id(case.foreign_actor)['email'])
+
+
+@app.get('/dev/chat-path')
+def release_chat_path():
+    user=security.current_user()
+    if not user or user['id'] != case.actor:
+        abort(404)
+    return jsonify(path='/chat/'+synthetic_channel['slug'],synthetic=True)
 
 
 if __name__ == '__main__':

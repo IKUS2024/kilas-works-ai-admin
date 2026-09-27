@@ -69,14 +69,18 @@ def _make_owner_and_business(package="AI_ADMIN_PRO"):
 
 def _complete_wizard(client, bid):
     steps = [
-        ("basics", {"business_name": "Test Biz", "category": "Kedai kopi", "owner_name": "Budi"}),
+        ("basics", {"business_name": "Test Biz", "category": "Kedai kopi", "owner_name": "Budi", "short_description":"Kedai kopi"}),
         ("services", {"services_raw": "Kopi susu - 20rb"}),
         ("operations", {"operating_hours": "08-20", "closed_days": "Minggu",
-                         "online_or_offline": "offline", "appointment_rules_raw": ""}),
+                         "online_or_offline": "offline", "appointment_rules_raw": "",
+                         "business_phone":"628111111111", "trusted_owner_phone":"628222222222"}),
         ("faq", {"faqs_raw": "Buka jam berapa? - 08.00"}),
         ("style", {"tone": "friendly", "primary_language": "id", "customer_salutation": "Kak"}),
+        ("upload", {}),
     ]
     for step_name, data in steps:
+        if step_name=='operations' and not repo.get_tenant_features(bid).get('owner_commands'):
+            data.pop('trusted_owner_phone',None)
         client.post(f"/business/{bid}/wizard/{step_name}", data=data, follow_redirects=True)
     repo.save_ai_normalized_config(bid, "summary", {"description": "x", "services": [], "faqs": []}, [])
 
@@ -113,7 +117,7 @@ def test_other_fixed_price_categories_still_instant_checkout():
             sess["role"] = "CLIENT_OWNER"
         resp = c.get("/services?q=Landing+Page")
     body = resp.data.decode()
-    idx = body.find("Landing Page")
+    idx = body.find("<h3>Landing Page</h3>")
     assert idx != -1
     snippet = body[idx:body.index("</article>",idx)]
     assert "checkout-fixed" in snippet
@@ -169,7 +173,7 @@ def test_full_wizard_to_payment_flow_end_to_end():
 
         review = c.get(resp.headers.get("Location"), follow_redirects=False)
         assert review.status_code == 200
-        assert 'Buat Pesanan' in review.get_data(as_text=True)
+        assert 'Lanjut ke Pembayaran' in review.get_data(as_text=True)
         resp2 = c.post(resp.headers.get("Location"), follow_redirects=False)
         assert resp2.status_code == 302
         assert "/checkout" in resp2.headers.get("Location", "")
@@ -186,6 +190,7 @@ def test_ai_admin_checkout_is_idempotent_no_duplicate_project():
         with c.session_transaction() as sess:
             sess["user_id"] = uid
             sess["role"] = "CLIENT_OWNER"
+        _complete_wizard(c, bid)
         c.post(f"/business/{bid}/ai-admin/checkout")
         projects_first = projects_repo.list_projects_for_business(bid)
         c.post(f"/business/{bid}/ai-admin/checkout")
@@ -221,7 +226,7 @@ def test_review_page_shows_payment_link_when_not_yet_paid():
         _complete_wizard(c, bid)
         resp = c.get(f"/business/{bid}/review")
     assert resp.status_code == 200
-    assert "Lanjut ke Pembayaran" in resp.data.decode()
+    assert f'/business/{bid}/ai-admin/checkout' in resp.data.decode()
     print("test_review_page_shows_payment_link_when_not_yet_paid OK")
 
 

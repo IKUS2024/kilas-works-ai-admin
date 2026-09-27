@@ -18,17 +18,17 @@ def main():
         owner_ctx = browser.new_context(viewport={"width": 390, "height": 844})
         owner = owner_ctx.new_page()
         owner.goto(BASE + "/dev/owner/7", wait_until="networkidle")
-        # The current owner workspace intentionally leads with the real Kilas WhatsApp
-        # demo action. Public Web Chat remains an independently sellable/testable channel,
-        # so exercise its scoped endpoint directly with the synthetic harness CSRF token.
-        expect(owner.get_by_role("link", name="Coba Demo Kilas").first).to_be_visible()
+        # Public link creation is retired in the master product. Retain the shared
+        # storage/CRM/takeover browser contract using the explicit archived QA fixture.
         response = owner_ctx.request.post(
             BASE + "/business/7/web-chat/link",
             headers={"X-CSRF-Token": "csrf-test", "Content-Type": "application/json"},
             data={},
         )
-        assert response.ok, response.text()
-        chat_path = response.json()["path"]
+        assert response.status == 410, response.text()
+        fixture = owner_ctx.request.get(BASE + '/dev/chat-path/7')
+        assert fixture.ok and fixture.json()['synthetic'] is True
+        chat_path = fixture.json()["path"]
         assert chat_path.startswith("/chat/")
         owner.screenshot(path=str(OUT / "01_owner_share.png"), full_page=True)
 
@@ -66,7 +66,7 @@ def main():
 
         owner.goto(BASE + "/business/7/inbox?channel=web", wait_until="networkidle")
         expect(owner.get_by_text("Nadia QA")).to_be_visible()
-        expect(owner.get_by_text("Percakapan web")).to_be_visible()
+        expect(owner.get_by_role('heading', name='Percakapan', exact=True)).to_be_visible()
         conversation = owner.locator("a.web-conversation").first
         expect(conversation).to_be_visible()
         conversation.click()
