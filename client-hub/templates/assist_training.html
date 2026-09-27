@@ -11,14 +11,45 @@
       {% for row in history %}<article><small>{{ 'Tes sebagai customer' if row.mode == 'assist_test' else 'Latihan' }}</small><p><strong>Kamu:</strong> {{ row.message }}</p><p style="white-space:pre-wrap"><strong>Kilas:</strong> {{ row.reply }}</p></article>{% endfor %}
     </div>
     {% if training_available %}
-    <form method="post" id="ajari-kilas">
+    <form method="post" enctype="multipart/form-data" id="ajari-kilas">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label for="teach-message">Tulis ajaran atau coba bertanya seperti customer</label>
       <textarea id="teach-message" name="message" maxlength="4000" rows="4" required placeholder="Contoh ajaran: Paket foto 2 juta. Diskon harus izin saya. Contoh tes: Kak, paket fotonya berapa?"></textarea>
+      <label for="teach-attachment">Lampirkan gambar/PDF</label>
+      <input id="teach-attachment" name="attachment" type="file" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf">
+      <small>JPG, PNG, atau PDF · maksimal 5 MB dan 10 halaman. Ceritakan isi file dan kapan Kilas boleh menggunakannya.</small>
+      <label><input type="checkbox" name="approved_send" value="1"> Boleh kirim file ini ke customer bila relevan</label>
       <div class="kw-actions"><button class="btn" name="action" value="teach">Ajari Kilas</button><button class="btn secondary" name="action" value="test">Tes sebagai customer</button></div>
     </form>
     {% endif %}
   </section>
+  {% if taught_files %}
+  <section class="card" aria-label="File yang sudah diajarkan">
+    <h2>File yang sudah diajarkan</h2>
+    {% for file in taught_files %}
+    <article>
+      <p><a href="{{ url_for('client.download_file',business_id=business.id,file_id=file.file_id) }}">{{ file.original_filename }}</a> · {{ 'PDF' if file.mime_type == 'application/pdf' else 'Gambar' }}</p>
+      <p>{{ file.summary }}</p>
+      {% if training_available %}
+      <details><summary>Petunjuk penggunaan · Hapus / ganti</summary>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="file_id" value="{{ file.file_id }}">
+          <label for="instruction-{{ file.file_id }}">Kapan file ini digunakan?</label>
+          <textarea id="instruction-{{ file.file_id }}" name="message" required maxlength="4000" rows="2">{{ file.usage_instruction }}</textarea>
+          <label><input type="checkbox" name="approved_send" value="1" {% if file.approved_send %}checked{% endif %}> Boleh kirim ke customer bila relevan</label>
+          <button class="btn secondary" name="action" value="instruct_media">Simpan petunjuk</button>
+          <label for="replace-{{ file.file_id }}">Ganti gambar/PDF</label>
+          <input id="replace-{{ file.file_id }}" type="file" name="attachment" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf">
+          <button class="btn secondary" name="action" value="replace_media">Ganti file</button>
+          <button class="btn secondary" name="action" value="remove_media" formnovalidate>Hapus</button>
+        </form>
+      </details>
+      {% else %}<p>{{ file.usage_instruction }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
   {% if can_ready and training_available %}
   <form method="post" class="card">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -7,6 +7,7 @@ import ai_reply_explanation
 import ai_router
 import ai_usage
 import assist_training
+import assist_business_media
 from kilas_core import customer_insights
 
 INTENTS = {'QUESTION': 'Pertanyaan bisnis', 'REQUEST': 'Permintaan customer',
@@ -22,6 +23,14 @@ Keluarkan JSON {"reply":string,"intent":"QUESTION|REQUEST|PAYMENT|CANCEL|HUMAN",
 "insight":objek sesuai schema CRM berikut}. evidence adalah kutipan persis pesan CUSTOMER TERBARU
 yang mendukung action/status, kosong jika tidak ada. knowledge_used hanya ID yang benar digunakan.
 Explain AI tidak memerlukan reasoning atau chain of thought; jangan keluarkan field reasoning.
+Koreksi terbaru dalam panduan pemilik mengalahkan fakta dan petunjuk penggunaan lama pada file.
+Field tambahan media: null atau {"file_id":integer,"evidence":kutipan persis permintaan customer terbaru}.
+Pilih maksimal SATU approved_media hanya jika customer meminta file/foto/katalog dan isi file
+serta instruksi pemilik benar-benar sesuai. Jangan pilih file hanya karena topik mirip.
+Jangan mengirim SOP internal, file yang dilarang instruksi pemilik, atau media untuk pertanyaan
+yang cukup dijawab teks. Permintaan harga saja bukan permintaan daftar harga/PDF.
+Jangan mengarang ID, media atau tautan. Jika tidak tersedia, katakan belum tersedia.
+Balasan boleh mengenalkan file yang dipilih, tetapi jangan mengklaim pengiriman sudah berhasil.
 ''' + customer_insights.SYSTEM_PROMPT + '\nSchema CRM di atas adalah nilai field insight di JSON balasan, bukan pengganti JSON balasan.'
 
 
@@ -31,6 +40,7 @@ def relevant_knowledge(bid, query):
     entries = [('profile', json.dumps(data['business'], ensure_ascii=False))]
     entries += [('service_'+str(i), s) for i, s in enumerate(data['services'])]
     entries += [('faq_'+str(i), f['question']+': '+f['answer']) for i, f in enumerate(data['faqs'])]
+    entries += [('media_'+str(r['id']), r['filename']+': '+r['knowledge']+'\nInstruksi pemilik: '+r['instruction']) for r in data.get('media', [])]
     ranked = sorted(entries, key=lambda item: (
         item[0] == 'profile' or assist_training.GUIDE_QUESTION in item[1],
         sum(word in item[1].casefold() for word in terms)), reverse=True)
@@ -38,7 +48,8 @@ def relevant_knowledge(bid, query):
     for key, value in ranked:
         if len(chosen) >= 12 or budget <= 0:
             break
-        if key != 'profile' and assist_training.GUIDE_QUESTION not in value and not any(
+        # Broad customer questions ("Apa saja yang tersedia?") still need taught file facts.
+        if key != 'profile' and not key.startswith('media_') and assist_training.GUIDE_QUESTION not in value and not any(
                 word in value.casefold() for word in terms):
             continue
         chosen[key] = value[:budget]
@@ -64,7 +75,9 @@ def _evidence_clauses(text, evidence):
 
 def generate(bid, text, history, previous=None, *, feature="assist_demo"):
     knowledge = relevant_knowledge(bid, text)
+    available = assist_business_media.candidates(bid, text)
     payload = json.dumps({'knowledge': knowledge, 'previous_insight': previous or {},
+                          'approved_media': available,
                           'recent_messages': history[-12:], 'customer_message': text}, ensure_ascii=False)
 
     def call(strong=False):
@@ -130,4 +143,7 @@ def generate(bid, text, history, previous=None, *, feature="assist_demo"):
         action='Balasan dan pembaruan kebutuhan customer; pembayaran tetap memerlukan konfirmasi manusia.',
         result='Pemilik dapat meninjau balasan dan mengambil alih percakapan.', route='assist_structured')
     trace['confidence'] = round(result['confidence']*100)
+    selected = assist_business_media.selection(result, available, text)
+    if selected and result['intent'] != 'HUMAN':
+        trace['_media'] = selected
     return result['reply'].strip()[:4000], insight, trace

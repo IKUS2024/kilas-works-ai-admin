@@ -4,6 +4,7 @@ The historically named kw_web_* tables are the shared conversation/event log. WA
 have expires_at=0 and a typed real provider identity, never a visitor token or fake phone.
 """
 from datetime import datetime, timezone
+import os
 import re
 import time
 import uuid
@@ -147,5 +148,9 @@ def handle(bid,pid,value,field):
             event=conversation.process(repo.get_business(bid),inbound,event,history,
                 eligibility=lambda _: bool(whatsapp_access.channel(bid,pid)),fence=fence)
         if event['status']=='processing': raise store.ChatError('processing',503)
-        outbound.deliver(bid,cid,eid,role='assistant')
+        sent = outbound.deliver(bid,cid,eid,role='assistant')
+        if (os.environ.get('KILAS_ASSIST_RUNTIME_ENABLED', '').lower() == 'true'
+                and sent and sent.get('status') in ('accepted','sent','delivered','read')):
+            import assist_business_media
+            assist_business_media.deliver_core(bid,cid,eid)
     return {'status':'ok'}

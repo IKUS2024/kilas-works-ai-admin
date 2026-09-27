@@ -7032,7 +7032,8 @@ def _webhook_body_impl(data):
                     save_customer_name_to_db(from_number, profile_name[:160])
                 media_link = request.environ.get('inbox_media_row') or {}
                 if assist_demo.process(message, profile_name=profile_name,
-                        media_message_id=media_link.get('message_row_id'), send=send_whatsapp_message):
+                        media_message_id=media_link.get('message_row_id'), send=send_whatsapp_message,
+                        media_channel={'access_token': WHATSAPP_ACCESS_TOKEN, 'phone_number_id': WHATSAPP_PHONE_NUMBER_ID}):
                     return jsonify({'status':'ok', 'demo_processed':True}), 200
             except ValueError:
                 # Invalid, expired or already-used invitations reveal no customer data.

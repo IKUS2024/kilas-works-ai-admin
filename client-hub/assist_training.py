@@ -25,12 +25,13 @@ reply mengonfirmasi perubahan yang benar-benar dipahami. Jangan mengklaim sudah 
 
 
 def context(bid):
+    import assist_business_media
     business = repo.get_business(bid) or {}
     profile = repo.get_business_profile(bid) or {}
     faqs = repo.get_business_faqs(bid)
     # The owner's canonical training must survive the bounded FAQ window.
     faqs = sorted(faqs, key=lambda row: row.get('question') != GUIDE_QUESTION)[:60]
-    return {
+    result = {
         'business': dict(business_name=business.get('business_name'), **{
             k: profile.get(k) for k in (
                 'short_description', 'category', 'operating_hours', 'closed_days',
@@ -43,6 +44,10 @@ def context(bid):
         'faqs': [dict(question=r.get('question') or r['raw_input'][:1500],
                       answer=(r.get('answer') or '')[:8000]) for r in faqs],
     }
+    media = assist_business_media.context(bid)
+    if media:
+        result['media'] = media
+    return result
 
 
 def fingerprint(bid):
@@ -99,6 +104,7 @@ def _save_teaching(business_id, actor, message, result, profile, services, faqs,
 
 
 def test_reply(business, actor, message):
+    import assist_reply
     bid = business['id']
     version = fingerprint(bid)
     recent = history(bid)
@@ -111,7 +117,7 @@ def test_reply(business, actor, message):
               '. Pemilik berperan sebagai customer untuk Tes AI. Jawab natural memakai HANYA '
               'pengetahuan bisnis berikut. Jangan mengarang; minta bantuan manusia bila tidak yakin. '
               'Jangan mengklaim booking/pembayaran sudah terkonfirmasi. Ini tes tanpa tindakan nyata.\n' +
-              json.dumps(context(bid), ensure_ascii=False)[:24000])
+              json.dumps(assist_reply.relevant_knowledge(bid, message), ensure_ascii=False))
     with ai_usage.scope(bid, 'simulation'):
         reply, stop, error = ai_onboarding._call_claude(prompt,
             messages + [{'role': 'user', 'content': message}], max_tokens=600)

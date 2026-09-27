@@ -144,7 +144,7 @@ def record_sent_media(bound, provider_id):
     return True
 
 
-def process(event, *, profile_name=None, media_message_id=None, send):
+def process(event, *, profile_name=None, media_message_id=None, send, media_channel=None):
     """Platform webhook only, after signature + Phone Number ID verification.
 
     Returns False only when this sender is not a demo. Claims are durable before inference
@@ -214,6 +214,9 @@ def process(event, *, profile_name=None, media_message_id=None, send):
             # The customer gets this acknowledgement, then only the owner's explicit
             # return-to-AI action may resume automated replies, just as in production.
             platform_inbox_service.start_human_takeover(phone)
+        import assist_business_media
+        with transaction() as tx:
+            assist_business_media.schedule(tx, bid, 'demo:' + provider_id, bound['id'], trace.pop('_media', None))
         db.execute("UPDATE kw_assist_demo_events SET reply_text=?,explanation_json=?,status='sending' WHERE provider_id=?",
                    (reply,json.dumps(trace,ensure_ascii=False),provider_id))
         ok, _ = send(phone, reply)
@@ -226,6 +229,8 @@ def process(event, *, profile_name=None, media_message_id=None, send):
                        (reply_mid,'sent' if ok else 'delivery_unknown',int(time.time()),provider_id))
         if insight and customer:
             persist_insight(bid, customer, insight, max(mid,reply_mid or 0))
+        if ok and media_channel:
+            assist_business_media.deliver_demo(bound, provider_id, media_channel)
         return True
     except Exception:
         # A claimed event remains inspectable; no hidden replay can duplicate a send or Job.
