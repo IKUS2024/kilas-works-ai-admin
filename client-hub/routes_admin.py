@@ -899,72 +899,11 @@ def request_revision(business_id):
 @admin_bp.route("/business/<int:business_id>/connect-whatsapp", methods=["POST"])
 @security.admin_required
 def connect_whatsapp(business_id):
-    """Section 30/section 3-of-19, hardened by the multi-tenant runtime safety cycle (Task A): the
-    admin still types in the phone_number_id + trusted owner phone after doing the real Meta
-    connection themselves, but this route no longer takes that input on faith. Before this tenant
-    can be marked connected, provisioning.validate_and_connect_whatsapp() must confirm (a) this
-    Phone Number ID isn't already claimed by a DIFFERENT tenant, and (b) — best-effort, see that
-    function's docstring for exactly how failures are handled — a live Meta Graph API read against
-    it succeeds. businesses.whatsapp_connected (the V1 activation gate) is ONLY ever set True on an
-    actual "CONNECTED" verdict; a failed validation leaves it False and the tenant_whatsapp_config
-    row VALIDATION_FAILED, so provisioning.activate_tenant() can never be reached for an
-    unvalidated channel. The real access-token value is NEVER surfaced here — not in a flash
-    message, not in a log line, not in the audit description (see validate_and_connect_whatsapp's
-    own docstring)."""
-    business = repo.get_business(business_id)
-    if not business:
+    """Keep old links safe: all new/changed mappings use the assisted workflow."""
+    if not repo.get_business(business_id):
         abort(404)
-    admin = security.current_user()
-    if business["status"] != "APPROVED":
-        flash("Business harus berstatus APPROVED dulu sebelum menghubungkan WhatsApp.", "error")
-        return redirect(url_for("admin.review_business", business_id=business_id))
-
-    phone_number_id = (request.form.get("whatsapp_phone_number_id") or "").strip()
-    # Owner/pengelola phone (Section J: "Do NOT create a second duplicate owner-phone data
-    # source") — same normalize_owner_phone() the customer-facing wizard entry point uses, so
-    # "0851...", "+62851...", "62851..." always converge on the SAME stored value regardless of
-    # which of the two entry points (customer wizard vs admin WhatsApp-connect) was used.
-    trusted_owner_phone = repo.normalize_owner_phone(request.form.get("trusted_owner_phone")) or ""
-    waba_id = (request.form.get("waba_id") or "").strip() or None
-    credentials_reference = (request.form.get("credentials_reference") or "").strip() or None
-    if not phone_number_id or not trusted_owner_phone:
-        flash("Isi WhatsApp Phone Number ID dan nomor owner terpercaya.", "error")
-        return redirect(url_for("admin.review_business", business_id=business_id))
-    # Task 8 (credential architecture) — LEFT BLANK on purpose means this tenant shares Kilas
-    # Works' own default server-side WHATSAPP_ACCESS_TOKEN (the common case: this tenant's phone
-    # number lives under the same Meta Business Portfolio/WABA Kilas Works already manages), so
-    # onboarding a new client does NOT require adding a brand-new Render env var. Only fill this in
-    # when the client genuinely has their OWN separate Meta app/token — see
-    # app.py's _get_tenant_whatsapp_channel_safe docstring for the full design decision.
-
-    try:
-        result = provisioning.validate_and_connect_whatsapp(
-            business_id, admin, phone_number_id, waba_id, credentials_reference
-        )
-    except provisioning.ProvisioningError as e:
-        flash(f"Gagal menyimpan konfigurasi WhatsApp: {e}", "error")
-        return redirect(url_for("admin.review_business", business_id=business_id))
-
-    if result["status"] != "CONNECTED":
-        # Never touch businesses.whatsapp_connected/whatsapp_phone_number_id on a failed
-        # validation — the V1 activation gate must stay exactly as it was before this attempt.
-        flash(
-            "Validasi WhatsApp GAGAL — Phone Number ID belum bisa dikonfirmasi "
-            f"({result['reason']}). Business TIDAK ditandai Connected/Active.",
-            "error",
-        )
-        return redirect(url_for("admin.review_business", business_id=business_id))
-
-    # Only reached on an actual validated CONNECTED verdict. Kept for backward compatibility with
-    # V1 (businesses.whatsapp_connected drives the existing activation gate and display_status
-    # logic) — dual-written alongside tenant_whatsapp_config, the Phase 2 canonical home.
-    db.execute(
-        "UPDATE businesses SET whatsapp_phone_number_id = ?, trusted_owner_phone = ?, "
-        "whatsapp_connected = ?, updated_at = ? WHERE id = ?",
-        (phone_number_id, trusted_owner_phone, True, repo._now(), business_id),
-    )
-    flash("WhatsApp terhubung & tervalidasi. Business siap di-Activate.", "success")
-    return redirect(url_for("admin.review_business", business_id=business_id))
+    flash("Hubungkan nomor melalui tahapan koneksi dan uji WhatsApp bisnis.", "info")
+    return redirect(url_for('platform_control.detail', bid=business_id), code=303)
 
 
 @admin_bp.route("/business/<int:business_id>/activate", methods=["POST"])

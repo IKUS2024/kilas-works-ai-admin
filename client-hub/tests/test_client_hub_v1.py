@@ -132,7 +132,7 @@ def test_tenant_cannot_access_another_business():
     c = fresh_client()
     bid_a = _make_client_with_business(c, "owner1@test.com", "Kopi ABC")
     c.get("/logout")
-    c.post("/register", data={"email": "owner2@test.com", "password": "password123"})
+    c.post("/register", data={"email": "owner2@test.com", "password": "password123", "full_name":"Other Owner"})
     r = c.get(f"/business/{bid_a}/review")
     assert r.status_code == 404, "cross-tenant access must be 404 (IDOR-resistant), not 403/200"
     r = c.get(f"/business/{bid_a}/wizard/basics")
@@ -165,12 +165,13 @@ def _run_full_wizard(c, bid, salutation="Kak"):
     c.post(f"/business/{bid}/wizard/basics", data={
         "business_name": "Kopi ABC", "category": "Kedai kopi", "short_description": "Kopi enak",
         "country": "Indonesia", "timezone": "Asia/Jakarta", "address": "Tangerang",
-        "business_phone": "0812", "owner_name": "Budi",
+        "business_phone": "628111111111", "owner_name": "Budi",
     })
     c.post(f"/business/{bid}/wizard/services", data={"services_raw": "Kopi susu - 20rb\nEspresso - 18rb"})
     c.post(f"/business/{bid}/wizard/operations", data={
         "operating_hours": "08-20", "closed_days": "-", "online_or_offline": "offline",
-        "appointment_rules_raw": "",
+        "appointment_rules_raw": "", "business_phone":"628111111111",
+        "trusted_owner_phone":"628222222222",
     })
     c.post(f"/business/{bid}/wizard/faq", data={"faq_raw": "Ada wifi? Ada, gratis."})
     c.post(f"/business/{bid}/wizard/style", data={
@@ -329,30 +330,20 @@ def test_admin_review_approve_activate_flow():
     r = c.post(f"/admin/business/{bid}/activate", follow_redirects=True)
     assert repo.get_business(bid)["status"] == "APPROVED", "must not activate before WhatsApp is connected"
 
-    # Multi-tenant runtime safety cycle (Task A): the admin "Connect WhatsApp" route now runs a
-    # real validation (uniqueness + best-effort live Meta Graph API read) before marking a tenant
-    # connected — see provisioning.validate_and_connect_whatsapp(). This sandbox has no real,
-    # internet-reachable Meta credentials, so the live-reachability leg is stubbed here exactly
-    # like every other test in this suite stubs an external WhatsApp/Claude call; the DB-only
-    # uniqueness check still runs for real (unpatched).
-    original_check = provisioning._check_whatsapp_phone_number_reachable
-    provisioning._check_whatsapp_phone_number_reachable = lambda phone_number_id, credentials_reference: (True, "ok")
-    try:
-        r = c.post(f"/admin/business/{bid}/connect-whatsapp",
-                   data={"whatsapp_phone_number_id": "111", "trusted_owner_phone": "+62811"}, follow_redirects=True)
-    finally:
-        provisioning._check_whatsapp_phone_number_reachable = original_check
-    assert repo.get_business(bid)["whatsapp_connected"] == 1
-    assert repo.get_whatsapp_config(bid)["connection_status"] == "CONNECTED"
-
-    r = c.post(f"/admin/business/{bid}/activate", follow_redirects=True)
-    assert repo.get_business(bid)["status"] == "APPROVED", "must not activate without a VERIFIED AI Admin payment"
-
-    admin_user = repo.get_user_by_email("admin@kilasworks.id")
-    _give_verified_ai_admin_payment(bid, admin_user["id"])
-
-    r = c.post(f"/admin/business/{bid}/activate", follow_redirects=True)
-    assert repo.get_business(bid)["status"] == "ACTIVE"
+    # Final assisted-only contract: legacy identity entry cannot connect or activate.
+    before_business=repo.get_business(bid)
+    before_mapping=repo.get_whatsapp_config(bid)
+    r=c.post(f"/admin/business/{bid}/connect-whatsapp",
+        data={"whatsapp_phone_number_id":"111","trusted_owner_phone":"628222222222"})
+    assert r.status_code==303 and '/platform/business/' in r.location
+    assert repo.get_business(bid)==before_business
+    assert repo.get_whatsapp_config(bid)==before_mapping
+    admin_user=repo.get_user_by_email("admin@kilasworks.id")
+    _give_verified_ai_admin_payment(bid,admin_user["id"])
+    r=c.post(f"/admin/business/{bid}/activate")
+    assert r.status_code==303 and '/platform/business/' in r.location
+    assert repo.get_business(bid)["status"]!="ACTIVE", "Verified payment alone cannot bypass assisted mapping and signed tests"
+    assert repo.get_whatsapp_config(bid)==before_mapping
 
     r = c.post(f"/admin/business/{bid}/deactivate", follow_redirects=True)
     assert repo.get_business(bid)["status"] == "SUSPENDED"

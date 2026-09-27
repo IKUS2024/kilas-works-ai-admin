@@ -399,7 +399,7 @@ def test_uploaded_file_survives_editing_other_wizard_steps():
     client = fresh_client()
     _login_owner(client, "fileedit@test.com")
     client.post(f"/business/{bid}/wizard/operations", data={
-        "operating_hours": "08-20", "closed_days": "Minggu", "online_or_offline": "offline",
+        "operating_hours": "08-20", "closed_days": "Minggu", "online_or_offline": "online", "business_phone":"628111111111",
     })
     files = repo.list_business_files(bid)
     assert len(files) == 1, "editing an unrelated wizard step must never remove an uploaded file"
@@ -426,6 +426,7 @@ def test_refresh_reopen_wizard_prepopulates_saved_fields():
     client = fresh_client()
     _login_owner(client, "draft@test.com")
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Draft", "category": "Kedai kopi", "owner_name": "Budi",
         "address": "Jl. Mawar No. 1",
     })
@@ -433,7 +434,7 @@ def test_refresh_reopen_wizard_prepopulates_saved_fields():
     body = resp.data.decode()
     assert 'value="Kedai kopi"' in body
     assert 'value="Budi"' in body
-    assert "Jl. Mawar No. 1" in body
+    assert "Jl. Mawar No. 1" in client.get(f"/business/{bid}/wizard/operations").text
     print("test_refresh_reopen_wizard_prepopulates_saved_fields OK")
 
 
@@ -445,12 +446,14 @@ def test_partial_update_does_not_erase_unrelated_saved_fields():
     client = fresh_client()
     _login_owner(client, "patch@test.com")
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Patch", "category": "Kedai kopi", "owner_name": "Budi",
         "address": "Jl. Mawar No. 1", "business_phone": "081234567890",
     })
     # Re-submit the SAME step with address/business_phone blank (simulating a stale/partial
     # resubmission) but owner_name still filled.
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Patch", "category": "Kedai kopi", "owner_name": "Budi",
         "address": "", "business_phone": "",
     })
@@ -478,9 +481,11 @@ def test_customer_edits_existing_setup_changes_persist():
     client = fresh_client()
     _login_owner(client, "resume@test.com")
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Resume", "category": "Kedai kopi", "owner_name": "Budi",
     })
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Resume", "category": "Kedai kopi modern", "owner_name": "Budi Santoso",
     })
     profile = repo.get_business_profile(bid)
@@ -496,7 +501,7 @@ def test_dashboard_has_resume_edit_action_for_draft_business():
     _login_owner(client, "resumeui@test.com")
     resp = client.get("/dashboard")
     body = resp.data.decode()
-    assert "Lanjutkan Setup" in body
+    assert f"/business/{bid}/wizard/basics" in body
     print("test_dashboard_has_resume_edit_action_for_draft_business OK")
 
 
@@ -510,6 +515,7 @@ def test_editing_after_ai_success_marks_knowledge_stale():
     client = fresh_client()
     _login_owner(client, "stale@test.com")
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Stale", "category": "Kategori baru", "owner_name": "Budi",
     })
     ai_settings = repo.get_ai_settings(bid)
@@ -527,10 +533,11 @@ def test_failed_business_rerun_succeeds_same_business_continues():
     client = fresh_client()
     _login_owner(client, "rerun@test.com")
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz Rerun", "category": "Kedai kopi", "owner_name": "Budi"})
     client.post(f"/business/{bid}/wizard/services", data={"services_raw": "Kopi susu - 20rb"})
     client.post(f"/business/{bid}/wizard/operations", data={
-        "operating_hours": "08-20", "closed_days": "Minggu", "online_or_offline": "offline"})
+        "operating_hours": "08-20", "closed_days": "Minggu", "online_or_offline": "online", "business_phone":"628111111111"})
     client.post(f"/business/{bid}/wizard/faq", data={"faqs_raw": "Buka jam berapa? - 08.00"})
     client.post(f"/business/{bid}/wizard/style", data={
         "tone": "friendly", "primary_language": "id", "customer_salutation": "Kak"})
@@ -613,7 +620,7 @@ def test_customer_never_sees_raw_parse_error_text():
     assert "RESPONSE_PARSE_ERROR" not in body
     assert "line 103" not in body
     assert "char 4144" not in body
-    assert "Data yang sudah diisi tetap aman" in body
+    assert "Data tetap aman dan bisa dicoba lagi" in body
     print("test_customer_never_sees_raw_parse_error_text OK")
 
 
@@ -638,10 +645,11 @@ def test_existing_successful_onboarding_still_works_end_to_end():
     client = fresh_client()
     _login_owner(client, "e2e@test.com")
     client.post(f"/business/{bid}/wizard/basics", data={
+        "short_description":"Kedai kopi untuk pelanggan lokal",
         "business_name": "Biz E2E", "category": "Kedai kopi", "owner_name": "Budi"})
     client.post(f"/business/{bid}/wizard/services", data={"services_raw": "Kopi susu - 20rb"})
     client.post(f"/business/{bid}/wizard/operations", data={
-        "operating_hours": "08-20", "closed_days": "Minggu", "online_or_offline": "offline"})
+        "operating_hours": "08-20", "closed_days": "Minggu", "online_or_offline": "online", "business_phone":"628111111111"})
     client.post(f"/business/{bid}/wizard/faq", data={"faqs_raw": "Buka jam berapa? - 08.00"})
     client.post(f"/business/{bid}/wizard/style", data={
         "tone": "friendly", "primary_language": "id", "customer_salutation": "Kak"})

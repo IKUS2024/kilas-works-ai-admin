@@ -44,12 +44,13 @@ def _run_full_wizard(c, bid, salutation="Kak"):
     c.post(f"/business/{bid}/wizard/basics", data={
         "business_name": "Kopi ABC", "category": "Kedai kopi", "short_description": "Kopi enak",
         "country": "Indonesia", "timezone": "Asia/Jakarta", "address": "Tangerang",
-        "business_phone": "0812", "owner_name": "Budi",
+        "business_phone": "628111111111", "owner_name": "Budi",
     })
     c.post(f"/business/{bid}/wizard/services", data={"services_raw": "Kopi susu - 20rb\nEspresso - 18rb"})
     c.post(f"/business/{bid}/wizard/operations", data={
         "operating_hours": "08-20", "closed_days": "-", "online_or_offline": "offline",
-        "appointment_rules_raw": "",
+        "appointment_rules_raw": "", "business_phone":"628111111111",
+        "trusted_owner_phone":"628222222222",
     })
     c.post(f"/business/{bid}/wizard/faq", data={"faq_raw": "Ada wifi? Ada, gratis."})
     c.post(f"/business/{bid}/wizard/style", data={

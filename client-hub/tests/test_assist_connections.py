@@ -59,11 +59,15 @@ class ConnectionTests(unittest.TestCase):
         with client.session_transaction() as session:
             session.update(user_id=self.aid,role='KILAS_ADMIN',_csrf_token='assisted-gate')
         before=repo.get_business(self.bid)
-        with patch.object(provisioning,'activate_tenant',side_effect=AssertionError('legacy bypass')):
-            response=client.post(f'/admin/business/{self.bid}/activate',data={'csrf_token':'assisted-gate'})
-        self.assertEqual(response.status_code,303)
-        self.assertTrue(response.location.endswith(f'/platform/business/{self.bid}'))
+        with patch.object(provisioning,'activate_tenant',side_effect=AssertionError('legacy bypass')), \
+             patch.object(provisioning,'validate_and_connect_whatsapp',side_effect=AssertionError('legacy mapping bypass')):
+            for action in ('activate','connect-whatsapp'):
+                response=client.post(f'/admin/business/{self.bid}/'+action,data={
+                    'csrf_token':'assisted-gate','whatsapp_phone_number_id':'999','trusted_owner_phone':'628333333333'})
+                self.assertEqual(response.status_code,303)
+                self.assertTrue(response.location.endswith(f'/platform/business/{self.bid}'))
         self.assertEqual(repo.get_business(self.bid),before)
+        self.assertIsNone(repo.get_whatsapp_config(self.bid))
 
     def test_legacy_active_mapping_cannot_change_without_assisted_evidence(self):
         import provisioning
