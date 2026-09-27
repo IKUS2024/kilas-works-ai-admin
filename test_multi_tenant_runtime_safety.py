@@ -562,12 +562,17 @@ def test_whatsapp_validation_blocks_duplicate_phone_number_id_across_tenants():
     chrepo.upsert_whatsapp_config(bid_a, "dup-pnid-1", None, "TOK_A", connection_status="CONNECTED")
 
     # A second, DIFFERENT tenant must never be allowed to claim the SAME Phone Number ID.
-    result = provisioning.validate_and_connect_whatsapp(bid_b, admin, "dup-pnid-1", None, "TOK_B")
-    assert result["status"] == "VALIDATION_FAILED"
-    assert "duplicate_phone_number_id" in result["reason"]
-    config_b = chrepo.get_whatsapp_config(bid_b)
-    assert config_b["connection_status"] == "VALIDATION_FAILED", \
-        "provisioning.validate_and_connect_whatsapp must never leave a duplicated Phone Number ID as CONNECTED"
+    before_a = chrepo.get_whatsapp_config(bid_a)
+    with patch.object(provisioning, '_check_whatsapp_phone_number_reachable') as network:
+        try:
+            provisioning.validate_and_connect_whatsapp(bid_b, admin, "dup-pnid-1", None, "TOK_B")
+        except provisioning.ProvisioningError as exc:
+            assert str(exc) == 'assisted_connection_required'
+        else:
+            raise AssertionError('A new binding must require the assisted connection gates')
+        network.assert_not_called()
+    assert chrepo.get_whatsapp_config(bid_b) is None
+    assert chrepo.get_whatsapp_config(bid_a) == before_a
     print("test_whatsapp_validation_blocks_duplicate_phone_number_id_across_tenants OK")
 
 
@@ -578,6 +583,8 @@ def test_whatsapp_validation_fails_safe_without_reachable_meta_credential():
     reset_client_hub_db()
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-unreachable", "628700000003", configure_channel=False)
+    chrepo.upsert_whatsapp_config(bid, 'pnid-unreachable', None, 'TOK_UNREACHABLE_TEST', connection_status='CONNECTED')
+    chrepo.mark_whatsapp_validated(bid)
     os.environ.pop("TOK_UNREACHABLE_TEST", None)
 
     result = provisioning.validate_and_connect_whatsapp(bid, admin, "pnid-unreachable", None, "TOK_UNREACHABLE_TEST")
@@ -596,6 +603,9 @@ def test_whatsapp_validation_succeeds_and_marks_connected_when_meta_check_passes
     reset_client_hub_db()
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-reachable", "628700000004", configure_channel=False)
+    # Legacy validation can refresh an already verified mapping, never create a new one.
+    chrepo.upsert_whatsapp_config(bid, 'pnid-reachable', None, 'TOK_REACHABLE_TEST', connection_status='CONNECTED')
+    chrepo.mark_whatsapp_validated(bid)
     original_check = provisioning._check_whatsapp_phone_number_reachable
     provisioning._check_whatsapp_phone_number_reachable = lambda phone_number_id, credentials_reference, expected_business_phone=None: (True, "ok")
     try:
@@ -612,6 +622,8 @@ def test_whatsapp_validation_never_logs_or_returns_the_real_access_token_value()
     reset_client_hub_db()
     admin = _make_admin_actor()
     bid = _make_active_tenant("pnid-secretcheck", "628700000005", configure_channel=False)
+    chrepo.upsert_whatsapp_config(bid, 'pnid-secretcheck', None, 'TOK_SECRET_VALUE_TEST', connection_status='CONNECTED')
+    chrepo.mark_whatsapp_validated(bid)
     os.environ["TOK_SECRET_VALUE_TEST"] = "super-secret-real-meta-token-value"
     try:
         result = provisioning.validate_and_connect_whatsapp(bid, admin, "pnid-secretcheck", None, "TOK_SECRET_VALUE_TEST")

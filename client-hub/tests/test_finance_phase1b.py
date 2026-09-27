@@ -147,7 +147,14 @@ class FinanceUITests(unittest.TestCase):
 
     def test_dashboard_button_gate(self):
         os.environ['KILAS_FINANCE_BETA']='off'
-        self.assertNotIn('Kilas Finance',self.client.get('/dashboard').get_data(as_text=True))
+        # Assist's separate Finance shortcut is navigation, never an access grant.
+        before={table:db.query_all('SELECT * FROM '+table)
+                for table in ('finance_accounts','finance_categories','finance_transactions')}
+        self.assertIn('Kilas Finance',self.client.get('/dashboard').get_data(as_text=True))
+        self.assertEqual(self.client.get(self.url).status_code,404)
+        self.assertEqual(self.client.post(self.url+'/start').status_code,404)
+        for table,rows in before.items():
+            self.assertEqual(db.query_all('SELECT * FROM '+table),rows)
         os.environ['KILAS_FINANCE_BETA']='on'
         self.start()  # Real Finance data gives this business an owned Finance lane.
         html=self.client.get('/dashboard').get_data(as_text=True)
