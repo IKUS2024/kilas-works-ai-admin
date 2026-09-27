@@ -10,6 +10,25 @@ on:
 permissions:
   contents: read
 jobs:
+  root-bot-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the production bot dependency set in a clean environment
+        run: |
+          python -m venv /tmp/kilas-root-bot
+          /tmp/kilas-root-bot/bin/pip install -r requirements.txt
+          /tmp/kilas-root-bot/bin/pip check
+      - name: Root signed webhook, Demo binding, trained knowledge, Inbox, CRM and original media
+        env:
+          KILAS_ROOT_DEPENDENCIES_ONLY: '1'
+        run: |
+          /tmp/kilas-root-bot/bin/python scripts/run_offline_tests.py --top-level-only --only test_assist_bot_runtime
+          /tmp/kilas-root-bot/bin/python scripts/run_offline_tests.py --top-level-only --only test_kilas_whatsapp_webhook
   assist-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 15
