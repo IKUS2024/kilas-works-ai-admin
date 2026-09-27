@@ -109,7 +109,7 @@ def _make_active_tenant(phone_number_id, trusted_owner_phone, package="AI_ADMIN_
     )
     if configure_channel:
         credentials_reference = f"TEST_WA_TOKEN__TENANT_{business_id}"
-        chrepo.upsert_whatsapp_config(business_id, phone_number_id, None, credentials_reference,
+        chrepo.upsert_whatsapp_config(business_id, phone_number_id, 'test-waba', credentials_reference,
                                        connection_status="CONNECTED")
         if credentials_env_value is not None:
             os.environ[credentials_reference] = credentials_env_value
@@ -125,7 +125,7 @@ def _text_payload(from_number, text, phone_number_id=None):
     }
     if phone_number_id:
         value["metadata"] = {"phone_number_id": phone_number_id}
-    return {"entry": [{"changes": [{"value": value}]}]}
+    return {"entry": [{"id": "test-waba", "changes": [{"value": value}]}]}
 
 
 client = appmod.app.test_client()
@@ -221,8 +221,8 @@ def test_incomplete_tenant_channel_skips_send_never_falls_back_to_kilas_identity
 def test_never_connected_tenant_channel_skips_send():
     reset_client_hub_db()
     reset_bot_state()
-    # Tenant resolved (ACTIVE, phone_number_id matches) but "Connect WhatsApp" was never actually
-    # completed in Client Hub -> no tenant_whatsapp_config row at all.
+    # The authoritative connection is absent: matching the legacy business phone alone
+    # must fail at tenant resolution, before the outgoing-channel stage.
     _make_active_tenant("pnid-ch-003", "62899100003", configure_channel=False)
 
     with patch.object(appmod, "ENABLE_MULTI_TENANT", True), \
@@ -234,10 +234,29 @@ def test_never_connected_tenant_channel_skips_send():
             content_type="application/json",
         )
     assert resp.status_code == 200
-    assert resp.get_json().get("tenant_whatsapp_channel_not_configured") is True
+    assert resp.get_json().get("unknown_phone_number_id") is True
     assert not mock_call_claude.called
     assert not mock_post.called
     print("test_never_connected_tenant_channel_skips_send OK")
+
+
+def test_known_phone_with_missing_or_wrong_waba_never_sends():
+    reset_client_hub_db()
+    reset_bot_state()
+    _make_active_tenant('pnid-waba-bound', '62899100999')
+    with patch.object(appmod, 'ENABLE_MULTI_TENANT', True), \
+            patch.object(appmod, 'call_claude') as model, patch('requests.post') as send:
+        for identity in (None, 'other-waba'):
+            payload = _text_payload('628999900099', 'Halo', phone_number_id='pnid-waba-bound')
+            if identity is None:
+                del payload['entry'][0]['id']
+            else:
+                payload['entry'][0]['id'] = identity
+            response = client.post('/webhook', json=payload)
+            assert response.status_code == 200
+            assert response.json['unknown_phone_number_id'] is True
+        model.assert_not_called()
+        send.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +403,7 @@ def test_basic_tenant_image_understanding_blocked_pro_tenant_allowed():
     _make_active_tenant("pnid-feat-pro-img", "62899400002", package="AI_ADMIN_PRO")
 
     image_payload = {
-        "entry": [{"changes": [{"value": {
+        "entry": [{"id": "test-waba", "changes": [{"value": {
             "metadata": {"phone_number_id": "pnid-feat-basic-img"},
             "messages": [{"id": _next_wamid(), "from": "628999666601", "type": "image",
                           "image": {"id": "media-basic"}}],
@@ -402,7 +421,7 @@ def test_basic_tenant_image_understanding_blocked_pro_tenant_allowed():
     assert not mock_download.called, "Basic tenant must never even download the image for vision"
 
     image_payload_pro = {
-        "entry": [{"changes": [{"value": {
+        "entry": [{"id": "test-waba", "changes": [{"value": {
             "metadata": {"phone_number_id": "pnid-feat-pro-img"},
             "messages": [{"id": _next_wamid(), "from": "628999666602", "type": "image",
                           "image": {"id": "media-pro"}}],
@@ -848,6 +867,7 @@ if __name__ == "__main__":
     test_kilas_works_own_conversation_still_uses_global_channel()
     test_incomplete_tenant_channel_skips_send_never_falls_back_to_kilas_identity()
     test_never_connected_tenant_channel_skips_send()
+    test_known_phone_with_missing_or_wrong_waba_never_sends()
     test_same_customer_number_two_tenants_no_shared_conversation_or_facts()
     test_same_customer_number_two_tenants_customer_name_not_shared()
     test_kilas_works_own_conversation_key_unaffected_by_ck()
