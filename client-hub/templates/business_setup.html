@@ -17,7 +17,7 @@
       <label>Nomor WhatsApp bisnis<input name="business_phone" type="tel" maxlength="40" required value="{{ profile.business_phone or '' }}" placeholder="Contoh: 628123456789"></label>
       <label>Model layanan<select name="online_or_offline" required>
         <option value="">Pilih model layanan</option>
-        {% for value,label in [('online','Online'),('offline','Offline'),('hybrid','Online dan offline')] %}<option value="{{ value }}" {{ 'selected' if profile.online_or_offline == value else '' }}>{{ label }}</option>{% endfor %}
+        {% for value,label in [('online','Online'),('offline','Offline'),('both','Online dan offline')] %}<option value="{{ value }}" {{ 'selected' if profile.online_or_offline == value or (value == 'both' and profile.online_or_offline == 'hybrid') else '' }}>{{ label }}</option>{% endfor %}
       </select></label>
     </div>
     <label>Lokasi / area layanan<input name="address" maxlength="500" value="{{ profile.address or '' }}" placeholder="Contoh: Tangerang atau seluruh Indonesia secara online"></label>

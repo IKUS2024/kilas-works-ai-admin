@@ -49,15 +49,16 @@ def state(business):
     onboarding = repo.get_onboarding_status(bid) or {}
     trained = settings.get('ai_status') == 'DONE'
     ready_event = _event(bid, 'assist_ready')
-    from assist_training import fingerprint
-    ready = bool(ready_event and ready_event.get('knowledge_version') == fingerprint(bid))
+    import assist_demo
+    bound = assist_demo.active_binding(bid)
+    ready = bool(ready_event or bound)
     training_started = bool(_event(bid, 'assist_teach') or _event(bid, 'assist_test'))
-    readiness = ('Siap melayani' if trained and ready else
-                 'Sedang dilatih' if training_started or trained or settings.get('ai_status') == 'STALE'
-                 else 'Belum dilatih')
     wa = repo.get_whatsapp_config(bid) or {}
     connected = (business.get('status') == 'ACTIVE' and wa.get('connection_status') == 'CONNECTED'
                  and bool(wa.get('phone_number_id')) and bool(wa.get('validated_at')))
+    readiness = ('Siap melayani' if ready or connected else
+                 'Sedang dilatih' if training_started or trained or settings.get('ai_status') == 'STALE'
+                 else 'Belum dilatih')
     subscription = subscription_service.get_subscription(bid) or {}
     entitlement_end = subscription_service._parse(subscription.get('period_end'))
     if subscription.get('status') == 'GRACE':
@@ -72,4 +73,4 @@ def state(business):
                 onboarding_complete=onboarding_complete(bid), connected=bool(connected),
                 whatsapp='Terhubung' if connected else 'Menunggu dihubungkan' if paid else 'Belum terhubung',
                 demo_started=bool(event), demo_active=active, demo_expires_at=expires,
-                demo_visible=not connected, paid=bool(paid), subscription=subscription)
+                demo_visible=not connected, demo_bound=bool(bound), paid=bool(paid), subscription=subscription)

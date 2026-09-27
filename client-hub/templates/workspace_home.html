@@ -75,7 +75,7 @@
           <p class="kw-eyebrow">KILAS ASSIST</p>
           <h3>{{ journey.readiness }}</h3>
           <p>WhatsApp: <strong>{{ journey.whatsapp }}</strong></p>
-          <p>Ajari Kilas tentang bisnis Anda, lalu tes sebagai customer sebelum mulai melayani.</p>
+          <p>Ajari Kilas tentang bisnis Anda. Pengetahuan dapat diperbarui kapan saja.</p>
         </div>
         <div class="kw-assist-primary-actions">
           {% if not journey.onboarding_complete %}
@@ -83,11 +83,11 @@
           {% elif not journey.ready %}
           <a class="btn" href="{{ url_for('workspace.go',area='knowledge',business_id=business.id) }}">Latih Kilas Assist</a>
           {% elif journey.demo_visible and (journey.demo_active or journey.paid) %}
-          {% if workspace_ui.demo_connected and workspace_ui.demo_connected.get(business.id) %}
+          {% if journey.demo_bound %}
           <a class="btn kw-demo-btn"
              data-demo-kilas-whatsapp
              href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}">
-            Buka Demo Inbox
+            Buka WhatsApp
           </a>
           {% else %}
           {% include '_web_share.html' %}

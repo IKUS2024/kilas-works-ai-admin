@@ -3,24 +3,57 @@
 {% block content %}
 {% set training_available = journey.demo_active or journey.paid or not journey.demo_started %}
 <section class="kw-page">
-  <header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Latih Kilas Assist</h1><p>Ajari saya seperti karyawan baru, lalu tes sebagai customer.</p></div></header>
+  <header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Latih Kilas Assist</h1><p>Ajari Kilas seperti mengajari karyawan.</p></div></header>
   {% if journey.demo_active and not journey.paid %}<p class="muted">Demo 7 hari sudah aktif. Pengetahuan bisnis kamu tetap tersimpan.</p>{% endif %}
   <section class="card">
-    <p>Dasar bisnis yang sudah Anda isi tersedia di sini, tidak perlu diketik ulang. Ajarkan FAQ, SOP, gaya bahasa, bahasa tambahan, produk atau jasa, harga, aturan promo dan diskon, cara menjawab customer, proses booking atau pesanan, kapan perlu bantuan manusia, dan hal yang tidak boleh saya janjikan.</p>
-    <div aria-label="Riwayat latihan" style="max-height:420px;overflow:auto">
-      {% for row in history %}<article><small>{{ 'Tes sebagai customer' if row.mode == 'assist_test' else 'Latihan' }}</small><p><strong>Kamu:</strong> {{ row.message }}</p><p style="white-space:pre-wrap"><strong>Kilas:</strong> {{ row.reply }}</p></article>{% endfor %}
-    </div>
+    <p>Tambahkan harga, FAQ, SOP, gaya bahasa, atau aturan pelayanan. Dasar bisnis yang sudah Anda isi tetap tersimpan.</p>
+    {% if history %}<details><summary>Riwayat latihan</summary><div aria-label="Riwayat latihan" style="max-height:420px;overflow:auto">
+      {% for row in history %}<article><small>{{ 'Contoh jawaban' if row.mode == 'assist_test' else 'Latihan' }}</small><p><strong>Kamu:</strong> {{ row.message }}</p><p style="white-space:pre-wrap"><strong>{{ 'Kilas:' if row.mode == 'assist_test' else 'Kilas memahami:' }}</strong> {{ row.reply }}</p></article>{% endfor %}
+    </div></details>{% endif %}
     {% if training_available %}
     <form method="post" enctype="multipart/form-data" id="ajari-kilas">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="teach-message">Tulis ajaran atau coba bertanya seperti customer</label>
-      <textarea id="teach-message" name="message" maxlength="4000" rows="4" required placeholder="Contoh ajaran: Paket foto 2 juta. Diskon harus izin saya. Contoh tes: Kak, paket fotonya berapa?"></textarea>
+      <label for="teach-message">Tulis yang ingin Kilas pelajari</label>
+      <textarea id="teach-message" name="message" maxlength="4000" rows="4" required placeholder="Harga sekarang 175 ribu. Jangan kasih diskon tanpa izin saya."></textarea>
       <label for="teach-attachment">Lampirkan gambar/PDF</label>
       <input id="teach-attachment" name="attachment" type="file" accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf">
       <small>JPG, PNG, atau PDF · maksimal 5 MB dan 10 halaman. Ceritakan isi file dan kapan Kilas boleh menggunakannya.</small>
-      <label><input type="checkbox" name="approved_send" value="1"> Boleh kirim file ini ke customer bila relevan</label>
-      <div class="kw-actions"><button class="btn" name="action" value="teach">Ajari Kilas</button><button class="btn secondary" name="action" value="test">Tes sebagai customer</button></div>
+      <label id="teach-permission" hidden><input type="checkbox" name="approved_send" value="1"> Boleh kirim file ini ke customer bila relevan</label>
+      <div class="kw-actions"><button class="btn" name="action" value="teach">Ajari Kilas</button></div>
     </form>
+    {% if can_ready %}
+    <div class="card">
+      <p><strong>Kilas memahami:</strong></p>
+      <p style="white-space:pre-wrap">{{ confirmation.reply }}</p>
+      <p>{{ 'Pengetahuan terbaru sudah aktif di WhatsApp bisnis Anda.' if journey.connected else 'Pengetahuan terbaru sudah aktif di Demo WhatsApp.' if journey.demo_bound else 'Pengetahuan terbaru sudah tersimpan.' }}</p>
+      <form method="post" id="konfirmasi-latihan">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="kw-actions">
+          <button class="btn" name="action" value="ready">Sudah sesuai</button>
+          <a class="btn secondary" href="#teach-message" onclick="document.getElementById('teach-message').focus()">Ajari lagi</a>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+    {% if journey.ready %}
+    <div class="kw-actions">
+      {% if journey.connected %}
+      <a class="btn" href="{{ url_for('client.inbox_page', business_id=business.id) }}">Buka Inbox</a>
+      {% else %}
+      <a class="btn" href="{{ url_for('client.demo_kilas_whatsapp', business_id=business.id) }}">{{ 'Buka WhatsApp' if journey.demo_bound else 'Coba di WhatsApp' }}</a>
+      {% endif %}
+    </div>
+    {% endif %}
+    <details>
+      <summary>Coba contoh jawaban</summary>
+      <p class="muted">Opsional. Coba pertanyaan customer tanpa melakukan tindakan bisnis.</p>
+      <form method="post" id="contoh-jawaban">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="example-message">Pertanyaan contoh customer</label>
+        <textarea id="example-message" name="message" maxlength="4000" rows="2" required placeholder="Berapa harganya?"></textarea>
+        <button class="btn secondary" name="action" value="test">Lihat contoh jawaban</button>
+      </form>
+    </details>
     {% endif %}
   </section>
   {% if taught_files %}
@@ -50,18 +83,12 @@
     {% endfor %}
   </section>
   {% endif %}
-  {% if can_ready and training_available %}
-  <form method="post" class="card">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <p>Saya sudah memahami cara kamu ingin customer dilayani.</p>
-    <h2>Sudah sesuai?</h2>
-    <div class="kw-actions">
-      <button class="btn" name="action" value="{{ 'ready' if journey.connected else 'ready_whatsapp' }}">{{ 'Sudah sesuai' if journey.connected else 'Sudah, coba di WhatsApp' }}</button>
-      <a class="btn secondary" href="#teach-message" onclick="document.getElementById('teach-message').focus()">Ajari lagi</a>
-    </div>
-    {% if not journey.connected %}<p class="muted">WhatsApp akan terbuka. Cukup kirim pesan yang sudah disiapkan, lalu chat seperti customer bisnis kamu.</p>{% endif %}
-  </form>
-  {% endif %}
   {% if not training_available %}<section class="card"><p>Demo sudah berakhir. Pengetahuan bisnis kamu tetap tersimpan.</p><a class="btn" href="{{ url_for('workspace.usage',bid=business.id) }}">Lihat paket Kilas Assist</a></section>{% endif %}
 </section>
+<script>
+  const attachment = document.getElementById('teach-attachment');
+  if (attachment) attachment.addEventListener('change', function () {
+    document.getElementById('teach-permission').hidden = !this.files.length;
+  });
+</script>
 {% endblock %}

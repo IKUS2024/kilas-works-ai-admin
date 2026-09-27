@@ -35,12 +35,17 @@ class KnowledgeContractTests(unittest.TestCase):
         self.assertNotIn('628999999999', payload)
         self.assertNotIn('PRIVATE OTHER ADDRESS', payload)
 
-    def test_changed_customer_facing_facts_invalidate_previous_successful_test(self):
+    def test_preview_is_not_teaching_and_updates_preserve_initial_readiness(self):
         version = assist_training.fingerprint(self.bid)
         repo.save_onboarding_session(self.bid, 'assist_test', {'knowledge_version': version}, self.uid)
-        self.assertTrue(assist_training.can_ready(self.bid))
-        repo.upsert_business_profile(self.bid, {'address': 'Alamat baru'})
         self.assertFalse(assist_training.can_ready(self.bid))
+        repo.save_onboarding_session(self.bid, 'assist_teach', {'message':'Aturan', 'reply':'Dipahami'}, self.uid)
+        assist_training.ready(repo.get_business(self.bid), self.uid)
+        repo.upsert_business_profile(self.bid, {'address': 'Alamat baru'})
+        self.assertTrue(assist_training.can_ready(self.bid))
+        import assist_journey
+        self.assertTrue(assist_journey.state(repo.get_business(self.bid))['ready'])
+        self.assertIn('Alamat baru', str(assist_reply.relevant_knowledge(self.bid, 'Alamat?')))
 
     def test_canonical_owner_training_is_kept_with_many_existing_faqs(self):
         rows = [dict(question=f'FAQ {n}', answer='Informasi', raw_input='Informasi') for n in range(65)]

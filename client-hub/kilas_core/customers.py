@@ -101,9 +101,9 @@ def _sync_whatsapp_name(tx, business_id, customer_id, phone, profile_name, now=N
         return
     name = _clean_text(profile_name, 160)
     placeholder = row['display_name'] in (phone, _placeholder(customer_id), '', None)
-    edited = tx.one("SELECT id FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_NAME_EDITED' LIMIT 1",
+    edited = tx.one("SELECT 1 AS present FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_NAME_EDITED' LIMIT 1",
                     (business_id, customer_id))
-    legacy_edit = tx.one("SELECT id FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_UPDATED' LIMIT 1",
+    legacy_edit = tx.one("SELECT 1 AS present FROM audit_log WHERE business_id=? AND detail=? AND action='CUSTOMER_UPDATED' LIMIT 1",
                         (business_id, customer_id))
     if name and not edited and (placeholder or not legacy_edit):
         tx.execute('UPDATE kw_core_customers SET display_name=?,updated_at=? WHERE business_id=? AND id=?',
@@ -409,7 +409,9 @@ def update_customer(business_id, customer_id, *, display_name, phone=None, email
                            (actor_id, business_id, 'CUSTOMER_NAME_EDITED', customer_id))
             tx.execute(
                 "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
-                (actor_id, business_id, "CUSTOMER_UPDATED", customer_id),
+                # V2 records name edits separately. Notes/stage edits must not
+                # masquerade as a historical owner name override on the next sync.
+                (actor_id, business_id, "CUSTOMER_PROFILE_UPDATED", customer_id),
             )
             if stage is not None and stage != existing["stage"]:
                 tx.execute(

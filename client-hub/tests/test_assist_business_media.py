@@ -160,6 +160,9 @@ class BusinessMediaTests(unittest.TestCase):
                 patch.object(assist_training.ai_onboarding, 'normalize_business_data', return_value=(normalized, None)):
             response = self.client.post(f'/business/{self.bid}/train', data={
                 'csrf_token': 'master-test', 'action': 'ready_whatsapp'})
+        self.assertEqual(response.status_code, 303)
+        self.assertIsNone(assist_demo.latest(self.bid))
+        response = self.client.get(f'/business/{self.bid}/demo-kilas')
         self.assertEqual(response.status_code, 302)
         self.assertEqual(urlparse(response.location).netloc, 'wa.me')
         self.assertEqual(urlparse(response.location).path, '/' + routes_client._DEMO_KILAS_PHONE)
@@ -228,7 +231,7 @@ class BusinessMediaTests(unittest.TestCase):
         self.upload(business=repo.get_business(self.other))
         self.assertEqual(assist_training.fingerprint(self.bid), before)
 
-    def test_removal_replacement_and_instruction_revoke_readiness_and_pending_send(self):
+    def test_media_updates_preserve_readiness_but_revoke_pending_send(self):
         fid, _ = self.upload()
         with patch.object(assist_training.ai_onboarding, '_call_claude', return_value=('Rp250.000', 'end_turn', None)):
             assist_training.test_reply(self.business, self.uid, 'Harga sepatu?')
@@ -237,7 +240,7 @@ class BusinessMediaTests(unittest.TestCase):
         with store.transaction() as tx:
             media.schedule(tx, self.bid, 'revoke', 'test', selected)
         media.instruct(self.bid, fid, self.uid, 'Jangan kirim lagi', False)
-        self.assertFalse(assist_training.can_ready(self.bid))
+        self.assertTrue(assist_training.can_ready(self.bid))
         with self.meta() as transport:
             media.deliver(self.bid, 'revoke', 'test', self.phone, self.channel, lambda: True)
             transport.assert_not_called()
