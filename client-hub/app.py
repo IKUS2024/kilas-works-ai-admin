@@ -204,6 +204,8 @@ def create_app():
     from routes_workspace import workspace_bp
     app.register_blueprint(workspace_bp)
     app.jinja_env.globals["brain_plan"] = __import__("pricing_config").BRAIN_PLAN
+    app.jinja_env.globals["assist_plans"] = __import__("pricing_config").ASSIST_PLANS
+    app.jinja_env.globals["assist_launch"] = __import__("pricing_config").ASSIST_LAUNCH_RULE
     app.register_blueprint(admin_bp)
     app.register_blueprint(projects_bp)
     from routes_wa_checkout import wa_checkout_bp
@@ -331,7 +333,7 @@ def create_app():
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
             return redirect(url_for("workspace.home"))
-        return redirect(url_for("auth.login_page"))
+        return render_template("assist_landing.html")
 
     @app.route("/healthz")
     def healthz():

@@ -229,9 +229,12 @@ class RouteTests(unittest.TestCase):
                 business_id INTEGER, session_token TEXT, role TEXT, content TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP, flagged_wrong INTEGER DEFAULT 0, flag_note TEXT);
             CREATE TABLE onboarding_status (business_id INTEGER PRIMARY KEY, simulated_done INTEGER, updated_at TEXT);
+            CREATE TABLE onboarding_sessions (id INTEGER PRIMARY KEY, business_id INTEGER, step TEXT, raw_payload_json TEXT);
+            CREATE TABLE tenant_whatsapp_config (business_id INTEGER PRIMARY KEY, phone_number_id TEXT, connection_status TEXT, validated_at TEXT);
             CREATE TABLE audit_log (id INTEGER PRIMARY KEY, actor_user_id INTEGER, business_id INTEGER,
                 action TEXT, detail TEXT, project_id INTEGER);
         """)
+        cls.db.get_connection().executescript((HUB / "migrations/0066_assist_demo_sqlite.sql").read_text())
         cls.migration_guard = patch.object(cls.db, "init_schema", side_effect=AssertionError("No migrations"))
         cls.migrations = cls.migration_guard.start()
         cls.addClassCleanup(cls.migration_guard.stop)
@@ -249,7 +252,7 @@ class RouteTests(unittest.TestCase):
         db = self.db
         conn = db.get_connection()
         conn.set_authorizer(None)
-        for table in ("platform_workspace_outbound", "platform_workspace_scope",
+        for table in ("kw_assist_demo_events", "kw_assist_demo_sessions", "platform_workspace_outbound", "platform_workspace_scope",
                       "users", "businesses", "business_memberships", "ai_settings", "simulation_messages",
                       "onboarding_status", "audit_log"):
             db.execute("DELETE FROM " + table)

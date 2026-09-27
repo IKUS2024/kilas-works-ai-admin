@@ -285,6 +285,7 @@ MIGRATIONS = [
     ("0059_finance_workspace_corrections_sqlite.sql", "0059_finance_workspace_corrections_postgres.sql"),
     ("0065_platform_workspace_scope_sqlite.sql", "0065_platform_workspace_scope_postgres.sql"),
     ("0066_assist_demo_sqlite.sql", "0066_assist_demo_postgres.sql"),
+    ("0067_assist_usage_provider_sqlite.sql", "0067_assist_usage_provider_postgres.sql"),
 ]
 
 

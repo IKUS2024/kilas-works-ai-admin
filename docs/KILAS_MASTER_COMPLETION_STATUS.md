@@ -18,7 +18,7 @@ Precedence: user's MASTER TASK and FINAL OVERRIDES > Master Blueprint > detailed
 - Exactly two products: Assist and protected separate Finance. No Coexistence, Worker, content/video or website service in the requested product UI.
 - Exactly four owner Job statuses: Perlu tindakan, Dikerjakan, Selesai, Batal. Meetings/deals remain NEW; only invoice/payment intent advances IN_PROGRESS; completion requires authoritative Finance posting.
 - Finance invoice/payment/ledger stays authoritative. Screenshots are candidates only; human confirmation required; no second ledger and no production Finance QA writes.
-- Pricing: Demo 7 days; launch Starter first month 99,000; Starter 299,000; Pro 799,000 IDR/month. Auditable rule; bundle Finance entitlement.
+- Pricing: Demo 7 days; launch first paid month 99,000 (either selected paid plan, per final prompt); Starter 299,000; Pro 799,000 IDR/month. Auditable rule; bundle Finance entitlement.
 - Customer usage no provider/model/token/cost jargon; configurable inexpensive provider route, structured same-call explanation; internal cost attribution.
 - Platform SaaS admin separated from customer CRM; auditable support banner; assisted WA queue; fail-closed WABA/Phone ID routing.
 
@@ -30,7 +30,7 @@ Precedence: user's MASTER TASK and FINAL OVERRIDES > Master Blueprint > detailed
 - No applicable AGENTS.md found in repository or workspace ancestors.
 
 ## IN PROGRESS
-Checkpoints 1–3: signup/training and scoped demo webhook implemented; routing tests pass. Broader regressions, manual media/template session attribution and live verification pending. Next: four-state Jobs and atomic authoritative payment completion.
+Checkpoints 1–6 have substantial implementation, still not complete. Four-state Jobs, atomic payment completion and auditable pricing now tested. Next: complete demo/manual media, Finance bundle entitlement, production runtime/connection flow, and SaaS Admin; then full QA/deploy.
 
 ## Checkpoint 1–2 local implementation (not deployed)
 - Existing account creation preserved; returning Google users now enter their existing workspace.
@@ -76,7 +76,7 @@ New isolation test initially expected 403; existing security deliberately return
 ## Migration/schema notes
 Production contains kw_core_* Jobs/CRM/bridge/WhatsApp and existing subscriptions, ai_usage_ledger, knowledge revisions, Finance tables. Migration 0066 is local only; migration rehearsal and production apply pending. No production data modification performed.
 ## PR/merge status
-Remote checkpoint branch exists; signup/training checkpoint committed as 37246ec. Demo/router checkpoint is being published. No PR/merge yet. CLI push has no GitHub credential; authenticated GitHub connector can publish changes.
+Remote checkpoint branch exists; signup/training checkpoint committed as 37246ec. Demo/router checkpoint committed as 540753cb. Finance/Jobs/pricing/cost checkpoint is being published. No PR/merge yet. CLI push has no GitHub credential; authenticated GitHub connector can publish changes.
 ## Deploy status
 No changes deployed in this run.
 ## Production verification
@@ -90,5 +90,31 @@ Read this checkpoint, inspect working diff/current main only as needed, and cont
 - Legacy audit-bound demo tests must be migrated to explicit session fixture and preserve isolation assertions; old production demo users will need a fresh binding (knowledge/data stay intact).
 - Demo human template/media outgoing attribution still needs the same scope contract as text replies.
 - Demo voice/document vision and payment evidence extraction are not yet integrated; original inbound media remains visible.
-- Jobs still group COMPLETED incorrectly and Finance bridge does not yet complete Job/send receipt.
-- Existing pricing, SaaS Admin, production WABA connection queue and full production runtime routing still require completion.
+- Jobs now show four states and Finance bridge atomically completes paid Jobs. Receipt uses existing idempotent transport; real delivery verification pending.
+- New pricing is integrated with the existing payment/subscription lifecycle. Finance included entitlement integration, SaaS Admin, production WABA queue, and full production runtime routing still require completion.
+
+## Checkpoints 4–6 implementation update (not deployed)
+- Owner Jobs now expose exactly NEW / IN_PROGRESS / COMPLETED / CANCELLED with required Indonesian labels. Ordinary owner/AI updates cannot set COMPLETED; only the private Finance payment actor can.
+- Finance bridge calls the unchanged authoritative record_invoice_payment service, verifies PAID/zero outstanding and posted income references, then updates Job in the SAME Finance compound transaction. Job/audit failure rolls back payment and income. External receipt send runs after commit with stable invoice identity; UI/network retry does not add income or another invoice.
+- Assist invoice panel shows completed paid invoice and Konfirmasi Pembayaran. Meeting/deal without payment remains Perlu tindakan through existing deterministic gate (additional negation/evidence hardening still pending).
+- Launch pricing is an auditable rule with immutable snapshot in existing project requirements + audit. First paid month 99,000, normal Starter 299,000 / Pro 799,000; promo eligibility checks verified Assist invoices across plans. Per-business transaction reuses existing unpaid checkout. Historical locked invoice amounts preserved.
+- Verified new-format order applies one existing subscription period per unique invoice and supports idempotent renewal/plan change. Legacy orders keep existing lifecycle.
+- Public landing now starts with registration/login and pricing; pricing included on active Demo Home, training conversion and Paket & Penggunaan. Finance remains separate.
+- Migration 0067 adds provider attribution to existing ai_usage_ledger (historical default Anthropic). New OpenAI calls explicitly attribute provider; no new cost or Finance ledger.
+- Customer counters expose reply/media/follow-up counts and Normal/Tinggi/Hampir capacity status only. Starter/Pro thresholds configurable; high usage never blocks a call.
+- assist_costs platform read model provides provider/feature/business costs, projected monthly cost, actual verified subscription revenue, ratio, largest feature and configurable 15%/25% guardrails. Dashboard wiring pending.
+- Expired demo sender no longer falls back to platform knowledge. A paid user may request a fresh binding after old session expiry. Journey respects configured subscription grace period.
+
+## Validation at this update
+- Assist suites: journey 5, demo 7, router 3, billing 4, costs 2 tests PASS (21 tests across five suites; earlier four-suite aggregate then new cost suite).
+- Jobs store and route suites PASS; Finance bridge service and route suites PASS. Bridge shared tests augmented with completion and transaction rollback assertions; financial assertions not weakened.
+- Finance protected baseline rerun: 39 files / 1018 tests, one Home navigation-gate regression identified; other 38 files PASS. Fixed Assist Home to respect Finance visibility and selected owned Finance business. Entire affected Finance phase1b suite then PASS (16 tests); protected test unchanged. Final full rerun still required at release gate.
+- AI usage diagnostics/monthly diagnostics/monthly query PASS. FX suite initially exposed pre-existing template/test wording mismatch (same mismatch verified on baseline SHA) plus stale 499k price. Restored explicit USD/IDR labels in Admin costs and updated only the reference price expectation to 299k; FX suite PASS with all calculation assertions unchanged.
+- Legacy Jobs fixture lacked onboarding/demo schema; added additive fixture tables instead of hiding production errors. Former manual-COMPLETED test expectation was stale against final master rule; now asserts rejection, and bridge tests prove successful authoritative completion.
+- Outstanding broad regressions not yet audited: old demo audit-range fixtures, retired-single-plan UI assumptions, old Web labels and public channel behavior. Preserve security/accounting contracts while updating only proven stale expectations.
+
+## Resume priority
+1. Finish required Finance bundle entitlement without changing Finance accounting or multi-business/branch semantics; preserve existing explicit bridge mapping.
+2. Assisted WhatsApp queue + authoritative WABA/Phone ID mapping and test gates; SaaS Admin/support banner and audit.
+3. Full production Assist inference/media/payment evidence/follow-up integration and demo manual media/template scope.
+4. Upgrade final regression fixtures, rehearse additive migrations, review complete diff, merge/deploy both services, verify live. Do not certify before these gates.

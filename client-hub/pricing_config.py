@@ -69,7 +69,7 @@ def transport_fee(distance_km, out_of_town=False):
 FINANCE_PLAN = {"key": "finance", "name": "Kilas Finance", "amount_minor": 9900000, "regular_amount_minor": 14900000, "accepted_amounts_minor": (9900000, 14900000), "currency": "IDR", "period_days": 30, "trial_days": 7, "promo_label": "Harga promo pengguna awal"}
 
 BRAIN_PLAN = {
-    "nama": "Kilas Assist", "harga": 499000, "satuan": "bulan",
+    "nama": "Kilas Assist Starter", "harga": 299000, "satuan": "bulan",
     "positioning": "Kilas Assist + Owner Assistant untuk 1 bisnis / 1 nomor WhatsApp.",
     "fitur": ["FAQ, info bisnis dan katalog", "Riwayat dan kualifikasi lead",
               "Owner Assistant, gambar dan voice note", "Appointment dan payment conversation",
@@ -77,7 +77,14 @@ BRAIN_PLAN = {
     "catatan": "Biaya penggunaan WhatsApp Business Platform dari Meta tidak termasuk biaya langganan Kilas Assist dan mengikuti penggunaan akun WhatsApp Business terkait. Fair usage berlaku. Penggunaan sangat tinggi dapat memerlukan paket penggunaan tambahan.",
     "tidak_termasuk": ["Payment gateway custom", "CRM/POS/inventory custom", "Integrasi API kompleks"],
 }
-RETIRED_BRAIN_KEYS = ("ai_admin_basic", "ai_admin_pro")
+RETIRED_BRAIN_KEYS = ("ai_admin_basic",)
+
+ASSIST_PLANS = {
+    'ai_admin': {'name':'Starter','price':299000,'capacity':2000,'media_capacity':100},
+    'ai_admin_pro': {'name':'Pro','price':799000,'capacity':8000,'media_capacity':500},
+}
+ASSIST_LAUNCH_RULE = {'id':'assist_launch_first_month_202609_v1', 'amount':99000,
+                     'eligible_plans':('ai_admin','ai_admin_pro'), 'paid_periods':1}
 
 CATALOG_ITEMS = [
     {"key": "ai_admin", "category": "AI_ADMIN", "name": BRAIN_PLAN["nama"],
@@ -88,7 +95,7 @@ CATALOG_ITEMS = [
     {"key": "ai_admin_basic", "category": "AI_ADMIN", "name": "Kilas Assist Basic",
      "pricing_mode": "FIXED_PRICE", "price_amount": 499_000, "price_unit": "per bulan"},
     {"key": "ai_admin_pro", "category": "AI_ADMIN", "name": "Kilas Assist Pro",
-     "pricing_mode": "FIXED_PRICE", "price_amount": 999_000, "price_unit": "per bulan"},
+     "pricing_mode": "FIXED_PRICE", "price_amount": ASSIST_PLANS['ai_admin_pro']['price'], "price_unit": "per bulan"},
 
     # --- CONTENT ---
     {"key": "content_basic", "category": "CONTENT", "name": "Content Basic",

@@ -56,8 +56,12 @@ def state(business):
     connected = (business.get('status') == 'ACTIVE' and wa.get('connection_status') == 'CONNECTED'
                  and bool(wa.get('phone_number_id')) and bool(wa.get('validated_at')))
     subscription = subscription_service.get_subscription(bid) or {}
-    paid = (subscription.get('status') in ('ACTIVE', 'GRACE') and
-            subscription_service._gt(subscription.get('period_end'), subscription_service._now()))
+    entitlement_end = subscription_service._parse(subscription.get('period_end'))
+    if subscription.get('status') == 'GRACE':
+        grace_start = subscription_service._parse(subscription.get('grace_started_at')) or entitlement_end
+        entitlement_end = (grace_start + timedelta(days=subscription.get('grace_days') or 0)) if grace_start else None
+    paid = (subscription.get('status') in ('ACTIVE', 'GRACE') and entitlement_end
+            and entitlement_end > datetime.now(timezone.utc))
     event = _event(bid, DEMO_STEP)
     expires = subscription_service._parse(event.get('expires_at')) if event else None
     active = bool(expires and expires > datetime.now(timezone.utc))

@@ -91,15 +91,15 @@ def _insert(values):
         cur = conn.cursor()
         cur.execute(db._adapt_placeholders('INSERT INTO ai_usage_ledger '
             '(tenant_id,context_type,model,classification,is_reply,input_tokens,output_tokens,'
-            'cache_read_input_tokens,cache_creation_input_tokens,estimated_cost_usd,estimated_cost_idr,pricing_date,created_at) '
-            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)'), values)
+            'cache_read_input_tokens,cache_creation_input_tokens,estimated_cost_usd,estimated_cost_idr,pricing_date,created_at,provider) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'), values)
         conn.commit()
         cur.close()
     finally:
         conn.close()
 
 
-def record(model, response, *, tenant_id=None, context=None, classification='normal'):
+def record(model, response, *, tenant_id=None, context=None, classification='normal', provider='anthropic'):
     """Count actual returned usage, even when content parsing later fails. No content stored."""
     try:
         if context is None:
@@ -122,6 +122,8 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
             raise ValueError('invalid_classification')
         if not isinstance(model,str) or len(model)>100 or not all(c.isalnum() or c in '-_.' for c in model):
             raise ValueError('invalid_model')
+        if provider not in ('openai','anthropic'):
+            raise ValueError('invalid_provider')
         usd = estimate(model, usage)
         fx = number('AI_COST_USD_IDR', 0)
         idr = usd*fx if usd is not None and fx>0 else None
@@ -131,7 +133,7 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
         is_reply = context in ('tenant_customer','tenant_owner','platform_customer','owner','simulation','assist_demo') and isinstance(blocks,list) and any(
             isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip() for block in blocks)
         _insert((tenant_id,context,model,classification,bool(is_reply),*counts,usd,idr,PRICING_DATE,
-                 datetime.now(timezone.utc).isoformat()))
+                 datetime.now(timezone.utc).isoformat(),provider))
         return True
     except Exception:
         log.warning('[AI_USAGE] persistence_failed')
@@ -353,8 +355,8 @@ def monthly(tenant_id=None, *, admin=False, now=None):
 
 def client_summary(tenant_id):
     try:
-        row=monthly(tenant_id)[0]
-        return {k:row[k] for k in ('replies','status','fair_use')}
+        from assist_costs import customer_usage
+        return customer_usage(tenant_id)
     except Exception:
         log.warning('[AI_USAGE] summary_unavailable')
         return None

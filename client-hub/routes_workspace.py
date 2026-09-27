@@ -9,7 +9,7 @@ workspace_bp = Blueprint('workspace', __name__)
 def context():
     if hasattr(g, 'kilas_workspace'):
         return g.kilas_workspace
-    result = dict(enabled=False, ai=[], finance=[], unavailable=False, active='more', product='ai')
+    result = dict(enabled=False, ai=[], finance=[], unavailable=False, active='more', product='ai', finance_visible=False)
     g.kilas_workspace = result
     if not session.get('user_id') or session.get('role') == 'KILAS_ADMIN':
         return result
@@ -18,6 +18,8 @@ def context():
         'finance.customer_invoice', 'finance.customer_invoice_pdf', 'finance.public_statement'):
         return result
     result['enabled'] = True
+    import finance_entitlements
+    result['finance_visible'] = finance_entitlements.self_service() or finance_entitlements.flag('KILAS_FINANCE_BETA')
     try:
         from routes_products import _finance_business_claimed
         from kilas_core.customers import AI_PACKAGES

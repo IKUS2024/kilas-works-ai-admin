@@ -144,6 +144,7 @@ class BridgeCases:
             payment_key='job-full-payment-0001')
         self.assertEqual(paid['invoice']['status'],'PAID')
         self.assertEqual(paid['invoice']['outstanding_minor'],0)
+        self.assertEqual(db.query_one('SELECT status FROM kw_core_jobs WHERE business_id=? AND id=?',(self.source,self.jid))['status'],'COMPLETED')
         with branches.scope(self.target,self.branch,self.actor):
             rows=f.list_transactions(self.target,actor_user_id=self.actor)
         self.assertEqual(len(rows),1)
@@ -158,6 +159,24 @@ class BridgeCases:
         self.assertEqual(replay['invoice']['status'],'PAID')
         with branches.scope(self.target,self.branch,self.actor):
             self.assertEqual(len(f.list_transactions(self.target,actor_user_id=self.actor)),1)
+
+    def test_job_completion_failure_rolls_back_finance_payment_and_income(self):
+        self.connect();self.customer();self.draft()
+        db.execute("UPDATE kw_core_jobs SET status='IN_PROGRESS' WHERE business_id=? AND id=?",(self.source,self.jid))
+        bridge.issue_job_invoice(self.source,self.actor,self.jid)
+        options=bridge.payment_options(self.source,self.actor,self.jid)
+        with patch.object(bridge.jobs,'_update_job',side_effect=RuntimeError('audit unavailable')):
+            with self.assertRaises(RuntimeError):
+                bridge.record_full_payment(self.source,self.actor,self.jid,paid_on='2026-09-10',
+                    account_id=options['accounts'][0]['id'],category_id=options['categories'][0]['id'],
+                    note='',payment_key='rollback-payment-0001')
+        invoice=bridge.read_invoice(self.source,self.actor,self.jid)['invoice']
+        self.assertEqual(invoice['status'],'ISSUED')
+        self.assertEqual(invoice['outstanding_minor'],100000)
+        with branches.scope(self.target,self.branch,self.actor):
+            self.assertEqual(f.list_transactions(self.target,actor_user_id=self.actor),[])
+            self.assertEqual(f.list_invoice_payments(self.target,invoice['id'],actor_user_id=self.actor),[])
+        self.assertEqual(db.query_one('SELECT status FROM kw_core_jobs WHERE business_id=? AND id=?',(self.source,self.jid))['status'],'IN_PROGRESS')
 
     def test_publish_job_invoice_uses_official_whatsapp_transport(self):
         self.connect()

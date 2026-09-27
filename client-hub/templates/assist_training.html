@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Latih Kilas Assist{% endblock %}
+{% block title %}Latih Kilas Assist{% include '_assist_pricing.html' %}{% endblock %}
 {% block content %}
 <section class="kw-page"><header class="kw-page-head"><div><p class="kw-eyebrow">{{ business.business_name }}</p><h1>Latih Kilas Assist</h1><p>{{ journey.readiness }} · Ajari saya seperti karyawan baru.</p></div></header>
 {% if not journey.demo_started and not journey.paid %}<section class="card"><h2>Mulai demo gratis 7 hari</h2><p>Tanpa kartu. Ajari Kilas, tes jawabannya, lalu coba WhatsApp Demo.</p><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button name="action" value="start_demo" class="btn">Mulai demo 7 hari</button></form></section>{% endif %}
@@ -9,4 +9,4 @@
 {% if journey.demo_active or journey.paid %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="teach-message">Ajaran, koreksi, atau pertanyaan tes</label><textarea id="teach-message" name="message" maxlength="4000" rows="4" required placeholder="Contoh: Paket foto 2 juta. Jangan memberi diskon tanpa persetujuan saya."></textarea><div class="kw-actions"><button class="btn" name="action" value="teach">Ajari Kilas</button><button class="btn secondary" name="action" value="test">Tes sebagai customer</button></div></form>{% endif %}</section>
 {% if can_ready and (journey.demo_active or journey.paid) %}<form method="post" class="card"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2>Jawabannya sudah sesuai?</h2><p>Konfirmasikan setelah tes. Jika belum tepat, ajari saya koreksinya.</p><button class="btn" name="action" value="ready">Ya, siap melayani</button></form>{% endif %}
 {% if journey.ready %}<section class="card"><h2>Siap melayani</h2><p>Saya akan memakai aturan bisnis Anda dan meminta bantuan manusia saat tidak yakin.</p>{% if journey.demo_visible and (journey.demo_active or journey.paid) %}{% include '_web_share.html' %}{% endif %}<a class="btn" href="{{ url_for('workspace.usage',bid=business.id) }}">Gunakan Kilas untuk Bisnis Saya</a></section>{% endif %}
-</section>{% endblock %}
+</section>{% include '_assist_pricing.html' %}{% endblock %}

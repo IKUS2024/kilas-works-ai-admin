@@ -69,8 +69,9 @@ def resolve(phone, text, *, now=None):
             tx.execute('UPDATE kw_assist_demo_sessions SET sender_phone=? WHERE id=?', (phone,current['id']))
             current['sender_phone'] = phone
         return current
+    # Keep the expired sender recognizable so it cannot fall through to platform knowledge.
     return db.query_one('SELECT * FROM kw_assist_demo_sessions WHERE sender_phone=? '
-                        'AND active=TRUE AND expires_at>?', (phone,now))
+                        'AND active=TRUE', (phone,))
 
 
 def binding(bid, phone=None):
@@ -145,7 +146,7 @@ def process(event, *, profile_name=None, media_message_id=None, send):
         return False
     bid, now = bound['business_id'], int(time.time())
     state = assist_journey.state(repo.get_business(bid))
-    if state['connected'] or not (state['demo_active'] or state['paid']):
+    if bound['expires_at'] <= now or state['connected'] or not (state['demo_active'] or state['paid']):
         return True  # Never fall back to platform knowledge for an expired/connected demo.
     if not content:
         content = '[Lampiran '+str(event.get('type') or 'pesan')+']'

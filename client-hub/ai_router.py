@@ -29,7 +29,7 @@ def _openai(system, messages, maximum, model):
                       'output_tokens': usage.get('completion_tokens', 0),
                       'cache_read_input_tokens': cached}
         if 'prompt_tokens' in usage and 'completion_tokens' in usage:
-            ai_usage.record(model, {'usage': normalized, 'content': [{'text': text}]})
+            ai_usage.record(model, {'usage': normalized, 'content': [{'text': text}]}, provider='openai')
         if not isinstance(text, str) or not text.strip():
             return None, None, 'empty_provider_response'
         return text, 'max_tokens' if choice.get('finish_reason') == 'length' else 'end_turn', None

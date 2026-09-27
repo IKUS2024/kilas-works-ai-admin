@@ -98,6 +98,7 @@
         </div>
       </section>
 
+      {% if journey.demo_started and not journey.paid %}{% include '_assist_pricing.html' %}{% endif %}
       <nav class="kw-flow-grid" aria-label="Akses cepat Kilas Assist">
         <a href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">
           <span class="kw-flow-index">01</span>
@@ -117,7 +118,7 @@
       </nav>
 
       {% if setup and setup.usage %}<p role="status">Pemakaian bulan ini: <strong>{{ {'NORMAL':'Normal','WARNING':'Tinggi','HIGH':'Hampir mencapai kapasitas paket'}.get(setup.usage.status,'Normal') }}</strong> · <a href="{{ url_for('workspace.usage',bid=business.id) }}">Paket &amp; Penggunaan</a></p>{% endif %}
-      <section class="kw-attention-block"><h3>Kilas Finance</h3><p>Kelola invoice dan keuangan di workspace Finance.</p><a class="btn secondary" href="{{ url_for('workspace.go',area='finance') }}">Buka Kilas Finance →</a></section>
+      {% if workspace_ui.finance_visible %}<section class="kw-attention-block"><h3>Kilas Finance</h3><p>Kelola invoice dan keuangan di workspace Finance.</p><a class="btn secondary" href="{{ url_for('workspace.go',area='finance',business_id=workspace_ui.selected_finance) }}">Buka Kilas Finance →</a></section>{% endif %}
 
       {% if business.status == 'ACTIVE' and attention_data and attention_data.total %}
       <section class="kw-attention-block" data-attention-home>

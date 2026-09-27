@@ -10,7 +10,7 @@
   {% if saved %}<div class="flash success">Data tersimpan.</div>{% endif %}
   <div class="card">
     <a data-job-customer href="{{ url_for('core_customers.detail_page',bid=business.id,customer_id=customer.id) }}">Customer: {{ customer.display_name }}</a>
-    {% if conversation_id %}<p><a data-job-conversation href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=conversation_id) }}">Buka percakapan WEB</a></p>{% endif %}
+    {% if conversation_id %}<p><a data-job-conversation href="{{ url_for('client.inbox_page',business_id=business.id,channel='whatsapp',conversation=conversation_id) }}">Buka percakapan WhatsApp</a></p>{% endif %}
     {% if workflow %}<div data-playbook-context><p>Alur: {{ workflow.label }}</p>
       {% if job.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ job.fields.missing_information }}</p>
       {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
@@ -38,6 +38,7 @@
     {% else %}<input type="hidden" name="customer_id" value="{{ customer.id }}">
       {% if conversation_id %}<input type="hidden" name="conversation_id" value="{{ conversation_id }}">{% endif %}
     {% endif %}
+    {% if job and job.owner_status == 'COMPLETED' %}<p class="client-note">Pembayaran telah dikonfirmasi dan pendapatan tercatat di Kilas Finance.</p>{% endif %}
     <label for="job-title">Judul</label><input id="job-title" name="title" maxlength="160" required value="{{ job.title if job else '' }}">
     <label for="job-summary">Ringkasan</label><textarea id="job-summary" name="summary" maxlength="2000">{{ job.summary if job else '' }}</textarea>
     {% if job %}<label for="job-status">Status</label><select id="job-status" name="status">

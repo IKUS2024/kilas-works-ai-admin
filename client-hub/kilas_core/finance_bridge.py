@@ -326,14 +326,14 @@ def read_invoice(bid, actor, jid):
     return _invoice_result(bid,jid,actor)
 
 
-def _deal_job(bid, actor, jid):
+def _deal_job(bid, actor, jid, *, allow_completed=False):
     _source(bid, actor)
     job = _job(bid, jid)
     stage = db.query_one('SELECT stage FROM kw_core_customer_stages WHERE business_id=? AND customer_id=?',
                          (bid, job['customer_id']))
     if stage and stage['stage'] != 'CUSTOMER':
         raise BridgeError('not_found', 404)
-    if jobs.owner_status(job['status']) != 'IN_PROGRESS':
+    if jobs.owner_status(job['status']) not in (('IN_PROGRESS','COMPLETED') if allow_completed else ('IN_PROGRESS',)):
         raise BridgeError('job_not_deal', 409)
     return job
 
@@ -522,26 +522,70 @@ def payment_options(bid, actor, jid):
 
 
 def record_full_payment(bid, actor, jid, *, paid_on, account_id, category_id, note, payment_key):
-    _deal_job(bid, actor, jid)
+    _deal_job(bid, actor, jid, allow_completed=True)
     result=_invoice_result(bid,jid,actor)
     if not result:
         raise BridgeError('invoice_required',409)
     link=result['link']; target=link['finance_business_id']
     with branches.scope(target,link['finance_branch_id'],actor):
         with finance._write(target,actor,related_business_ids=(bid,)):
-            _deal_job(bid,actor,jid)
+            _deal_job(bid,actor,jid,allow_completed=True)
             invoice=_invoice_result(bid,jid,actor)['invoice']
-            if invoice['status']=='PAID' and invoice['outstanding_minor']==0:
-                return _invoice_result(bid,jid,actor)
-            if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or invoice['outstanding_minor']<=0:
-                raise BridgeError('invoice_not_payable',409)
-            finance.record_invoice_payment(
-                target,link['finance_invoice_id'],invoice['outstanding_minor'],paid_on,
-                account_id,category_id,note=note,actor_user_id=actor,idempotency_key=payment_key)
-            repo.write_audit(actor,bid,'CORE_FINANCE_JOB_PAYMENT_RECORDED',json.dumps({
-                'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
-                'amount_minor':invoice['outstanding_minor']},sort_keys=True))
-            return _invoice_result(bid,jid,actor)
+            if not (invoice['status']=='PAID' and invoice['outstanding_minor']==0):
+                if invoice['status'] not in ('ISSUED','PARTIALLY_PAID') or invoice['outstanding_minor']<=0:
+                    raise BridgeError('invoice_not_payable',409)
+                finance.record_invoice_payment(
+                    target,link['finance_invoice_id'],invoice['outstanding_minor'],paid_on,
+                    account_id,category_id,note=note,actor_user_id=actor,idempotency_key=payment_key)
+                repo.write_audit(actor,bid,'CORE_FINANCE_JOB_PAYMENT_RECORDED',json.dumps({
+                    'job_id':jid,'finance_invoice_id':link['finance_invoice_id'],
+                    'amount_minor':invoice['outstanding_minor']},sort_keys=True))
+            result = _invoice_result(bid,jid,actor)
+            _complete_paid_job(bid,jid,actor,result)
+    # External delivery happens only AFTER the payment + income + Job transaction commits.
+    # Its stable invoice identity prevents duplicate receipts on UI/network retries.
+    result['receipt_delivery'] = send_paid_receipt(bid,actor,jid,result)
+    return result
+
+
+def _complete_paid_job(bid, jid, actor, result):
+    """Called only inside Finance's existing locked compound transaction."""
+    link, invoice = result['link'], result['invoice']
+    if invoice['status'] != 'PAID' or invoice['outstanding_minor'] != 0:
+        raise BridgeError('finance_confirmation_required',409)
+    payments = db.query_all('SELECT p.amount_minor,p.ledger_transaction_id,t.direction,t.status,t.source_type '
+        'FROM finance_invoice_payments p LEFT JOIN finance_transactions t '
+        'ON t.business_id=p.business_id AND t.id=p.ledger_transaction_id '
+        'WHERE p.business_id=? AND p.invoice_id=?', (link['finance_business_id'],link['finance_invoice_id']))
+    if not payments or any(not p['ledger_transaction_id'] or p['direction'] != 'INCOME'
+            or p['status'] != 'POSTED' or p['source_type'] != 'FINANCE_INVOICE_PAYMENT' for p in payments):
+        raise BridgeError('finance_posting_incomplete',409)
+    current = _job(bid,jid)
+    if current['status'] == 'COMPLETED':
+        return
+    class FinanceTransaction:
+        one = staticmethod(db.query_one)
+        execute = staticmethod(db.execute)
+    jobs._update_job(FinanceTransaction(),bid,jid,expected_version=current['version'],
+        actor_id=jobs._FINANCE_PAYMENT_ACTOR,
+        operation_key='finance_paid_'+hashlib.sha256(f'{bid}:{jid}:{invoice["id"]}'.encode()).hexdigest(),
+        status='COMPLETED')
+    repo.write_audit(actor,bid,'CORE_JOB_FINANCE_COMPLETED',json.dumps({'job_id':jid,'invoice_id':invoice['id']}))
+
+
+def send_paid_receipt(bid, actor, jid, result):
+    invoice=result['invoice'];job=_job(bid,jid)
+    text=f"Pembayaran untuk invoice {invoice['invoice_number']} sudah dikonfirmasi. Invoice Anda lunas. Terima kasih."
+    event=f"receipt:{invoice['id']}:paid"
+    try:
+        if platform_workspace.is_scope_business(bid):
+            return platform_workspace.send_transactional_text(_customer(bid,job['customer_id'])['phone'],event,text,actor_id=actor)
+        cid=_job_whatsapp_conversation(bid,job)
+        if not cid:
+            return {'status':'conversation_unavailable'}
+        return whatsapp_transport.system_text(bid,cid,event,text,actor)
+    except Exception:
+        return {'status':'send_unavailable','error':'receipt_send_failed'}
 
 
 def customer_links(bid, actor, cid):

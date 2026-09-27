@@ -806,45 +806,18 @@ def _brain_checkout(business_id):
     if missing:
         flash("Lengkapi data penting Kilas Assist dulu sebelum pembayaran: " + ", ".join(_human_missing_labels(missing)) + ".", "error")
         return redirect(url_for("client.wizard_step", business_id=business_id, step=_step_for_missing_fields(missing)))
-    target_package = request.args.get('package', 'AI_ADMIN')
-    if target_package not in ('AI_ADMIN', business['package']):
-        abort(403)
-    upgrade = business['package'] != 'AI_ADMIN'
-    catalog_key = 'ai_admin'
-    # Only resume a historical order when opening the existing legacy payment path.
-    # No new legacy-priced orders are created.
-    if 'package' not in request.args and upgrade:
-        legacy = db.query_one("SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? "
-                              "AND status NOT IN ('CANCELLED', 'COMPLETED', 'PAID', 'IN_PROGRESS') ORDER BY id DESC LIMIT 1",
-                              (business_id, business['package'].lower()))
-        if legacy:
-            return redirect(url_for('payments.checkout_page', project_id=legacy['id']))
-    if not catalog_key:
-        flash("Bisnis ini belum memilih paket Kilas Assist.", "error")
-        return redirect(url_for("client.dashboard"))
-
-    existing = db.query_one(
-        "SELECT id FROM projects WHERE business_id = ? AND catalog_key = ? ORDER BY created_at DESC LIMIT 1",
-        (business_id, catalog_key),
-    )
-    if existing and upgrade:
-        used = db.query_one("SELECT a.id FROM audit_log a JOIN payments p ON a.detail = CAST(p.id AS TEXT) "
-            "JOIN invoices i ON i.id = p.invoice_id WHERE a.business_id = ? "
-            "AND a.action = 'PRO_ENTITLEMENT_APPLIED' AND i.project_id = ?", (business_id, existing['id']))
-        if used:
-            existing = None
+    import assist_billing
+    plan = request.args.get('plan') or ('ai_admin_pro' if business['package'] == 'AI_ADMIN_PRO' else 'ai_admin')
+    if plan not in assist_billing.ASSIST_PLANS:
+        abort(400)
+    existing = assist_billing.pending(business_id)
     if existing:
-        project_id = existing["id"]
-    else:
-        item = catalog_service.get_catalog_item(catalog_key)
-        if item is None:
-            flash("Paket Kilas Assist ini sedang tidak tersedia — hubungi Kilas Works.", "error")
-            return redirect(url_for("client.review_page", business_id=business_id))
-        if request.method=='GET':
-            return render_template('brain_checkout_start.html',business=business,item=item)
-        project_id = projects_repo.create_fixed_price_project(business_id, item, user["id"])
-
-    return redirect(url_for("payments.checkout_page", project_id=project_id))
+        return redirect(url_for('payments.checkout_page',project_id=existing['id']))
+    facts = assist_billing.offer(business_id,plan)
+    if request.method == 'GET':
+        return render_template('brain_checkout_start.html',business=business,offer=facts)
+    project_id = assist_billing.purchase(business_id,user['id'],plan)
+    return redirect(url_for('payments.checkout_page',project_id=project_id))
 
 
 @client_bp.route("/business/<int:business_id>/ai-writing-help", methods=["POST"])
@@ -1247,7 +1220,9 @@ def demo_kilas_whatsapp(business_id):
         return redirect(url_for('workspace.usage', bid=business_id), code=303)
 
     existing_phone = _demo_kilas_phone_for_business(business_id)
-    if existing_phone:
+    import assist_demo
+    existing_binding = assist_demo.binding(business_id)
+    if existing_phone and existing_binding['active'] and existing_binding['expires_at'] > int(time.time()):
         return redirect(
             url_for(
                 "client.inbox_page",

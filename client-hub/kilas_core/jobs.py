@@ -22,16 +22,18 @@ STATUS_LABELS = {
     'APPROVED': 'Disetujui', 'IN_PROGRESS': 'Dikerjakan',
     'COMPLETED': 'Selesai', 'CANCELLED': 'Dibatalkan',
 }
-# Owner UI exposes only the three business states used by Kilas Jobs.
+# Four owner states. Completion belongs exclusively to the authoritative Finance bridge.
 # Legacy states remain readable for older automation/playbook rows.
 OWNER_STATUS_LABELS = {
     'NEW': 'Perlu tindakan',
     'IN_PROGRESS': 'Dikerjakan',
+    'COMPLETED': 'Selesai',
     'CANCELLED': 'Batal',
 }
 OWNER_STATUS_GROUPS = {
     'NEW': ('NEW', 'NEEDS_INFORMATION', 'READY_FOR_QUOTE', 'QUOTED', 'APPROVED'),
-    'IN_PROGRESS': ('IN_PROGRESS', 'COMPLETED'),
+    'IN_PROGRESS': ('IN_PROGRESS',),
+    'COMPLETED': ('COMPLETED',),
     'CANCELLED': ('CANCELLED',),
 }
 TRANSITIONS = {
@@ -76,10 +78,13 @@ FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_
 _WEB_PLAYBOOK_ACTOR = object()
 _WHATSAPP_PLAYBOOK_ACTOR = object()
 _CUSTOMER_INSIGHT_ACTOR = object()
+_FINANCE_PAYMENT_ACTOR = object()
 _PLAYBOOK_ACTORS = (_WEB_PLAYBOOK_ACTOR, _WHATSAPP_PLAYBOOK_ACTOR, _CUSTOMER_INSIGHT_ACTOR)
 
 
 def _internal_actor_name(actor_id):
+    if actor_id is _FINANCE_PAYMENT_ACTOR:
+        return 'FINANCE_PAYMENT'
     if actor_id is _WEB_PLAYBOOK_ACTOR:
         return 'WEB_PLAYBOOK'
     if actor_id is _WHATSAPP_PLAYBOOK_ACTOR:
@@ -286,6 +291,8 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
     if current['version'] != expected_version:
         raise JobError('stale_version',409)
     target = current['status'] if status is None else status
+    if target == 'COMPLETED' and current['status'] != 'COMPLETED' and actor_id is not _FINANCE_PAYMENT_ACTOR:
+        raise JobError('finance_confirmation_required', 409)
     if target != current['status'] and target not in TRANSITIONS[current['status']]:
         # Customer Insight may repair a historical false-positive "Dikerjakan" back to
         # "Perlu tindakan". This exception is intentionally unavailable to owner/manual
