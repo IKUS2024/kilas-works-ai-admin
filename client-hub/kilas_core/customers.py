@@ -409,7 +409,9 @@ def update_customer(business_id, customer_id, *, display_name, phone=None, email
                            (actor_id, business_id, 'CUSTOMER_NAME_EDITED', customer_id))
             tx.execute(
                 "INSERT INTO audit_log(actor_user_id,business_id,action,detail) VALUES (?,?,?,?)",
-                (actor_id, business_id, "CUSTOMER_UPDATED", customer_id),
+                # V2 records name edits separately. Notes/stage edits must not
+                # masquerade as a historical owner name override on the next sync.
+                (actor_id, business_id, "CUSTOMER_PROFILE_UPDATED", customer_id),
             )
             if stage is not None and stage != existing["stage"]:
                 tx.execute(

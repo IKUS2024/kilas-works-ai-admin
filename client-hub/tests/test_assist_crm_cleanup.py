@@ -147,6 +147,10 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertEqual(self.customer['display_name'],self.phone)
         self.turn('Berapa harga layanan?',name='Irvan')
         self.assertEqual(self.customer['display_name'],'Irvan')
+        customers.update_customer(self.bid,self.customer['id'],display_name='Irvan',phone=self.phone,
+                                  notes='Minta informasi',actor_id=self.uid)
+        self.turn('Terima kasih',name='Irvan WA')
+        self.assertEqual(self.customer['display_name'],'Irvan WA')
         customers.update_customer(self.bid,self.customer['id'],display_name='Pak Irvan',phone=self.phone,actor_id=self.uid)
         self.turn('Terima kasih',name='Nama WA baru')
         self.assertEqual(self.customer['display_name'],'Pak Irvan')
