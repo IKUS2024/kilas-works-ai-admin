@@ -7013,6 +7013,23 @@ def _webhook_body_impl(data):
                 print('[INBOX_MEDIA] reason=metadata_persistence_failed')
                 return jsonify({'status': 'media_persistence_unavailable'}), 503
 
+        if _CLIENT_HUB_AVAILABLE and is_kilas_platform_tenant(tenant_id):
+            try:
+                import assist_demo
+                profile_name = next((c.get('profile', {}).get('name') for c in value.get('contacts', [])
+                                     if c.get('wa_id') == from_number), None)
+                if profile_name:
+                    save_customer_name_to_db(from_number, profile_name[:160])
+                media_link = request.environ.get('inbox_media_row') or {}
+                if assist_demo.process(message, profile_name=profile_name,
+                        media_message_id=media_link.get('message_row_id'), send=send_whatsapp_message):
+                    return jsonify({'status':'ok', 'demo_processed':True}), 200
+            except ValueError:
+                return jsonify({'status':'invalid_demo_event'}), 200
+            except Exception:
+                print('[ASSIST_DEMO] processing_failed')
+                return jsonify({'status':'demo_processing_unavailable'}), 503
+
         # WAJIB paling awal: kalau wamid ini udah pernah kepegang sebelumnya (WhatsApp ngirim ulang
         # webhook yang sama), STOP DI SINI — jangan proses apa-apa lagi, jangan panggil AI, jangan
         # kirim pesan apapun. Satu event id = satu kali proses, biar gak ada pengiriman dobel ke
@@ -9082,6 +9099,13 @@ def internal_platform_cs_reply():
     if not window.get("allowed"):
         return jsonify({"status": "error", "reason": window.get("reason") or "outside_24h_window"}), 409
 
+    demo_bound = None
+    if payload.get('demo_scope') is not None:
+        import assist_demo
+        try:
+            demo_bound = assist_demo.require_outgoing_scope(payload['demo_scope'], phone)
+        except ValueError:
+            return jsonify({'status':'error','reason':'invalid_demo_scope'}), 409
     ok, err = send_whatsapp_message(phone, text)
     if not ok:
         # Only bounded provider status/code, never raw response bodies or exception text.
@@ -9095,7 +9119,10 @@ def internal_platform_cs_reply():
         history = load_recent_messages_from_db(phone, "customer")
     history.append({"role": "assistant", "content": text})
     conversations[phone] = history[-20:]
-    save_message_to_db(phone, "customer", "assistant", text)
+    if demo_bound:
+        assist_demo.record_sent(demo_bound, text)
+    else:
+        save_message_to_db(phone, "customer", "assistant", text)
     return jsonify({"status": "ok"}), 200
 
 

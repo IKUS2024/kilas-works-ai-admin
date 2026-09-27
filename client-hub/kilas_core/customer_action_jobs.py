@@ -163,19 +163,13 @@ def _platform_candidate_needs_analysis(customer):
 
 
 def promote_lead_if_actionable(business, customer, insight, actor_id=None):
-    """Promote only the hidden Kilas Works platform Lead when Insight proves concrete intent.
+    """Promote a tenant-scoped Lead when Insight proves concrete intent.
 
     No keyword directly changes CRM stage. The existing Customer Insight contract must provide
     both a concrete action and a positive owner-facing job signal. Informational questions,
     comparisons, vague interest, and cancellations remain Lead.
     """
     if not business or not customer or not isinstance(insight, dict):
-        return customer
-    try:
-        import platform_workspace
-        if not platform_workspace.is_scope_business(business["id"]):
-            return customer
-    except Exception:
         return customer
     if customer.get("stage") != "LEAD":
         return customer

@@ -194,6 +194,12 @@ def _extract_json_object(text):
 
 
 def _call_claude(system_prompt, messages, max_tokens=1500, *, model=None):
+    import ai_router
+    return ai_router.complete(system_prompt, messages, max_tokens,
+                              claude=_call_claude_direct, legacy_model=model)
+
+
+def _call_claude_direct(system_prompt, messages, max_tokens=1500, *, model=None):
     """Returns (text, stop_reason, error_str). stop_reason is Anthropic's own explicit signal for
     WHY generation stopped ("end_turn" = complete, "max_tokens" = genuinely truncated mid-output)
     — this is the strongest, most direct truncation signal the current API/client already
@@ -223,8 +229,8 @@ def _call_claude(system_prompt, messages, max_tokens=1500, *, model=None):
         data = resp.json()
         ai_usage.record(model or CLIENT_HUB_MODEL, data)
         return data["content"][0]["text"], data.get("stop_reason"), None
-    except Exception as e:
-        return None, None, f"{type(e).__name__}: {e}"
+    except Exception:
+        return None, None, "provider_request_failed"
 
 
 def build_normalization_input_text(business, profile, raw_services, raw_faqs, extracted_file_texts):

@@ -156,28 +156,11 @@ def ensure_whatsapp_lead(business_id, phone, display_name=None, *, now=None):
 
 
 def sync_demo_binding_lead(business_id):
-    """Backfill the latest durable Demo WhatsApp binding into tenant CRM."""
+    import assist_demo
     if not enabled():
         return None
-    with transaction() as tx:
-        row = tx.one(
-            "SELECT detail FROM audit_log WHERE business_id=? AND action='demo_whatsapp_bound' "
-            "ORDER BY id DESC LIMIT 1",
-            (business_id,),
-        )
-    if not row or not row.get("detail"):
-        return None
-    try:
-        detail = json.loads(row["detail"])
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(detail, dict):
-        return None
-    phone = detail.get("phone")
-    if not isinstance(phone, str):
-        return None
-    return ensure_whatsapp_lead(business_id, phone, display_name=phone)
-
+    bound = assist_demo.binding(business_id)
+    return ensure_whatsapp_lead(business_id, bound['phone']) if bound else None
 
 def ensure_web_customer(tx, business_id, conversation_id, visitor_hash, now=None):
     """Resolve/create one Core customer for one strong tenant-scoped WEB visitor identity.

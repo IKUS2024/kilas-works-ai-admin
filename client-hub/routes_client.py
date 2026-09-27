@@ -1052,64 +1052,8 @@ def _demo_kilas_audit_state(business_id, action):
 
 
 def _demo_kilas_bound_state(business_id):
-    session_state = _demo_kilas_state(business_id)
-    if session_state:
-        phone = platform_inbox_service.normalize_customer_phone(session_state.get("phone"))
-        start_message_id = session_state.get("start_message_id")
-        if phone and isinstance(start_message_id, int) and start_message_id > 0:
-            session_state["phone"] = phone
-            return session_state
-
-        # Compatibility recovery for sessions that successfully bound before persistent binding
-        # was introduced. The browser still holds the exact marker; recover that one conversation
-        # from the shared platform message log and immediately persist the durable binding below.
-        marker = _demo_kilas_marker(session_state)
-        if marker:
-            try:
-                min_message_id = max(0, int(session_state.get("min_message_id") or 0))
-            except (TypeError, ValueError):
-                min_message_id = 0
-            try:
-                recovered = db.query_one(
-                    "SELECT id, number FROM messages "
-                    "WHERE id>? AND mode IN ('customer','owner') AND role='user' AND content LIKE ? "
-                    "ORDER BY id DESC LIMIT 1",
-                    (min_message_id, "%" + marker + "%"),
-                )
-            except Exception:
-                recovered = None
-            recovered_phone = (
-                platform_inbox_service.normalize_customer_phone(recovered.get("number"))
-                if recovered else None
-            )
-            if recovered_phone:
-                recovered_state = dict(session_state)
-                recovered_state["phone"] = recovered_phone
-                recovered_state["start_message_id"] = int(recovered["id"])
-                recovered_state["bound_at"] = int(time.time())
-                _save_demo_kilas_state(business_id, recovered_state)
-                try:
-                    _persist_demo_kilas_bound(
-                        business_id, recovered_phone, int(recovered["id"])
-                    )
-                except Exception:
-                    pass
-                return recovered_state
-
-    state = _demo_kilas_audit_state(business_id, _DEMO_KILAS_BOUND_ACTION)
-    if not state:
-        return None
-    phone = platform_inbox_service.normalize_customer_phone(state.get("phone"))
-    try:
-        start_message_id = int(state.get("start_message_id") or 0)
-    except (TypeError, ValueError):
-        return None
-    if not phone or start_message_id <= 0:
-        return None
-    state["phone"] = phone
-    state["start_message_id"] = start_message_id
-    return state
-
+    import assist_demo
+    return assist_demo.binding(business_id)
 
 def _demo_kilas_pending_state(business_id):
     state = _demo_kilas_state(business_id)
@@ -1196,76 +1140,15 @@ def sync_demo_kilas_lead(business_id):
 
 
 def _demo_kilas_phone_for_business(business_id):
-    """Resolve the demo phone and persist it so refreshes/redeploys keep the Inbox connected."""
-    bound = _demo_kilas_bound_state(business_id)
-    if bound:
-        try:
-            _persist_demo_kilas_bound(
-                business_id,
-                bound["phone"],
-                int(bound["start_message_id"]),
-            )
-        except Exception:
-            pass
-
-    pending = _demo_kilas_pending_state(business_id)
-    now = int(time.time())
-    if not pending or int(pending.get("expires_at") or 0) <= now:
-        return bound["phone"] if bound else None
-
-    marker = _demo_kilas_marker(pending)
-    if not marker:
-        return bound["phone"] if bound else None
-    try:
-        min_message_id = max(0, int(pending.get("min_message_id") or 0))
-    except (TypeError, ValueError):
-        min_message_id = 0
-
-    try:
-        row = db.query_one(
-            "SELECT id, number FROM messages "
-            "WHERE id>? AND mode IN ('customer','owner') AND role='user' AND content LIKE ? "
-            "ORDER BY id DESC LIMIT 1",
-            (min_message_id, "%" + marker + "%"),
-        )
-    except Exception:
-        return bound["phone"] if bound else None
-
-    phone = platform_inbox_service.normalize_customer_phone(row.get("number")) if row else None
-    if not phone:
-        return bound["phone"] if bound else None
-
-    start_message_id = int(row["id"])
-    state = dict(pending)
-    state["phone"] = phone
-    state["start_message_id"] = start_message_id
-    state["bound_at"] = now
-    state["expires_at"] = now + _DEMO_KILAS_BOUND_SECONDS
-    _save_demo_kilas_state(business_id, state)
-    _persist_demo_kilas_bound(business_id, phone, start_message_id)
-    return phone
-
+    import assist_demo, assist_journey
+    if assist_journey.state(repo.get_business(business_id))['connected']:
+        return None
+    bound = assist_demo.binding(business_id)
+    return bound['phone'] if bound else None
 
 def _demo_kilas_rows(business_id, phone, limit=160):
-    """Return the permanently-bound demo thread for this business."""
-    state = _demo_kilas_bound_state(business_id) or {}
-    try:
-        start_message_id = int(state.get("start_message_id") or 0)
-    except (TypeError, ValueError):
-        start_message_id = 0
-    if start_message_id <= 0:
-        return []
-    try:
-        rows = db.query_all(
-            "SELECT id, role, content, created_at FROM messages "
-            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id ASC LIMIT ?",
-            (phone, start_message_id, int(limit)),
-        )
-    except Exception:
-        return []
-    return inbox_media_service.attach([dict(row) for row in rows], None)
-
+    import assist_demo
+    return inbox_media_service.attach(assist_demo.rows(business_id, phone, limit=limit), None)
 
 def _demo_kilas_clean_thread(business_id, phone):
     rows = _demo_kilas_rows(business_id, phone)
@@ -1301,7 +1184,16 @@ def _demo_kilas_clean_thread(business_id, phone):
             handshake_reply_cleaned = True
 
         cleaned.append(item)
-    return ai_reply_explanation.attach_demo(cleaned, business_id, allow_visible_fallback=True)
+    import assist_demo
+    bound = assist_demo.binding(business_id, phone)
+    if bound:
+        traces = db.query_all('SELECT reply_message_id,explanation_json FROM kw_assist_demo_events '
+                              'WHERE business_id=? AND session_id=?', (business_id,bound['id']))
+        by_id = {r['reply_message_id']: json.loads(r['explanation_json']) for r in traces if r['explanation_json']}
+        for item in cleaned:
+            if item['id'] in by_id:
+                item['analysis'] = by_id[item['id']]
+    return cleaned
 
 
 def _demo_kilas_conversation(business_id, phone, search="", mode_filter=None):
@@ -1366,27 +1258,9 @@ def demo_kilas_whatsapp(business_id):
             code=303,
         )
 
-    raw_code = secrets.token_hex(4).upper()
-    code = raw_code[:4] + "-" + raw_code[4:]
-    try:
-        latest = db.query_one("SELECT COALESCE(MAX(id),0) AS max_id FROM messages")
-        min_message_id = int((latest or {}).get("max_id") or 0)
-    except Exception:
-        min_message_id = 0
-    pending_state = {
-        "code": code,
-        "phone": None,
-        "min_message_id": min_message_id,
-        "created_at": int(time.time()),
-        "expires_at": int(time.time()) + _DEMO_KILAS_PENDING_SECONDS,
-    }
-    _save_demo_kilas_state(business_id, pending_state)
-    _persist_demo_kilas_started(business_id, pending_state)
-    text = (
-        "Halo Kilas Works 👋\n"
-        "Saya mau coba Kilas Assist.\n\n"
-        "Demo ID: " + code
-    )
+    import assist_demo
+    _, marker = assist_demo.begin(business_id, security.current_user()['id'])
+    text = "Halo Kilas Works. Saya mau mencoba Kilas Assist.\n" + marker
     return redirect(
         "https://wa.me/" + _DEMO_KILAS_PHONE + "?text=" + quote(text, safe=""),
         code=302,
@@ -1545,6 +1419,11 @@ def _demo_kilas_bound_phone_or_404(business_id, supplied=None):
     phone = platform_inbox_service.normalize_customer_phone(supplied or bound)
     if not bound or phone != bound or not _demo_kilas_clean_thread(business_id, phone):
         abort(404)
+    if request.method == 'POST':
+        import assist_demo
+        binding = assist_demo.binding(business_id, phone)
+        if not binding or not binding['active'] or binding['expires_at'] <= int(time.time()):
+            abort(404)
     return phone
 
 
@@ -1583,7 +1462,10 @@ def demo_inbox_reply(business_id):
     if not text:
         flash("Pesan tidak boleh kosong.", "error")
         return _demo_kilas_inbox_redirect(business_id, phone)
-    ok, reason = platform_inbox_service.send_manual_reply(phone, text)
+    import assist_demo
+    bound = assist_demo.binding(business_id, phone)
+    ok, reason = platform_inbox_service.send_manual_reply(phone, text,
+        demo_scope={'business_id': business_id, 'session_id': bound['id']})
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_MANUAL_REPLY_SENT", f"customer={phone}")

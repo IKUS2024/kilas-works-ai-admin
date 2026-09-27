@@ -167,31 +167,8 @@ def _stored(business_id, customer_id):
 
 
 def _demo_binding(business_id, phone):
-    if not phone:
-        return None
-    try:
-        with customers.transaction() as tx:
-            row = tx.one(
-                "SELECT detail FROM audit_log WHERE business_id=? AND action='demo_whatsapp_bound' "
-                "ORDER BY id DESC LIMIT 1",
-                (business_id,),
-            )
-    except Exception:
-        return None
-    if not row or not row.get("detail"):
-        return None
-    try:
-        detail = json.loads(row["detail"])
-    except (TypeError, ValueError):
-        return None
-    if not isinstance(detail, dict) or detail.get("phone") != phone:
-        return None
-    try:
-        start = int(detail.get("start_message_id") or 0)
-    except (TypeError, ValueError):
-        return None
-    return {"phone": phone, "start_message_id": start} if start > 0 else None
-
+    import assist_demo
+    return assist_demo.binding(business_id, phone) if phone else None
 
 def _core_messages(business_id, customer_id, after):
     try:
@@ -287,16 +264,8 @@ def _demo_messages(business_id, customer, after):
     binding = _demo_binding(business_id, customer.get("phone"))
     if not binding:
         return []
-    minimum = max(binding["start_message_id"], int(after) + 1)
-    try:
-        rows = db.query_all(
-            "SELECT id,role,content,created_at FROM messages "
-            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id ASC LIMIT ?",
-            (binding["phone"], minimum, MAX_NEW_MESSAGES),
-        )
-    except Exception:
-        return []
+    import assist_demo
+    rows = assist_demo.rows(business_id, binding['phone'], after=after, limit=MAX_NEW_MESSAGES)
     cleaned = []
     for raw in rows:
         row = dict(raw)
@@ -429,18 +398,11 @@ def demo_conversation_row(business_id, customer):
     binding = _demo_binding(business_id, customer.get("phone"))
     if not binding:
         return None
-    try:
-        rows = db.query_all(
-            "SELECT id,role,content,created_at FROM messages "
-            "WHERE number=? AND mode IN ('customer','owner') AND id>=? "
-            "ORDER BY id DESC LIMIT 1",
-            (binding["phone"], binding["start_message_id"]),
-        )
-    except Exception:
-        return None
+    import assist_demo
+    rows = assist_demo.rows(business_id, binding['phone'])
     if not rows:
         return None
-    latest = dict(rows[0])
+    latest = dict(rows[-1])
     return {
         "id": "demo:" + binding["phone"],
         "mode": "AI_ACTIVE",

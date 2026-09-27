@@ -30,7 +30,7 @@ Precedence: user's MASTER TASK and FINAL OVERRIDES > Master Blueprint > detailed
 - No applicable AGENTS.md found in repository or workspace ancestors.
 
 ## IN PROGRESS
-Checkpoints 1–2: navigation/readiness and conversational training implemented locally; broader validation and real demo tenant routing pending.
+Checkpoints 1–3: signup/training and scoped demo webhook implemented; routing tests pass. Broader regressions, manual media/template session attribution and live verification pending. Next: four-state Jobs and atomic authoritative payment completion.
 
 ## Checkpoint 1–2 local implementation (not deployed)
 - Existing account creation preserved; returning Google users now enter their existing workspace.
@@ -41,7 +41,12 @@ Checkpoints 1–2: navigation/readiness and conversational training implemented 
 - Test AI uses current scoped business facts. Successful test fingerprint must match before owner confirms readiness; failed inference never establishes ready.
 - Training normalization preserves current business status. Knowledge stays in existing business/FAQ/config authorities.
 - Demo CTA requires readiness and active demo/paid entitlement; connected businesses redirect to production Inbox.
-- No schema change yet. No Finance services/templates/calculations edited.
+- Additive migration 0066 introduces private demo bindings and explicit event-to-message membership. No Finance services/templates/calculations edited.
+- Demo webhook intercept resolves the bound tenant before knowledge/inference; raw message remains in platform Inbox, and only explicit session messages appear in tenant workspace. Duplicate claims precede AI/send; ambiguous sends are not retried.
+- Shared sender rebind deactivates old binding without moving old messages. Demo CRM uses tenant WhatsApp identity and same-inference structured facts; actionable leads promote in all tenants.
+- Demo reply uses bounded relevant knowledge + recent messages, same-call safe explanation, and configurable OpenAI economical route / Claude escalation. Existing configured Claude path remains available. Provider errors are sanitized.
+- Text human replies include an independently verified explicit demo scope on the internal bridge and are linked to that session. Takeover is checked before and after AI.
+- Router scopes now include customer_insight, follow_up and assist_demo in the existing usage ledger. Provider dimension and profitability UI still pending.
 
 ## Findings / bugs / diagnosis
 - `kilas_core/jobs.py` exposes only three owner states and groups COMPLETED into IN_PROGRESS: stale relative to final four-state requirement.
@@ -65,12 +70,13 @@ Checkpoints 1–2: navigation/readiness and conversational training implemented 
 ## Tests passed
 Fresh protected Finance baseline: 39 files, 1018 tests, 0 skipped, all PASS (logs in scratch /tmp/kilas-master-finance-baseline).
 Workspace baseline and post-change suite PASS. New master journey suite: 5 tests PASS (six-part gate, seven-day retry safety, knowledge correction, tenant isolation, current-version successful test required, GETs without model/writes).
+New demo suite: 7 PASS (binding, cross-tenant rebind, replay, takeover/media, lead→customer→job, ambiguous delivery, expiry). New router suite: 3 PASS (cheap route, bounded fallback/error redaction, no hidden reasoning/ungrounded action). Journey suite rerun PASS.
 ## Tests still failing
 New isolation test initially expected 403; existing security deliberately returns 404 to conceal tenant existence. Test corrected to exact 404; no authorization weakened. Broader suites not yet run. GitHub commit-workflow wrapper returns no PR-triggered runs for merge main; not evidence of green CI.
 ## Migration/schema notes
-Production contains kw_core_* Jobs/CRM/bridge/WhatsApp and existing subscriptions, ai_usage_ledger, knowledge revisions, Finance tables. No migration or data modification performed.
+Production contains kw_core_* Jobs/CRM/bridge/WhatsApp and existing subscriptions, ai_usage_ledger, knowledge revisions, Finance tables. Migration 0066 is local only; migration rehearsal and production apply pending. No production data modification performed.
 ## PR/merge status
-Remote checkpoint branch exists. No PR/merge yet. CLI push has no GitHub credential; authenticated GitHub connector can publish changes.
+Remote checkpoint branch exists; signup/training checkpoint committed as 37246ec. Demo/router checkpoint is being published. No PR/merge yet. CLI push has no GitHub credential; authenticated GitHub connector can publish changes.
 ## Deploy status
 No changes deployed in this run.
 ## Production verification
@@ -79,3 +85,10 @@ Read-only Home/More baseline only; master journey not verified.
 None established yet. Real production WhatsApp OTP and test messages may need owner involvement; do independent implementation first.
 ## Resume
 Read this checkpoint, inspect working diff/current main only as needed, and continue NEXT without rereading unchanged PDFs or restarting completed work. Keep status IN PROGRESS until all definition-of-done gates are verified.
+
+## Remaining implementation risks at this checkpoint
+- Legacy audit-bound demo tests must be migrated to explicit session fixture and preserve isolation assertions; old production demo users will need a fresh binding (knowledge/data stay intact).
+- Demo human template/media outgoing attribution still needs the same scope contract as text replies.
+- Demo voice/document vision and payment evidence extraction are not yet integrated; original inbound media remains visible.
+- Jobs still group COMPLETED incorrectly and Finance bridge does not yet complete Job/send receipt.
+- Existing pricing, SaaS Admin, production WABA connection queue and full production runtime routing still require completion.

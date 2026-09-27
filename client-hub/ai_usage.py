@@ -16,6 +16,8 @@ from pricing_config import BRAIN_PLAN
 # https://platform.claude.com/docs/en/about-claude/pricing
 PRICING_DATE = os.environ.get('AI_PRICING_DATE', '2026-09-15')
 MODEL_PRICING = {
+    # https://developers.openai.com/api/docs/models/gpt-4.1-mini (2026-09-27)
+    'gpt-4.1-mini': dict(input=.40, output=1.60, read=.10, write=0, write_1h=0),
     'claude-haiku-4-5-20251001': dict(input=1, output=5, read=.10, write=1.25, write_1h=2),
     'claude-sonnet-4-6': dict(input=3, output=15, read=.30, write=3.75, write_1h=6),
 }
@@ -114,6 +116,7 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
         # Context/model come from code/config, never customer text.
         allowed = {'platform_customer','tenant_customer','owner','tenant_owner','demo','demo_fallback',
                    'normalization','simulation','writing','faq','knowledge_assist','payment_review','platform_helper',
+                   'customer_insight','follow_up','assist_demo',
                    'finance_ai','finance_chat','finance_receipt','finance_bank','finance_document','finance_analyst','finance_operator'}
         if context not in allowed or classification not in ('normal','vision','complex'):
             raise ValueError('invalid_classification')
@@ -125,7 +128,7 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
         log.info('[AI_USAGE] %s', json.dumps(dict(context=context, tenant_id=tenant_id, model=model,
             classification=classification, **dict(zip(keys,counts)))))
         blocks = response.get('content') or []
-        is_reply = context in ('tenant_customer','tenant_owner','platform_customer','owner','simulation') and isinstance(blocks,list) and any(
+        is_reply = context in ('tenant_customer','tenant_owner','platform_customer','owner','simulation','assist_demo') and isinstance(blocks,list) and any(
             isinstance(block,dict) and isinstance(block.get('text'),str) and block['text'].strip() for block in blocks)
         _insert((tenant_id,context,model,classification,bool(is_reply),*counts,usd,idr,PRICING_DATE,
                  datetime.now(timezone.utc).isoformat()))
