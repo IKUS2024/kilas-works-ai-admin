@@ -1,7 +1,6 @@
 """Final auditable pricing over the existing purchase and subscription authority."""
 import json
 import unittest
-from unittest.mock import patch
 from datetime import timedelta
 import test_client_hub_v1 as fixture
 import assist_billing as billing
@@ -82,19 +81,72 @@ class BillingTests(unittest.TestCase):
         self.assertNotIn('Tidak ada trial',page.text)
 
     def test_owner_checkout_post_creates_one_purchase_and_reuses_retry(self):
+        repo.upsert_business_profile(self.bid,dict(category='Jasa',short_description='Foto produk',primary_language='id'))
         client=fixture.fresh_client()
         with client.session_transaction() as session:
             session['user_id']=self.owner
             session['csrf_token']='checkout-test'
         path=f'/business/{self.bid}/ai-admin/checkout?plan=ai_admin_pro'
-        with patch.object(repo,'required_fields_missing',return_value=[]):
-            first=client.post(path,data={'csrf_token':'checkout-test'})
-            retry=client.post(path,data={'csrf_token':'checkout-test'})
+        first=client.post(path,data={'csrf_token':'checkout-test'})
+        retry=client.post(path,data={'csrf_token':'checkout-test'})
         self.assertEqual(first.status_code,302)
         self.assertEqual(first.location,retry.location)
         project=billing.pending(self.bid)
         self.assertIsNotNone(project)
         self.assertEqual(fixture.projects_repo.get_project(project['id'])['requirements']['assist_pricing']['amount'],99000)
         self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM projects WHERE business_id=?',(self.bid,))['n'],1)
+
+    def test_checkout_without_operational_or_whatsapp_fields_for_both_plans(self):
+        import assist_connections
+        for plan in ('ai_admin','ai_admin_pro'):
+            with self.subTest(plan=plan):
+                bid=repo.create_business(self.owner,'Checkout '+plan,'AI_ADMIN_PRO')
+                repo.upsert_business_profile(bid,dict(category='Jasa',short_description='Foto produk',primary_language='id'))
+                missing=repo.required_fields_missing(bid)
+                for field in ('operating_hours','online_or_offline','business_phone','trusted_owner_phone'):
+                    self.assertIn(field,missing)
+                client=fixture.fresh_client()
+                with client.session_transaction() as session:
+                    session.update(user_id=self.owner,csrf_token='checkout-test')
+                path=f'/business/{bid}/ai-admin/checkout?plan={plan}'
+                page=client.get(path)
+                self.assertEqual(page.status_code,200)
+                self.assertIn('Tinjau langganan Kilas Assist',page.text)
+                result=client.post(path,data={'csrf_token':'checkout-test'})
+                self.assertEqual(result.status_code,302)
+                self.assertIn('/checkout',result.location)
+                self.assertNotIn('/wizard/',result.location)
+                self.assertEqual(client.get(result.location).status_code,200)
+                project=billing.pending(bid)
+                self.assertEqual(project['catalog_key'],plan)
+                self.assertIsNone(subs.get_subscription(bid))
+                self.assertFalse(payment_service.has_verified_ai_admin_payment(bid))
+                invoice=payment_service.checkout(project['id'],bid,self.owner)
+                payment=payment_service.get_payment_for_invoice(invoice)
+                db.execute("UPDATE payments SET status='UNDER_REVIEW' WHERE id=?",(payment['id'],))
+                payment_service.verify_payment(payment['id'],bid,self.admin)
+                self.assertEqual(subs.get_subscription(bid)['status'],'ACTIVE')
+                self.assertEqual(assist_connections.get(bid)['state'],'Pending')
+                self.assertFalse((repo.get_whatsapp_config(bid) or {}).get('connection_status')=='CONNECTED')
+                with self.assertRaises(ValueError):
+                    assist_connections.activate(bid,dict(id=self.admin,role='KILAS_ADMIN'))
+                self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_transactions')['n'],0)
+
+    def test_checkout_still_requires_identity_authorized_account_and_valid_plan(self):
+        client=fixture.fresh_client()
+        path=f'/business/{self.bid}/ai-admin/checkout'
+        self.assertEqual(client.get(path).status_code,302)
+        with client.session_transaction() as session:
+            session.update(user_id=self.owner,csrf_token='checkout-test')
+        self.assertIn('/wizard/',client.get(path).location)
+        repo.upsert_business_profile(self.bid,dict(category='Jasa',short_description='Foto produk',primary_language='id'))
+        self.assertEqual(client.get(path+'?plan=not-a-plan').status_code,400)
+        self.assertEqual(client.post(path+'?plan=not-a-plan',data={'csrf_token':'checkout-test'}).status_code,400)
+        other=repo.create_user('foreign@test.invalid','hash')
+        with client.session_transaction() as session:
+            session['user_id']=other
+        self.assertEqual(client.get(path).status_code,404)
+        self.assertEqual(client.post(path,data={'csrf_token':'checkout-test'}).status_code,404)
+        self.assertIsNone(billing.pending(self.bid))
 
 if __name__=='__main__':unittest.main()
