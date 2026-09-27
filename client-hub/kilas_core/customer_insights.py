@@ -139,6 +139,7 @@ def _normalize(value):
         "job_status": value.get("job_status") if value.get("job_status") in
                       ("PERLU_TINDAKAN", "DIKERJAKAN", "BATAL") else None,
     })
+    if '_payment_evidence' in value:result['_payment_evidence']=_clean_string(value['_payment_evidence'],900) or ''
     return result
 
 

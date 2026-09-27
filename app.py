@@ -8953,11 +8953,25 @@ def internal_platform_inbox_media_send():
     if not request.content_length or request.content_length > 12 * 1024 * 1024:
         return jsonify({'status': 'error', 'reason': 'upload_too_large'}), 413
     phone = request.form.get('customer_phone', '')
+    demo_bound=None
+    if request.form.get('demo_scope'):
+        try:
+            import assist_demo
+            demo_bound=assist_demo.require_outgoing_scope(json.loads(request.form['demo_scope']),phone)
+        except (ValueError,TypeError):
+            return jsonify({'status':'error','reason':'invalid_demo_scope'}),409
     try:
-        ok, reason = _inbox_media.send_upload(None, phone, request.files.get('file'),
+        ok, reason, detail = _inbox_media.send_upload_detail(None, phone, request.files.get('file'),
             request.form.get('caption'),
             {'access_token': WHATSAPP_ACCESS_TOKEN, 'phone_number_id': WHATSAPP_PHONE_NUMBER_ID},
             lambda: _inbox_media.human_window_allowed(None, phone))
+        if ok and demo_bound:
+            try:
+                recorded=bool(detail and assist_demo.record_sent_media(demo_bound,detail['provider_id']))
+            except Exception:
+                recorded=False
+            if not recorded:
+                reason='accepted_history_unavailable'
     except Exception:
         ok, reason = False, 'media_send_unconfirmed'
     return jsonify({'status': 'ok' if ok else 'error', 'reason': reason}), 200 if ok else 409
@@ -9240,6 +9254,11 @@ def internal_platform_cs_template_reply():
     # Deliberately NO freeform_window_status() check here — see this route's own docstring: an
     # approved template is exactly Meta's sanctioned way to send OUTSIDE that window.
 
+    demo_bound = None
+    if payload.get('demo_scope') is not None:
+        import assist_demo
+        try:demo_bound=assist_demo.require_outgoing_scope(payload['demo_scope'],phone)
+        except ValueError:return jsonify({'status':'error','reason':'invalid_demo_scope'}),409
     ok, err = send_whatsapp_template_message(phone, template_name, language_code, params)
     if not ok:
         return jsonify({"status": "error", "reason": "whatsapp_send_failed"}), 502
@@ -9250,7 +9269,8 @@ def internal_platform_cs_template_reply():
         history = load_recent_messages_from_db(phone, "customer")
     history.append({"role": "assistant", "content": marker})
     conversations[phone] = history[-20:]
-    save_message_to_db(phone, "customer", "assistant", marker)
+    if demo_bound:assist_demo.record_sent(demo_bound,marker)
+    else:save_message_to_db(phone, "customer", "assistant", marker)
     return jsonify({"status": "ok"}), 200
 
 

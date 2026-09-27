@@ -65,7 +65,7 @@ def _trace(title, *, summary="", intent="", workflow="", basis=(), facts=(), mis
         "action": _text(action, 500),
         "result": _text(result, 500),
         "route": _text(route, 80),
-        "note": "Ini jejak keputusan produk, bukan chain-of-thought internal model.",
+        "note": "Ringkasan dasar jawaban dan tindakan Kilas Assist.",
     }
     return payload
 

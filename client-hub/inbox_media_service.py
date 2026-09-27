@@ -308,7 +308,7 @@ def human_window_allowed(business_id, phone):
             and inbox.freeform_window_status(business_id, phone)['allowed'])
 
 
-def platform_send(phone, upload, caption):
+def platform_send(phone, upload, caption, *, demo_scope=None):
     import os
     import platform_inbox_service as platform
     try:
@@ -322,7 +322,8 @@ def platform_send(phone, upload, caption):
         parsed = urlsplit(endpoint)
         endpoint = f'{parsed.scheme}://{parsed.netloc}/internal/platform-inbox-media'
         with requests.post(endpoint, headers={'X-Internal-Service-Secret': secret},
-                           data={'customer_phone': phone, 'caption': str(caption or '')[:1024]},
+                           data={'customer_phone': phone, 'caption': str(caption or '')[:1024],
+                                 **({'demo_scope':__import__('json').dumps(demo_scope)} if demo_scope else {})},
                            files={'file': (filename, data, mime)}, timeout=(5, 90), allow_redirects=False) as response:
             body = response.json()
             if response.status_code == 200 and body.get('status') == 'ok':

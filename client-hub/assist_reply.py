@@ -46,13 +46,13 @@ def relevant_knowledge(bid, query):
     return chosen
 
 
-def generate(bid, text, history, previous=None):
+def generate(bid, text, history, previous=None, *, feature="assist_demo"):
     knowledge = relevant_knowledge(bid, text)
     payload = json.dumps({'knowledge': knowledge, 'previous_insight': previous or {},
                           'recent_messages': history[-12:], 'customer_message': text}, ensure_ascii=False)
 
     def call(strong=False):
-        with ai_usage.scope(bid, 'assist_demo'):
+        with ai_usage.scope(bid, feature):
             raw, stop, error = ai_router.complete(PROMPT, [{'role': 'user', 'content': payload}],
                 2200, claude=ai_onboarding._call_claude_direct, strong=strong)
         if error or stop == 'max_tokens':
@@ -71,11 +71,26 @@ def generate(bid, text, history, previous=None):
     if result['confidence'] < ai_usage.number('KILAS_AI_CONFIDENCE_ESCALATE_BELOW', .65):
         result = call(strong=True)
     insight = customer_insights._normalize(result['insight'])
+    insight['_handoff_requested'] = result['intent'] == 'HUMAN'
     evidence = result.get('evidence')
     if not isinstance(evidence, str) or not evidence.strip() or evidence not in text:
         insight['action'] = insight['job_status'] = None
     # The model cannot mark a Job complete, even if a screenshot says paid.
     if result['intent'] == 'QUESTION':
+        insight['action'] = insight['job_status'] = None
+    from kilas_core.customer_action_jobs import _payment_step_text
+    grounded = isinstance(evidence,str) and bool(evidence.strip()) and evidence in text
+    # Exact customer evidence is the deterministic state input, never a generated summary.
+    payment = bool(grounded and _payment_step_text(evidence) and re.search(
+        r'\b(mau|ingin|siap|akan|sudah|udah|kirim|kirimkan|buatkan|minta|transfer|dp|bayar|rekeningnya|rekening)\b', evidence,re.I))
+    insight['_payment_evidence'] = evidence if payment else ''
+    if insight.get('job_status') == 'DIKERJAKAN' and not payment:
+        insight['job_status'] = 'PERLU_TINDAKAN' if insight.get('action') else None
+    if insight.get('job_status') == 'BATAL' and not (grounded and re.search(
+        r'\b(batal|cancel|tidak jadi|nggak jadi|gak jadi|ga jadi|tidak lanjut)\b',evidence,re.I)
+        and not re.search(r'\b(bisa|boleh|apakah|kalau|jika)\b',evidence,re.I)):
+        insight['job_status'] = None
+    if grounded and re.search(r'^\s*(apa|apakah|berapa|bagaimana|gimana|kenapa)\b',evidence,re.I) and not payment:
         insight['action'] = insight['job_status'] = None
     used = result.get('knowledge_used')
     used = [key for key in used if isinstance(key, str) and key in knowledge] if isinstance(used, list) else []

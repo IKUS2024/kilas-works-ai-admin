@@ -138,3 +138,28 @@ Read this checkpoint, inspect working diff/current main only as needed, and cont
 - Complete regression diagnosis (including intentionally retired public/self-service paths), browser QA, PostgreSQL migration rehearsal, safe merge/deploy and live verification.
 - New platform pages currently require existing optional Core tables (confirmed in production); local fixtures explicitly install them.
 - No true external blocker has been established. Do not stop at this intermediate implementation checkpoint.
+
+
+## Runtime / media / bundle update after reconnect (not deployed)
+- Production Assist now uses relevant owner knowledge + bounded recent history, with reply/explanation/incremental CRM in one structured inference. Fenced atomic writes preserve takeover and concurrent owner Job edits. Informational contacts stay Leads; meeting/deal is NEW, explicit payment intent is IN_PROGRESS; negated/hypothetical payment is rejected. Customer-requested human handoff persists until explicit owner return.
+- WhatsApp profile name and phone are captured from matching Meta contact identity; name is primary and phone secondary in Core Inbox.
+- Migration 0069 adds only tenant-scoped, cached media extraction candidates. Image/PDF originals remain visible. Owner-requested analysis can show detected payment and compare the existing linked authoritative invoice; it never confirms payment, posts income or completes a Job.
+- Demo human media/templates now validate explicit session scope before sending and attribute only the exact outgoing message. Accepted sends stay accepted if history attribution temporarily fails, avoiding a misleading resend prompt.
+- Included Finance derives from the existing explicit Assist-to-Finance mapping, verified paid subscription and common owner. It creates no subscription/payment ledger. Expired standalone Finance may establish a mapping only when verified Assist already grants the bundle. Original protected expired-entitlement assertion remains unchanged and passes.
+- Checkout regression found by broad QA: route and billing service both opened the purchase transaction. Removed the redundant route transaction; new real route POST/retry test proves one purchase and immutable promo amount.
+
+## Current QA facts and diagnosis
+- Protected Finance: fresh regression of 38 Finance suites / 1014 tests PASS, plus four Finance baseline tests PASS (1018 total). Finance bridge service/routes including bundle, posted income and rollback assertions: 26 PASS.
+- New Assist runtime suite: 3 PASS (tenant knowledge/CRM/four statuses/same-call explanation, in-flight takeover fence, persistent requested human handoff). Media 4 and billing 5 PASS together. Other previously passing Assist suites still need final milestone rerun.
+- Broad harness initially used unittest for plain-function legacy files, yielding zero tests in 33 files; corrected to pytest for those files. This was a harness error, not evidence of product failures. Independent legacy suites use separate processes because their module-level DB fixtures cannot safely share one process.
+- Remaining failures include obsolete single-plan/499k expectations, removed public chat/self-service journeys, old Brain/navigation/service-catalog labels and old demo audit-range fixtures. These must be updated against final requirements while preserving tenant/auth/idempotency assertions; no tests deleted or skipped to obtain green.
+- Baseline comparison proves existing knowledge setup, targeted upgrade and several UI fixture failures predate this task. In-scope blockers still require diagnosis/fix; do not dismiss them merely as pre-existing.
+- PostgreSQL rehearsal tooling is being prepared locally; production PG18 schema has not been changed. Do not replay the entire historical migration chain on production. Only an explicit additive 0066–0069 release migration should be applied after rehearsal.
+
+## NEXT after this checkpoint
+1. Finish regression diagnosis and retirement-compatible test fixtures; fix in-scope pre-existing knowledge/setup failures.
+2. Rehearse additive schema updates and rollback/no-financial-data-change assertions; add controlled release-only migration runner.
+3. Browser QA with disposable fixtures, production credential-path/flag review (never print secret values), current-main review, PR/merge, deploy both services and verify LIVE.
+4. Real WhatsApp binding, assisted Meta/OTP and inbound/outbound verification remain unverified; never claim them complete from mocks.
+
+FINAL STATUS: IN PROGRESS. No PR, merge or deployment in this task yet. No true external blocker established.

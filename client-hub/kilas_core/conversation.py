@@ -63,6 +63,9 @@ def process(business, message, event, history, *, eligibility=None, fence=None):
                 reply='Hai! Ada yang bisa saya bantu terkait produk atau layanan bisnis ini?',
                 trace=reply_explanation.simple_greeting(),
             )
+        if message.channel == 'whatsapp' and os.environ.get('KILAS_ASSIST_RUNTIME_ENABLED','').lower() == 'true':
+            import assist_runtime
+            return assist_runtime.process(business,message,event,history,eligibility=eligible,fence=fence)
         book = select((repo.get_business_profile(bid) or {}).get('category'))
         with jobs.transaction() as tx:
             expected = actions.snapshot(tx, bid, cid)

@@ -42,6 +42,7 @@ def _media_projection(bid,row):
         'message_type':media['message_type'],
         'filename':media['filename'],
         'caption':media.get('caption') or '',
+        'review_url':url_for('assist.media_review',business_id=bid,media_key=media['id']),
         'url':url_for('client.inbox_media',business_id=bid,media_key=media['id']),
     }
 

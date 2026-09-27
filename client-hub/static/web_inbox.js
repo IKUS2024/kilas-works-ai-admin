@@ -79,12 +79,13 @@
   }
   function appendAnalysis(bubble,message){
     if(message.role!=='assistant')return;
-    const button=document.createElement('button');button.type='button';button.className='ai-analysis-toggle';button.textContent='Analisa';
+    const button=document.createElement('button');button.type='button';button.className='ai-analysis-toggle';button.textContent='Kenapa AI menjawab ini?';
     const panel=document.createElement('div');panel.className='ai-analysis-panel';panel.hidden=true;
     const analysis=message.analysis;
     if(analysis&&typeof analysis==='object'){
       analysisLine(panel,'Kenapa AI jawab begitu',analysis.summary);
       analysisLine(panel,'Intent',analysis.intent);
+      if(Number.isFinite(analysis.confidence))analysisLine(panel,'Keyakinan',analysis.confidence+'%');
       analysisLine(panel,'Workflow',analysis.workflow);
       analysisList(panel,'Fakta customer',analysis.facts);
       analysisList(panel,'Dasar jawaban',analysis.basis);
@@ -94,7 +95,7 @@
       analysisLine(panel,'Aksi sistem',analysis.action);
       analysisLine(panel,'Hasil',analysis.result);
       const note=document.createElement('div');note.className='analysis-note';
-      note.textContent=analysis.note||'Ini jejak keputusan produk, bukan chain-of-thought internal model.';panel.append(note);
+      note.textContent=analysis.note||'Ringkasan dasar jawaban dan tindakan Kilas Assist.';panel.append(note);
     }else{
       const note=document.createElement('div');note.className='analysis-note';
       note.textContent='Jejak analisa belum tersedia untuk pesan lama.';panel.append(note);
@@ -110,7 +111,7 @@
       const data=await response.json();
       for(const message of data.messages){
         const bubble=document.createElement('div'); bubble.className='web-bubble '+message.role;
-        const label=document.createElement('small');label.textContent=message.role==='user'?'Pengunjung':(message.role==='human'?'Tim':'AI');
+        const label=document.createElement('small');label.textContent=message.role==='user'?'Customer':(message.role==='human'?'Tim':'AI');
         if(message.delivery_status)label.textContent+=' · '+message.delivery_status;
         labels.set(String(message.id),{label,role:message.role});
         bubble.append(label);
@@ -129,6 +130,7 @@
             node.target='_blank';node.rel='noopener';node.textContent='Unduh '+(message.media.filename||'dokumen');
           }
           bubble.append(node);
+          if(message.media.review_url&&['image','document'].includes(message.media.message_type)){const review=document.createElement('a');review.href=message.media.review_url;review.textContent='Tinjau lampiran / bukti pembayaran';review.style.display='block';bubble.append(review);}
           if(message.media.caption){
             const caption=document.createElement('div');caption.textContent=message.media.caption;caption.style.whiteSpace='pre-wrap';
             bubble.append(caption);

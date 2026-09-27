@@ -264,6 +264,25 @@ class BridgeCases:
         self.connect(finance_branch_id=new_branch,expected_version=3,operation_key='7'*32)
         self.assertEqual(bridge.read_invoice(self.source,self.actor,self.jid),invoice)
 
+    def test_verified_assist_includes_only_explicit_owned_finance_workspace(self):
+        import assist_billing,catalog_service,payment_service,finance_entitlements
+        catalog_service.seed_catalog_if_needed()
+        admin=repo.create_user(uuid.uuid4().hex+'@example.test','unused',role='KILAS_ADMIN')
+        project=assist_billing.purchase(self.source,self.actor,'ai_admin')
+        invoice=payment_service.checkout(project,self.source,self.actor)
+        payment=payment_service.get_payment_for_invoice(invoice)
+        db.execute("UPDATE payments SET status='UNDER_REVIEW' WHERE id=?",(payment['id'],))
+        payment_service.verify_payment(payment['id'],self.source,admin)
+        before=db.query_one('SELECT COUNT(*) AS n FROM finance_transactions')['n']
+        with patch.dict(os.environ,{'KILAS_FINANCE_ACCESS_MODE':'self_service','KILAS_FINANCE_UNLIMITED_TRIAL':'false'}):
+            self.assertFalse(finance_entitlements.state(self.target)['active'])
+            self.connect()
+            self.assertEqual(finance_entitlements.state(self.target)['status'],'PAID_ACTIVE')
+            self.assertFalse(finance_entitlements.state(self.foreign)['active'])
+            self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM finance_transactions')['n'],before)
+            db.execute("UPDATE subscriptions SET status='SUSPENDED' WHERE business_id=?",(self.source,))
+            self.assertFalse(finance_entitlements.state(self.target)['active'])
+
     def test_expired_emergency_and_disabled_ai_block_new_writes_keep_finance_reads(self):
         self.connect();self.customer();invoice=self.draft()
         with patch.dict(os.environ,{'KILAS_FINANCE_ACCESS_MODE':'self_service','KILAS_FINANCE_UNLIMITED_TRIAL':'false'}):

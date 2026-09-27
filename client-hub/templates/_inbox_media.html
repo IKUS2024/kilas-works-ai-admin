@@ -20,6 +20,7 @@
     <a href="{{ media_url }}" target="_blank" rel="noopener">Unduh {{ media.filename }}</a>
   {% endif %}
   {% if media.caption %}<div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ media.caption }}</div>{% endif %}
+  {% if business is defined and media.message_type in ('image','document') %}<p><a href="{{ url_for('assist.media_review',business_id=business.id,media_key=media.id) }}">Tinjau lampiran / bukti pembayaran</a></p>{% endif %}
 {% else %}
   <div style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ m.content }}</div>
 {% endif %}

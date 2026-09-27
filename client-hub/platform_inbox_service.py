@@ -382,7 +382,7 @@ def template_readiness():
                        'Pastikan nama dan bahasa template sesuai template yang disetujui Meta. Koneksi bot diperiksa saat mengirim.'}
 
 
-def send_template_reply(customer_phone, params=None):
+def send_template_reply(customer_phone, params=None, *, demo_scope=None):
     """Approved WhatsApp template send — the "Kirim Template & Lanjutkan" action for a
     conversation whose 24h customer-service window has expired (Section 4 of the request). Unlike
     send_manual_reply(), this path is deliberately allowed to fire EVEN WHEN freeform_window_status()
@@ -422,6 +422,7 @@ def send_template_reply(customer_phone, params=None):
         "customer_phone": phone, "template_name": template_name,
         "language_code": language_code, "params": params or [],
     }
+    if demo_scope:payload['demo_scope']=demo_scope
     return _post_to_bot_bridge(template_endpoint, payload, secret)
 
 

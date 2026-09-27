@@ -76,3 +76,23 @@ def whatsapp(business_id):
             'Disconnected':'Koneksi terputus; hubungi Support','Connected':'Terhubung'}.get(row.get('state'),'Menunggu tim Kilas')
     return render_template('assist_whatsapp.html',business=business,journey=journey,
         profile=repo.get_business_profile(business_id) or {},customer_status=status)
+
+
+@assist_bp.route('/business/<int:business_id>/media/<media_key>/review',methods=['GET','POST'])
+@security.login_required
+def media_review(business_id,media_key):
+    import assist_media,repo
+    user=security.current_user();business=security.require_business_access(business_id,user)
+    try:row,is_demo=assist_media.owned(business_id,media_key)
+    except ValueError:abort(404)
+    if request.method=='POST':
+        if not knowledge_assist.allow_click(user['id'],business_id):
+            flash('Tunggu sebentar sebelum memeriksa lampiran lagi.','error')
+        else:
+            try:assist_media.analyze(business_id,media_key,user['id'])
+            except ValueError:flash('Lampiran belum berhasil dibaca. Anda tetap dapat memeriksa file asli dan mengisi pembayaran secara manual.','error')
+        return redirect(url_for('assist.media_review',business_id=business_id,media_key=media_key),code=303)
+    candidate=assist_media.cached(business_id,media_key)
+    comparisons=assist_media.comparisons(business_id,media_key,user['id'],candidate)
+    return render_template('assist_media_review.html',business=business,media=row,candidate=candidate,
+        comparisons=comparisons,original_url=url_for('client.demo_inbox_media' if is_demo else 'client.inbox_media',business_id=business_id,media_key=media_key))

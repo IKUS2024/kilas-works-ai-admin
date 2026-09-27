@@ -121,6 +121,23 @@ def record_sent(bound, text):
     return mid
 
 
+def record_sent_media(bound, provider_id):
+    """Attach the exact media message row; never infer membership from a sender/date range."""
+    import inbox_media_service
+    row=db.query_one('SELECT * FROM inbox_media WHERE scope_key=? AND event_id=?',
+                     (inbox_media_service.scope(None),provider_id))
+    if not row or not row.get('message_row_id'):return False
+    message=db.query_one("SELECT id FROM messages WHERE id=? AND number=? AND role='assistant'",
+                         (row['message_row_id'],bound['phone']))
+    if not message:return False
+    now=int(time.time())
+    db.execute('INSERT INTO kw_assist_demo_events(provider_id,session_id,business_id,payload_hash,'
+        'reply_message_id,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(provider_id) DO NOTHING',
+        ('manual_media_'+provider_id,bound['id'],bound['business_id'],hashlib.sha256(provider_id.encode()).hexdigest(),
+         message['id'],'sent',now,now))
+    return True
+
+
 def process(event, *, profile_name=None, media_message_id=None, send):
     """Platform webhook only, after signature + Phone Number ID verification.
 

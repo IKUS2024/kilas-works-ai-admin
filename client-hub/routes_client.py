@@ -772,9 +772,7 @@ def submit_for_review(business_id):
 @security.login_required
 def ai_admin_checkout(business_id):
     _business_or_404(business_id)
-    if request.method=='POST':
-        with db.app_purchase_transaction(business_id,None):
-            return _brain_checkout(business_id)
+    # assist_billing.purchase owns the lock and transaction, including retry reuse.
     return _brain_checkout(business_id)
 
 
@@ -1462,7 +1460,10 @@ def demo_inbox_reply(business_id):
 @security.login_required
 def demo_inbox_send_template(business_id):
     phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
-    ok, reason = platform_inbox_service.send_template_reply(phone)
+    import assist_demo
+    bound=assist_demo.binding(business_id,phone)
+    ok, reason = platform_inbox_service.send_template_reply(phone,
+        demo_scope={'business_id':business_id,'session_id':bound['id']})
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_TEMPLATE_REPLY_SENT", f"customer={phone}")
@@ -1494,8 +1495,11 @@ def demo_inbox_media_send(business_id):
     if not request.content_length or request.content_length > 12 * 1024 * 1024:
         abort(413)
     phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
+    import assist_demo
+    bound=assist_demo.binding(business_id,phone)
     ok, reason = inbox_media_service.platform_send(
-        phone, request.files.get("file"), request.form.get("caption"))
+        phone, request.files.get("file"), request.form.get("caption"),
+        demo_scope={"business_id":business_id,"session_id":bound["id"]})
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_MEDIA_SENT", f"customer={phone}")

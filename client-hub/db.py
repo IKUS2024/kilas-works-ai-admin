@@ -287,6 +287,7 @@ MIGRATIONS = [
     ("0066_assist_demo_sqlite.sql", "0066_assist_demo_postgres.sql"),
     ("0067_assist_usage_provider_sqlite.sql", "0067_assist_usage_provider_postgres.sql"),
     ("0068_assist_connections_sqlite.sql", "0068_assist_connections_postgres.sql"),
+    ("0069_assist_media_analysis_sqlite.sql", "0069_assist_media_analysis_postgres.sql"),
 ]
 
 

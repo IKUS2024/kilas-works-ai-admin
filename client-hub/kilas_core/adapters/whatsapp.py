@@ -119,10 +119,18 @@ def handle(bid,pid,value,field):
         import json
         fingerprint=store.digest(json.dumps(message,sort_keys=True,separators=(',',':')))
         link=ensure(bid,pid,message.get('from'),event_id=eid,payload_hash=fingerprint); cid=link['conversation_id']
+        profile_name = next((str((contact.get('profile') or {}).get('name') or '').strip()[:160]
+            for contact in value.get('contacts') or [] if contact.get('wa_id')==link['customer_phone']), '')
+        with store.transaction() as tx:
+            customer_link = tx.one('SELECT customer_id FROM kw_web_customer_links WHERE business_id=? AND conversation_id=?',(bid,cid))
+            if customer_link:
+                tx.execute('UPDATE kw_core_customers SET phone=?,display_name=CASE WHEN ?<>\'\' THEN ? ELSE CASE WHEN phone IS NULL THEN ? ELSE display_name END END WHERE business_id=? AND id=?',
+                    (link['customer_phone'],profile_name,profile_name,link['customer_phone'],bid,customer_link['customer_id']))
         if message.get('type')!='text':
             # Root persists supported bounded media first. Owner handles it, no invented extraction.
             mode(bid,cid,'HUMAN_TAKEOVER',None)
-            text='[Media customer: perlu ditinjau tim]'
+            caption=str((message.get(message.get('type')) or {}).get('caption') or '').strip()
+            text=(caption+'\n' if caption else '')+'[Lampiran customer: perlu ditinjau tim]'
         else:
             text=(message.get('text') or {}).get('body')
         if not isinstance(text,str) or not text.strip() or len(text)>4000: raise store.ChatError('invalid_message')

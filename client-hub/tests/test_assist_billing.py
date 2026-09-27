@@ -1,6 +1,7 @@
 """Final auditable pricing over the existing purchase and subscription authority."""
 import json
 import unittest
+from unittest.mock import patch
 from datetime import timedelta
 import test_client_hub_v1 as fixture
 import assist_billing as billing
@@ -79,5 +80,21 @@ class BillingTests(unittest.TestCase):
         for value in ('Starter','Pro','99.000','299.000','799.000','register'):
             self.assertIn(value,page.text)
         self.assertNotIn('Tidak ada trial',page.text)
+
+    def test_owner_checkout_post_creates_one_purchase_and_reuses_retry(self):
+        client=fixture.fresh_client()
+        with client.session_transaction() as session:
+            session['user_id']=self.owner
+            session['csrf_token']='checkout-test'
+        path=f'/business/{self.bid}/ai-admin/checkout?plan=ai_admin_pro'
+        with patch.object(repo,'required_fields_missing',return_value=[]):
+            first=client.post(path,data={'csrf_token':'checkout-test'})
+            retry=client.post(path,data={'csrf_token':'checkout-test'})
+        self.assertEqual(first.status_code,302)
+        self.assertEqual(first.location,retry.location)
+        project=billing.pending(self.bid)
+        self.assertIsNotNone(project)
+        self.assertEqual(fixture.projects_repo.get_project(project['id'])['requirements']['assist_pricing']['amount'],99000)
+        self.assertEqual(db.query_one('SELECT COUNT(*) AS n FROM projects WHERE business_id=?',(self.bid,))['n'],1)
 
 if __name__=='__main__':unittest.main()

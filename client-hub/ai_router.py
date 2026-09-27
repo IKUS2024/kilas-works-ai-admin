@@ -37,6 +37,29 @@ def _openai(system, messages, maximum, model):
         return None, None, 'provider_request_failed'
 
 
+def _anthropic_messages(messages):
+    """Translate bounded inline media; URLs remain forbidden in this conversion."""
+    result=[]
+    for message in messages:
+        content=message.get('content')
+        if isinstance(content,list):
+            converted=[]
+            for block in content:
+                kind=block.get('type')
+                data=((block.get('image_url') or {}).get('url') if kind=='image_url' else
+                      (block.get('file') or {}).get('file_data') if kind=='file' else None)
+                if data is not None:
+                    if not isinstance(data,str) or not data.startswith('data:') or ';base64,' not in data:
+                        raise ValueError('unsupported_media_source')
+                    header,payload=data.split(';base64,',1)
+                    converted.append({'type':'image' if kind=='image_url' else 'document',
+                        'source':{'type':'base64','media_type':header[5:],'data':payload}})
+                else:converted.append(block)
+            content=converted
+        result.append(dict(message,content=content))
+    return result
+
+
 def complete(system, messages, maximum=1500, *, claude, legacy_model=None, strong=False):
     """One economical route, at most one configured escalation on failure.
 
@@ -57,7 +80,7 @@ def complete(system, messages, maximum=1500, *, claude, legacy_model=None, stron
             if not model:
                 model = (os.environ.get('CLIENT_HUB_MODEL', 'claude-sonnet-4-6') if high_capacity
                          else os.environ.get('CLIENT_HUB_SIMULATION_MODEL', 'claude-haiku-4-5-20251001'))
-            return claude(system, messages, maximum, model=model)
+            return claude(system, _anthropic_messages(messages), maximum, model=model)
         return None, None, 'invalid_provider_configuration'
 
     if strong:

@@ -209,6 +209,32 @@ def _command(bid, actor, mapping):
             yield
 
 
+@contextmanager
+def _configuration_command(bid, actor, mapping):
+    """Mapping metadata requires both owners; it never writes Finance monetary records.
+
+    An expired standalone Finance trial must not block connecting an included paid Assist
+    entitlement. Actual financial commands continue through the unchanged _command gate.
+    """
+    target,branch=mapping['finance_business_id'],mapping['finance_branch_id']
+    lock_ids=sorted({bid,target})
+    with db.app_purchase_transaction(lock_ids[0],None):
+        for lock_id in lock_ids[1:]:db.execute('UPDATE businesses SET id=id WHERE id=?',(lock_id,))
+        _source(bid,actor);_finance_owner(target,actor)
+        if entitlements.flag('KILAS_FINANCE_EMERGENCY_DISABLE'):
+            raise finance.FinanceError('finance_read_only')
+        import payment_service,subscription_service
+        subscription=subscription_service.get_subscription(bid) or {}
+        paid_end=subscription_service._parse(subscription.get('period_end'))
+        eligible_bundle=bool(paid_end and paid_end>entitlements.now()
+            and payment_service.has_verified_ai_admin_payment(bid))
+        if not eligible_bundle:
+            entitlements.require_write(target,actor)
+        if branches.get(target,branch,active=True,actor_user_id=actor)['workspace_type']!='BUSINESS':
+            raise BridgeError('business_branch_required')
+        yield
+
+
 def configure(bid, actor, *, finance_business_id, finance_branch_id, expected_version,
               enabled_value, operation_key, confirmed=False):
     _version(expected_version, initial=True)
@@ -224,7 +250,7 @@ def configure(bid, actor, *, finance_business_id, finance_branch_id, expected_ve
         return db.query_one('SELECT * FROM kw_core_finance_connections WHERE source_business_id=? AND version=?',
                             (bid,prior['connection_version']))
     mapping = dict(finance_business_id=finance_business_id,finance_branch_id=finance_branch_id)
-    with _command(bid,actor,mapping):
+    with _configuration_command(bid,actor,mapping):
         prior = _replay(bid,actor,operation_key,digest)
         if prior:
             return db.query_one('SELECT * FROM kw_core_finance_connections WHERE source_business_id=? AND version=?',

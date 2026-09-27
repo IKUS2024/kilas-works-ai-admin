@@ -22,6 +22,7 @@ MODEL_PRICING = {
     'claude-sonnet-4-6': dict(input=3, output=15, read=.30, write=3.75, write_1h=6),
 }
 _scope = contextvars.ContextVar('ai_usage_scope', default=(None, 'platform_helper'))
+_classification = contextvars.ContextVar('assist_ai_classification',default=None)
 log = logging.getLogger(__name__)
 
 
@@ -38,12 +39,14 @@ def fair_use_limit():
 
 
 @contextlib.contextmanager
-def scope(tenant_id, context):
+def scope(tenant_id, context, *, classification=None):
     token = _scope.set((tenant_id, context))
+    mode = _classification.set(classification)
     try:
         yield
     finally:
         _scope.reset(token)
+        _classification.reset(mode)
 
 
 def for_business(context):
@@ -116,8 +119,9 @@ def record(model, response, *, tenant_id=None, context=None, classification='nor
         # Context/model come from code/config, never customer text.
         allowed = {'platform_customer','tenant_customer','owner','tenant_owner','demo','demo_fallback',
                    'normalization','simulation','writing','faq','knowledge_assist','payment_review','platform_helper',
-                   'customer_insight','follow_up','assist_demo',
+                   'customer_insight','follow_up','assist_demo','assist_media',
                    'finance_ai','finance_chat','finance_receipt','finance_bank','finance_document','finance_analyst','finance_operator'}
+        if classification=='normal' and _classification.get():classification=_classification.get()
         if context not in allowed or classification not in ('normal','vision','complex'):
             raise ValueError('invalid_classification')
         if not isinstance(model,str) or len(model)>100 or not all(c.isalnum() or c in '-_.' for c in model):

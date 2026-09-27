@@ -188,7 +188,7 @@
                   {% endif %}
                   {% if m.analysis.action %}<div><strong>Aksi sistem:</strong> {{ m.analysis.action }}</div>{% endif %}
                   {% if m.analysis.result %}<div><strong>Hasil:</strong> {{ m.analysis.result }}</div>{% endif %}
-                  <div class="kw-ai-analysis-note">{{ m.analysis.note or 'Ini jejak keputusan produk, bukan chain-of-thought internal model.' }}</div>
+                  <div class="kw-ai-analysis-note">{{ m.analysis.note or 'Ringkasan dasar jawaban dan tindakan Kilas Assist.' }}</div>
                 {% else %}
                   <div class="kw-ai-analysis-note">Jejak analisa belum tersedia untuk pesan lama atau balasan manual.</div>
                 {% endif %}

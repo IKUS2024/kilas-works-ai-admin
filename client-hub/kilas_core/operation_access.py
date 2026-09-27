@@ -11,7 +11,9 @@ def enabled():
 
 def eligible(tx, bid):
     if (type(bid) is not int or bid<=0 or not enabled() or not jobs.enabled() or not customers.enabled()
-            or os.environ.get('KILAS_WEB_CHAT_ENABLED','').lower()!='true' or not enabled_for_business(bid)):
+            or (os.environ.get('KILAS_WEB_CHAT_ENABLED','').lower()!='true'
+                and os.environ.get('KILAS_ASSIST_RUNTIME_ENABLED','').lower()!='true')
+            or not enabled_for_business(bid)):
         return False
     row = tx.one('SELECT b.package,b.status AS business_status,s.status AS subscription_status '
                  'FROM businesses b LEFT JOIN subscriptions s ON s.business_id=b.id WHERE b.id=?',(bid,))

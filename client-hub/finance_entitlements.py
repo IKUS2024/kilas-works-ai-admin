@@ -40,6 +40,9 @@ def state(business_id):
         raise FinanceError('finance_configuration') from None
     current = now()
     paid = parse(row['paid_until']) if row else None
+    from assist_finance_entitlement import until as included_until
+    bundled = included_until(business_id)
+    paid = max((d for d in (paid,bundled) if d is not None),default=None)
     trial = parse(row['trial_until']) if row else None
     unlimited = bool(row and unlimited_trial_mode())
     status = (
