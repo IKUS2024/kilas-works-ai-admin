@@ -245,7 +245,7 @@ class JobRoutesTests(unittest.TestCase):
         self.assertIn(b'Tindakan', page.data)
         self.assertIn(customer['display_name'].encode(), page.data)
         self.assertIn(b'Foto produk minggu depan', page.data)
-        self.assertIn(b'Jenis', page.data)
+        self.assertNotIn(b'Jenis \xc2\xb7 Pekerjaan', page.data)
         self.assertIn(b'Status', page.data)
 
     def test_admin_platform_workspace_uses_same_customer_and_job_lifecycle(self):

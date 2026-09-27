@@ -8,7 +8,7 @@
     {% if session.get('role') == 'KILAS_ADMIN' %}
     <a class="btn secondary" href="{{ url_for('admin.platform_inbox') }}">Inbox</a>
     {% else %}
-    <a class="btn secondary" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web') }}">Inbox</a>
+    <a class="btn secondary" href="{{ url_for('client.inbox_page',business_id=business.id) }}">Inbox</a>
     {% endif %}
   </div>
 
@@ -35,7 +35,7 @@
         <div class="client-item-main">
           <div class="client-item-title">{{ c.display_name }}</div>
           <div class="client-item-meta">
-            {% if c.phone %}{{ c.phone }}{% elif c.email %}{{ c.email }}{% else %}{{ 'WhatsApp' if c.source_channel == 'WHATSAPP' else 'WEB' }} contact{% endif %}
+            {% if c.phone %}{{ c.phone|contact_phone }}{% elif c.email %}{{ c.email }}{% else %}{{ 'WhatsApp' if c.source_channel == 'WHATSAPP' else 'WEB' }} contact{% endif %}
             · {{ c.conversation_count }} percakapan · {{ c.source_channel }}
           </div>
         </div>
@@ -46,9 +46,9 @@
     </a>
     {% else %}
       {% if stage == 'LEAD' %}
-      <div class="client-empty">Belum ada lead. Kontak baru dari WhatsApp atau WhatsApp resmi akan masuk sebagai Lead.</div>
+      <div class="client-empty">Belum ada lead aktif.<br>Kontak baru yang masih bertanya atau mencari informasi akan muncul di sini.</div>
       {% elif stage == 'CUSTOMER' %}
-      <div class="client-empty">Belum ada customer. Lead bisa diubah menjadi Customer dari halaman detail.</div>
+      <div class="client-empty">Belum ada customer.<br>Lead akan berpindah ke Customer saat mereka menyampaikan kebutuhan atau permintaan konkret.</div>
       {% endif %}
     {% endfor %}
   </div>

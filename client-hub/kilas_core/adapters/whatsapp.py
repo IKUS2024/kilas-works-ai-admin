@@ -125,8 +125,8 @@ def handle(bid,pid,value,field):
         with store.transaction() as tx:
             customer_link = tx.one('SELECT customer_id FROM kw_web_customer_links WHERE business_id=? AND conversation_id=?',(bid,cid))
             if customer_link:
-                tx.execute('UPDATE kw_core_customers SET phone=?,display_name=CASE WHEN ?<>\'\' THEN ? ELSE CASE WHEN phone IS NULL THEN ? ELSE display_name END END WHERE business_id=? AND id=?',
-                    (link['customer_phone'],profile_name,profile_name,link['customer_phone'],bid,customer_link['customer_id']))
+                from kilas_core import customers
+                customers._sync_whatsapp_name(tx,bid,customer_link['customer_id'],link['customer_phone'],profile_name)
         if message.get('type')!='text':
             # Root persists supported bounded media first. Owner handles it, no invented extraction.
             mode(bid,cid,'HUMAN_TAKEOVER',None)

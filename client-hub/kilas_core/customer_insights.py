@@ -1,11 +1,12 @@
 """Incremental, tenant-scoped Customer Insight for Kilas Assist CRM.
 
 Customer chat delivery never waits on this module. Insight reads WhatsApp Inbox only; retired Web Chat is excluded. The owner/detail surface calls refresh(),
-which compares immutable message cursors and only sends new chat messages plus the previous
+which compares immutable message cursors and only sends new customer messages plus the previous
 structured insight to the model. Demo WhatsApp is read through its durable, privacy-scoped
 binding; no platform-wide inbox is ever exposed to a tenant.
 """
 import json
+from kilas_core import customer_facts
 import time
 
 import ai_onboarding
@@ -69,6 +70,22 @@ ATURAN MUTLAK:
   "action": string|null,
   "job_status": "PERLU_TINDAKAN"|"DIKERJAKAN"|"BATAL"|null
 }
+"""
+SYSTEM_PROMPT += """
+PROVENANCE WAJIB: knowledge/profil bisnis adalah milik TENANT yang melayani, bukan customer.
+Untuk name/business_name/business_type/location/budget/schedule tambahkan fact_evidence:
+{field: kutipan PERSIS pesan CUSTOMER yang menyatakan nilai itu TENTANG DIRINYA/permintaannya}.
+Nilai fakta harus menggunakan kata asli yang terdapat di kutipan; jangan menyimpulkan dari
+sapaan AI, informasi tenant, pertanyaan customer tentang bisnis kita, atau tebakan model.
+Untuk interests/needs, fact_evidence[field] adalah {nilai: kutipan customer}.
+Untuk koreksi list gunakan replaces: {needs: {nilai_lama: nilai_baru}}.
+Tambahkan schedule:string|null; request_relation: CONTINUE|NEW|null.
+NEW hanya untuk permintaan terpisah yang eksplisit; jawaban detail, koreksi, invoice/pembayaran
+untuk permintaan aktif tetap CONTINUE. Satu request tetap satu Job.
+Tambahkan _action_evidence: kutipan customer yang membuktikan permintaan konkret tersebut.
+Judul action singkat dan spesifik, mis. Cari talent perempuan atau Booking konsultasi.
+Pertahankan fakta/request sebelumnya yang sudah terverifikasi bila pesan baru tidak mengulangnya.
+Koreksi customer menggantikan fakta bertentangan. Jangan memakai kepribadian/dugaan di ringkasan.
 """
 
 
@@ -140,6 +157,11 @@ def _normalize(value):
                       ("PERLU_TINDAKAN", "DIKERJAKAN", "BATAL") else None,
     })
     if '_payment_evidence' in value:result['_payment_evidence']=_clean_string(value['_payment_evidence'],900) or ''
+    for key in ('fact_evidence', 'replaces', 'request_relation', '_request_key', '_action_evidence',
+                '_provenance_version', '_separate_request', '_handoff_requested'):
+        if key in value:
+            result[key] = value[key]
+    result['schedule'] = _clean_string(value.get('schedule'), 160)
     return result
 
 
@@ -158,7 +180,11 @@ def _stored(business_id, customer_id):
         insight = _normalize(json.loads(row["insight_json"]))
     except (TypeError, ValueError):
         insight = _default()
+    legacy = insight.get('_provenance_version') != customer_facts.VERSION
+    if legacy:
+        insight = _default()
     return {
+        "requires_rebuild": legacy,
         "insight": insight,
         "core_cursor": int(row.get("core_message_cursor") or 0),
         "demo_cursor": int(row.get("demo_message_cursor") or 0),
@@ -284,11 +310,27 @@ def _demo_messages(business_id, customer, after):
     return cleaned
 
 
+def for_inference(business_id, customer_id, stored):
+    previous = dict((stored or {}).get('insight') or {})
+    key = previous.get('_request_key')
+    if key:
+        with customers.transaction() as tx:
+            rows = tx.execute('SELECT status,fields_json FROM kw_core_jobs WHERE business_id=? AND customer_id=?',
+                              (business_id, customer_id))
+        for row in rows:
+            fields = json.loads(row['fields_json'])
+            if fields.get('request_key') == key:
+                previous['_request_closed'] = row['status'] in ('COMPLETED', 'CANCELLED')
+                break
+    return previous
+
+
 def source_state(business_id, customer_id):
     customer = customers.get_customer(business_id, customer_id)
     stored = _stored(business_id, customer_id)
-    core_cursor = stored["core_cursor"] if stored else 0
-    demo_cursor = stored["demo_cursor"] if stored else 0
+    rebuild = bool(stored and stored.get('requires_rebuild'))
+    core_cursor = stored["core_cursor"] if stored and not rebuild else 0
+    demo_cursor = stored["demo_cursor"] if stored and not rebuild else 0
     core = _core_messages(business_id, customer_id, core_cursor)
     legacy = (
         _platform_messages(business_id, customer, demo_cursor)
@@ -303,10 +345,14 @@ def _transcript(core, demo):
     # the legacy platform message table can use a datetime string while Core uses epoch seconds.
     rows = []
     for row in core:
-        who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
+        if row.get('role') != 'user':
+            continue
+        who = "CUSTOMER"
         rows.append(f"[{who}][WHATSAPP] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     for row in demo:
-        who = "CUSTOMER" if row.get("role") == "user" else "BUSINESS"
+        if row.get('role') != 'user':
+            continue
+        who = "CUSTOMER"
         source = row.get("_source") or "DEMO_WHATSAPP"
         rows.append(f"[{who}][{source}] {str(row.get('content') or '')[:MAX_MESSAGE_CHARS]}")
     text = "\n".join(rows)
@@ -323,7 +369,7 @@ def _parse(text):
 def refresh(business, customer):
     business_id, customer_id = business["id"], customer["id"]
     customer, stored, core, demo = source_state(business_id, customer_id)
-    previous = stored["insight"] if stored else _default()
+    previous = for_inference(business_id, customer_id, stored) if stored else _default()
     if not core and not demo:
         result = dict(previous)
         result["_meta"] = {
@@ -369,11 +415,32 @@ def refresh(business, customer):
         }
         return result
 
+    source_texts = [str(r.get('content') or '') for r in core + demo if r.get('role') == 'user']
+    insight = customer_facts.ground(insight, source_texts, previous)
+    evidence = insight.get('_action_evidence') or ''
+    # Refresh uses the same contract as live paid/demo inference.
+    actionable = bool(insight.get('action') and any(evidence in t for t in source_texts) and evidence)
+    if not actionable:
+        insight['job_status'] = None
+    insight = customer_facts.continue_request(insight, previous, '\n'.join(source_texts), evidence,
+                                             actionable=actionable)
+    from kilas_core.customer_action_jobs import _payment_step_text
+    insight['_payment_evidence'] = evidence if actionable and _payment_step_text(evidence) else ''
+    if insight.get('job_status') == 'DIKERJAKAN' and not insight['_payment_evidence']:
+        insight['job_status'] = 'PERLU_TINDAKAN'
     core_cursor = max([stored["core_cursor"] if stored else 0] + [int(r["id"]) for r in core])
     demo_cursor = max([stored["demo_cursor"] if stored else 0] + [int(r["id"]) for r in demo])
-    count = (stored["message_count"] if stored else 0) + len(core) + len(demo)
+    count = (stored["message_count"] if stored and not stored.get("requires_rebuild") else 0) + len(core) + len(demo)
     now = int(time.time())
     with customers.transaction() as tx:
+        tx.execute('UPDATE businesses SET id=id WHERE id=?', (business_id,))
+        latest = tx.one('SELECT core_message_cursor,demo_message_cursor FROM kw_core_customer_insights WHERE business_id=? AND customer_id=?',
+                        (business_id, customer_id))
+        if latest and ((latest['core_message_cursor'], latest['demo_message_cursor']) !=
+                       ((stored or {}).get('core_cursor', 0), (stored or {}).get('demo_cursor', 0))):
+            stale = dict(previous)
+            stale['_meta'] = dict(has_history=True, fresh=False, error=True)
+            return stale
         tx.execute(
             "INSERT INTO kw_core_customer_insights"
             "(business_id,customer_id,insight_json,core_message_cursor,demo_message_cursor,"
@@ -429,3 +496,13 @@ def safe_refresh(business, customer):
             "error": True,
         }
         return result
+
+
+def cached(business, customer):
+    stored = _stored(business['id'], customer['id'])
+    result = dict(stored['insight']) if stored else _default()
+    result['_meta'] = dict(updated_at=stored['updated_at'] if stored else None,
+        message_count=stored['message_count'] if stored else 0,
+        has_history=bool(stored and stored['message_count']),
+        fresh=bool(stored and not stored.get('requires_rebuild')))
+    return result

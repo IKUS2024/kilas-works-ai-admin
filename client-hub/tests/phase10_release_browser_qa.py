@@ -62,10 +62,14 @@ def main():
             page.get_by_label('Nama bisnis', exact=True).fill('Release ' + persona)
             page.get_by_role('button', name='Buat Bisnis & Setup Kilas Assist', exact=False).click()
             page.locator('[name=category]').fill('Logistics')
-            page.locator('[name=owner_name]').fill('Release Owner')
             page.locator('[name=short_description]').fill('Pengiriman barang untuk QA disposable')
-            page.get_by_role('button', name='Simpan & Lanjut', exact=True).click()
-            assert '/wizard/services' in page.url
+            page.locator('[name=business_phone]').fill('628123450000')
+            page.locator('[name=online_or_offline]').select_option('online')
+            page.locator('[name=operating_hours]').fill('09-17 WIB')
+            page.locator('[name=primary_language]').fill('Bahasa Indonesia')
+            page.get_by_role('button', name='Lanjut ke Latih Kilas Assist', exact=True).click()
+            expect(page.get_by_role('heading', name='Latih Kilas Assist', exact=True)).to_be_visible()
+            assert '/train' in page.url
             page.goto(BASE + '/workspace'); shot(page, persona + '-signup-minimal-setup')
             page.goto(BASE + '/logout'); login(page, 'release-' + persona + '@example.test')
             expect(page.get_by_role('heading', name='Release ' + persona, exact=True)).to_be_visible()

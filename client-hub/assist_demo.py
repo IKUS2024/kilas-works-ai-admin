@@ -204,7 +204,7 @@ def process(event, *, profile_name=None, media_message_id=None, send, media_chan
             previous = customer_insights._stored(bid, customer['id']) if customer else None
             reply, insight, trace = assist_reply.generate(bid, content,
                 [{'role':r['role'], 'content':r['content'][:1200]} for r in history[-13:] if r['id'] != mid],
-                (previous or {}).get('insight'))
+                customer_insights.for_inference(bid, customer['id'], previous) if customer else None)
         # Owner takeover or a new binding wins over a response generated in flight.
         current = db.query_one('SELECT active FROM kw_assist_demo_sessions WHERE id=?', (bound['id'],))
         if not current['active'] or platform_inbox_service.get_state(phone) != 'AI_ACTIVE':

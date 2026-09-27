@@ -97,7 +97,11 @@ class CustomerTests(unittest.TestCase):
             "buying_stage": "BERMINAT",
             "buying_signal_reason": "Customer menyebut kebutuhan spesifik.",
             "communication_notes": "Menjelaskan kebutuhan secara langsung.",
-            "missing_info": ["budget"], "follow_up": "Tanyakan kisaran budget."
+            "missing_info": ["budget"], "follow_up": "Tanyakan kisaran budget.",
+            "fact_evidence": {"name": "Nama saya Budi.",
+                "business_type": "Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp.",
+                "location": "Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp.",
+                "needs": {"admin WhatsApp": "Saya punya coffee shop di Tangerang dan sedang cari admin WhatsApp."}}
         })
         demo_rows = [
             {"id": start_id, "role": "user", "content": "Demo ID: AAAA-BBBB", "created_at": "2026-09-26 02:00:00"},
@@ -106,7 +110,10 @@ class CustomerTests(unittest.TestCase):
         with patch("assist_demo.rows", return_value=demo_rows), \
              patch.object(customer_insights.ai_onboarding, "_call_claude",
                           return_value=(first_json, "end_turn", None)) as call:
-            page = self.client.get(f"/business/7/customers/{customer['id']}")
+            shell = self.client.get(f"/business/7/customers/{customer['id']}")
+            self.assertEqual(shell.status_code, 200)
+            call.assert_not_called()  # First paint never waits for an external model.
+            page = self.client.get(f"/business/7/customers/{customer['id']}/insight")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Budi", page.data)
         call.assert_called_once()
@@ -125,7 +132,8 @@ class CustomerTests(unittest.TestCase):
         second_json = json.dumps({
             "summary": "Budi mencari admin WhatsApp untuk coffee shop di Tangerang dengan budget sekitar Rp500 ribu per bulan.",
             "name": "Budi", "business_name": None, "business_type": "coffee shop",
-            "location": "Tangerang", "budget": "sekitar Rp500 ribu per bulan",
+            "location": "Tangerang", "budget": "sekitar 500 ribu per bulan",
+            "fact_evidence": {"budget": "Budget saya sekitar 500 ribu per bulan."},
             "interests": ["Kilas Assist"], "needs": ["admin WhatsApp"],
             "buying_stage": "BERMINAT",
             "buying_signal_reason": "Customer sudah menyebut kebutuhan dan budget.",
@@ -137,7 +145,7 @@ class CustomerTests(unittest.TestCase):
                           return_value=(second_json, "end_turn", None)) as call:
             updated = self.client.get(f"/business/7/customers/{customer['id']}/insight")
         self.assertEqual(updated.status_code, 200)
-        self.assertIn(b"Rp500 ribu", updated.data)
+        self.assertIn(b"500 ribu", updated.data)
         call.assert_called_once()
         self.assertIn("INSIGHT SEBELUMNYA", call.call_args.args[1][0]["content"])
         self.assertIn("500 ribu", call.call_args.args[1][0]["content"])

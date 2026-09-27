@@ -170,6 +170,49 @@ def upgrade_to_ai_admin(business_id):
     return redirect(url_for("client.wizard_step", business_id=business_id, step="basics"))
 
 
+def _quick_business_setup(business, profile):
+    """Patch only essentials. Detailed teaching and existing paid knowledge remain canonical."""
+    import assist_journey
+    bid = business['id']
+    if request.method == 'GET':
+        return render_template('business_setup.html', business=business, profile=profile)
+    actor = security.current_user()['id']
+    required = {'business_name': 'Nama bisnis', 'category': 'Kategori bisnis',
+                'short_description': 'Deskripsi singkat', 'business_phone': 'WhatsApp bisnis',
+                'online_or_offline': 'Model layanan', 'operating_hours': 'Jam operasional',
+                'primary_language': 'Bahasa utama'}
+    data = {key: request.form.get(key, '').strip() for key in (*required, 'address')}
+    errors = [label for key, label in required.items() if not data[key]]
+    if data['online_or_offline'] not in ('online', 'offline', 'hybrid'):
+        errors.append('Model layanan')
+    phone = re.sub(r'[\s()+-]', '', data['business_phone'])
+    if phone.startswith('0'):
+        phone = '62' + phone[1:]
+    if not re.fullmatch(r'[1-9][0-9]{7,14}', phone):
+        errors.append('Nomor WhatsApp bisnis yang valid')
+    if data['online_or_offline'] in ('offline', 'hybrid') and not data['address']:
+        errors.append('Lokasi / area layanan')
+    if any(len(value) > (1200 if key == 'short_description' else 500) for key, value in data.items()):
+        errors.append('Data terlalu panjang')
+    if errors:
+        return render_template('business_setup.html', business=business,
+            profile={**profile, **data}, form_error='Lengkapi: ' + ', '.join(dict.fromkeys(errors)) + '.'), 400
+    data['business_phone'] = phone
+    # The existing writer serializes changes and invalidates tested readiness by fingerprint.
+    with db.app_purchase_transaction(bid, None):
+        repo.upsert_business_profile(bid, _merge_profile_patch(repo.get_business_profile(bid), data))
+        db.execute('UPDATE businesses SET business_name=? WHERE id=?', (data['business_name'], bid))
+        repo.mark_onboarding_step_done(bid, 'basics_done')
+        repo.save_onboarding_session(bid, assist_journey.SETUP_EVENT, {'version': 1}, actor)
+        repo.set_business_stale_if_done(bid)
+        if business['status'] == 'DRAFT':
+            repo.set_business_status(bid, 'ONBOARDING', actor, 'Essential business setup completed')
+    journey = assist_journey.state(repo.get_business(bid))
+    if not journey['paid'] and not journey['demo_started']:
+        assist_journey.start_demo(bid, actor)
+    return redirect(url_for('assist.training', business_id=bid), code=303)
+
+
 @client_bp.route("/business/<int:business_id>/wizard/<step>", methods=["GET", "POST"])
 @security.login_required
 def wizard_step(business_id, step):
@@ -181,6 +224,15 @@ def wizard_step(business_id, step):
     profile = repo.get_business_profile(business_id) or {}
     services = repo.get_business_services(business_id)
     faqs = repo.get_business_faqs(business_id)
+
+    if request.method == 'GET':
+        if step == 'basics':
+            return _quick_business_setup(business, profile)
+        import assist_journey
+        return redirect(url_for('assist.training', business_id=business_id) if assist_journey.onboarding_complete(business_id)
+                        else url_for('client.wizard_step', business_id=business_id, step='basics'))
+    if step == 'basics' and request.form.get('setup_mode') == 'quick':
+        return _quick_business_setup(business, profile)
 
     if request.method == "GET":
         print(f"WIZARD_PAGE_START business_id={business_id} step={step}")

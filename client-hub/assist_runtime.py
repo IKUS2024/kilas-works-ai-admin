@@ -17,7 +17,7 @@ def process(business,message,event,history,*,eligibility,fence=None):
         before=snapshot.execute('SELECT id,version FROM kw_core_jobs WHERE business_id=? AND customer_id=? ORDER BY updated_at DESC,id LIMIT 100',(bid,customer['id']))
     versions={j['id']:j['version'] for j in before}
     reply,insight,trace=assist_reply.generate(bid,message.text,history,
-        (previous or {}).get('insight'),feature='tenant_customer')
+        customer_insights.for_inference(bid,customer['id'],previous),feature='tenant_customer')
     if not eligibility(bid):return store.finish(event,error='provider_error')
     with store.transaction() as tx:
         jobs._lock(tx,bid)

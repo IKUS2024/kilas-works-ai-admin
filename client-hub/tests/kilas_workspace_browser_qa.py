@@ -136,7 +136,7 @@ with sync_playwright() as p:
     page.get_by_role('button',name='Pilih Kilas Assist',exact=False).click()
     page.get_by_label('Nama bisnis',exact=True).fill('Usaha Laras')
     page.get_by_role('button',name='Buat Bisnis & Setup Kilas Assist',exact=False).click()
-    expect(page.get_by_text('Selesaikan enam bagian singkat ini',exact=False)).to_be_visible()
+    expect(page.get_by_text('Isi dasar bisnis sekali',exact=False)).to_be_visible()
     expect(page.get_by_role('link',name='Coba sebagai customer',exact=True)).to_have_count(0)
     page.get_by_role('link',name='Lanjut nanti ke Home',exact=True).click()
     expect(page.get_by_role('heading',name='Usaha Laras',exact=True)).to_be_visible()

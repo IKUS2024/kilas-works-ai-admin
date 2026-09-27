@@ -72,7 +72,7 @@ FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
 # Server-only workflow metadata is not accepted by owner form routes.
 WORKFLOW_METADATA = {'playbook', 'uncertain_fields',
                      'action', 'intent', 'priority', 'source', 'source_key',
-                     'payment_step_reached'}
+                     'payment_step_reached', 'request_key'}
 LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
@@ -311,7 +311,7 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
         previous = json.loads(current['fields_json'])
         if previous.get('source') == 'Customer Insight':
             preserved = dict(fields)
-            for key in ('action','intent','priority','source','source_key','payment_step_reached'):
+            for key in ('action','intent','priority','source','source_key','payment_step_reached','request_key'):
                 if key in previous:
                     preserved[key] = previous[key]
             encoded = validate_fields(preserved)
