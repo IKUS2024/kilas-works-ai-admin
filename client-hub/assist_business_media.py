@@ -14,7 +14,6 @@ import ai_onboarding
 import ai_router
 import ai_usage
 import db
-import file_utils
 import repo
 from public_chat import store
 
@@ -47,6 +46,10 @@ def context(bid):
 
 
 def teach(business, actor, instruction, upload, approved=False, replace_id=None):
+    # Upload validation/extraction belongs to Client Hub. The root WhatsApp bot
+    # reads approved facts and sends stored originals; it must not load the Hub's
+    # PDF parsers merely to import Assist replies or bind a Demo invitation.
+    import file_utils
     import assist_training
     bid = business['id']
     if replace_id and not get(bid, replace_id):

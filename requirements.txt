@@ -1,4 +1,6 @@
 flask
+# Root bot runtime only. Upload-only PDF parsers belong in client-hub/requirements.txt.
+# CI installs this file alone and exercises signed Demo + original image/PDF delivery.
 requests
 gunicorn
 psycopg2-binary
