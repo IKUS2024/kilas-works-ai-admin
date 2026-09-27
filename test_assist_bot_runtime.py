@@ -98,18 +98,21 @@ class RootBotRuntimeTests(unittest.TestCase):
             self.assertNotIn(name, sys.modules, 'Bot must not load upload-only parsers')
 
     def invitation(self):
-        repo.save_ai_normalized_config(self.bid, 'Studio', {'description': 'Foto produk'}, [])
-        with patch.object(self.training.ai_onboarding, '_call_claude',
-                          return_value=(self.knowledge, 'end_turn', None)):
-            self.training.test_reply(self.business, self.uid, 'Harga foto produk?')
+        # First readiness has no customer-preview/model requirement, including with the
+        # production root dependency set (the Hub upload parsers remain absent).
         self.training._confirm_ready(self.bid, self.uid)
         self.assertTrue(demo.assist_journey.state(self.business)['ready'])
-        self.sid, marker = demo.begin(self.bid, self.uid)
+        self.sid, marker = demo.launch(self.bid, self.uid)
+        if marker is None:
+            self.assertEqual(demo.active_binding(self.bid)['sender_phone'], self.phone)
+            return
         self.assertIsNone(demo.latest(self.bid)['sender_phone'])
         response = self.post(marker)
         self.assertEqual(response.status_code, 200, response.text)
         self.assertTrue(response.json['demo_processed'])
         self.assertEqual(demo.latest(self.bid)['sender_phone'], self.phone)
+        with patch.object(demo, 'begin', side_effect=AssertionError('bound session must be reused')):
+            self.assertEqual(demo.launch(self.bid, self.uid), (self.sid, None))
         self.assertEqual(self.sent.call_args.args,
                          (self.phone, 'Demo aktif ✅ Sekarang chat seperti customer bisnis kamu.'))
         event = db.query_one('SELECT * FROM kw_assist_demo_events WHERE session_id=?', (self.sid,))

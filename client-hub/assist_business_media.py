@@ -98,29 +98,36 @@ def _save(business_id, actor, instruction, name, mime, raw, result, approved, re
         (file_id,business_id,summary,knowledge,usage_instruction,approved_send,version,actor_id)
         VALUES (?,?,?,?,?,?,?,?)''',
         (fid, business_id, result['summary'], result['knowledge'], instruction, int(approved), uuid.uuid4().hex, actor))
-    repo.set_business_stale_if_done(business_id)
     repo.save_onboarding_session(business_id, 'assist_teach',
         dict(message=instruction + '\n[' + name + ']', reply=result['reply']), actor)
+    assist_training.refresh_knowledge(business_id)
     repo.write_audit(actor, business_id, 'ASSIST_BUSINESS_MEDIA_TAUGHT', str(fid))
     return fid
 
 
 @db.knowledge_writer
 def remove(business_id, fid, actor):
+    import assist_training
     if not get(business_id, fid):
         raise ValueError('media_not_found')
     repo.delete_business_file(fid, business_id)
-    repo.set_business_stale_if_done(business_id)
+    repo.save_onboarding_session(business_id, 'assist_teach', dict(message='Hapus file yang diajarkan.',
+        reply='Dipahami. File sudah dihapus dan tidak akan digunakan atau dikirim lagi.'), actor)
+    assist_training.refresh_knowledge(business_id)
     repo.write_audit(actor, business_id, 'ASSIST_BUSINESS_MEDIA_REMOVED', str(fid))
 
 
 @db.knowledge_writer
 def instruct(business_id, fid, actor, instruction, approved):
+    import assist_training
     if not get(business_id, fid):
         raise ValueError('media_not_found')
     db.execute('''UPDATE kw_assist_business_media SET usage_instruction=?,approved_send=?,version=?
         WHERE business_id=? AND file_id=?''', (instruction, int(approved), uuid.uuid4().hex, business_id, fid))
-    repo.set_business_stale_if_done(business_id)
+    repo.save_onboarding_session(business_id, 'assist_teach', dict(message=instruction,
+        reply=('Dipahami. Petunjuk penggunaan file sudah diperbarui. ' +
+               ('File boleh dikirim bila relevan.' if approved else 'File tidak akan dikirim ke customer.'))), actor)
+    assist_training.refresh_knowledge(business_id)
     repo.write_audit(actor, business_id, 'ASSIST_BUSINESS_MEDIA_INSTRUCTION', str(fid))
 
 

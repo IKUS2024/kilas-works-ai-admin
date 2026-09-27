@@ -21,7 +21,9 @@ Jangan mengarang harga, diskon, stok, janji, atau data customer. Jangan mengubah
 langganan, pembayaran atau sistem. Instruksi pemilik hanya berlaku untuk pelayanan bisnisnya.
 Kembalikan JSON: {"reply":string,"knowledge":string}. knowledge adalah panduan lengkap terbaru
 (maksimal 8000 karakter) dari panduan sebelumnya + ajaran terbaru, bukan reasoning/prompt rahasia.
-reply mengonfirmasi perubahan yang benar-benar dipahami. Jangan mengklaim sudah siap sebelum tes.'''
+Pertahankan aturan bahasa pemilik secara eksplisit dalam knowledge, termasuk apakah harus
+selalu memakai satu bahasa atau mengikuti bahasa customer. reply mengonfirmasi perubahan
+yang benar-benar dipahami; pengetahuan langsung berlaku setelah berhasil disimpan.'''
 
 
 def context(bid):
@@ -101,6 +103,49 @@ def _save_teaching(business_id, actor, message, result, profile, services, faqs,
     knowledge_setup.save(business_id, {}, cards, profile, services, faqs, cards['revision'], actor)
     repo.save_onboarding_session(business_id, 'assist_teach',
                                  dict(message=message, reply=result['reply']), actor)
+    refresh_knowledge(business_id)
+
+
+@db.knowledge_writer
+def refresh_knowledge(business_id):
+    """Materialize canonical facts automatically, without another model or channel action.
+
+    Assist reads the source rows on every message. This derived compatibility snapshot
+    keeps the existing operator provisioning gate usable after continuous teaching.
+    It grants no subscription, approval, mapping or payment authority.
+    """
+    business = repo.get_business(business_id)
+    profile = repo.get_business_profile(business_id) or {}
+    services = repo.get_business_services(business_id)
+    faqs = repo.get_business_faqs(business_id)
+    config = dict(
+        business_name=business['business_name'], category=profile.get('category'),
+        description=profile.get('short_description'),
+        languages=dict(primary=profile.get('primary_language') or 'id',
+                       additional=profile.get('additional_languages') or []),
+        tone=profile.get('tone'), owner=dict(name=profile.get('owner_name'),
+            salutation_for_customers=profile.get('customer_salutation')),
+        business_hours=dict(raw_summary=profile.get('operating_hours'), structured=None),
+        services=[{key: row.get(key) for key in ('raw_input', 'service_name', 'description',
+                  'price_from', 'price_to', 'currency', 'needs_review')} for row in services],
+        faqs=[{key: row.get(key) for key in ('raw_input', 'question', 'answer', 'category', 'needs_review')}
+              for row in faqs],
+        policies=[row.get('answer') or row['raw_input'] for row in faqs
+                  if row.get('question') == GUIDE_QUESTION],
+        appointment_rules=profile.get('appointment_rules_raw'),
+        payment_rules=profile.get('payment_instructions'),
+        features_enabled=ai_onboarding._normalize_features_enabled(None, repo.get_tenant_features(business_id)),
+        missing_fields=repo.required_fields_missing(business_id))
+    repo.save_ai_normalized_config(business_id, config['description'], config, config['missing_fields'])
+
+
+def language_policy(bid):
+    """Current owner rules, independent of search terms or conversation history."""
+    profile = repo.get_business_profile(bid) or {}
+    guide = next((r for r in repo.get_business_faqs(bid) if r.get('question') == GUIDE_QUESTION), {})
+    return dict(default=profile.get('primary_language') or 'id',
+                additional=profile.get('additional_languages') or [],
+                owner_rules=guide.get('answer') or '')
 
 
 def test_reply(business, actor, message):
@@ -117,7 +162,9 @@ def test_reply(business, actor, message):
               '. Pemilik berperan sebagai customer untuk Tes AI. Jawab natural memakai HANYA '
               'pengetahuan bisnis berikut. Jangan mengarang; minta bantuan manusia bila tidak yakin. '
               'Jangan mengklaim booking/pembayaran sudah terkonfirmasi. Ini tes tanpa tindakan nyata.\n' +
-              json.dumps(assist_reply.relevant_knowledge(bid, message), ensure_ascii=False))
+              assist_reply.LANGUAGE_INSTRUCTION + '\n' +
+              json.dumps(dict(knowledge=assist_reply.relevant_knowledge(bid, message),
+                              business_language_policy=language_policy(bid)), ensure_ascii=False))
     with ai_usage.scope(bid, 'simulation'):
         reply, stop, error = ai_onboarding._call_claude(prompt,
             messages + [{'role': 'user', 'content': message}], max_tokens=600)
@@ -137,28 +184,19 @@ def _save_test(business_id, actor, message, reply, version):
 
 def can_ready(bid):
     from assist_journey import _event
-    last = _event(bid, 'assist_test')
-    return bool(last and last.get('knowledge_version') == fingerprint(bid))
+    # Readiness is an owner acknowledgement, not a test result or revision gate.
+    return bool(_event(bid, 'assist_teach'))
 
 
 def ready(business, actor):
-    bid = business['id']
-    if not can_ready(bid):
-        raise ValueError('test_required')
-    # Use the existing normalization and activation authorities. No payment/channel gate is
-    # granted by teaching, testing or confirming knowledge.
-    from routes_client import _run_ai_normalization
-    ok, _ = _run_ai_normalization(bid, business, repo.get_user_by_id(actor), preserve_status=True)
-    if not ok:
-        raise ValueError('training_unavailable')
-    _confirm_ready(bid, actor)
+    _confirm_ready(business['id'], actor)
 
 
 @db.knowledge_writer
 def _confirm_ready(business_id, actor):
     if not can_ready(business_id):
-        raise ValueError('knowledge_changed')
-    repo.mark_onboarding_step_done(business_id, 'simulated_done')
+        raise ValueError('teaching_required')
+    refresh_knowledge(business_id)
     repo.save_onboarding_session(business_id, 'assist_ready',
                                  {'knowledge_version': fingerprint(business_id)}, actor)
-    repo.write_audit(actor, business_id, 'ASSIST_TRAINING_CONFIRMED', 'Owner confirmed tested knowledge')
+    repo.write_audit(actor, business_id, 'ASSIST_TRAINING_CONFIRMED', 'Owner confirmed business knowledge')

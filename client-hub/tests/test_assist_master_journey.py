@@ -78,7 +78,7 @@ class MasterJourneyTests(unittest.TestCase):
         self.assertEqual(self.client.get(f'/business/{self.other}/train').status_code, 404)
         self.assertEqual(self.client.get(f'/workspace/usage/{self.other}').status_code, 404)
 
-    def test_only_successful_current_knowledge_test_can_be_confirmed(self):
+    def test_optional_preview_failure_does_not_block_confirmation_or_updates(self):
         self.complete_onboarding()
         self.assertEqual(journey.state(self.business)['readiness'], 'Belum dilatih')
         self.teach()
@@ -86,7 +86,7 @@ class MasterJourneyTests(unittest.TestCase):
         with patch.object(training.ai_onboarding, '_call_claude', return_value=(None, None, 'provider_failure')):
             with self.assertRaisesRegex(ValueError, 'test_unavailable'):
                 training.test_reply(self.business, self.uid, 'Bisa diskon?')
-        self.assertFalse(training.can_ready(self.bid))
+        self.assertTrue(training.can_ready(self.bid))
         with patch.object(training.ai_onboarding, '_call_claude', return_value=('Saya tanya pemilik dulu ya.', 'end_turn', None)):
             training.test_reply(self.business, self.uid, 'Bisa diskon?')
         self.assertTrue(training.can_ready(self.bid))
@@ -94,18 +94,18 @@ class MasterJourneyTests(unittest.TestCase):
         training._confirm_ready(self.bid, self.uid)
         self.assertTrue(journey.state(self.business)['ready'])
         self.teach('Tidak ada diskon')
-        self.assertFalse(training.can_ready(self.bid))
-        self.assertFalse(journey.state(self.business)['ready'])
+        self.assertTrue(training.can_ready(self.bid))
+        self.assertTrue(journey.state(self.business)['ready'])
         self.assertEqual(db.query_all('SELECT * FROM finance_transactions'), [])
 
-    def test_ready_normalization_preserves_exact_tested_owner_knowledge(self):
+    def test_confirmation_preserves_canonical_owner_knowledge_without_model(self):
         self.complete_onboarding();self.teach()
         with patch.object(training.ai_onboarding,'_call_claude',return_value=('Saya tanya pemilik dahulu.','end_turn',None)):
             training.test_reply(self.business,self.uid,'Bisa diskon?')
         before=training.fingerprint(self.bid)
         normalized={'description':'Bisnis uji','services':[], 'faqs':[
             {'question':'Panduan yang ditulis ulang model','answer':'Ringkasan berbeda'}]}
-        with patch.object(training.ai_onboarding,'normalize_business_data',return_value=(normalized,None)):
+        with patch.object(training.ai_onboarding,'normalize_business_data',side_effect=AssertionError('confirmation cannot require a model')):
             training.ready(self.business,self.uid)
         self.assertEqual(training.fingerprint(self.bid),before)
         self.assertTrue(journey.state(self.business)['ready'])
@@ -153,14 +153,17 @@ class MasterJourneyTests(unittest.TestCase):
                 'csrf_token':'master-test','action':'test','message':'Harga Sunrise42?'})
         self.assertEqual(tested.status_code, 303)
         page = self.client.get(tested.location).text
-        self.assertIn('Saya sudah memahami cara kamu ingin customer dilayani.', page)
-        self.assertIn('Sudah, coba di WhatsApp', page);self.assertIn('Ajari lagi', page)
+        self.assertIn('Kilas memahami:', page)
+        self.assertIn('Sudah sesuai', page);self.assertIn('Ajari lagi', page)
         self.assertNotIn('Ya, siap melayani', page)
         normalized = {'description':'Jasa foto','services':[],'faqs':[]}
         with patch('knowledge_assist.allow_click', return_value=True), \
              patch.object(training.ai_onboarding,'normalize_business_data',return_value=(normalized,None)):
-            launch = self.client.post(f'/business/{self.bid}/train', data={
+            confirmed = self.client.post(f'/business/{self.bid}/train', data={
                 'csrf_token':'master-test','action':'ready_whatsapp'})
+        self.assertEqual(confirmed.status_code, 303)
+        self.assertIsNone(assist_demo.latest(self.bid))
+        launch = self.client.get(f'/business/{self.bid}/demo-kilas')
         parsed = urlparse(launch.location)
         self.assertEqual(parsed.netloc,'wa.me');self.assertEqual(parsed.path,'/'+routes_client._DEMO_KILAS_PHONE)
         message = parse_qs(parsed.query)['text'][0]
@@ -203,14 +206,14 @@ class MasterJourneyTests(unittest.TestCase):
         self.assertEqual(assist_demo.rows(self.other,phone),[])
         self.assertEqual(db.query_all('SELECT * FROM finance_transactions'),[])
 
-    def test_stale_or_failed_test_cannot_launch_whatsapp(self):
+    def test_confirmation_never_launches_whatsapp_and_needs_teaching_only(self):
         import assist_demo
         self.complete_onboarding()
-        self.teach()
         with patch('knowledge_assist.allow_click',return_value=True):
             result=self.client.post(f'/business/{self.bid}/train',data={'csrf_token':'master-test','action':'ready_whatsapp'})
         self.assertNotIn('wa.me',result.location)
         self.assertIsNone(assist_demo.latest(self.bid))
+        self.assertFalse(journey.state(self.business)['ready'])
 
         with patch.object(training.ai_onboarding,'_call_claude',return_value=('Baik.','end_turn',None)):
             training.test_reply(self.business,self.uid,'Diskon?')
@@ -219,6 +222,7 @@ class MasterJourneyTests(unittest.TestCase):
             result=self.client.post(f'/business/{self.bid}/train',data={'csrf_token':'master-test','action':'ready_whatsapp'})
         self.assertNotIn('wa.me',result.location)
         self.assertIsNone(assist_demo.latest(self.bid))
+        self.assertTrue(journey.state(self.business)['ready'])
 
     def test_connected_business_hides_demo_without_losing_training(self):
         import routes_client

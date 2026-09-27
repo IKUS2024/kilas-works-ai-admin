@@ -32,17 +32,14 @@ def training(business_id):
             if action == 'start_demo':
                 assist_journey.start_demo(business_id, user['id'])
             else:
-                if not (journey['paid'] or journey['demo_active']):
+                if action not in ('ready', 'ready_whatsapp') and not (journey['paid'] or journey['demo_active']):
                     raise ValueError('demo_expired')
-                if not knowledge_assist.allow_click(user['id'], business_id):
+                if action not in ('ready', 'ready_whatsapp') and not knowledge_assist.allow_click(user['id'], business_id):
                     raise ValueError('too_many_requests')
                 if action in ('ready', 'ready_whatsapp'):
                     assist_training.ready(business, user['id'])
-                    if journey['connected']:
-                        return redirect(url_for('client.inbox_page', business_id=business_id), code=303)
-                    if action == 'ready_whatsapp':
-                        from routes_client import _launch_demo_whatsapp
-                        return _launch_demo_whatsapp(business_id, user['id'])
+                    # Old forms may still send ready_whatsapp. Confirmation never launches
+                    # a channel; the separate CTA uses the authoritative launch/reuse path.
                     flash('Saya sudah memahami cara kamu ingin customer dilayani.', 'success')
                 elif action == 'remove_media':
                     assist_business_media.remove(business_id, request.form.get('file_id', type=int), user['id'])
@@ -67,11 +64,15 @@ def training(business_id):
                     else:
                         (assist_training.teach if action == 'teach' else assist_training.test_reply)(
                             business, user['id'], message)
+                    if action != 'test':
+                        flash(('Pengetahuan terbaru sudah aktif di WhatsApp bisnis Anda.' if journey['connected']
+                               else 'Pengetahuan terbaru sudah aktif di Demo WhatsApp.' if journey['demo_bound']
+                               else 'Pengetahuan terbaru sudah tersimpan.'), 'success')
                 else:
                     abort(400)
         except ValueError as error:
-            messages = {'test_required': 'Tes AI terlebih dahulu sebelum menyatakan siap.',
-                        'knowledge_changed': 'Pengetahuan baru saja berubah. Silakan tes ulang.',
+            messages = {'teaching_required': 'Ajari Kilas dulu setidaknya sekali.',
+                        'knowledge_changed': 'Ada perubahan bersamaan. Silakan kirim ajaran Anda lagi.',
                         'demo_expired': 'Demo belum aktif atau sudah berakhir. Periksa paket Anda.',
                         'too_many_requests': 'Tunggu sebentar sebelum mengirim lagi.',
                         'invalid_training_file': 'Gunakan gambar JPG/PNG atau PDF maksimal 5 MB dan 10 halaman.',
@@ -80,9 +81,11 @@ def training(business_id):
                         'teach_attachment_first': 'Pilih Ajari Kilas untuk mengajarkan lampiran ini terlebih dahulu.',
                         'invalid_message': 'Tulis pesan antara 1 dan 4.000 karakter.'}
             flash(messages.get(str(error), 'Belum berhasil memproses. Pengetahuan Anda tetap tersimpan; coba lagi.'), 'error')
-        return redirect(url_for('assist.training', business_id=business_id), code=303)
+        return redirect(url_for('assist.training', business_id=business_id,
+                                **({'preview': '1'} if action == 'test' else {})), code=303)
     return render_template('assist_training.html', business=business, journey=journey,
                            history=assist_training.history(business_id),
+                           confirmation=assist_journey._event(business_id, 'assist_teach'),
                            taught_files=assist_business_media.files(business_id),
                            can_ready=assist_training.can_ready(business_id))
 
