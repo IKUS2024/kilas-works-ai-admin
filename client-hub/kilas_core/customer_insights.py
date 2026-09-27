@@ -180,9 +180,9 @@ def _core_messages(business_id, customer_id, after):
                 "JOIN kw_web_conversations w ON w.business_id=l.business_id AND w.id=l.conversation_id "
                 "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
                 "JOIN kw_web_messages m ON m.business_id=w.business_id AND m.conversation_id=w.id "
-                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' AND m.id>? "
+                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE ? AND m.id>? "
                 "ORDER BY m.id ASC LIMIT ?",
-                (business_id, customer_id, int(after), MAX_NEW_MESSAGES),
+                (business_id, customer_id, 'wa_%', int(after), MAX_NEW_MESSAGES),
             )
     except Exception:
         return []
@@ -199,9 +199,9 @@ def whatsapp_conversation_rows(business_id, customer_id):
                 "FROM kw_web_customer_links l "
                 "JOIN kw_web_conversations w ON w.business_id=l.business_id AND w.id=l.conversation_id "
                 "JOIN kw_core_wa_conversations wa ON wa.business_id=w.business_id AND wa.conversation_id=w.id "
-                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE 'wa_%' "
+                "WHERE l.business_id=? AND l.customer_id=? AND w.id LIKE ? "
                 "ORDER BY w.updated_at DESC",
-                (business_id, customer_id),
+                (business_id, customer_id, 'wa_%'),
             )
     except Exception:
         return []

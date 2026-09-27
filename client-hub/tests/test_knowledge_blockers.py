@@ -44,7 +44,8 @@ class BlockerTests(unittest.TestCase):
             self.assertIsInstance(repo.get_tenant_config_row(self.bid)['config_json'], dict)
             self.save_category('JSONB config')
             self.save_category('JSONB edited again')
-        self.assertEqual(repo.get_tenant_config_row(self.bid)['config']['business_type'], 'JSONB edited again')
+        self.assertIsNone(repo.get_tenant_config_row(self.bid)['config']['business_type'])
+        self.assertEqual(repo.get_business_profile(self.bid)['category'], 'JSONB edited again')
 
     def test_shared_decoder_strings_bytes_native_and_malformed(self):
         for value in ({'a': 1}, [1], '{"a":1}', b'{"a":1}', bytearray(b'{"a":1}')):

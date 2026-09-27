@@ -95,6 +95,19 @@ class MasterJourneyTests(unittest.TestCase):
         self.assertFalse(journey.state(self.business)['ready'])
         self.assertEqual(db.query_all('SELECT * FROM finance_transactions'), [])
 
+    def test_ready_normalization_preserves_exact_tested_owner_knowledge(self):
+        self.complete_onboarding();self.teach()
+        with patch.object(training.ai_onboarding,'_call_claude',return_value=('Saya tanya pemilik dahulu.','end_turn',None)):
+            training.test_reply(self.business,self.uid,'Bisa diskon?')
+        before=training.fingerprint(self.bid)
+        normalized={'description':'Bisnis uji','services':[], 'faqs':[
+            {'question':'Panduan yang ditulis ulang model','answer':'Ringkasan berbeda'}]}
+        with patch.object(training.ai_onboarding,'normalize_business_data',return_value=(normalized,None)):
+            training.ready(self.business,self.uid)
+        self.assertEqual(training.fingerprint(self.bid),before)
+        self.assertTrue(journey.state(self.business)['ready'])
+        self.assertEqual(db.query_all('SELECT * FROM subscriptions'),[])
+
     def test_training_and_usage_gets_are_read_only_no_model(self):
         self.complete_onboarding()
         before = db.query_one('SELECT COUNT(*) AS n FROM onboarding_sessions')['n']

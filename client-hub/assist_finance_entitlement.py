@@ -13,7 +13,7 @@ def until(finance_business_id):
         return None
     # Optional bridge installers are intentionally not part of the old Finance migration chain.
     if db.BACKEND=='postgres':
-        exists=db.query_one("SELECT to_regclass('public.kw_core_finance_connections') AS name")
+        exists=db.query_one("SELECT to_regclass('kw_core_finance_connections') AS name")
         exists=bool(exists and exists['name'])
     else:
         exists=bool(db.query_one("SELECT name FROM sqlite_master WHERE type='table' AND name='kw_core_finance_connections'"))

@@ -634,13 +634,17 @@ def _run_ai_normalization(business_id, business, user, *, preserve_status=False)
         repo.write_audit(user["id"], business_id, "ai_normalization_failed", error)
         return False, error
 
-    for svc_row, ai_svc in zip(services, config.get("services", [])):
+    # Readiness certifies the exact version the owner tested. Normalization must not
+    # rewrite that version's FAQs or conversational training guide as a side effect.
+    normalized_services = [] if preserve_status else config.get('services', [])
+    normalized_faqs = [] if preserve_status else config.get('faqs', [])
+    for svc_row, ai_svc in zip(services, normalized_services):
         repo.update_normalized_service(
             svc_row["id"], ai_svc.get("service_name"), ai_svc.get("description"),
             ai_svc.get("price_from"), ai_svc.get("price_to"), ai_svc.get("currency") or "IDR",
             ai_svc.get("needs_review", True),
         )
-    for faq_row, ai_faq in zip(faqs, config.get("faqs", [])):
+    for faq_row, ai_faq in zip(faqs, normalized_faqs):
         repo.update_normalized_faq(
             faq_row["id"], ai_faq.get("question"), ai_faq.get("answer"),
             ai_faq.get("category") or "general", ai_faq.get("needs_review", True),

@@ -28,8 +28,10 @@ class Cases:
     def completed(self,conversation_id='conv'):
         row=jobs.create_job(7,'alice',conversation_id=conversation_id,title='Service selesai',kind='SERVICE',
                             actor_id=1,operation_key='review-test-create')
-        for status in ('READY_FOR_QUOTE','QUOTED','APPROVED','IN_PROGRESS','COMPLETED'):
-            row=jobs.transition_job(7,row['id'],status,expected_version=row['version'],actor_id=1,operation_key='review-test-'+status)
+        row=jobs.transition_job(7,row['id'],'IN_PROGRESS',expected_version=row['version'],actor_id=1,operation_key='review-test-IN_PROGRESS')
+        # Synthetic already-paid fixture; real payment posting/rollback is asserted by bridge suites.
+        with jobs.transaction() as tx:
+            row=jobs._update_job(tx,7,row['id'],status='COMPLETED',expected_version=row['version'],actor_id=jobs._FINANCE_PAYMENT_ACTOR,operation_key='review-test-COMPLETED')
         return row
 
     def test_due_cooldown_max_and_customer_reset(self):

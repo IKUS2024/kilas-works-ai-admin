@@ -1,4 +1,4 @@
-"""Single plan, historical compatibility and scoped cost accounting. Offline only."""
+"""Final two-plan pricing, historical compatibility and scoped cost accounting. Offline only."""
 import os, sys, unittest, json
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -21,10 +21,10 @@ class SinglePlanTests(unittest.TestCase):
 
     def test_one_current_offer_and_price(self):
         rows=[r for r in catalog.list_active_catalog() if r['category']=='AI_ADMIN']
-        self.assertEqual([(r['catalog_key'],r['price_amount']) for r in rows],[('ai_admin',499000)])
+        self.assertCountEqual([(r['catalog_key'],r['price_amount']) for r in rows],[('ai_admin',299000),('ai_admin_pro',799000)])
         body=self.client.get('/services').get_data(as_text=True)
-        self.assertIn('499.000',body);self.assertNotIn('Kilas Brain Basic',body);self.assertNotIn('Kilas Brain Pro',body)
-        self.assertIn('Biaya penggunaan WhatsApp Business Platform',body)
+        self.assertIn('299.000',body);self.assertIn('799.000',body);self.assertNotIn('Kilas Brain',body)
+        self.assertIn('7 hari',body)
 
     def test_new_plan_flags_and_none(self):
         self.assertEqual(flags.features_for_package('AI_ADMIN'),flags.features_for_package('AI_ADMIN_PRO'))
@@ -44,7 +44,7 @@ class SinglePlanTests(unittest.TestCase):
         self.assertEqual(subs.get_subscription(bid)['plan_key'],'ai_admin_basic')
         self.assertEqual(projects_repo.get_project(pid)['catalog_key'],'ai_admin_basic')
         self.assertFalse(catalog.get_catalog_item('ai_admin_basic')['is_active'])
-        self.assertFalse(catalog.get_catalog_item('ai_admin_pro')['is_active'])
+        self.assertTrue(catalog.get_catalog_item('ai_admin_pro')['is_active'])
 
     def test_seed_preserves_admin_price(self):
         item=catalog.get_catalog_item('ai_admin')
@@ -54,7 +54,7 @@ class SinglePlanTests(unittest.TestCase):
 
     def test_cannot_reactivate_retired_plan(self):
         with self.assertRaises(catalog.InvalidCatalogState):
-            catalog.update_catalog_item(catalog.get_catalog_item('ai_admin_pro')['id'],is_active=True)
+            catalog.update_catalog_item(catalog.get_catalog_item('ai_admin_basic')['id'],is_active=True)
 
     def test_old_form_alias_creates_current_package(self):
         for old in ('AI_ADMIN_BASIC','AI_ADMIN_PRO'):
@@ -77,7 +77,7 @@ class SinglePlanTests(unittest.TestCase):
         response=self.client.post(f'/business/{self.bid}/ai-admin/checkout')
         self.assertEqual(response.status_code,302)
         project=db.query_one('SELECT * FROM projects WHERE business_id=?',(self.bid,))
-        self.assertEqual(project['catalog_key'],'ai_admin');self.assertEqual(project['final_price'],499000)
+        self.assertEqual(project['catalog_key'],'ai_admin');self.assertEqual(project['final_price'],99000)
         self.client.post(f'/business/{self.bid}/ai-admin/checkout')
         self.assertEqual(db.query_one('SELECT COUNT(*) n FROM projects WHERE business_id=?',(self.bid,))['n'],1)
         legacy=projects_repo.create_fixed_price_project(self.other,catalog.get_catalog_item('ai_admin_pro'),self.uid)

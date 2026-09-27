@@ -29,15 +29,7 @@ def available(business):
 
 def resolve(slug):
     # Public anonymous chat is retired; shared storage still serves authenticated WhatsApp Inbox.
-    if True:
-        abort(404)
-    channel = store.channel(slug=slug)
-    if not channel or not channel['enabled']:
-        abort(404)
-    business = repo.get_business(channel['business_id'])
-    if not available(business):
-        abort(404)
-    return business
+    abort(404)
 
 
 def cookie_name(bid):

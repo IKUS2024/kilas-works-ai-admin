@@ -65,7 +65,7 @@
           <span class="muted">· Belum pakai Kilas Assist</span>
         {% else %}
           <span class="pill {{ b.status }}">{{ b.status|humanize_status('business') }}</span>
-          <span class="muted">· {{ b.package|humanize_package }} — Rp499.000/bulan</span>
+          <span class="muted">· {{ b.package|humanize_package }} — {{ 'Rp799.000' if b.package == 'AI_ADMIN_PRO' else 'Rp299.000' }}/bulan</span>
         {% endif %}
       </div>
       {% if b.package != 'NONE' %}<div class="muted">{% if b.status in ('READY_FOR_REVIEW','NEEDS_REVISION','APPROVED','ACTIVE','SUSPENDED') %}Setup selesai{% else %}Setup {{ b.completion_percent }}%{% endif %}</div>{% endif %}

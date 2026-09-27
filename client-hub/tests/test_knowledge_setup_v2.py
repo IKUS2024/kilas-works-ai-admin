@@ -70,9 +70,10 @@ class KnowledgeTests(unittest.TestCase):
         self.assertEqual(snapshot['services'],before[1]);self.assertEqual(snapshot['faqs'],before[2])
         cards=knowledge.editor(self.bid,services,faqs)
         self.assertEqual(cards['services'][0]['duration'],'1 jam')
-        config=repo.get_tenant_config_row(self.bid)['config']
-        self.assertEqual(config['knowledge']['faq'][1]['answer'],'Harus membuat janji')
-        self.assertEqual(config['business_type'],'Konsultan')
+        # Legacy maintenance edits preserve the approved snapshot; conversational training
+        # is covered separately by test_assist_master_journey.
+        self.assertIsNone(repo.get_tenant_config_row(self.bid))
+        self.assertEqual(profile['category'],'Konsultan')
         self.assertEqual(repo.get_business(self.bid)['status'],'ACTIVE')
 
     def test_add_service_and_faq_without_deleting_old_rows(self):
@@ -102,13 +103,13 @@ class KnowledgeTests(unittest.TestCase):
     def test_readiness_score_and_missing_prices(self):
         profile,services,faqs=self.state();cards=knowledge.editor(self.bid,services,faqs)
         result=knowledge.readiness(profile,services,faqs,{},cards)
-        self.assertEqual(result['score'],83)
-        self.assertEqual(result['missing'],['Jam operasional belum diisi.'])
-        profile['operating_hours']='09–17'
+        self.assertEqual(result['score'],50)
+        self.assertEqual({c['key'] for c in result['checks'] if not c['complete']},{'category','hours','service_mode','business_phone'})
+        profile.update(operating_hours='09–17',category='Konsultan',online_or_offline='online',business_phone='628123456789')
         self.assertEqual(knowledge.readiness(profile,services,faqs,{},cards)['score'],100)
         services[0]['raw_input']='Harga belum diketahui'
         result=knowledge.readiness(profile,services,faqs,{},cards)
-        self.assertIn('1 layanan belum memiliki informasi harga atau ketentuan penawaran.',result['missing'])
+        self.assertEqual(result['score'],100)  # Maintenance completeness does not invent a mandatory fixed price.
 
     def test_optional_requirements_follow_features_and_relevance(self):
         profile,services,faqs=self.state();cards=knowledge.editor(self.bid,services,faqs)
@@ -118,7 +119,8 @@ class KnowledgeTests(unittest.TestCase):
         self.assertNotIn('address',[c['key'] for c in basic['checks']])
         profile.update(appointment_enabled=True,online_or_offline='offline')
         pro=knowledge.readiness(profile,services,faqs,{'appointment':True,'payment_conversation':True},cards)
-        self.assertTrue({'booking','payment','address'}.issubset({c['key'] for c in pro['checks']}))
+        self.assertIn('address',{c['key'] for c in pro['checks']})
+        self.assertTrue({'booking','payment'}.isdisjoint({c['key'] for c in pro['checks']}))
         profile['appointment_enabled']=False
         self.assertNotIn('booking',[c['key'] for c in knowledge.readiness(profile,services,faqs,{'appointment':True},cards)['checks']])
 
@@ -150,7 +152,7 @@ class KnowledgeTests(unittest.TestCase):
 
     def test_mobile_structured_template_and_no_ai_button(self):
         page=self.client.get(self.url).data.decode()
-        for text in ['Ajari Kilas Brain tentang bisnismu','data-knowledge-section="services"','name="faqs_question"','name="faqs_answer"','grid-template-columns:1fr','minmax(0,1fr)']:
+        for text in ['Pengetahuan Kilas Assist','data-knowledge-section="services"','name="faqs_question"','name="faqs_answer"','grid-template-columns:1fr','minmax(0,1fr)']:
             self.assertIn(text,page)
         self.assertNotIn('name="faq_raw"',page);self.assertNotIn('question | answer',page)
         class Controls(HTMLParser):

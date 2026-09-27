@@ -1,4 +1,9 @@
-"""Real hub anonymous/owner WEB flow on a fresh disposable DB, external calls denied."""
+"""Legacy shared-store compatibility harness plus production public-channel retirement.
+
+The master product retires public chat. Older CRM/Jobs tests use this local transport fixture
+to exercise shared storage and authorization without external WhatsApp calls. The fixture-only
+resolver retains tenant/paid/channel checks; production resolve is tested unpatched below.
+"""
 import os
 import unittest
 from unittest.mock import patch
@@ -29,6 +34,29 @@ class WebTests(unittest.TestCase):
         self.other_slug = store.ensure_channel(8)['slug']
         self.visitor = self.app.test_client()
         self.headers = {'Origin':'http://localhost','X-Web-Chat':'1'}
+        from public_chat import security as chat_security
+        from flask import abort
+        import repo
+        def fixture_resolve(slug):
+            channel=store.channel(slug=slug)
+            if not channel or not channel['enabled']:abort(404)
+            business=repo.get_business(channel['business_id'])
+            if not chat_security.available(business):abort(404)
+            return business
+        self.legacy_resolver=patch.object(chat_security,'resolve',side_effect=fixture_resolve)
+        self.legacy_resolver.start();self.addCleanup(self.legacy_resolver.stop)
+
+    def test_production_public_routes_are_retired_without_model_or_writes(self):
+        self.legacy_resolver.stop()
+        with patch.object(self.ai,'_call_claude') as model:
+            for slug in (self.slug,self.other_slug,'unknown'):
+                self.assertEqual(self.visitor.get('/chat/'+slug).status_code,404)
+                self.assertEqual(self.start(slug).status_code,404)
+                self.assertEqual(self.visitor.get('/chat/'+slug+'/forged/messages').status_code,404)
+                self.assertEqual(self.visitor.post('/chat/'+slug+'/forged/messages',json={},headers=self.headers).status_code,404)
+            model.assert_not_called()
+        with store.transaction() as tx:
+            self.assertEqual(tx.one('SELECT COUNT(*) n FROM kw_web_conversations')['n'],0)
 
     def start(self, slug=None, client=None):
         return (client or self.visitor).post('/chat/'+(slug or self.slug)+'/session', json={}, headers=self.headers)
@@ -125,7 +153,7 @@ class WebTests(unittest.TestCase):
             self.send(identity)
         with patch('inbox_service.list_conversations',side_effect=AssertionError('No WhatsApp reads')) as wa:
             page=self.client.get(f'/business/7/inbox?channel=web&conversation={cid}')
-        self.assertEqual(page.status_code,200);self.assertIn(b'WEB',page.data);wa.assert_not_called()
+        self.assertEqual(page.status_code,200);self.assertIn(b'Percakapan',page.data);wa.assert_not_called()
         self.assertEqual(self.client.get(f'/business/8/inbox?channel=web&conversation={cid}').status_code,404)
         self.assertEqual(self.client.get(f'/business/8/web-inbox/{cid}/messages').status_code,404)
         with self.client.session_transaction() as session: session['user_id']=2
@@ -212,14 +240,11 @@ class WebTests(unittest.TestCase):
         headers={'X-CSRF-Token':'csrf-test'}
         self.assertEqual(self.client.post(path,json={}).status_code,400)
         first=self.client.post(path,json={'business_id':8},headers=headers)
-        self.assertEqual(first.status_code,200)
-        self.assertEqual(first.json,{'channel':'WEB','path':'/chat/'+self.slug})
+        self.assertEqual(first.status_code,410)
+        self.assertEqual(first.json,{'error':'public_channel_retired'})
         self.assertEqual(self.client.post(path,json={},headers=headers).json,first.json)
         page=self.client.get('/business/7/inbox?channel=web')
-        # Current Inbox intentionally exposes the real Kilas WhatsApp demo action here.
-        # Public Web Chat link creation remains covered by the scoped endpoint assertions above.
-        self.assertIn(b'Coba Demo Kilas',page.data)
-        self.assertIn(b'data-demo-kilas-whatsapp',page.data)
+        self.assertNotIn(b'data-web-chat-link',page.data)
         with self.client.session_transaction() as session: session['user_id']=2
         self.assertEqual(self.client.post(path,json={},headers=headers).status_code,404)
         self.assertIn(self.visitor.post(path,json={},headers=headers).status_code,(302,400))
@@ -228,9 +253,9 @@ class WebTests(unittest.TestCase):
         path='/business/7/web-chat/link';headers={'X-CSRF-Token':'csrf-test'}
         with store.transaction() as tx:
             tx.execute('UPDATE kw_web_channels SET enabled=0 WHERE business_id=7')
-        self.assertEqual(self.client.post(path,json={},headers=headers).status_code,409)
+        self.assertEqual(self.client.post(path,json={},headers=headers).status_code,410)
         self.db.execute("UPDATE ai_settings SET normalized_config_json='{}' WHERE business_id=7")
-        self.assertEqual(self.client.post(path,json={},headers=headers).json['error'],'business_setup_required')
+        self.assertEqual(self.client.post(path,json={},headers=headers).json['error'],'public_channel_retired')
         with patch.dict(os.environ,{'KILAS_WEB_CHAT_ENABLED':'false'}):
             self.assertEqual(self.client.post(path,json={},headers=headers).status_code,404)
 

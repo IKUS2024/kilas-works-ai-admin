@@ -51,20 +51,22 @@ class SimulationCostTests(unittest.TestCase):
         self.assertIn(ai_brain_shared.AI_ADMIN_CORE_BEHAVIOR,payload['system'])
         self.assertIn('Only own facts',payload['system'])
 
-    def test_normalization_keeps_original_model_and_budget(self):
+    def test_normalization_uses_economical_route_with_structured_output_budget(self):
         config={k:{} for k in ai.REQUIRED_CONFIG_KEYS}
         config.update(business_name='Own Business',category='Coffee',description='Coffee',languages={'primary':'id','additional':[]},services=[],faqs=[],tone='ramah')
         response=Mock();response.json.return_value={'content':[{'text':json.dumps(config)}],'stop_reason':'end_turn'}
         with patch.object(ai,'ANTHROPIC_API_KEY','test-key'),patch.object(ai.requests,'post',return_value=response) as post:
             result,error=ai.normalize_business_data({'business_name':'Own Business'},{},[],[],[])
         self.assertIsNone(error);self.assertIsNotNone(result);post.assert_called_once()
-        self.assertEqual(post.call_args.kwargs['json']['model'],ai.CLIENT_HUB_MODEL)
+        self.assertEqual(post.call_args.kwargs['json']['model'],ai.CLIENT_HUB_SIMULATION_MODEL)
         self.assertGreater(post.call_args.kwargs['json']['max_tokens'],300)
 
-    def test_api_failure_does_not_retry(self):
+    def test_api_failure_has_one_bounded_strong_fallback(self):
         with patch.object(ai,'ANTHROPIC_API_KEY','test-key'),patch.object(ai.requests,'post',side_effect=TimeoutError('test timeout')) as post:
             reply,error=ai.simulate_customer_reply({'business_name':'Own'}, {}, [], 'Halo')
-        self.assertIsNone(reply);self.assertIsNotNone(error);post.assert_called_once()
+        self.assertIsNone(reply);self.assertIsNotNone(error)
+        self.assertEqual(post.call_count,2)
+        self.assertEqual([call.kwargs['json']['model'] for call in post.call_args_list], [ai.CLIENT_HUB_SIMULATION_MODEL,ai.CLIENT_HUB_MODEL])
 
     def test_route_uses_last_ten_in_order_without_deleting_history(self):
         for n in range(20):repo.save_simulation_message(self.bid,self.token,'user' if n%2==0 else 'assistant',str(n))

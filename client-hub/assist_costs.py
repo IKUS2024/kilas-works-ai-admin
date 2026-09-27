@@ -23,7 +23,7 @@ def customer_usage(bid):
     row=db.query_one("SELECT SUM(CASE WHEN is_reply THEN 1 ELSE 0 END) AS replies, "
         "SUM(CASE WHEN classification='vision' THEN 1 ELSE 0 END) AS media, "
         "SUM(CASE WHEN context_type='follow_up' THEN 1 ELSE 0 END) AS followups "
-        "FROM ai_usage_ledger WHERE tenant_id=? AND created_at>=? AND context_type NOT LIKE 'finance_%'",(bid,start))
+        "FROM ai_usage_ledger WHERE tenant_id=? AND created_at>=? AND context_type NOT LIKE ?",(bid,start,'finance_%'))
     replies,media,followups=(int(row.get(key) or 0) for key in ('replies','media','followups'))
     ratio=max(replies/capacity,media/media_capacity)
     return dict(replies=replies,media=media,followups=followups,

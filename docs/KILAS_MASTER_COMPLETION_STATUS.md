@@ -163,3 +163,33 @@ Read this checkpoint, inspect working diff/current main only as needed, and cont
 4. Real WhatsApp binding, assisted Meta/OTP and inbound/outbound verification remain unverified; never claim them complete from mocks.
 
 FINAL STATUS: IN PROGRESS. No PR, merge or deployment in this task yet. No true external blocker established.
+
+
+## Concurrent resume verification — 2026-09-27 04:57 UTC
+- A resumed session found the original worktree still receiving active edits. It used an isolated worktree at /workspace/scratch/f3a55a3f7ae4/kilas-works-ai-admin to avoid overwriting the ongoing regression work.
+- Fresh remote refs: main 4344748c439597744806ad8ccb6a5ad7a8a0e54f; master branch f39d0b5caeeb898b8c6c46a9a78423964b1fe7ca. Both Render production services independently confirmed LIVE at main baseline, auto-deploy remains OFF.
+- Independent PG18 PGlite rehearsal PASS: atomic failed-migration rollback, 0066–0069 apply/retry, exact Finance table row preservation, tenant binding/rebind isolation. Log /tmp/kilas-resume-pg-release.log. This does not certify native PostgreSQL concurrent sessions.
+- Found missing customer-facing profile fields in Assist knowledge (business name, address, public phone, closed days, payment instructions) and a possible third paid model call after provider fallback plus low confidence. Fixed both in three source files; canonical owner guide now remains in the bounded FAQ set. Private trusted-owner phone is excluded.
+- Five new knowledge/router regression cases plus existing journey/router/runtime suites: 16 tests PASS (/tmp/kilas-resume-knowledge-tests.log).
+- These four-file fixes were applied to the original worktree only after verifying those paths had no concurrent edits and git apply --check succeeded. Preserve client-hub/tests/test_assist_knowledge_contract.py and the changes in assist_training.py, assist_reply.py, ai_router.py in the next master checkpoint commit.
+- Remaining release gates still apply. No production deployment or customer Finance data writes performed by this resumed session.
+
+- Complementary resume fix + checkpoint is now durably published at remote branch `feature/kilas-master-resume-20260927`, commit `714638296a852a5378b27941409f54c602c013ef`. The four implementation/test files are already applied to this original master worktree; no cherry-pick is needed if they remain in the next commit.
+
+
+## PostgreSQL release rehearsal and regression diagnosis (latest)
+- Durable runtime/media/bundle milestone is f39d0b5 on the feature branch. Production is still unchanged.
+- New assist_schema.apply_release applies ONLY 0066–0069 with an advisory transaction lock, checksum tracking, atomic rollback and idempotent repeat. Opt-in KILAS_ASSIST_SCHEMA_APPLY=true; historical RUN_MIGRATIONS_ON_BOOT must stay false in production.
+- Native local PG process could not switch to a non-root user in this environment. Rehearsal uses official PGlite PostgreSQL 18.3 with a local protocol socket and disposable random schema. This proves SQL/schema/transaction behavior, NOT real multi-process server concurrency.
+- Rehearsal PASS: full synthetic baseline, deliberate final-migration failure rolls back all earlier release DDL, successful additive application, idempotent retry, exact before/after rows for ALL existing Finance tables, demo binding/cross-tenant rebind/isolation. Added SaaS overview/economics/system and customer usage queries also PASS on PostgreSQL 18.
+- PostgreSQL diagnosis found literal percent wildcard statements passed through psycopg2 bound-parameter execution. Fixed only Assist usage and Customer Insight queries by binding the LIKE patterns; protected Finance DB adapter/calculations unchanged.
+- Production public chat resolver always returns 404 and old link-creation endpoint now returns 410. Archived shared-store tests use a clearly fixture-only resolver with original tenant/paid checks; a new unpatched integration test proves ALL public read/write endpoints reject without model calls or writes. No production access gate re-enabled.
+- Legacy demo CRM fixtures now use authoritative explicit demo session rows instead of audit-log phone/range inference. Customer suite 14 PASS; public compatibility + retirement 19 PASS; WhatsApp suites 5 + 17 PASS; Operations routes 10 PASS; Jobs store 15 PASS.
+- Knowledge baseline failures were stale expectations: legacy maintenance edits are draft-only and preserve approved tenant config; readiness there measures required profile facts, not optional booking/payment/fixed prices. Updated tests retain row identity, history, concurrent writer locks and approved-config preservation. Knowledge setup 13, assist 33, parser 32 PASS; combined semantics/blockers 52 PASS.
+- Retired single-plan expectations now test Starter/Pro and 99k promo, retain historical invoice amounts and forbidden Basic reactivation. Pricing compatibility 23 PASS. AI simulation compatibility 11 PASS with bounded cheap-to-strong fallback and unchanged quota/isolation assertions.
+- New real Ready-path regression exposed normalization changing FAQ fingerprint after the successful Test AI. Readiness normalization now preserves exact tested source knowledge. New six-test journey suite PASS, including successful Ready and no paid entitlement granted.
+- Review-request operation fixtures now seed a paid-completed Job via the private Finance actor, with authoritative payment posting/rollback retained in separate bridge tests. Operations store 14 PASS. Platform Jobs test now requires explicit scoped support entry instead of bare admin tenant access; final rerun pending.
+- Synthetic browser QA harness prepared, refuses production service/DB/provider credentials, uses disposable SQLite, real application routes and deterministic external AI boundary, blocks external network, and visibly marks synthetic data. Browser execution/deployment of this harness pending; never count mocked WhatsApp as real end-to-end delivery.
+
+## Current NEXT / release gates
+Finish scoped browser journey and remaining regression failures (including retired self-service and old dashboard/catalog expectations), inspect root webhook regressions, review credentials/configuration without values, review complete diff/current main, then PR/merge, additive migration, deploy both services and live smoke. Real demo WhatsApp and assisted inbound/outbound tests remain pending. FINAL STATUS remains IN PROGRESS; do not claim COMPLETE.

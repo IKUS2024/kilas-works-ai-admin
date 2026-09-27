@@ -299,6 +299,9 @@ class JobRoutesTests(unittest.TestCase):
             session["role"] = "KILAS_ADMIN"
             session["_csrf_token"] = "csrf-test"
 
+        self.assertEqual(self.client.get(f"/business/{scope['id']}/jobs").status_code,404)
+        support=self.client.post(f"/platform/business/{scope['id']}/support",data={'csrf_token':'csrf-test'})
+        self.assertEqual(support.status_code,303)
         page = self.client.get(f"/business/{scope['id']}/jobs")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Customer Platform", page.data)

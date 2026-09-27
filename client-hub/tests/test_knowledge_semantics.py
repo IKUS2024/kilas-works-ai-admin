@@ -191,7 +191,8 @@ class SemanticTests(unittest.TestCase):
         current = repo.get_tenant_config_row(self.bid)['config']
         self.assertEqual(current['whatsapp']['connection_status'], 'CONNECTED')
         self.assertEqual(current['new_runtime_metadata'], {'keep': True})
-        self.assertEqual(current['business_type'], 'Knowledge edit')
+        self.assertEqual(current['business_type'], config['business_type'])
+        self.assertEqual(repo.get_business_profile(self.bid)['category'],'Knowledge edit')
 
     def test_provisioning_builds_snapshot_only_after_shared_lock(self):
         original = knowledge.provisioning.build_tenant_config
@@ -218,7 +219,8 @@ class SemanticTests(unittest.TestCase):
         @db.knowledge_writer
         def config_writer(business_id):
             config = repo.get_tenant_config_row(business_id)['config']
-            self.assertEqual(config['business_type'], 'V2 update')
+            self.assertIsNone(config['business_type'])
+            self.assertEqual(repo.get_business_profile(business_id)['category'],'V2 update')
             config['runtime_note'] = 'Preserved'
             repo.save_tenant_config(business_id, config)
         def run(fn, trace=False):
@@ -245,5 +247,6 @@ class SemanticTests(unittest.TestCase):
         self.assertFalse(first.is_alive()); self.assertFalse(second.is_alive())
         self.assertEqual(errors, [])
         config = repo.get_tenant_config_row(self.bid)['config']
-        self.assertEqual(config['business_type'], 'V2 update')
+        self.assertIsNone(config['business_type'])
+        self.assertEqual(repo.get_business_profile(self.bid)['category'],'V2 update')
         self.assertEqual(config['runtime_note'], 'Preserved')

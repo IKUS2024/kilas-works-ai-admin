@@ -243,7 +243,7 @@ def public_name(item):
     if item['catalog_key'] in ('website_domain_com_hosting', 'website_domain_id_hosting'):
         suffix = '.com' if item['catalog_key'] == 'website_domain_com_hosting' else '.id'
         return 'Managed ' + suffix + ' + Hosting'
-    return item["name"].replace("AI Admin", "Kilas Brain")
+    return item["name"].replace("AI Admin", "Kilas Assist").replace("Kilas Brain", "Kilas Assist")
 
 
 def display_price(item):
@@ -271,7 +271,7 @@ def service_description(item):
     if item['catalog_key'] == 'talent_management':
         return pricing_config.TALENT_FEE_RULE
     if (item.get("description") or "").strip():
-        return item["description"].replace("AI Admin", "Kilas Brain")
+        return item["description"].replace("AI Admin", "Kilas Assist").replace("Kilas Brain", "Kilas Assist")
     package = {"ai_admin_basic": "AI_ADMIN_BASIC", "ai_admin_pro": "AI_ADMIN_PRO"}.get(item["catalog_key"])
     if package:
         from feature_flags import features_for_package

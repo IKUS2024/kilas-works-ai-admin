@@ -131,6 +131,11 @@ def create_app():
             customer_insight_schema.apply_schema()
             print("Customer Insight schema 0063: applied")
 
+        if os.environ.get('KILAS_ASSIST_SCHEMA_APPLY','').strip().lower() == 'true':
+            import assist_schema
+            applied=assist_schema.apply_release()
+            print('Assist additive release schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
