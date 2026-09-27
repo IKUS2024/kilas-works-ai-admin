@@ -44,7 +44,7 @@
       {% endif %}
     </div>
     {% endif %}
-    <details>
+    <details {% if request.args.get('preview') == '1' %}open{% endif %}>
       <summary>Coba contoh jawaban</summary>
       <p class="muted">Opsional. Coba pertanyaan customer tanpa melakukan tindakan bisnis.</p>
       <form method="post" id="contoh-jawaban">
@@ -53,6 +53,8 @@
         <textarea id="example-message" name="message" maxlength="4000" rows="2" required placeholder="Berapa harganya?"></textarea>
         <button class="btn secondary" name="action" value="test">Lihat contoh jawaban</button>
       </form>
+      {% set example = history|selectattr('mode', 'equalto', 'assist_test')|list|last %}
+      {% if example %}<p><strong>Contoh jawaban terakhir:</strong></p><p style="white-space:pre-wrap">{{ example.reply }}</p>{% endif %}
     </details>
     {% endif %}
   </section>

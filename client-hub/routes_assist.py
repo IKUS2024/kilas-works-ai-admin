@@ -81,7 +81,8 @@ def training(business_id):
                         'teach_attachment_first': 'Pilih Ajari Kilas untuk mengajarkan lampiran ini terlebih dahulu.',
                         'invalid_message': 'Tulis pesan antara 1 dan 4.000 karakter.'}
             flash(messages.get(str(error), 'Belum berhasil memproses. Pengetahuan Anda tetap tersimpan; coba lagi.'), 'error')
-        return redirect(url_for('assist.training', business_id=business_id), code=303)
+        return redirect(url_for('assist.training', business_id=business_id,
+                                **({'preview': '1'} if action == 'test' else {})), code=303)
     return render_template('assist_training.html', business=business, journey=journey,
                            history=assist_training.history(business_id),
                            confirmation=assist_journey._event(business_id, 'assist_teach'),
