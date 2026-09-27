@@ -856,7 +856,10 @@ def _brain_checkout(business_id):
     if business['package'] == 'NONE':
         flash('Bisnis ini belum memilih paket Kilas Assist.', 'error')
         return redirect(url_for('client.dashboard'))
-    missing = repo.required_fields_missing(business_id)
+    # Checkout needs only the short business identity setup. Operational/WhatsApp
+    # requirements belong to the unchanged post-payment connection/activation gates.
+    checkout_fields = {'business_name', 'category', 'short_description', 'primary_language'}
+    missing = [field for field in repo.required_fields_missing(business_id) if field in checkout_fields]
     if missing:
         flash("Lengkapi data penting Kilas Assist dulu sebelum pembayaran: " + ", ".join(_human_missing_labels(missing)) + ".", "error")
         return redirect(url_for("client.wizard_step", business_id=business_id, step=_step_for_missing_fields(missing)))

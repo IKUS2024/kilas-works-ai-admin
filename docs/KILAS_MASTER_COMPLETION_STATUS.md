@@ -1,5 +1,11 @@
 # Kilas Assist + Finance master completion
 
+## Checkout prerequisite correction — 2026-09-28 (release in progress)
+- Continued from remote main `70818c56bc14f8a8e382795a415cc521cb37a575`; Client Hub was inspected LIVE at `91956311ff7bf58e45b0ffb851acd669d13253fc`. Scope is only the checkout bug; continuous training and all earlier work are preserved.
+- Root cause: `_brain_checkout` reused `repo.required_fields_missing`, a full activation/review validator, before showing or starting payment. Its operational and WhatsApp fields wrongly redirected Starter/Pro buyers to the old wizard.
+- Minimal checkout-only correction retains name/category/description/primary-language identity requirements. Operating hours, service model, business phone, trusted owner phone and retired detailed-onboarding requirements no longer block checkout. The shared activation validator, payment verification, subscription authority, Meta/OTP/WhatsApp gates and Finance are unchanged.
+- Focused billing suite PASS with real stored empty fields for both Starter/Pro, GET/POST checkout, retry reuse, unchanged verified-payment transition to ACTIVE subscription/Pending connection, activation denial, valid-plan/account/tenant checks and missing-identity denial. No production data was reset or mutated for QA. Deployment and final production read-only verification pending.
+
 ## Continuous Latih Kilas — 2026-09-27 (deployed and verified)
 - This is the current release checkpoint and supersedes historical Teach → Test → Ready → new invitation instructions below. PR64 is merged; both production services are LIVE at `91956311ff7bf58e45b0ffb851acd669d13253fc`. Continuous teaching, independent confirmation, optional preview, binding reuse and current language instructions are deployed. Actual phone delivery remains an external acceptance gate; it is not claimed by synthetic transport tests.
 - Work continued from remote main `b7768646133f2fa30f82b4eefe8904a56d94b3f2`; both production services were inspected first at CRM release `4bcd5c2e8d4131376e404414ab2dd183cc2d6fdd`, auto-deploy OFF. Release branch `feature/continuous-kilas-training-20260927`.
