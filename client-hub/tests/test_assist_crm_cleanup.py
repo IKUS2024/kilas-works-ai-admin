@@ -116,7 +116,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
             job_status='PERLU_TINDAKAN', follow_up='Tanyakan detail talent'), 'REQUEST')
         detail = self.client.get(path)
         self.assertIn('Jobs customer ini', detail.text)
-        self.assertIn('Cari talent', detail.text)
+        self.assertIn('Carikan talent', detail.text)
         self.assertIn('Edit Job', detail.text)
         self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
 
@@ -349,10 +349,10 @@ class CRMTests(runtime_fixture.RuntimeTests):
     def test_lead_and_customer_followup_require_relevant_suggestion_and_never_send(self):
         self.turn('Berapa harga?')
         path=f'/business/{self.bid}/customers/{self.customer["id"]}'
-        self.assertNotIn('Buat Follow-up',self.client.get(path).text)
+        self.assertNotIn('Follow-up Customer',self.client.get(path).text)
         self.turn('Saya tertarik',dict(follow_up='Tanyakan kebutuhan yang ingin dibahas'))
         page=self.client.get(path)
-        self.assertIn('Buat Follow-up',page.text)
+        self.assertIn('Follow-up Customer',page.text)
         self.assertIn('periksa sebelum dikirim',page.text)
         self.assertNotIn('data-linked-jobs',page.text)
         self.assertEqual(jobs.list_jobs(self.bid)[1],0)
@@ -360,7 +360,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
             job_status='PERLU_TINDAKAN',follow_up='Tanyakan jadwal konsultasi'),'REQUEST')
         page=self.client.get(path)
         self.assertEqual(self.customer['stage'],'CUSTOMER')
-        self.assertIn('Buat Follow-up',page.text)
+        self.assertIn('Follow-up Customer',page.text)
         self.assertIn('periksa sebelum dikirim',page.text)
 
     def test_quick_setup_preserves_knowledge_and_does_not_extend_demo(self):

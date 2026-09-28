@@ -266,7 +266,7 @@ class CustomerTests(unittest.TestCase):
         self.assertNotIn(b">WEB<", page.data)
 
 
-    def test_lead_filter_and_manual_customer_promotion(self):
+    def test_legacy_stage_values_are_internal_and_owner_list_is_unified(self):
         first = self.start().json
         other_client = self.app.test_client()
         second = self.start(client=other_client).json
@@ -286,12 +286,15 @@ class CustomerTests(unittest.TestCase):
         lead_page = self.client.get("/business/7/customers?stage=LEAD")
         customer_page = self.client.get("/business/7/customers?stage=CUSTOMER")
         self.assertIn(b"Lead Satu", default_page.data)
-        self.assertNotIn(b"Customer Dua", default_page.data)
+        self.assertIn(b"Customer Dua", default_page.data)
         self.assertNotIn(b">Semua<", default_page.data)
         self.assertIn(b"Lead Satu", lead_page.data)
-        self.assertNotIn(b"Customer Dua", lead_page.data)
+        self.assertIn(b"Customer Dua", lead_page.data)
         self.assertIn(b"Customer Dua", customer_page.data)
-        self.assertNotIn(b"Lead Satu", customer_page.data)
+        self.assertIn(b"Lead Satu", customer_page.data)
+        for page in (default_page, lead_page, customer_page):
+            for retired_ui in (b">Lead<", b"stage=LEAD", b"stage=CUSTOMER"):
+                self.assertNotIn(retired_ui, page.data)
 
         response = self.client.post(
             f"/business/7/customers/{one['id']}",
