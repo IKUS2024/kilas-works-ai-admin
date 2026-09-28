@@ -16,6 +16,7 @@ from PIL import Image  # noqa: E402
 import app  # noqa: E402
 import repo  # noqa: E402
 from kilas_ai import store, tools  # noqa: E402
+import db  # noqa: E402
 
 
 class FakeResponse:
@@ -90,6 +91,7 @@ class ToolTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("Upload gambar terlebih dahulu", response.json["error"])
         self.assertEqual(store.messages(self.owner, thread_id), [])
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE thread_id=?", (thread_id,))["n"], 0)
 
 
 if __name__ == "__main__":

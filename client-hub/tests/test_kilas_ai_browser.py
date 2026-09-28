@@ -26,11 +26,6 @@ def stream_reply(*_):
 
 
 def main():
-    owner = repo.create_user("kilas-ai-browser@example.test", "hash")
-    client = app.app.test_client()
-    with client.session_transaction() as session:
-        session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="browser-csrf")
-    cookie = client.get_cookie(app.app.config.get("SESSION_COOKIE_NAME", "session"))
     server = make_server("127.0.0.1", 0, app.app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -39,11 +34,17 @@ def main():
         with patch.object(providers, "stream", side_effect=stream_reply), sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             for width, height in ((1440, 900), (768, 1024), (390, 844), (320, 700)):
+                owner = repo.create_user(f"kilas-ai-browser-{width}@example.test", "hash")
+                client = app.app.test_client()
+                with client.session_transaction() as session:
+                    session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="browser-csrf")
+                cookie = client.get_cookie(app.app.config.get("SESSION_COOKIE_NAME", "session"))
                 context = browser.new_context(viewport={"width": width, "height": height})
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
+                assert page.get_by_role("heading", name="Kilas Works").is_visible()
+                assert page.get_by_text("Apa yang ingin kamu kerjakan hari ini?").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
                 page.locator(".ai-empty .ai-new").click()
                 page.wait_for_url("**/kilas-ai/threads/*")
@@ -58,6 +59,9 @@ def main():
                 assert page.locator("#ai-pending .ai-pending-item").count() == 1
                 page.get_by_role("button", name="Hapus lampiran note.txt").click()
                 assert page.locator("#ai-pending .ai-pending-item").count() == 0
+                page.locator("#ai-tool").select_option("IMAGE_EDIT")
+                assert page.get_by_text("Upload gambar terlebih dahulu untuk diedit.").is_visible()
+                page.locator("#ai-tool").select_option("CHAT")
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()

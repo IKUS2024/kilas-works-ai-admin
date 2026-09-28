@@ -59,10 +59,10 @@ class UsageTests(unittest.TestCase):
         db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) "
                    "VALUES (?,?, 'ACTIVE',?,?)", (self.owner, "PLUS", start, end))
         self.assertEqual(usage.effective_plan(self.owner)["plan"], "PLUS")
-        self.assertEqual(usage.PLANS["PLUS"]["FAST"], 500)
-        self.assertEqual(usage.PLANS["PLUS"]["SMART"], 30)
-        self.assertEqual(usage.PLANS["PRO"]["EXPERT"], 12)
-        self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 50)
+        self.assertEqual(usage.PLANS["PLUS"]["FAST"], 400)
+        self.assertEqual(usage.PLANS["PLUS"]["SMART"], 17)
+        self.assertEqual(usage.PLANS["PRO"]["EXPERT"], 7)
+        self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 25)
         self.assertIsNone(usage.estimate("unknown", 100, 100, "CHAT"))
         with patch.dict(os.environ, {"KILAS_AI_MODEL_PRICING_JSON": '{"priced":{"input_per_million_usd":1,"output_per_million_usd":2}}'}):
             self.assertEqual(usage.estimate("priced", 1000000, 1000000, "CHAT"), "3.000000")
@@ -80,6 +80,20 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(denied.status_code, 429)
         self.assertEqual(store.messages(self.other, thread_id), [])
         self.assertIn("Expert", denied.json["error"])
+
+    def test_paid_cost_guard_protects_premium_tools_but_keeps_fast_available(self):
+        now = datetime.now(timezone.utc)
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",
+                   (self.other, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
+        db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) "
+                   "VALUES (?,?,?,?,?,'COMPLETE',?,?)",
+                   (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "1.82", now.isoformat()))
+        thread_id = store.create_thread(self.other)
+        with self.assertRaises(usage.UsageLimit):
+            usage.reserve(self.other, thread_id, "guard_smart_0123456789", "SMART", "CHAT")
+        plan, operations = usage.reserve(self.other, thread_id, "guard_fast_0123456789", "FAST", "CHAT")
+        self.assertEqual((plan, operations), ("PLUS", ("CHAT",)))
+        usage.finish(self.other, "guard_fast_0123456789", operations, success=False)
 
 
 if __name__ == "__main__":

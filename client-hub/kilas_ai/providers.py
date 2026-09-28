@@ -20,7 +20,7 @@ MODEL_TIERS = {
     "SMART": {"openai": "gpt-6-sol", "anthropic": "claude-sonnet-5"},
     "EXPERT": {"openai": "gpt-6-sol", "anthropic": "claude-sonnet-5"},
 }
-OUTPUT_LIMITS = {"FAST": 1200, "SMART": 2400, "EXPERT": 3600}
+OUTPUT_LIMITS = {"FAST": 800, "SMART": 1600, "EXPERT": 2400}
 EFFORT = {"FAST": "none", "SMART": "medium", "EXPERT": "high"}
 
 

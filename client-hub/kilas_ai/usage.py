@@ -10,9 +10,9 @@ import db
 
 PLANS = {
     "FREE": {"price": 0, "FAST": 5, "FAST_MONTHLY": 100, "SMART": 3, "EXPERT": 0, "WEB_SEARCH": 1, "IMAGES": 1, "PDF": 2},
-    "PLUS": {"price": 69000, "FAST": 500, "SMART": 30, "EXPERT": 5, "WEB_SEARCH": 10, "IMAGES": 8, "PDF": 30},
-    "PRO": {"price": 149000, "FAST": 1200, "SMART": 75, "EXPERT": 12, "WEB_SEARCH": 25, "IMAGES": 18, "PDF": 90},
-    "MAX": {"price": 299000, "FAST": 2500, "SMART": 150, "EXPERT": 25, "WEB_SEARCH": 50, "IMAGES": 35, "PDF": 200},
+    "PLUS": {"price": 69000, "FAST": 400, "SMART": 17, "EXPERT": 3, "WEB_SEARCH": 6, "IMAGES": 5, "PDF": 20},
+    "PRO": {"price": 149000, "FAST": 900, "SMART": 37, "EXPERT": 7, "WEB_SEARCH": 12, "IMAGES": 10, "PDF": 50},
+    "MAX": {"price": 299000, "FAST": 1800, "SMART": 73, "EXPERT": 15, "WEB_SEARCH": 25, "IMAGES": 20, "PDF": 100},
 }
 MODEL_RATES = {
     "gpt-6-luna": ("0.10", "0.50"), "gpt-6-sol": ("2.00", "10.00"),
@@ -20,7 +20,7 @@ MODEL_RATES = {
 }
 GUARD_UNIT_USD = {"FAST": Decimal("0.00035"), "SMART": Decimal("0.012"),
                   "EXPERT": Decimal("0.03"), "WEB_SEARCH": Decimal("0.015"),
-                  "IMAGE_GENERATION": Decimal("0.025"), "IMAGE_EDIT": Decimal("0.025"),
+                  "IMAGE_GENERATION": Decimal("0.04"), "IMAGE_EDIT": Decimal("0.04"),
                   "PDF": Decimal("0.001")}
 
 
@@ -130,8 +130,8 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
         period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         hard = Decimal(os.environ.get("KILAS_AI_FREE_COST_CAP_USD", "0.15"))
     else:
-        period_start = paid_start
-        hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal("0.38")
+        period_start = _period(plan, paid_start, paid_end, "PDF", now)[0]
+        hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.45"))
     rows = _rows(conn, "SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
                  "AND created_at>=? AND status IN ('COMPLETE','PENDING')", (user_id, period_start.isoformat()))
     spent = Decimal(0)
@@ -143,7 +143,7 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
     forecast = sum((_guard_unit(operation, mode) for operation in operations), Decimal(0))
     if spent + forecast > hard and not (mode == "FAST" and operations == ("CHAT",) and plan != "FREE"):
         raise UsageLimit("Batas penggunaan paket untuk fitur ini tercapai. Coba mode Fast atau tunggu periode berikutnya.")
-    if spent + forecast > hard * Decimal("0.65"):
+    if spent + forecast > hard * Decimal("0.55"):
         logging.getLogger(__name__).warning("Kilas AI internal cost warning for account %s", user_id)
 
 
@@ -218,7 +218,7 @@ def estimate(model, input_tokens, output_tokens, operation):
         elif operation == "PDF":
             value = Decimal("0.001")
         elif operation in ("IMAGE_GENERATION", "IMAGE_EDIT"):
-            value = Decimal(str(rate["per_image_usd"])) if isinstance(rate, dict) and "per_image_usd" in rate else Decimal("0.025") if model == "gpt-image-2" else None
+            value = Decimal(str(rate["per_image_usd"])) if isinstance(rate, dict) and "per_image_usd" in rate else Decimal("0.04") if model == "gpt-image-2" else None
         else:
             if not isinstance(rate, dict):
                 prices = MODEL_RATES.get(model)
