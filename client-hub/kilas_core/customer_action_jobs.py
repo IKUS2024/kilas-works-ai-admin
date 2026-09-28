@@ -113,9 +113,6 @@ def _request_action(insight, current=None):
     previous = ((current or {}).get("fields") or {}).get("action")
     if previous and not _is_continuation(previous):
         return _clean(previous, 240)
-    for value in [*_list(insight.get("needs")), *_list(insight.get("interests"))]:
-        if not _is_continuation(value):
-            return value
     return ""
 
 
