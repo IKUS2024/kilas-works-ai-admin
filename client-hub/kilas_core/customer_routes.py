@@ -22,6 +22,7 @@ def _contact_context(business, customer, insight=None):
         chat_url = url_for('client.inbox_page', business_id=bid, channel='whatsapp',
                            conversation=conversations[0]['id'] if conversations else None)
     return dict(customer=customer, chat_url=chat_url,
+                insight_view=customer_insights.presentation(insight) if insight else None,
                 followup_draft=customer_followups.draft(customer, insight) if insight else None,
                 followup_send=customer_followups.context(business, customer, insight) if insight else None,
                 linked_jobs=linked_context(business, customer['id']))

@@ -113,9 +113,20 @@ class CustomerTests(unittest.TestCase):
             shell = self.client.get(f"/business/7/customers/{customer['id']}")
             self.assertEqual(shell.status_code, 200)
             call.assert_not_called()  # First paint never waits for an external model.
+            self.assertIn(b"Belum cukup informasi untuk membuat ringkasan customer", shell.data)
+            self.assertIn(b"Baru memulai percakapan", shell.data)
+            self.assertNotIn(b"Belum diketahui", shell.data)
+            self.assertIn(b"setInterval(refreshInsight,10000)", shell.data)
+            self.assertIn(b"visibilitychange", shell.data)
+            self.assertIn(b"data-followup-editor][open]", shell.data)
             page = self.client.get(f"/business/7/customers/{customer['id']}/insight")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"Budi", page.data)
+        self.assertIn(b"Ringkasan customer", page.data)
+        self.assertIn(b"Tertarik", page.data)
+        self.assertIn(b"Budi tertarik pada admin WhatsApp.", page.data)
+        self.assertNotIn(b"Belum diketahui", page.data)
+        self.assertIn(b"WIB", page.data)
         call.assert_called_once()
         sent = call.call_args.args[1][0]["content"]
         self.assertIn("coffee shop", sent)
@@ -149,6 +160,40 @@ class CustomerTests(unittest.TestCase):
         call.assert_called_once()
         self.assertIn("INSIGHT SEBELUMNYA", call.call_args.args[1][0]["content"])
         self.assertIn("500 ribu", call.call_args.args[1][0]["content"])
+
+    def test_customer_insight_presentation_uses_only_known_values(self):
+        empty = customer_insights.presentation({
+            "buying_stage": "BELUM_JELAS", "name": None, "business_name": None,
+            "business_type": None, "location": None, "budget": None, "schedule": None,
+            "interests": [], "needs": [], "action": None, "_meta": {"updated_at": 1790598149},
+        })
+        self.assertFalse(empty["has_meaningful_information"])
+        self.assertEqual(empty["stage_label"], "Baru memulai percakapan")
+        self.assertEqual(empty["facts"], [("Tahap", "Baru memulai percakapan")])
+        self.assertNotEqual(str(empty["updated_at"]), "1790598149")
+
+        asking = customer_insights.presentation({
+            "buying_stage": "MENCARI_INFORMASI", "name": "Irvan",
+            "interests": ["Visa Amerika"], "needs": [], "action": None,
+            "business_name": None, "business_type": None, "location": None,
+            "budget": None, "schedule": None, "_meta": {},
+        })
+        self.assertTrue(asking["has_meaningful_information"])
+        self.assertEqual(asking["stage_label"], "Mencari informasi")
+        self.assertEqual(asking["summary"],
+                         "Irvan sedang mencari informasi tentang visa Amerika. Belum ada permintaan konkret.")
+        self.assertNotIn("Belum diketahui", str(asking["facts"]))
+
+        continuing = customer_insights.presentation({
+            "buying_stage": "SIAP_MEMBELI", "name": "Irvan",
+            "action": "Pengurusan visa Amerika", "needs": [], "interests": [],
+            "schedule": "Bulan depan sekitar 2 minggu", "budget": "Rp1.000.000",
+            "business_name": None, "business_type": None, "location": None, "_meta": {},
+        })
+        self.assertEqual(continuing["stage_label"], "Ingin lanjut")
+        self.assertIn("pengurusan visa Amerika", continuing["summary"])
+        self.assertIn("bulan depan sekitar 2 minggu", continuing["summary"])
+        self.assertIn(("Budget", "Rp1.000.000"), continuing["facts"])
 
     def test_platform_admin_workspace_reuses_same_customers_engine_and_hides_internal_business(self):
         phone = "628111223344"

@@ -3,7 +3,6 @@
   {% if customer.stage == 'CUSTOMER' %}{% include "_jobs_panel.html" %}{% endif %}
   {% if customer.stage in ('LEAD', 'CUSTOMER') and insight.follow_up and insight._meta.has_history %}
   <div class="card">
-    <p class="client-note">{{ insight.follow_up }}</p>
     <details data-followup-editor><summary class="btn secondary">Follow-up Customer</summary>
       <label for="followup-draft">Pesan follow-up</label>
       {% if followup_send %}
