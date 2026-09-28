@@ -1,0 +1,1528 @@
+[
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 29,
+    "tinyText": 12,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "dashboard",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 30,
+    "tinyText": 3,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "transactions",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 23,
+    "tinyText": 5,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "accounts",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 54,
+    "tinyText": 50,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "bills",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 26,
+    "tinyText": 17,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "budget",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 29,
+    "tinyText": 11,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "invoices",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 27,
+    "tinyText": 8,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "customers",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 56,
+    "tinyText": 17,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "invoice-new",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 38,
+    "tinyText": 9,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "invoice-settings",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 23,
+    "tinyText": 1,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "payees",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 22,
+    "tinyText": 25,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "active",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "reports",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 23,
+    "tinyText": 1,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "bank",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 24,
+    "tinyText": 11,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "assistant",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 360,
+    "scroll": 345,
+    "smallControls": 22,
+    "tinyText": 1,
+    "overflowing": [
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 364.890625,
+        "right": 456.421875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 374.890625,
+        "right": 392.890625
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 377.890625,
+        "right": 389.890625
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 378.640625,
+        "right": 389.140625
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 460.421875,
+        "right": 538.796875
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 470.421875,
+        "right": 488.421875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 474.171875,
+        "right": 484.671875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 542.796875,
+        "right": 631.84375
+      },
+      {
+        "tag": "svg",
+        "cls": "[object SVGAnimatedString]",
+        "left": 552.796875,
+        "right": 570.796875
+      },
+      {
+        "tag": "circle",
+        "cls": "[object SVGAnimatedString]",
+        "left": 558.796875,
+        "right": 564.796875
+      },
+      {
+        "tag": "path",
+        "cls": "[object SVGAnimatedString]",
+        "left": 555.796875,
+        "right": 567.796875
+      },
+      {
+        "tag": "A",
+        "cls": "",
+        "left": 635.84375,
+        "right": 719.1875
+      }
+    ],
+    "width": 360,
+    "page": "receipt",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 20,
+    "tinyText": 9,
+    "overflowing": [],
+    "width": 820,
+    "page": "dashboard",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 21,
+    "tinyText": 2,
+    "overflowing": [],
+    "width": 820,
+    "page": "transactions",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 14,
+    "tinyText": 4,
+    "overflowing": [],
+    "width": 820,
+    "page": "accounts",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 18,
+    "tinyText": 14,
+    "overflowing": [],
+    "width": 820,
+    "page": "bills",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 17,
+    "tinyText": 19,
+    "overflowing": [],
+    "width": 820,
+    "page": "budget",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 20,
+    "tinyText": 4,
+    "overflowing": [],
+    "width": 820,
+    "page": "invoices",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 18,
+    "tinyText": 1,
+    "overflowing": [],
+    "width": 820,
+    "page": "customers",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 47,
+    "tinyText": 10,
+    "overflowing": [],
+    "width": 820,
+    "page": "invoice-new",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 29,
+    "tinyText": 2,
+    "overflowing": [],
+    "width": 820,
+    "page": "invoice-settings",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 14,
+    "tinyText": 0,
+    "overflowing": [],
+    "width": 820,
+    "page": "payees",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 13,
+    "tinyText": 29,
+    "overflowing": [],
+    "width": 820,
+    "page": "reports",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 14,
+    "tinyText": 0,
+    "overflowing": [],
+    "width": 820,
+    "page": "bank",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 15,
+    "tinyText": 13,
+    "overflowing": [],
+    "width": 820,
+    "page": "assistant",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 820,
+    "scroll": 805,
+    "smallControls": 13,
+    "tinyText": 0,
+    "overflowing": [],
+    "width": 820,
+    "page": "receipt",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 20,
+    "tinyText": 9,
+    "overflowing": [],
+    "width": 1440,
+    "page": "dashboard",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 21,
+    "tinyText": 2,
+    "overflowing": [],
+    "width": 1440,
+    "page": "transactions",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 14,
+    "tinyText": 4,
+    "overflowing": [],
+    "width": 1440,
+    "page": "accounts",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 18,
+    "tinyText": 14,
+    "overflowing": [],
+    "width": 1440,
+    "page": "bills",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 17,
+    "tinyText": 19,
+    "overflowing": [],
+    "width": 1440,
+    "page": "budget",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 20,
+    "tinyText": 4,
+    "overflowing": [],
+    "width": 1440,
+    "page": "invoices",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 18,
+    "tinyText": 1,
+    "overflowing": [],
+    "width": 1440,
+    "page": "customers",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 47,
+    "tinyText": 10,
+    "overflowing": [],
+    "width": 1440,
+    "page": "invoice-new",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 29,
+    "tinyText": 2,
+    "overflowing": [],
+    "width": 1440,
+    "page": "invoice-settings",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 14,
+    "tinyText": 0,
+    "overflowing": [],
+    "width": 1440,
+    "page": "payees",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 13,
+    "tinyText": 29,
+    "overflowing": [],
+    "width": 1440,
+    "page": "reports",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 14,
+    "tinyText": 0,
+    "overflowing": [],
+    "width": 1440,
+    "page": "bank",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 15,
+    "tinyText": 13,
+    "overflowing": [],
+    "width": 1440,
+    "page": "assistant",
+    "http": 200,
+    "errors": []
+  },
+  {
+    "status": "complete",
+    "viewport": 1440,
+    "scroll": 1425,
+    "smallControls": 13,
+    "tinyText": 0,
+    "overflowing": [],
+    "width": 1440,
+    "page": "receipt",
+    "http": 200,
+    "errors": []
+  }
+]
