@@ -105,7 +105,10 @@ def prompt_content(text, attachments):
     content = text
     for attachment in attachments:
         if attachment.get("extracted_text"):
-            content += "\n\n[Lampiran: " + attachment["filename"] + "]\n" + attachment["extracted_text"]
+            content += ("\n\nTeks berikut berhasil diekstrak dari lampiran '" + attachment["filename"] +
+                        "'. Gunakan teks ini sebagai isi dokumen untuk menjawab pertanyaan saya. "
+                        "Jangan menganggap lampiran tidak dapat dibaca.\n<isi_lampiran>\n" +
+                        attachment["extracted_text"] + "\n</isi_lampiran>")
     images = [attachment for attachment in attachments if attachment["mime_type"].startswith("image/")]
     if not images:
         return content[:16000]

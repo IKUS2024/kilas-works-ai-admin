@@ -98,7 +98,7 @@ def attachment(user_id, thread_id, attachment_id):
 def attachment_context(user_id, thread_id, message_id, include_content=False):
     content_column = "content" if include_content else "NULL AS content"
     return db.query_all("SELECT filename,mime_type," + content_column + ",extracted_text FROM kilas_ai_attachments "
-                        "WHERE user_id=? AND thread_id=? AND message_id=? ORDER BY id LIMIT 4",
+                        "WHERE user_id=? AND thread_id=? AND message_id=? ORDER BY id LIMIT 5",
                         (user_id, thread_id, message_id))
 
 

@@ -121,6 +121,29 @@ class AttachmentTests(unittest.TestCase):
         self.assertEqual(client.get(path).data, sample_image())
         self.assertEqual(self.client_for(self.b).get(path).status_code, 404)
 
+    def test_pdf_text_reaches_provider_as_readable_document(self):
+        client = self.client_for(self.a)
+        thread_id = store.create_thread(self.a)
+        captured = []
+
+        def fake_stream(mode, context):
+            captured.extend(context)
+            yield {"type": "provider", "provider": "openai", "model": "configured"}
+            yield {"type": "delta", "text": "Invoice for document analysis"}
+            yield {"type": "finish", "reason": "stop"}
+
+        with patch.object(providers, "stream", side_effect=fake_stream):
+            response = client.post(f"/kilas-ai/threads/{thread_id}/send", data={
+                "csrf_token": "file-csrf", "content": "Apa isi PDF ini?", "mode": "FAST",
+                "operation_key": "pdf_text_0123456789abcdef",
+                "attachments": [(io.BytesIO(sample_pdf()), "info.pdf", "application/pdf")],
+            }, content_type="multipart/form-data")
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Invoice", response.get_data(as_text=True))
+        prompt = captured[-1]["content"]
+        self.assertIn("Teks berikut berhasil diekstrak", prompt)
+        self.assertIn("<isi_lampiran>\nInvoice for document analysis\n</isi_lampiran>", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
