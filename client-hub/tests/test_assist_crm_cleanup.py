@@ -89,6 +89,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertEqual(page.status_code, 200)
         self.assertIn('Irvan', page.text)
         self.assertIn('Kilasworks', page.text)
+        self.assertRegex(page.text, r'\+6282213039137\s*·\s*1 percakapan')
         self.assertIn(f'/business/{self.bid}/customers/{cid}', page.text)
         legacy = next(row for row in customers.list_customers(self.bid)[0]
                       if row.get('phone') == legacy_phone)

@@ -51,10 +51,13 @@ def list_page(bid):
         pass
     # Older tenant Inbox rows can predate Core CRM. Reconcile only identities already visible
     # in this tenant's scoped Inbox so every conversation also appears in Customers.
-    for conversation in inbox_service.list_conversations(bid):
+    inbox_conversations = inbox_service.list_conversations(bid)
+    legacy_inbox_phones = set()
+    for conversation in inbox_conversations:
         phone = inbox_service.normalize_customer_phone(conversation.get("customer_phone"))
         if not phone:
             continue
+        legacy_inbox_phones.add(phone)
         try:
             customers.ensure_whatsapp_lead(
                 bid, phone, display_name=conversation.get("customer_name") or phone
@@ -76,6 +79,8 @@ def list_page(bid):
         if customer_insights.demo_conversation_row(bid, row):
             row["conversation_count"] += 1
         if customer_insights.platform_conversation_row(bid, row):
+            row["conversation_count"] += 1
+        if row.get("phone") in legacy_inbox_phones:
             row["conversation_count"] += 1
     return render_template("customers.html", business=business, customers=rows,
                            total=total, page=page, pages=pages, search=q)
