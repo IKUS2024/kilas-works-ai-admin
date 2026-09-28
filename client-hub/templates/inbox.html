@@ -19,7 +19,6 @@
 .kw-send-status{font-size:13px;font-weight:750;color:var(--text-dim);margin-left:auto}
 .kw-send-status.sending{color:var(--yellow)}.kw-send-status.sent{color:var(--green)}.kw-send-status.failed{color:var(--red)}
 
-.kw-demo-inbox-note{padding:10px 12px;border:1px solid color-mix(in srgb,var(--orange) 45%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--orange) 7%,transparent)}
 .kw-demo-empty{padding:18px;display:grid;gap:10px}
 .kw-demo-empty>strong{font-size:15px}
 .kw-demo-empty p{margin:0;line-height:1.45}
@@ -209,12 +208,6 @@
       </div>
 
       <div class="kw-compose">
-        {% if selected_source == 'demo' %}
-          <div class="kw-demo-inbox-note" style="margin-bottom:10px;">
-            <strong>Demo WhatsApp aktif</strong>
-            <p class="muted" style="margin:4px 0 0;">Chat ini memakai nomor demo Kilas Works. Kontrol manusia di bawah hanya berlaku untuk percakapan demo yang terikat ke workspace ini.</p>
-          </div>
-        {% endif %}
         {% if selected.mode == 'HUMAN_TAKEOVER' and window and window.allowed %}
           <form id="tenant-reply-form" method="post" action="{{ url_for('client.demo_inbox_reply', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_reply', business_id=business.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

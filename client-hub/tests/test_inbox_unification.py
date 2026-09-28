@@ -430,7 +430,8 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
     body = page.data.decode()
     assert "Demo WhatsApp Kilas" in body
     assert "Ambil Alih" in body
-    assert "Kontrol manusia" in body
+    assert "Demo WhatsApp aktif" not in body
+    assert "Kontrol manusia di bawah" not in body
     assert "Analisa" in body
     assert "Kenapa AI jawab begitu:" in body
     assert "Customer memberi konteks" in body
