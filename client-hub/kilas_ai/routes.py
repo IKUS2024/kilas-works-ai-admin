@@ -30,8 +30,9 @@ def require_access():
 @ai_bp.get("")
 def home():
     from . import attachments, store, usage
+    current_plan = usage.effective_plan(session["user_id"])["plan"]
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
-                           messages=[], attachment_limits=attachments.limits(usage.effective_plan(session["user_id"])["plan"]))
+                           messages=[], current_plan=current_plan, attachment_limits=attachments.limits(current_plan))
 
 
 @ai_bp.get("/usage")
@@ -63,10 +64,11 @@ def thread_page(thread_id):
             row["metadata"] = json.loads(row["metadata_json"] or "{}")
         except ValueError:
             row["metadata"] = {}
+    current_plan = usage.effective_plan(session["user_id"])["plan"]
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
                            selected=selected, messages=rows,
                            attachments=store.attachment_list(session["user_id"], thread_id),
-                           attachment_limits=attachments.limits(usage.effective_plan(session["user_id"])["plan"]))
+                           current_plan=current_plan, attachment_limits=attachments.limits(current_plan))
 
 
 @ai_bp.get("/threads/<int:thread_id>/attachments/<int:attachment_id>")
