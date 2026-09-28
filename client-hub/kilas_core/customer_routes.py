@@ -1,15 +1,15 @@
 """Owner-facing Kilas Core Customers routes. AI Admin only; Finance remains separate."""
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
 import security
 import platform_workspace
-from kilas_core import customers, customer_insights, customer_action_jobs
+from kilas_core import customers, customer_insights, customer_action_jobs, customer_followups
 from kilas_core.job_routes import linked_context
 
 customers_bp = Blueprint("core_customers", __name__)
 customers_bp.add_app_template_filter(customers.display_phone, 'contact_phone')
 
 
-def _contact_context(business, customer):
+def _contact_context(business, customer, insight=None):
     customer = customers.sync_verified_profile(business['id'], customer)
     bid = business['id']
     if platform_workspace.is_scope_business(bid):
@@ -21,6 +21,7 @@ def _contact_context(business, customer):
         chat_url = url_for('client.inbox_page', business_id=bid, channel='whatsapp',
                            conversation=conversations[0]['id'] if conversations else None)
     return dict(customer=customer, chat_url=chat_url,
+                followup_send=customer_followups.context(business, customer, insight) if insight else None,
                 linked_jobs=linked_context(business, customer['id']))
 
 
@@ -89,7 +90,7 @@ def detail_page(bid, customer_id):
     return render_template("customer_detail.html", business=business,
                            conversations=conversations, insight=insight,
                            saved=request.args.get("saved") == "1",
-                           **_contact_context(business, customer))
+                           **_contact_context(business, customer, insight))
 
 
 @customers_bp.get("/business/<int:bid>/customers/<customer_id>/insight")
@@ -108,7 +109,32 @@ def insight_fragment(bid, customer_id):
     except customers.CustomerError:
         pass
     return render_template("_contact_context.html", business=business, insight=insight,
-                           **_contact_context(business, customer))
+                           **_contact_context(business, customer, insight))
+
+
+@customers_bp.post("/business/<int:bid>/customers/<customer_id>/follow-up")
+@security.login_required
+def send_followup(bid, customer_id):
+    business = _business(bid)
+    try:
+        result = customer_followups.send(
+            business, customer_id, request.form.get('message'),
+            request.form.get('operation_key'), security.current_user()['id'])
+    except customers.CustomerError as error:
+        abort(error.status)
+    except customer_followups.FollowUpError as error:
+        messages = {
+            'approved_template_required': 'Jendela WhatsApp sudah berakhir. Template WhatsApp yang disetujui diperlukan untuk menghubungi customer ini.',
+            'followup_draft_changed': 'Draft follow-up sudah diperbarui. Muat ulang halaman sebelum mengirim.',
+            'whatsapp_conversation_required': 'Percakapan WhatsApp customer ini belum tersedia.',
+            'invalid_message': 'Pesan follow-up tidak boleh kosong dan maksimal 4000 karakter.',
+            'whatsapp_failed': 'Follow-up gagal dikirim dan tidak ditandai terkirim.',
+            'whatsapp_unknown': 'Status pengiriman belum dapat dipastikan. Periksa Inbox sebelum mencoba lagi.',
+            'whatsapp_suppressed': 'Follow-up tidak dikirim. Periksa jendela WhatsApp dan Human Takeover.',
+        }
+        return jsonify(ok=False, error=error.code,
+                       message=messages.get(error.code, 'Follow-up belum berhasil dikirim.')), error.status
+    return jsonify(ok=True, message='Follow-up terkirim', **result)
 
 
 @customers_bp.post("/business/<int:bid>/customers/<customer_id>")
