@@ -353,7 +353,8 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.turn('Saya tertarik',dict(follow_up='Tanyakan kebutuhan yang ingin dibahas'))
         page=self.client.get(path)
         self.assertIn('Follow-up Customer',page.text)
-        self.assertIn('periksa sebelum dikirim',page.text)
+        self.assertIn('data-followup-form',page.text)
+        self.assertIn('Kirim WhatsApp',page.text)
         self.assertNotIn('data-linked-jobs',page.text)
         self.assertEqual(jobs.list_jobs(self.bid)[1],0)
         self.turn('Saya mau booking konsultasi',dict(action='Booking konsultasi',
@@ -361,7 +362,8 @@ class CRMTests(runtime_fixture.RuntimeTests):
         page=self.client.get(path)
         self.assertEqual(self.customer['stage'],'CUSTOMER')
         self.assertIn('Follow-up Customer',page.text)
-        self.assertIn('periksa sebelum dikirim',page.text)
+        self.assertIn('data-followup-form',page.text)
+        self.assertIn('Kirim WhatsApp',page.text)
 
     def test_quick_setup_preserves_knowledge_and_does_not_extend_demo(self):
         before=assist_training.context(self.bid)

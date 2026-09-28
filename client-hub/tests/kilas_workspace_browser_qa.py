@@ -83,8 +83,8 @@ with sync_playwright() as p:
 
         visit('/admin/customers','admin-customers')
         expect(page.get_by_role('heading',name='Customers',exact=True)).to_be_visible()
-        expect(page.get_by_role('link',name='Lead',exact=True)).to_be_visible()
-        expect(page.get_by_role('link',name='Customer',exact=True)).to_be_visible()
+        expect(page.get_by_role('link',name='Lead',exact=True)).to_have_count(0)
+        expect(page.get_by_role('link',name='Customer',exact=True)).to_have_count(0)
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Customers')
 
         visit('/admin/inbox','admin-inbox')
