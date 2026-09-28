@@ -28,3 +28,5 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - name: Account-owned Kilas AI foundation
         run: cd client-hub && python tests/test_kilas_ai_foundation.py
+      - name: Kilas AI chat and provider fallback
+        run: cd client-hub && python tests/test_kilas_ai_chat.py
