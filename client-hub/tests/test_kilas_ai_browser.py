@@ -45,7 +45,7 @@ def main():
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
                 assert page.get_by_role("heading", name="Apa yang ingin kamu kerjakan?").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
-                page.get_by_role("button", name="+ Chat baru").first.click()
+                page.locator(".ai-empty .ai-new").click()
                 page.wait_for_url("**/kilas-ai/threads/*")
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat")
                 if width <= 760:
