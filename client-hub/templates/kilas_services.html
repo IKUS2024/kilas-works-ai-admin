@@ -17,8 +17,8 @@
     <article class="service-card">
       <div class="service-card-head"><span>{{ service.number }}</span><h2>Kilas {{ service.title }}</h2></div>
       <p class="service-summary">{{ service.summary }}</p>
-      <ul>{% for item in service.items %}<li>{{ item }}</li>{% endfor %}</ul>
-      {% if service.notice %}<p class="service-notice"><strong>Persetujuan Anda diperlukan.</strong> {{ service.notice }}</p>{% endif %}
+      <ul>{% for item in service['items'] %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% if service.get('notice') %}<p class="service-notice"><strong>Persetujuan Anda diperlukan.</strong> {{ service.notice }}</p>{% endif %}
       <a class="btn service-cta" href="{{ service.whatsapp_url }}" target="_blank" rel="noopener noreferrer">Konsultasi via WhatsApp</a>
     </article>
     {% endfor %}

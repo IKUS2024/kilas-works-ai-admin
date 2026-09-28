@@ -7,6 +7,7 @@ from unittest.mock import patch
 import test_finance_phase2a as fixture
 import finance_entitlements as entitlements
 import finance_service
+import db
 import repo
 import security
 
@@ -16,6 +17,8 @@ app = fixture.app
 
 class FastProductServicesPatchTests(unittest.TestCase):
     def setUp(self):
+        # Windows keeps the fixture SQLite file locked while its cached connection is open.
+        db.reset_connection_for_new_db_path()
         fixture.fixture.reset_db()
         app.config['CLIENT_HUB_FORCE_CSRF_IN_TESTS'] = False
         self.addCleanup(lambda: app.config.update(CLIENT_HUB_FORCE_CSRF_IN_TESTS=False))
@@ -120,7 +123,9 @@ class FastProductServicesPatchTests(unittest.TestCase):
         finance_service.ensure_finance_defaults(bid,actor_user_id=uid)
         client=self.logged_in(uid)
         assist=client.get('/workspace/ai')
-        finance=client.get(f'/business/{bid}/finance/workspaces')
+        with patch.dict(__import__('os').environ,{'KILAS_FINANCE_ACCESS_MODE':'self_service'}):
+            entitlements.start_trial(bid,uid)
+            finance=client.get(f'/business/{bid}/finance/workspaces',follow_redirects=True)
         self.assertIn('Ganti Layanan',assist.text)
         self.assertIn('Ganti Layanan',finance.text)
 
