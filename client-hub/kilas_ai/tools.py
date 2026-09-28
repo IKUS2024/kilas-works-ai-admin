@@ -30,8 +30,8 @@ def web_search(context):
         response = requests.post("https://api.openai.com/v1/responses",
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
             json={"model": model, "instructions": "You are Kilas AI. Answer in the user's language. Use actual web search sources and cite them. Do not invent sources.",
-                  "input": prompt, "tools": [{"type": "web_search"}], "store": False,
-                  "max_output_tokens": 2048}, timeout=(10, 90))
+                  "input": prompt, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
+                  "max_output_tokens": 4096}, timeout=(10, 90))
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError):

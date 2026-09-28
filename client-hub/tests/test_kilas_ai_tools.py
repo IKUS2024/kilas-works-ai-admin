@@ -55,8 +55,10 @@ class ToolTests(unittest.TestCase):
                                "annotations": [{"type": "url_citation", "url": "https://example.org/source", "title": "Example source"}]}]}],
                 "usage": {"input_tokens": 12, "output_tokens": 8}}
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test", "KILAS_AI_OPENAI_WEB_MODEL": "configured-web"}), \
-             patch.object(tools.requests, "post", return_value=FakeResponse(data)):
+             patch.object(tools.requests, "post", return_value=FakeResponse(data)) as post:
             answer = tools.web_search([{"role": "user", "content": "Find current fact"}])
+            self.assertEqual(post.call_args.kwargs["json"]["tool_choice"], "required")
+            self.assertEqual(post.call_args.kwargs["json"]["max_output_tokens"], 4096)
             self.assertEqual(answer["citations"], [{"url": "https://example.org/source", "title": "Example source"}])
             data["output"][1]["content"][0]["annotations"] = []
             with self.assertRaises(tools.ToolUnavailable):
