@@ -5,6 +5,7 @@ on:
     paths:
       - 'client-hub/kilas_ai/**'
       - 'client-hub/migrations/0071_kilas_ai_v1_*.sql'
+      - 'client-hub/migrations/0072_kilas_ai_usage_status_*.sql'
       - 'client-hub/tests/test_kilas_ai_*.py'
       - 'client-hub/app.py'
       - 'client-hub/db.py'
@@ -34,3 +35,5 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_attachments.py
       - name: Kilas AI web citations, image tools and sharing
         run: cd client-hub && python tests/test_kilas_ai_tools.py
+      - name: Kilas AI per-account quota and cost accounting
+        run: cd client-hub && python tests/test_kilas_ai_usage.py

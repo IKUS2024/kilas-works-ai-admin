@@ -33,6 +33,12 @@ def home():
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None, messages=[])
 
 
+@ai_bp.get("/usage")
+def usage_page():
+    from . import usage
+    return render_template("kilas_ai/usage.html", state=usage.snapshot(session["user_id"]), plans=usage.PLANS)
+
+
 @ai_bp.post("/threads")
 def new_thread():
     from . import store
@@ -132,7 +138,7 @@ def _sse(event, payload):
 
 @ai_bp.post("/threads/<int:thread_id>/regenerate")
 def regenerate(thread_id):
-    from . import providers, store
+    from . import providers, store, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -146,8 +152,20 @@ def regenerate(thread_id):
     context = store.context(user_id, thread_id)
     while context and context[-1]["role"] == "assistant":
         context.pop()
+    try:
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, "CHAT")
+    except ai_usage.UsageLimit as error:
+        return {"error": str(error)}, 429
+    if plan is None:
+        prior = store.operation(user_id, thread_id, key + ":assistant")
+        if prior and prior["content"]:
+            return Response(_sse("delta", {"text": prior["content"]}) + _sse("done", {"cached": True}),
+                            mimetype="text/event-stream")
+        return Response(_sse("busy", {"message": "Jawaban sedang dibuat."}), status=409,
+                        mimetype="text/event-stream")
     message_id, created = store.reserve_regeneration(user_id, thread_id, mode, key)
     if not created:
+        ai_usage.finish(user_id, key, operations, success=False)
         prior = store.operation(user_id, thread_id, key + ":assistant")
         if prior and prior["content"]:
             return Response(_sse("delta", {"text": prior["content"]}) + _sse("done", {"cached": True}),
@@ -182,6 +200,7 @@ def regenerate(thread_id):
             store.finish_regeneration(user_id, thread_id, message_id, "".join(pieces), provider, model,
                                       {"status": "complete" if completed else "interrupted" if pieces else "failed",
                                        "usage": usage, "regenerated": True})
+            ai_usage.finish(user_id, key, operations, success=completed, provider=provider, model=model, usage=usage)
         if completed:
             yield _sse("done", {"finish_reason": "stop"})
 
@@ -193,7 +212,7 @@ def regenerate(thread_id):
 
 @ai_bp.post("/threads/<int:thread_id>/send")
 def send(thread_id):
-    from . import attachments, providers, store
+    from . import attachments, providers, store, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -215,8 +234,24 @@ def send(thread_id):
         return {"error": "Tambahkan gambar yang ingin diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
         return {"error": "Gunakan mode chat untuk menganalisis gambar."}, 400
+    prior = store.operation(user_id, thread_id, key)
+    if prior:
+        answer = store.operation(user_id, thread_id, key + ":assistant")
+        if answer and answer["content"]:
+            return Response(_sse("delta", {"text": answer["content"]}) + _sse("done", {"cached": True}),
+                            mimetype="text/event-stream")
+        return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}), status=409,
+                        mimetype="text/event-stream")
+    try:
+        plan, operations = ai_usage.reserve(user_id, thread_id, key, mode, tool)
+    except ai_usage.UsageLimit as error:
+        return {"error": str(error)}, 429
+    if plan is None:
+        return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}), status=409,
+                        mimetype="text/event-stream")
     message_id, created = store.append_user_once(user_id, thread_id, content, mode, key)
     if not created:
+        ai_usage.finish(user_id, key, operations, success=False)
         prior = store.operation(user_id, thread_id, key + ":assistant")
         if prior:
             return Response(_sse("delta", {"text": prior["content"]}) + _sse("done", {"cached": True}),
@@ -241,10 +276,12 @@ def send(thread_id):
                     if tool == "WEB":
                         result = ai_tools.web_search(context)
                         provider, model = "openai", result["model"]
+                        usage.update(result["usage"])
                         text = result["text"]
                         store.append_assistant(user_id, thread_id, text, mode, provider, model, key,
                             {"status": "complete", "tool": "web", "citations": result["citations"],
                              "usage": result["usage"]})
+                        finished = True
                         yield _sse("delta", {"text": text})
                         yield _sse("sources", {"citations": result["citations"]})
                         yield _sse("done", {"finish_reason": "stop"})
@@ -252,6 +289,7 @@ def send(thread_id):
                     source = next((item for item in prepared if item["mime_type"].startswith("image/")), None)
                     result = ai_tools.image(content, source if tool == "IMAGE_EDIT" else None)
                     provider, model = "openai", result["model"]
+                    usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})
                     label = "Gambar selesai diedit." if tool == "IMAGE_EDIT" else "Gambar selesai dibuat."
                     assistant_id = store.append_assistant(user_id, thread_id, label, mode, provider, model, key,
                         {"status": "complete", "tool": tool.lower(), "usage": result["usage"]})
@@ -260,6 +298,7 @@ def send(thread_id):
                         "mime_type": result["mime"], "byte_size": len(result["raw"]), "content": result["raw"],
                         "extracted_text": None}])[0]
                     path = url_for("kilas_ai.attachment_download", thread_id=thread_id, attachment_id=image_id)
+                    finished = True
                     yield _sse("delta", {"text": label})
                     yield _sse("image", {"url": path, "preview_url": path + "?inline=1"})
                     yield _sse("done", {"finish_reason": "stop"})
@@ -295,6 +334,7 @@ def send(thread_id):
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "interrupted",
                                         "finish_reason": reason, "usage": usage})
+            ai_usage.finish(user_id, key, operations, success=finished, provider=provider, model=model, usage=usage)
 
     response = Response(stream_with_context(generate()), mimetype="text/event-stream")
     response.headers["Cache-Control"] = "no-store"
