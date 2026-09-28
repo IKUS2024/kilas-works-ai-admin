@@ -1,7 +1,7 @@
 <div data-contact-context data-name="{{ customer.display_name }}" data-stage="{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }}">
   <div class="card customer-insight-card">{% include "_customer_insight.html" %}</div>
   {% if customer.stage == 'CUSTOMER' %}{% include "_jobs_panel.html" %}{% endif %}
-  {% if customer.stage == 'LEAD' and insight.follow_up and insight._meta.has_history %}
+  {% if customer.stage in ('LEAD', 'CUSTOMER') and insight.follow_up and insight._meta.has_history %}
   <div class="card">
     <p class="client-note">{{ insight.follow_up }}</p>
     <details data-followup-editor><summary class="btn secondary">Buat Follow-up</summary>
