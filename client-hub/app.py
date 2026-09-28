@@ -296,6 +296,8 @@ def create_app():
             or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",
                                     "core_operations.", "core_finance_bridge.", "owner_web."))
             or endpoint in {
+                "products.product_start",
+                "products.services",
                 "products.finance_entry",
                 "products.finance_setup",
                 "products.account_bills",

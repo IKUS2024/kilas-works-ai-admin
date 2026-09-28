@@ -128,6 +128,10 @@ class FastProductServicesPatchTests(unittest.TestCase):
             finance=client.get(f'/business/{bid}/finance/workspaces',follow_redirects=True)
         self.assertIn('Ganti Layanan',assist.text)
         self.assertIn('Ganti Layanan',finance.text)
+        picker=client.get('/products/start')
+        self.assertEqual(picker.status_code,200)
+        self.assertIn('Kilas Services',picker.text)
+        self.assertEqual(client.get('/products/services').status_code,200)
 
 
 if __name__ == '__main__':
