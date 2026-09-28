@@ -4,13 +4,13 @@
   {% if customer.stage in ('LEAD', 'CUSTOMER') and insight.follow_up and insight._meta.has_history %}
   <div class="card">
     <p class="client-note">{{ insight.follow_up }}</p>
-    <details data-followup-editor><summary class="btn secondary">Buat Follow-up</summary>
-      <label for="followup-draft">Draft pesan — periksa sebelum dikirim</label>
+    <details data-followup-editor><summary class="btn secondary">Follow-up Customer</summary>
+      <label for="followup-draft">Pesan follow-up</label>
       {% if followup_send %}
       <form data-followup-form method="post" action="{{ url_for('core_customers.send_followup',bid=business.id,customer_id=customer.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="operation_key" value="{{ followup_send.operation_key }}">
-        <textarea id="followup-draft" name="message" data-followup-draft rows="4" maxlength="4000" required>Halo {{ customer.display_name if customer.display_name != customer.phone else 'Kak' }}, apakah masih ingin membahas {{ insight.interests[0] if insight.interests else 'kebutuhan Anda' }}? Ada detail lain yang bisa kami bantu?</textarea>
+        <textarea id="followup-draft" name="message" data-followup-draft rows="4" maxlength="4000" required>{{ followup_draft }}</textarea>
         {% if not followup_send.window.allowed %}
           {% if followup_send.template and followup_send.template.ready %}
           <p class="client-note">Jendela chat sudah berakhir. Tombol kirim akan memakai template WhatsApp resmi; draft bebas tidak akan dikirim sebelum customer membalas.</p>
@@ -19,15 +19,15 @@
           {% endif %}
         {% endif %}
         <div class="client-actions">
-          <button class="btn" type="submit" data-followup-send {% if not followup_send.window.allowed and (not followup_send.template or not followup_send.template.ready) %}disabled{% endif %}>Kirim Follow-up</button>
-          <a class="btn secondary" href="{{ chat_url }}">Buka Inbox</a>
+          <button class="btn" type="submit" data-followup-send {% if not followup_send.window.allowed and (not followup_send.template or not followup_send.template.ready) %}disabled{% endif %}>Kirim WhatsApp</button>
+          <a class="client-note" href="{{ chat_url }}">Lihat percakapan</a>
         </div>
         <p class="client-note" data-followup-status role="status" aria-live="polite"></p>
       </form>
       {% else %}
-      <textarea id="followup-draft" data-followup-draft rows="4" maxlength="4000">Halo {{ customer.display_name if customer.display_name != customer.phone else 'Kak' }}, apakah masih ingin membahas {{ insight.interests[0] if insight.interests else 'kebutuhan Anda' }}? Ada detail lain yang bisa kami bantu?</textarea>
-      <p class="client-note">Percakapan WhatsApp customer ini belum tersedia. Buka Inbox untuk memeriksa channel yang aktif.</p>
-      <a class="btn secondary" href="{{ chat_url }}">Buka Inbox</a>
+      <textarea id="followup-draft" data-followup-draft rows="4" maxlength="4000">{{ followup_draft }}</textarea>
+      <p class="client-note">Tujuan WhatsApp terverifikasi untuk customer ini tidak tersedia.</p>
+      <button class="btn" type="button" disabled>Kirim WhatsApp</button>
       {% endif %}
     </details>
   </div>
