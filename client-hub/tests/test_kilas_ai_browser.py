@@ -1,4 +1,5 @@
 """Focused Chromium checks for the new Kilas AI desktop and mobile surfaces."""
+import io
 import os
 import sys
 import tempfile
@@ -13,7 +14,8 @@ os.environ.pop("DATABASE_URL", None)
 
 import app  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import providers  # noqa: E402
+from PIL import Image  # noqa: E402
+from kilas_ai import providers, tools  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -25,13 +27,24 @@ def stream_reply(*_):
     yield {"type": "finish", "reason": "stop"}
 
 
+def sample_image():
+    output = io.BytesIO()
+    Image.new("RGB", (8, 8), (242, 128, 42)).save(output, "PNG")
+    return output.getvalue()
+
+
 def main():
     server = make_server("127.0.0.1", 0, app.app, threaded=True)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     origin = f"http://127.0.0.1:{server.server_port}"
     try:
-        with patch.object(providers, "stream", side_effect=stream_reply), sync_playwright() as playwright:
+        with patch.object(providers, "stream", side_effect=stream_reply), \
+             patch.object(tools, "web_search", return_value={"text": "Fakta dengan sumber.",
+                "citations": [{"url": "https://example.org/source", "title": "Sumber uji"}],
+                "model": "gpt-6-luna", "usage": {"input_tokens": 100, "output_tokens": 50}}), \
+             patch.object(tools, "image", return_value={"raw": sample_image(), "mime": "image/png",
+                "model": "gpt-image-2", "usage": {}}), sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             for width, height in ((1440, 900), (768, 1024), (390, 844), (320, 700)):
                 owner = repo.create_user(f"kilas-ai-browser-{width}@example.test", "hash")
@@ -62,12 +75,28 @@ def main():
                 page.locator("#ai-tool").select_option("IMAGE_EDIT")
                 assert page.get_by_text("Upload gambar terlebih dahulu untuk diedit.").is_visible()
                 page.locator("#ai-tool").select_option("CHAT")
+                page.locator("#ai-mode").select_option("FAST")
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
                 page.reload(wait_until="networkidle")
                 assert page.get_by_text("Jawaban uji Kilas AI.").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "answer")
+                page.locator("#ai-input").fill("Buat jawaban tadi jadi PDF.")
+                page.get_by_role("button", name="Kirim").click()
+                page.locator(".ai-file-card").wait_for()
+                assert page.get_by_role("link", name="Download").count() == 1
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "pdf")
+                page.locator("#ai-tool").select_option("WEB")
+                page.locator("#ai-input").fill("Cari informasi uji")
+                page.get_by_role("button", name="Kirim").click()
+                page.get_by_role("link", name="Sumber uji").wait_for()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "web")
+                page.locator("#ai-tool").select_option("IMAGE_GENERATE")
+                page.locator("#ai-input").fill("Buat gambar uji")
+                page.get_by_role("button", name="Kirim").click()
+                page.locator(".ai-image-result img").wait_for()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "image")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
                 assert page.get_by_role("heading", name="Paket & penggunaan").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "plans")

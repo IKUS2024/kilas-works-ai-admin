@@ -188,6 +188,7 @@ def regenerate(thread_id):
         usage = {"input_tokens": 0, "output_tokens": 0}
         completed = False
         try:
+            yield _sse("activity", {"label": "Berpikir lebih dalam…" if mode in ("SMART", "EXPERT") else "Berpikir…"})
             for event in providers.stream(mode, context):
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
@@ -300,7 +301,8 @@ def send(thread_id):
                 logo = next((item["content"] for item in prepared if item["mime_type"].startswith("image/")
                              and "logo" in content.lower()), None)
                 try:
-                    result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo)
+                    result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo,
+                                           cover=bool(re.search(r"\b(cover|sampul)\b", content.lower())))
                 except Exception:
                     raise providers.ProviderError("pdf_render_failed") from None
                 label = "PDF siap: " + result["title"]

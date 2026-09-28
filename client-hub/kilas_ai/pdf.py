@@ -4,7 +4,6 @@ import io
 import os
 import re
 
-from reportlab import rl_config
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -68,7 +67,7 @@ def _styles():
     regular, bold = _font_names()
     return {
         "title": ParagraphStyle("KilasTitle", fontName=bold, fontSize=24, leading=32, textColor=INK, spaceAfter=14),
-        "subtitle": ParagraphStyle("KilasSubtitle", fontName=regular, fontSize=11, leading=17, textColor=MUTED, spaceAfter=24),
+        "cover": ParagraphStyle("KilasCover", fontName=bold, fontSize=30, leading=40, textColor=INK, alignment=TA_CENTER, spaceAfter=18),
         "h2": ParagraphStyle("KilasH2", fontName=bold, fontSize=15, leading=21, textColor=INK, spaceBefore=22, spaceAfter=9, keepWithNext=True),
         "h3": ParagraphStyle("KilasH3", fontName=bold, fontSize=11, leading=16, textColor=INK, spaceBefore=16, spaceAfter=7, keepWithNext=True),
         "body": ParagraphStyle("KilasBody", fontName=regular, fontSize=10, leading=16, textColor=INK, spaceAfter=10),
@@ -100,7 +99,7 @@ def _table(lines, styles, width):
     return table
 
 
-def render(markdown, *, title_hint="Dokumen", logo=None):
+def render(markdown, *, title_hint="Dokumen", logo=None, cover=False):
     text = (markdown or "").strip()[:MAX_MARKDOWN]
     if not text:
         raise ValueError("empty_document")
@@ -112,7 +111,9 @@ def render(markdown, *, title_hint="Dokumen", logo=None):
     width = A4[0] - 2 * margin
     document = SimpleDocTemplate(stream, pagesize=A4, leftMargin=margin, rightMargin=margin,
                                  topMargin=64, bottomMargin=58, title=title, author="Kilas Works")
-    story = [Paragraph(_inline(title), styles["title"]), Spacer(1, 7)]
+    story = ([Spacer(1, 190), Paragraph(_inline(title), styles["cover"]),
+              Spacer(1, 35), PageBreak()] if cover else
+             [Paragraph(_inline(title), styles["title"]), Spacer(1, 7)])
     if logo:
         try:
             from PIL import Image as PILImage
@@ -122,8 +123,9 @@ def render(markdown, *, title_hint="Dokumen", logo=None):
             raw.seek(0)
             with PILImage.open(raw) as picture:
                 ratio = min(180 / picture.width, 90 / picture.height, 1)
-                story.insert(0, Image(raw, width=picture.width * ratio, height=picture.height * ratio))
-                story.insert(1, Spacer(1, 20))
+                position = 1 if cover else 0
+                story.insert(position, Image(raw, width=picture.width * ratio, height=picture.height * ratio))
+                story.insert(position + 1, Spacer(1, 20))
         except Exception:
             pass
     index = 0
@@ -161,6 +163,8 @@ def render(markdown, *, title_hint="Dokumen", logo=None):
         index += 1
 
     def page(canvas, doc):
+        if cover and doc.page == 1:
+            return
         canvas.saveState()
         canvas.setStrokeColor(ACCENT)
         canvas.setLineWidth(1.4)

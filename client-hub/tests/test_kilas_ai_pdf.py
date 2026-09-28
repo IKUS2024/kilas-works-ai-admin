@@ -16,7 +16,7 @@ from pypdf import PdfReader  # noqa: E402
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import pdf, providers, store  # noqa: E402
+from kilas_ai import pdf, providers, store, usage  # noqa: E402
 
 
 class PdfTests(unittest.TestCase):
@@ -74,9 +74,14 @@ class PdfTests(unittest.TestCase):
         self.assertIn("Proposal Kegiatan", second)
         self.assertEqual(len(store.attachment_list(self.owner, thread_id)), 2)
         self.assertNotEqual(stored[0]["id"], store.attachment_list(self.owner, thread_id)[1]["id"])
+        second_id = store.attachment_list(self.owner, thread_id)[1]["id"]
+        second_pdf = owner.get(f"/kilas-ai/threads/{thread_id}/attachments/{second_id}").data
+        self.assertGreaterEqual(len(PdfReader(io.BytesIO(second_pdf)).pages), 2)
         rows = db.query_all("SELECT operation_type,status FROM kilas_ai_usage WHERE user_id=? ORDER BY id", (self.owner,))
         self.assertEqual([row["operation_type"] for row in rows], ["CHAT", "PDF", "CHAT", "PDF"])
         self.assertTrue(all(row["status"] == "COMPLETE" for row in rows))
+        with self.assertRaises(usage.UsageLimit):
+            usage.reserve(self.owner, thread_id, "pdf_third_0123456789abcdef", "FAST", "PDF")
 
     def test_pdf_detection_does_not_capture_information_question(self):
         self.assertFalse(pdf.is_request("Apa itu file PDF?"))

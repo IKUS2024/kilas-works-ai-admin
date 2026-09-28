@@ -54,7 +54,9 @@ def proof_upload(invoice_id):
 
 @admin_bp.get("/payments")
 def payments():
-    return render_template("kilas_ai/admin_payments.html", payments=billing.pending_payments())
+    from . import economics
+    return render_template("kilas_ai/admin_payments.html", payments=billing.pending_payments(),
+                           economics=economics.admin_snapshot())
 
 
 @admin_bp.get("/payments/<int:payment_id>/proof")

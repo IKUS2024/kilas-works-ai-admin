@@ -60,7 +60,9 @@ class BillingTests(unittest.TestCase):
         pending = billing.pending_payments()
         self.assertEqual(len(pending), 1)
         payment_id = pending[0]["id"]
-        self.assertEqual(admin.get("/admin/kilas-ai/payments").status_code, 200)
+        economics_page = admin.get("/admin/kilas-ai/payments")
+        self.assertEqual(economics_page.status_code, 200)
+        self.assertIn(b"Perkiraan biaya provider/tool", economics_page.data)
         self.assertIn(b"Review pembayaran Kilas AI", admin.get("/platform/subscriptions").data)
         self.assertEqual(other.get(f"/admin/kilas-ai/payments/{payment_id}/proof").status_code, 404)
         verified = admin.post(f"/admin/kilas-ai/payments/{payment_id}/review",

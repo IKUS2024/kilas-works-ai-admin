@@ -59,7 +59,10 @@ class ChatTests(unittest.TestCase):
             response = client.post(f"/kilas-ai/threads/{thread_id}/send", json=payload,
                                    headers={"X-CSRF-Token": "chat-csrf"})
             self.assertEqual(response.status_code, 200)
-            self.assertIn("mari mulai", response.get_data(as_text=True))
+            streamed = response.get_data(as_text=True)
+            self.assertIn("mari mulai", streamed)
+            self.assertIn("event: activity", streamed)
+            self.assertNotIn("chain-of-thought", streamed)
         rows = store.messages(self.a, thread_id)
         self.assertEqual([row["role"] for row in rows], ["user", "assistant"])
         self.assertEqual(rows[1]["content"], "Tentu, mari mulai.")
@@ -97,6 +100,32 @@ class ChatTests(unittest.TestCase):
             with patch.dict(os.environ, {"KILAS_AI_OPENAI_FAST_MODEL": "gpt-4.1-mini", "KILAS_AI_OPENAI_SMART_MODEL": "gpt-4.1"}):
                 self.assertEqual(list(providers.candidates("FAST")), [])
                 self.assertEqual([m for _, m, _ in providers.candidates("SMART")], ["claude-sonnet-5"])
+
+    def test_provider_requests_set_real_reasoning_controls(self):
+        class EmptyResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def raise_for_status(self):
+                pass
+
+            def iter_lines(self, **_):
+                return iter(())
+
+        messages = [{"role": "user", "content": "Analyze this"}]
+        with patch.object(providers.requests, "post", return_value=EmptyResponse()) as post:
+            list(providers._openai("gpt-6-luna", "test", messages, "FAST"))
+            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "none")
+            list(providers._openai("gpt-6-sol", "test", messages, "SMART"))
+            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "medium")
+            list(providers._openai("gpt-6-sol", "test", messages, "EXPERT"))
+            self.assertEqual(post.call_args.kwargs["json"]["reasoning_effort"], "high")
+            list(providers._anthropic("claude-sonnet-5", "test", messages, "SMART"))
+            self.assertEqual(post.call_args.kwargs["json"]["thinking"], {"type": "adaptive"})
+            self.assertEqual(post.call_args.kwargs["json"]["output_config"], {"effort": "medium"})
 
     def test_csrf_and_bounds(self):
         client = self.client_for(self.a)
