@@ -21,6 +21,7 @@ def _contact_context(business, customer, insight=None):
         chat_url = url_for('client.inbox_page', business_id=bid, channel='whatsapp',
                            conversation=conversations[0]['id'] if conversations else None)
     return dict(customer=customer, chat_url=chat_url,
+                followup_draft=customer_followups.draft(customer, insight) if insight else None,
                 followup_send=customer_followups.context(business, customer, insight) if insight else None,
                 linked_jobs=linked_context(business, customer['id']))
 
@@ -126,15 +127,17 @@ def send_followup(bid, customer_id):
         messages = {
             'approved_template_required': 'Jendela WhatsApp sudah berakhir. Template WhatsApp yang disetujui diperlukan untuk menghubungi customer ini.',
             'followup_draft_changed': 'Draft follow-up sudah diperbarui. Muat ulang halaman sebelum mengirim.',
-            'whatsapp_conversation_required': 'Percakapan WhatsApp customer ini belum tersedia.',
+            'whatsapp_conversation_required': 'Tujuan WhatsApp terverifikasi untuk customer ini tidak tersedia.',
             'invalid_message': 'Pesan follow-up tidak boleh kosong dan maksimal 4000 karakter.',
-            'whatsapp_failed': 'Follow-up gagal dikirim dan tidak ditandai terkirim.',
+            'whatsapp_failed': 'Pesan gagal dikirim dan tidak ditandai terkirim.',
             'whatsapp_unknown': 'Status pengiriman belum dapat dipastikan. Periksa Inbox sebelum mencoba lagi.',
-            'whatsapp_suppressed': 'Follow-up tidak dikirim. Periksa jendela WhatsApp dan Human Takeover.',
+            'delivery_unknown': 'Status pengiriman belum dapat dipastikan. Pesan tidak akan dikirim ulang otomatis.',
+            'event_conflict': 'Draft yang sama sudah memiliki percobaan kirim berbeda. Muat ulang halaman.',
+            'whatsapp_suppressed': 'Pesan tidak dikirim. Periksa jendela WhatsApp dan Human Takeover.',
         }
         return jsonify(ok=False, error=error.code,
-                       message=messages.get(error.code, 'Follow-up belum berhasil dikirim.')), error.status
-    return jsonify(ok=True, message='Follow-up terkirim', **result)
+                       message=messages.get(error.code, 'Pesan follow-up belum berhasil dikirim.')), error.status
+    return jsonify(ok=True, message='Pesan follow-up berhasil dikirim', **result)
 
 
 @customers_bp.post("/business/<int:bid>/customers/<customer_id>")
