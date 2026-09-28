@@ -1,0 +1,11 @@
+{
+  "hook": {
+    "enabled": false
+  },
+  "detector": {
+    "ignoreFiles": [
+      "**/finance*",
+      "**/_finance*"
+    ]
+  }
+}
