@@ -79,10 +79,21 @@ class CRMTests(runtime_fixture.RuntimeTests):
         inbox_conversations = customer_insights.whatsapp_conversation_rows(self.bid, cid)
         self.assertTrue(inbox_conversations)
 
+        legacy_phone = '6282213039137'
+        db.execute("INSERT INTO messages(number,mode,role,content) VALUES (?,?,?,?)",
+                   (f'T{self.bid}:{legacy_phone}', 'customer', 'user', 'Halo kak'))
+        db.execute("INSERT INTO customer_profiles(number,name) VALUES (?,?)",
+                   (f'T{self.bid}:{legacy_phone}', 'Kilasworks'))
+
         page = self.client.get(f'/business/{self.bid}/customers?stage=CUSTOMER')
         self.assertEqual(page.status_code, 200)
         self.assertIn('Irvan', page.text)
+        self.assertIn('Kilasworks', page.text)
         self.assertIn(f'/business/{self.bid}/customers/{cid}', page.text)
+        legacy = next(row for row in customers.list_customers(self.bid)[0]
+                      if row.get('phone') == legacy_phone)
+        self.assertEqual(legacy['stage'], 'LEAD')
+        self.assertEqual(customers.list_customers(self.other)[1], 0)
         for retired_ui in ('>Lead<', 'stage=LEAD', 'stage=CUSTOMER', 'lead aktif',
                            'Lead akan berpindah', 'pindah dari Lead'):
             self.assertNotIn(retired_ui, page.text)

@@ -2,6 +2,7 @@
 from flask import Blueprint, abort, jsonify, redirect, render_template, request, url_for
 import security
 import platform_workspace
+import inbox_service
 from kilas_core import customers, customer_insights, customer_action_jobs, customer_followups
 from kilas_core.job_routes import linked_context
 
@@ -48,6 +49,19 @@ def list_page(bid):
         customers.sync_demo_binding_lead(bid)
     except Exception:
         pass
+    # Older tenant Inbox rows can predate Core CRM. Reconcile only identities already visible
+    # in this tenant's scoped Inbox so every conversation also appears in Customers.
+    for conversation in inbox_service.list_conversations(bid):
+        phone = inbox_service.normalize_customer_phone(conversation.get("customer_phone"))
+        if not phone:
+            continue
+        try:
+            customers.ensure_whatsapp_lead(
+                bid, phone, display_name=conversation.get("customer_name") or phone
+            )
+        except Exception:
+            # One malformed historical row must not hide the rest of the CRM.
+            continue
     q = request.args.get("q", "")
     page = request.args.get("page", 1, type=int) or 1
     rows, total, page, pages = customers.list_customers(bid, q, page, "ALL")
