@@ -81,16 +81,16 @@
     var status=form.querySelector('[data-followup-status]');
     if(button.disabled||form.dataset.sending==='true')return;
     form.dataset.sending='true';button.disabled=true;button.textContent='Mengirim…';
-    status.textContent='Mengirim follow-up melalui WhatsApp…';
+    status.textContent='Mengirim pesan melalui WhatsApp…';
     fetch(form.action,{method:'POST',credentials:'same-origin',body:new FormData(form),
       headers:{'X-Requested-With':'XMLHttpRequest'}})
       .then(function(response){return response.json().then(function(data){return {response:response,data:data};});})
       .then(function(result){
-        if(!result.response.ok)throw new Error(result.data.message||'Follow-up belum berhasil dikirim.');
-        status.textContent='Follow-up terkirim';button.textContent='Follow-up terkirim';
+        if(!result.response.ok)throw new Error(result.data.message||'Pesan follow-up belum berhasil dikirim.');
+        status.textContent='Pesan follow-up berhasil dikirim';button.textContent='Pesan follow-up berhasil dikirim';
       })
       .catch(function(error){
-        status.textContent=error.message;button.disabled=false;button.textContent='Kirim Follow-up';
+        status.textContent=error.message;button.disabled=false;button.textContent='Kirim WhatsApp';
       })
       .finally(function(){form.dataset.sending='false';});
   });
