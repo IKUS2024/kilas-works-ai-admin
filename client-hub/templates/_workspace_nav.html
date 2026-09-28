@@ -6,7 +6,7 @@
 {% set items=[('home','Home','⌂')] %}
 {% if workspace_ui.ai %}{% set items=items+[('inbox','Inbox','▤'),('customers','Customers','◎'),('jobs','Jobs','▣')] %}{% endif %}
 {% set items=items+[('more','More','•••')] %}
-{% for key,label,symbol in items %}<a href="{{ url_for('workspace.ai_home') if key=='home' else (url_for('workspace.more') if key=='more' else url_for('workspace.go',area=key,business_id=workspace_ui.selected_finance if key=='finance' else workspace_ui.selected_ai)) }}" {% if workspace_ui.active==key %}aria-current="page"{% endif %}><span aria-hidden="true">{{ symbol }}</span><span>{{ label }}</span></a>{% endfor %}
+{% for key,label,symbol in items %}<a href="{{ url_for('workspace.ai_home') if key=='home' else (url_for('workspace.more') if key=='more' else url_for('workspace.go',area=key,business_id=workspace_ui.selected_finance if key=='finance' else workspace_ui.selected_ai)) }}" {% if workspace_ui.active==key %}aria-current="page"{% endif %}><span aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">{% if key == 'home' %}<path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/>{% elif key == 'inbox' %}<path d="M4 4h16v13H8l-4 4zM8 8h8M8 12h5"/>{% elif key == 'customers' %}<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 4v2"/>{% elif key == 'jobs' %}<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M9 5V3h6v2M8 11h8M8 16h5"/>{% else %}<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>{% endif %}</svg></span><span>{{ label }}</span></a>{% endfor %}
 </nav>
 <div class="kw-sidebar-note">Percakapan, customer, dan pekerjaan bisnis Anda.</div>
 </aside>

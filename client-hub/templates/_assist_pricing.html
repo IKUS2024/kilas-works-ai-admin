@@ -1,10 +1,10 @@
-<section class="card" aria-label="Paket Kilas Assist">
+<section class="card assist-pricing" aria-label="Paket Kilas Assist">
   <h2>Pilih kapasitas untuk bisnis Anda</h2>
   <p><strong>Demo gratis 7 hari.</strong> Tanpa kartu untuk mulai.</p>
   <p><strong>Launch Promo {{ assist_launch.amount|finance_idr }}</strong> untuk bulan berbayar pertama, lalu mengikuti harga normal paket yang dipilih.</p>
-  <div class="kw-grid">
-    {% for key, plan in assist_plans.items() %}<article class="card">
-      <h3>{{ plan.name }}</h3><p><strong>{{ plan.price|finance_idr }}</strong> / bulan</p>
+  <div class="assist-plan-grid">
+    {% for key, plan in assist_plans.items() %}<article class="assist-plan">
+      <h3>{{ plan.name }}</h3><p><strong class="assist-plan-price">{{ plan.price|finance_idr }}</strong> / bulan</p>
       <p>Kilas Assist · 1 nomor WhatsApp · CRM &amp; Jobs · alur invoice · Kilas Finance termasuk.</p>
       <p>{{ 'Kapasitas AI, analisis gambar/dokumen, dan prioritas bantuan lebih tinggi.' if key == 'ai_admin_pro' else 'Kapasitas AI yang sesuai untuk UMKM, dengan pemakaian wajar.' }}</p>
       <a class="btn {{ 'secondary' if key == 'ai_admin_pro' else '' }}" href="{{ url_for('client.ai_admin_checkout',business_id=business.id,plan=key) if business is defined and business else url_for('auth.register_page') }}">{{ 'Pilih ' ~ plan.name if business is defined and business else 'Mulai demo gratis' }}</a>

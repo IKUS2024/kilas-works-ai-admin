@@ -13,7 +13,6 @@
 <section class="kw-page kw-assist-home">
   <header class="kw-page-head kw-assist-head">
     <div>
-      <p class="kw-eyebrow">KILAS ASSIST</p>
       <h1>Selamat datang, {{ user.full_name or 'Pemilik' }}.</h1>
       <p>Layani percakapan, kenali customer, dan tindak lanjuti pekerjaan bisnis.</p>
     </div>
@@ -27,7 +26,6 @@
   </section>
   {% elif not workspace_ui.ai and not workspace_ui.finance %}
   <section class="card kw-welcome kw-state-card">
-    <p class="kw-eyebrow">MULAI</p>
     <h2>Siapkan ruang kerja pertama Anda</h2>
     <p>Pilih kebutuhan bisnis dan mulai gunakan Kilas tanpa harus menghubungkan WhatsApp terlebih dahulu.</p>
     <div class="kw-actions">
@@ -37,12 +35,12 @@
   {% endif %}
 
   {% if workspace_ui.ai|length > 1 %}
-  <div class="kw-business-switcher" role="tablist" aria-label="Pilih bisnis" data-workspace-business-switcher>
+  <div class="kw-business-switcher" role="group" aria-label="Pilih bisnis" data-workspace-business-switcher>
     {% for business in workspace_ui.ai %}
     <button type="button"
             class="{{ 'is-active' if business.id == workspace_ui.selected_ai else '' }}"
             data-workspace-business-target="{{ business.id }}"
-            aria-selected="{{ 'true' if business.id == workspace_ui.selected_ai else 'false' }}">
+            aria-pressed="{{ 'true' if business.id == workspace_ui.selected_ai else 'false' }}">
       {{ business.business_name }}
     </button>
     {% endfor %}
@@ -60,7 +58,6 @@
              {% if workspace_ui.ai|length > 1 and business.id != workspace_ui.selected_ai %}hidden{% endif %}>
       <header class="kw-assist-card-head">
         <div>
-          <p class="kw-eyebrow">WORKSPACE</p>
           <h2>{{ business.business_name }}</h2>
         </div>
         {% if journey.connected %}
@@ -72,7 +69,6 @@
 
       <section class="kw-assist-hero">
         <div class="kw-assist-hero-copy">
-          <p class="kw-eyebrow">KILAS ASSIST</p>
           <h3>{{ journey.readiness }}</h3>
           <p>WhatsApp: <strong>{{ journey.whatsapp }}</strong></p>
           <p>Ajari Kilas tentang bisnis Anda. Pengetahuan dapat diperbarui kapan saja.</p>
@@ -97,24 +93,21 @@
         </div>
       </section>
 
-      {% if journey.demo_started and not journey.paid %}{% include '_assist_pricing.html' %}{% endif %}
       <nav class="kw-flow-grid" aria-label="Akses cepat Kilas Assist">
         <a href="{{ url_for('workspace.go',area='inbox',business_id=business.id) }}">
-          <span class="kw-flow-index">01</span>
           <strong>Inbox</strong>
           <small>Percakapan masuk</small>
         </a>
         <a href="{{ url_for('workspace.go',area='customers',business_id=business.id) }}">
-          <span class="kw-flow-index">02</span>
           <strong>Customers</strong>
           <small>Identitas &amp; konteks</small>
         </a>
         <a href="{{ url_for('workspace.go',area='jobs',business_id=business.id) }}">
-          <span class="kw-flow-index">03</span>
           <strong>Jobs</strong>
           <small>Permintaan yang perlu tindakan</small>
         </a>
       </nav>
+      {% if journey.demo_started and not journey.paid %}<details class="assist-home-plans"><summary>Paket Kilas Assist · lihat pilihan</summary>{% include '_assist_pricing.html' %}</details>{% endif %}
 
       {% if setup and setup.usage %}<p role="status">Pemakaian bulan ini: <strong>{{ {'NORMAL':'Normal','WARNING':'Tinggi','HIGH':'Hampir mencapai kapasitas paket'}.get(setup.usage.status,'Normal') }}</strong> · <a href="{{ url_for('workspace.usage',bid=business.id) }}">Paket &amp; Penggunaan</a></p>{% endif %}
       {% if workspace_ui.finance_visible %}<section class="kw-attention-block"><h3>Kilas Finance</h3><p>Kelola invoice dan keuangan di workspace Finance.</p><a class="btn secondary" href="{{ url_for('workspace.go',area='finance',business_id=workspace_ui.selected_finance) }}">Buka Kilas Finance →</a></section>{% endif %}
@@ -123,7 +116,6 @@
       <section class="kw-attention-block" data-attention-home>
         <div class="kw-attention-head">
           <div>
-            <p class="kw-eyebrow">PERHATIAN</p>
             <h3>{{ attention_data.total }} hal perlu ditindaklanjuti</h3>
           </div>
           <a href="{{ url_for('core_operations.list_page',bid=business.id) }}">Lihat semua →</a>
@@ -153,7 +145,7 @@
     buttons.forEach(function(btn){
       var active=btn.getAttribute('data-workspace-business-target')===String(id);
       btn.classList.toggle('is-active',active);
-      btn.setAttribute('aria-selected',active?'true':'false');
+      btn.setAttribute('aria-pressed',active?'true':'false');
       if(active)btn.scrollIntoView({block:'nearest',inline:'nearest'});
     });
     cards.forEach(function(card){

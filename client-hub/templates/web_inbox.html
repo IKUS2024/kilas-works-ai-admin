@@ -6,16 +6,16 @@
 <style>
 .web-media{display:block;max-width:100%;max-height:280px;border-radius:10px;margin-top:6px}
 .web-media-link{display:inline-flex;margin-top:6px;padding:7px 9px;border:1px solid var(--border);border-radius:8px}
-[data-window-state]{font-size:10px}
+[data-window-state]{font-size:13px}
 [data-media-panel] summary{cursor:pointer;color:var(--text);font-weight:700}
 [data-media-form]{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:10px}
 [data-media-form] input{margin-bottom:7px}
-.ai-analysis-toggle{margin-top:8px;padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:transparent;color:var(--text-dim);font-size:11px;font-weight:800;cursor:pointer}
-.ai-analysis-panel{margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.025);font-size:12px;line-height:1.45}
+.ai-analysis-toggle{margin-top:8px;padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:transparent;color:var(--text-dim);font-size:13px;font-weight:800;cursor:pointer}
+.ai-analysis-panel{margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.025);font-size:13px;line-height:1.45}
 .ai-analysis-panel[hidden]{display:none}
 .ai-analysis-panel strong{color:var(--text)}
 .ai-analysis-panel ul{margin:4px 0 8px 18px;padding:0}
-.ai-analysis-panel .analysis-note{color:var(--text-dim);font-size:10px;margin-top:7px}
+.ai-analysis-panel .analysis-note{color:var(--text-dim);font-size:13px;margin-top:7px}
 </style>
 <section class="web-owner">
   <h1>Inbox — {{ business.business_name }}</h1>
@@ -30,7 +30,7 @@
     <aside class="web-list">
       <h2>{{ 'Percakapan' }}</h2>
       {% for row in conversations %}
-      <a class="web-conversation" href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
+      <a class="web-conversation" {% if selected and selected.id == row.id %}aria-current="true"{% endif %} href="{{ url_for('client.inbox_page',business_id=business.id,channel='web',conversation=row.id) }}">
         <strong>{{ row.customer_display_name or row.customer_phone or ('Kontak ' ~ row.id[:6]) }} <small>{{ 'WhatsApp' if row.id.startswith('wa_') else 'Riwayat' }}</small></strong>
         {% if row.customer_phone and row.customer_display_name %}<small>{{ row.customer_phone }}</small>{% endif %}
         <span>{{ 'Ditangani tim' if row.mode=='HUMAN_TAKEOVER' else 'AI aktif' }}</span>

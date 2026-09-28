@@ -1,5 +1,12 @@
 # Kilas Assist + Finance master completion
 
+## Kilas Assist UI refresh — 2026-09-28 (review only, not deployed)
+- User authorized implementation after the Impeccable audit. Branch: `feature/impeccable-kilas-assist-ui-refresh-20260928`.
+- Added an Assist-only presentation layer across entry/auth, onboarding, Home, training, Inbox, CRM/Insight, Jobs, follow-up, WhatsApp, subscription and supporting screens; implemented A1–A8, retaining the existing backend polling endpoint for A5.
+- 84 responsive browser page checks at mobile/tablet/desktop widths passed with no horizontal overflow; focused refresh, drafts, labels, touch targets and loading feedback passed. Six Finance-session DOM comparisons are unchanged and load no Assist assets.
+- Six regression suites: 80 passed; two training PDF/media cases require Linux resource limits and remain for Linux CI. No production Python/schema/Finance source changes, data/config mutations or deployment.
+- Full implementation, evidence and limitations: `docs/KILAS_ASSIST_UI_REFRESH_20260928.md`. Stop for review; production release needs separate authorization.
+
 ## Impeccable initialization and Assist audit — 2026-09-28 (tooling only)
 - Continued from latest remote main `c0d27c2dabb99d1c68448524f0407f77440f5eab`, preserving the checkout fix and all preceding implementations. Branch: `chore/impeccable-assist-audit-20260928`.
 - Installed official pinned Impeccable project-local Codex skill; engine0.1.6 verified. Installer bundle DNS failed, so used official GitHub compiled payload. Provenance/checksums and instructions: `docs/KILAS_IMPECCABLE_SETUP.md`, `.impeccable/install-manifest.json`.

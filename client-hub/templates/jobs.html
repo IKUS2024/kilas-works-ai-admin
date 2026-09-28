@@ -3,10 +3,10 @@
 {% block content %}
 {% include "_client_compact_style.html" %}
 <style>
-.job-action-label{margin-top:10px;color:var(--text-dim);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.job-action-label{margin-top:10px;color:var(--text-dim);font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
 .job-action-line{margin-top:3px;font-size:13px;line-height:1.45;color:var(--text)}
 .job-action-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
-.job-action-meta .client-status{font-size:9px}
+.job-action-meta .client-status{font-size:13px}
 </style>
 <section class="client-page">
   <div class="client-head">
@@ -17,17 +17,17 @@
     <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">Customers</a>
   </div>
 
-  <form class="card client-search-card" method="get">
+  <form class="card client-search-card assist-job-filters" method="get">
     {% if customer_id %}<input type="hidden" name="customer_id" value="{{ customer_id }}">{% endif %}
-    <label for="job-search">Cari tindakan</label>
+    <div><label for="job-search">Cari tindakan</label>
     <input id="job-search" type="search" name="q" maxlength="120" value="{{ search }}" placeholder="Customer, tindakan, atau ringkasan">
-    <label for="job-filter">Status</label>
+    </div><div><label for="job-filter">Status</label>
     <select id="job-filter" name="status">
       <option value="">Semua status</option>
       {% for key,value in status_labels.items() %}
       <option value="{{ key }}" {{ 'selected' if status==key else '' }}>{{ value }}</option>
       {% endfor %}
-    </select>
+    </select></div>
     <button class="btn" type="submit">Cari</button>
   </form>
 
@@ -47,7 +47,8 @@
     </a>
     {% else %}
       <div class="client-empty">
-        Belum ada Job. Job hanya muncul untuk Customer yang sudah punya tindakan atau permintaan konkret.
+        {% if search or status %}Tidak ada Job yang cocok dengan filter ini. Coba kata kunci atau status lain.
+        {% else %}Belum ada Job. Job hanya muncul untuk Customer yang sudah punya tindakan atau permintaan konkret.{% endif %}
       </div>
     {% endfor %}
   </div>

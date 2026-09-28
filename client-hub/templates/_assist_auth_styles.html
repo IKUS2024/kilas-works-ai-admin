@@ -1,0 +1,4 @@
+{% if session.get('active_product') != 'finance' and 'finance' not in request.args.get('next', '') %}
+<link rel="stylesheet" href="{{ url_for('static', filename='assist_ui.css', v='20260928') }}">
+<script src="{{ url_for('static', filename='assist_ui.js', v='20260928') }}" defer></script>
+{% endif %}

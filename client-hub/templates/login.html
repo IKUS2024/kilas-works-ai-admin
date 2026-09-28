@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Login · Kilas Works{% endblock %}
+{% block assist_entry_styles %}{% include '_assist_auth_styles.html' %}{% endblock %}
 {% block content %}
 <style>
 body.public-ui{background:#0b0d10;color:#f5f6f8}
@@ -51,7 +52,7 @@ body.public-ui>footer{display:none}
 }
 </style>
 
-<div class="auth-shell">
+<div class="auth-shell {{ 'assist-auth' if session.get('active_product') != 'finance' and 'finance' not in request.args.get('next', '') else '' }}">
   <div class="auth-inner">
     <div class="auth-brand">
       <a class="auth-logo-link" href="{{ url_for('products.index') }}" aria-label="Kilas Works">
