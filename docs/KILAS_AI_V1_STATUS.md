@@ -1,6 +1,6 @@
 # Kilas AI V1 durable checkpoint
 
-Updated: 2026-09-28. Latest remote main after milestone 4: `c0d9b410e678cbb103e8fdca4399cc8c014f9d3e`.
+Updated: 2026-09-28. Latest verified remote main after milestone 5: `7a0ec99cb699ba3833b5d2688087e624e32a7886`.
 
 ## Milestones
 
@@ -8,8 +8,8 @@ Updated: 2026-09-28. Latest remote main after milestone 4: `c0d9b410e678cbb103e8
 2. **Core chat — complete, committed and pushed.** Account-scoped thread create/read/rename/delete, bounded recent-message context, CSRF-guarded SSE send, operation-key duplicate protection, independent OpenAI/Anthropic streaming adapters and one fallback before answer text. UI has history, Fast/Smart/Expert selector, stream rendering, Stop and copy, plus mobile history drawer. Provider model IDs are required through configuration; no model ID is invented. Focused GitHub Actions run [36445653535](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36445653535) passed.
 3. **Attachments — complete, committed and pushed.** Added up to four 2 MB PDF/DOCX/TXT/CSV/JPEG/PNG/WEBP files per message, content/MIME validation, bounded PDF/DOCX/text extraction, durable account-owned DB bytes, owner-only downloads, image content conversion for both provider formats, and pending previews with individual removal. Scanned/image-only PDFs are explicitly rejected rather than falsely claimed as read. Focused GitHub Actions run [36446449648](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36446449648) passed.
 4. **Tools and sharing — complete, committed and pushed.** Added OpenAI Responses web-search tool with stored actual URL citations; separate image generation/edit calls and durable generated images; one-time owner share links stored by hash, anonymous read-only page and immediate revocation; regeneration without duplicating the user message. Provider model IDs remain configurable and no tool pretends to run when unavailable. Focused GitHub Actions run [36447369968](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36447369968) passed.
-5. **Usage and plans — implementation awaiting focused CI.** Added Free/Plus/Pro/Max limits, user-level atomic pre-call reservations, daily/monthly/paid-period counters, configurable burst/fair-use controls, provider/model/token ledger with null unknown costs, and account-only usage/pricing page. Additive migration `0072` adds usage reservation status. Focused test: `test_kilas_ai_usage.py`.
-6. **Billing — not started.**
+5. **Usage and plans — complete, committed and pushed.** Added Free/Plus/Pro/Max limits, user-level atomic pre-call reservations, daily/monthly/paid-period counters, configurable burst/fair-use controls, provider/model/token ledger with null unknown costs, and account-only usage/pricing page. Additive migration `0072` adds usage reservation status. Focused GitHub Actions run [36448178498](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36448178498) passed.
+6. **Billing — implementation awaiting focused CI.** Added account-level manual transfer invoices, private proof upload, Kilas admin review, 30-day activation and renewal, owner-only invoice history, and checkout/review pages. No subscription activates before admin verification. The existing BCA bank details are reused. Focused test: `test_kilas_ai_billing.py`.
 7. **UI finalization — not started.** Impeccable context was loaded for the new Kilas AI surface. No full-product audit was run.
 8. **Production release — not started.** Client Hub has not been redeployed and `KILAS_AI_ENABLED` must remain OFF.
 
@@ -22,4 +22,4 @@ Updated: 2026-09-28. Latest remote main after milestone 4: `c0d9b410e678cbb103e8
 ## Verification and next action
 
 - Local `git diff --check` passed. Python route/tests cannot run in this Windows environment because `python.exe` resolves only to the Microsoft Store alias and no Python runtime is installed.
-- Next: commit and push milestone 5 to main; wait for focused `Kilas AI Focused QA`, fix failures, then implement milestone 6 billing. Keep production flag OFF throughout development.
+- Next: commit and push milestone 6 to main; wait for focused `Kilas AI Focused QA`, fix failures, then finalize the scoped UI and production readiness. Keep production flag OFF throughout development.

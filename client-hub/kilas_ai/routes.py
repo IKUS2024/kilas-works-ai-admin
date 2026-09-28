@@ -35,8 +35,9 @@ def home():
 
 @ai_bp.get("/usage")
 def usage_page():
-    from . import usage
-    return render_template("kilas_ai/usage.html", state=usage.snapshot(session["user_id"]), plans=usage.PLANS)
+    from . import billing, usage
+    return render_template("kilas_ai/usage.html", state=usage.snapshot(session["user_id"]),
+                           plans=usage.PLANS, invoices=billing.owner_invoices(session["user_id"]))
 
 
 @ai_bp.post("/threads")

@@ -207,7 +207,9 @@ def create_app():
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from kilas_ai.routes import ai_bp
+    from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
+    app.register_blueprint(kilas_ai_admin_bp)
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

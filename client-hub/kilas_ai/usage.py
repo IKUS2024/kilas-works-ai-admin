@@ -72,7 +72,9 @@ def effective_plan(user_id):
 
 def _period(plan, paid_start, paid_end, operation, now):
     if plan != "FREE":
-        return paid_start, paid_end
+        cycle = max(0, (now - paid_start).days // 30)
+        start = paid_start + timedelta(days=30 * cycle)
+        return start, min(start + timedelta(days=30), paid_end)
     if operation == "CHAT":
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return start, start + timedelta(days=1)
