@@ -1,6 +1,6 @@
 # Kilas AI V1 durable checkpoint
 
-Updated: 2026-09-28. Latest verified remote main after milestone 5: `7a0ec99cb699ba3833b5d2688087e624e32a7886`.
+Updated: 2026-09-28. Latest verified remote main after milestone 6: `7ff8e73` (focused run below).
 
 ## Milestones
 
@@ -9,8 +9,8 @@ Updated: 2026-09-28. Latest verified remote main after milestone 5: `7a0ec99cb69
 3. **Attachments — complete, committed and pushed.** Added up to four 2 MB PDF/DOCX/TXT/CSV/JPEG/PNG/WEBP files per message, content/MIME validation, bounded PDF/DOCX/text extraction, durable account-owned DB bytes, owner-only downloads, image content conversion for both provider formats, and pending previews with individual removal. Scanned/image-only PDFs are explicitly rejected rather than falsely claimed as read. Focused GitHub Actions run [36446449648](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36446449648) passed.
 4. **Tools and sharing — complete, committed and pushed.** Added OpenAI Responses web-search tool with stored actual URL citations; separate image generation/edit calls and durable generated images; one-time owner share links stored by hash, anonymous read-only page and immediate revocation; regeneration without duplicating the user message. Provider model IDs remain configurable and no tool pretends to run when unavailable. Focused GitHub Actions run [36447369968](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36447369968) passed.
 5. **Usage and plans — complete, committed and pushed.** Added Free/Plus/Pro/Max limits, user-level atomic pre-call reservations, daily/monthly/paid-period counters, configurable burst/fair-use controls, provider/model/token ledger with null unknown costs, and account-only usage/pricing page. Additive migration `0072` adds usage reservation status. Focused GitHub Actions run [36448178498](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36448178498) passed.
-6. **Billing — implementation awaiting focused CI.** Added account-level manual transfer invoices, private proof upload, Kilas admin review, 30-day activation and renewal, owner-only invoice history, and checkout/review pages. No subscription activates before admin verification. The existing BCA bank details are reused. Focused test: `test_kilas_ai_billing.py`.
-7. **UI finalization — not started.** Impeccable context was loaded for the new Kilas AI surface. No full-product audit was run.
+6. **Billing — complete, committed and pushed.** Added account-level manual transfer invoices, private proof upload, Kilas admin review, 30-day activation and renewal, owner-only invoice history, and checkout/review pages. No subscription activates before admin verification. The existing BCA bank details are reused. Focused GitHub Actions run [36449173097](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36449173097) passed.
+7. **UI finalization — implementation awaiting focused CI.** Impeccable context and craft guidance were loaded for the new Kilas AI surface. Scoped detector ran once: its three heading findings are parser limitations because Jinja-generated stylesheet URLs could not be resolved; the actual CSS assigns distinct 27/20/18px heading sizes. No full-product audit was run. A retry-state fix keeps rejected user text/attachments available. Focused Chromium desktop/tablet/mobile tests and a disposable PostgreSQL migration rehearsal are added and await CI.
 8. **Production release — not started.** Client Hub has not been redeployed and `KILAS_AI_ENABLED` must remain OFF.
 
 ## Schema and configuration
@@ -22,4 +22,4 @@ Updated: 2026-09-28. Latest verified remote main after milestone 5: `7a0ec99cb69
 ## Verification and next action
 
 - Local `git diff --check` passed. Python route/tests cannot run in this Windows environment because `python.exe` resolves only to the Microsoft Store alias and no Python runtime is installed.
-- Next: commit and push milestone 6 to main; wait for focused `Kilas AI Focused QA`, fix failures, then finalize the scoped UI and production readiness. Keep production flag OFF throughout development.
+- Next: commit and push milestone 7 to main; wait for focused `Kilas AI Focused QA`, fix failures, then inspect production migration/provider configuration. Production has no `kilas_ai_%` tables yet (read-only Render query), so the flag must remain OFF until the explicit additive schema is applied.

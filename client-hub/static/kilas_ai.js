@@ -17,13 +17,15 @@
     controller=new AbortController();busy(true);notice.textContent='Kilas AI sedang menjawab…';input.value='';append('user',content);const answer=append('assistant','');
     const key=crypto.randomUUID().replaceAll('-','');
     const body=new FormData();body.set('csrf_token',document.querySelector('meta[name="csrf-token"]').content);body.set('content',content);body.set('mode',mode.value);body.set('tool',tool.value);body.set('operation_key',key);selected.forEach(file=>body.append('attachments',file,file.name));
+    let accepted=false;
     try{
       const response=await fetch(`/kilas-ai/threads/${shell.dataset.threadId}/send`,{method:'POST',headers:{'X-CSRF-Token':document.querySelector('meta[name="csrf-token"]').content},body,signal:controller.signal});
       if(!response.ok){const problem=await response.json().catch(()=>({}));throw new Error(problem.error||'request_failed');}
+      accepted=true;
       await readStream(response,answer);
       if(!answer.textContent)answer.closest('.ai-message').remove();
       selected=[];renderPending();
-    }catch(error){notice.textContent=error.name==='AbortError'?'Jawaban dihentikan.':error.message==='request_failed'?'AI sedang tidak tersedia. Coba lagi.':error.message;if(!answer.textContent)answer.closest('.ai-message').remove();}
+    }catch(error){notice.textContent=error.name==='AbortError'?'Jawaban dihentikan.':error.message==='request_failed'?'AI sedang tidak tersedia. Coba lagi.':error.message;if(!accepted){input.value=content;answer.closest('.ai-message').previousElementSibling?.remove();}if(!answer.textContent)answer.closest('.ai-message').remove();}
     finally{controller=null;busy(false);input.focus();}
   });
   stop.addEventListener('click',()=>controller?.abort());
