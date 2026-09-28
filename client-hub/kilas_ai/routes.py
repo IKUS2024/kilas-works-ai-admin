@@ -2,7 +2,8 @@
 import os
 import json
 import re
-from flask import Blueprint, Response, abort, redirect, render_template, request, session, stream_with_context, url_for
+from flask import Blueprint, Response, abort, redirect, render_template, request, send_file, session, stream_with_context, url_for
+import io
 
 import security
 
@@ -47,7 +48,21 @@ def thread_page(thread_id):
     if not selected:
         abort(404)
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
-                           selected=selected, messages=store.messages(session["user_id"], thread_id))
+                           selected=selected, messages=store.messages(session["user_id"], thread_id),
+                           attachments=store.attachment_list(session["user_id"], thread_id))
+
+
+@ai_bp.get("/threads/<int:thread_id>/attachments/<int:attachment_id>")
+def attachment_download(thread_id, attachment_id):
+    from . import store
+    item = store.attachment(session["user_id"], thread_id, attachment_id)
+    if not item:
+        abort(404)
+    response = send_file(io.BytesIO(bytes(item["content"])), mimetype=item["mime_type"],
+                         as_attachment=True, download_name=item["filename"])
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @ai_bp.post("/threads/<int:thread_id>/rename")
@@ -76,17 +91,24 @@ def _sse(event, payload):
 
 @ai_bp.post("/threads/<int:thread_id>/send")
 def send(thread_id):
-    from . import providers, store
+    from . import attachments, providers, store
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
-    body = request.get_json(silent=True) or {}
+    body = (request.get_json(silent=True) or {}) if request.is_json else request.form
+    files = request.files.getlist("attachments") if not request.is_json else []
     content = (body.get("content") or "").strip()
     mode = str(body.get("mode") or "SMART").upper()
     key = str(body.get("operation_key") or "")
+    if not content and files:
+        content = "Tolong jelaskan lampiran ini."
     if not content or len(content) > 12000 or mode not in store.MODES or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
-    _, created = store.append_user_once(user_id, thread_id, content, mode, key)
+    try:
+        prepared = attachments.prepare_many(files)
+    except attachments.AttachmentError as error:
+        return {"error": str(error)}, 400
+    message_id, created = store.append_user_once(user_id, thread_id, content, mode, key)
     if not created:
         prior = store.operation(user_id, thread_id, key + ":assistant")
         if prior:
@@ -94,6 +116,7 @@ def send(thread_id):
                             mimetype="text/event-stream")
         return Response(_sse("busy", {"message": "Permintaan ini sedang diproses."}),
                         status=409, mimetype="text/event-stream")
+    store.save_attachments(user_id, thread_id, message_id, prepared)
     context = store.context(user_id, thread_id)
 
     def generate():

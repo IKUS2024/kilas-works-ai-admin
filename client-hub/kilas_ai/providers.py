@@ -85,11 +85,26 @@ def _openai(model, key, messages):
 
 def _anthropic(model, key, messages):
     try:
+        converted = []
+        for message in messages:
+            content = message["content"]
+            if isinstance(content, list):
+                blocks = []
+                for block in content:
+                    if block["type"] == "image_url":
+                        data_url = block["image_url"]["url"]
+                        header, payload = data_url.split(";base64,", 1)
+                        blocks.append({"type": "image", "source": {"type": "base64",
+                                       "media_type": header[5:], "data": payload}})
+                    else:
+                        blocks.append(block)
+                content = blocks
+            converted.append({"role": message["role"], "content": content})
         with requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                      "Content-Type": "application/json"},
-            json={"model": model, "system": SYSTEM, "messages": messages,
+            json={"model": model, "system": SYSTEM, "messages": converted,
                   "max_tokens": 2048, "stream": True},
             stream=True, timeout=(10, 90),
         ) as response:

@@ -58,13 +58,51 @@ def context(user_id, thread_id):
         return None
     bounded = []
     remaining = 20000
+    latest_user_id = next((row["id"] for row in reversed(rows) if row["role"] == "user"), None)
     for row in reversed(rows):
         content = row["content"] or ""
-        if not content or len(content) > remaining:
+        if not content:
             break
-        bounded.append({"role": row["role"], "content": content})
-        remaining -= len(content)
+        attachments = attachment_context(user_id, thread_id, row["id"], include_content=row["id"] == latest_user_id)
+        from .attachments import prompt_content
+        prompt = prompt_content(content, attachments if row["id"] == latest_user_id else
+                                [item for item in attachments if item["extracted_text"]])
+        text_size = len(prompt) if isinstance(prompt, str) else len(prompt[0]["text"])
+        if text_size > remaining:
+            break
+        bounded.append({"role": row["role"], "content": prompt})
+        remaining -= text_size
     return list(reversed(bounded))
+
+
+def save_attachments(user_id, thread_id, message_id, prepared):
+    if not thread(user_id, thread_id):
+        return None
+    ids = []
+    for item in prepared:
+        ids.append(db.insert_returning_id(
+            "INSERT INTO kilas_ai_attachments(user_id,thread_id,message_id,filename,mime_type,byte_size,content,extracted_text) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (user_id, thread_id, message_id, item["filename"], item["mime_type"],
+             item["byte_size"], item["content"], item["extracted_text"])))
+    return ids
+
+
+def attachment(user_id, thread_id, attachment_id):
+    return db.query_one("SELECT * FROM kilas_ai_attachments WHERE id=? AND user_id=? AND thread_id=?",
+                        (attachment_id, user_id, thread_id))
+
+
+def attachment_context(user_id, thread_id, message_id, include_content=False):
+    content_column = "content" if include_content else "NULL AS content"
+    return db.query_all("SELECT filename,mime_type," + content_column + ",extracted_text FROM kilas_ai_attachments "
+                        "WHERE user_id=? AND thread_id=? AND message_id=? ORDER BY id LIMIT 4",
+                        (user_id, thread_id, message_id))
+
+
+def attachment_list(user_id, thread_id):
+    return db.query_all("SELECT id,message_id,filename,mime_type,byte_size FROM kilas_ai_attachments "
+                        "WHERE user_id=? AND thread_id=? ORDER BY id", (user_id, thread_id))
 
 
 def operation(user_id, thread_id, key):

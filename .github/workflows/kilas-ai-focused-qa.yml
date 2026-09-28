@@ -30,3 +30,5 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_foundation.py
       - name: Kilas AI chat and provider fallback
         run: cd client-hub && python tests/test_kilas_ai_chat.py
+      - name: Kilas AI durable attachments and image context
+        run: cd client-hub && python tests/test_kilas_ai_attachments.py
