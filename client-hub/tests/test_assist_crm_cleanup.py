@@ -70,6 +70,42 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertEqual(jobs.list_jobs(self.bid)[0][0]['title'],'Cari talent')
         self.assertEqual(customers.list_customers(self.other)[1],0)
 
+    def test_owner_customers_unifies_inbox_contacts_without_stage_ui(self):
+        self.turn('Berapa harga?')
+        cid = self.customer['id']
+        self.assertEqual(self.customer['stage'], 'LEAD')
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 0)
+
+        inbox_conversations = customer_insights.whatsapp_conversation_rows(self.bid, cid)
+        self.assertTrue(inbox_conversations)
+
+        page = self.client.get(f'/business/{self.bid}/customers?stage=CUSTOMER')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('Irvan', page.text)
+        self.assertIn(f'/business/{self.bid}/customers/{cid}', page.text)
+        for retired_ui in ('>Lead<', 'stage=LEAD', 'stage=CUSTOMER', 'lead aktif',
+                           'Lead akan berpindah', 'pindah dari Lead'):
+            self.assertNotIn(retired_ui, page.text)
+
+        path = f'/business/{self.bid}/customers/{cid}'
+        detail = self.client.get(path)
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn('data-customer-insight', detail.text)
+        self.assertIn('Ringkasan kontak', detail.text)
+        self.assertNotIn('data-linked-jobs', detail.text)
+
+        self.turn('Saya tertarik', dict(follow_up='Tanyakan kebutuhan yang ingin dibahas'))
+        detail = self.client.get(path)
+        self.assertIn('Follow-up Customer', detail.text)
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 0)
+
+        self.turn('Saya mau cari talent', dict(action='Cari talent',
+            job_status='PERLU_TINDAKAN', follow_up='Tanyakan detail talent'), 'REQUEST')
+        detail = self.client.get(path)
+        self.assertIn('Jobs customer ini', detail.text)
+        self.assertIn('Cari talent', detail.text)
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
+
     def test_tenant_profile_and_assistant_messages_cannot_become_customer_facts(self):
         hostile = dict(name='Pemilik',business_name='Foto Satu',business_type='DJ, Content Creator & Influencer',
             location='Indonesia',budget='5 juta',needs=['TENANT ONLY'],interests=['DJ'],

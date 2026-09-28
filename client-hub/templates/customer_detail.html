@@ -19,11 +19,11 @@
   <div class="client-head">
     <div>
       <h1 data-contact-name>{{ customer.display_name }}</h1>
-      <p>{{ customer.phone|contact_phone }}</p><span data-contact-stage class="client-status">{{ 'Customer' if customer.stage == 'CUSTOMER' else 'Lead' }}</span>
+      <p>{{ customer.phone|contact_phone }}</p><span data-contact-stage class="client-status">Customer</span>
     </div>
     <div class="client-actions">
       <a class="btn secondary" href="{{ chat_url }}">Buka chat</a>
-      <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id,stage=customer.stage) }}">← Customers</a>
+      <a class="btn secondary" href="{{ url_for('core_customers.list_page',bid=business.id) }}">← Customers</a>
     </div>
   </div>
   {% if saved %}<div class="flash success">Data kontak tersimpan.</div>{% endif %}
@@ -39,7 +39,7 @@
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <h2>Profil kontak</h2>
-    <p class="client-note">Kilas memindahkan Lead ke Customer saat ada kebutuhan atau permintaan konkret. Customer tidak harus sudah membayar.</p>
+    <p class="client-note">Semua kontak Inbox ditampilkan sebagai Customer. Job dibuat saat ada kebutuhan atau permintaan konkret.</p>
     <label for="contact-name">Nama</label><input id="contact-name" name="display_name" maxlength="160" required value="{{ customer.display_name }}" autocomplete="name">
     <label for="contact-phone">Telepon (opsional)</label><input id="contact-phone" type="tel" name="phone" maxlength="40" value="{{ customer.phone or '' }}" autocomplete="tel">
     <label for="contact-email">Email (opsional)</label><input id="contact-email" name="email" inputmode="email" maxlength="254" value="{{ customer.email or '' }}" autocomplete="email">

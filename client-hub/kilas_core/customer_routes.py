@@ -40,20 +40,17 @@ def list_page(bid):
     if platform_workspace.is_scope_business(bid):
         # Navigation GETs must stay read-fast. Do not rescan the full platform Inbox and do not
         # call Customer Insight / an external AI model while rendering Customers. Inbox ingestion
-        # and explicit reconciliation own those writes; tapping a tab is a read operation.
+        # and explicit reconciliation own those writes; opening the list is a read operation.
         pass
-    # Reconcile any durable Demo WhatsApp binding before rendering CRM. This makes
-    # historical demo chats immediately visible as Lead without requiring another message.
+    # Reconcile any durable Demo WhatsApp binding before rendering CRM so historical
+    # demo chats are visible in the unified customer list without another message.
     try:
         customers.sync_demo_binding_lead(bid)
     except Exception:
         pass
     q = request.args.get("q", "")
     page = request.args.get("page", 1, type=int) or 1
-    stage = (request.args.get("stage") or "LEAD").strip().upper()
-    if stage not in ("LEAD", "CUSTOMER"):
-        stage = "LEAD"
-    rows, total, page, pages = customers.list_customers(bid, q, page, stage)
+    rows, total, page, pages = customers.list_customers(bid, q, page, "ALL")
     # CRM counts the same WhatsApp Inbox sources used by Customer Insight.
     # Retired Web Chat history is intentionally excluded.
     for index, row in enumerate(rows):
@@ -66,10 +63,8 @@ def list_page(bid):
             row["conversation_count"] += 1
         if customer_insights.platform_conversation_row(bid, row):
             row["conversation_count"] += 1
-    stage_label = {"LEAD": "lead", "CUSTOMER": "customer"}[stage]
     return render_template("customers.html", business=business, customers=rows,
-                           total=total, page=page, pages=pages, search=q,
-                           stage=stage, stage_label=stage_label)
+                           total=total, page=page, pages=pages, search=q)
 
 
 @customers_bp.get("/business/<int:bid>/customers/<customer_id>")
