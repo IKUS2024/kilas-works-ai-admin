@@ -6,6 +6,7 @@ structured insight to the model. Demo WhatsApp is read through its durable, priv
 binding; no platform-wide inbox is ever exposed to a tenant.
 """
 import json
+from datetime import datetime, timezone
 from kilas_core import customer_facts
 import time
 
@@ -506,3 +507,80 @@ def cached(business, customer):
         has_history=bool(stored and stored['message_count']),
         fresh=bool(stored and not stored.get('requires_rebuild')))
     return result
+
+
+STAGE_LABELS = {
+    "BELUM_JELAS": "Baru memulai percakapan",
+    "MENCARI_INFORMASI": "Mencari informasi",
+    "MEMBANDINGKAN": "Membandingkan",
+    "BERMINAT": "Tertarik",
+    "SIAP_MEMBELI": "Ingin lanjut",
+    "CUSTOMER_AKTIF": "Sedang diproses",
+}
+
+
+def presentation(insight):
+    """Build owner-facing copy from stored, fact-grounded Insight values only."""
+    insight = insight or _default()
+    stage = insight.get("buying_stage") or "BELUM_JELAS"
+    subject = insight.get("name") or "Customer"
+    topic = (insight.get("action") or next(iter(insight.get("needs") or []), None)
+             or next(iter(insight.get("interests") or []), None))
+    schedule = insight.get("schedule")
+    budget = insight.get("budget")
+
+    def lower_first(value):
+        return value[:1].lower() + value[1:] if value else value
+
+    if stage == "MENCARI_INFORMASI":
+        summary = (f"{subject} sedang mencari informasi tentang {lower_first(topic)}."
+                   if topic else f"{subject} sedang mencari informasi.")
+        summary += " Belum ada permintaan konkret."
+    elif stage == "MEMBANDINGKAN":
+        summary = (f"{subject} sedang membandingkan {lower_first(topic)}."
+                   if topic else f"{subject} sedang membandingkan pilihan yang tersedia.")
+    elif stage == "BERMINAT":
+        summary = (f"{subject} tertarik pada {lower_first(topic)}."
+                   if topic else f"{subject} sudah menunjukkan ketertarikan.")
+    elif stage == "SIAP_MEMBELI":
+        summary = (f"{subject} ingin melanjutkan {lower_first(topic)}"
+                   if topic else f"{subject} ingin lanjut")
+        if schedule:
+            summary += f" dengan rencana {lower_first(schedule)}"
+        if budget:
+            summary += f" dengan budget {budget}"
+        summary += ". Customer sudah menyatakan ingin lanjut."
+    elif stage == "CUSTOMER_AKTIF":
+        summary = (f"{subject} sedang diproses untuk {lower_first(topic)}."
+                   if topic else f"{subject} sedang diproses.")
+    else:
+        summary = f"{subject} baru memulai percakapan dan belum memberikan cukup informasi."
+
+    facts = []
+    for label, value in (
+        ("Nama", insight.get("name")),
+        ("Bisnis", insight.get("business_name")),
+        ("Jenis bisnis", insight.get("business_type")),
+        ("Lokasi", insight.get("location")),
+        ("Rencana", schedule),
+        ("Budget", budget),
+    ):
+        if value:
+            facts.append((label, value))
+    facts.append(("Tahap", STAGE_LABELS.get(stage, STAGE_LABELS["BELUM_JELAS"])))
+
+    meaningful = any((
+        insight.get("business_name"), insight.get("business_type"), insight.get("location"),
+        budget, schedule, insight.get("interests"), insight.get("needs"), insight.get("action"),
+    ))
+    updated_at = (insight.get("_meta") or {}).get("updated_at")
+    if isinstance(updated_at, (int, float)) and updated_at:
+        updated_at = datetime.fromtimestamp(updated_at, timezone.utc)
+
+    return {
+        "summary": summary,
+        "facts": facts,
+        "stage_label": STAGE_LABELS.get(stage, STAGE_LABELS["BELUM_JELAS"]),
+        "has_meaningful_information": bool(meaningful),
+        "updated_at": updated_at,
+    }

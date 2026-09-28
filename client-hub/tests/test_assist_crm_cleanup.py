@@ -103,7 +103,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
         detail = self.client.get(path)
         self.assertEqual(detail.status_code, 200)
         self.assertIn('data-customer-insight', detail.text)
-        self.assertIn('Ringkasan kontak', detail.text)
+        self.assertIn('Customer Insight', detail.text)
         self.assertNotIn('data-linked-jobs', detail.text)
 
         self.turn('Saya tertarik', dict(follow_up='Tanyakan kebutuhan yang ingin dibahas'))
