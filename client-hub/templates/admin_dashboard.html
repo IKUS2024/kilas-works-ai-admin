@@ -230,6 +230,7 @@
       <h2>Tools tambahan di More</h2>
       <p>Pembayaran, Talent, Katalog, penggunaan AI, WhatsApp/channel, pencarian, dan tools platform tetap tersedia.</p>
       <a class="btn secondary" href="{{ url_for('admin.more_admin') }}">Buka More</a>
+      {% if kilas_ai_enabled() %}<a class="btn secondary" href="{{ url_for('kilas_ai_admin.payments') }}">Review pembayaran Kilas AI</a>{% endif %}
     </section>
   </div>
 </section>

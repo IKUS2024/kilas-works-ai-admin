@@ -206,10 +206,11 @@ def create_app():
     app.jinja_env.globals['finance_bridge_panel'] = finance_bridge_panel
     from routes_products import products_bp
     app.register_blueprint(products_bp)
-    from kilas_ai.routes import ai_bp
+    from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
+    app.jinja_env.globals["kilas_ai_enabled"] = kilas_ai_enabled
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp

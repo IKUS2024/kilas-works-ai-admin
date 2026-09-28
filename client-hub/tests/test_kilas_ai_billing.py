@@ -61,6 +61,7 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(len(pending), 1)
         payment_id = pending[0]["id"]
         self.assertEqual(admin.get("/admin/kilas-ai/payments").status_code, 200)
+        self.assertIn(b"Review pembayaran Kilas AI", admin.get("/admin/").data)
         self.assertEqual(other.get(f"/admin/kilas-ai/payments/{payment_id}/proof").status_code, 404)
         verified = admin.post(f"/admin/kilas-ai/payments/{payment_id}/review",
                               data={"decision": "VERIFIED", "csrf_token": "billing-csrf"})
