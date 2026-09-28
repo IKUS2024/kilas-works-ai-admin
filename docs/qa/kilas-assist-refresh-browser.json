@@ -1,0 +1,761 @@
+{
+  "results": [
+    {
+      "page": "login",
+      "status": 200,
+      "url": "/login",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "signup",
+      "status": 200,
+      "url": "/register",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "forgot-password",
+      "status": 200,
+      "url": "/forgot-password",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "landing",
+      "status": 200,
+      "url": "/",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "home",
+      "status": 200,
+      "url": "/workspace/ai",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "products",
+      "status": 200,
+      "url": "/products/start",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "entry",
+      "status": 200,
+      "url": "/products/assist",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "business-create",
+      "status": 200,
+      "url": "/products/assist?step=business",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "onboarding",
+      "status": 200,
+      "url": "/business/1/wizard/basics",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "training",
+      "status": 200,
+      "url": "/business/1/train",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "leads",
+      "status": 200,
+      "url": "/business/1/customers?stage=LEAD",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "customers",
+      "status": 200,
+      "url": "/business/1/customers?stage=CUSTOMER",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "customer-detail",
+      "status": 200,
+      "url": "/business/1/customers/dcf0f3ab5d084d0a93df818cbc40755e",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "lead-detail",
+      "status": 200,
+      "url": "/business/1/customers/0328a981374344e99b0e4d897d8bf00f",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "jobs",
+      "status": 200,
+      "url": "/business/1/jobs",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "job-detail",
+      "status": 200,
+      "url": "/business/1/jobs/15479658f882444eaa3eaad45bddfb8c",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "inbox",
+      "status": 200,
+      "url": "/business/1/inbox",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "conversation",
+      "status": 200,
+      "url": "/business/1/inbox?customer=628123451011",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "canonical-inbox",
+      "status": 200,
+      "url": "/business/1/inbox?channel=web",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "canonical-conversation",
+      "status": 200,
+      "url": "/business/1/inbox?channel=web&conversation=wa_4c4fa0f8169b4523a20c0cbdcca3e7bd",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "empty-search",
+      "status": 200,
+      "url": "/business/1/customers?q=does-not-exist&stage=LEAD",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "whatsapp",
+      "status": 200,
+      "url": "/business/1/assist-whatsapp",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "usage",
+      "status": 200,
+      "url": "/workspace/usage/1",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "checkout",
+      "status": 200,
+      "url": "/business/1/ai-admin/checkout",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "more",
+      "status": 200,
+      "url": "/workspace/more",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "settings",
+      "status": 200,
+      "url": "/business/1/settings",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "followup",
+      "status": 200,
+      "url": "/business/1/automations",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "account",
+      "status": 200,
+      "url": "/account",
+      "width": 360,
+      "scroll": 360,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "login",
+      "status": 200,
+      "url": "/login",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "signup",
+      "status": 200,
+      "url": "/register",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "forgot-password",
+      "status": 200,
+      "url": "/forgot-password",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "landing",
+      "status": 200,
+      "url": "/",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "home",
+      "status": 200,
+      "url": "/workspace/ai",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "products",
+      "status": 200,
+      "url": "/products/start",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "entry",
+      "status": 200,
+      "url": "/products/assist",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "business-create",
+      "status": 200,
+      "url": "/products/assist?step=business",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "onboarding",
+      "status": 200,
+      "url": "/business/1/wizard/basics",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "training",
+      "status": 200,
+      "url": "/business/1/train",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "leads",
+      "status": 200,
+      "url": "/business/1/customers?stage=LEAD",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "customers",
+      "status": 200,
+      "url": "/business/1/customers?stage=CUSTOMER",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "customer-detail",
+      "status": 200,
+      "url": "/business/1/customers/dcf0f3ab5d084d0a93df818cbc40755e",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "lead-detail",
+      "status": 200,
+      "url": "/business/1/customers/0328a981374344e99b0e4d897d8bf00f",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "jobs",
+      "status": 200,
+      "url": "/business/1/jobs",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "job-detail",
+      "status": 200,
+      "url": "/business/1/jobs/15479658f882444eaa3eaad45bddfb8c",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "inbox",
+      "status": 200,
+      "url": "/business/1/inbox",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "conversation",
+      "status": 200,
+      "url": "/business/1/inbox?customer=628123451011",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "canonical-inbox",
+      "status": 200,
+      "url": "/business/1/inbox?channel=web",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "canonical-conversation",
+      "status": 200,
+      "url": "/business/1/inbox?channel=web&conversation=wa_4c4fa0f8169b4523a20c0cbdcca3e7bd",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "empty-search",
+      "status": 200,
+      "url": "/business/1/customers?q=does-not-exist&stage=LEAD",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "whatsapp",
+      "status": 200,
+      "url": "/business/1/assist-whatsapp",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "usage",
+      "status": 200,
+      "url": "/workspace/usage/1",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "checkout",
+      "status": 200,
+      "url": "/business/1/ai-admin/checkout",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "more",
+      "status": 200,
+      "url": "/workspace/more",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "settings",
+      "status": 200,
+      "url": "/business/1/settings",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "followup",
+      "status": 200,
+      "url": "/business/1/automations",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "account",
+      "status": 200,
+      "url": "/account",
+      "width": 820,
+      "scroll": 820,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "login",
+      "status": 200,
+      "url": "/login",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "signup",
+      "status": 200,
+      "url": "/register",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "forgot-password",
+      "status": 200,
+      "url": "/forgot-password",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "landing",
+      "status": 200,
+      "url": "/",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "home",
+      "status": 200,
+      "url": "/workspace/ai",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "products",
+      "status": 200,
+      "url": "/products/start",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "entry",
+      "status": 200,
+      "url": "/products/assist",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "business-create",
+      "status": 200,
+      "url": "/products/assist?step=business",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "onboarding",
+      "status": 200,
+      "url": "/business/1/wizard/basics",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "training",
+      "status": 200,
+      "url": "/business/1/train",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "leads",
+      "status": 200,
+      "url": "/business/1/customers?stage=LEAD",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "customers",
+      "status": 200,
+      "url": "/business/1/customers?stage=CUSTOMER",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "customer-detail",
+      "status": 200,
+      "url": "/business/1/customers/dcf0f3ab5d084d0a93df818cbc40755e",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "lead-detail",
+      "status": 200,
+      "url": "/business/1/customers/0328a981374344e99b0e4d897d8bf00f",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "jobs",
+      "status": 200,
+      "url": "/business/1/jobs",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "job-detail",
+      "status": 200,
+      "url": "/business/1/jobs/15479658f882444eaa3eaad45bddfb8c",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "inbox",
+      "status": 200,
+      "url": "/business/1/inbox",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "conversation",
+      "status": 200,
+      "url": "/business/1/inbox?customer=628123451011",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "canonical-inbox",
+      "status": 200,
+      "url": "/business/1/inbox?channel=web",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "canonical-conversation",
+      "status": 200,
+      "url": "/business/1/inbox?channel=web&conversation=wa_4c4fa0f8169b4523a20c0cbdcca3e7bd",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "empty-search",
+      "status": 200,
+      "url": "/business/1/customers?q=does-not-exist&stage=LEAD",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "whatsapp",
+      "status": 200,
+      "url": "/business/1/assist-whatsapp",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "usage",
+      "status": 200,
+      "url": "/workspace/usage/1",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "checkout",
+      "status": 200,
+      "url": "/business/1/ai-admin/checkout",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "more",
+      "status": 200,
+      "url": "/workspace/more",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "settings",
+      "status": 200,
+      "url": "/business/1/settings",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "followup",
+      "status": 200,
+      "url": "/business/1/automations",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    },
+    {
+      "page": "account",
+      "status": 200,
+      "url": "/account",
+      "width": 1440,
+      "scroll": 1440,
+      "unnamed": [],
+      "small": 0
+    }
+  ],
+  "issues": []
+}

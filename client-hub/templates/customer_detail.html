@@ -5,14 +5,14 @@
 <style>
 .customer-insight-card{padding:16px;margin-bottom:14px}
 .customer-insight-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
-.customer-insight-head h2{margin:1px 0 0}.client-kicker{margin:0;color:var(--orange);font-size:10px;font-weight:850;letter-spacing:.08em}
+.customer-insight-head h2{margin:1px 0 0}.client-kicker{margin:0;color:var(--orange);font-size:13px;font-weight:850;letter-spacing:.08em}
 .insight-summary{font-size:15px;line-height:1.55;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.018);margin-bottom:10px}
 .insight-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
-.insight-facts>div{border:1px solid var(--border);border-radius:11px;padding:9px;min-width:0}.insight-facts span{display:block;color:var(--text-dim);font-size:10px;margin-bottom:3px}.insight-facts strong{display:block;font-size:12px;overflow-wrap:anywhere}
-.insight-section{margin-top:12px}.insight-section h3{margin:0 0 6px;font-size:12px}.insight-section p,.insight-section ul{margin:0;color:var(--text-dim);font-size:12px;line-height:1.5}.insight-section ul{padding-left:18px}
-.insight-tags{display:flex;gap:5px;flex-wrap:wrap}.insight-tags span{display:inline-flex;padding:5px 8px;border:1px solid rgba(255,122,26,.28);background:rgba(255,122,26,.07);color:#ffc08f;border-radius:999px;font-size:10px;font-weight:700}.insight-tags.muted-tags span{border-color:var(--border);background:rgba(255,255,255,.015);color:var(--text-dim)}
-.insight-followup{margin-top:12px;padding:11px 12px;border-left:3px solid var(--orange);background:rgba(255,122,26,.055);border-radius:10px}.insight-followup span{display:block;font-size:10px;color:var(--orange);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.insight-followup strong{display:block;font-size:13px;line-height:1.45;margin-top:4px}
-.insight-meta{margin-top:10px;color:var(--text-dim);font-size:10px}.insight-warning{margin-bottom:10px}
+.insight-facts>div{border:1px solid var(--border);border-radius:11px;padding:9px;min-width:0}.insight-facts span{display:block;color:var(--text-dim);font-size:13px;margin-bottom:3px}.insight-facts strong{display:block;font-size:13px;overflow-wrap:anywhere}
+.insight-section{margin-top:12px}.insight-section h3{margin:0 0 6px;font-size:13px}.insight-section p,.insight-section ul{margin:0;color:var(--text-dim);font-size:13px;line-height:1.5}.insight-section ul{padding-left:18px}
+.insight-tags{display:flex;gap:5px;flex-wrap:wrap}.insight-tags span{display:inline-flex;padding:5px 8px;border:1px solid rgba(255,122,26,.28);background:rgba(255,122,26,.07);color:#ffc08f;border-radius:999px;font-size:13px;font-weight:700}.insight-tags.muted-tags span{border-color:var(--border);background:rgba(255,255,255,.015);color:var(--text-dim)}
+.insight-followup{margin-top:12px;padding:11px 12px;border-left:3px solid var(--orange);background:rgba(255,122,26,.055);border-radius:10px}.insight-followup span{display:block;font-size:13px;color:var(--orange);font-weight:800;text-transform:uppercase;letter-spacing:.05em}.insight-followup strong{display:block;font-size:13px;line-height:1.45;margin-top:4px}
+.insight-meta{margin-top:10px;color:var(--text-dim);font-size:13px}.insight-warning{margin-bottom:10px}
 @media(max-width:600px){.insight-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.customer-insight-card{padding:13px}}
 </style>
 <section class="client-page">
@@ -40,10 +40,10 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <h2>Profil kontak</h2>
     <p class="client-note">Kilas memindahkan Lead ke Customer saat ada kebutuhan atau permintaan konkret. Customer tidak harus sudah membayar.</p>
-    <label>Nama</label><input name="display_name" maxlength="160" required value="{{ customer.display_name }}">
-    <label>Telepon</label><input name="phone" maxlength="40" value="{{ customer.phone or '' }}" placeholder="Opsional">
-    <label>Email</label><input name="email" maxlength="254" value="{{ customer.email or '' }}" placeholder="Opsional">
-    <label>Catatan</label><textarea name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
+    <label for="contact-name">Nama</label><input id="contact-name" name="display_name" maxlength="160" required value="{{ customer.display_name }}" autocomplete="name">
+    <label for="contact-phone">Telepon (opsional)</label><input id="contact-phone" type="tel" name="phone" maxlength="40" value="{{ customer.phone or '' }}" autocomplete="tel">
+    <label for="contact-email">Email (opsional)</label><input id="contact-email" name="email" inputmode="email" maxlength="254" value="{{ customer.email or '' }}" autocomplete="email">
+    <label for="contact-notes">Catatan</label><textarea id="contact-notes" name="notes" maxlength="2000" placeholder="Catatan internal">{{ customer.notes or '' }}</textarea>
     <p class="client-note">Telepon/email yang diisi manual disimpan sebagai profil. Kilas tidak menggabungkan kontak otomatis hanya karena nama atau kontak yang belum terverifikasi sama.</p>
     <button class="btn" type="submit">Simpan</button>
   </form></details>
@@ -60,8 +60,10 @@
     fetch(url,{credentials:'same-origin',cache:'no-store',headers:{'X-Requested-With':'XMLHttpRequest'}})
       .then(function(response){if(!response.ok)throw new Error('insight');return response.text();})
       .then(function(html){
-        if(box.querySelector('[data-followup-editor][open]'))return;
+        if(box.querySelector('[data-followup-editor][open]')||box.contains(document.activeElement)||box.innerHTML===html)return;
+        var openDetails=Array.from(box.querySelectorAll('details')).map(function(node){return node.open;});
         box.innerHTML=html;
+        box.querySelectorAll('details').forEach(function(node,index){if(openDetails[index])node.open=true;});
         var context=box.querySelector('[data-contact-context]');
         if(context){
           document.querySelector('[data-contact-name]').textContent=context.dataset.name;

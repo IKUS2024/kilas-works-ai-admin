@@ -1,0 +1,38 @@
+[
+  {
+    "route": "/business/1/finance",
+    "status": 200,
+    "dom_unchanged": true,
+    "assist_assets": false
+  },
+  {
+    "route": "/business/1/finance?view=transactions",
+    "status": 200,
+    "dom_unchanged": true,
+    "assist_assets": false
+  },
+  {
+    "route": "/business/1/finance/reports",
+    "status": 200,
+    "dom_unchanged": true,
+    "assist_assets": false
+  },
+  {
+    "route": "/workspace/more",
+    "status": 200,
+    "dom_unchanged": true,
+    "assist_assets": false
+  },
+  {
+    "route": "/account",
+    "status": 200,
+    "dom_unchanged": true,
+    "assist_assets": false
+  },
+  {
+    "route": "/login",
+    "status": 200,
+    "dom_unchanged": true,
+    "assist_assets": false
+  }
+]

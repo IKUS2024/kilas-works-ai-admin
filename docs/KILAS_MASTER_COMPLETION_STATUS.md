@@ -1,5 +1,20 @@
 # Kilas Assist + Finance master completion
 
+## Kilas Assist UI refresh — 2026-09-28 (review only, not deployed)
+- User authorized implementation after the Impeccable audit. Branch: `feature/impeccable-kilas-assist-ui-refresh-20260928`.
+- Added an Assist-only presentation layer across entry/auth, onboarding, Home, training, Inbox, CRM/Insight, Jobs, follow-up, WhatsApp, subscription and supporting screens; implemented A1–A8, retaining the existing backend polling endpoint for A5.
+- 84 responsive browser page checks at mobile/tablet/desktop widths passed with no horizontal overflow; focused refresh, drafts, labels, touch targets and loading feedback passed. Six Finance-session DOM comparisons are unchanged and load no Assist assets.
+- Six regression suites: 80 passed; two training PDF/media cases require Linux resource limits and remain for Linux CI. No production Python/schema/Finance source changes, data/config mutations or deployment.
+- Full implementation, evidence and limitations: `docs/KILAS_ASSIST_UI_REFRESH_20260928.md`. Stop for review; production release needs separate authorization.
+
+## Impeccable initialization and Assist audit — 2026-09-28 (tooling only)
+- Continued from latest remote main `c0d27c2dabb99d1c68448524f0407f77440f5eab`, preserving the checkout fix and all preceding implementations. Branch: `chore/impeccable-assist-audit-20260928`.
+- Installed official pinned Impeccable project-local Codex skill; engine0.1.6 verified. Installer bundle DNS failed, so used official GitHub compiled payload. Provenance/checksums and instructions: `docs/KILAS_IMPECCABLE_SETUP.md`, `.impeccable/install-manifest.json`.
+- Initialized `PRODUCT.md` from existing product context/current source; added root design-tooling guardrails. Automatic hooks disabled and Finance files excluded. No redesign, UI/business-logic edits, app dependency changes, deployment, migrations, payment/WhatsApp operations or data reset.
+- Completed initial Assist technical audit: `docs/KILAS_ASSIST_UI_AUDIT.md`, seven raw detector warnings in `docs/qa/kilas-impeccable-detector.json`. Eight grouped findings (2P1,6P2); provisional10/20, not a compliance certification. Live existing owner session: Home/training/Lead/Jobs/Inbox; desktop only. No forms submitted. Contact detail reviewed in source to avoid lazy-repair GET mutations. Finance not visited or changed.
+- Validation: vendor hashes/configs, engine probe, scoped detector execution and no application-path diff. No full test suite rerun for documentation/tooling only. Current production release remains authoritative; do not deploy this branch merely to install design tooling.
+- NEXT only when requested: implement scoped Assist findings after reviewing the report. Preserve Finance and current production behavior; do not reopen completed checkout/CRM/training work.
+
 ## Checkout prerequisite correction — 2026-09-28 (deployed and verified)
 - Continued from remote main `70818c56bc14f8a8e382795a415cc521cb37a575`; Client Hub was inspected LIVE at `91956311ff7bf58e45b0ffb851acd669d13253fc`. Scope is only the checkout bug; continuous training and all earlier work are preserved.
 - Root cause: `_brain_checkout` reused `repo.required_fields_missing`, a full activation/review validator, before showing or starting payment. Its operational and WhatsApp fields wrongly redirected Starter/Pro buyers to the old wizard.

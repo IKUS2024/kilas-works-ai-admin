@@ -1,6 +1,10 @@
-{% extends 'base.html' %}{% block content %}
-<h1>Tinjau langganan Kilas Assist</h1><section class="card"><h2>{{ business.business_name }} · {{ offer.name }}</h2>
-<p><strong>{{ offer.amount|finance_idr }}</strong> untuk periode 30 hari ini.</p>
+{% extends 'base.html' %}
+{% block title %}Tinjau langganan · Kilas Assist{% endblock %}
+{% block content %}
+<section class="kw-page assist-checkout">
+<header class="kw-page-head"><div><h1>Tinjau langganan Kilas Assist</h1><p>{{ business.business_name }}</p></div></header>
+<section class="card"><h2>{{ offer.name }}</h2>
+<p class="assist-checkout-price"><strong>{{ offer.amount|finance_idr }}</strong> untuk periode 30 hari ini.</p>
 {% if offer.promo %}<p>Launch Promo bulan pertama. Setelah itu {{ offer.regular|finance_idr }}/bulan.</p>{% else %}<p>Harga paket {{ offer.regular|finance_idr }}/bulan.</p>{% endif %}
 <p>Kilas Finance termasuk dan tetap memakai workspace keuangan tersendiri. Pembayaran diverifikasi sebelum tim Kilas membantu menghubungkan WhatsApp bisnis Anda.</p>
-<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn">Lanjut ke Pembayaran</button></form></section>{% endblock %}
+<form method="post" class="kw-actions"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn" type="submit">Lanjut ke Pembayaran</button></form></section></section>{% endblock %}

@@ -10,13 +10,13 @@
 .customer-ui .kw-inbox-toolbar{padding:10px}.customer-ui .kw-conversation{padding:9px 11px}
 .customer-ui .kw-chat-head{padding:10px 12px}.customer-ui .kw-thread{padding:12px;gap:7px}.customer-ui .kw-compose{padding:10px 12px}
 .customer-ui .kw-bubble{padding:8px 10px}.customer-ui .kw-filters{gap:6px}
-.kw-live-state{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:10px;font-weight:800;white-space:nowrap}
+.kw-live-state{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:13px;font-weight:800;white-space:nowrap}
 .kw-live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(62,207,142,.1)}
 .kw-live-state.syncing .kw-live-dot{background:var(--yellow);box-shadow:0 0 0 3px rgba(224,185,59,.1)}
 .kw-live-state.offline .kw-live-dot{background:var(--red);box-shadow:0 0 0 3px rgba(241,101,101,.1)}
 .kw-msg-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:4px}
-.kw-delivery{font-size:10px;font-weight:750}.kw-delivery.sent{color:var(--green)}
-.kw-send-status{font-size:11px;font-weight:750;color:var(--text-dim);margin-left:auto}
+.kw-delivery{font-size:13px;font-weight:750}.kw-delivery.sent{color:var(--green)}
+.kw-send-status{font-size:13px;font-weight:750;color:var(--text-dim);margin-left:auto}
 .kw-send-status.sending{color:var(--yellow)}.kw-send-status.sent{color:var(--green)}.kw-send-status.failed{color:var(--red)}
 
 .kw-demo-inbox-note{padding:10px 12px;border:1px solid color-mix(in srgb,var(--orange) 45%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--orange) 7%,transparent)}
@@ -24,16 +24,16 @@
 .kw-demo-empty>strong{font-size:15px}
 .kw-demo-empty p{margin:0;line-height:1.45}
 .kw-demo-start{width:100%;justify-content:center;background:var(--orange)!important;border-color:var(--orange)!important;color:#17110d!important;font-weight:900}
-.kw-demo-hint{font-size:11px}
+.kw-demo-hint{font-size:13px}
 .kw-demo-connected-empty{border-left:3px solid var(--green)}
 .kw-demo-connected-empty>strong{color:var(--green)}
 .kw-ai-analysis{margin-top:7px}
-.kw-ai-analysis>summary{display:inline-flex;cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:11px;font-weight:800;list-style:none}
+.kw-ai-analysis>summary{display:inline-flex;cursor:pointer;padding:4px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-dim);font-size:13px;font-weight:800;list-style:none}
 .kw-ai-analysis>summary::-webkit-details-marker{display:none}
-.kw-ai-analysis-body{margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.025);font-size:12px;line-height:1.45}
+.kw-ai-analysis-body{margin-top:7px;padding:10px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.025);font-size:13px;line-height:1.45}
 .kw-ai-analysis-body strong{color:var(--text)}
 .kw-ai-analysis-body ul{margin:4px 0 8px 18px;padding:0}
-.kw-ai-analysis-note{font-size:10px;color:var(--text-dim);margin-top:7px}
+.kw-ai-analysis-note{font-size:13px;color:var(--text-dim);margin-top:7px}
 @media(max-width:900px){.customer-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
 @media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
 </style>
@@ -48,7 +48,7 @@
     <p class="muted">WhatsApp customer, takeover, dan balasan dalam satu tempat · {{ conversations_total }} percakapan.</p>
   </div>
   <div style="display:flex;gap:6px;align-items:center;">
-    <span class="kw-live-state" id="kw-live-state"><span class="kw-live-dot"></span><span data-live-label>Live</span></span>
+    <span class="kw-live-state" id="kw-live-state" role="status" aria-live="polite"><span class="kw-live-dot"></span><span data-live-label>Live</span></span>
     <a class="btn small secondary" href="{{ url_for('client.dashboard') }}">Dashboard</a>
   </div>
 </div>
@@ -58,19 +58,19 @@
     <div class="kw-inbox-toolbar">
       <form method="get" action="{{ url_for('client.inbox_page', business_id=business.id) }}">
         <div class="kw-filters">
-          <input type="search" name="q" value="{{ search }}" placeholder="Cari nama, nomor, chat...">
-          <select name="mode" onchange="this.form.submit()">
+          <label for="inbox-search">Cari percakapan<input id="inbox-search" type="search" name="q" value="{{ search }}" placeholder="Nama, nomor, atau chat"></label>
+          <label for="inbox-mode">Ditangani oleh<select id="inbox-mode" name="mode" onchange="this.form.submit()">
             <option value="" {{ 'selected' if not mode_filter else '' }}>Semua</option>
             <option value="AI_ACTIVE" {{ 'selected' if mode_filter == 'AI_ACTIVE' else '' }}>AI aktif</option>
             <option value="HUMAN_TAKEOVER" {{ 'selected' if mode_filter == 'HUMAN_TAKEOVER' else '' }}>Human</option>
-          </select>
+          </select></label>
         </div>
         <button class="btn secondary small" type="submit" style="margin-top:8px;">Cari</button>
       </form>
     </div>
     <div class="kw-conversations">
       {% for c in conversations %}
-        <a class="kw-conversation {{ 'active' if selected and selected.customer_phone == c.customer_phone else '' }}"
+        <a aria-current="{{ 'true' if selected and selected.customer_phone == c.customer_phone else 'false' }}" class="kw-conversation {{ 'active' if selected and selected.customer_phone == c.customer_phone else '' }}"
            href="{{ url_for('client.inbox_page', business_id=business.id, customer=c.customer_phone, source=c.source or 'tenant', q=search, mode=mode_filter, page=inbox_page) }}">
           <div class="kw-row">
             <strong>{{ c.customer_name or c.customer_phone }}</strong>
@@ -82,13 +82,13 @@
               <span class="pill ACTIVE">AI</span>
             {% endif %}
           </div>
-          {% if c.customer_name %}<div class="muted" style="font-size:12px;">{{ c.customer_phone }}</div>{% endif %}
+          {% if c.customer_name %}<div class="muted" style="font-size:13px;">{{ c.customer_phone }}</div>{% endif %}
           <div class="muted kw-preview" style="font-size:13px;">{{ c.last_message }}</div>
-          <div class="muted" style="font-size:11px;margin-top:4px;">{{ c.last_message_at|humanize_timestamp }}</div>
+          <div class="muted" style="font-size:13px;margin-top:4px;">{{ c.last_message_at|humanize_timestamp }}</div>
         </a>
       {% else %}
         {% if demo_phone %}
-        {# Connected demo state is persistent. Never show the setup/demo CTA again. #}
+        <div class="kw-demo-empty"><strong>Belum ada percakapan</strong><p class="muted">Percakapan akan muncul setelah pesan WhatsApp masuk. Jika memakai filter, coba pencarian lain.</p></div>
         {% elif assist_journey_state(business).demo_visible %}
         <div class="kw-demo-empty">
           <strong>Demo Inbox</strong>
@@ -156,7 +156,7 @@
         {% for m in thread %}
           {% set customer = m.role == 'user' %}
           <div class="kw-bubble {{ 'customer' if customer else 'business' }}">
-            <div style="font-size:11px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Bisnis / AI' }}</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:3px;">{{ 'Customer' if customer else 'Bisnis / AI' }}</div>
             {% include '_inbox_media.html' %}
             {% if m.role == 'assistant' %}
             <details class="kw-ai-analysis" data-analysis-message="{{ m.id }}">
@@ -198,7 +198,7 @@
               </div>
             </details>
             {% endif %}
-            <div class="kw-msg-meta muted" style="font-size:11px;">
+            <div class="kw-msg-meta muted" style="font-size:13px;">
               <span>{{ m.created_at|humanize_timestamp }}</span>
               {% if not customer %}<span class="kw-delivery sent">✓ Terkirim</span>{% endif %}
             </div>
@@ -219,9 +219,10 @@
           <form id="tenant-reply-form" method="post" action="{{ url_for('client.demo_inbox_reply', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_reply', business_id=business.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
-            <textarea name="message" maxlength="4096" required placeholder="Balas sebagai CS..." style="min-height:68px;"></textarea>
+            <label for="inbox-reply">Balasan Anda</label>
+            <textarea id="inbox-reply" name="message" maxlength="4096" required placeholder="Balas sebagai CS..." style="min-height:68px;"></textarea>
             <div class="kw-row" style="margin-top:8px;align-items:flex-end;">
-              <span class="pill ACTIVE" style="font-size:12px;">Masa chat 24 jam masih aktif</span>
+              <span class="pill ACTIVE" style="font-size:13px;">Masa chat 24 jam masih aktif</span>
               <span id="kw-send-status" class="kw-send-status" role="status" aria-live="polite"></span>
               <button class="btn" type="submit">Kirim</button>
             </div>
@@ -232,7 +233,7 @@
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
               <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" required aria-label="Gambar atau PDF">
               <input name="caption" maxlength="1024" placeholder="Keterangan (opsional)" aria-label="Keterangan media">
-              <p class="muted" style="font-size:12px;">JPG/PNG maks. 5 MB · PDF maks. 10 MB</p>
+              <p class="muted" style="font-size:13px;">JPG/PNG maks. 5 MB · PDF maks. 10 MB</p>
               <button class="btn secondary" type="submit">Kirim media</button>
             </form>
           </details>
@@ -278,19 +279,22 @@
 
   let refreshing=false;
   let stopped=false;
+  let pollDelay=3000;
+  let nextPoll;
 
   function setLive(state,label){
     live.classList.toggle('syncing',state==='syncing');
     live.classList.toggle('offline',state==='offline');
-    liveLabel.textContent=label;
+    if(liveLabel.textContent!==label)liveLabel.textContent=label;
   }
   function nearBottom(node){
     return !node || (node.scrollHeight-node.scrollTop-node.clientHeight)<90;
   }
   async function refreshLive(){
     if(refreshing||stopped||document.hidden)return;
+    clearTimeout(nextPoll);
     refreshing=true;
-    setLive('syncing','Update…');
+    // Retain the last connection label while background refresh runs.
     try{
       const response=await fetch(window.location.href,{
         method:'GET',
@@ -304,13 +308,17 @@
 
       const currentList=document.querySelector('.kw-conversations');
       const freshList=fresh.querySelector('.kw-conversations');
-      if(currentList&&freshList&&currentList.innerHTML!==freshList.innerHTML){
+      if(!fresh.querySelector('.kw-inbox-shell'))throw new Error('session_changed');
+      let changed=false;
+      if(currentList&&freshList&&currentList.innerHTML!==freshList.innerHTML&&!currentList.contains(document.activeElement)){
+        changed=true;
         currentList.innerHTML=freshList.innerHTML;
       }
 
       const currentThread=document.getElementById('kw-thread');
       const freshThread=fresh.getElementById('kw-thread');
-      if(currentThread&&freshThread&&currentThread.innerHTML!==freshThread.innerHTML){
+      if(currentThread&&freshThread&&currentThread.innerHTML!==freshThread.innerHTML&&!currentThread.contains(document.activeElement)){
+        changed=true;
         const stick=nearBottom(currentThread);
         const openAnalyses=new Set(
           [...currentThread.querySelectorAll('.kw-ai-analysis[open][data-analysis-message]')]
@@ -323,10 +331,13 @@
         if(stick)currentThread.scrollTop=currentThread.scrollHeight;
       }
       setLive('live','Live');
+      pollDelay=changed?3000:Math.min(pollDelay+1000,10000);
     }catch(_){
       setLive('offline','Koneksi ulang');
+      pollDelay=Math.min(pollDelay*2,30000);
     }finally{
       refreshing=false;
+      if(!stopped)nextPoll=setTimeout(refreshLive,pollDelay);
     }
   }
 
@@ -376,9 +387,9 @@
 
   window.addEventListener('focus',refreshLive);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshLive();});
-  window.addEventListener('beforeunload',()=>{stopped=true;});
+  window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(nextPoll);});
+  window.addEventListener('pageshow',()=>{stopped=false;refreshLive();});
   refreshLive();
-  setInterval(refreshLive,1200);
 })();
 </script>
 

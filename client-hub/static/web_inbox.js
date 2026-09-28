@@ -20,6 +20,7 @@
   }
   form.addEventListener('submit',async event=>{
     event.preventDefault();if(sending||!input.value.trim())return;sending=true;
+    sendStatus.textContent='Mengirim…';
     if(!pending||pending.message!==input.value.trim())pending={event_id:crypto.randomUUID(),message:input.value.trim()};
     try{const result=await post(panel.dataset.replyUrl,pending);pending=null;input.value='';sendStatus.textContent=result.channel==='WHATSAPP'?'Diterima Meta; menunggu status pengiriman.':'Balasan terkirim.';}
     catch(error){sendStatus.textContent=error.message;}finally{sending=false;}
@@ -81,6 +82,9 @@
     if(message.role!=='assistant')return;
     const button=document.createElement('button');button.type='button';button.className='ai-analysis-toggle';button.textContent='Kenapa AI menjawab ini?';
     const panel=document.createElement('div');panel.className='ai-analysis-panel';panel.hidden=true;
+    panel.id='analysis-'+message.id;
+    button.setAttribute('aria-controls',panel.id);
+    button.setAttribute('aria-expanded','false');
     const analysis=message.analysis;
     if(analysis&&typeof analysis==='object'){
       analysisLine(panel,'Kenapa AI jawab begitu',analysis.summary);
@@ -100,11 +104,12 @@
       const note=document.createElement('div');note.className='analysis-note';
       note.textContent='Jejak analisa belum tersedia untuk pesan lama.';panel.append(note);
     }
-    button.addEventListener('click',()=>{panel.hidden=!panel.hidden;button.textContent=panel.hidden?'Analisa':'Tutup analisa';});
+    button.addEventListener('click',()=>{panel.hidden=!panel.hidden;button.textContent=panel.hidden?'Analisa':'Tutup analisa';button.setAttribute('aria-expanded',String(!panel.hidden));});
     bubble.append(button,panel);
   }
 
   async function refresh(){
+    const stick=thread.scrollHeight-thread.scrollTop-thread.clientHeight<90;
     try {
       const response=await fetch(panel.dataset.base+'?after='+after,{cache:'no-store'});
       if(!response.ok) throw new Error('Percakapan belum dapat dimuat.');
@@ -143,7 +148,7 @@
       for(const [id,delivery] of Object.entries(data.delivery||{})){
         const entry=labels.get(id);if(entry&&delivery)entry.label.textContent=(entry.role==='human'?'Tim':'AI')+' · '+delivery;
       }
-      if(data.messages.length) thread.scrollTop=thread.scrollHeight;
+      if(data.messages.length&&stick) thread.scrollTop=thread.scrollHeight;
       const human=data.mode==='HUMAN_TAKEOVER';
       const wa=data.channel==='WHATSAPP';
       const freeform=human&&(!wa||Boolean(data.window&&data.window.allowed));

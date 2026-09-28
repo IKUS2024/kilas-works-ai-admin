@@ -293,6 +293,10 @@
 {% block finance_styles %}{% endblock %}
 {% if finance_ui and finance_ui.enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='finance_ui.css',v='20260924-greeting-wrap-1') }}">{% endif %}
 {% if ((workspace_ui and workspace_ui.enabled) and not (finance_ui and finance_ui.enabled)) or session.get('role')=='KILAS_ADMIN' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ui.css') }}">{% endif %}
+{# Presentation is opt-in. Finance (including its entry/subscription pages) never loads this layer. #}
+{% set assist_refresh = not (finance_ui and finance_ui.enabled) and request.blueprint != 'finance' and session.get('role') != 'KILAS_ADMIN' and ((workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai') or request.endpoint in ['products.assist_entry', 'index']) and 'finance' not in (request.endpoint or '') and request.endpoint != 'products.product_start' %}
+{% if assist_refresh %}<link rel="stylesheet" href="{{ url_for('static', filename='assist_ui.css', v='20260928') }}"><script src="{{ url_for('static', filename='assist_ui.js', v='20260928') }}" defer></script>{% endif %}
+{% block assist_entry_styles %}{% endblock %}
 </head>
 <body data-finance-month="{{ finance_ui.month if finance_ui else '' }}" data-finance-currency="{{ finance_ui.currency if finance_ui else '' }}" class="{{ 'kw-app' if workspace_ui and workspace_ui.enabled and workspace_ui.product == 'ai' and not (finance_ui and finance_ui.enabled) else '' }} {{ 'finance-app' if finance_ui and finance_ui.enabled else '' }} {% if session.get('user_id') and session.get('role') != 'KILAS_ADMIN' %}customer-ui{% elif session.get('role') == 'KILAS_ADMIN' %}admin-ui{% else %}public-ui{% endif %}">
 {% if request.blueprint != 'finance' and (not session.get('user_id') or session.get('role') == 'KILAS_ADMIN') %}
@@ -334,7 +338,7 @@
 {% if support_business %}<aside role="status" style="position:sticky;top:0;z-index:120;padding:12px 20px;background:#614400;color:white;border-bottom:2px solid #ffb347">
 <strong>Anda sedang mengakses {{ support_business.business_name }} sebagai Kilas Admin</strong>
 <form class="inline" method="post" action="{{ url_for('platform_control.support_exit') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn small secondary">Akhiri akses support</button></form></aside>{% endif %}
-<div id="kw-main" tabindex="-1" class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}">
+<div id="kw-main" tabindex="-1" class="wrap {{ 'finance-app-main' if finance_ui and finance_ui.enabled }}"{% if assist_refresh %} data-assist-ui{% endif %}>
 {% if workspace_ui and workspace_ui.enabled %}{% include '_product_switcher.html' %}{% endif %}
 {% if finance_ui and finance_ui.enabled %}{% include '_finance_app_shell.html' %}{% endif %}
   {% if request.blueprint == 'finance' and session.get('user_id') and not (finance_ui and finance_ui.enabled) %}

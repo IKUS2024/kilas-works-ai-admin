@@ -13,9 +13,9 @@
   </div>
 
   <div class="client-toolbar" aria-label="Filter kontak">
-    <a class="btn small {{ 'secondary' if stage != 'LEAD' else '' }}"
+    <a class="btn small {{ 'secondary' if stage != 'LEAD' else '' }}" {% if stage == 'LEAD' %}aria-current="true"{% endif %}
        href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage='LEAD') }}">Lead</a>
-    <a class="btn small {{ 'secondary' if stage != 'CUSTOMER' else '' }}"
+    <a class="btn small {{ 'secondary' if stage != 'CUSTOMER' else '' }}" {% if stage == 'CUSTOMER' %}aria-current="true"{% endif %}
        href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage='CUSTOMER') }}">Customer</a>
   </div>
 
@@ -45,7 +45,9 @@
       </div>
     </a>
     {% else %}
-      {% if stage == 'LEAD' %}
+      {% if search %}
+      <div class="client-empty">Tidak ada kontak yang cocok dengan “{{ search }}”. Coba nama, telepon, atau email lain, atau reset pencarian.</div>
+      {% elif stage == 'LEAD' %}
       <div class="client-empty">Belum ada lead aktif.<br>Kontak baru yang masih bertanya atau mencari informasi akan muncul di sini.</div>
       {% elif stage == 'CUSTOMER' %}
       <div class="client-empty">Belum ada customer.<br>Lead akan berpindah ke Customer saat mereka menyampaikan kebutuhan atau permintaan konkret.</div>
@@ -56,7 +58,7 @@
   {% if pages > 1 %}
   <nav class="client-pagination" aria-label="Halaman kontak">
     {% if page>1 %}<a class="client-page-btn" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=page-1) }}">←</a>{% endif %}
-    {% for n in range(1,pages+1) %}<a class="client-page-btn {{ 'active' if n==page else '' }}" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=n) }}">{{ n }}</a>{% endfor %}
+    {% for n in range(1,pages+1) %}<a class="client-page-btn {{ 'active' if n==page else '' }}" {% if n == page %}aria-current="page"{% endif %} aria-label="Halaman {{ n }}" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=n) }}">{{ n }}</a>{% endfor %}
     {% if page<pages %}<a class="client-page-btn" href="{{ url_for('core_customers.list_page',bid=business.id,q=search,stage=stage,page=page+1) }}">→</a>{% endif %}
   </nav>
   {% endif %}
