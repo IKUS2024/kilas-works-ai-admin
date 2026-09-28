@@ -1,5 +1,7 @@
 """Small, explicitly user-scoped Kilas AI persistence boundary."""
 import json
+import hashlib
+import secrets
 import db
 
 MODES = frozenset(("FAST", "SMART", "EXPERT"))
@@ -48,7 +50,7 @@ def messages(user_id, thread_id, limit=100):
     limit = max(1, min(int(limit), 200))
     rows = db.query_all(
         "SELECT id,role,content,mode,provider,model,operation_key,metadata_json,created_at "
-        "FROM kilas_ai_messages WHERE thread_id=? ORDER BY id DESC LIMIT ?", (thread_id, limit))
+        "FROM kilas_ai_messages WHERE thread_id=? AND content<>'' ORDER BY id DESC LIMIT ?", (thread_id, limit))
     return list(reversed(rows))
 
 
@@ -149,3 +151,68 @@ def append_assistant(user_id, thread_id, content, mode, provider, model, key, me
         "VALUES (?,'assistant',?,?,?,?,?,?)",
         (thread_id, content, mode, provider, model, key + ":assistant", json.dumps(metadata)),
     )
+
+
+def share_thread(user_id, thread_id):
+    if not thread(user_id, thread_id):
+        return None
+    token = secrets.token_urlsafe(32)
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    db.execute("UPDATE kilas_ai_threads SET share_token_hash=? WHERE id=? AND user_id=?",
+               (digest, thread_id, user_id))
+    return token
+
+
+def revoke_share(user_id, thread_id):
+    if not thread(user_id, thread_id):
+        return False
+    db.execute("UPDATE kilas_ai_threads SET share_token_hash=NULL WHERE id=? AND user_id=?",
+               (thread_id, user_id))
+    return True
+
+
+def shared_messages(token):
+    if not isinstance(token, str) or len(token) > 128:
+        return None
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    selected = db.query_one("SELECT id,title FROM kilas_ai_threads WHERE share_token_hash=?", (digest,))
+    if not selected:
+        return None
+    rows = db.query_all("SELECT role,content FROM kilas_ai_messages WHERE thread_id=? AND content<>'' ORDER BY id LIMIT 200",
+                        (selected["id"],))
+    return {"title": selected["title"], "messages": rows}
+
+
+def last_user_message(user_id, thread_id):
+    if not thread(user_id, thread_id):
+        return None
+    return db.query_one("SELECT id,content,mode FROM kilas_ai_messages WHERE thread_id=? AND role='user' "
+                        "ORDER BY id DESC LIMIT 1", (thread_id,))
+
+
+def reserve_regeneration(user_id, thread_id, mode, key):
+    if not thread(user_id, thread_id):
+        return None, False
+    existing = operation(user_id, thread_id, key + ":assistant")
+    if existing:
+        return existing["id"], False
+    try:
+        message_id = db.insert_returning_id(
+            "INSERT INTO kilas_ai_messages(thread_id,role,content,mode,operation_key,metadata_json) "
+            "VALUES (?,'assistant','',?,?,?)",
+            (thread_id, mode, key + ":assistant", json.dumps({"status": "pending"})),
+        )
+        return message_id, True
+    except Exception:
+        existing = operation(user_id, thread_id, key + ":assistant")
+        if existing:
+            return existing["id"], False
+        raise
+
+
+def finish_regeneration(user_id, thread_id, message_id, content, provider, model, metadata):
+    if not thread(user_id, thread_id):
+        return False
+    db.execute("UPDATE kilas_ai_messages SET content=?,provider=?,model=?,metadata_json=? "
+               "WHERE id=? AND thread_id=?", (content, provider, model, json.dumps(metadata), message_id, thread_id))
+    return True

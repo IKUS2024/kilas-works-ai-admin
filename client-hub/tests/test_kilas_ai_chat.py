@@ -95,6 +95,45 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(self.client_for(self.b).post(path, json={"content": "hi", "operation_key": "valid_1234567890123456"},
                                                     headers={"X-CSRF-Token": "chat-csrf"}).status_code, 404)
 
+    def test_share_read_only_and_revoke(self):
+        owner = self.client_for(self.a)
+        public = self.app.test_client()
+        thread_id = store.create_thread(self.a)
+        store.append_user_once(self.a, thread_id, "Safe shared text", "FAST", "share_0123456789abcdef")
+        response = owner.post(f"/kilas-ai/threads/{thread_id}/share", data={"csrf_token": "chat-csrf"})
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("chat-a@example.test", response.text)
+        token = response.text.split("/kilas-ai/shared/", 1)[1].split('"', 1)[0]
+        link = "/kilas-ai/shared/" + token
+        shared = public.get(link)
+        self.assertEqual(shared.status_code, 200)
+        self.assertIn("Safe shared text", shared.text)
+        self.assertNotIn("chat-a@example.test", shared.text)
+        self.assertEqual(public.get("/kilas-ai/shared/random-token").status_code, 404)
+        self.assertEqual(self.client_for(self.b).post(f"/kilas-ai/threads/{thread_id}/revoke", data={"csrf_token": "chat-csrf"}).status_code, 404)
+        self.assertEqual(owner.post(f"/kilas-ai/threads/{thread_id}/revoke", data={"csrf_token": "chat-csrf"}).status_code, 303)
+        self.assertEqual(public.get(link).status_code, 404)
+
+    def test_regenerate_reuses_original_user_message(self):
+        client = self.client_for(self.a)
+        thread_id = store.create_thread(self.a)
+        store.append_user_once(self.a, thread_id, "Explain this", "SMART", "original_0123456789abcdef")
+        key = "regenerate_0123456789abcdef"
+        events = iter([{"type": "provider", "provider": "anthropic", "model": "configured"},
+                       {"type": "delta", "text": "A new answer"}, {"type": "finish", "reason": "end_turn"}])
+        with patch.object(providers, "stream", return_value=events):
+            response = client.post(f"/kilas-ai/threads/{thread_id}/regenerate",
+                json={"mode": "SMART", "operation_key": key}, headers={"X-CSRF-Token": "chat-csrf"})
+            self.assertIn("A new answer", response.get_data(as_text=True))
+        rows = store.messages(self.a, thread_id)
+        self.assertEqual([row["role"] for row in rows], ["user", "assistant"])
+        self.assertEqual(rows[1]["content"], "A new answer")
+        with patch.object(providers, "stream", side_effect=AssertionError("duplicate regeneration")):
+            repeat = client.post(f"/kilas-ai/threads/{thread_id}/regenerate",
+                json={"mode": "SMART", "operation_key": key}, headers={"X-CSRF-Token": "chat-csrf"})
+            self.assertIn("cached", repeat.get_data(as_text=True))
+        self.assertEqual(len(store.messages(self.a, thread_id)), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

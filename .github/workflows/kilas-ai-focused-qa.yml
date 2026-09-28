@@ -32,3 +32,5 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_chat.py
       - name: Kilas AI durable attachments and image context
         run: cd client-hub && python tests/test_kilas_ai_attachments.py
+      - name: Kilas AI web citations, image tools and sharing
+        run: cd client-hub && python tests/test_kilas_ai_tools.py
