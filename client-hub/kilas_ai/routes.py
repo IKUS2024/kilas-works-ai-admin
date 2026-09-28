@@ -29,8 +29,9 @@ def require_access():
 
 @ai_bp.get("")
 def home():
-    from . import store
-    return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None, messages=[])
+    from . import attachments, store, usage
+    return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
+                           messages=[], attachment_limits=attachments.limits(usage.effective_plan(session["user_id"])["plan"]))
 
 
 @ai_bp.get("/usage")
@@ -52,7 +53,7 @@ def new_thread():
 
 @ai_bp.get("/threads/<int:thread_id>")
 def thread_page(thread_id):
-    from . import store
+    from . import attachments, store, usage
     selected = store.thread(session["user_id"], thread_id)
     if not selected:
         abort(404)
@@ -64,7 +65,8 @@ def thread_page(thread_id):
             row["metadata"] = {}
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
                            selected=selected, messages=rows,
-                           attachments=store.attachment_list(session["user_id"], thread_id))
+                           attachments=store.attachment_list(session["user_id"], thread_id),
+                           attachment_limits=attachments.limits(usage.effective_plan(session["user_id"])["plan"]))
 
 
 @ai_bp.get("/threads/<int:thread_id>/attachments/<int:attachment_id>")
@@ -228,7 +230,7 @@ def send(thread_id):
     if not content or len(content) > 12000 or mode not in store.MODES or tool not in ("CHAT", "WEB", "IMAGE_GENERATE", "IMAGE_EDIT") or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
     try:
-        prepared = attachments.prepare_many(files)
+        prepared = attachments.prepare_many(files, plan=ai_usage.effective_plan(user_id)["plan"])
     except attachments.AttachmentError as error:
         return {"error": str(error)}, 400
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared):

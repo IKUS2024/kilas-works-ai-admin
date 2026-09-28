@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='1') }}">
   <script src="{{ url_for('static',filename='kilas_ai.js',v='1') }}" defer></script>
 </head>
-<body><div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}">
+<body><div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}">
   <aside class="ai-sidebar" id="ai-sidebar" aria-label="Riwayat chat">
     <div class="ai-sidebar-top"><a class="ai-brand" href="{{ url_for('kilas_ai.home') }}">Kilas <span>AI</span></a><button class="ai-icon ai-close" type="button" id="ai-close-menu" aria-label="Tutup riwayat">×</button></div>
     <form method="post" action="{{ url_for('kilas_ai.new_thread') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">+ Chat baru</button></form>

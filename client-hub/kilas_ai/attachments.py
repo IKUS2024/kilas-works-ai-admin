@@ -12,6 +12,7 @@ from pypdf import PdfReader
 MAX_FILES = 4
 MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_EXTRACTED_CHARS = 12000
+PLAN_FILE_LIMITS = {"FREE": 2, "PLUS": 3, "PRO": 4, "MAX": 5}
 MIMES = {
     "pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "txt": "text/plain", "csv": "text/csv", "jpg": "image/jpeg", "jpeg": "image/jpeg",
@@ -23,7 +24,12 @@ class AttachmentError(ValueError):
     pass
 
 
-def prepare(upload):
+def limits(plan):
+    return {"max_files": PLAN_FILE_LIMITS.get(plan, PLAN_FILE_LIMITS["FREE"]),
+            "max_file_bytes": MAX_FILE_BYTES}
+
+
+def prepare(upload, max_file_bytes=MAX_FILE_BYTES):
     filename = os.path.basename(upload.filename or "")
     filename = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("._")[:120]
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -33,8 +39,8 @@ def prepare(upload):
     claimed = (upload.mimetype or "").lower()
     if claimed not in (mime, "application/octet-stream") and not (extension == "csv" and claimed == "application/vnd.ms-excel"):
         raise AttachmentError("Tipe file tidak sesuai dengan isi yang dipilih.")
-    raw = upload.stream.read(MAX_FILE_BYTES + 1)
-    if not raw or len(raw) > MAX_FILE_BYTES:
+    raw = upload.stream.read(max_file_bytes + 1)
+    if not raw or len(raw) > max_file_bytes:
         raise AttachmentError("File kosong atau melebihi batas 2 MB.")
     extracted = None
     if mime.startswith("image/"):
@@ -88,9 +94,10 @@ def prepare(upload):
             "extracted_text": extracted}
 
 
-def prepare_many(files):
-    if len(files) > MAX_FILES:
-        raise AttachmentError("Maksimal 4 lampiran per pesan.")
+def prepare_many(files, plan=None):
+    max_files = limits(plan)["max_files"] if plan else MAX_FILES
+    if len(files) > max_files:
+        raise AttachmentError(f"Maksimal {max_files} lampiran per pesan.")
     return [prepare(upload) for upload in files]
 
 

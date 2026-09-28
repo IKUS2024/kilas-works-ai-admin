@@ -47,6 +47,7 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
                 page.locator(".ai-empty .ai-new").click()
                 page.wait_for_url("**/kilas-ai/threads/*")
+                assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat")
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()

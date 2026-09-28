@@ -61,6 +61,16 @@ class AttachmentTests(unittest.TestCase):
             session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="file-csrf")
         return client
 
+    def test_plan_attachment_counts_remain_bounded_and_account_specific(self):
+        self.assertEqual([attachments.limits(plan)["max_files"] for plan in ("FREE", "PLUS", "PRO", "MAX")],
+                         [2, 3, 4, 5])
+        for plan, allowed in (("FREE", 2), ("PLUS", 3), ("PRO", 4), ("MAX", 5)):
+            files = [upload(b"small text", f"note-{index}.txt", "text/plain") for index in range(allowed)]
+            self.assertEqual(len(attachments.prepare_many(files, plan=plan)), allowed)
+            extra = upload(b"small text", "extra.txt", "text/plain")
+            with self.assertRaises(attachments.AttachmentError):
+                attachments.prepare_many(files + [extra], plan=plan)
+
     def test_document_types_extract_bounded_text(self):
         cases = [(sample_pdf(), "info.pdf", "application/pdf", "Invoice"),
                  (sample_docx(), "info.docx", attachments.MIMES["docx"], "Document fact"),
