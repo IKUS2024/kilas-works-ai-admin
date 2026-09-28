@@ -1,5 +1,6 @@
 """Account-scoped Kilas AI quotas, reservations and provider cost records."""
 import json
+import logging
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -8,11 +9,19 @@ from decimal import Decimal, InvalidOperation
 import db
 
 PLANS = {
-    "FREE": {"price": 0, "FAST": 30, "SMART": 5, "EXPERT": 0, "WEB_SEARCH": 20, "IMAGES": 3},
-    "PLUS": {"price": 69000, "FAST": None, "SMART": 600, "EXPERT": 50, "WEB_SEARCH": 200, "IMAGES": 50},
-    "PRO": {"price": 149000, "FAST": None, "SMART": None, "EXPERT": 250, "WEB_SEARCH": 1000, "IMAGES": 150},
-    "MAX": {"price": 299000, "FAST": None, "SMART": None, "EXPERT": 1000, "WEB_SEARCH": 5000, "IMAGES": 500},
+    "FREE": {"price": 0, "FAST": 5, "FAST_MONTHLY": 100, "SMART": 3, "EXPERT": 0, "WEB_SEARCH": 1, "IMAGES": 1, "PDF": 2},
+    "PLUS": {"price": 69000, "FAST": 500, "SMART": 30, "EXPERT": 5, "WEB_SEARCH": 10, "IMAGES": 8, "PDF": 30},
+    "PRO": {"price": 149000, "FAST": 1200, "SMART": 75, "EXPERT": 12, "WEB_SEARCH": 25, "IMAGES": 18, "PDF": 90},
+    "MAX": {"price": 299000, "FAST": 2500, "SMART": 150, "EXPERT": 25, "WEB_SEARCH": 50, "IMAGES": 35, "PDF": 200},
 }
+MODEL_RATES = {
+    "gpt-6-luna": ("0.10", "0.50"), "gpt-6-sol": ("2.00", "10.00"),
+    "claude-haiku-4-5-20251001": ("1.00", "5.00"), "claude-sonnet-5": ("2.00", "10.00"),
+}
+GUARD_UNIT_USD = {"FAST": Decimal("0.00035"), "SMART": Decimal("0.012"),
+                  "EXPERT": Decimal("0.03"), "WEB_SEARCH": Decimal("0.015"),
+                  "IMAGE_GENERATION": Decimal("0.025"), "IMAGE_EDIT": Decimal("0.025"),
+                  "PDF": Decimal("0.001")}
 
 
 class UsageLimit(ValueError):
@@ -52,6 +61,17 @@ def _query(conn, sql, params=(), one=False):
     return cur.fetchone() if one else None
 
 
+def _rows(conn, sql, params=()):
+    if db.BACKEND == "postgres":
+        cur = conn.cursor()
+        try:
+            cur.execute(db._adapt_placeholders(sql), params)
+            return cur.fetchall()
+        finally:
+            cur.close()
+    return conn.execute(sql, params).fetchall()
+
+
 def _plan(conn, user_id, now):
     row = _query(conn, "SELECT plan,status,period_start,period_end FROM kilas_ai_subscriptions WHERE user_id=?",
                  (user_id,), one=True)
@@ -70,12 +90,12 @@ def effective_plan(user_id):
     return {"plan": "FREE", "status": "FREE", "period_start": None, "period_end": None}
 
 
-def _period(plan, paid_start, paid_end, operation, now):
+def _period(plan, paid_start, paid_end, operation, now, mode=None):
     if plan != "FREE":
         cycle = max(0, (now - paid_start).days // 30)
         start = paid_start + timedelta(days=30 * cycle)
         return start, min(start + timedelta(days=30), paid_end)
-    if operation == "CHAT":
+    if operation == "CHAT" and mode == "FAST":
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return start, start + timedelta(days=1)
     start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -91,12 +111,40 @@ def _operations(mode, tool):
         return ("IMAGE_GENERATION",)
     if tool == "IMAGE_EDIT":
         return ("IMAGE_EDIT",)
+    if tool == "PDF":
+        return ("CHAT", "PDF")
     return ("CHAT",)
 
 
 def _limit(plan, mode, operation):
-    key = mode if operation == "CHAT" else "WEB_SEARCH" if operation == "WEB_SEARCH" else "IMAGES"
+    key = mode if operation == "CHAT" else "WEB_SEARCH" if operation == "WEB_SEARCH" else "PDF" if operation == "PDF" else "IMAGES"
     return PLANS[plan][key]
+
+
+def _guard_unit(operation, mode):
+    return GUARD_UNIT_USD[mode if operation == "CHAT" else operation]
+
+
+def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now):
+    if plan == "FREE":
+        period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        hard = Decimal(os.environ.get("KILAS_AI_FREE_COST_CAP_USD", "0.15"))
+    else:
+        period_start = paid_start
+        hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal("0.38")
+    rows = _rows(conn, "SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
+                 "AND created_at>=? AND status IN ('COMPLETE','PENDING')", (user_id, period_start.isoformat()))
+    spent = Decimal(0)
+    for operation, recorded_mode, cost in rows:
+        try:
+            spent += Decimal(str(cost)) if cost is not None else _guard_unit(operation, recorded_mode)
+        except (InvalidOperation, KeyError):
+            spent += Decimal("0.05")
+    forecast = sum((_guard_unit(operation, mode) for operation in operations), Decimal(0))
+    if spent + forecast > hard and not (mode == "FAST" and operations == ("CHAT",) and plan != "FREE"):
+        raise UsageLimit("Batas penggunaan paket untuk fitur ini tercapai. Coba mode Fast atau tunggu periode berikutnya.")
+    if spent + forecast > hard * Decimal("0.65"):
+        logging.getLogger(__name__).warning("Kilas AI internal cost warning for account %s", user_id)
 
 
 def reserve(user_id, thread_id, key, mode, tool):
@@ -128,7 +176,7 @@ def reserve(user_id, thread_id, key, mode, tool):
                 continue
             if limit == 0:
                 raise UsageLimit("Mode Expert tersedia pada paket berbayar. Pilih Fast atau Smart.")
-            start, end = _period(plan, paid_start, paid_end, operation, now)
+            start, end = _period(plan, paid_start, paid_end, operation, now, mode)
             column = " AND mode=?" if operation == "CHAT" else ""
             params = [user_id, operation, start.isoformat(), end.isoformat(), (now - timedelta(minutes=10)).isoformat()]
             if operation == "CHAT":
@@ -139,6 +187,15 @@ def reserve(user_id, thread_id, key, mode, tool):
             if count >= limit:
                 label = mode.title() if operation == "CHAT" else "Web" if operation == "WEB_SEARCH" else "Gambar"
                 raise UsageLimit("Kuota " + label + " periode ini sudah habis. Gunakan mode lain atau upgrade paket.")
+            if plan == "FREE" and operation == "CHAT" and mode == "FAST":
+                month_start, month_end = _period(plan, paid_start, paid_end, "PDF", now)
+                monthly = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage WHERE user_id=? AND operation_type='CHAT' "
+                    "AND mode='FAST' AND created_at>=? AND created_at<? AND (status='COMPLETE' OR "
+                    "(status='PENDING' AND created_at>=?))", (user_id, month_start.isoformat(), month_end.isoformat(),
+                    (now - timedelta(minutes=10)).isoformat()), one=True)[0]
+                if monthly >= PLANS[plan]["FAST_MONTHLY"]:
+                    raise UsageLimit("Kuota Fast bulanan sudah habis. Coba lagi pada periode berikutnya.")
+        _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
         for operation in operations:
             _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,created_at) "
                    "VALUES (?,?,?,?,?,'PENDING',?)", (user_id, thread_id, key, operation, mode, now.isoformat()))
@@ -156,14 +213,21 @@ def estimate(model, input_tokens, output_tokens, operation):
     try:
         rates = json.loads(os.environ.get("KILAS_AI_MODEL_PRICING_JSON", "{}"))
         rate = rates.get(model)
-        if not isinstance(rate, dict):
-            return None
-        if operation in ("IMAGE_GENERATION", "IMAGE_EDIT"):
-            value = Decimal(str(rate["per_image_usd"]))
+        if operation == "WEB_SEARCH":
+            value = Decimal("0.01")
+        elif operation == "PDF":
+            value = Decimal("0.001")
+        elif operation in ("IMAGE_GENERATION", "IMAGE_EDIT"):
+            value = Decimal(str(rate["per_image_usd"])) if isinstance(rate, dict) and "per_image_usd" in rate else Decimal("0.025") if model == "gpt-image-2" else None
         else:
+            if not isinstance(rate, dict):
+                prices = MODEL_RATES.get(model)
+                if prices is None:
+                    return None
+                rate = {"input_per_million_usd": prices[0], "output_per_million_usd": prices[1]}
             value = ((Decimal(str(input_tokens)) * Decimal(str(rate["input_per_million_usd"])) +
                       Decimal(str(output_tokens)) * Decimal(str(rate["output_per_million_usd"]))) / Decimal(1000000))
-        if value < 0 or not value.is_finite():
+        if value is None or value < 0 or not value.is_finite():
             return None
         return str(value.quantize(Decimal("0.000001")))
     except (ValueError, TypeError, KeyError, InvalidOperation, AttributeError):
@@ -176,7 +240,7 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
     output_tokens = max(0, int(usage.get("output_tokens") or 0))
     for index, operation in enumerate(operations):
         billable = index == 0
-        cost = estimate(model, input_tokens, output_tokens, operation) if billable and model else None
+        cost = estimate(model, input_tokens if billable else 0, output_tokens if billable else 0, operation) if model else None
         db.execute("UPDATE kilas_ai_usage SET status=?,provider=?,model=?,input_tokens=?,output_tokens=?,estimated_cost_usd=? "
                    "WHERE user_id=? AND operation_key=? AND operation_type=? AND status='PENDING'",
                    ("COMPLETE" if success else "FAILED", provider if billable else None,
@@ -190,8 +254,10 @@ def snapshot(user_id):
     summary = {}
     for operation, mode, label in (("CHAT", "FAST", "Fast"), ("CHAT", "SMART", "Smart"),
                                    ("CHAT", "EXPERT", "Expert"), ("WEB_SEARCH", None, "Web"),
-                                   ("IMAGE_GENERATION", None, "Images")):
-        start, end = _period(state["plan"], state["period_start"], state["period_end"], operation, now)
+                                   ("IMAGE_GENERATION", None, "Images"), ("PDF", None, "PDF")):
+        start, end = _period(state["plan"], state["period_start"], state["period_end"], operation, now, mode)
+        if state["plan"] == "FREE" and mode == "FAST":
+            start, end = _period("FREE", None, None, "PDF", now)
         if operation == "IMAGE_GENERATION":
             sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT') AND status='COMPLETE' AND created_at>=? AND created_at<?"
             params = (user_id, start.isoformat(), end.isoformat())
@@ -202,6 +268,7 @@ def snapshot(user_id):
                 sql += " AND mode=?"
                 params += (mode,)
         used = db.query_one(sql, params)["n"]
-        summary[label] = {"used": used, "limit": PLANS[state["plan"]][mode or ("WEB_SEARCH" if operation == "WEB_SEARCH" else "IMAGES")]}
+        key = "FAST_MONTHLY" if state["plan"] == "FREE" and mode == "FAST" else mode or ("WEB_SEARCH" if operation == "WEB_SEARCH" else "PDF" if operation == "PDF" else "IMAGES")
+        summary[label] = {"used": used, "limit": PLANS[state["plan"]][key]}
     state["usage"] = summary
     return state

@@ -36,13 +36,13 @@ class UsageTests(unittest.TestCase):
     def test_free_fast_smart_expert_and_period(self):
         owner = self.other
         thread_id = store.create_thread(owner)
-        for index in range(30):
+        for index in range(5):
             key = "freefast_" + str(index).zfill(16)
             plan, operations = usage.reserve(owner, thread_id, key, "FAST", "CHAT")
             self.assertEqual(plan, "FREE")
             usage.finish(owner, key, operations, success=True, provider="openai", model="unknown-model",
                          usage={"input_tokens": 3, "output_tokens": 4})
-        self.assertEqual(usage.snapshot(owner)["usage"]["Fast"]["used"], 30)
+        self.assertEqual(usage.snapshot(owner)["usage"]["Fast"]["used"], 5)
         with self.assertRaises(usage.UsageLimit):
             usage.reserve(owner, thread_id, "freefast_limit_012345", "FAST", "CHAT")
         plan, operations = usage.reserve(owner, thread_id, "freesmart_0123456789", "SMART", "CHAT")
@@ -59,10 +59,10 @@ class UsageTests(unittest.TestCase):
         db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) "
                    "VALUES (?,?, 'ACTIVE',?,?)", (self.owner, "PLUS", start, end))
         self.assertEqual(usage.effective_plan(self.owner)["plan"], "PLUS")
-        self.assertIsNone(usage.PLANS["PLUS"]["FAST"])
-        self.assertEqual(usage.PLANS["PLUS"]["SMART"], 600)
-        self.assertEqual(usage.PLANS["PRO"]["EXPERT"], 250)
-        self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 5000)
+        self.assertEqual(usage.PLANS["PLUS"]["FAST"], 500)
+        self.assertEqual(usage.PLANS["PLUS"]["SMART"], 30)
+        self.assertEqual(usage.PLANS["PRO"]["EXPERT"], 12)
+        self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 50)
         self.assertIsNone(usage.estimate("unknown", 100, 100, "CHAT"))
         with patch.dict(os.environ, {"KILAS_AI_MODEL_PRICING_JSON": '{"priced":{"input_per_million_usd":1,"output_per_million_usd":2}}'}):
             self.assertEqual(usage.estimate("priced", 1000000, 1000000, "CHAT"), "3.000000")

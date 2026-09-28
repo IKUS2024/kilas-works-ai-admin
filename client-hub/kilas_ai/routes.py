@@ -77,11 +77,14 @@ def attachment_download(thread_id, attachment_id):
     item = store.attachment(session["user_id"], thread_id, attachment_id)
     if not item:
         abort(404)
-    inline = request.args.get("inline") == "1" and item["mime_type"].startswith("image/")
+    inline = request.args.get("inline") == "1" and (item["mime_type"].startswith("image/") or
+                                                     item["mime_type"] == "application/pdf")
     response = send_file(io.BytesIO(bytes(item["content"])), mimetype=item["mime_type"],
                          as_attachment=not inline, download_name=item["filename"])
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
+    if item["mime_type"] == "application/pdf":
+        response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
     return response
 
 
@@ -217,7 +220,7 @@ def regenerate(thread_id):
 
 @ai_bp.post("/threads/<int:thread_id>/send")
 def send(thread_id):
-    from . import attachments, providers, store, usage as ai_usage
+    from . import attachments, pdf as ai_pdf, providers, store, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
@@ -236,9 +239,12 @@ def send(thread_id):
     except attachments.AttachmentError as error:
         return {"error": str(error)}, 400
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared):
-        return {"error": "Tambahkan gambar yang ingin diedit."}, 400
+        return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
         return {"error": "Gunakan mode chat untuk menganalisis gambar."}, 400
+    previous_document = store.latest_generated_document(user_id, thread_id) if tool == "CHAT" else None
+    if tool == "CHAT" and ai_pdf.is_request(content, previous_document):
+        tool = "PDF"
     prior = store.operation(user_id, thread_id, key)
     if prior:
         answer = store.operation(user_id, thread_id, key + ":assistant")
@@ -275,11 +281,46 @@ def send(thread_id):
         persisted = False
         reason = None
         try:
+            if tool == "PDF":
+                yield _sse("activity", {"label": "Menyusun dokumen…"})
+                document_context = ai_pdf.document_context(context, previous_document["extracted_text"] if previous_document else None)
+                for event in providers.stream(mode, document_context):
+                    if event["type"] == "provider":
+                        provider, model = event["provider"], event["model"]
+                    elif event["type"] == "delta":
+                        pieces.append(event["text"])
+                        size += len(event["text"])
+                        if size > ai_pdf.MAX_MARKDOWN:
+                            raise providers.ProviderError("document_too_long")
+                    elif event["type"] == "usage":
+                        usage.update({k: int(v or 0) for k, v in event.items() if k in usage})
+                if not pieces:
+                    raise providers.ProviderError("empty_document")
+                yield _sse("activity", {"label": "Membuat PDF…"})
+                logo = next((item["content"] for item in prepared if item["mime_type"].startswith("image/")
+                             and "logo" in content.lower()), None)
+                try:
+                    result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo)
+                except Exception:
+                    raise providers.ProviderError("pdf_render_failed") from None
+                label = "PDF siap: " + result["title"]
+                assistant_id = store.append_assistant(user_id, thread_id, label, mode, provider, model, key,
+                    {"status": "complete", "tool": "pdf", "usage": usage})
+                file_id = store.save_attachments(user_id, thread_id, assistant_id, [result])[0]
+                path = url_for("kilas_ai.attachment_download", thread_id=thread_id, attachment_id=file_id)
+                finished = persisted = True
+                yield _sse("delta", {"text": label})
+                yield _sse("file", {"url": path, "filename": result["filename"],
+                                    "mime_type": result["mime_type"], "byte_size": result["byte_size"]})
+                yield _sse("done", {"finish_reason": "stop"})
+                return
             if tool != "CHAT":
                 from . import tools as ai_tools
                 try:
                     if tool == "WEB":
+                        yield _sse("activity", {"label": "Mencari di web…"})
                         result = ai_tools.web_search(context)
+                        yield _sse("activity", {"label": "Memeriksa sumber…"})
                         provider, model = "openai", result["model"]
                         usage.update(result["usage"])
                         text = result["text"]
@@ -292,6 +333,7 @@ def send(thread_id):
                         yield _sse("done", {"finish_reason": "stop"})
                         return
                     source = next((item for item in prepared if item["mime_type"].startswith("image/")), None)
+                    yield _sse("activity", {"label": "Mengedit gambar…" if tool == "IMAGE_EDIT" else "Membuat gambar…"})
                     result = ai_tools.image(content, source if tool == "IMAGE_EDIT" else None)
                     provider, model = "openai", result["model"]
                     usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})
@@ -311,6 +353,9 @@ def send(thread_id):
                 except ai_tools.ToolUnavailable as error:
                     yield _sse("error", {"message": str(error)})
                     return
+            yield _sse("activity", {"label": "Menganalisis gambar…" if any(item["mime_type"].startswith("image/") for item in prepared)
+                          else "Membaca dokumen…" if any(item["extracted_text"] for item in prepared)
+                          else "Berpikir lebih dalam…" if mode in ("SMART", "EXPERT") else "Berpikir…"})
             for event in providers.stream(mode, context):
                 if event["type"] == "provider":
                     provider, model = event["provider"], event["model"]
@@ -335,7 +380,7 @@ def send(thread_id):
         except providers.ProviderError:
             yield _sse("error", {"message": "AI sedang tidak tersedia. Coba lagi."})
         finally:
-            if pieces and not persisted:
+            if pieces and not persisted and tool != "PDF":
                 store.append_assistant(user_id, thread_id, "".join(pieces), mode, provider, model, key,
                                        {"status": "interrupted",
                                         "finish_reason": reason, "usage": usage})

@@ -65,7 +65,8 @@ def context(user_id, thread_id):
         content = row["content"] or ""
         if not content:
             break
-        attachments = attachment_context(user_id, thread_id, row["id"], include_content=row["id"] == latest_user_id)
+        attachments = (attachment_context(user_id, thread_id, row["id"], include_content=row["id"] == latest_user_id)
+                       if row["role"] == "user" else [])
         from .attachments import prompt_content
         prompt = prompt_content(content, attachments if row["id"] == latest_user_id else
                                 [item for item in attachments if item["extracted_text"]])
@@ -105,6 +106,14 @@ def attachment_context(user_id, thread_id, message_id, include_content=False):
 def attachment_list(user_id, thread_id):
     return db.query_all("SELECT id,message_id,filename,mime_type,byte_size FROM kilas_ai_attachments "
                         "WHERE user_id=? AND thread_id=? ORDER BY id", (user_id, thread_id))
+
+
+def latest_generated_document(user_id, thread_id):
+    row = db.query_one("SELECT a.filename,a.extracted_text FROM kilas_ai_attachments a "
+        "JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=a.thread_id "
+        "WHERE a.user_id=? AND a.thread_id=? AND a.mime_type='application/pdf' AND m.role='assistant' "
+        "ORDER BY a.id DESC LIMIT 1", (user_id, thread_id))
+    return row if row and row["extracted_text"] else None
 
 
 def operation(user_id, thread_id, key):

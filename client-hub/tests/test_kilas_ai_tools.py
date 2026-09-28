@@ -58,7 +58,8 @@ class ToolTests(unittest.TestCase):
              patch.object(tools.requests, "post", return_value=FakeResponse(data)) as post:
             answer = tools.web_search([{"role": "user", "content": "Find current fact"}])
             self.assertEqual(post.call_args.kwargs["json"]["tool_choice"], "required")
-            self.assertEqual(post.call_args.kwargs["json"]["max_output_tokens"], 4096)
+            self.assertEqual(post.call_args.kwargs["json"]["max_output_tokens"], 2048)
+            self.assertEqual(post.call_args.kwargs["json"]["max_tool_calls"], 1)
             self.assertEqual(answer["citations"], [{"url": "https://example.org/source", "title": "Example source"}])
             data["output"][1]["content"][0]["annotations"] = []
             with self.assertRaises(tools.ToolUnavailable):
@@ -87,6 +88,7 @@ class ToolTests(unittest.TestCase):
             "content": "Change color", "mode": "FAST", "tool": "IMAGE_EDIT",
             "operation_key": "tooledit_0123456789abcdef"}, headers={"X-CSRF-Token": "tool-csrf"})
         self.assertEqual(response.status_code, 400)
+        self.assertIn("Upload gambar terlebih dahulu", response.json["error"])
         self.assertEqual(store.messages(self.owner, thread_id), [])
 
 

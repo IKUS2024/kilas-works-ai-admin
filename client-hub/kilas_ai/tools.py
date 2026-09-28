@@ -31,7 +31,8 @@ def web_search(context):
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
             json={"model": model, "instructions": "You are Kilas AI. Answer in the user's language. Use actual web search sources and cite them. Do not invent sources.",
                   "input": prompt, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
-                  "max_output_tokens": 4096}, timeout=(10, 90))
+                  "reasoning": {"effort": "none"}, "max_tool_calls": 1,
+                  "max_output_tokens": 2048}, timeout=(10, 90))
         response.raise_for_status()
         data = response.json()
     except (requests.RequestException, ValueError):
@@ -72,11 +73,11 @@ def image(prompt, source=None):
     try:
         if source is None:
             response = requests.post("https://api.openai.com/v1/images/generations",
-                headers=headers, json={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "n": 1},
+                headers=headers, json={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "quality": "low", "n": 1},
                 timeout=(10, 120))
         else:
             response = requests.post("https://api.openai.com/v1/images/edits", headers=headers,
-                data={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "n": "1"},
+                data={"model": model, "prompt": prompt[:4000], "size": "1024x1024", "quality": "low", "n": "1"},
                 files={"image": (source["filename"], bytes(source["content"]), source["mime_type"])},
                 timeout=(10, 120))
         response.raise_for_status()

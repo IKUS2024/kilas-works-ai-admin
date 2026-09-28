@@ -12,6 +12,7 @@ on:
       - 'client-hub/routes_products.py'
       - 'client-hub/routes_workspace.py'
       - 'client-hub/templates/kilas_ai/**'
+      - 'client-hub/static/kilas_ai.*'
       - 'client-hub/templates/product_start.html'
       - '.github/workflows/kilas-ai-focused-qa.yml'
   workflow_dispatch:
@@ -33,6 +34,8 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_chat.py
       - name: Kilas AI durable attachments and image context
         run: cd client-hub && python tests/test_kilas_ai_attachments.py
+      - name: Kilas AI real PDF generation and account isolation
+        run: cd client-hub && python tests/test_kilas_ai_pdf.py
       - name: Kilas AI web citations, image tools and sharing
         run: cd client-hub && python tests/test_kilas_ai_tools.py
       - name: Kilas AI per-account quota and cost accounting

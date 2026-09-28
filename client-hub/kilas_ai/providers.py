@@ -15,6 +15,13 @@ SYSTEM = (
     "an attachment unless its content is in this request."
 )
 PROVIDERS = ("openai", "anthropic")
+MODEL_TIERS = {
+    "FAST": {"openai": "gpt-6-luna"},
+    "SMART": {"openai": "gpt-6-sol", "anthropic": "claude-sonnet-5"},
+    "EXPERT": {"openai": "gpt-6-sol", "anthropic": "claude-sonnet-5"},
+}
+OUTPUT_LIMITS = {"FAST": 1200, "SMART": 2400, "EXPERT": 3600}
+EFFORT = {"FAST": "none", "SMART": "medium", "EXPERT": "high"}
 
 
 def candidates(mode):
@@ -26,9 +33,12 @@ def candidates(mode):
         raise ProviderError("invalid_provider_configuration")
     alternate = "anthropic" if primary == "openai" else "openai"
     for provider in (primary, alternate):
+        expected = MODEL_TIERS[mode].get(provider)
+        if not expected:
+            continue
         model = os.environ.get("KILAS_AI_" + provider.upper() + "_" + mode + "_MODEL", "").strip()
         key = os.environ.get("OPENAI_API_KEY" if provider == "openai" else "ANTHROPIC_API_KEY", "").strip()
-        if model and key:
+        if model == expected and key:
             yield provider, model, key
 
 
@@ -55,13 +65,13 @@ def _events(response):
             raise ProviderError("bad_provider_stream") from None
 
 
-def _openai(model, key, messages):
+def _openai(model, key, messages, mode):
     try:
         with requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
             json={"model": model, "messages": [{"role": "system", "content": SYSTEM}] + messages,
-                  "max_completion_tokens": 2048, "stream": True,
+                  "max_completion_tokens": OUTPUT_LIMITS[mode], "reasoning_effort": EFFORT[mode], "stream": True,
                   "stream_options": {"include_usage": True}, "store": False},
             stream=True, timeout=(10, 90),
         ) as response:
@@ -83,7 +93,7 @@ def _openai(model, key, messages):
         raise ProviderError("openai_unavailable") from None
 
 
-def _anthropic(model, key, messages):
+def _anthropic(model, key, messages, mode):
     try:
         converted = []
         for message in messages:
@@ -105,7 +115,8 @@ def _anthropic(model, key, messages):
             headers={"x-api-key": key, "anthropic-version": "2023-06-01",
                      "Content-Type": "application/json"},
             json={"model": model, "system": SYSTEM, "messages": converted,
-                  "max_tokens": 2048, "stream": True},
+                  "max_tokens": OUTPUT_LIMITS[mode], "thinking": {"type": "adaptive"},
+                  "output_config": {"effort": EFFORT[mode]}, "stream": True},
             stream=True, timeout=(10, 90),
         ) as response:
             response.raise_for_status()
@@ -138,7 +149,7 @@ def stream(mode, messages):
         emitted = False
         finished = False
         try:
-            source = _openai(model, key, messages) if provider == "openai" else _anthropic(model, key, messages)
+            source = _openai(model, key, messages, mode) if provider == "openai" else _anthropic(model, key, messages, mode)
             yield {"type": "provider", "provider": provider, "model": model}
             for event in source:
                 if event["type"] == "delta":
