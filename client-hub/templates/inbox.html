@@ -33,8 +33,15 @@
 .kw-ai-analysis-body strong{color:var(--text)}
 .kw-ai-analysis-body ul{margin:4px 0 8px 18px;padding:0}
 .kw-ai-analysis-note{font-size:13px;color:var(--text-dim);margin-top:7px}
+.kw-pending-attachments{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0;max-width:100%}
+.kw-pending-attachment{position:relative;display:flex;align-items:center;gap:8px;min-width:0;max-width:180px;padding:7px 28px 7px 7px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.025)}
+.kw-pending-attachment img{width:54px;height:48px;flex:0 0 auto;object-fit:cover;border-radius:7px;background:var(--bg-soft)}
+.kw-pending-file{width:34px;height:40px;display:grid;place-items:center;flex:0 0 auto;border-radius:7px;background:rgba(255,122,26,.1);color:var(--orange);font-size:11px;font-weight:850}
+.kw-pending-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.kw-pending-remove{position:absolute;top:4px;right:4px;width:22px;height:22px;min-height:22px;padding:0;border:0;border-radius:50%;background:rgba(255,255,255,.08);color:var(--text);font-size:17px;line-height:1;cursor:pointer}
+.kw-pending-remove:hover,.kw-pending-remove:focus-visible{background:rgba(241,101,101,.18);color:#ffb3b3}
 @media(max-width:900px){.customer-ui .kw-inbox-shell{height:calc(100vh - 140px);height:calc(100dvh - 140px)}}
-@media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}}
+@media(max-width:600px){.tenant-inbox-head{margin-bottom:7px}.tenant-inbox-head h1{font-size:20px}.tenant-inbox-head .btn{display:none}.customer-ui .kw-inbox-shell{height:calc(100vh - 118px);height:calc(100dvh - 118px)}.kw-pending-attachment{max-width:calc(50% - 4px);flex:1 1 140px}.kw-pending-remove{width:28px;height:28px;min-height:28px}}
 </style>
 
 <div class="tenant-inbox-head">
@@ -221,10 +228,11 @@
             </div>
           </form>
           <details style="margin-top:10px;"><summary>Kirim gambar atau PDF</summary>
-            <form method="post" enctype="multipart/form-data" action="{{ url_for('client.demo_inbox_media_send', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_media_send', business_id=business.id) }}">
+            <form method="post" enctype="multipart/form-data" data-inbox-attachment-form action="{{ url_for('client.demo_inbox_media_send', business_id=business.id) if selected_source == 'demo' else url_for('client.inbox_media_send', business_id=business.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="customer_phone" value="{{ selected.customer_phone }}">
-              <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" required aria-label="Gambar atau PDF">
+              <input type="file" name="file" accept="image/jpeg,image/png,application/pdf" multiple required aria-label="Gambar atau PDF" data-inbox-attachment-input>
+              <div class="kw-pending-attachments" data-inbox-attachment-preview aria-live="polite"></div>
               <input name="caption" maxlength="1024" placeholder="Keterangan (opsional)" aria-label="Keterangan media">
               <p class="muted" style="font-size:13px;">JPG/PNG maks. 5 MB · PDF maks. 10 MB</p>
               <button class="btn secondary" type="submit">Kirim media</button>
@@ -385,6 +393,8 @@
   refreshLive();
 })();
 </script>
+
+<script src="{{ url_for('static',filename='inbox_attachments.js',v='20260928') }}" defer></script>
 
 
 

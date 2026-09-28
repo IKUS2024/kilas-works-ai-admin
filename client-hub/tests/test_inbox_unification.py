@@ -449,6 +449,18 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
 
     with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
          patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
+         patch.object(platform_inbox_service, "get_state", return_value="HUMAN_TAKEOVER"), \
+         patch.object(platform_inbox_service, "freeform_window_status",
+                      return_value={"allowed": True, "reason": None}):
+        human_page = client.get(f"/business/{bid_a}/inbox?source=demo&customer={phone}")
+    human_body = human_page.data.decode()
+    assert "data-inbox-attachment-form" in human_body
+    assert "data-inbox-attachment-preview" in human_body
+    assert " multiple " in human_body
+    assert "inbox_attachments.js" in human_body
+
+    with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
+         patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \
          patch.object(platform_inbox_service, "send_manual_reply", return_value=(True, "sent")) as reply:
         response = client.post(
             f"/business/{bid_a}/demo-inbox/reply",
@@ -463,10 +475,14 @@ def test_demo_inbox_human_text_media_template_controls_are_scoped():
         response = client.post(
             f"/business/{bid_a}/demo-inbox/media",
             data={"csrf_token": "csrf-test", "customer_phone": phone,
-                  "caption": "Katalog", "file": (io.BytesIO(b"%PDF-1.4 test"), "katalog.pdf")},
+                  "caption": "Katalog", "file": [
+                      (io.BytesIO(b"image-one"), "satu.png"),
+                      (io.BytesIO(b"%PDF-1.4 test"), "katalog.pdf")]},
             content_type="multipart/form-data")
     assert response.status_code == 303
-    assert media.call_count == 1
+    assert media.call_count == 2
+    assert [call.args[1].filename for call in media.call_args_list] == ["satu.png", "katalog.pdf"]
+    assert [call.args[2] for call in media.call_args_list] == ["Katalog", ""]
 
     with patch.object(routes_client, "_demo_kilas_phone_for_business", side_effect=bound_for), \
          patch.object(routes_client, "_demo_kilas_clean_thread", return_value=demo_rows), \

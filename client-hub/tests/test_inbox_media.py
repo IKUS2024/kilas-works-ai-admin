@@ -222,6 +222,28 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(result.status_code,400)
         send.assert_not_called()
 
+    def test_tenant_media_route_sends_single_and_remaining_multiple_uploads(self):
+        self.record(biz=self.biz)
+        self.login(self.user)
+        with patch.object(media, 'send_upload', return_value=(True, 'accepted')) as send:
+            single = self.client.post(f'/business/{self.biz}/inbox/media', data={
+                'customer_phone': self.phone, 'caption': 'Satu',
+                'file': (io.BytesIO(b'one'), 'one.png')}, content_type='multipart/form-data')
+            self.assertEqual(single.status_code, 302)
+            self.assertEqual(send.call_count, 1)
+            self.assertEqual(send.call_args.args[2].filename, 'one.png')
+
+            send.reset_mock()
+            multiple = self.client.post(f'/business/{self.biz}/inbox/media', data={
+                'customer_phone': self.phone, 'caption': 'Album', 'file': [
+                    (io.BytesIO(b'one'), 'one.png'),
+                    (io.BytesIO(b'three'), 'three.jpg')]}, content_type='multipart/form-data')
+            self.assertEqual(multiple.status_code, 302)
+            self.assertEqual(send.call_count, 2)
+            self.assertEqual([call.args[2].filename for call in send.call_args_list],
+                             ['one.png', 'three.jpg'])
+            self.assertEqual([call.args[3] for call in send.call_args_list], ['Album', ''])
+
     def test_tenant_cannot_post_other_business(self):
         self.login(self.user)
         with patch.object(media,'send_upload') as send:

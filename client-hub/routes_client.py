@@ -1553,9 +1553,14 @@ def demo_inbox_media_send(business_id):
     phone = _demo_kilas_bound_phone_or_404(business_id, request.form.get("customer_phone"))
     import assist_demo
     bound=assist_demo.binding(business_id,phone)
-    ok, reason = inbox_media_service.platform_send(
-        phone, request.files.get("file"), request.form.get("caption"),
-        demo_scope={"business_id":business_id,"session_id":bound["id"]})
+    uploads = request.files.getlist("file")
+    ok, reason = False, "unsupported_or_oversize_file"
+    for index, upload in enumerate(uploads):
+        ok, reason = inbox_media_service.platform_send(
+            phone, upload, request.form.get("caption") if index == 0 else "",
+            demo_scope={"business_id":business_id,"session_id":bound["id"]})
+        if not ok:
+            break
     user = security.current_user()
     if ok:
         repo.write_audit(user["id"], business_id, "DEMO_CS_MEDIA_SENT", f"customer={phone}")
@@ -1677,9 +1682,15 @@ def inbox_media_send(business_id):
         abort(404)
     try:
         channel, _ = inbox_service._tenant_channel(business_id)
-        ok, reason = inbox_media_service.send_upload(business_id, phone, request.files.get('file'),
-            request.form.get('caption'), channel or {},
-            lambda: inbox_media_service.human_window_allowed(business_id, phone))
+        uploads = request.files.getlist('file')
+        ok, reason = False, 'unsupported_or_oversize_file'
+        for index, upload in enumerate(uploads):
+            ok, reason = inbox_media_service.send_upload(
+                business_id, phone, upload,
+                request.form.get('caption') if index == 0 else '', channel or {},
+                lambda: inbox_media_service.human_window_allowed(business_id, phone))
+            if not ok:
+                break
     except Exception:
         ok, reason = False, 'media_send_unconfirmed'
     flash(*inbox_media_service.upload_flash(ok, reason))
