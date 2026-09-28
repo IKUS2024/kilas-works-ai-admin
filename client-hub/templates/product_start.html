@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 {% block title %}Mulai dengan Kilas{% endblock %}
-{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='assist_ui.css', v='20260928') }}">{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_ui.css', v='20260928') }}"><link rel="stylesheet" href="{{ url_for('static', filename='assist_ui.css', v='20260928') }}"><link rel="stylesheet" href="{{ url_for('static', filename='kilas_services.css', v='20260928') }}">{% endblock %}
 {% block content %}
 <section class="kw-page kw-onboarding">
-<header class="kw-page-head"><div><p class="kw-eyebrow">KILAS WORKS</p><h1>Apa yang mau dibantu Kilas?</h1><p>Pilih kebutuhan Anda. Mulai sederhana, lengkapi saat diperlukan.</p></div></header>
+<header class="kw-page-head"><div><p class="kw-eyebrow">KILAS WORKS</p><h1>Pilih layanan Kilas</h1><p>Tiga cara praktis untuk membantu bisnis dan kebutuhan harian Anda.</p></div></header>
 <div class="kw-intent-grid">
-{% for key,title,description,detail in [('assist','Kilas Assist','Layani WhatsApp, kelola customer, dan tindak lanjuti pekerjaan.','Lengkapi data bisnis, latih AI, lalu coba demo gratis 7 hari. Kilas Finance termasuk dalam paket berbayar.'),('finance','Kilas Finance','Catat pemasukan, pengeluaran, tagihan, dan invoice.','Buka workspace keuangan tanpa setup Kilas Assist.')] %}
+{% for key,title,description,detail in [('assist','Kilas Assist','Layani WhatsApp, kelola customer, dan tindak lanjuti pekerjaan.','Masuk ke bisnis yang sudah ada atau siapkan bisnis baru.'),('finance','Kilas Finance','Catat pemasukan, pengeluaran, tagihan, dan invoice.','Buka workspace keuangan bisnis Anda.'),('services','Kilas Services','Dapatkan bantuan langsung dari tim Kilas Works.','Visa dan dokumen, formulir online, produksi konten, serta talent.')] %}
 <form class="card kw-intent {{ 'assist-product-option' if key == 'assist' else '' }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="{{ key }}"><p class="kw-eyebrow">{{ '%02d'|format(loop.index) }}</p><h2>{{ title }}</h2><p>{{ description }}</p><p class="kw-note">{{ detail }}</p><button class="btn" type="submit">Pilih {{ title }} →</button></form>
 {% endfor %}
 </div>
-<p class="kw-note">Pilihan ini tidak membeli atau mengaktifkan langganan berbayar otomatis.</p>
+<p class="kw-note">Memilih layanan tidak otomatis membeli atau mengaktifkan langganan.</p>
 </section>
 {% endblock %}

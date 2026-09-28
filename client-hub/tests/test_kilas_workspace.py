@@ -59,11 +59,10 @@ class WorkspaceTests(unittest.TestCase):
         before = len(repo.list_businesses_for_user(self.uid))
         self.assertEqual(self.client.post('/products/start', data={'product':'both'}).status_code, 400)
         response = self.client.post('/products/start', data={'product':'both','csrf_token':'phase9-test'})
-        self.assertEqual(response.status_code, 303)
-        self.assertTrue(response.location.endswith('/products/assist'))
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(len(repo.list_businesses_for_user(self.uid)), before)
         with self.client.session_transaction() as session:
-            self.assertEqual(session['onboarding_goal'], 'both')
+            self.assertNotIn('onboarding_goal', session)
         self.assertNotIn('Lengkapi ruang kerja', self.client.get('/workspace', follow_redirects=True).text)
 
     def test_anonymous_no_owner_data_and_error_is_not_empty_state(self):

@@ -434,11 +434,11 @@ class FinalFlowTests(unittest.TestCase):
     def test_invalid_redirect_intents(self):
         for key in ('https://evil.test','//evil.test','%2f%2fevil.test','finance?business_id=9','AI_ADMIN_PRO'):
             self.assertEqual(self.client.post('/products/select',data={'product':key}).status_code,400)
-    def test_login_rotation_preserves_only_allowlisted_intent(self):
+    def test_login_rotation_clears_product_selection_state(self):
         with app.test_request_context():
             from flask import session
             session.update(product_intent='finance',_csrf_token='old',unsafe='removed')
-            security.login_user(repo.get_user_by_id(self.uid));self.assertEqual(session['product_intent'],'finance');self.assertNotIn('_csrf_token',session);self.assertNotIn('unsafe',session)
+            security.login_user(repo.get_user_by_id(self.uid));self.assertNotIn('product_intent',session);self.assertNotIn('_csrf_token',session);self.assertNotIn('unsafe',session);self.assertFalse(session.get('_permanent'))
     def test_create_business_idempotent(self):
         identity=uuid.uuid4().hex
         self.assertEqual(product_flow.create_business(self.uid,'New',identity),product_flow.create_business(self.uid,'New',identity))

@@ -9,5 +9,8 @@
 </details>
 {% else %}<strong>{{ 'Kilas Finance' if workspace_ui.product == 'finance' else 'Kilas Assist' if workspace_ui.ai else 'Kilas Works' }}</strong>{% endif %}
 {% if workspace_ui.product == 'finance' and not (finance_ui and finance_ui.enabled) %}<a href="{{ url_for('workspace.go',area='finance',business_id=workspace_ui.selected_finance) }}">Dashboard Finance</a>{% endif %}
+<nav class="product-bar-actions" aria-label="Pilihan workspace">
+<a class="product-change" href="{{ url_for('products.product_start') }}">Ganti Layanan</a>
 <a class="product-settings" href="{{ url_for('workspace.more') }}" aria-label="Pengaturan workspace">Pengaturan</a>
+</nav>
 </header>

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Kilas Services{% endblock %}
+{% block assist_entry_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='kilas_services.css', v='20260928') }}">{% endblock %}
+{% block content %}
+<main class="kilas-services" aria-labelledby="services-title">
+  <header class="services-head">
+    <div>
+      <p class="services-kicker">KILAS SERVICES</p>
+      <h1 id="services-title">Bantuan langsung dari tim Kilas Works</h1>
+      <p>Ceritakan kebutuhan Anda. Tim kami akan membantu menyiapkan langkah berikutnya dan menghubungi Anda melalui WhatsApp.</p>
+    </div>
+    <a class="services-back" href="{{ url_for('products.product_start') }}">← Ganti Layanan</a>
+  </header>
+
+  <section class="services-grid" aria-label="Daftar Kilas Services">
+    {% for service in services %}
+    <article class="service-card">
+      <div class="service-card-head"><span>{{ service.number }}</span><h2>Kilas {{ service.title }}</h2></div>
+      <p class="service-summary">{{ service.summary }}</p>
+      <ul>{% for item in service.items %}<li>{{ item }}</li>{% endfor %}</ul>
+      {% if service.notice %}<p class="service-notice"><strong>Persetujuan Anda diperlukan.</strong> {{ service.notice }}</p>{% endif %}
+      <a class="btn service-cta" href="{{ service.whatsapp_url }}" target="_blank" rel="noopener noreferrer">Konsultasi via WhatsApp</a>
+    </article>
+    {% endfor %}
+  </section>
+
+  <aside class="services-legal" aria-label="Informasi penting Visa dan dokumen">
+    <h2>Informasi penting Visa &amp; Document Assistance</h2>
+    <p>Kilas Works menyediakan bantuan administrasi dan persiapan aplikasi. Kilas Works bukan kedutaan, konsulat, otoritas imigrasi, atau perwakilan pemerintah. Keputusan visa sepenuhnya berada pada otoritas terkait.</p>
+    <p>Biaya visa resmi, VFS/VAC, biometrik, asuransi, kurir, terjemahan resmi, dan biaya pihak ketiga lainnya dibayar terpisah.</p>
+  </aside>
+</main>
+{% endblock %}

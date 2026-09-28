@@ -179,13 +179,13 @@ def current_user():
 
 
 def login_user(user_row):
-    from product_flow import intent
-    continuation = intent(session.get("product_intent"))
     session.clear()
-    if continuation: session["product_intent"] = continuation
     session["user_id"] = user_row["id"]
     session["role"] = user_row["role"]
-    session.permanent = True
+    # Customer logins use a browser-session cookie. Existing signed sessions remain valid,
+    # including the already-authorized dedicated Work browser; only a fresh customer login
+    # rotates into this non-persistent policy. Preserve the established admin-session policy.
+    session.permanent = user_row["role"] != "CLIENT_OWNER"
 
 
 def logout_user():

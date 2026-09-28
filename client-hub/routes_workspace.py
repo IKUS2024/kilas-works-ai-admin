@@ -13,6 +13,10 @@ def context():
     g.kilas_workspace = result
     if not session.get('user_id') or (session.get('role') == 'KILAS_ADMIN' and not session.get('support_business_id')):
         return result
+    # Product choice and human Services are account-level pages, outside either product shell.
+    # Do not make them inherit Assist navigation merely because the owner has an Assist business.
+    if request.endpoint in ('products.product_start', 'products.services'):
+        return result
     # Public customer links/documents never acquire owner navigation.
     if request.blueprint == 'public_web' or request.endpoint in (
         'finance.customer_invoice', 'finance.customer_invoice_pdf', 'finance.public_statement'):
@@ -132,7 +136,7 @@ def usage(bid):
 @security.login_required
 def go(area):
     # Closed destinations: neither a supplied URL nor a guessed/foreign business.
-    common = {'setup': 'products.product_start', 'services': 'projects.service_catalog_page',
+    common = {'setup': 'products.product_start', 'services': 'products.services',
               'projects': 'projects.my_project_list', 'talent': 'talent.talent_list',
               'bills': 'products.account_bills', 'account': 'auth.account_page',
               'ai_setup': 'products.assist_entry', 'finance_setup': 'products.finance_entry'}

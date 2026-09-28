@@ -169,29 +169,98 @@ def product_start():
     user=security.current_user()
     if request.method=='POST':
         choice=(request.form.get('product') or '').strip().lower()
-        if choice=='both':
-            session['onboarding_goal']='both'
-            session['active_product']='brain'
-            session.pop('product_intent',None)
-            return redirect(url_for('products.assist_entry'),code=303)
         if choice=='finance':
-            session['onboarding_goal']='finance'
+            session.pop('product_intent',None)
+            businesses=_product_businesses(user['id'],'finance')
+            if not businesses:
+                return redirect(url_for('products.finance_entry',step='business'),code=303)
+            business=businesses[0]
+            session['workspace_finance_business']=business['id']
             session['active_product']='finance'
-            session.pop('product_intent',None)
-            return redirect(url_for('products.finance_entry'),code=303)
+            state=entitlement.state(business['id'])
+            target=(url_for('finance.workspace_choice',business_id=business['id']) if state['active']
+                    else url_for('products.finance_setup',business_id=business['id']))
+            return redirect(target,code=303)
         if choice=='assist':
-            session['onboarding_goal']='ai'
-            session['active_product']='brain'
             session.pop('product_intent',None)
-            return redirect(url_for('products.assist_entry'),code=303)
+            businesses=_product_businesses(user['id'],'brain')
+            if not businesses:
+                return redirect(url_for('products.assist_entry',step='business'),code=303)
+            business=businesses[0]
+            session['workspace_ai_business']=business['id']
+            session['active_product']='brain'
+            return redirect(url_for('workspace.ai_home'),code=303)
         if choice=='services':
             session.pop('product_intent',None)
             session.pop('active_product',None)
-            return redirect(url_for('projects.service_catalog_page'),code=303)
+            return redirect(url_for('products.services'),code=303)
         if choice=='order':
             return render_template('order_retired.html'),410
         abort(400)
     return render_template('product_start.html',user=user)
+
+
+@products_bp.route('/products/services')
+@security.login_required
+def services():
+    number='14048836437'
+    definitions=[
+        {
+            'number':'01',
+            'title':'Visa & Document Assistance',
+            'summary':'Bantuan administratif untuk menyiapkan aplikasi visa dan dokumen pendukung dengan rapi.',
+            'items':[
+                'Form aplikasi visa untuk berbagai negara',
+                'Pemeriksaan kelengkapan, penamaan, dan susunan dokumen',
+                'Merge, split, kompresi PDF, serta format foto atau dokumen',
+                'Itinerary, cover letter, atau sponsor letter bila diperlukan',
+                'Bantuan upload, appointment bila tersedia, dan review akhir aplikasi',
+            ],
+            'notice':'Sebelum pengajuan final, seluruh informasi dan dokumen dikirim kembali kepada Anda untuk diperiksa dan disetujui.',
+            'message':'Halo Kilas Works, saya ingin konsultasi Visa & Document Assistance. Negara tujuan saya:',
+        },
+        {
+            'number':'02',
+            'title':'Form & Online Assistance',
+            'summary':'Pendampingan proses administrasi online yang didukung, dari persiapan data sampai pilihan siap ditinjau.',
+            'items':[
+                'Form online, registrasi, appointment, travel form, dan arrival card',
+                'Bantuan pemesanan tiket atau hotel',
+                'Input data portal dan upload dokumen',
+                'Resize atau kompresi PDF dan foto',
+                'Proses administrasi online lain yang dapat kami bantu',
+            ],
+            'notice':'Sebelum submit, booking, atau pembayaran, informasi dan pilihan dikirim kepada Anda untuk mendapat persetujuan.',
+            'message':'Halo Kilas Works, saya membutuhkan bantuan Form & Online Assistance. Yang ingin saya urus:',
+        },
+        {
+            'number':'03',
+            'title':'Content Studio',
+            'summary':'Produksi konten yang disesuaikan dengan kebutuhan brand, produk, dan campaign Anda.',
+            'items':[
+                'Reels dan video pendek',
+                'Foto produk dan brand photography',
+                'Konten campaign dan media sosial',
+                'Kebutuhan produksi konten lainnya',
+            ],
+            'message':'Halo Kilas Works, saya ingin konsultasi Content Studio. Kebutuhan konten saya:',
+        },
+        {
+            'number':'04',
+            'title':'Talent Management',
+            'summary':'Bantuan menemukan talent yang sesuai dengan brief, lokasi, anggaran, ketersediaan, dan kebutuhan produksi.',
+            'items':[
+                'Talent, creator, model, host, atau influencer',
+                'Penyusunan shortlist dan koordinasi ketersediaan',
+                'Komunikasi awal dan koordinasi jadwal',
+                'Bantuan negosiasi fee',
+            ],
+            'message':'Halo Kilas Works, saya membutuhkan Talent Management. Jenis talent/kebutuhan saya:',
+        },
+    ]
+    for item in definitions:
+        item['whatsapp_url']='https://wa.me/'+number+'?text='+quote(item['message'])
+    return render_template('kilas_services.html',services=definitions)
 
 
 @products_bp.route('/products/order')

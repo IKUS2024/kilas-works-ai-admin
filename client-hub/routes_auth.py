@@ -113,7 +113,8 @@ def _oauth_finish_login(email, full_name, provider, provider_subject=None):
         f"provider={provider}",
     )
     session.pop("product_intent", None)
-    return redirect(url_for("workspace.home" if repo.list_businesses_for_user(user['id']) else "products.product_start"))
+    session.pop("active_product", None)
+    return redirect(url_for("products.product_start"))
 
 
 @auth_bp.route("/oauth/<provider>")
@@ -252,6 +253,7 @@ def register_page():
     user = repo.get_user_by_email(email)
     security.login_user(user)
     session.pop("product_intent", None)
+    session.pop("active_product", None)
     return redirect(url_for("products.product_start"))
 
 
@@ -279,7 +281,8 @@ def login_page():
     if user["role"] == "KILAS_ADMIN":
         return redirect(url_for("admin.dashboard"))
     session.pop("product_intent", None)
-    return redirect(url_for("workspace.home" if repo.list_businesses_for_user(user["id"]) else "products.product_start"))
+    session.pop("active_product", None)
+    return redirect(url_for("products.product_start"))
 
 
 @auth_bp.route("/logout")
