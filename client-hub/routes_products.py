@@ -207,34 +207,21 @@ def services():
     definitions=[
         {
             'number':'01',
-            'title':'Visa & Document Assistance',
-            'summary':'Bantuan administratif untuk menyiapkan aplikasi visa dan dokumen pendukung dengan rapi.',
-            'items':[
-                'Form aplikasi visa untuk berbagai negara',
-                'Pemeriksaan kelengkapan, penamaan, dan susunan dokumen',
-                'Merge, split, kompresi PDF, serta format foto atau dokumen',
-                'Itinerary, cover letter, atau sponsor letter bila diperlukan',
-                'Bantuan upload, appointment bila tersedia, dan review akhir aplikasi',
-            ],
-            'notice':'Sebelum pengajuan final, seluruh informasi dan dokumen dikirim kembali kepada Anda untuk diperiksa dan disetujui.',
-            'message':'Halo Kilas Works, saya ingin konsultasi Visa & Document Assistance. Negara tujuan saya:',
-        },
-        {
-            'number':'02',
             'title':'Form & Online Assistance',
-            'summary':'Pendampingan proses administrasi online yang didukung, dari persiapan data sampai pilihan siap ditinjau.',
+            'summary':'Bantuan pengisian formulir dan kebutuhan online, termasuk aplikasi visa, appointment, perjalanan, booking, dan dokumen pendukung.',
             'items':[
-                'Form online, registrasi, appointment, travel form, dan arrival card',
-                'Bantuan pemesanan tiket atau hotel',
+                'Pengisian formulir online, termasuk aplikasi visa',
+                'Registrasi dan appointment',
+                'Travel form / form kedatangan (arrival card)',
                 'Input data portal dan upload dokumen',
-                'Resize atau kompresi PDF dan foto',
-                'Proses administrasi online lain yang dapat kami bantu',
+                'Bantuan pemesanan tiket atau hotel',
+                'Resize, kompresi, merge, atau split PDF dan foto',
             ],
             'notice':'Sebelum submit, booking, atau pembayaran, informasi dan pilihan dikirim kepada Anda untuk mendapat persetujuan.',
             'message':'Halo Kilas Works, saya membutuhkan bantuan Form & Online Assistance. Yang ingin saya urus:',
         },
         {
-            'number':'03',
+            'number':'02',
             'title':'Content Studio',
             'summary':'Produksi konten yang disesuaikan dengan kebutuhan brand, produk, dan campaign Anda.',
             'items':[
@@ -246,7 +233,7 @@ def services():
             'message':'Halo Kilas Works, saya ingin konsultasi Content Studio. Kebutuhan konten saya:',
         },
         {
-            'number':'04',
+            'number':'03',
             'title':'Talent Management',
             'summary':'Bantuan menemukan talent yang sesuai dengan brief, lokasi, anggaran, ketersediaan, dan kebutuhan produksi.',
             'items':[
