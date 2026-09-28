@@ -20,7 +20,7 @@
     {% if job.fields.source == 'Customer Insight' %}
     <div class="client-card" style="margin-top:10px">
       <div class="client-note">Tindakan berikutnya</div>
-      <strong>{{ job.fields.action or job.summary or '-' }}</strong>
+      <strong>{{ job.fields.next_action or job.fields.action or job.summary or '-' }}</strong>
       <div class="client-actions" style="margin-top:8px">
         {% if job.fields.priority %}<span class="client-status {{ 'danger' if job.fields.priority == 'Tinggi' else 'warn' if job.fields.priority == 'Sedang' else 'info' }}">{{ job.fields.priority }}</span>{% endif %}
         {% if job.fields.intent %}<span class="client-status">{{ job.fields.intent }}</span>{% endif %}

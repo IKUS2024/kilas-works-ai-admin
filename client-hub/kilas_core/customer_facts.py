@@ -90,6 +90,18 @@ def continue_request(insight, previous, text, evidence, *, actionable):
         insight['_action_evidence'] = evidence
         insight['_request_key'] = (hashlib.sha256((text + '\n' + evidence + ('\n' + old_key if separate else '')).encode()).hexdigest()[:24]
                                    if not old_key or separate else old_key)
+        confirmation_words = re.findall(r'\w+', canonical(insight.get('action')))
+        generic_confirmation = bool(confirmation_words) and all(word in {
+            'iya', 'ya', 'oke', 'ok', 'baik', 'boleh', 'gas', 'deal', 'fix', 'jadi',
+            'setuju', 'saya', 'aku', 'kami', 'mau', 'ingin', 'siap', 'lanjut',
+            'lanjutkan', 'melanjutkan', 'ambil', 'dong', 'saja'
+        } for word in confirmation_words)
+        if generic_confirmation and old_action and not separate:
+            # A confirmation is intent evidence for the existing request, never a new
+            # semantic request or replacement for its verified operational description.
+            insight['action'] = old_action
+            insight['_action_evidence'] = previous.get('_action_evidence', '')
+            insight['_continuation_confirmed'] = True
         # Payment is a stage of the request; keep its operational title.
         if old_action and not separate and insight.get('job_status') == 'DIKERJAKAN':
             insight['action'] = old_action

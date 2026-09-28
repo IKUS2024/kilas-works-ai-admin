@@ -1,5 +1,6 @@
 """Final CRM contract using real Demo/paid persistence and the shared inference boundary."""
 import json
+import re
 import time
 import unittest
 from unittest.mock import Mock, patch
@@ -67,7 +68,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertEqual(customers.list_customers(self.bid,stage='CUSTOMER')[1],1)
         self.assertEqual(customers.list_customers(self.bid)[1],1)
         self.assertEqual(jobs.list_jobs(self.bid)[1],1)
-        self.assertEqual(jobs.list_jobs(self.bid)[0][0]['title'],'Cari talent')
+        self.assertEqual(jobs.list_jobs(self.bid)[0][0]['title'],'Carikan talent')
         self.assertEqual(customers.list_customers(self.other)[1],0)
 
     def test_owner_customers_unifies_inbox_contacts_without_stage_ui(self):
@@ -116,6 +117,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
         detail = self.client.get(path)
         self.assertIn('Jobs customer ini', detail.text)
         self.assertIn('Cari talent', detail.text)
+        self.assertIn('Edit Job', detail.text)
         self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
 
     def test_tenant_profile_and_assistant_messages_cannot_become_customer_facts(self):
@@ -153,7 +155,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
             fact_evidence={'needs':{'campaign skincare':text},'schedule':text,'budget':text}))
         enriched=jobs.list_jobs(self.bid)[0][0]
         self.assertEqual(enriched['id'],first['id']);self.assertEqual(jobs.list_jobs(self.bid)[1],1)
-        self.assertEqual(enriched['title'],'Cari talent perempuan')
+        self.assertEqual(enriched['title'],'Carikan talent perempuan')
         for detail in ('campaign skincare','20 Oktober','5 juta'):
             self.assertIn(detail,enriched['summary'])
         self.turn('Koreksi budget 7 juta',dict(budget='7 juta',fact_evidence={'budget':'Koreksi budget 7 juta'}))
@@ -168,12 +170,115 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertNotIn('7 juta',second['summary'])
         self.assertNotIn('20 Oktober',second['summary'])
 
+    def test_customer_confirmation_keeps_semantic_job_and_owner_field_overrides(self):
+        first_insight = self.turn('Saya mau urus visa Amerika', dict(
+            action='Saya mau urus visa Amerika', interests=['Visa Amerika'],
+            fact_evidence={'interests': {'Visa Amerika': 'Saya mau urus visa Amerika'}},
+            job_status='PERLU_TINDAKAN'), 'REQUEST')
+        rows = jobs.list_jobs(self.bid)[0]
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
+        original = rows[0]
+        self.assertEqual(original['title'], 'Proses pengurusan visa Amerika')
+        self.assertNotIn('ingin melanjutkan', original['summary'].casefold())
+        self.assertIn('customer meminta pengurusan visa amerika', original['summary'].casefold())
+        self.assertNotIn('iya', original['title'].casefold())
+
+        continuation = self.turn('Iya saya ingin lanjut', dict(
+            action='Iya saya ingin lanjut', job_status='PERLU_TINDAKAN',
+            request_relation='CONTINUE'), 'REQUEST')
+        rows = jobs.list_jobs(self.bid)[0]
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
+        current = rows[0]
+        self.assertEqual(current['id'], original['id'])
+        self.assertEqual(current['title'], 'Proses pengurusan visa Amerika')
+        self.assertEqual(continuation['action'], first_insight['action'],
+                         (continuation, first_insight))
+        self.assertEqual(current['owner_status'], 'NEW')
+        self.assertIn('Tindakan berikutnya', self.client.get(
+            f'/business/{self.bid}/customers/{self.customer["id"]}').text)
+
+        edit_path = f'/business/{self.bid}/jobs/{current["id"]}'
+        edit_page = self.client.get(edit_path)
+        self.assertNotIn('owner_overrides', edit_page.text)
+        operation_key = re.search(r'name="operation_key" value="([^"]+)"', edit_page.text).group(1)
+        response = self.client.post(edit_path, data={
+            'csrf_token': 'crm-test', 'operation_key': operation_key,
+            'version': str(current['version']), 'title': 'Urus visa Amerika — Irvan',
+            'summary': 'Pemilik menulis ringkasan ini.', 'status': current['owner_status'],
+            'field_details': 'Ringkasan manual untuk tim Irvan.',
+        })
+        self.assertEqual(response.status_code, 303)
+        saved = jobs.get_job(self.bid, current['id'])
+        self.assertEqual(set(saved['fields']['owner_overrides'].split(',')),
+                         {'details', 'summary', 'title'})
+
+        text = 'Saya berangkat tanggal 20 bulan depan.'
+        self.turn(text, dict(schedule='tanggal 20 bulan depan',
+            fact_evidence={'schedule': text}, request_relation='CONTINUE'))
+        refreshed = jobs.get_job(self.bid, current['id'])
+        self.assertEqual(refreshed['title'], 'Urus visa Amerika — Irvan')
+        self.assertEqual(refreshed['summary'], 'Pemilik menulis ringkasan ini.')
+        self.assertEqual(refreshed['fields']['details'], 'Ringkasan manual untuk tim Irvan.')
+        self.assertEqual(refreshed['fields']['scheduled_at'], 'tanggal 20 bulan depan')
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
+        self.assertIn('Edit Job', self.client.get(
+            f'/business/{self.bid}/customers/{self.customer["id"]}').text)
+
+    def test_customer_insight_job_rejects_generic_confirmation_as_request(self):
+        self.turn('Berapa harga paketnya?')
+        customer = self.customer
+        value = customer_insights._default()
+        value.update(action='Oke lanjut', job_status='PERLU_TINDAKAN',
+                     _request_key='confirmed-old-request', _action_evidence='Oke lanjut',
+                     _meta={'has_history': True, 'fresh': True})
+        self.assertIsNone(customer_action_jobs._payload(value))
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 0)
+        self.assertEqual(customer['stage'], 'LEAD')
+
+    def test_existing_generic_insight_job_is_repaired_from_verified_request_context(self):
+        self.turn('Saya mau urus visa Amerika', dict(action='Saya mau urus visa Amerika',
+            interests=['Visa Amerika'], fact_evidence={'interests': {'Visa Amerika': 'Saya mau urus visa Amerika'}},
+            job_status='PERLU_TINDAKAN'), 'REQUEST')
+        original = jobs.list_jobs(self.bid)[0][0]
+        contaminated_fields = dict(original['fields'], action='Iya ingin lanjut')
+        with jobs.transaction() as tx:
+            jobs._update_job(tx, self.bid, original['id'], expected_version=original['version'],
+                actor_id=jobs._CUSTOMER_INSIGHT_ACTOR, operation_key='seed-legacy-generic-job',
+                title='Iya ingin lanjut', summary='Iya ingin lanjut', fields=contaminated_fields)
+
+        insight = dict(action='Oke lanjut', job_status='PERLU_TINDAKAN',
+            interests=['Visa Amerika'], _request_key=original['fields']['request_key'],
+            _meta={'has_history': True, 'fresh': True})
+        customer_action_jobs.sync_from_insight(repo.get_business(self.bid), self.customer, insight)
+        repaired = jobs.list_jobs(self.bid)[0][0]
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
+        self.assertEqual(repaired['id'], original['id'])
+        self.assertEqual(repaired['title'], 'Tindak lanjuti permintaan Visa Amerika')
+        self.assertNotEqual(repaired['summary'], 'Iya ingin lanjut')
+        self.assertEqual(repaired['owner_status'], 'NEW')
+
+    def test_customer_insight_does_not_update_manual_jobs_or_status(self):
+        self.turn('Berapa harga paketnya?')
+        customer = customers.update_customer(self.bid, self.customer['id'],
+            display_name=self.customer['display_name'], stage='CUSTOMER', actor_id=self.uid)
+        manual = jobs.create_job(self.bid, customer['id'], title='Pekerjaan manual pemilik',
+            actor_id=self.uid, operation_key='manual-job-protected', summary='Catatan manual')
+        insight = dict(action='Booking konsultasi', job_status='DIKERJAKAN',
+            _action_evidence='Booking konsultasi', _payment_evidence='',
+            _meta={'has_history': True, 'fresh': True})
+        result = customer_action_jobs.sync_from_insight(repo.get_business(self.bid), customer, insight)
+        self.assertEqual(result, manual)
+        self.assertEqual(jobs.list_jobs(self.bid)[1], 1)
+        self.assertEqual(jobs.get_job(self.bid, manual['id'])['title'], 'Pekerjaan manual pemilik')
+        self.assertEqual(jobs.get_job(self.bid, manual['id'])['summary'], 'Catatan manual')
+        self.assertEqual(jobs.get_job(self.bid, manual['id'])['status'], 'NEW')
+
     def test_payment_gate_and_finance_completion_are_preserved(self):
         self.turn('Saya mau booking konsultasi',dict(action='Booking konsultasi',job_status='DIKERJAKAN'),'REQUEST')
         row=jobs.list_jobs(self.bid)[0][0];self.assertEqual(row['status'],'NEW')
         self.turn('Kirim invoice saya mau bayar',dict(action='Kirim invoice',job_status='DIKERJAKAN'),'PAYMENT')
         row=jobs.list_jobs(self.bid)[0][0]
-        self.assertEqual(row['status'],'IN_PROGRESS');self.assertEqual(row['title'],'Booking konsultasi')
+        self.assertEqual(row['status'],'IN_PROGRESS');self.assertEqual(row['title'],'Atur booking konsultasi')
         self.turn('Sudah selesai',dict(action=None,job_status='COMPLETED'))
         row=jobs.list_jobs(self.bid)[0][0];self.assertEqual(row['status'],'IN_PROGRESS')
         with self.assertRaisesRegex(jobs.JobError,'finance_confirmation_required'):

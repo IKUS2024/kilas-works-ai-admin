@@ -2,8 +2,14 @@
 <style>
 [data-linked-jobs] .client-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 [data-linked-jobs] .client-list{display:grid;gap:8px}
-[data-linked-jobs] .client-item{display:block;overflow-wrap:anywhere;padding:10px;border:1px solid var(--border);border-radius:10px}
-[data-linked-jobs] .job-next-action{font-size:12px;color:var(--text);line-height:1.45;margin-top:5px}
+[data-linked-jobs] .client-item{overflow-wrap:anywhere;padding:12px;border:1px solid var(--border);border-radius:12px}
+[data-linked-jobs] .job-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+[data-linked-jobs] .job-heading a{color:var(--text);text-decoration:none;min-width:0}
+[data-linked-jobs] .job-summary{margin:7px 0 0;color:var(--text-dim);font-size:14px;line-height:1.5}
+[data-linked-jobs] .job-next-action{margin-top:8px;line-height:1.45}
+[data-linked-jobs] .job-next-action strong{display:block;color:var(--text-dim);font-size:12px;margin-bottom:2px}
+[data-linked-jobs] .job-edit{display:inline-flex;margin-top:8px;min-height:36px;align-items:center}
+@media(max-width:600px){[data-linked-jobs] .client-item{padding:11px}[data-linked-jobs] .job-heading{flex-direction:column;gap:5px}}
 </style>
 <div class="card" data-linked-jobs>
   <h2>Jobs customer ini</h2>
@@ -16,19 +22,23 @@
     {% set group = linked_jobs.rows|selectattr('status', 'in', ('COMPLETED','CANCELLED'))|list if historical else linked_jobs.rows|rejectattr('status', 'in', ('COMPLETED','CANCELLED'))|list %}
     {% if group %}<h3>{{ 'Riwayat Jobs' if historical else 'Jobs aktif' }}</h3>{% endif %}
     {% for row in group %}
-    <a class="client-item" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">
-      <strong>{{ row.title }}</strong><span class="client-item-meta"> · {{ row.owner_status_label }}</span>
-      <div class="job-next-action">{{ row.fields.action or row.summary or row.title }}</div>
+    <article class="client-item">
+      <div class="job-heading">
+        <a href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}"><strong>{{ row.title }}</strong></a>
+        <span class="client-status {{ 'ok' if row.owner_status == 'COMPLETED' else 'warn' if row.owner_status == 'IN_PROGRESS' else 'info' }}">{{ row.owner_status_label }}</span>
+      </div>
+      {% if row.summary %}<p class="job-summary">{{ row.summary }}</p>{% endif %}
+      {% if row.fields.next_action %}<div class="job-next-action"><strong>Tindakan berikutnya</strong>{{ row.fields.next_action }}</div>{% endif %}
       {% if row.fields.missing_information %}<p class="client-note">Masih dibutuhkan: {{ row.fields.missing_information }}</p>{% endif %}
       {% if row.workflow_label %}<div data-playbook-context>
         <p>{{ row.workflow_label }}</p>
         <dl>{% for label,value in row.known_details %}<dt>{{ label }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
-        {% if row.fields.missing_information %}<p><strong>Masih dibutuhkan:</strong> {{ row.fields.missing_information }}</p>
-        {% else %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
+        {% if not row.fields.missing_information %}<p>Rincian lengkap untuk ditinjau tim.</p>{% endif %}
       </div>{% endif %}
-    </a>
+      <a class="btn secondary job-edit" href="{{ url_for('core_jobs.detail_page',bid=business.id,job_id=row.id) }}">Edit Job</a>
+    </article>
     {% endfor %}{% endfor %}
-    {% if not linked_jobs.rows %}<p class="client-note">Belum ada Job untuk Customer ini.</p>{% endif %}
+    {% if not linked_jobs.rows %}<p class="client-note">Belum ada pekerjaan yang perlu ditindaklanjuti.</p>{% endif %}
   </div>
 </div>
 {% endif %}

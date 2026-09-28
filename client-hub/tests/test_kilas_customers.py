@@ -190,10 +190,23 @@ class CustomerTests(unittest.TestCase):
             "schedule": "Bulan depan sekitar 2 minggu", "budget": "Rp1.000.000",
             "business_name": None, "business_type": None, "location": None, "_meta": {},
         })
-        self.assertEqual(continuing["stage_label"], "Ingin lanjut")
+        self.assertEqual(continuing["stage_label"], "Siap melanjutkan")
         self.assertIn("pengurusan visa Amerika", continuing["summary"])
-        self.assertIn("bulan depan sekitar 2 minggu", continuing["summary"])
+        self.assertIn("bulan depan sekitar 2 minggu", continuing["summary"].casefold())
         self.assertIn(("Budget", "Rp1.000.000"), continuing["facts"])
+
+        confirmed = customer_insights.presentation({
+            "buying_stage": "SIAP_MEMBELI", "name": "Irvan",
+            "action": "Iya ingin lanjut", "needs": [], "interests": ["Visa turis Amerika"],
+            "schedule": "Bulan depan sekitar 2 minggu", "budget": None,
+            "missing_info": ["metode pembayaran", "dokumen perjalanan"],
+            "follow_up": "Tanyakan apakah customer ingin lanjut.",
+            "business_name": None, "business_type": None, "location": None, "_meta": {},
+        })
+        self.assertIn("visa turis amerika", confirmed["summary"].casefold())
+        self.assertNotIn("Iya ingin lanjut", confirmed["summary"])
+        self.assertNotIn("apakah customer ingin lanjut", confirmed["follow_up"])
+        self.assertIn("metode pembayaran", confirmed["follow_up"])
 
     def test_platform_admin_workspace_reuses_same_customers_engine_and_hides_internal_business(self):
         phone = "628111223344"

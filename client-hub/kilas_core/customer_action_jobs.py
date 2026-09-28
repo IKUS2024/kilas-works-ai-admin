@@ -30,6 +30,16 @@ _PLATFORM_ACTION_HINT = re.compile(
     re.IGNORECASE,
 )
 _PLATFORM_SYSTEM_MARKERS = ("[FOLLOW-UP OTOMATIS SISTEM]",)
+_CONTINUATION_WORDS = {
+    "iya", "ya", "oke", "ok", "baik", "boleh", "gas", "deal", "fix", "jadi",
+    "setuju", "mau", "ingin", "lanjut", "lanjutkan", "melanjutkan", "dong",
+    "saya", "aku", "kami", "saja", "ambil",
+}
+_CONTINUATION_RE = re.compile(
+    r"^(?:(?:iya|ya|oke|ok|baik|boleh|gas|deal|fix|jadi|setuju)\s+)*(?:saya\s+|aku\s+|kami\s+)?"
+    r"(?:(?:mau|ingin|siap)\s+)?(?:(?:menggunakan layanan|ambil|melanjutkan|lanjutkan|lanjut)\s*)?(?:dong)?$",
+    re.IGNORECASE,
+)
 
 # "Dikerjakan" is the commercial handoff state: invoice/payment has started.
 # Meeting/booking/scheduling/deal language alone must remain "Perlu tindakan".
@@ -85,6 +95,117 @@ def _list(value):
     return [_clean(item, 180) for item in value[:8] if _clean(item, 180)]
 
 
+def _is_continuation(value):
+    text = _clean(value, 240).strip(" .,!?").casefold()
+    if not text:
+        return False
+    if _CONTINUATION_RE.fullmatch(text):
+        return True
+    words = re.findall(r"[\w]+", text)
+    return bool(words) and all(word in _CONTINUATION_WORDS for word in words)
+
+
+def _request_action(insight, current=None):
+    """Return a semantic request, carrying the prior request through short confirmations."""
+    action = _clean(insight.get("action"), 240)
+    if action and not _is_continuation(action):
+        return action
+    previous = ((current or {}).get("fields") or {}).get("action")
+    if previous and not _is_continuation(previous):
+        return _clean(previous, 240)
+    for value in [*_list(insight.get("needs")), *_list(insight.get("interests"))]:
+        if not _is_continuation(value):
+            return value
+    return ""
+
+
+def _operational_title(action):
+    """Turn a verified request into a short work title; reject conversational replies."""
+    action = _clean(action, 240).strip(" .,!?")
+    if not action or _is_continuation(action):
+        return ""
+    action = re.sub(r"^(?:(?:iya|ya|oke|ok|baik|boleh|gas|deal|fix|jadi)\s+)*", "", action, flags=re.I)
+    action = re.sub(r"^(?:saya|aku|kami)\s+(?:(?:mau|ingin|butuh)\s+)?", "", action, flags=re.I)
+    match = re.match(r"^(?:mau|ingin|butuh|tolong)\s+(.+)$", action, flags=re.I)
+    if match:
+        action = match.group(1).strip()
+    transforms = (
+        (r"^urus(?:kan)?\s+(.+)$", r"Proses pengurusan \1"),
+        (r"^cari(?:kan)?\s+(.+)$", r"Carikan \1"),
+        (r"^(?:pesan|memesan)\s+(.+)$", r"Siapkan pesanan \1"),
+        (r"^(?:beli|membeli|order)\s+(.+)$", r"Proses pesanan \1"),
+        (r"^booking\s+(.+)$", r"Atur booking \1"),
+        (r"^(?:ambil|gunakan|menggunakan)\s+(.+)$", r"Proses pesanan \1"),
+        (r"^jadwalkan\s+(.+)$", r"Jadwalkan \1"),
+        (r"^(?:buatkan|buat)\s+(.+)$", r"Siapkan \1"),
+        (r"^kirim(?:kan)?\s+(?:proposal|penawaran)\s+(.+)$", r"Siapkan proposal \1"),
+        (r"^perbaiki\s+(.+)$", r"Jadwalkan perbaikan \1"),
+    )
+    transformed = False
+    for pattern, replacement in transforms:
+        normalized = re.sub(pattern, replacement, action, count=1, flags=re.I)
+        if normalized != action:
+            action = normalized
+            transformed = True
+            break
+    if not transformed:
+        action = "Tindak lanjuti permintaan " + action
+    action = action[:1].upper() + action[1:]
+    return action[:160]
+
+
+def _customer_summary(insight, action, *, continuing=False):
+    topic = action[:1].lower() + action[1:] if action else ""
+    topic = re.sub(r"^(?:(?:iya|ya|oke|ok|baik|boleh|gas|deal|fix|jadi)\s+)*(?:saya|aku|kami)\s+(?:(?:mau|ingin|butuh)\s+)?", "", topic, flags=re.I)
+    topic = re.sub(r"^(?:mau|ingin|butuh|tolong)\s+", "", topic, flags=re.I)
+    for pattern, replacement in (
+        (r"^urus(?:kan)?\s+(.+)$", r"pengurusan \1"),
+        (r"^cari(?:kan)?\s+(.+)$", r"mencari \1"),
+        (r"^(?:pesan|memesan)\s+(.+)$", r"pesanan \1"),
+        (r"^(?:beli|membeli|order)\s+(.+)$", r"pesanan \1"),
+        (r"^buatkan\s+(.+)$", r"pembuatan \1"),
+        (r"^jadwalkan\s+(.+)$", r"penjadwalan \1"),
+    ):
+        normalized = re.sub(pattern, replacement, topic, count=1, flags=re.I)
+        if normalized != topic:
+            topic = normalized
+            break
+    if not topic:
+        topic = next(iter(_list(insight.get("needs"))), "") or next(iter(_list(insight.get("interests"))), "")
+    if not topic:
+        return _clean(insight.get("summary"), 420)
+    if continuing:
+        parts = [f"Customer ingin melanjutkan {topic}."]
+    else:
+        parts = [f"Customer meminta {topic}."]
+    details = []
+    for value in _list(insight.get("needs")):
+        if value.casefold() not in topic.casefold() and value.casefold() not in " ".join(details).casefold():
+            details.append(value)
+    for value in (insight.get("schedule"), insight.get("budget")):
+        if value and value.casefold() not in topic.casefold() and value.casefold() not in " ".join(details).casefold():
+            details.append(value)
+    if details:
+        parts.append("Detail yang sudah dikonfirmasi: " + "; ".join(details) + ".")
+    return " ".join(parts)[:420]
+
+
+def _next_action(insight, *, continuing=False):
+    missing = _list(insight.get("missing_info"))
+    suggestion = _clean(insight.get("follow_up"), 300)
+    confirmed = continuing or insight.get("buying_stage") == "SIAP_MEMBELI" \
+        or insight.get("job_status") in ("PERLU_TINDAKAN", "DIKERJAKAN")
+    if confirmed and missing:
+        return "Konfirmasi " + ", ".join(missing[:3]) + " untuk melanjutkan permintaan customer."
+    if confirmed and (not suggestion or re.search(r"(apakah|ingin|mau|akan).*\b(?:melanjutkan|lanjut)\b", suggestion, re.I)):
+        return "Lanjutkan penanganan permintaan customer."
+    if suggestion and not _is_continuation(suggestion):
+        return suggestion
+    if missing:
+        return "Konfirmasi " + ", ".join(missing[:3]) + " kepada customer."
+    return "Tindak lanjuti permintaan customer."
+
+
 def _title_kind(action):
     text = _clean(action, 240).lower()
     if any(word in text for word in ("booking", "jadwal", "appointment", "reservasi", "janji")):
@@ -112,16 +233,20 @@ def _fingerprint(insight):
         json.dumps(basis, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()[:20]
 
-def _payload(insight):
-    action = _clean(insight.get("action"), 240)
+def _payload(insight, current=None):
+    action = _request_action(insight, current=current)
     if not action:
         return None
+    title = _operational_title(action)
+    if not title:
+        return None
     _, kind = _title_kind(action)
-    title = action.rstrip('.').strip()[:160]
-    summary = _clean(insight.get("summary"), 420)
+    continuing = _is_continuation(insight.get("action")) or bool(insight.get('_continuation_confirmed'))
+    summary = _customer_summary(insight, action, continuing=continuing)
     ref = "insight:" + _fingerprint(insight)
     fields = {
         "action": action,
+        "next_action": _next_action(insight, continuing=continuing),
         "source": "Customer Insight",
         "source_key": ref,
     }
@@ -279,7 +404,8 @@ def sync_from_insight(business, customer, insight, *, transaction=None):
         signal = "PERLU_TINDAKAN"
     target_status = SIGNAL_TO_STATUS.get(signal)
     payload = _payload(insight)
-    if payload is None and target_status not in ("IN_PROGRESS", "CANCELLED"):
+    continuation = _is_continuation(insight.get("action"))
+    if payload is None and target_status not in ("IN_PROGRESS", "CANCELLED") and not continuation:
         return None
 
     if payload is not None:
@@ -333,13 +459,27 @@ def sync_from_insight(business, customer, insight, *, transaction=None):
             elif active_auto and active_auto[0]['fields'].get('request_key'):
                 fields['request_key'] = active_auto[0]['fields']['request_key']
         if active_manual and not separate and not active_auto:
-            return apply_status(active_manual[0])
+            return active_manual[0]
 
         if active_auto:
             current = active_auto[0]
+            # A short confirmation inherits the existing semantic request; its wording
+            # must never replace the operational title or create a second Job.
+            if continuation:
+                payload = _payload(insight, current=current)
+                if payload:
+                    title, kind, summary, fields, ref = payload
             if payload:
                 # Retain owner-confirmed operational fields absent from a chat delta.
                 fields = {**current['fields'], **fields}
+                overrides = set(filter(None, current['fields'].get('owner_overrides', '').split(',')))
+                if 'title' in overrides:
+                    title = current['title']
+                if 'summary' in overrides:
+                    summary = current['summary']
+                for key in jobs.FIELD_LABELS:
+                    if key in overrides:
+                        fields[key] = current['fields'].get(key, '')
                 fields['missing_information'] = '; '.join(_list(insight.get('missing_info')))[:1000]
             current_payment_step = _job_payment_step(current)
             if payload and current_payment_step and fields.get(_PAYMENT_STEP_META) != "true":
