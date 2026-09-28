@@ -169,6 +169,13 @@ def product_start():
     user=security.current_user()
     if request.method=='POST':
         choice=(request.form.get('product') or '').strip().lower()
+        if choice=='kilas_ai':
+            from kilas_ai.routes import enabled
+            if not enabled() or user['role']!='CLIENT_OWNER':
+                abort(404)
+            session.pop('product_intent',None)
+            session['active_product']='kilas_ai'
+            return redirect(url_for('kilas_ai.home'),code=303)
         if choice=='finance':
             session.pop('product_intent',None)
             businesses=_product_businesses(user['id'],'finance')
@@ -197,7 +204,8 @@ def product_start():
         if choice=='order':
             return render_template('order_retired.html'),410
         abort(400)
-    return render_template('product_start.html',user=user)
+    from kilas_ai.routes import enabled
+    return render_template('product_start.html',user=user,kilas_ai_enabled=enabled() and user['role']=='CLIENT_OWNER')
 
 
 @products_bp.route('/products/services')

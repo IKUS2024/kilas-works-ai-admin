@@ -206,6 +206,8 @@ def create_app():
     app.jinja_env.globals['finance_bridge_panel'] = finance_bridge_panel
     from routes_products import products_bp
     app.register_blueprint(products_bp)
+    from kilas_ai.routes import ai_bp
+    app.register_blueprint(ai_bp)
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp
@@ -291,6 +293,7 @@ def create_app():
             endpoint == "static"
             or endpoint.startswith("finance.")
             or endpoint.startswith("workspace.")
+            or endpoint.startswith("kilas_ai.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
             or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",

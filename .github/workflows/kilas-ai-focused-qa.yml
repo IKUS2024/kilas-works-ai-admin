@@ -1,0 +1,30 @@
+name: Kilas AI Focused QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/kilas_ai/**'
+      - 'client-hub/migrations/0071_kilas_ai_v1_*.sql'
+      - 'client-hub/tests/test_kilas_ai_*.py'
+      - 'client-hub/app.py'
+      - 'client-hub/db.py'
+      - 'client-hub/routes_products.py'
+      - 'client-hub/routes_workspace.py'
+      - 'client-hub/templates/kilas_ai/**'
+      - 'client-hub/templates/product_start.html'
+      - '.github/workflows/kilas-ai-focused-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Account-owned Kilas AI foundation
+        run: cd client-hub && python tests/test_kilas_ai_foundation.py

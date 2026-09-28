@@ -17,6 +17,8 @@ def context():
     # Do not make them inherit Assist navigation merely because the owner has an Assist business.
     if request.endpoint in ('products.product_start', 'products.services'):
         return result
+    if request.blueprint == 'kilas_ai':
+        return result
     # Public customer links/documents never acquire owner navigation.
     if request.blueprint == 'public_web' or request.endpoint in (
         'finance.customer_invoice', 'finance.customer_invoice_pdf', 'finance.public_statement'):
