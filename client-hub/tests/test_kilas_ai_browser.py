@@ -51,7 +51,7 @@ def main():
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
                     assert page.locator("#ai-sidebar").is_visible()
-                    page.get_by_role("button", name="Tutup riwayat").click()
+                    page.locator("#ai-close-menu").click()
                 page.locator("#ai-files").set_input_files({"name": "note.txt", "mimeType": "text/plain", "buffer": b"Hello browser"})
                 assert page.locator("#ai-pending .ai-pending-item").count() == 1
                 page.get_by_role("button", name="Hapus lampiran note.txt").click()
