@@ -6,7 +6,7 @@
 <header class="kw-page-head"><div><p class="kw-eyebrow">KILAS WORKS</p><h1>Pilih layanan Kilas</h1><p>Tiga cara praktis untuk membantu bisnis dan kebutuhan harian Anda.</p></div></header>
 <div class="kw-intent-grid">
 {% for key,title,description,detail in [('assist','Kilas Assist','Layani WhatsApp, kelola customer, dan tindak lanjuti pekerjaan.','Masuk ke bisnis yang sudah ada atau siapkan bisnis baru.'),('finance','Kilas Finance','Catat pemasukan, pengeluaran, tagihan, dan invoice.','Buka workspace keuangan bisnis Anda.'),('services','Kilas Services','Dapatkan bantuan langsung dari tim Kilas Works.','Visa dan dokumen, formulir online, produksi konten, serta talent.')] %}
-<form class="card kw-intent {{ 'assist-product-option' if key == 'assist' else '' }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="{{ key }}"><p class="kw-eyebrow">{{ '%02d'|format(loop.index) }}</p><h2>{{ title }}</h2><p>{{ description }}</p><p class="kw-note">{{ detail }}</p><button class="btn" type="submit">Pilih {{ title }} →</button></form>
+<form class="card kw-intent" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="product" value="{{ key }}"><p class="kw-eyebrow">{{ '%02d'|format(loop.index) }}</p><h2>{{ title }}</h2><p>{{ description }}</p><p class="kw-note">{{ detail }}</p><button class="btn" type="submit">Pilih {{ title }} →</button></form>
 {% endfor %}
 </div>
 <p class="kw-note">Memilih layanan tidak otomatis membeli atau mengaktifkan langganan.</p>

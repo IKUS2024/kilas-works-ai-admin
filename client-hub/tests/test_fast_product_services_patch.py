@@ -53,6 +53,8 @@ class FastProductServicesPatchTests(unittest.TestCase):
         page=client.get('/products/start')
         for title in ('Kilas Assist','Kilas Finance','Kilas Services'):
             self.assertIn(title,page.text)
+        for number in ('01','02','03'):
+            self.assertIn(f'<p class="kw-eyebrow">{number}</p>',page.text)
 
     def test_existing_authorized_permanent_browser_session_is_not_invalidated(self):
         uid,_,_=self.owner('trusted-work-browser@example.test')
