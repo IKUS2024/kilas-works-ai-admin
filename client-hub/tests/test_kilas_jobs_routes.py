@@ -318,7 +318,7 @@ class JobRoutesTests(unittest.TestCase):
         detail = self.client.get(f"/business/{scope['id']}/customers/{customer['id']}")
         self.assertEqual(detail.status_code, 200)
         self.assertIn(b"data-linked-jobs", detail.data)
-        self.assertIn(b"Booking jasa foto minggu depan", detail.data)
+        self.assertIn(b"Atur booking jasa foto minggu depan", detail.data)
 
     def test_platform_actionable_lead_auto_promotes_and_creates_job(self):
         import platform_workspace

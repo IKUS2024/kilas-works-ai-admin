@@ -190,10 +190,23 @@ class CustomerTests(unittest.TestCase):
             "schedule": "Bulan depan sekitar 2 minggu", "budget": "Rp1.000.000",
             "business_name": None, "business_type": None, "location": None, "_meta": {},
         })
-        self.assertEqual(continuing["stage_label"], "Ingin lanjut")
+        self.assertEqual(continuing["stage_label"], "Siap melanjutkan")
         self.assertIn("pengurusan visa Amerika", continuing["summary"])
-        self.assertIn("bulan depan sekitar 2 minggu", continuing["summary"])
+        self.assertIn("bulan depan sekitar 2 minggu", continuing["summary"].casefold())
         self.assertIn(("Budget", "Rp1.000.000"), continuing["facts"])
+
+        confirmed = customer_insights.presentation({
+            "buying_stage": "SIAP_MEMBELI", "name": "Irvan",
+            "action": "Iya ingin lanjut", "needs": [], "interests": ["Visa turis Amerika"],
+            "schedule": "Bulan depan sekitar 2 minggu", "budget": None,
+            "missing_info": ["metode pembayaran", "dokumen perjalanan"],
+            "follow_up": "Tanyakan apakah customer ingin lanjut.",
+            "business_name": None, "business_type": None, "location": None, "_meta": {},
+        })
+        self.assertIn("visa turis amerika", confirmed["summary"].casefold())
+        self.assertNotIn("Iya ingin lanjut", confirmed["summary"])
+        self.assertNotIn("apakah customer ingin lanjut", confirmed["follow_up"])
+        self.assertIn("metode pembayaran", confirmed["follow_up"])
 
     def test_platform_admin_workspace_reuses_same_customers_engine_and_hides_internal_business(self):
         phone = "628111223344"
@@ -253,7 +266,7 @@ class CustomerTests(unittest.TestCase):
         self.assertNotIn(b">WEB<", page.data)
 
 
-    def test_lead_filter_and_manual_customer_promotion(self):
+    def test_legacy_stage_values_are_internal_and_owner_list_is_unified(self):
         first = self.start().json
         other_client = self.app.test_client()
         second = self.start(client=other_client).json
@@ -273,12 +286,15 @@ class CustomerTests(unittest.TestCase):
         lead_page = self.client.get("/business/7/customers?stage=LEAD")
         customer_page = self.client.get("/business/7/customers?stage=CUSTOMER")
         self.assertIn(b"Lead Satu", default_page.data)
-        self.assertNotIn(b"Customer Dua", default_page.data)
+        self.assertIn(b"Customer Dua", default_page.data)
         self.assertNotIn(b">Semua<", default_page.data)
         self.assertIn(b"Lead Satu", lead_page.data)
-        self.assertNotIn(b"Customer Dua", lead_page.data)
+        self.assertIn(b"Customer Dua", lead_page.data)
         self.assertIn(b"Customer Dua", customer_page.data)
-        self.assertNotIn(b"Lead Satu", customer_page.data)
+        self.assertIn(b"Lead Satu", customer_page.data)
+        for page in (default_page, lead_page, customer_page):
+            for retired_ui in (b">Lead<", b"stage=LEAD", b"stage=CUSTOMER"):
+                self.assertNotIn(retired_ui, page.data)
 
         response = self.client.post(
             f"/business/7/customers/{one['id']}",

@@ -7,6 +7,7 @@ binding; no platform-wide inbox is ever exposed to a tenant.
 """
 import json
 from datetime import datetime, timezone
+import re
 from kilas_core import customer_facts
 import time
 
@@ -162,6 +163,8 @@ def _normalize(value):
                 '_provenance_version', '_separate_request', '_handoff_requested'):
         if key in value:
             result[key] = value[key]
+    if value.get('_continuation_confirmed'):
+        result['_continuation_confirmed'] = True
     result['schedule'] = _clean_string(value.get('schedule'), 160)
     return result
 
@@ -514,7 +517,7 @@ STAGE_LABELS = {
     "MENCARI_INFORMASI": "Mencari informasi",
     "MEMBANDINGKAN": "Membandingkan",
     "BERMINAT": "Tertarik",
-    "SIAP_MEMBELI": "Ingin lanjut",
+    "SIAP_MEMBELI": "Siap melanjutkan",
     "CUSTOMER_AKTIF": "Sedang diproses",
 }
 
@@ -524,13 +527,31 @@ def presentation(insight):
     insight = insight or _default()
     stage = insight.get("buying_stage") or "BELUM_JELAS"
     subject = insight.get("name") or "Customer"
-    topic = (insight.get("action") or next(iter(insight.get("needs") or []), None)
-             or next(iter(insight.get("interests") or []), None))
+    action = insight.get("action") or ""
+    topic = action
+    if re.fullmatch(r"(?:(?:iya|ya|oke|ok|baik|boleh|gas|deal|fix|jadi|setuju|saya|aku|kami|mau|ingin|siap|lanjut|lanjutkan|melanjutkan|dong)\s*)+", action.strip(" .,!?"), re.I):
+        topic = ""
+    topic = topic or next(iter(insight.get("needs") or []), None) or next(iter(insight.get("interests") or []), None)
     schedule = insight.get("schedule")
     budget = insight.get("budget")
+    missing = insight.get("missing_info") or []
 
     def lower_first(value):
         return value[:1].lower() + value[1:] if value else value
+
+    if topic:
+        topic = re.sub(r"^(?:saya|aku|kami)\s+(?:(?:mau|ingin|butuh)\s+)?", "", topic, flags=re.I)
+        for pattern, replacement in (
+            (r"^(?:urus|mengurus|uruskan)\s+(.+)$", r"pengurusan \1"),
+            (r"^(?:cari|mencari|carikan)\s+(.+)$", r"mencari \1"),
+            (r"^(?:pesan|memesan)\s+(.+)$", r"pesanan \1"),
+            (r"^(?:beli|membeli|order)\s+(.+)$", r"pesanan \1"),
+            (r"^(?:booking|reservasi)\s+(.+)$", r"booking \1"),
+        ):
+            normalized = re.sub(pattern, replacement, topic, count=1, flags=re.I)
+            if normalized != topic:
+                topic = normalized
+                break
 
     if stage == "MENCARI_INFORMASI":
         summary = (f"{subject} sedang mencari informasi tentang {lower_first(topic)}."
@@ -543,18 +564,33 @@ def presentation(insight):
         summary = (f"{subject} tertarik pada {lower_first(topic)}."
                    if topic else f"{subject} sudah menunjukkan ketertarikan.")
     elif stage == "SIAP_MEMBELI":
-        summary = (f"{subject} ingin melanjutkan {lower_first(topic)}"
-                   if topic else f"{subject} ingin lanjut")
+        summary = (f"{subject} ingin melanjutkan {lower_first(topic)}."
+                   if topic else f"{subject} siap melanjutkan permintaan yang telah dibahas.")
         if schedule:
-            summary += f" dengan rencana {lower_first(schedule)}"
+            summary += f" Rencana: {schedule}."
         if budget:
-            summary += f" dengan budget {budget}"
-        summary += ". Customer sudah menyatakan ingin lanjut."
+            summary += f" Budget: {budget}."
+        if missing:
+            summary += " Masih perlu dilengkapi: " + ", ".join(missing[:4]) + "."
+        summary += " Customer sudah menyatakan ingin menggunakan layanan."
     elif stage == "CUSTOMER_AKTIF":
         summary = (f"{subject} sedang diproses untuk {lower_first(topic)}."
                    if topic else f"{subject} sedang diproses.")
+    elif stage == "BELUM_JELAS" and topic and insight.get("job_status") in ("PERLU_TINDAKAN", "DIKERJAKAN"):
+        summary = f"{subject} meminta {lower_first(topic)}."
     else:
         summary = f"{subject} baru memulai percakapan dan belum memberikan cukup informasi."
+
+    if stage != "SIAP_MEMBELI":
+        confirmed_details = []
+        for value in [*(insight.get("needs") or []), schedule, budget]:
+            if value and str(value).casefold() not in summary.casefold() \
+                    and str(value).casefold() not in " ".join(confirmed_details).casefold():
+                confirmed_details.append(str(value))
+        if confirmed_details:
+            summary += " Detail terkonfirmasi: " + "; ".join(confirmed_details[:4]) + "."
+        if missing:
+            summary += " Masih perlu dilengkapi: " + ", ".join(missing[:4]) + "."
 
     facts = []
     for label, value in (
@@ -577,8 +613,15 @@ def presentation(insight):
     if isinstance(updated_at, (int, float)) and updated_at:
         updated_at = datetime.fromtimestamp(updated_at, timezone.utc)
 
+    follow_up = insight.get("follow_up")
+    confirmed = stage == "SIAP_MEMBELI" or insight.get("job_status") in ("PERLU_TINDAKAN", "DIKERJAKAN")
+    if confirmed and follow_up and re.search(r"(?:apakah|ingin|mau|akan).*?\b(?:melanjutkan|lanjut)\b", follow_up, re.I):
+        follow_up = ("Konfirmasi " + ", ".join(missing[:3]) + " lalu lanjutkan penanganan permintaan customer.") \
+            if missing else "Lanjutkan penanganan permintaan customer."
+
     return {
         "summary": summary,
+        "follow_up": follow_up,
         "facts": facts,
         "stage_label": STAGE_LABELS.get(stage, STAGE_LABELS["BELUM_JELAS"]),
         "has_meaningful_information": bool(meaningful),

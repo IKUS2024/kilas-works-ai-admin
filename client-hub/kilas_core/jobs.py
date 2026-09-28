@@ -72,7 +72,8 @@ FIELD_LABELS = {'details': 'Rincian', 'quantity': 'Jumlah', 'unit': 'Satuan',
 # Server-only workflow metadata is not accepted by owner form routes.
 WORKFLOW_METADATA = {'playbook', 'uncertain_fields',
                      'action', 'intent', 'priority', 'source', 'source_key',
-                     'payment_step_reached', 'request_key'}
+                     'payment_step_reached', 'request_key', 'owner_overrides',
+                     'next_action'}
 LEGACY_FIELD_LABELS = dict(FIELD_LABELS)
 FIELD_LABELS.update({k: v for k, v in PLAYBOOK_FIELDS.items() if k not in FIELD_LABELS})
 _WEB_PLAYBOOK_ACTOR = object()
@@ -311,9 +312,23 @@ def _update_job(tx, business_id, job_id, *, expected_version, actor_id, operatio
         previous = json.loads(current['fields_json'])
         if previous.get('source') == 'Customer Insight':
             preserved = dict(fields)
-            for key in ('action','intent','priority','source','source_key','payment_step_reached','request_key'):
+            for key in ('action','intent','priority','source','source_key','payment_step_reached',
+                        'request_key','next_action','owner_overrides'):
                 if key in previous:
                     preserved[key] = previous[key]
+            # Record only fields that an owner actually changed. The marker is server-owned
+            # workflow metadata and is never accepted from the owner form.
+            if actor_id not in (_CUSTOMER_INSIGHT_ACTOR, _FINANCE_PAYMENT_ACTOR):
+                overrides = set(filter(None, previous.get('owner_overrides', '').split(',')))
+                if title is not None and title != current['title']:
+                    overrides.add('title')
+                if summary is not None and summary != current['summary']:
+                    overrides.add('summary')
+                for key in FIELD_LABELS:
+                    if fields.get(key, '') != previous.get(key, ''):
+                        overrides.add(key)
+                if overrides:
+                    preserved['owner_overrides'] = ','.join(sorted(overrides))
             encoded = validate_fields(preserved)
         if previous.get('playbook') in PLAYBOOKS:
             from .playbooks import missing_fields, labels
