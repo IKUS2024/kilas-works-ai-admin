@@ -68,7 +68,10 @@ def main():
                 page.get_by_role("button", name="Pilih Plus").click()
                 page.wait_for_url("**/kilas-ai/invoices/*")
                 assert page.get_by_text("7610267551").is_visible()
-                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "invoice")
+                overflow = page.evaluate("""() => ({page: document.documentElement.scrollWidth,
+                    culprits: [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1)
+                    .slice(0, 8).map(el => [el.tagName, el.className, Math.round(el.getBoundingClientRect().right)])})""")
+                assert overflow["page"] <= width, (width, "invoice", overflow)
                 context.close()
             browser.close()
     finally:

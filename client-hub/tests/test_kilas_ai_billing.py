@@ -61,7 +61,7 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(len(pending), 1)
         payment_id = pending[0]["id"]
         self.assertEqual(admin.get("/admin/kilas-ai/payments").status_code, 200)
-        self.assertIn(b"Review pembayaran Kilas AI", admin.get("/admin/").data)
+        self.assertIn(b"Review pembayaran Kilas AI", admin.get("/platform/subscriptions").data)
         self.assertEqual(other.get(f"/admin/kilas-ai/payments/{payment_id}/proof").status_code, 404)
         verified = admin.post(f"/admin/kilas-ai/payments/{payment_id}/review",
                               data={"decision": "VERIFIED", "csrf_token": "billing-csrf"})
@@ -79,7 +79,7 @@ class BillingTests(unittest.TestCase):
             from werkzeug.datastructures import FileStorage
             billing.submit_proof(self.other, invoice_id, FileStorage(stream=io.BytesIO(b"proof"),
                 filename="proof.png", content_type="image/png"))
-        payment_id = billing.pending_payments()[0]["id"]
+        payment_id = next(row["id"] for row in billing.pending_payments() if row["invoice_id"] == invoice_id)
         with self.assertRaises(billing.BillingError):
             billing.review(payment_id, self.owner, "VERIFIED")
         billing.review(payment_id, self.admin, "REJECTED", "Bukti kurang jelas")
@@ -94,13 +94,15 @@ class BillingTests(unittest.TestCase):
         with patch("file_utils.validate_project_attachment_upload", return_value=("proof.png", "image/png")):
             billing.submit_proof(self.other, renewed_invoice, FileStorage(stream=io.BytesIO(b"proof3"),
                 filename="proof.png", content_type="image/png"))
-        billing.review(billing.pending_payments()[0]["id"], self.admin, "VERIFIED")
+        billing.review(next(row["id"] for row in billing.pending_payments() if row["invoice_id"] == renewed_invoice),
+                       self.admin, "VERIFIED")
         self.assertEqual(usage.effective_plan(self.other)["period_end"], first_end + timedelta(days=30))
         new_invoice = billing.create_invoice(self.other, "MAX")
         with patch("file_utils.validate_project_attachment_upload", return_value=("proof.png", "image/png")):
             billing.submit_proof(self.other, new_invoice, FileStorage(stream=io.BytesIO(b"proof4"),
                 filename="proof.png", content_type="image/png"))
-        billing.review(billing.pending_payments()[0]["id"], self.admin, "VERIFIED")
+        billing.review(next(row["id"] for row in billing.pending_payments() if row["invoice_id"] == new_invoice),
+                       self.admin, "VERIFIED")
         self.assertEqual(usage.effective_plan(self.other)["plan"], "MAX")
         self.assertEqual((usage.effective_plan(self.other)["period_end"] -
                           usage.effective_plan(self.other)["period_start"]).days, 30)
