@@ -302,7 +302,7 @@ def send(thread_id):
                              and "logo" in content.lower()), None)
                 try:
                     result = ai_pdf.render("".join(pieces), title_hint=content[:80], logo=logo,
-                                           cover=bool(re.search(r"\b(cover|sampul)\b", content.lower())))
+                                           cover=bool(re.search(r"\b(?:cover|sampul)(?:nya)?\b", content.lower())))
                 except Exception:
                     raise providers.ProviderError("pdf_render_failed") from None
                 label = "PDF siap: " + result["title"]
