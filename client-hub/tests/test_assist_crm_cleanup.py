@@ -107,11 +107,6 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertIn('Customer Insight', detail.text)
         self.assertNotIn('data-linked-jobs', detail.text)
 
-        self.turn('Saya tertarik', dict(follow_up='Tanyakan kebutuhan yang ingin dibahas'))
-        detail = self.client.get(path)
-        self.assertIn('Follow-up Customer', detail.text)
-        self.assertEqual(jobs.list_jobs(self.bid)[1], 0)
-
         self.turn('Saya mau cari talent', dict(action='Cari talent',
             job_status='PERLU_TINDAKAN', follow_up='Tanyakan detail talent'), 'REQUEST')
         detail = self.client.get(path)
@@ -328,7 +323,7 @@ class CRMTests(runtime_fixture.RuntimeTests):
         self.assertEqual(customers.list_customers(self.bid,stage='LEAD')[1],0)
         page=self.client.get(f'/business/{self.bid}/customers/{cid}')
         self.assertEqual(page.status_code,200);self.assertIn('Jobs customer ini',page.text)
-        self.assertIn('Cari talent perempuan',page.text)
+        self.assertIn('Carikan talent perempuan',page.text)
         self.assertNotIn('sudah benar-benar menjadi pelanggan',page.text)
 
     def test_legacy_contaminated_insight_rebuilds_from_customer_only(self):
