@@ -10,6 +10,10 @@ import security
 ai_bp = Blueprint("kilas_ai", __name__, url_prefix="/kilas-ai")
 
 
+def automation_enabled():
+    return os.environ.get("KILAS_AI_AUTOMATION_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 def enabled():
     return os.environ.get("KILAS_AI_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 
@@ -31,16 +35,20 @@ def require_access():
 def home():
     from . import attachments, store, usage
     current_plan = usage.effective_plan(session["user_id"])["plan"]
+    from . import automation_store
+    unread = automation_store.usage_summary(session["user_id"])["unread"] if automation_enabled() else 0
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
-                           messages=[], current_plan=current_plan, attachment_limits=attachments.limits(current_plan))
+                           messages=[], current_plan=current_plan, attachment_limits=attachments.limits(current_plan),
+                           automation_enabled=automation_enabled(), automation_unread=unread)
 
 
 @ai_bp.get("/usage")
 def usage_page():
-    from . import billing, topups, usage
+    from . import automation_store, billing, topups, usage
     return render_template("kilas_ai/usage.html", state=usage.snapshot(session["user_id"]),
                            plans=usage.PLANS, invoices=billing.owner_invoices(session["user_id"]),
-                           topup_orders=topups.owner_orders(session["user_id"]), topup_packs=topups.PACKS)
+                           topup_orders=topups.owner_orders(session["user_id"]), topup_packs=topups.PACKS,
+                           automation=automation_store.usage_summary(session["user_id"]) if automation_enabled() else None)
 
 
 @ai_bp.post("/threads")
@@ -69,10 +77,13 @@ def thread_page(thread_id):
         except ValueError:
             row["metadata"] = {}
     current_plan = usage.effective_plan(session["user_id"])["plan"]
+    from . import automation_store
+    unread = automation_store.usage_summary(session["user_id"])["unread"] if automation_enabled() else 0
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
                            selected=selected, messages=rows,
                            attachments=store.attachment_list(session["user_id"], thread_id),
-                           current_plan=current_plan, attachment_limits=attachments.limits(current_plan))
+                           current_plan=current_plan, attachment_limits=attachments.limits(current_plan),
+                           automation_enabled=automation_enabled(), automation_unread=unread)
 
 
 @ai_bp.get("/threads/<int:thread_id>/attachments/<int:attachment_id>")

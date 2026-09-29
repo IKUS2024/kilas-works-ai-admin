@@ -6,13 +6,15 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
   <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}">
+  {% if automation_enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_automation.css',v='1') }}">{% endif %}
   <script src="{{ url_for('static',filename='kilas_ai.js',v='7') }}" defer></script>
 </head>
 <body>
-<div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}" data-max-image-bytes="{{ attachment_limits.max_image_bytes }}">
+<div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-automation-enabled="{{ '1' if automation_enabled else '0' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}" data-max-image-bytes="{{ attachment_limits.max_image_bytes }}">
   <aside class="ai-sidebar" id="ai-sidebar" aria-label="Riwayat chat">
     <div class="ai-sidebar-top"><a class="ai-brand" href="{{ url_for('kilas_ai.home') }}">Kilas <span>AI</span></a><button class="ai-icon ai-close" type="button" id="ai-close-menu" aria-label="Tutup riwayat">×</button></div>
     <a class="ai-new" href="{{ url_for('kilas_ai.home') }}">+ Chat baru</a>
+    {% if automation_enabled %}<nav class="ai-product-nav" aria-label="Kilas AI"><a href="{{ url_for('kilas_ai.home') }}" aria-current="page">Chat</a><a href="{{ url_for('kilas_ai.automation_home') }}">Automation{% if automation_unread %} <span class="ai-unread">{{ automation_unread }}</span>{% endif %}</a></nav>{% endif %}
     <nav class="ai-history" aria-label="Chat tersimpan">
       {% if threads %}{% for item in threads %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=item.id) }}" class="ai-history-item {{ 'is-current' if selected and item.id == selected.id else '' }}" {% if selected and item.id == selected.id %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
       {% else %}<p class="ai-sidebar-empty">Percakapanmu akan tersimpan di sini.</p>{% endif %}
