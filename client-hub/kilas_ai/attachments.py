@@ -1,16 +1,23 @@
 """Bounded Kilas AI file validation, extraction and provider context."""
 import base64
 import io
+import math
 import os
 import re
+import tempfile
 import zipfile
 from xml.etree import ElementTree
 
-from PIL import Image
+from PIL import Image, ImageOps
 from pypdf import PdfReader
 
 MAX_FILES = 4
 MAX_FILE_BYTES = 2 * 1024 * 1024
+MAX_IMAGE_BYTES = 100 * 1024 * 1024
+MAX_IMAGE_STORED_BYTES = 5 * 1024 * 1024
+MAX_IMAGE_PIXELS = 20_000_000
+MAX_IMAGE_SOURCE_PIXELS = 250_000_000
+MAX_NON_JPEG_SOURCE_PIXELS = 60_000_000
 MAX_EXTRACTED_CHARS = 12000
 PLAN_FILE_LIMITS = {"FREE": 2, "PLUS": 3, "PRO": 4, "MAX": 5}
 MIMES = {
@@ -19,6 +26,11 @@ MIMES = {
     "png": "image/png", "webp": "image/webp",
 }
 
+# Samsung flagship 200 MP JPEGs are valid inputs. PIL still fails closed above this
+# ceiling, and non-JPEG formats keep a tighter source-pixel bound because they do
+# not support JPEG-style draft decoding before resize.
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_SOURCE_PIXELS
+
 
 class AttachmentError(ValueError):
     pass
@@ -26,10 +38,96 @@ class AttachmentError(ValueError):
 
 def limits(plan):
     return {"max_files": PLAN_FILE_LIMITS.get(plan, PLAN_FILE_LIMITS["FREE"]),
-            "max_file_bytes": MAX_FILE_BYTES}
+            "max_file_bytes": MAX_FILE_BYTES,
+            "max_image_bytes": MAX_IMAGE_BYTES}
 
 
-def prepare(upload, max_file_bytes=MAX_FILE_BYTES):
+def _spool_upload(stream, limit):
+    spool = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024)
+    total = 0
+    while True:
+        chunk = stream.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            spool.close()
+            return None, total
+        spool.write(chunk)
+    spool.seek(0)
+    return spool, total
+
+
+def _target_size(width, height):
+    pixels = width * height
+    if pixels <= MAX_IMAGE_PIXELS:
+        return width, height
+    scale = math.sqrt(MAX_IMAGE_PIXELS / float(pixels))
+    return max(1, int(width * scale)), max(1, int(height * scale))
+
+
+def _encode_image(image, image_format):
+    working = image
+    if image_format == "JPEG" and working.mode != "RGB":
+        working = working.convert("RGB")
+    quality = 92
+    for _ in range(7):
+        output = io.BytesIO()
+        if image_format == "JPEG":
+            working.save(output, "JPEG", quality=quality, optimize=True, progressive=True)
+        elif image_format == "WEBP":
+            working.save(output, "WEBP", quality=quality, method=4)
+        else:
+            working.save(output, "PNG", optimize=True)
+        raw = output.getvalue()
+        if len(raw) <= MAX_IMAGE_STORED_BYTES:
+            return raw
+        quality = max(78, quality - 4)
+        next_size = (max(1, int(working.width * 0.82)), max(1, int(working.height * 0.82)))
+        if next_size == working.size:
+            break
+        resized = working.copy()
+        resized.thumbnail(next_size, Image.Resampling.LANCZOS)
+        working = resized
+    raise AttachmentError("Gambar terlalu besar untuk diproses dengan aman. Coba gunakan JPG atau resolusi yang lebih rendah.")
+
+
+def _prepare_image(spool, total, mime):
+    expected = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}[mime]
+    try:
+        with Image.open(spool) as opened:
+            if opened.format != expected or getattr(opened, "n_frames", 1) != 1:
+                raise ValueError("invalid_image")
+            width, height = opened.size
+            source_pixels = width * height
+            if source_pixels <= 0 or source_pixels > MAX_IMAGE_SOURCE_PIXELS:
+                raise AttachmentError("Resolusi gambar terlalu besar untuk diproses dengan aman.")
+            if expected != "JPEG" and source_pixels > MAX_NON_JPEG_SOURCE_PIXELS:
+                raise AttachmentError("PNG/WebP beresolusi sangat besar belum didukung. Gunakan JPG untuk foto resolusi tinggi.")
+
+            # Preserve ordinary uploads byte-for-byte. Large phone photos are
+            # normalized only when their payload or pixel count would be costly
+            # for the DB/provider path.
+            if source_pixels <= MAX_IMAGE_PIXELS and total <= MAX_IMAGE_STORED_BYTES:
+                opened.verify()
+                spool.seek(0)
+                return spool.read()
+
+            target = _target_size(width, height)
+            if expected == "JPEG":
+                opened.draft("RGB", target)
+            normalized = ImageOps.exif_transpose(opened)
+            if normalized.width * normalized.height > MAX_IMAGE_PIXELS:
+                normalized.thumbnail(_target_size(normalized.width, normalized.height), Image.Resampling.LANCZOS)
+            normalized.load()
+            return _encode_image(normalized, expected)
+    except AttachmentError:
+        raise
+    except Exception:
+        raise AttachmentError("Gambar tidak dapat dibaca atau formatnya tidak sesuai.") from None
+
+
+def prepare(upload, max_file_bytes=MAX_FILE_BYTES, max_image_bytes=MAX_IMAGE_BYTES):
     filename = os.path.basename(upload.filename or "")
     filename = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("._")[:120]
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -39,20 +137,21 @@ def prepare(upload, max_file_bytes=MAX_FILE_BYTES):
     claimed = (upload.mimetype or "").lower()
     if claimed not in (mime, "application/octet-stream") and not (extension == "csv" and claimed == "application/vnd.ms-excel"):
         raise AttachmentError("Tipe file tidak sesuai dengan isi yang dipilih.")
-    raw = upload.stream.read(max_file_bytes + 1)
-    if not raw or len(raw) > max_file_bytes:
-        raise AttachmentError("File kosong atau melebihi batas 2 MB.")
+
+    is_image = mime.startswith("image/")
+    limit = max_image_bytes if is_image else max_file_bytes
+    spool, total = _spool_upload(upload.stream, limit)
+    if spool is None or not total:
+        label = f"{limit // 1024 // 1024} MB"
+        raise AttachmentError(f"File kosong atau melebihi batas {label}.")
+    try:
+        raw = _prepare_image(spool, total, mime) if is_image else spool.read()
+    finally:
+        spool.close()
+
     extracted = None
-    if mime.startswith("image/"):
-        try:
-            with Image.open(io.BytesIO(raw)) as image:
-                image.verify()
-            with Image.open(io.BytesIO(raw)) as image:
-                expected = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}[mime]
-                if image.format != expected or image.width * image.height > 20_000_000 or getattr(image, "n_frames", 1) != 1:
-                    raise ValueError("invalid_image")
-        except Exception:
-            raise AttachmentError("Gambar tidak dapat dibaca atau formatnya tidak sesuai.") from None
+    if is_image:
+        pass
     elif extension == "pdf":
         if not raw.startswith(b"%PDF"):
             raise AttachmentError("PDF tidak valid.")

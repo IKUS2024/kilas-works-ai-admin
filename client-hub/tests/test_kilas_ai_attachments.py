@@ -64,6 +64,8 @@ class AttachmentTests(unittest.TestCase):
     def test_plan_attachment_counts_remain_bounded_and_account_specific(self):
         self.assertEqual([attachments.limits(plan)["max_files"] for plan in ("FREE", "PLUS", "PRO", "MAX")],
                          [2, 3, 4, 5])
+        self.assertEqual(attachments.limits("FREE")["max_file_bytes"], 2 * 1024 * 1024)
+        self.assertEqual(attachments.limits("FREE")["max_image_bytes"], 100 * 1024 * 1024)
         for plan, allowed in (("FREE", 2), ("PLUS", 3), ("PRO", 4), ("MAX", 5)):
             files = [upload(b"small text", f"note-{index}.txt", "text/plain") for index in range(allowed)]
             self.assertEqual(len(attachments.prepare_many(files, plan=plan)), allowed)
@@ -90,6 +92,19 @@ class AttachmentTests(unittest.TestCase):
         for raw, name, mime in cases:
             with self.subTest(name=name), self.assertRaises(attachments.AttachmentError):
                 attachments.prepare(upload(raw, name, mime))
+
+    def test_valid_phone_photo_above_legacy_two_mb_is_accepted(self):
+        stream = io.BytesIO()
+        image = Image.frombytes("RGB", (1024, 1024), os.urandom(1024 * 1024 * 3))
+        image.save(stream, "PNG")
+        raw = stream.getvalue()
+        self.assertGreater(len(raw), attachments.MAX_FILE_BYTES)
+        self.assertLess(len(raw), attachments.MAX_IMAGE_BYTES)
+
+        result = attachments.prepare(upload(raw, "s25-photo.png", "image/png"))
+        self.assertEqual(result["content"], raw)
+        self.assertEqual(result["byte_size"], len(raw))
+        self.assertEqual(result["mime_type"], "image/png")
 
     def test_multiple_files_durable_and_provider_receives_image(self):
         client = self.client_for(self.a)
