@@ -45,6 +45,20 @@ class AutomationScheduleTests(unittest.TestCase):
         with self.assertRaises(schedule.ScheduleError):
             schedule.validate_timezone("UTC+7")
 
+    def test_weekly_monthly_interval_and_safe_reminder(self):
+        now = datetime(2026, 9, 29, 4, tzinfo=timezone.utc)
+        weekly = schedule.parse("Setiap Senin jam 9 cari lowongan admin terbaru.", now=now)
+        self.assertEqual(weekly["schedule"]["weekday"], 0)
+        monthly = schedule.parse("Setiap tanggal 25 jam 8 ingetin bayar internet.", now=now)
+        self.assertEqual(monthly["schedule"]["day"], 25)
+        interval = schedule.parse("Setiap 6 jam cari berita terbaru.", now=now)
+        self.assertEqual(interval["schedule"]["hours"], 6)
+        self.assertEqual(schedule.parse("Besok jam 8 ingetin gue beli tiket.", now=now)["automation_type"], "REMINDER")
+        with self.assertRaises(schedule.ScheduleError):
+            schedule.parse("Setiap 0 jam cari berita terbaru.", now=now)
+        with self.assertRaises(schedule.ScheduleError):
+            schedule.parse("Besok jam 8 beli tiket untuk saya.", now=now)
+
 
 class AutomationFlowTests(unittest.TestCase):
     @classmethod
@@ -104,6 +118,65 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertEqual(store.claim_due(now=due), [])
         self.assertEqual(store.usage_summary(self.other)["runs"], 1)
         self.assertEqual(store.get(self.other, automation_id)["status"], "ACTIVE")
+
+    def test_access_csrf_active_limit_pause_resume_and_delete(self):
+        owner = repo.create_user("automation-limit@example.test", "hash")
+        client = self.client_for(owner)
+        self.assertEqual(self.app.test_client().get("/kilas-ai/automation").status_code, 303)
+        self.assertEqual(client.post("/kilas-ai/automation/timezone", data={"timezone": "Asia/Jakarta"}).status_code, 400)
+        self.assertEqual(client.post("/kilas-ai/automation/timezone", data={"csrf_token": "automation-csrf",
+            "timezone": "UTC+7"}).status_code, 303)
+        spec = schedule.parse("Setiap hari jam 8 ingetin gue minum air.")
+        first = store.create(owner, spec)
+        with self.assertRaises(store.AutomationError):
+            store.create(owner, spec)
+        store.set_status(owner, first, "pause")
+        self.assertEqual(store.get(owner, first)["status"], "PAUSED")
+        second = store.create(owner, spec)
+        with self.assertRaises(store.AutomationError):
+            store.set_status(owner, first, "resume")
+        store.set_status(owner, second, "delete")
+        self.assertIsNone(store.get(owner, second))
+        store.set_status(owner, first, "resume")
+        self.assertEqual(store.get(owner, first)["status"], "ACTIVE")
+        self.assertEqual(store.usage_summary(owner)["active"], 1)
+
+    def test_watch_only_alerts_on_match_or_meaningful_change(self):
+        owner = repo.create_user("automation-watch@example.test", "hash")
+        spec = schedule.parse("Pantau harga emas di bawah Rp1.800.000 setiap hari jam 9.")
+        automation_id = store.create(owner, spec)
+        fake_search = {"text": "Harga emas dengan sumber.", "model": "gpt-6-luna",
+                       "usage": {"input_tokens": 5, "output_tokens": 5},
+                       "citations": [{"title": "Sumber", "url": "https://example.com/gold"}]}
+        next_due = spec["next_run_at"] + timedelta(minutes=1)
+        with patch.object(runner.tools, "web_search", return_value=fake_search), \
+             patch.object(runner, "_plain_ai", side_effect=[
+                 ('{"value":1700000,"summary":"Harga di bawah batas."}', "openai", "gpt-6-luna", {}),
+                 ('{"value":1700000,"summary":"Harga tetap."}', "openai", "gpt-6-luna", {}),
+                 ('{"value":1690000,"summary":"Harga berubah."}', "openai", "gpt-6-luna", {})]):
+            ids = []
+            for _ in range(3):
+                claimed = store.claim_due(now=next_due)
+                self.assertEqual(len(claimed), 1)
+                ids += claimed
+                self.assertTrue(runner.execute(claimed[0]))
+                row = store.get(owner, automation_id)
+                next_due = datetime.fromisoformat(row["next_run_at"]) + timedelta(minutes=1)
+        self.assertEqual(store.result(owner, ids[0])["result_text"], "Harga di bawah batas.")
+        self.assertIsNone(store.result(owner, ids[1])["result_text"])
+        self.assertEqual(store.result(owner, ids[2])["result_text"], "Harga berubah.")
+
+    def test_billable_run_cap_pauses_without_provider_call(self):
+        owner = repo.create_user("automation-run-limit@example.test", "hash")
+        spec = schedule.parse("Setiap hari jam 9 cari berita terbaru.")
+        automation_id = store.create(owner, spec)
+        due = spec["next_run_at"] + timedelta(minutes=1)
+        for index in range(10):
+            db.execute("INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,attempt_count) "
+                       "VALUES (?,?,?,'SUCCEEDED',1)",
+                       (automation_id, owner, (due - timedelta(minutes=index + 2)).isoformat()))
+        self.assertEqual(store.claim_due(now=due), [])
+        self.assertEqual(store.get(owner, automation_id)["status"], "PAUSED_QUOTA")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Account-owned Automation persistence and transactional due-run claims."""
+﻿"""Account-owned Automation persistence and transactional due-run claims."""
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -73,7 +73,9 @@ def usage_summary(user_id):
                             "AND r.attempt_count>0 AND r.status NOT IN ('SKIPPED_QUOTA','SKIPPED_DUPLICATE') "
                             "AND r.scheduled_for>=? AND r.scheduled_for<?",
                             (user_id, _iso(start), _iso(end)), one=True)[0]
-        unread = usage._query(conn, "SELECT COUNT(*) FROM kilas_automation_runs WHERE user_id=? AND unread=?",
+        unread = usage._query(conn, "SELECT COUNT(*) FROM kilas_automation_runs r "
+                              "JOIN kilas_automations a ON a.id=r.automation_id "
+                              "WHERE r.user_id=? AND a.user_id=r.user_id AND a.deleted_at IS NULL AND r.unread=?",
                               (user_id, True if db.BACKEND == "postgres" else 1), one=True)[0]
         conn.commit()
         return {"plan": plan, "active": active, "active_limit": ACTIVE_LIMITS[plan],
@@ -163,6 +165,8 @@ def set_status(user_id, automation_id, action):
             usage._query(conn, "UPDATE kilas_automations SET status='PAUSED',next_run_at=NULL,"
                          "deleted_at=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",
                          (_iso(_now()), automation_id, user_id))
+            usage._query(conn, "UPDATE kilas_automation_runs SET unread=? WHERE automation_id=? AND user_id=?",
+                         (False if db.BACKEND == "postgres" else 0, automation_id, user_id))
         elif action == "pause":
             usage._query(conn, "UPDATE kilas_automations SET status='PAUSED',next_run_at=NULL,"
                          "updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",
@@ -210,12 +214,11 @@ def mark_read(user_id, run_id):
 
 
 def _retry_due(conn, now):
-    suffix = " FOR UPDATE SKIP LOCKED" if db.BACKEND == "postgres" else ""
-    return usage._query(conn, "SELECT r.id FROM kilas_automation_runs r "
+    return usage._query(conn, "SELECT r.id,r.user_id FROM kilas_automation_runs r "
                         "JOIN kilas_automations a ON a.id=r.automation_id "
                         "WHERE r.status='QUEUED' AND r.retry_at<=? AND r.attempt_count<2 "
                         "AND a.status='ACTIVE' AND a.deleted_at IS NULL "
-                        "ORDER BY r.retry_at,r.id LIMIT 1" + suffix, (_iso(now),), one=True)
+                        "ORDER BY r.retry_at,r.id LIMIT 1", (_iso(now),), one=True)
 
 
 def claim_due(limit=10, now=None):
@@ -227,21 +230,38 @@ def claim_due(limit=10, now=None):
         try:
             retry = _retry_due(conn, now)
             if retry:
-                run_id = retry[0]
+                run_id, user_id = retry
+                _lock_user(conn, user_id)
+                suffix = " FOR UPDATE OF r SKIP LOCKED" if db.BACKEND == "postgres" else ""
+                ready = usage._query(conn, "SELECT r.id FROM kilas_automation_runs r "
+                                     "JOIN kilas_automations a ON a.id=r.automation_id "
+                                     "WHERE r.id=? AND r.status='QUEUED' AND r.retry_at<=? "
+                                     "AND r.attempt_count<2 AND a.status='ACTIVE' AND a.deleted_at IS NULL" + suffix,
+                                     (run_id, _iso(now)), one=True)
+                if not ready:
+                    conn.commit()
+                    continue
                 usage._query(conn, "UPDATE kilas_automation_runs SET status='RUNNING',attempt_count=attempt_count+1,"
                              "started_at=?,lease_until=?,retry_at=NULL WHERE id=? AND status='QUEUED'",
                              (_iso(now), _iso(now + timedelta(minutes=30)), run_id))
                 conn.commit()
                 claimed.append(run_id)
                 continue
-            suffix = " FOR UPDATE SKIP LOCKED" if db.BACKEND == "postgres" else ""
-            due = usage._query(conn, "SELECT id,user_id,automation_type,schedule_json,timezone,next_run_at "
-                               "FROM kilas_automations WHERE status='ACTIVE' AND deleted_at IS NULL "
-                               "AND next_run_at<=? ORDER BY next_run_at,id LIMIT 1" + suffix,
+            candidate = usage._query(conn, "SELECT id,user_id FROM kilas_automations "
+                               "WHERE status='ACTIVE' AND deleted_at IS NULL "
+                               "AND next_run_at<=? ORDER BY next_run_at,id LIMIT 1",
                                (_iso(now),), one=True)
-            if not due:
+            if not candidate:
                 conn.commit()
                 break
+            _lock_user(conn, candidate[1])
+            suffix = " FOR UPDATE SKIP LOCKED" if db.BACKEND == "postgres" else ""
+            due = usage._query(conn, "SELECT id,user_id,automation_type,schedule_json,timezone,next_run_at "
+                               "FROM kilas_automations WHERE id=? AND status='ACTIVE' AND deleted_at IS NULL "
+                               "AND next_run_at<=?" + suffix, (candidate[0], _iso(now)), one=True)
+            if not due:
+                conn.commit()
+                continue
             automation_id, user_id, kind, raw_schedule, zone, scheduled_for = due
             scheduled = usage._as_utc(scheduled_for)
             schedule = json.loads(raw_schedule)
@@ -261,7 +281,6 @@ def claim_due(limit=10, now=None):
                 conn.commit()
                 continue
             if kind != "REMINDER":
-                _lock_user(conn, user_id)
                 plan, start, end = _plan_period(conn, user_id, now)
                 count = usage._query(conn, "SELECT COUNT(*) FROM kilas_automation_runs r "
                                      "JOIN kilas_automations a ON a.id=r.automation_id "
@@ -294,7 +313,8 @@ def claim_due(limit=10, now=None):
     return claimed
 
 
-def finish_run(run_id, *, status, text=None, metadata=None, usage_metadata=None, error=None, retry=False):
+def finish_run(run_id, *, status, text=None, metadata=None, usage_metadata=None, error=None, retry=False,
+               watch_state=None):
     if status not in ("SUCCEEDED", "FAILED", "SKIPPED_QUOTA"):
         raise ValueError("invalid_run_status")
     conn = usage._connect()
@@ -320,6 +340,10 @@ def finish_run(run_id, *, status, text=None, metadata=None, usage_metadata=None,
             usage._query(conn, "UPDATE kilas_automations SET last_success_at=?,last_error_code=NULL,"
                          "updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",
                          (_iso(now), automation_id, user_id))
+            if watch_state is not None:
+                usage._query(conn, "UPDATE kilas_automations SET watch_state_json=? "
+                             "WHERE id=? AND user_id=? AND deleted_at IS NULL",
+                             (json.dumps(watch_state), automation_id, user_id))
         elif status == "SKIPPED_QUOTA":
             usage._query(conn, "UPDATE kilas_automations SET status='PAUSED_QUOTA',last_error_code=?,"
                          "updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",
@@ -355,8 +379,3 @@ def recover_stale(now=None):
         else:
             finish_run(row["id"], status="FAILED", error="interrupted_unknown")
     return len(rows)
-
-
-def update_watch_state(automation_id, user_id, state):
-    db.execute("UPDATE kilas_automations SET watch_state_json=?,updated_at=CURRENT_TIMESTAMP "
-               "WHERE id=? AND user_id=? AND deleted_at IS NULL", (json.dumps(state), automation_id, user_id))

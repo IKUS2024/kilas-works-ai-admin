@@ -64,8 +64,6 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
     text = " ".join(str(instruction or "").split())
     if not 8 <= len(text) <= 1200:
         raise ScheduleError("Tulis instruksi Automation yang jelas (maksimal 1.200 karakter).")
-    if FORBIDDEN.search(text):
-        raise ScheduleError("Automation belum bisa mengendalikan website atau mengirim pesan. Coba Reminder atau Search.")
     zone = timezone_from_instruction(text, default_timezone)
     local_now = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo(zone))
     value = text.lower()
@@ -73,6 +71,9 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
             else "REMINDER" if re.search(r"\b(?:ingatkan|ingetin|remind|pengingat)\b", value)
             else "SEARCH" if re.search(r"\b(?:cari|search|berita terbaru|lowongan terbaru|riset)\b", value)
             else "AI_TASK")
+    if any(kind != "REMINDER" or match.group(0).lower() not in ("beli", "purchase")
+           for match in FORBIDDEN.finditer(text)):
+        raise ScheduleError("Automation belum bisa mengendalikan website atau mengirim pesan. Coba Reminder atau Search.")
     condition = {}
     if kind == "WATCH":
         match = re.search(r"\b(di bawah|kurang dari|below|under|di atas|lebih dari|above|over)\s+(?:rp\s*)?([\d.,]+)", value)

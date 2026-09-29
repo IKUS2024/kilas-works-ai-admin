@@ -127,13 +127,12 @@ def execute(run_id):
             fingerprint = hashlib.sha256(str(observed).strip().lower().encode()).hexdigest()
         previous = json.loads(item["watch_state_json"] or "{}")
         notify = matched and (not previous.get("matched") or previous.get("fingerprint") != fingerprint)
-        store.update_watch_state(item["automation_id"], user_id,
-                                 {"matched": matched, "fingerprint": fingerprint,
-                                  "checked_at": datetime.now(timezone.utc).isoformat()})
+        watch_state = {"matched": matched, "fingerprint": fingerprint,
+                       "checked_at": datetime.now(timezone.utc).isoformat()}
         _settle(user_id, reservations, results=results)
         store.finish_run(run_id, status="SUCCEEDED", text=summary if notify else None,
                          metadata={"citations": citations} if notify else {},
-                         usage_metadata={"operation": "WATCH", "matched": matched})
+                         usage_metadata={"operation": "WATCH", "matched": matched}, watch_state=watch_state)
         return True
     except usage.UsageLimit:
         _settle(user_id, reservations, results=results)
