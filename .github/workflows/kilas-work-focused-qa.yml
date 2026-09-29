@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt
       - run: cd client-hub && python tests/test_kilas_work_foundation.py
       - run: cd client-hub && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
