@@ -29,9 +29,9 @@ Assumptions per Chat: Luna 2,500 input + 500 output tokens ($0.0005); Sol 6,000 
 
 | Plan | Revenue at Rp17k/USD | Normal cost / revenue | Heavy cost / revenue | Full cost / revenue |
 |---|---:|---:|---:|---:|
-| Plus | $4.06 | $0.36 / 9.0% | $1.60 / 39.4% | $2.28 / 56.2% |
-| Pro | $8.76 | $0.91 / 10.4% | $4.01 / 45.7% | $5.72 / 65.3% |
-| Max | $17.59 | $1.82 / 10.4% | $8.00 / 45.5% | $11.43 / 65.0% |
+| Plus | $4.06 | $0.37 / 9.2% | $1.60 / 39.4% | $2.28 / 56.2% |
+| Pro | $8.76 | $0.94 / 10.7% | $4.01 / 45.7% | $5.72 / 65.3% |
+| Max | $17.59 | $1.87 / 10.6% | $8.00 / 45.5% | $11.43 / 65.0% |
 
 At 100% Free quota with Luna Chat, the same assumptions yield about $0.137 including buffer. Heavy and full paid scenarios exceed the 35% premium/tool hard guard, so they represent unconstrained demand rather than permitted base-plan spend. Ordinary economical Chat remains available within its published Chat allowance when the premium/tool guard trips. Internal warning starts around 25% of plan revenue. Payment fees, Render, PostgreSQL, storage, support, and tax are outside these provider/tool ratios.
 
