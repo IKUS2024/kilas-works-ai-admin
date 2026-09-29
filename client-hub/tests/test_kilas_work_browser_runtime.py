@@ -34,6 +34,16 @@ class RealBrowserTests(unittest.TestCase):
             self.assertNotEqual(page.locator("body").get_attribute("data-clicked"), "yes")
             runtime.actions(101, 9001, click, call_id="confirmed-by-owner", manual=True)
             self.assertEqual(page.locator("body").get_attribute("data-clicked"), "yes")
+            page.set_content("<input type=file><a href='data:text/plain,hello-work' download='report.txt'>Download</a>")
+            runtime.upload(101, 9001, "sample.txt", b"owner file", "text/plain")
+            self.assertEqual(page.locator("input[type=file]").evaluate("e => e.files[0].name"), "sample.txt")
+            with page.expect_download():
+                page.get_by_text("Download").click()
+            downloaded = runtime.snapshot(101, 9001)["downloads"]
+            self.assertEqual(downloaded[0]["name"], "report.txt")
+            with self.assertRaises(BrowserRuntimeError):
+                runtime.download(102, 9001, downloaded[0]["index"])
+            self.assertEqual(runtime.download(101, 9001, downloaded[0]["index"])["content"], b"hello-work")
             page.set_content("<p>Enter your verification code</p><input type=password>")
             position = page.locator("input").bounding_box()
             self.assertEqual(runtime.actions(101, 9001, [{"type": "click", "x": int(position["x"] + 5),
