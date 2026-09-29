@@ -63,3 +63,17 @@
 @media(max-width:760px){.ai-messages{padding:20px 16px 8px}.ai-empty{padding:28px 18px}.ai-empty h1{font-size:34px}.ai-empty p{font-size:17px}.ai-user .ai-message-text{max-width:92%}}
 @media(max-width:440px){.ai-file-card{grid-template-columns:43px minmax(0,1fr);gap:8px}.ai-file-actions{grid-column:2;justify-content:flex-start}.ai-start-form{padding:12px}.ai-empty{padding:24px 14px}.ai-composer-actions{gap:7px}.ai-composer-actions select{max-width:92px}}
 @media(prefers-reduced-motion:reduce){.ai-activity::before{animation:none}.ai-messages{scroll-behavior:auto}}
+/* The same composer serves a new chat, a legacy empty thread, and a conversation. */
+.ai-sidebar .ai-new{display:flex;align-items:center;width:100%;border:1px solid #4b4e55;background:#2b2d32;color:var(--text);font-weight:720}
+.ai-sidebar .ai-new:hover{background:#35383e;border-color:#d57531;text-decoration:none}
+.ai-history{margin-top:18px;gap:2px}.ai-history-item{padding:8px 11px}.ai-history-item.is-current{box-shadow:inset 2px 0 var(--accent)}
+.ai-toolbar-title{font-size:15px;font-weight:720;letter-spacing:-.01em}.ai-thread-menu summary{min-height:40px;display:flex;align-items:center}
+.ai-messages{padding-top:26px;padding-bottom:24px}.ai-message{margin:0;max-width:100%}.ai-message+.ai-message{margin-top:18px}.ai-assistant+.ai-user{margin-top:34px}
+.ai-user .ai-message-text{width:fit-content;max-width:min(84%,620px);padding:10px 14px}.ai-assistant .ai-message-text{max-width:72ch}
+.ai-assistant .ai-message-name{margin-bottom:5px}.ai-copy,.ai-regenerate{margin-top:7px}.ai-activity{margin-bottom:8px}
+.ai-composer-area{width:min(100%,808px)}.ai-composer{border-radius:16px;padding:13px 14px}.ai-composer textarea{min-height:60px}
+.ai-composer-actions{flex-wrap:wrap;gap:8px 10px}.ai-control-group{display:inline-flex;align-items:center;gap:7px;min-width:0}.ai-control-group label{white-space:nowrap}.ai-send:disabled{opacity:.55;cursor:wait}
+.ai-main.is-empty .ai-empty{width:min(100%,808px);margin:auto auto 0;padding:0 24px;text-align:left}.ai-main.is-empty .ai-composer-area{margin:0 auto auto;padding-top:23px}.ai-main.is-empty .ai-empty p{margin-bottom:0}
+.ai-composer:focus-within,.ai-sidebar .ai-new:focus-visible,.ai-composer-actions select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(max-width:760px){.ai-messages{padding:20px 16px 18px}.ai-message+.ai-message{margin-top:16px}.ai-assistant+.ai-user{margin-top:28px}.ai-main.is-empty .ai-empty{padding:0 16px}.ai-main.is-empty .ai-composer-area{padding:20px 10px 14px}}
+@media(max-width:440px){.ai-composer-actions select{max-width:116px}.ai-user .ai-message-text{max-width:90%}.ai-composer{padding:11px}.ai-main.is-empty .ai-empty{padding:0 14px}}

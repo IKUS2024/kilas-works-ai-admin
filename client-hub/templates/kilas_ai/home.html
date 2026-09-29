@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
-  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='3') }}">
-  <script src="{{ url_for('static',filename='kilas_ai.js',v='3') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='4') }}">
+  <script src="{{ url_for('static',filename='kilas_ai.js',v='4') }}" defer></script>
 </head>
 <body>
 <div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}">
   <aside class="ai-sidebar" id="ai-sidebar" aria-label="Riwayat chat">
     <div class="ai-sidebar-top"><a class="ai-brand" href="{{ url_for('kilas_ai.home') }}">Kilas <span>AI</span></a><button class="ai-icon ai-close" type="button" id="ai-close-menu" aria-label="Tutup riwayat">×</button></div>
-    <form method="post" action="{{ url_for('kilas_ai.new_thread') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-new" type="submit">+ Chat baru</button></form>
+    <a class="ai-new" href="{{ url_for('kilas_ai.home') }}">+ Chat baru</a>
     <nav class="ai-history" aria-label="Chat tersimpan">
       {% if threads %}{% for item in threads %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=item.id) }}" class="ai-history-item {{ 'is-current' if selected and item.id == selected.id else '' }}" {% if selected and item.id == selected.id %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
       {% else %}<p class="ai-sidebar-empty">Percakapanmu akan tersimpan di sini.</p>{% endif %}
@@ -20,17 +20,17 @@
     <div class="ai-sidebar-bottom"><span class="ai-sidebar-plan">Paket {{ current_plan.title() }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">Paket & penggunaan</a><a href="{{ url_for('products.product_start') }}">Ganti Layanan</a></div>
   </aside>
   <button type="button" class="ai-backdrop" id="ai-backdrop" aria-label="Tutup riwayat"></button>
-  <main class="ai-main">
-    <header class="ai-toolbar"><button class="ai-icon ai-menu" id="ai-open-menu" type="button" aria-controls="ai-sidebar" aria-expanded="false" aria-label="Buka riwayat">☰</button><div class="ai-toolbar-title">{{ selected.title if selected else 'Kilas AI' }}</div>
-      {% if selected %}<details class="ai-thread-menu"><summary>Opsi</summary><div class="ai-menu-content">
-        <form method="post" action="{{ url_for('kilas_ai.rename',thread_id=selected.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="ai-title">Nama chat</label><input id="ai-title" name="title" maxlength="100" value="{{ selected.title }}" required><button type="submit">Simpan nama</button></form>
-        <form method="post" action="{{ url_for('kilas_ai.share',thread_id=selected.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Bagikan chat</button></form>
-        {% if selected.share_token_hash %}<form method="post" action="{{ url_for('kilas_ai.revoke',thread_id=selected.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Cabut akses berbagi</button></form>{% endif %}
-        <form method="post" action="{{ url_for('kilas_ai.delete',thread_id=selected.id) }}" onsubmit="return confirm('Hapus chat ini?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-danger" type="submit">Hapus chat</button></form>
-      </div></details>{% endif %}
+  <main class="ai-main {{ 'is-empty' if not messages else '' }}">
+    <header class="ai-toolbar"><button class="ai-icon ai-menu" id="ai-open-menu" type="button" aria-controls="ai-sidebar" aria-expanded="false" aria-label="Buka riwayat">☰</button><div class="ai-toolbar-title">{{ selected.title if selected and messages else 'Kilas AI' }}</div>
+      <details class="ai-thread-menu" {% if not selected %}hidden{% endif %}><summary>Opsi</summary><div class="ai-menu-content">
+        <form method="post" data-action="rename" action="{{ url_for('kilas_ai.rename',thread_id=selected.id) if selected else '' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="ai-title">Nama chat</label><input id="ai-title" name="title" maxlength="100" value="{{ selected.title if selected else '' }}" required><button type="submit">Simpan nama</button></form>
+        <form method="post" data-action="share" action="{{ url_for('kilas_ai.share',thread_id=selected.id) if selected else '' }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Bagikan chat</button></form>
+        {% if selected and selected.share_token_hash %}<form method="post" action="{{ url_for('kilas_ai.revoke',thread_id=selected.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit">Cabut akses berbagi</button></form>{% endif %}
+        <form method="post" data-action="delete" action="{{ url_for('kilas_ai.delete',thread_id=selected.id) if selected else '' }}" onsubmit="return confirm('Hapus chat ini?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-danger" type="submit">Hapus chat</button></form>
+      </div></details>
     </header>
-    {% if selected %}
-    <div class="ai-messages" id="ai-messages" aria-live="polite">
+    <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>Kilas Works</h1><p>Apa yang ingin kamu kerjakan hari ini?</p></section>
+    <div class="ai-messages" id="ai-messages" aria-live="polite" {% if not messages %}hidden{% endif %}>
       {% for message in messages %}<article class="ai-message ai-{{ message.role }}"><div class="ai-message-name">{{ 'Kamu' if message.role == 'user' else 'Kilas AI' }}</div><div class="ai-message-text {{ 'ai-markdown' if message.role == 'assistant' else '' }}">{{ message.content }}</div>
         {% for item in attachments if item.message_id == message.id %}
           {% if item.mime_type.startswith('image/') %}<div class="ai-image-result"><a href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" target="_blank" rel="noopener"><img class="ai-message-image" src="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id,inline=1) }}" alt="Gambar dalam chat"></a><a class="ai-sent-file" href="{{ url_for('kilas_ai.attachment_download',thread_id=selected.id,attachment_id=item.id) }}">Download gambar</a></div>
@@ -43,9 +43,8 @@
     <div class="ai-composer-area"><p class="ai-notice" id="ai-notice" role="status"></p><form id="ai-composer" class="ai-composer">
       <label class="ai-visually-hidden" for="ai-input">Tulis pesan</label><textarea id="ai-input" maxlength="12000" rows="2" placeholder="Tulis pesan untuk Kilas AI..."></textarea>
       <div class="ai-pending" id="ai-pending" aria-live="polite"></div>
-      <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">+ Lampiran</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="Pilih lampiran"><label for="ai-tool">Aksi</label><select id="ai-tool" name="tool"><option value="CHAT">Chat</option><option value="WEB">Web</option><option value="IMAGE_GENERATE">Buat gambar</option><option value="IMAGE_EDIT">Edit gambar</option></select><label for="ai-mode">Mode</label><select id="ai-mode" name="mode"><option value="FAST" {{ 'selected' if selected.selected_mode == 'FAST' else '' }}>Fast</option><option value="SMART" {{ 'selected' if selected.selected_mode == 'SMART' else '' }}>Smart</option><option value="EXPERT" {{ 'selected' if selected.selected_mode == 'EXPERT' else '' }}>Expert</option></select><button class="ai-send" type="submit" id="ai-send">Kirim</button><button class="ai-stop" type="button" id="ai-stop" hidden>Stop</button></div>
+      <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">+ Lampiran</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="Pilih lampiran"><span class="ai-control-group"><label for="ai-tool">Aksi</label><select id="ai-tool" name="tool"><option value="CHAT">Chat</option><option value="WEB">Web</option><option value="IMAGE_GENERATE">Buat gambar</option><option value="IMAGE_EDIT">Edit gambar</option></select></span><span class="ai-control-group"><label for="ai-mode">Mode</label><select id="ai-mode" name="mode"><option value="FAST" {{ 'selected' if selected and selected.selected_mode == 'FAST' else '' }}>Fast</option><option value="SMART" {{ 'selected' if not selected or selected.selected_mode == 'SMART' else '' }}>Smart</option><option value="EXPERT" {{ 'selected' if selected and selected.selected_mode == 'EXPERT' else '' }}>Expert</option></select></span><button class="ai-send" type="submit" id="ai-send">Kirim</button><button class="ai-stop" type="button" id="ai-stop" hidden>Stop</button></div>
       <p class="ai-inline-hint" id="ai-edit-hint" hidden>Upload gambar terlebih dahulu untuk diedit.</p>
     </form><p class="ai-hint">Jawaban AI dapat keliru. Periksa informasi penting.</p></div>
-    {% else %}<section class="ai-empty"><h1>Kilas Works</h1><p>Apa yang ingin kamu kerjakan hari ini?</p><form id="ai-start" method="post" action="{{ url_for('kilas_ai.new_thread') }}" class="ai-start-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="ai-visually-hidden" for="ai-start-input">Tulis pesan pertama</label><textarea id="ai-start-input" rows="2" maxlength="12000" placeholder="Tulis ide, pertanyaan, atau pekerjaanmu..."></textarea><div class="ai-start-actions"><label for="ai-start-mode">Mode</label><select id="ai-start-mode" name="mode"><option value="FAST">Fast</option><option value="SMART" selected>Smart</option><option value="EXPERT">Expert</option></select><button class="ai-new" type="submit">Mulai chat</button></div></form><span class="ai-empty-note">Dokumen, web, dan gambar tersedia setelah chat dimulai.</span></section>{% endif %}
   </main>
 </div></body></html>

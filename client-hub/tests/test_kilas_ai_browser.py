@@ -15,7 +15,7 @@ os.environ.pop("DATABASE_URL", None)
 import app  # noqa: E402
 import repo  # noqa: E402
 from PIL import Image  # noqa: E402
-from kilas_ai import providers, tools  # noqa: E402
+from kilas_ai import providers, store, tools  # noqa: E402
 from playwright.sync_api import sync_playwright  # noqa: E402
 from werkzeug.serving import make_server  # noqa: E402
 
@@ -59,11 +59,14 @@ def main():
                 assert page.get_by_role("heading", name="Kilas Works").is_visible()
                 assert page.get_by_text("Apa yang ingin kamu kerjakan hari ini?").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "empty")
-                page.locator(".ai-empty .ai-new").click()
-                page.wait_for_url("**/kilas-ai/threads/*")
+                if width <= 760:
+                    page.get_by_role("button", name="Buka riwayat").click()
+                page.get_by_role("link", name="+ Chat baru").click()
+                assert page.url.endswith("/kilas-ai")
+                assert store.list_threads(owner) == []
+                assert page.get_by_role("heading", name="Kilas Works").is_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
                 assert page.locator(".ai-sidebar-plan").inner_text() == "Paket Free"
-                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat")
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
                     assert page.locator("#ai-sidebar").is_visible()
@@ -79,8 +82,18 @@ def main():
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
+                page.wait_for_url("**/kilas-ai/threads/*")
+                assert len(store.list_threads(owner)) == 1
+                assert page.locator(".ai-user .ai-message-text").first.inner_text() == "Halo Kilas AI"
+                assert page.locator("#ai-mode").input_value() == "FAST"
+                page.locator("#ai-input").fill("Pesan kedua")
+                page.get_by_role("button", name="Kirim").click()
+                page.locator(".ai-user .ai-message-text").nth(1).wait_for()
+                assert page.locator(".ai-user .ai-message-text").nth(1).inner_text() == "Pesan kedua"
+                gap = page.evaluate("""() => {const a=document.querySelectorAll('.ai-message');return a[2].getBoundingClientRect().top-a[1].getBoundingClientRect().bottom;}""")
+                assert gap < 100, (width, "message gap", gap)
                 page.reload(wait_until="networkidle")
-                assert page.get_by_text("Jawaban uji Kilas AI.").is_visible()
+                assert page.get_by_text("Jawaban uji Kilas AI.").first.is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "answer")
                 page.locator("#ai-input").fill("Buat jawaban tadi jadi PDF.")
                 page.get_by_role("button", name="Kirim").click()
@@ -97,6 +110,20 @@ def main():
                 page.get_by_role("button", name="Kirim").click()
                 page.locator(".ai-image-result img").wait_for()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "image")
+                count = len(store.list_threads(owner))
+                if width <= 760:
+                    page.get_by_role("button", name="Buka riwayat").click()
+                page.get_by_role("link", name="+ Chat baru").click()
+                assert page.url.endswith("/kilas-ai")
+                assert page.get_by_role("heading", name="Kilas Works").is_visible()
+                assert page.locator("#ai-mode").input_value() == "FAST"
+                assert len(store.list_threads(owner)) == count
+                legacy = store.create_thread(owner, "SMART")
+                page.goto(origin + f"/kilas-ai/threads/{legacy}", wait_until="networkidle")
+                assert page.get_by_role("heading", name="Kilas Works").is_visible()
+                assert page.locator(".ai-messages").is_hidden()
+                assert page.locator("#ai-composer").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
                 assert page.get_by_role("heading", name="Paket & penggunaan").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "plans")

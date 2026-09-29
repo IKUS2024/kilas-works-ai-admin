@@ -45,11 +45,17 @@ def usage_page():
 @ai_bp.post("/threads")
 def new_thread():
     from . import store
-    mode = (request.form.get("mode") or "SMART").upper()
+    body = (request.get_json(silent=True) or {}) if request.is_json else request.form
+    mode = str(body.get("mode") or "SMART").upper()
     if mode not in store.MODES:
         abort(400)
+    if not request.is_json:
+        return redirect(url_for("kilas_ai.home"), code=303)
+    first_message = str(body.get("first_message") or "").strip()
+    if not first_message or len(first_message) > 12000:
+        abort(400)
     thread_id = store.create_thread(session["user_id"], mode)
-    return redirect(url_for("kilas_ai.thread_page", thread_id=thread_id), code=303)
+    return {"thread_id": thread_id, "url": url_for("kilas_ai.thread_page", thread_id=thread_id)}, 201
 
 
 @ai_bp.get("/threads/<int:thread_id>")
