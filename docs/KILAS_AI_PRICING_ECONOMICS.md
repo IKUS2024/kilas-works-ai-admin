@@ -12,12 +12,14 @@ Published standard token rates are $0.10 input / $0.50 output per million tokens
 
 | Plan | Price / period | Chat | Free daily Chat | Search | Image generate/edit | Generated PDF |
 |---|---:|---:|---:|---:|---:|---:|
-| Free | Rp0 | 100 / calendar month | 10 | 3 | 1 | 2 |
-| Plus | Rp69,000 / 30 days | 600 | — | 15 | 5 | 20 |
-| Pro | Rp149,000 / 30 days | 1,500 | — | 40 | 12 | 60 |
-| Max | Rp299,000 / 30 days | 3,000 | — | 80 | 25 | 150 |
+| Free | Rp0 | 100 / calendar month | 10 | 3 | 2 | 10 |
+| Plus | Rp69,000 / 30 days | 600 | — | 15 | 20 | 75 |
+| Pro | Rp149,000 / 30 days | 1,500 | — | 40 | 50 | 180 |
+| Max | Rp299,000 / 30 days | 3,000 | — | 80 | 100 | 350 |
 
 One Chat or uploaded-file analysis consumes one Chat; Search consumes one Search; generated/edited image consumes one Image; generated PDF consumes one PDF. Search/PDF no longer also consume Chat. Historical paired ledger rows are retained but their companion Chat rows are excluded from new visible Chat totals. Invalid requests reserve nothing. All paid plans use the same automatic model routing.
+
+Phase A raises the internal image generate/edit fair-use limits to Free/Plus/Pro/Max 2/20/50/100 and generated-PDF limits to 10/75/180/350. These numbers are configuration-driven through `KILAS_AI_FAIR_USE_JSON` and are not advertised on customer plan cards. Verified Kuota Kilas top-ups (Mini Rp19,000, Extra Rp39,000, Power Rp79,000) add an account-owned cost allowance at 30% of purchase revenue using the planning FX. They expire after 90 days, survive subscription renewal, and are consumed earliest-expiry first only after an applicable base allowance or premium guard is reached. Manual transfer proof alone grants no credit.
 
 ## Scenario estimates
 
@@ -27,10 +29,10 @@ Assumptions per Chat: Luna 2,500 input + 500 output tokens ($0.0005); Sol 6,000 
 
 | Plan | Revenue at Rp17k/USD | Normal cost / revenue | Heavy cost / revenue | Full cost / revenue |
 |---|---:|---:|---:|---:|
-| Plus | $4.06 | $0.22 / 5.5% | $1.07 / 26.4% | $1.53 / 37.7% |
-| Pro | $8.76 | $0.56 / 6.4% | $2.70 / 30.8% | $3.85 / 44.0% |
-| Max | $17.59 | $1.14 / 6.5% | $5.46 / 31.0% | $7.80 / 44.3% |
+| Plus | $4.06 | $0.36 / 9.0% | $1.60 / 39.4% | $2.28 / 56.2% |
+| Pro | $8.76 | $0.91 / 10.4% | $4.01 / 45.7% | $5.72 / 65.3% |
+| Max | $17.59 | $1.82 / 10.4% | $8.00 / 45.5% | $11.43 / 65.0% |
 
-At 100% Free quota with Luna Chat, the same assumptions yield about $0.137 including buffer. A higher Sol share can reach the internal Free $0.15 monthly cap sooner. At full paid use with 5% Sol, Pro/Max approach the 45% hard guard; this is a real commercial constraint. Ordinary Luna Chat remains available within its published Chat quota when the premium/tool guard trips, so the guard does not disable the entire account. The internal warning starts at 55% of the guard threshold. Payment fees, Render, PostgreSQL, storage, support, and tax are outside these provider/tool ratios. We did not raise launch prices or claim guaranteed margins.
+At 100% Free quota with Luna Chat, the same assumptions yield about $0.137 including buffer. Heavy and full paid scenarios exceed the 35% premium/tool hard guard, so they represent unconstrained demand rather than permitted base-plan spend. Ordinary economical Chat remains available within its published Chat allowance when the premium/tool guard trips. Internal warning starts around 25% of plan revenue. Payment fees, Render, PostgreSQL, storage, support, and tax are outside these provider/tool ratios.
 
-The cost guard uses recorded estimated provider/tool spend per user and paid cycle, with a forecast before costly operations. The existing burst/hour limits remain. No payment verification, schema, historical row, or production data is changed by the quota presentation patch.
+The cost guard uses recorded estimated provider/tool spend per user and paid cycle, with a forecast before costly operations. Existing burst/hour limits remain. Phase A adds migration 0073 for account-owned top-up orders, credits, debits, and a BASE/TOPUP usage marker; existing payment records and historical usage remain intact.

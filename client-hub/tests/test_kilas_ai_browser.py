@@ -126,7 +126,17 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
                 assert page.get_by_role("heading", name="Paket & penggunaan").is_visible()
+                assert page.get_by_text("2 images").count() == 0
+                assert page.get_by_text("Kuota Kilas Tambahan").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "plans")
+                page.get_by_role("button", name="Pilih Mini").click()
+                page.wait_for_url("**/kilas-ai/topups/*")
+                assert page.get_by_role("heading", name="Kuota Kilas Mini").is_visible()
+                assert page.get_by_text("Rp19.000").is_visible()
+                assert page.get_by_label("Bukti transfer (gambar atau PDF, maksimal 5 MB)").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "topup invoice")
+                page.get_by_role("link", name="Paket & penggunaan").click()
+                assert page.get_by_text("Chat", exact=True).is_visible()
                 page.get_by_role("button", name="Pilih Plus").click()
                 page.wait_for_url("**/kilas-ai/invoices/*")
                 assert page.get_by_text("7610267551").is_visible()

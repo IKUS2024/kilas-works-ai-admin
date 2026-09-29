@@ -305,8 +305,11 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
                     model if billable else None, input_tokens if billable else 0,
                     output_tokens if billable else 0, cost, user_id, key, operation))
         from . import topups
-        fallback = topups.FORECAST_MICRO.get(operations[0] if operations[0] != "CHAT" else
-                                             ("SMART" if not model and input_tokens else "FAST"), 80000) if operations else 0
+        pending = (_query(conn, "SELECT mode FROM kilas_ai_usage WHERE user_id=? AND operation_key=? "
+                          "AND operation_type=? LIMIT 1", (user_id, key, operations[0]), one=True)
+                   if operations else None)
+        fallback_key = (pending[0] if pending and operations[0] == "CHAT" else operations[0]) if operations else None
+        fallback = 1000 if fallback_key == "PDF" else topups.FORECAST_MICRO.get(fallback_key, 80000)
         actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost else fallback
         topups.settle(conn, user_id, key, success, actual_micro)
         conn.commit()

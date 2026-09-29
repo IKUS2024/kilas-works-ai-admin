@@ -47,6 +47,8 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_billing.py
       - name: Kilas AI Kuota Kilas fair use and verified top-ups
         run: cd client-hub && python tests/test_kilas_ai_topups.py
+      - name: Protected Finance and Assist boundaries
+        run: cd client-hub && python tests/test_kilas_finance_baseline.py && python tests/test_assist_billing.py
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
