@@ -1,0 +1,40 @@
+name: Client Session Timeout QA
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'client-hub/app.py'
+      - 'client-hub/security.py'
+      - 'client-hub/routes_auth.py'
+      - 'client-hub/tests/test_production_foundation.py'
+      - '.github/workflows/client-session-timeout-qa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'client-hub/app.py'
+      - 'client-hub/security.py'
+      - 'client-hub/routes_auth.py'
+      - 'client-hub/tests/test_production_foundation.py'
+      - '.github/workflows/client-session-timeout-qa.yml'
+permissions:
+  contents: read
+jobs:
+  session-timeout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Customer inactivity timeout regressions
+        run: |
+          cd client-hub
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, "tests")
+          import test_production_foundation as t
+          t.test_client_owner_session_expires_after_idle_timeout()
+          t.test_active_client_owner_session_is_refreshed_not_logged_out()
+          PY
