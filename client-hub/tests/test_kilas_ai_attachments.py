@@ -112,7 +112,7 @@ class AttachmentTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn("Gambar", response.get_data(as_text=True))
         self.assertEqual(len(store.attachment_list(self.a, thread_id)), 2)
-        self.assertEqual(seen[0][0], "SMART")
+        self.assertEqual(seen[0][0], "FAST")
         blocks = seen[0][1][-1]["content"]
         self.assertEqual(blocks[1]["type"], "image_url")
         self.assertIn("A relevant note", blocks[0]["text"])
