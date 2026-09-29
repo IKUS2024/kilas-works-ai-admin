@@ -72,6 +72,10 @@ def create_app():
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=is_production(),
         MAX_CONTENT_LENGTH=12 * 1024 * 1024,  # slightly above per-file cap, covers small multi-field posts
+        # Keep Finance Assistant code/routes intact but hide customer entry points by default.
+        # This can be re-enabled later without deleting the implementation.
+        FINANCE_AI_ASSISTANT_VISIBLE=(os.environ.get("FINANCE_AI_ASSISTANT_VISIBLE", "").strip().lower()
+                                      in ("1", "true", "yes", "on")),
     )
 
     with app.app_context():
