@@ -350,7 +350,10 @@ def create_app():
             if session.get("role") == "KILAS_ADMIN":
                 return redirect(url_for("admin.dashboard"))
             return redirect(url_for("workspace.home"))
-        return render_template("assist_landing.html")
+        # app.kilasworks.id is the authenticated product hub, not a Kilas Assist
+        # marketing surface. The existing login page already exposes the Login/Daftar
+        # tabs and Google sign-in, so unauthenticated visitors should enter there.
+        return redirect(url_for("auth.login_page"))
 
     @app.route("/healthz")
     def healthz():
