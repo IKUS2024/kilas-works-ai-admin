@@ -5,7 +5,7 @@ from flask import Blueprint, abort, redirect, render_template, request, send_fil
 
 import payment_service
 import security
-from . import billing
+from . import billing, topups
 from .routes import ai_bp, enabled
 
 admin_bp = Blueprint("kilas_ai_admin", __name__, url_prefix="/admin/kilas-ai")
@@ -52,11 +52,61 @@ def proof_upload(invoice_id):
     return redirect(url_for("kilas_ai.invoice_page", invoice_id=invoice_id), code=303)
 
 
+@ai_bp.post("/topups")
+def topup_checkout():
+    try:
+        order_id = topups.create_order(session["user_id"], request.form.get("pack"))
+    except topups.TopupError as error:
+        return {"error": str(error)}, 400
+    return redirect(url_for("kilas_ai.topup_invoice", order_id=order_id), code=303)
+
+
+@ai_bp.get("/topups/<int:order_id>")
+def topup_invoice(order_id):
+    item = topups.order(session["user_id"], order_id)
+    if not item:
+        abort(404)
+    return render_template("kilas_ai/topup_invoice.html", invoice=item, bank=payment_service.BANK_DETAILS)
+
+
+@ai_bp.post("/topups/<int:order_id>/proof")
+def topup_proof_upload(order_id):
+    if not topups.order(session["user_id"], order_id):
+        abort(404)
+    try:
+        topups.submit_proof(session["user_id"], order_id, request.files.get("proof"))
+    except topups.TopupError as error:
+        return {"error": str(error)}, 400
+    return redirect(url_for("kilas_ai.topup_invoice", order_id=order_id), code=303)
+
+
 @admin_bp.get("/payments")
 def payments():
     from . import economics
     return render_template("kilas_ai/admin_payments.html", payments=billing.pending_payments(),
-                           economics=economics.admin_snapshot())
+                           topup_payments=topups.pending_orders(), economics=economics.admin_snapshot())
+
+
+@admin_bp.get("/topups/<int:order_id>/proof")
+def topup_proof_view(order_id):
+    item = topups.admin_proof(order_id)
+    if not item:
+        abort(404)
+    response = send_file(io.BytesIO(bytes(item["proof_content"])), mimetype=item["proof_mime_type"],
+                         as_attachment=False, download_name=item["proof_filename"])
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return response
+
+
+@admin_bp.post("/topups/<int:order_id>/review")
+def topup_review(order_id):
+    try:
+        topups.review(order_id, session["user_id"], (request.form.get("decision") or "").upper(), request.form.get("note"))
+    except topups.TopupError as error:
+        return {"error": str(error)}, 400
+    return redirect(url_for("kilas_ai_admin.payments"), code=303)
 
 
 @admin_bp.get("/payments/<int:payment_id>/proof")

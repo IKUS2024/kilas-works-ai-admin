@@ -85,3 +85,13 @@ def image_prompt(content, previous_answer=""):
             re.search(r"\b(?:poster|gambar|ilustrasi|desain|visual|image|foto)\b", previous_answer.lower())):
         return "Konsep sebelumnya:\n" + previous_answer[:1800] + "\n\nBuat gambar sesuai permintaan terbaru: " + content
     return content
+
+
+def enhance_image_prompt(prompt, requested_action_text=None):
+    """Keep the user's wording and make a requested visible action unambiguous."""
+    text = (requested_action_text or prompt).lower()
+    if re.search(r"\b(?:nyanyi|menyanyi|bernyanyi|singing|sing)\b", text):
+        return prompt + "\nAksi utama harus tampak jelas: subjek sedang bernyanyi, mulut terbuka saat menyanyi, bukan hanya berpose. Pertahankan subjek, gaya, dan detail yang diminta."
+    if re.search(r"\b(?:menari|berlari|memasak|melukis|membaca|menulis|dancing|running|cooking|painting|reading|writing)\b", text):
+        return prompt + "\nTampilkan aksi utama yang diminta dengan jelas, bukan pose diam. Pertahankan subjek, gaya, dan detail yang diminta."
+    return prompt

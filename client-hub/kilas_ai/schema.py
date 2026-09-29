@@ -4,7 +4,7 @@ from pathlib import Path
 
 import db
 
-NAMES = ("0071_kilas_ai_v1", "0072_kilas_ai_usage_status")
+NAMES = ("0071_kilas_ai_v1", "0072_kilas_ai_usage_status", "0073_kilas_ai_topups")
 
 
 def apply_release():

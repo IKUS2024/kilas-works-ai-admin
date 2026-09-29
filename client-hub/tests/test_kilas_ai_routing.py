@@ -68,6 +68,11 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(routing.tool_for("buatkan gambar apapun ya", search=True), "WEB")
         self.assertIn("Konsep sebelumnya:", routing.image_prompt(
             "sekarang bikin gambarnya", "Konsep poster kopi premium dengan latar cokelat."))
+        enhanced = routing.enhance_image_prompt("buat manusia lagi nyanyi dengan gaya watercolor")
+        self.assertIn("manusia lagi nyanyi", enhanced)
+        self.assertIn("watercolor", enhanced)
+        self.assertIn("mulut terbuka", enhanced)
+        self.assertEqual(routing.enhance_image_prompt("buat poster kopi"), "buat poster kopi")
 
     def test_one_primary_quota_unit_and_legacy_rows(self):
         for tool, expected in (("CHAT", "CHAT"), ("WEB", "WEB_SEARCH"),
