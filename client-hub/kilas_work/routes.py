@@ -93,11 +93,11 @@ def _send(thread_id, text):
         source = quota.reserve(user_id, thread_id, key, operation, model)
     except quota.QuotaError as error:
         return {"error": str(error)}, 429
-    user_message = store.add_message(user_id, thread_id, "user", text,
-                                     metadata={"attachments": [item["filename"] for item in files]})
-    for item in files:
-        store.add_file(user_id, thread_id, user_message, item)
     try:
+        user_message = store.add_message(user_id, thread_id, "user", text,
+                                         metadata={"attachments": [item["filename"] for item in files]})
+        for item in files:
+            store.add_file(user_id, thread_id, user_message, item)
         if operation == "IMAGE":
             original = next((item for item in files if item["mime_type"].startswith("image/")), None)
             output = shared_tools.image(text, original)
@@ -111,7 +111,11 @@ def _send(thread_id, text):
             prior = store.messages(user_id, thread_id) or []
             context = [(row["role"], row["content"]) for row in prior[:-1]
                        if row["role"] in ("user", "assistant")]
-            result = engine.respond(context, text, files, model, "WEB" if operation == "WEB" else "CHAT")
+            prompt = text
+            if operation == "PDF":
+                prompt += ("\n\nTulis isi dokumen lengkap dalam Markdown yang rapi. Berikan dokumen itu sendiri, "
+                           "bukan instruksi cara membuat PDF. Jangan mengarang fakta.")
+            result = engine.respond(context, prompt, files, model, "WEB" if operation == "WEB" else "CHAT")
             message = store.add_message(user_id, thread_id, "assistant", result["answer"], model=model,
                                         metadata={"citations": result["citations"]})
             if operation == "PDF":

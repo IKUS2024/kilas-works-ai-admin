@@ -45,6 +45,13 @@ def _trial_micro():
     return configured
 
 
+def _global_daily_micro():
+    configured = int(os.environ.get("KILAS_WORK_GLOBAL_DAILY_MICRO_USD", "5000000"))
+    if not 100000 <= configured <= 1000000000:
+        raise QuotaError("Batas harian Work tidak tersedia.")
+    return configured
+
+
 def ensure_account(user_id):
     conn = sql.connect()
     try:
@@ -138,6 +145,15 @@ def reserve(user_id, thread_id, key, operation, model="gpt-6-luna", job_id=None)
             conn.commit()
             return None
         at = now()
+        if db.BACKEND == "postgres":
+            sql.one(conn, "SELECT pg_advisory_xact_lock(74107402)")
+        day_start = at.replace(hour=0, minute=0, second=0, microsecond=0)
+        global_spent = sql.one(conn, "SELECT COALESCE(SUM(CASE WHEN status='COMPLETE' THEN charged_micro "
+                               "ELSE reserved_micro END),0) FROM kilas_work_usage "
+                               "WHERE status IN ('COMPLETE','PENDING') AND created_at>=?",
+                               (day_start.isoformat(),))[0]
+        if int(global_spent) + forecast > _global_daily_micro():
+            raise QuotaError("Kilas Work mencapai batas penggunaan harian. Coba lagi besok.")
         plan, start, end = _plan(conn, user_id, at)
         if plan:
             budget = _budget(PLANS[plan])

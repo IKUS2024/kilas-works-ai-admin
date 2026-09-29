@@ -28,3 +28,29 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - run: cd client-hub && python tests/test_kilas_work_foundation.py
       - run: cd client-hub && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
+  postgres-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_work_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_work_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Work additive PostgreSQL release in disposable schema
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_work_qa
+          KILAS_WORK_POSTGRES_QA: '1'
+          SECRET_KEY: synthetic-kilas-work-schema-only
+        run: python client-hub/tests/test_kilas_work_postgres_schema.py
