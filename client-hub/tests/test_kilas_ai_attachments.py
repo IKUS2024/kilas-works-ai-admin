@@ -1,4 +1,5 @@
 """Focused durable attachment, extraction, multimodal and isolation checks."""
+# CI trigger branch mirrors PR #80 functional changes.
 import io
 import os
 import sys
