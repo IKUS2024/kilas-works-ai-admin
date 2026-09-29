@@ -30,13 +30,44 @@ class RoutingTests(unittest.TestCase):
     def test_natural_tools_and_analysis(self):
         image = [{"mime_type": "image/png"}]
         document = [{"mime_type": "application/pdf", "extracted_text": "isi"}]
-        self.assertEqual(routing.tool_for("Buat gambar kucing di Tokyo"), "IMAGE_GENERATE")
-        self.assertEqual(routing.tool_for("Edit foto ini, hapus background", image), "IMAGE_EDIT")
-        self.assertEqual(routing.tool_for("edit this", image), "IMAGE_EDIT")
+        for prompt in ("buat gambar mobil", "buatkan gambar mobil", "bikinin gambar mobil",
+                       "gambar mobil dong", "gambarin mobil", "gamabar mobil", "gmbar mobil",
+                       "gmbaar mobil", "gambarr mobil", "buat ilustrasi kucing kecil di bawah bulan",
+                       "buat poster kopi", "buatkan gambar apapun ya", "create an image of a car",
+                       "draw a cat", "sekarang bikin gambarnya"):
+            with self.subTest(prompt=prompt):
+                self.assertEqual(routing.tool_for(prompt), "IMAGE_GENERATE")
+        for prompt in ("Buat gambar kucing di Tokyo", "Apa itu image generation?",
+                       "jelaskan cara buat gambar", "kenapa gambar ini bagus?",
+                       "model gambar apa yang dipakai?", "berapa harga generate image?",
+                       "halo", "buat caption instagram", "tolong translate ini",
+                       "ringkas paragraf ini", "apa itu PDF?", "cara edit foto di Photoshop gimana?"):
+            expected = "IMAGE_GENERATE" if prompt.startswith("Buat gambar") else "CHAT"
+            with self.subTest(prompt=prompt):
+                self.assertEqual(routing.tool_for(prompt), expected)
+        for prompt in ("hapus background", "background putih", "ubah bajunya hitam",
+                       "ganti warna mobil jadi merah", "edit ini", "rapihin foto ini",
+                       "buat lebih terang", "hilangkan orang di belakang", "crop ini", "retouch wajahnya"):
+            with self.subTest(prompt=prompt):
+                self.assertEqual(routing.tool_for(prompt, image), "IMAGE_EDIT")
+        self.assertEqual(routing.tool_for("hapus background foto ini"), "IMAGE_EDIT")
+        for prompt in ("buat pdf", "buatkan PDF", "bikinin pdf", "jadikan pdf",
+                       "buat ini jadi pdf", "dalam bentuk pdf", "buat file pdf", "export ke pdf",
+                       "simpan jadi pdf", "buatkan dongeng ini dalam bentuk pdf",
+                       "buat proposal ini lalu jadikan pdf",
+                       "bikinin saya dongeng dan buatkan dalam bentuk pdf",
+                       "bikinin saya dongeng pendek dan buatkan dalam bentuk pdf"):
+            with self.subTest(prompt=prompt):
+                self.assertEqual(routing.tool_for(prompt), "PDF")
+        self.assertEqual(routing.tool_for("pdfnya dong", has_previous_content=True), "PDF")
+        self.assertEqual(routing.tool_for("jadikan jawaban tadi PDF", has_previous_content=True), "PDF")
         self.assertEqual(routing.tool_for("Ringkas PDF ini", document), "CHAT")
         self.assertEqual(routing.tool_for("Apa isi gambar ini?", image), "CHAT")
         self.assertEqual(routing.tool_for("Buat jawaban tadi jadi PDF", pdf_request=True), "PDF")
         self.assertEqual(routing.tool_for("Cari informasi terbaru", search=True), "WEB")
+        self.assertEqual(routing.tool_for("buatkan gambar apapun ya", search=True), "WEB")
+        self.assertIn("Konsep sebelumnya:", routing.image_prompt(
+            "sekarang bikin gambarnya", "Konsep poster kopi premium dengan latar cokelat."))
 
     def test_one_primary_quota_unit_and_legacy_rows(self):
         for tool, expected in (("CHAT", "CHAT"), ("WEB", "WEB_SEARCH"),

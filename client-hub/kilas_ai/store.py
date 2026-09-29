@@ -116,6 +116,13 @@ def latest_generated_document(user_id, thread_id):
     return row if row and row["extracted_text"] else None
 
 
+def latest_user_image(user_id, thread_id):
+    return db.query_one("SELECT a.filename,a.mime_type,a.content FROM kilas_ai_attachments a "
+        "JOIN kilas_ai_messages m ON m.id=a.message_id AND m.thread_id=a.thread_id "
+        "WHERE a.user_id=? AND a.thread_id=? AND m.role='user' AND a.mime_type LIKE 'image/%' "
+        "ORDER BY a.id DESC LIMIT 1", (user_id, thread_id))
+
+
 def operation(user_id, thread_id, key):
     if not thread(user_id, thread_id):
         return None

@@ -244,9 +244,24 @@ def send(thread_id):
     mode = routing.mode_for(content, prepared)
     search = str(body.get("search") or "").lower() in ("1", "true", "on")
     previous_document = store.latest_generated_document(user_id, thread_id)
-    tool = routing.tool_for(content, prepared, search=search,
-                            pdf_request=ai_pdf.is_request(content, previous_document))
-    if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared):
+    prior_answer = ""
+    for row in reversed(store.messages(user_id, thread_id, 6) or []):
+        if row["role"] != "assistant":
+            continue
+        try:
+            metadata = json.loads(row["metadata_json"] or "{}")
+        except ValueError:
+            metadata = {}
+        if metadata.get("status", "complete") == "complete" and metadata.get("tool") not in ("pdf", "image_generate", "image_edit"):
+            prior_answer = row["content"]
+            break
+    prior_image = (store.latest_user_image(user_id, thread_id)
+                   if not any(item["mime_type"].startswith("image/") for item in prepared) and routing.may_edit_image(content)
+                   else None)
+    tool = routing.tool_for(content, prepared + ([prior_image] if prior_image else []), search=search,
+                            pdf_request=ai_pdf.is_request(content, previous_document),
+                            has_previous_content=bool(prior_answer or previous_document))
+    if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared) and not prior_image:
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
         return {"error": "Matikan Search untuk menganalisis gambar yang diunggah."}, 400
@@ -338,9 +353,10 @@ def send(thread_id):
                         yield _sse("sources", {"citations": result["citations"]})
                         yield _sse("done", {"finish_reason": "stop"})
                         return
-                    source = next((item for item in prepared if item["mime_type"].startswith("image/")), None)
+                    source = next((item for item in prepared if item["mime_type"].startswith("image/")), None) or prior_image
                     yield _sse("activity", {"label": "Mengedit gambar…" if tool == "IMAGE_EDIT" else "Membuat gambar…"})
-                    result = ai_tools.image(content, source if tool == "IMAGE_EDIT" else None)
+                    prompt = routing.image_prompt(content, prior_answer) if tool == "IMAGE_GENERATE" else content
+                    result = ai_tools.image(prompt, source if tool == "IMAGE_EDIT" else None)
                     provider, model = "openai", result["model"]
                     usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})
                     label = "Gambar selesai diedit." if tool == "IMAGE_EDIT" else "Gambar selesai dibuat."

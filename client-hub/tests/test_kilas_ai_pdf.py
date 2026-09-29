@@ -89,6 +89,35 @@ class PdfTests(unittest.TestCase):
         self.assertFalse(pdf.is_request("Tambahkan tabel harga"))
         self.assertTrue(pdf.is_request("Tambahkan tabel harga", "# Dokumen lama"))
 
+    def test_combined_story_pdf_request_uses_real_file(self):
+        owner_id = repo.create_user("pdf-story-request@example.test", "hash")
+        owner = self.client_for(owner_id)
+        thread_id = store.create_thread(owner_id)
+        self.send(owner, thread_id, "bikinin saya dongeng pendek dan buatkan dalam bentuk pdf",
+                  "storypdf_0123456789abcdef", "# Dongeng Kucing\n\nSeekor kucing kecil melihat bulan.")
+        files = store.attachment_list(owner_id, thread_id)
+        self.assertEqual(len(files), 1)
+        response = owner.get(f"/kilas-ai/threads/{thread_id}/attachments/{files[0]['id']}")
+        self.assertTrue(response.data.startswith(b"%PDF"))
+        self.assertIn("Seekor kucing", PdfReader(io.BytesIO(response.data)).pages[0].extract_text())
+        self.assertEqual(self.client_for(self.other).get(
+            f"/kilas-ai/threads/{thread_id}/attachments/{files[0]['id']}").status_code, 404)
+        self.assertEqual(db.query_one("SELECT operation_type FROM kilas_ai_usage WHERE thread_id=?", (thread_id,))["operation_type"],
+                         "PDF")
+
+    def test_short_pdf_followup_keeps_story_in_provider_context(self):
+        owner_id = repo.create_user("pdf-story-followup@example.test", "hash")
+        owner = self.client_for(owner_id)
+        thread_id = store.create_thread(owner_id)
+        store.append_user_once(owner_id, thread_id, "Buat dongeng anak tentang kucing.", "FAST", "storysource_0123456789")
+        story = "# Dongeng Kucing\n\nSeekor kucing kecil menjelajah hutan."
+        store.append_assistant(owner_id, thread_id, story, "FAST", "openai", "gpt-6-luna",
+                               "storysource_0123456789", {"status": "complete"})
+        self.send(owner, thread_id, "pdfnya dong", "storyfollow_0123456789abcdef", story)
+        self.assertTrue(any(row["role"] == "assistant" and story in row["content"]
+                            for row in store.context(owner_id, thread_id)))
+        self.assertEqual(len(store.attachment_list(owner_id, thread_id)), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

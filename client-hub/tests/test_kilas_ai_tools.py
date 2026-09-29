@@ -15,7 +15,7 @@ os.environ.pop("DATABASE_URL", None)
 from PIL import Image  # noqa: E402
 import app  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import store, tools  # noqa: E402
+from kilas_ai import providers, store, tools  # noqa: E402
 import db  # noqa: E402
 
 
@@ -86,12 +86,81 @@ class ToolTests(unittest.TestCase):
         client = self.client_for(self.owner)
         thread_id = store.create_thread(self.owner)
         response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
-            "content": "Edit image, change color",
+            "content": "hapus background foto ini",
             "operation_key": "tooledit_0123456789abcdef"}, headers={"X-CSRF-Token": "tool-csrf"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("Upload gambar terlebih dahulu", response.json["error"])
         self.assertEqual(store.messages(self.owner, thread_id), [])
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE thread_id=?", (thread_id,))["n"], 0)
+
+    def test_typo_image_request_uses_real_tool_without_text_fallback(self):
+        owner = repo.create_user("tool-typo-image@example.test", "hash")
+        client = self.client_for(owner)
+        thread_id = store.create_thread(owner)
+        result = {"raw": image_bytes(), "mime": "image/png", "model": "gpt-image-2", "usage": {}}
+        with patch.object(tools, "image", return_value=result) as image_tool, \
+             patch.object(providers, "stream", side_effect=AssertionError("text fallback must not run")):
+            response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
+                "content": "gamabar mobil", "operation_key": "typoimage_0123456789abcdef"},
+                headers={"X-CSRF-Token": "tool-csrf"})
+            body = response.get_data(as_text=True)
+        self.assertIn("event: image", body)
+        self.assertIn("event: done", body)
+        self.assertEqual(image_tool.call_args.args[0], "gamabar mobil")
+        self.assertEqual(len(store.attachment_list(owner, thread_id)), 1)
+        self.assertEqual(db.query_one("SELECT operation_type FROM kilas_ai_usage WHERE thread_id=?", (thread_id,))["operation_type"],
+                         "IMAGE_GENERATION")
+
+    def test_image_edit_with_upload_and_owner_only_asset(self):
+        owner = repo.create_user("tool-edit-upload@example.test", "hash")
+        client = self.client_for(owner)
+        thread_id = store.create_thread(owner)
+        result = {"raw": image_bytes(), "mime": "image/png", "model": "gpt-image-2", "usage": {}}
+        with patch.object(tools, "image", return_value=result) as image_tool, \
+             patch.object(providers, "stream", side_effect=AssertionError("text fallback must not run")):
+            response = client.post(f"/kilas-ai/threads/{thread_id}/send", data={
+                "csrf_token": "tool-csrf", "content": "background putih",
+                "operation_key": "uploadedit_0123456789abcdef",
+                "attachments": [(io.BytesIO(image_bytes()), "source.png", "image/png")],
+            }, content_type="multipart/form-data")
+            self.assertIn("event: image", response.get_data(as_text=True))
+        self.assertEqual(image_tool.call_args.args[1]["filename"], "source.png")
+        generated = store.attachment_list(owner, thread_id)[-1]
+        path = f"/kilas-ai/threads/{thread_id}/attachments/{generated['id']}"
+        self.assertEqual(client.get(path).data, image_bytes())
+        self.assertEqual(self.client_for(self.foreign).get(path).status_code, 404)
+        self.assertEqual(db.query_one("SELECT operation_type FROM kilas_ai_usage WHERE thread_id=?", (thread_id,))["operation_type"],
+                         "IMAGE_EDIT")
+
+    def test_short_edit_followup_uses_same_threads_uploaded_image(self):
+        owner = repo.create_user("tool-edit-followup@example.test", "hash")
+        client = self.client_for(owner)
+        thread_id = store.create_thread(owner)
+        message_id, _ = store.append_user_once(owner, thread_id, "Lihat foto ini", "FAST", "sourcephoto_0123456789")
+        store.save_attachments(owner, thread_id, message_id, [{"filename": "photo.png", "mime_type": "image/png",
+            "byte_size": len(image_bytes()), "content": image_bytes(), "extracted_text": None}])
+        result = {"raw": image_bytes(), "mime": "image/png", "model": "gpt-image-2", "usage": {}}
+        with patch.object(tools, "image", return_value=result) as image_tool:
+            response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
+                "content": "edit ini", "operation_key": "followupedit_0123456789"},
+                headers={"X-CSRF-Token": "tool-csrf"})
+            self.assertIn("event: image", response.get_data(as_text=True))
+        self.assertEqual(image_tool.call_args.args[1]["filename"], "photo.png")
+
+    def test_short_image_creation_followup_carries_visual_concept(self):
+        owner = repo.create_user("tool-concept-followup@example.test", "hash")
+        client = self.client_for(owner)
+        thread_id = store.create_thread(owner)
+        store.append_user_once(owner, thread_id, "Buat konsep poster kopi premium.", "FAST", "posterconcept_0123456789")
+        store.append_assistant(owner, thread_id, "Konsep poster kopi premium dengan latar cokelat.",
+                               "FAST", "openai", "gpt-6-luna", "posterconcept_0123456789", {"status": "complete"})
+        result = {"raw": image_bytes(), "mime": "image/png", "model": "gpt-image-2", "usage": {}}
+        with patch.object(tools, "image", return_value=result) as image_tool:
+            response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
+                "content": "sekarang bikin gambarnya", "operation_key": "posterimage_0123456789"},
+                headers={"X-CSRF-Token": "tool-csrf"})
+            self.assertIn("event: image", response.get_data(as_text=True))
+        self.assertIn("latar cokelat", image_tool.call_args.args[0])
 
 
 if __name__ == "__main__":
