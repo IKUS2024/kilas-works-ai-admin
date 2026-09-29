@@ -56,6 +56,8 @@ def set_timezone(user_id, name):
 
 def _plan_period(conn, user_id, at):
     plan, start, end = usage._plan(conn, user_id, at)
+    if plan == "FREE":
+        return plan, at - timedelta(days=30), at + timedelta(microseconds=1)
     period_start, period_end = usage._period(plan, start, end, "CHAT", at)
     return plan, period_start, period_end
 
@@ -71,7 +73,7 @@ def usage_summary(user_id):
                             "JOIN kilas_automations a ON a.id=r.automation_id "
                             "WHERE r.user_id=? AND a.automation_type!='REMINDER' "
                             "AND r.attempt_count>0 AND r.status NOT IN ('SKIPPED_QUOTA','SKIPPED_DUPLICATE') "
-                            "AND r.scheduled_for>=? AND r.scheduled_for<?",
+                            "AND r.started_at>=? AND r.started_at<?",
                             (user_id, _iso(start), _iso(end)), one=True)[0]
         unread = usage._query(conn, "SELECT COUNT(*) FROM kilas_automation_runs r "
                               "JOIN kilas_automations a ON a.id=r.automation_id "
@@ -263,6 +265,16 @@ def claim_due(limit=10, now=None):
                 conn.commit()
                 continue
             automation_id, user_id, kind, raw_schedule, zone, scheduled_for = due
+            current_plan = usage._plan(conn, user_id, now)[0]
+            rank = usage._query(conn, "SELECT COUNT(*) FROM kilas_automations WHERE user_id=? "
+                                "AND status='ACTIVE' AND next_run_at IS NOT NULL AND deleted_at IS NULL AND id<=?",
+                                (user_id, automation_id), one=True)[0]
+            if rank > ACTIVE_LIMITS[current_plan]:
+                usage._query(conn, "UPDATE kilas_automations SET status='PAUSED_QUOTA',next_run_at=NULL,"
+                             "last_error_code='active_limit' WHERE id=? AND user_id=?",
+                             (automation_id, user_id))
+                conn.commit()
+                continue
             scheduled = usage._as_utc(scheduled_for)
             schedule = json.loads(raw_schedule)
             next_run = (schedules.next_occurrence(schedule, zone, now)
@@ -286,7 +298,7 @@ def claim_due(limit=10, now=None):
                                      "JOIN kilas_automations a ON a.id=r.automation_id "
                                      "WHERE r.user_id=? AND a.automation_type!='REMINDER' AND r.attempt_count>0 "
                                      "AND r.status NOT IN ('SKIPPED_QUOTA','SKIPPED_DUPLICATE') "
-                                     "AND r.scheduled_for>=? AND r.scheduled_for<?",
+                                     "AND r.started_at>=? AND r.started_at<?",
                                      (user_id, _iso(start), _iso(end)), one=True)[0]
                 if count >= RUN_LIMITS[plan]:
                     usage._query(conn, "INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,"

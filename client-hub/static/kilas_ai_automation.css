@@ -2,3 +2,4 @@
 @media(max-width:700px){.auto-top{gap:9px;padding:8px 16px;flex-wrap:wrap}.auto-top .ai-brand{flex:1}.auto-top .ai-product-nav{order:3;width:100%}.auto-usage{font-size:12px}.auto-page{width:min(100% - 28px,1060px);padding-top:27px}.auto-heading{display:block}.auto-heading .auto-primary{margin:0 0 15px}.auto-item-head{align-items:flex-start}.auto-meta{gap:10px 17px}.auto-filters{margin-top:20px}}
 @media(max-width:380px){.auto-item-head{display:block}.auto-status{display:inline-flex;margin-top:8px}.auto-timezone input{width:100%}.auto-top .ai-product-nav a{padding-inline:9px}}
 .ai-automation-offer{display:inline-flex;align-items:center;min-height:40px;margin-top:8px;color:#ffc18d;font-size:13px;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.ai-chat-nav{flex:none;justify-content:center;min-height:48px;margin:0;border-bottom:1px solid #303238;background:#191a1e}.ai-chat-nav a{min-height:43px}

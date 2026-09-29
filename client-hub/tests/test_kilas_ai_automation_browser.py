@@ -48,6 +48,22 @@ def main():
                 page.wait_for_url("**/kilas-ai/automation")
                 assert page.get_by_text("Besok jam 8 ingetin gue bayar listrik.").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "list overflow")
+                page.get_by_role("link", name="Edit", exact=True).click()
+                assert page.get_by_role("heading", name="Edit Automation").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "edit overflow")
+                page.get_by_role("link", name="Automation", exact=True).last.click()
+                page.get_by_role("button", name="Jeda").click()
+                page.get_by_role("link", name="Dijeda", exact=True).click()
+                assert page.get_by_text("Dijeda", exact=True).count() >= 1
+                page.get_by_role("link", name="Lihat hasil").click()
+                assert page.get_by_text("Belum ada hasil.", exact=False).is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "results overflow")
+                page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
+                assert page.get_by_text("Automation aktif").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "usage overflow")
+                page.goto(origin + "/kilas-ai", wait_until="networkidle")
+                assert page.locator(".ai-product-nav").get_by_role("link", name="Automation").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat nav overflow")
                 context.close()
             browser.close()
     finally:

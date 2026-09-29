@@ -20,6 +20,11 @@ from kilas_ai import automation_runner as runner, automation_schedule as schedul
 
 
 class AutomationScheduleTests(unittest.TestCase):
+    def test_watch_number_formats(self):
+        self.assertEqual(runner._numeric_value("Rp1.800.000"), 1800000)
+        self.assertEqual(runner._numeric_value("1800000.0"), 1800000)
+        self.assertEqual(runner._numeric_value("1,800,000"), 1800000)
+
     def test_examples_and_ambiguity(self):
         now = datetime(2026, 9, 29, 4, tzinfo=timezone.utc)
         reminder = schedule.parse("Besok jam 8 ingetin gue bayar listrik.", now=now)
@@ -99,6 +104,8 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertIsNone(store.result(self.other, ids[0]))
         self.assertEqual(self.client_for(self.other).get(f"/kilas-ai/automation/results/{ids[0]}").status_code, 404)
         self.assertEqual(client.get(f"/kilas-ai/automation/results/{ids[0]}").status_code, 200)
+        chat = client.get(f"/kilas-ai?automation_result={ids[0]}")
+        self.assertIn("Lanjutkan dari hasil Automation", chat.get_data(as_text=True))
         self.assertFalse(store.result(self.owner, ids[0])["unread"])
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=?", (self.owner,))["n"], 0)
 
@@ -117,7 +124,8 @@ class AutomationFlowTests(unittest.TestCase):
         searched.assert_called_once()
         self.assertEqual(db.query_one("SELECT status FROM kilas_ai_usage WHERE user_id=?", (self.other,))["status"], "COMPLETE")
         self.assertEqual(store.claim_due(now=due), [])
-        self.assertEqual(store.usage_summary(self.other)["runs"], 1)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automation_runs WHERE user_id=? AND attempt_count>0",
+                                      (self.other,))["n"], 1)
         self.assertEqual(store.get(self.other, automation_id)["status"], "ACTIVE")
         store.set_status(self.other, automation_id, "pause")
 
@@ -175,11 +183,30 @@ class AutomationFlowTests(unittest.TestCase):
         automation_id = store.create(owner, spec)
         due = spec["next_run_at"] + timedelta(minutes=1)
         for index in range(10):
-            db.execute("INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,attempt_count) "
-                       "VALUES (?,?,?,'SUCCEEDED',1)",
-                       (automation_id, owner, (due - timedelta(minutes=index + 2)).isoformat()))
+            moment = (due - timedelta(minutes=index + 2)).isoformat()
+            db.execute("INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,attempt_count,started_at) "
+                       "VALUES (?,?,?,'SUCCEEDED',1,?)", (automation_id, owner, moment, moment))
         self.assertEqual(store.claim_due(now=due), [])
         self.assertEqual(store.get(owner, automation_id)["status"], "PAUSED_QUOTA")
+
+    def test_plan_downgrade_pauses_excess_due_automation(self):
+        owner = repo.create_user("automation-downgrade@example.test", "hash")
+        now = datetime.now(timezone.utc)
+        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) "
+                   "VALUES (?,'PLUS','ACTIVE',?,?)",
+                   (owner, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=2)).isoformat()))
+        spec = schedule.parse("Setiap hari jam 8 ingetin gue minum air.")
+        first = store.create(owner, spec)
+        second = store.create(owner, spec)
+        db.execute("UPDATE kilas_ai_subscriptions SET period_end=? WHERE user_id=?",
+                   ((now - timedelta(minutes=1)).isoformat(), owner))
+        due = spec["next_run_at"] + timedelta(minutes=1)
+        claimed = store.claim_due(now=due)
+        self.assertEqual(len(claimed), 1)
+        self.assertEqual(store.get(owner, first)["status"], "ACTIVE")
+        self.assertEqual(store.get(owner, second)["status"], "PAUSED_QUOTA")
+        self.assertTrue(runner.execute(claimed[0]))
+        store.set_status(owner, first, "pause")
 
 
 if __name__ == "__main__":

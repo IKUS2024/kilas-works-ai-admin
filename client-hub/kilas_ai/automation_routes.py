@@ -1,6 +1,7 @@
 """Owner-only Automation pages inside the existing Kilas AI product."""
 import json
 import time
+from datetime import datetime, timezone
 
 from flask import abort, redirect, render_template, request, session, url_for
 
@@ -96,8 +97,8 @@ def automation_preview():
         spec["title"] = title
     if not store.has_setting(_owner()):
         store.set_timezone(_owner(), schedule.validate_timezone(timezone_name))
-    session["automation_preview"] = {"instruction": instruction, "timezone": timezone_name,
-                                     "automation_id": item_id, "title": title, "created": int(time.time())}
+    session["automation_preview"] = {"automation_id": item_id, "created": int(time.time()),
+                                     "spec": {**spec, "next_run_at": spec["next_run_at"].isoformat()}}
     session.modified = True
     return _page("automation_form.html", item=item, instruction=instruction, timezone_name=timezone_name,
                  preview={"title": spec["title"], "kind": spec["automation_type"],
@@ -117,9 +118,13 @@ def automation_activate():
         abort(400)
     if item_id and not store.get(_owner(), item_id):
         abort(404)
-    spec = schedule.parse(preview["instruction"], preview["timezone"])
-    if preview.get("title"):
-        spec["title"] = preview["title"]
+    spec = preview["spec"]
+    spec["next_run_at"] = datetime.fromisoformat(spec["next_run_at"])
+    if spec["next_run_at"] <= datetime.now(timezone.utc):
+        return _page("automation_form.html", item=store.get(_owner(), item_id) if item_id else None,
+                     instruction=spec["instruction"], timezone_name=spec["timezone"],
+                     title=spec["title"], preview=None,
+                     error="Jadwal pratinjau sudah lewat. Periksa dan lihat pratinjau lagi."), 400
     try:
         if item_id:
             store.edit(_owner(), item_id, spec)
@@ -127,8 +132,8 @@ def automation_activate():
             store.create(_owner(), spec)
     except store.AutomationError as error:
         return _page("automation_form.html", item=store.get(_owner(), item_id) if item_id else None,
-                     instruction=preview["instruction"], timezone_name=preview["timezone"],
-                     title=preview.get("title", ""), preview=None, error=str(error)), 400
+                     instruction=spec["instruction"], timezone_name=spec["timezone"],
+                     title=spec["title"], preview=None, error=str(error)), 400
     return redirect(url_for("kilas_ai.automation_home"), code=303)
 
 

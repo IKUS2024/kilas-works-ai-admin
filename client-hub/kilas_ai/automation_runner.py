@@ -14,6 +14,7 @@ class RunError(RuntimeError):
 
 def _plain_ai(prompt):
     pieces = []
+    length = 0
     provider = model = None
     recorded = {"input_tokens": 0, "output_tokens": 0}
     for event in providers.stream("FAST", [{"role": "user", "content": prompt[:4000]}]):
@@ -21,7 +22,8 @@ def _plain_ai(prompt):
             provider, model = event["provider"], event["model"]
         elif event["type"] == "delta":
             pieces.append(event["text"])
-            if sum(len(part) for part in pieces) > 12000:
+            length += len(event["text"])
+            if length > 12000:
                 raise RunError("result_too_long")
         elif event["type"] == "usage":
             recorded.update({key: max(0, int(event.get(key) or 0)) for key in recorded if key in event})
@@ -41,9 +43,26 @@ def _watch_value(text):
         raise RunError("watch_value_missing") from None
     summary = str(data.get("summary") or "").strip()[:2000]
     value = data.get("value")
-    if not summary or value is None:
+    if not summary or "value" not in data:
         raise RunError("watch_value_missing")
     return value, summary
+
+
+def _numeric_value(value):
+    if not isinstance(value, str):
+        return float(value)
+    clean = re.sub(r"(?i)^rp\s*", "", value.strip()).replace(" ", "")
+    if not re.fullmatch(r"\d[\d.,]*", clean):
+        raise ValueError("not_numeric")
+    if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", clean):
+        clean = clean.replace(".", "").replace(",", "")
+    elif "." in clean and "," in clean:
+        clean = clean.replace(".", "").replace(",", ".") if clean.rfind(",") > clean.rfind(".") else clean.replace(",", "")
+    elif "," in clean:
+        clean = clean.replace(",", ".") if len(clean.rsplit(",", 1)[-1]) <= 2 else clean.replace(",", "")
+    elif "." in clean and len(clean.rsplit(".", 1)[-1]) > 2:
+        clean = clean.replace(".", "")
+    return float(clean)
 
 
 def _settle(user_id, reservations, *, results):
@@ -113,9 +132,15 @@ def execute(run_id):
         analysis, provider, model, recorded = _plain_ai(prompt)
         results[reservations[1][0]] = {"provider": provider, "model": model, "usage": recorded}
         observed, summary = _watch_value(analysis)
+        previous = json.loads(item["watch_state_json"] or "{}")
+        if observed is None:
+            _settle(user_id, reservations, results=results)
+            store.finish_run(run_id, status="SUCCEEDED", usage_metadata={"operation": "WATCH", "matched": False},
+                             watch_state={**previous, "checked_at": datetime.now(timezone.utc).isoformat()})
+            return True
         if condition.get("operator") in ("lt", "gt"):
             try:
-                numeric = float(str(observed).replace(".", "").replace(",", ".")) if isinstance(observed, str) else float(observed)
+                numeric = _numeric_value(observed)
             except (ValueError, TypeError):
                 raise RunError("watch_value_invalid") from None
             if not 0 <= numeric < 1e15:
@@ -125,7 +150,6 @@ def execute(run_id):
         else:
             matched = True
             fingerprint = hashlib.sha256(str(observed).strip().lower().encode()).hexdigest()
-        previous = json.loads(item["watch_state_json"] or "{}")
         notify = matched and (not previous.get("matched") or previous.get("fingerprint") != fingerprint)
         watch_state = {"matched": matched, "fingerprint": fingerprint,
                        "checked_at": datetime.now(timezone.utc).isoformat()}

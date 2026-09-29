@@ -37,9 +37,14 @@ def home():
     current_plan = usage.effective_plan(session["user_id"])["plan"]
     from . import automation_store
     unread = automation_store.usage_summary(session["user_id"])["unread"] if automation_enabled() else 0
+    prefill = ""
+    if automation_enabled() and request.args.get("automation_result", "").isdigit():
+        result = automation_store.result(session["user_id"], int(request.args["automation_result"]))
+        if result and result["result_text"]:
+            prefill = "Lanjutkan dari hasil Automation berikut:\n\n" + result["result_text"][:4000]
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]), selected=None,
                            messages=[], current_plan=current_plan, attachment_limits=attachments.limits(current_plan),
-                           automation_enabled=automation_enabled(), automation_unread=unread)
+                           automation_enabled=automation_enabled(), automation_unread=unread, prefill=prefill)
 
 
 @ai_bp.get("/usage")

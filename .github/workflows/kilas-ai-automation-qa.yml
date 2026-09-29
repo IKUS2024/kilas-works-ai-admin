@@ -25,6 +25,17 @@ jobs:
           python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt
       - run: cd client-hub && python tests/test_kilas_ai_automation.py
+  boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Existing Chat, Search, images, PDF, quota, Finance and Assist boundaries
+        run: cd client-hub && python tests/test_kilas_ai_chat.py && python tests/test_kilas_ai_tools.py && python tests/test_kilas_ai_attachments.py && python tests/test_kilas_ai_pdf.py && python tests/test_kilas_ai_usage.py && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -36,6 +47,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: cd client-hub && python tests/test_kilas_ai_automation_browser.py
+      - run: cd client-hub && python tests/test_kilas_ai_browser.py
   postgres-schema:
     runs-on: ubuntu-latest
     timeout-minutes: 15

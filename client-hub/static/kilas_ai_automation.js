@@ -12,3 +12,8 @@ if (timezoneInput) {
   const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
   if (detected && /^(?:[A-Za-z_]+(?:\/[A-Za-z_+-]+)+|UTC)$/.test(detected)) timezoneInput.value = detected;
 }
+document.querySelectorAll('form[data-confirm-delete="1"]').forEach(form => {
+  form.addEventListener('submit', event => {
+    if (!window.confirm('Hapus Automation ini? Hasil yang sudah ada tetap tersimpan.')) event.preventDefault();
+  });
+});
