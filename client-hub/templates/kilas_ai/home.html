@@ -6,10 +6,11 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
   <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}">
+  {% if automation_enabled %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_automation.css',v='1') }}">{% endif %}
   <script src="{{ url_for('static',filename='kilas_ai.js',v='7') }}" defer></script>
 </head>
 <body>
-<div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}" data-max-image-bytes="{{ attachment_limits.max_image_bytes }}">
+<div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-automation-enabled="{{ '1' if automation_enabled else '0' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}" data-max-image-bytes="{{ attachment_limits.max_image_bytes }}">
   <aside class="ai-sidebar" id="ai-sidebar" aria-label="Riwayat chat">
     <div class="ai-sidebar-top"><a class="ai-brand" href="{{ url_for('kilas_ai.home') }}">Kilas <span>AI</span></a><button class="ai-icon ai-close" type="button" id="ai-close-menu" aria-label="Tutup riwayat">×</button></div>
     <a class="ai-new" href="{{ url_for('kilas_ai.home') }}">+ Chat baru</a>
@@ -29,6 +30,7 @@
         <form method="post" data-action="delete" action="{{ url_for('kilas_ai.delete',thread_id=selected.id) if selected else '' }}" onsubmit="return confirm('Hapus chat ini?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-danger" type="submit">Hapus chat</button></form>
       </div></details>
     </header>
+    {% if automation_enabled %}<nav class="ai-product-nav ai-chat-nav" aria-label="Kilas AI"><a href="{{ url_for('kilas_ai.home') }}" aria-current="page">Chat</a><a href="{{ url_for('kilas_ai.automation_home') }}">Automation{% if automation_unread %} <span class="ai-unread">{{ automation_unread }}</span>{% endif %}</a></nav>{% endif %}
     <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>Kilas Works</h1><p>Apa yang ingin kamu kerjakan hari ini?</p></section>
     <div class="ai-messages" id="ai-messages" aria-live="polite" {% if not messages %}hidden{% endif %}>
       {% for message in messages %}<article class="ai-message ai-{{ message.role }}"><div class="ai-message-name">{{ 'Kamu' if message.role == 'user' else 'Kilas AI' }}</div><div class="ai-message-text {{ 'ai-markdown' if message.role == 'assistant' else '' }}">{{ message.content }}</div>
@@ -41,7 +43,7 @@
         {% if message.role == 'assistant' %}<button type="button" class="ai-copy">Salin</button>{% endif %}{% if loop.last %}<button type="button" class="ai-regenerate">Buat ulang jawaban</button>{% endif %}</article>{% endfor %}
     </div>
     <div class="ai-composer-area"><p class="ai-notice" id="ai-notice" role="status"></p><form id="ai-composer" class="ai-composer">
-      <label class="ai-visually-hidden" for="ai-input">Tulis pesan</label><textarea id="ai-input" maxlength="12000" rows="2" placeholder="Tulis pesan untuk Kilas AI..."></textarea>
+      <label class="ai-visually-hidden" for="ai-input">Tulis pesan</label><textarea id="ai-input" maxlength="12000" rows="2" placeholder="Tulis pesan untuk Kilas AI...">{{ prefill|default('') }}</textarea>
       <div class="ai-pending" id="ai-pending" aria-live="polite"></div>
       <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">+ Lampiran</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="Pilih lampiran"><label class="ai-search-toggle" for="ai-search"><input id="ai-search" type="checkbox" name="search"><span>Search</span></label><button class="ai-send" type="submit" id="ai-send">Kirim</button><button class="ai-stop" type="button" id="ai-stop" hidden>Stop</button></div>
       <p class="ai-inline-hint" id="ai-edit-hint" hidden>Upload gambar terlebih dahulu untuk diedit.</p>

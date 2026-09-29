@@ -147,6 +147,11 @@ def create_app():
             applied = kilas_ai_schema.apply_release()
             print('Kilas AI additive release schema: OK; applied=' + str(len(applied)))
 
+        if os.environ.get('KILAS_AI_AUTOMATION_SCHEMA_APPLY','').strip().lower() == 'true':
+            from kilas_ai import automation_schema
+            applied = automation_schema.apply_release()
+            print('Kilas AI Automation additive schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
@@ -216,6 +221,7 @@ def create_app():
     from routes_products import products_bp
     app.register_blueprint(products_bp)
     from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
+    from kilas_ai import automation_routes  # Registers Automation on the existing Kilas AI blueprint.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)

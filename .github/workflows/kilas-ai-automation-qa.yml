@@ -1,0 +1,76 @@
+name: Kilas AI Automation QA
+on:
+  push:
+    branches: [feature/kilas-ai-automation-v1-20260929]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'client-hub/kilas_ai/automation_*.py'
+      - 'client-hub/migrations/0075_kilas_ai_automation_*.sql'
+      - 'client-hub/tests/test_kilas_ai_automation*.py'
+      - 'client-hub/templates/kilas_ai/**'
+      - 'client-hub/static/kilas_ai*'
+      - '.github/workflows/kilas-ai-automation-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - run: cd client-hub && python tests/test_kilas_ai_automation.py
+  boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Existing Chat, Search, images, PDF, quota, Finance and Assist boundaries
+        run: cd client-hub && python tests/test_kilas_ai_chat.py && python tests/test_kilas_ai_tools.py && python tests/test_kilas_ai_attachments.py && python tests/test_kilas_ai_pdf.py && python tests/test_kilas_ai_usage.py && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: cd client-hub && python tests/test_kilas_ai_automation_browser.py
+      - run: cd client-hub && python tests/test_kilas_ai_browser.py
+  postgres-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_ai_automation_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_ai_automation_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - name: Additive migration in disposable PostgreSQL schema
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_ai_automation_qa
+          KILAS_AI_POSTGRES_QA: '1'
+          SECRET_KEY: synthetic-kilas-automation-schema-only
+        run: python client-hub/tests/test_kilas_ai_automation_postgres.py
