@@ -74,6 +74,6 @@
 .ai-composer-area{width:min(100%,808px)}.ai-composer{border-radius:16px;padding:13px 14px}.ai-composer textarea{min-height:60px}
 .ai-composer-actions{flex-wrap:wrap;gap:8px 10px}.ai-control-group{display:inline-flex;align-items:center;gap:7px;min-width:0}.ai-control-group label{white-space:nowrap}.ai-send:disabled{opacity:.55;cursor:wait}
 .ai-main.is-empty .ai-empty{width:min(100%,808px);margin:auto auto 0;padding:0 24px;text-align:left}.ai-main.is-empty .ai-composer-area{margin:0 auto auto;padding-top:23px}.ai-main.is-empty .ai-empty p{margin-bottom:0}
-.ai-composer:focus-within,.ai-sidebar .ai-new:focus-visible,.ai-composer-actions select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ai-sidebar .ai-new:focus-visible,.ai-composer-actions select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:760px){.ai-messages{padding:20px 16px 18px}.ai-message+.ai-message{margin-top:16px}.ai-assistant+.ai-user{margin-top:28px}.ai-main.is-empty .ai-empty{padding:0 16px}.ai-main.is-empty .ai-composer-area{padding:20px 10px 14px}}
 @media(max-width:440px){.ai-composer-actions select{max-width:116px}.ai-user .ai-message-text{max-width:90%}.ai-composer{padding:11px}.ai-main.is-empty .ai-empty{padding:0 14px}}

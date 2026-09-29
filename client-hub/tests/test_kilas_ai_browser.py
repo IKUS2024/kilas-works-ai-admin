@@ -82,6 +82,7 @@ def main():
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
+                assert page.locator(".ai-assistant .ai-copy").count() == 1
                 page.wait_for_url("**/kilas-ai/threads/*")
                 assert len(store.list_threads(owner)) == 1
                 assert page.locator(".ai-user .ai-message-text").first.inner_text() == "Halo Kilas AI"
@@ -90,6 +91,7 @@ def main():
                 page.get_by_role("button", name="Kirim").click()
                 page.locator(".ai-user .ai-message-text").nth(1).wait_for()
                 assert page.locator(".ai-user .ai-message-text").nth(1).inner_text() == "Pesan kedua"
+                page.locator(".ai-assistant .ai-copy").nth(1).wait_for()
                 gap = page.evaluate("""() => {const a=document.querySelectorAll('.ai-message');return a[2].getBoundingClientRect().top-a[1].getBoundingClientRect().bottom;}""")
                 assert gap < 100, (width, "message gap", gap)
                 page.reload(wait_until="networkidle")

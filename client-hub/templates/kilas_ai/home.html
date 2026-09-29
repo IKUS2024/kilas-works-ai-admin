@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
-  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='4') }}">
-  <script src="{{ url_for('static',filename='kilas_ai.js',v='4') }}" defer></script>
+  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='5') }}">
+  <script src="{{ url_for('static',filename='kilas_ai.js',v='5') }}" defer></script>
 </head>
 <body>
 <div class="ai-shell" data-thread-id="{{ selected.id if selected else '' }}" data-max-files="{{ attachment_limits.max_files }}" data-max-file-bytes="{{ attachment_limits.max_file_bytes }}">
