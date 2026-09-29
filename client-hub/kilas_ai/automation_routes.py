@@ -61,7 +61,8 @@ def automation_timezone():
 @ai_bp.get("/automation/new", endpoint="automation_new")
 def automation_new():
     return _page("automation_form.html", item=None, instruction=request.args.get("instruction", "")[:1200],
-                 timezone_name=store.setting(_owner()), title="", preview=None, error=None)
+                 timezone_name=store.setting(_owner()), detect_timezone=not store.has_setting(_owner()),
+                 title="", preview=None, error=None)
 
 
 @ai_bp.get("/automation/<int:automation_id>/edit", endpoint="automation_edit")
@@ -93,6 +94,8 @@ def automation_preview():
                      timezone_name=timezone_name, title=title, preview=None, error=str(error)), 400
     if title:
         spec["title"] = title
+    if not store.has_setting(_owner()):
+        store.set_timezone(_owner(), schedule.validate_timezone(timezone_name))
     session["automation_preview"] = {"instruction": instruction, "timezone": timezone_name,
                                      "automation_id": item_id, "title": title, "created": int(time.time())}
     session.modified = True

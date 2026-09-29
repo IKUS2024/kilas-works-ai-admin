@@ -81,6 +81,7 @@ class AutomationFlowTests(unittest.TestCase):
             "instruction": instruction, "timezone": "Asia/Jakarta"})
         self.assertEqual(preview.status_code, 200)
         self.assertIn("Aktifkan Automation", preview.get_data(as_text=True))
+        self.assertTrue(store.has_setting(self.owner))
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?", (self.owner,))["n"], 0)
         created = client.post("/kilas-ai/automation/activate", data={"csrf_token": "automation-csrf"})
         self.assertEqual(created.status_code, 303)
@@ -118,11 +119,12 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertEqual(store.claim_due(now=due), [])
         self.assertEqual(store.usage_summary(self.other)["runs"], 1)
         self.assertEqual(store.get(self.other, automation_id)["status"], "ACTIVE")
+        store.set_status(self.other, automation_id, "pause")
 
     def test_access_csrf_active_limit_pause_resume_and_delete(self):
         owner = repo.create_user("automation-limit@example.test", "hash")
         client = self.client_for(owner)
-        self.assertEqual(self.app.test_client().get("/kilas-ai/automation").status_code, 303)
+        self.assertEqual(self.app.test_client().get("/kilas-ai/automation").status_code, 302)
         self.assertEqual(client.post("/kilas-ai/automation/timezone", data={"timezone": "Asia/Jakarta"}).status_code, 400)
         self.assertEqual(client.post("/kilas-ai/automation/timezone", data={"csrf_token": "automation-csrf",
             "timezone": "UTC+7"}).status_code, 303)
@@ -140,6 +142,7 @@ class AutomationFlowTests(unittest.TestCase):
         store.set_status(owner, first, "resume")
         self.assertEqual(store.get(owner, first)["status"], "ACTIVE")
         self.assertEqual(store.usage_summary(owner)["active"], 1)
+        store.set_status(owner, first, "pause")
 
     def test_watch_only_alerts_on_match_or_meaningful_change(self):
         owner = repo.create_user("automation-watch@example.test", "hash")

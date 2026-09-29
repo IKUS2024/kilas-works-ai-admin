@@ -7,3 +7,8 @@ if (timezoneForm) {
     timezoneForm.requestSubmit();
   }
 }
+const timezoneInput = document.querySelector('#auto-timezone[data-detect="1"]');
+if (timezoneInput) {
+  const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (detected && /^(?:[A-Za-z_]+(?:\/[A-Za-z_+-]+)+|UTC)$/.test(detected)) timezoneInput.value = detected;
+}
