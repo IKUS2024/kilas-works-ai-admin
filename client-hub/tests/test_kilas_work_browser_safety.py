@@ -29,6 +29,12 @@ class BrowserSafetyTests(unittest.TestCase):
         self.assertEqual(classify_action({"type": "click"}, target_text="Search"), "ALLOW")
         self.assertEqual(classify_action({"type": "click"}, target_text="Pay now"), "CONFIRM")
         self.assertEqual(classify_action({"type": "click"}, target_text="Hapus akun"), "CONFIRM")
+        self.assertEqual(classify_action({"type": "click"}, target_text="Submit", target_type="submit",
+                                         form_text="Payment details"), "CONFIRM")
+        self.assertEqual(classify_action({"type": "click"}, target_text="Search", target_type="submit",
+                                         form_text="Search website"), "ALLOW")
+        self.assertEqual(classify_action({"type": "keypress", "keys": ["Enter"]},
+                                         form_text="Send email to customer"), "CONFIRM")
         self.assertEqual(classify_action({"type": "type", "text": "secret"}, target_type="password"), "HANDOFF")
         self.assertEqual(classify_action({"type": "click"}, page_text="Enter your verification code"), "HANDOFF")
         with self.assertRaises(BrowserSafetyError):

@@ -19,6 +19,10 @@ SENSITIVE_ACTION = re.compile(
 HANDOFF = re.compile(
     r"\b(?:captcha|recaptcha|verify you are human|two.factor|2fa|one.time password|"
     r"verification code|kode verifikasi|kode otp|autentikasi dua langkah)\b", re.I)
+SENSITIVE_FORM = re.compile(
+    r"\b(?:payment|card number|bank account|purchase|checkout|order|booking|reservation|"
+    r"application|email|message|publish|delete|pembayaran|rekening|pesanan|booking|"
+    r"reservasi|permohonan|email|pesan|publikasi|hapus)\b", re.I)
 
 
 def require_public_url(url, resolver=socket.getaddrinfo):
@@ -44,7 +48,7 @@ def require_public_url(url, resolver=socket.getaddrinfo):
     return url
 
 
-def classify_action(action, *, target_text="", target_type="", page_text=""):
+def classify_action(action, *, target_text="", target_type="", page_text="", form_text=""):
     """Return ALLOW, CONFIRM, or HANDOFF before applying a model action."""
     kind = str(action.get("type") or "")
     if kind not in {"click", "double_click", "drag", "move", "scroll", "keypress", "type", "wait", "screenshot"}:
@@ -55,6 +59,12 @@ def classify_action(action, *, target_text="", target_type="", page_text=""):
                            re.search(r"\b(?:otp|verification|kode)\b", target_text, re.I)):
         return "HANDOFF"
     if kind in ("click", "double_click", "keypress") and SENSITIVE_ACTION.search(target_text[:300]):
+        return "CONFIRM"
+    if kind in ("click", "double_click", "keypress") and target_type.lower() == "submit":
+        if SENSITIVE_FORM.search(form_text[:1000]) or re.fullmatch(
+                r"\s*(?:submit|send|kirim|confirm|konfirmasi)\s*", target_text, re.I):
+            return "CONFIRM"
+    if kind == "keypress" and "Enter" in (action.get("keys") or []) and SENSITIVE_FORM.search(form_text[:1000]):
         return "CONFIRM"
     if kind == "type" and len(str(action.get("text") or "")) > 2000:
         raise BrowserSafetyError("Teks terlalu panjang untuk satu langkah browser.")

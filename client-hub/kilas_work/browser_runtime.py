@@ -118,11 +118,13 @@ class BrowserRuntime:
             return page.evaluate("""([x,y]) => { const e=document.elementFromPoint(x,y); if(!e) return {};
               const t=e.closest('button,a,input,[role=button],form')||e;
               return {text:(t.innerText||t.getAttribute('aria-label')||t.value||'').slice(0,300),
-                      type:(t.getAttribute('type')||'').toLowerCase()}; }""", [x, y])
+                      type:(t.getAttribute('type')||(t.tagName==='BUTTON'?'submit':'')).toLowerCase(),
+                      form_text:(t.closest('form')?.innerText||'').slice(0,1000)}; }""", [x, y])
         if kind in ("type", "keypress"):
             return page.evaluate("""() => {const e=document.activeElement; return {
               text:(e?.getAttribute('aria-label')||e?.getAttribute('placeholder')||'').slice(0,300),
-              type:(e?.getAttribute('type')||'').toLowerCase()};}""")
+              type:(e?.getAttribute('type')||(e?.tagName==='BUTTON'?'submit':'')).toLowerCase(),
+              form_text:(e?.closest('form')?.innerText||'').slice(0,1000)};}""")
         return {}
 
     @staticmethod
@@ -180,7 +182,8 @@ class BrowserRuntime:
                 except Exception:
                     page_text = ""
                 decision = classify_action(action, target_text=target.get("text") or "",
-                                           target_type=target.get("type") or "", page_text=page_text)
+                                           target_type=target.get("type") or "", page_text=page_text,
+                                           form_text=target.get("form_text") or "")
                 if decision != "ALLOW" and not manual:
                     prior["result"] = {"decision": decision, "next_action": index, **self._snapshot(record)}
                     return prior["result"]
