@@ -40,9 +40,9 @@ def main():
     origin = f"http://127.0.0.1:{server.server_port}"
     try:
         with patch.object(providers, "stream", side_effect=stream_reply), \
-             patch.object(tools, "web_search", return_value={"text": "Fakta dengan sumber.",
+             patch.object(tools, "web_search_steps", return_value=[{"result": {"text": "Fakta dengan sumber.",
                 "citations": [{"url": "https://example.org/source", "title": "Sumber uji"}],
-                "model": "gpt-6-luna", "usage": {"input_tokens": 100, "output_tokens": 50}}), \
+                "model": "gpt-6-luna", "usage": {"input_tokens": 100, "output_tokens": 50}}}]), \
              patch.object(tools, "image", return_value={"raw": sample_image(), "mime": "image/png",
                 "model": "gpt-image-2", "usage": {}}), sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)

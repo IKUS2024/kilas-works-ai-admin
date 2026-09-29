@@ -2,7 +2,9 @@
 import base64
 import io
 import os
-from urllib.parse import urlparse
+import re
+from datetime import datetime, timezone
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import requests
 from PIL import Image
@@ -19,26 +21,44 @@ def _openai_key():
     return key
 
 
-def web_search(context, mode="FAST"):
-    model = (os.environ.get("KILAS_AI_OPENAI_SMART_MODEL", "gpt-6-sol") if mode == "SMART"
-             else os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "")).strip()
-    if not model:
-        raise ToolUnavailable("Web search belum tersedia.")
-    key = _openai_key()
-    prompt = "\n".join(message["role"] + ": " + (message["content"] if isinstance(message["content"], str)
-                     else message["content"][0]["text"]) for message in context[-12:])[:18000]
-    try:
-        response = requests.post("https://api.openai.com/v1/responses",
-            headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
-            json={"model": model, "instructions": "You are Kilas AI. Answer in the user's language. Use actual web search sources and cite them. Do not invent sources.",
-                  "input": prompt, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
-                  "reasoning": {"effort": "medium" if mode == "SMART" else "none"}, "max_tool_calls": 1,
-                  "max_output_tokens": 2048}, timeout=(10, 90))
-        response.raise_for_status()
-        data = response.json()
-    except (requests.RequestException, ValueError):
-        raise ToolUnavailable("Web search sedang tidak tersedia. Coba lagi.") from None
-    searched = any(item.get("type") == "web_search_call" for item in data.get("output", []))
+SEARCH_CALL_CAPS = {"FREE": 1, "PLUS": 3, "PRO": 4, "MAX": 5}
+
+
+def _search_text(context):
+    recent = context[-8:]
+    lines = []
+    for index, message in enumerate(recent):
+        content = message["content"] if isinstance(message["content"], str) else message["content"][0]["text"]
+        limit = 6000 if index == len(recent) - 1 else 750
+        if len(content) > limit:
+            content = content[:limit // 2] + "\n[…ringkasan teks terpotong…]\n" + content[-limit // 2:]
+        lines.append(message["role"] + ": " + content)
+    return "\n".join(lines)[-12000:]
+
+
+def research_requested(context):
+    latest = context[-1]["content"] if context else ""
+    text = (latest if isinstance(latest, str) else latest[0]["text"]).split(
+        "\n\nTeks berikut berhasil diekstrak", 1)[0].lower()
+    return bool(re.search(
+        r"\b(?:riset|research|analisis lengkap|market research|pro dan kontra|berbagai sumber|"
+        r"beberapa sumber|multi.sumber|verifikasi klaim|bandingkan kompetitor|"
+        r"bandingkan (?:beberapa|tiga|3|dua|2)|sumber resmi dan sumber independen|"
+        r"harga.{0,50}fitur.{0,50}(?:target|positioning)|apa yang berubah dan kenapa|"
+        r"bandingkan\s+\S.{0,80}\s+dan\s+\S|compare\s+\S.{0,80}\s+(?:and|vs)\s+\S)\b", text))
+
+
+def _source_url(url):
+    parsed = urlparse(url or "")
+    if parsed.scheme not in ("http", "https") or not parsed.netloc or len(url) > 2048:
+        return None
+    query = urlencode([(key, value) for key, value in parse_qsl(parsed.query)
+                       if not key.lower().startswith("utm_") and key.lower() not in ("fbclid", "gclid")])
+    return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/") or "/", "", query, ""))
+
+
+def _web_response(data):
+    searched = sum(item.get("type") == "web_search_call" for item in data.get("output", []))
     parts, citations = [], []
     for item in data.get("output", []):
         if item.get("type") != "message":
@@ -50,19 +70,122 @@ def web_search(context, mode="FAST"):
             for annotation in block.get("annotations", []):
                 if annotation.get("type") != "url_citation":
                     continue
-                url = annotation.get("url") or ""
-                parsed = urlparse(url)
-                if parsed.scheme not in ("http", "https") or not parsed.netloc or len(url) > 2048:
+                url = _source_url(annotation.get("url"))
+                if url and url not in [item["url"] for item in citations]:
+                    citations.append({"url": url, "title": (annotation.get("title") or urlparse(url).netloc)[:160]})
+    return searched, "\n".join(parts).strip(), citations
+
+
+def _request(payload, timeout=90):
+    try:
+        response = requests.post("https://api.openai.com/v1/responses",
+            headers={"Authorization": "Bearer " + _openai_key(), "Content-Type": "application/json"},
+            json=payload, timeout=(10, timeout))
+        response.raise_for_status()
+        return response.json()
+    except (requests.RequestException, ValueError):
+        raise ToolUnavailable("Web search sedang tidak tersedia. Coba lagi.") from None
+
+
+def _enough_evidence(text, citations):
+    domains = {urlparse(item["url"]).netloc.removeprefix("www.") for item in citations}
+    return len(text) >= 300 and len(citations) >= 3 and len(domains) >= 2
+
+
+def _synthesize_research(chunks, citations):
+    model = os.environ.get("KILAS_AI_OPENAI_SMART_MODEL", "gpt-6-sol").strip()
+    sources = "\n".join(f"[{index}] {item['title']} — {item['url']}"
+                        for index, item in enumerate(citations, 1))
+    evidence = "\n\n".join(chunks)[:18000]
+    payload = {"model": model, "instructions": (
+        "Synthesize only the supplied web findings in the user's language. Cite factual claims with [number] "
+        "from the supplied source list. Never invent a source, URL, or fact. State conflicts and uncertainty "
+        "plainly; prefer primary evidence for factual claims. Be concise and use a comparison table only if useful."),
+        "input": "Verified search findings:\n" + evidence + "\n\nActual cited sources:\n" + sources,
+        "store": False, "reasoning": {"effort": "medium"}, "max_output_tokens": 2300}
+    data = _request(payload)
+    _, answer, _ = _web_response(data)
+    indices = [int(value) for value in re.findall(r"\[(\d+)\]", answer)]
+    if not indices or any(index < 1 or index > len(citations) for index in indices):
+        raise ToolUnavailable("research_synthesis_uncited")
+    allowed = {item["url"] for item in citations}
+    if any(_source_url(value.rstrip(".,)")) not in allowed
+           for value in re.findall(r"https?://[^\s)]+", answer)):
+        raise ToolUnavailable("research_synthesis_uncited")
+    return answer, model, data.get("usage") or {}
+
+
+def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None):
+    model = os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "").strip()
+    if not model:
+        raise ToolUnavailable("Web search belum tersedia.")
+    complex_request = research_requested(context)
+    limit = min(SEARCH_CALL_CAPS.get(plan, 1), max(1, int(max_calls or SEARCH_CALL_CAPS.get(plan, 1)))) if complex_request else 1
+    prompt = _search_text(context)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    angles = ("Find the most relevant primary or official evidence for the request.",
+              "Find independent evidence or missing comparison dimensions; avoid sources already found.",
+              "Check conflicting claims, dates, and any still-missing comparison dimensions.",
+              "Verify remaining gaps using current reputable sources.",
+              "Cross-check any unresolved high-impact claim against a separate credible source.")
+    parts, citations, calls = [], [], 0
+    input_tokens = output_tokens = 0
+    for index in range(limit):
+        previous = "\n".join(item["url"] for item in citations[-8:])
+        query = prompt if index == 0 else (prompt + "\n\nPrior sources (avoid duplicates):\n" + previous +
+                                            "\nResearch gap: " + angles[index])
+        payload = {"model": model, "instructions": (
+            "You are Kilas AI. Today is " + today + ". Search the live web and answer in the user's language. "
+            "Use actual returned sources and cite them; never invent sources. Prefer official/primary sources "
+            "for facts and recent sources for current claims. Report credible disagreements. " +
+            (angles[index] if complex_request else "Answer this straightforward question concisely.")),
+            "input": query, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
+            "reasoning": {"effort": "none"}, "max_tool_calls": 1, "max_output_tokens": 2048}
+        calls += 1
+        try:
+            data = _request(payload)
+        except ToolUnavailable:
+            if not complex_request or not parts:
+                if index + 1 < limit:
                     continue
-                if url not in [item["url"] for item in citations]:
-                    citations.append({"url": url, "title": (annotation.get("title") or parsed.netloc)[:160]})
-    answer = "\n".join(parts).strip()
-    if not searched or not answer or not citations:
+                break
+            continue
+        searched, answer, found = _web_response(data)
+        used = data.get("usage") or {}
+        input_tokens += int(used.get("input_tokens") or 0)
+        output_tokens += int(used.get("output_tokens") or 0)
+        if not searched or not answer or not found:
+            if not complex_request:
+                break
+            continue
+        new_sources = [item for item in found if item["url"] not in {source["url"] for source in citations}]
+        if not new_sources and citations:
+            break
+        citations.extend(new_sources)
+        parts.append(answer)
+        if not complex_request or _enough_evidence("\n".join(parts), citations):
+            break
+        if index + 1 < limit:
+            yield {"activity": "Membandingkan informasi…"}
+    if not parts or not citations:
         raise ToolUnavailable("Web search tidak mengembalikan sumber yang dapat ditampilkan.")
-    usage = data.get("usage") or {}
-    return {"text": answer[:30000], "citations": citations[:8], "model": model,
-            "usage": {"input_tokens": usage.get("input_tokens", 0),
-                      "output_tokens": usage.get("output_tokens", 0)}}
+    answer = "\n\n".join(parts)
+    if complex_request and len(parts) > 1 and len(citations) > 1:
+        yield {"activity": "Menyusun hasil riset…"}
+        try:
+            answer, model, used = _synthesize_research(parts, citations[:8])
+            input_tokens += int(used.get("input_tokens") or 0)
+            output_tokens += int(used.get("output_tokens") or 0)
+        except ToolUnavailable:
+            pass  # Keep only the source-backed search findings when synthesis fails.
+    yield {"result": {"text": answer[:30000], "citations": citations[:8], "model": model,
+            "search_calls": calls, "research": complex_request,
+            "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens, "web_search_calls": calls}}}
+
+
+def web_search(context, mode="FAST", plan="FREE", max_calls=None):
+    return next(event["result"] for event in web_search_steps(context, mode, plan, max_calls)
+                if "result" in event)
 
 
 def image(prompt, source=None):

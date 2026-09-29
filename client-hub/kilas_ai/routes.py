@@ -339,15 +339,22 @@ def send(thread_id):
                 from . import tools as ai_tools
                 try:
                     if tool == "WEB":
-                        yield _sse("activity", {"label": "Mencari di web…"})
-                        result = ai_tools.web_search(context, mode=mode)
+                        research = ai_tools.research_requested(context)
+                        yield _sse("activity", {"label": "Mencari sumber…" if research else "Mencari di web…"})
+                        result = None
+                        for update in ai_tools.web_search_steps(context, mode=mode, plan=plan,
+                                max_calls=ai_usage.web_call_budget(user_id, plan) if research else 1):
+                            if "activity" in update:
+                                yield _sse("activity", {"label": update["activity"]})
+                            else:
+                                result = update["result"]
                         yield _sse("activity", {"label": "Memeriksa sumber…"})
                         provider, model = "openai", result["model"]
                         usage.update(result["usage"])
                         text = result["text"]
                         store.append_assistant(user_id, thread_id, text, mode, provider, model, key,
                             {"status": "complete", "tool": "web", "citations": result["citations"],
-                             "usage": result["usage"]})
+                             "search_calls": result.get("search_calls", 1), "usage": result["usage"]})
                         finished = True
                         yield _sse("delta", {"text": text})
                         yield _sse("sources", {"citations": result["citations"]})

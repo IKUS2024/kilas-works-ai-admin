@@ -150,6 +150,33 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
         logging.getLogger(__name__).warning("Kilas AI internal cost warning for account %s", user_id)
 
 
+def web_call_budget(user_id, plan):
+    """Bound optional research calls by the remaining internal account cost guard."""
+    now = _now()
+    state = effective_plan(user_id)
+    if plan != state["plan"]:
+        return 1
+    if plan == "FREE":
+        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        hard = Decimal(os.environ.get("KILAS_AI_FREE_COST_CAP_USD", "0.15"))
+    else:
+        start = _period(plan, state["period_start"], state["period_end"], "WEB_SEARCH", now)[0]
+        hard = (Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000"))
+                * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.45")))
+    rows = db.query_all("SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage "
+                        "WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','PENDING')",
+                        (user_id, start.isoformat()))
+    spent = Decimal(0)
+    for row in rows:
+        try:
+            spent += (Decimal(str(row["estimated_cost_usd"])) if row["estimated_cost_usd"] is not None
+                      else _guard_unit(row["operation_type"], row["mode"]))
+        except (InvalidOperation, KeyError):
+            spent += Decimal("0.05")
+    extra = max(0, int((hard - spent) / Decimal("0.01")))
+    return min({"FREE": 1, "PLUS": 3, "PRO": 4, "MAX": 5}.get(plan, 1), 1 + extra)
+
+
 def reserve(user_id, thread_id, key, mode, tool):
     """Atomically check and reserve all requested units before any provider call."""
     now = _now()
@@ -214,7 +241,7 @@ def reserve(user_id, thread_id, key, mode, tool):
         conn.close()
 
 
-def estimate(model, input_tokens, output_tokens, operation):
+def estimate(model, input_tokens, output_tokens, operation, web_search_calls=1):
     """Only explicit verified server price maps produce an estimate."""
     try:
         rates = json.loads(os.environ.get("KILAS_AI_MODEL_PRICING_JSON", "{}"))
@@ -230,7 +257,7 @@ def estimate(model, input_tokens, output_tokens, operation):
             value = ((Decimal(str(input_tokens)) * Decimal(str(rate["input_per_million_usd"])) +
                       Decimal(str(output_tokens)) * Decimal(str(rate["output_per_million_usd"]))) / Decimal(1000000))
             if operation == "WEB_SEARCH":
-                value += Decimal("0.01")
+                value += Decimal("0.01") * max(1, min(5, int(web_search_calls)))
             elif operation == "PDF":
                 value += Decimal("0.001")
         if value is None or value < 0 or not value.is_finite():
@@ -246,7 +273,8 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
     output_tokens = max(0, int(usage.get("output_tokens") or 0))
     for index, operation in enumerate(operations):
         billable = index == 0
-        cost = estimate(model, input_tokens if billable else 0, output_tokens if billable else 0, operation) if model else None
+        cost = (estimate(model, input_tokens if billable else 0, output_tokens if billable else 0,
+                         operation, usage.get("web_search_calls", 1)) if model else None)
         db.execute("UPDATE kilas_ai_usage SET status=?,provider=?,model=?,input_tokens=?,output_tokens=?,estimated_cost_usd=? "
                    "WHERE user_id=? AND operation_key=? AND operation_type=? AND status='PENDING'",
                    ("COMPLETE" if success else "FAILED", provider if billable else None,
