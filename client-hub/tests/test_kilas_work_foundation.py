@@ -106,6 +106,53 @@ class WorkFoundationTests(unittest.TestCase):
         self.assertEqual(engine.route("Riset mendalam beberapa situs"), ("WEB", "gpt-6-sol"))
         self.assertEqual(engine.route("Buka website contoh.com dan klik menu"), ("BROWSER", "gpt-6-luna"))
 
+    def test_topup_consumes_earliest_expiry_and_survives_renewal(self):
+        owner = self.owner("fifo")
+        first = billing.create_order(owner, "TOPUP", "MINI")
+        self.proof(owner, first)
+        billing.review(first, self.admin, "VERIFIED")
+        second = billing.create_order(owner, "TOPUP", "EXTRA")
+        self.proof(owner, second)
+        billing.review(second, self.admin, "VERIFIED")
+        credits = db.query_all("SELECT id,total_micro FROM kilas_work_credits WHERE user_id=? ORDER BY id", (owner,))
+        db.execute("UPDATE kilas_work_credits SET expires_at=? WHERE id=?",
+                   ((quota.now() + timedelta(days=40)).isoformat(), credits[0]["id"]))
+        db.execute("UPDATE kilas_work_credits SET expires_at=? WHERE id=?",
+                   ((quota.now() + timedelta(days=70)).isoformat(), credits[1]["id"]))
+        db.execute("INSERT INTO kilas_work_topup_debits(user_id,credit_id,operation_key,reserved_micro,"
+                   "charged_micro,status) VALUES (?,?,?,?,?,'COMPLETE')",
+                   (owner, credits[0]["id"], "prior", credits[0]["total_micro"] - 30000,
+                    credits[0]["total_micro"] - 30000))
+        thread = store.create_thread(owner, "FIFO")
+        quota.ensure_account(owner)
+        db.execute("UPDATE kilas_work_accounts SET trial_total_micro=10000 WHERE user_id=?", (owner,))
+        for index in range(2):
+            key = "fifo-" + str(index)
+            quota.reserve(owner, thread, key, "CHAT")
+            quota.finish(owner, key, success=True, actual_micro=5000)
+        quota.reserve(owner, thread, "fifo-image", "IMAGE")
+        debits = db.query_all("SELECT credit_id,reserved_micro FROM kilas_work_topup_debits "
+                              "WHERE operation_key='fifo-image' ORDER BY id")
+        self.assertEqual([(row["credit_id"], row["reserved_micro"]) for row in debits],
+                         [(credits[0]["id"], 30000), (credits[1]["id"], 50000)])
+        quota.finish(owner, "fifo-image", success=True, actual_micro=70000)
+        self.assertFalse(quota.finish(owner, "fifo-image", success=True, actual_micro=70000))
+        before = quota.snapshot(owner)["topup_percent"]
+        plan = billing.create_order(owner, "PLAN", "PLUS")
+        self.proof(owner, plan)
+        billing.review(plan, self.admin, "VERIFIED")
+        self.assertEqual(quota.snapshot(owner)["topup_percent"], before)
+        with patch.object(quota, "now", return_value=quota.now() + timedelta(days=91)):
+            self.assertFalse(quota.snapshot(owner)["topup_available"])
+
+    def test_variable_cost_is_not_flat(self):
+        cheap = quota.estimate_micro("gpt-6-luna", 1000, 300)
+        strong = quota.estimate_micro("gpt-6-sol", 1000, 300)
+        researched = quota.estimate_micro("gpt-6-luna", 1000, 300, web_calls=2)
+        self.assertLess(cheap, strong)
+        self.assertLess(cheap, researched)
+        self.assertIsNone(quota.estimate_micro("unknown-model", 1000, 300))
+
 
 if __name__ == "__main__":
     unittest.main()

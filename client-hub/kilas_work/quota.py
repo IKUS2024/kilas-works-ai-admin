@@ -74,6 +74,12 @@ def _plan(conn, user_id, at):
     return None, None, None
 
 
+def _plan_budget(plan, start, end):
+    days = max(1, (end - start).total_seconds() / 86400)
+    paid_periods = max(1, round(days / 30))
+    return _budget(PLANS[plan]) * paid_periods
+
+
 def _spent(conn, user_id, source, start=None, end=None):
     statement = "SELECT COALESCE(SUM(CASE WHEN status='COMPLETE' THEN charged_micro ELSE reserved_micro END),0) "
     statement += "FROM kilas_work_usage WHERE user_id=? AND source=? AND status IN ('COMPLETE','PENDING')"
@@ -100,7 +106,7 @@ def snapshot(user_id):
         account = sql.one(conn, "SELECT trial_total_micro FROM kilas_work_accounts WHERE user_id=?", (user_id,))
         plan, start, end = _plan(conn, user_id, at)
         trial_remaining = max(0, int(account[0]) - _spent(conn, user_id, "TRIAL"))
-        base_budget = _budget(PLANS[plan]) if plan else 0
+        base_budget = _plan_budget(plan, start, end) if plan else 0
         base_remaining = max(0, base_budget - _spent(conn, user_id, "BASE", start, end)) if plan else 0
         lots = _lots(conn, user_id, at)
         topup_total = sum(int(row[1]) for row in lots)
@@ -156,7 +162,7 @@ def reserve(user_id, thread_id, key, operation, model="gpt-6-luna", job_id=None)
             raise QuotaError("Kilas Work mencapai batas penggunaan harian. Coba lagi besok.")
         plan, start, end = _plan(conn, user_id, at)
         if plan:
-            budget = _budget(PLANS[plan])
+            budget = _plan_budget(plan, start, end)
             spent = _spent(conn, user_id, "BASE", start, end)
             source = "BASE" if spent + forecast <= budget else "TOPUP"
         else:
