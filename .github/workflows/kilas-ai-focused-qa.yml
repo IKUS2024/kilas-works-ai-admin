@@ -1,11 +1,12 @@
 name: Kilas AI Focused QA
 on:
   push:
-    branches: [main]
+    branches: [main, 'feature/kilas-ai-quota-work-master-*']
     paths:
       - 'client-hub/kilas_ai/**'
       - 'client-hub/migrations/0071_kilas_ai_v1_*.sql'
       - 'client-hub/migrations/0072_kilas_ai_usage_status_*.sql'
+      - 'client-hub/migrations/0073_kilas_ai_topups_*.sql'
       - 'client-hub/tests/test_kilas_ai_*.py'
       - 'client-hub/app.py'
       - 'client-hub/db.py'
@@ -44,6 +45,8 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_routing.py
       - name: Kilas AI account billing and manual review
         run: cd client-hub && python tests/test_kilas_ai_billing.py
+      - name: Kilas AI Kuota Kilas fair use and verified top-ups
+        run: cd client-hub && python tests/test_kilas_ai_topups.py
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15

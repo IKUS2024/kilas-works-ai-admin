@@ -27,23 +27,24 @@ def main():
 
     try:
         with patch.object(db, "_postgres_connect_kwargs", side_effect=options):
-            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0071_", "0072_"))]
+            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0071_", "0072_", "0073_"))]
             with patch.object(db, "MIGRATIONS", baseline):
                 db.init_schema()
             before = {row["table_name"] for row in db.query_all(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()")}
             assert not any(name.startswith("kilas_ai_") for name in before)
-            assert schema.apply_release() == ["0071_kilas_ai_v1", "0072_kilas_ai_usage_status"]
+            assert schema.apply_release() == ["0071_kilas_ai_v1", "0072_kilas_ai_usage_status", "0073_kilas_ai_topups"]
             assert schema.apply_release() == []
             after = {row["table_name"] for row in db.query_all(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()")}
             assert before.issubset(after)
             assert after - before == {"kilas_ai_threads", "kilas_ai_messages", "kilas_ai_attachments",
                                       "kilas_ai_usage", "kilas_ai_subscriptions", "kilas_ai_invoices",
-                                      "kilas_ai_payments", "kilas_ai_schema_releases"}
+                                      "kilas_ai_payments", "kilas_ai_topup_orders", "kilas_ai_topup_credits",
+                                      "kilas_ai_topup_debits", "kilas_ai_schema_releases"}
             fields = {row["column_name"] for row in db.query_all(
                 "SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='kilas_ai_usage'")}
-            assert "status" in fields
+            assert {"status", "quota_source"}.issubset(fields)
     finally:
         with control.cursor() as cursor:
             cursor.execute("DROP SCHEMA " + isolated + " CASCADE")

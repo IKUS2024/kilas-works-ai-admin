@@ -37,9 +37,10 @@ def home():
 
 @ai_bp.get("/usage")
 def usage_page():
-    from . import billing, usage
+    from . import billing, topups, usage
     return render_template("kilas_ai/usage.html", state=usage.snapshot(session["user_id"]),
-                           plans=usage.PLANS, invoices=billing.owner_invoices(session["user_id"]))
+                           plans=usage.PLANS, invoices=billing.owner_invoices(session["user_id"]),
+                           topup_orders=topups.owner_orders(session["user_id"]), topup_packs=topups.PACKS)
 
 
 @ai_bp.post("/threads")
@@ -362,7 +363,7 @@ def send(thread_id):
                         return
                     source = next((item for item in prepared if item["mime_type"].startswith("image/")), None) or prior_image
                     yield _sse("activity", {"label": "Mengedit gambar…" if tool == "IMAGE_EDIT" else "Membuat gambar…"})
-                    prompt = routing.image_prompt(content, prior_answer) if tool == "IMAGE_GENERATE" else content
+                    prompt = routing.enhance_image_prompt(routing.image_prompt(content, prior_answer), content) if tool == "IMAGE_GENERATE" else content
                     result = ai_tools.image(prompt, source if tool == "IMAGE_EDIT" else None)
                     provider, model = "openai", result["model"]
                     usage.update({k: int(v or 0) for k, v in result["usage"].items() if k in usage})

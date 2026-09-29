@@ -80,8 +80,10 @@ class PdfTests(unittest.TestCase):
         rows = db.query_all("SELECT operation_type,status FROM kilas_ai_usage WHERE user_id=? ORDER BY id", (self.owner,))
         self.assertEqual([row["operation_type"] for row in rows], ["PDF", "PDF"])
         self.assertTrue(all(row["status"] == "COMPLETE" for row in rows))
-        with self.assertRaises(usage.UsageLimit):
-            usage.reserve(self.owner, thread_id, "pdf_third_0123456789abcdef", "FAST", "PDF")
+        self.assertEqual(usage.PLANS["FREE"]["PDF"], 10)
+        plan, operations = usage.reserve(self.owner, thread_id, "pdf_third_0123456789abcdef", "FAST", "PDF")
+        self.assertEqual((plan, operations), ("FREE", ("PDF",)))
+        usage.finish(self.owner, "pdf_third_0123456789abcdef", operations, success=False)
 
     def test_pdf_detection_does_not_capture_information_question(self):
         self.assertFalse(pdf.is_request("Apa itu file PDF?"))

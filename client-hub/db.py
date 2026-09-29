@@ -291,6 +291,7 @@ MIGRATIONS = [
     ("0070_assist_business_media_sqlite.sql", "0070_assist_business_media_postgres.sql"),
     ("0071_kilas_ai_v1_sqlite.sql", "0071_kilas_ai_v1_postgres.sql"),
     ("0072_kilas_ai_usage_status_sqlite.sql", "0072_kilas_ai_usage_status_postgres.sql"),
+    ("0073_kilas_ai_topups_sqlite.sql", "0073_kilas_ai_topups_postgres.sql"),
 ]
 
 

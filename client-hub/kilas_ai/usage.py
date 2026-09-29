@@ -9,10 +9,10 @@ from decimal import Decimal, InvalidOperation
 import db
 
 PLANS = {
-    "FREE": {"price": 0, "CHAT": 100, "CHAT_DAILY": 10, "WEB_SEARCH": 3, "IMAGES": 1, "PDF": 2},
-    "PLUS": {"price": 69000, "CHAT": 600, "WEB_SEARCH": 15, "IMAGES": 5, "PDF": 20},
-    "PRO": {"price": 149000, "CHAT": 1500, "WEB_SEARCH": 40, "IMAGES": 12, "PDF": 60},
-    "MAX": {"price": 299000, "CHAT": 3000, "WEB_SEARCH": 80, "IMAGES": 25, "PDF": 150},
+    "FREE": {"price": 0, "CHAT": 100, "CHAT_DAILY": 10, "WEB_SEARCH": 3, "IMAGES": 2, "PDF": 10},
+    "PLUS": {"price": 69000, "CHAT": 600, "WEB_SEARCH": 15, "IMAGES": 20, "PDF": 75},
+    "PRO": {"price": 149000, "CHAT": 1500, "WEB_SEARCH": 40, "IMAGES": 50, "PDF": 180},
+    "MAX": {"price": 299000, "CHAT": 3000, "WEB_SEARCH": 80, "IMAGES": 100, "PDF": 350},
 }
 MODEL_RATES = {
     "gpt-6-luna": ("0.10", "0.50"), "gpt-6-sol": ("2.00", "10.00"),
@@ -121,6 +121,14 @@ def _chat_only_sql():
 
 def _limit(plan, mode, operation):
     key = operation if operation in ("CHAT", "WEB_SEARCH", "PDF") else "IMAGES"
+    if key in ("IMAGES", "PDF"):
+        try:
+            overrides = json.loads(os.environ.get("KILAS_AI_FAIR_USE_JSON", "{}"))
+            configured = overrides.get(plan, {}).get(key)
+            if isinstance(configured, int) and 1 <= configured <= 10000:
+                return configured
+        except (ValueError, TypeError, AttributeError):
+            pass
     return PLANS[plan][key]
 
 
@@ -134,7 +142,7 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
         hard = Decimal(os.environ.get("KILAS_AI_FREE_COST_CAP_USD", "0.15"))
     else:
         period_start = _period(plan, paid_start, paid_end, "PDF", now)[0]
-        hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.45"))
+        hard = Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000")) * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.35"))
     rows = _rows(conn, "SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? "
                  "AND created_at>=? AND status IN ('COMPLETE','PENDING')", (user_id, period_start.isoformat()))
     spent = Decimal(0)
@@ -144,9 +152,11 @@ def _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now
         except (InvalidOperation, KeyError):
             spent += Decimal("0.05")
     forecast = sum((_guard_unit(operation, mode) for operation in operations), Decimal(0))
-    if spent + forecast > hard and not (mode == "FAST" and operations == ("CHAT",) and plan != "FREE"):
+    if spent + forecast > hard and not (mode == "FAST" and operations == ("CHAT",)):
         raise UsageLimit("Batas penggunaan fitur ini tercapai untuk periode ini. Chat biasa masih dapat digunakan.")
-    if spent + forecast > hard * Decimal("0.55"):
+    warning = (Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000"))
+               * Decimal("0.25")) if plan != "FREE" else hard * Decimal("0.7")
+    if spent + forecast > warning:
         logging.getLogger(__name__).warning("Kilas AI internal cost warning for account %s", user_id)
 
 
@@ -162,7 +172,7 @@ def web_call_budget(user_id, plan):
     else:
         start = _period(plan, state["period_start"], state["period_end"], "WEB_SEARCH", now)[0]
         hard = (Decimal(PLANS[plan]["price"]) / Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000"))
-                * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.45")))
+                * Decimal(os.environ.get("KILAS_AI_COST_HARD_RATIO", "0.35")))
     rows = db.query_all("SELECT operation_type,mode,estimated_cost_usd FROM kilas_ai_usage "
                         "WHERE user_id=? AND created_at>=? AND status IN ('COMPLETE','PENDING')",
                         (user_id, start.isoformat()))
@@ -200,6 +210,7 @@ def reserve(user_id, thread_id, key, mode, tool):
             if count >= ceiling:
                 raise UsageLimit("Terlalu banyak permintaan dalam waktu singkat. Coba lagi sebentar.")
         operations = _operations(mode, tool)
+        needs_topup = False
         for operation in operations:
             limit = _limit(plan, mode, operation)
             if limit is None:
@@ -208,30 +219,36 @@ def reserve(user_id, thread_id, key, mode, tool):
             type_filter = ("u.operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT')" if operation in ("IMAGE_GENERATION", "IMAGE_EDIT")
                            else "u.operation_type=?")
             count = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage AS u WHERE u.user_id=? AND " + type_filter + " "
-                "AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR (u.status='PENDING' AND u.created_at>=?))"
+                "AND u.quota_source='BASE' AND u.created_at>=? AND u.created_at<? "
+                "AND (u.status='COMPLETE' OR (u.status='PENDING' AND u.created_at>=?))"
                 + (_chat_only_sql() if operation == "CHAT" else ""),
                 ((user_id,) if operation in ("IMAGE_GENERATION", "IMAGE_EDIT") else (user_id, operation))
                 + (start.isoformat(), end.isoformat(), (now - timedelta(minutes=10)).isoformat()), one=True)[0]
             if count >= limit:
-                messages = {"CHAT": "Kuota Chat kamu sudah habis untuk periode ini. Upgrade paket atau tunggu sampai kuota direset.",
-                            "WEB_SEARCH": "Kuota Search kamu sudah habis untuk periode ini. Chat biasa masih bisa digunakan.",
-                            "PDF": "Kuota PDF kamu sudah habis untuk periode ini.",
-                            "IMAGE_GENERATION": "Kuota gambar kamu sudah habis untuk periode ini.",
-                            "IMAGE_EDIT": "Kuota gambar kamu sudah habis untuk periode ini."}
-                raise UsageLimit(messages[operation])
+                needs_topup = True
             if plan == "FREE" and operation == "CHAT":
                 day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 daily = _query(conn, "SELECT COUNT(*) FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type='CHAT' "
-                    "AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR "
+                    "AND u.quota_source='BASE' AND u.created_at>=? AND u.created_at<? AND (u.status='COMPLETE' OR "
                     "(u.status='PENDING' AND u.created_at>=?))" + _chat_only_sql(),
                     (user_id, day_start.isoformat(), (day_start + timedelta(days=1)).isoformat(),
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
                 if daily >= PLANS[plan]["CHAT_DAILY"]:
-                    raise UsageLimit("Batas Chat hari ini sudah tercapai. Bisa digunakan lagi besok.")
-        _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
+                    needs_topup = True
+        try:
+            _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
+        except UsageLimit:
+            needs_topup = True
+        if needs_topup:
+            from . import topups
+            try:
+                topups.reserve(conn, user_id, key, operations[0], mode, now)
+            except topups.TopupError as error:
+                raise UsageLimit(str(error)) from None
         for operation in operations:
-            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,created_at) "
-                   "VALUES (?,?,?,?,?,'PENDING',?)", (user_id, thread_id, key, operation, mode, now.isoformat()))
+            _query(conn, "INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,quota_source,created_at) "
+                   "VALUES (?,?,?,?,?,'PENDING',?,?)", (user_id, thread_id, key, operation, mode,
+                       "TOPUP" if needs_topup else "BASE", now.isoformat()))
         conn.commit()
         return plan, operations
     except Exception:
@@ -271,15 +288,33 @@ def finish(user_id, key, operations, *, success, provider=None, model=None, usag
     usage = usage or {}
     input_tokens = max(0, int(usage.get("input_tokens") or 0))
     output_tokens = max(0, int(usage.get("output_tokens") or 0))
-    for index, operation in enumerate(operations):
-        billable = index == 0
-        cost = (estimate(model, input_tokens if billable else 0, output_tokens if billable else 0,
-                         operation, usage.get("web_search_calls", 1)) if model else None)
-        db.execute("UPDATE kilas_ai_usage SET status=?,provider=?,model=?,input_tokens=?,output_tokens=?,estimated_cost_usd=? "
+    conn = _connect()
+    try:
+        if db.BACKEND == "postgres":
+            _query(conn, "SELECT id FROM users WHERE id=? FOR UPDATE", (user_id,), one=True)
+        first_cost = None
+        for index, operation in enumerate(operations):
+            billable = index == 0
+            cost = (estimate(model, input_tokens if billable else 0, output_tokens if billable else 0,
+                             operation, usage.get("web_search_calls", 1)) if model else None)
+            if billable:
+                first_cost = cost
+            _query(conn, "UPDATE kilas_ai_usage SET status=?,provider=?,model=?,input_tokens=?,output_tokens=?,estimated_cost_usd=? "
                    "WHERE user_id=? AND operation_key=? AND operation_type=? AND status='PENDING'",
                    ("COMPLETE" if success else "FAILED", provider if billable else None,
                     model if billable else None, input_tokens if billable else 0,
                     output_tokens if billable else 0, cost, user_id, key, operation))
+        from . import topups
+        fallback = topups.FORECAST_MICRO.get(operations[0] if operations[0] != "CHAT" else
+                                             ("SMART" if not model and input_tokens else "FAST"), 80000) if operations else 0
+        actual_micro = int(Decimal(first_cost) * Decimal(1000000)) if first_cost else fallback
+        topups.settle(conn, user_id, key, success, actual_micro)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def snapshot(user_id):
@@ -290,21 +325,24 @@ def snapshot(user_id):
                              ("IMAGE_GENERATION", "Gambar"), ("PDF", "PDF")):
         start, end = _period(state["plan"], state["period_start"], state["period_end"], operation, now)
         if operation == "IMAGE_GENERATION":
-            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT') AND status='COMPLETE' AND created_at>=? AND created_at<?"
+            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=? AND operation_type IN ('IMAGE_GENERATION','IMAGE_EDIT') AND quota_source='BASE' AND status='COMPLETE' AND created_at>=? AND created_at<?"
             params = (user_id, start.isoformat(), end.isoformat())
         else:
-            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type=? AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?"
+            sql = "SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? AND u.operation_type=? AND u.quota_source='BASE' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?"
             params = (user_id, operation, start.isoformat(), end.isoformat())
             if operation == "CHAT":
                 sql += _chat_only_sql()
         used = db.query_one(sql, params)["n"]
         key = operation if operation in ("CHAT", "WEB_SEARCH", "PDF") else "IMAGES"
-        summary[label] = {"used": used, "limit": PLANS[state["plan"]][key]}
+        summary[label] = {"used": used, "limit": _limit(state["plan"], "FAST", operation)}
     state["reset_at"] = _period(state["plan"], state["period_start"], state["period_end"], "CHAT", now)[1]
     if state["plan"] == "FREE":
         day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         state["chat_today"] = db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage AS u WHERE u.user_id=? "
-            "AND u.operation_type='CHAT' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?" + _chat_only_sql(),
+            "AND u.operation_type='CHAT' AND u.quota_source='BASE' AND u.status='COMPLETE' AND u.created_at>=? AND u.created_at<?" + _chat_only_sql(),
             (user_id, day_start.isoformat(), (day_start + timedelta(days=1)).isoformat()))["n"]
     state["usage"] = summary
+    state["creative_high"] = any(summary[name]["used"] >= summary[name]["limit"] for name in ("Gambar", "PDF"))
+    from . import topups
+    state["topup"] = topups.balance(user_id)
     return state
