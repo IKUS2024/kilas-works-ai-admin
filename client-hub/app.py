@@ -147,6 +147,11 @@ def create_app():
             applied = kilas_ai_schema.apply_release()
             print('Kilas AI additive release schema: OK; applied=' + str(len(applied)))
 
+        if os.environ.get('KILAS_WORK_SCHEMA_APPLY','').strip().lower() == 'true':
+            from kilas_work import schema as kilas_work_schema
+            applied = kilas_work_schema.apply_release()
+            print('Kilas Work additive release schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
@@ -220,6 +225,10 @@ def create_app():
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
     app.jinja_env.globals["kilas_ai_enabled"] = kilas_ai_enabled
+    from kilas_work.routes import work_bp, admin_bp as kilas_work_admin_bp, enabled as kilas_work_enabled
+    app.register_blueprint(work_bp)
+    app.register_blueprint(kilas_work_admin_bp)
+    app.jinja_env.globals["kilas_work_enabled"] = kilas_work_enabled
     from routes_finance import finance_bp
     app.register_blueprint(finance_bp)
     from routes_workspace import workspace_bp
@@ -318,6 +327,7 @@ def create_app():
             or endpoint.startswith("finance.")
             or endpoint.startswith("workspace.")
             or endpoint.startswith("kilas_ai.")
+            or endpoint.startswith("kilas_work.")
             # Authorized direct AI links must leave the Finance workspace too.
             # Each destination still enforces its own membership/product/CSRF gates.
             or endpoint.startswith(("client.", "assist.", "core_customers.", "core_jobs.",
