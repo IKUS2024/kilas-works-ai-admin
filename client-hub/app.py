@@ -142,6 +142,11 @@ def create_app():
             applied=assist_schema.apply_release()
             print('Assist additive release schema: OK; applied=' + str(len(applied)))
 
+        if os.environ.get('KILAS_AI_SCHEMA_APPLY','').strip().lower() == 'true':
+            from kilas_ai import schema as kilas_ai_schema
+            applied = kilas_ai_schema.apply_release()
+            print('Kilas AI additive release schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
