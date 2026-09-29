@@ -1,6 +1,140 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paket &amp; kuota · Kilas Work</title><link rel="stylesheet" href="{{ url_for('static',filename='kilas_work.css',v='1') }}"></head><body><main class="work-page"><p><a href="{{ url_for('kilas_work.home') }}">← Kembali ke Work</a></p><p class="work-eyebrow">KILAS WORK</p><h1>Paket &amp; kuota</h1><p>Gunakan satu percakapan untuk menulis, meneliti, membuat file, dan pekerjaan web.</p>
-<section class="work-status"><h2>Kuota Work</h2>{% if quota.plan %}<p>Paket Work {{ {'PLUS':'Hemat','PRO':'Plus','MAX':'Pro'}[quota.plan] }} · {{ quota.base_percent }}% kuota paket tersisa</p>{% else %}<p><strong>Coba Gratis · tanpa kartu</strong></p><p>Kuota Percobaan · {{ quota.trial_label }}</p><div class="work-meter"><span style="width:{{ quota.trial_percent }}%"></span></div><p>Cukup untuk mencoba sekitar 3 pekerjaan browser ringan. Pekerjaan yang lebih panjang atau kompleks menggunakan kuota lebih banyak.</p>{% endif %}{% if quota.topup_available %}<p>Kuota Work tambahan · {{ quota.topup_percent }}% tersisa</p>{% endif %}</section>
-<section class="work-status"><h2>AI Engine</h2><p><strong>Powered by OpenAI GPT-6</strong></p><p>GPT-6 Luna digunakan untuk tugas cepat dan efisien. GPT-6 Sol digunakan otomatis saat pekerjaan membutuhkan penalaran yang lebih kompleks.</p></section>
-<h2>Pilih Paket Work</h2><p>Mulai murah. Tidak ada tugas browser unlimited; kuota mengikuti pemakaian nyata supaya harga tetap terjangkau.</p><div class="work-plans">{% for sku,price in plans.items() %}{% set label={'PLUS':'Hemat','PRO':'Plus','MAX':'Pro'}[sku] %}<section class="work-plan"><h3>Work {{ label }}</h3><strong>Rp{{ '{:,.0f}'.format(price).replace(',', '.') }} <small>/ 30 hari</small></strong><p>{{ {'PLUS':'Untuk mencoba dan pekerjaan ringan.','PRO':'Untuk pemakaian rutin dan beberapa langkah.','MAX':'Untuk pekerjaan lebih sering dan alur yang lebih besar.'}[sku] }}</p><p>Kuota Work sesuai paket. Pemakaian bergantung pada durasi dan kompleksitas pekerjaan.</p><form method="post" action="{{ url_for('kilas_work.checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="PLAN"><input type="hidden" name="sku" value="{{ sku }}"><button>Pilih Work {{ label }}</button></form></section>{% endfor %}</div>
-<h2>Tambah Kuota Work</h2><p>Kuota tambahan berlaku 90 hari setelah pembayaran diverifikasi dan tetap tersedia saat paket diperpanjang.</p><div class="work-plans">{% for sku,price in topups.items() %}<section class="work-plan"><h3>{{ sku.title() }}</h3><strong>Rp{{ '{:,.0f}'.format(price).replace(',', '.') }}</strong><form method="post" action="{{ url_for('kilas_work.checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="kind" value="TOPUP"><input type="hidden" name="sku" value="{{ sku }}"><button>Tambah {{ sku.title() }}</button></form></section>{% endfor %}</div>
-<h2>Tagihan saya</h2>{% for item in orders %}<p><a href="{{ url_for('kilas_work.invoice',order_id=item.id) }}">{{ item.invoice_number }} · {{ item.sku.title() }} · {{ item.status.replace('_',' ').title() }}</a></p>{% else %}<p>Belum ada tagihan.</p>{% endfor %}</main></body></html>
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Paket & kuota · Kilas Work</title>
+  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_work.css',v='2') }}">
+</head>
+<body>
+<main class="work-page work-pricing-page">
+  <p><a href="{{ url_for('kilas_work.home') }}">← Kembali ke Work</a></p>
+
+  <header class="work-pricing-hero">
+    <p class="work-eyebrow">KILAS WORK</p>
+    <h1>Mulai gratis. Bayar saat memang kepakai.</h1>
+    <p>Suruh Kilas buka web, cari informasi, isi formulir, membuat file, dan mengerjakan tugas online. Tidak perlu kartu untuk mencoba.</p>
+    <div class="work-pricing-trust">
+      <span>✓ Trial sekali per akun</span>
+      <span>✓ Tanpa kartu kredit</span>
+      <span>✓ Tindakan penting tetap minta konfirmasi</span>
+    </div>
+  </header>
+
+  <section class="work-status work-usage-summary">
+    <div>
+      <p class="work-eyebrow">KUOTA SAAT INI</p>
+      {% if quota.plan %}
+        <h2>Work {{ {'PLUS':'Hemat','PRO':'Plus','MAX':'Pro'}[quota.plan] }}</h2>
+        <p>{{ quota.base_percent }}% kuota paket tersisa.</p>
+      {% else %}
+        <h2>Coba Gratis</h2>
+        <p>Kuota percobaan: {{ quota.trial_label }}.</p>
+        <div class="work-meter"><span style="width:{{ quota.trial_percent }}%"></span></div>
+        <p class="work-muted">Secara konservatif cukup untuk sekitar 3 pekerjaan browser ringan. Tugas panjang atau kompleks memakai kuota lebih banyak.</p>
+      {% endif %}
+      {% if quota.topup_available %}<p>Kuota tambahan · {{ quota.topup_percent }}% tersisa</p>{% endif %}
+    </div>
+    <div class="work-engine-note">
+      <span>AI Engine</span>
+      <strong>Powered by OpenAI GPT-6</strong>
+      <small>Luna dipakai otomatis untuk efisiensi. Sol dipakai saat tugas memang butuh penalaran lebih kuat.</small>
+    </div>
+  </section>
+
+  <section class="work-pricing-section">
+    <div class="work-pricing-heading">
+      <div>
+        <p class="work-eyebrow">PAKET</p>
+        <h2>Pilih sesuai pemakaianmu</h2>
+      </div>
+      <p>Semua paket memakai kuota berbasis biaya nyata. Tidak ada browser unlimited supaya harga tetap murah.</p>
+    </div>
+
+    <div class="work-price-grid">
+      <article class="work-price-card work-price-free">
+        <div class="work-price-top">
+          <p class="work-price-kicker">COBA DULU</p>
+          <h3>Gratis</h3>
+          <div class="work-price-amount"><span>Rp</span><strong>0</strong></div>
+          <p class="work-price-period">sekali per akun</p>
+        </div>
+        <ul>
+          <li>Sekitar 3 pekerjaan browser ringan</li>
+          <li>Chat, web, file, dan tugas online</li>
+          <li>Tanpa kartu kredit</li>
+          <li>Login/OTP tetap kamu yang pegang</li>
+        </ul>
+        {% if quota.trial_available %}
+          <a class="work-price-cta" href="{{ url_for('kilas_work.home') }}">Coba Kilas Work →</a>
+        {% else %}
+          <span class="work-price-cta work-price-cta-disabled">Trial sudah digunakan</span>
+        {% endif %}
+      </article>
+
+      {% for sku,price in plans.items() %}
+        {% set label={'PLUS':'Hemat','PRO':'Plus','MAX':'Pro'}[sku] %}
+        {% set popular=(sku == 'PRO') %}
+        <article class="work-price-card {{ 'is-popular' if popular else '' }}">
+          {% if popular %}<div class="work-popular-badge">PALING POPULER</div>{% endif %}
+          <div class="work-price-top">
+            <p class="work-price-kicker">{{ 'MULAI HEMAT' if sku == 'PLUS' else 'UNTUK RUTIN' if sku == 'PRO' else 'UNTUK LEBIH SERING' }}</p>
+            <h3>{{ label }}</h3>
+            <div class="work-price-amount"><span>Rp</span><strong>{{ '{:,.0f}'.format(price).replace(',', '.') }}</strong></div>
+            <p class="work-price-period">/ 30 hari</p>
+          </div>
+          <ul>
+            <li>{{ {'PLUS':'Cocok untuk mulai memakai Work','PRO':'Cocok untuk pekerjaan rutin','MAX':'Cocok untuk pemakaian lebih sering'}[sku] }}</li>
+            <li>Browser, web, file, dan pembuatan dokumen</li>
+            <li>Kilas memilih Luna/Sol otomatis</li>
+            <li>Tindakan penting selalu minta konfirmasi</li>
+          </ul>
+          <form method="post" action="{{ url_for('kilas_work.checkout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="kind" value="PLAN">
+            <input type="hidden" name="sku" value="{{ sku }}">
+            <button class="work-price-cta" type="submit">Pilih {{ label }} →</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+    <p class="work-pricing-footnote">Pemakaian berbeda-beda tergantung durasi browser, jumlah langkah, model AI, pencarian web, dan file yang diproses.</p>
+  </section>
+
+  <section class="work-topup-section">
+    <div class="work-pricing-heading">
+      <div>
+        <p class="work-eyebrow">TAMBAH KUOTA</p>
+        <h2>Butuh sedikit lagi? Top up saja.</h2>
+      </div>
+      <p>Kuota tambahan berlaku 90 hari dan tetap tersedia saat paket diperpanjang.</p>
+    </div>
+    <div class="work-topup-grid">
+      {% for sku,price in topups.items() %}
+        <article class="work-topup-card">
+          <div>
+            <small>{{ {'MINI':'Mini','EXTRA':'Extra','POWER':'Power'}[sku] }}</small>
+            <strong>Rp{{ '{:,.0f}'.format(price).replace(',', '.') }}</strong>
+          </div>
+          <form method="post" action="{{ url_for('kilas_work.checkout') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="kind" value="TOPUP">
+            <input type="hidden" name="sku" value="{{ sku }}">
+            <button type="submit">Tambah kuota</button>
+          </form>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="work-billing-history">
+    <h2>Tagihan saya</h2>
+    {% for item in orders %}
+      <p><a href="{{ url_for('kilas_work.invoice',order_id=item.id) }}">{{ item.invoice_number }} · {{ item.sku.title() }} · {{ item.status.replace('_',' ').title() }}</a></p>
+    {% else %}
+      <p class="work-muted">Belum ada tagihan.</p>
+    {% endfor %}
+  </section>
+</main>
+</body>
+</html>
