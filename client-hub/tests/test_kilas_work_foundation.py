@@ -41,6 +41,13 @@ class WorkFoundationTests(unittest.TestCase):
             billing.submit_proof(user_id, order_id, FileStorage(stream=io.BytesIO(b"synthetic proof"),
                                  filename="proof.png", content_type="image/png"))
 
+    def test_launch_catalog_is_affordable_and_bounded(self):
+        self.assertEqual(quota.PLANS, {"PLUS": 29000, "PRO": 69000, "MAX": 129000})
+        self.assertEqual(quota.TOPUPS, {"MINI": 29000, "EXTRA": 59000, "POWER": 99000})
+        self.assertEqual(quota._trial_micro(), 300000)
+        self.assertLessEqual(quota.FORECAST_MICRO["BROWSER"] * 3, quota._trial_micro())
+        self.assertGreater(quota.FORECAST_MICRO["BROWSER"] * 4, quota._trial_micro())
+
     def test_trial_once_isolated_and_exhausts_without_reset(self):
         owner, other = self.owner("trial"), self.owner("other")
         thread = store.create_thread(owner, "Test")
