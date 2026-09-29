@@ -5,6 +5,7 @@ one canonical FAQ through the existing knowledge writer and optimistic revision 
 """
 import hashlib
 import json
+import re
 
 import ai_onboarding
 import ai_usage
@@ -13,6 +14,54 @@ import knowledge_setup
 import repo
 
 GUIDE_QUESTION = 'Panduan pelayanan Kilas Assist dari pemilik'
+
+
+def _language_code(value):
+    """Normalize legacy/profile language labels without rewriting stored production data."""
+    text = str(value or '').strip().casefold()
+    if text in ('en', 'english', 'bahasa inggris', 'inggris'):
+        return 'en'
+    if text in ('id', 'indonesian', 'bahasa indonesia', 'indonesia', 'bahasa indo', 'indo'):
+        return 'id'
+    return 'id'
+
+
+def _language_directive(text):
+    """Extract only explicit owner-facing reply-language rules from one training message.
+
+    This intentionally does not interpret generic words such as "kalau" as a language rule.
+    The latest explicit rule wins, so a new owner correction cannot be cancelled by older
+    profile defaults or an older sentence preserved inside the generated knowledge guide.
+    """
+    raw = str(text or '').strip().casefold()
+    if not raw:
+        return None
+    english = bool(re.search(r'\\b(?:english|inggris|bah(?:asa|sa)\\s+inggris)\\b', raw))
+    indonesian = bool(re.search(r'\\b(?:indonesian|bahasa\\s+indonesia|bahasa\\s+indo)\\b', raw))
+    customer_language = bool(re.search(
+        r'\\b(?:ikuti|mengikuti|sesuai)\\s+(?:bahasa\\s+)?customer\\b|'
+        r'\\b(?:kalau|jika)\\s+customer.{0,45}\\b(?:english|inggris|indonesia|bahasa)\\b', raw))
+    if customer_language and english:
+        return {'forced_language': None, 'follow_customer': True}
+    universal = bool(re.search(
+        r'\\b(?:mulai\\s+sekarang|sekarang\\s+(?:kalau\\s+)?ada\\s+customer|semua\\s+customer|'
+        r'semua\\s+pelanggan|setiap\\s+customer|setiap\\s+pelanggan|selalu|harus|wajib|'
+        r'walaupun|meskipun|regardless)\\b', raw))
+    if english and universal:
+        return {'forced_language': 'en', 'follow_customer': False}
+    if indonesian and universal:
+        return {'forced_language': 'id', 'follow_customer': False}
+    return None
+
+
+def _latest_language_directive(bid):
+    for row in reversed(history(bid)):
+        if row.get('mode') != 'assist_teach':
+            continue
+        directive = _language_directive(row.get('message'))
+        if directive:
+            return directive
+    return {'forced_language': None, 'follow_customer': False}
 TEACH_PROMPT = '''Kamu Kilas Assist yang sedang dilatih pemilik bisnis, seperti karyawan baru.
 Konfirmasikan pemahaman secara singkat dan natural dalam bahasa Indonesia. Tanyakan satu hal
 yang paling penting jika masih kurang. Gunakan hanya fakta/aturan yang diajarkan pemilik.
@@ -140,12 +189,15 @@ def refresh_knowledge(business_id):
 
 
 def language_policy(bid):
-    """Current owner rules, independent of search terms or conversation history."""
+    """Current owner rules with the latest explicit training correction authoritative."""
     profile = repo.get_business_profile(bid) or {}
     guide = next((r for r in repo.get_business_faqs(bid) if r.get('question') == GUIDE_QUESTION), {})
-    return dict(default=profile.get('primary_language') or 'id',
+    directive = _latest_language_directive(bid)
+    return dict(default=_language_code(profile.get('primary_language')),
                 additional=profile.get('additional_languages') or [],
-                owner_rules=guide.get('answer') or '')
+                owner_rules=guide.get('answer') or '',
+                forced_language=directive['forced_language'],
+                follow_customer=directive['follow_customer'])
 
 
 def test_reply(business, actor, message):
