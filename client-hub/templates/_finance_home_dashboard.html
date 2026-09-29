@@ -31,15 +31,17 @@
 {{ metric('Penerima', payee_count|string ~ ' penerima', url_for('finance.payees',business_id=business.id,branch_id=selected_branch_id,display_currency=display_currency), 'people', compact=true) }}
 </section>
 
-<section class="finance-ai-strip" aria-label="AI Finance">
-<div class="finance-ai-copy"><span aria-hidden="true">✦</span><div><h2>AI Finance ✦</h2><p>Bantu kelola keuanganmu lebih cepat.</p></div></div>
+<section class="finance-ai-strip" aria-label="{{ 'AI Finance' if config.get('FINANCE_AI_ASSISTANT_VISIBLE') else 'Aksi cepat' }}">
+<div class="finance-ai-copy"><span aria-hidden="true">✦</span><div><h2>{{ 'AI Finance ✦' if config.get('FINANCE_AI_ASSISTANT_VISIBLE') else 'Aksi cepat' }}</h2><p>Bantu kelola keuanganmu lebih cepat.</p></div></div>
 <div class="finance-quick-actions">
 {% if not branch_read_only and not finance_read_only %}
 <a href="{{ url_for('finance.receipt_new',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('scan') }}Scan Struk</a>
 <a href="{{ url_for('finance.new_invoice',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('invoice') }}Buat Invoice</a>
 {% endif %}
 {% if not branch_read_only and not finance_read_only %}<button type="button" data-dashboard-open="add-transaction-dialog">{{ icon('plus') }}Catat</button>{% endif %}
+{% if config.get('FINANCE_AI_ASSISTANT_VISIBLE') %}
 <a href="{{ url_for('finance.assistant',business_id=business.id,branch_id=selected_branch_id) }}">{{ icon('chat') }}Tanya</a>
+{% endif %}
 </div></section>
 
 {% include '_finance_dashboard_cashflow.html' %}
