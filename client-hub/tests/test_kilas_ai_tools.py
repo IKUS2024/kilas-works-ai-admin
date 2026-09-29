@@ -72,7 +72,7 @@ class ToolTests(unittest.TestCase):
         result = {"raw": image_bytes(), "mime": "image/png", "model": "configured-image", "usage": {}}
         with patch.object(tools, "image", return_value=result):
             response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
-                "content": "Draw a storefront", "mode": "SMART", "tool": "IMAGE_GENERATE",
+                "content": "Draw a storefront",
                 "operation_key": "toolgen_0123456789abcdef"}, headers={"X-CSRF-Token": "tool-csrf"})
             self.assertIn("image", response.get_data(as_text=True))
         stored = store.attachment_list(self.owner, thread_id)
@@ -86,7 +86,7 @@ class ToolTests(unittest.TestCase):
         client = self.client_for(self.owner)
         thread_id = store.create_thread(self.owner)
         response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
-            "content": "Change color", "mode": "FAST", "tool": "IMAGE_EDIT",
+            "content": "Edit image, change color",
             "operation_key": "tooledit_0123456789abcdef"}, headers={"X-CSRF-Token": "tool-csrf"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("Upload gambar terlebih dahulu", response.json["error"])

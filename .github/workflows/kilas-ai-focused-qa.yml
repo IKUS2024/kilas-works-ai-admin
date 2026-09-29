@@ -40,6 +40,8 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_tools.py
       - name: Kilas AI per-account quota and cost accounting
         run: cd client-hub && python tests/test_kilas_ai_usage.py
+      - name: Kilas AI automatic routing and single-unit accounting
+        run: cd client-hub && python tests/test_kilas_ai_routing.py
       - name: Kilas AI account billing and manual review
         run: cd client-hub && python tests/test_kilas_ai_billing.py
   browser:

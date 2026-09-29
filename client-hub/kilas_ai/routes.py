@@ -44,17 +44,14 @@ def usage_page():
 
 @ai_bp.post("/threads")
 def new_thread():
-    from . import store
+    from . import routing, store
     body = (request.get_json(silent=True) or {}) if request.is_json else request.form
-    mode = str(body.get("mode") or "SMART").upper()
-    if mode not in store.MODES:
-        abort(400)
     if not request.is_json:
         return redirect(url_for("kilas_ai.home"), code=303)
     first_message = str(body.get("first_message") or "").strip()
     if not first_message or len(first_message) > 12000:
         abort(400)
-    thread_id = store.create_thread(session["user_id"], mode)
+    thread_id = store.create_thread(session["user_id"], routing.mode_for(first_message))
     return {"thread_id": thread_id, "url": url_for("kilas_ai.thread_page", thread_id=thread_id)}, 201
 
 
@@ -152,17 +149,18 @@ def _sse(event, payload):
 
 @ai_bp.post("/threads/<int:thread_id>/regenerate")
 def regenerate(thread_id):
-    from . import providers, store, usage as ai_usage
+    from . import providers, routing, store, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
     body = request.get_json(silent=True) or {}
     key = str(body.get("operation_key") or "")
-    mode = str(body.get("mode") or "SMART").upper()
-    if mode not in store.MODES or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
-    if not store.last_user_message(user_id, thread_id):
+    last_user = store.last_user_message(user_id, thread_id)
+    if not last_user:
         abort(400)
+    mode = routing.mode_for(last_user["content"])
     context = store.context(user_id, thread_id)
     while context and context[-1]["role"] == "assistant":
         context.pop()
@@ -227,31 +225,31 @@ def regenerate(thread_id):
 
 @ai_bp.post("/threads/<int:thread_id>/send")
 def send(thread_id):
-    from . import attachments, pdf as ai_pdf, providers, store, usage as ai_usage
+    from . import attachments, pdf as ai_pdf, providers, routing, store, usage as ai_usage
     user_id = session["user_id"]
     if not store.thread(user_id, thread_id):
         abort(404)
     body = (request.get_json(silent=True) or {}) if request.is_json else request.form
     files = request.files.getlist("attachments") if not request.is_json else []
     content = (body.get("content") or "").strip()
-    mode = str(body.get("mode") or "SMART").upper()
-    tool = str(body.get("tool") or "CHAT").upper()
     key = str(body.get("operation_key") or "")
     if not content and files:
         content = "Tolong jelaskan lampiran ini."
-    if not content or len(content) > 12000 or mode not in store.MODES or tool not in ("CHAT", "WEB", "IMAGE_GENERATE", "IMAGE_EDIT") or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
+    if not content or len(content) > 12000 or not re.fullmatch(r"[a-zA-Z0-9_-]{16,96}", key):
         abort(400)
     try:
         prepared = attachments.prepare_many(files, plan=ai_usage.effective_plan(user_id)["plan"])
     except attachments.AttachmentError as error:
         return {"error": str(error)}, 400
+    mode = routing.mode_for(content, prepared)
+    search = str(body.get("search") or "").lower() in ("1", "true", "on")
+    previous_document = store.latest_generated_document(user_id, thread_id)
+    tool = routing.tool_for(content, prepared, search=search,
+                            pdf_request=ai_pdf.is_request(content, previous_document))
     if tool == "IMAGE_EDIT" and not any(item["mime_type"].startswith("image/") for item in prepared):
         return {"error": "Upload gambar terlebih dahulu untuk diedit."}, 400
     if tool == "WEB" and any(item["mime_type"].startswith("image/") for item in prepared):
-        return {"error": "Gunakan mode chat untuk menganalisis gambar."}, 400
-    previous_document = store.latest_generated_document(user_id, thread_id) if tool == "CHAT" else None
-    if tool == "CHAT" and ai_pdf.is_request(content, previous_document):
-        tool = "PDF"
+        return {"error": "Matikan Search untuk menganalisis gambar yang diunggah."}, 400
     prior = store.operation(user_id, thread_id, key)
     if prior:
         answer = store.operation(user_id, thread_id, key + ":assistant")
@@ -327,7 +325,7 @@ def send(thread_id):
                 try:
                     if tool == "WEB":
                         yield _sse("activity", {"label": "Mencari di web…"})
-                        result = ai_tools.web_search(context)
+                        result = ai_tools.web_search(context, mode=mode)
                         yield _sse("activity", {"label": "Memeriksa sumber…"})
                         provider, model = "openai", result["model"]
                         usage.update(result["usage"])

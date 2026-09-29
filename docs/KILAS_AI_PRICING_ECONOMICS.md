@@ -1,46 +1,36 @@
-﻿# Kilas AI pricing economics
+# Kilas AI pricing economics
 
-Verified 2026-09-29. This model applies only to Kilas AI. USD/IDR **17,000** is a conservative planning assumption, not a quoted live exchange rate. Prices are Indonesian rupiah per 30-day paid period. Existing production usage consists mainly of small QA calls, so it is a sanity check, not a demand forecast.
+Verified 2026-09-29. This model applies only to Kilas AI. USD/IDR 17,000 is a planning assumption, not a live exchange-rate quote. Production usage so far is mainly short QA calls, so the scenarios below are assumptions rather than observed demand.
 
-## Provider choices and source prices
+## Models and verified rates
 
-| Use | Primary | Fallback | Reasoning | Official standard rate |
-|---|---|---|---|---|
-| Fast | `gpt-6-luna` | None: Claude Haiku costs roughly 10× more | none | $0.10 input / $0.50 output per million tokens |
-| Smart | `gpt-6-sol` | `claude-sonnet-5` | medium | Both $2 input / $10 output per million tokens |
-| Expert | `gpt-6-sol` | `claude-sonnet-5` | high | Both $2 input / $10 output per million tokens |
-| Web | `gpt-6-luna` with one required web-search call | None | none | $10 / 1,000 tool calls plus model tokens |
-| Image generation/edit | `gpt-image-2`, 1024×1024, low | None | n/a | $0.006 output image for low square, plus input tokens |
+The server routes ordinary Chat to `gpt-6-luna` with economical reasoning and clear complex work to `gpt-6-sol` with medium reasoning. Sol retains one same-class `claude-sonnet-5` fallback; Luna has no costly fallback. Search makes one real Web Search call on Luna by default, or Sol for complex searches. Image generation and edit keep `gpt-image-2` at low quality. The existing PDF renderer remains local after Luna/Sol prepares its text.
 
-Model IDs and rates: [OpenAI models](https://developers.openai.com/api/docs/models), [OpenAI API pricing](https://developers.openai.com/api/docs/pricing), [OpenAI image pricing](https://developers.openai.com/api/docs/guides/image-generation), [Claude model catalog](https://platform.claude.com/docs/en/models/overview), and [Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing). Production requests on 2026-09-29 confirmed this account can access `gpt-6-luna`, `gpt-6-sol`, and `gpt-image-2`; Web Search and image edit also completed. The configured Claude fallback was verified against the official catalog and focused adapter tests, but was not forced in production. GPT-4.1 and GPT-4.1-mini are rejected by the new Kilas AI router, even if stale environment variables still name them.
+Published standard token rates are $0.10 input / $0.50 output per million tokens for Luna, $2 / $10 for Sol and Sonnet 5, and $10 per 1,000 Web Search calls plus model tokens. Low-quality square `gpt-image-2` output is listed at $0.006; input, editing, and size may increase the actual image charge, so the planning reserve remains $0.04 per image. Sources: [OpenAI API pricing](https://developers.openai.com/api/docs/pricing), [OpenAI image generation](https://developers.openai.com/api/docs/guides/image-generation), and [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing). The $0.001 local PDF rendering/storage figure is an internal planning allowance, not a provider quote. Runtime estimates use known token rates plus one Search/PDF overhead per action; unknown model costs remain unestimated, rather than assigned an invented rate.
 
-## Final prices and customer quotas
+## Launch plans and accounting
 
-| Plan | Price | Fast | Smart | Expert | Web | Images (generate + edit) | Generated PDFs |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Free | Rp0 | 5/day, 100/month | 3/month | 0 | 1/month | 1/month | 2/month |
-| Plus | Rp69,000 | 400 | 17 | 3 | 6 | 5 | 20 |
-| Pro | Rp149,000 | 900 | 37 | 7 | 12 | 10 | 50 |
-| Max | Rp299,000 | 1,800 | 73 | 15 | 25 | 20 | 100 |
+| Plan | Price / period | Chat | Free daily Chat | Search | Image generate/edit | Generated PDF |
+|---|---:|---:|---:|---:|---:|---:|
+| Free | Rp0 | 100 / calendar month | 10 | 3 | 1 | 2 |
+| Plus | Rp69,000 / 30 days | 600 | — | 15 | 5 | 20 |
+| Pro | Rp149,000 / 30 days | 1,500 | — | 40 | 12 | 60 |
+| Max | Rp299,000 / 30 days | 3,000 | — | 80 | 25 | 150 |
 
-Paid quotas apply to each 30-day subscription cycle. A PDF also consumes one chat call at the user's selected mode; no expensive mode switch is forced. Web similarly consumes one chat call and one web allowance. Image generation and edit share one allowance. The existing burst/hour rate limits remain. The UI displays these exact limits, with no unlimited claim.
+One Chat or uploaded-file analysis consumes one Chat; Search consumes one Search; generated/edited image consumes one Image; generated PDF consumes one PDF. Search/PDF no longer also consume Chat. Historical paired ledger rows are retained but their companion Chat rows are excluded from new visible Chat totals. Invalid requests reserve nothing. All paid plans use the same automatic model routing.
 
-## Scenario model and safety margin
+## Scenario estimates
 
-The expensive-use estimate assumes **10,000 input tokens per text call**, the configured maximum visible-plus-reasoning output budget of 800 Fast / 1,600 Smart / 2,400 Expert tokens, $0.012 per Web operation (one $0.01 call plus Luna tokens), **$0.04 per image** including image-edit input, and $0.001 per generated PDF for local rendering/storage. These are intentionally above ordinary short-message cost; unusual longer or more expensive calls are covered by the paid-period cost guard. It also double-counts some Web text because Web calls consume a chat quota.
+Assumptions per Chat: Luna 2,500 input + 500 output tokens ($0.0005); Sol 6,000 input + 1,200 output ($0.024). Search averages $0.0105 including tokens, Image $0.04, and PDF $0.0015 including Luna text plus local rendering. A 10% retry/provider buffer is included in totals. These are sensitivity estimates, not bills; larger context, output, search tokens, edit inputs, and infrastructure can cost more.
 
-| Plan | Revenue at Rp17k/USD | 100% expensive-use estimate | % of revenue | 85% heavy-use estimate | Estimated gross margin at full quota, before infrastructure |
-|---|---:|---:|---:|---:|---:|
-| Plus | $4.06 | $1.596 | 39.3% | $1.357 | 60.7% |
-| Pro | $8.76 | $3.494 | 39.9% | $2.970 | 60.1% |
-| Max | $17.59 | $7.008 | 39.8% | $5.957 | 60.2% |
+“Normal” uses 20% Chat, 25% Search, 20% Images/PDF, with 2% Sol Chat. “Heavy” uses 70% of all quotas with 5% Sol Chat. “Full” uses every quota with 5% Sol Chat. Fractional tool counts are expected-value arithmetic.
 
-At 18% Fast/Smart quota use, 10% Expert, 25% Web/PDF and 20% image use with normal shorter requests, provider cost is about **2.6%** of revenue. This is a scenario, not a promised average. The 85% expensive-use scenario is about **33–34%** of revenue. Adding a 10% retry/provider-cost buffer and a 3% payment-fee buffer to the full-quota estimates leaves roughly **53%** before Render, PostgreSQL, storage, bandwidth, support and tax. We retained the existing prices and reduced expensive quotas first.
+| Plan | Revenue at Rp17k/USD | Normal cost / revenue | Heavy cost / revenue | Full cost / revenue |
+|---|---:|---:|---:|---:|
+| Plus | $4.06 | $0.22 / 5.5% | $1.07 / 26.4% | $1.53 / 37.7% |
+| Pro | $8.76 | $0.56 / 6.4% | $2.70 / 30.8% | $3.85 / 44.0% |
+| Max | $17.59 | $1.14 / 6.5% | $5.46 / 31.0% | $7.80 / 44.3% |
 
-The internal guard records known provider/model tokens, a $0.01 Web call, a conservative $0.04 image estimate, and $0.001 PDF overhead. It warns internally around 25% of paid revenue and blocks further premium/tool reservations above the configurable `KILAS_AI_COST_HARD_RATIO` (default 45%); ordinary paid Fast chat remains available within its stated quota. Free has a configurable $0.15 monthly safety cap. `KILAS_AI_USD_IDR`, `KILAS_AI_COST_HARD_RATIO`, and `KILAS_AI_FREE_COST_CAP_USD` are server-only settings. Customers see normal package-limit wording, never Kilas provider costs. If a new model has no verified cost estimate, it must not silently become an eligible fallback.
+At 100% Free quota with Luna Chat, the same assumptions yield about $0.137 including buffer. A higher Sol share can reach the internal Free $0.15 monthly cap sooner. At full paid use with 5% Sol, Pro/Max approach the 45% hard guard; this is a real commercial constraint. Ordinary Luna Chat remains available within its published Chat quota when the premium/tool guard trips, so the guard does not disable the entire account. The internal warning starts at 55% of the guard threshold. Payment fees, Render, PostgreSQL, storage, support, and tax are outside these provider/tool ratios. We did not raise launch prices or claim guaranteed margins.
 
-## Implementation notes
-
-Text context remains bounded and generated PDF source content is reintroduced only when the user edits that document; it is not resent on every unrelated turn. The PDF renderer uses existing ReportLab infrastructure and persistent account-owned attachment storage. Invalid requests are rejected before quota reservation. A provider/network failure retains the existing failed-reservation semantics. Payment verification and plan activation are unchanged.
-
-The final focused CI run is [36469907922](https://github.com/IKUS2024/kilas-works-ai-admin/actions/runs/36469907922). Only Client Hub was deployed (`dep-datbm5uk1f9s73fl5e1g`, live, commit `18a11ce`). Two isolated Free QA accounts verified real Fast/Smart/Web/image/PDF operations and account-scoped downloads without approving a payment. The production ledger recorded per-model token estimates and separate $0.01 Web, $0.04 conservative image, and $0.001 PDF entries. Paid Expert and the Claude fallback were not exercised live; focused tests cover routing, quota, and request shape. No migration or data reset was needed for this release.
+The cost guard uses recorded estimated provider/tool spend per user and paid cycle, with a forecast before costly operations. The existing burst/hour limits remain. No payment verification, schema, historical row, or production data is changed by the quota presentation patch.

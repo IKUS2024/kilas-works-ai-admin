@@ -19,8 +19,9 @@ def _openai_key():
     return key
 
 
-def web_search(context):
-    model = os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "").strip()
+def web_search(context, mode="FAST"):
+    model = (os.environ.get("KILAS_AI_OPENAI_SMART_MODEL", "gpt-6-sol") if mode == "SMART"
+             else os.environ.get("KILAS_AI_OPENAI_WEB_MODEL", "")).strip()
     if not model:
         raise ToolUnavailable("Web search belum tersedia.")
     key = _openai_key()
@@ -31,7 +32,7 @@ def web_search(context):
             headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
             json={"model": model, "instructions": "You are Kilas AI. Answer in the user's language. Use actual web search sources and cite them. Do not invent sources.",
                   "input": prompt, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
-                  "reasoning": {"effort": "none"}, "max_tool_calls": 1,
+                  "reasoning": {"effort": "medium" if mode == "SMART" else "none"}, "max_tool_calls": 1,
                   "max_output_tokens": 2048}, timeout=(10, 90))
         response.raise_for_status()
         data = response.json()

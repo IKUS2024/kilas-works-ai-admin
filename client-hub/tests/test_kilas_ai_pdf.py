@@ -78,7 +78,7 @@ class PdfTests(unittest.TestCase):
         second_pdf = owner.get(f"/kilas-ai/threads/{thread_id}/attachments/{second_id}").data
         self.assertGreaterEqual(len(PdfReader(io.BytesIO(second_pdf)).pages), 2)
         rows = db.query_all("SELECT operation_type,status FROM kilas_ai_usage WHERE user_id=? ORDER BY id", (self.owner,))
-        self.assertEqual([row["operation_type"] for row in rows], ["CHAT", "PDF", "CHAT", "PDF"])
+        self.assertEqual([row["operation_type"] for row in rows], ["PDF", "PDF"])
         self.assertTrue(all(row["status"] == "COMPLETE" for row in rows))
         with self.assertRaises(usage.UsageLimit):
             usage.reserve(self.owner, thread_id, "pdf_third_0123456789abcdef", "FAST", "PDF")

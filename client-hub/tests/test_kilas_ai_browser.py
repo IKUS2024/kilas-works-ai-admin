@@ -75,10 +75,8 @@ def main():
                 assert page.locator("#ai-pending .ai-pending-item").count() == 1
                 page.get_by_role("button", name="Hapus lampiran note.txt").click()
                 assert page.locator("#ai-pending .ai-pending-item").count() == 0
-                page.locator("#ai-tool").select_option("IMAGE_EDIT")
-                assert page.get_by_text("Upload gambar terlebih dahulu untuk diedit.").is_visible()
-                page.locator("#ai-tool").select_option("CHAT")
-                page.locator("#ai-mode").select_option("FAST")
+                assert page.locator("#ai-tool,#ai-mode").count() == 0
+                assert page.locator("#ai-search").count() == 1
                 page.locator("#ai-input").fill("Halo Kilas AI")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_text("Jawaban uji Kilas AI.").wait_for()
@@ -86,7 +84,7 @@ def main():
                 page.wait_for_url("**/kilas-ai/threads/*")
                 assert len(store.list_threads(owner)) == 1
                 assert page.locator(".ai-user .ai-message-text").first.inner_text() == "Halo Kilas AI"
-                assert page.locator("#ai-mode").input_value() == "FAST"
+                assert store.thread(owner, int(page.url.rsplit("/", 1)[1]))["selected_mode"] == "FAST"
                 page.locator("#ai-input").fill("Pesan kedua")
                 page.get_by_role("button", name="Kirim").click()
                 page.locator(".ai-user .ai-message-text").nth(1).wait_for()
@@ -102,12 +100,12 @@ def main():
                 page.locator(".ai-file-card").wait_for()
                 assert page.get_by_role("link", name="Download").count() == 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "pdf")
-                page.locator("#ai-tool").select_option("WEB")
+                page.locator("#ai-search").check()
                 page.locator("#ai-input").fill("Cari informasi uji")
                 page.get_by_role("button", name="Kirim").click()
                 page.get_by_role("link", name="Sumber uji").wait_for()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "web")
-                page.locator("#ai-tool").select_option("IMAGE_GENERATE")
+                page.locator("#ai-search").uncheck()
                 page.locator("#ai-input").fill("Buat gambar uji")
                 page.get_by_role("button", name="Kirim").click()
                 page.locator(".ai-image-result img").wait_for()
@@ -118,7 +116,7 @@ def main():
                 page.get_by_role("link", name="+ Chat baru").click()
                 assert page.url.endswith("/kilas-ai")
                 assert page.get_by_role("heading", name="Kilas Works").is_visible()
-                assert page.locator("#ai-mode").input_value() == "FAST"
+                assert page.locator("#ai-tool,#ai-mode").count() == 0
                 assert len(store.list_threads(owner)) == count
                 legacy = store.create_thread(owner, "SMART")
                 page.goto(origin + f"/kilas-ai/threads/{legacy}", wait_until="networkidle")

@@ -26,6 +26,7 @@ class UsageTests(unittest.TestCase):
         cls.app.config.update(TESTING=True, CLIENT_HUB_FORCE_CSRF_IN_TESTS=True)
         cls.owner = repo.create_user("usage-owner@example.test", "hash")
         cls.other = repo.create_user("usage-other@example.test", "hash")
+        cls.free = repo.create_user("usage-free@example.test", "hash")
 
     def client_for(self, owner):
         client = self.app.test_client()
@@ -33,22 +34,21 @@ class UsageTests(unittest.TestCase):
             session.update(user_id=owner, role="CLIENT_OWNER", _csrf_token="usage-csrf")
         return client
 
-    def test_free_fast_smart_expert_and_period(self):
-        owner = self.other
+    def test_free_chat_daily_and_period(self):
+        owner = self.free
         thread_id = store.create_thread(owner)
-        for index in range(5):
+        for index in range(10):
             key = "freefast_" + str(index).zfill(16)
             plan, operations = usage.reserve(owner, thread_id, key, "FAST", "CHAT")
             self.assertEqual(plan, "FREE")
             usage.finish(owner, key, operations, success=True, provider="openai", model="unknown-model",
                          usage={"input_tokens": 3, "output_tokens": 4})
-        self.assertEqual(usage.snapshot(owner)["usage"]["Fast"]["used"], 5)
+        self.assertEqual(usage.snapshot(owner)["usage"]["Chat"]["used"], 10)
         with self.assertRaises(usage.UsageLimit):
             usage.reserve(owner, thread_id, "freefast_limit_012345", "FAST", "CHAT")
-        plan, operations = usage.reserve(owner, thread_id, "freesmart_0123456789", "SMART", "CHAT")
-        usage.finish(owner, "freesmart_0123456789", operations, success=True)
-        with self.assertRaises(usage.UsageLimit):
-            usage.reserve(owner, thread_id, "freeexpert_0123456789", "EXPERT", "CHAT")
+        plan, operations = usage.reserve(owner, thread_id, "freesearch_0123456789", "FAST", "WEB")
+        self.assertEqual(operations, ("WEB_SEARCH",))
+        usage.finish(owner, "freesearch_0123456789", operations, success=True)
         row = db.query_one("SELECT estimated_cost_usd FROM kilas_ai_usage WHERE user_id=? AND operation_key=?",
                            (owner, "freefast_" + str(0).zfill(16)))
         self.assertIsNone(row["estimated_cost_usd"])
@@ -59,10 +59,10 @@ class UsageTests(unittest.TestCase):
         db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) "
                    "VALUES (?,?, 'ACTIVE',?,?)", (self.owner, "PLUS", start, end))
         self.assertEqual(usage.effective_plan(self.owner)["plan"], "PLUS")
-        self.assertEqual(usage.PLANS["PLUS"]["FAST"], 400)
-        self.assertEqual(usage.PLANS["PLUS"]["SMART"], 17)
-        self.assertEqual(usage.PLANS["PRO"]["EXPERT"], 7)
-        self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 25)
+        self.assertEqual(usage.PLANS["PLUS"]["CHAT"], 600)
+        self.assertEqual(usage.PLANS["PLUS"]["WEB_SEARCH"], 15)
+        self.assertEqual(usage.PLANS["PRO"]["CHAT"], 1500)
+        self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 80)
         self.assertIsNone(usage.estimate("unknown", 100, 100, "CHAT"))
         with patch.dict(os.environ, {"KILAS_AI_MODEL_PRICING_JSON": '{"priced":{"input_per_million_usd":1,"output_per_million_usd":2}}'}):
             self.assertEqual(usage.estimate("priced", 1000000, 1000000, "CHAT"), "3.000000")
@@ -70,16 +70,17 @@ class UsageTests(unittest.TestCase):
                    ((now - timedelta(hours=1)).isoformat(), self.owner))
         self.assertEqual(usage.effective_plan(self.owner)["plan"], "FREE")
 
-    def test_free_expert_denied_before_provider_and_other_mode_stays_available(self):
+    def test_client_model_request_cannot_override_auto_routing(self):
         client = self.client_for(self.other)
         thread_id = store.create_thread(self.other)
-        with patch.object(providers, "stream", side_effect=AssertionError("provider must not run")):
-            denied = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
-                "content": "Hard question", "mode": "EXPERT", "operation_key": "expertdeny_0123456789"},
+        events = iter([{"type": "provider", "provider": "openai", "model": "gpt-6-luna"},
+                       {"type": "delta", "text": "Halo"}])
+        with patch.object(providers, "stream", return_value=events) as streamed:
+            response = client.post(f"/kilas-ai/threads/{thread_id}/send", json={
+                "content": "Halo", "mode": "EXPERT", "operation_key": "expertdeny_0123456789"},
                 headers={"X-CSRF-Token": "usage-csrf"})
-        self.assertEqual(denied.status_code, 429)
-        self.assertEqual(store.messages(self.other, thread_id), [])
-        self.assertIn("Expert", denied.json["error"])
+            self.assertIn("Halo", response.get_data(as_text=True))
+            self.assertEqual(streamed.call_args.args[0], "FAST")
 
     def test_paid_cost_guard_protects_premium_tools_but_keeps_fast_available(self):
         now = datetime.now(timezone.utc)
