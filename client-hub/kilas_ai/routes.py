@@ -36,7 +36,7 @@ def home():
     from . import attachments, store, usage
     current_plan = usage.effective_plan(session["user_id"])["plan"]
     from . import automation_store
-    unread = automation_store.usage_summary(session["user_id"])["unread"] if automation_enabled() else 0
+    unread = automation_store.unread_count(session["user_id"]) if automation_enabled() else 0
     prefill = ""
     if automation_enabled() and request.args.get("automation_result", "").isdigit():
         result = automation_store.result(session["user_id"], int(request.args["automation_result"]))
@@ -83,7 +83,7 @@ def thread_page(thread_id):
             row["metadata"] = {}
     current_plan = usage.effective_plan(session["user_id"])["plan"]
     from . import automation_store
-    unread = automation_store.usage_summary(session["user_id"])["unread"] if automation_enabled() else 0
+    unread = automation_store.unread_count(session["user_id"]) if automation_enabled() else 0
     return render_template("kilas_ai/home.html", threads=store.list_threads(session["user_id"]),
                            selected=selected, messages=rows,
                            attachments=store.attachment_list(session["user_id"], thread_id),

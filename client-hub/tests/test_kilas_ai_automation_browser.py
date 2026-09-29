@@ -59,7 +59,7 @@ def main():
                 assert page.get_by_text("Belum ada hasil.", exact=False).is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "results overflow")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
-                assert page.get_by_text("Automation aktif").is_visible()
+                assert page.locator(".ai-usage-row").get_by_text("Automation aktif").first.is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "usage overflow")
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
                 assert page.locator(".ai-product-nav").get_by_role("link", name="Automation").is_visible()

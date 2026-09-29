@@ -37,6 +37,14 @@ def has_setting(user_id):
     return bool(db.query_one("SELECT 1 FROM kilas_automation_settings WHERE user_id=?", (user_id,)))
 
 
+def unread_count(user_id):
+    row = db.query_one("SELECT COUNT(*) AS n FROM kilas_automation_runs r "
+                       "JOIN kilas_automations a ON a.id=r.automation_id "
+                       "WHERE r.user_id=? AND a.user_id=r.user_id AND a.deleted_at IS NULL AND r.unread=?",
+                       (user_id, True if db.BACKEND == "postgres" else 1))
+    return row["n"]
+
+
 def set_timezone(user_id, name):
     name = schedules.validate_timezone(name)
     conn = usage._connect()
