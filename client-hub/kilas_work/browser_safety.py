@@ -22,7 +22,8 @@ HANDOFF = re.compile(
 
 
 def require_public_url(url, resolver=socket.getaddrinfo):
-    parsed = urlparse(str(url or ""))
+    url = str(url or "")
+    parsed = urlparse(url)
     host = (parsed.hostname or "").lower().rstrip(".")
     if parsed.scheme not in ("http", "https") or not host or parsed.username or parsed.password:
         raise BrowserSafetyError("Alamat website tidak didukung.")
@@ -57,6 +58,11 @@ def classify_action(action, *, target_text="", target_type="", page_text=""):
         return "CONFIRM"
     if kind == "type" and len(str(action.get("text") or "")) > 2000:
         raise BrowserSafetyError("Teks terlalu panjang untuk satu langkah browser.")
-    if kind == "wait" and float(action.get("ms") or 0) > 10000:
-        raise BrowserSafetyError("Waktu tunggu browser terlalu lama.")
+    if kind == "wait":
+        try:
+            value = float(action.get("ms") or 0)
+        except (ValueError, TypeError):
+            raise BrowserSafetyError("Waktu tunggu browser tidak valid.") from None
+        if not 0 <= value <= 10000:
+            raise BrowserSafetyError("Waktu tunggu browser terlalu lama.")
     return "ALLOW"

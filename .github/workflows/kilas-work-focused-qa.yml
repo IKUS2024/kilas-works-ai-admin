@@ -28,6 +28,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt
       - run: cd client-hub && python tests/test_kilas_work_foundation.py
       - run: cd client-hub && python tests/test_kilas_work_browser_safety.py
+      - run: cd client-hub && python tests/test_kilas_work_browser_worker.py
       - run: cd client-hub && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
   postgres-schema:
     runs-on: ubuntu-latest
