@@ -162,6 +162,9 @@ class WorkFoundationTests(unittest.TestCase):
         file_id = store.add_file(owner, thread, message, result)
         self.assertIsNone(store.file(other, thread, file_id))
         self.assertEqual(store.file(owner, thread, file_id)["content"], b"print('Kilas')")
+        other_thread = store.create_thread(other, "Other")
+        with self.assertRaises(ValueError):
+            store.add_file(other, other_thread, message, result)
         self.assertIsNone(artifacts.from_answer("Jelaskan Python", "print('Kilas')"))
 
 

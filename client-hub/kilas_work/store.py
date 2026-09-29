@@ -66,9 +66,11 @@ def add_file(user_id, thread_id, message_id, prepared):
     conn = sql.connect()
     try:
         sql.lock_user(conn, user_id)
-        if not sql.one(conn, "SELECT id FROM kilas_work_threads WHERE id=? AND user_id=?",
-                       (thread_id, user_id)):
-            raise ValueError("thread_not_found")
+        if not sql.one(conn, "SELECT m.id FROM kilas_work_messages m "
+                       "JOIN kilas_work_threads t ON t.id=m.thread_id "
+                       "WHERE m.id=? AND m.thread_id=? AND t.user_id=?",
+                       (message_id, thread_id, user_id)):
+            raise ValueError("message_not_found")
         file_id = sql.insert_id(conn, "INSERT INTO kilas_work_files"
                                 "(user_id,thread_id,message_id,filename,mime_type,content,extracted_text) "
                                 "VALUES (?,?,?,?,?,?,?)",
