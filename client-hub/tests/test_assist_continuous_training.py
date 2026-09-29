@@ -278,6 +278,14 @@ class ContinuousTrainingTests(unittest.TestCase):
             self.assertNotEqual(new['id'], old['id'])
         self.assertEqual(len(self.sessions()), 3)
 
+    def test_latest_owner_language_correction_is_normalized(self):
+        self.assertEqual(training._language_directive(
+            'sekarang kalau ada customer nanya kamu jawab dengan bahsa inggris ya'),
+            {'forced_language': 'en', 'follow_customer': False})
+        self.assertEqual(training._language_directive(
+            'Kalau customer pakai English, jawab full English.'),
+            {'forced_language': None, 'follow_customer': True})
+
     def test_language_rules_reach_demo_and_production_without_history_override(self):
         self.bind()
         rules = [('Semua customer harus dilayani dalam English.', 'Berapa harganya?', 'The price is Rp175,000.'),
