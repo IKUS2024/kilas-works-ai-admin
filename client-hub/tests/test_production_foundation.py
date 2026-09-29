@@ -13,6 +13,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -454,6 +455,49 @@ def test_login_rate_limiting_after_repeated_failures():
     with c.session_transaction() as sess:
         assert sess.get("user_id") is None, "account must be rate-limited after repeated failed attempts, even with the correct password"
     print("test_login_rate_limiting_after_repeated_failures OK")
+
+
+def test_client_owner_session_expires_after_idle_timeout():
+    reset_db()
+    c = fresh_client()
+    c.post("/register", data={
+        "email": "idle-expire@test.com",
+        "password": "password123",
+        "full_name": "Idle Owner",
+    })
+    with c.session_transaction() as sess:
+        assert sess.get("user_id")
+        sess["_last_activity_at"] = int(time.time()) - security.client_session_idle_seconds() - 1
+
+    response = c.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["Location"].endswith("/login")
+    with c.session_transaction() as sess:
+        assert sess.get("user_id") is None
+    print("test_client_owner_session_expires_after_idle_timeout OK")
+
+
+def test_active_client_owner_session_is_refreshed_not_logged_out():
+    reset_db()
+    c = fresh_client()
+    c.post("/register", data={
+        "email": "idle-active@test.com",
+        "password": "password123",
+        "full_name": "Active Owner",
+    })
+    before = int(time.time()) - 120
+    with c.session_transaction() as sess:
+        owner_id = sess.get("user_id")
+        assert owner_id
+        sess["_last_activity_at"] = before
+
+    response = c.get("/", follow_redirects=False)
+    assert response.status_code in (301, 302, 303)
+    assert not response.headers["Location"].endswith("/login")
+    with c.session_transaction() as sess:
+        assert sess.get("user_id") == owner_id
+        assert int(sess.get("_last_activity_at") or 0) > before
+    print("test_active_client_owner_session_is_refreshed_not_logged_out OK")
 
 
 def test_debug_mode_defaults_off():

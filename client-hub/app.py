@@ -266,6 +266,18 @@ def create_app():
             # Only text and filename metadata. Raw attachments go to existing engines.
             request.max_content_length = 16 * 1024
 
+    @app.before_request
+    def _expire_idle_customer_session():
+        # CLIENT_OWNER sessions are browser-session cookies, but mobile browsers may restore
+        # those cookies after the app/browser is reopened. Enforce inactivity on the server too.
+        if not security.enforce_client_session_timeout():
+            return None
+        if request.path.startswith("/api/") or request.is_json:
+            abort(401)
+        if request.endpoint == "static":
+            return None
+        return redirect(url_for("auth.login_page"), code=303)
+
     def _finance_session_destination():
         user = security.current_user()
         business_id = session.get("dashboard_business_id")
