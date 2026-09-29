@@ -102,10 +102,10 @@ def get(user_id, automation_id):
 
 def list_for_owner(user_id, status="ACTIVE", page=1):
     page = max(1, min(int(page), 10000))
-    status_clause = ("AND a.status='PAUSED'" if status == "PAUSED" else
+    status_clause = ("AND a.status IN ('PAUSED','PAUSED_QUOTA')" if status == "PAUSED" else
                      "AND EXISTS (SELECT 1 FROM kilas_automation_runs r WHERE r.automation_id=a.id "
                      "AND r.user_id=a.user_id AND r.unread=" + ("TRUE" if db.BACKEND == "postgres" else "1") + ")"
-                     if status == "UNREAD" else "AND a.status!='PAUSED'")
+                     if status == "UNREAD" else "AND a.status='ACTIVE'")
     rows = db.query_all("SELECT a.*,(SELECT r.result_text FROM kilas_automation_runs r "
                         "WHERE r.automation_id=a.id AND r.user_id=a.user_id AND r.result_text IS NOT NULL "
                         "ORDER BY r.id DESC LIMIT 1) AS latest_result "

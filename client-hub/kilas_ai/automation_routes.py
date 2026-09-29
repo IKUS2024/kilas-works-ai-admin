@@ -45,6 +45,10 @@ def automation_home():
         item["schedule_label"] = schedule.describe(json.loads(item["schedule_json"]), item["timezone"])
         item["next_label"] = _local_text(item["next_run_at"], item["timezone"])
         item["last_label"] = _local_text(item["last_run_at"], item["timezone"])
+        item["display_status"] = ("Kuota habis" if item["status"] == "PAUSED_QUOTA" else
+                                  "Dijeda" if item["status"] == "PAUSED" else
+                                  "Gagal sementara" if item["last_error_code"] else
+                                  "Selesai" if not item["next_run_at"] and item["last_success_at"] else "Aktif")
     return _page("automation.html", rows=rows, more=more, page=page, selected=selected,
                  timezone_name=store.setting(_owner()), detect_timezone=not store.has_setting(_owner()),
                  quota=store.usage_summary(_owner()), error=request.args.get("error"))

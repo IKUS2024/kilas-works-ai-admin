@@ -99,6 +99,7 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
         self.assertEqual(store.claim_due(now=due), [])
         self.assertTrue(runner.execute(ids[0]))
+        self.assertIn("Selesai", client.get("/kilas-ai/automation").get_data(as_text=True))
         result = store.result(self.owner, ids[0])
         self.assertTrue(result["unread"])
         self.assertIsNone(store.result(self.other, ids[0]))
@@ -188,6 +189,8 @@ class AutomationFlowTests(unittest.TestCase):
                        "VALUES (?,?,?,'SUCCEEDED',1,?)", (automation_id, owner, moment, moment))
         self.assertEqual(store.claim_due(now=due), [])
         self.assertEqual(store.get(owner, automation_id)["status"], "PAUSED_QUOTA")
+        paused, _ = store.list_for_owner(owner, "PAUSED")
+        self.assertEqual([item["id"] for item in paused], [automation_id])
 
     def test_plan_downgrade_pauses_excess_due_automation(self):
         owner = repo.create_user("automation-downgrade@example.test", "hash")
