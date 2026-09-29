@@ -57,3 +57,15 @@ jobs:
           KILAS_WORK_POSTGRES_QA: '1'
           SECRET_KEY: synthetic-kilas-work-schema-only
         run: python client-hub/tests/test_kilas_work_postgres_schema.py
+  browser-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt -r work-browser/requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: cd client-hub && python tests/test_kilas_work_browser_runtime.py
+      - run: cd client-hub && python tests/test_kilas_work_ui_browser.py

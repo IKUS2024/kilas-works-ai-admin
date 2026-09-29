@@ -11,6 +11,13 @@ document.querySelectorAll('.work-browser-shot').forEach((image) => {
     image.title = 'Posisi dipilih. Tekan “Klik posisi yang dipilih”.';
   });
 });
+const menuButton = document.querySelector('.work-menu');
+const mobileNav = document.querySelector('#work-mobile-nav');
+if (menuButton && mobileNav) menuButton.addEventListener('click', () => {
+  const open = menuButton.getAttribute('aria-expanded') !== 'true';
+  menuButton.setAttribute('aria-expanded', String(open));
+  mobileNav.hidden = !open;
+});
 const labels = {RUNNING:'Mengerjakan…',PAUSED_USER:'Menunggu tindakan kamu',PAUSED_CONFIRM:'Menunggu konfirmasi kamu',PAUSED_QUOTA:'Kuota perlu ditambah',COMPLETED:'Selesai',FAILED:'Belum berhasil',CANCELLED:'Dibatalkan'};
 const activeJobs = [...document.querySelectorAll('.work-job[data-status="RUNNING"]')];
 if (activeJobs.length) {
