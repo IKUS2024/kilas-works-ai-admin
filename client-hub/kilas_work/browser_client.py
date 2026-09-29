@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import time
+import base64
 from urllib.parse import urlparse
 
 import requests
@@ -68,3 +69,18 @@ def manual(owner_id, job_id, call_id, items):
 
 def close(owner_id, job_id):
     return call(owner_id, "DELETE", f"/sessions/{int(job_id)}")
+
+
+def upload(owner_id, job_id, filename, mime_type, raw):
+    return call(owner_id, "POST", f"/sessions/{int(job_id)}/upload",
+                {"filename": filename, "mime_type": mime_type,
+                 "content": base64.b64encode(bytes(raw)).decode("ascii")})
+
+
+def download(owner_id, job_id, index):
+    result = call(owner_id, "POST", f"/sessions/{int(job_id)}/downloads/{int(index)}", {})
+    try:
+        raw = base64.b64decode(result["content"], validate=True)
+    except (KeyError, ValueError):
+        raise BrowserUnavailable("Unduhan browser tidak valid.") from None
+    return {"filename": result["filename"], "content": raw}

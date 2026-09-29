@@ -118,7 +118,7 @@ def job(user_id, job_id):
 
 
 def jobs(user_id, thread_id):
-    return db.query_all("SELECT id,status,goal,current_url,updated_at FROM kilas_work_jobs "
+    return db.query_all("SELECT id,status,goal,current_url,error_code,updated_at FROM kilas_work_jobs "
                         "WHERE user_id=? AND thread_id=? ORDER BY id DESC LIMIT 20", (user_id, thread_id))
 
 

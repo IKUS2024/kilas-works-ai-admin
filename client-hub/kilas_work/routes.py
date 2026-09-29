@@ -2,6 +2,8 @@
 import io
 import os
 import secrets
+import base64
+import re
 
 from flask import Blueprint, abort, redirect, render_template, request, send_file, session, url_for
 
@@ -10,7 +12,7 @@ import security
 from kilas_ai import attachments as shared_attachments
 from kilas_ai import pdf as shared_pdf
 from kilas_ai import tools as shared_tools
-from . import billing, engine, quota, store
+from . import billing, browser_jobs, browser_client, engine, quota, store
 
 work_bp = Blueprint("kilas_work", __name__, url_prefix="/kilas-work")
 admin_bp = Blueprint("kilas_work_admin", __name__, url_prefix="/admin/kilas-work")
@@ -57,7 +59,8 @@ def thread_page(thread_id):
         abort(404)
     return render_template("kilas_work/home.html", threads=store.threads(user_id), selected=selected,
                            messages=store.messages(user_id, thread_id), files=store.files(user_id, thread_id),
-                           jobs=store.jobs(user_id, thread_id), quota=quota.snapshot(user_id))
+                           jobs=store.jobs(user_id, thread_id), quota=quota.snapshot(user_id),
+                           manual_call_id=secrets.token_hex(16))
 
 
 @work_bp.post("/threads")
@@ -87,7 +90,18 @@ def _send(thread_id, text):
         return {"error": str(error)}, 400
     operation, model = engine.route(text)
     if operation == "BROWSER":
-        return {"error": "Pekerjaan browser belum tersedia. Kilas Work akan memberi tahu saat siap."}, 503
+        if files:
+            message_id = store.add_message(user_id, thread_id, "user", text,
+                                           metadata={"attachments": [item["filename"] for item in files]})
+            for item in files:
+                store.add_file(user_id, thread_id, message_id, item)
+        else:
+            store.add_message(user_id, thread_id, "user", text)
+        try:
+            browser_jobs.start(user_id, thread_id, text, model)
+        except browser_jobs.JobError as error:
+            store.add_message(user_id, thread_id, "activity", str(error))
+        return redirect(url_for("kilas_work.thread_page", thread_id=thread_id), code=303)
     key = secrets.token_hex(16)
     try:
         source = quota.reserve(user_id, thread_id, key, operation, model)
@@ -144,6 +158,119 @@ def download(thread_id, file_id):
     response.headers["Cache-Control"] = "private, no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+@work_bp.get("/jobs/<int:job_id>/screenshot")
+def job_screenshot(job_id):
+    item = store.job(session["user_id"], job_id)
+    if not item or item["status"] in ("COMPLETED", "FAILED", "CANCELLED"):
+        abort(404)
+    try:
+        captured = browser_client.snapshot(session["user_id"], job_id)
+        raw = base64.b64decode(captured["screenshot"], validate=True)
+    except (browser_client.BrowserUnavailable, ValueError, KeyError):
+        abort(404)
+    response = send_file(io.BytesIO(raw), mimetype="image/png")
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@work_bp.get("/jobs/<int:job_id>/status")
+def job_status(job_id):
+    item = store.job(session["user_id"], job_id)
+    if not item:
+        abort(404)
+    return {"status": item["status"], "updated_at": str(item["updated_at"]),
+            "current_url": item["current_url"]}
+
+
+@work_bp.post("/jobs/<int:job_id>/resume")
+def job_resume(job_id):
+    item = store.job(session["user_id"], job_id)
+    if not item:
+        abort(404)
+    try:
+        browser_jobs.resume(session["user_id"], job_id)
+    except (browser_jobs.JobError, browser_client.BrowserUnavailable) as error:
+        return {"error": str(error)}, 409
+    return redirect(url_for("kilas_work.thread_page", thread_id=item["thread_id"]), code=303)
+
+
+@work_bp.post("/jobs/<int:job_id>/confirm")
+def job_confirm(job_id):
+    item = store.job(session["user_id"], job_id)
+    if not item:
+        abort(404)
+    try:
+        browser_jobs.confirm(session["user_id"], job_id)
+    except (browser_jobs.JobError, browser_client.BrowserUnavailable) as error:
+        return {"error": str(error)}, 409
+    return redirect(url_for("kilas_work.thread_page", thread_id=item["thread_id"]), code=303)
+
+
+@work_bp.post("/jobs/<int:job_id>/cancel")
+def job_cancel(job_id):
+    item = store.job(session["user_id"], job_id)
+    if not item:
+        abort(404)
+    try:
+        browser_jobs.cancel(session["user_id"], job_id)
+    except browser_jobs.JobError as error:
+        return {"error": str(error)}, 409
+    return redirect(url_for("kilas_work.thread_page", thread_id=item["thread_id"]), code=303)
+
+
+@work_bp.post("/jobs/<int:job_id>/manual")
+def job_manual(job_id):
+    item = store.job(session["user_id"], job_id)
+    if not item:
+        abort(404)
+    kind = request.form.get("action")
+    if kind == "click":
+        try:
+            x, y = int(request.form.get("x", "")), int(request.form.get("y", ""))
+        except ValueError:
+            abort(400)
+        if not 0 <= x < 1280 or not 0 <= y < 800:
+            abort(400)
+        action = {"type": "click", "button": "left", "x": x, "y": y}
+    elif kind == "type":
+        value = request.form.get("text") or ""
+        if not value or len(value) > 2000:
+            abort(400)
+        action = {"type": "type", "text": value}
+    elif kind == "keypress":
+        key = request.form.get("key")
+        if key not in ("Tab", "Enter", "Backspace"):
+            abort(400)
+        action = {"type": "keypress", "keys": [key]}
+    else:
+        abort(400)
+    call_id = request.form.get("call_id") or ""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,96}", call_id):
+        abort(400)
+    try:
+        browser_jobs.manual(session["user_id"], job_id, call_id, [action])
+    except (browser_jobs.JobError, browser_client.BrowserUnavailable) as error:
+        return {"error": str(error)}, 409
+    return redirect(url_for("kilas_work.thread_page", thread_id=item["thread_id"]), code=303)
+
+
+@work_bp.post("/jobs/<int:job_id>/upload/<int:file_id>")
+def job_upload(job_id, file_id):
+    item = store.job(session["user_id"], job_id)
+    if not item or item["status"] != "PAUSED_USER":
+        abort(404)
+    selected = store.file(session["user_id"], item["thread_id"], file_id)
+    if not selected:
+        abort(404)
+    try:
+        browser_client.upload(session["user_id"], job_id, selected["filename"],
+                              selected["mime_type"], selected["content"])
+    except browser_client.BrowserUnavailable as error:
+        return {"error": str(error)}, 409
+    return redirect(url_for("kilas_work.thread_page", thread_id=item["thread_id"]), code=303)
 
 
 @work_bp.get("/usage")

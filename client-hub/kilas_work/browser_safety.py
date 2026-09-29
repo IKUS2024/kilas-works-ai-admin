@@ -49,7 +49,7 @@ def classify_action(action, *, target_text="", target_type="", page_text=""):
     kind = str(action.get("type") or "")
     if kind not in {"click", "double_click", "drag", "move", "scroll", "keypress", "type", "wait", "screenshot"}:
         raise BrowserSafetyError("Aksi browser tidak dikenal.")
-    if HANDOFF.search(page_text[:3000]) or target_type.lower() in ("password", "one-time-code"):
+    if HANDOFF.search(page_text[:3000]) or target_type.lower() in ("password", "one-time-code", "file"):
         return "HANDOFF"
     if kind == "type" and (target_type.lower() in ("password", "tel") or
                            re.search(r"\b(?:otp|verification|kode)\b", target_text, re.I)):
