@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{{ selected.title if selected else 'Chat baru' }} · Kilas AI</title>
-  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='6') }}">
+  <link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai.css',v='7') }}">
   <script src="{{ url_for('static',filename='kilas_ai.js',v='6') }}" defer></script>
 </head>
 <body>
@@ -45,6 +45,6 @@
       <div class="ai-pending" id="ai-pending" aria-live="polite"></div>
       <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">+ Lampiran</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="Pilih lampiran"><label class="ai-search-toggle" for="ai-search"><input id="ai-search" type="checkbox" name="search"><span>Search</span></label><button class="ai-send" type="submit" id="ai-send">Kirim</button><button class="ai-stop" type="button" id="ai-stop" hidden>Stop</button></div>
       <p class="ai-inline-hint" id="ai-edit-hint" hidden>Upload gambar terlebih dahulu untuk diedit.</p>
-    </form><p class="ai-hint">Jawaban AI dapat keliru. Periksa informasi penting.</p></div>
+    </form><p class="ai-powered">Powered by OpenAI · <strong>GPT-6</strong></p><p class="ai-hint">Jawaban AI dapat keliru. Periksa informasi penting.</p></div>
   </main>
 </div></body></html>
