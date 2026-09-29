@@ -81,6 +81,16 @@ class BrowserJobTests(unittest.TestCase):
             self.assertEqual(client.get(f"/kilas-work/jobs/{job}/screenshot").status_code, 404)
             snapshot.assert_not_called()
 
+    def test_interrupted_worker_fails_closed_without_replaying_actions(self):
+        owner = self.owner("interrupted")
+        _, job = self.new_job(owner)
+        with patch.object(browser_jobs, "active", return_value=False), \
+             patch.object(browser_jobs.browser_client, "actions") as actions:
+            item = browser_jobs.reconcile(owner, job)
+        self.assertEqual(item["status"], "FAILED")
+        self.assertEqual(item["error_code"], "browser_interrupted")
+        actions.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

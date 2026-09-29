@@ -16,7 +16,7 @@ os.environ.pop("DATABASE_URL", None)
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_work import billing, engine, quota, store  # noqa: E402
+from kilas_work import artifacts, billing, engine, quota, store  # noqa: E402
 from werkzeug.datastructures import FileStorage  # noqa: E402
 
 
@@ -152,6 +152,17 @@ class WorkFoundationTests(unittest.TestCase):
         self.assertLess(cheap, strong)
         self.assertLess(cheap, researched)
         self.assertIsNone(quota.estimate_micro("unknown-model", 1000, 300))
+
+    def test_explicit_code_file_becomes_account_owned_artifact(self):
+        owner, other = self.owner("code-file"), self.owner("code-file-other")
+        thread = store.create_thread(owner, "Code")
+        message = store.add_message(owner, thread, "assistant", "Code ready")
+        result = artifacts.from_answer("Buat file laporan.py", "```python\nprint('Kilas')\n```")
+        self.assertEqual(result["filename"], "laporan.py")
+        file_id = store.add_file(owner, thread, message, result)
+        self.assertIsNone(store.file(other, thread, file_id))
+        self.assertEqual(store.file(owner, thread, file_id)["content"], b"print('Kilas')")
+        self.assertIsNone(artifacts.from_answer("Jelaskan Python", "print('Kilas')"))
 
 
 if __name__ == "__main__":

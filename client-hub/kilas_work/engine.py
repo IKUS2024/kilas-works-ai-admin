@@ -47,6 +47,7 @@ def _content(text, files):
             encoded = base64.b64encode(item["content"]).decode("ascii")
             blocks.append({"type": "input_image", "image_url": "data:" + item["mime_type"] +
                            ";base64," + encoded})
+    blocks[0]["text"] = blocks[0]["text"][:16000]
     return blocks
 
 
@@ -54,7 +55,7 @@ def respond(context, text, files, model, operation):
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:
         raise EngineError("Kilas Work belum siap. Coba lagi nanti.")
-    messages = [{"role": role, "content": content[:8000]} for role, content in context[-12:]
+    messages = [{"role": role, "content": content[:2000]} for role, content in context[-8:]
                 if role in ("user", "assistant")]
     messages.append({"role": "user", "content": _content(text, files)})
     payload = {"model": model, "instructions": SYSTEM, "input": messages, "store": False,

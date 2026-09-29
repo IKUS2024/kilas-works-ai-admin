@@ -88,6 +88,17 @@ def active(user_id, job_id):
         return bool(future and not future.done())
 
 
+def reconcile(user_id, job_id):
+    """Expose an interrupted in-memory worker without silently replaying its actions."""
+    item = store.job(user_id, job_id)
+    if item and item["status"] in ("QUEUED", "RUNNING") and not active(user_id, job_id):
+        store.update_job(user_id, job_id, item["status"], "FAILED",
+                         checkpoint=_checkpoint(item), response_id=item["last_response_id"],
+                         current_url=item["current_url"], error_code="browser_interrupted")
+        return store.job(user_id, job_id)
+    return item
+
+
 def _model_call(model, goal, response_id=None, call_id=None, screenshot=None):
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:

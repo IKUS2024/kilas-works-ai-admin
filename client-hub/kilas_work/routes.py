@@ -12,7 +12,7 @@ import security
 from kilas_ai import attachments as shared_attachments
 from kilas_ai import pdf as shared_pdf
 from kilas_ai import tools as shared_tools
-from . import billing, browser_jobs, browser_client, engine, quota, store
+from . import artifacts, billing, browser_jobs, browser_client, engine, quota, store
 
 work_bp = Blueprint("kilas_work", __name__, url_prefix="/kilas-work")
 admin_bp = Blueprint("kilas_work_admin", __name__, url_prefix="/admin/kilas-work")
@@ -57,6 +57,10 @@ def thread_page(thread_id):
     selected = store.thread(user_id, thread_id)
     if not selected:
         abort(404)
+    jobs = store.jobs(user_id, thread_id)
+    for job in jobs:
+        if job["status"] in ("QUEUED", "RUNNING"):
+            browser_jobs.reconcile(user_id, job["id"])
     return render_template("kilas_work/home.html", threads=store.threads(user_id), selected=selected,
                            messages=store.messages(user_id, thread_id), files=store.files(user_id, thread_id),
                            jobs=store.jobs(user_id, thread_id), quota=quota.snapshot(user_id),
@@ -135,6 +139,10 @@ def _send(thread_id, text):
             if operation == "PDF":
                 rendered = shared_pdf.render(result["answer"])
                 store.add_file(user_id, thread_id, message, rendered)
+            else:
+                artifact = artifacts.from_answer(text, result["answer"])
+                if artifact:
+                    store.add_file(user_id, thread_id, message, artifact)
             used = result["usage"]
             quota.finish(user_id, key, success=True, actual_micro=result["charged_micro"],
                          input_tokens=used.get("input_tokens", 0), output_tokens=used.get("output_tokens", 0),
@@ -178,7 +186,7 @@ def job_screenshot(job_id):
 
 @work_bp.get("/jobs/<int:job_id>/status")
 def job_status(job_id):
-    item = store.job(session["user_id"], job_id)
+    item = browser_jobs.reconcile(session["user_id"], job_id)
     if not item:
         abort(404)
     return {"status": item["status"], "updated_at": str(item["updated_at"]),
