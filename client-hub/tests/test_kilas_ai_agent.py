@@ -56,6 +56,8 @@ class AgentTests(unittest.TestCase):
         self.assertIn("butuh akses Gmail", client.get(response.location).get_data(as_text=True))
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
                                       (self.owner,))["n"], 0)
+        self.assertEqual(agent_planner.required_connection("cek kalender besok"), "Google Calendar")
+        self.assertEqual(agent_planner.required_connection("rangkum laporan Finance"), "Kilas Finance")
 
     def test_chat_proposes_then_explicitly_activates_without_duplicate(self):
         client = self.client_for(self.owner)
