@@ -185,6 +185,44 @@ def web_search(context, mode="FAST", plan="FREE", max_calls=None):
                 if "result" in event)
 
 
+def finalize_scheduled_search(instruction, search_text, citations):
+    """Rewrite a completed scheduled Search with GPT-6 Sol using only verified findings."""
+    model = os.environ.get("KILAS_AI_AUTOMATION_SEARCH_FINAL_MODEL", "gpt-6-sol").strip()
+    if model != "gpt-6-sol":
+        raise ToolUnavailable("Model final Search Agent tidak valid.")
+    safe_sources = [item for item in (citations or [])[:8] if str(item.get("url") or "").startswith("https://")]
+    if not safe_sources or not str(search_text or "").strip():
+        raise ToolUnavailable("Hasil Search belum cukup untuk disusun.")
+    sources = "\n".join(
+        f"[{index}] {str(item.get('title') or 'Sumber')[:160]} — {str(item.get('url') or '')[:1000]}"
+        for index, item in enumerate(safe_sources, 1)
+    )
+    payload = {
+        "model": model,
+        "instructions": (
+            "You are Kilas AI preparing the final result of a scheduled Search task. "
+            + response_style.BASE_STYLE +
+            " Use only the supplied verified search findings and source list. Do not invent facts, URLs, "
+            "events, dates, or claims. Preserve important uncertainty and recency. Answer the user's original "
+            "instruction directly in their language. Where useful, cite supplied sources with [number]. "
+            "Do not claim to have emailed, messaged, or delivered the result outside Kilas AI."
+        ),
+        "input": (
+            "Original scheduled task:\n" + str(instruction or "")[:1200] +
+            "\n\nVerified search findings:\n" + str(search_text or "")[:16000] +
+            "\n\nSources:\n" + sources
+        ),
+        "store": False,
+        "reasoning": {"effort": "medium"},
+        "max_output_tokens": 1800,
+    }
+    data = _request(payload)
+    _, answer, _ = _web_response(data)
+    if not answer:
+        raise ToolUnavailable("GPT-6 Sol tidak mengembalikan hasil final.")
+    return {"text": answer[:12000], "model": model, "usage": data.get("usage") or {}}
+
+
 def image(prompt, source=None):
     model = os.environ.get("KILAS_AI_OPENAI_IMAGE_MODEL", "").strip()
     if not model:
