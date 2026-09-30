@@ -88,12 +88,12 @@ def execute(run_id):
     reservations, results = [], {}
     try:
         task_mode = routing.mode_for(instruction) if kind == "AI_TASK" else "FAST"
-        tools_needed = (("WEB", "CHAT") if kind == "WATCH" else
-                        ("WEB",) if kind == "SEARCH" else ("CHAT",))
+        tools_needed = (("WEB", "CHAT") if kind in ("WATCH", "SEARCH") else ("CHAT",))
         for index, tool in enumerate(tools_needed):
             key = f"automation-{run_id}-attempt-{item['attempt_count']}-{index}"
-            reserved_plan, operations = usage.reserve(user_id, None, key,
-                                                       task_mode if kind == "AI_TASK" else "FAST", tool)
+            reserve_mode = (task_mode if kind == "AI_TASK" else
+                            "SMART" if kind == "SEARCH" and tool == "CHAT" else "FAST")
+            reserved_plan, operations = usage.reserve(user_id, None, key, reserve_mode, tool)
             if reserved_plan is None:
                 raise RunError("duplicate_reservation")
             reservations.append((key, operations))
@@ -119,9 +119,13 @@ def execute(run_id):
         if not citations:
             raise RunError("sources_missing")
         if kind == "SEARCH":
+            final = tools.finalize_scheduled_search(instruction, searched["text"], citations)
+            results[reservations[1][0]] = {"provider": "openai", "model": final["model"],
+                                           "usage": final.get("usage") or {}}
             _settle(user_id, reservations, results=results)
-            store.finish_run(run_id, status="SUCCEEDED", text=searched["text"][:12000],
-                             metadata={"citations": citations}, usage_metadata={"operation": "WEB_SEARCH"})
+            store.finish_run(run_id, status="SUCCEEDED", text=final["text"],
+                             metadata={"citations": citations},
+                             usage_metadata={"operation": "WEB_SEARCH", "final_model": final["model"]})
             return True
         condition = json.loads(item["condition_json"] or "{}")
         prompt = ("Extract the currently observed value relevant to this watch instruction from the "

@@ -234,15 +234,43 @@ class AutomationFlowTests(unittest.TestCase):
         fake = {"text": "Berita terbaru dengan sumber.", "model": "gpt-6-luna",
                 "usage": {"input_tokens": 10, "output_tokens": 10},
                 "citations": [{"title": "Sumber", "url": "https://example.com/story"}]}
-        with patch.object(runner.tools, "web_search", return_value=fake) as searched:
+        final = {"text": "Ringkasan final dari GPT-6 Sol.", "model": "gpt-6-sol",
+                 "usage": {"input_tokens": 30, "output_tokens": 20}}
+        with patch.object(runner.tools, "web_search", return_value=fake) as searched, \
+             patch.object(runner.tools, "finalize_scheduled_search", return_value=final) as finalized:
             self.assertTrue(runner.execute(ids[0]))
         searched.assert_called_once()
-        self.assertEqual(db.query_one("SELECT status FROM kilas_ai_usage WHERE user_id=?", (self.other,))["status"], "COMPLETE")
+        finalized.assert_called_once_with(instruction, fake["text"], fake["citations"])
+        self.assertEqual(store.result(self.other, ids[0])["result_text"], final["text"])
+        rows = db.query_all("SELECT operation_type,mode,status,model FROM kilas_ai_usage WHERE user_id=? ORDER BY id",
+                            (self.other,))
+        self.assertEqual([(row["operation_type"], row["mode"], row["status"], row["model"]) for row in rows[-2:]],
+                         [("WEB_SEARCH", "FAST", "COMPLETE", "gpt-6-luna"),
+                          ("CHAT", "SMART", "COMPLETE", "gpt-6-sol")])
         self.assertEqual(store.claim_due(now=due), [])
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automation_runs WHERE user_id=? AND attempt_count>0",
                                       (self.other,))["n"], 1)
         self.assertEqual(store.get(self.other, automation_id)["status"], "ACTIVE")
         store.set_status(self.other, automation_id, "pause")
+
+    def test_scheduled_search_finalizer_calls_exact_gpt6_sol(self):
+        fake_response = {
+            "output": [{"type": "message", "content": [
+                {"type": "output_text", "text": "Berita final dengan sumber [1]."}
+            ]}],
+            "usage": {"input_tokens": 25, "output_tokens": 12},
+        }
+        with patch.dict(os.environ, {"KILAS_AI_AUTOMATION_SEARCH_FINAL_MODEL": "gpt-6-sol"}, clear=False), \
+             patch.object(runner.tools, "_request", return_value=fake_response) as requested:
+            result = runner.tools.finalize_scheduled_search(
+                "Kasih berita terbaru tentang Indonesia.",
+                "Temuan terverifikasi dari web.",
+                [{"title": "Sumber resmi", "url": "https://example.com/news"}],
+            )
+        self.assertEqual(result["model"], "gpt-6-sol")
+        self.assertIn("Berita final", result["text"])
+        self.assertEqual(requested.call_args.args[0]["model"], "gpt-6-sol")
+        self.assertEqual(requested.call_args.args[0]["reasoning"]["effort"], "medium")
 
     def test_access_csrf_active_limit_pause_resume_and_delete(self):
         owner = repo.create_user("automation-limit@example.test", "hash")
