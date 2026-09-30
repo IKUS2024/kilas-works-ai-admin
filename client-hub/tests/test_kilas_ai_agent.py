@@ -76,6 +76,21 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
                                       (self.owner,))["n"], 1)
 
+    def test_named_date_task_is_understood_and_echoed_before_activation(self):
+        client = self.client_for(self.owner)
+        planned = {"action": "CREATE", "task_id": 0,
+                   "schedule_text": "Tanggal 1 Oktober 2099 jam 5 pagi kasih gue berita terbaru tentang Indonesia.",
+                   "reply": ""}
+        with patch.object(agent_planner, "propose", return_value=planned):
+            response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
+                "message": "tanggal 1 oktober 2099 jam 5 pagi kasih gw berita terbaru tentang indonesia"})
+        self.assertEqual(response.status_code, 303)
+        body = client.get(response.location).get_data(as_text=True)
+        self.assertIn("01/10/2099 · 05.00 · Jakarta (WIB)", body)
+        self.assertIn("Periksa tugas ini", body)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
+                                      (self.owner,))["n"], 0)
+
     def test_pause_confirmation_and_owner_boundary(self):
         item_id = store.create(self.other, schedule.parse("Setiap hari jam 8 ingetin gue minum air."))
         owner_client = self.client_for(self.owner)
