@@ -85,6 +85,8 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
         "If task + date/time are already clear, return CREATE immediately; do not ask 'do you want me to create it?' "
         "because the separate preview/activation UI is the confirmation step. Preserve the prior task details when a "
         "short follow-up supplies only one missing detail such as 'WIB', 'jam 5', or 'besok'. "
+        "Until a real external connector is available, describe scheduled results as appearing in Kilas AI/Activity; "
+        "do not imply they will be sent by email, WhatsApp, or another external channel. "
         "Use HELP for general guidance. For CREATE/EDIT, schedule_text must contain the complete task "
         "and explicit schedule that the existing parser can verify. For EDIT, use an existing task ID. "
         "For PAUSE/RESUME use an existing task ID. Two runs per day in one task, automatic resume dates, "
