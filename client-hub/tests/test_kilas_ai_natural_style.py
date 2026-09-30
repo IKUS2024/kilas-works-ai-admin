@@ -46,7 +46,8 @@ class NaturalResponseStyleTests(unittest.TestCase):
                 "type": "output_text", "text": "One verified finding [1]", "annotations": [{
                     "type": "url_citation", "url": "https://example.com/source", "title": "Source"}]}]}],
                 "usage": {"input_tokens": 1, "output_tokens": 1}}
-        with patch.object(tools, "_request", side_effect=fake_request):
+        with patch.dict(os.environ, {"KILAS_AI_OPENAI_WEB_MODEL": "test-web-model"}), \
+                patch.object(tools, "_request", side_effect=fake_request):
             list(tools.web_search_steps([{"role": "user", "content": "Find a current source"}],
                                         mode="FAST", plan="FREE"))
             tools._synthesize_research(["One verified finding"],
