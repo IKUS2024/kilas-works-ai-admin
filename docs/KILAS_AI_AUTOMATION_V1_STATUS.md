@@ -52,3 +52,9 @@ Output/action roadmap, in practical priority order:
 8. **WhatsApp delivery later**, only after explicit recipient/consent/template/24-hour-window rules are designed around Meta requirements. Email is the first external delivery channel.
 
 Desired user experience: one Automation can produce one or more outputs (text, PDF, image, CSV/file) and optionally deliver them through an enabled channel such as Email, while also keeping a result record inside Kilas AI. Example target workflow: “Setiap Senin jam 8 cari berita AI penting minggu ini, pilih 10 terbaik, rangkum jadi PDF, lalu email ke saya.”
+
+## 2026-09-30 conversation curriculum and structured schedule candidate
+
+Branch `feature/kilas-ai-natural-conversation-schedule-20260930` starts from remote main `075712374d6d5244ee309f23d932b4a3699e1c65` and preserves the already merged natural response policy from PR #83. The candidate strengthens its correction, multilingual, clarification, tradeoff, and truthful-tool guidance; uses that canonical policy in the actual Search path as well as Chat, Research synthesis, and Automation; and routes complex Automation AI tasks through the existing internal reasoning/cost guard.
+
+An internal TSV curriculum now has 100 authored three-turn scenarios across ten categories, with 40 selected Golden cases, representative good/bad examples, and a deterministic/offline evaluation helper. No customer-facing training page or model selector was added. Automation create/edit now offers structured once/daily/weekly/monthly controls, full IANA timezone validation, exact next-run preview, and a legacy natural-language mode for existing interval schedules. Both forms use the existing canonical schedule JSON and require no migration. Frontend past-time constraints complement authoritative server validation. Focused Python/Chromium QA and final deployment are pending; the existing production Cron secret/activation gate from the V1 rollout remains unchanged.

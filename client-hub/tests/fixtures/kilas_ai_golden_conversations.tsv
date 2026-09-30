@@ -1,0 +1,41 @@
+scenario_id	regression_focus
+C001	recover referent from prior option
+C003	continue a short elliptical follow-up
+C005	preserve explicitly retained constraint
+C006	select second option from context
+C007	respond to frustration without caricature
+C008	express uncertainty in recommendation
+C010	simplify on request
+C012	change recommendation after priority shift
+C014	explain financial concept with concrete example
+C016	do not claim missing file was read
+C021	revise only requested part of plan
+C024	adapt writing tone without padding
+C027	verify current fact before certainty
+C029	give short direct numerical answer
+C031	follow mixed Indonesian-English context
+C032	continue in Mandarin
+C033	continue in Japanese
+C034	continue in Korean
+C035	continue in Arabic
+C036	continue in Spanish
+C037	continue in French
+C038	continue in Thai
+C041	correct misunderstood discount intent
+C042	correct travel focus without defending error
+C046	repair misleading technical analogy
+C050	remove invented policy after correction
+C051	reason through high-stakes business recommendation
+C052	resolve the second option from recent context
+C061	explain technical concept simply
+C066	explain idempotency without false completion claim
+C074	remove buzzwords from user-specific writing
+C078	translate naturally rather than literally
+C081	search before current claim
+C083	do not claim email was sent
+C087	acknowledge missing image evidence
+C090	keep file-generation action truthful
+C092	change Automation time without duplicate
+C093	recalculate timezone preview
+C094	skip impossible monthly date
+C097	avoid artificially short Automation output
