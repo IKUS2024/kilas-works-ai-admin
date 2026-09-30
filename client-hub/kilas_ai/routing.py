@@ -8,6 +8,10 @@ def mode_for(content, attachments=()):
         r"\b(?:debug|refactor|optimasi|architecture|arsitektur|implementasi|analisis mendalam|"
         r"rencana strategis|multi.?step|langkah demi langkah yang kompleks)\b",
         r"\b(?:bandingkan|compare|perbandingan)\b.*\b(?:dua|2|beberapa|multiple)\b.*\b(?:dokumen|file|laporan)\b",
+        r"\b(?:mending|lebih baik|sebaiknya|menurut (?:lu|lo|kamu|anda)|saran|rekomendasi)\b"
+        r".{0,140}\b(?:atau|apa|vs|pilih|modal|budget|hari|bulan|usaha|kerja|beli|trip|liburan)\b",
+        r"\b(?:strategi|rencana|analisis|pertimbangkan|risiko)\b.{0,120}"
+        r"\b(?:bisnis|usaha|karier|karir|keuangan|marketing|proyek|project)\b",
     )
     documents = sum(bool(item.get("extracted_text")) for item in attachments)
     if documents >= 2 and re.search(r"\b(?:bandingkan|compare|analisis|sintesis)\b", text):

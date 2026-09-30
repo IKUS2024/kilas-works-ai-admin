@@ -9,6 +9,8 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 import requests
 from PIL import Image
 
+from . import response_style
+
 
 class ToolUnavailable(Exception):
     pass
@@ -98,9 +100,7 @@ def _synthesize_research(chunks, citations):
                         for index, item in enumerate(citations, 1))
     evidence = "\n\n".join(chunks)[:18000]
     payload = {"model": model, "instructions": (
-        "Synthesize only the supplied web findings in the user's language. Cite factual claims with [number] "
-        "from the supplied source list. Never invent a source, URL, or fact. State conflicts and uncertainty "
-        "plainly; prefer primary evidence for factual claims. Be concise and use a comparison table only if useful."),
+        response_style.research_synthesis_instructions()),
         "input": "Verified search findings:\n" + evidence + "\n\nActual cited sources:\n" + sources,
         "store": False, "reasoning": {"effort": "medium"}, "max_output_tokens": 2300}
     data = _request(payload)

@@ -4,16 +4,14 @@ import os
 
 import requests
 
+from . import response_style
+
 
 class ProviderError(Exception):
     """Safe sentinel; never expose provider response bodies to the browser."""
 
 
-SYSTEM = (
-    "You are Kilas AI, a helpful general assistant. Reply naturally in the user's language. "
-    "Separate known facts from uncertainty. Never claim to have searched the web or inspected "
-    "an attachment unless its content is in this request."
-)
+SYSTEM = response_style.CHAT_SYSTEM
 PROVIDERS = ("openai", "anthropic")
 MODEL_TIERS = {
     "FAST": {"openai": "gpt-6-luna"},

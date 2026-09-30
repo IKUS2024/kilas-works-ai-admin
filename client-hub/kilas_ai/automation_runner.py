@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 
-from . import automation_store as store, providers, tools, usage
+from . import automation_store as store, providers, response_style, tools, usage
 
 
 class RunError(RuntimeError):
@@ -96,10 +96,9 @@ def execute(run_id):
                 raise RunError("duplicate_reservation")
             reservations.append((key, operations))
         if kind == "AI_TASK":
-            prompt = ("Kerjakan tugas terjadwal berikut secara ringkas dalam bahasa pengguna. "
-                      "Jangan mengarang fakta baru atau mengaku membaca chat yang tidak disertakan. "
-                      "Tanggal UTC: " + datetime.now(timezone.utc).strftime("%Y-%m-%d") +
-                      "\n\nInstruksi: " + instruction)
+            prompt = response_style.automation_task_prompt(
+                instruction, datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            )
             text, provider, model, recorded = _plain_ai(prompt)
             results[reservations[0][0]] = {"provider": provider, "model": model, "usage": recorded}
             _settle(user_id, reservations, results=results)

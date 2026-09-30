@@ -25,6 +25,9 @@ class RoutingTests(unittest.TestCase):
         for prompt in ("Halo", "Buat caption singkat", "Ringkas paragraf ini", "Terjemahkan kalimat ini"):
             self.assertEqual(routing.mode_for(prompt), "FAST")
         self.assertEqual(routing.mode_for("Debug implementasi kode ini dan jelaskan akar masalah"), "SMART")
+        self.assertEqual(routing.mode_for("gue bingung mending Bali apa Lombok 5 hari"), "SMART")
+        self.assertEqual(routing.mode_for("kasih saran usaha modal 50 juta atau bisnis jasa"), "SMART")
+        self.assertEqual(routing.mode_for("buat strategi marketing bisnis kecil saya"), "SMART")
         self.assertEqual(routing.mode_for("Bandingkan dokumen", [{"extracted_text": "a"}, {"extracted_text": "b"}]), "SMART")
 
     def test_natural_tools_and_analysis(self):
