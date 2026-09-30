@@ -122,7 +122,8 @@ def agent_chat():
                 if item:
                     spec["title"] = item["title"]
                 _preview(item_id, spec)
-                _reply("Aku siapkan pratinjau tugasnya. Periksa tindakan dan jadwal di bawah sebelum mengaktifkan.")
+                label = schedule.describe(spec["schedule"], spec["timezone"])
+                _reply(f"Siap. Aku baca jadwalnya sebagai {label}. Cek pratinjau di bawah sebelum tugas diaktifkan.")
             except schedule.ScheduleError:
                 _reply("Jadwalnya belum cukup jelas untuk dijalankan. Sebutkan waktu yang tepat, atau atur lewat formulir tugas.")
     elif kind in ("PAUSE", "RESUME"):
