@@ -29,6 +29,8 @@ ZONE_LABELS = {"Asia/Jakarta": "Jakarta (WIB)", "Asia/Bangkok": "Bangkok (ICT)",
 ZONE_ALIASES = {"new york": "America/New_York", "los angeles": "America/Los_Angeles",
                 "jakarta": "Asia/Jakarta", "makassar": "Asia/Makassar", "jayapura": "Asia/Jayapura",
                 "singapore": "Asia/Singapore", "bangkok": "Asia/Bangkok", "tokyo": "Asia/Tokyo", "london": "Europe/London"}
+ZONE_SHORT_ALIASES = {"wib": "Asia/Jakarta", "wita": "Asia/Makassar", "wit": "Asia/Jayapura",
+                      "ict": "Asia/Bangkok"}
 TIME = re.compile(r"\b(?:jam\s*|at\s+)(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam|am|pm)?\b", re.I)
 FORBIDDEN = re.compile(r"\b(?:login|log in|masuk ke akun|klik|click|isi formulir|fill (?:a |the )?form|"
                        r"beli|purchase|checkout|bayar lewat|send email|kirim email|send whatsapp|"
@@ -116,6 +118,9 @@ def parse_structured(instruction, timezone_name, mode, *, date=None, time=None, 
 
 def timezone_from_instruction(text, default):
     value = (text or "").lower()
+    for alias, zone in ZONE_SHORT_ALIASES.items():
+        if re.search(r"\b" + re.escape(alias) + r"\b", value):
+            return zone
     for phrase, zone in ZONE_ALIASES.items():
         if re.search(r"\b(?:waktu|time|timezone|zona waktu)\s+" + re.escape(phrase) + r"\b", value):
             return zone
