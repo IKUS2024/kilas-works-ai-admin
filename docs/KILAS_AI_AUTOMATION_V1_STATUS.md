@@ -36,3 +36,19 @@ Required creation flow:
 - The task sentence may be lightly normalized for readability, but schedule/date/time data must live in structured controls rather than being embedded in the task text.
 
 This is a documented product requirement only at this checkpoint; do not treat it as deployed until the Automation form, validation, tests, and production QA are updated.
+
+## 2026-09-30 owner-approved Automation capability direction (design only)
+
+Owner approved the following product direction for future Automation expansion. This is a **design/roadmap checkpoint only**; do not implement or deploy from this note alone.
+
+Output/action roadmap, in practical priority order:
+1. **Email delivery first** using the existing Resend infrastructure already used by forgot-password email. Automation results should be able to be emailed to an explicitly selected recipient. Add safe idempotency, sent/failed status, bounded retry, subject/body handling, and optional attachments. Do not let the model freely choose arbitrary recipients without explicit user configuration.
+2. **Automatic PDF output** for reports, itineraries, summaries, proposals, and similar scheduled deliverables, reusing the existing Kilas AI PDF renderer where safe.
+3. **Search + sources** as a first-class Automation output, preserving real citations and existing Search quotas/cost guards.
+4. **Watch/monitoring** that only surfaces meaningful changes or matched conditions, with anti-spam behavior.
+5. **CSV/file output** for structured reports/data exports that users can download or receive by email.
+6. **Image generation output** for scheduled creative tasks, reusing existing Kilas AI image generation and existing image quotas/cost guards.
+7. **Multi-step Automation** so a single schedule can perform a bounded sequence such as Search → filter/select → summarize → create PDF → email result. Steps must be explicit, bounded, observable, idempotent, and must not become an unrestricted agent loop.
+8. **WhatsApp delivery later**, only after explicit recipient/consent/template/24-hour-window rules are designed around Meta requirements. Email is the first external delivery channel.
+
+Desired user experience: one Automation can produce one or more outputs (text, PDF, image, CSV/file) and optionally deliver them through an enabled channel such as Email, while also keeping a result record inside Kilas AI. Example target workflow: “Setiap Senin jam 8 cari berita AI penting minggu ini, pilih 10 terbaik, rangkum jadi PDF, lalu email ke saya.”
