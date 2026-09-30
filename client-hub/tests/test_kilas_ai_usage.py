@@ -60,7 +60,7 @@ class UsageTests(unittest.TestCase):
                    "VALUES (?,?, 'ACTIVE',?,?)", (self.owner, "PLUS", start, end))
         self.assertEqual(usage.effective_plan(self.owner)["plan"], "PLUS")
         self.assertEqual(usage.PLANS["PLUS"]["CHAT"], 600)
-        self.assertEqual(usage.PLANS["PLUS"]["WEB_SEARCH"], 15)
+        self.assertEqual(usage.PLANS["PLUS"]["WEB_SEARCH"], 120)
         self.assertEqual(usage.PLANS["PRO"]["CHAT"], 1500)
         self.assertEqual(usage.PLANS["MAX"]["WEB_SEARCH"], 80)
         self.assertIsNone(usage.estimate("unknown", 100, 100, "CHAT"))

@@ -25,7 +25,7 @@ def _lock_user(conn, user_id):
 
 def _budget_micro(amount_idr):
     fx = Decimal(os.environ.get("KILAS_AI_USD_IDR", "17000"))
-    ratio = Decimal(os.environ.get("KILAS_AI_TOPUP_COST_RATIO", "0.30"))
+    ratio = Decimal(os.environ.get("KILAS_AI_TOPUP_COST_RATIO", "0.35"))
     if fx <= 0 or not Decimal("0.05") <= ratio <= Decimal("0.40"):
         raise TopupError("Konfigurasi kuota tidak tersedia.")
     return int(Decimal(amount_idr) / fx * ratio * Decimal(1000000))
@@ -46,6 +46,43 @@ def create_order(user_id, pack):
         number = "KAI-Q-" + str(usage._now().year) + "-" + secrets.token_hex(8).upper()
         sql = "INSERT INTO kilas_ai_topup_orders(user_id,invoice_number,pack,amount_idr) VALUES (?,?,?,?)"
         params = (user_id, number, pack, PACKS[pack])
+        if db.BACKEND == "postgres":
+            order_id = usage._query(conn, sql + " RETURNING id", params, one=True)[0]
+        else:
+            order_id = conn.execute(sql, params).lastrowid
+        conn.commit()
+        return order_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def create_custom_order(user_id, amount_idr):
+    """Amount is authoritative; POWER is only a legacy-compatible storage marker.
+
+    KAI-C invoice numbers distinguish custom orders without rewriting the existing
+    pack CHECK constraint or any historical row.
+    """
+    raw = str(amount_idr or "").strip()
+    if not raw.isascii() or not raw.isdecimal():
+        raise TopupError("Masukkan nominal dalam rupiah yang valid.")
+    amount = int(raw)
+    if not 20000 <= amount <= 100000000:
+        raise TopupError("Nominal Kapasitas Tambahan harus antara Rp20.000 dan Rp100.000.000.")
+    conn = usage._connect()
+    try:
+        _lock_user(conn, user_id)
+        existing = usage._query(conn, "SELECT id FROM kilas_ai_topup_orders WHERE user_id=? AND amount_idr=? "
+            "AND invoice_number LIKE 'KAI-C-%' AND status IN ('PAYMENT_PENDING','UNDER_REVIEW') "
+            "ORDER BY id DESC LIMIT 1", (user_id, amount), one=True)
+        if existing:
+            conn.commit()
+            return existing[0]
+        number = "KAI-C-" + str(usage._now().year) + "-" + secrets.token_hex(8).upper()
+        sql = "INSERT INTO kilas_ai_topup_orders(user_id,invoice_number,pack,amount_idr) VALUES (?,?,?,?)"
+        params = (user_id, number, "POWER", amount)
         if db.BACKEND == "postgres":
             order_id = usage._query(conn, sql + " RETURNING id", params, one=True)[0]
         else:
@@ -128,7 +165,7 @@ def review(order_id, admin_id, decision, note=""):
         user_id = seed[0]
         _lock_user(conn, user_id)
         suffix = " FOR UPDATE" if db.BACKEND == "postgres" else ""
-        row = usage._query(conn, "SELECT status,amount_idr FROM kilas_ai_topup_orders WHERE id=? AND user_id=?" + suffix,
+        row = usage._query(conn, "SELECT status,amount_idr,invoice_number FROM kilas_ai_topup_orders WHERE id=? AND user_id=?" + suffix,
                            (order_id, user_id), one=True)
         if row[0] == decision:
             conn.commit()
@@ -142,7 +179,8 @@ def review(order_id, admin_id, decision, note=""):
         if decision == "VERIFIED":
             usage._query(conn, "INSERT INTO kilas_ai_topup_credits(order_id,user_id,total_micro,expires_at) "
                 "VALUES (?,?,?,?) ON CONFLICT(order_id) DO NOTHING",
-                (order_id, user_id, _budget_micro(row[1]), (now + timedelta(days=90)).isoformat()))
+                (order_id, user_id, _budget_micro(row[1]),
+                 (now + timedelta(days=365 if row[2].startswith("KAI-C-") else 90)).isoformat()))
         conn.commit()
         return True
     except Exception:

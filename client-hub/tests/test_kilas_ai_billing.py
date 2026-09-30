@@ -41,7 +41,7 @@ class BillingTests(unittest.TestCase):
         response = owner.post("/kilas-ai/checkout", data={"plan": "PLUS", "csrf_token": "billing-csrf"})
         self.assertEqual(response.status_code, 303)
         item = billing.owner_invoices(self.owner)[0]
-        self.assertEqual(item["amount_idr"], 69000)
+        self.assertEqual(item["amount_idr"], 99000)
         self.assertEqual(usage.effective_plan(self.owner)["plan"], "FREE")
         self.assertEqual(other.get(f"/kilas-ai/invoices/{item['id']}").status_code, 404)
         self.assertEqual(owner.get(f"/kilas-ai/invoices/{item['id']}").status_code, 200)
