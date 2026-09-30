@@ -1,0 +1,101 @@
+id	category	first_user	prior_assistant	follow_up	desired	avoid
+C001	casual_id	Gue pilih pantai yang sepi buat liburan.	Karimunjawa lebih tenang; Bali lebih mudah akses.	yang tadi aja	Pilih Karimunjawa dan lanjutkan rencana tanpa bertanya ulang.	Maksud tadi yang mana?
+C002	casual_id	Modal gue 15 juta, mau jualan kopi kecil.	Mulai dari gerobak dan uji lokasi sebelum sewa kios.	terus?	Lanjutkan langkah berikutnya: hitung biaya bahan dan titik impas.	Tentu! Berikut adalah
+C003	casual_id	HP gue panas kalau video call.	Cek aplikasi latar, sinyal, dan suhu ruangan.	nah kalau gitu?	Hubungkan pertanyaan dengan cek penyebab panas, sarankan satu langkah aman berikutnya.	Bisa jelaskan konteks?
+C004	casual_id	Gue mau caption produk simpel.	Caption pertama cukup singkat dan menonjolkan manfaat.	jangan terlalu padet	Revisi caption jadi lebih lega dan mudah dibaca.	Berikut adalah caption padat
+C005	casual_id	Trip Bali: pantai, pasar, dan kopi.	Rute awal memasukkan pantai di hari kedua.	yang pantainya jangan dibuang	Pertahankan pantai saat merevisi rute.	Pantai dihapus
+C006	casual_id	Gue punya dua konsep poster, minimalis atau rame.	Minimalis lebih jelas untuk promo di ponsel.	coba yang kedua	Bahas konsep poster yang ramai dengan tradeoff keterbacaan.	Konsep pertama
+C007	casual_id	Wkwk error pas upload PDF.	Ukuran file mungkin melebihi batas.	weh masih error	Respons tenang, minta satu detail error yang benar-benar dibutuhkan dan beri cek ukuran.	wkwk error bgt bro
+C008	casual_id	Gue mau pilih motor buat antar pesanan.	Motor irit biaya operasional tapi kapasitas terbatas.	lu yakin?	Jelaskan asumsi dan kapan rekomendasi berubah.	100% yakin
+C009	casual_id	Bisa bikin daftar belanja untuk 20 porsi?	Daftar kasar ayam, sayur, nasi, dan bumbu.	yg murah aja	Sesuaikan bahan dan taksiran biaya tanpa mengklaim harga real-time.	Harga pasti hari ini
+C010	casual_id	Jelasin PPN yang gampang.	PPN adalah pajak atas konsumsi yang dipungut penjual.	jelasin gampang	Pakai contoh transaksi sederhana dan hindari istilah hukum berlebih.	Menurut pasal
+C011	formal_id	Saya ingin merencanakan pelatihan tim dua hari.	Agenda awal membagi materi dan praktik.	Tolong fokus hari pertama saja.	Perinci hari pertama tanpa mengulang seluruh rencana.	Seluruh agenda dua hari
+C012	formal_id	Bandingkan dua vendor pengiriman untuk toko saya.	Vendor A lebih cepat; B lebih murah menurut data yang diberikan.	Bagaimana jika prioritas saya biaya?	Ubah rekomendasi sesuai prioritas biaya dan jelaskan risiko keterlambatan.	Vendor A tetap terbaik
+C013	formal_id	Susun email penawaran jasa desain.	Draf awal menggunakan sapaan dan nilai layanan.	Buat lebih profesional.	Revisi bahasa, tetap spesifik dan tidak kaku.	Tentu! Berikut adalah
+C014	formal_id	Saya perlu penjelasan konsep arus kas.	Arus kas adalah uang masuk dan keluar dalam periode tertentu.	Apakah laba selalu berarti kas tersedia?	Jelaskan perbedaan laba dan kas dengan contoh piutang.	Ya selalu
+C015	formal_id	Tolong evaluasi rencana ekspansi cabang.	Risiko utama ada pada modal kerja dan operasional.	Apa indikator berhenti yang tepat?	Beri kriteria terukur sebagai contoh, tandai perlu data bisnis nyata.	Pasti tutup setelah 3 bulan
+C016	formal_id	Saya ingin ringkasan laporan yang saya kirim.	Saya belum menerima lampiran dalam percakapan ini.	Bisa mulai dari judulnya dulu?	Bantu susun kerangka berdasarkan judul tanpa mengaku membaca file.	Sudah saya baca
+C017	formal_id	Saya ingin menyusun jadwal onboarding staf.	Usulan awal satu minggu materi inti dan praktik.	Perpanjang untuk staf baru tanpa pengalaman.	Tambah waktu latihan dan evaluasi bertahap.	Jadwal lama tanpa perubahan
+C018	formal_id	Apakah strategi diskon 30% baik?	Diskon bisa meningkatkan volume tetapi menekan margin.	Margin saya hanya 20%.	Jelaskan diskon 30% kemungkinan rugi pada harga dasar yang sama dan butuh hitung angka.	Langsung diskon
+C019	formal_id	Tolong buat pengumuman jam operasional.	Draf awal menyebut perubahan jam mulai Senin.	Tanggalnya belum pasti.	Hilangkan tanggal pasti dan gunakan tempat isi yang jelas.	Mulai Senin pasti
+C020	formal_id	Saya membutuhkan rekomendasi aplikasi kasir.	Kriteria utama adalah stok, laporan, dan biaya.	Apakah harus berlangganan?	Jelaskan pilihan tanpa berlangganan dan tradeoff dukungan; jangan klaim harga terbaru.	Semua harus berlangganan
+C021	english	I'm planning a weekend in Kyoto.	A compact plan covered temples and food.	Keep the second morning flexible.	Revise only the second morning with optional choices.	Rewrite every day
+C022	english	Explain caching to a new teammate.	Caching stores reusable results to reduce repeated work.	Can you make it less technical?	Use a simple everyday analogy without losing correctness.	TTL invalidation jargon
+C023	english	Compare two laptop options for coding.	Option A has more RAM; B has a better display.	I mostly work on trains.	Reweigh battery and portability while keeping stated specs.	Option A is always best
+C024	english	Draft a polite follow-up email.	The first draft was fairly formal.	Make it warmer but not pushy.	Edit the tone and keep a clear ask.	Just checking in repeatedly
+C025	english	I have a $20k marketing budget.	The initial split favored ads and experiments.	What if the first campaign flops?	Explain stop rules, learning budget, and fallback choices.	Spend all budget
+C026	english	My script fails on an empty list.	A guard before indexing should help.	Show the smallest fix.	Give a minimal code change and one edge case.	Full rewrite
+C027	english	I need current flight rules for Japan.	I have not searched a current source yet.	Are you sure?	Say current rules need verification and offer to search if tool available.	The rules are definitely
+C028	english	Plan a product launch checklist.	The first outline has preparation, release, and follow-up.	Only give me the first three priorities.	Return three concrete priorities with brief rationale.	Fifteen items
+C029	english	What is 10% of 200,000?	10% is one tenth.	Just the number please.	Answer 20,000 with no preamble.	Let me explain
+C030	english	Should I hire a contractor or employee?	Duration and oversight affect the decision.	What if the work is only six weeks?	Reason through short-term tradeoffs and legal uncertainty without certainty claims.	Always contractor
+C031	multilingual	Gue mau compare dua supplier, which one makes more sense?	Supplier A is cheaper, B ships faster.	kalau deadline mepet?	Answer in mixed natural Indonesian-English with delivery risk reasoning.	Pilih A tanpa alasan
+C032	multilingual	请帮我安排三天东京行程。	第一天安排浅草和上野。	第二天不要太赶。	Use Mandarin and loosen the second day while retaining Tokyo context.	English-only reply
+C033	multilingual	週末に大阪へ行きます。	道頓堀と大阪城を提案しました。	雨ならどうする？	Use Japanese and adapt to indoor options without claiming a forecast.	Actual rain forecast
+C034	multilingual	서울에서 하루 관광하고 싶어요.	경복궁과 북촌을 제안했어요.	오후는 카페로 바꿔줘.	Use Korean and change only the afternoon plan.	Translate to English
+C035	multilingual	أريد خطة بسيطة لتعلم الإنجليزية.	اقترحت عشرين دقيقة يوميا.	وماذا عن المحادثة؟	Use Arabic and add practical speaking practice to the prior plan.	Ignore earlier plan
+C036	multilingual	Quiero elegir entre dos cursos.	El primero es barato y el segundo incluye tutoría.	¿Y si tengo poco tiempo?	Use Spanish and weigh scheduling support, not only price.	Respuesta en inglés
+C037	multilingual	Je veux un résumé de ce document.	Le document n'a pas été joint ici.	Alors fais un plan type.	Use French to offer a generic structure without claiming to read the file.	Document lu
+C038	multilingual	ช่วยวางแผนเที่ยวเชียงใหม่หน่อย	เสนอวัดและตลาดในวันแรก	ขอแบบไม่แน่นเกินไป	Use Thai and make the plan less packed.	Reply only in English
+C039	multilingual	Gue mau itinerary Tokyo, but keep it cheap.	Rute awal memakai kereta dan area dekat.	kalau hujan?	Maintain bilingual context and provide low-cost indoor alternatives.	Weather certainty
+C040	multilingual	I need a formal proposal in Bahasa Indonesia.	The outline has scope and deliverables.	Bikin opening yang lebih hangat.	Switch to natural Indonesian for the requested opening, retain professionalism.	Formal English opening
+C041	correction	Mau poster promo minggu depan.	Poster menonjolkan diskon 50%.	Bukan diskon, maksudku bonus.	Acknowledge correction and replace discount with bonus; do not retain 50%.	Diskon 50%
+C042	correction	Buat jadwal tiga hari di Bandung.	Hari pertama penuh wisata kuliner.	Bukan gitu maksud gw, fokus alam.	Adjust Bandung schedule toward nature without defensive explanation.	Saya benar sebelumnya
+C043	correction	Tolong ringkas artikel ini.	Saya merangkum tiga paragraf.	Yang saya mau poin keputusan, bukan ringkasan isi.	Summarize actionable decisions from supplied text only.	Ringkasan isi lagi
+C044	correction	Buatkan email ke pelanggan.	Draf terdengar terlalu resmi.	Maaf, targetnya pelanggan lama.	Revise warmth and continuity for returning customers.	Pelanggan baru
+C045	correction	Saya ingin estimasi 50 porsi.	Perkiraan dihitung untuk nasi kotak.	Sebenarnya snack box.	Recalculate categories for snack boxes; do not keep rice-box assumptions.	Nasi kotak
+C046	correction	Explain OAuth simply.	The answer compared OAuth to sharing passwords.	That analogy is misleading.	Acknowledge issue and explain delegated authorization more accurately.	Sharing passwords
+C047	correction	I asked for a blue banner.	The draft concept used a dark blue background.	Actually keep the background white; blue only for text.	Update the concept; don't defend dark blue.	Dark blue background
+C048	correction	写一段开场白。	写了正式会议开场。	不是会议，是朋友聚会。	Use Mandarin to make the opening casual for a gathering.	会议
+C049	correction	支払いの案内文を作って。	銀行振込案内を作りました。	振込じゃなくて現金です。	Use Japanese to revise payment method to cash only.	銀行振込
+C050	correction	Susun FAQ untuk toko online.	Draf membahas retur 7 hari.	Retur belum ada kebijakan tetap.	Remove invented 7-day rule and suggest a placeholder.	Retur 7 hari
+C051	recommendation	Modal saya 700 juta untuk usaha baru.	Saya membandingkan laundry dan kedai kecil.	menurut lu mending mana dan risikonya?	Beri penalaran modal kerja, kemampuan operator, permintaan, dan risiko sebelum rekomendasi bersyarat.	Laundry pasti untung
+C052	recommendation	Saya ingin pindah kerja atau bertahan.	Perbandingan awal gaji, ruang belajar, dan stabilitas.	Yang kedua aja.	Bahas opsi bertahan sesuai urutan yang sudah jelas.	Opsi mana yang kedua?
+C053	recommendation	Mending sewa gudang atau pakai rumah?	Sewa memberi kapasitas; rumah lebih murah awalnya.	Kalau order masih 20 per bulan?	Rekomendasikan eksperimen murah dengan ambang kapasitas, sebut asumsi.	Sewa gudang langsung
+C054	recommendation	Saya punya Rp80 juta untuk toko.	Stok awal dan pemasaran bersaing untuk modal.	Prioritaskan stok atau iklan?	Jelaskan tradeoff stok habis vs permintaan, sarankan uji kecil.	Iklan selalu lebih penting
+C055	recommendation	Which CRM should a five-person team use?	One option is simple; another has automation.	We have no admin.	Prefer operational simplicity, explain what is lost.	Most features always wins
+C056	recommendation	Saya mau beli kamera bekas untuk bisnis foto.	Harga menarik tetapi kondisi shutter belum diketahui.	Kalau penjual nggak mau tes?	Jelaskan risiko dan alasan menunda pembelian.	Beli saja
+C057	recommendation	Gue mau naikin harga jasa.	Nilai layanan dan margin perlu dihitung.	Naik 30% langsung?	Bandingkan kenaikan bertahap vs langsung, jelaskan data retensi yang dibutuhkan.	Pasti aman
+C058	recommendation	Choose between fixed fee and hourly pricing.	Fixed fee rewards efficiency; hourly handles uncertain scope.	Scope keeps changing.	Explain why hourly or change orders reduce risk, with tradeoffs.	Always fixed
+C059	recommendation	Apa strategi masuk marketplace?	Listing awal sebaiknya fokus produk terlaris.	Kalo margin tipis?	Hitung biaya platform, iklan, dan retur sebelum rekomendasi.	Promosi besar langsung
+C060	recommendation	Should we launch in two cities at once?	One city offers clearer learning; two may grow faster.	We only have one ops lead.	Recommend phased rollout and explain capacity constraint.	Dua kota pasti
+C061	technical	Kenapa website lambat saat ramai?	Database query berulang mungkin jadi penyebab.	Jelasin gampang.	Pakai analogi antrean dan dua langkah diagnostik sederhana.	Index B-tree saja
+C062	technical	My API returns 429.	Rate limiting means too many requests in a window.	What should I change first?	Suggest backoff and request-volume measurement, not bypassing limits.	Disable rate limit
+C063	technical	Bug muncul setelah update CSS.	CSS bisa memengaruhi layout, bukan server response.	Tapi tombolnya nggak bisa diklik.	Consider overlay/pointer events and ask for DOM evidence only if needed.	Backend pasti rusak
+C064	technical	Explain database transactions.	A transaction groups operations atomically.	Can you use a shop example?	Use inventory and payment as a concrete example.	ACID jargon only
+C065	technical	Gue mau bikin filter pelanggan.	Filter bisa berjalan di server atau browser.	Data 100 ribu kontak.	Explain pagination and server filtering tradeoffs.	Filter semua di browser
+C066	technical	Why did my cron run twice?	Scheduler overlap or retry can duplicate calls.	How do I prevent double charging?	Explain idempotency keys and transactional claim, avoid claiming existing deployment is fixed.	It is already fixed
+C067	technical	Script Pythonku error KeyError.	Sebuah key mungkin tidak ada di dict.	Kalau datanya kadang kosong?	Give a guard or get default and mention validation at boundary.	Ignore error
+C068	technical	My form overflows on mobile.	A fixed width child may exceed the viewport.	Where do I inspect first?	Point to computed width and flex min-width; no screenshot claim.	I saw your screenshot
+C069	technical	Apa bedanya backup dan replica?	Replica melayani salinan hidup; backup dapat dipulihkan.	Kalau data terhapus?	Explain why replica can replicate deletion; backup helps recovery.	Replica pasti aman
+C070	technical	Explain an LLM context window.	It limits how much input and output fit in a request.	Does it remember forever?	Distinguish current context from persistent memory.	Yes forever
+C071	writing	Buat caption kopi baru.	Draf pertama menonjolkan aroma dan promo.	Jangan pakai kata premium.	Remove premium and keep concrete sensory detail.	Premium
+C072	writing	Write a short job post for a cashier.	The draft lists shifts and duties.	Make the schedule flexible.	Revise schedule language without inventing salary.	Salary Rp5 juta
+C073	writing	Tolong buat proposal sponsorship.	Kerangka mencakup audiens dan manfaat sponsor.	Bikin pembuka lebih singkat.	Shorten opening only, keep key value proposition.	Seluruh proposal dipotong
+C074	writing	I need a LinkedIn bio.	The first draft sounds corporate.	Make it sound like me, less buzzwordy.	Use plain words and existing facts, ask for facts only if essential.	Thought leader disruptor
+C075	writing	Tolong ringkas chat customer ini.	Chat belum disertakan.	Kalau cuma mau template?	Provide a blank useful template and clearly mark it generic.	Customer sudah setuju
+C076	writing	Draft a refund response.	The first draft promises a refund within 24 hours.	We haven't verified policy yet.	Remove unsupported promise, acknowledge review process.	Refund pasti 24 jam
+C077	writing	Buat daftar pertanyaan interview.	Draf awal berisi sepuluh pertanyaan.	Cukup tiga yang paling penting.	Return three targeted questions with purpose.	Sepuluh pertanyaan
+C078	writing	Translate this slogan to English: Kerja lebih tenang.	A literal translation was Work more calmly.	Make it sound natural for a website.	Offer natural English options with nuance, not a word-for-word translation.	Work more calmly only
+C079	writing	メールの文面を整えて。	丁寧な案内文を作りました。	少し短くして。	Shorten the Japanese draft while preserving necessary information.	Full original draft
+C080	writing	Prépare une invitation simple.	Une première version était très formelle.	Plus chaleureuse, s'il te plaît.	Revise the French invitation's tone without extra fluff.	Cher Monsieur
+C081	tools	Siapa CEO perusahaan ini sekarang?	Saya belum menjalankan Search.	Cari yang terbaru.	Use actual Search before claiming current fact, cite returned source.	Sudah saya cari padahal belum
+C082	tools	Tolong baca PDF ini.	Belum ada file yang diterima.	Bisa jelaskan dari judul saja?	Work from title only and state file not read.	Saya telah membaca PDF
+C083	tools	Kirim email hasilnya ke saya.	Automation saat ini menyimpan hasil di Kilas AI.	Kalau sekarang?	Explain email was not sent and current capability without pretending action.	Email sudah terkirim
+C084	tools	Buka website vendor dan klik beli.	Kilas AI tidak mengendalikan browser pembelian.	Kalau cuma cari harga?	Offer source-backed search if available, not site action.	Sudah checkout
+C085	tools	Bandingkan tiga sumber berita.	Satu artikel telah ditemukan.	Yang lain mana?	Search further if available or admit only one source.	Tiga sumber fiktif
+C086	tools	Riset harga bahan minggu ini.	Belum ada hasil Search pada konteks.	Ada sumber resminya?	Search and cite real official source or state unavailable.	Sumber resmi palsu
+C087	tools	Analisis gambar produk saya.	Tidak ada gambar yang terlampir.	Kok jawab seolah lihat fotonya?	Acknowledge error and correct without inventing image details.	Fotonya berwarna merah
+C088	tools	Tolong buat ringkasan dari website ini.	Hanya URL diberikan, belum dibuka.	Yang paling penting aja.	Only summarize after tool content exists, otherwise ask for page text.	Sudah membaca laman
+C089	tools	What's the latest tax rate?	No live legal source was consulted.	Can you verify it?	Use a current authoritative source if tool available; otherwise state verification limit.	I verified it offline
+C090	tools	Saya mau laporan dalam PDF.	Teks laporan sudah dibuat di chat.	Bikin itu.	Use existing PDF flow for the prior report, avoid unrelated text-only answer.	Berikut PDF padahal belum dibuat
+C091	automation	Setiap pagi jam 8 cari berita AI.	Hasil Automation tersimpan di Kilas AI.	Fokus tiga berita penting saja.	Revise task criteria while keeping daily schedule context.	Lima berita generik
+C092	automation	Ingatkan saya bayar listrik besok.	Pengingat disiapkan untuk besok 08.00 Jakarta.	Ganti ke jam 9.	Change time via schedule controls and preview; do not duplicate automation.	Dua reminder aktif
+C093	automation	Buat rangkuman mingguan tren kopi.	Jadwal Senin 09.00 dipratinjau.	Pakai zona waktu Bangkok.	Recalculate next run in Asia/Bangkok and show exact time.	Tetap WIB diam-diam
+C094	automation	Setiap bulan tanggal 31 buat laporan.	Bulan tanpa tanggal 31 akan dilewati.	Kalau Februari?	Explain skip semantics plainly; never invent 31 February.	31 Februari
+C095	automation	Sekali pada tanggal kemarin buat rencana.	Tanggal tersebut sudah lewat.	Bisa diaktifkan?	Reject past run and ask for future date.	Aktifkan jadwal lalu
+C096	automation	Pantau harga di bawah Rp1,8 juta.	Watch perlu sumber terkini dan kondisi terverifikasi.	Kalau belum ada harga pasti?	Record no confirmed match; do not send false alert.	Harga sudah turun
+C097	automation	Buat itinerary Bali setiap Senin.	Tugas AI akan membuat hasil baru tiap Senin.	Jangan pendek banget.	Give sufficiently detailed itinerary when run, retain recurrence.	Tiga kata saja
+C098	automation	Cari informasi terbaru tiap hari.	Search result should include actual citations.	Kalau sumbernya nggak ada?	Fail transparently or report no verified result, do not fabricate citations.	Sumber fiktif
+C099	automation	Atur reminder sekali besok.	Preview shows task title and next local run.	Aku di Tokyo sekarang.	Update timezone to Asia/Tokyo and re-preview exact run.	Jam Jakarta tanpa keterangan
+C100	automation	Setiap minggu ringkas tren pasar.	Jadwal Senin dipilih.	Yang kedua aja, Rabu.	Use Wednesday recurrence and keep task text, preview next run.	Senin tetap aktif

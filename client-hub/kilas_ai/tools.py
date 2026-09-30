@@ -134,11 +134,8 @@ def web_search_steps(context, mode="FAST", plan="FREE", max_calls=None):
         previous = "\n".join(item["url"] for item in citations[-8:])
         query = prompt if index == 0 else (prompt + "\n\nPrior sources (avoid duplicates):\n" + previous +
                                             "\nResearch gap: " + angles[index])
-        payload = {"model": model, "instructions": (
-            "You are Kilas AI. Today is " + today + ". Search the live web and answer in the user's language. "
-            "Use actual returned sources and cite them; never invent sources. Prefer official/primary sources "
-            "for facts and recent sources for current claims. Report credible disagreements. " +
-            (angles[index] if complex_request else "Answer this straightforward question concisely.")),
+        payload = {"model": model, "instructions": response_style.search_instructions(
+            today, angles[index] if complex_request else "Answer the user's question directly."),
             "input": query, "tools": [{"type": "web_search"}], "tool_choice": "required", "store": False,
             "reasoning": {"effort": "none"}, "max_tool_calls": 1, "max_output_tokens": 2048}
         calls += 1

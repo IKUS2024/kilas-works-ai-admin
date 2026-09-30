@@ -5,19 +5,19 @@ import os
 import re
 from datetime import datetime, timezone
 
-from . import automation_store as store, providers, response_style, tools, usage
+from . import automation_store as store, providers, response_style, routing, tools, usage
 
 
 class RunError(RuntimeError):
     pass
 
 
-def _plain_ai(prompt):
+def _plain_ai(prompt, mode="FAST"):
     pieces = []
     length = 0
     provider = model = None
     recorded = {"input_tokens": 0, "output_tokens": 0}
-    for event in providers.stream("FAST", [{"role": "user", "content": prompt[:4000]}]):
+    for event in providers.stream(mode, [{"role": "user", "content": prompt[:4000]}]):
         if event["type"] == "provider":
             provider, model = event["provider"], event["model"]
         elif event["type"] == "delta":
@@ -87,11 +87,13 @@ def execute(run_id):
     plan = usage.effective_plan(user_id)["plan"]
     reservations, results = [], {}
     try:
+        task_mode = routing.mode_for(instruction) if kind == "AI_TASK" else "FAST"
         tools_needed = (("WEB", "CHAT") if kind == "WATCH" else
                         ("WEB",) if kind == "SEARCH" else ("CHAT",))
         for index, tool in enumerate(tools_needed):
             key = f"automation-{run_id}-attempt-{item['attempt_count']}-{index}"
-            reserved_plan, operations = usage.reserve(user_id, None, key, "FAST", tool)
+            reserved_plan, operations = usage.reserve(user_id, None, key,
+                                                       task_mode if kind == "AI_TASK" else "FAST", tool)
             if reserved_plan is None:
                 raise RunError("duplicate_reservation")
             reservations.append((key, operations))
@@ -99,7 +101,7 @@ def execute(run_id):
             prompt = response_style.automation_task_prompt(
                 instruction, datetime.now(timezone.utc).strftime("%Y-%m-%d")
             )
-            text, provider, model, recorded = _plain_ai(prompt)
+            text, provider, model, recorded = _plain_ai(prompt, task_mode)
             results[reservations[0][0]] = {"provider": provider, "model": model, "usage": recorded}
             _settle(user_id, reservations, results=results)
             store.finish_run(run_id, status="SUCCEEDED", text=text,

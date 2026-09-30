@@ -8,13 +8,13 @@ WEEKDAYS = {"senin": 0, "monday": 0, "selasa": 1, "tuesday": 1,
             "rabu": 2, "wednesday": 2, "kamis": 3, "thursday": 3,
             "jumat": 4, "jum'at": 4, "friday": 4, "sabtu": 5, "saturday": 5,
             "minggu": 6, "sunday": 6}
-ZONE_LABELS = {"Asia/Jakarta": "Jakarta (WIB)", "Asia/Makassar": "Makassar (WITA)",
+ZONE_LABELS = {"Asia/Jakarta": "Jakarta (WIB)", "Asia/Bangkok": "Bangkok (ICT)", "Asia/Makassar": "Makassar (WITA)",
                "Asia/Jayapura": "Jayapura (WIT)", "Asia/Singapore": "Singapore",
                "Asia/Tokyo": "Tokyo", "Europe/London": "London",
                "America/New_York": "New York", "America/Los_Angeles": "Los Angeles"}
 ZONE_ALIASES = {"new york": "America/New_York", "los angeles": "America/Los_Angeles",
                 "jakarta": "Asia/Jakarta", "makassar": "Asia/Makassar", "jayapura": "Asia/Jayapura",
-                "singapore": "Asia/Singapore", "tokyo": "Asia/Tokyo", "london": "Europe/London"}
+                "singapore": "Asia/Singapore", "bangkok": "Asia/Bangkok", "tokyo": "Asia/Tokyo", "london": "Europe/London"}
 TIME = re.compile(r"\b(?:jam\s*|at\s+)(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam|am|pm)?\b", re.I)
 FORBIDDEN = re.compile(r"\b(?:login|log in|masuk ke akun|klik|click|isi formulir|fill (?:a |the )?form|"
                        r"beli|purchase|checkout|bayar lewat|send email|kirim email|send whatsapp|"
@@ -34,6 +34,70 @@ def validate_timezone(value):
     except (ZoneInfoNotFoundError, ValueError):
         raise ScheduleError("Pilih zona waktu yang valid.") from None
     return value
+
+
+def _task_kind_and_condition(text):
+    value = text.lower()
+    kind = ("WATCH" if re.search(r"\b(?:pantau|monitor|kabari kalau|beri tahu kalau|alert when|watch)\b", value)
+            else "REMINDER" if re.search(r"\b(?:ingatkan|ingetin|remind|pengingat)\b", value)
+            else "SEARCH" if re.search(r"\b(?:cari|search|berita terbaru|lowongan terbaru|riset)\b", value)
+            else "AI_TASK")
+    if any(kind != "REMINDER" or match.group(0).lower() not in ("beli", "purchase")
+           for match in FORBIDDEN.finditer(text)):
+        raise ScheduleError("Automation belum bisa mengendalikan website atau mengirim pesan. Coba Reminder atau Search.")
+    condition = {}
+    if kind == "WATCH":
+        match = re.search(r"\b(di bawah|kurang dari|below|under|di atas|lebih dari|above|over)\s+(?:rp\s*)?([\d.,]+)", value)
+        if match:
+            number = re.sub(r"[^\d]", "", match.group(2))
+            if not number:
+                raise ScheduleError("Sebutkan nilai kondisi yang jelas.")
+            condition = {"operator": "lt" if match.group(1) in ("di bawah", "kurang dari", "below", "under") else "gt",
+                         "threshold": int(number)}
+        elif re.search(r"\b(?:berubah|perubahan|new|baru|change)\b", value):
+            condition = {"operator": "change"}
+        else:
+            raise ScheduleError("Sebutkan kondisi Watch yang jelas, misalnya 'di bawah Rp1.800.000'.")
+    return kind, condition
+
+
+def parse_structured(instruction, timezone_name, mode, *, date=None, time=None, weekday=None, day=None, now=None):
+    """Use the existing canonical schedule format for explicit create/edit controls."""
+    text = " ".join(str(instruction or "").split())
+    if not 8 <= len(text) <= 1200:
+        raise ScheduleError("Tulis tugas Automation yang jelas (maksimal 1.200 karakter).")
+    zone = validate_timezone(timezone_name)
+    kind, condition = _task_kind_and_condition(text)
+    mode = str(mode or "").lower()
+    if mode not in ("once", "daily", "weekly", "monthly"):
+        raise ScheduleError("Pilih pengulangan Automation yang valid.")
+    clock = re.fullmatch(r"(\d{2}):(\d{2})", str(time or ""))
+    if not clock:
+        raise ScheduleError("Pilih jam dan menit yang valid.")
+    hour, minute = map(int, clock.groups())
+    if hour > 23 or minute > 59:
+        raise ScheduleError("Jam tidak valid.")
+    schedule = {"kind": mode, "hour": hour, "minute": minute}
+    if mode == "once":
+        try:
+            chosen = datetime.strptime(str(date or ""), "%Y-%m-%d").date()
+        except ValueError:
+            raise ScheduleError("Pilih tanggal yang valid.") from None
+        schedule.update(year=chosen.year, month=chosen.month, day=chosen.day)
+    elif mode == "weekly":
+        if str(weekday or "") not in tuple(str(index) for index in range(7)):
+            raise ScheduleError("Pilih hari dalam seminggu.")
+        schedule["weekday"] = int(weekday)
+    elif mode == "monthly":
+        if not str(day or "").isdigit() or not 1 <= int(day) <= 31:
+            raise ScheduleError("Pilih tanggal bulanan dari 1 sampai 31.")
+        schedule["day"] = int(day)
+    next_run = next_occurrence(schedule, zone, now or datetime.now(timezone.utc))
+    if not next_run:
+        raise ScheduleError("Jadwal sudah lewat atau tidak valid.")
+    return {"title": (text[0].upper() + text[1:])[:90], "instruction": text,
+            "automation_type": kind, "timezone": zone, "schedule": schedule,
+            "condition": condition, "next_run_at": next_run}
 
 
 def timezone_from_instruction(text, default):
@@ -67,26 +131,7 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
     zone = timezone_from_instruction(text, default_timezone)
     local_now = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo(zone))
     value = text.lower()
-    kind = ("WATCH" if re.search(r"\b(?:pantau|monitor|kabari kalau|beri tahu kalau|alert when|watch)\b", value)
-            else "REMINDER" if re.search(r"\b(?:ingatkan|ingetin|remind|pengingat)\b", value)
-            else "SEARCH" if re.search(r"\b(?:cari|search|berita terbaru|lowongan terbaru|riset)\b", value)
-            else "AI_TASK")
-    if any(kind != "REMINDER" or match.group(0).lower() not in ("beli", "purchase")
-           for match in FORBIDDEN.finditer(text)):
-        raise ScheduleError("Automation belum bisa mengendalikan website atau mengirim pesan. Coba Reminder atau Search.")
-    condition = {}
-    if kind == "WATCH":
-        match = re.search(r"\b(di bawah|kurang dari|below|under|di atas|lebih dari|above|over)\s+(?:rp\s*)?([\d.,]+)", value)
-        if match:
-            number = re.sub(r"[^\d]", "", match.group(2))
-            if not number:
-                raise ScheduleError("Sebutkan nilai kondisi yang jelas.")
-            condition = {"operator": "lt" if match.group(1) in ("di bawah", "kurang dari", "below", "under") else "gt",
-                         "threshold": int(number)}
-        elif re.search(r"\b(?:berubah|perubahan|new|baru|change)\b", value):
-            condition = {"operator": "change"}
-        else:
-            raise ScheduleError("Sebutkan kondisi Watch yang jelas, misalnya 'di bawah Rp1.800.000'.")
+    kind, condition = _task_kind_and_condition(text)
     interval = re.search(r"\b(?:setiap|tiap|every)\s+(\d{1,3})\s+(?:jam|hours?)\b", value)
     weekly = re.search(r"\b(?:setiap|tiap|every)\s+(?:hari\s+)?(" + "|".join(re.escape(day) for day in WEEKDAYS) + r")\b", value)
     monthly = re.search(r"\b(?:setiap|tiap|every)\s+(?:tanggal|tgl|date)\s+(\d{1,2})\b", value)

@@ -64,6 +64,48 @@ class AutomationScheduleTests(unittest.TestCase):
         with self.assertRaises(schedule.ScheduleError):
             schedule.parse("Besok jam 8 beli tiket untuk saya.", now=now)
 
+    def test_structured_recurrence_and_timezone_keep_canonical_schedule(self):
+        now = datetime(2026, 9, 29, 4, tzinfo=timezone.utc)
+        task = "Ingetin gue cek laporan QA."
+        once = schedule.parse_structured(task, "Asia/Jakarta", "once", date="2026-09-30",
+                                         time="08:00", now=now)
+        self.assertEqual(once["instruction"], task)
+        self.assertEqual(once["schedule"]["kind"], "once")
+        self.assertEqual(once["next_run_at"], datetime(2026, 9, 30, 1, tzinfo=timezone.utc))
+        bangkok = schedule.parse_structured(task, "Asia/Bangkok", "once", date="2026-09-30",
+                                            time="08:00", now=now)
+        self.assertEqual(bangkok["next_run_at"], once["next_run_at"])
+        self.assertIn("Bangkok", schedule.describe(bangkok["schedule"], bangkok["timezone"]))
+        daily = schedule.parse_structured("Cari berita AI terbaru.", "Asia/Jakarta", "daily",
+                                          time="09:15", now=now)
+        self.assertEqual(daily["schedule"], {"kind": "daily", "hour": 9, "minute": 15})
+        weekly = schedule.parse_structured(task, "Asia/Jakarta", "weekly", weekday="0",
+                                           time="09:00", now=now)
+        self.assertEqual(weekly["schedule"]["weekday"], 0)
+        monthly = schedule.parse_structured(task, "Asia/Jakarta", "monthly", day="31",
+                                            time="09:00", now=datetime(2026, 2, 1, tzinfo=timezone.utc))
+        self.assertEqual(monthly["next_run_at"].month, 3)
+        self.assertEqual(monthly["next_run_at"].day, 31)
+        self.assertEqual(schedule.parse_structured(task, "Asia/Tokyo", "daily", time="09:00",
+                                               now=now)["timezone"], "Asia/Tokyo")
+
+    def test_structured_schedule_rejects_past_and_invalid_values(self):
+        now = datetime(2026, 9, 29, 4, tzinfo=timezone.utc)
+        task = "Ingetin gue cek laporan QA."
+        bad = (
+            {"mode": "once", "date": "2026-09-28", "time": "09:00"},
+            {"mode": "once", "date": "2026-09-29", "time": "10:00"},
+            {"mode": "once", "date": "2026-02-30", "time": "09:00"},
+            {"mode": "weekly", "weekday": "7", "time": "09:00"},
+            {"mode": "monthly", "day": "32", "time": "09:00"},
+            {"mode": "daily", "time": "25:00"},
+        )
+        for fields in bad:
+            with self.subTest(fields=fields), self.assertRaises(schedule.ScheduleError):
+                schedule.parse_structured(task, "Asia/Jakarta", now=now, **fields)
+        with self.assertRaises(schedule.ScheduleError):
+            schedule.parse_structured(task, "UTC+7", "daily", time="09:00", now=now)
+
 
 class AutomationFlowTests(unittest.TestCase):
     @classmethod
@@ -78,6 +120,61 @@ class AutomationFlowTests(unittest.TestCase):
         with client.session_transaction() as user_session:
             user_session.update(user_id=user_id, role="CLIENT_OWNER", _csrf_token="automation-csrf")
         return client
+
+    def test_structured_preview_create_and_edit_preserve_existing_format(self):
+        user_id = repo.create_user("automation-structured@example.test", "hash")
+        client = self.client_for(user_id)
+        data = {"csrf_token": "automation-csrf", "instruction": "Ingetin gue cek laporan QA.",
+                "title": "Cek laporan", "timezone": "Asia/Bangkok", "schedule_mode": "once",
+                "run_date": "2099-10-02", "run_time": "08:30"}
+        preview = client.post("/kilas-ai/automation/preview", data=data)
+        self.assertEqual(preview.status_code, 200)
+        self.assertIn("02/10/2099", preview.get_data(as_text=True))
+        self.assertIn("Asia/Bangkok", preview.get_data(as_text=True))
+        self.assertEqual(client.post("/kilas-ai/automation/activate",
+                                     data={"csrf_token": "automation-csrf"}).status_code, 303)
+        item = db.query_one("SELECT * FROM kilas_automations WHERE user_id=?", (user_id,))
+        self.assertEqual(item["instruction"], data["instruction"])
+        self.assertEqual(item["timezone"], "Asia/Bangkok")
+        self.assertIn('value="2099-10-02"', client.get(f"/kilas-ai/automation/{item['id']}/edit").get_data(as_text=True))
+        data.update(automation_id=str(item["id"]), schedule_mode="weekly", weekday="2", run_time="09:00")
+        preview = client.post("/kilas-ai/automation/preview", data=data)
+        self.assertEqual(preview.status_code, 200)
+        self.assertIn("Rabu", preview.get_data(as_text=True))
+        self.assertEqual(client.post("/kilas-ai/automation/activate", data={
+            "csrf_token": "automation-csrf", "automation_id": str(item["id"])}).status_code, 303)
+        changed = store.get(user_id, item["id"])
+        self.assertEqual(changed["id"], item["id"])
+        self.assertIn('"weekday": 2', changed["schedule_json"])
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
+                                      (user_id,))["n"], 1)
+
+    def test_existing_interval_form_stays_editable(self):
+        user_id = repo.create_user("automation-interval-edit@example.test", "hash")
+        spec = schedule.parse("Setiap 6 jam cari berita terbaru.")
+        item_id = store.create(user_id, spec)
+        page = self.client_for(user_id).get(f"/kilas-ai/automation/{item_id}/edit").get_data(as_text=True)
+        self.assertIn('value="natural" selected', page)
+        self.assertIn(spec["instruction"], page)
+        store.set_status(user_id, item_id, "pause")
+
+    def test_complex_automation_task_uses_chat_reasoning_route_and_shared_policy(self):
+        owner = repo.create_user("automation-quality@example.test", "hash")
+        instruction = "Menurut lu dengan modal 700 juta mending usaha apa dan risikonya?"
+        spec = schedule.parse_structured(instruction, "Asia/Jakarta", "daily", time="08:00")
+        automation_id = store.create(owner, spec)
+        ids = store.claim_due(now=spec["next_run_at"] + timedelta(minutes=1))
+        self.assertEqual(len(ids), 1)
+        events = [{"type": "provider", "provider": "openai", "model": "gpt-6-sol"},
+                  {"type": "delta", "text": "Pertimbangkan modal kerja dan kemampuan operasional."},
+                  {"type": "usage", "input_tokens": 20, "output_tokens": 12}]
+        with patch.object(runner.providers, "stream", return_value=iter(events)) as streamed:
+            self.assertTrue(runner.execute(ids[0]))
+        self.assertEqual(streamed.call_args.args[0], "SMART")
+        self.assertIn("Do not be artificially terse", streamed.call_args.args[1][0]["content"])
+        self.assertEqual(store.result(owner, ids[0])["result_text"],
+                         "Pertimbangkan modal kerja dan kemampuan operasional.")
+        store.set_status(owner, automation_id, "pause")
 
     def test_preview_confirmation_owner_gate_and_reminder(self):
         client = self.client_for(self.owner)

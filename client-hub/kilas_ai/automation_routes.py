@@ -29,6 +29,23 @@ def _local_text(value, zone):
             if value else None)
 
 
+def _schedule_fields(item=None, submitted=None):
+    if submitted is not None:
+        return {key: submitted.get(key, "") for key in
+                ("schedule_mode", "run_date", "run_time", "weekday", "month_day")}
+    fields = {"schedule_mode": "once", "run_date": "", "run_time": "", "weekday": "0", "month_day": "1"}
+    if item:
+        saved = json.loads(item["schedule_json"])
+        fields["schedule_mode"] = saved["kind"] if saved["kind"] in ("once", "daily", "weekly", "monthly") else "natural"
+        if saved["kind"] == "once":
+            fields["run_date"] = f"{saved['year']:04d}-{saved['month']:02d}-{saved['day']:02d}"
+        if saved["kind"] != "interval":
+            fields["run_time"] = f"{saved['hour']:02d}:{saved['minute']:02d}"
+        fields["weekday"] = str(saved.get("weekday", 0))
+        fields["month_day"] = str(saved.get("day", 1))
+    return fields
+
+
 @ai_bp.get("/automation", endpoint="automation_home")
 def automation_home():
     selected = request.args.get("filter", "ACTIVE").upper()
@@ -65,7 +82,15 @@ def automation_timezone():
 
 @ai_bp.get("/automation/new", endpoint="automation_new")
 def automation_new():
-    return _page("automation_form.html", item=None, instruction=request.args.get("instruction", "")[:1200],
+    instruction = request.args.get("instruction", "")[:1200]
+    fields = _schedule_fields()
+    if instruction:
+        try:
+            schedule.parse(instruction, store.setting(_owner()))
+            fields["schedule_mode"] = "natural"
+        except schedule.ScheduleError:
+            pass
+    return _page("automation_form.html", item=None, instruction=instruction, fields=fields,
                  timezone_name=store.setting(_owner()), detect_timezone=not store.has_setting(_owner()),
                  title="", preview=None, error=None)
 
@@ -75,7 +100,7 @@ def automation_edit(automation_id):
     item = store.get(_owner(), automation_id)
     if not item:
         abort(404)
-    return _page("automation_form.html", item=item, instruction=item["instruction"],
+    return _page("automation_form.html", item=item, instruction=item["instruction"], fields=_schedule_fields(item),
                  timezone_name=item["timezone"], title=item["title"], preview=None, error=None)
 
 
@@ -92,11 +117,15 @@ def automation_preview():
     instruction = str(request.form.get("instruction") or "").strip()[:1200]
     title = str(request.form.get("title") or "").strip()[:90]
     timezone_name = request.form.get("timezone") or store.setting(_owner())
+    fields = _schedule_fields(submitted=request.form)
     try:
-        spec = schedule.parse(instruction, timezone_name)
+        spec = (schedule.parse(instruction, timezone_name) if fields["schedule_mode"] in ("", "natural") else
+                schedule.parse_structured(instruction, timezone_name, fields["schedule_mode"],
+                                          date=fields["run_date"], time=fields["run_time"],
+                                          weekday=fields["weekday"], day=fields["month_day"]))
     except schedule.ScheduleError as error:
         return _page("automation_form.html", item=item, instruction=instruction,
-                     timezone_name=timezone_name, title=title, preview=None, error=str(error)), 400
+                     timezone_name=timezone_name, title=title, fields=fields, preview=None, error=str(error)), 400
     if title:
         spec["title"] = title
     if not store.has_setting(_owner()):
@@ -104,7 +133,7 @@ def automation_preview():
     session["automation_preview"] = {"automation_id": item_id, "created": int(time.time()),
                                      "spec": {**spec, "next_run_at": spec["next_run_at"].isoformat()}}
     session.modified = True
-    return _page("automation_form.html", item=item, instruction=instruction, timezone_name=timezone_name,
+    return _page("automation_form.html", item=item, instruction=instruction, timezone_name=timezone_name, fields=fields,
                  preview={"title": spec["title"], "kind": spec["automation_type"],
                           "schedule": schedule.describe(spec["schedule"], spec["timezone"]),
                           "next_run": spec["next_run_at"].astimezone(schedule.ZoneInfo(spec["timezone"])),
@@ -127,7 +156,7 @@ def automation_activate():
     if spec["next_run_at"] <= datetime.now(timezone.utc):
         return _page("automation_form.html", item=store.get(_owner(), item_id) if item_id else None,
                      instruction=spec["instruction"], timezone_name=spec["timezone"],
-                     title=spec["title"], preview=None,
+                     title=spec["title"], fields=_schedule_fields(store.get(_owner(), item_id)) if item_id else _schedule_fields(), preview=None,
                      error="Jadwal pratinjau sudah lewat. Periksa dan lihat pratinjau lagi."), 400
     try:
         if item_id:
@@ -137,7 +166,8 @@ def automation_activate():
     except store.AutomationError as error:
         return _page("automation_form.html", item=store.get(_owner(), item_id) if item_id else None,
                      instruction=spec["instruction"], timezone_name=spec["timezone"],
-                     title=spec["title"], preview=None, error=str(error)), 400
+                     title=spec["title"], fields=_schedule_fields(store.get(_owner(), item_id)) if item_id else _schedule_fields(),
+                     preview=None, error=str(error)), 400
     return redirect(url_for("kilas_ai.automation_home"), code=303)
 
 
