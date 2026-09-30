@@ -81,13 +81,32 @@ class AgentTests(unittest.TestCase):
         planned = {"action": "CREATE", "task_id": 0,
                    "schedule_text": "Tanggal 1 Oktober 2099 jam 5 pagi kasih gue berita terbaru tentang Indonesia.",
                    "reply": ""}
-        with patch.object(agent_planner, "propose", return_value=planned):
+        with patch.object(agent_planner, "propose", side_effect=AssertionError("clear schedule should not call planner")):
             response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
                 "message": "tanggal 1 oktober 2099 jam 5 pagi kasih gw berita terbaru tentang indonesia"})
         self.assertEqual(response.status_code, 303)
         body = client.get(response.location).get_data(as_text=True)
         self.assertIn("01/10/2099 · 05.00 · Jakarta (WIB)", body)
         self.assertIn("Periksa tugas ini", body)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
+                                      (self.owner,))["n"], 0)
+
+    def test_short_timezone_followup_uses_prior_task_and_planned_schedule(self):
+        client = self.client_for(self.owner)
+        agent_store.append(self.owner, "user",
+                           "tanggal 1 oktober 2099 jam 5 pagi kasih gw berita terbaru tentang indonesia")
+        agent_store.append(self.owner, "assistant", "Zona waktunya apa?")
+        planned = {"action": "CREATE", "task_id": 0,
+                   "schedule_text": "Tanggal 1 Oktober 2099 jam 5 pagi WIB kasih gue berita terbaru tentang Indonesia.",
+                   "reply": ""}
+        with patch.object(agent_planner, "propose", return_value=planned) as proposed:
+            response = client.post("/kilas-ai/agent/chat", data={"csrf_token": "agent-csrf",
+                "message": "WIB"})
+        self.assertEqual(response.status_code, 303)
+        body = client.get(response.location).get_data(as_text=True)
+        self.assertIn("01/10/2099 · 05.00 · Jakarta (WIB)", body)
+        self.assertIn("Periksa tugas ini", body)
+        self.assertEqual(proposed.call_args.args[4], "Asia/Jakarta")
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?",
                                       (self.owner,))["n"], 0)
 
@@ -120,6 +139,30 @@ class AgentTests(unittest.TestCase):
         self.assertIn("Belum ada perubahan penting", activity)
         self.assertNotIn("Exception", activity)
         self.assertEqual(len(agent_store.activity(self.other)), 0)
+
+    def test_simple_agent_planner_defaults_to_sol_and_account_timezone(self):
+        class FakeResponse:
+            def raise_for_status(self):
+                pass
+            def json(self):
+                return {"status": "completed", "usage": {"input_tokens": 10, "output_tokens": 5},
+                        "output": [{"type": "message", "content": [{"type": "output_text", "text": json.dumps({
+                            "action": "CREATE", "task_id": 0,
+                            "schedule_text": "Besok jam 8 pagi cari berita terbaru.",
+                            "reply": ""})}]}]}
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-only-key"}, clear=False), \
+                patch.object(agent_planner.usage, "reserve", return_value=("FREE", ("CHAT",))) as reserved, \
+                patch.object(agent_planner.usage, "finish") as finished, \
+                patch.object(agent_planner.requests, "post", return_value=FakeResponse()) as posted:
+            plan = agent_planner.propose(self.owner, "besok jam 8 kasih berita terbaru", [], [],
+                                         "Asia/Jakarta")
+        self.assertEqual(plan["action"], "CREATE")
+        self.assertEqual(reserved.call_args.args[3], "SMART")
+        payload = posted.call_args.kwargs["json"]
+        self.assertEqual(payload["model"], "gpt-6.1-sol")
+        self.assertIn("saved timezone: Asia/Jakarta", payload["instructions"])
+        self.assertIn("do not ask them to choose WIB/WITA/WIT", payload["instructions"])
+        self.assertTrue(finished.call_args.kwargs["success"])
 
     def test_responses_planner_is_structured_and_metered(self):
         class FakeResponse:
