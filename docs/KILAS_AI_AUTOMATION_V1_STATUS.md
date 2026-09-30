@@ -62,3 +62,21 @@ An internal TSV curriculum now has 100 authored three-turn scenarios across ten 
 PR #84 (`https://github.com/IKUS2024/kilas-works-ai-admin/pull/84`) is open at head `e18a492fe606797dc70404604be7f12e088664c9`. A missing mocked web-model setting and cross-test due-run interference were corrected in two follow-up commits. The final-head Kilas AI Focused QA and all four Automation QA jobs passed, including responsive Chromium, existing Finance/Assist boundaries, and disposable PostgreSQL schema checks. The Phase 8 workflow also passed. The final diff touches only Kilas AI implementation, scoped Automation UI, internal tests/fixtures, and this status file; no Finance, Assist, or migration files changed.
 
 The broader master, Phase 9, and Phase 10 PR workflows remain red on unchanged Assist billing/language tests and stale product-entry/Finance browser expectations; the same failures appear on the immediately preceding PR run. The Phase 7 Finance baseline was still running at this checkpoint. A requested merge of PR #84 was rejected by automatic approval review because PR checks were failed or pending, so **no merge or deployment has occurred for this candidate**. Preserve the feature branch and do not bypass that gate. Production Cron remains disabled pending the separately requested secure environment setup.
+
+## 2026-09-30 PR #84 release completion
+
+PR #84 was rechecked before release at head `572c2c6b3fde2dcb08d67f93e896d5848d9261fb`. The Kilas AI-specific checks were green: `focused`, `browser`, `boundaries`, and `postgres-schema` all passed. The remaining red jobs were verified as out-of-scope legacy/baseline failures in untouched areas: Assist billing/language/CRM tests, stale Phase 10 product-entry expectations, Phase 9 Finance onboarding expectation, and the pre-existing Finance baseline assertions. PR #84 itself changed only Kilas AI implementation/UI/tests plus this status document; it did not modify Finance, Assist, or migrations.
+
+After that verification, PR #84 was merged to `main` as `e5d06ede2044776a229ade368d54465abc1fb502`.
+
+Render production release:
+- `kilas-works-client-hub` deploy `dep-dau98htg1s2s73c05lm0` is LIVE on the merge commit.
+- `kilas-ai-automation-runner` deploy `dep-dau98iid0e5s73ept5n0` is LIVE on the same merge commit.
+- Client Hub booted successfully on Gunicorn and Render reported the primary URL `https://app.kilasworks.id` live.
+- No production 5xx request logs were present in the post-release verification window.
+- The Cron runner completed successfully after the new deploy with `claimed=0 completed=0`.
+
+Read-only production PostgreSQL verification found one active Automation record and one Automation run with `SUCCEEDED`, zero failed runs, and zero overdue due-now rows. The latest stored schedule is a structured one-time schedule using the canonical schedule JSON and `Asia/Bangkok` timezone. No Finance, Assist, WhatsApp, AI Admin, or database migration change was made as part of this release.
+
+Targeted Kilas AI natural-conversation + structured Automation schedule release is therefore deployed and production-healthy. Broad repository workflows may remain red for the verified unrelated legacy assertions above; do not treat those as Kilas AI release regressions.
+
