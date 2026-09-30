@@ -21,9 +21,16 @@ def _owner():
 
 
 def _tasks():
-    active, _ = store.list_for_owner(_owner(), "ACTIVE")
-    paused, _ = store.list_for_owner(_owner(), "PAUSED")
-    return [dict(row) for row in active] + [dict(row) for row in paused]
+    tasks = []
+    for status in ("ACTIVE", "PAUSED"):
+        page = 1
+        while page <= 25:
+            rows, more = store.list_for_owner(_owner(), status, page)
+            tasks.extend(dict(row) for row in rows)
+            if not more:
+                break
+            page += 1
+    return tasks
 
 
 def _reply(message):

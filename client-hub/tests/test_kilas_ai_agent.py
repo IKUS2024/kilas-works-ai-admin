@@ -92,7 +92,7 @@ class AgentTests(unittest.TestCase):
         confirmed = other_client.post("/kilas-ai/agent/action", data={"csrf_token": "agent-csrf"})
         self.assertEqual(confirmed.status_code, 303)
         self.assertEqual(store.get(self.other, item_id)["status"], "PAUSED")
-        self.assertNotIn("pause tugas minum air", owner_client.get("/kilas-ai/agent").get_data(as_text=True))
+        self.assertNotIn("Ingetin gue minum air", owner_client.get("/kilas-ai/agent?view=tasks").get_data(as_text=True))
 
     def test_activity_uses_existing_run_history(self):
         item_id = store.create(self.owner, schedule.parse("Pantau harga emas di bawah Rp1.800.000 setiap hari jam 9."))

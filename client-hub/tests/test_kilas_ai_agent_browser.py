@@ -45,7 +45,7 @@ def main():
                 assert page.get_by_text("Rangkuman pasar untuk tim kerja").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "long task overflow")
                 page.get_by_role("link", name="Koneksi", exact=True).first.click()
-                assert page.get_by_text("Belum ada koneksi eksternal").is_visible()
+                assert page.get_by_role("heading", name="Belum ada koneksi eksternal").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "connections overflow")
                 page.get_by_role("link", name="Aktivitas", exact=True).first.click()
                 assert page.get_by_text("Belum ada aktivitas.").is_visible()
