@@ -31,6 +31,23 @@ class AutomationScheduleTests(unittest.TestCase):
         self.assertEqual(reminder["automation_type"], "REMINDER")
         self.assertEqual(reminder["next_run_at"], datetime(2026, 9, 30, 1, tzinfo=timezone.utc))
         self.assertEqual(schedule.parse("Setiap pagi jam 8 cari berita AI terbaru.", now=now)["automation_type"], "SEARCH")
+        named = schedule.parse(
+            "Tanggal 1 Oktober 2026 jam 5 pagi kasih gue berita terbaru tentang Indonesia.",
+            now=datetime(2026, 9, 30, 17, 52, tzinfo=timezone.utc))
+        self.assertEqual(named["automation_type"], "SEARCH")
+        self.assertEqual(named["schedule"], {"kind": "once", "year": 2026, "month": 10, "day": 1,
+                                             "hour": 5, "minute": 0})
+        self.assertEqual(named["next_run_at"], datetime(2026, 9, 30, 22, tzinfo=timezone.utc))
+        named_wib = schedule.parse(
+            "Tanggal 1 Oktober 2026 jam 5 pagi WIB kasih gue berita terbaru tentang Indonesia.",
+            default_timezone="Asia/Makassar",
+            now=datetime(2026, 9, 30, 17, 52, tzinfo=timezone.utc))
+        self.assertEqual(named_wib["timezone"], "Asia/Jakarta")
+        self.assertEqual(named_wib["next_run_at"], datetime(2026, 9, 30, 22, tzinfo=timezone.utc))
+        self.assertEqual(schedule.parse("Hari ini jam 6 pagi cari berita terbaru.",
+                                        now=datetime(2026, 9, 30, 17, 52, tzinfo=timezone.utc))["schedule"]["day"], 1)
+        self.assertEqual(schedule.parse("Lusa jam 8 pagi ingetin gue cek laporan.",
+                                        now=now)["schedule"]["day"], 1)
         self.assertEqual(schedule.parse("Pantau harga emas di bawah Rp1.800.000 setiap hari jam 9.", now=now)["condition"],
                          {"operator": "lt", "threshold": 1800000})
         with self.assertRaises(schedule.ScheduleError):

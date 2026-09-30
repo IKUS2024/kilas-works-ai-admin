@@ -52,20 +52,25 @@ def _output_text(data):
     raise PlanUnavailable("empty_agent_plan")
 
 
-def propose(user_id, text, history, tasks):
+def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
     """Propose one bounded intent; caller validates ownership, schedule and permissions."""
     if not os.environ.get("OPENAI_API_KEY", "").strip():
         raise PlanUnavailable("agent_planner_unavailable")
     key = "agent-plan-" + secrets.token_hex(16)
-    mode = _mode(text)
+    intent_mode = _mode(text)
+    # Agent planning is a high-value control surface: use the stronger reasoning budget even
+    # for short conversational follow-ups so intent, context, and schedule edits stay coherent.
+    mode = "SMART"
     try:
         _, operations = usage.reserve(user_id, None, key, mode, "CHAT")
     except usage.UsageLimit as error:
         raise PlanUnavailable(str(error)) from None
     if not operations:
         raise PlanUnavailable("duplicate_agent_plan")
-    model = (os.environ.get("KILAS_AI_AGENT_SMART_MODEL", "gpt-6.1-sol") if mode == "SMART" else
-             os.environ.get("KILAS_AI_OPENAI_FAST_MODEL", "gpt-6-luna"))
+    model = os.environ.get(
+        "KILAS_AI_AGENT_MODEL",
+        os.environ.get("KILAS_AI_AGENT_SMART_MODEL", "gpt-6.1-sol"),
+    )
     if model not in ("gpt-6-luna", "gpt-6.1-sol"):
         usage.finish(user_id, key, operations, success=False)
         raise PlanUnavailable("invalid_agent_model")
@@ -73,7 +78,15 @@ def propose(user_id, text, history, tasks):
         "You are the Kilas AI Agent task planner. " + response_style.BASE_STYLE + " "
         "Return JSON only. Propose exactly one action. Never claim a connector or task ran. "
         "A task changes only after a separate user confirmation. Do not invent a time, date, connection, "
-        "task ID, or capability. Use CLARIFY when required details are missing or a target is ambiguous. "
+        "task ID, or capability. The account already has a saved timezone: " + default_timezone + ". "
+        "Use that timezone whenever the user does not explicitly name another timezone; do not ask them to choose "
+        "WIB/WITA/WIT merely because a timezone was omitted. Treat WIB as Asia/Jakarta, WITA as Asia/Makassar, "
+        "and WIT as Asia/Jayapura. Use CLARIFY only when information that materially blocks scheduling is truly missing. "
+        "If task + date/time are already clear, return CREATE immediately; do not ask 'do you want me to create it?' "
+        "because the separate preview/activation UI is the confirmation step. Preserve the prior task details when a "
+        "short follow-up supplies only one missing detail such as 'WIB', 'jam 5', or 'besok'. "
+        "Until a real external connector is available, describe scheduled results as appearing in Kilas AI/Activity; "
+        "do not imply they will be sent by email, WhatsApp, or another external channel. "
         "Use HELP for general guidance. For CREATE/EDIT, schedule_text must contain the complete task "
         "and explicit schedule that the existing parser can verify. For EDIT, use an existing task ID. "
         "For PAUSE/RESUME use an existing task ID. Two runs per day in one task, automatic resume dates, "
@@ -85,7 +98,8 @@ def propose(user_id, text, history, tasks):
     task_context = [{"id": int(row["id"]), "title": str(row["title"])[:90],
                      "instruction": str(row["instruction"])[:350], "status": row["status"]}
                     for row in tasks[:30]]
-    prompt = "Existing tasks: " + json.dumps(task_context, ensure_ascii=False) + "\nCurrent message: " + text
+    prompt = ("Account timezone: " + default_timezone + "\nExisting tasks: " +
+              json.dumps(task_context, ensure_ascii=False) + "\nCurrent message: " + text)
     success = False
     used = {}
     try:
@@ -96,7 +110,7 @@ def propose(user_id, text, history, tasks):
             json={"model": model, "instructions": system, "input": previous + [{"role": "user", "content": prompt}],
                   "text": {"format": {"type": "json_schema", "name": "kilas_agent_intent",
                                       "strict": True, "schema": SCHEMA}},
-                  "reasoning": {"effort": "medium" if mode == "SMART" else "none"},
+                  "reasoning": {"effort": "medium" if intent_mode == "SMART" else "none"},
                   "max_output_tokens": 600, "store": False},
             timeout=(10, 45))
         response.raise_for_status()

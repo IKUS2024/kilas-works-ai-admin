@@ -8,6 +8,20 @@ WEEKDAYS = {"senin": 0, "monday": 0, "selasa": 1, "tuesday": 1,
             "rabu": 2, "wednesday": 2, "kamis": 3, "thursday": 3,
             "jumat": 4, "jum'at": 4, "friday": 4, "sabtu": 5, "saturday": 5,
             "minggu": 6, "sunday": 6}
+MONTHS = {
+    "januari": 1, "january": 1, "jan": 1,
+    "februari": 2, "february": 2, "feb": 2,
+    "maret": 3, "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "mei": 5, "may": 5,
+    "juni": 6, "june": 6, "jun": 6,
+    "juli": 7, "july": 7, "jul": 7,
+    "agustus": 8, "august": 8, "agu": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "oktober": 10, "october": 10, "okt": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "desember": 12, "december": 12, "des": 12, "dec": 12,
+}
 ZONE_LABELS = {"Asia/Jakarta": "Jakarta (WIB)", "Asia/Bangkok": "Bangkok (ICT)", "Asia/Makassar": "Makassar (WITA)",
                "Asia/Jayapura": "Jayapura (WIT)", "Asia/Singapore": "Singapore",
                "Asia/Tokyo": "Tokyo", "Europe/London": "London",
@@ -15,6 +29,8 @@ ZONE_LABELS = {"Asia/Jakarta": "Jakarta (WIB)", "Asia/Bangkok": "Bangkok (ICT)",
 ZONE_ALIASES = {"new york": "America/New_York", "los angeles": "America/Los_Angeles",
                 "jakarta": "Asia/Jakarta", "makassar": "Asia/Makassar", "jayapura": "Asia/Jayapura",
                 "singapore": "Asia/Singapore", "bangkok": "Asia/Bangkok", "tokyo": "Asia/Tokyo", "london": "Europe/London"}
+ZONE_SHORT_ALIASES = {"wib": "Asia/Jakarta", "wita": "Asia/Makassar", "wit": "Asia/Jayapura",
+                      "ict": "Asia/Bangkok"}
 TIME = re.compile(r"\b(?:jam\s*|at\s+)(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam|am|pm)?\b", re.I)
 FORBIDDEN = re.compile(r"\b(?:login|log in|masuk ke akun|klik|click|isi formulir|fill (?:a |the )?form|"
                        r"beli|purchase|checkout|bayar lewat|send email|kirim email|send whatsapp|"
@@ -102,6 +118,9 @@ def parse_structured(instruction, timezone_name, mode, *, date=None, time=None, 
 
 def timezone_from_instruction(text, default):
     value = (text or "").lower()
+    for alias, zone in ZONE_SHORT_ALIASES.items():
+        if re.search(r"\b" + re.escape(alias) + r"\b", value):
+            return zone
     for phrase, zone in ZONE_ALIASES.items():
         if re.search(r"\b(?:waktu|time|timezone|zona waktu)\s+" + re.escape(phrase) + r"\b", value):
             return zone
@@ -153,18 +172,46 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
     elif daily:
         hour, minute = _clock(value)
         schedule = {"kind": "daily", "hour": hour, "minute": minute}
+    elif re.search(r"\b(?:hari ini|today)\b", value):
+        hour, minute = _clock(value)
+        day = local_now.date()
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
+    elif re.search(r"\b(?:lusa|day after tomorrow)\b", value):
+        hour, minute = _clock(value)
+        day = local_now.date() + timedelta(days=2)
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
     elif re.search(r"\b(?:besok|tomorrow)\b", value):
         hour, minute = _clock(value)
         day = local_now.date() + timedelta(days=1)
         schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
                     "hour": hour, "minute": minute}
     else:
-        date_match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", value)
-        if not date_match:
-            raise ScheduleError("Sebutkan kapan Automation harus berjalan, misalnya 'besok jam 8'.")
         hour, minute = _clock(value)
-        schedule = {"kind": "once", "year": int(date_match.group(3)), "month": int(date_match.group(2)),
-                    "day": int(date_match.group(1)), "hour": hour, "minute": minute}
+        date_match = re.search(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b", value)
+        named_match = re.search(
+            r"\b(?:tanggal|tgl|date)?\s*(\d{1,2})\s+(" +
+            "|".join(sorted((re.escape(name) for name in MONTHS), key=len, reverse=True)) +
+            r")(?:\s+(\d{4}))?\b", value)
+        if date_match:
+            year, month, day = int(date_match.group(3)), int(date_match.group(2)), int(date_match.group(1))
+        elif named_match:
+            day = int(named_match.group(1))
+            month = MONTHS[named_match.group(2)]
+            year = int(named_match.group(3)) if named_match.group(3) else local_now.year
+            if not named_match.group(3):
+                try:
+                    candidate = datetime(year, month, day, hour, minute, tzinfo=ZoneInfo(zone))
+                except ValueError:
+                    candidate = None
+                if candidate and candidate <= local_now:
+                    year += 1
+        else:
+            raise ScheduleError(
+                "Sebutkan tanggal dan jam yang jelas, misalnya 'tanggal 1 Oktober 2026 jam 5 pagi'.")
+        schedule = {"kind": "once", "year": year, "month": month, "day": day,
+                    "hour": hour, "minute": minute}
     if kind != "REMINDER" and schedule["kind"] == "interval" and schedule["hours"] < 1:
         raise ScheduleError("Automation AI dan Search minimal setiap 1 jam.")
     next_run = next_occurrence(schedule, zone, local_now.astimezone(timezone.utc))
