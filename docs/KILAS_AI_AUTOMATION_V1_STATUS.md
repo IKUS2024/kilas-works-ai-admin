@@ -17,3 +17,22 @@ PR https://github.com/IKUS2024/kilas-works-ai-admin/pull/81 merged into main at 
 Production rollout on 2026-09-30 Asia/Bangkok: only `kilas-works-client-hub` was deployed, first as `dep-dau05rid0e5s73dok4s0` with `KILAS_AI_AUTOMATION_SCHEMA_APPLY=true`, then as live `dep-dau06je0tbcc73fg3as0` with that flag `false` and `KILAS_AI_AUTOMATION_ENABLED=true`. A read-only production database query confirmed the 0075 release record and all three Automation tables. The public production root returns a healthy 302 redirect to `/login`.
 
 The one approved Cron Job `kilas-ai-automation-runner` (`crn-dau073vlk1mc73d6ilc0`) is live at merge SHA on 0.5 CPU / 512 MB in Oregon, every minute. It is intentionally disabled with `KILAS_AI_AUTOMATION_RUNNER_ENABLED=false`; its first run logged `claimed=0 completed=0 disabled`. The Render connector cannot copy secret values from Client Hub. Owner was asked to set `DATABASE_URL`, `OPENAI_API_KEY`, `KILAS_AI_OPENAI_WEB_MODEL`, and any custom Kilas AI pricing/cost-cap overrides securely on the Cron environment page, without pasting values into chat. The isolated production QA owner successfully logged in, opened Automation, previewed and activated a reminder, paused it, and deleted it. Authenticated `/kilas-ai`, `/kilas-ai/usage`, `/products/finance`, and `/products/assist` returned 200; public `/login` and Automation CSS/JS also returned 200. Runner activation, timed result delivery, and final verification remain pending the secure Cron environment setup. No Finance, Assist, WhatsApp, AI Admin, or unrelated paid resource was deployed or changed.
+
+## 2026-09-30 owner UX override — manual schedule controls
+
+Owner clarified the preferred Automation creation UX: scheduling should not depend on the user writing date/time phrases inside the task sentence. The main instruction field is only for **what Kilas should do**. Below it, provide explicit tappable scheduling controls for **when** it should run.
+
+Required creation flow:
+- Task/instruction field contains only the job, e.g. “Bikinin itinerary Bali 5 hari.”
+- Recurrence selector: **Sekali**, **Setiap hari**, **Setiap minggu**, **Setiap bulan**, and later Custom if needed.
+- For **Sekali**, show a date picker + time picker + timezone selector.
+- Past calendar dates must be disabled/unselectable. If the selected date is today, past clock times must also be disabled/unselectable. Only future date/time combinations may be activated.
+- For **Setiap hari**, show time + timezone only.
+- For **Setiap minggu**, show weekday(s) + time + timezone.
+- For **Setiap bulan**, show day-of-month + time + timezone.
+- Timezone must be user-selectable (at minimum Jakarta/WIB and Bangkok, with existing supported zones retained). Store the canonical IANA timezone value.
+- Keep a clear human-readable preview before activation, e.g. “Sekali · 30 Sep 2026 · 17:00 · Jakarta (WIB)”.
+- Natural-language schedule parsing may remain as an optional convenience, but it must no longer be the primary or required path for creating an Automation.
+- The task sentence may be lightly normalized for readability, but schedule/date/time data must live in structured controls rather than being embedded in the task text.
+
+This is a documented product requirement only at this checkpoint; do not treat it as deployed until the Automation form, validation, tests, and production QA are updated.
