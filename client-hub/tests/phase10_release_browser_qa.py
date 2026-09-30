@@ -73,6 +73,7 @@ def main():
             assert '/train' in page.url
             page.goto(BASE + '/workspace'); shot(page, persona + '-signup-minimal-setup')
             page.goto(BASE + '/logout'); login(page, 'release-' + persona + '@example.test')
+            page.goto(BASE + '/workspace/ai')
             expect(page.get_by_role('heading', name='Release ' + persona, exact=True)).to_be_visible()
             shot(page, persona + '-login-persistence')
             if persona == 'both':
