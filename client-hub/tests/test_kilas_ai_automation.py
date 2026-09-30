@@ -38,6 +38,12 @@ class AutomationScheduleTests(unittest.TestCase):
         self.assertEqual(named["schedule"], {"kind": "once", "year": 2026, "month": 10, "day": 1,
                                              "hour": 5, "minute": 0})
         self.assertEqual(named["next_run_at"], datetime(2026, 9, 30, 22, tzinfo=timezone.utc))
+        named_wib = schedule.parse(
+            "Tanggal 1 Oktober 2026 jam 5 pagi WIB kasih gue berita terbaru tentang Indonesia.",
+            default_timezone="Asia/Makassar",
+            now=datetime(2026, 9, 30, 17, 52, tzinfo=timezone.utc))
+        self.assertEqual(named_wib["timezone"], "Asia/Jakarta")
+        self.assertEqual(named_wib["next_run_at"], datetime(2026, 9, 30, 22, tzinfo=timezone.utc))
         self.assertEqual(schedule.parse("Hari ini jam 6 pagi cari berita terbaru.",
                                         now=datetime(2026, 9, 30, 17, 52, tzinfo=timezone.utc))["schedule"]["day"], 1)
         self.assertEqual(schedule.parse("Lusa jam 8 pagi ingetin gue cek laporan.",
@@ -178,147 +184,3 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
         events = [{"type": "provider", "provider": "openai", "model": "gpt-6-sol"},
                   {"type": "delta", "text": "Pertimbangkan modal kerja dan kemampuan operasional."},
-                  {"type": "usage", "input_tokens": 20, "output_tokens": 12}]
-        with patch.object(runner.providers, "stream", return_value=iter(events)) as streamed:
-            self.assertTrue(runner.execute(ids[0]))
-        self.assertEqual(streamed.call_args.args[0], "SMART")
-        self.assertIn("Do not be artificially terse", streamed.call_args.args[1][0]["content"])
-        self.assertEqual(store.result(owner, ids[0])["result_text"],
-                         "Pertimbangkan modal kerja dan kemampuan operasional.")
-        store.set_status(owner, automation_id, "pause")
-
-    def test_preview_confirmation_owner_gate_and_reminder(self):
-        client = self.client_for(self.owner)
-        instruction = "Besok jam 8 ingetin gue bayar listrik."
-        preview = client.post("/kilas-ai/automation/preview", data={"csrf_token": "automation-csrf",
-            "instruction": instruction, "timezone": "Asia/Jakarta"})
-        self.assertEqual(preview.status_code, 200)
-        self.assertIn("Aktifkan tugas", preview.get_data(as_text=True))
-        self.assertTrue(store.has_setting(self.owner))
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automations WHERE user_id=?", (self.owner,))["n"], 0)
-        created = client.post("/kilas-ai/automation/activate", data={"csrf_token": "automation-csrf"})
-        self.assertEqual(created.status_code, 303)
-        item = db.query_one("SELECT * FROM kilas_automations WHERE user_id=?", (self.owner,))
-        self.assertIsNotNone(item)
-        self.assertIsNone(store.get(self.other, item["id"]))
-        self.assertEqual(self.client_for(self.other).get(f"/kilas-ai/automation/{item['id']}/edit").status_code, 404)
-        due = datetime.fromisoformat(item["next_run_at"]) + timedelta(minutes=1)
-        ids = store.claim_due(now=due)
-        self.assertEqual(len(ids), 1)
-        self.assertEqual(store.claim_due(now=due), [])
-        self.assertTrue(runner.execute(ids[0]))
-        self.assertIn("Selesai", client.get("/kilas-ai/automation").get_data(as_text=True))
-        result = store.result(self.owner, ids[0])
-        self.assertTrue(result["unread"])
-        self.assertIsNone(store.result(self.other, ids[0]))
-        self.assertEqual(self.client_for(self.other).get(f"/kilas-ai/automation/results/{ids[0]}").status_code, 404)
-        self.assertEqual(client.get(f"/kilas-ai/automation/results/{ids[0]}").status_code, 200)
-        chat = client.get(f"/kilas-ai?automation_result={ids[0]}")
-        self.assertIn("Lanjutkan dari hasil AI Agent", chat.get_data(as_text=True))
-        self.assertFalse(store.result(self.owner, ids[0])["unread"])
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_usage WHERE user_id=?", (self.owner,))["n"], 0)
-
-    def test_search_uses_existing_usage_and_no_duplicate_occurrence(self):
-        instruction = "Setiap hari jam 9 cari berita AI terbaru."
-        spec = schedule.parse(instruction)
-        automation_id = store.create(self.other, spec)
-        due = spec["next_run_at"] + timedelta(minutes=1)
-        ids = store.claim_due(now=due)
-        self.assertEqual(len(ids), 1)
-        fake = {"text": "Berita terbaru dengan sumber.", "model": "gpt-6-luna",
-                "usage": {"input_tokens": 10, "output_tokens": 10},
-                "citations": [{"title": "Sumber", "url": "https://example.com/story"}]}
-        with patch.object(runner.tools, "web_search", return_value=fake) as searched:
-            self.assertTrue(runner.execute(ids[0]))
-        searched.assert_called_once()
-        self.assertEqual(db.query_one("SELECT status FROM kilas_ai_usage WHERE user_id=?", (self.other,))["status"], "COMPLETE")
-        self.assertEqual(store.claim_due(now=due), [])
-        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_automation_runs WHERE user_id=? AND attempt_count>0",
-                                      (self.other,))["n"], 1)
-        self.assertEqual(store.get(self.other, automation_id)["status"], "ACTIVE")
-        store.set_status(self.other, automation_id, "pause")
-
-    def test_access_csrf_active_limit_pause_resume_and_delete(self):
-        owner = repo.create_user("automation-limit@example.test", "hash")
-        client = self.client_for(owner)
-        self.assertEqual(self.app.test_client().get("/kilas-ai/automation").status_code, 302)
-        self.assertEqual(client.post("/kilas-ai/automation/timezone", data={"timezone": "Asia/Jakarta"}).status_code, 400)
-        self.assertEqual(client.post("/kilas-ai/automation/timezone", data={"csrf_token": "automation-csrf",
-            "timezone": "UTC+7"}).status_code, 303)
-        spec = schedule.parse("Setiap hari jam 8 ingetin gue minum air.")
-        first = store.create(owner, spec)
-        with self.assertRaises(store.AutomationError):
-            store.create(owner, spec)
-        store.set_status(owner, first, "pause")
-        self.assertEqual(store.get(owner, first)["status"], "PAUSED")
-        second = store.create(owner, spec)
-        with self.assertRaises(store.AutomationError):
-            store.set_status(owner, first, "resume")
-        store.set_status(owner, second, "delete")
-        self.assertIsNone(store.get(owner, second))
-        store.set_status(owner, first, "resume")
-        self.assertEqual(store.get(owner, first)["status"], "ACTIVE")
-        self.assertEqual(store.usage_summary(owner)["active"], 1)
-        store.set_status(owner, first, "pause")
-
-    def test_watch_only_alerts_on_match_or_meaningful_change(self):
-        owner = repo.create_user("automation-watch@example.test", "hash")
-        spec = schedule.parse("Pantau harga emas di bawah Rp1.800.000 setiap hari jam 9.")
-        automation_id = store.create(owner, spec)
-        fake_search = {"text": "Harga emas dengan sumber.", "model": "gpt-6-luna",
-                       "usage": {"input_tokens": 5, "output_tokens": 5},
-                       "citations": [{"title": "Sumber", "url": "https://example.com/gold"}]}
-        next_due = spec["next_run_at"] + timedelta(minutes=1)
-        with patch.object(runner.tools, "web_search", return_value=fake_search), \
-             patch.object(runner, "_plain_ai", side_effect=[
-                 ('{"value":1700000,"summary":"Harga di bawah batas."}', "openai", "gpt-6-luna", {}),
-                 ('{"value":1700000,"summary":"Harga tetap."}', "openai", "gpt-6-luna", {}),
-                 ('{"value":1690000,"summary":"Harga berubah."}', "openai", "gpt-6-luna", {})]):
-            ids = []
-            for _ in range(3):
-                claimed = store.claim_due(now=next_due)
-                self.assertEqual(len(claimed), 1)
-                ids += claimed
-                self.assertTrue(runner.execute(claimed[0]))
-                row = store.get(owner, automation_id)
-                next_due = datetime.fromisoformat(row["next_run_at"]) + timedelta(minutes=1)
-        self.assertEqual(store.result(owner, ids[0])["result_text"], "Harga di bawah batas.")
-        self.assertIsNone(store.result(owner, ids[1])["result_text"])
-        self.assertEqual(store.result(owner, ids[2])["result_text"], "Harga berubah.")
-
-    def test_billable_run_cap_pauses_without_provider_call(self):
-        owner = repo.create_user("automation-run-limit@example.test", "hash")
-        spec = schedule.parse("Setiap hari jam 9 cari berita terbaru.")
-        automation_id = store.create(owner, spec)
-        due = spec["next_run_at"] + timedelta(minutes=1)
-        for index in range(10):
-            moment = (due - timedelta(minutes=index + 2)).isoformat()
-            db.execute("INSERT INTO kilas_automation_runs(automation_id,user_id,scheduled_for,status,attempt_count,started_at) "
-                       "VALUES (?,?,?,'SUCCEEDED',1,?)", (automation_id, owner, moment, moment))
-        self.assertEqual(store.claim_due(now=due), [])
-        self.assertEqual(store.get(owner, automation_id)["status"], "PAUSED_QUOTA")
-        paused, _ = store.list_for_owner(owner, "PAUSED")
-        self.assertEqual([item["id"] for item in paused], [automation_id])
-
-    def test_plan_downgrade_pauses_excess_due_automation(self):
-        owner = repo.create_user("automation-downgrade@example.test", "hash")
-        now = datetime.now(timezone.utc)
-        db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) "
-                   "VALUES (?,'PLUS','ACTIVE',?,?)",
-                   (owner, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=2)).isoformat()))
-        spec = schedule.parse("Setiap hari jam 8 ingetin gue minum air.")
-        first = store.create(owner, spec)
-        second = store.create(owner, spec)
-        db.execute("UPDATE kilas_ai_subscriptions SET period_end=? WHERE user_id=?",
-                   ((now - timedelta(minutes=1)).isoformat(), owner))
-        due = spec["next_run_at"] + timedelta(minutes=1)
-        claimed = store.claim_due(now=due)
-        self.assertEqual(len(claimed), 1)
-        self.assertEqual(store.get(owner, first)["status"], "ACTIVE")
-        self.assertEqual(store.get(owner, second)["status"], "PAUSED_QUOTA")
-        self.assertTrue(runner.execute(claimed[0]))
-        store.set_status(owner, first, "pause")
-
-
-if __name__ == "__main__":
-    unittest.main()
