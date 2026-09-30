@@ -101,8 +101,23 @@ def agent_chat():
         _reply(f"Kilas butuh akses {connection} untuk menjalankan tugas ini. Koneksi {connection} belum tersedia, "
                "jadi tugas belum dibuat atau dijalankan. Lihat statusnya di Koneksi.")
         return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
+
+    # Clear create commands should not depend on the model deciding whether to ask another
+    # unnecessary question. The deterministic schedule parser is authoritative; the model
+    # remains responsible for ambiguous conversational follow-ups and task edits.
+    edit_words = re.search(r"\b(?:ubah|ganti|edit|pause|jeda|resume|lanjutkan|aktifkan kembali|hapus|delete)\b", text, re.I)
+    if not edit_words and (schedule.TIME.search(text) or re.search(r"\b(?:setiap|tiap|every)\s+\d+\s+(?:jam|hours?)\b", text, re.I)):
+        try:
+            spec = schedule.parse(text, store.setting(owner))
+            _preview(None, spec)
+            label = schedule.describe(spec["schedule"], spec["timezone"])
+            _reply(f"Siap. Aku baca jadwalnya sebagai {label}. Cek pratinjau di bawah sebelum tugas diaktifkan.")
+            return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
+        except schedule.ScheduleError:
+            pass
+
     try:
-        plan = agent_planner.propose(owner, text, history, tasks)
+        plan = agent_planner.propose(owner, text, history, tasks, store.setting(owner))
     except agent_planner.PlanUnavailable:
         _reply("Aku belum bisa menyiapkan tugas dari chat saat ini. Coba lagi sebentar, atau gunakan formulir tugas untuk memilih jadwal sendiri.")
         return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
@@ -114,7 +129,8 @@ def agent_chat():
             _reply("Aku belum yakin tugas mana yang ingin diubah. Pilih tugas di daftar, lalu buka Edit.")
         elif agent_planner.required_connection(plan["schedule_text"]):
             _reply("Tugas ini membutuhkan koneksi yang belum tersedia. Aku belum membuat atau mengaktifkannya.")
-        elif kind == "CREATE" and not schedule.TIME.search(text) and not re.search(r"\bsetiap\s+\d+\s+jam\b", text, re.I):
+        elif kind == "CREATE" and not schedule.TIME.search(plan["schedule_text"]) and not re.search(
+                r"\b(?:setiap|tiap|every)\s+\d+\s+(?:jam|hours?)\b", plan["schedule_text"], re.I):
             _reply("Jam berapa tugas ini perlu dijalankan? Tulis waktu yang jelas, atau pilih tanggal dan jam di formulir tugas.")
         else:
             try:
