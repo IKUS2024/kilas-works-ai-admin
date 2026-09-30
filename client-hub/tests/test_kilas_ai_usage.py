@@ -88,7 +88,7 @@ class UsageTests(unittest.TestCase):
                    (self.other, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
         db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) "
                    "VALUES (?,?,?,?,?,'COMPLETE',?,?)",
-                   (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "1.82", now.isoformat()))
+                   (self.other, store.create_thread(self.other), "prior_cost_0123456789", "CHAT", "SMART", "2.10", now.isoformat()))
         thread_id = store.create_thread(self.other)
         with self.assertRaises(usage.UsageLimit):
             usage.reserve(self.other, thread_id, "guard_smart_0123456789", "SMART", "CHAT")

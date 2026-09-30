@@ -27,7 +27,7 @@ def main():
 
     try:
         with patch.object(db, "_postgres_connect_kwargs", side_effect=options):
-            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0071_", "0072_", "0073_", "0075_"))]
+            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0071_", "0072_", "0073_", "0075_", "0076_"))]
             with patch.object(db, "MIGRATIONS", baseline):
                 db.init_schema()
             before = {row["table_name"] for row in db.query_all(

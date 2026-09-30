@@ -158,7 +158,7 @@ def main():
                 page = context.new_page()
                 for section in ("overview", "customers", "kilas-ai", "finance", "payments", "usage-cost", "settings"):
                     page.goto(origin + "/platform/" + section, wait_until="networkidle")
-                    assert page.get_by_role("heading", name=dict((("kilas-ai", "Kilas AI"), ("usage-cost", "Usage & Cost"))).get(section, section.title())).is_visible()
+                    assert page.get_by_role("heading", name=dict((("kilas-ai", "Kilas AI"), ("finance", "Kilas Finance"), ("usage-cost", "Usage & Cost"))).get(section, section.title()), exact=True).first.is_visible()
                     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, section)
                 page.get_by_role("link", name="Keluar").first.click()
                 page.wait_for_url("**/login*")
