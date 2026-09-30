@@ -22,14 +22,15 @@ def _number(sql, params=()):
 
 def overview():
     now = usage._now().isoformat()
-    subscriptions = _number("SELECT COUNT(*) AS n FROM kilas_ai_subscriptions WHERE status='ACTIVE' AND period_end>?", (now,))
+    active_plans = db.query_all("SELECT plan,COUNT(*) AS n FROM kilas_ai_subscriptions WHERE status='ACTIVE' AND period_end>? GROUP BY plan", (now,))
+    subscriptions = sum(int(row["n"]) for row in active_plans)
     return {
         "customers": _number("SELECT COUNT(*) AS n FROM users WHERE role='CLIENT_OWNER'"),
         "subscriptions": subscriptions,
         "finance": _number("SELECT COUNT(*) AS n FROM businesses b WHERE EXISTS (SELECT 1 FROM finance_entitlements e WHERE e.business_id=b.id) OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id)"),
         "pending": _number("SELECT COUNT(*) AS n FROM kilas_ai_invoices WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"),
         "capacity_orders": _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE invoice_number LIKE 'KAI-C-%' AND status='VERIFIED'"),
-        "revenue_idr": subscriptions * usage.PLANS["PLUS"]["price"],
+        "revenue_idr": sum(int(row["n"]) * usage.PLANS[row["plan"]]["price"] for row in active_plans),
     }
 
 
@@ -76,6 +77,7 @@ def ai_customer(user_id):
     ratio = (cost * fx / Decimal(price)) if price else None
     return {"user": user, "subscription": subscription, "operations": operations, "models": models,
             "recent": recent, "cost_usd": cost, "cost_ratio": ratio, "capacity": topups.balance(user_id),
+            "finance_businesses": db.query_all("SELECT b.id,b.business_name,e.trial_until,e.paid_until FROM businesses b JOIN business_memberships m ON m.business_id=b.id LEFT JOIN finance_entitlements e ON e.business_id=b.id WHERE m.user_id=? AND (e.business_id IS NOT NULL OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id)) ORDER BY b.id DESC", (user_id,)),
             "invoices": db.query_all("SELECT id,invoice_number,amount_idr,status,created_at FROM kilas_ai_invoices WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,)),
             "topups": db.query_all("SELECT id,invoice_number,amount_idr,status,created_at FROM kilas_ai_topup_orders WHERE user_id=? ORDER BY id DESC LIMIT 20", (user_id,))}
 
