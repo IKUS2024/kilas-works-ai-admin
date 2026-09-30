@@ -156,12 +156,13 @@ class AutomationFlowTests(unittest.TestCase):
         page = self.client_for(user_id).get(f"/kilas-ai/automation/{item_id}/edit").get_data(as_text=True)
         self.assertIn('value="natural" selected', page)
         self.assertIn(spec["instruction"], page)
+        store.set_status(user_id, item_id, "pause")
 
     def test_complex_automation_task_uses_chat_reasoning_route_and_shared_policy(self):
         owner = repo.create_user("automation-quality@example.test", "hash")
         instruction = "Menurut lu dengan modal 700 juta mending usaha apa dan risikonya?"
         spec = schedule.parse_structured(instruction, "Asia/Jakarta", "daily", time="08:00")
-        store.create(owner, spec)
+        automation_id = store.create(owner, spec)
         ids = store.claim_due(now=spec["next_run_at"] + timedelta(minutes=1))
         self.assertEqual(len(ids), 1)
         events = [{"type": "provider", "provider": "openai", "model": "gpt-6-sol"},
@@ -173,6 +174,7 @@ class AutomationFlowTests(unittest.TestCase):
         self.assertIn("Do not be artificially terse", streamed.call_args.args[1][0]["content"])
         self.assertEqual(store.result(owner, ids[0])["result_text"],
                          "Pertimbangkan modal kerja dan kemampuan operasional.")
+        store.set_status(owner, automation_id, "pause")
 
     def test_preview_confirmation_owner_gate_and_reminder(self):
         client = self.client_for(self.owner)
