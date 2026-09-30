@@ -80,3 +80,11 @@ Read-only production PostgreSQL verification found one active Automation record 
 
 Targeted Kilas AI natural-conversation + structured Automation schedule release is therefore deployed and production-healthy. Broad repository workflows may remain red for the verified unrelated legacy assertions above; do not treat those as Kilas AI release regressions.
 
+## 2026-09-30 Luna natural-conversation calibration
+
+Production review of recent Kilas AI Chat messages confirmed FAST traffic was actually using `gpt-6-luna`. The underlying 100-scenario curriculum and 40 Golden cases were useful evaluation guidance, but the review found remaining runtime style drift: some Luna replies still used canned openings/automatic greetings, default bullet-heavy structure, unnecessary generic follow-up questions, and slightly mechanical slang mirroring.
+
+PR #86 distilled those curriculum lessons into the runtime shared response policy while keeping FAST on `gpt-6-luna`: answer clear requests directly, prefer natural paragraphs for conversational questions, avoid generic “Mau saya bantu lagi?” endings, use casual Indonesian lightly rather than mechanically, resolve short references such as “yang kedua/yang tadi” from context, preserve unaffected constraints after corrections, and keep simple translations/calculations direct. No model routing, pricing, Finance, Assist, schema, or quota behavior changed.
+
+Focused Kilas AI QA run #45 passed all three jobs: foundation (including the natural adaptive response-style regression), Chromium browser, and PostgreSQL schema. PR #86 merged as `0bafad2caf68b4a775ea58f420240a89d62291fc`. Production Client Hub deploy `dep-dau9fhtg1s2s73c13agg` and Automation runner deploy `dep-dau9fiegekts73dhd2kg` are LIVE on that commit. Client Hub booted normally, no 5xx request logs were observed in the post-release verification window, and the Automation runner completed successfully after release.
+
