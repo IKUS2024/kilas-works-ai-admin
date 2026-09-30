@@ -34,10 +34,10 @@ def main():
                 context.add_cookies([{"name": cookie.key, "value": cookie.value, "url": origin}])
                 page = context.new_page()
                 page.goto(origin + "/kilas-ai/automation", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Automation", exact=True).is_visible()
+                assert page.get_by_role("heading", name="AI Agent", exact=True).is_visible()
                 assert page.locator("#auto-zone").input_value() == "Asia/Jakarta"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "home overflow")
-                page.get_by_role("link", name="+ Buat Automation").click()
+                page.get_by_role("link", name="+ Beri tugas ke Agent").click()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "form overflow")
                 page.locator("#auto-instruction").fill("Ingetin gue bayar listrik.")
                 assert page.locator("#auto-schedule-mode").input_value() == "once"
@@ -58,18 +58,18 @@ def main():
                 page.get_by_role("button", name="Lihat pratinjau").click()
                 assert page.get_by_text("Periksa sebelum aktif").is_visible()
                 assert page.get_by_text("Asia/Bangkok", exact=True).is_visible()
-                assert page.get_by_role("button", name="Aktifkan Automation").is_visible()
+                assert page.get_by_role("button", name="Aktifkan tugas").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "preview overflow")
-                page.get_by_role("button", name="Aktifkan Automation").click()
+                page.get_by_role("button", name="Aktifkan tugas").click()
                 page.wait_for_url("**/kilas-ai/automation")
                 assert page.get_by_text("Ingetin gue bayar listrik.").count() >= 1
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "list overflow")
                 page.get_by_role("link", name="Edit", exact=True).click()
-                assert page.get_by_role("heading", name="Edit Automation").is_visible()
+                assert page.get_by_role("heading", name="Edit tugas Agent").is_visible()
                 assert page.locator("#auto-run-date").input_value() == "2099-10-02"
                 assert page.locator("#auto-run-time").input_value() == "08:00"
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "edit overflow")
-                page.get_by_role("link", name="Automation", exact=True).last.click()
+                page.goto(origin + "/kilas-ai/automation", wait_until="networkidle")
                 page.get_by_role("button", name="Jeda").click()
                 page.get_by_role("link", name="Dijeda", exact=True).click()
                 assert page.get_by_text("Dijeda", exact=True).count() >= 1
@@ -77,10 +77,10 @@ def main():
                 assert page.get_by_text("Belum ada hasil.", exact=False).is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "results overflow")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
-                assert page.locator(".ai-usage-row").get_by_text("Automation aktif").first.is_visible()
+                assert page.locator(".ai-usage-row").get_by_text("Tugas Agent aktif").first.is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "usage overflow")
                 page.goto(origin + "/kilas-ai", wait_until="networkidle")
-                assert page.locator(".ai-product-nav").get_by_role("link", name="Automation").is_visible()
+                assert page.locator(".ai-product-nav").get_by_role("link", name="AI Agent").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "chat nav overflow")
                 context.close()
             browser.close()

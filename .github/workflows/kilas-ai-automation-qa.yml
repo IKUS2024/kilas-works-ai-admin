@@ -6,8 +6,11 @@ on:
     branches: [main]
     paths:
       - 'client-hub/kilas_ai/automation_*.py'
+      - 'client-hub/kilas_ai/agent_*.py'
       - 'client-hub/migrations/0075_kilas_ai_automation_*.sql'
+      - 'client-hub/migrations/0076_kilas_ai_agent_*.sql'
       - 'client-hub/tests/test_kilas_ai_automation*.py'
+      - 'client-hub/tests/test_kilas_ai_agent*.py'
       - 'client-hub/templates/kilas_ai/**'
       - 'client-hub/static/kilas_ai*'
       - '.github/workflows/kilas-ai-automation-qa.yml'
@@ -25,6 +28,7 @@ jobs:
           python-version: '3.12'
       - run: pip install -r client-hub/requirements.txt
       - run: cd client-hub && python tests/test_kilas_ai_automation.py
+      - run: cd client-hub && python tests/test_kilas_ai_agent.py
   boundaries:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -47,6 +51,7 @@ jobs:
       - run: pip install -r client-hub/requirements.txt playwright
       - run: python -m playwright install --with-deps chromium
       - run: cd client-hub && python tests/test_kilas_ai_automation_browser.py
+      - run: cd client-hub && python tests/test_kilas_ai_agent_browser.py
       - run: cd client-hub && python tests/test_kilas_ai_browser.py
   postgres-schema:
     runs-on: ubuntu-latest

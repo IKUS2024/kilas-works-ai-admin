@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="id">
+<head>{% include 'kilas_ai/_automation_head.html' %}<link rel="stylesheet" href="{{ url_for('static',filename='kilas_ai_agent.css',v='1') }}"></head>
+<body class="agent-body">
+{% include 'kilas_ai/_automation_nav.html' %}
+<main class="agent-shell" data-view="{{ view }}">
+  <aside class="agent-rail" aria-label="Navigasi AI Agent">
+    <div class="agent-rail-head"><h1>AI Agent</h1><p>Tugas yang Kilas kerjakan untukmu.</p></div>
+    <nav class="agent-sections" aria-label="Bagian AI Agent">
+      <a href="{{ url_for('kilas_ai.agent_home',view='chat') }}" {% if view == 'chat' %}aria-current="page"{% endif %}>Agent Chat</a>
+      <a href="{{ url_for('kilas_ai.agent_home',view='tasks') }}" {% if view == 'tasks' %}aria-current="page"{% endif %}>Tugas aktif</a>
+      <a href="{{ url_for('kilas_ai.agent_home',view='activity') }}" {% if view == 'activity' %}aria-current="page"{% endif %}>Aktivitas{% if unread %}<span class="ai-unread">{{ unread }}</span>{% endif %}</a>
+      <a href="{{ url_for('kilas_ai.agent_home',view='connections') }}" {% if view == 'connections' %}aria-current="page"{% endif %}>Koneksi</a>
+    </nav>
+    <div class="agent-rail-foot"><span class="agent-capacity-label">Kapasitas Agent</span><strong>{{ capacity.active }} dari {{ capacity.active_limit }} tugas aktif</strong><a href="{{ url_for('kilas_ai.usage_page') }}">Lihat paket</a></div>
+  </aside>
+
+  <section class="agent-main" aria-label="{{ {'chat':'Percakapan Agent','tasks':'Tugas Agent','activity':'Aktivitas Agent','connections':'Koneksi Agent'}[view] }}">
+    {% if error %}<p class="auto-error" role="alert">{{ {'message':'Tulis pesan hingga 1.200 karakter.','expired':'Konfirmasi sudah kedaluwarsa. Minta lagi lewat chat.','action':'Tugas belum bisa diubah. Periksa statusnya lalu coba lagi.'}.get(error,'Permintaan belum bisa diproses.') }}</p>{% endif %}
+    {% if view == 'chat' %}
+      <header class="agent-section-head"><div><h2>Agent Chat</h2><p>Jelaskan pekerjaan berulang yang ingin kamu delegasikan.</p></div><span class="agent-live"><span aria-hidden="true"></span>Siap membantu</span></header>
+      <div class="agent-conversation" id="agent-conversation" aria-live="polite">
+        {% if messages %}
+          {% for message in messages %}<article class="agent-message agent-message-{{ message.role }}"><div class="agent-speaker">{{ 'Kamu' if message.role == 'user' else 'Kilas' }}</div><p>{{ message.content }}</p></article>{% endfor %}
+        {% else %}
+          <div class="agent-welcome"><h3>Berikan Kilas pekerjaan yang perlu terus berjalan.</h3><p>Contohnya, “Setiap Jumat jam 16.00 rangkum perkembangan AI minggu ini.” Kilas akan menunjukkan rencana dan jadwal sebelum tugas diaktifkan.</p><p>Untuk Gmail, Calendar, Drive, Finance, atau WhatsApp, Kilas akan menjelaskan bila koneksi belum tersedia.</p></div>
+        {% endif %}
+        {% if preview %}<section class="agent-proposal" aria-labelledby="agent-proposal-title"><h3 id="agent-proposal-title">Periksa tugas ini</h3><strong>{{ preview.title }}</strong><dl><div><dt>Kilas akan</dt><dd>{{ preview.instruction }}</dd></div><div><dt>Jadwal</dt><dd>{{ preview.schedule }}</dd></div><div><dt>Berikutnya</dt><dd>{{ preview.next_run }}</dd></div><div><dt>Batas izin</dt><dd>Hasil disimpan di Kilas AI. Tidak mengirim pesan atau mengubah data di layanan lain.</dd></div></dl><form method="post" action="{{ url_for('kilas_ai.automation_activate') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="automation_id" value="{{ preview.id or '' }}"><button class="auto-primary" type="submit">{{ 'Simpan perubahan' if preview.id else 'Aktifkan tugas' }}</button><a href="{{ url_for('kilas_ai.automation_edit',automation_id=preview.id) if preview.id else url_for('kilas_ai.automation_new') }}">Ubah detail</a></form></section>{% endif %}
+        {% if action %}<section class="agent-proposal" aria-labelledby="agent-action-title"><h3 id="agent-action-title">Konfirmasi perubahan</h3><p>{{ action.title }} akan {{ 'dijeda' if action.action == 'pause' else 'diaktifkan kembali' }}.</p><form method="post" action="{{ url_for('kilas_ai.agent_action') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="auto-primary" type="submit">{{ 'Jeda tugas' if action.action == 'pause' else 'Aktifkan kembali' }}</button><a href="{{ url_for('kilas_ai.agent_home',view='tasks') }}">Lihat tugas</a></form></section>{% endif %}
+      </div>
+      <form class="agent-composer" method="post" action="{{ url_for('kilas_ai.agent_chat') }}" id="agent-chat-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="agent-message">Pesan untuk Agent</label><div><textarea id="agent-message" name="message" rows="2" maxlength="1200" required placeholder="Contoh: Setiap Senin jam 8 cari berita AI penting minggu ini">{{ prefill }}</textarea><button class="auto-primary" type="submit">Kirim</button></div><p>Kilas selalu meminta konfirmasi sebelum mengaktifkan atau mengubah tugas.</p></form>
+    {% elif view == 'tasks' %}
+      <header class="agent-section-head"><div><h2>Tugas aktif</h2><p>Jadwal, status, dan kendali setiap tugas ada di sini.</p></div><a class="auto-primary" href="{{ url_for('kilas_ai.automation_new') }}">Beri tugas</a></header>
+      {% if tasks %}<div class="agent-task-list">{% for item in tasks %}<article class="agent-task"><div class="agent-task-head"><h3>{{ item.title }}</h3><span class="auto-status {{ 'is-paused' if item.status != 'ACTIVE' else '' }}">{{ item.status_label }}</span></div><p>{{ item.instruction }}</p><dl class="auto-meta"><div><dt>Jadwal</dt><dd>{{ item.schedule_label }}</dd></div><div><dt>Berikutnya</dt><dd>{{ item.next_label or 'Belum dijadwalkan' }}</dd></div></dl><div class="auto-actions"><a href="{{ url_for('kilas_ai.automation_results',automation_id=item.id) }}">Lihat aktivitas</a><a href="{{ url_for('kilas_ai.automation_edit',automation_id=item.id) }}">Edit tugas</a><form method="post" action="{{ url_for('kilas_ai.automation_action',automation_id=item.id,action='pause' if item.status == 'ACTIVE' else 'resume') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="agent"><button type="submit">{{ 'Jeda' if item.status == 'ACTIVE' else 'Aktifkan' }}</button></form><form method="post" action="{{ url_for('kilas_ai.automation_action',automation_id=item.id,action='delete') }}" data-confirm-delete="1"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="agent"><button class="auto-delete" type="submit">Hapus</button></form></div></article>{% endfor %}</div>{% else %}<div class="agent-empty"><h3>Belum ada tugas.</h3><p>Ceritakan pekerjaan berulang lewat Agent Chat, atau atur sendiri jadwalnya.</p><a class="auto-primary" href="{{ url_for('kilas_ai.automation_new') }}">Beri tugas ke Agent</a></div>{% endif %}
+    {% elif view == 'activity' %}
+      <header class="agent-section-head"><div><h2>Aktivitas</h2><p>Jejak pekerjaan Agent dari tugas yang sudah berjalan.</p></div></header>
+      {% if activity %}<ol class="agent-activity">{% for item in activity %}<li><span class="agent-activity-mark {{ 'is-failed' if item.status == 'FAILED' else '' }}" aria-hidden="true"></span><div><strong>{{ item.title }}</strong><p>{{ 'Perlu dicoba lagi. Tugas belum ditandai selesai.' if item.status == 'FAILED' else 'Kapasitas periode ini tercapai; tugas dijeda.' if item.status == 'SKIPPED_QUOTA' else item.result_text[:190] if item.result_text else 'Pemeriksaan selesai. Belum ada perubahan penting.' }}</p><small>{{ item.completed_at or item.scheduled_for }}</small>{% if item.result_text %}<a href="{{ url_for('kilas_ai.automation_result',run_id=item.id) }}">Lihat hasil</a>{% endif %}</div></li>{% endfor %}</ol>{% else %}<div class="agent-empty"><h3>Belum ada aktivitas.</h3><p>Hasil dan pemeriksaan akan muncul setelah tugas pertama berjalan.</p></div>{% endif %}
+    {% else %}
+      <header class="agent-section-head"><div><h2>Koneksi</h2><p>Agent hanya memakai akses yang benar-benar tersedia.</p></div></header>
+      <div class="agent-connections"><h3>Belum ada koneksi eksternal</h3><p>Kilas belum bisa membaca Gmail, Calendar, Drive, WhatsApp, atau data Kilas Finance dari AI Agent. Meminta tugas yang memerlukan akses tersebut tidak akan membuat tugas aktif.</p><ul><li><strong>Google</strong><span>Gmail, Calendar, Drive, Contacts · Belum tersedia</span></li><li><strong>Kilas Finance</strong><span>Belum tersedia untuk AI Agent</span></li><li><strong>WhatsApp</strong><span>Belum tersedia untuk AI Agent</span></li></ul><p class="auto-small">Koneksi akan tampil sebagai terhubung hanya setelah integrasi nyata dan izin akses tersedia.</p></div>
+    {% endif %}
+  </section>
+
+  <aside class="agent-state" aria-label="Status Agent"><h2>Status Agent</h2><p class="agent-state-line"><span aria-hidden="true"></span>{{ capacity.active }} tugas aktif</p><p>Hasil tugas yang sudah berjalan tersimpan di Aktivitas.</p><a href="{{ url_for('kilas_ai.agent_home',view='activity') }}">Lihat aktivitas{% if unread %} · {{ unread }} baru{% endif %}</a><div class="agent-state-divider"></div><h3>Koneksi</h3><p>Belum ada koneksi eksternal. Agent tidak akan mengaku memeriksa Gmail atau melakukan aksi di layanan lain.</p><a href="{{ url_for('kilas_ai.agent_home',view='connections') }}">Lihat koneksi</a></aside>
+</main>
+<script src="{{ url_for('static',filename='kilas_ai_automation.js',v='3') }}" defer></script>
+</body>
+</html>

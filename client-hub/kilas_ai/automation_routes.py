@@ -21,6 +21,8 @@ def _owner():
 
 def _page(template, **values):
     values.setdefault("unread", store.usage_summary(_owner())["unread"])
+    if values.get("error"):
+        values["error"] = str(values["error"]).replace("Automation", "tugas Agent")
     return render_template("kilas_ai/" + template, **values)
 
 
@@ -143,6 +145,7 @@ def automation_preview():
 @ai_bp.post("/automation/activate", endpoint="automation_activate")
 def automation_activate():
     preview = session.pop("automation_preview", None)
+    agent_origin = session.pop("automation_preview_origin", None) == "agent"
     if not preview or int(time.time()) - preview["created"] > 1800:
         return redirect(url_for("kilas_ai.automation_new"), code=303)
     raw_id = request.form.get("automation_id", "")
@@ -168,7 +171,8 @@ def automation_activate():
                      instruction=spec["instruction"], timezone_name=spec["timezone"],
                      title=spec["title"], fields=_schedule_fields(store.get(_owner(), item_id)) if item_id else _schedule_fields(),
                      preview=None, error=str(error)), 400
-    return redirect(url_for("kilas_ai.automation_home"), code=303)
+    return redirect(url_for("kilas_ai.agent_home", view="tasks") if agent_origin else
+                    url_for("kilas_ai.automation_home"), code=303)
 
 
 @ai_bp.post("/automation/<int:automation_id>/<action>", endpoint="automation_action")
@@ -181,7 +185,8 @@ def automation_action(automation_id, action):
         store.set_status(_owner(), automation_id, action)
     except store.AutomationError as error:
         return redirect(url_for("kilas_ai.automation_home", error=str(error)[:80]), code=303)
-    return redirect(url_for("kilas_ai.automation_home"), code=303)
+    return redirect(url_for("kilas_ai.agent_home", view="tasks") if request.form.get("return_to") == "agent" else
+                    url_for("kilas_ai.automation_home"), code=303)
 
 
 @ai_bp.get("/automation/<int:automation_id>/results", endpoint="automation_results")

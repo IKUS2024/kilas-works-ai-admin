@@ -30,7 +30,7 @@
         <form method="post" data-action="delete" action="{{ url_for('kilas_ai.delete',thread_id=selected.id) if selected else '' }}" onsubmit="return confirm('Hapus chat ini?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="ai-danger" type="submit">Hapus chat</button></form>
       </div></details>
     </header>
-    {% if automation_enabled %}<nav class="ai-product-nav ai-chat-nav" aria-label="Kilas AI"><a href="{{ url_for('kilas_ai.home') }}" aria-current="page">Chat</a><a href="{{ url_for('kilas_ai.automation_home') }}">Automation{% if automation_unread %} <span class="ai-unread">{{ automation_unread }}</span>{% endif %}</a></nav>{% endif %}
+    {% if automation_enabled %}<nav class="ai-product-nav ai-chat-nav" aria-label="Kilas AI"><a href="{{ url_for('kilas_ai.home') }}" aria-current="page">Chat</a><a href="{{ url_for('kilas_ai.agent_home') }}">AI Agent{% if automation_unread %} <span class="ai-unread">{{ automation_unread }}</span>{% endif %}</a></nav>{% endif %}
     <section class="ai-empty" {% if messages %}hidden{% endif %}><h1>Kilas Works</h1><p>Apa yang ingin kamu kerjakan hari ini?</p></section>
     <div class="ai-messages" id="ai-messages" aria-live="polite" {% if not messages %}hidden{% endif %}>
       {% for message in messages %}<article class="ai-message ai-{{ message.role }}"><div class="ai-message-name">{{ 'Kamu' if message.role == 'user' else 'Kilas AI' }}</div><div class="ai-message-text {{ 'ai-markdown' if message.role == 'assistant' else '' }}">{{ message.content }}</div>

@@ -27,18 +27,19 @@ def main():
 
     try:
         with patch.object(db, "_postgres_connect_kwargs", side_effect=options):
-            baseline = [item for item in db.MIGRATIONS if not item[0].startswith("0075_")]
+            baseline = [item for item in db.MIGRATIONS if not item[0].startswith(("0075_", "0076_"))]
             with patch.object(db, "MIGRATIONS", baseline):
                 db.init_schema()
             before = {row["table_name"] for row in db.query_all(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()")}
-            assert automation_schema.apply_release() == [automation_schema.NAME]
+            assert automation_schema.apply_release() == list(automation_schema.NAMES)
             assert automation_schema.apply_release() == []
             after = {row["table_name"] for row in db.query_all(
                 "SELECT table_name FROM information_schema.tables WHERE table_schema=current_schema()")}
             assert before.issubset(after)
             assert after - before == {"kilas_automation_settings", "kilas_automations",
-                                      "kilas_automation_runs", "kilas_automation_schema_releases"}
+                                      "kilas_automation_runs", "kilas_ai_agent_messages",
+                                      "kilas_automation_schema_releases"}
     finally:
         with control.cursor() as cursor:
             cursor.execute("DROP SCHEMA " + isolated + " CASCADE")

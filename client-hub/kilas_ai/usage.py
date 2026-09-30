@@ -16,6 +16,7 @@ PLANS = {
 }
 MODEL_RATES = {
     "gpt-6-luna": ("0.10", "0.50"), "gpt-6-sol": ("2.00", "10.00"),
+    "gpt-6.1-sol": ("2.00", "10.00"),
     "claude-haiku-4-5-20251001": ("1.00", "5.00"), "claude-sonnet-5": ("2.00", "10.00"),
 }
 GUARD_UNIT_USD = {"FAST": Decimal("0.00035"), "SMART": Decimal("0.012"),

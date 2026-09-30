@@ -218,10 +218,12 @@ def create_app():
     from kilas_core.finance_bridge_routes import bridge_bp, panel as finance_bridge_panel
     app.register_blueprint(bridge_bp)
     app.jinja_env.globals['finance_bridge_panel'] = finance_bridge_panel
-    from routes_products import products_bp
+    from routes_products import products_bp, assist_customer_visible
     app.register_blueprint(products_bp)
+    app.jinja_env.globals['assist_customer_visible'] = assist_customer_visible
     from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
     from kilas_ai import automation_routes  # Registers Automation on the existing Kilas AI blueprint.
+    from kilas_ai import agent_routes  # Agent UI reuses the existing Automation engine.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
