@@ -19,6 +19,11 @@ from pricing_config import BRAIN_PLAN,FINANCE_PLAN
 products_bp=Blueprint('products',__name__)
 
 
+def assist_customer_visible():
+    """Presentation-only switch; existing Assist routes and data stay available."""
+    return os.environ.get('KILAS_ASSIST_CUSTOMER_VISIBLE','').strip().lower() in ('1','true','yes','on')
+
+
 def _kilas_order_whatsapp_url(item):
     raw_number=(os.environ.get('KILAS_ORDER_WHATSAPP_NUMBER') or '6282213039137').strip()
     number=''.join(ch for ch in raw_number if ch.isdigit()) or '6282213039137'
@@ -205,7 +210,8 @@ def product_start():
             return render_template('order_retired.html'),410
         abort(400)
     from kilas_ai.routes import enabled
-    return render_template('product_start.html',user=user,kilas_ai_enabled=enabled() and user['role']=='CLIENT_OWNER')
+    return render_template('product_start.html',user=user,kilas_ai_enabled=enabled() and user['role']=='CLIENT_OWNER',
+                           assist_customer_visible=assist_customer_visible())
 
 
 @products_bp.route('/products/services')

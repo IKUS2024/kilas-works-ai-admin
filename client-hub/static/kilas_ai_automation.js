@@ -1,4 +1,4 @@
-// First Automation visit only: capture the browser's IANA timezone as the account default.
+// First AI Agent visit only: capture the browser's IANA timezone as the account default.
 const timezoneForm = document.querySelector('#auto-timezone-form[data-detect="1"]');
 if (timezoneForm) {
   const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -60,6 +60,17 @@ if (scheduleForm) {
 }
 document.querySelectorAll('form[data-confirm-delete="1"]').forEach(form => {
   form.addEventListener('submit', event => {
-    if (!window.confirm('Hapus Automation ini? Hasil yang sudah ada tetap tersimpan.')) event.preventDefault();
+    if (!window.confirm('Hapus tugas ini? Hasil yang sudah ada tetap tersimpan.')) event.preventDefault();
   });
 });
+const agentChat=document.querySelector('#agent-chat-form');
+if(agentChat){
+  const conversation=document.querySelector('#agent-conversation');
+  if(conversation)conversation.scrollTop=conversation.scrollHeight;
+  agentChat.addEventListener('submit',()=>{
+    const button=agentChat.querySelector('button[type="submit"]');
+    button.disabled=true;
+    button.textContent='Menyiapkan…';
+    agentChat.setAttribute('aria-busy','true');
+  });
+}

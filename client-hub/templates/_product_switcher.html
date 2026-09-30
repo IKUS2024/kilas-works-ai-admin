@@ -1,5 +1,5 @@
 <header class="product-bar no-print" aria-label="Workspace produk">
-{% if workspace_ui.ai and workspace_ui.finance %}
+{% if (assist_customer_visible() or workspace_ui.product == 'ai') and workspace_ui.ai and workspace_ui.finance %}
 <details class="product-switcher">
 <summary>{{ 'Kilas Finance' if workspace_ui.product == 'finance' else 'Kilas Assist' }} <span aria-hidden="true">⌄</span></summary>
 <nav aria-label="Pilih produk">

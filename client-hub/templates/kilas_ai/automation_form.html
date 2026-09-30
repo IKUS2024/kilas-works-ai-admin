@@ -4,8 +4,8 @@
 <body>
 {% include 'kilas_ai/_automation_nav.html' %}
 <main class="auto-page auto-narrow">
-  <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">← Automation</a></p>
-  <h1>{{ 'Edit Automation' if item else 'Buat Automation' }}</h1>
+  <p><a class="auto-back" href="{{ url_for('kilas_ai.automation_home') }}">← AI Agent</a></p>
+  <h1>{{ 'Edit tugas Agent' if item else 'Beri tugas ke Agent' }}</h1>
   <p class="auto-subtitle">Tulis tugasnya, lalu pilih kapan Kilas menjalankannya.</p>
   {% if error %}<p class="auto-error" role="alert">{{ error }}</p>{% endif %}
   {% if preview %}
@@ -23,7 +23,7 @@
     <form method="post" action="{{ url_for('kilas_ai.automation_activate') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="automation_id" value="{{ item.id if item else '' }}">
-      <button class="auto-primary" type="submit">{{ 'Simpan perubahan' if item else 'Aktifkan Automation' }}</button>
+      <button class="auto-primary" type="submit">{{ 'Simpan perubahan' if item else 'Aktifkan tugas' }}</button>
       <a class="auto-back" href="{{ url_for('kilas_ai.automation_edit',automation_id=item.id) if item else url_for('kilas_ai.automation_new') }}">Ubah</a>
     </form>
   </section>
@@ -48,7 +48,7 @@
     <div class="auto-schedule-fields" data-for="weekly"><label for="auto-weekday">Hari</label><select id="auto-weekday" name="weekday">{% for name in ('Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu') %}<option value="{{ loop.index0 }}" {% if fields.weekday == loop.index0|string %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
     <div class="auto-schedule-fields" data-for="monthly"><label for="auto-month-day">Tanggal setiap bulan</label><select id="auto-month-day" name="month_day">{% for day in range(1,32) %}<option value="{{ day }}" {% if fields.month_day == day|string %}selected{% endif %}>{{ day }}</option>{% endfor %}</select><p class="auto-small">Bulan tanpa tanggal ini akan dilewati.</p></div>
     <div class="auto-schedule-fields" data-for="clock"><label for="auto-run-time">Jam</label><input id="auto-run-time" type="time" name="run_time" value="{{ fields.run_time }}"></div>
-    <div class="auto-schedule-fields" data-for="natural"><p class="auto-small">Jadwal dibaca dari instruksi seperti sebelumnya. Gunakan ini untuk Automation lama atau interval setiap beberapa jam.</p></div>
+    <div class="auto-schedule-fields" data-for="natural"><p class="auto-small">Jadwal dibaca dari instruksi seperti sebelumnya. Gunakan ini untuk tugas lama atau interval setiap beberapa jam.</p></div>
     <label for="auto-timezone">Zona waktu</label>
     <input id="auto-timezone" data-detect="{{ 1 if detect_timezone else 0 }}" name="timezone" value="{{ timezone_name }}" list="auto-form-zones" maxlength="80" autocomplete="off" required>
     <datalist id="auto-form-zones"><option value="Asia/Jakarta"><option value="Asia/Bangkok"><option value="Asia/Makassar"><option value="Asia/Jayapura"><option value="Asia/Singapore"><option value="Asia/Tokyo"><option value="Europe/London"><option value="America/New_York"><option value="America/Los_Angeles"></datalist>
@@ -57,6 +57,6 @@
   </form>
   {% endif %}
 </main>
-<script src="{{ url_for('static',filename='kilas_ai_automation.js',v='2') }}" defer></script>
+<script src="{{ url_for('static',filename='kilas_ai_automation.js',v='3') }}" defer></script>
 </body>
 </html>
