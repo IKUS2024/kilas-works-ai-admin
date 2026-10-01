@@ -28,8 +28,9 @@ def propose(user_id, text, history, available, businesses, timezone_name, *, sch
     key = "connector-plan-" + secrets.token_hex(16)
     try:
         _, operations = usage.reserve(user_id, None, key, "SMART", "CHAT")
-    except usage.UsageLimit as error:
-        raise InterpretationError(str(error)) from None
+    except usage.UsageLimit:
+        # Preserve the trusted quota error so the UI can explain the actual blocker.
+        raise
     if not operations:
         raise InterpretationError("duplicate_plan")
     model = os.environ.get("KILAS_AI_AGENT_MODEL", "gpt-6.1-sol")

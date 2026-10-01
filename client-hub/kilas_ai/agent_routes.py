@@ -166,6 +166,9 @@ def agent_chat():
             session["agent_connector_context_at"] = int(time.time())
         except ValueError as error:
             code = str(error)
+            if isinstance(error, usage.UsageLimit):
+                _reply(code)
+                return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
             # Log only fixed diagnostic codes, never message content or credentials.
             if code in {"invalid_event", "invalid_payload", "invalid_business_scope", "invalid_target",
                         "invalid_approval_expiry", "approval_not_required", "ambiguous_event",
