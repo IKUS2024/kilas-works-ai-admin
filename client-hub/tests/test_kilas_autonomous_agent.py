@@ -390,6 +390,14 @@ class AutonomousTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.feedback(self.owner, self.job_id, 'No infinite replanning')
 
+    def test_feedback_while_paused_replans_on_resume(self):
+        self.plan()
+        store.control(self.owner, self.job_id, 'pause')
+        store.feedback(self.owner, self.job_id, 'Gunakan pendekatan lain.')
+        self.assertEqual(self.job()['status'], 'PAUSED')
+        store.control(self.owner, self.job_id, 'resume')
+        self.assertEqual(self.job()['status'], 'PLANNING')
+
 
 if __name__ == '__main__':
     unittest.main()

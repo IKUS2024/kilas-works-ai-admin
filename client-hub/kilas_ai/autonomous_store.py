@@ -91,6 +91,8 @@ def control(user_id, job_id, action):
         state = 'STOPPED' if action == 'stop' else 'PAUSED' if action == 'pause' else 'PLANNING' if row[1] == '{}' else 'RUNNING'
         usage._query(conn, 'UPDATE kilas_agent_jobs SET status=?,next_wake_at=?,revision=revision+1,updated_at=?,stopped_at=? WHERE id=?',
                      (state, stamp() if action == 'resume' else None, stamp(), stamp() if action == 'stop' else None, job_id))
+        if action == 'pause' and row[0] == 'PLANNING':
+            usage._query(conn, "UPDATE kilas_agent_jobs SET plan_json='{}' WHERE id=?", (job_id,))
         if action == 'stop':
             usage._query(conn, "UPDATE kilas_agent_steps SET status='STOPPED' WHERE job_id=? AND status NOT IN ('SUCCEEDED','SKIPPED')", (job_id,))
         event(conn, job_id, action.upper(), {'pause': 'Pekerjaan dijeda.', 'resume': 'Pekerjaan dilanjutkan.', 'stop': 'Pekerjaan dihentikan.'}[action])
@@ -107,7 +109,7 @@ def feedback(user_id, job_id, text):
         constraints = json.loads(row[1]) + [text.strip()]
         if len(constraints) > 12:
             raise ValueError('constraint_limit')
-        usage._query(conn, 'UPDATE kilas_agent_jobs SET constraints_json=?,status=?,next_wake_at=?,revision=revision+1,replans=replans+1,updated_at=? WHERE id=?',
+        usage._query(conn, "UPDATE kilas_agent_jobs SET plan_json='{}',constraints_json=?,status=?,next_wake_at=?,revision=revision+1,replans=replans+1,updated_at=? WHERE id=?",
                      (encode(constraints), 'PAUSED' if row[0] == 'PAUSED' else 'PLANNING', None if row[0] == 'PAUSED' else stamp(), stamp(), job_id))
         event(conn, job_id, 'FEEDBACK', text)
 

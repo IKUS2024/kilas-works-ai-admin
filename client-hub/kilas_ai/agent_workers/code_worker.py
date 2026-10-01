@@ -75,11 +75,14 @@ def prepare(job, alias):
         return workspace
     if not source.is_dir() or source.is_symlink():
         raise ValueError('invalid_repository')
-    total, files = 0, 0
+    total, files, scanned = 0, 0, 0
     try:
         for directory, dirs, names in os.walk(source, followlinks=False):
             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('node_modules', 'venv', '__pycache__') and not (Path(directory) / d).is_symlink()]
             for name in names:
+                scanned += 1
+                if scanned > 2000:
+                    raise ValueError('workspace_scan_limit')
                 src = Path(directory) / name
                 try:
                     rel = relative(src.relative_to(source).as_posix())
@@ -88,7 +91,7 @@ def prepare(job, alias):
                 if src.is_symlink() or src.stat().st_size > 100000:
                     continue
                 content = src.read_text(encoding='utf-8')
-                if re.search(r'(?i)(BEGIN .*PRIVATE KEY|(?:sk-|AIza)[A-Za-z0-9_-]{20,}|(?:password|api_key|secret)\s*=\s*[\x22\x27][^\x22\x27]{8,})', content):
+                if re.search(r'(?i)(BEGIN .*PRIVATE KEY|(?:sk-|AIza|gh[pousr]_)[A-Za-z0-9_-]{20,}|(?:postgres(?:ql)?|mysql|redis)://[^:]+:[^@]+@|(?:password|api_key|secret)\s*=\s*[\x22\x27][^\x22\x27]{8,})', content):
                     continue
                 total += len(content.encode())
                 files += 1
