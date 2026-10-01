@@ -99,6 +99,24 @@ class ConnectorTests(unittest.TestCase):
                 google_connection.disconnect(self.owner)
             self.assertNotIn("gmail.send", connectors.available_tools(self.owner))
 
+    def test_calendar_oauth_requests_only_minimum_event_scopes(self):
+        key = Fernet.generate_key().decode()
+        env = {"KILAS_GOOGLE_CLIENT_ID": "synthetic-client-id",
+               "KILAS_GOOGLE_CLIENT_SECRET": "synthetic-secret",
+               "KILAS_GOOGLE_REDIRECT_URI": "https://app.example.test/kilas-ai/agent/connections/google/callback",
+               "KILAS_CONNECTOR_ENCRYPTION_KEY": key}
+        with patch.dict(os.environ, env):
+            state = {}
+            url = google_connection.begin(self.owner, "calendar", state)
+            requested = set(parse_qs(urlparse(url).query)["scope"][0].split())
+        self.assertIn("https://www.googleapis.com/auth/calendar.events", requested)
+        self.assertIn("https://www.googleapis.com/auth/calendar.freebusy", requested)
+        self.assertNotIn("https://www.googleapis.com/auth/calendar.events.readonly", requested)
+        self.assertEqual(connectors.TOOLS["calendar.list"][2],
+                         "https://www.googleapis.com/auth/calendar.events")
+        self.assertEqual(connectors.TOOLS["calendar.get"][2],
+                         "https://www.googleapis.com/auth/calendar.events")
+
     def test_action_exact_payload_single_use_and_owner_boundary(self):
         business = repo.create_business(self.owner, "Connector Finance")
         with patch.object(connectors, "business_connections", side_effect=lambda user: [
@@ -306,8 +324,7 @@ class ConnectorTests(unittest.TestCase):
         db.execute("INSERT INTO kilas_ai_connections "
             "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
             "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
-            (self.owner, '["https://www.googleapis.com/auth/calendar.events.readonly",'
-             '"https://www.googleapis.com/auth/calendar.events"]', stamp, stamp))
+            (self.owner, '["https://www.googleapis.com/auth/calendar.events"]', stamp, stamp))
         with patch.object(connector_flow.google_tools, "calendar_get", return_value={
                 "id": "event-1", "summary": "Meeting Wilson"}) as read:
             approval_id = connector_flow._proposal(self.owner, "calendar.delete",
