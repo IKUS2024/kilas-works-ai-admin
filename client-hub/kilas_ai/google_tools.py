@@ -3,6 +3,7 @@ import base64
 import binascii
 import io
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from email.parser import BytesParser
@@ -305,6 +306,11 @@ def contacts_search(user_id, query):
     _request(user_id, "contacts.search", "people", "GET", "/people:searchContacts",
              params={**params, "query": ""})  # Google's search cache warmup.
     result = _request(user_id, "contacts.search", "people", "GET", "/people:searchContacts", params=params)
+    if not result.get("results"):
+        # People search refreshes its cache asynchronously after warmup. Give
+        # an empty first result time to refresh, then retry the same READ once.
+        time.sleep(3)
+        result = _request(user_id, "contacts.search", "people", "GET", "/people:searchContacts", params=params)
     output = []
     for item in (result.get("results") or [])[:20]:
         person = item.get("person") or {}
