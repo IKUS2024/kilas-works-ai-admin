@@ -56,6 +56,8 @@ def scheduled_read(user_id, instruction, timezone_name, *, run_id=None):
 
 def _scheduled_gmail_draft(user_id, instruction, args, timezone_name, run_id):
     """Prepare one Gmail draft and expiring send proposal; cron never sends."""
+    if "gmail.draft" not in connectors.ACTIVE_GOOGLE_TOOLS:
+        raise connectors.ConnectorError("google_tool_disabled")
     key = (hashlib.sha256(f"automation-draft:{run_id}".encode()).hexdigest()[:48]
            if run_id is not None else None)
     if key and connectors.approval_for_key(user_id, key):
