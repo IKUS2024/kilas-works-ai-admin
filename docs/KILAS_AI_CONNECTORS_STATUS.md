@@ -10,6 +10,7 @@ Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) 
 - Existing business-scoped WhatsApp adapter and existing Finance service adapter. Neither modifies the underlying Assist routing or Finance ledger logic.
 - Server-side connector authorization and exact-payload, expiring, single-use approvals with an audit trail. Unknown remote outcomes are terminal rather than automatically retried.
 - Agent Connections and approval UI, incremental schedule parsing, and explicit marker for scheduled connector reads/one Gmail draft proposal per run so older Automation tasks retain their prior path. Cron never sends.
+- Agent Chat lists pending approvals separately (up to 20), so another scheduled draft does not hide an older pending action.
 - Focused SQLite, PostgreSQL and Chromium QA in `.github/workflows/kilas-ai-connectors-qa.yml`.
 
 ## Release gates

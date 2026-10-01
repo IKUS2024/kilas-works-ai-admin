@@ -219,7 +219,13 @@ class ConnectorTests(unittest.TestCase):
             (self.owner, '["https://www.googleapis.com/auth/gmail.compose"]', stamp, stamp))
         approval_id = connectors.propose_action(self.owner, "gmail.send", "wilson@example.test",
             {"to": "wilson@example.test", "subject": "Jadwal", "body": "Besok jam 2 bisa."})
+        another_id = connectors.propose_action(self.owner, "gmail.send", "daniel@example.test",
+            {"to": "daniel@example.test", "subject": "Rapat", "body": "Senin jam 10 bisa."})
         client = self.client_for(self.owner)
+        approvals_page = client.get("/kilas-ai/agent")
+        self.assertIn("wilson@example.test", approvals_page.text)
+        self.assertIn("daniel@example.test", approvals_page.text)
+        self.assertEqual(connectors.approval(self.owner, another_id)["status"], "PENDING")
         response = client.post(f"/kilas-ai/agent/approval/{approval_id}/edit",
                                data={"csrf_token": "connector-csrf"})
         self.assertEqual(response.status_code, 303)

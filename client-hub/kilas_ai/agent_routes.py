@@ -4,6 +4,7 @@ import re
 import time
 from datetime import datetime, timezone
 
+import db
 from flask import abort, redirect, render_template, request, session, url_for
 
 from . import agent_planner, agent_store, automation_schedule as schedule, automation_store as store, usage
@@ -83,18 +84,18 @@ def agent_home():
                              set(scopes).issubset(set(json.loads(google_row["scopes_json"]))))
                        for name, scopes in connectors.GOOGLE_SCOPES.items()}
     internal_connections = connectors.business_connections(owner)
-    approval_row = connectors._row(__import__('db').query_one(
+    approval_rows = [connectors._row(row) for row in db.query_all(
         "SELECT id,tool,target,payload_json,business_id,expires_at FROM kilas_ai_action_approvals "
-        "WHERE user_id=? AND status='PENDING' AND expires_at>? ORDER BY id DESC LIMIT 1",
-        (owner, connectors.stamp())))
-    if approval_row:
+        "WHERE user_id=? AND status='PENDING' AND expires_at>? ORDER BY id DESC LIMIT 20",
+        (owner, connectors.stamp()))]
+    for approval_row in approval_rows:
         approval_row["payload"] = json.loads(approval_row["payload_json"])
     return render_template("kilas_ai/agent.html", view=view, messages=agent_store.messages(owner),
                            tasks=tasks, activity=agent_store.activity(owner), preview=preview,
                            action=action, capacity=store.usage_summary(owner),
                            google=google, google_connection=google_row,
                            google_services=google_services,
-                           internal_connections=internal_connections, connector_approval=approval_row,
+                           internal_connections=internal_connections, connector_approvals=approval_rows,
                            unread=store.unread_count(owner), error=request.args.get("error"),
                            prefill=request.args.get("message", "")[:1200])
 
