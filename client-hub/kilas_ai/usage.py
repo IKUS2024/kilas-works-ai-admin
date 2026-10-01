@@ -29,6 +29,21 @@ class UsageLimit(ValueError):
     pass
 
 
+# Owner-authorized production QA window. This does not grant a paid plan,
+# erase usage, or bypass burst limits, connector authorization or approvals.
+QA_QUOTA_EXEMPTIONS = {
+    9: ("irvankarnavi@gmail.com", datetime(2026, 10, 8, 8, 30, tzinfo=timezone.utc)),
+}
+
+
+def _qa_quota_exempt(conn, user_id, now):
+    grant = QA_QUOTA_EXEMPTIONS.get(user_id)
+    if not grant or now >= grant[1]:
+        return False
+    row = _query(conn, "SELECT email FROM users WHERE id=?", (user_id,), one=True)
+    return bool(row and str(row[0]).casefold() == grant[0].casefold())
+
+
 def _now():
     return datetime.now(timezone.utc)
 
@@ -213,8 +228,9 @@ def reserve(user_id, thread_id, key, mode, tool):
             if count >= ceiling:
                 raise UsageLimit("Terlalu banyak permintaan dalam waktu singkat. Coba lagi sebentar.")
         operations = _operations(mode, tool)
+        qa_exempt = _qa_quota_exempt(conn, user_id, now)
         needs_topup = False
-        for operation in operations:
+        for operation in (() if qa_exempt else operations):
             limit = _limit(plan, mode, operation)
             if limit is None:
                 continue
@@ -238,10 +254,11 @@ def reserve(user_id, thread_id, key, mode, tool):
                      (now - timedelta(minutes=10)).isoformat()), one=True)[0]
                 if daily >= PLANS[plan]["CHAT_DAILY"]:
                     needs_topup = True
-        try:
-            _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
-        except UsageLimit:
-            needs_topup = True
+        if not qa_exempt:
+            try:
+                _cost_guard(conn, user_id, plan, paid_start, paid_end, operations, mode, now)
+            except UsageLimit:
+                needs_topup = True
         if needs_topup:
             from . import topups
             try:
