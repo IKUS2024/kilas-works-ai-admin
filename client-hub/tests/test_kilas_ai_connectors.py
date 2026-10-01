@@ -143,7 +143,7 @@ class ConnectorTests(unittest.TestCase):
             with self.subTest(text=text):
                 spec = automation_schedule.parse(text, "Asia/Jakarta", now=near_midnight)
                 run = spec["next_run_at"].astimezone(automation_schedule.ZoneInfo("Asia/Jakarta"))
-                for actual, want in zip((run.year, run.month, run.hour, run.minute),
+                for actual, want in zip((run.year, run.month, run.day, run.hour, run.minute),
                                         (expected[0], expected[1], expected[2], expected[3])):
                     if want is not None:
                         self.assertEqual(actual, want)

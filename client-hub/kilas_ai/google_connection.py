@@ -69,7 +69,6 @@ def begin(user_id, service, session):
                "VALUES (?,?,'GOOGLE',?,?,?)",
                (digest, user_id, json.dumps(scopes), connectors.stamp(t + timedelta(minutes=10)), connectors.stamp(t)))
     session["kilas_google_oauth_state"] = digest
-    session.modified = True
     params = {"client_id": os.environ["KILAS_GOOGLE_CLIENT_ID"],
               "redirect_uri": os.environ["KILAS_GOOGLE_REDIRECT_URI"],
               "response_type": "code", "scope": " ".join(scopes), "state": raw,
