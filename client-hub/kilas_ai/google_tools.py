@@ -1,9 +1,13 @@
 """Fixed Google API adapters. No user-supplied URL is ever fetched."""
 import base64
+import binascii
 import io
 import re
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from email.parser import BytesParser
+from email import policy
+from email.utils import parseaddr
 from urllib.parse import quote
 
 import requests
@@ -98,6 +102,7 @@ def gmail_thread(user_id, thread_id):
         output.append({"id": message.get("id"), "from": headers.get("from", ""),
                        "to": headers.get("to", ""), "subject": headers.get("subject", ""),
                        "date": headers.get("date", ""), "message_id": headers.get("message-id", ""),
+                       "references": headers.get("references", ""),
                        "snippet": str(message.get("snippet") or "")[:600]})
     return output
 
@@ -120,8 +125,8 @@ def _raw_email(to, subject, body, *, reply_to=None, references=None):
     return base64.urlsafe_b64encode(message.as_bytes()).decode().rstrip("=")
 
 
-def gmail_create_draft(user_id, to, subject, body, thread_id=None):
-    raw = _raw_email(to, subject, body)
+def gmail_create_draft(user_id, to, subject, body, thread_id=None, reply_to=None, references=None):
+    raw = _raw_email(to, subject, body, reply_to=reply_to, references=references)
     payload = {"message": {"raw": raw}}
     if thread_id:
         payload["message"]["threadId"] = _id(thread_id)
@@ -129,6 +134,38 @@ def gmail_create_draft(user_id, to, subject, body, thread_id=None):
     if not result.get("id"):
         raise ProviderError("provider_invalid_response")
     return {"draft_id": result["id"], "thread_id": (result.get("message") or {}).get("threadId")}
+
+
+def gmail_send_draft(user_id, draft_id, expected):
+    connectors.authorize(user_id, "gmail.send")
+    draft_id = _id(draft_id)
+    draft = _request(user_id, "gmail.draft", "gmail", "GET", "/drafts/" + draft_id,
+                     params={"format": "raw"})
+    raw = (draft.get("message") or {}).get("raw")
+    if not isinstance(raw, str) or not isinstance(expected, dict) or draft.get("id") != draft_id:
+        raise ProviderError("provider_invalid_response")
+    try:
+        message = BytesParser(policy=policy.default).parsebytes(
+            base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+        body = message.get_content() if not message.is_multipart() else None
+    except (ValueError, TypeError, LookupError, UnicodeError, binascii.Error):
+        raise ProviderError("provider_invalid_response") from None
+    same = (not message.defects and message.get_content_type() == "text/plain" and
+            parseaddr(str(message.get("To") or ""))[1].casefold() == str(expected.get("to") or "").casefold() and
+            str(message.get("Subject") or "") == expected.get("subject") and
+            isinstance(body, str) and body.replace("\r\n", "\n").rstrip("\n") ==
+            str(expected.get("body") or "").replace("\r\n", "\n").rstrip("\n") and
+            str(message.get("In-Reply-To") or "") == str(expected.get("reply_to") or "") and
+            str(message.get("References") or "") == str(expected.get("references") or "") and
+            not message.get("Cc") and not message.get("Bcc") and not message.get("Reply-To") and
+            (not expected.get("thread_id") or (draft.get("message") or {}).get("threadId") == expected["thread_id"]))
+    if not same:
+        raise ProviderError("approval_payload_changed")
+    result = _request(user_id, "gmail.draft", "gmail", "POST", "/drafts/send",
+                      body={"id": draft_id})
+    if not result.get("id"):
+        raise ProviderError("provider_invalid_response")
+    return {"id": result["id"], "thread_id": result.get("threadId")}
 
 
 def gmail_send(user_id, to, subject, body, thread_id=None, reply_to=None):

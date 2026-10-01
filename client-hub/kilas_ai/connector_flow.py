@@ -1,11 +1,13 @@
 """Natural Agent requests routed through verified, account-scoped connector tools."""
 import json
+import hashlib
 import re
 from email.utils import parseaddr
 
 from . import connector_planner, connectors, google_tools, internal_tools
 
 SCHEDULE_WORDS = re.compile(r"\b(?:setiap|tiap|every|besok|tomorrow|lusa|next|minggu depan)\b", re.I)
+DRAFT_WORDS = re.compile(r"\b(?:draf|draft|siapkan balasan|siapin balasan|prepare replies?)\b", re.I)
 
 
 def _business(user_id, provider, proposed):
@@ -22,8 +24,12 @@ def _business(user_id, provider, proposed):
     raise connectors.ConnectorError("choose_business")
 
 
-def scheduled_read(user_id, instruction, timezone_name):
-    """Cron may read a connected provider; it can never create an approval or send."""
+def scheduled_read(user_id, instruction, timezone_name, *, run_id=None):
+    """Cron may read or prepare a Gmail draft; it can never send."""
+    if DRAFT_WORDS.search(instruction) and run_id is not None:
+        key = hashlib.sha256(f"automation-draft:{run_id}".encode()).hexdigest()[:48]
+        if connectors.approval_for_key(user_id, key):
+            return "Draf Gmail untuk jadwal ini sudah disiapkan. Periksa Gmail atau Agent Chat."
     available = connectors.available_tools(user_id)
     businesses = connectors.business_connections(user_id)
     plan = connector_planner.propose(user_id, instruction, [], available, businesses,
@@ -31,6 +37,11 @@ def scheduled_read(user_id, instruction, timezone_name):
     tool = plan["tool"]
     if tool not in available or connectors.TOOLS[tool][1] != "READ" or plan["intent"] != "READ":
         raise connectors.ConnectorError("scheduled_read_only")
+    draft_requested = bool(DRAFT_WORDS.search(instruction))
+    if draft_requested:
+        if tool != "gmail.search" or "gmail.send" not in available:
+            raise connectors.ConnectorError("scheduled_draft_requires_gmail")
+        return _scheduled_gmail_draft(user_id, instruction, plan["arguments"], timezone_name, run_id)
     provider = connectors.TOOLS[tool][0]
     bid = (_business(user_id, provider, plan["business_id"])
            if provider != "GOOGLE" and tool != "finance.businesses" else None)
@@ -38,12 +49,61 @@ def scheduled_read(user_id, instruction, timezone_name):
     return _read(user_id, tool, plan["arguments"], bid)
 
 
+def _scheduled_gmail_draft(user_id, instruction, args, timezone_name, run_id):
+    """Prepare one Gmail draft and expiring send proposal; cron never sends."""
+    key = (hashlib.sha256(f"automation-draft:{run_id}".encode()).hexdigest()[:48]
+           if run_id is not None else None)
+    if key and connectors.approval_for_key(user_id, key):
+        return "Draf Gmail untuk jadwal ini sudah disiapkan. Periksa Gmail atau Agent Chat."
+    rows = google_tools.gmail_search(user_id, args.get("query"))
+    if not rows:
+        return "Tidak ada email yang cocok untuk disiapkan balasannya."
+    latest = rows[0]
+    thread_id = google_tools._id(latest.get("thread_id"))
+    thread = google_tools.gmail_thread(user_id, thread_id)
+    account = (connectors.google_connection(user_id) or {}).get("display_identity", "").casefold()
+    external = [row for row in thread if parseaddr(row.get("from") or "")[1].casefold() not in ("", account)]
+    if not external:
+        return "Email ditemukan, tetapi penerima balasan belum jelas. Tidak ada draf dibuat."
+    source = external[-1]
+    recipient = parseaddr(source["from"])[1]
+    context = [{"role": "assistant", "content": json.dumps({
+        "verified_recipient": recipient, "subject": latest.get("subject"), "thread_id": thread_id,
+        "recent_messages": [{"from": row.get("from"), "snippet": row.get("snippet")}
+                            for row in thread[-6:]]}, ensure_ascii=False)}]
+    draft = connector_planner.propose(user_id, instruction, context, ["gmail.draft"], [],
+                                      timezone_name, prepare_only=True)
+    if draft["tool"] != "gmail.draft" or draft["intent"] != "PREPARE":
+        raise connectors.ConnectorError("scheduled_draft_unavailable")
+    proposal = draft["arguments"]
+    if str(proposal.get("to") or "").casefold() != recipient.casefold():
+        raise connectors.ConnectorError("recipient_not_in_thread")
+    original_subject = str(latest.get("subject") or "").strip()
+    subject = (original_subject if original_subject.casefold().startswith("re:") else
+               "Re: " + original_subject) if original_subject else str(proposal.get("subject") or "").strip()
+    body = str(proposal.get("body") or "").strip()
+    google_tools._raw_email(recipient, subject, body)
+    payload = {"to": recipient, "subject": subject, "body": body, "thread_id": thread_id}
+    if source.get("message_id"):
+        payload["reply_to"] = source["message_id"]
+        payload["references"] = (str(source.get("references") or "").strip() + " " +
+                                 source["message_id"]).strip()[:1000]
+    draft = google_tools.gmail_create_draft(user_id, recipient, subject, body, thread_id,
+                                            payload.get("reply_to"), payload.get("references"))
+    payload["draft_id"] = draft["draft_id"]
+    connectors.propose_action(user_id, "gmail.send", recipient, payload, ttl_minutes=1440,
+                              idempotency_key=key)
+    return (f"Draf balasan untuk {recipient} siap diperiksa di Agent Chat. "
+            "Email belum dikirim; kamu perlu menyetujui tindakan ini secara terpisah.")
+
+
 def _read(user_id, tool, args, business_id):
     if tool == "gmail.search":
         rows = google_tools.gmail_search(user_id, args.get("query"))
         if len(rows) == 1 and rows[0].get("thread_id"):
             thread = google_tools.gmail_thread(user_id, rows[0]["thread_id"])
-            return (f"Thread: {rows[0]['thread_id']}\n" +
+            return (f"Subjek: {rows[0].get('subject') or '(tanpa subjek)'}\n"
+                    f"Thread: {rows[0]['thread_id']}\n" +
                     "\n".join(f"• {row['from']} — {row['date']}\n  {row['snippet']}" for row in thread[-6:]))
         return "\n".join(f"• {row['subject'] or '(tanpa subjek)'} — {row['from']} — {row['date']}\n  {row['snippet']}\n  Thread: {row['thread_id']}" for row in rows) or "Tidak ada email yang cocok."
     if tool == "gmail.thread":
@@ -112,9 +172,18 @@ def _proposal(user_id, tool, args, business_id):
             matches = [row for row in thread if parseaddr(row.get("from") or "")[1].casefold() == to.casefold()]
             if not matches:
                 raise connectors.ConnectorError("recipient_not_in_thread")
+            original_subject = str(matches[-1].get("subject") or "").strip()
+            if original_subject and re.sub(r"(?i)^(?:re:\s*)+", "", subject).casefold() != re.sub(
+                    r"(?i)^(?:re:\s*)+", "", original_subject).casefold():
+                raise connectors.ConnectorError("subject_not_in_thread")
             payload["thread_id"] = thread_id
             if matches[-1].get("message_id"):
                 payload["reply_to"] = matches[-1]["message_id"]
+                payload["references"] = (str(matches[-1].get("references") or "").strip() + " " +
+                                         matches[-1]["message_id"]).strip()[:1000]
+        draft = google_tools.gmail_create_draft(user_id, to, subject, body,
+                    payload.get("thread_id"), payload.get("reply_to"), payload.get("references"))
+        payload["draft_id"] = draft["draft_id"]
         return connectors.propose_action(user_id, tool, to, payload)
     if tool in ("calendar.create", "calendar.update", "calendar.delete"):
         target = str(args.get("event_id") or "primary") if tool != "calendar.create" else "primary"

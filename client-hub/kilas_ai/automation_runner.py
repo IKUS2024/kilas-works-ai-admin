@@ -87,9 +87,10 @@ def execute(run_id):
     from . import connector_flow, connectors
     if json.loads(item["condition_json"] or "{}").get("connector_read") is True:
         try:
-            text = connector_flow.scheduled_read(user_id, instruction, item["timezone"])
+            text = connector_flow.scheduled_read(user_id, instruction, item["timezone"], run_id=run_id)
             store.finish_run(run_id, status="SUCCEEDED", text=text[:12000],
-                             usage_metadata={"operation": "CONNECTOR_READ"})
+                             usage_metadata={"operation": "CONNECTOR_PREPARE" if connector_flow.DRAFT_WORDS.search(instruction)
+                                             else "CONNECTOR_READ"})
             return True
         except (connectors.ConnectorError, connector_flow.connector_planner.InterpretationError):
             store.finish_run(run_id, status="FAILED", error="connector_unavailable")

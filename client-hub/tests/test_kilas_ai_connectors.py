@@ -17,7 +17,7 @@ from cryptography.fernet import Fernet  # noqa: E402
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import connector_actions, connector_flow, connectors, google_connection, automation_schedule  # noqa: E402
+from kilas_ai import agent_planner, connector_actions, connector_flow, connectors, google_connection, automation_schedule  # noqa: E402
 
 
 class Response:
@@ -161,7 +161,9 @@ class ConnectorTests(unittest.TestCase):
             (self.owner, '["https://www.googleapis.com/auth/gmail.readonly",'
              '"https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
         thread = [{"from": "Wilson <wilson@example.test>", "message_id": "<verified@example.test>"}]
-        with patch.object(connector_flow.google_tools, "gmail_thread", return_value=thread):
+        with patch.object(connector_flow.google_tools, "gmail_thread", return_value=thread), \
+             patch.object(connector_flow.google_tools, "gmail_create_draft", return_value={
+                 "draft_id": "synthetic-draft", "raw_hash": "a" * 64}):
             with self.assertRaisesRegex(connectors.ConnectorError, "recipient_not_in_thread"):
                 connector_flow._proposal(self.owner, "gmail.send", {
                     "to": "stranger@example.test", "subject": "Re: Jadwal", "body": "Besok jam 2 bisa.",
@@ -171,6 +173,7 @@ class ConnectorTests(unittest.TestCase):
                 "thread_id": "thread-1", "reply_to": "<forged@example.test>"}, None)
         payload = __import__("json").loads(connectors.approval(self.owner, approval_id)["payload_json"])
         self.assertEqual(payload["reply_to"], "<verified@example.test>")
+        self.assertEqual(payload["draft_id"], "synthetic-draft")
 
     def test_edit_cancels_old_approval_and_preserves_target_context(self):
         stamp = connectors.stamp()
@@ -190,6 +193,68 @@ class ConnectorTests(unittest.TestCase):
         self.assertIn("Besok jam 2 bisa.", page.text)
         with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
             connectors.claim_action(self.owner, approval_id)
+
+    def test_scheduled_gmail_draft_requires_a_later_send_approval(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,display_identity,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','owner@example.test','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.readonly",'
+             '"https://www.googleapis.com/auth/gmail.compose",'
+             '"https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+        plans = [
+            {"tool": "gmail.search", "intent": "READ", "business_id": 0,
+             "arguments": {"query": "is:important newer_than:1d"}},
+            {"tool": "gmail.draft", "intent": "PREPARE", "business_id": 0,
+             "arguments": {"to": "wilson@example.test", "subject": "Re: Jadwal",
+                           "body": "Besok jam 2 bisa."}},
+        ]
+        with patch.object(connector_flow.connector_planner, "propose", side_effect=plans * 2), \
+             patch.object(connector_flow.google_tools, "gmail_search", return_value=[{
+                 "thread_id": "thread-1", "subject": "Jadwal"}]), \
+             patch.object(connector_flow.google_tools, "gmail_thread", return_value=[{
+                 "from": "Wilson <wilson@example.test>", "snippet": "Bisa besok jam 2?",
+                 "message_id": "<verified@example.test>"}]), \
+             patch.object(connector_flow.google_tools, "gmail_create_draft", return_value={
+                 "draft_id": "synthetic-draft", "raw_hash": "a" * 64}) as prepared, \
+             patch.object(connector_actions.google_tools, "gmail_send") as sent:
+            for _ in range(2):
+                result = connector_flow.scheduled_read(self.owner,
+                    "setiap pagi cek email penting dan siapkan draf balasan", "Asia/Jakarta", run_id=77)
+        self.assertIn("belum dikirim", result)
+        sent.assert_not_called()
+        prepared.assert_called_once()
+        row = db.query_one("SELECT * FROM kilas_ai_action_approvals WHERE user_id=? ORDER BY id DESC LIMIT 1",
+                           (self.owner,))
+        self.assertEqual(row["status"], "PENDING")
+        self.assertEqual(row["tool"], "gmail.send")
+        self.assertIn("wilson@example.test", row["payload_json"])
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_action_approvals "
+                         "WHERE user_id=?", (self.owner,))["n"], 1)
+
+    def test_edited_gmail_draft_cannot_be_sent_under_old_approval(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.compose",'
+             '"https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+        changed = connector_actions.google_tools._raw_email(
+            "stranger@example.test", "Re: Jadwal", "Besok jam 2 bisa.")
+        with patch.object(connector_actions.google_tools, "_request", return_value={
+                "id": "draft-1", "message": {"raw": changed}}) as api:
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_payload_changed"):
+                connector_actions.google_tools.gmail_send_draft(self.owner, "draft-1", {
+                    "to": "wilson@example.test", "subject": "Re: Jadwal", "body": "Besok jam 2 bisa."})
+            api.assert_called_once()
+        original = connector_actions.google_tools._raw_email(
+            "wilson@example.test", "Re: Jadwal", "Besok jam 2 bisa.")
+        with patch.object(connector_actions.google_tools, "_request", side_effect=[
+                {"id": "draft-1", "message": {"raw": original}}, {"id": "sent-1"}]) as api:
+            result = connector_actions.google_tools.gmail_send_draft(self.owner, "draft-1", {
+                "to": "wilson@example.test", "subject": "Re: Jadwal", "body": "Besok jam 2 bisa."})
+            self.assertEqual(result["id"], "sent-1")
+            self.assertEqual(api.call_count, 2)
 
     def test_approval_payload_tamper_and_cross_business_are_rejected(self):
         business_a = repo.create_business(self.owner, "Connector A")
@@ -238,6 +303,11 @@ class ConnectorTests(unittest.TestCase):
             "Asia/Singapore")
         with self.assertRaises(automation_schedule.ScheduleError):
             automation_schedule.parse("kemarin jam 8 cari berita", "Asia/Jakarta", now=near_midnight)
+
+    def test_multilingual_connector_intent_examples(self):
+        self.assertEqual(agent_planner.required_connection("每周一早上帮我总结重要邮件"), "Gmail")
+        self.assertEqual(agent_planner.required_connection("revisar mi correo"), "Gmail")
+        self.assertEqual(agent_planner.required_connection("cek jadwal Jumat"), "Google Calendar")
 
 
 if __name__ == "__main__":

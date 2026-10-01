@@ -7,6 +7,7 @@ the source of truth and no row here can turn either one on.
 import hashlib
 import json
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -144,22 +145,36 @@ def _canonical(payload):
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def propose_action(user_id, tool, target, payload, *, business_id=None):
+def propose_action(user_id, tool, target, payload, *, business_id=None, ttl_minutes=15,
+                   idempotency_key=None):
     gate = authorize(user_id, tool, business_id=business_id)
     if gate["permission"] != "ACTION":
         raise ConnectorError("approval_not_required")
     target = str(target or "").strip()
     if not 1 <= len(target) <= 500:
         raise ConnectorError("invalid_target")
+    if type(ttl_minutes) is not int or not 1 <= ttl_minutes <= 1440:
+        raise ConnectorError("invalid_approval_expiry")
     canonical = _canonical(payload)
     digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-    key = secrets.token_hex(24)
+    if idempotency_key is not None and (not isinstance(idempotency_key, str) or
+                                        not re.fullmatch(r"[a-f0-9]{48}", idempotency_key)):
+        raise ConnectorError("invalid_idempotency_key")
+    key = idempotency_key or secrets.token_hex(24)
+    if idempotency_key:
+        prior = db.query_one("SELECT id,user_id,business_id,tool,target,payload_hash FROM kilas_ai_action_approvals "
+                             "WHERE idempotency_key=?", (key,))
+        if prior:
+            if (prior["user_id"], prior["business_id"], prior["tool"], prior["target"], prior["payload_hash"]) != (
+                    user_id, business_id, tool, target, digest):
+                raise ConnectorError("approval_idempotency_conflict")
+            return prior["id"]
     t = now()
     approval_id = db.insert_returning_id("INSERT INTO kilas_ai_action_approvals "
         "(user_id,business_id,connection_id,tool,target,payload_json,payload_hash,status,idempotency_key,expires_at,created_at,updated_at) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (user_id, business_id, gate["connection_id"], tool, target, canonical, digest,
-         "PENDING", key, stamp(t + timedelta(minutes=15)), stamp(t), stamp(t)))
+         "PENDING", key, stamp(t + timedelta(minutes=ttl_minutes)), stamp(t), stamp(t)))
     db.execute("INSERT INTO kilas_ai_action_audit(approval_id,user_id,event,created_at) VALUES (?,?,?,?)",
                (approval_id, user_id, "PROPOSED", stamp(t)))
     return approval_id
@@ -168,6 +183,11 @@ def propose_action(user_id, tool, target, payload, *, business_id=None):
 def approval(user_id, approval_id):
     return _row(db.query_one("SELECT * FROM kilas_ai_action_approvals WHERE id=? AND user_id=?",
                              (approval_id, user_id)))
+
+
+def approval_for_key(user_id, key):
+    return _row(db.query_one("SELECT * FROM kilas_ai_action_approvals "
+                             "WHERE user_id=? AND idempotency_key=?", (user_id, key)))
 
 
 def claim_action(user_id, approval_id):

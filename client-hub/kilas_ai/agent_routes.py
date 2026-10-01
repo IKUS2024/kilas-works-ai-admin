@@ -111,7 +111,7 @@ def agent_chat():
     session.pop("automation_preview", None)
     session.pop("automation_preview_origin", None)
     session.pop("agent_pending_action", None)
-    connection = (None if re.search(r"\b(?:pause|jeda|resume|lanjutkan|aktifkan)\b", text, re.I)
+    connection = (None if re.search(r"\b(?:pause|jeda|resume|lanjutkan|aktifkan|ingatkan|remind|recuérdame)\b|提醒", text, re.I)
                   else agent_planner.required_connection(text))
     connector_context = session.get("agent_connector_context")
     if connector_context and (int(time.time()) - int(session.get("agent_connector_context_at", 0)) > 600
@@ -130,7 +130,7 @@ def agent_chat():
             _reply(f"Kilas butuh akses {connection}. Koneksi belum terhubung atau belum memberi izin yang diperlukan. "
                    "Permintaanmu disimpan untuk dilanjutkan setelah koneksi tersedia.")
             return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
-        connector_schedule = (re.search(r"\b(?:setiap|tiap|every)\b", text, re.I) or
+        connector_schedule = (re.search(r"\b(?:setiap|tiap|every|cada)\b|每周|每天|每月", text, re.I) or
             (connector_flow.SCHEDULE_WORDS.match(text) and
              re.search(r"\b(?:cek|periksa|check|cari|search|pantau|monitor|rangkum|summarize)\b", text, re.I)))
         if connection and connector_schedule:
@@ -141,7 +141,19 @@ def agent_chat():
                 _reply("Siap. Tugas ini hanya membaca akses yang tersedia dan menyimpan hasil di Aktivitas. "
                        "Periksa jadwal sebelum mengaktifkan.")
             except schedule.ScheduleError:
-                _reply("Jam atau tanggalnya belum cukup jelas. Sebutkan waktu yang kamu inginkan.")
+                try:
+                    normalized = agent_planner.propose(owner, text, history, tasks, store.setting(owner))
+                    if normalized["action"] != "CREATE":
+                        _reply(normalized["reply"].strip()[:1200] or "Kapan tugas ini perlu dijalankan?")
+                    else:
+                        spec = schedule.parse(normalized["schedule_text"][:1200], store.setting(owner))
+                        spec["instruction"] = text
+                        spec["title"] = text[:90]
+                        spec["condition"]["connector_read"] = True
+                        _preview(None, spec)
+                        _reply("Siap. Periksa jadwal dan batas izin sebelum tugas diaktifkan.")
+                except (agent_planner.PlanUnavailable, schedule.ScheduleError, ValueError):
+                    _reply("Jam atau tanggalnya belum cukup jelas. Sebutkan waktu yang kamu inginkan.")
             return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)
         try:
             result = connector_flow.handle(owner, text, history, store.setting(owner))

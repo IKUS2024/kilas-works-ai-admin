@@ -7,8 +7,10 @@ def execute(user_id, approval_id):
     tool, body = proposal["tool"], proposal["payload"]
     try:
         if tool == "gmail.send":
-            result = google_tools.gmail_send(user_id, body["to"], body["subject"], body["body"],
-                                             body.get("thread_id"), body.get("reply_to"))
+            result = (google_tools.gmail_send_draft(user_id, body["draft_id"], body)
+                      if body.get("draft_id") else
+                      google_tools.gmail_send(user_id, body["to"], body["subject"], body["body"],
+                                              body.get("thread_id"), body.get("reply_to")))
         elif tool == "calendar.create":
             result = google_tools.calendar_create(user_id, body)
         elif tool == "calendar.update":
@@ -28,7 +30,8 @@ def execute(user_id, approval_id):
         # terminal: the owner must inspect provider state before making a fresh proposal.
         code = str(error)[:80]
         definite = code in ("invalid_target", "invalid_message", "invalid_event", "invalid_recipient",
-                            "invalid_header", "branch_required", "not_connected", "permission_missing")
+                            "invalid_header", "branch_required", "not_connected", "permission_missing",
+                            "provider_rejected", "rate_limited", "approval_payload_changed")
         connectors.finish_action(user_id, approval_id, "FAILED" if definite else "UNKNOWN", error_code=code)
         raise
     except Exception:

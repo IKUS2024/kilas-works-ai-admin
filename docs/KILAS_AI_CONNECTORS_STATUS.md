@@ -5,16 +5,16 @@ Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) 
 ## Implemented in the branch
 
 - Account-owned Google OAuth with hashed, single-use state, encrypted refresh credentials, scope checks, reconnect and local disconnect/revoke.
-- Gmail read/search/thread and owner-approved send proposal; Calendar read/free-busy/create/update/delete; Drive and Contacts read-only tools. Google API calls use fixed hosts and bounded responses.
+- Gmail read/search/thread, a real Gmail draft, and a separately owner-approved send of that exact draft; Calendar read/free-busy/create/update/delete; Drive and Contacts read-only tools. A changed Gmail draft cannot be sent under the old approval. Google API calls use fixed hosts and bounded responses.
 - Existing business-scoped WhatsApp adapter and existing Finance service adapter. Neither modifies the underlying Assist routing or Finance ledger logic.
 - Server-side connector authorization and exact-payload, expiring, single-use approvals with an audit trail. Unknown remote outcomes are terminal rather than automatically retried.
-- Agent Connections and approval UI, incremental schedule parsing, and explicit marker for scheduled connector reads so older Automation tasks retain their prior path.
+- Agent Connections and approval UI, incremental schedule parsing, and explicit marker for scheduled connector reads/one Gmail draft proposal per run so older Automation tasks retain their prior path. Cron never sends.
 - Focused SQLite, PostgreSQL and Chromium QA in `.github/workflows/kilas-ai-connectors-qa.yml`.
 
 ## Release gates
 
 - Focused connector, existing Agent, existing Automation, PostgreSQL migration and 1440/820/390/320px browser checks: latest completed branch run passed at commit `6416b34`; latest changes are pending rerun.
-- PR broad suites: Kilas AI Automation passed. Phase 10 and Master Completion reported failures in previously existing Assist/product-entry paths. The connector workflow now runs the exact failing checks against untouched `main` to verify the baseline before they can be classified as unrelated. No legacy tests have been edited.
+- PR broad suites: Kilas AI Automation passed. Phase 10 and Master Completion reported failures in previously existing Assist/product-entry paths. The connector workflow reproduced the same failing checks against untouched `main`; these are confirmed baseline failures, not connector regressions. No legacy tests have been edited.
 - No production database migration, deploy or provider authorization has occurred. Never describe an unconfigured Google connection as usable.
 
 ## Production setup required for Google
