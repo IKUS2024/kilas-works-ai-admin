@@ -456,6 +456,25 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(agent_planner.required_connection(
             "Check my availability tomorrow between 1 PM and 5 PM."), "Google Calendar")
 
+    def test_connector_quota_error_is_truthful_and_stops_before_provider(self):
+        from kilas_ai import connector_planner, usage
+        notice = "Kuota Kilas tambahan belum cukup. Tambah Kuota untuk melanjutkan fitur ini."
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-never-used"}), \
+             patch.object(usage, "reserve", side_effect=usage.UsageLimit(notice)), \
+             patch.object(connector_planner.requests, "post") as provider:
+            with self.assertRaises(usage.UsageLimit):
+                connector_planner.propose(self.owner, "Read Gmail", [], ["gmail.search"], [], "Asia/Jakarta")
+            provider.assert_not_called()
+        client = self.client_for(self.owner)
+        with patch.object(connectors, "available_tools", return_value=["gmail.search"]), \
+             patch.object(connector_flow, "handle", side_effect=usage.UsageLimit(notice)):
+            response = client.post("/kilas-ai/agent/chat", data={
+                "csrf_token": "connector-csrf", "message": "Find Google Verification Test in Gmail"})
+        self.assertEqual(response.status_code, 303)
+        page = client.get(response.location)
+        self.assertIn(notice, page.text)
+        self.assertNotIn("Periksa tujuan dan izin", page.text)
+
     def test_production_english_schedule_keeps_google_runner_and_explicit_zone(self):
         from datetime import datetime, timezone
         instruction = ('Every morning at 8 AM Asia/Jakarta, check only my emails with subject '
