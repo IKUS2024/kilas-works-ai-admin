@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
@@ -17,7 +18,7 @@ from cryptography.fernet import Fernet  # noqa: E402
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
-from kilas_ai import agent_planner, connector_actions, connector_flow, connectors, google_connection, automation_schedule  # noqa: E402
+from kilas_ai import agent_planner, connector_actions, connector_flow, connectors, google_connection, internal_tools, automation_schedule  # noqa: E402
 
 
 class Response:
@@ -218,10 +219,11 @@ class ConnectorTests(unittest.TestCase):
              patch.object(connector_flow.google_tools, "gmail_create_draft", return_value={
                  "draft_id": "synthetic-draft", "raw_hash": "a" * 64}) as prepared, \
              patch.object(connector_actions.google_tools, "gmail_send") as sent:
-            for _ in range(2):
-                result = connector_flow.scheduled_read(self.owner,
-                    "setiap pagi cek email penting dan siapkan draf balasan", "Asia/Jakarta", run_id=77)
-        self.assertIn("belum dikirim", result)
+            results = [connector_flow.scheduled_read(self.owner,
+                "setiap pagi cek email penting dan siapkan draf balasan", "Asia/Jakarta", run_id=77)
+                for _ in range(2)]
+        self.assertIn("belum dikirim", results[0])
+        self.assertIn("sudah disiapkan", results[1])
         sent.assert_not_called()
         prepared.assert_called_once()
         row = db.query_one("SELECT * FROM kilas_ai_action_approvals WHERE user_id=? ORDER BY id DESC LIMIT 1",
@@ -255,6 +257,89 @@ class ConnectorTests(unittest.TestCase):
                 "to": "wilson@example.test", "subject": "Re: Jadwal", "body": "Besok jam 2 bisa."})
             self.assertEqual(result["id"], "sent-1")
             self.assertEqual(api.call_count, 2)
+
+    def test_calendar_delete_uses_verified_event_and_single_approval(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/calendar.events.readonly",'
+             '"https://www.googleapis.com/auth/calendar.events"]', stamp, stamp))
+        with patch.object(connector_flow.google_tools, "calendar_get", return_value={
+                "id": "event-1", "summary": "Meeting Wilson"}) as read:
+            approval_id = connector_flow._proposal(self.owner, "calendar.delete",
+                                                    {"event_id": "event-1"}, None)
+            read.assert_called_once_with(self.owner, "event-1")
+        row = connectors.approval(self.owner, approval_id)
+        self.assertIn("Meeting Wilson", row["payload_json"])
+        with patch.object(connector_actions.google_tools, "calendar_delete", return_value={
+                "id": "event-1"}) as delete:
+            self.assertEqual(connector_actions.execute(self.owner, approval_id)["id"], "event-1")
+            with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
+                connector_actions.execute(self.owner, approval_id)
+            delete.assert_called_once()
+
+    def test_drive_and_contacts_are_read_only_and_account_scoped(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/drive.readonly",'
+             '"https://www.googleapis.com/auth/contacts.readonly"]', stamp, stamp))
+        self.assertIn("drive.search", connectors.available_tools(self.owner))
+        self.assertIn("contacts.search", connectors.available_tools(self.owner))
+        self.assertNotIn("drive.search", connectors.available_tools(self.other))
+        self.assertFalse(any(tool.startswith("drive.") and connectors.TOOLS[tool][1] != "READ"
+                             for tool in connectors.TOOLS))
+        with patch.object(connector_flow.google_tools, "drive_search", return_value=[{
+                "id": "file-1", "name": "Proposal Wilson", "mimeType": "text/plain"}]), \
+             patch.object(connector_flow.google_tools, "drive_read", return_value={
+                 "file": {"name": "Proposal Wilson"}, "content": "Verified proposal text"}):
+            self.assertIn("Verified proposal text", connector_flow._read(self.owner, "drive.search",
+                {"query": "Wilson", "read": True}, None))
+        with patch.object(connector_flow.google_tools, "contacts_search", return_value=[{
+                "name": "Wilson", "emails": ["wilson@example.test"], "phones": [], "organizations": []}]):
+            self.assertIn("wilson@example.test", connector_flow._read(self.owner, "contacts.search",
+                {"query": "Wilson"}, None))
+
+    def test_whatsapp_proposal_cannot_switch_business(self):
+        business_a = repo.create_business(self.owner, "WA A")
+        business_b = repo.create_business(self.owner, "WA B")
+        visible = [{"provider": "WHATSAPP", "business_id": business_a,
+                    "status": "CONNECTED", "display_identity": "WA A"}]
+        with patch.object(connectors, "business_connections", return_value=visible), \
+             patch.object(connector_flow.internal_tools, "whatsapp_thread", return_value={
+                 "customer_phone": "+62811111111", "messages": []}):
+            with self.assertRaisesRegex(connectors.ConnectorError, "not_connected"):
+                connector_flow._proposal(self.owner, "whatsapp.send", {
+                    "conversation_id": "conversation-1", "text": "Besok bisa."}, business_b)
+            approval_id = connector_flow._proposal(self.owner, "whatsapp.send", {
+                "conversation_id": "conversation-1", "text": "Besok bisa."}, business_a)
+        self.assertEqual(connectors.approval(self.owner, approval_id)["business_id"], business_a)
+
+    def test_finance_read_binds_business_and_branch_before_service_call(self):
+        business_a = repo.create_business(self.owner, "Finance A")
+        business_b = repo.create_business(self.owner, "Finance B")
+        scoped = []
+
+        @contextmanager
+        def scope(business_id, branch_id, actor_user_id):
+            scoped.append((business_id, branch_id, actor_user_id))
+            yield
+
+        visible = [{"provider": "FINANCE", "business_id": business_a,
+                    "status": "CONNECTED", "display_identity": "Finance A"}]
+        with patch.object(connectors, "business_connections", return_value=visible), \
+             patch.object(internal_tools.finance_branches, "scope", side_effect=scope), \
+             patch.object(internal_tools.finance_service, "get_account_balance_report", return_value=[{
+                 "id": 7, "name": "BCA", "currency": "IDR", "account_type": "BANK",
+                 "balance_minor": 125000, "branch_id": 9}]) as report:
+            result = internal_tools.finance_read(self.owner, business_a, "finance.accounts", branch_id=9)
+            self.assertEqual(result[0]["balance_minor"], 125000)
+            self.assertEqual(scoped, [(business_a, 9, self.owner)])
+            report.assert_called_once()
+            with self.assertRaisesRegex(connectors.ConnectorError, "not_connected"):
+                internal_tools.finance_read(self.owner, business_b, "finance.accounts", branch_id=9)
 
     def test_approval_payload_tamper_and_cross_business_are_rejected(self):
         business_a = repo.create_business(self.owner, "Connector A")

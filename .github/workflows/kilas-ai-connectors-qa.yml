@@ -115,3 +115,23 @@ jobs:
           cat /tmp/baseline-phase10.log
           test "$result" -ne 0
           grep -q 'Mulai Sekarang' /tmp/baseline-phase10.log
+      - name: Compare phase9 Finance entry regression on unmodified main
+        env:
+          PYTHONPATH: baseline/client-hub:baseline/client-hub/tests
+          KILAS_PHASE9_BROWSER_QA: '1'
+          KILAS_ASSIST_CUSTOMER_VISIBLE: 'true'
+        run: |
+          python baseline/client-hub/tests/kilas_workspace_dev.py >/tmp/baseline-phase9-server.log 2>&1 &
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8770/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          set +e
+          python baseline/client-hub/tests/kilas_workspace_browser_qa.py >/tmp/baseline-phase9.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/baseline-phase9.log
+          test "$result" -ne 0
+          grep -q 'Mulai Kilas Finance' /tmp/baseline-phase9.log

@@ -86,12 +86,12 @@ def propose(user_id, text, history, tasks, default_timezone="Asia/Jakarta"):
         "If task + date/time are already clear, return CREATE immediately; do not ask 'do you want me to create it?' "
         "because the separate preview/activation UI is the confirmation step. Preserve the prior task details when a "
         "short follow-up supplies only one missing detail such as 'WIB', 'jam 5', or 'besok'. "
-        "Until a real external connector is available, describe scheduled results as appearing in Kilas AI/Activity; "
-        "do not imply they will be sent by email, WhatsApp, or another external channel. "
+        "This planner cannot see connector permissions; connector routing validates real access separately. "
+        "Scheduled results appear in Kilas AI/Activity; never imply they were sent externally. "
         "Use HELP for general guidance. For CREATE/EDIT, schedule_text must contain the complete task "
         "and explicit schedule that the existing parser can verify. For EDIT, use an existing task ID. "
         "For PAUSE/RESUME use an existing task ID. Two runs per day in one task, automatic resume dates, "
-        "email sending, and external writes are not available; explain limits honestly. "
+        "autonomous email sending, and autonomous external writes are unavailable; explain limits honestly. "
         "Never expose JSON, models, tokens or provider details to the user."
     )
     previous = [{"role": row["role"], "content": str(row["content"])[:1000]}

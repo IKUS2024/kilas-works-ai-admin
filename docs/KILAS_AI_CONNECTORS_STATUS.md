@@ -13,8 +13,9 @@ Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) 
 
 ## Release gates
 
-- Focused connector, existing Agent, existing Automation, PostgreSQL migration and 1440/820/390/320px browser checks: latest completed branch run passed at commit `6416b34`; latest changes are pending rerun.
-- PR broad suites: Kilas AI Automation passed. Phase 10 and Master Completion reported failures in previously existing Assist/product-entry paths. The connector workflow reproduced the same failing checks against untouched `main`; these are confirmed baseline failures, not connector regressions. No legacy tests have been edited.
+- Focused connector, existing Agent, existing Automation, PostgreSQL migration and 1440/820/390/320px browser checks: branch runs through `b65efa2` passed. The next run at `254bd2b` exposed a scheduled-draft test assertion about retry wording; the assertion has been corrected and the new provider-draft flow is pending rerun.
+- Scoped Impeccable detector ran on the Agent template and CSS. It reported a flat-type warning only because it cannot resolve the Jinja stylesheet URL; the linked stylesheet defines explicit heading sizes. No whole-repository design fix was run.
+- PR broad suites: Kilas AI Automation passed. Phase 10 and Master Completion reported failures in previously existing Assist/product-entry paths. The connector workflow reproduced the same failing checks against untouched `main`; these are confirmed baseline failures, not connector regressions. Phase 9 reported a Finance entry heading mismatch and is being compared against untouched `main` as well. No legacy tests have been edited.
 - No production database migration, deploy or provider authorization has occurred. Never describe an unconfigured Google connection as usable.
 
 ## Production setup required for Google

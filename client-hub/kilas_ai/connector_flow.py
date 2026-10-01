@@ -86,8 +86,7 @@ def _scheduled_gmail_draft(user_id, instruction, args, timezone_name, run_id):
     payload = {"to": recipient, "subject": subject, "body": body, "thread_id": thread_id}
     if source.get("message_id"):
         payload["reply_to"] = source["message_id"]
-        payload["references"] = (str(source.get("references") or "").strip() + " " +
-                                 source["message_id"]).strip()[:1000]
+        payload["references"] = source["message_id"]
     draft = google_tools.gmail_create_draft(user_id, recipient, subject, body, thread_id,
                                             payload.get("reply_to"), payload.get("references"))
     payload["draft_id"] = draft["draft_id"]
@@ -179,8 +178,7 @@ def _proposal(user_id, tool, args, business_id):
             payload["thread_id"] = thread_id
             if matches[-1].get("message_id"):
                 payload["reply_to"] = matches[-1]["message_id"]
-                payload["references"] = (str(matches[-1].get("references") or "").strip() + " " +
-                                         matches[-1]["message_id"]).strip()[:1000]
+                payload["references"] = matches[-1]["message_id"]
         draft = google_tools.gmail_create_draft(user_id, to, subject, body,
                     payload.get("thread_id"), payload.get("reply_to"), payload.get("references"))
         payload["draft_id"] = draft["draft_id"]
