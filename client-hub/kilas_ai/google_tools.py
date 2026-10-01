@@ -2,6 +2,7 @@
 import base64
 import binascii
 import io
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -218,6 +219,8 @@ def _event_payload(payload):
         raise ProviderError("invalid_event")
     title = str(payload.get("summary") or "").strip()
     start, end = payload.get("start"), payload.get("end")
+    logging.getLogger(__name__).warning("Calendar proposal shape summary=%s start=%s end=%s nested_payload=%s",
+        bool(title), type(start).__name__, type(end).__name__, isinstance(payload.get("payload"), dict))
     # The planner historically emitted ISO strings; normalize representation
     # only, then apply the same offset/duration validation as native API objects.
     start = {"dateTime": start} if isinstance(start, str) else start

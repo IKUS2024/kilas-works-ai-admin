@@ -15,7 +15,7 @@ class PlanUnavailable(RuntimeError):
 
 CONNECTIONS = (
     (re.compile(r"\b(?:gmail|e-?mails?|inbox email|correo electrónico|correo)\b|邮件|邮箱|メール", re.I), "Gmail"),
-    (re.compile(r"\b(?:google calendar|kalender google|calendar|kalender|events?|jadwal|meeting|rapat|calendario)\b|日历|カレンダー", re.I), "Google Calendar"),
+    (re.compile(r"\b(?:google calendar|kalender google|calendar|kalender|events?|availability|free.?busy|jadwal|meeting|rapat|calendario)\b|日历|カレンダー", re.I), "Google Calendar"),
     (re.compile(r"\b(?:google drive|drive)\b|云端硬盘|ドライブ", re.I), "Google Drive"),
     (re.compile(r"\b(?:google contacts|contacts|kontak google|nomor telepon|contactos)\b|联系人|連絡先", re.I), "Google Contacts"),
     (re.compile(r"\b(?:whatsapp|wa)\b", re.I), "WhatsApp"),
