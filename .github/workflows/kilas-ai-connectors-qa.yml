@@ -1,0 +1,137 @@
+name: Kilas AI Connectors QA
+on:
+  push:
+    branches: [feature/kilas-ai-connectors-agent-20261001]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'client-hub/kilas_ai/connector*.py'
+      - 'client-hub/kilas_ai/google*.py'
+      - 'client-hub/kilas_ai/internal_tools.py'
+      - 'client-hub/kilas_ai/agent_*.py'
+      - 'client-hub/kilas_ai/automation_*.py'
+      - 'client-hub/migrations/0077_kilas_ai_connectors_*.sql'
+      - 'client-hub/tests/test_kilas_ai_connector*.py'
+      - 'client-hub/templates/kilas_ai/agent.html'
+      - 'client-hub/static/kilas_ai_agent.css'
+      - '.github/workflows/kilas-ai-connectors-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - run: cd client-hub && python tests/test_kilas_ai_connectors.py
+      - run: cd client-hub && python tests/test_kilas_ai_agent.py
+      - run: cd client-hub && python tests/test_kilas_ai_automation.py
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: kilas_connectors_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d kilas_connectors_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kilas_connectors_qa
+          KILAS_AI_POSTGRES_QA: '1'
+          SECRET_KEY: synthetic-kilas-connectors-schema-only
+        run: python client-hub/tests/test_kilas_ai_connector_postgres.py
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: cd client-hub && python tests/test_kilas_ai_agent_browser.py
+  baseline-regressions:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: baseline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r baseline/client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - name: Compare Assist regressions on unmodified main
+        run: |
+          set +e
+          python baseline/client-hub/tests/test_assist_billing.py >/tmp/baseline-billing.log 2>&1
+          billing=$?
+          python baseline/client-hub/tests/test_assist_continuous_training.py >/tmp/baseline-training.log 2>&1
+          training=$?
+          set -e
+          cat /tmp/baseline-billing.log
+          cat /tmp/baseline-training.log
+          test "$billing" -ne 0
+          test "$training" -ne 0
+          grep -q '302 != 200' /tmp/baseline-billing.log
+          grep -q 'None !=' /tmp/baseline-training.log
+      - name: Compare phase10 browser regression on unmodified main
+        env:
+          PYTHONPATH: baseline/client-hub:baseline/client-hub/tests
+          KILAS_PHASE10_BROWSER_QA: '1'
+          KILAS_ASSIST_CUSTOMER_VISIBLE: 'true'
+        run: |
+          python baseline/client-hub/tests/phase10_release_dev.py >/tmp/baseline-phase10-server.log 2>&1 &
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8771/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          set +e
+          python baseline/client-hub/tests/phase10_release_browser_qa.py >/tmp/baseline-phase10.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/baseline-phase10.log
+          test "$result" -ne 0
+          grep -q 'Mulai Sekarang' /tmp/baseline-phase10.log
+      - name: Compare phase9 Finance entry regression on unmodified main
+        env:
+          PYTHONPATH: baseline/client-hub:baseline/client-hub/tests
+          KILAS_PHASE9_BROWSER_QA: '1'
+          KILAS_ASSIST_CUSTOMER_VISIBLE: 'true'
+        run: |
+          python baseline/client-hub/tests/kilas_workspace_dev.py >/tmp/baseline-phase9-server.log 2>&1 &
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8770/dev/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1"
+          set +e
+          python baseline/client-hub/tests/kilas_workspace_browser_qa.py >/tmp/baseline-phase9.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/baseline-phase9.log
+          test "$result" -ne 0
+          grep -q 'Mulai Kilas Finance' /tmp/baseline-phase9.log

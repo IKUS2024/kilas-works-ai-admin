@@ -84,6 +84,17 @@ def execute(run_id):
     if kind == "REMINDER":
         store.finish_run(run_id, status="SUCCEEDED", text="Pengingat: " + instruction)
         return True
+    from . import connector_flow, connectors
+    if json.loads(item["condition_json"] or "{}").get("connector_read") is True:
+        try:
+            text = connector_flow.scheduled_read(user_id, instruction, item["timezone"], run_id=run_id)
+            store.finish_run(run_id, status="SUCCEEDED", text=text[:12000],
+                             usage_metadata={"operation": "CONNECTOR_PREPARE" if connector_flow.DRAFT_WORDS.search(instruction)
+                                             else "CONNECTOR_READ"})
+            return True
+        except (connectors.ConnectorError, connector_flow.connector_planner.InterpretationError):
+            store.finish_run(run_id, status="FAILED", error="connector_unavailable")
+            return False
     plan = usage.effective_plan(user_id)["plan"]
     reservations, results = [], {}
     try:

@@ -31,7 +31,8 @@ ZONE_ALIASES = {"new york": "America/New_York", "los angeles": "America/Los_Ange
                 "singapore": "Asia/Singapore", "bangkok": "Asia/Bangkok", "tokyo": "Asia/Tokyo", "london": "Europe/London"}
 ZONE_SHORT_ALIASES = {"wib": "Asia/Jakarta", "wita": "Asia/Makassar", "wit": "Asia/Jayapura",
                       "ict": "Asia/Bangkok"}
-TIME = re.compile(r"\b(?:jam\s*|at\s+)(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam|am|pm)?\b", re.I)
+TIME = re.compile(r"\b(?:(?:jam|at)\s+)?(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam|am|pm)\b|\b(?:jam|at)\s+(\d{1,2})(?:[:.](\d{2}))?\b|\b(\d{1,2}):(\d{2})\b", re.I)
+HALF = re.compile(r"\bjam\s+setengah\s+(\d{1,2})\b", re.I)
 FORBIDDEN = re.compile(r"\b(?:login|log in|masuk ke akun|klik|click|isi formulir|fill (?:a |the )?form|"
                        r"beli|purchase|checkout|bayar lewat|send email|kirim email|send whatsapp|"
                        r"kirim whatsapp|submit|unggah ke situs|upload to)\b", re.I)
@@ -129,14 +130,31 @@ def timezone_from_instruction(text, default):
 
 
 def _clock(text):
+    half = HALF.search(text)
+    if half:
+        hour = int(half.group(1)) - 1
+        if hour < 0 or hour > 23:
+            raise ScheduleError("Jam tidak valid.")
+        if re.search(r"\b(?:sore|malam|pm)\b", text[half.end():half.end()+10], re.I) and hour < 12:
+            hour += 12
+        return hour, 30
     match = TIME.search(text)
     if not match:
+        for period, default_hour in (("pagi", 8), ("morning", 8), ("siang", 12),
+                                     ("afternoon", 13), ("sore", 17), ("evening", 18),
+                                     ("malam", 20), ("night", 20), ("tonight", 20)):
+            if re.search(r"\b" + period + r"\b", text, re.I):
+                return default_hour, 0
         raise ScheduleError("Sebutkan jam yang jelas, misalnya 'jam 8 pagi'.")
-    hour, minute = int(match.group(1)), int(match.group(2) or 0)
+    hour, minute = int(match.group(1) or match.group(4) or match.group(6)), int(match.group(2) or match.group(5) or match.group(7) or 0)
     part = (match.group(3) or "").lower()
-    if part in ("pm", "siang", "sore", "malam") and hour < 12:
+    if not part:
+        nearby = text[max(0, match.start() - 18):min(len(text), match.end() + 18)]
+        context_period = re.search(r"\b(?:pagi|morning|siang|afternoon|sore|evening|malam|night|tonight)\b", nearby, re.I)
+        part = context_period.group(0).lower() if context_period else ""
+    if part in ("pm", "siang", "afternoon", "sore", "evening", "malam", "night", "tonight") and hour < 12:
         hour += 12
-    if part in ("am", "pagi") and hour == 12:
+    if part in ("am", "pagi", "morning") and hour == 12:
         hour = 0
     if hour > 23 or minute > 59:
         raise ScheduleError("Jam tidak valid.")
@@ -153,8 +171,10 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
     kind, condition = _task_kind_and_condition(text)
     interval = re.search(r"\b(?:setiap|tiap|every)\s+(\d{1,3})\s+(?:jam|hours?)\b", value)
     weekly = re.search(r"\b(?:setiap|tiap|every)\s+(?:hari\s+)?(" + "|".join(re.escape(day) for day in WEEKDAYS) + r")\b", value)
+    next_weekday = re.search(r"\b(?:hari\s+)?(" + "|".join(re.escape(day) for day in WEEKDAYS) + r")\s+(?:ini|depan)\b|\bnext\s+(" + "|".join(re.escape(day) for day in WEEKDAYS) + r")\b", value)
     monthly = re.search(r"\b(?:setiap|tiap|every)\s+(?:tanggal|tgl|date)\s+(\d{1,2})\b", value)
     daily = re.search(r"\b(?:setiap|tiap|every)\s+(?:hari|pagi|siang|sore|malam|day|morning|evening|night)\b", value)
+    weekdays = re.search(r"\b(?:senin\s+sampai\s+jumat|monday\s+(?:to|through)\s+friday|weekdays?)\b", value)
     if interval:
         hours = int(interval.group(1))
         if hours < 1 or hours > 720:
@@ -166,12 +186,36 @@ def parse(instruction, default_timezone="Asia/Jakarta", now=None):
             raise ScheduleError("Tanggal bulanan tidak valid.")
         hour, minute = _clock(value)
         schedule = {"kind": "monthly", "day": day, "hour": hour, "minute": minute}
+    elif weekdays:
+        hour, minute = _clock(value)
+        schedule = {"kind": "weekdays", "hour": hour, "minute": minute}
     elif weekly:
         hour, minute = _clock(value)
         schedule = {"kind": "weekly", "weekday": WEEKDAYS[weekly.group(1)], "hour": hour, "minute": minute}
     elif daily:
         hour, minute = _clock(value)
         schedule = {"kind": "daily", "hour": hour, "minute": minute}
+    elif next_weekday:
+        hour, minute = _clock(value)
+        weekday = WEEKDAYS[next_weekday.group(1) or next_weekday.group(2)]
+        gap = (weekday - local_now.weekday()) % 7
+        if "depan" in next_weekday.group(0) or "next" in next_weekday.group(0):
+            gap = gap or 7
+        day = local_now.date() + timedelta(days=gap)
+        if gap == 0 and datetime(day.year, day.month, day.day, hour, minute, tzinfo=ZoneInfo(zone)) <= local_now:
+            day += timedelta(days=7)
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
+    elif re.search(r"\b(?:minggu depan|next week)\b", value):
+        hour, minute = _clock(value)
+        day = local_now.date() + timedelta(days=7 - local_now.weekday())
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
+    elif re.search(r"\b(?:malam ini|tonight)\b", value):
+        hour, minute = _clock(value)
+        day = local_now.date()
+        schedule = {"kind": "once", "year": day.year, "month": day.month, "day": day.day,
+                    "hour": hour, "minute": minute}
     elif re.search(r"\b(?:hari ini|today)\b", value):
         hour, minute = _clock(value)
         day = local_now.date()
@@ -242,11 +286,13 @@ def next_occurrence(schedule, timezone_name, after):
         except (ValueError, KeyError, TypeError):
             return None
         return _valid_local(naive, zone, after)
-    if kind not in ("daily", "weekly", "monthly"):
+    if kind not in ("daily", "weekly", "monthly", "weekdays"):
         raise ScheduleError("Jadwal tidak dikenal.")
     for offset in range(370):
         day = local.date() + timedelta(days=offset)
         if kind == "weekly" and day.weekday() != schedule["weekday"]:
+            continue
+        if kind == "weekdays" and day.weekday() >= 5:
             continue
         if kind == "monthly" and (schedule["day"] > calendar.monthrange(day.year, day.month)[1]
                                   or day.day != schedule["day"]):
@@ -274,6 +320,8 @@ def describe(schedule, zone):
         text = "Setiap hari · " + clock
     elif kind == "weekly":
         text = "Setiap " + ("Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu")[schedule["weekday"]] + " · " + clock
+    elif kind == "weekdays":
+        text = "Senin–Jumat · " + clock
     elif kind == "monthly":
         text = f"Setiap tanggal {schedule['day']} · {clock}"
     else:

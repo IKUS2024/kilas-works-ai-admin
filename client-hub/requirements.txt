@@ -2,6 +2,7 @@
 # Kept intentionally minimal and separate from ../requirements.txt (the production bot's deps).
 flask>=3.1
 requests
+cryptography>=43,<47
 pypdf
 pikepdf>=10.13.0.post1,<11  # QPDF recovery wheels; isolated bounded PDF worker only
 Pillow

@@ -152,6 +152,11 @@ def create_app():
             applied = automation_schema.apply_release()
             print('Kilas AI Automation additive schema: OK; applied=' + str(len(applied)))
 
+        if os.environ.get('KILAS_AI_CONNECTOR_SCHEMA_APPLY','').strip().lower() == 'true':
+            from kilas_ai import connector_schema
+            applied = connector_schema.apply_release()
+            print('Kilas AI connector additive schema: OK; applied=' + str(len(applied)))
+
         import ai_usage
         ai_usage.startup_schema_check()
 
@@ -224,6 +229,7 @@ def create_app():
     from kilas_ai.routes import ai_bp, enabled as kilas_ai_enabled
     from kilas_ai import automation_routes  # Registers Automation on the existing Kilas AI blueprint.
     from kilas_ai import agent_routes  # Agent UI reuses the existing Automation engine.
+    from kilas_ai import connector_routes  # Owner-only OAuth and exact-payload approval routes.
     from kilas_ai.billing_routes import admin_bp as kilas_ai_admin_bp
     app.register_blueprint(ai_bp)
     app.register_blueprint(kilas_ai_admin_bp)
