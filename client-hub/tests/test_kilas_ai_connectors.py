@@ -175,6 +175,14 @@ class ConnectorTests(unittest.TestCase):
         with self.assertRaisesRegex(connectors.ConnectorError, "approval_already_used"):
             connector_actions.execute(self.owner, approval_id)
 
+    def test_draft_only_request_cannot_become_a_send_approval(self):
+        with patch.object(connector_flow.google_tools, "gmail_create_draft") as draft:
+            with self.assertRaisesRegex(connectors.ConnectorError, "google_tool_disabled"):
+                connector_flow._proposal(self.owner, "gmail.send", {
+                    "to": "test@example.test", "subject": "Draf", "body": "Belum kirim."},
+                    None, "Simpan draft email untuk test@example.test")
+            draft.assert_not_called()
+
     def test_broad_existing_grant_remains_connected_but_other_google_tools_are_disabled(self):
         stamp = connectors.stamp()
         scopes = ['https://www.googleapis.com/auth/' + item for item in
