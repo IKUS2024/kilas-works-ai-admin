@@ -456,6 +456,21 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(agent_planner.required_connection(
             "Check my availability tomorrow between 1 PM and 5 PM."), "Google Calendar")
 
+    def test_contacts_empty_warm_cache_is_retried_once_without_writes(self):
+        tools = connector_actions.google_tools
+        result = {"results": [{"person": {"names": [{"displayName": "Google Verification Test"}],
+                  "emailAddresses": [{"value": "qa@example.test"}]}}]}
+        with patch.object(tools, "_request", side_effect=[{}, {}, result]) as request, \
+             patch.object(tools.time, "sleep") as wait:
+            rows = tools.contacts_search(self.owner, "Google Verification Test")
+        self.assertEqual(rows[0]["emails"], ["qa@example.test"])
+        wait.assert_called_once_with(3)
+        self.assertEqual(request.call_count, 3)
+        self.assertEqual(request.call_args_list[0].kwargs["params"]["query"], "")
+        for call in request.call_args_list:
+            self.assertEqual(call.args[1:5], ("contacts.search", "people", "GET", "/people:searchContacts"))
+        self.assertEqual(request.call_args_list[1].kwargs, request.call_args_list[2].kwargs)
+
     def test_connector_quota_error_is_truthful_and_stops_before_provider(self):
         from kilas_ai import connector_planner, usage
         notice = "Kuota Kilas tambahan belum cukup. Tambah Kuota untuk melanjutkan fitur ini."
