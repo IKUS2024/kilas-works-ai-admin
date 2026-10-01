@@ -34,7 +34,7 @@ with sync_playwright() as p:
                     assert page.evaluate('''() => parseFloat(getComputedStyle(document.querySelector('#kw-main')).paddingBottom) >= document.querySelector('.kw-sidebar').getBoundingClientRect().height''')
             else:
                 expect(page.locator('.finance-app-sidebar')).to_be_visible()
-            assert page.locator('.product-switcher').count() == (1 if persona=='full' else 0)
+            assert page.locator('.product-switcher').count() == 0
         source,target=data['source'],data['target']
         for path,name in [('/workspace/more','more'),('/workspace/go/setup','onboarding'),
             (f'/workspace/go/customers?business_id={source}','customers'),
@@ -56,13 +56,11 @@ with sync_playwright() as p:
             visit(path,name)
         # Switch product from Finance without a routing dead end.
         visit(f'/workspace/go/finance?business_id={target}','finance-selector')
-        # Visible product switcher works in both directions at every viewport.
-        page.locator('.product-switcher summary').click()
-        page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Assist',exact=True).click()
+        # Legacy Assist deep links still work after retirement from normal product navigation.
+        page.goto(BASE+'/workspace/ai',wait_until='networkidle')
         expect(page.get_by_role('heading',name='Selamat datang,',exact=False)).to_be_visible()
         assert page.locator('.finance-app-sidebar').count()==0
-        page.locator('.product-switcher summary').click()
-        page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Finance',exact=True).click()
+        page.goto(BASE+f'/workspace/go/finance?business_id={target}',wait_until='networkidle')
         expect(page.locator('.finance-app-sidebar')).to_be_visible()
         assert f'/business/{target}/finance' in page.url
         assert page.locator('.kw-primary').count()==0
@@ -71,14 +69,14 @@ with sync_playwright() as p:
         page.keyboard.press('Control+Home'); page.reload();page.keyboard.press('Tab')
         expect(page.locator('.kw-skip')).to_be_focused()
         visit('/dev/persona/admin','admin')
-        platform_labels=['Overview','Businesses','WhatsApp','Subscriptions','AI Usage & Cost','Platform Finance','System']
-        platform_nav=page.get_by_role('navigation',name='Platform Admin',exact=True)
+        platform_labels=['Overview','Customers','Kilas AI','Kilas Finance','Payments','Usage & Cost','Settings']
+        platform_nav=page.get_by_role('navigation',name='Navigasi admin',exact=True)
         assert platform_nav.get_by_role('link').all_text_contents()==platform_labels
-        expect(page.get_by_role('heading',name='Kilas Works · Platform Admin',exact=True)).to_be_visible()
+        expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
         assert page.locator('.kw-operator-nav').count()==0
-        for section,label in zip(('overview','businesses','whatsapp','subscriptions','cost','finance','system'),platform_labels):
+        for section,label in zip(('overview','customers','kilas-ai','finance','payments','usage-cost','settings'),platform_labels):
             visit('/platform/'+section,'platform-'+section)
-            expect(page.get_by_role('navigation',name='Platform Admin',exact=True).locator('[aria-current]')).to_have_text(label)
+            expect(page.get_by_role('navigation',name='Navigasi admin',exact=True).locator('[aria-current]')).to_have_text(label)
             assert page.locator('.kw-operator-nav').count()==0
 
         visit('/admin/customers','admin-customers')
@@ -100,8 +98,8 @@ with sync_playwright() as p:
         expect(page.locator('.kw-operator-nav .kw-primary [aria-current]')).to_contain_text('Jobs')
 
         visit('/admin/?workspace=accounts','admin-accounts')
-        expect(page.get_by_role('heading',name='Kilas Works · Platform Admin',exact=True)).to_be_visible()
-        expect(page.get_by_role('navigation',name='Platform Admin',exact=True)).to_be_visible()
+        expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
+        expect(page.get_by_role('navigation',name='Navigasi admin',exact=True)).to_be_visible()
 
         visit('/admin/projects','admin-projects-legacy')
         expect(page.get_by_role('heading',name='Proyek',exact=True)).to_be_visible()
@@ -124,7 +122,7 @@ with sync_playwright() as p:
         expect(page.get_by_text('Anda sedang mengakses Studio Sore sebagai Kilas Admin',exact=True)).to_be_visible()
         assert context.request.get(BASE+f'/business/{data["ai"]}/assist-whatsapp').status==404
         page.get_by_role('button',name='Akhiri akses support',exact=True).click()
-        expect(page.get_by_role('heading',name='Kilas Works · Platform Admin',exact=True)).to_be_visible()
+        expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible()
         assert context.request.get(BASE+f'/business/{source}/assist-whatsapp').status==404
         assert not errors,errors
         context.close()
@@ -132,8 +130,7 @@ with sync_playwright() as p:
     journey=browser.new_context(viewport={'width':390,'height':844})
     page=journey.new_page()
     page.goto(BASE+'/dev/persona/new-ai',wait_until='networkidle')
-    page.get_by_role('link',name='Siapkan ruang kerja',exact=True).click()
-    page.get_by_role('button',name='Pilih Kilas Assist',exact=False).click()
+    page.goto(BASE+'/products/assist',wait_until='networkidle')
     page.get_by_label('Nama bisnis',exact=True).fill('Usaha Laras')
     page.get_by_role('button',name='Buat Bisnis & Setup Kilas Assist',exact=False).click()
     expect(page.get_by_text('Isi dasar bisnis sekali',exact=False)).to_be_visible()

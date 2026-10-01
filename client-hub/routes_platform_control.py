@@ -4,6 +4,7 @@ import db
 import repo
 import security
 import platform_control as control
+import platform_console as console
 import assist_connections as connections
 
 platform_bp=Blueprint('platform_control',__name__,url_prefix='/platform')
@@ -13,12 +14,34 @@ platform_bp=Blueprint('platform_control',__name__,url_prefix='/platform')
 @platform_bp.get('/<section>')
 @security.admin_required
 def page(section='overview'):
+    if section in dict(console.SECTIONS):
+        query=(request.args.get('q') or '').strip()[:100]
+        product=(request.args.get('product') or '').strip().lower()
+        status=(request.args.get('status') or '').strip().lower()
+        try: page_number=max(1,min(1000,int(request.args.get('page','1'))))
+        except ValueError: page_number=1
+        data=(console.overview() if section=='overview' else
+              console.customers(query,product or ('ai' if section=='kilas-ai' else ''),status,page_number) if section in ('customers','kilas-ai') else
+              console.finance_businesses(query,page_number) if section=='finance' else
+              console.payments() if section=='payments' else
+              console.usage_cost() if section=='usage-cost' else console.settings())
+        return render_template('platform_console.html',section=section,sections=console.SECTIONS,
+                               data=data,query=query,product=product,status=status)
     if section not in dict(control.SECTIONS): abort(404)
     rows=control.businesses() if section in ('overview','businesses','whatsapp','subscriptions') else []
     economics=control.economics() if section in ('overview','cost','finance') else None
     return render_template('platform_control.html',section=section,sections=control.SECTIONS,rows=rows,
         metrics=control.overview(rows) if section=='overview' else {},economics=economics,
         system=control.system() if section=='system' else {},plans=__import__('pricing_config').ASSIST_PLANS)
+
+
+@platform_bp.get('/customers/<int:user_id>')
+@security.admin_required
+def customer_detail(user_id):
+    data=console.ai_customer(user_id)
+    if data is None: abort(404)
+    return render_template('platform_console.html',section='customer-detail',sections=console.SECTIONS,
+                           data=data,query='',product='',status='')
 
 
 @platform_bp.get('/business/<int:bid>')

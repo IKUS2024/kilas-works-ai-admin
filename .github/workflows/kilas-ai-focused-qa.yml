@@ -1,7 +1,7 @@
 name: Kilas AI Focused QA
 on:
   push:
-    branches: [main, 'feature/kilas-ai-quota-work-master-*', 'feature/kilas-ai-natural-*']
+    branches: [main, 'feature/kilas-ai-quota-work-master-*', 'feature/kilas-ai-natural-*', 'feature/kilas-ai-single-plan-*']
     paths:
       - 'client-hub/kilas_ai/**'
       - 'client-hub/migrations/0071_kilas_ai_v1_*.sql'
@@ -49,6 +49,8 @@ jobs:
         run: cd client-hub && python tests/test_kilas_ai_billing.py
       - name: Kilas AI Kuota Kilas fair use and verified top-ups
         run: cd client-hub && python tests/test_kilas_ai_topups.py
+      - name: Single offer, custom capacity and admin console
+        run: cd client-hub && python tests/test_kilas_ai_single_plan_console.py
       - name: Protected Finance and Assist boundaries
         run: cd client-hub && python tests/test_kilas_finance_baseline.py && python tests/test_assist_connections.py
   browser:

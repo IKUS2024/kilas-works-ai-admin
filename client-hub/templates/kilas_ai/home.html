@@ -18,7 +18,7 @@
       {% if threads %}{% for item in threads %}<a href="{{ url_for('kilas_ai.thread_page',thread_id=item.id) }}" class="ai-history-item {{ 'is-current' if selected and item.id == selected.id else '' }}" {% if selected and item.id == selected.id %}aria-current="page"{% endif %}>{{ item.title }}</a>{% endfor %}
       {% else %}<p class="ai-sidebar-empty">Percakapanmu akan tersimpan di sini.</p>{% endif %}
     </nav>
-    <div class="ai-sidebar-bottom"><span class="ai-sidebar-plan">Paket {{ current_plan.title() }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">Paket & penggunaan</a><a href="{{ url_for('products.product_start') }}">Ganti Layanan</a></div>
+    <div class="ai-sidebar-bottom"><span class="ai-sidebar-plan">Kilas AI {{ 'aktif' if current_plan != 'FREE' else '' }}</span><a href="{{ url_for('kilas_ai.usage_page') }}">Langganan & tagihan</a><a href="{{ url_for('products.product_start') }}">Ganti Layanan</a></div>
   </aside>
   <button type="button" class="ai-backdrop" id="ai-backdrop" aria-label="Tutup riwayat"></button>
   <main class="ai-main {{ 'is-empty' if not messages else '' }}">
@@ -47,6 +47,6 @@
       <div class="ai-pending" id="ai-pending" aria-live="polite"></div>
       <div class="ai-composer-actions"><label class="ai-attach" for="ai-files">+ Lampiran</label><input id="ai-files" type="file" multiple accept=".pdf,.docx,.txt,.csv,.jpg,.jpeg,.png,.webp" aria-label="Pilih lampiran"><label class="ai-search-toggle" for="ai-search"><input id="ai-search" type="checkbox" name="search"><span>Search</span></label><button class="ai-send" type="submit" id="ai-send">Kirim</button><button class="ai-stop" type="button" id="ai-stop" hidden>Stop</button></div>
       <p class="ai-inline-hint" id="ai-edit-hint" hidden>Upload gambar terlebih dahulu untuk diedit.</p>
-    </form><p class="ai-powered">Powered by OpenAI · <strong>GPT-6</strong></p><p class="ai-hint">Jawaban AI dapat keliru. Periksa informasi penting.</p></div>
+    </form><p class="ai-hint">Jawaban AI dapat keliru. Periksa informasi penting.</p></div>
   </main>
 </div></body></html>

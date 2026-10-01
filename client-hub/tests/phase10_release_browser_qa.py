@@ -33,7 +33,7 @@ def signup(page, name):
     page.locator('[name=email]').fill('release-' + name + '@example.test')
     page.locator('[name=password]').fill(PASSWORD)
     page.locator('button.auth-submit').click()
-    expect(page.get_by_role('button', name='Pilih Kilas Assist', exact=False)).to_be_visible()
+    expect(page.get_by_role('button', name='Pilih Kilas Assist', exact=False)).to_have_count(0)
     expect(page.get_by_role('button', name='Pilih Kilas Finance', exact=False)).to_be_visible()
     expect(page.get_by_role('button', name='Pilih Keduanya', exact=False)).to_have_count(0)
 
@@ -56,9 +56,10 @@ def main():
         owner = new_page(); data = owner.context.request.get(BASE + '/dev/health').json()
         bid, target, branch = data['source'], data['target'], data['branch']
         # Registration, intent, business creation and minimal profile use real forms.
-        for persona, label in [('ai','Kilas Assist'), ('both','Kilas Assist')]:
+        for persona in ('ai','both'):
             page = new_page(); signup(page, persona)
-            page.get_by_role('button', name='Pilih ' + label, exact=False).click()
+            # Legacy Assist setup remains reachable by direct route, outside normal product navigation.
+            page.goto(BASE + '/products/assist')
             page.get_by_label('Nama bisnis', exact=True).fill('Release ' + persona)
             page.get_by_role('button', name='Buat Bisnis & Setup Kilas Assist', exact=False).click()
             page.locator('[name=category]').fill('Logistics')
@@ -72,6 +73,7 @@ def main():
             assert '/train' in page.url
             page.goto(BASE + '/workspace'); shot(page, persona + '-signup-minimal-setup')
             page.goto(BASE + '/logout'); login(page, 'release-' + persona + '@example.test')
+            page.goto(BASE + '/workspace/ai')
             expect(page.get_by_role('heading', name='Release ' + persona, exact=True)).to_be_visible()
             shot(page, persona + '-login-persistence')
             if persona == 'both':
@@ -80,8 +82,7 @@ def main():
                 expect(page.get_by_role('heading', name='Release both', exact=True)).to_be_visible()
                 page.goto(BASE + '/workspace')
                 expect(page.locator('.finance-app-sidebar')).to_be_visible()
-                page.locator('.product-switcher summary').click()
-                page.get_by_role('navigation',name='Pilih produk').get_by_role('link',name='Kilas Assist',exact=True).click()
+                page.goto(BASE + '/workspace/ai')
                 assert [s.strip() for s in page.locator('.kw-primary a>span:last-child').all_text_contents()] == ['Home','Inbox','Customers','Jobs','More']
                 shot(page, 'both-real-finance-activation')
         finance_only = new_page(); signup(finance_only, 'finance')

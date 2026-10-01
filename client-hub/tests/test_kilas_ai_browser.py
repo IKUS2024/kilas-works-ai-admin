@@ -66,7 +66,7 @@ def main():
                 assert store.list_threads(owner) == []
                 assert page.get_by_role("heading", name="Kilas Works").is_visible()
                 assert page.locator(".ai-shell").get_attribute("data-max-files") == "2"
-                assert page.locator(".ai-sidebar-plan").inner_text() == "Paket Free"
+                assert page.locator(".ai-sidebar-plan").inner_text() == "Kilas AI"
                 if width <= 760:
                     page.get_by_role("button", name="Buka riwayat").click()
                     assert page.locator("#ai-sidebar").is_visible()
@@ -125,25 +125,43 @@ def main():
                 assert page.locator("#ai-composer").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "legacy empty")
                 page.goto(origin + "/kilas-ai/usage", wait_until="networkidle")
-                assert page.get_by_role("heading", name="Paket & penggunaan").is_visible()
-                assert page.get_by_text("2 images").count() == 0
-                assert page.get_by_text("Kuota Kilas Tambahan").count() == 0
+                assert page.get_by_role("heading", name="Langganan").is_visible()
+                assert page.get_by_text("Rp99.000").is_visible()
+                assert page.get_by_text("Paket Free").count() == 0
+                assert page.get_by_text("Penggunaan periode ini").count() == 0
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "plans")
-                page.get_by_role("button", name="Pilih Mini").click()
+                page.get_by_label("Nominal").fill("20000")
+                page.get_by_role("button", name="Tambah kapasitas").click()
                 page.wait_for_url("**/kilas-ai/topups/*")
-                assert page.get_by_role("heading", name="Kuota Kilas Mini").is_visible()
-                assert page.get_by_text("Rp19.000").is_visible()
+                assert page.get_by_role("heading", name="Kapasitas Tambahan").is_visible()
+                assert page.get_by_text("Rp20.000").is_visible()
                 assert page.get_by_label("Bukti transfer (gambar atau PDF, maksimal 5 MB)").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, "topup invoice")
-                page.get_by_role("link", name="Paket & penggunaan").click()
-                assert page.get_by_text("Chat", exact=True).is_visible()
-                page.get_by_role("button", name="Pilih Plus").click()
+                page.get_by_role("link", name="Langganan & tagihan").click()
+                assert page.get_by_role("heading", name="Kilas AI").is_visible()
+                page.get_by_role("button", name="Mulai berlangganan").click()
                 page.wait_for_url("**/kilas-ai/invoices/*")
                 assert page.get_by_text("7610267551").is_visible()
                 overflow = page.evaluate("""() => ({page: document.documentElement.scrollWidth,
                     culprits: [...document.querySelectorAll('body *')].filter(el => el.getBoundingClientRect().right > innerWidth + 1)
                     .slice(0, 8).map(el => [el.tagName, el.className, Math.round(el.getBoundingClientRect().right)])})""")
                 assert overflow["page"] <= width, (width, "invoice", overflow)
+                context.close()
+            admin_id = repo.create_user("kilas-ai-browser-admin@example.test", "hash", role="KILAS_ADMIN")
+            admin_client = app.app.test_client()
+            with admin_client.session_transaction() as session:
+                session.update(user_id=admin_id, role="KILAS_ADMIN", _csrf_token="browser-csrf")
+            admin_cookie = admin_client.get_cookie(app.app.config.get("SESSION_COOKIE_NAME", "session"))
+            for width, height in ((1440, 900), (768, 1024), (390, 844), (320, 700)):
+                context = browser.new_context(viewport={"width": width, "height": height})
+                context.add_cookies([{"name": admin_cookie.key, "value": admin_cookie.value, "url": origin}])
+                page = context.new_page()
+                for section in ("overview", "customers", "kilas-ai", "finance", "payments", "usage-cost", "settings"):
+                    page.goto(origin + "/platform/" + section, wait_until="networkidle")
+                    assert page.get_by_role("heading", name=dict((("kilas-ai", "Kilas AI"), ("finance", "Kilas Finance"), ("usage-cost", "Usage & Cost"))).get(section, section.title()), exact=True).first.is_visible()
+                    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (width, section)
+                page.get_by_role("link", name="Keluar").first.click()
+                page.wait_for_url("**/login*")
                 context.close()
             browser.close()
     finally:

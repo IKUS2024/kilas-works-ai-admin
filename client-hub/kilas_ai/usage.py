@@ -10,7 +10,7 @@ import db
 
 PLANS = {
     "FREE": {"price": 0, "CHAT": 100, "CHAT_DAILY": 10, "WEB_SEARCH": 3, "IMAGES": 2, "PDF": 10},
-    "PLUS": {"price": 69000, "CHAT": 600, "WEB_SEARCH": 15, "IMAGES": 20, "PDF": 75},
+    "PLUS": {"price": 99000, "CHAT": 600, "WEB_SEARCH": 120, "IMAGES": 40, "PDF": 150},
     "PRO": {"price": 149000, "CHAT": 1500, "WEB_SEARCH": 40, "IMAGES": 50, "PDF": 180},
     "MAX": {"price": 299000, "CHAT": 3000, "WEB_SEARCH": 80, "IMAGES": 100, "PDF": 350},
 }
@@ -122,6 +122,8 @@ def _chat_only_sql():
 
 def _limit(plan, mode, operation):
     key = operation if operation in ("CHAT", "WEB_SEARCH", "PDF") else "IMAGES"
+    if key == "CHAT" and mode == "FAST" and plan != "FREE":
+        return 10000  # Hidden, generous ceiling for economical chat; burst/hourly gates still apply.
     if key in ("IMAGES", "PDF"):
         try:
             overrides = json.loads(os.environ.get("KILAS_AI_FAIR_USE_JSON", "{}"))

@@ -160,7 +160,7 @@ class TopupTests(unittest.TestCase):
         db.execute("INSERT INTO kilas_ai_subscriptions(user_id,plan,status,period_start,period_end) VALUES (?,'PLUS','ACTIVE',?,?)",
                    (owner, (now - timedelta(days=1)).isoformat(), (now + timedelta(days=29)).isoformat()))
         db.execute("INSERT INTO kilas_ai_usage(user_id,thread_id,operation_key,operation_type,mode,status,estimated_cost_usd,created_at) "
-                   "VALUES (?,?,?,?,?,'COMPLETE',?,?)", (owner, thread, "cost-prior", "CHAT", "SMART", "1.43", now.isoformat()))
+                   "VALUES (?,?,?,?,?,'COMPLETE',?,?)", (owner, thread, "cost-prior", "CHAT", "SMART", "2.10", now.isoformat()))
         _, fast = usage.reserve(owner, thread, "guard-fast-0123456789", "FAST", "CHAT")
         self.assertEqual(db.query_one("SELECT quota_source FROM kilas_ai_usage WHERE operation_key='guard-fast-0123456789'")["quota_source"], "BASE")
         usage.finish(owner, "guard-fast-0123456789", fast, success=False)

@@ -49,11 +49,11 @@ def home():
 
 @ai_bp.get("/usage")
 def usage_page():
-    from . import automation_store, billing, topups, usage
-    return render_template("kilas_ai/usage.html", state=usage.snapshot(session["user_id"]),
-                           plans=usage.PLANS, invoices=billing.owner_invoices(session["user_id"]),
-                           topup_orders=topups.owner_orders(session["user_id"]), topup_packs=topups.PACKS,
-                           automation=automation_store.usage_summary(session["user_id"]) if automation_enabled() else None)
+    from . import billing, topups, usage
+    return render_template("kilas_ai/usage.html", subscription=usage.effective_plan(session["user_id"]),
+                           capacity=topups.balance(session["user_id"]),
+                           invoices=billing.owner_invoices(session["user_id"]),
+                           topup_orders=topups.owner_orders(session["user_id"]))
 
 
 @ai_bp.post("/threads")
