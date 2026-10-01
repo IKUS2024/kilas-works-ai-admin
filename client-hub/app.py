@@ -351,6 +351,8 @@ def create_app():
                 "healthz",
                 "privacy",
                 "terms",
+                "privacy_policy",
+                "terms_of_service",
             }
         )
         if allowed:
@@ -396,8 +398,16 @@ def create_app():
 
     @app.route("/privacy")
     def privacy_policy():
-        """Public privacy policy used by Kilas Works products and Meta app configuration."""
+        """Public privacy policy used by Kilas Works products and third-party app verification."""
         return render_template("privacy_policy.html"), 200, {
+            "Cache-Control": "public, max-age=300",
+            "X-Robots-Tag": "index, follow",
+        }
+
+    @app.route("/terms")
+    def terms_of_service():
+        """Public terms used by Kilas Works products and OAuth app verification."""
+        return render_template("terms_of_service.html"), 200, {
             "Cache-Control": "public, max-age=300",
             "X-Robots-Tag": "index, follow",
         }
