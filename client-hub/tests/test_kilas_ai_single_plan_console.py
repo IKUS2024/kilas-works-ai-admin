@@ -16,6 +16,7 @@ os.environ.pop("DATABASE_URL", None)
 import app  # noqa: E402
 import db  # noqa: E402
 import repo  # noqa: E402
+import platform_console  # noqa: E402
 from kilas_ai import topups, usage  # noqa: E402
 from werkzeug.datastructures import FileStorage  # noqa: E402
 
@@ -70,6 +71,13 @@ class SinglePlanConsoleTests(unittest.TestCase):
         self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_topup_credits WHERE order_id=?", (order_id,))["n"], 1)
         self.assertGreaterEqual((usage._as_utc(credit["expires_at"]) - usage._now()).days, 364)
         self.assertFalse(topups.balance(self.other)["available"])
+
+    def test_admin_overview_escapes_postgres_percent_wildcard(self):
+        with patch.object(platform_console.db, "query_all", return_value=[]), \
+                patch.object(platform_console, "_number", return_value=0) as number:
+            platform_console.overview()
+        sql_calls = [call.args[0] for call in number.call_args_list]
+        self.assertTrue(any("invoice_number LIKE 'KAI-C-%%'" in sql for sql in sql_calls))
 
     def test_admin_only_directories_and_logout(self):
         owner, admin = self.client_for(self.owner), self.client_for(self.admin, "KILAS_ADMIN")
