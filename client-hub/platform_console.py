@@ -29,7 +29,7 @@ def overview():
         "subscriptions": subscriptions,
         "finance": _number("SELECT COUNT(*) AS n FROM businesses b WHERE EXISTS (SELECT 1 FROM finance_entitlements e WHERE e.business_id=b.id) OR EXISTS (SELECT 1 FROM finance_accounts a WHERE a.business_id=b.id)"),
         "pending": _number("SELECT COUNT(*) AS n FROM kilas_ai_invoices WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE status='UNDER_REVIEW'") + _number("SELECT COUNT(*) AS n FROM finance_subscription_bills WHERE status='REVIEW'"),
-        "capacity_orders": _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE invoice_number LIKE 'KAI-C-%' AND status='VERIFIED'"),
+        "capacity_orders": _number("SELECT COUNT(*) AS n FROM kilas_ai_topup_orders WHERE invoice_number LIKE 'KAI-C-%%' AND status='VERIFIED'"),
         "revenue_idr": sum(int(row["n"]) * usage.PLANS[row["plan"]]["price"] for row in active_plans),
     }
 
