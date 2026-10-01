@@ -59,8 +59,12 @@ def _task_kind_and_condition(text):
             else "REMINDER" if re.search(r"\b(?:ingatkan|ingetin|remind|pengingat)\b", value)
             else "SEARCH" if re.search(r"\b(?:cari|search|berita terbaru|lowongan terbaru|riset)\b", value)
             else "AI_TASK")
+    # A prohibition is not a send request. Keep every positive send forbidden,
+    # including a positive clause following a negative one.
+    checked = re.sub(r"\b(?:never|do not|don't|jangan)\s+(?:auto-?send email|send email|kirim email)\b",
+                     "", text, flags=re.I)
     if any(kind != "REMINDER" or match.group(0).lower() not in ("beli", "purchase")
-           for match in FORBIDDEN.finditer(text)):
+           for match in FORBIDDEN.finditer(checked)):
         raise ScheduleError("Automation belum bisa mengendalikan website atau mengirim pesan. Coba Reminder atau Search.")
     condition = {}
     if kind == "WATCH":
@@ -118,6 +122,10 @@ def parse_structured(instruction, timezone_name, mode, *, date=None, time=None, 
 
 
 def timezone_from_instruction(text, default):
+    # Accept an explicit IANA zone with or without a 'timezone' prefix.
+    match = re.search(r"\b([A-Za-z_]+/[A-Za-z_+-]+(?:/[A-Za-z_+-]+)?)\b", text or "")
+    if match:
+        return validate_timezone(match.group(1))
     value = (text or "").lower()
     for alias, zone in ZONE_SHORT_ALIASES.items():
         if re.search(r"\b" + re.escape(alias) + r"\b", value):
