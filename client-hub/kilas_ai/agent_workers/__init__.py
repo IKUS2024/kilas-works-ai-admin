@@ -1,6 +1,7 @@
 """Explicit V1 capabilities; proposals never grant execution authority."""
 import json
 import os
+import re
 from dataclasses import dataclass, field
 
 
@@ -33,6 +34,10 @@ def sensitive(worker, action):
     return worker == 'EXTERNAL'
 
 
+def market_request(text):
+    return bool(re.search(r'(?i)\b(?:XAUUSD|XAGUSD|BTCUSD|ETHUSD|OHLC|candles?|forex|saham|trading|market signal|sinyal|indikator teknikal|setup valid)\b', text or ''))
+
+
 def validate_step(step):
     fields = FIELDS.get((step.get('worker'), step.get('action')))
     data = step.get('input')
@@ -45,6 +50,8 @@ def validate_step(step):
     if step['worker'] in ('WATCH', 'MARKET'):
         if data['operator'] not in ('lt', 'gt', 'change') or (data['operator'] != 'change' and not isinstance(data['threshold'], (int, float))):
             raise ValueError('invalid_condition')
+        if step['worker'] == 'WATCH' and market_request(str(data['query'])):
+            raise ValueError('market_requires_provider')
     if step['worker'] == 'CODE' and step['action'] == 'inspect':
         if not isinstance(data['paths'], list) or not 1 <= len(data['paths']) <= 8 or any(not isinstance(p, str) for p in data['paths']):
             raise ValueError('invalid_paths')
@@ -62,6 +69,8 @@ def execute(job, step):
     data = json.loads(step['input_json'])
     validate_step({'worker': step['worker'], 'action': step['action'], 'input': data})
     if step['worker'] in ('EXTERNAL', 'UNAVAILABLE'):
+        if step['worker'] == 'UNAVAILABLE' and data['capability'] == 'market_data_provider':
+            return Result('WAITING_CAPABILITY', 'Market data provider is not configured.', {'reason': 'provider_not_configured'})
         return Result('WAITING_CAPABILITY', 'Kemampuan ini belum tersedia. Tidak ada tindakan eksternal dijalankan.', {'reason': 'adapter_not_configured'})
     if step['worker'] == 'CODE':
         from .code_worker import run

@@ -213,6 +213,22 @@ class AutonomousTests(unittest.TestCase):
         self.assertEqual(self.job()['status'], 'WAITING')
         self.assertIn('provider_not_configured', store.steps(self.job_id)[0]['output_json'])
 
+    def test_market_cannot_fall_back_to_model_search_quotes(self):
+        with self.assertRaises(ValueError):
+            planner.validate(proposal('WATCH', 'observe', {'query': 'XAUUSD latest candle', 'operator': 'gt', 'threshold': 3000}), 'ONE_SHOT')
+        raw = proposal('WATCH', 'observe', {'query': 'Latest value', 'operator': 'gt', 'threshold': 3000}, mode='CONDITION_WATCH')
+        with self.assertRaises(ValueError):
+            planner.validate(raw, 'CONDITION_WATCH', 'Pantau XAUUSD sampai setup valid.')
+
+    def test_market_unconfigured_planning_avoids_model_and_waits(self):
+        db.execute("UPDATE kilas_agent_jobs SET mode='CONDITION_WATCH',instruction='Pantau XAUUSD sampai setup valid' WHERE id=?", (self.job_id,))
+        with patch.object(usage, 'reserve') as reserve:
+            self.tick()
+        reserve.assert_not_called()
+        self.tick()
+        self.assertEqual(self.job()['status'], 'WAITING')
+        self.assertEqual(self.job()['last_error'], 'provider_not_configured')
+
     def test_market_provider_verified_signal(self):
         class Fixture:
             def observe(self, symbol, timeframe):

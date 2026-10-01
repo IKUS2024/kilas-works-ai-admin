@@ -17,8 +17,8 @@ SCHEMA = {'type': 'object', 'additionalProperties': False, 'properties': {
     'required': ['objective', 'mode', 'stop_condition', 'next_action', 'steps']}
 
 
-def validate(raw, mode):
-    from .agent_workers import validate_step, sensitive
+def validate(raw, mode, instruction=''):
+    from .agent_workers import validate_step, sensitive, market_request
     if not isinstance(raw, dict) or set(raw) != set(SCHEMA['required']) or raw.get('mode') != mode:
         raise ValueError('invalid_plan')
     if any(not isinstance(raw[key], str) or not 1 <= len(raw[key]) <= 1200 for key in ('objective', 'stop_condition', 'next_action')):
@@ -37,13 +37,21 @@ def validate(raw, mode):
         validate_step(normalized)
         normalized['requires_approval'] = sensitive(normalized['worker'], normalized['action']) or step['requires_approval']
         steps.append(normalized)
-    if mode == 'CONDITION_WATCH' and not any(s['worker'] in ('WATCH', 'MARKET') for s in steps):
+    missing_market = any(s['worker'] == 'UNAVAILABLE' and s['input'].get('capability') == 'market_data_provider' for s in steps)
+    if mode == 'CONDITION_WATCH' and not missing_market and not any(s['worker'] in ('WATCH', 'MARKET') for s in steps):
         raise ValueError('watch_condition_required')
+    if mode == 'CONDITION_WATCH' and market_request(instruction) and not missing_market and not any(s['worker'] == 'MARKET' for s in steps):
+        raise ValueError('market_requires_provider')
     return {**raw, 'steps': steps}
 
 
 def propose(job, completed):
-    from .agent_workers import capabilities
+    from .agent_workers import capabilities, market_request, market_worker
+    if job['mode'] == 'CONDITION_WATCH' and market_request(job['instruction']) and market_worker.provider is None:
+        return validate({'objective': job['instruction'][:90], 'mode': job['mode'],
+            'stop_condition': 'Provider-backed condition or owner stop', 'next_action': 'Wait for real market provider',
+            'steps': [{'worker': 'UNAVAILABLE', 'action': 'request', 'instruction': 'Menunggu market data provider.',
+                       'input_json': '{"capability":"market_data_provider"}', 'completion_criteria': 'Real provider configured', 'requires_approval': False}]}, job['mode'], job['instruction'])
     key = 'autonomous-plan-' + str(job['id']) + '-' + str(job['revision']) + '-' + str(job['replans']) + '-' + str(job['cycle'])
     _, operations = usage.reserve(job['user_id'], None, key, 'SMART', 'CHAT')
     if not operations:
@@ -67,7 +75,7 @@ def propose(job, completed):
         used = data.get('usage') or {}
         if data.get('status') != 'completed':
             raise ValueError('incomplete_plan')
-        plan = validate(json.loads(agent_planner._output_text(data)), job['mode'])
+        plan = validate(json.loads(agent_planner._output_text(data)), job['mode'], job['instruction'])
         success = True
         return plan
     finally:
