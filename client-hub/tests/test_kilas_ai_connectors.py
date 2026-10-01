@@ -29,6 +29,10 @@ class Response:
     def json(self):
         return self._payload
 
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise ValueError("synthetic_request_failed")
+
 
 class ConnectorTests(unittest.TestCase):
     @classmethod
@@ -192,6 +196,26 @@ class ConnectorTests(unittest.TestCase):
         self.assertNotIn('Google Drive</strong>', page.text)
         self.assertNotIn('Google Contacts</strong>', page.text)
         self.assertNotIn('siapkan draf', page.text)
+
+    def test_planner_advertises_only_active_google_send(self):
+        from kilas_ai import connector_planner, usage
+        import json
+        plan = {"tool": "none", "intent": "CLARIFY", "business_id": 0,
+                "arguments_json": "{}", "reply": "Fitur itu belum tersedia."}
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-never-used"}), \
+             patch.object(usage, "reserve", return_value=({}, [("CHAT", 1)])), \
+             patch.object(usage, "finish"), \
+             patch.object(agent_planner, "_output_text", return_value=json.dumps(plan)), \
+             patch.object(connector_planner.requests, "post", return_value=Response(200, {
+                 "status": "completed", "usage": {}})) as request:
+            connector_planner.propose(self.owner, "Baca Gmail", [],
+                ["gmail.send", "gmail.search", "gmail.draft", "calendar.list", "drive.search",
+                 "contacts.search"], [], "Asia/Jakarta")
+        sent = request.call_args.kwargs["json"]
+        self.assertEqual(sent["text"]["format"]["schema"]["properties"]["tool"]["enum"],
+                         ["none", "gmail.send"])
+        self.assertEqual(json.loads(sent["input"][-1]["content"])["available_tools"],
+                         ["gmail.send"])
 
     def test_google_refresh_rotates_encrypted_access_token(self):
         key = Fernet.generate_key().decode()

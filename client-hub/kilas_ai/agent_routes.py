@@ -83,7 +83,7 @@ def agent_home():
         action = None
     google = google_connection.configuration()
     google_row = connectors.google_connection(owner)
-    google_services = {"gmail": "gmail.send" in connectors.available_tools(owner)}
+    google_services = {"gmail": google["ready"] and "gmail.send" in connectors.available_tools(owner)}
     internal_connections = connectors.business_connections(owner)
     approval_rows = [connectors._row(row) for row in db.query_all(
         "SELECT id,tool,target,payload_json,business_id,expires_at FROM kilas_ai_action_approvals "
@@ -91,7 +91,8 @@ def agent_home():
         (owner, connectors.stamp()))]
     approval_rows = [row for row in approval_rows if row["tool"] not in connectors.TOOLS or
                      connectors.TOOLS[row["tool"]][0] != "GOOGLE" or
-                     (row["tool"] == "gmail.send" and '"draft_id"' not in row["payload_json"])]
+                     (row["tool"] == "gmail.send" and '"draft_id"' not in row["payload_json"] and
+                      '"thread_id"' not in row["payload_json"])]
     for approval_row in approval_rows:
         approval_row["payload"] = json.loads(approval_row["payload_json"])
     return render_template("kilas_ai/agent.html", view=view, messages=agent_store.messages(owner),
