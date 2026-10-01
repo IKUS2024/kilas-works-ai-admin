@@ -231,6 +231,25 @@ class ConnectorTests(unittest.TestCase):
                     "to": "", "contact_query": "Wilson", "subject": "Jadwal",
                     "body": "Besok jam 2 bisa."}, None, "Email Wilson bilang besok jam 2 bisa")
 
+    def test_draft_only_saves_gmail_draft_without_send_approval(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.compose"]', stamp, stamp))
+        plans = {"tool": "gmail.draft", "intent": "PREPARE", "business_id": 0,
+                 "arguments": {"to": "owner@example.test", "subject": "Safe draft", "body": "Test only."}}
+        with patch.object(connector_flow.connector_planner, "propose", return_value=plans), \
+             patch.object(connector_flow.google_tools, "gmail_create_draft",
+                          return_value={"draft_id": "draft-only-1"}) as create:
+            result = connector_flow.handle(self.owner,
+                "Save a draft to owner@example.test. Do not send.", [], "Asia/Jakarta")
+        self.assertEqual(result, {"message": "Draf berhasil disimpan di Gmail. Email belum dikirim."})
+        create.assert_called_once_with(self.owner, "owner@example.test", "Safe draft", "Test only.",
+                                       None, None, None)
+        self.assertEqual(db.query_one("SELECT COUNT(*) AS n FROM kilas_ai_action_approvals "
+                        "WHERE user_id=?", (self.owner,))["n"], 0)
+
     def test_edit_cancels_old_approval_and_preserves_target_context(self):
         stamp = connectors.stamp()
         db.execute("INSERT INTO kilas_ai_connections "

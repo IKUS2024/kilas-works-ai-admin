@@ -32,7 +32,7 @@ class UsageLimit(ValueError):
 # Owner-authorized production QA window. This does not grant a paid plan,
 # erase usage, or bypass burst limits, connector authorization or approvals.
 QA_QUOTA_EXEMPTIONS = {
-    9: ("irvankarnavi@gmail.com", datetime(2026, 10, 8, 8, 30, tzinfo=timezone.utc)),
+    9: ("irvankarnavi@gmail.com", datetime(2026, 11, 1, 0, 0, tzinfo=timezone.utc)),
 }
 
 
