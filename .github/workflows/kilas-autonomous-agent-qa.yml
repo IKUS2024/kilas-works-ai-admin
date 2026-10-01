@@ -1,0 +1,85 @@
+name: Kilas Autonomous Agent QA
+on:
+  push:
+    branches: [feature/kilas-autonomous-agent-v1-20261002]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'client-hub/kilas_ai/**'
+      - 'client-hub/migrations/0078_*'
+      - 'client-hub/tests/test_kilas_autonomous*'
+      - 'client-hub/templates/kilas_ai/**'
+      - 'client-hub/static/kilas_ai_agent.css'
+      - '.github/workflows/kilas-autonomous-agent-qa.yml'
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_autonomous_agent.py
+      - run: python client-hub/tests/test_kilas_ai_agent.py
+      - run: python client-hub/tests/test_kilas_ai_automation.py
+      - run: python client-hub/tests/test_kilas_ai_connectors.py
+      - run: python client-hub/tests/test_kilas_ai_tools.py
+      - run: python client-hub/tests/test_kilas_ai_chat.py
+      - run: python client-hub/tests/test_kilas_finance_baseline.py
+      - run: python client-hub/tests/test_assist_connections.py
+  code-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - name: Allow namespaces only on disposable CI host
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: python client-hub/tests/test_kilas_autonomous_code_sandbox.py
+        env:
+          REQUIRE_SANDBOX_QA: '1'
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python client-hub/tests/test_kilas_autonomous_browser.py
+      - run: python client-hub/tests/test_kilas_ai_agent_browser.py
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autonomous_qa
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d autonomous_qa"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r client-hub/requirements.txt
+      - run: python client-hub/tests/test_kilas_autonomous_postgres.py
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/autonomous_qa
+          KILAS_AI_POSTGRES_QA: '1'
+          SECRET_KEY: synthetic-autonomous-pg-qa

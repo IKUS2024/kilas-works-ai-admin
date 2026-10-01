@@ -1,4 +1,18 @@
 .agent-body{overflow-x:hidden}
+.autonomous-detail{max-width:960px;margin:auto;min-height:calc(100dvh - 67px)}
+.autonomous-detail h1{font-size:clamp(24px,3vw,32px);line-height:1.25;overflow-wrap:anywhere;margin:0 0 12px}
+.autonomous-section{padding:24px 0;border-bottom:1px solid #383b41}
+.autonomous-section>h2,.autonomous-section>h3{margin:0 0 12px;font-size:20px}
+.autonomous-section p{line-height:1.6;overflow-wrap:anywhere}
+.autonomous-back{display:inline-flex;align-items:center;min-height:44px;color:#ffbd88}
+.autonomous-steps{padding-left:24px}.autonomous-steps li{padding:12px 0;overflow-wrap:anywhere}
+.autonomous-steps li>span{display:block;color:#bfc4cc;margin-top:6px}
+.autonomous-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.6;max-width:100%}
+.autonomous-detail summary{cursor:pointer;min-height:44px;padding:10px 0}
+.autonomous-detail button{min-height:44px;padding:9px 14px;border:1px solid #666a72;border-radius:9px;background:#292c31;color:#fff;cursor:pointer}
+.autonomous-detail a:focus-visible,.autonomous-detail button:focus-visible,.autonomous-detail summary:focus-visible{outline:2px solid #ffad6b;outline-offset:3px}
+.autonomous-options{margin-bottom:14px}.autonomous-options summary{min-height:44px;padding:10px 0;cursor:pointer}
+.autonomous-options select,.autonomous-options input{width:100%;min-width:0;min-height:44px;margin-bottom:12px;padding:9px;background:#24262b;border:1px solid #5a5d64;border-radius:9px;color:#fff}
 .agent-shell{display:grid;grid-template-columns:minmax(210px,250px) minmax(0,1fr) minmax(210px,270px);min-height:calc(100dvh - 67px);max-width:1600px;margin:auto}
 .agent-shell>*{min-width:0}
 .agent-rail{display:flex;flex-direction:column;border-right:1px solid #33363b;padding:28px 16px;background:#1c1e22}
