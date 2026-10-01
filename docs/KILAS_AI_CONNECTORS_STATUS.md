@@ -4,8 +4,9 @@ Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) 
 
 ## Implemented in the branch
 
-- Account-owned Google OAuth with hashed, single-use state, encrypted refresh credentials, scope checks, reconnect and local disconnect/revoke.
+- Account-owned Google OAuth with hashed, single-use state, encrypted refresh credentials, scope checks, reconnect and local disconnect/revoke. Gmail requests read-only plus compose scopes; the compose scope covers Gmail draft creation and sending, while the separate server approval still gates sends.
 - Gmail read/search/thread, a real Gmail draft, and a separately owner-approved send of that exact draft; Calendar read/free-busy/create/update/delete; Drive and Contacts read-only tools. A changed Gmail draft cannot be sent under the old approval. Google API calls use fixed hosts and bounded responses.
+- A new email needs an address explicitly supplied by the owner or one unique matching Google Contact. A thread reply must match the thread's real sender and reply header. Ambiguous names cannot become guessed recipients.
 - Existing business-scoped WhatsApp adapter and existing Finance service adapter. Neither modifies the underlying Assist routing or Finance ledger logic.
 - Server-side connector authorization and exact-payload, expiring, single-use approvals with an audit trail. Unknown remote outcomes are terminal rather than automatically retried.
 - Agent Connections and approval UI, incremental schedule parsing, and explicit marker for scheduled connector reads/one Gmail draft proposal per run so older Automation tasks retain their prior path. Cron never sends.
@@ -13,9 +14,9 @@ Last checked: 2026-10-01. PR #94 (`feature/kilas-ai-connectors-agent-20261001`) 
 
 ## Release gates
 
-- Focused connector, existing Agent, existing Automation, PostgreSQL migration and 1440/820/390/320px browser checks: branch runs through `b65efa2` passed. The next run at `254bd2b` exposed a scheduled-draft test assertion about retry wording; the assertion has been corrected and the new provider-draft flow is pending rerun.
+- Focused connector, existing Agent, existing Automation, PostgreSQL migration and 1440/820/390/320px browser checks passed on branch run `336df81` (connector QA run 36809070025). The scheduled-draft retry assertion was corrected and the provider-draft flow passed.
 - Scoped Impeccable detector ran on the Agent template and CSS. It reported a flat-type warning only because it cannot resolve the Jinja stylesheet URL; the linked stylesheet defines explicit heading sizes. No whole-repository design fix was run.
-- PR broad suites: Kilas AI Automation passed. Phase 10 and Master Completion reported failures in previously existing Assist/product-entry paths. The connector workflow reproduced the same failing checks against untouched `main`; these are confirmed baseline failures, not connector regressions. Phase 9 reported a Finance entry heading mismatch and is being compared against untouched `main` as well. No legacy tests have been edited.
+- PR broad suites: Kilas AI Automation, Phase 6, Phase 8 and Client Session Timeout passed. Phase 10, Master Completion and Phase 9 reported failures in previously existing Assist/product-entry/Finance-entry paths. Connector QA run 36809070025 reproduced all three failure families against untouched `main`; these are confirmed baseline failures, not connector regressions. Phase 7 is still running. No legacy tests have been edited.
 - No production database migration, deploy or provider authorization has occurred. Never describe an unconfigured Google connection as usable.
 
 ## Production setup required for Google

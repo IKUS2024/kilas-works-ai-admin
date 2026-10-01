@@ -173,6 +173,8 @@ def agent_chat():
                     "rate_limited": "Layanan sedang membatasi permintaan. Coba lagi nanti.",
                     "invalid_target": "Tujuan itu tidak ditemukan pada koneksi ini. Periksa nama atau ID-nya.",
                     "recipient_not_in_thread": "Penerima tidak cocok dengan thread email yang dipilih. Periksa percakapannya dulu.",
+                    "recipient_unverified": "Alamat email penerima belum terverifikasi. Sebutkan alamatnya atau hubungkan Google Contacts.",
+                    "ambiguous_contact": "Ada beberapa kontak yang cocok. Sebutkan alamat email penerima yang tepat.",
                     "business_not_connected": "Bisnis itu tidak terhubung pada akun ini."}.get(code,
                     "Permintaan belum bisa diproses dengan aman. Periksa tujuan dan izin lalu coba lagi."))
         return redirect(url_for("kilas_ai.agent_home", view="chat"), code=303)

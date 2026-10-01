@@ -53,7 +53,9 @@ def propose(user_id, text, history, available, businesses, timezone_name, *, sch
          "For this already-confirmed scheduled run, choose only a READ tool; no external action or draft creation. "
          if scheduled else "For schedule requests choose NONE: the existing task planner owns canonical schedules. ") +
         "arguments_json must be a JSON object with only the fields the selected tool needs. "
-        "For email: query, to, subject, body, thread_id, reply_to. For Calendar: start/end ISO "
+        "For email: query, to, subject, body, thread_id, reply_to. If the user names a new "
+        "recipient without an address, set contact_query to the exact name in the user message "
+        "and leave to empty; the server resolves only one real Google Contact. For Calendar: start/end ISO "
         "timestamps with timezone and summary. For WhatsApp: query, conversation_id, text. "
         "For Finance reads: branch_id, query, start_date, end_date, as_of, limit; for writes: "
         "branch_id, direction, amount_minor, account_id, category_id, occurred_on. "

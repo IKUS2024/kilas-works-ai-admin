@@ -72,6 +72,8 @@ class ConnectorTests(unittest.TestCase):
             state = {}
             url = google_connection.begin(self.owner, "gmail", state)
             raw = parse_qs(urlparse(url).query)["state"][0]
+            self.assertNotIn("https://www.googleapis.com/auth/gmail.send",
+                             parse_qs(urlparse(url).query)["scope"][0])
             self.assertNotIn(raw, str(db.query_all("SELECT * FROM kilas_ai_oauth_states")))
             with self.assertRaisesRegex(connectors.ConnectorError, "invalid_oauth_state"):
                 google_connection.complete(self.other, state, raw, "code")
@@ -119,7 +121,7 @@ class ConnectorTests(unittest.TestCase):
         db.execute("INSERT INTO kilas_ai_connections "
             "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
             "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
-            (self.owner, '["https://www.googleapis.com/auth/gmail.send"]', t, t))
+            (self.owner, '["https://www.googleapis.com/auth/gmail.compose"]', t, t))
         approval_id = connectors.propose_action(self.owner, "gmail.send", "wilson@example.test",
             {"to": "wilson@example.test", "subject": "Jadwal", "body": "Besok jam 2 bisa."})
         with patch.object(connector_actions.google_tools, "gmail_send", return_value={"id": "provider-message-1"}) as send:
@@ -176,12 +178,45 @@ class ConnectorTests(unittest.TestCase):
         self.assertEqual(payload["reply_to"], "<verified@example.test>")
         self.assertEqual(payload["draft_id"], "synthetic-draft")
 
+    def test_new_email_recipient_is_explicit_or_uniquely_resolved_from_contacts(self):
+        stamp = connectors.stamp()
+        db.execute("INSERT INTO kilas_ai_connections "
+            "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
+            "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
+            (self.owner, '["https://www.googleapis.com/auth/gmail.compose",'
+             '"https://www.googleapis.com/auth/contacts.readonly"]', stamp, stamp))
+        draft = {"draft_id": "synthetic-draft"}
+        with patch.object(connector_flow.google_tools, "gmail_create_draft", return_value=draft), \
+             patch.object(connector_flow.google_tools, "contacts_search", return_value=[
+                 {"name": "Wilson", "emails": ["wilson@example.test"]}]) as search:
+            approval_id = connector_flow._proposal(self.owner, "gmail.send", {
+                "to": "", "contact_query": "Wilson", "subject": "Jadwal",
+                "body": "Besok jam 2 bisa."}, None, "Email Wilson bilang besok jam 2 bisa")
+            self.assertEqual(search.call_count, 1)
+            payload = __import__("json").loads(connectors.approval(self.owner, approval_id)["payload_json"])
+            self.assertEqual(payload["to"], "wilson@example.test")
+            with self.assertRaisesRegex(connectors.ConnectorError, "recipient_unverified"):
+                connector_flow._proposal(self.owner, "gmail.send", {
+                    "to": "stranger@example.test", "contact_query": "Wilson",
+                    "subject": "Jadwal", "body": "Besok jam 2 bisa."}, None,
+                    "Email Wilson bilang besok jam 2 bisa")
+            explicit = connector_flow._proposal(self.owner, "gmail.send", {
+                "to": "wilson@example.test", "subject": "Jadwal", "body": "Besok jam 2 bisa."},
+                None, "Email wilson@example.test bilang besok jam 2 bisa")
+            self.assertEqual(connectors.approval(self.owner, explicit)["target"], "wilson@example.test")
+        with patch.object(connector_flow.google_tools, "contacts_search", return_value=[
+                {"emails": ["wilson@example.test", "other@example.test"]}]):
+            with self.assertRaisesRegex(connectors.ConnectorError, "ambiguous_contact"):
+                connector_flow._proposal(self.owner, "gmail.send", {
+                    "to": "", "contact_query": "Wilson", "subject": "Jadwal",
+                    "body": "Besok jam 2 bisa."}, None, "Email Wilson bilang besok jam 2 bisa")
+
     def test_edit_cancels_old_approval_and_preserves_target_context(self):
         stamp = connectors.stamp()
         db.execute("INSERT INTO kilas_ai_connections "
             "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
             "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
-            (self.owner, '["https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+            (self.owner, '["https://www.googleapis.com/auth/gmail.compose"]', stamp, stamp))
         approval_id = connectors.propose_action(self.owner, "gmail.send", "wilson@example.test",
             {"to": "wilson@example.test", "subject": "Jadwal", "body": "Besok jam 2 bisa."})
         client = self.client_for(self.owner)

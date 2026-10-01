@@ -66,6 +66,8 @@ def _scheduled_gmail_draft(user_id, instruction, args, timezone_name, run_id):
     if not external:
         return "Email ditemukan, tetapi penerima balasan belum jelas. Tidak ada draf dibuat."
     source = external[-1]
+    if not source.get("message_id"):
+        return "Email ditemukan, tetapi header balasannya tidak tersedia. Tidak ada draf dibuat."
     recipient = parseaddr(source["from"])[1]
     context = [{"role": "assistant", "content": json.dumps({
         "verified_recipient": recipient, "subject": latest.get("subject"), "thread_id": thread_id,
@@ -158,11 +160,24 @@ def _read(user_id, tool, args, business_id):
     raise connectors.ConnectorError("unknown_tool")
 
 
-def _proposal(user_id, tool, args, business_id):
+def _proposal(user_id, tool, args, business_id, user_text=""):
     if tool == "gmail.send":
         to = str(args.get("to") or "").strip()
         subject = str(args.get("subject") or "").strip()
         body = str(args.get("body") or "").strip()
+        if not args.get("thread_id") and not (to and to.casefold() in user_text.casefold()):
+            query = str(args.get("contact_query") or "").strip()
+            if not 2 <= len(query) <= 100 or query.casefold() not in user_text.casefold():
+                raise connectors.ConnectorError("recipient_unverified")
+            connectors.authorize(user_id, "contacts.search")
+            matches = {email.casefold(): email for row in google_tools.contacts_search(user_id, query)
+                       for email in row.get("emails", []) if email}
+            if len(matches) != 1:
+                raise connectors.ConnectorError("ambiguous_contact" if matches else "recipient_unverified")
+            verified = next(iter(matches.values()))
+            if to and to.casefold() != verified.casefold():
+                raise connectors.ConnectorError("recipient_unverified")
+            to = verified
         google_tools._raw_email(to, subject, body)
         payload = {"to": to, "subject": subject, "body": body}
         if args.get("thread_id"):
@@ -171,6 +186,8 @@ def _proposal(user_id, tool, args, business_id):
             matches = [row for row in thread if parseaddr(row.get("from") or "")[1].casefold() == to.casefold()]
             if not matches:
                 raise connectors.ConnectorError("recipient_not_in_thread")
+            if not matches[-1].get("message_id"):
+                raise connectors.ConnectorError("reply_header_missing")
             original_subject = str(matches[-1].get("subject") or "").strip()
             if original_subject and re.sub(r"(?i)^(?:re:\s*)+", "", subject).casefold() != re.sub(
                     r"(?i)^(?:re:\s*)+", "", original_subject).casefold():
@@ -230,11 +247,11 @@ def handle(user_id, text, history, timezone_name):
     if permission == "READ" and intent == "READ":
         return {"message": _read(user_id, tool, args, bid)[:1900]}
     if permission == "ACTION" and intent in ("PREPARE", "ACTION"):
-        approval_id = _proposal(user_id, tool, args, bid)
+        approval_id = _proposal(user_id, tool, args, bid, text)
         return {"message": "Aku siapkan tindakan ini. Periksa tujuan dan isinya sebelum menekan Konfirmasi.",
                 "approval_id": approval_id}
     if tool == "gmail.draft" and intent in ("PREPARE", "ACTION"):
-        # A requested draft remains a local proposal until the owner explicitly sends it.
-        approval_id = _proposal(user_id, "gmail.send", args, None)
+        # The Gmail draft is prepared now; a separate exact-payload approval sends it later.
+        approval_id = _proposal(user_id, "gmail.send", args, None, text)
         return {"message": "Draf siap ditinjau. Email belum dikirim.", "approval_id": approval_id}
     return {"message": "Aku belum bisa menjalankan permintaan itu dengan izin yang tersedia."}

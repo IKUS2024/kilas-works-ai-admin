@@ -24,7 +24,7 @@ TOOLS = {
     "gmail.search": ("GOOGLE", "READ", "https://www.googleapis.com/auth/gmail.readonly"),
     "gmail.thread": ("GOOGLE", "READ", "https://www.googleapis.com/auth/gmail.readonly"),
     "gmail.draft": ("GOOGLE", "PREPARE", "https://www.googleapis.com/auth/gmail.compose"),
-    "gmail.send": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/gmail.send"),
+    "gmail.send": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/gmail.compose"),
     "calendar.list": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.events.readonly"),
     "calendar.get": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.events.readonly"),
     "calendar.freebusy": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.freebusy"),
@@ -50,8 +50,7 @@ TOOLS = {
 }
 GOOGLE_SCOPES = {
     "gmail": ("https://www.googleapis.com/auth/gmail.readonly",
-              "https://www.googleapis.com/auth/gmail.compose",
-              "https://www.googleapis.com/auth/gmail.send"),
+              "https://www.googleapis.com/auth/gmail.compose"),
     "calendar": ("https://www.googleapis.com/auth/calendar.events.readonly",
                  "https://www.googleapis.com/auth/calendar.freebusy",
                  "https://www.googleapis.com/auth/calendar.events"),
