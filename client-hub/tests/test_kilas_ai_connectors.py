@@ -162,7 +162,7 @@ class ConnectorTests(unittest.TestCase):
             "(user_id,provider,status,scopes_json,permission_json,credential_enc,created_at,updated_at) "
             "VALUES (?,'GOOGLE','CONNECTED',?,'{}','encrypted-fixture',?,?)",
             (self.owner, '["https://www.googleapis.com/auth/gmail.readonly",'
-             '"https://www.googleapis.com/auth/gmail.send"]', stamp, stamp))
+             '"https://www.googleapis.com/auth/gmail.compose"]', stamp, stamp))
         thread = [{"from": "Wilson <wilson@example.test>", "message_id": "<verified@example.test>"}]
         with patch.object(connector_flow.google_tools, "gmail_thread", return_value=thread), \
              patch.object(connector_flow.google_tools, "gmail_create_draft", return_value={
