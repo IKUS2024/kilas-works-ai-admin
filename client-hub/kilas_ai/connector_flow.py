@@ -45,6 +45,10 @@ def _read(user_id, tool, args, business_id):
     if tool == "calendar.list":
         rows = google_tools.calendar_events(user_id, args.get("start"), args.get("end"))
         return "\n".join(f"• {row.get('summary','(tanpa judul)')} — {(row.get('start') or {}).get('dateTime') or (row.get('start') or {}).get('date')}" for row in rows) or "Tidak ada acara pada rentang itu."
+    if tool == "calendar.get":
+        row = google_tools.calendar_get(user_id, args.get("event_id"))
+        return (f"{row.get('summary') or '(tanpa judul)'} — mulai: {row.get('start')}, "
+                f"selesai: {row.get('end')}, ID: {row.get('id')}")
     if tool == "calendar.freebusy":
         rows = google_tools.calendar_freebusy(user_id, args.get("start"), args.get("end"))
         return "Waktu sibuk:\n" + "\n".join(f"• {row.get('start')}–{row.get('end')}" for row in rows) if rows else "Tidak ada waktu sibuk pada rentang itu."
@@ -71,6 +75,9 @@ def _read(user_id, tool, args, business_id):
                     branch_id=args.get("branch_id"), limit=args.get("limit", 20),
                     start_date=args.get("start_date"), end_date=args.get("end_date"),
                     as_of=args.get("as_of"))
+        query = str(args.get("query") or "").strip().casefold()
+        if query and tool in ("finance.accounts", "finance.customers", "finance.receivables"):
+            rows = [row for row in rows if query in " ".join(str(value) for value in row.values()).casefold()]
         return "\n".join("• " + ", ".join(f"{k}: {v}" for k, v in row.items() if v is not None)
                          for row in rows[:20]) or "Tidak ada data pada lingkup itu."
     raise connectors.ConnectorError("unknown_tool")
@@ -92,6 +99,10 @@ def _proposal(user_id, tool, args, business_id):
         payload = google_tools._event_payload(args) if tool != "calendar.delete" else {}
         if tool != "calendar.create":
             google_tools._id(target)
+            event = google_tools.calendar_get(user_id, target)
+            if not event.get("id"):
+                raise connectors.ConnectorError("invalid_target")
+            payload["current_summary"] = str(event.get("summary") or "(tanpa judul)")[:200]
         return connectors.propose_action(user_id, tool, target, payload)
     if tool == "whatsapp.send":
         cid = str(args.get("conversation_id") or "")

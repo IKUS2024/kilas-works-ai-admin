@@ -25,6 +25,7 @@ TOOLS = {
     "gmail.draft": ("GOOGLE", "PREPARE", "https://www.googleapis.com/auth/gmail.compose"),
     "gmail.send": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/gmail.send"),
     "calendar.list": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.events.readonly"),
+    "calendar.get": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.events.readonly"),
     "calendar.freebusy": ("GOOGLE", "READ", "https://www.googleapis.com/auth/calendar.freebusy"),
     "calendar.create": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/calendar.events"),
     "calendar.update": ("GOOGLE", "ACTION", "https://www.googleapis.com/auth/calendar.events"),

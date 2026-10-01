@@ -140,6 +140,11 @@ def calendar_events(user_id, start, end):
                     "maxResults": 30}).get("items") or [])[:30]
 
 
+def calendar_get(user_id, event_id):
+    return _request(user_id, "calendar.get", "calendar", "GET",
+                    "/calendars/primary/events/" + _id(event_id))
+
+
 def calendar_freebusy(user_id, start, end):
     result = _request(user_id, "calendar.freebusy", "calendar", "POST", "/freeBusy",
                       body={"timeMin": start, "timeMax": end, "items": [{"id": "primary"}]})
